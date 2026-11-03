@@ -14,7 +14,9 @@
    BOTH LIFECYCLE REQUESTS rename this whole generation at the next boot, and on Windows a directory with an open handle does
    not rename. The station browser's durable profile lives inside the generation, so before a request is taken the browser is
    closed and any orphan on its profile is ended, and the sidecar then leaves through the graceful path, which reaps its
-   children and exits 75, the guardian's restart code. A bare process.exit skipped all of that. */
+   children and exits 75, the guardian's restart code. A bare process.exit skipped all of that. Chromium can still start a
+   process as its browser closes that outlives it holding no lock file; the next boot ends whatever is left on the profile
+   before it tries the rename again (workspace-recovery.js moveAside). */
 'use strict';
 const { note: failNote } = require('./failopen.js');
 

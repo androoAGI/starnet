@@ -664,7 +664,10 @@ const startupWorkspaceRecovery = workspaceRecovery.applyPendingRecovery({
   fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
   candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, auto: !DEV_MODE, now: Date.now, buildVersion: BUILD_VERSION,
   lockBootedAt: makeBootedAt(() => Date.now()),   // a recovery lock left by a pre-reboot crash must not brick every boot (exit 73)
-  lockProcessIdentity: processIdentity            // ...nor one whose holder PID was recycled within this boot
+  lockProcessIdentity: processIdentity,           // ...nor one whose holder PID was recycled within this boot
+  // a station browser process left on the generation's profile (one can outlive the sidecar that closed it, and a crash leaves
+  // the whole browser) refuses that generation's move aside on Windows: it is ended, by its own pid, and the move tried again
+  sweepProfile: dir => require('./tools/builtin/browser-orphans.js').sweepSync({ profileDir: dir })
 });
 if (startupWorkspaceRecovery && startupWorkspaceRecovery.lockUnavailable) {
   // A LIVE concurrent process holds the parent-level recovery lock — it may be renaming this very
@@ -802,7 +805,8 @@ const lineageRoutes = makeLineageRoutes({
   recovery: workspaceRecovery, stationView: () => stationLife.publicView(), requestFresh, buildVersion: BUILD_VERSION,
   desktopShell: DESKTOP_SHELL, readBody, now: Date.now, log: line => console.log(line),
   // both lifecycle requests rename this generation at the next boot: the station browser goes first, orphan and all (the
-  // sweep lists every process, so it runs only when the profile's lock says something holds it)
+  // sweep lists every process, so it runs only when the profile's lock says something holds it). A process that outlives
+  // the browser holding no lock is ended by that boot, before the rename is tried again (sweepProfile, above)
   quiesce: async () => {
     await browserViews.closeAll();
     return require('./tools/builtin/browser-orphans.js').profileHeld(BROWSER_PROFILE_DIR).held ? browserViews.reset() : { ok: true };

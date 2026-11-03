@@ -9,11 +9,17 @@
 
    Boots the REAL sidecar with a REAL headless Chrome on the real profile path, for each route: opens the station browser, makes
    the request, proves that nothing holds the profile the moment the sidecar is gone, and restarts at once, as the desktop
-   guardian does, so the next boot's rename runs when an orphan would still be alive. Skipped where this machine has no Chrome. */
+   guardian does, so the next boot's rename runs when an orphan would still be alive. Skipped where this machine has no Chrome.
+
+   Chromium can still leave one: a utility process it starts as the browser closes, which outlives it holding no lock file, so
+   that check passes and the rename was refused (EPERM, 2 of 12 runs on a loaded box). The next boot now ends a process left on
+   the generation's own profile, by its own pid, and tries the rename again. On Windows each row plants such a process (its cwd
+   in the profile, the profile on its command line), so that path runs every time, not only when Chromium leaves one. */
 'use strict';
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const A = require('./_assert.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { _internals: Browser } = require('../sidecar/tools/builtin/browser.js');
@@ -49,26 +55,46 @@ async function row(what, build, request, proveApplied) {
   fixture.workspace = path.join(root, 'workspaces');
   const ws = fixture.workspace, profile = path.join(ws, '.browser-profile');
   fs.mkdirSync(ws);
+  let leftover = null;
   try {
     build({ fixture, ws });
     await fixture.start();
     const opened = await fixture.json('POST', '/api/browser/view/open', { url: fixture.baseUrl + '/api/health' });
-    if (opened.status !== 200 || !(await onProfile(profile))) { console.log('  (' + what + ': the station browser did not open here: ' + opened.text + ')'); return; }
+    if (opened.status !== 200 || !(await onProfile(profile))) throw new Error(what + ': the station browser did not open here: ' + opened.text);
     const child = fixture.child;
     const asked = await request({ fixture });
     A.eq(asked.status, 202, what + ': the request is taken with the browser open (' + asked.text + ')');
     A.eq(await exited(child, 30000), 75, what + ': the sidecar exits with the guardian restart code');
     // a file check, no process listing: an orphaned Chromium dies on its own a few seconds later, and the guardian does not wait
     A.eq(Orphans.profileHeld(profile).held, false, what + ': the moment the sidecar is gone, nothing holds the station profile');
+    // the leftover a closing Chromium can start, made certain: no lock file, and on Windows it holds the generation (its cwd)
+    if (process.platform === 'win32') {
+      leftover = spawn(process.execPath, ['-e', 'process.send("ready", () => process.disconnect()); setTimeout(() => {}, 120000)', '--', '--type=utility', '--user-data-dir=' + profile], { cwd: profile, stdio: ['ignore', 'ignore', 'ignore', 'ipc'], windowsHide: true });
+      await new Promise((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('the profile holder did not start')), 30000);
+        leftover.once('error', e => { clearTimeout(timer); reject(e); });
+        leftover.once('exit', () => { clearTimeout(timer); reject(new Error('the profile holder exited before restart')); });
+        leftover.once('message', message => { if (message === 'ready') { clearTimeout(timer); resolve(); } });
+      });
+    }
     await fixture.restart();   // at once, as the desktop guardian does
     await proveApplied({ fixture, ws, root });
+    if (leftover) A.ok(await exited(leftover, 15000).then(() => true, () => false), what + ': the next boot ended the process left on the profile');
     A.eq(await onProfile(profile), 0, what + ': and no process is left on it');
   } finally {
     // nothing of ours may outlive a failed row; only a process on this scratch profile can match
-    try { await Orphans.sweep({ profileDir: profile }); } catch (_) {}
-    await fixture.dispose();
-    if (path.dirname(root) !== path.resolve(os.tmpdir()) || !path.basename(root).startsWith('starnet-fresh-browser-')) throw new Error('unsafe fixture root cleanup');
-    fs.rmSync(root, { recursive: true, force: true });
+    try {
+      if (leftover && leftover.exitCode === null && leftover.signalCode === null) {
+        const rows = await Orphans.makeProcessLister({})();
+        if (Orphans.profileProcesses(rows, profile).some(p => p.pid === leftover.pid)) leftover.kill();
+      }
+    } finally {
+      // A failed identity query cannot skip disposal of the sidecar we started.
+      try { await Orphans.sweep({ profileDir: profile }); } catch (_) {}
+      await fixture.dispose();
+      if (path.dirname(root) !== path.resolve(os.tmpdir()) || !path.basename(root).startsWith('starnet-fresh-browser-')) throw new Error('unsafe fixture root cleanup');
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   }
 }
 

@@ -14,6 +14,8 @@
      ERASE    a START FRESH never weakens a prior ERASE, and acknowledged roots are unioned;
      STALE    a request is refused, kept as .failed-<stamp>, and lastFresh says why, when the workspace moved on;
      ROLLBACK a failed rename changes nothing, names the error and the holder when known, and the button's next press works;
+              a station browser process left on the profile with no lock file is ended by its own pid and the move goes
+              through, for both doors; one that will not end still fails closed, and a live owner's is never touched;
      CARRY    every fixture row, the rule both doors share (station_contract.rs is the native half);
      ONE AT A TIME  a pending recovery wins, and a live owner's generation is never renamed;
      REDACTED the last result reaches a reader with no absolute local path;
@@ -28,6 +30,7 @@ const path = require('node:path');
 const Lineage = require('../sidecar/workspace-lineage.js');
 const Recovery = require('../sidecar/workspace-recovery.js');
 const SR = require('../sidecar/station-record.js');
+const Orphans = require('../sidecar/tools/builtin/browser-orphans.js');
 const { makeLineageRoutes } = require('../sidecar/lineage-routes.js');
 const fixture = require('./fixtures/station-record-cases.json');
 
@@ -262,6 +265,92 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   r = boot(t.ws, { platform: 'win32', fs: failing((a, b) => a === t.ws ? err('EBUSY', 'resource busy or locked, rename') : null) });
   A.eq(r.holder, undefined, 'a holder nothing can name is not guessed at');
 
+  // a station browser process left on the generation's profile, holding no lock file: one Chromium started as the last sidecar
+  // closed its browser (start-fresh-browser.e2e.test.js caught it), or a crash's whole browser. The boot ends it by its own pid
+  // (browser-orphans.js sweepSync, which index.js passes as sweepProfile) and tries the move again; nothing else is ended
+  const leftover = (box, extra) => {
+    const profile = path.join(box.ws, '.browser-profile'), chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    const s = { profile, swept: [], ended: [], moves: 0, table: [
+      { pid: 4100, ppid: 4000, cmd: chrome + ' --type=utility --utility-sub-type=network.mojom.NetworkService "--user-data-dir=' + profile + '"' },
+      // the Commander's own Chrome, and a look-alike profile beside the station's
+      { pid: 4200, ppid: 9, cmd: chrome + ' "--user-data-dir=' + path.join(box.root, 'Chrome', 'User Data') + '"' },
+      { pid: 4300, ppid: 9, cmd: chrome + ' "--user-data-dir=' + profile + '-old"' }] };
+    // Windows' rule at the fs edge: while a process runs on the profile, the generation's move aside is refused
+    s.fs = failing(a => a === box.ws && ++s.moves && s.table.some(row => Orphans.sameDir(Orphans.profileArg(row.cmd), profile)) ? err('EPERM', 'operation not permitted, rename') : null);
+    s.sweepProfile = dir => {
+      s.swept.push(dir);
+      return Orphans.sweepSync(Object.assign({ profileDir: dir, listProcesses: () => s.table, sleep: () => {}, alive: pid => s.table.some(row => row.pid === pid),
+        kill: pid => { s.ended.push(pid); s.table = s.table.filter(row => row.pid !== pid); } }, extra));
+    };
+    return s;
+  };
+  t = sandbox();
+  plant(t.ws, ['agent.roster.json', 'ledger.jsonl', '.browser-profile/Default/Cookies']);
+  bootRecord(t.ws);
+  ask(t.ws);
+  before = tree(t.ws);
+  let left = leftover(t);
+  A.eq(fs.existsSync(path.join(left.profile, 'lockfile')), false, 'fixture: no lock file says the profile is held');
+  r = boot(t.ws, { fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0] });
+  A.eq([r.kind, r.ok, r.applied], ['fresh', true, true], 'a process left on the profile cannot fail the switch (' + JSON.stringify(r) + ')');
+  A.eq(left.swept, [left.profile], 'the boot looks at this generation\'s own profile, once');
+  A.eq(left.ended, [4100], 'and ends only the process on it, by its own pid');
+  A.eq(left.moves, 2, 'refused once, then through');
+  A.eq(r.quarantine ? tree(r.quarantine) : null, before, 'the generation is whole on the shelf, its profile with it');
+
+  // the explicit recovery shares the activation
+  const save = name => ({ version: 1, agentId: 'agent', updatedAt: 5, savedAt: 5, doc: { schema: 'starnet.save', version: 5, updatedAt: 5, agent: { id: 'agent', name }, station: { rooms: [], props: [] }, workstreams: [] } });
+  const recoverable = box => {
+    const legacy = path.join(box.root, 'legacy', 'workspaces');
+    write(path.join(legacy, 'agent.save.json'), save('NOVA'));
+    const inspection = Recovery.inspectCandidates({ fs, path, platform: process.platform, home: box.root, workspaceRoot: box.ws, candidateRoots: [legacy] });
+    Recovery.requestRecovery({ fs, path, platform: process.platform, home: box.root, workspaceRoot: box.ws, candidateRoots: [legacy], inspection, candidateId: inspection.candidates[0].id, now: () => T0 + 1000 });
+    return legacy;
+  };
+  t = sandbox();
+  plant(t.ws, ['ledger.jsonl', '.browser-profile/Default/Cookies']);
+  bootRecord(t.ws);
+  let legacy = recoverable(t);
+  left = leftover(t);
+  r = boot(t.ws, { candidateRoots: [legacy], fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0] });
+  A.eq([r.ok, r.applied, r.rollbackRetained], [true, true, true], 'an explicit recovery\'s switch goes through as well (' + JSON.stringify(r) + ')');
+  A.eq(fs.existsSync(path.join(t.ws, 'agent.save.json')) && JSON.parse(fs.readFileSync(path.join(t.ws, 'agent.save.json'), 'utf8')).doc.agent.name, 'NOVA', 'the chosen station is live');
+  A.eq(left.ended, [4100], 'and the one process on the profile was ended');
+
+  // the bound runs out: a process StarNet cannot end (one started as administrator) still fails closed, with nothing moved
+  t = sandbox();
+  plant(t.ws, ['agent.roster.json', 'ledger.jsonl', '.browser-profile/Default/Cookies']);
+  bootRecord(t.ws);
+  ask(t.ws);
+  before = tree(t.ws);
+  left = leftover(t, { kill: () => {}, alive: () => true });
+  r = boot(t.ws, { fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0] });
+  A.eq([r.kind, r.ok, r.applied, r.code], ['fresh', false, false, 'FRESH_ACTIVATION_FAILED'], 'a process that will not end fails closed once the bound runs out (' + JSON.stringify(r) + ')');
+  A.ok(/EPERM/.test(r.error) && /Nothing was moved/.test(r.error), 'with the error it always gave');
+  A.eq(tree(t.ws), before, 'nothing moved');
+  A.eq([left.swept.length, left.moves], [1, 4], 'the sweep ran once, and the move was tried again within the bound');
+  stranded(t, 'unending');
+  // a generation no station browser ever ran on has nothing of StarNet's to end: no listing, the same bounded tries
+  t = sandbox();
+  plant(t.ws, ['agent.roster.json', 'ledger.jsonl']);
+  bootRecord(t.ws);
+  ask(t.ws);
+  left = leftover(t);
+  r = boot(t.ws, { fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0] });
+  A.eq([r.code, left.swept, left.moves], ['FRESH_ACTIVATION_FAILED', [], 4], 'with no profile there is no sweep, and the move still fails closed');
+
+  // a live owner's generation is never swept: nothing of a running station is ended
+  t = sandbox();
+  plant(t.ws, ['ledger.jsonl', '.browser-profile/Default/Cookies']);
+  bootRecord(t.ws);
+  legacy = recoverable(t);
+  write(path.join(t.ws, '.starnet-workspace-owner.json'), { version: 1, pid: 424242, nonce: 'live-owner', startedAt: T0 });
+  left = leftover(t);
+  r = boot(t.ws, { candidateRoots: [legacy], fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0], lockPid: 7, lockPidAlive: pid => pid === 424242 });
+  A.eq([r.ok, r.applied], [false, false], 'a generation with a live owner is not switched under it (' + JSON.stringify(r) + ')');
+  A.eq([left.swept, left.ended, left.moves], [[], [], 1], 'nothing on its profile is ended, and the move is not tried again under it');
+  A.ok(fs.existsSync(path.join(t.ws, 'ledger.jsonl')), 'nothing moved');
+
   // the activation fails after the move: the live generation goes back
   t = sandbox();
   plant(t.ws, ['agent.roster.json', 'ledger.jsonl']);
@@ -339,8 +428,10 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   A.ok(/made .* again while it was set aside/.test(r.error) && r.error.includes(shelved) && !/Nothing was moved/.test(r.error), 'and says what happened and where the generation is (' + r.error + ')');
   A.eq(names(t.ws), ['.browser-profile/Default/Preferences'], 'nothing was written into the folder that appeared');
   A.eq(tree(shelved), before, 'the generation is whole on the shelf');
-  const settled = boot(t.ws, { now: () => T0 + 5000 });
+  left = leftover(t);
+  const settled = boot(t.ws, { now: () => T0 + 5000, fs: left.fs, sweepProfile: left.sweepProfile, retryDelays: [0, 0, 0] });
   A.eq([settled.ok, settled.applied, settled.resumed], [true, true, true], 'the next boot finishes it (' + JSON.stringify(settled) + ')');
+  A.eq(left.ended, [4100], 'resuming the interrupted move also ends only its profile holder');
   A.eq(names(t.ws), clean(), 'the clean generation is live');
   A.eq(names(shelved + '-interrupted'), ['.browser-profile/Default/Preferences'], 'and what appeared is set aside beside the generation, never deleted');
   A.eq(tree(shelved), before, 'which has not moved');

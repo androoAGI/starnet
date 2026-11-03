@@ -429,16 +429,54 @@ function landInPlace(fs, path, stage, current) {
   dropStage(fs, stage);
 }
 
+/* A HOLDER STARNET MAY END. On Windows any open handle under a generation refuses its move aside (EPERM, EBUSY, EACCES), and
+   one holder is StarNet's own: a station browser process left on this generation's profile. Chromium can start one as the
+   last sidecar closes its browser, and it outlives the browser holding no lock file (start-fresh-browser.e2e.test.js caught
+   it); a crash leaves the whole browser. After the first refusal the processes on that profile are ended, each by its own pid
+   (o.sweepProfile: index.js passes browser-orphans.js sweepSync), and the move is tried again for a few seconds. A generation
+   with a live owner is never swept, and its move is not tried again under it. Any other holder, or a process that will not
+   end, still refuses the move: nothing has moved, and the error is the one it always was. With no sweepProfile the first
+   refusal is final, as before. */
+const BUSY_MOVE = /^(?:EBUSY|EPERM|EACCES)$/;
+const MOVE_RETRY_MS = [100, 250, 500, 1000, 2000];
+function holderOf(o, fs, path, now, current) {
+  if (typeof o.sweepProfile !== 'function') return null;
+  return {
+    waits: Array.isArray(o.retryDelays) ? o.retryDelays : MOVE_RETRY_MS,
+    // false: a live owner holds the generation, so nothing is ended and the move stays refused
+    end() {
+      if (workspaceBusy(o, fs, path, now, current)) return false;
+      const profile = path.join(current, '.browser-profile');
+      if (!fs.existsSync(profile)) return true;   // no station browser ever ran on this generation: nothing of StarNet's to end
+      try {
+        const receipt = o.sweepProfile(profile);
+        if (receipt && (receipt.found || receipt.error)) failNote('lineage.activation.holder', new Error(require('./tools/builtin/browser-orphans.js').describeSweep(receipt)));
+      } catch (error) { failNote('lineage.activation.holder', error); }
+      return true;
+    }
+  };
+}
+function moveAside(fs, current, aside, holder) {
+  for (let i = 0; ; i++) {
+    try { return fs.renameSync(current, aside); }
+    catch (error) {
+      if (!holder || i >= holder.waits.length || !BUSY_MOVE.test(String(error && error.code || ''))) throw error;
+      if (i === 0 && !holder.end()) throw error;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, holder.waits[i]);
+    }
+  }
+}
+
 /* THE ONE ACTIVATION, shared by explicit recovery and START FRESH: the live generation moves to `aside` and the stage takes
    its place, both renames on one volume. A failed move changes nothing. A failed activation puts the live generation back. If
    even that fails the stage is written in place, and only if that fails too is the generation stranded: the error says where
    it is, and the journal and the stage stay for the next boot. A workspace something made again meanwhile (an orphaned
    station browser writing its profile back) is never written over or merged into: the generation cannot go back, so it is
    stranded, and the next boot sets that folder aside too. Returns whether a generation was moved aside. */
-function activateGeneration(fs, path, current, stage, aside) {
+function activateGeneration(fs, path, current, stage, aside, holder) {
   let moved = false;
   try {
-    if (fs.existsSync(current)) { fs.renameSync(current, aside); moved = true; }
+    if (fs.existsSync(current)) { moveAside(fs, current, aside, holder); moved = true; }
     fs.renameSync(stage, current);
   } catch (error) {
     if (moved) {
@@ -514,7 +552,7 @@ function resumeActivation(o) {
       if (live && !fs.existsSync(j.aside)) { dropStage(fs, j.stage); return forget(); }
       if (live) {
         if (stationRecord.proofBeyondReceipt({ fs, path }, current).length) { dropStage(fs, j.stage); return interrupted(); }
-        fs.renameSync(current, freeSibling(fs, j.aside + '-interrupted'));
+        moveAside(fs, current, freeSibling(fs, j.aside + '-interrupted'), holderOf(o, fs, path, now, current));
       }
       try { fs.renameSync(j.stage, current); }
       catch (_) { landInPlace(fs, path, j.stage, current); }
@@ -612,7 +650,7 @@ function applyFreshRequest(o) {
       creditsLeftAside: carry.leftAside.length > 0
     };
     writeJournal(requestPath, request, { ready: true, record: recordHash(fs, path, stage), result }, fs, path, now);
-    activateGeneration(fs, path, current, stage, aside);
+    activateGeneration(fs, path, current, stage, aside, holderOf(o, fs, path, now, current));
     return finishActivation(fs, path, now, current, requestPath, result);
   } catch (error) {
     const failure = freshFailure(fs, path, platform, current, error);
@@ -750,7 +788,7 @@ function applyPendingRecoveryLocked(opts) {
       rollbackRetained: hadGeneration, sourcePreserved: fs.existsSync(selected.sourceRoot)
     };
     writeJournal(requestPath, request, { ready: true, record: recordHash(fs, path, stage), result }, fs, path, now);
-    activateGeneration(fs, path, current, stage, rollback);
+    activateGeneration(fs, path, current, stage, rollback, holderOf(o, fs, path, now, current));
     return finishActivation(fs, path, now, current, requestPath, result);
   } catch (error) {
     if (error && error.stranded) return strandedResult(fs, path, now, current, { error: String(error.message) + '. StarNet finishes this at its next start.' });
