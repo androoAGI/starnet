@@ -1,4 +1,12 @@
-/* node test/update-preparation.http.test.js — real route wiring for freeze, snapshot receipt, and cancel. */
+/* node test/update-preparation.http.test.js — real route wiring for freeze, snapshot receipt, and cancel.
+
+   A pre-update recovery point is written whenever there is something to protect (sidecar/update-preparation.js, NOTHING TO
+   PROTECT): a founded station, station data on disk before one is founded, or the page's own station-save journal. Only a
+   workspace with none of them gets an in-memory receipt and no bundle (test/stationless-boot-census.http.test.js, its
+   UPDATE ROW). The rows here run in the order a fresh install meets them, and every one of them snapshots:
+     1. station-less, with the page's journal the only copy of a station: the bundle carries the journal;
+     2. station-less, with station data a WAKE cut short wrote on disk (the dossier) and no journal: the bundle carries it;
+     3. a station founded through POST /api/save (the station file's first accepted write): the full barrier and receipt. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -6,6 +14,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 const { spawn } = require('node:child_process');
+const Recovery = require('../sidecar/station-recovery.js');
 
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const TOKEN = 'update-preparation-http-token-32-bytes';
@@ -94,14 +103,44 @@ async function call(base, route, method, body) {
     A.eq(bundles(), old.slice(2), 'boot keeps the three newest pre-update recovery points');
     A.eq(old.slice(0, 2).some(n => fs.existsSync(path.join(snapshots, n + '.receipt.json'))), false, 'and removes the older ones with their receipts');
     A.eq(fs.existsSync(path.join(snapshots, 'keep-me.txt')), true, 'nothing else in update-snapshots is touched');
-    const prepared = await call(base, '/api/update/prepare', 'POST', {
-      targetVersion: '9.9.9', browserStore: { 'starnet.save': JSON.stringify({ version: 5, updatedAt: 123 }) }
-    });
+    const journalStore = { 'starnet.save': JSON.stringify({ version: 5, updatedAt: 123 }) };
+    const bundleOf = r => { const s = r && r.body && r.body.receipt && r.body.receipt.snapshot; return s && fs.existsSync(s.file) ? Recovery.readBundle(s.file) : null; };
+    const station = async () => { const l = await call(base, '/api/lineage', 'GET'); return l.body && l.body.lineage && l.body.lineage.station && l.body.lineage.station.state; };
+
+    // ---- 1. STATION-LESS, the page's journal the only copy of a station ----
+    A.eq(await station(), 'none', 'fixture: no station is founded yet');
+    const journal = await call(base, '/api/update/prepare', 'POST', { targetVersion: '9.9.9', browserStore: journalStore });
+    A.eq([journal.status, journal.body && journal.body.ok], [200, true], 'station-less with a page journal: prepare succeeds');
+    const journalBundle = bundleOf(journal);
+    A.ok(!!journalBundle, 'and writes a real recovery bundle: the journal is a station the workspace does not hold yet');
+    A.eq(journalBundle && journalBundle.browser.map(b => b.key), ['starnet.save'], 'the bundle carries the page journal');
+    A.eq(bundles(), [old[3], old[4], path.basename(journal.body.receipt.snapshot.file)].sort(), 'a verified prepare keeps itself + the two newest older recovery points');
+    A.eq((await call(base, '/api/update/cancel', 'POST', {})).body.frozen, false, 'a failed install thaws it');
+
+    // ---- 2. STATION-LESS WITH DATA ON DISK, no journal: what a WAKE cut short wrote is still protected ----
+    const dossier = await call(base, '/api/dossier', 'POST', { block: 'COMMANDER DOSSIER\n- written before the first save' });
+    A.eq(dossier.status, 200, 'a pre-founding dossier write lands (WAKE writes before its first save)');
+    A.eq(await station(), 'none', 'and founds nothing');
+    const data = await call(base, '/api/update/prepare', 'POST', { targetVersion: '9.9.9', browserStore: {} });
+    A.eq([data.status, data.body && data.body.ok], [200, true], 'station-less with station data on disk and no journal: prepare succeeds');
+    const dataBundle = bundleOf(data);
+    A.ok(!!dataBundle && data.body.receipt.station === undefined, 'and still writes a real recovery bundle');
+    A.eq(dataBundle && dataBundle.files.some(row => row.path === '_commander.dossier.json'), true, 'carrying that data');
+    A.eq((await call(base, '/api/update/cancel', 'POST', {})).body.frozen, false, 'a failed install thaws it');
+
+    // ---- 3. A FOUNDED STATION: the station file's first accepted write, then the barrier and receipt as always ----
+    const at = Date.now();
+    const founded = await call(base, '/api/save', 'POST', { schema: 'starnet.save', version: 6, updatedAt: at, _saveRevision: 0, _saveDirty: true, _saveClient: 'update-window',
+      agent: { id: 'agent', name: 'UPDATER', createdAt: at }, agents: [], workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
+    A.ok(founded.body && founded.body.ok === true, 'the station file\'s first accepted write lands (' + JSON.stringify(founded.body) + ')');
+    A.eq(await station(), 'active', 'and founds the station');
+    const prepared = await call(base, '/api/update/prepare', 'POST', { targetVersion: '9.9.9', browserStore: journalStore });
     A.eq(prepared.status, 200, 'real prepare route succeeds');
     A.eq(prepared.body && prepared.body.ok, true, 'route returns a verified receipt');
     A.ok(fs.existsSync(prepared.body.receipt.snapshot.file), 'receipt names a real recovery bundle');
+    A.eq((bundleOf(prepared) || { files: [] }).files.some(row => row.path === 'agent.save.json'), true, 'holding the founded station');
     A.eq(fs.readFileSync(sentinel, 'utf8'), bytes, 'snapshot preparation preserves canonical bytes');
-    A.eq(bundles(), [old[3], old[4], path.basename(prepared.body.receipt.snapshot.file)].sort(), 'a verified prepare keeps itself + the two newest older recovery points');
+    A.eq(bundles(), [journal, data, prepared].map(r => path.basename(r.body.receipt.snapshot.file)).sort(), 'a verified prepare keeps itself + the two newest older recovery points');
 
     const blocked = await call(base, '/api/activity', 'POST', { at: Date.now() });
     A.eq(blocked.status, 423, 'mutation after snapshot is locked');

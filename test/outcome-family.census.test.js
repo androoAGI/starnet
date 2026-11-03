@@ -544,6 +544,7 @@ const REPORTED = {
   ],
   'sidecar/workshop-store.js': [["reason: String((info && info.reason) || '').slice(0, 60),", NR("a workshop shift's outcome word ('built' / 'plan-fallback' / …: runWorkshopShift's noteShift)")]],
   'sidecar/workspace-owner.js': [["start time could not be read (' + String(v.reason || 'unknown')", NR("why a process's start time could not be read")]],
+  'sidecar/workspace-recovery.js': [["if (block) return { code: block.code, reason: block.reason };", NR("why automatic recovery imported nothing: the station record's auto-import block (an erase, or a record or reset choice it cannot read)")]],
   'frontend/app/chat.js': [
     ["retry: { attempt: p.attempt, maxAttempts: p.maxAttempts, reason: String(p.reason || '')", NR("a provider retry's classifier reason")],
     ["recommended: q.recommended || '', reason: q.reason || ''", NR("a Task Brief question's suggested-answer reason")],

@@ -23,7 +23,7 @@ A.eq(/ENV\('KEY_POOL'\)/.test(host), false, 'global cross-provider key pool is n
 A.ok(/connectorOauthAttempts/.test(host) && /oauth\/cancel/.test(connectors), 'OAuth cancellation reaches both UI and backend discovery');
 // both words are common (station/workspace state files, every verified store): read the host without their owners
 {
-  const wiring = readSidecarSource({ except: ['sidecar/durable-store.js', 'sidecar/channels/secrets.js', 'sidecar/remote/devices.js', 'sidecar/remote/push.js', 'sidecar/station-recovery.js', 'sidecar/workspace-lineage.js', 'sidecar/workspace-reserved.js'] });
+  const wiring = readSidecarSource({ except: ['sidecar/durable-store.js', 'sidecar/channels/secrets.js', 'sidecar/remote/devices.js', 'sidecar/remote/push.js', 'sidecar/station-recovery.js', 'sidecar/station-record.js', 'sidecar/workspace-lineage.js', 'sidecar/workspace-reserved.js'] });
   A.ok(/state\.json/.test(wiring) && /saveJsonVerified/.test(wiring), 'connector config and OAuth state share a read-back-verified durable envelope');
 }
 A.ok(/clientSecret: clientSecret, tokenEndpointAuthMethod: tokenEndpointAuthMethod/.test(host)

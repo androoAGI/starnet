@@ -11,6 +11,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 
 function startMockProvider() {
   return new Promise(resolve => {
@@ -101,6 +102,7 @@ async function driveShell(fixture, decision) {
     fs.writeFileSync(path.join(fixture.workspace, '.secrets', 'spotify.json'), JSON.stringify({
       clientId: 'full-access-test', accessToken: 'synthetic-access', refreshToken: 'synthetic-refresh', expiresAt: Date.now() + 3600e3, scope: ''
     }));
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const seeded = await fixture.json('POST', '/api/roster', {
       updatedAt: 100,

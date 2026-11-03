@@ -53,8 +53,10 @@ const { makeWorkspaceLease } = require('./workspace-lease.js');
 const { makeWorkspaceOwner, makeBootedAt, describeIdentity: describeOwnerIdentity } = require('./workspace-owner.js');
 const { makeProcessIdentity } = require('./process-identity.js');
 const { classifyWorkspace, workspaceCandidates } = require('./workspace-safety.js');
-const { inspectWorkspaceLineage, hasStationState, startFresh: startFreshWorkspace } = require('./workspace-lineage.js');
+const { inspectWorkspaceLineage, requestFresh } = require('./workspace-lineage.js');
+const stationRecord = require('./station-record.js');   // THE station lifecycle fact: one record per workspace, one module
 const workspaceRecovery = require('./workspace-recovery.js');
+const { makeLineageRoutes } = require('./lineage-routes.js');
 const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparation.js');
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
@@ -650,6 +652,8 @@ const outputArtifacts = makeOutputArtifacts({ fsp, fs, pathMod: path, root: WORK
 const RECOVERY_CANDIDATE_ROOTS = workspaceCandidates({
   path: path, env: process.env, platform: process.platform, homedir: () => os.homedir()
 }).concat([path.resolve(__dirname, 'workspaces'), path.resolve(__dirname, '..', 'workspaces')]);
+// The build this process is: a pending START FRESH runs only on the build that took it. The shell exports STARNET_APP_VERSION.
+const BUILD_VERSION = (() => { try { return String(ENV('APP_VERSION') || '').trim() || String(require('../package.json').version); } catch (e) { failNote('lineage.build-version', e); return ''; } })();
 
 // One identity reader for every ownership check this boot makes (recovery election + lock, then the owner claim):
 // it proves a stamped PID recycled when Windows handed a hard-killed holder's PID to another process (soak 2026-10-15).
@@ -658,9 +662,12 @@ const processIdentity = makeProcessIdentity();
 // production may self-heal only one unambiguous valid legacy root; conflicts stay read-only for the picker.
 const startupWorkspaceRecovery = workspaceRecovery.applyPendingRecovery({
   fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
-  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, auto: !DEV_MODE, now: Date.now,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, auto: !DEV_MODE, now: Date.now, buildVersion: BUILD_VERSION,
   lockBootedAt: makeBootedAt(() => Date.now()),   // a recovery lock left by a pre-reboot crash must not brick every boot (exit 73)
-  lockProcessIdentity: processIdentity            // ...nor one whose holder PID was recycled within this boot
+  lockProcessIdentity: processIdentity,           // ...nor one whose holder PID was recycled within this boot
+  // a station browser process left on the generation's profile (one can outlive the sidecar that closed it, and a crash leaves
+  // the whole browser) refuses that generation's move aside on Windows: it is ended, by its own pid, and the move tried again
+  sweepProfile: dir => require('./tools/builtin/browser-orphans.js').sweepSync({ profileDir: dir })
 });
 if (startupWorkspaceRecovery && startupWorkspaceRecovery.lockUnavailable) {
   // A LIVE concurrent process holds the parent-level recovery lock — it may be renaming this very
@@ -672,7 +679,9 @@ if (startupWorkspaceRecovery && startupWorkspaceRecovery.lockUnavailable) {
   console.error('  Close the other StarNet process and retry. StarNet will not risk concurrent writes.');
   process.exit(73);
 }
-if (startupWorkspaceRecovery && startupWorkspaceRecovery.applied) {
+if (startupWorkspaceRecovery && startupWorkspaceRecovery.kind === 'fresh') {
+  console.warn('[lineage] START FRESH ' + (startupWorkspaceRecovery.applied ? 'set the old generation aside in ' + String(startupWorkspaceRecovery.quarantine) : 'did not run: ' + String(startupWorkspaceRecovery.error || startupWorkspaceRecovery.code)));
+} else if (startupWorkspaceRecovery && startupWorkspaceRecovery.applied) {
   console.warn('[recovery] restored prior station before opening stores; source preserved, rollback retained=' + !!startupWorkspaceRecovery.rollbackRetained);
 } else if (startupWorkspaceRecovery && startupWorkspaceRecovery.ok === false) {
   console.error('[recovery] automatic station recovery failed closed: ' + String(startupWorkspaceRecovery.error || 'unknown error'));
@@ -765,11 +774,14 @@ if (!workspaceOwnerClaim.ok) {
 // cannot run handlers, so their valid PID-stamped claim is recovered by the next boot instead.
 process.once('exit', () => { try { workspaceOwner.release(); } catch (_) {} });
 
+// THE STATION RECORD, owner-only, before any store opens (derived from today's evidence; a failed write never fails the boot).
+// NO STATION, NO UNATTENDED WRITE (#123 family): the night shift, discovery and the quest refresh stand down while !station().
+const stationLife = stationRecord.ensure({ fs, path, platform: process.platform, now: Date.now, workspaceRoot: WORKSPACES });
 // Capture lineage before this process stamps schema/cache/runtime files. It is bounded metadata only: names and
 // counts, never file contents. In packaged mode we also inspect known legacy roots and verified update snapshots;
 // isolated DEV/QA roots deliberately do not look sideways into the Commander's production profile.
 const workspaceLineage = inspectWorkspaceLineage({
-  fs: fs, path: path, platform: process.platform, workspaceRoot: WORKSPACES,
+  fs: fs, path: path, platform: process.platform, workspaceRoot: WORKSPACES, now: Date.now,
   candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS
 });
 const workspaceRecoveryInspection = workspaceRecovery.inspectCandidates({
@@ -782,16 +794,26 @@ workspaceLineage.recovery = workspaceRecovery.publicInspection(workspaceRecovery
 if (startupWorkspaceRecovery && startupWorkspaceRecovery.autoSkipped) {
   workspaceLineage.autoRecovery = { skipped: true, code: String(startupWorkspaceRecovery.code || 'AUTO_RECOVERY_TARGET_IS_SCRATCH'), reason: startupWorkspaceRecovery.reason || 'target workspace resolves under a scratch/temp root' };
 }
+// how the last START FRESH ended (additive): the gate's visible exit when a request did not run
+workspaceLineage.lastFresh = workspaceRecovery.lastFreshResult({ fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS }) || undefined;
 
-function publicWorkspaceLineage() {
-  const home = os.homedir();
-  const out = JSON.parse(JSON.stringify(workspaceLineage));
-  out.currentWorkspace = workspaceRecovery._internals.displayPath(out.currentWorkspace, home, path, process.platform);
-  out.evidence = (out.evidence || []).map(row => Object.assign({}, row, {
-    root: workspaceRecovery._internals.displayPath(row.root, home, path, process.platform)
-  }));
-  return out;
-}
+// The lineage route group: what the gate reads and its two lifecycle requests (sidecar/lineage-routes.js).
+const lineageRoutes = makeLineageRoutes({
+  fs, path, platform: process.platform, arch: process.arch, homedir: () => os.homedir(), workspaceRoot: WORKSPACES,
+  candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, lineage: workspaceLineage, inspection: workspaceRecoveryInspection,
+  recovery: workspaceRecovery, stationView: () => stationLife.publicView(), requestFresh, buildVersion: BUILD_VERSION,
+  desktopShell: DESKTOP_SHELL, readBody, now: Date.now, log: line => console.log(line),
+  // both lifecycle requests rename this generation at the next boot: the station browser goes first, orphan and all (the
+  // sweep lists every process, so it runs only when the profile's lock says something holds it). A process that outlives
+  // the browser holding no lock is ended by that boot, before the rename is tried again (sweepProfile, above)
+  quiesce: async () => {
+    await browserViews.closeAll();
+    return require('./tools/builtin/browser-orphans.js').profileHeld(BROWSER_PROFILE_DIR).held ? browserViews.reset() : { ok: true };
+  },
+  restart: why => gracefulShutdown(why, 75)   // 75: the desktop guardian's restart code
+});
+const publicWorkspaceLineage = lineageRoutes.publicLineage;
 
 /* ---- LIVE MODEL PRICING (2026-07-31, Hermes-parity pass): wire the models.dev aggregate into the
    price snapshot so a newly-released model gets its real published rate instead of a stale family
@@ -2285,6 +2307,14 @@ let agentRosterUpdatedAt = 0;
 // save-latch-kill: the newest station revision a page's roster push was built on (POST /api/roster saveRevision), in the
 // envelope too, so a restart still refuses a push built on an older station view (handleRoster's revision check)
 let agentRosterSaveRevision = 0;
+/* NO STATION, NO ROSTER FILE. A roster file IS a station to every reader (hard proof, station-record.js P1; an older build's gate
+   too), and a page pushes its crew before any save lands: WAKE's enterGame POSTs the roster at once while CloudSave debounces
+   the first save, and a window holding a copy from before a reset has that save refused and pushes anyway. So a WAKE cut short,
+   or an ERASE with such a window open, left a file that read as PRIOR STATION DATA FOUND. While no station is founded the crew
+   is HELD: the live roster takes it (runs and delegation read that, and the anti-clobber stamp moves as usual), nothing is
+   written, and the founding save writes it (saveStore's onFounded). saveAgentRoster is the roster file's one write path, so
+   this holds for every writer; POST /api/roster says so with held:true. */
+let agentRosterHeld = false;
 const AGENT_ROSTER_FILE = path.join(WORKSPACES, 'agent.roster.json');
 // CREW = every roster agent other than the one running — the same rows the [ORCHESTRATION] "YOUR TEAM" list renders.
 function crewCountFor(agentId) { let n = 0; for (const aid of agentRoster.keys()) if (aid !== agentId) n++; return n; }
@@ -2375,10 +2405,12 @@ function saveAgentRoster(updatedAt) {
     // clock so the envelope only ever moves forward. Legacy readers ignore the extra key harmlessly.
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
+    if (!stationLife.station()) { agentRosterHeld = true; agentRosterUpdatedAt = nextUpdatedAt; return true; }   // nothing to fail: see agentRosterHeld
     saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
+    agentRosterHeld = false;
     return true;
   } catch (e) { console.warn('[roster] persist failed:', (e && e.message) || e); return false; }
 }
@@ -3452,7 +3484,8 @@ function engineCredentialError(provider, what) {
 // the sidecar's own disk (the app-data dir that survives a browser cache wipe). Same containment as the
 // notebook: a sibling of the fs jail. Holds NO secret (the key/tokens live elsewhere). The frontend keeps
 // localStorage as a fast cache and writes through here on every persist; on boot it pulls the newer of the two.
-const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() } });
+const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() }, resetAt: () => stationLife.resetAt(),
+  onFounded: w => { if (w.agentId !== 'agent') return; stationLife.found({ by: 'save' }); if (agentRosterHeld) saveAgentRoster(agentRosterUpdatedAt); } });   // the station file's first accepted write founds the generation, and the crew held for it lands; a write that fails stays held for the next save
 
 /* observeDeletedSessions(save) — fold the station save's deleted-session lists into the session tombstone ledger
    (qa/bugs/3e926b6a). Only `forgetIds` — the Commander's Delete of a conversation — is forgotten; a row DELETE AGENT or a
@@ -8715,6 +8748,7 @@ function discoveryTick(force) {
     if (processFaultQuiesced) return;
     if (String(process.env.SKYNET_ENV_DISCOVERY || '') === '0') return;
     if (discoveringNow) return;
+    if (!stationLife.station()) return;   // NO STATION, NO LOOK: the boot look and every tick (SCAN NOW stays the Commander's)
     if (!personalizationStore.read().enabled) return;   // the PAUSE is server authority here too
     discoveringNow = true;
     runDiscoveryCycle({ force: !!force }).catch(swallow('discovery.cycle')).finally(() => { discoveringNow = false; });
@@ -9581,7 +9615,7 @@ let nightshiftTimer = null;
 function nightshiftShouldArm() { try { return NIGHTSHIFT_ENABLED || !!(commanderPosture.summary() || {}).actsUnattended; } catch (_) { return NIGHTSHIFT_ENABLED; } }
 function armNightshift() {
   if (processFaultQuiesced || nightshiftTimer) return false;
-  nightshiftTimer = setInterval(() => { if (updateHolding()) return; try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
+  nightshiftTimer = setInterval(() => { if (updateHolding()) return; if (!stationLife.station()) return; try { nightshiftDriver.applyTick(Date.now()); } catch (e) { console.warn('[nightshift] tick error:', (e && e.message) || e); } }, NIGHTSHIFT_TICK_MS);
   if (nightshiftTimer.unref) nightshiftTimer.unref();   // the http server keeps the process alive; the ticker alone shouldn't
   console.log('  · night-shift armed (tick ' + Math.round(NIGHTSHIFT_TICK_MS / 1000) + 's, beat ' + Math.round(NIGHTSHIFT_BEAT_MS / 60000) + 'm, away ' + Math.round(NIGHTSHIFT_AWAY_MS / 60000) + 'm)');
   return true;
@@ -10999,10 +11033,9 @@ function questRefreshTick() {
   // calls a provider, stamps refresh state, or mints quests on its own. The explicit /refresh/run route does not
   // come through this function; a Commander pressing REFRESH QUESTS remains the authority for a manual cycle.
   if (!(commanderPosture.summary() || {}).enabled) return;
-  // NO STATION, NO LOOK (#123): background initiative plans for a station a Commander created. On a workspace the
-  // recovery gate reads as station-less (a fresh install before onboarding) this tick writes nothing — its stamp +
-  // 'skipped' note used to be the first files on disk. The manual /refresh/run route never comes through here.
-  if (!hasStationState({ fs, path, workspaceRoot: WORKSPACES })) return;
+  // NO STATION, NO LOOK (#123): before a station is founded this tick writes nothing — its stamp + 'skipped' note used to
+  // be a fresh install's first files. The manual /refresh/run route never comes through here.
+  if (!stationLife.station()) return;
   // V3 §6 note: the readiness gate is applied INSIDE the cycle as dossier ADMISSIBILITY (a synced not-ready
   // verdict blanks the dossier out of the evidence, so a blitzed onboarding can't mint quests) — never here
   // at the tick, so the cadence still spends and the honest 'skipped' ledger semantics survive.
@@ -12059,6 +12092,7 @@ updatePreparation = makeUpdatePreparation({
     } }))
   }), workspaceRoot: WORKSPACES,
   writeDurable: writeFileDurableRaw, now: () => Date.now(), newId: () => crypto.randomUUID(),
+  holdsStationData: () => stationLife.holdsStationData(),   // with no station data and no page journal: no recovery point
   onFreeze: () => { updateWritesFrozen = true; }, onThaw: () => { updateWritesFrozen = false; },
   // EVERY live run, not only the browser registry (B10): see updateLiveRunCount / updateAbortLiveRuns
   liveRuns: () => updateLiveRunCount(),
@@ -12787,10 +12821,7 @@ const ROUTES = [
   { m: 'GET', exact: '/api/update/status', h: handleUpdateStatus },
   { m: 'POST', exact: '/api/recovery/backup', h: handleRecoveryBackup },   // #119 SETTINGS > APP & BACKUP: the whole station as one verified bundle
   { m: 'GET', exact: '/api/recovery/info', h: handleRecoveryInfo },
-  { m: 'GET', exact: '/api/lineage/report', h: serveWorkspaceRecoveryReport },
-  { m: 'POST', exact: '/api/lineage/recover', h: handleWorkspaceRecovery },
-  { m: 'POST', exact: '/api/lineage/start-fresh', h: handleWorkspaceStartFresh },
-  { m: 'GET', exact: '/api/lineage', h: serveWorkspaceLineage },
+  ...lineageRoutes.routes,           // the gate's lineage reads and lifecycle requests (sidecar/lineage-routes.js)
   { m: 'POST', exact: '/api/session', h: handleApiSession },
   // qsplit, not exact: these carry ?provider= so the page can ask about the provider it is actually on.
   { m: 'POST', exact: '/api/station/ack', h: handleStationAck },
@@ -13377,62 +13408,6 @@ function handleUpdateStatus(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(Object.assign({ ok: true }, updatePreparation.status())));
 }
-function serveWorkspaceLineage(req, res) {
-  res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify({ ok: true, lineage: publicWorkspaceLineage() }));
-}
-function serveWorkspaceRecoveryReport(req, res) {
-  const report = workspaceRecovery.recoveryReport({
-    fs, path, platform: process.platform, arch: process.arch, home: os.homedir(), workspaceRoot: WORKSPACES,
-    candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS,
-    inspection: workspaceRecoveryInspection, publicLineage: publicWorkspaceLineage(), now: Date.now
-  });
-  res.writeHead(200, {
-    'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store',
-    'Content-Disposition': 'attachment; filename="starnet-recovery-report.json"'
-  });
-  res.end(JSON.stringify(report, null, 2) + '\n');
-}
-async function handleWorkspaceRecovery(req, res) {
-  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body;
-  try { body = JSON.parse(await readBody(req, 4096)) || {}; }
-  catch (_) { return json(400, { ok: false, error: 'bad json' }); }
-  try {
-    const result = workspaceRecovery.requestRecovery({
-      fs, path, platform: process.platform, home: os.homedir(), workspaceRoot: WORKSPACES,
-      candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS,
-      inspection: workspaceRecoveryInspection, candidateId: String(body.candidateId || ''), now: Date.now
-    });
-    json(202, Object.assign({}, result, { desktopWillRestart: DESKTOP_SHELL }));
-    // Exit only after the authenticated response is flushed. The desktop guardian respawns automatically;
-    // a manual sidecar is explicitly told by the UI to restart it. The next boot applies before store open.
-    setTimeout(() => process.exit(75), 150);
-  } catch (error) {
-    json(409, { ok: false, error: String(error && error.message || error) });
-  }
-}
-
-/* START FRESH (the gate's third exit). The Commander has explicitly chosen a new station over prior-install
-   evidence nothing could recover. Current-workspace state is MOVED to a sibling quarantine folder (never
-   deleted), external evidence roots are acknowledged by marker, then the sidecar exits exactly like a
-   recovery request so the desktop guardian respawns it into clean onboarding. Refused while a verified
-   recovery is pending — that path wins. */
-async function handleWorkspaceStartFresh(req, res) {
-  const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  try {
-    const result = startFreshWorkspace({
-      fs, path, platform: process.platform, workspaceRoot: WORKSPACES,
-      candidateRoots: DEV_MODE ? [] : RECOVERY_CANDIDATE_ROOTS, now: Date.now
-    });
-    if (!result.ok) return json(409, { ok: false, error: result.error, moved: result.moved, quarantine: result.quarantine });
-    console.log('[lineage] START FRESH: moved ' + result.moved.length + ' file(s) to ' + (result.quarantine || '(nothing to quarantine)') + '; acknowledged ' + result.acknowledgedRoots.length + ' external root(s)');
-    json(202, Object.assign({}, result, { desktopWillRestart: DESKTOP_SHELL }));
-    setTimeout(() => process.exit(75), 150);
-  } catch (error) {
-    json(409, { ok: false, error: String(error && error.message || error) });
-  }
-}
 
 server.on('error', (e) => {
   if (e && e.code === 'EADDRINUSE') console.error('✗ Port ' + PORT + ' is already in use (another sidecar already running?). Stop it, or set STARNET_PORT=<n> and retry.');
@@ -13664,12 +13639,13 @@ function quiesceForProcessFault() {
   // fresh process write beside a still-running, faulted process; the normal delayed-exit path releases at exit.
   return true;
 }
-function gracefulShutdown(signal) {
+function gracefulShutdown(signal, code) {
   if (_shuttingDown) return;
   _shuttingDown = true;
+  const exitCode = Number.isInteger(code) ? code : 0;
   console.log('\n  · shutdown (' + signal + ') — reaping children and releasing locks…');
   // HARD deadline: no matter what hangs, exit within 3s. unref so this timer itself never keeps us alive.
-  const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(0); }, 3000);
+  const deadline = setTimeout(() => { try { console.warn('  · shutdown deadline hit — forcing exit'); } catch (_) {} process.exit(exitCode); }, 3000);
   if (deadline.unref) deadline.unref();
   try { flushVerdictPackets(); } catch (e) { failNote('verdict.packets.shutdown', e); }   // a rating after the restart must still find its packet
   try { subUsage.flush(); } catch (e) { failNote('sub-usage.shutdown', e); }   // the last run's usage windows, not the one before it
@@ -13729,11 +13705,11 @@ function gracefulShutdown(signal) {
   const afterBrowser = fn => Promise.race([Promise.all([browserClosing, runsBooked, versionStopped]), new Promise(r => { const t = setTimeout(r, 2500); if (t.unref) t.unref(); })]).then(fn, fn);
   try {
     if (typeof server !== 'undefined' && server && server.close) {
-      server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(0); }));   // stop accepting; exit once connections drain + the browser closed
+      server.close(() => afterBrowser(() => { clearTimeout(deadline); process.exit(exitCode); }));   // stop accepting; exit once connections drain + the browser closed
       // don't wait on lingering keep-alive sockets — force them closed so close()'s callback fires promptly.
       if (typeof server.closeAllConnections === 'function') { try { server.closeAllConnections(); } catch (_) {} }
-    } else { clearTimeout(deadline); process.exit(0); }
-  } catch (_) { clearTimeout(deadline); process.exit(0); }
+    } else { clearTimeout(deadline); process.exit(exitCode); }
+  } catch (_) { clearTimeout(deadline); process.exit(exitCode); }
 }
 // Only install signal handlers for a real host process (not when index.js is require()'d by a unit test, which
 // would leak handlers across tests). The e2e harnesses spawn a REAL node process and stop it with child.kill()
@@ -19998,7 +19974,7 @@ async function handleRoster(req, res) {
     agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
-  json(200, { ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt });
+  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}));
 }
 
 // POST /api/agent/delete { agentId } — DOSSIER › DELETE AGENT. Removes a summoned agent from the SERVER roster

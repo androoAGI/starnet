@@ -70,3 +70,14 @@ test/context-allowance.e2e.test.js
 # workshop-implement.e2e: 68.8 s on 2026-11-01; on 2026-11-02 the gate cut it at the 120 s default (reports-a4d5d8d28, a healthy run,
 # not a hang) and it passed alone at 118.3 s. Over the 40 s rule since at least 11-01, so it flips on this box.
 test/workshop-implement.e2e.test.js
+#
+# start-fresh-generation.http: one real sidecar booted six times, five START FRESH presses end to end — 29 to 59 s on the Windows dev box.
+test/start-fresh-generation.http.test.js
+# start-fresh-browser.e2e: a real Chrome on the real station profile, for both lifecycle routes — 45 to 60 s on the Windows dev box.
+test/start-fresh-browser.e2e.test.js
+# station-marker-matrix.http: a real sidecar booted on each of six lifecycle shapes — 27 to 61 s on the Windows dev box.
+test/station-marker-matrix.http.test.js
+# erase-then-restart.http: five real boots, the terminal's own among them, around one ERASE — 22 to 57 s on the Windows dev box.
+test/erase-then-restart.http.test.js
+# stationless-boot-census.http: four real boots, waiting out every boot look and several scheduler ticks — 33 to 53 s on the Windows dev box.
+test/stationless-boot-census.http.test.js

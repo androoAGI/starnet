@@ -86,37 +86,52 @@ function defaultExecFile() {
 /* The real process table: [{ pid, ppid, cmd }]. Windows asks CIM only for processes that carry a user-data-dir
    (cheap, and it is the only population this module may act on). POSIX lists everything with ps. Rejects on a
    failed/timed-out query — the caller then kills nothing. */
+const CIM_SCRIPT = "Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%user-data-dir%'\" | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; ppid = $_.ParentProcessId; cmd = $_.CommandLine } } | ConvertTo-Json -Compress";
+const PS_ARGS = ['-axww', '-o', 'pid=,ppid=,command='];
+function powershellExe() { return process.env.SystemRoot ? P.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell.exe'; }
+function cimRows(stdout) {
+  const text = String(stdout || '').trim();
+  let rows = text ? JSON.parse(text) : [];
+  if (!Array.isArray(rows)) rows = [rows];
+  return rows.map(r => ({ pid: Number(r && r.pid), ppid: Number(r && r.ppid) || 0, cmd: String((r && r.cmd) || '') }));
+}
+function psRows(stdout) {
+  const rows = [];
+  for (const line of String(stdout || '').split('\n')) {
+    const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+    if (m) rows.push({ pid: Number(m[1]), ppid: Number(m[2]), cmd: m[3] });
+  }
+  return rows;
+}
 function makeProcessLister(o) {
   o = o || {};
   const platform = o.platform || process.platform;
   const execFile = o.execFile || defaultExecFile();
   const timeout = o.timeoutMs || 15000;
   if (platform === 'win32') {
-    const script = "Get-CimInstance Win32_Process -Filter \"CommandLine LIKE '%user-data-dir%'\" | ForEach-Object { [pscustomobject]@{ pid = $_.ProcessId; ppid = $_.ParentProcessId; cmd = $_.CommandLine } } | ConvertTo-Json -Compress";
-    const exe = process.env.SystemRoot ? P.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe') : 'powershell.exe';
     return () => new Promise((resolve, reject) => {
-      execFile(exe, ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
+      execFile(powershellExe(), ['-NoProfile', '-NonInteractive', '-Command', CIM_SCRIPT], { encoding: 'utf8', timeout, windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, stdout) => {
         if (err) return reject(err);
-        try {
-          const text = String(stdout || '').trim();
-          let rows = text ? JSON.parse(text) : [];
-          if (!Array.isArray(rows)) rows = [rows];
-          resolve(rows.map(r => ({ pid: Number(r && r.pid), ppid: Number(r && r.ppid) || 0, cmd: String((r && r.cmd) || '') })));
-        } catch (e) { reject(e); }
+        try { resolve(cimRows(stdout)); } catch (e) { reject(e); }
       });
     });
   }
   return () => new Promise((resolve, reject) => {
-    execFile('ps', ['-axww', '-o', 'pid=,ppid=,command='], { encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+    execFile('ps', PS_ARGS, { encoding: 'utf8', timeout, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
       if (err) return reject(err);
-      const rows = [];
-      for (const line of String(stdout || '').split('\n')) {
-        const m = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
-        if (m) rows.push({ pid: Number(m[1]), ppid: Number(m[2]), cmd: m[3] });
-      }
-      resolve(rows);
+      resolve(psRows(stdout));
     });
   });
+}
+// the same table without a promise, for sweepSync: it throws on a failed or timed-out query, and the caller then kills nothing
+function makeProcessListerSync(o) {
+  o = o || {};
+  const platform = o.platform || process.platform;
+  const execFileSync = o.execFileSync || require('../../child-env.js').guardChildProcess(require('node:child_process')).execFileSync;
+  const timeout = o.timeoutMs || 10000;
+  const opts = max => ({ encoding: 'utf8', timeout, windowsHide: true, maxBuffer: max, stdio: ['ignore', 'pipe', 'pipe'] });
+  if (platform === 'win32') return () => cimRows(execFileSync(powershellExe(), ['-NoProfile', '-NonInteractive', '-Command', CIM_SCRIPT], opts(8 * 1024 * 1024)));
+  return () => psRows(execFileSync('ps', PS_ARGS, opts(16 * 1024 * 1024)));
 }
 
 function makeKiller(o) {
@@ -125,7 +140,8 @@ function makeKiller(o) {
   const execFile = o.execFile || defaultExecFile();
   if (platform === 'win32') {
     return pid => new Promise(resolve => {
-      execFile('taskkill', ['/T', '/F', '/PID', String(Number(pid))], { windowsHide: true, timeout: 10000 }, () => resolve());
+      // The sweep names every matching helper separately. /T would also follow stale parent ids into unrelated programs.
+      execFile('taskkill', ['/F', '/PID', String(Number(pid))], { windowsHide: true, timeout: 10000 }, () => resolve());
     });
   }
   return pid => { try { process.kill(Number(pid), 'SIGKILL'); } catch (e) { failNote('browser.orphans.kill', e); } return Promise.resolve(); };
@@ -171,7 +187,7 @@ function profileHeld(profileDir, o) {
   catch (_) { return { held: false, how: 'SingletonLock owner gone' }; }
 }
 
-/* THE SWEEP. List → end every ORPHAN on this profile (browser roots first; helpers die with them) → list again to
+/* THE SWEEP. List → end every ORPHAN on this profile by its own pid (browser roots first) → list again to
    confirm → clear the locks if nothing at all remains on the profile. Never touches a process descended from this
    sidecar. Returns a receipt the caller can show verbatim:
      { ok, listed, found, killed:[pid], survivors:[pid], ours:[pid], locks:{removed,failed}, error }
@@ -215,6 +231,58 @@ async function sweep(o) {
   return receipt;
 }
 
+/* THE SWEEP WITHOUT A PROMISE, for the one caller that cannot wait on one: a boot setting its generation aside before any
+   store opens (workspace-recovery.js activateGeneration). A station browser process can outlive the sidecar that closed
+   its browser, holding no lock file (a utility process Chromium started as it closed: start-fresh-browser.e2e.test.js),
+   and a crash leaves the whole browser. On Windows any handle such a process keeps in the generation refuses its rename.
+   The rules are sweep()'s, with two differences:
+     · each orphan is ended by its OWN pid, never with its tree. Every Chromium helper carries the profile on its command
+       line, so the listing names each one already; a tree walk follows parent ids Windows has since handed to other programs;
+     · the end is confirmed by asking for each pid again, not by a second listing, which would cost a waiting boot seconds.
+       Nothing then proves the profile empty, so its locks are left alone. */
+const CONFIRM_MS = [50, 100, 200, 400, 800];
+// one process by its own pid: TerminateProcess on Windows, SIGKILL elsewhere. One that is already gone is no failure
+function killPid(pid) {
+  try { process.kill(Number(pid), 'SIGKILL'); }
+  catch (e) { if (!(e && e.code === 'ESRCH')) throw e; }
+}
+function pidAlive(pid) {
+  try { process.kill(Number(pid), 0); return true; }
+  catch (e) { return !!(e && e.code === 'EPERM'); }
+}
+function sleepSync(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+function sweepSync(o) {
+  o = o || {};
+  const profileDir = String(o.profileDir || '');
+  const platform = o.platform || process.platform;
+  const selfPid = Number(o.selfPid) || process.pid;
+  const list = o.listProcesses || makeProcessListerSync({ platform, execFileSync: o.execFileSync });
+  const kill = o.kill || killPid;
+  const alive = o.alive || pidAlive;
+  const wait = o.sleep || sleepSync;
+  const receipt = { ok: false, listed: false, found: 0, killed: [], survivors: [], ours: [], locks: { removed: [], failed: [] }, error: null };
+  if (!profileDir) { receipt.error = 'no profile directory'; return receipt; }
+  let seen;
+  try { seen = classify(list(), profileDir, { selfPid, platform }); receipt.listed = true; }
+  catch (e) { receipt.error = 'could not list processes: ' + String((e && e.message) || e); return receipt; }
+  receipt.found = seen.orphans.length;
+  receipt.ours = seen.ours.map(p => p.pid);
+  // the browser roots first, so none of them starts a helper again
+  const ended = seen.orphans.filter(p => p.browser).concat(seen.orphans.filter(p => !p.browser)).map(p => p.pid);
+  for (const pid of ended) {
+    try { kill(pid); } catch (e) { failNote('browser.orphans.kill', e); /* confirmed below */ }
+  }
+  let left = ended;
+  for (let i = 0; left.length && i <= CONFIRM_MS.length; i++) {
+    if (i) wait(CONFIRM_MS[i - 1]);
+    left = left.filter(pid => alive(pid));
+  }
+  receipt.killed = ended.filter(pid => !left.includes(pid));
+  receipt.survivors = left;
+  receipt.ok = !left.length;
+  return receipt;
+}
+
 /* One line for an agent or a panel: what actually happened, nothing more. */
 function describeSweep(r) {
   if (!r) return 'no sweep ran';
@@ -227,4 +295,4 @@ function describeSweep(r) {
   return bits.join('; ');
 }
 
-module.exports = { LOCK_FILES, profileArg, sameDir, normDir, profileProcesses, classify, makeProcessLister, makeKiller, clearStaleLocks, profileHeld, sweep, describeSweep };
+module.exports = { LOCK_FILES, profileArg, sameDir, normDir, profileProcesses, classify, makeProcessLister, makeProcessListerSync, makeKiller, clearStaleLocks, profileHeld, sweep, sweepSync, describeSweep };

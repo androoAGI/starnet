@@ -6,7 +6,7 @@
    that move: a durable mirror of the save envelope on the sidecar's own disk (the app-data dir that
    survives a browser wipe). The frontend keeps localStorage as a fast cache and writes through to here.
 
-     makeSaveStore({ fs, pathMod, root, clock }) -> {
+     makeSaveStore({ fs, pathMod, root, clock, resetAt?, onFounded? }) -> {
        load(agentId)        -> doc | undefined        // the stored save envelope; undefined if none/corrupt
        stamp(agentId)       -> string                 // one stat: moves on every save/outside edit; '' = unknown
        loadStamped(agentId) -> { doc, stamp }         // load()'s doc + the pre-read stamp ('' unless a clean read)
@@ -31,6 +31,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the station lifecycle's one module (the reset time below); a host with no require (a vm-hosted page test) has none
+  const stationRecord = (typeof require === 'function') ? require('./station-record.js') : null;
 
   const AID_RE = /^[A-Za-z0-9_-]{1,40}$/;   // same agentId grammar as the notebook / fs jail / channels store
 
@@ -254,34 +256,33 @@
         return false;
       }
     }
-    /* THE RESET GENERATION (bug 5c019483 against #101's erase authority). ERASE EVERYTHING and START FRESH leave a clean
-       generation carrying a <root>/.fresh-start.json receipt (workspace-lineage.js FRESH_MARKER; src-tauri fresh_start.rs
-       stamps `at` as epoch-ms text, the sidecar's startFresh as an ISO time). A missing station file there is the
-       Commander's choice, not a lost file: a browser copy of the station from BEFORE that reset must never write itself
-       back. Only a station founded after it (agent.createdAt later than the receipt) may re-seed the file. A receipt that
-       cannot be read, or a copy with no founding time, proves nothing either way: refused. No receipt = no reset. */
-    const RESET_RECEIPT = '.fresh-start.json';
-    // the reset receipt's time: null = no receipt (no reset), NaN = a receipt that cannot be read (proves nothing)
-    function resetReceiptAt() {
-      let raw;
-      try { raw = fs.readFileSync(pathMod.join(rootDir, RESET_RECEIPT), 'utf8'); }
-      catch (e) { return (e && e.code === 'ENOENT') ? null : NaN; }
-      try {
-        const receipt = JSON.parse(raw);
-        const v = receipt && receipt.version === 1 ? receipt.at : undefined;
-        return typeof v === 'number' ? v : /^\d+$/.test(String(v)) ? Number(v) : Date.parse(String(v));
-      } catch (e) { return NaN; }
-    }
+    /* THE RESET GENERATION (bug 5c019483 against #101's erase authority). ERASE EVERYTHING and START FRESH, through either
+       door, leave a clean generation whose station record (station-record.js) carries the reset's time: the record module
+       reads both doors' markers in every dialect with its one parser, and a marker it cannot read is bounded by the time
+       the record was derived (so a station founded after that saves, while a copy from before it is still refused). A
+       missing station file there is the Commander's choice, not a lost file: a browser copy of the station from BEFORE that
+       reset must never write itself back. Only a station founded after it (agent.createdAt later than the reset) may
+       re-seed the file; a copy with no founding time proves nothing and is refused. No reset = null.
+       index.js injects its live record's resetAt; a store built without one (scripts, unit tests) asks the record module
+       on each use, as the receipt used to be read. An fs facade that cannot list a folder (an in-memory test fs) has no
+       reset generation. */
+    const resetAt = typeof d.resetAt === 'function' ? d.resetAt : function () {
+      if (!stationRecord || typeof fs.readdirSync !== 'function') return null;
+      return stationRecord.read({ fs, path: pathMod, now: () => clock.now(), workspaceRoot: rootDir }).resetAt();
+    };
+    // THE FOUNDING: every main-file write this store ACCEPTS is reported (a refused copy never is), so the host can found the
+    // station's generation in its record (index.js: the station file's first accepted write; idempotent after that)
+    const onFounded = typeof d.onFounded === 'function' ? d.onFounded : null;
     function foundedAt(doc) { return Number(doc && doc.agent && doc.agent.createdAt); }
-    // true when a station founded at `founded` is not provably from after the reset (`at` from resetReceiptAt)
+    // true when a station founded at `founded` is not provably from after the reset (`at` from resetAt(): null = no reset)
     function predatesReceipt(founded, at) { return at !== null && !(Number.isFinite(at) && Number.isFinite(founded) && founded > at); }
-    function resetRefusesSeed(doc) { return predatesReceipt(foundedAt(doc), resetReceiptAt()); }
+    function resetRefusesSeed(doc) { return predatesReceipt(foundedAt(doc), resetAt()); }
     /* ERASED WORK (review 10-23 #5): a preserved copy from before the reset is erased work only while the CURRENT station is
-       from after it (founded after the receipt). When the station itself predates the receipt (a backup of the old station
+       from after it (founded after the reset). When the station itself predates the reset (a backup of the old station
        was restored into the fresh one), its copies are its own lineage: ordinary preserved work. stationFounded undefined =
        there is no station file. */
     function erasedWork(copyFounded, stationFounded) {
-      const at = resetReceiptAt();
+      const at = resetAt();
       return predatesReceipt(copyFounded, at) && !(stationFounded !== undefined && predatesReceipt(stationFounded, at));
     }
     // restore backups (<agent>.save-before-restore-<ms>.json) are kept for the newest few restores only (review 10-23 #7)
@@ -293,10 +294,10 @@
        snapshot on every launch, spent the budget and never reached an older one holding real lost work. The memo lives in
        <agent>.save-offer-settled.json beside the snapshots (not station state: START FRESH leaves it, like the snapshots).
        A verdict stays true while the station only moves forward. It is dropped whole when that may no longer hold: the
-       reset receipt changed (part of the key), or a write took the station somewhere it was not (unsettle() from save():
+       reset time changed (part of the key), or a write took the station somewhere it was not (unsettle() from save():
        a write on a missing, corrupt or .bak-recovered file, an explicit RESTORE BACKUP, a different station founding). */
     function settledFile(agentId) { return pathMod.join(rootDir, String(agentId) + '.save-offer-settled.json'); }
-    function receiptKey() { return String(resetReceiptAt()); }
+    function receiptKey() { return String(resetAt()); }
     function settledMemo(agentId) {
       const receipt = receiptKey();
       let m = settledBy.get(agentId);
@@ -553,6 +554,8 @@
         const after = stamp(agentId);
         if (after) lastWritten.set(file, { stamp: after, updatedAt: incomingUpdated, revision: num(doc._saveRevision), replayAt: options.compareRevision ? requestUpdatedAt : incomingUpdated, seededRevision: options.compareRevision ? seededRevision : 0,
           seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, writer: writer.client || null, founded: foundedAt(doc) });
+        // the write landed: report it for the founding (see onFounded). The hook can never turn a landed save into a failure.
+        if (onFounded) { try { onFounded({ agentId: String(agentId) }); } catch (e) { failNote('savestore.founded', e); } }
         return { ok: true, updatedAt: incomingUpdated, ...(options.compareRevision ? { revision: doc._saveRevision } : {}), ...(seeded ? { seeded: true } : {}) };
       },
 

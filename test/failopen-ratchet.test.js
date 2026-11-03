@@ -229,7 +229,7 @@ const SYNC_BASELINE = {
   'workspace-lease.js': 2,
   'workspace-lineage.js': 1,
   'workspace-owner.js': 2,
-  'workspace-recovery.js': 9,
+  'workspace-recovery.js': 8,
 };
 
 let syncOver = 0;

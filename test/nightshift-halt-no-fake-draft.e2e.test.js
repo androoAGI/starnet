@@ -8,7 +8,8 @@
    (signal already aborted) came back empty -> default 'ship', and the station recorded a DELIVERED draft, ledgered
    outcome delivered:true and served it to the morning report — about work the Commander had just stopped.
    Now only a run that ended 'done' is a reply; a cancelled/budget/limit end is an error and the beat stands down.
-   Real sidecar; the mock answers the propose call with one grounded job, then hangs the do call after one token. */
+   Real sidecar; the mock answers the propose call with one grounded job, then hangs the do call after one token. The
+   workspace holds a founded station (test/helpers/station.js): the night-shift tick stands down on one with none. */
 'use strict';
 const A = require('./_assert.js');
 const http = require('http');
@@ -18,6 +19,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { seedActiveStation } = require('./helpers/station.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -74,6 +76,7 @@ function boot(port, env, attemptsLeft) {
 (async () => {
   const mock = await startMock();
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsnofake-'));
+  seedActiveStation(ws);
   const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_OPENROUTER_BASE: mock.base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-nsnofake-fake', SKYNET_DEFAULT_MODEL: 'test/model',
     SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_NIGHTSHIFT_TICK_MS: '300', SKYNET_NIGHTSHIFT_BEAT_MS: '600000', SKYNET_QUEST_REFRESH: '0' };
   const { child, port } = await boot(await allocatePort(), env, 20);

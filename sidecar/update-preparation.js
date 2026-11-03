@@ -1,4 +1,5 @@
-/* sidecar/update-preparation.js — fail-closed pre-installer mutation barrier + verified recovery point. */
+/* sidecar/update-preparation.js — fail-closed pre-installer mutation barrier + verified recovery point (whenever there is
+   station data to protect: see NOTHING TO PROTECT below). */
 'use strict';
 const { note: failNote } = require('./failopen.js');
 
@@ -18,6 +19,19 @@ const SNAPSHOT_BUDGET_BYTES = 256 * 1024 * 1024;
    first. A file that cannot be removed is reported and left; pruning never fails the update. */
 const KEEP_SNAPSHOTS = 3;
 const SNAPSHOT_BUNDLE = /^pre-.+\.starnet-backup\.json$/i;
+
+/* NOTHING TO PROTECT, NOTHING WRITTEN (the gh#123 family). Every build's onboarding gate reads a bundle in update-snapshots
+   as a prior install, so an update prepared BEFORE onboarding (an empty workspace) trapped the next boot in Recovery Mode.
+   The bundle is skipped only when there is nothing for it to recover, which takes BOTH: the workspace holds no station
+   data (the host's holdsStationData(): no founded station, no save or roster, nothing the frozen fallback calls station
+   state) AND the page's browser store holds no station-save journal (a starnet.save* key with a value: the page's own
+   copy of a station the workspace may not have yet). Then no bundle and no receipt file are written, and the receipt
+   lives in memory: { station: 'none', snapshot: null }. The barrier (freeze, drain, quiescence) is unchanged. A host
+   that injects no holdsStationData, or a check that cannot answer, always captures. */
+const SAVE_JOURNAL = /^(?:starnet|skynet)\.save(?:\.|$)/i;   // the window journals, their merge notes, the pre-migrate backup
+function holdsSaveJournal(store) {
+  return Object.keys(store).some(key => SAVE_JOURNAL.test(key) && store[key] != null && String(store[key]).length > 0);
+}
 function pruneSnapshots(o) {
   const fs = o.fs, path = o.path, dir = o.dir;
   const keep = Number.isFinite(o.keep) ? Math.max(1, o.keep) : KEEP_SNAPSHOTS;
@@ -89,6 +103,7 @@ function makeUpdatePreparation(deps) {
   const appVersion = typeof d.appVersion === 'function' ? d.appVersion : function () { return 'unknown'; };
   const onFreeze = typeof d.onFreeze === 'function' ? d.onFreeze : function () {};
   const onThaw = typeof d.onThaw === 'function' ? d.onThaw : function () {};
+  const holdsStationData = typeof d.holdsStationData === 'function' ? d.holdsStationData : function () { return true; };
   const snapshotBudget = Number.isFinite(d.snapshotBudgetBytes) && d.snapshotBudgetBytes >= 0 ? d.snapshotBudgetBytes : SNAPSHOT_BUDGET_BYTES;
   // the bundle's JSON-text limit: station-recovery's own default unless a test scales it down
   const snapshotBudgetChars = Number.isFinite(d.snapshotBudgetChars) && d.snapshotBudgetChars > 0 ? d.snapshotBudgetChars : undefined;
@@ -148,6 +163,12 @@ function makeUpdatePreparation(deps) {
   }
 
   function safeTarget(value) { return String(value || 'unknown').replace(/[^A-Za-z0-9._-]+/g, '-').slice(0, 80) || 'unknown'; }
+  // only a definite "no station data" skips the bundle; an unanswerable check captures
+  function nothingToProtect(browserStore) {
+    if (holdsSaveJournal(browserStore)) return false;
+    try { return holdsStationData() === false; }
+    catch (e) { return false; }
+  }
 
   async function prepare(opts) {
     const o = opts || {};
@@ -178,11 +199,23 @@ function makeUpdatePreparation(deps) {
 
       const createdAt = Number(now());
       const id = String(createdAt) + '-' + String(newId()).replace(/[^A-Za-z0-9_-]+/g, '').slice(0, 80);
+      const browserStore = o.browserStore && typeof o.browserStore === 'object' ? o.browserStore : {};
+      const receiptHead = () => ({
+        schema: 'starnet.update-preparation', version: 1, id: id,
+        createdAt: createdAt, fromVersion: String(appVersion() || 'unknown'), targetVersion: String(o.targetVersion || ''),
+        frozen: true, activeMutations: activeMutations, liveRuns: Number(liveRuns()),
+        completedMutation: 'http:' + completedMutations
+      });
+      // decided under the freeze, after the drain: nothing can found a station behind this check
+      if (nothingToProtect(browserStore)) {
+        receipt = Object.assign(receiptHead(), { station: 'none', snapshot: null });
+        return { ok: true, frozen: true, receipt: receipt, pruned: 0 };
+      }
       const dir = path.join(path.dirname(workspaceRoot), 'update-snapshots');
       const bundleFile = path.join(dir, 'pre-' + safeTarget(o.targetVersion) + '-' + id + '.starnet-backup.json');
       let bundle = recovery.capture({
         workspaceRoot: workspaceRoot,
-        browserStore: o.browserStore && typeof o.browserStore === 'object' ? o.browserStore : {},
+        browserStore: browserStore,
         now: createdAt,
         appVersion: appVersion(),
         lastCompletedMutation: 'http:' + completedMutations,
@@ -196,11 +229,7 @@ function makeUpdatePreparation(deps) {
       if (readBack.manifestSha256 !== written.manifestSha256) throw new Error('snapshot manifest read-back mismatch');
 
       const receiptFile = bundleFile + '.receipt.json';
-      const nextReceipt = {
-        schema: 'starnet.update-preparation', version: 1, id: id,
-        createdAt: createdAt, fromVersion: String(appVersion() || 'unknown'), targetVersion: String(o.targetVersion || ''),
-        frozen: true, activeMutations: activeMutations, liveRuns: Number(liveRuns()),
-        completedMutation: 'http:' + completedMutations,
+      const nextReceipt = Object.assign(receiptHead(), {
         snapshot: { file: bundleFile, bytes: written.bytes, sha256: written.sha256, manifestSha256: written.manifestSha256 },
         semanticFingerprint: fingerprint,
         requirements: readBack.report && readBack.report.requirements || [],
@@ -209,7 +238,7 @@ function makeUpdatePreparation(deps) {
         // files left out because the recovery point is one bounded JSON string (largest agent workspace files first)
         tooLarge: tooLargeSummary(readBack),
         browserKeys: Array.isArray(readBack.browser) ? readBack.browser.length : 0
-      };
+      });
       writeDurable({ fs: fs, path: path }, receiptFile, JSON.stringify(nextReceipt, null, 2) + '\n');
       const receiptBack = JSON.parse(fs.readFileSync(receiptFile, 'utf8'));
       if (!receiptBack || receiptBack.id !== id || receiptBack.snapshot.manifestSha256 !== written.manifestSha256) {

@@ -526,8 +526,9 @@ function exitCodeForReason(reason, opts) {
    v5 — the same golden shape dev/fixtures/seed-workspace uses). The desktop's boot path sees a valid save and
    resumes it (or shows the RESUME connect screen when its keychain holds no key) — it never re-runs the
    first-run ceremony over it. approvalMode:'full' is the product law: full power from minute one.
-   Both files are STATE_EVIDENCE (workspace-lineage.js), so the sidecar's recovery gate treats this workspace
-   as a real station, not an empty one to recover into. */
+   Both files are proof of a station to the station record (sidecar/station-record.js: a save or roster under any of
+   its names always is), so the sidecar's recovery gate treats this workspace as a real station, not an empty one to
+   recover into. */
 function bootstrapDocs(input) {
   const o = input || {};
   const now = Number(o.now) || 0;

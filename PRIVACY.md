@@ -242,9 +242,13 @@ the credentials StarNet saved in the OS keychain), lists anything it could not r
 first run. Project folders you let agents use are never touched. The full per-OS list of locations is in
 the [troubleshooting guide](https://starnetos.com/docs/troubleshooting.html#where-starnet-keeps-your-data).
 To wipe it by hand, uninstall StarNet and delete the `ai.skynet.harness`
-app-data folder for your OS — Windows: `%APPDATA%\ai.skynet.harness\`
-(`C:\Users\<you>\AppData\Roaming\ai.skynet.harness\`); macOS:
+app-data folders for your OS — Windows: `%APPDATA%\ai.skynet.harness\`
+(`C:\Users\<you>\AppData\Roaming\ai.skynet.harness\`) and `%LOCALAPPDATA%\ai.skynet.harness\`
+(the app window's storage and the voice-model download); macOS:
 `~/Library/Application Support/ai.skynet.harness/`; Linux: `~/.local/share/ai.skynet.harness/`.
+Older versions kept the voice-model download in `%LOCALAPPDATA%\StarNet\models\` on Windows and
+`~/Library/Application Support/StarNet/models/` on macOS. StarNet moves it the first time it loads a
+voice model; if it is still there, delete it too.
 If you ever ran the developer-mode sidecar on Windows, also delete `%LOCALAPPDATA%\StarNet\`.
 Provider API keys and channel tokens held in the OS keychain can be removed there too (search
 your credential manager / keychain for `ai.skynet.harness`).
