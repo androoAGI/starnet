@@ -87,6 +87,7 @@ function sandboxStore(scope, opts) {
     spawn: s.SPAWN_CREDENTIALS || null,
     alias,
     hasCredential: (id, k, u) => (fnOf(s.providerHasCredential) ? s.providerHasCredential(id, k, u) : false),
+    readiness: s.providerVerification,
     // what index.js hands it for redaction (S5): the registry's ids and secret-values.js's shapes
     providerIds: () => (fnOf(s.listProviderProfiles) ? s.listProviderProfiles({ includeInactive: true, public: false }) : Reg.listProviderProfiles({ includeInactive: true, public: false })).map(p => p.id),
     shapes: s.SECRET_SHAPES || SV.SECRET_SHAPES,
@@ -143,7 +144,8 @@ function hostOf(sc, root) {
     // the shapes index.js imports from secret-values.js and hands the store (S5); a tree before S5 has none and never reads them
     SECRET_SHAPES: req(root, 'sidecar/secret-values.js').SECRET_SHAPES,
     // the channel layer's host (S8): no file of its own here, so a wired station's channels live in memory
-    crypto: require('crypto'), DESKTOP_SHELL: (sc.env || {}).STARNET_DESKTOP_SHELL === '1', readResilient: () => ({ status: 'absent' }), bothCopiesHold: () => true, channelsFollowStation: () => true, channelCredential: null
+    crypto: require('crypto'), DESKTOP_SHELL: (sc.env || {}).STARNET_DESKTOP_SHELL === '1', readResilient: () => ({ status: 'absent' }), bothCopiesHold: () => true, channelsFollowStation: () => true, channelCredential: null,
+    providerVerification: req(ROOT, 'sidecar/provider-readiness.js').makeProviderReadiness({ now: () => 1000, digest: text => require('crypto').createHash('sha256').update(text).digest('hex') })
   });
   host.loadResilient = (file, tag) => { host.loads++; return tag === 'desktop-endpoints' ? (kept.file === undefined ? undefined : JSON.parse(JSON.stringify(kept.file))) : undefined; };
   host.saveCredentialRemovalVerified = (file, value, proof, tag) => { host.saves.push(JSON.stringify(value)); return kept.saveOk !== false; };
@@ -155,7 +157,7 @@ function hostOf(sc, root) {
 const HOST_NAMES = ['getProviderProfile', 'listProviderProfiles', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
   'providerRequiresKey', 'providerRequiresBaseUrl', 'engineCredential', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
   'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES',
-  'crypto', 'DESKTOP_SHELL', 'readResilient', 'bothCopiesHold', 'channelsFollowStation', 'channelCredential'];
+  'crypto', 'DESKTOP_SHELL', 'readResilient', 'bothCopiesHold', 'channelsFollowStation', 'channelCredential', 'providerVerification'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
 // ...and this tree's, whose envFirst reads through envFirstName (S2: the readout names the variable a key came from)
@@ -275,7 +277,7 @@ function channelStation(o) {
 /* the store sandboxStore builds, from the host functions lifted out of this tree */
 function sandboxImpl() {
   const text = readSidecarSource();
-  const factory = compile(HERE_FUNCS.map(n => lift(text, n)).join('\n') + '\nreturn { ' + HERE_FUNCS.join(', ') + ' };');
+  const factory = compile('let credStore;\n' + HERE_FUNCS.map(n => lift(text, n)).join('\n') + '\nreturn { ' + HERE_FUNCS.join(', ') + ', wireStore: s => { credStore = s; } };');
   return sc => {
     const host = hostOf(sc, ROOT);
     const f = factory(sc, host);
@@ -289,6 +291,7 @@ function sandboxImpl() {
       loadKeptEndpoints: () => host.loadResilient('/station/.secrets/provider-endpoints.json', 'desktop-endpoints'),
       saveKeptEndpoints: envelope => host.saveCredentialRemovalVerified('/station/.secrets/provider-endpoints.json', envelope, null, 'desktop-endpoints')
     }));
+    f.wireStore(store);
     store.loadKeptEndpoints();
     return Object.assign({}, store, { host });
   };

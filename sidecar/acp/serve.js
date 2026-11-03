@@ -158,6 +158,7 @@ function openRun(opts) {
       const rt = info.json || {};
       if (!rt.configured) {
         return reject(new Error('StarNet has no runnable model configured'
+          + (rt.readiness && rt.readiness.reason ? ' (' + rt.readiness.reason + ')' : '')
           + (rt.model ? '' : ' (no default model set)')
           + ' — open the station and set a provider key + model first'));
       }

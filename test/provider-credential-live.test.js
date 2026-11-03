@@ -18,7 +18,11 @@ srcs.forEach((s, i) => A.ok(s.length > 40 && s.length < 3000, 'one bounded ' + n
 const { getProviderProfile } = require('../sidecar/providers/registry.js');
 
 function build(state) {
+  const providerVerification = require('../sidecar/provider-readiness.js').makeProviderReadiness({ now: () => 1000,
+    digest: s => require('crypto').createHash('sha256').update(s).digest('hex') });
   const deps = {
+    providerVerification, providerRuntimeBaseUrl: () => '',
+    credStore: require('./helpers/credential-store-sandbox.js').sandboxStore({ providerVerification }),
     getProviderProfile,
     normalizeProvider: p => String(p || 'openrouter'),
     registryProviderUsesCodex: id => id === 'codex',

@@ -60,7 +60,7 @@ function station(sc) {
     // sc.codex: 'live' (signed in), 'dead' (stored, recorded dead: a relogin-class refresh failure), else none
     codexTokens: sc.codex ? { access_token: 'synthetic-codex-access' } : null, oauthProviders: {}, CODEX_DEFAULT_MODEL: 'gpt-5.5',
     accountLive: () => sc.codex === 'live', anyExtraAccountLive: () => false,
-    oauthPrimaryStatus: id => (id === 'codex' && sc.codex ? { tokens: { access_token: 'synthetic-codex-access' } } : { tokens: null }),
+    oauthPrimaryStatus: id => (id === 'codex' && sc.codex ? { tokens: { access_token: 'synthetic-codex-access' }, dead: sc.codex === 'dead' } : { tokens: null }),
     resolveCreditsConfig: () => ({ url: '', apiKey: '' }),
     chatModelId: (p, m) => m, resolveReasoningEffort: (p, e) => e || 'medium',
     providerCredentialError: p => 'connect a ' + p + ' API key',

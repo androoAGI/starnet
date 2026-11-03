@@ -1136,7 +1136,35 @@
     const letGoKeys = new Set();          // digests of provider id + key
     const fingerprint = (id, v) => String(digestOf(id + '\u0000' + v));
     function heldKeys(id) { return layersOf(id).reduce((all, l) => all.concat(l.keys, l.pool), []); }
-    function noteLetGo(id, before) { for (const v of before) if (v && !holds(id, v)) letGoKeys.add(fingerprint(id, v)); }
+    function syncReadiness(id) {
+      if (!d.readiness || (profileOf(id) || {}).authType === 'oauth_device_code') return;
+      const k = key(id, ''), url = baseUrl(id, '', k);
+      const pool = (profileOf(id) || {}).credentialPool ? keyPool(id, undefined, k) : [];
+      d.readiness.syncPairs(id, [k, ...pool].filter((v, i, a) => a.indexOf(v) === i).map(value => ({ key: value, url })));
+    }
+    function credentialAccepted(id, k, u) {
+      syncReadiness(id);
+      return !d.readiness || d.readiness.accepted(d.readiness.keySlot(id, k), k, u);
+    }
+    function readinessAlternates(id, k, u, explicitPool) {
+      syncReadiness(id);
+      const out = { eligible: 0, verified: 0, unverified: 0, rejected: 0 };
+      if (!(profileOf(id) || {}).credentialPool) return out;
+      const pool = keyPool(id, Array.isArray(explicitPool) ? explicitPool : (u !== baseUrl(id, '', k) ? [] : undefined), k);
+      for (const value of pool.filter((v, i, a) => v && v !== k && a.indexOf(v) === i)) {
+        const status = d.readiness ? d.readiness.evidence(d.readiness.keySlot(id, value), value, u).status : 'unverified';
+        if (status === 'rejected') out.rejected++;
+        else { out.eligible++; out[status === 'verified' ? 'verified' : 'unverified']++; }
+      }
+      return out;
+    }
+    function accepted(id, k, u, explicitPool) {
+      return credentialAccepted(id, k, u) || readinessAlternates(id, k, u, explicitPool).eligible > 0;
+    }
+    function noteLetGo(id, before) {
+      for (const v of before) if (v && !holds(id, v)) letGoKeys.add(fingerprint(id, v));
+      syncReadiness(id);
+    }
     // a bot's own key (an entry's, a pending version's, a record's whose move failed): the bot's account, never the station's
     function channelOwns(provider, k) {
       const id = normalizeId(provider), v = String(k || '').trim();
@@ -1249,7 +1277,7 @@
       key, operatorKey, keyPool, pageRidesWith, baseUrl, resolve,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
       push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, fromStation, inFlight,
-      secretValues, urlSecretParts, maskedUrl, admitRun, admittedFromStation,
+      secretValues, urlSecretParts, maskedUrl, admitRun, admittedFromStation, accepted, credentialAccepted, readinessAlternates, syncReadiness,
       credentialFor, endpointFor, consumerDeps,
       channel, putChannel, dropChannel, settleChannels, reconcileChannels, carriedChannels
     };

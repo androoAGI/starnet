@@ -278,6 +278,11 @@ const result = (extra) => Object.assign({ type: 'result', subtype: 'success', is
   }
 
   // I. listModels is gated on `claude auth status`.
+  for (const [reply, status, present] of [[{ loggedIn: true }, 'unverified', true], [{ loggedIn: false }, 'missing', false], ['not-json', 'unavailable', false]]) {
+    const check = await make({ lines: [reply] }).p.verifyCredential();
+    A.eq([check.status, check.credentialPresent, check.credentialVerified], [status, present, false],
+      'local CLI check distinguishes sign-in presence, absence and failed status without claiming remote verification: ' + status);
+  }
   {
     const ok = make(call => ({ lines: call.args.indexOf('auth') >= 0 ? [{ loggedIn: true, authMethod: 'claude.ai' }] : [] })).p;
     const listed = await ok.listModels();

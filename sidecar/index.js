@@ -1156,6 +1156,13 @@ function bothCopiesHold(file, value) {
    AND .bak with both read back — saveResilient would snapshot a REPLACED key into .bak, and a key the Commander
    replaced or removed must not survive anywhere. The desktop app keeps keys in the OS keychain: never read here. */
 const ENGINE_KEYS_FILE = path.join(WORKSPACES, '.secrets', 'provider-keys.json');
+const PROVIDER_READINESS_FILE = path.join(WORKSPACES, '.secrets', 'provider-readiness.json');
+const providerVerification = require('./provider-readiness.js').makeProviderReadiness({
+  now: () => Date.now(),
+  digest: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
+  load: () => loadResilient(PROVIDER_READINESS_FILE, 'provider-readiness'),
+  save: envelope => saveCredentialRemovalVerified(PROVIDER_READINESS_FILE, envelope, null, 'provider-readiness')
+});
 const engineKeys = engineCredential.makeEngineKeys({
   load: () => DESKTOP_SHELL ? undefined : loadResilient(ENGINE_KEYS_FILE, 'engine-keys'),
   persist: (envelope) => saveCredentialRemovalVerified(ENGINE_KEYS_FILE, envelope, null, 'engine-keys'),
@@ -1187,6 +1194,7 @@ const credStore = credentialStore.makeCredentialStore({
   page: engineKeys,
   spawn: SPAWN_CREDENTIALS,
   hasCredential: providerHasCredential,
+  readiness: providerVerification,
   providerIds: () => PROVIDER_IDS,   // the providers whose env and page layers redaction reads (S5)
   shapes: SECRET_SHAPES,   // what redaction holds of an endpoint URL and of a key-optional provider's env key (S5)
   now: () => Date.now(),   // the environment layer's held values are read at most once a second (the store's REDACTION)
@@ -2201,6 +2209,7 @@ const providerAccounts = require('./provider-accounts.js').makeProviderAccounts(
 const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
+const accountAuthPending = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
 // RECONCILIATION snapshot metadata: runId -> { agentId, startedAt, source }. Populated alongside every runs.set
@@ -2999,16 +3008,17 @@ function envFirst(names) {
 function providerRuntimeKey(provider, explicitKey) { return credStore.key(provider, explicitKey); }
 function providerRuntimeKeyPool(provider, explicitPool, runKey) { return credStore.keyPool(provider, explicitPool, runKey); }
 function providerRuntimeBaseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest) { return credStore.baseUrl(provider, explicitBaseUrl, runKey, callerKey, inRequest); }
-function providerHasCredential(provider, key, baseUrl) {
+function providerHasCredential(provider, key, baseUrl, explicitPool) {
   const id = normalizeProvider(provider);
   // A subscription sign-in counts only while it is LIVE: its tokens present AND not recorded dead (accountLive, the verdict
   // accountChain runs on). GitHub #92: a refresh token another client consumed left the tokens on disk, so diagnostics,
   // /api/runtime/agent and every channel/routine 'configured' said yes to a sign-in no run could use.
   if (registryProviderUsesCodex(id)) return (!!(codexTokens && codexTokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id);
   if (registryProviderUsesDeviceOAuth(id)) { const e = oauthProviders[id]; return (!!(e && e.tokens && e.tokens.access_token) && accountLive(id, '')) || anyExtraAccountLive(id); }
+  if (id === 'claude-cli') return accountLive(id, '') || anyExtraAccountLive(id);
   if (providerRequiresBaseUrl(id) && !String(baseUrl || '').trim()) return false;
   if (providerRequiresKey(id) && !String(key || '').trim()) return false;
-  return true;
+  return credStore.accepted(id, key, baseUrl, explicitPool);
 }
 // A subscription whose primary sign-in is STORED but recorded dead (a relogin-class refresh failure) and no extra account
 // is live: the one state where "connect first" is false. The Commander signed in; it expired and needs a reconnect.
@@ -3016,14 +3026,15 @@ function providerSignInExpired(provider) {
   const id = normalizeProvider(provider);
   if (!registryProviderUsesCodex(id) && !registryProviderUsesDeviceOAuth(id)) return false;
   const p = oauthPrimaryStatus(id);
-  return !!(p.tokens && p.tokens.access_token) && !accountLive(id, '') && !anyExtraAccountLive(id);
+  return !!(p.tokens && p.tokens.access_token && p.dead) && !anyExtraAccountLive(id);
 }
 // The credential as STORED, before the liveness verdict: what boot channel auto-start reads. A saved channel bot on a
 // sign-in recorded dead still starts, answers each message with the expired-sign-in error, and works again the moment
 // the Commander reconnects (handleCodexPoll clears the marker and restarts nothing, so a bot skipped at boot stayed
 // offline until a restart).
 function providerHasStoredCredential(provider, key, baseUrl) {
-  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider);
+  return providerHasCredential(provider, key, baseUrl) || providerSignInExpired(provider)
+    || (!!String(key || '').trim() && (!providerRequiresBaseUrl(provider) || !!String(baseUrl || '').trim()));
 }
 // ...and what such a bot says to a message while the sign-in is dead: the hub answers sec.error before its generic
 // "No provider/model is configured yet" line, which would be false for a sign-in that only expired.
@@ -13286,7 +13297,7 @@ server.on('error', (e) => {
   else console.error('✗ sidecar listen error:', e);
   process.exit(1);
 });
-server.listen(PORT, '127.0.0.1', () => {
+server.listen(PORT, '127.0.0.1', async () => {
   verdictReview.resumeHeld(launchVerdictReview);
   const url = 'http://127.0.0.1:' + PORT;
   const bar = '═'.repeat(58);
@@ -13325,6 +13336,9 @@ server.listen(PORT, '127.0.0.1', () => {
   // it into ~/.local/bin (sidecar/cli-link.js: idempotent, never replaces a file it did not make, a no-op off macOS and
   // outside an app bundle). Windows: the installer's hooks own PATH.
   try { const cl = require('./cli-link.js').ensureCliLink(); if (cl && cl.said) console.log('  · ' + cl.said); } catch (e) { console.warn('[cli-link] ' + ((e && e.message) || e)); }
+  // A saved CLI channel is admitted once below. Resolve its local sign-in before that decision;
+  // a lazy pending verdict must not strand a valid channel until the next station restart.
+  await prepareChannelProviderReadiness();
   // auto-start a previously-connected Telegram bot (saved config), else an env-provided one (headless deploys).
   try {
     const t = channelCredential('telegram');
@@ -15658,7 +15672,8 @@ function handleRuntimeAgent(req, res) {
     // configured = a run can start: a credential for this provider AND a model to run it on. Both, because
     // either one missing is a 400 from /api/run, and a client that is told "configured" and then 400s learns
     // nothing about which half is wrong.
-    configured: !!(model && providerHasCredential(provider, key, baseUrl)),
+    configured: !!(model && providerReadiness(provider, { key, baseUrl }).unattendedReady),
+    readiness: providerReadiness(provider, { key, baseUrl }),
     version: (() => { try { return computeVersionSurface().harness || 'dev'; } catch (_) { return 'dev'; } })(),
     // (additive, review r7) the endpoints this station KEEPS from the desktop app's pushes (#137): the window hands a clear for
     // one it holds no slot for, so no keychain key goes on to an endpoint nothing on the page shows. Review r8: the PROVIDER
@@ -21145,7 +21160,7 @@ async function handleRun(req, res) {
   // (its only answer is the provider default) is refused for a retry, never sent to that default
   if (endpointIgnored && providerEndpointNotHandedOver(runProvider)) { res.writeHead(503); return res.end('the station has not received this provider\'s endpoint yet — retry'); }
   const runNotices = (endpointIgnored && runProvider !== 'starnet') ? ['the endpoint this run named was not used (a per-run endpoint goes only with the key sent beside it, and never with a sign-in): it ran on the station\'s ' + runLabel + ' endpoint'] : [];
-  if (!providerHasCredential(runProvider, key, baseUrl)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
+  if (!providerHasCredential(runProvider, key, baseUrl, bodyCredential && body && body.key ? (Array.isArray(body.keyPool) ? body.keyPool : []) : undefined)) { res.writeHead(400); return res.end('missing key/model — ' + providerCredentialError(runProvider)); }
 
   /* ONE STREAM PER PAGE (2026-10-21, sidecar/run-streams.js). A page that names its run stream gets this POST answered at
      once and the run's events on that stream, so a paused run no longer holds one of the browser's six connections to the
@@ -23376,7 +23391,7 @@ async function runOnceCore(o) {
   if (!usingCodex && !usingDeviceOAuth && primaryProfile && primaryProfile.credentialPool) {
     // a caller's pool rides only the key it sent in this request, never another provider; the station's never a caller's endpoint
     const pool = providerRuntimeKeyPool(providerId, runKeyWatch.sentByCaller ? (Array.isArray(o.keyPool) ? o.keyPool : []) : (baseUrl !== providerRuntimeBaseUrl(providerId, '', runKey) ? [] : undefined), runKey)
-      .map(s => String(s || '').trim()).filter(s => s && s !== runKey);
+      .map(s => String(s || '').trim()).filter(s => s && s !== runKey && credStore.credentialAccepted(providerId, s, baseUrl));
     /* THE COOLDOWN HAS TO REACH THE PRIMARY KEY. penalize() is called with the OUTGOING key, which on the first
        rotation is the run's PRIMARY — but the only consumer of a cooldown is credPool.order(), and the list
        handed to it has just had the primary filtered out (it is the key we are already on). The next run's
@@ -23388,16 +23403,18 @@ async function runOnceCore(o) {
        the cooling primary into the rotation list — still available, just no longer first. */
     const ordered = credPool.order(pool);
     const nowMs = Date.now();
-    const primaryCooling = credPool.coolingUntil(runKey) > nowMs;
+    const primaryRejected = !credStore.credentialAccepted(providerId, runKey, baseUrl);
+    if (primaryRejected && !ordered.length) throw new Error(providerCredentialError(providerId));
+    const primaryCooling = primaryRejected || credPool.coolingUntil(runKey) > nowMs;
     const poolWatch = { held: !runKeyWatch.sentByCaller, sentByCaller: runKeyWatch.sentByCaller };   // host-selected station pool, or the caller's explicit pool
     if (primaryCooling) {
-      const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
+      const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs) || (primaryRejected ? ordered[0] : '');
       if (warm) {
         activePrimaryKey = warm;
         provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: warm, baseUrl, reasoningEffort }), providerId, warm, poolWatch);
         auxVisionProvider = provider; studioModelProvider = provider;
         ordered.splice(ordered.indexOf(warm), 1);
-        ordered.push(runKey);   // the cooling primary becomes the LAST resort rather than the first try
+        if (!primaryRejected) ordered.push(runKey);   // a cooling primary remains a last resort; a known rejected pair does not
       }
     }
     rotationFallbacks = ordered.map(rk => ({
@@ -27726,7 +27743,7 @@ function handleProviders(req, res) {
   // station's own key comes from, and envName the variable when that is the environment (additive, S2)
   const providers = listProviderProfiles().map(p => {
     const now = engineKeyPresence(p.id);
-    return Object.assign({}, p, { configured: now.unattendedReady, credentialSource: now.credentialSource, envName: now.envName,
+    return Object.assign({}, p, providerReadiness(p.id), { credentialSource: now.credentialSource, envName: now.envName,
       currentBaseUrl: credStore.maskedUrl(providerRuntimeBaseUrl(p.id, '')) });   // its credential parts masked where they stand (S5)
   });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -27737,7 +27754,47 @@ function handleProviders(req, res) {
   res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL }));
 }
 
-// POST /api/providers/probe — a no-generation provider round-trip for truthful Settings telemetry. The supplied
+// One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private
+// slots so a rejected primary cannot lose its verdict merely because a healthy extra account is selected.
+function providerReadiness(id, pair) {
+  const profile = getProviderProfile(id);
+  if (!profile) return { provider: id, configured: false, unattendedReady: false, reason: 'unknown provider', lastVerified: null };
+  if (id === 'claude-cli') {
+    const ids = [''].concat(providerAccounts.list(id).map(a => a.id));
+    ids.forEach(refreshClaudeCliAccountAuth);
+    const states = ids.map(account => accountAuthSeen.get(id + ':' + (account || 'primary')));
+    const live = states.find(s => s && s.installed && s.loggedIn);
+    const pending = states.some(s => !s);
+    const unavailable = states.some(s => s && s.status === 'unavailable');
+    const missing = states.every(s => s && s.installed === false);
+    return providerVerification.project({ id, key: '', url: '', required: true, present: !!live,
+      materialReady: !!live, endpointConfigured: true,
+      credentialStatus: live ? (live.status === 'unavailable' ? 'unavailable' : 'unverified') : pending ? 'unknown' : unavailable ? 'unavailable' : 'missing',
+      reason: live ? (live.status === 'unavailable' ? 'local sign-in status unavailable; last status cached' : 'local sign-in present; remote credential unverified') :
+        pending ? 'checking local sign-in' : unavailable ? 'local sign-in status unavailable' : missing ? 'Claude Code is not installed' : 'Claude Code is not signed in' });
+  }
+  const url = pair ? pair.baseUrl : providerRuntimeBaseUrl(id, '');
+  const oauth = registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id);
+  let key = pair ? pair.key : providerRuntimeKey(id, ''), present = !!key;
+  let slot = providerVerification.keySlot(id, key);
+  if (oauth) {
+    const acct = orderedAccountChain(id)[0];
+    const account = acct && acct.id || '';
+    const entry = account ? oauthAccountEntry(id, account) : oauthPrimaryStatus(id);
+    key = entry && entry.tokens && entry.tokens.access_token || '';
+    slot = id + '@' + (account || 'primary');
+    present = !!key;
+  }
+  if (oauth) providerVerification.sync(slot, key, url);
+  else credStore.syncReadiness(id);
+  return providerVerification.project({ id, slot, key, url, present,
+    required: oauth || providerRequiresKey(id), expired: providerSignInExpired(id),
+    alternates: oauth ? undefined : credStore.readinessAlternates(id, key, url),
+    materialReady: providerHasCredential(id, key, url),
+    endpointConfigured: !providerRequiresBaseUrl(id) || !!String(url || '').trim() });
+}
+
+// POST /api/providers/probe — an adapter credential check for truthful Settings telemetry. The supplied
 // browser BYOK key is consumed in memory only and never echoed/persisted; desktop callers send no key because the
 // sidecar already owns the keychain-backed runtime credential. A 200 response always carries the probe facts.
 /* #62: a key paste that picked up a line wrap (a long key copied out of a narrow SSH terminal / tmux pane), a stray
@@ -27763,117 +27820,82 @@ function noteKeyCheckFailure(route, id, result, candidate) {
     recordDiagError(line);
   } catch (e) { failNote('providers.keycheck.note', e); }
 }
-async function handleProviderProbe(req, res) {
-  let id = '', probeKey = '';
-  const json = (obj) => {
-    // a SAVED credential that fails its check is worth one key-free line server-side (#62); a provider with nothing saved is not
-    if (obj && obj.credentialVerified === false && probeKey) noteKeyCheckFailure('probe', id, obj, probeKey);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
-  };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ reachable: false, catalogAvailable: false, credentialVerified: false, error: 'bad json' }); }
-  id = normalizeProvider(body.provider);
-  body.key = cleanProviderKey(body.key);
-  probeKey = providerRequiresKey(id) ? providerRuntimeKey(id, body.key) : '';
+// Probe and candidate validation share the adapter contract. Catalogs are never authentication proofs.
+async function verifyProviderPair(id, body, candidateOnly) {
   const profile = getProviderProfile(id);
-  if (!profile) return json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: 'unknown provider' });
-  try {
-    const models = await listModelsForProvider(id, { key: String(body.key || ''), baseUrl: String(body.baseUrl || body.base_url || ''), keyInRequest: !!body.key });   // F4: the body's key rides the body's endpoint
-    // A catalog endpoint that does not require authentication proves reachability, not that a saved key can run.
-    // Provider adapters intentionally fail closed to [] when /models cannot be reached. Without at least one real
-    // model there is no runnable endpoint to prove, so do not upgrade mere request completion into REACHABLE.
-    // `fallback:true` entries prove even less (2026-08-10 escape): they are an adapter's OFFLINE seed list, served
-    // when the live fetch failed — codex could answer 401 "token is expired" on every run while this probe kept
-    // stamping VERIFIED off its hardcoded fallback. Only live-fetched models count as evidence here.
-    const liveModels = models.filter(m => !(m && m.fallback));
-    const catalogAvailable = liveModels.length > 0;
-    const key = providerRuntimeKey(id, String(body.key || ''));
-    // An optional custom key still needs proof: a public catalog cannot authenticate it.
-    // Keyless local endpoints retain their existing health semantics without buying inference.
-    let credentialVerified = catalogAvailable && (profile.modelsRequireAuth !== false || (!providerRequiresKey(id) && !key));
-    let credentialError = '';
-    if (profile.credentialProbePath && key) {
-      // Re-check the current credential at the same authenticated endpoint used when saving it.
-      // OpenRouter's public/cached catalog alone can never prove or disprove this key.
-      const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', undefined, String(body.key || ''), !!body.key) || profile.baseUrl;
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
-      try {
-        const response = await globalThis.fetch(String(baseUrl).replace(/\/$/, '') + profile.credentialProbePath, {
-          signal: ctrl.signal, redirect: 'error', headers: { Authorization: 'Bearer ' + key, Accept: 'application/json' }
-        });
-        credentialVerified = response.ok;
-        if (!response.ok) credentialError = 'credential probe HTTP ' + response.status;
-        if (response.body) await response.body.cancel();
-      } catch (_) {
-        credentialVerified = false;
-        credentialError = ctrl.signal.aborted ? 'credential verification timed out' : 'credential verification failed';
-      } finally { clearTimeout(timer); }
-    }
-    json({ provider: id, reachable: catalogAvailable, catalogAvailable, credentialVerified, ...(credentialError ? { error: credentialError } : {}) });
-  } catch (e) {
-    json({ provider: id, reachable: false, catalogAvailable: false, credentialVerified: false, error: (e && e.message) || 'provider probe failed', code: (e && e.code) || '' });
-  }
-}
-
-// Candidate-key validation is deliberately separate from persistence: Settings keeps the proven old key active,
-// sends the proposed value here in memory, and commits it only after this route proves provider authentication.
-// The candidate is never logged, echoed, placed on the bus, or written to disk.
-async function handleProviderValidate(req, res) {
-  let id = '', candidate = '';
-  const json = (obj) => {
-    if (obj && obj.credentialVerified === false) noteKeyCheckFailure('validate', id, obj, candidate);   // #62: key-free server-side line
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj));
+  const oauth = registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id);
+  const candidate = cleanProviderKey(body.key);
+  let key = candidateOnly ? candidate : providerRuntimeKey(id, candidate);
+  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidateOnly ? candidate : undefined, candidate, !!candidate);
+  if (providerRequiresKey(id) && !key) return { ok: false, credentialVerified: false, status: 'missing', error: 'a candidate key is required' };
+  if (providerRequiresBaseUrl(id) && !baseUrl) return { ok: false, credentialVerified: false, status: 'missing', error: 'a base URL is required' };
+  let slot = providerVerification.keySlot(id, key), account = '', adapter;
+  if (oauth) {
+    const acct = orderedAccountChain(id)[0];
+    account = acct && acct.id || '';
+    const entry = account ? oauthAccountEntry(id, account) : null;
+    key = entry ? await ensureAccountAccessToken(entry) : registryProviderUsesCodex(id) ? await ensureCodexAccessToken() : await ensureOAuthAccessToken(id);
+    slot = id + '@' + (account || 'primary');
+    adapter = selectProvider({ provider: id, fetch: globalThis.fetch, token: key, baseUrl,
+      headers: id === 'kimi' ? (entry ? kimiMshHeaders(entry.deviceId) : oauthInferenceHeaders(id)) : undefined });
+  } else adapter = selectProvider({ provider: id, fetch: globalThis.fetch, key, baseUrl });
+  const currentPair = () => {
+    if (!oauth) return [providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')];
+    const entry = account ? oauthAccountEntry(id, account) : oauthPrimaryStatus(id);
+    return [entry && entry.tokens && entry.tokens.access_token || '', providerRuntimeBaseUrl(id, '')];
   };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
-  id = normalizeProvider(body.provider);
-  const profile = getProviderProfile(id);
-  if (!profile || providerUsesCodex(id) || providerUsesDeviceOAuth(id)) return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
-  candidate = cleanProviderKey(body.key);
-  const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidate, candidate, !!candidate);   // only the candidate is ever sent (F4: from THIS body, so it rides the body's endpoint)
-  if (providerRequiresKey(id) && !candidate) return json({ ok: false, provider: id, credentialVerified: false, error: 'a candidate key is required' });
-  if (providerRequiresBaseUrl(id) && !baseUrl) return json({ ok: false, provider: id, credentialVerified: false, error: 'a base URL is required' });
+  const current = currentPair();
+  if (oauth) providerVerification.sync(slot, current[0], current[1]);
+  else credStore.syncReadiness(id);
+  const row = providerVerification.ticket(slot, key, baseUrl);
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 15000); if (timer && timer.unref) timer.unref();
+  const timer = setTimeout(() => ctrl.abort(), 15000); if (timer.unref) timer.unref();
   try {
-    // OpenRouter's catalog is public; its authenticated /auth/key endpoint proves the candidate without spending
-    // tokens. Other keyed providers protect /models, so a non-empty catalog proves both reachability and auth.
-    if (profile.credentialProbePath) {
-      const u = String(baseUrl || profile.baseUrl || '').replace(/\/$/, '') + profile.credentialProbePath;
-      const r = await globalThis.fetch(u, { signal: ctrl.signal, headers: { 'Authorization': 'Bearer ' + candidate, 'Accept': 'application/json' } });
-      if (!r.ok) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: r.status, error: r.status === 401 || r.status === 403 ? 'provider rejected this key (HTTP ' + r.status + ')' : 'credential probe HTTP ' + r.status });
-      return json({ ok: true, provider: id, reachable: true, credentialVerified: true });
+    const result = await adapter.verifyCredential({ signal: ctrl.signal, model: String(body.model || '') });
+    const latest = currentPair();
+    if (oauth) providerVerification.sync(slot, latest[0], latest[1]);
+    else credStore.syncReadiness(id);
+    providerVerification.note(slot, key, baseUrl, result, row);
+    // Adapter errors can contain a server echo. Remove the in-memory candidate/token before global redaction.
+    let error = String(result.error || '');
+    if (result.cause) error += ' (' + String(result.cause) + ')';
+    for (const secret of [key, candidate, baseUrl, ...credStore.urlSecretParts(baseUrl)]) {
+      if (secret) error = error.split(String(secret)).join('[credential]');
     }
-    const provider = selectProvider({ provider: id, fetch: globalThis.fetch, key: candidate, baseUrl });
-    const models = await provider.listModels();
-    // #90: an empty catalog the provider REFUSED (Anthropic's /models answering 401/403) is a rejected key, not "no
-    // models" — same words as the credential-probe branch above. Adapters that keep no status keep the old line.
-    const refusedStatus = !models.length && typeof provider.catalogHttpStatus === 'function' ? Number(provider.catalogHttpStatus()) || 0 : 0;
-    if (refusedStatus) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, status: refusedStatus, error: refusedStatus === 401 || refusedStatus === 403 ? 'provider rejected this key (HTTP ' + refusedStatus + ')' : 'the provider\'s model list answered HTTP ' + refusedStatus });
-    // ...and one that never REACHED the provider (DNS / refused connection / proxy) is not the key's fault either: the
-    // catch below names the network cause (#62), exactly as for an adapter whose listModels throws.
-    const unreached = !models.length && typeof provider.catalogFetchError === 'function' ? provider.catalogFetchError() : null;
-    if (unreached) throw unreached;
-    if (!models.length) return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: 'provider returned no usable models for this key' });
-    // A custom endpoint may expose /models without authenticating it. When a candidate key was supplied, prove
-    // the actual inference wire with a bounded tiny response before allowing replacement.
-    if (id === 'custom' && candidate) {
-      const model = String(body.model || (models[0] && models[0].id) || '').trim();
-      if (!model) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'no model is available to validate this key' });
-      let answered = false;
-      for await (const ev of provider.stream({ model, messages: [{ role: 'user', content: 'Reply with OK.' }], signal: ctrl.signal })) {
-        if (ev && ((ev.type === 'text' && ev.delta) || ev.type === 'done')) answered = true;
-      }
-      if (!answered) return json({ ok: false, provider: id, reachable: true, credentialVerified: false, error: 'the endpoint accepted the request but did not answer' });
-      return json({ ok: true, provider: id, reachable: true, credentialVerified: true, model });
-    }
-    return json({ ok: true, provider: id, reachable: true, credentialVerified: true, modelCount: models.length });
-  } catch (e) {
-    const timedOut = ctrl.signal.aborted;
-    // name the network cause (ENOTFOUND / ECONNREFUSED / a TLS failure) — undici's bare "fetch failed" explains nothing (#62)
-    const cause = e && e.cause && (e.cause.code || e.cause.message) ? ' (' + String(e.cause.code || e.cause.message).slice(0, 120) + ')' : '';
-    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: timedOut ? 'credential validation timed out after 15s' : (((e && e.message) || 'credential validation failed') + cause) });
+    return { ok: !!result.ok, provider: id, reachable: !!result.reachable,
+      catalogAvailable: !!(result.models && result.models.some(m => m && m.id)),
+      modelCount: result.models ? result.models.filter(m => m && m.id).length : 0,
+      credentialVerified: !!result.credentialVerified, verificationStatus: result.status,
+      ...(result.httpStatus ? { status: result.httpStatus } : {}),
+      ...(error ? { error: ctrl.signal.aborted ? 'credential validation timed out after 15s' : redact(error).slice(0, 400) } : {}),
+      readiness: providerReadiness(id) };
   } finally { clearTimeout(timer); }
 }
+async function providerCheckRoute(req, res, candidateOnly) {
+  let id = '', candidate = '';
+  const json = obj => {
+    if (obj.credentialVerified === false && candidate) noteKeyCheckFailure(candidateOnly ? 'validate' : 'probe', id, obj, candidate);
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify(obj));
+  };
+  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; }
+  catch (_) { return json({ ok: false, credentialVerified: false, error: 'bad json' }); }
+  id = normalizeProviderIdFromRegistry(body.provider, '');
+  if (!id) return json({ ok: false, credentialVerified: false, error: 'unknown provider' });
+  candidate = cleanProviderKey(body.key);
+  if (candidateOnly && (providerUsesCodex(id) || providerUsesDeviceOAuth(id) || id === 'claude-cli')) {
+    return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
+  }
+  try { return json(await verifyProviderPair(id, body, candidateOnly)); }
+  catch (e) {
+    let error = String(e && e.message || 'credential verification failed');
+    const endpoint = String(body.baseUrl || body.base_url || '');
+    for (const secret of [candidate, endpoint, ...credStore.urlSecretParts(endpoint)]) if (secret) error = error.split(String(secret)).join('[credential]');
+    return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: redact(error), readiness: providerReadiness(id) });
+  }
+}
+async function handleProviderProbe(req, res) { return providerCheckRoute(req, res, false); }
+async function handleProviderValidate(req, res) { return providerCheckRoute(req, res, true); }
 
 async function listModelsForProvider(providerId, opts) {
   opts = opts || {};
@@ -28219,11 +28241,44 @@ function shutdownClaudeCliLogins() {
 }
 // Record a PROVEN sign-in verdict (an installed CLI answered) so a run skips an account that is signed out.
 function noteAccountAuth(providerId, accountId, st) {
+  if (providerId === 'claude-cli') {
+    if (!st) return;
+    const slot = providerId + ':' + (accountId || 'primary');
+    const before = accountAuthSeen.get(slot);
+    const uncertain = st.status === 'unavailable' || (st.error && st.installed !== false && st.code !== 'provider_not_configured');
+    const seen = uncertain ? Object.assign({}, before || {}, { status: 'unavailable' }) :
+      { installed: st.installed === true, loggedIn: st.loggedIn === true, status: 'known' };
+    seen.at = Date.now();
+    if (!uncertain && st.loggedIn && st.email) seen.email = st.email;
+    if (!uncertain && st.loggedIn && st.subscription) seen.subscription = st.subscription;
+    accountAuthSeen.set(slot, seen);
+    return;
+  }
   if (!st || st.installed === false || typeof st.loggedIn !== 'boolean') return;
   const seen = { loggedIn: st.loggedIn };
   if (st.loggedIn && st.email) seen.email = st.email;
   if (st.loggedIn && st.subscription) seen.subscription = st.subscription;
   accountAuthSeen.set(providerId + ':' + (accountId || 'primary'), seen);
+}
+// Readiness and unattended callers initiate the same bounded local check as Settings. No page needs
+// to be opened first, and concurrent readers share one child. This never proves remote authentication.
+function refreshClaudeCliAccountAuth(accountId) {
+  const slot = 'claude-cli:' + (accountId || 'primary');
+  const seen = accountAuthSeen.get(slot);
+  if (accountAuthPending.has(slot)) return accountAuthPending.get(slot);
+  if (seen && Date.now() - seen.at < (seen.status === 'unavailable' ? 10000 : 60000)) return Promise.resolve(seen);
+  const pending = Promise.resolve().then(() => {
+    const login = claudeCliLogin(accountId);
+    return login ? login.status() : { installed: false, loggedIn: false };
+  }).then(st => {
+    if (accountAuthSeen.get(slot) === seen) noteAccountAuth('claude-cli', accountId, st);
+    return accountAuthSeen.get(slot);
+  }, () => {
+    if (accountAuthSeen.get(slot) === seen) noteAccountAuth('claude-cli', accountId, { status: 'unavailable' });
+    return accountAuthSeen.get(slot);
+  }).finally(() => { accountAuthPending.delete(slot); });
+  accountAuthPending.set(slot, pending);
+  return pending;
 }
 /* SUBSCRIPTION STACKING — the ordered sign-ins a run on `providerId` may use: the primary (the provider's own
    store) first, then every extra account oldest-first, minus any a real probe PROVED signed out (unless that leaves
@@ -28237,16 +28292,32 @@ function accountChain(providerId) {
   const live = all.filter(a => accountLive(providerId, a.id));
   return live.length ? live : all.slice(0, 1);
 }
-// OAuth subscriptions: proven from the stored tokens (present and not recorded dead). Claude Code: the last real
-// `claude auth status` verdict — an account never probed counts as live, one proven signed out does not.
+async function prepareChannelProviderReadiness() {
+  try {
+    const saved = Object.values(channelSecrets || {}).concat(Object.values(telegramBotRecords()));
+    const usesCli = saved.some(r => r && r.enabled !== false &&
+      (normalizeProvider(r.provider) === 'claude-cli' || normalizeProvider(runWireFor(r.agentId || 'agent').provider) === 'claude-cli'))
+      || (Object.values(channelTokenRuntime).some(Boolean) && normalizeProvider(runWireFor('agent').provider) === 'claude-cli');
+    if (usesCli) await Promise.all([''].concat(providerAccounts.list('claude-cli').map(a => a.id)).map(refreshClaudeCliAccountAuth));
+  } catch (e) { failNote('providers.cli.boot-status', e); }
+}
+// OAuth subscriptions: stored tokens present and not recorded dead/rejected. Claude Code: a known
+// installed, signed-in local identity. Unknown triggers the bounded check and remains explicitly pending.
 function accountLive(providerId, id) {
   if (providerId === 'codex' || OAUTH_PROVIDER_IDS.indexOf(providerId) >= 0) {
     if (!id) {
       const p = oauthPrimaryStatus(providerId);
-      return !!(p.tokens && p.tokens.access_token && !p.dead);
+      if (!(p.tokens && p.tokens.access_token && !p.dead)) return false;
+      return providerVerification.sync(providerId + '@primary', p.tokens.access_token, providerRuntimeBaseUrl(providerId, '')).status !== 'rejected';
     }
     const e = oauthAccountEntry(providerId, id);
-    return !!(e && e.tokens && e.tokens.access_token && !e.authDead);
+    if (!(e && e.tokens && e.tokens.access_token && !e.authDead)) return false;
+    return providerVerification.sync(providerId + '@' + id, e.tokens.access_token, providerRuntimeBaseUrl(providerId, '')).status !== 'rejected';
+  }
+  if (providerId === 'claude-cli') {
+    refreshClaudeCliAccountAuth(id);
+    const seen = accountAuthSeen.get(providerId + ':' + (id || 'primary'));
+    return !!(seen && seen.installed && seen.loggedIn);
   }
   const s = accountAuthSeen.get(providerId + ':' + (id || 'primary'));
   return !(s && s.loggedIn === false);

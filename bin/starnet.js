@@ -500,6 +500,9 @@ async function statusCommand(opts, station) {
     version: { harness: v.harness || '', app: v.app || '', node: v.node || '' },
     workspace: workspace || null,
     providers: configured,
+    providerReadiness: (prov.ok && prov.json && Array.isArray(prov.json.providers)) ? prov.json.providers.map(p => ({ provider: p.id,
+      configured: !!p.configured, unattendedReady: !!p.unattendedReady, credential: p.credential, endpoint: p.endpoint,
+      lastVerified: p.lastVerified || null, reason: p.reason || 'unverified' })) : [],
     keychain: !!(prov.ok && prov.json && prov.json.keychainMode),
     // each agent's pair as its runs really use it (the row's resolved wire — an unpinned agent follows the station default)
     agents: Array.isArray(r.agents) ? r.agents.map(a => { const p = runPairOf(a); return { agentId: a.agentId, name: a.name, model: p.model || null, provider: p.provider || null, followsStation: p.followsStation, wireSource: p.source || undefined }; }) : []
@@ -510,6 +513,7 @@ async function statusCommand(opts, station) {
     'version    harness ' + (out.version.harness || '?') + (out.version.app ? ' · app ' + out.version.app : '') + ' · node ' + out.version.node,
     'workspace  ' + (out.workspace || 'not disclosed by the station'),
     'providers  ' + (out.providers.length ? out.providers.join(', ') : 'none configured') + (out.keychain ? ' (keys in the OS keychain)' : ''),
+    'readiness  ' + out.providerReadiness.filter(p => p.configured || (p.credential && p.credential.present)).map(p => p.provider + ': ' + p.reason).join(', '),
     'agents     ' + (out.agents.length ? out.agents.map(a => a.agentId + '=' + a.name + ' [' + (a.provider || '?') + '/' + (a.model || 'no model') + (a.followsStation ? ' · station default' : '') + ']').join('\n           ') : 'none')
   ].join('\n') + '\n');
   return 0;
