@@ -18,17 +18,16 @@ function extract(name) {
   return m[1];
 }
 
-const escSrc = /const HTML_ESC = \{[^}]*\};/.exec(src);
-A.ok(escSrc, 'chat.js still defines HTML_ESC');
+const escapeOwner = require('../frontend/js/util.js');
+A.ok(typeof escapeOwner.esc === 'function', 'the production escape owner is loaded');
 // eslint-disable-next-line no-new-func
 const relSrc = /  const REL_PATH = [^\n]*;/.exec(src);
 A.ok(relSrc, 'chat.js still defines REL_PATH (relative file links)');
-const renderMarkdown = new Function(
-  escSrc[0] + '\n' + relSrc[0] + '\n' + extract('escapeHtml') + '\n' + extract('linkify') + '\n' +
+const renderMarkdown = new Function('U',
+  relSrc[0] + '\n' + extract('escapeHtml') + '\n' + extract('linkify') + '\n' +
   extract('mdInline') + '\n' + extract('hostOf') + '\n' + extract('linkHostNote') + '\n' + extract('appFileRef') + '\n' + extract('fileRefLink') + '\n' + extract('fileRefImage') + '\n' + extract('reportInline') + '\n' + extract('renderFence') + '\n' + extract('renderMarkdown') +
   '\nreturn renderMarkdown;'
-)();
-
+)(escapeOwner);
 const html = renderMarkdown('Before\n```js\nconst one = "<one>";\n```\nBetween\n```\nsecond();\n```\nAfter');
 A.eq((html.match(/class="md-pre-wrap"/g) || []).length, 2, 'each fenced section gets its own wrapper');
 A.eq((html.match(/class="md-copy"/g) || []).length, 2, 'each fenced section gets its own copy button');

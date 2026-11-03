@@ -32,7 +32,7 @@ const StepIn = (() => {
   let view = null;        // the mounted view { host, … } or null
 
   const base = () => (typeof window !== 'undefined' ? String(window.__STARNET_API__ || '') : '');
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   function getJson(path, signal) {
     return fetch(base() + path, { cache: 'no-store', signal }).then(async r => { let j = null; try { j = await r.json(); } catch (_) {} return { status: r.status, body: j || {} }; });
   }

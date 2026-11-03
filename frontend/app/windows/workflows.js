@@ -20,7 +20,7 @@ const WorkflowsWindow = (() => {
   const P = () => (typeof Pipeline !== 'undefined' ? Pipeline : null);
   const W = () => (typeof WorkflowLine !== 'undefined' ? WorkflowLine : null);
   const B = () => (typeof Build !== 'undefined' ? Build : null);
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../../js/util.js')).esc(s);
   const sfx = k => { try { const h = H(); if (h && h.sfx) h.sfx(k); } catch (_) {} };
   const notify = (t, kind) => { try { const h = H(); if (h && h.notify) h.notify(t, kind || ''); } catch (_) {} };
   const api = p => ((typeof window !== 'undefined' && window.__STARNET_API__) ? window.__STARNET_API__ : '') + p;

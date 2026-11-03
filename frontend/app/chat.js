@@ -883,8 +883,7 @@ const Chat = (() => {
   // HTML-escape the WHOLE string first, then wrap only matched http(s) URL substrings in anchors. Escaping before
   // matching means the resulting markup can contain nothing the model authored as live HTML — only our own <a>
   // tags around escaped text. Used identically for live-streamed tokens, the final reply, and replayed history.
-  const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => HTML_ESC[c]); }
+  function escapeHtml(s) { return (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s); }
   function linkify(text) {
     const s = String(text == null ? '' : text);
     const re = /https?:\/\/[^\s<>"']+/g;   // a run of non-space, non-markup chars after the scheme

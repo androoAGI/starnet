@@ -298,6 +298,7 @@ function twoUnnamed() {
     ReturnStore: { foldRow: () => true, pendingRows: () => [] },
     fetch: () => Promise.resolve({ status: 200, json: () => Promise.resolve({ ok: true, jobs: [] }) }),
   });
+  require('./helpers/frontend-esc.js').installEsc(ctx);
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'windows', 'workflows.js'), 'utf8'), ctx, { filename: 'workflows.js' });
   const WW = ctx.module.exports, S = WW._state;
   const make = name => { WW._pick('research_line'); S.draft.name = name; const had = new Set(st.props().map(p => p.id)); WW._create(); return st.props().find(p => p.t === 'intake' && !had.has(p.id)); };

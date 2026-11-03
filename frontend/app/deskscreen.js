@@ -115,7 +115,7 @@ const DeskScreen = (() => {
   }
 
   /* ---------------- display helpers ---------------- */
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const clip = (s, n) => { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
     const money = v => (typeof U !== 'undefined' && U.usd) ? U.usd(v) : '$' + (+v || 0).toFixed(4);
   const toolName = n => String(n || 'tool').replace(/^mcp__/, '').replace(/__/g, '.').replace(/_/g, '.');

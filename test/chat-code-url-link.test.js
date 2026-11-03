@@ -19,12 +19,11 @@ function extract(name) {
   A.ok(m, 'chat.js still defines ' + name + '()');
   return m[1];
 }
-const escSrc = /const HTML_ESC = \{[^}]*\};/.exec(src);
-A.ok(escSrc, 'chat.js still defines HTML_ESC');
+const escapeOwner = require('../frontend/js/util.js');
+A.ok(typeof escapeOwner.esc === 'function', 'the production escape owner is loaded');
 // eslint-disable-next-line no-new-func
-const reportInline = new Function(escSrc[0] + '\n' + extract('escapeHtml') + '\n' + extract('linkify') + '\n' +
-  extract('hostOf') + '\n' + extract('linkHostNote') + '\n' + extract('reportInline') + '\nreturn reportInline;')();
-
+const reportInline = new Function('U', extract('escapeHtml') + '\n' + extract('linkify') + '\n' +
+  extract('hostOf') + '\n' + extract('linkHostNote') + '\n' + extract('reportInline') + '\nreturn reportInline;')(escapeOwner);
 function hrefOf(html) { const m = /href="([^"]*)"/.exec(html); return m && m[1]; }
 
 // the observed live failure: a backticked server address must be a clickable link, still code-styled

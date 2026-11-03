@@ -9,10 +9,9 @@
    exported BEFORE the Skynet→StarNet rename holds `skynet.*` keys + a `skynet.backup` schema; both
    import fine and are mapped forward to `starnet.*` on restore.
 
-   v1 restores the browser-side state (which is what a wipe destroys). The notebook lives on the
-   sidecar's own disk and is preserved IN the file for portability + a future restore route, but is
-   not pushed back here — see docs note. Pure-ish: side effects are download + localStorage writes
-   only; everything else returns plain summaries and never throws. */
+   Restore applies the browser-side state and asks the sidecar to merge the notebook. A refused
+   notebook write reports a partial restore. Exports use U.saveFile: a confirmed desktop receipt
+   names its proven path; a browser download reports only the request. */
 'use strict';
 
 const Backup = (() => {

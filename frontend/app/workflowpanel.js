@@ -32,7 +32,7 @@ const WorkflowPanel = (() => {
     note: null,   // the panel's own answer line ({ t, bad, at, ts }): said under the control that was clicked (note / placeNote)
   };
   const WL = () => (typeof WorkflowLine !== 'undefined' ? WorkflowLine : null);
-  const esc = s => (H && H.esc ? H.esc(s) : String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])));
+  const esc = s => (H && H.esc ? H.esc(s) : (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s));
   const $ = q => (el ? el.querySelector(q) : null);
   const $$ = q => (el ? Array.prototype.slice.call(el.querySelectorAll(q)) : []);
   const api = (path, method, body) => fetch(H.api(path), method ? { method, headers: { 'content-type': 'application/json' }, body: JSON.stringify(body || {}) } : { cache: 'no-store' })

@@ -33,7 +33,7 @@
     return (w && w.__TAURI__ && w.__TAURI__.core && typeof w.__TAURI__.core.invoke === 'function') ? w.__TAURI__.core : null;
   }
   function apiBase(win) { try { return String(((win || root) && (win || root).__STARNET_API__) || ''); } catch (_) { return ''; } }
-  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+  function esc(s) { return (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s); }
 
   /* ---- the freeze ---- */
   function isApiUrl(u) {
