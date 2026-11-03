@@ -212,6 +212,17 @@ async function questArm() {
   const status = async () => (await f.request('/api/quests/refresh')).json();
   try {
     await f.start();
+    // A roster alone is held until the first accepted station save. Found the station through its real door:
+    // an automatic quest look must remain inert on an unfounded workspace, regardless of seeded soft evidence.
+    const foundedAt = Date.now();
+    const founded = await f.json('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: foundedAt,
+      _saveRevision: 0, _saveDirty: true, _saveClient: 'aux-ceiling-test',
+      agent: { id: 'agent', name: 'NOVA', createdAt: foundedAt }, agents: [],
+      workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
+    A.eq(founded.status, 200, 'the founding station save is accepted');
+    A.eq(founded.body && founded.body.ok, true, 'the founding station save is durable');
+    const lineage = await f.json('GET', '/api/lineage');
+    A.eq(lineage.body && lineage.body.lineage && lineage.body.lineage.station && lineage.body.lineage.station.state, 'active', 'the automatic quest fixture has a founded station');
     A.eq((await f.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'NOVA', provider: 'claude-cli', model: 'haiku' }] })).status, 200, 'the station runs on the Claude sign-in');
     await f.stop();
     // the same seeds as questrefresh.e2e: the tick needs a posture that may act, and a never-cycled state is due at the boot look.
