@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**28** open (open+claimed) of 393 total — 0 P0 · 0 P1 · 28 P2
+**28** open (open+claimed) of 394 total — 0 P0 · 0 P1 · 28 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -388,6 +388,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [A sign-in token-endpoint 429 tells a subscription user their account is out of credit](bugs/7631293b-a-sign-in-token-endpoint-429-tells-a-subscriptio.md) | sweep/providers | 8650b980a |
 | P2 | fixed | providers | [An OpenRouter in-band error loses its status and the upstream's words, so an in-band 401 is retried for about 100 seconds](bugs/cf675264-an-openrouter-in-band-error-loses-its-status-and.md) | sweep/providers | c486a4f0a |
 | P2 | fixed | providers | [An OpenRouter key credit limit or an upstream region refusal reads as a rejected API key](bugs/7d396570-an-openrouter-key-credit-limit-or-an-upstream-re.md) | sweep/providers | 613beeac9 |
+| P2 | fixed | providers | [Background provider updates erase settings save receipts](bugs/dbca103d-background-provider-updates-erase-settings-save.md) | spend-governor-1103 | 67d74dffe |
 | P2 | fixed | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | d503f00c5 |
 | P2 | fixed | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | 0c22f4fb0 |
 | P2 | fixed | providers | [credPool.penalize() on the run's PRIMARY key is inert — the sole credPool.order() call site (index.js:10580) receives a pool with runKey filtered out](bugs/8d7b0b52-credpool-penalize.md) | sweep/providers | fdbb12a2 |
