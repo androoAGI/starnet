@@ -71,16 +71,31 @@ re.reseed({ streamId: 's', coordinatedSession: true, parentRunId: 'parent' });
 A.eq(reads.map(args => args[2]), [{ limit: 100, shape: 'pairs', form: 'pre' }, { limit: 80, shape: 'pairs', form: 'pre' }], 'queued and coordinated callers preserve their exact pairs limits');
 
 // Carry is forced-ID-only and each candidate is proven absent by the Store's one batch owner.
-const pending = { role: 'user', content: 'UNADMITTED_TYPED', turnId: 'window_pending_0001', turnAt: 999999 };
+const pending = { role: 'user', content: 'UNADMITTED_TYPED', turnId: 'window_pending_0001', turnAt: 999999, taint: 'page-claimed source', taintKnown: false };
 mode = 'shadow'; window.apply([pending, newest], o, ctx);
 A.eq(store.all().some(r => r.turnId === pending.turnId), false, 'default shadow never carries a page-only turn');
 mode = 'id'; const carried = window.apply([pending, newest], o, ctx);
 const durableCarry = store.all().filter(r => r.turnId === pending.turnId);
 A.eq(durableCarry.length, 1, 'ID writes a proven-absent pending turn once');
 A.eq([durableCarry[0].kind, durableCarry[0].directive, durableCarry[0].carriedBy, durableCarry[0].sourceRunId], ['turn', true, ctx.runId, undefined], 'carried row cannot masquerade as this run directive');
+A.eq([durableCarry[0].taintKnown, Store.rowTaint(durableCarry[0])], [true, null], 'proved unadmitted typed input follows the host clean-input rule, ignoring page provenance claims');
+A.eq(store.taintOf('s', [{ role: 'user', content: pending.content }]), null, 'carrying ordinary typed words does not invent a replay taint');
+A.eq(store.view('owner-evidence', 's'), [], 'clean typed provenance does not mint a real run or owner-directive evidence');
 A.ok(carried.some(r => r.content === pending.content), 'carried words reach the chosen window');
 window.apply([pending, newest], o, ctx);
 A.eq(store.all().filter(r => r.turnId === pending.turnId).length, 1, 'resend does not duplicate a carried directive');
+const quoted = { role: 'user', content: '> a quoted log is still typed input', turnId: 'window_quoted_0001', turnAt: 999999, taint: 'forged' };
+window.apply([quoted, newest], o, ctx);
+A.eq(Store.rowTaint(store.all().find(r => r.turnId === quoted.turnId)), null, 'quoted typed input retains the existing host rule');
+const attached = { role: 'user', content: 'READ_ATTACHMENT', turnId: 'window_attached_0001', turnAt: 999999,
+  attachments: [{ id: 'attachment-ref', name: 'note.txt' }], taint: null, taintKnown: true };
+window.apply([attached, newest], o, ctx);
+const attachedRow = store.all().find(r => r.turnId === attached.turnId);
+A.eq([attachedRow.taintKnown, Store.rowTaint(attachedRow), attachedRow.sourceRunId], [true, 'user attachment', undefined], 'attachment references retain taint despite a posted clean claim and never borrow the current run');
+A.eq(store.taintOf('s', [{ role: 'user', content: attached.content }]), 'user attachment', 'replay restores the carried attachment provenance');
+store.appendStrict({ streamId: 's', role: 'assistant', content: 'PRIOR_FETCHED_TEXT', taint: 'web source' });
+window.apply([{ role: 'user', content: 'AFTER_FETCH_TYPED', turnId: 'window_after_fetch_0001', turnAt: 999999 }, newest], o, ctx);
+A.eq(store.taintOf('s', [{ role: 'assistant', content: 'PRIOR_FETCHED_TEXT' }]), 'web source', 'carrying typed words never clears prior outside-content provenance');
 const excess = Array.from({ length: 9 }, (_, n) => ({ role: 'user', content: 'CARRY_LIMIT_' + n, turnId: 'window_excess_00' + n, turnAt: 999999 }));
 const excessPost = excess.concat(newest);
 A.eq(window.apply(excessPost, o, ctx), excessPost, 'over-eight carry keeps full posted history');

@@ -764,13 +764,13 @@ function station(opts) {
     // runOnceCore also READS the mark twice for the in-flight watch (credential-store lane S3): a key its caller sent in this
     // request, the primary's or a fallback's, is the caller's own and never stopped mid-run.
     const SRC = require('./helpers/source.js').readSidecarSource();
-    const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'verifyProviderPair'];
-    // All six owners are multiline top-level functions. This extractor avoids the
+    const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'verifyProviderPair', 'turnWindowLimitOf'];
+    // All seven owners are multiline top-level functions. This extractor avoids the
     // documented regex-literal overrun in runOnceCore's generic brace scanner.
     const censusBody = sidecarTopLevelFunction;
     const tokens = text => (text.match(/keyInRequest/g) || []).length;
-    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(censusBody(f)))), [22, 2, 6, 10, 3, 1, 0],
-      'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it for its body key and each body fallback; the rest carry it, and runOnceCore\'s in-flight watch reads it)');
+    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(censusBody(f)))), [23, 2, 6, 10, 3, 1, 0, 1],
+      'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it; the others carry/read it, including the cached-only window endpoint lookup)');
     // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest)
     const fifthArgCalls = text => {
       let n = 0;
@@ -783,8 +783,8 @@ function station(opts) {
       }
       return n;
     };
-    A.eq([fifthArgCalls(SRC)].concat(F4_FNS.map(f => fifthArgCalls(censusBody(f)))), [7, 1, 2, 2, 0, 1, 1],
-      'only these callers tell the resolver a key came in this request: handleRun; runOnceCore (its pair, its fallback loop); the voice hop and its main catalog read; the catalog reader; shared probe/validate verifier');
+    A.eq([fifthArgCalls(SRC)].concat(F4_FNS.map(f => fifthArgCalls(censusBody(f)))), [8, 1, 2, 2, 0, 1, 1, 1],
+      'only these callers tell the resolver a key came in this request: handleRun; runOnceCore; voice; catalogs; shared verifier; cached-only turn window');
     // each one's provenance is the request's own: the body key (handleRun, probe, validate), else the mark handleRun set
     const voice = sidecarTopLevelFunction('applyVoiceTurnRoute');
     A.ok(/const keyInRequest = callerCredential && o\.keyInRequest === true;/.test(voice) && /next\.keyInRequest = sameProvider && keyInRequest;/.test(voice)

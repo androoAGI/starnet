@@ -390,7 +390,7 @@ function world(opts) {
     const idx = readSidecarSource();
     const trig = (idx.split('function makeTriggerHub(hooks) {')[1] || '').split('\n}\n')[0];
     A.ok(trig.length > 0, 'found index.js makeTriggerHub');
-    A.ok(/entryUntrusted: hooks\.entryUntrusted, senderWithheld: hooks\.senderWithheld,/.test(trig), 'index.js makeTriggerHub forwards BOTH verdict hooks to the hub');
+    A.ok(/entryUntrusted: hooks\.entryUntrusted,\s*senderWithheld: hooks\.senderWithheld,/.test(trig), 'index.js makeTriggerHub forwards BOTH verdict hooks to the hub');
     A.ok(/makeHub: \(hooks\) => makeTriggerHub\(Object\.assign\(\{\}, hooks, \{ persona: HANDOFF_PERSONA, entryTaint: 'upstream line output' \}\)\)/.test(idx), '…and the handoff runner\'s hub passes its hooks straight through');
   }
 

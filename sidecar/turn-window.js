@@ -87,7 +87,10 @@ function make(d) {
     for (const c of candidates) if (proof.get(c.turnId)?.state === 'absent') {
       const row = store.appendStrict({ streamId: o.streamId, agentId: ctx.agentId, role: 'user', content: c.row.content,
         typed: typeof c.row.typedText === 'string' ? c.row.typedText : c.row.content, attachments: c.row.attachments,
-        kind: 'turn', turnId: c.turnId, directive: true, carriedBy: ctx.runId });
+        // These proved-absent rows are unadmitted typed input. Match handleRun's input rule:
+        // actual attachment references taint it; typed/quoted words do not. Ignore posted provenance claims.
+        kind: 'turn', turnId: c.turnId, directive: true, carriedBy: ctx.runId,
+        taint: Array.isArray(c.row.attachments) && c.row.attachments.length > 0 ? 'user attachment' : null });
       if (!row || !positiveId(row.rowId)) throw new Error('carried turn was not durably acknowledged');
       out.push(Object.assign({}, c.row, { rowId: row.rowId, streamId: o.streamId }));
     }

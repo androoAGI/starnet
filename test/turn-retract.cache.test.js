@@ -23,7 +23,7 @@ function page(f, deferProof) {
   const ws = { id: 's', history: f.local.slice() }, historyLoads = new WeakMap(), calls = [], notes = [];
   const read = { history: ws.history }, context = vm.createContext({ Date, AbortController, setTimeout, clearTimeout,
     Channels: { isBusy: () => false }, Workstreams: { get: () => ws }, historyLoads, activeWs: null, historyPinSeq: 1,
-    App: { persist() {} }, TurnMerge: Merge, stationModes: {}, placeSteerNotes: rows => rows,
+    App: { persist() {} }, TurnMerge: Merge, HistoryFit: require('../frontend/app/historyfit.js'), stationModes: {}, stationCaps: {}, placeSteerNotes: rows => rows,
     noteContinuity: (_ws, note) => notes.push(note), redactAsk: rows => rows, redactedTexts: async () => new Map(),
     fetch: async (url, options) => {
       calls.push(url);

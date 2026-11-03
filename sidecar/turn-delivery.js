@@ -36,7 +36,7 @@ function write(store, input) {
     return { rowId: row.rowId, turnId: row.turnId };
   }
   const row = store.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'assistant', kind: 'delivery',
-    content: o.text, sourceRunId: o.runId, turnId, ...(hasTaint ? { taint } : {}) });
+    content: o.text, sourceRunId: o.runId, turnId, ...(hasTaint ? { taint: taint } : {}) });
   if (!row || !positiveId(row.rowId) || row.streamId !== o.streamId || row.sourceRunId !== o.runId || row.kind !== 'delivery' || row.turnId !== turnId) {
     throw unavailable('Delivery append has no durable identity');
   }
