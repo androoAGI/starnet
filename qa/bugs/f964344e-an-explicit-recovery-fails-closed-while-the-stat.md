@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-11-02
 lane: agent/station-lifecycle-record-1031
-fix: 8adffe08d
+fix: 65944dc92
 origin: audit
 ---
 
@@ -36,7 +36,7 @@ On Windows, with the station browser open, a Commander picks a station on the re
 
 ## Verdict
 
-Fixed by 8adffe08d (lane station-lifecycle-record, step 4). `POST /api/lineage/recover` and `POST /api/lineage/start-fresh` now close the station browser, end any orphan on its profile (the same sweep as RESET STATION BROWSER, run only when the profile's lock says something holds it), and leave through `gracefulShutdown(why, 75)`. A close or a sweep that does not finish is bounded at 12 s and never blocks the request; a rename that still fails is reported as before.
+Fixed by 65944dc92 (lane station-lifecycle-record, step 4). `POST /api/lineage/recover` and `POST /api/lineage/start-fresh` now close the station browser, end any orphan on its profile (the same sweep as RESET STATION BROWSER, run only when the profile's lock says something holds it), and leave through `gracefulShutdown(why, 75)`. A close or a sweep that does not finish is bounded at 12 s and never blocks the request; a rename that still fails is reported as before.
 
 At the tip, `test/start-fresh-browser.e2e.test.js` passes on both routes, with nothing holding the profile the moment the sidecar is gone. `test/start-fresh-generation.test.js` pins the order for both routes, with the transport faked.
 

@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-10-31
 lane: agent/station-lifecycle-record-1031
-fix: 4d91b4af8
+fix: cb8d67536
 origin: audit
 ---
 
@@ -36,7 +36,7 @@ If an in-app update is prepared on a workspace that has no station yet, the next
 
 ## Verdict
 
-Fixed by 4d91b4af8 (lane station-lifecycle-record, step 3). A prepare skips its bundle only when there is nothing to protect, which takes both of these:
+Fixed by cb8d67536 (lane station-lifecycle-record, step 3). A prepare skips its bundle only when there is nothing to protect, which takes both of these:
 - the host's holdsStationData() is false: no founded station, no save or roster, and nothing the frozen fallback calls station state;
 - the page's browser store holds no station-save journal (a `starnet.save` or `starnet.save.<...>` key with a value, or the pre-rename `skynet.` spelling).
 

@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-11-03
 lane: agent/station-lifecycle-record-1031
-fix: ff0a58d98
+fix: d7bdf9eaa
 origin: audit
 ---
 
@@ -35,7 +35,7 @@ A process killed at the wrong moment of START FRESH (a power cut, a hard kill, a
 
 ## Verdict
 
-Fixed by ff0a58d98. The request file carries an activation journal, in two atomic steps. The first names the stage and where the live generation goes, before the stage exists. The second adds `ready`, the stage record's hash and the result to report, before the first rename.
+Fixed by d7bdf9eaa. The request file carries an activation journal, in two atomic steps. The first names the stage and where the live generation goes, before the stage exists. The second adds `ready`, the stage record's hash and the result to report, before the first rename.
 
 Every boot settles a journaled activation first, before any stale check (`resumeActivation`). A stage that never got past its first rename is dropped and the request runs as usual. A stage that took its place is finished. A missing workspace gets the stage. A workspace that appeared after the first rename is set aside too: the shell's import, or an empty sealed folder. A station that no migration receipt accounts for stays, and the request ends there with an honest message.
 

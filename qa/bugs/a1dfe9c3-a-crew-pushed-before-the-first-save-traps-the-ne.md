@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-11-03
 lane: agent/station-lifecycle-record-1031
-fix: 19305b162
+fix: ff173210e
 origin: audit
 ---
 
@@ -34,7 +34,7 @@ A WAKE cut short in its first second or so (the app killed, a crash, a power cut
 
 ## Verdict
 
-Fixed by 19305b162. Before a station is founded the crew is held, not written. `saveAgentRoster` asks the live station record first. While there is no station, the roster goes to the live roster only, which is what runs and delegation read, and the anti-clobber stamp moves as usual. The founding save (savestore's onFounded) then writes it, and a write that fails stays held for the next save. `POST /api/roster` answers `held: true` while the crew is held. Every writer goes through that one path, so the gate covers them all. `test/station-record-readers.test.js` pins the one write path and its order.
+Fixed by ff173210e. Before a station is founded the crew is held, not written. `saveAgentRoster` asks the live station record first. While there is no station, the roster goes to the live roster only, which is what runs and delegation read, and the anti-clobber stamp moves as usual. The founding save (savestore's onFounded) then writes it, and a write that fails stays held for the next save. `POST /api/roster` answers `held: true` while the crew is held. Every writer goes through that one path, so the gate covers them all. `test/station-record-readers.test.js` pins the one write path and its order.
 
 `test/stationless-boot-census.http.test.js` sends every roster writer before a founding and finds no roster file, and the restart onboards. Its founding row shows the founding save writing the held crew with its stamp. `test/erase-then-restart.http.test.js` keeps a window from before the erase open across the restart, and the erase holds. `test/station-marker-matrix.http.test.js` runs WAKE's order in every reset dialect.
 

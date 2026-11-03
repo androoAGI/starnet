@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/station-lifecycle-record-1031
-fix: 717919a82
+fix: 7c30dd9e3
 origin: audit
 ---
 
@@ -37,7 +37,7 @@ After ERASE EVERYTHING on a default Windows install, the app says the computer i
 
 ## Verdict
 
-Fixed by 717919a82 (lane station-lifecycle-record, step 2). bin/starnet.js now asks `sidecar/station-record.js`, loaded on first use so `starnet --version` still reads only bin/.
+Fixed by 7c30dd9e3 (lane station-lifecycle-record, step 2). bin/starnet.js now asks `sidecar/station-record.js`, loaded on first use so `starnet --version` still reads only bin/.
 - defaultWorkspace never picks a bare root that the desktop's record acknowledges, or that its erase authority or an unreadable reset or record blocks. That is the same predicate automatic recovery uses, so the gate, automatic recovery and the terminal give one answer.
 - bootstrapWorkspace refuses on a save or roster under any of its names first (P1), then on a founded station whose save is gone. It writes with 'wx' and then founds the record.
 

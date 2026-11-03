@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 394 total — 0 P0 · 0 P1 · 29 P2
+**29** open (open+claimed) of 397 total — 0 P0 · 0 P1 · 29 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -181,15 +181,15 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [Invalid connector JSON null replaces encrypted recovery credentials at startup](bugs/0428b50d-invalid-connector-json-null-replaces-encrypted-r.md) | release-audit-0124-0920 | 42ad5937f |
 | P1 | fixed | channels | [/new on Telegram says 'I no longer remember what we discussed' while the next run replays up to 100 turns of the old chat, taint included](bugs/956fdecf-new-on-telegram-says-i-no-longer-remember-what-w.md) | sweep/channels | 5b934e4e2 |
 | P1 | fixed | channels | [Telegram-bound lead reports crew delegation unavailable](bugs/98454b83-telegram-lead-delegation-unavailable.md) | release-0120-prep-0915 | 887210a7b |
-| P1 | fixed | onboarding | [An armed night shift traps a fresh install in Recovery Mode after one station-less session](bugs/d2a917eb-an-armed-night-shift-traps-a-fresh-install-in-re.md) | agent/station-lifecycle-record-1031 | 717919a82 |
+| P1 | fixed | onboarding | [An armed night shift traps a fresh install in Recovery Mode after one station-less session](bugs/d2a917eb-an-armed-night-shift-traps-a-fresh-install-in-re.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | onboarding | [Erase Everything resurrects an acknowledged legacy station on restart](bugs/5451970e-erase-everything-resurrects-an-acknowledged-lega.md) | agent/runtime-triage-1011 | 553cfa55d45afca1b588cb0b82219d6bb5673cab |
 | P1 | fixed | onboarding | [Failed remote save adoption falls through to first-run onboarding](bugs/25de9a74-failed-remote-save-adoption-falls-through-to-fir.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | onboarding | [Google account connection asks customers for developer credentials](bugs/e5d4b743-google-account-connection-asks-customers-for-dev.md) | agent/google-account-signin | cb8385c56 |
 | P1 | fixed | onboarding | [Mac paid onboarding becomes unreachable after reload and relink](bugs/eaaa3ec8-mac-onboarding-unreachable-after-link.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
 | P1 | fixed | onboarding | [Older Mac WebKit cannot initialize Chat and widget polling](bugs/5308fc67-older-mac-webkit-cannot-initialize-chat-and-widg.md) | mac-boot-compat-0918 | 14c6a69a8 |
-| P1 | fixed | onboarding | [starnet boots the station ERASE EVERYTHING set aside in the install folder](bugs/661cbfea-starnet-boots-the-station-erase-everything-set-a.md) | agent/station-lifecycle-record-1031 | 717919a82 |
+| P1 | fixed | onboarding | [starnet boots the station ERASE EVERYTHING set aside in the install folder](bugs/661cbfea-starnet-boots-the-station-erase-everything-set-a.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | onboarding | [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | agent/codex-wins-wake | f7e050e6f |
-| P1 | fixed | onboarding | [The gate's START FRESH leaves the old station live](bugs/8792cdaf-the-gate-s-start-fresh-leaves-the-old-station-li.md) | agent/station-lifecycle-record-1031 | 8adffe08d |
+| P1 | fixed | onboarding | [The gate's START FRESH leaves the old station live](bugs/8792cdaf-the-gate-s-start-fresh-leaves-the-old-station-li.md) | agent/station-lifecycle-record-1031 | 65944dc92 |
 | P1 | fixed | onboarding | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | credits-unlink-recovery | 02332ee85 |
 | P1 | fixed | onboarding | [Unreadable station save is reported empty and its sole backup can be eclipsed](bugs/34c58f4f-unreadable-station-save-is-reported-empty-and-it.md) | reliability-audit-0919 | d9b6fba04 |
 | P1 | fixed | onboarding | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | onboarding-conversation-0912 | 0250793ac |
@@ -250,7 +250,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
 | P1 | fixed | sessions | [A second save quarantine after a restart deletes the first quarantined copy the recovery notice points to](bugs/e862d9ff-a-second-save-quarantine-after-a-restart-deletes.md) | sweep/sessions | dd8662b5c |
-| P1 | fixed | sessions | [A torn START FRESH marker refuses every save of a station founded after it](bugs/5d8c7060-a-torn-start-fresh-marker-refuses-every-save-of.md) | agent/station-lifecycle-record-1031 | 717919a82 |
+| P1 | fixed | sessions | [A torn START FRESH marker refuses every save of a station founded after it](bugs/5d8c7060-a-torn-start-fresh-marker-refuses-every-save-of.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |
 | P1 | fixed | sessions | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | comms-add-agents-0906 | cf6b3ca03c372c404bcb46997a56d570d7747d70 |
 | P1 | fixed | sessions | [Agent session focus commands can unexpectedly retarget the composer](bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md) | typing-focus-0916-c7a2 | 86b33ace3 |
 | P1 | fixed | sessions | [An empty station file never re-seeds from the browser save and the banner blames another window](bugs/5c019483-an-empty-station-file-never-re-seeds-from-the-br.md) | sweep/onboarding | 6849ada6d |
@@ -375,13 +375,13 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | channels | [Station button redesign escaped the bottom navigation](bugs/d28ba8f4-station-button-redesign-escaped-the-bottom-navig.md) | agent/comms-controls-0906 | e4e4512b198279e35cdd9f2cc2be9d786b02e87f |
 | P2 | fixed | channels | [/usage on an unsettled ledger answers '…See SETTINGS › SPENDING LIMITS..' with a doubled period, on Telegram and in COMMS](bugs/67ba42c6-usage-on-an-unsettled-ledger-answers-see-setting.md) | sweep/channels | cc57c42b6 |
 | P2 | fixed | channels | [With /mention off, a group command @-addressed to another bot (/new@otherbot, /stop@otherbot) runs on this bot](bugs/bbf17048-with-mention-off-a-group-command-addressed-to-an.md) | sweep/channels | debe64ba4 |
-| P2 | fixed | onboarding | [A crash between START FRESH's two renames brings an erased station back](bugs/c5dc6017-a-crash-between-start-fresh-s-two-renames-brings.md) | agent/station-lifecycle-record-1031 | ff0a58d98 |
-| P2 | fixed | onboarding | [A crew pushed before the first save traps the next boot in Recovery Mode](bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md) | agent/station-lifecycle-record-1031 | 19305b162 |
+| P2 | fixed | onboarding | [A crash between START FRESH's two renames brings an erased station back](bugs/c5dc6017-a-crash-between-start-fresh-s-two-renames-brings.md) | agent/station-lifecycle-record-1031 | d7bdf9eaa |
+| P2 | fixed | onboarding | [A crew pushed before the first save traps the next boot in Recovery Mode](bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md) | agent/station-lifecycle-record-1031 | ff173210e |
 | P2 | fixed | onboarding | [A grabbed awakening offer becomes the Commander's first task in the agent's own voice](bugs/90efe1f0-a-grabbed-awakening-offer-becomes-the-commander.md) | sweep/onboarding | 22b3454a9 |
 | P2 | fixed | onboarding | [A wall-of-text onboarding answer rides every system prompt uncapped](bugs/8faefe89-a-wall-of-text-onboarding-answer-rides-every-sys.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [An emoji-only or punctuation-only answer is saved as the Commander's stated belief](bugs/289ed1ab-an-emoji-only-or-punctuation-only-answer-is-save.md) | sweep/onboarding | 8130d66ee |
-| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 8adffe08d |
-| P2 | fixed | onboarding | [An update prepared before onboarding traps the next boot in Recovery Mode](bugs/d985465f-an-update-prepared-before-onboarding-traps-the-n.md) | agent/station-lifecycle-record-1031 | 4d91b4af8 |
+| P2 | fixed | onboarding | [An explicit recovery fails closed while the station browser is open](bugs/f964344e-an-explicit-recovery-fails-closed-while-the-stat.md) | agent/station-lifecycle-record-1031 | 65944dc92 |
+| P2 | fixed | onboarding | [An update prepared before onboarding traps the next boot in Recovery Mode](bugs/d985465f-an-update-prepared-before-onboarding-traps-the-n.md) | agent/station-lifecycle-record-1031 | cb8d67536 |
 | P2 | fixed | onboarding | [First-path offer silently vanishes for a long or repeated mission](bugs/2ea198d9-first-path-offer-silently-vanishes-for-a-long-or.md) | sweep/onboarding | 6d86bbfe2 |
 | P2 | fixed | onboarding | [FOR YOU shelf disappears after declining every recipe](bugs/fa296d45-for-you-shelf-disappears-after-declining-every-r.md) | sweep/onboarding | ce7698b0d |
 | P2 | fixed | onboarding | [Intake interview asks scene-register questions and glues each lead-in to its question](bugs/77350944-intake-interview-asks-scene-register-questions-a.md) | sweep/onboarding | 8130d66ee |

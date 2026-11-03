@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-11-02
 lane: agent/station-lifecycle-record-1031
-fix: 8adffe08d
+fix: 65944dc92
 origin: audit
 ---
 
@@ -34,7 +34,7 @@ START FRESH on PRIOR STATION DATA FOUND says the old station was set aside and o
 
 ## Verdict
 
-Fixed by 8adffe08d (lane station-lifecycle-record, step 4). START FRESH now means the whole generation, from either door.
+Fixed by 65944dc92 (lane station-lifecycle-record, step 4). START FRESH now means the whole generation, from either door.
 
 - `POST /api/lineage/start-fresh` only takes a request, pinning the generation, the save and roster hashes, the marker's at and the build version. The sidecar exits 75 through the graceful path.
 - The next boot sets the generation aside in `applyFreshRequest` (sidecar/workspace-recovery.js), in the locked pre-claim phase, with the activation explicit recovery uses: one rename into workspace-quarantine/station-<stamp>, in place of a stage holding SEAL, the station record, the legacy mirror and the carry rule's files.
@@ -44,6 +44,6 @@ Fixed by 8adffe08d (lane station-lifecycle-record, step 4). START FRESH now mean
 
 Workspace-held sign-ins, channel bots and connectors now leave with the station (Andrew decision 4), and the gate's confirm line says so. They stay restorable by hand from the quarantine folder, and OS-keychain credentials are untouched.
 
-The native door's refusal over an unreadable account link is aligned in a463e3757, its own commit so it can be dropped.
+The native door's refusal over an unreadable account link is aligned in 90d7a17af, its own commit so it can be dropped.
 
 Not verified on an installed build: the proof is the real sidecar on Windows here and Linux in CI, not a packaged desktop app.

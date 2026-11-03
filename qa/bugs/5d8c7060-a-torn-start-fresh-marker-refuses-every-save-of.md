@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/station-lifecycle-record-1031
-fix: 717919a82
+fix: 7c30dd9e3
 origin: audit
 ---
 
@@ -36,7 +36,7 @@ When a workspace's .fresh-start.json is torn (a power loss or an antivirus trunc
 
 ## Verdict
 
-Fixed by 717919a82 (lane station-lifecycle-record, step 2).
+Fixed by 7c30dd9e3 (lane station-lifecycle-record, step 2).
 - savestore.js no longer parses the marker. index.js injects the live station record's resetAt, and a store built without one asks `sidecar/station-record.js` read().
 - The module's one parser reads a torn marker as reset {unreadable:true, at: <the time the record was derived>}. The boot that derived it bounds the reset, so a station founded after that boot saves, while a browser copy from before it is still refused.
 - Automatic recovery stays blocked over the unreadable reset.

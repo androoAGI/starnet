@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/station-lifecycle-record-1031
-fix: 717919a82
+fix: 7c30dd9e3
 origin: audit
 ---
 
@@ -40,13 +40,13 @@ With the night shift armed, a fresh install that is opened and closed once, befo
 
 ## Verdict
 
-Fixed by 717919a82 (lane station-lifecycle-record, step 2). The gate now counts the current workspace by its station record, through `sidecar/station-record.js` read():
+Fixed by 7c30dd9e3 (lane station-lifecycle-record, step 2). The gate now counts the current workspace by its station record, through `sidecar/station-record.js` read():
 - a save or roster file is always a station (P1);
 - the record decides soft bookkeeping, whoever writes it;
 - ensure() records a station-less workspace as none at its first boot, and only the station file's first accepted save founds it.
 
 The quest refresh asks the same live record. `test/stationless-boot-census.http.test.js` passes at 717919a82 (34 assertions, 28 s).
 
-The night-shift tick's own decline row is gone too, as of 4d91b4af8 (step 3): the tick stands down until a station is founded, so a downgrade to 0.14.x after a no-client session is no longer trapped either. `test/stationless-boot-census.http.test.js` proves it with its completeness census.
+The night-shift tick's own decline row is gone too, as of cb8d67536 (step 3): the tick stands down until a station is founded, so a downgrade to 0.14.x after a no-client session is no longer trapped either. `test/stationless-boot-census.http.test.js` proves it with its completeness census.
 
-The client routes WAKE calls before its first save still write by design (Andrew decision 1). The soft files they leave no longer trap this build, because the record decides those. The one hard-proof write among them did trap it: WAKE's crew push wrote a roster file before the first save landed. 19305b162 holds that crew until a station is founded (qa/bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md). What remains is downgrade-only: if WAKE dies before its first save and the Commander then goes back to 0.14.x, that build reads the soft files as a station, as it always did.
+The client routes WAKE calls before its first save still write by design (Andrew decision 1). The soft files they leave no longer trap this build, because the record decides those. The one hard-proof write among them did trap it: WAKE's crew push wrote a roster file before the first save landed. ff173210e holds that crew until a station is founded (qa/bugs/a1dfe9c3-a-crew-pushed-before-the-first-save-traps-the-ne.md). What remains is downgrade-only: if WAKE dies before its first save and the Commander then goes back to 0.14.x, that build reads the soft files as a station, as it always did.
