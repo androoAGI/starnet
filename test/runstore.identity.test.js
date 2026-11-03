@@ -91,4 +91,49 @@ const dropped = () => failopen.counts()['runstore.noteIdentity'] || 0;
   A.eq(s.record({ runId: 'run-501', agentId: 'agent', reason: 'done' }).turnId, T, 'the newest note survives');
 }
 
+// 5. a settled spend keeps the run's turn identity: settleSpend builds its superseding row from the served row, and record()
+//    keeps the identity that row carries (checked exactly as noteIdentity checks it), so the chain's served row still names
+//    the run's turn and directive row after the Commander settles it
+{
+  const io = memIo();
+  const s = makeRunStore({ io, clock });
+  s.noteIdentity('run-int', { turnId: T, directiveRowId: 17 });
+  const first = s.record({ runId: 'run-int', agentId: 'agent', reason: 'interrupted', spendUnknown: true, title: 'draft the memo', streamId: 's1' });
+  A.eq([first.turnId, first.directiveRowId, first.spendUnknown], [T, 17, true], 'control: the interrupted row carries its identity and an unknown spend');
+  const before = dropped();
+  const settled = s.settleSpend('run-int', 0.25, 'entered');
+  A.ok(settled && settled.spendSettled === 'entered', 'fixture: the spend settles (one superseding row)');
+  A.eq([settled && settled.turnId, settled && settled.directiveRowId], [T, 17], 'the superseding row keeps the run\'s turnId and directiveRowId');
+  const served = s.latest('run-int');
+  A.eq([served.turnId, served.directiveRowId, served.spendSettled, served.usd], [T, 17, 'entered', 0.25], 'the served row (the chain\'s latest) names the turn and the settled figure');
+  A.eq(dropped() - before, 0, 'nothing dropped: the identity the row carried was valid');
+  const reloaded = makeRunStore({ io: { readAll: () => io.lines.slice(), append() {} }, clock }).latest('run-int');
+  A.eq([reloaded.turnId, reloaded.directiveRowId, reloaded.spendSettled], [T, 17, 'entered'], 'after a restart the settled row still names its turn (the persisted row carries it)');
+}
+
+// 6. a row GIVEN identity fields is checked exactly as noteIdentity checks them: valid ones ride, malformed ones are dropped and
+//    counted; a note never overwrites a field the row was given; a row given none is byte-identical
+{
+  const s = makeRunStore({ io: memIo(), clock });
+  const W = { first: 3, last: 9, count: 4, sha256: 'a'.repeat(64) };
+  let before = dropped();
+  const ok = s.record({ runId: 'run-g', agentId: 'agent', reason: 'done', turnId: T, directiveRowId: 5, windowRowIds: W, quotes: ['s2'], quotesAt: [40], quotesSaturatedAt: 0 });
+  A.eq([ok.turnId, ok.directiveRowId, ok.windowRowIds, ok.quotes, ok.quotesAt, ok.quotesSaturatedAt], [T, 5, W, ['s2'], [40], 0], 'every valid given identity field rides the row');
+  A.eq(dropped() - before, 0, 'nothing dropped for valid given fields');
+
+  before = dropped();
+  const bad = s.record({ runId: 'run-h', agentId: 'agent', reason: 'done', turnId: 'bad id!', directiveRowId: '5', windowRowIds: { first: 1 }, quotes: ['s2'], quotesAt: [-1], quotesSaturatedAt: -2 });
+  A.ok(!['turnId', 'directiveRowId', 'windowRowIds', 'quotes', 'quotesAt', 'quotesSaturatedAt'].some(k => k in bad), 'every malformed given identity field is dropped');
+  A.eq(dropped() - before, 1, 'the malformed given fields are counted once (runstore.noteIdentity)');
+
+  const T2 = 't9876543210zyxwvutsrqponm';
+  s.noteIdentity('run-w', { turnId: T2, directiveRowId: 8 });
+  const won = s.record({ runId: 'run-w', agentId: 'agent', reason: 'done', turnId: T });
+  A.eq([won.turnId, won.directiveRowId], [T, 8], 'a note never overwrites a field the row was given; it fills the rest');
+
+  const plain = makeRunStore({ io: memIo(), clock }).record(Object.assign({}, CUT));
+  const given = makeRunStore({ io: memIo(), clock }).record(Object.assign({}, CUT, { turnId: undefined }));
+  A.eq(given, plain, 'a row given no identity (an undefined field counts as absent) is byte-identical');
+}
+
 A.report('runstore.identity');

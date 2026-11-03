@@ -97,6 +97,7 @@
      run is live (runStore.noteIdentity) and merged into that run's next record(). Only these keys, each checked; anything
      else is dropped and counted. */
   const IDENTITY_NOTES_MAX = 500;
+  const IDENTITY_KEYS = ['turnId', 'directiveRowId', 'windowRowIds', 'quotes', 'quotesAt', 'quotesSaturatedAt'];
   const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // the workstream grammar transcriptstore.js validates a quoted stream id against
   const SHA256_RE = /^[a-f0-9]{64}$/;
   const safeNonNeg = v => Number.isSafeInteger(v) && v >= 0;
@@ -337,23 +338,29 @@
        integers + a sha256), quotes/quotesAt (the quote stamp form) and quotesSaturatedAt; any other key, or a value that
        fails its check, is dropped and counted. Bounded: past IDENTITY_NOTES_MAX runs the oldest note is evicted, counted. */
     const identities = new Map();   // runId -> admitted identity fields
-    function noteIdentity(runId, fields) {
-      const id = str(runId);
-      if (!id || !fields || typeof fields !== 'object') return false;
-      const next = Object.assign({}, identities.get(id) || {});
+    // the one check of a run's identity fields (noteIdentity's note, and the identity a row given to record() already
+    // carries): copies each admissible field into `into`, returns how many it dropped
+    function admitIdentity(fields, into) {
       let dropped = 0;
       for (const k of Object.keys(fields)) {
         const v = fields[k];
-        if (k === 'turnId') { if (TurnKinds && TurnKinds.isTurnId(v)) next.turnId = v; else dropped++; }
-        else if (k === 'directiveRowId') { if (Number.isSafeInteger(v) && v > 0) next.directiveRowId = v; else dropped++; }
-        else if (k === 'windowRowIds') { const w = windowRowIdsOf(v); if (w) next.windowRowIds = w; else dropped++; }
-        else if (k === 'quotesSaturatedAt') { if (safeNonNeg(v)) next.quotesSaturatedAt = v; else dropped++; }
+        if (k === 'turnId') { if (TurnKinds && TurnKinds.isTurnId(v)) into.turnId = v; else dropped++; }
+        else if (k === 'directiveRowId') { if (Number.isSafeInteger(v) && v > 0) into.directiveRowId = v; else dropped++; }
+        else if (k === 'windowRowIds') { const w = windowRowIdsOf(v); if (w) into.windowRowIds = w; else dropped++; }
+        else if (k === 'quotesSaturatedAt') { if (safeNonNeg(v)) into.quotesSaturatedAt = v; else dropped++; }
         else if (k !== 'quotes' && k !== 'quotesAt') dropped++;
       }
       if (Object.prototype.hasOwnProperty.call(fields, 'quotes') || Object.prototype.hasOwnProperty.call(fields, 'quotesAt')) {
         const q = quoteStampOf(fields.quotes, fields.quotesAt);
-        if (q) { next.quotes = q.quotes; next.quotesAt = q.quotesAt; } else dropped++;
+        if (q) { into.quotes = q.quotes; into.quotesAt = q.quotesAt; } else dropped++;
       }
+      return dropped;
+    }
+    function noteIdentity(runId, fields) {
+      const id = str(runId);
+      if (!id || !fields || typeof fields !== 'object') return false;
+      const next = Object.assign({}, identities.get(id) || {});
+      const dropped = admitIdentity(fields, next);
       if (dropped) failNote('runstore.noteIdentity', new Error(dropped + ' identity field(s) dropped for run ' + id));
       if (!Object.keys(next).length) return false;
       identities.delete(id);
@@ -466,8 +473,17 @@
       if (REASONS.has(e.continuedReason)) entry.continuedReason = e.continuedReason;
       const recoveryOf = str(e.recoveryOf).slice(0, 100);
       if (recoveryOf) entry.recoveryOf = recoveryOf;
-      // TURN IDENTITY (additive): what noteIdentity admitted for this run, consumed here; never over a field this row already
-      // holds. With nothing noted the row is byte-identical.
+      // TURN IDENTITY (additive): the identity this row was GIVEN (settleSpend's superseding row is built from the run's
+      // served row, so it carries the run's turn), checked exactly as a note is; then what noteIdentity admitted for this
+      // run, consumed here, never over a field this row already holds. With neither, the row is byte-identical.
+      const givenIdentity = {};
+      for (const k of IDENTITY_KEYS) if (e[k] !== undefined) givenIdentity[k] = e[k];
+      if (Object.keys(givenIdentity).length) {
+        const admitted = {};
+        const dropped = admitIdentity(givenIdentity, admitted);
+        if (dropped) failNote('runstore.noteIdentity', new Error(dropped + ' identity field(s) dropped for run ' + (entry.runId || '?')));
+        for (const k of Object.keys(admitted)) if (!Object.prototype.hasOwnProperty.call(entry, k)) entry[k] = admitted[k];
+      }
       const identity = entry.runId ? identities.get(entry.runId) : null;
       if (identity) {
         identities.delete(entry.runId);
