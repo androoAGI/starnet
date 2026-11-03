@@ -137,7 +137,7 @@ const CHIP = { done: true, cut: null, asked: null, budget: null, steps: null, em
 // a channel's delivery record (the run's end, as delivered)
 const CHANNEL_REASON = { done: 'done', cut: 'done', asked: 'clarifying', codex429: 'error', template: 'error', unreachable: 'error', policy: 'error',
   budget: 'budget', steps: 'max_iters', empty: 'empty', stopped: 'cancelled', noend: 'error', thrown: 'error', delegated: 'done', delegatedNoEnd: 'error' };
-const CHANNEL_SAYS = { cut: /cut short/, empty: /empty reply/, noend: /without reporting how it finished/, thrown: /run failed: boom/, delegatedNoEnd: /without reporting how it finished/ };
+const CHANNEL_SAYS = { cut: /cut short/, empty: /empty reply/, noend: /without reporting how it finished/, thrown: /sidecar failure: boom/, delegatedNoEnd: /without reporting how it finished/ };
 // a routine: only a succeeded run is ok (and only it pings "ran on its own")
 const ROUTINE_OK = { done: true, delegated: true };
 // review r7 (the family law): a fire someone STOPPED is its own outcome — its record says 'stopped' and so does cron.result, never 'error' /
@@ -219,17 +219,22 @@ async function loopRun(kind) {
 const CORE = sidecarTopLevelFunction('runOnceCore');
 A.ok(CORE.length > 100000, 'fixture: runOnceCore is sliced from the sidecar source');
 // runOnceCore's own outcome sink, when the station has one (sliced, with the map it hands the history row's stamp through)
-const SINK_SRC = /const emit = outcomeSink\(/.test(CORE) ? sidecarTopLevelFunction('outcomeSink') : '';
+// (run-table S2: the sink sits under the run table's guard, so the chain's head is `const chainEmit = outcomeSink(`)
+const SINK_SRC = /const (emit|chainEmit) = outcomeSink\(/.test(CORE) ? sidecarTopLevelFunction('outcomeSink') : '';
 function stationEmit(collect, endedOutcomes) {
   if (!SINK_SRC) return collect;
   return new Function('RunOutcome', 'endedOutcomes', SINK_SRC + '\nreturn outcomeSink;')(RunOutcome, endedOutcomes)(collect);
 }
 // THE RUN: its events as they leave runOnceCore, whether its runOnce throws, and the loop result its history row is built from
+// THE RUN TABLE heads that chain (run-table S2: the REAL sidecar/run-table.js guard, as runOnceCore wires it), and its BELT ends a run whose
+// runOnce threw before the throw reaches any surface (runOnce's finally: the run's error words and one end, through the chain)
+const RunTableMod = require('../sidecar/run-table.js');
 async function stationRun(kind) {
   const endedOutcomes = new Map();
   const out = [];
-  const emit = stationEmit((n, p) => out.push([n, p]), endedOutcomes);
   const runId = 'r-' + kind;
+  const tableRun = RunTableMod.makeRunTable().admit({ runId, agentId: 'agent' });
+  const emit = tableRun.entry.guard(stationEmit((n, p) => out.push([n, p]), endedOutcomes));
   let result, throws = false, taskQuestionAsked = false;
   if (kind === 'asked') {
     // the loop ended 'done' on a Task Brief question; runOnceCore re-emits its buffered end as 'clarifying'
@@ -246,7 +251,9 @@ async function stationRun(kind) {
       emit('agent.run.start', { agentId: 'worker', runId: 'w-1', trigger: 'delegated', model: 'm' });
       emit('agent.run.end', RunOutcome ? RunOutcome.stamp(wEnd, null) : wEnd);
     }
-    if (kind === 'thrown') { throws = true; result = undefined; } else result = { turns: 1, messages: [] };
+    // a thrown run is ended by the belt before its throw reaches a surface; a run that RESOLVED without its end (noend) is left as it
+    // is, so every surface's own reader of a stream without an end stays pinned (the belt's own case is test/run-lifecycle.invariants)
+    if (kind === 'thrown') { throws = true; result = undefined; tableRun.entry.settle(new Error('boom'), null); } else result = { turns: 1, messages: [] };
   } else {
     const r = await loopRun(kind);
     for (const [n, p] of r.events) {
@@ -261,6 +268,7 @@ async function stationRun(kind) {
     }
     result = r.result;
   }
+  tableRun.release();
   return { kind, runId, events: out, throws, result, taskQuestionAsked, endedOutcomes };
 }
 // replay a run's events onto a surface's own sink under that surface's run id (a forwarded worker's keep the worker's)
@@ -270,16 +278,19 @@ function replay(run, emit, runId, agentId) {
     emit(n, Object.assign({}, p, lead ? { runId: runId || p.runId } : {}, lead && agentId && p.agentId ? { agentId } : {}));
   }
 }
-// what /api/run streams: the run's events, and — when its runOnce threw — the error and end handleRun's OWN catch emits (sliced)
+// what /api/run streams: the run's events, and — when its runOnce threw — what handleRun's OWN catch adds (sliced): since run-table S2
+// nothing for a run runOnce's belt ended (its bus saw that end), the balanced receipt for a throw before runOnce began
 const HANDLE_RUN_SRC = sidecarTopLevelFunction('handleRun');
 const runCatchAt = HANDLE_RUN_SRC.indexOf("    if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');");
 const RUN_CATCH = runCatchAt < 0 ? '' : HANDLE_RUN_SRC.slice(runCatchAt, HANDLE_RUN_SRC.indexOf('  } finally {', runCatchAt));
-A.ok(/emit\('agent\.run\.error'/.test(RUN_CATCH) && /emit\('agent\.run\.end'/.test(RUN_CATCH), 'fixture: handleRun\'s catch (the thrown run\'s error and end) is sliced');
+A.ok(/RunTable\.thrownReceipt\(/.test(RUN_CATCH) && /if \(!leadEnded\)/.test(RUN_CATCH), 'fixture: handleRun\'s catch (the receipt of a throw its belt did not end) is sliced');
 function wireOf(run) {
   const w = run.events.slice();
   if (run.throws) {
-    new Function('e', 'recovery', 'leadStarted', 'leadEnded', 'agentId', 'runId', 'model', 'emit', 'failNote', 'settleRunRecoveryContinuation', 'RunOutcome', RUN_CATCH)(
-      new Error('boom'), null, true, false, 'agent', run.runId, 'm', (n, p) => w.push([n, p]), () => {}, () => {}, RunOutcome || undefined);
+    // handleRun's bus marks what reached the page under the run's own id, exactly as the route does
+    const seen = name => w.some(([n, p]) => n === name && p && p.runId === run.runId);
+    new Function('e', 'recovery', 'leadStarted', 'leadEnded', 'agentId', 'runId', 'model', 'emit', 'failNote', 'settleRunRecoveryContinuation', 'RunOutcome', 'RunTable', RUN_CATCH)(
+      new Error('boom'), null, seen('agent.run.start'), seen('agent.run.end'), 'agent', run.runId, 'm', (n, p) => w.push([n, p]), () => {}, () => {}, RunOutcome || undefined, RunTableMod);
   }
   return w;
 }
@@ -366,7 +377,7 @@ const BUTTON_SRC = btnAt < 0 ? '' : btnSrc.slice(btnAt, btnSrc.indexOf('\n', btn
 A.ok(/agent\.run\.error/.test(BUTTON_SRC) && /notify\(/.test(BUTTON_SRC), 'fixture: the Run Now button\'s stream reader and verdict are sliced');
 async function viaRunNowButton(run) {
   const wire = run.events.slice();
-  if (run.throws) wire.push(['agent.run.error', { agentId: 'agent', runId: run.runId, message: 'sidecar failure: boom', transient: false }]);   // handleCronRun's catch
+  // (handleCronRun's catch emitted the thrown run's error here before run-table S2; runOnce's belt now ends it on the stream itself)
   const bytes = new TextEncoder().encode(wire.map(([name, payload]) => JSON.stringify({ name, payload })).join('\n') + '\n');
   let sent = false;
   const reader = { async read() { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; } };
@@ -515,11 +526,15 @@ async function viaRunNow(run, line) {
   cronDriver.leases.set(job.id, { runId, startedAt: T0, heartbeatAt: T0, ac, isOnce: false });   // handleCronRun's manual lease
   const runReplay = async emit => { replay(run, emit, runId, job.agentId); if (run.throws) throw new Error('boom'); };
   const crates = [];   // the reason Run Now's finally settles its crate with (settleCronWorkitem: 'done' = delivered to the OUTBOX)
+  // the press's run-table admission (the REAL table, sidecar/run-table.js): its id spans the whole line, so the finally releases it
+  const runTable = require('../sidecar/run-table.js').makeRunTable();
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler',
+    'runs', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler', 'runNowRun',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => line || null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler)();
+    new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler,
+    runTable.admit({ runId, agentId: job.agentId, source: 'cron' }))();
+  A.eq(runTable.size(), 0, 'Run Now / ' + run.kind + ': its finally releases the press\'s run-table entry' + (run.throws ? ' (the press threw)' : ''));
   const settled = cronStore.getJob(store, 'j1');
   const result = events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null;
   return { status: settled && settled.lastStatus, cronOutcome: result && result.outcome, cronReason: result && result.reason, job: settled, crate: crates.length ? crates[0] : '(never settled)' };
@@ -573,10 +588,11 @@ async function viaPausedRunNow(run, pausedBefore) {
   catch (e) { return { job: cronStore.getJob(store, 'j1'), delivered, result: null, threw: String((e && e.message) || e) }; }
   const runReplay = async emit => { if (!pausedBefore) store = cronStore.pauseJob(store, 'j1'); replay(run, emit, runId, job.agentId); };
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler',
+    'runs', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler', 'runNowRun',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler)();
+    new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler,
+    require('../sidecar/run-table.js').makeRunTable().admit({ runId, agentId: job.agentId, source: 'cron' }))();
   for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
   const settled = cronStore.getJob(store, 'j1');
   return { job: settled, delivered, result: events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null };

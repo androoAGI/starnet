@@ -11,6 +11,11 @@ const { makeDiagnostics } = require('../sidecar/diagnostics.js');
 const { redact } = require('../sidecar/context.js');   // the real always-on secret scrubber
 
 const diag = makeDiagnostics({ redact });
+const liveOnly = diag.assemble({ runTable: { live: 3, legacy: 99, missing: ['obsolete-id'] } });
+A.eq(liveOnly.report.runTable, { live: 3 }, 'diagnostics reports the one live-run authority without retired shadow counts');
+A.ok(/^Live runs: {5}3 in the run table$/m.test(liveOnly.text), 'paste-ready diagnostics names the actual admitted count');
+A.ok(!JSON.stringify(liveOnly).includes('obsolete-id') && !liveOnly.text.includes('older registries'), 'retired comparison facts never reappear as misleading telemetry');
+
 
 const paid = diag.assemble({ version: { buildSha: 'a'.repeat(40), buildDirty: false }, paidAccount: {
   configured: true, fingerprint: '0123456789abcdef', link: 'saved', credential: 'file', auth: 'valid',

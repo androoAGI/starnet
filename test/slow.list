@@ -102,3 +102,7 @@ test/credential-store.openrouter-consumers.e2e.test.js
 test/credential-store.endpoint-pair.e2e.test.js
 # credential-store.channel-ref.e2e — 87 s run alone: nine stations, a fake Bot API, a real message through a real hub at each step. Review round 1 added three (a station backup key, a channel file that cannot be read, a read-only secrets.json): 196 s at 531c9ef2c on a loaded box.
 test/credential-store.channel-ref.e2e.test.js
+# run-lifecycle.invariants.http: eleven run surfaces x six faults (66 runs, six of them loop iterations on the 5 s loop tick, eleven E-STOPs
+# each RESUMEd) through the real sidecar, a second boot that holds all eleven at once for one process fault, and a third for the golden
+# refusals — 61 s standalone with four faults, 106 s with run-table S3's three stops on 2026-11-03; listed by the >= 40 s rule.
+test/run-lifecycle.invariants.http.test.js

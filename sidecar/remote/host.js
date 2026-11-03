@@ -22,6 +22,7 @@
      approval.opened / approval.closed            from the shared registry
      station      { name, payload }               the station floor's own redacted feed (SSE tee) */
 'use strict';
+const SchedulerState = require('../scheduler-state.js');
 
 const { note } = require('../failopen.js');
 const { withVoiceStyle } = require('./voice-style.js');
@@ -441,9 +442,7 @@ function makeRemoteHost(d) {
     let s = null;
     try { s = d.scheduler(); } catch (e) { note('remote.host.scheduler', e); return undefined; }
     if (!s || typeof s !== 'object') return undefined;
-    if (s.halted === true) return 'halted';
-    if (s.enabled !== true) return 'off';
-    return null;
+    return SchedulerState.holdOf(s);
   }
   async function routines() {
     const held = schedulerHold();
@@ -451,7 +450,9 @@ function makeRemoteHost(d) {
       id: j.id, name: j.name || null, agentId: j.agentId || null, enabled: j.enabled !== false, inFlight: !!j.inFlight,
       schedule: j.scheduleDisplay || (j.schedule && (j.schedule.display || j.schedule.kind)) || null,
       // a fire someone STOPPED reads 'stopped' (review r7), never 'error' — an older record kept 'error' beside its outcome 'stopped'
-      nextRunAt: j.nextRunAt || null, lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
+      nextRunAt: Object.prototype.hasOwnProperty.call(j, 'nextFireAt') ? j.nextFireAt :
+        (held || j.enabled === false ? null : j.nextRunAt || null),
+      lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
       prompt: clip(j.prompt, 200)
     }, held === undefined ? null : { held: held }));
   }

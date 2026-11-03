@@ -820,6 +820,7 @@ test/cron-session-hydration.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
+test/loopjob-driver-owned-admission.test.js
 test/model-loop-control.test.js
 test/loop-review-controls.test.js
 test/loop-review-needs-you.test.js
@@ -1437,6 +1438,12 @@ test/deskscreen.test.js
 test/agent-skin-thumbs.test.js
 test/estop-sample-hub.test.js
 test/estop-stop-handles.test.js
+test/run-table.test.js
+test/run-table.census.test.js
+test/run-table-workshop-admission.test.js
+test/run-table-review-belt.test.js
+test/scheduler-state.test.js
+test/scheduler-state.census.test.js
 test/line-test-stop.test.js
 test/conveyor-tab-readable.test.js
 test/workflow-panel-overhaul.test.js

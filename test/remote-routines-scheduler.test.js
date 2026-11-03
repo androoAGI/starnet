@@ -20,10 +20,11 @@ const { readSidecarSource } = require('./helpers/source.js');
   {
     let sched = { enabled: true, halted: false };
     const host = makeRemoteHost({ now: () => 1, newId: () => 'x', broadcast: () => {}, roster: () => [], liveRuns: () => [],
-      routines: () => [{ id: 'j1', name: 'morning brief', agentId: 'a', enabled: true, scheduleDisplay: 'every day at 9am' }, { id: 'j2', enabled: false }],
+      routines: () => [{ id: 'j1', name: 'morning brief', agentId: 'a', enabled: true, nextRunAt: '2027-01-01T09:00:00Z', scheduleDisplay: 'every day at 9am' }, { id: 'j2', enabled: false }],
       scheduler: () => sched });
     let rows = await host.routines();
     A.eq(rows[0].held, null, 'scheduling ON: an enabled routine is not held');
+    A.eq(rows[0].nextRunAt, '2027-01-01T09:00:00Z', 'an eligible routine carries its fire');
     sched = { enabled: false, halted: false };
     rows = await host.routines();
     A.eq(rows[0].held, 'off', 'scheduling OFF: every routine is held "off", whatever its own switch says');
@@ -32,6 +33,11 @@ const { readSidecarSource } = require('./helpers/source.js');
     sched = { enabled: true, halted: true };
     rows = await host.routines();
     A.eq(rows[0].held, 'halted', 'E-STOP engaged: held "halted"');
+    A.eq(rows[0].nextRunAt, null, 'E-STOP withholds the clock without rewriting enabled intent');
+    sched = { enabled: true, halted: false, degraded: true };
+    rows = await host.routines();
+    A.eq(rows[0].held, 'degraded', 'damaged scheduler storage is held');
+    A.eq(rows[0].nextRunAt, null, 'damaged scheduler storage cannot promise a fire');
     const legacy = makeRemoteHost({ now: () => 1, newId: () => 'x', broadcast: () => {}, roster: () => [], liveRuns: () => [],
       routines: () => [{ id: 'j1', enabled: true }] });
     A.eq((await legacy.routines())[0].held, undefined, 'a host given no scheduler state says nothing about it (never a guessed "held")');
@@ -46,7 +52,7 @@ const { readSidecarSource } = require('./helpers/source.js');
     const at = src.indexOf("const remoteHost = require('./remote/host.js').makeRemoteHost({");
     A.ok(at > 0, 'fixture: the remote host wiring is found');
     const block = src.slice(at, src.indexOf('\n});', at) + 4);
-    A.ok(/scheduler: \(\) => \{[^\n]*cronStateSnapshot\(Date\.now\(\)\)[^\n]*enabled[^\n]*halted/.test(block), 'the host reads enabled AND halted from cronStateSnapshot');
+    A.ok(/scheduler: \(\) => schedulerState\(\)/.test(block), 'the host reads the shared scheduler projection');
   }
 
   // ---- C. the phone ----
@@ -57,6 +63,7 @@ const { readSidecarSource } = require('./helpers/source.js');
     A.ok(fn.length > 200, 'fixture: renderSettings is sliced');
     A.ok(/'dot' \+ \(j\.inFlight \? ' work' : \(j\.enabled && !j\.held\) \? ' ok' : ''\)/.test(fn), 'a held routine gets no live dot');
     A.ok(/j\.held === 'halted'/.test(fn) && /j\.held === 'off'/.test(fn), 'and its line names the E-STOP or the scheduling switch instead of a cadence');
+    A.ok(/j\.held === 'degraded'/.test(fn), 'the phone also names storage recovery instead of a cadence');
   }
 
   A.report('remote-routines-scheduler.test');

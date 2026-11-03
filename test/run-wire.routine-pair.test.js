@@ -129,7 +129,7 @@ A.eq(api.routineWireRow(jobs[4]), null, 'a script-only routine shows no pair: it
   A.ok(/cronJobs = pairCronJobWires\(mutate\(loadCronJobs\(\)\)\)\.jobs;/.test(write), 'every write normalises before it persists');
   A.ok(/if \(cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad\) \{\s*try \{ saveCronJobs\(\);/.test(all), 'the boot load persists the clearing once');
   const snap = sidecarTopLevelFunction('cronStateSnapshot');
-  A.ok(/\{ wire: routineWireRow\(j\) \}/.test(snap), 'GET /api/cron shows each routine\'s resolved wire (routineWireRow)');
+  A.ok(/\{ wire: routineWireRow\(j\)(?:,| \})/.test(snap), 'GET /api/cron shows each routine\'s resolved wire alongside additive scheduler fields');
 }
 
 // A ROUTINE AN EARLIER BUILD OF THIS LANE STAMPED (adf6a4b73..79864fa3e paired a bare model with the provider it resolved

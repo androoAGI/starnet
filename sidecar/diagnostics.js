@@ -28,6 +28,7 @@
        workspacePresent: bool                    // does the workspaces dir exist? (bool ONLY — never the path)
        agentCount: number                        // roster size (shape only)
        swallowed: { total, tagCount, truncated, tags:[{ tag, count, firstAt, lastAt }] }   // failopen.summary()
+       runTable:  { live }  // GET /api/diagnostics only: number of currently admitted runs
 */
 'use strict';
 (function (root, factory) {
@@ -217,6 +218,9 @@
           };
         })()
       };
+      // The table is the live-run authority; the temporary legacy-superset comparison is retired.
+      const rt = s.runTable && typeof s.runTable === 'object' ? s.runTable : null;
+      if (rt) report.runTable = { live: num(rt.live) };
 
       return { report, text: render(report) };
     }
@@ -250,6 +254,7 @@
       } else {
         lines.push('Last run:      none yet');
       }
+      if (r.runTable) lines.push('Live runs:     ' + r.runTable.live + ' in the run table');
       lines.push('Source commit: ' + (r.buildSha || 'unknown') + (r.buildDirty === true ? ' (dirty)' : ''));
       if (r.paidAccount) {
         const p = r.paidAccount;

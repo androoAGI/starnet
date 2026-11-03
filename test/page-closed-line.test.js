@@ -82,7 +82,7 @@ const row = (id, role, content, ts) => ({ streamId: 'ws_a', agentId: 'agent', ro
   const close = /res\.on\('close', \(\) => \{\s*if \(!leadOver && !ac\.signal\.aborted && !internal\) \{ try \{ notePageClosed\(runId, pending\); \}/.test(src);
   // ...registered before the disconnect law's own close listener (which aborts the signal), so it reads the signal first
   const np = src.indexOf('try { notePageClosed(runId, pending); }');
-  const ap = src.indexOf("res.on('close', () => { ac.abort(); runs.delete(runId); runsMeta.delete(runId); });", np);
+  const ap = src.indexOf("res.on('close', () => { ac.abort(); });", np);
   A.ok(np > 0 && ap > np && ap - np < 300, 'the page-closed note listener is registered right before handleRun\'s abort listener (listeners run in order)');
   A.ok(close, 'handleRun notes the open approvals only when the CLOSE is what stops a live run (STOP / E-STOP abort the signal first)');
   A.ok(/leadOver = true;\s*pageClosedRuns\.delete\(runId\);/.test(src), 'the note never outlives its run (dropped in the finally, after the record read it)');

@@ -24,15 +24,29 @@ A.ok(/AutoJobStore\.propose\([\s\S]{0,200}refresh\(\)/.test(src), 'after proposi
 
 // E-STOP preserves enabled intent while freezing the global scheduler. Every browser consumer must use BOTH
 // facts or it promises work over a durable stop.
-A.ok(/schedulerArmed\s*=\s*!!\(j\s*&&\s*j\.enabled\s*&&\s*!j\.halted\)/.test(src),
-  'the ROUTINES panel derives runnable scheduler state from enabled and not halted');
-A.ok(/const next\s*=\s*on\s*&&\s*schedulerArmed\s*&&\s*j\.nextRunAt\s*\?/.test(src),
-  'routine rows show a countdown only while the scheduler is actually runnable');
+A.ok(/schedulerArmed = j && j\.scheduler \? !j\.scheduler\.held/.test(src),
+  'the ROUTINES panel prefers the shared server scheduler state');
+{
+  const vm = require('node:vm');
+  const at = src.indexOf('    function row(j) {');
+  const fn = src.slice(at, src.indexOf('\n    async function refresh()', at));
+  const ctx = { schedulerArmed: true, esc: String, fmtRel: String, human: String,
+    runsLine: () => '', lastResult: () => '', spendLine: () => '', failureStreakLine: () => '', deliveryLine: () => '' };
+  vm.createContext(ctx); vm.runInContext(fn + '\nthis.row = row;', ctx);
+  const atTime = '2027-01-01T09:00:00Z', job = { id: 'j', enabled: true, nextRunAt: atTime };
+  A.ok(ctx.row(job).includes('next ' + atTime), 'legacy host keeps its eligible countdown');
+  A.ok(!ctx.row({ ...job, nextFireAt: null }).includes('next ' + atTime), 'server null fire wins over stored time and legacy armed state');
+  ctx.schedulerArmed = false;
+  A.ok(!ctx.row(job).includes('next ' + atTime), 'legacy held host keeps its old countdown gate');
+  A.ok(ctx.row({ ...job, nextFireAt: atTime }).includes('next ' + atTime), 'shared fire is the new host authority');
+}
 A.eq(AutoJobStore._cronRunnable({ enabled: true, halted: true }), false,
   'self-initiation confirmations treat E-STOP as not runnable');
 A.eq(AutoJobStore._cronRunnable({ enabled: true, halted: false }), true,
   'self-initiation confirmations recognize a genuinely armed scheduler');
-A.ok(/j\s*&&\s*j\.halted\s*\?\s*'stopped \(E-STOP\)'/.test(chatSrc),
+A.eq(AutoJobStore._cronRunnable({ enabled: true, scheduler: { held: 'degraded' } }), false,
+  'self-initiation confirmations share the storage hold');
+A.ok(/scheduler && scheduler\.halted \? 'stopped \(E-STOP\)'/.test(chatSrc),
   '/cron names the durable E-STOP instead of reporting scheduler on');
 
 /* ROUTINE ROW FEEDBACK (stranded-user sweep, 2026-08-22): a row must survive a job without `skills`

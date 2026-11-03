@@ -429,6 +429,14 @@ const ALLOWED = {
    all read RunOutcome now (FOLDS below). */
 const NR = what => "not a run's end reason (" + what + ')';
 const REPORTED = {
+  'sidecar/acp/serve.js': [["(rt.readiness && rt.readiness.reason ?", NR("provider readiness, not a completed run")]],
+  'sidecar/provider-readiness.js': [["reason: input.reason ||", NR("credential verification/readiness evidence")]],
+  'frontend/app/keycta.js': [
+    ["return { kind: 'reconnect', provider: p, reason: readiness.reason", NR("provider readiness prompt")],
+    ["return { kind: 'notready', provider: p, reason: readiness.reason", NR("provider readiness prompt")],
+    ["spokenLine = Chat.localLine(who + label + ': ' + gap.reason", NR("provider readiness prompt with cache disclosure")],
+    ["return gap.provider.toUpperCase() + ': ' + gap.reason", NR("provider readiness prompt with cache disclosure")]
+  ],
   'sidecar/browser-handoff.js': [["state: rec.state, reason: rec.reason, note: rec.note", NR("a browser step-in's why: login / 2fa / captcha")]],
   'sidecar/channels/hub.js': [
     ["could not be transcribed (' + ((tr && tr.reason)", NR('why a voice message could not be transcribed')],
@@ -496,8 +504,7 @@ const REPORTED = {
     ["x.server ? x.server + ': ' + x.reason : x.reason", NR('why an LSP server is unavailable')]
   ],
   'sidecar/media-service.js': [
-    ["lastReason = 'groq: ' + result.reason;", NR("a transcription provider's failure")],
-    ["lastReason = 'openai: ' + result.reason;", NR("a transcription provider's failure")]
+    ["lastReason = engine + ': ' + result.reason;", NR("a transcription provider's failure")]
   ],
   'sidecar/observer.js': [["reason: str(p.reason), turns: num(p.turns)", "the observer view of agent.run.end: it carries the stamped outcome / failureCode a few lines below (review 4.2); `starnet watch` reads RunOutcome.reasonOf off it"]],
   'sidecar/openai-compat.js': [["(s.reason ? { reason: s.reason } : null)", "an end built for RunOutcome.ofEnd on the next line (statusOf)"]],
@@ -605,6 +612,8 @@ const REPORTED = {
   'bin/lib/dashboard.js': [["'the folder was not trusted: ' + ((r.json && r.json.reason)", NR('why the trust route refused a folder')]],
   'bin/lib/cli-core.js': [["    reason: s.reason,", "jsonResult: the raw end word, with the run's outcome / failureCode on the next line and the exit code read from the outcome"]],
   'bin/starnet.js': [
+    ["lastVerified: p.lastVerified || null, reason: p.reason || 'unverified'", NR("provider readiness status")],
+    ["out.providerReadiness.filter(p =>", NR("provider readiness status")],
     ["' — reported as ' + summary.reason + ' (nothing proves the run finished)'", "an UNPROVEN run: the CLI's own fallback reason ('error' / 'cancelled'), said beside 'nothing proves the run finished'"],
     ["log('starnet: ' + ws + ' — ' + r.reason)", NR('why `starnet init` wrote no workspace')]
   ]
@@ -2040,13 +2049,13 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     // in-flight hold keys on it, so an older fire of a routine that runs again is never held busy (cronStateSnapshot, sliced from the sidecar)
     // — beside the run-wire lane's resolved wire row (routineWireRow), which every routine keeps, a lease or none
     {
-      const src = sidecarTopLevelFunction('cronStateSnapshot');
+      const src = sidecarTopLevelFunction('schedulerState') + '\n' + sidecarTopLevelFunction('cronStateSnapshot');
       const leases = new Map([['jrun', { runId: 'fx' }], ['jsettling', { runId: 'fy', settlement: { at: 1 } }]]);
       const routineWireRow = j => ({ provider: 'openrouter', model: 'm-' + j.id, source: 'routine' });
       let snap = null;
       try {
-        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow',
-          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow);
+        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow', 'SchedulerState',
+          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow, require('../sidecar/scheduler-state.js'));
       } catch (e) { snap = { error: String((e && e.message) || e) }; }
       const one = id => ((snap && snap.jobs) || []).find(x => x && x.id === id) || {};
       A.ok(!!src && one('jrun').inFlight === true && one('jrun').inFlightRunId === 'fx' && one('jsettling').inFlight !== true && one('jsettling').inFlightRunId === 'fy' && !one('jidle').inFlight && !one('jidle').inFlightRunId
@@ -2601,8 +2610,8 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         const ends = { cut: { reason: 'done', finishReason: 'length' }, stopped: { reason: 'cancelled' }, done: { reason: 'done', finishReason: 'stop' } };
         // (channel-delivery-ledger: nightshiftChat joins its reply through the one assembler, sidecar/reply-assembler.js)
         const { makeReplyAssembler } = require('../sidecar/reply-assembler.js');
-        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runsMeta', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome', 'makeReplyAssembler',
-          chatSrc + '\nreturn nightshiftChat;')('agent', () => ({}), () => 'openrouter', () => 'sk', () => 'test/model', () => true, { randomUUID: () => 'ns-r' }, new Map(),
+        const chatOf = kind => new Function('NIGHTSHIFT_AGENT', 'cronIdentityFor', 'cronProviderFor', 'cronKeyFor', 'cronModelFor', 'cronHasCredential', 'crypto', 'runTable', 'runOnce', 'PromptScrub', 'cronSystemFor', 'RunOutcome', 'makeReplyAssembler',
+          chatSrc + '\nreturn nightshiftChat;')('agent', () => ({}), () => 'openrouter', () => 'sk', () => 'test/model', () => true, { randomUUID: () => 'ns-r' }, require('../sidecar/run-table.js').makeRunTable(),
           async o => { if (kind === 'raised') { o.emit('agent.run.error', { runId: o.runId, message: 'rate limited' }); o.emit('agent.run.end', { runId: o.runId, reason: 'error' }); return; }
             o.emit('agent.token', { runId: o.runId, delta: 'VERDICT: sh' }); o.emit('agent.run.end', Object.assign({ runId: o.runId }, ends[kind])); },
           { scrubStored: s => s }, () => 'SYS', RunOutcome, makeReplyAssembler);
@@ -3213,8 +3222,12 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
           if (!v.ok) { invalid.push(name + ': ' + v.errors.join('; ')); return; }   // a validating emitter drops it
           if (name === 'agent.token') state.buf += p.delta || ''; else if (name === 'agent.run.error') state.errMsg = p.message; else if (name === 'agent.run.end') { state.reason = p.reason; state.end = p; }
         };
-        const run = new Function('runSlashForChannel', src + '\nreturn runSlashRoutine;')(async () => r);
+        // run-table S2: the command routine is admitted to the run table for the command's life (the REAL sidecar/run-table.js) and its
+        // start and end go through its entry, stamped by the outcome sink
+        const runTable = require('../sidecar/run-table.js').makeRunTable();
+        const run = new Function('runSlashForChannel', 'runTable', 'RunOutcome', src + '\nreturn runSlashRoutine;')(async () => r, runTable, RunOutcome);
         const out = await run('/nightly-backup', { agentId: 'agent', runId: 'r1', emit });
+        if (runTable.size() !== 0) invalid.push('the run table kept the command routine\'s entry');
         return { ok: out.ok, fire: fireOutcome(state, null).outcome, errMsg: state.errMsg, invalid };
       };
       const failed = src ? await fireOf({ ok: false, text: 'Unknown command.' }) : null, worked = src ? await fireOf({ ok: true, text: 'Backed up.' }) : null;

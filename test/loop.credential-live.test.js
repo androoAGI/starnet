@@ -424,14 +424,17 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
         const P = w.watch(twoTurns('P', key, calls), 'custom', key, { held, sentByCaller: o.keyInRequest === true });
         return run(P, w);
       };
-      const wrapper = sidecarTopLevelFunction('runOnce');
-      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTracked', 'transcriptStore', wrapper + '\nreturn runOnce;')(
-        store, o => ({ provider: o.provider }), overseer, tracked, { reconstruct: () => { refreshed++; return []; } });
+      const wrapper = ['runOnce', 'runOnceQueued', 'settleRun'].map(sidecarTopLevelFunction).join('\n');
+      const RunTable = require('../sidecar/run-table.js'), table = RunTable.makeRunTable();
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', wrapper + '\nreturn runOnce;')(
+        store, o => ({ provider: o.provider }), overseer, tracked, { reconstruct: () => { refreshed++; return []; } },
+        RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {});
       const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
       A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');
       store.push('custom', { key: '', keyPool: [] });
       release();
       const result = await pending;
+      A.eq(table.size(), 0, kind + ': credential queue exit releases its real admission');
       A.eq(refreshed, 1, kind + ': dequeue refreshed messages through the production options copy');
       A.eq([calls, result.res.reason], kind === 'station' ? [[], 'error'] : [['P', 'P'], 'done'], kind + ': admission keeps removed station keys stopped and caller/bot own keys exempt');
     }

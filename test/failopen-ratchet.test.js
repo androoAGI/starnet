@@ -156,11 +156,11 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 344,
+  'index.js': 333,
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)
-  'loopjob-driver.js': 10,
+  'loopjob-driver.js': 9,
   'lsp-manager.js': 10,
   'mcp/client.js': 1,
   'mcp/manager.js': 13,

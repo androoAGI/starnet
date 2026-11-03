@@ -166,7 +166,9 @@
        night-shift, workshop and interactive paths do. This is what makes an agent STAY LIT at its desk:
        GET /api/state/snapshot is built from that registry, and the world's reconnect reconcile clears any
        agent absent from it — so without this, reloading the app mid-iteration darkens an agent that is
-       genuinely still working. It also lets /api/cancel target a single loop pass. */
+       genuinely still working. It also lets /api/cancel target a single loop pass. A new host may return a
+       release callback from trackRun; that admission lasts through the actual context/run/check/harvest work.
+       Older hosts keep untrackRun's existing durable-settlement timing. */
     const trackRun = isFn(deps.trackRun) ? deps.trackRun : null;
     const untrackRun = isFn(deps.untrackRun) ? deps.untrackRun : null;
 
@@ -252,7 +254,7 @@
         return false;
       }
       leases.delete(loopId);
-      if (untrackRun && !(lease && lease.untracked)) { try { untrackRun(runId); } catch (_) {} }   // the desk goes quiet only when the pass really ends
+      if (untrackRun && !(lease && (lease.untracked || isFn(lease.releaseRun)))) { try { untrackRun(runId); } catch (_) {} }   // legacy host; returned registrations end with their physical pipeline below
       const loop = store.getLoop(next, loopId);
       const it = loop && (loop.iterations || []).slice().reverse().find(x => String(x.runId) === String(runId));
       note(result.status === 'ok' ? 'act' : 'decline', loop, {
@@ -334,12 +336,27 @@
       const fresh = store.getLoop(getLoops(), loop.id) || loop;
       const iterN = fresh.iterationCount;
       const ac = newAbort();
-      leases.set(loop.id, { runId: runId, abort: ac, startedAt: nowMs, beatAt: nowMs });
-      if (trackRun) { try { trackRun(runId, fresh.agentId, ac); } catch (_) {} }
+      const ownedLease = { runId: runId, abort: ac, startedAt: nowMs, beatAt: nowMs };
+      leases.set(loop.id, ownedLease);
+      if (trackRun) {
+        try { const release = trackRun(runId, fresh.agentId, ac); if (isFn(release)) ownedLease.releaseRun = release; }
+        catch (e) { note('decline', fresh, { runId, reason: 'track-run-failed', binding: 'internal', detail: { err: String((e && e.message) || e) } }); }
+      }
       // take the pre-iteration snapshot NOW (before any work), so the check can tell what THIS iteration
       // changed rather than inheriting every uncommitted edit from earlier iterations. A snapshot failure is
       // not fatal — it degrades the verdict to "cannot prove", which loopcheck already treats as unsafe.
       const beforeP = snapshot ? Promise.resolve().then(() => snapshot(fresh)).catch(() => null) : Promise.resolve(null);
+      let pipelineStarted = false;
+      function releaseTracked() {
+        if (!isFn(ownedLease.releaseRun) || ownedLease.trackingReleased) return;
+        ownedLease.trackingReleased = true;
+        // Snapshot work can outlive a failed context/model path. Keep that work counted, without changing
+        // settlement or blocking its caller. Capture this generation's lease, never the current map entry.
+        beforeP.then(() => {
+          try { ownedLease.releaseRun(); }
+          catch (e) { note('decline', fresh, { runId, reason: 'release-run-failed', binding: 'internal', detail: { err: String((e && e.message) || e) } }); }
+        });
+      }
 
       /* the per-run EMIT SINK, mirroring cron-driver's. It does three load-bearing jobs:
 
@@ -395,7 +412,10 @@
          blind "0 findings" would be counted as convergence. */
       // No context dep (or a loop with no folder) launches SYNCHRONOUSLY, exactly as before — the async hop
       // exists only where there is something real to resolve first, so the common path keeps its old timing.
-      if (!context) return launch('');
+      if (!context) {
+        try { return launch(''); }
+        finally { if (!pipelineStarted) releaseTracked(); }
+      }
 
       const ctxP = Promise.resolve().then(() => context(fresh))
         .catch(e => ({ reachable: false, why: 'project scan failed: ' + ((e && e.message) || e) }));
@@ -419,7 +439,7 @@
         note('decline', fresh, { runId: runId, reason: 'context-threw', binding: 'internal', detail: { err: String((e && e.message) || e).slice(0, 200) } });
         try { settle(loop.id, runId, { status: 'error', error: 'iteration failed before launch: ' + ((e && e.message) || e) }); }
         catch (_) { try { leases.delete(loop.id); } catch (__) {} }
-      });
+      }).finally(() => { if (!pipelineStarted) releaseTracked(); });
       return true;
 
       function launch(snapshotText) {
@@ -458,7 +478,8 @@
 
       let p;
       try { p = runOnce(opts); } catch (e) {
-        settle(loop.id, runId, { status: 'error', error: (e && e.message) || 'run host threw' });
+        try { settle(loop.id, runId, { status: 'error', error: (e && e.message) || 'run host threw' }); }
+        finally { releaseTracked(); }
         return false;
       }
 
@@ -466,6 +487,7 @@
       // SYNCHRONOUSLY rejects this link rather than escaping the chain — an escaped throw here would be an
       // unhandled rejection that takes down a 24/7 process. The trailing .catch is the last-resort net: a
       // driver whose bookkeeping throws must degrade to a stranded lease, never to a dead sidecar.
+      pipelineStarted = true;
       Promise.resolve(p)
         .then(
           (res) => {
@@ -538,7 +560,7 @@
           if (!live || live.runId !== runId) return;
           try { leases.delete(loop.id); } catch (_) {}
           note('decline', fresh, { runId: runId, reason: 'settle-threw', binding: 'internal', detail: { err: String((e && e.message) || e).slice(0, 200) } });
-        });
+        }).finally(releaseTracked);
       return true;
       }
     }

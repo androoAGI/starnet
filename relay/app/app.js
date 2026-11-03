@@ -1208,7 +1208,7 @@
         row.appendChild(el('i', 'dot' + (j.inFlight ? ' work' : (j.enabled && !j.held) ? ' ok' : '')));
         const t = el('span', 't');
         t.appendChild(el('b', null, j.name || j.prompt || j.id));
-        const when = j.held === 'halted' ? 'not running — E-STOP is on' : j.held === 'off' ? 'not running — scheduling is off' : j.enabled ? (j.schedule || 'scheduled') : 'paused';
+        const when = j.held === 'halted' ? 'not running — E-STOP is on' : j.held === 'off' ? 'not running — scheduling is off' : j.held === 'degraded' ? 'not running — scheduler storage needs recovery' : j.enabled ? (j.schedule || 'scheduled') : 'paused';
         t.appendChild(el('span', null, when + (j.agentId ? ' · ' + agentName(j.agentId) : '')));
         row.appendChild(t);
         const b = el('button', 'btn', j.enabled ? 'Pause' : 'Resume'); b.type = 'button';

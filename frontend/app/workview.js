@@ -69,10 +69,13 @@
   function routineView(job, scheduler) {
     job = job || {};
     const state = typeof scheduler === 'object' && scheduler ? scheduler : {enabled:scheduler};
-    const healthy = state.enabled === true && !state.halted && !state.degraded && (!state.health || state.health.healthy === true);
+    const shared = state.scheduler;
+    const eligible = shared ? !shared.held : state.enabled === true && !state.halted && !state.degraded;
+    const healthy = eligible && (!state.health || state.health.healthy === true);
+    const held = shared ? shared.held : state.halted ? 'halted' : state.degraded ? 'degraded' : !state.enabled ? 'off' : null;
     return { id: text(job.id), title: text(job.name) || 'Recurring work',
-      status: job.inFlight === true ? 'Working' : state.halted ? 'Stopped by E-STOP' : state.degraded ? 'Scheduler storage needs recovery' : job.enabled === false ? 'Paused' : healthy ? 'Scheduled' : state.enabled ? 'Scheduler health unconfirmed' : 'Scheduler paused',
-      next: job.enabled !== false && healthy ? text(job.nextRunAt) : '',
+      status: job.inFlight === true ? 'Working' : held === 'halted' ? 'Stopped by E-STOP' : held === 'degraded' ? 'Scheduler storage needs recovery' : job.enabled === false ? 'Paused' : healthy ? 'Scheduled' : (shared ? shared.enabled : state.enabled) ? 'Scheduler health unconfirmed' : 'Scheduler paused',
+      next: Object.prototype.hasOwnProperty.call(job, 'nextFireAt') ? text(job.nextFireAt) : job.enabled !== false && healthy ? text(job.nextRunAt) : '',
       last: job.lastRunAt ? (job.lastStatus === 'ok' ? 'Last run completed' : 'Last run: ' + lastRunSaid(job)) : 'Has not run yet',
       agentId: job.agentId, recipeId: job.meta && job.meta.recipeId || null };
   }
