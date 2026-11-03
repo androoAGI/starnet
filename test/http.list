@@ -308,6 +308,7 @@ test/summarize-failover.e2e.test.js
 test/lsp-live-installed.test.js
 test/readiness-parity.e2e.test.js
 test/provider-cli-boot.http.test.js
+test/provider-cli-admission.http.test.js
 test/scheduler-state-consumers.http.test.js
 test/local-runtime-silence.test.js
 test/turn-id.run-start.http.test.js
