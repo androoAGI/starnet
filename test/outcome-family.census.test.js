@@ -646,6 +646,7 @@ const AGGREGATED = {
   ],
   // (channel-delivery-ledger S1/S4: a routine's delivery left sidecar/index.js; one target that has not landed is one count)
   'sidecar/routine-delivery.js': [["failed++;", NOT_RUN("a routine delivery's chat target that has not landed")]],
+  'sidecar/turn-soak.js': [["ledger.writeFailures++;", NOT_RUN('turn-identity soak ledger persistence; no agent execution outcome enters this counter')]],
   'sidecar/procledger.js': [
     ["if (failed) summary.killFailed++;", NOT_RUN('a process kill that failed')],
     ["summary.killFailed++; stale.push(r);", NOT_RUN('a process kill that failed')]
@@ -862,7 +863,7 @@ const OUTCOME_MAPS = {
   'sidecar/failreview.js': [["const REVIEW_OUTCOMES = { failed: 1, refused: 1, step_limit: 1, out_of_budget: 1 };", '3c9777b6ca9c', "a SET (which outcomes earn a failure review), no word or colour map: a stop, a question, a cut reply and an empty reply earn none by design"]],
   'sidecar/openai-compat.js': [["const V1_STATUS = { succeeded: 'completed', asked: 'awaiting_input', cut_short: 'limited', out_of_budget: 'limited', step_limit: 'limited',", '95b19ab7529e', "the OpenAI Responses `status` vocabulary (completed · incomplete · failed · cancelled · …) is coarser by the API's spec — a cut reply and a spend cap are both 'incomplete' there, its incomplete_details.reason says which (statusOf / incompleteReasonOf)"]],
   'sidecar/outcomes.js': [["const FAILURE = { error: 1, max_iters: 1, budget: 1, refusal: 1, empty: 1 };", '885ad0ff5c9b', "a SET (the track record's FAILURE reasons), re-decided by RunOutcome.ofRow below it — no word or colour map"]],
-  'sidecar/routing/linejobs.js': [["const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });", '007af42dd9be', "a SET of LINE JOB statuses (a job's, never one run's outcome), the record's own vocabulary"]],
+  'sidecar/routing/linejobs.js': [["const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });", 'f2ebff2adb06', "a SET of LINE JOB lifecycle statuses, never one run's outcome; held requires a validated continuation, while paused and terminal blocked keep their existing meanings"]],
   // (line-job-runner) a work line's typed stop: keyed by RunOutcome.LINE_STOPS, two of whose codes share a run outcome's name
   'sidecar/routing/line-fire.js': [["const STOP_WORDS = Object.freeze({", 'ce0d45009db9', "the ONE sentence per LINE STOP code (RunOutcome.LINE_STOPS: where a work line's walk stopped, never one run's outcome) — 'stopped' and 'blocked' are line stop codes that share an outcome's name, and a hop's run outcome reaches these words only through line-runner.js hopVerdict's stopCode (stage_incomplete / stage_failed / stage_empty / stopped / station_fault)"]],
   // (review 8.2: publishTask published the bare ledger status — 'failed' for a stop, a question and a limit; FOLD r8.28 drives it)
