@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 444 total — 0 P0 · 2 P1 · 31 P2
+**32** open (open+claimed) of 444 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -143,7 +143,6 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | sessions | [Export cleanup can remove a file it never created](bugs/6dec2aa8-export-cleanup-can-remove-a-file-it-never-create.md) | agent/truthful-ack-client-1103 | — |
 | P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -293,6 +292,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | sessions | [Concurrent stale workspace reclaimers both acquire ownership](bugs/c24336d5-concurrent-stale-workspace-reclaimers-both-acqui.md) | reliability-audit-0919 | d9f9b71f0 |
 | P1 | fixed | sessions | [Worker result links open another workspace](bugs/c68d5c40-delegated-file-provenance.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | sessions | [Capped and recovered worker runs overwrite current completion truth](bugs/dd9a34df-delegated-run-outcomes.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
+| P1 | fixed | sessions | [Export cleanup can remove a file it never created](bugs/6dec2aa8-export-cleanup-can-remove-a-file-it-never-create.md) | agent/truthful-ack-client-1103 | 662619da7 |
 | P1 | fixed | sessions | [Feedback cards do not identify the run being rated](bugs/c7fa86fc-feedback-run-reference-ambiguous.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P1 | fixed | sessions | [Group file links choose the wrong author or saved version](bugs/4e58ef35-group-artifact-message-version.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | sessions | [Adding a participant to a direct conversation discards its existing attachments](bugs/408a0794-group-conversion-loses-attachments.md) | agent/adversarial-audit-0910 | 64ed8711b |
@@ -589,7 +589,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | autonomy | 6 |
 | providers | 7 |
 | safecell | 3 |
-| sessions | 2 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
 | world | 1 |

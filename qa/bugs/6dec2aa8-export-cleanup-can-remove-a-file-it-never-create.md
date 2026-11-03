@@ -4,10 +4,10 @@ slug: export-cleanup-can-remove-a-file-it-never-create
 title: Export cleanup can remove a file it never created
 surface: sessions
 severity: P1
-status: open
+status: fixed
 found: 2026-11-03
 lane: agent/truthful-ack-client-1103
-fix:
+fix: 662619da7
 origin: audit
 report: Truthful ACK S5 source audit at afac909d0 and merged 15dd8ffbe
 affected: Existing desktop station export writer, before generalizing it to other exports
@@ -40,4 +40,4 @@ An export can report a write failure while removing an existing file with the pr
 
 ## Verdict
 
-The demonstrated ownership defects are repaired and controlled; this record remains open until the exact source commit is recorded. Installed verification and reporter recovery remain separate.
+Fixed in source only: exact original writer control 9/24 failures, repaired writer 24/24 green with allocated real files. Cleanup requires the acquired descriptor identity; no atomic concurrent-rename claim. Installed verification unverified; recovery unconfirmed.
