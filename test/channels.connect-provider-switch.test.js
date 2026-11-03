@@ -32,6 +32,8 @@
 const A = require('./_assert.js');
 const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
 const Reg = require('../sidecar/providers/registry.js');
+const SecretsMod = require('../sidecar/channels/secrets.js');
+const { sandboxStore } = require('./helpers/credential-store-sandbox.js');
 
 const lift = name => { const s = sidecarFunctionSource(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
 const top = name => { const s = sidecarTopLevelFunction(name); A.ok(s.length > 20, 'fixture: ' + name + ' is lifted'); return s; };
@@ -44,27 +46,28 @@ const PROXY = 'https://commander-proxy.example/v1';
 const OR_DEFAULT = Reg.getProviderProfile('openrouter').baseUrl;
 const ANT_DEFAULT = Reg.getProviderProfile('anthropic').baseUrl;
 
-// ---- the start functions persist exactly the key and endpoint they are handed (the stand-ins below copy this line) ----
+// ---- starts persist credential references; the real credential store owns each key/endpoint pair ----
 {
   const tg = top('startTelegram'), dc = top('startDiscord'), gen = top('startGenericChannel');
-  A.ok(/telegram: \{\n\s+token: token, key: key, model: model, provider: provider, baseUrl: cfg\.baseUrl \|\| cfg\.base_url \|\| '',/.test(tg), 'startTelegram saves the key and endpoint it is handed');
-  A.ok(/discord: \{\n\s+token: token, key: key, model: model, provider: provider, baseUrl: cfg\.baseUrl \|\| cfg\.base_url \|\| '',/.test(dc), 'startDiscord saves the key and endpoint it is handed');
-  A.ok(/token: token \|\| undefined, key: key, model: model, provider: provider,\n\s+baseUrl: cfg\.baseUrl \|\| cfg\.base_url \|\| '',/.test(gen), 'startGenericChannel saves the key and endpoint it is handed');
+  A.ok(/telegram: \{\n\s+token: token, model: model, provider: provider, credential: cfg\.credential \|\| undefined,/.test(tg), 'startTelegram saves its credential reference');
+  A.ok(/discord: \{\n\s+token: token, model: model, provider: provider, credential: cfg\.credential \|\| undefined,/.test(dc), 'startDiscord saves its credential reference');
+  A.ok(/token: token \|\| undefined, model: model, provider: provider,\n\s+credential: cfg\.credential \|\| undefined,/.test(gen), 'startGenericChannel saves its credential reference');
 }
 
 // the per-message secrets() block of each start function: what every inbound message really runs on
 function secretsBlock(fn) {
-  const m = /\n\s+secrets: \(\) => \{\n([\s\S]*?\n\s+return \{ key[^\n]*\};)\n\s+\},\n/.exec(top(fn));
+  const m = /\n\s+secrets: \(\) => (channelHubSecrets\((?:'telegram'|'discord'|id)\)),/.exec(top(fn));
   A.ok(!!m, 'fixture: ' + fn + "'s per-message secrets() is sliced");
-  return m ? m[1] : 'return {};';
+  return m ? 'return ' + m[1] + ';' : 'throw new Error("missing per-message credential callback");';
 }
 const SECRETS = { telegram: secretsBlock('startTelegram'), discord: secretsBlock('startDiscord'), slack: secretsBlock('startGenericChannel') };
 
-const RESOLVERS = ['normalizeProvider', 'providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl',
+const RESOLVERS = ['normalizeProvider', 'providerRuntimeKey', 'providerRuntimeBaseUrl',
   'providerHasCredential', 'providerCredentialError', 'channelToken'];
 const HANDLERS = ['handleChannelConnect', 'handleDiscordConnect', 'handleGenericChannelConnect', 'handleChannelSync', 'handleDiscordSync', 'handleGenericChannelSync'];
 const OPTIONAL = ['normalizeProviderId', 'unknownProviderError', 'keptEndpointProvider', 'providerEndpointNotHandedOver', 'channelKeyIsStationHeld',
-  'channelConnectCredential', 'channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError'];
+  'channelConnectCredential', 'channelRunConfigFor', 'stationHubRunConfig', 'stationHubConnectError',
+  'channelCredential', 'channelSyncCredential', 'channelCredentialAnswer', 'channelHubSecrets', 'channelKeyLostError', 'reconcileChannelCredentials'];
 const LIFTED = RESOLVERS.map(lift).concat(OPTIONAL.map(n => sidecarFunctionSource(n)).filter(Boolean), HANDLERS.map(lift)).join('\n');
 
 /* One station: its runtime keys (the desktop keychain push), operator env, the roster agent the channel runs, and the
@@ -102,30 +105,41 @@ function station(opts) {
     agentRoster: new Map([['agent', agent]]),
     runWireFor: () => ({ ok: true, provider: agent.provider, model: agent.model, source: 'agent', reasoningEffort: 'medium' }),
     chatModelId: (p, m) => m,
-    SHELL_PUSHES_PROVIDER_CONFIG: false
+    SHELL_PUSHES_PROVIDER_CONFIG: false,
+    sandboxStore, channelSecretsMod: SecretsMod, engineCredential: require('../sidecar/engine-credential.js'),
+    providerLabelOf: id => (Reg.getProviderProfile(id) || {}).label || id,
+    console: { warn() {} }, failNote: (tag, error) => { throw error; }
   };
   const names = Object.keys(deps);
   const body = `
     let channelSecrets = ${JSON.stringify(o.secrets || {})};
+    const channelSecretsStatus = 'ok';
+    const credStore = sandboxStore({ runtimeKeys, runtimeBaseUrls, runtimeKey, engineKeys, envFirst, getProviderProfile,
+      normalizeProvider, normalizeProviderIdFromRegistry, registryProviderUsesCodex, resolveCreditsConfig, providerHasCredential });
     const started = [];
+    const trackStart = (ch, cfg) => started.push({ ch, credential: cfg.credential,
+      key: credStore.channel(ch, { provider: normalizeProvider(cfg.provider), credential: cfg.credential }).key });
     // the start functions' own persistence line (pinned by the source lock above)
-    function startTelegram(token, key, model, cfg) { started.push({ ch: 'telegram', key }); channelSecrets = Object.assign({}, channelSecrets, { telegram: { token: token, key: key, model: model, provider: normalizeProvider(cfg.provider), baseUrl: cfg.baseUrl || cfg.base_url || '', enabled: true, agentId: cfg.agentId || undefined } }); return { secretsPersisted: true }; }
-    function startDiscord(token, key, model, cfg) { started.push({ ch: 'discord', key }); channelSecrets = Object.assign({}, channelSecrets, { discord: { token: token, key: key, model: model, provider: normalizeProvider(cfg.provider), baseUrl: cfg.baseUrl || cfg.base_url || '', enabled: true, agentId: cfg.agentId || undefined } }); return { secretsPersisted: true }; }
-    function startGenericChannel(id, token, key, model, cfg) { started.push({ ch: id, key }); const p = {}; p[id] = { token: token || undefined, key: key, model: model, provider: normalizeProvider(cfg.provider), baseUrl: cfg.baseUrl || cfg.base_url || '', enabled: true, agentId: cfg.agentId || undefined }; channelSecrets = Object.assign({}, channelSecrets, p); return { secretsPersisted: true }; }
+    function startTelegram(token, model, cfg) { trackStart('telegram', cfg); channelSecrets = Object.assign({}, channelSecrets, { telegram: { token: token, model: model, provider: normalizeProvider(cfg.provider), credential: cfg.credential || undefined, enabled: true, agentId: cfg.agentId || undefined } }); return { secretsPersisted: true }; }
+    function startDiscord(token, model, cfg) { trackStart('discord', cfg); channelSecrets = Object.assign({}, channelSecrets, { discord: { token: token, model: model, provider: normalizeProvider(cfg.provider), credential: cfg.credential || undefined, enabled: true, agentId: cfg.agentId || undefined } }); return { secretsPersisted: true }; }
+    function startGenericChannel(id, token, model, cfg) { trackStart(id, cfg); const p = {}; p[id] = { token: token || undefined, model: model, provider: normalizeProvider(cfg.provider), credential: cfg.credential || undefined, enabled: true, agentId: cfg.agentId || undefined }; channelSecrets = Object.assign({}, channelSecrets, p); return { secretsPersisted: true }; }
     ${LIFTED}
     const perMessage = {
       telegram: () => { ${SECRETS.telegram} },
       discord: () => { ${SECRETS.discord} },
       slack: () => { const id = 'slack'; ${SECRETS.slack} }
     };
+    reconcileChannelCredentials();
     return { handleChannelConnect, handleDiscordConnect, handleGenericChannelConnect, handleChannelSync, handleDiscordSync, handleGenericChannelSync,
-      perMessage, started, get: () => channelSecrets };`;
+      perMessage, started, records: () => channelSecrets,
+      get: () => Object.fromEntries(['telegram', 'discord', 'slack'].filter(id => channelSecrets[id]).map(id => [id, channelCredential(id)])) };`;
   const api = new Function(...names, body)(...names.map(n => deps[n]));
   api.call = async (handler, b, ...extra) => {
     reqBody = b; let status = 0, out = '';
     try { await api[handler]({}, { writeHead(s) { status = s; }, end(t) { out = String(t || ''); } }, ...extra); }
     catch (e) { return { status: 'threw: ' + ((e && e.message) || e), body: {} }; }   // the caller's assertion reports it
     let j = {}; try { j = JSON.parse(out); } catch (_) { j = {}; }
+    if (status === 200) A.ok(Object.values(api.records()).every(r => !r || (!Object.prototype.hasOwnProperty.call(r, 'key') && !Object.prototype.hasOwnProperty.call(r, 'baseUrl'))), 'successful connect/sync keeps credential references, never raw provider pairs, in channel records');
     return { status, body: j };
   };
   return api;

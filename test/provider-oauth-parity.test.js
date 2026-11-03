@@ -12,7 +12,7 @@
    surface knows every id. Add a new authType:'oauth_device_code' profile and this test fails on every file
    that hasn't caught up — the failure list IS the checklist. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, functionSourceIn } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -56,31 +56,25 @@ for (const id of OAUTH_IDS) {
 }
 
 /* ---------- per-file provider identity: id survives normalize + is keyless ---------- */
-// Every frontend normalize copy must return the id for itself, and every providerNeedsKey copy must
-// exclude it — the exact two lines whose drift caused the grok→xai activation bug.
+// Execute each surface's actual reader against the shared registry. An unrelated alias occurrence
+// elsewhere in the file is not evidence of how its normalization helper behaves.
 const NORMALIZERS = [
-  ['frontend/app/app.js', appSrc],
-  ['frontend/app/harness.js', harnessSrc],
-  ['frontend/app/modeldock.js', dockSrc],
-  ['frontend/app/keycta.js', keyctaSrc]
+  ['frontend/app/app.js', appSrc, 'normalizeProviderId'],
+  ['frontend/app/harness.js', harnessSrc, 'normalizeProviderId'],
+  ['frontend/app/modeldock.js', dockSrc, 'normalizeProvider'],
+  ['frontend/app/keycta.js', keyctaSrc, 'normProv']
 ];
-for (const [file, src] of NORMALIZERS) {
+const readers = new Map();
+for (const [file, src, name] of NORMALIZERS) {
+  const normalizer = functionSourceIn(src, name), needs = functionSourceIn(src, 'providerNeedsKey');
+  A.ok(normalizer.length > 20, file + ': actual normalizer is found');
+  const reader = new Function('SK', 'providerRegistry', normalizer + '\n' + needs + '\nreturn { normalize: ' + name + ', needsKey: typeof providerNeedsKey === "function" ? providerNeedsKey : null };')({ providers: { registry } }, registry);
+  readers.set(file, reader);
   for (const id of OAUTH_IDS) {
-    A.ok(new RegExp("p === '" + id + "'[^\\n]*return '" + id + "'").test(src),
-      file + " normalize keeps '" + id + "' its own provider id");
-    if (file !== 'frontend/app/modeldock.js') {
-      A.ok(new RegExp("p !== '" + id + "'").test(src),
-        file + " providerNeedsKey knows '" + id + "' is keyless (OAuth tokens live sidecar-side)");
-    }
-  }
-  // and the id must never be an alias that normalizes AWAY to another provider (a fold = a line testing the
-  // id and returning a DIFFERENT provider id; returning non-provider values, e.g. reasoning-effort defaults
-  // like `if (p === 'codex') return 'low'`, is fine)
-  const ALL_PROVIDER_IDS = registry.providerIds ? registry.providerIds() : registry.listProviderProfiles().map(x => x.id);
-  for (const id of OAUTH_IDS) {
-    const others = [...ALL_PROVIDER_IDS].filter(x => x !== id).join('|');
-    A.ok(!new RegExp("p === '" + id + "'[^\\n]*return '(" + others + ")'").test(src),
-      file + " never folds '" + id + "' into another provider id");
+    A.eq(reader.normalize(id), id, file + " normalize keeps '" + id + "' its own provider id");
+    if (file !== 'frontend/app/modeldock.js') A.ok(reader.needsKey && reader.needsKey(id) === false,
+      file + " providerNeedsKey knows '" + id + "' is keyless (OAuth tokens live sidecar-side)");
+    A.eq(reader.normalize('  ' + id.toUpperCase() + '  '), id, file + ': normalized spelling never changes OAuth transport');
   }
 }
 
@@ -88,7 +82,11 @@ for (const [file, src] of NORMALIZERS) {
    Exercise its actual selection handler for every registry OAuth provider, with no browser key API. */
 {
   const vm = require('node:vm');
-  const Dock = require('../frontend/app/modeldock.js');
+  // Browser surface with its real registry installed, isolated from Node's process globals.
+  const dockContext = { SK: { providers: { registry } }, module: { exports: {} },
+    require: require('node:module').createRequire(path.join(__dirname, '..', 'frontend', 'app', 'modeldock.js')) };
+  vm.runInNewContext(dockSrc, dockContext);
+  const Dock = dockContext.module.exports;
   const handler = dockSrc.slice(dockSrc.indexOf('  function applyModel(item)'), dockSrc.indexOf('  function applyEffort(id)'));
   A.ok(handler.includes('function applyModel(item)'), 'quick-picker selection handler is exercised');
   for (const id of OAUTH_IDS) {
@@ -141,10 +139,8 @@ setEquals(arrayLiteral(stationSrc, 'const OAUTH_EXTRA', 'frontend/app/stationui.
 /* ---------- registry aliases must not leak into API-key providers frontend-side ---------- */
 for (const p of OAUTH) {
   for (const alias of (p.aliases || [])) {
-    // if a frontend normalize mentions the alias at all, it must resolve to the OAuth id
-    for (const [file, src] of NORMALIZERS) {
-      const line = new RegExp("[^\\n]*'" + alias + "'[^\\n]*").exec(src);
-      if (line) A.ok(line[0].includes("return '" + p.id + "'"),
+    for (const [file] of NORMALIZERS) {
+      A.eq(readers.get(file).normalize(alias), p.id,
         file + " alias '" + alias + "' resolves to '" + p.id + "' (never another provider)");
     }
   }
