@@ -1,0 +1,58 @@
+{
+  "candidate": "f644205b1b9a3bb50065e37c24f90be57f690bb6",
+  "merge": "1c2cc3af80c4ab7fd9a2767fe250867fd5db4972",
+  "tree": "793a719300001fc0eb6761c158d1bd7d44f7f592",
+  "fast": {
+    "shards": 3,
+    "passed": 1566,
+    "failed": 0,
+    "commands": [
+      "npm run test:fast -- -- --shard=1/3",
+      "npm run test:fast -- -- --shard=2/3",
+      "npm run test:fast -- -- --shard=3/3"
+    ],
+    "logs": [
+      {
+        "path": "dev/sound-final-shard-1.log",
+        "sha256": "a8c724c50a9654dcf8a972bb97dc782449cb003d085ade20b83e321ab95dbea6",
+        "steps": 522,
+        "exitCode": 0
+      },
+      {
+        "path": "dev/sound-final-shard-2.log",
+        "sha256": "27cd9079997f739e91b8e0b81b1d27390b500fafaa417af79327f2a4a3508d27",
+        "steps": 522,
+        "exitCode": 0
+      },
+      {
+        "path": "dev/sound-final-shard-3.log",
+        "sha256": "b4e220a968d024f6e5b56cd4668632d3274bef159761719eb13e9d91d7929de2",
+        "steps": 522,
+        "exitCode": 0
+      }
+    ]
+  },
+  "customerJourneys": 38,
+  "coordinationEditsPreserved": true,
+  "priorAttempts": [
+    {
+      "log": "dev/sound-fast.log",
+      "outcome": "cancelled after stale source-manifest assertions at step 468; not a gate pass"
+    },
+    {
+      "log": "dev/sound-fast-locked.log",
+      "outcome": "complete gate: 1560 passed, 6 failed; failures preserved, integration details corrected, voice passed independent rerun"
+    }
+  ],
+  "customerJourneysScope": "38/38 on initial implemented source; subsequent changes were settings key ordering/line endings, generated mirror and source-lock metadata. No backend changes.",
+  "publication": false,
+  "postMergeChecks": {
+    "soundControls": "PASS",
+    "commsSound": "PASS",
+    "settings": "PASS",
+    "hints": "PASS",
+    "roomLighting": "PASS",
+    "websiteMirror": "PASS",
+    "claimsPlanning": "PASS"
+  }
+}
