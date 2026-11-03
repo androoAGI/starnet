@@ -65,7 +65,7 @@ const { makeApprovals } = require('../../sidecar/remote/approvals.js');
 const HostPathScrub = require('../../sidecar/host-path-scrub.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
-const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps } = require('./source.js');
+const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps, readSidecarIndex, liftValues } = require('./source.js');
 const fsReal = require('fs');
 const pathReal = require('path');
 const cronStore = require('../../sidecar/cron-store.js');
@@ -87,6 +87,8 @@ const BOT_ID = 'simbot2';             // the soak's agent bot
 const HEADER = '⌛ delayed reply — the channel was unreachable when this was first sent:';
 const CHATS = { tgDm: 'telegram|' + OWNER, tgGroup: 'telegram|' + GROUP, dcDm: 'discord|' + OWNER, botDm: 'telegram:' + BOT_ID + '|' + OWNER };
 const JOBS_FILE = '/ws/cron.jobs.json';
+// index.js's makeCronDriver call: the routines' driver is built with its own delivery hooks (bootCron)
+const CRON_CALL = callRegion(readSidecarIndex(), 'const cronDriver = makeCronDriver({', '\n});');
 // the two routines of the station (S4): each delivers its digest to a chat the faults reach
 const ROUTINES = [
   { id: 'rt-group', name: 'Group digest', chat: CHATS.tgGroup, origin: { channel: 'telegram', chatId: GROUP } },
@@ -583,17 +585,20 @@ function makeWorld(seed, opts) {
       transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) },
       now: () => w.now, setTimeout: vSetTimeout
     });
+    // the driver's delivery hooks are index.js's own, lifted out of its makeCronDriver call (a hook it stops passing is one
+    // this driver lacks); the withdrawn one is watched, so P7 knows which records the cron took back
+    const hooks = liftValues(CRON_CALL, ['deliverResult', 'deliveryStarted', 'deliveryWithdrawn', 'deliveryRecorded'], { deliverCronResult: rd.deliverCronResult, routineDelivery: rd });
     const driver = makeCronDriver({
       getJobs: () => jobs,
       // cron.jobs.json on the same fenced disk: a dead process writes nothing, and a write-failure span refuses it too
       setJobs: (next) => { if (gen !== w.gen || w.writeFault) return false; jobs = next; w.files.set(JOBS_FILE, JSON.stringify({ version: 1, jobs: next })); return true; },
       runOnce: async () => {}, emit: () => {}, newId: () => w.uuid(), newAbort: () => new AbortController(), now: () => w.now,
       getKey: () => 'k', defaultModel: 'sim/model', persona: 'P', warn: () => {},
-      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryRecorded: rd.deliveryRecorded,
-      deliveryWithdrawn: rd.deliveryWithdrawn ? (jobId, runId) => {
+      deliverResult: hooks.deliverResult, deliveryStarted: hooks.deliveryStarted, deliveryRecorded: hooks.deliveryRecorded,
+      deliveryWithdrawn: hooks.deliveryWithdrawn ? (jobId, runId) => {
         const id = 'routine:' + jobId + ':' + runId + ':@origin';
         const had = !!store.ledger.delivery(id);
-        rd.deliveryWithdrawn(jobId, runId);
+        hooks.deliveryWithdrawn(jobId, runId);
         if (had && !store.ledger.delivery(id)) w.withdrawn.add(id);
       } : undefined
     });

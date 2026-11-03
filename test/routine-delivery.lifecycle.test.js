@@ -46,6 +46,14 @@ const cron = require('../sidecar/cron.js');
 const cronStore = require('../sidecar/cron-store.js');
 const { makeCronDriver } = require('../sidecar/cron-driver.js');
 const { makeRoutineDelivery } = require('../sidecar/routine-delivery.js');
+const { readSidecarIndex, callRegion, liftValues } = require('./helpers/source.js');
+/* THE HOOKS ARE INDEX.JS'S OWN. The driver's four delivery seams are lifted out of index.js's makeCronDriver call (its own
+   structure is the subject, so the exact file) and evaluated over this world's routine delivery: a hook index.js stops
+   passing is a hook this driver lacks, and the cases below that need it turn red. A bag written here kept all four while
+   index.js lost them, and every case stayed green (review round 1, the 956fdecf class). */
+const CRON_HOOKS = ['deliverResult', 'deliveryStarted', 'deliveryWithdrawn', 'deliveryRecorded'];
+const CRON_CALL = callRegion(readSidecarIndex(), 'const cronDriver = makeCronDriver({', '\n});');
+const cronHooks = (rd) => liftValues(CRON_CALL, CRON_HOOKS, { deliverCronResult: rd.deliverCronResult, routineDelivery: rd });
 // the one outbound contract (S4); a tree from before it has none, and the routine delivery then sends on its own
 const OUTBOUND = path.join(__dirname, '..', 'sidecar', 'channels', 'outbound.js');
 const Outbound = fs.existsSync(OUTBOUND) ? require(OUTBOUND) : null;
@@ -147,6 +155,7 @@ function makeWorld(jobIds, overrides) {
       transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) }, now: () => w.now, setTimeout: setT
     });
     let jobs = w.loadJobs();
+    const hooks = cronHooks(rd);
     const driver = makeCronDriver({
       getJobs: () => jobs,
       setJobs: (next) => {
@@ -157,7 +166,8 @@ function makeWorld(jobIds, overrides) {
       },
       runOnce: async () => {}, emit: () => {}, newId: () => 'x-' + (++w.ids), newAbort: () => new AbortController(), now: () => w.now,
       getKey: () => 'k', defaultModel: 'm', persona: 'P', warn: () => {},
-      deliverResult: rd.deliverCronResult, deliveryStarted: rd.deliveryStarted, deliveryWithdrawn: rd.deliveryWithdrawn, deliveryRecorded: rd.deliveryRecorded
+      // index.js's own four (CRON_HOOKS above)
+      deliverResult: hooks.deliverResult, deliveryStarted: hooks.deliveryStarted, deliveryWithdrawn: hooks.deliveryWithdrawn, deliveryRecorded: hooks.deliveryRecorded
     });
     hub.onStatus({ state: 'up' });
     w.proc = { gen: gen, store: store, hub: hub, driver: driver, jobs: () => jobs, edit: (fn) => { jobs = fn(jobs); w.files.set(JOBS, JSON.stringify({ version: 1, jobs: jobs })); } };
@@ -187,6 +197,14 @@ function makeWorld(jobIds, overrides) {
 const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
 
 (async () => {
+  // ---- the driver below is built with index.js's own delivery hooks, each a call into the routine delivery ----
+  {
+    const probe = makeRoutineDelivery({ channelStore: { ledger: null, getChatRecord: () => null }, channelOutbound: { provide() {}, send: async () => ({}) }, channelReach: () => ({ ok: true }),
+      channelRegistry: { get: () => null }, redact: (t) => t, runStore: { list: () => [] }, egressReader: { fireReader: () => null }, transcriptStore: {}, stationBridge: {}, now: () => T0 });
+    const lifted = cronHooks(probe);
+    A.eq(CRON_HOOKS.filter(k => typeof lifted[k] !== 'function'), [], 'index.js passes the cron driver all four delivery hooks (deliverResult, deliveryStarted, deliveryWithdrawn, deliveryRecorded)');
+  }
+
   // ---- (a) all parts land; the process dies before markDelivery reaches disk; the next one sends nothing ----
   {
     const w = makeWorld(['daily']);

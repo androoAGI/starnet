@@ -248,6 +248,19 @@ function callRegion(src, head, close) {
   return end < 0 ? '' : src.slice(at, end + close.length);
 }
 
+/* The VALUES a call passes for some of its properties: each one lifted (liftProp) and evaluated over `scope`, the names its
+   expression reads. { key: value } with undefined for a key the call does not pass, so a seam built from it loses exactly
+   what the production call lost (a hand-written bag would keep it and pass vacuously, 956fdecf). */
+function liftValues(region, keys, scope) {
+  const names = Object.keys(scope || {});
+  const out = {};
+  for (const k of keys) {
+    const expr = liftProp(region, k);
+    out[k] = expr ? new Function(...names, 'return (' + expr + ');')(...names.map(n => scope[n])) : undefined;   // eslint-disable-line no-new-func
+  }
+  return out;
+}
+
 /* Every property of the FIRST object literal in `region`, at its own top level, in order: [{ key, expr }] — the whole
    bag a production call passes, a key sharing its line with others included (liftProp reads one key per line). A key
    added to the call shows up here, so a test that lifts a bag property by property must account for it. Strings,
@@ -294,6 +307,7 @@ module.exports = {
   sidecarFileContaining,
   liftProp,
   callRegion,
+  liftValues,
   objectProps,
   isSkippedDir,
   SIDECAR_INDEX: INDEX_REL
