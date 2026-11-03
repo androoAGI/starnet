@@ -149,7 +149,11 @@
     const c = String(input == null ? '' : input);
     dialect = normalizeDialect(dialect);
     const out = [];
-    let start = 0, quote = null;
+    let start = 0, quote = null, groupDepth = 0, argumentParens = 0, redirectAt = -1;
+    const emit = end => {
+      const part = c.slice(start, end).trim();
+      if (part) out.push({ text: part, grouped: groupDepth > 0 });
+    };
     for (let i = 0; i < c.length; i++) {
       const ch = c[i];
       if (quote) {
@@ -159,15 +163,30 @@
       }
       if (isDialectEscape(ch, dialect, null, c[i + 1]) && i + 1 < c.length) { i++; continue; }
       if (isDialectQuote(ch, dialect)) { quote = ch; continue; }
+      if (dialect === 'cmd' && (ch === '<' || ch === '>')) redirectAt = i;
+      // Echo suppression precedes cmd group parsing: @(x) is still a group.
+      // An escaped or quoted @ remains filename/data, handled above.
+      if (dialect === 'cmd' && ch === '@' && !c.slice(start, i).trim()) { start = i + 1; continue; }
+      if (dialect === 'cmd' && ch === '(') {
+        if (!c.slice(start, i).trim()) { groupDepth++; start = i + 1; continue; }
+        if (groupDepth) argumentParens++;
+      }
+      if (dialect === 'cmd' && ch === ')' && groupDepth) {
+        if (argumentParens) { argumentParens--; continue; }
+        emit(i); groupDepth--; start = i + 1; continue;
+      }
+      // Descriptor duplication is redirection, not a command separator. Only
+      // the ampersand bound to a redirection operator and one descriptor is
+      // consumed; a subsequent `& program` still creates a real head.
+      if (dialect === 'cmd' && ch === '&' && redirectAt === i - 1
+        && /^[0-9](?=\s|$|[&|<>;)])/.test(c.slice(i + 1))) continue;
       if (ch === '&' || ch === '|' || ch === ';' || ch === '\r' || ch === '\n') {
-        const part = c.slice(start, i).trim();
-        if (part) out.push(part);
+        emit(i);
         while (i + 1 < c.length && /[&|;\r\n]/.test(c[i + 1])) i++;
         start = i + 1;
       }
     }
-    const tail = c.slice(start).trim();
-    if (tail) out.push(tail);
+    emit(c.length);
     return out;
   }
 
@@ -268,13 +287,26 @@
     return tokens[target].raw + (rest ? ' ' + rest : '');
   }
 
-  function parsePowerShellInvocation(segment, tokens) {
+  // Native wrappers reconstruct command SOURCE, not inert shell arguments. Cmd
+  // may strip the opening/last quote of its /c tail; Windows PowerShell joins
+  // native argv after -Command. Keep the proven plain and one-string forms, and
+  // refuse mixed native quoting instead of treating its later quotes as data.
+  function wrapperCommandArg(raw, outerDialect, innerDialect) {
+    raw = String(raw == null ? '' : raw).trim();
+    const oneQuoted = raw[0] === '"' && raw[raw.length - 1] === '"' && (raw.match(/"/g) || []).length === 2;
+    let opaque = false;
+    if (innerDialect === 'cmd' && raw[0] === '"' && !oneQuoted) opaque = true;
+    if (innerDialect === 'powershell' && outerDialect === 'cmd' && raw.includes('"') && !oneQuoted) opaque = true;
+    return { nested: opaque ? '' : unwrapCommandArg(raw, innerDialect), opaqueWrapper: opaque };
+  }
+
+  function parsePowerShellInvocation(segment, tokens, outerDialect) {
     if (tokens.length === 2 && /^--(?:version|help)$/i.test(String(tokens[1].value))) return { nested: '', opaque: false };
     for (let i = 1; i < tokens.length; i++) {
       const parsed = parsePowerShellFlag(tokens[i].value);
       if (!parsed) {
         // powershell.exe's default mode treats the first non-option token and everything after it as -Command.
-        return { nested: unwrapCommandArg(String(segment).slice(tokens[i].start), 'powershell'), opaque: false };
+        return wrapperCommandArg(String(segment).slice(tokens[i].start), outerDialect, 'powershell');
       }
       const opt = resolvePowerShellCliOption(parsed);
       if (!opt) return { nested: '', opaque: true };    // an option this cannot name may still run what follows: not read, so refused
@@ -283,7 +315,7 @@
       if (opt.kind === 'command') {
         const rest = afterToken(segment, tokens[i]);
         const raw = parsed.hasInline ? parsed.inline + (rest ? ' ' + rest : '') : rest;
-        return { nested: unwrapCommandArg(raw, 'powershell'), opaque: false };
+        return wrapperCommandArg(raw, outerDialect, 'powershell');
       }
       if (opt.kind === 'file' || opt.kind === 'help') return { nested: '', opaque: false };
       if (opt.takesValue && !parsed.hasInline) i++;
@@ -293,27 +325,34 @@
 
   function analyzeCommands(cmd, depth, dialect) {
     dialect = normalizeDialect(dialect);
-    const result = { heads: [], opaquePowerShell: false };
+    const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false };
     if ((depth || 0) > 8) return result;
-    for (const segment of splitCommandSegments(cmd, dialect)) {
+    for (const part of splitCommandSegments(cmd, dialect)) {
+      const segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
       const tokens = shellTokens(segment, dialect);
       if (!tokens.length) continue;
-      const own = { text: segment, dialect: dialect };
+      const own = { text: segment, dialect: dialect, grouped: part.grouped };
       result.heads.push(own);
       const verb = exeName(tokens[0].value);
       let nested = '', nestedDialect = dialect;
       if (verb === 'cmd' || verb === 'cmd.exe') {
         const i = tokens.findIndex((t, n) => n > 0 && /^\/[ck]$/i.test(t.value));
-        if (i >= 0) { nestedDialect = 'cmd'; nested = unwrapCommandArg(afterToken(segment, tokens[i]), nestedDialect); }
+        if (i >= 0) {
+          nestedDialect = 'cmd';
+          const invocation = wrapperCommandArg(afterToken(segment, tokens[i]), dialect, nestedDialect);
+          nested = invocation.nested;
+          if (invocation.opaqueWrapper) result.opaqueWrapper = true;
+        }
       } else if (verb === 'call') {
         nestedDialect = 'cmd'; nested = afterToken(segment, tokens[0]);
       } else if (verb === 'start-process' || verb === 'saps') {
         nestedDialect = dialect === 'powershell' ? 'powershell' : dialect;
         nested = startProcessTarget(segment, tokens);
       } else if (verb === 'powershell' || verb === 'powershell.exe' || verb === 'pwsh' || verb === 'pwsh.exe') {
-        const invocation = parsePowerShellInvocation(segment, tokens);
+        const invocation = parsePowerShellInvocation(segment, tokens, dialect);
         nestedDialect = 'powershell'; nested = invocation.nested;
         if (invocation.opaque) result.opaquePowerShell = true;
+        if (invocation.opaqueWrapper) result.opaqueWrapper = true;
       } else if (/^(?:sh|bash|zsh|dash|ksh)(?:\.exe)?$/.test(verb)) {
         const i = tokens.findIndex((t, n) => n > 0 && t.value === '-c');
         if (i >= 0) { nestedDialect = 'posix'; nested = unwrapCommandArg(afterToken(segment, tokens[i]), nestedDialect); }
@@ -322,6 +361,7 @@
         const child = analyzeCommands(nested, (depth || 0) + 1, nestedDialect);
         result.heads.push.apply(result.heads, child.heads);
         if (child.opaquePowerShell) result.opaquePowerShell = true;
+        if (child.opaqueWrapper) result.opaqueWrapper = true;
       }
     }
     return result;
@@ -417,7 +457,8 @@
      file answers for itself: the PE header's subsystem says whether it was built as a console tool.
      - A console program is then judged again under its bare spelling (`tools\python.exe a.py` as `python a.py`), so the
        program, code-file and browser floors read it exactly as they read the bare spelling.
-     - A GUI program is refused.
+     - A GUI program is refused. Cmd's bare names resolve through cwd/PATHEXT/PATH before the same proof; normalized
+       carets and command groups cannot skip it. Cmd builtins remain builtins, and resolved batch shims retain source scans.
      - Everything unproven stays refused: a file we cannot see or read, a store alias, not a PE, a `.\x` not spelled
        .exe, every POSIX `./x`, a network path (reading one would reach the network before consent, and can stall the
        station for seconds), a PATHEXT copy that would run first (`x.exe.cmd`), a head with `/` under cmd (which reads
@@ -425,7 +466,7 @@
        a program after anything else in a chain, because `cd sub & x.exe` runs a file this check never read, and one
        inside a wrapper, because the wrapper re-reads its text.
      NOT PROVEN by this check: a console program can still open a window itself (the residual the owner accepted on
-     2026-11-01), and this floor still reads spellings it knows, so it is a guard against accidents, not containment. */
+     2026-11-01), and command-source scans are bounded. This is a guard against accidents, not OS containment. */
   const PE_SUBSYSTEM_GUI = 2, PE_SUBSYSTEM_CONSOLE = 3;
   const EXECUTION_POLICIES = /^(?:restricted|allsigned|remotesigned|unrestricted|bypass|undefined|default)$/i;
   function peSubsystem(file, fs) {
@@ -446,10 +487,57 @@
     } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (e) { shellFailNote('shell.pe-close', e); } } }
   }
   const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
+  // These names are cmd's internal commands, not an executable-policy allowlist.
+  // In particular, a cwd echo.exe cannot replace cmd's own `echo` command.
+  const CMD_BUILTINS = new Set(('assoc break call cd chdir cls color copy date del dir echo endlocal erase exit for ftype goto if md mkdir mklink move path pause popd prompt pushd rd rem ren rename rmdir set setlocal shift start time title type ver verify vol').split(' '));
+  function isCmdSearchHead(head, value) {
+    // Spaces, Unicode and dotted basenames are valid filenames too. There is
+    // no lexical exemption for a name the resolver cannot establish.
+    return head.dialect === 'cmd' && !!value && !CMD_BUILTINS.has(value.toLowerCase());
+  }
   // 'file' | 'absent' | 'unknown'. Only a clear "not there" is absent: a store alias answers EACCES and may be what runs.
   function probeFile(file, fs) {
     try { return fs.statSync(file).isFile() ? 'file' : 'absent'; }
     catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unknown'; }
+  }
+  // Resolve the FIRST executable candidate, in cwd then PATH and PATHEXT order.
+  // An unreadable earlier candidate (or network path) cannot be vouched for by
+  // a later console copy. Never stat a network path while deciding consent.
+  function cmdProgramFile(value, opts) {
+    const fs = opts.fs, P = opts.pathMod, env = opts.env || process.env;
+    // Explicit .exe paths keep their existing proof. Other paths or dynamic
+    // names cannot silently become an uninspected bare invocation.
+    if (/[\\/:%!"<>|?*\u0000-\u001f]/.test(value) || /[. ]$/.test(value)) return { status: 'unknown' };
+    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
+    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e))) return { status: 'unknown' };
+    for (const entry of [opts.cwd].concat(rawPath.split(P.delimiter))) {
+      const dir = String(entry || opts.cwd || '').trim();
+      if (!dir) return { status: 'unknown' };
+      const folder = P.resolve(opts.cwd, dir);
+      if (/^[\\/]{2}/.test(folder)) return { status: 'unknown' };
+      const file = P.join(folder, value);
+      // Native cmd ignores an extensionless raw file in favor of PATHEXT.
+      // A dotted filename is tried exactly before appended extensions. The
+      // real Windows competing-marker fixture pins both directions.
+      const hasExtension = value.includes('.');
+      for (const candidate of (hasExtension ? [file] : []).concat(exts.map(ext => file + ext))) {
+        const status = probeFile(candidate, fs);
+        if (status === 'unknown') return { status };
+        if (status === 'file') return { status, file: candidate };
+      }
+      // A remaining raw extensionless file is not a console proof. Do not
+      // infer runnable-file semantics outside the demonstrated search case.
+      if (!hasExtension && probeFile(file, fs) !== 'absent') return { status: 'unknown' };
+    }
+    return { status: 'absent' };
+  }
+  function commandScript(file, fs) {
+    try {
+      const st = fs.statSync(file);
+      if (!st.isFile() || st.size > (2 << 20)) return null;
+      return { text: String(fs.readFileSync(file, 'utf8')) };
+    } catch (_) { return null; }
   }
   /* Every file this head could run, or null when that cannot be proven. A bare `git.exe` is cmd's current folder first
      and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. */
@@ -478,7 +566,7 @@
     return out.length ? out : null;
   }
   const GUI_RUNTIME_REFUSAL = 'launches a GUI/native runtime on the user\'s interactive desktop';
-  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. On Windows, run one existing console .exe as its own command, not after other commands in a chain and not inside cmd /c or powershell -c; a script runs through its interpreter, like `python x.py` or `powershell -File x.ps1`';
+  const UNPROVEN_PROGRAM_REFUSAL = 'runs a local program StarNet could not confirm is a console tool, so it may open a window on the user\'s desktop. Use shell.exec with a known working directory and one existing console program as its own command, not after other commands in a chain or inside a shell wrapper/group. A live terminal write cannot prove its current directory; scripts still need readable source, for example `python x.py` or `powershell -File x.ps1`';
   // `^&`, a backtick, `$(...)` or a PowerShell `(...)` argument can run another command this parse does not split out.
   // A caret before anything but an operator or a quote is data: `git.exe show HEAD^`. `^"` flips the quoting a later parse sees.
   // Read in any dialect and inside quotes on purpose: the first head can itself be a wrapper spelled .exe, whose text is
@@ -491,19 +579,31 @@
   /* A head reaches its proof only as the first command, typed directly. No wrapper vouches for one: `cmd /c x` and `powershell -c x`
      re-read their text, so what they run next cannot be proven from here. A program spelled as local stays refused there. */
   function nothingRunsFirst(heads, index) {
-    return index === 0 && !mayHideACommand(heads[index]);
+    return index === 0 && !heads[index].grouped && !mayHideACommand(heads[index]);
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
     const text = head && head.text != null ? head.text : String(head || '');
-    if (!LOCAL_PROGRAM_RE.test(text)) return null;
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
     const first = headTokens(head)[0] || {};
     const value = String(first.value || '');
+    const explicit = LOCAL_PROGRAM_RE.test(text) || /\.exe$/i.test(value);
+    const searched = isWin && isCmdSearchHead(head, value);
+    if (!explicit && !searched) return null;
     // counts every head, siblings too: a stand-in for the nesting analyzeCommands reads (depth 8), past which a head goes unjudged
-    if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || heads.length > 8
-      || !/\.exe$/i.test(value) || !nothingRunsFirst(heads, index)) return UNPROVEN_PROGRAM_REFUSAL;
-    const found = localProgramFiles(value, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
+    if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || !opts.cwd || !opts.pathMod.isAbsolute(opts.cwd) || heads.length > 8
+      || !nothingRunsFirst(heads, index)) return UNPROVEN_PROGRAM_REFUSAL;
+    let found;
+    if (!explicit && searched) {
+      const resolved = cmdProgramFile(value, opts);
+      if (resolved.status === 'absent') return null; // nothing can run under this known search context
+      if (resolved.status !== 'file') return UNPROVEN_PROGRAM_REFUSAL;
+      if (/\.(?:cmd|bat)$/i.test(resolved.file)) return commandScript(resolved.file, opts.fs) ? null : UNPROVEN_PROGRAM_REFUSAL;
+      found = [resolved.file];
+    } else {
+      if (!/\.exe$/i.test(value)) return UNPROVEN_PROGRAM_REFUSAL;
+      found = localProgramFiles(value, Object.assign({}, opts, { dialect: head.dialect || opts.dialect }));
+    }
     if (!found) return UNPROVEN_PROGRAM_REFUSAL;
     const kinds = found.map(f => peSubsystem(f, opts.fs));
     if (kinds.some(k => k === PE_SUBSYSTEM_GUI)) return GUI_RUNTIME_REFUSAL;
@@ -561,8 +661,23 @@
       const seenKey = String(baseDir || '') + '\0' + text;
       if (!text || seen.has(seenKey)) continue;
       seen.add(seenKey); out.push({ text: text, kind: entry.kind || 'shell', dialect: entry.dialect || dialect });
-      for (const parsedHead of commandHeads(text, dialect)) {
+      // Preserve the established outer-dialect source scan: shell-like text
+      // inside referenced code and comments still follows the same bounded
+      // queue. The new resolved batch source does not change that contract.
+      for (const [headIndex, parsedHead] of commandHeads(text, dialect).entries()) {
         const head = (parsedHead && parsedHead.text != null ? parsedHead.text : String(parsedHead || '')).replace(/^\s*@/, '');
+        // A bare developer shim is still a script. Resolve its actual first
+        // file, then feed its bytes through the existing shell-source scans.
+        const firstValue = String((headTokens(parsedHead)[0] || {}).value || '');
+        const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
+        if (qi === 0 && headIndex === 0 && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
+          && !parsedHead.grouped && isCmdSearchHead(parsedHead, firstValue)) {
+          const resolved = cmdProgramFile(firstValue, opts);
+          if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
+            const script = commandScript(resolved.file, fs);
+            if (script) enqueue(script.text, baseDir, 'shell', 'cmd');
+          }
+        }
         let m = head.match(/^(?:npm|npm\.cmd)\s+(?:--[A-Za-z0-9_-]+(?:=[^\s]+)?\s+)*(?:run\s+)?([A-Za-z0-9:_-]+)\b/i);
         if (m) {
           const pkg = packageAt(baseDir);
@@ -632,7 +747,9 @@
   function inputIsolationRisk(cmd, opts) {
     opts = opts || {};
     const c = String(cmd == null ? '' : cmd), dialect = opts.dialect;
-    const heads = commandHeads(c, dialect);
+    const analysis = analyzeCommands(c, 0, dialect);
+    if (analysis.opaqueWrapper) return UNPROVEN_PROGRAM_REFUSAL;
+    const heads = analysis.heads;
     if (heads.some(h => BROWSER_NAMES.has(exeName((headTokens(h)[0] || {}).value)))) {
       return 'launches a browser outside StarNet\'s synthetic-input CDP sandbox — use browser.test_navigate/browser.test_input';
     }
@@ -705,6 +822,7 @@
   function breaksMachineState(cmd, dialect) {
     const c = String(cmd == null ? '' : cmd);
     const analysis = analyzeCommands(c, 0, dialect);
+    if (analysis.opaqueWrapper) return 'uses native shell-wrapper quoting StarNet could not confirm as command text; use one plainly quoted command string or a script file';
     if (analysis.opaquePowerShell) return 'runs a base64-encoded PowerShell command, or one with an option StarNet does not recognize, so it cannot be inspected — write the script to a file and run it plainly';
     if (analysis.heads.some(h => {
       const first = (headTokens(h)[0] || {}).value || '';

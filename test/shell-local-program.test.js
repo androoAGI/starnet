@@ -117,13 +117,15 @@ A.eq(risk('git.exe show (x)', { dialect: 'cmd' }), null, 'a bracket means nothin
 const chain = n => ['git.exe status'].concat(Array(n - 1).fill('echo a')).join(' & ');
 A.eq(risk(chain(8)), null, 'eight commands are within what the parse reads');
 A.ok(UNPROVEN.test(risk(chain(9)) || ''), 'past eight commands in all, siblings too, the first one is not proven');
-A.eq(risk('git.exe log | findstr x'), null, 'a typed command may feed a pipe');
+A.ok(UNPROVEN.test(risk('git.exe log | findstr x') || ''), 'a second bare external now needs the same proof as findstr.exe');
+A.eq(risk('git.exe log | echo received'), null, 'a typed console command may still feed a builtin pipe');
 A.ok(UNPROVEN.test(risk('powershell.exe -c "git status `x"') || ''), 'a first head that re-reads its text: a backtick hides what runs');
 A.ok(UNPROVEN.test(risk('powershell.exe -c "git status $(x)"') || ''), 'a first head that re-reads its text: $( hides what runs');
-// A deliberate cost: the same check reads inside quotes, so this respelling is what the person gets. `git` with these words runs.
+// A deliberate cost: the same proof reads inside quotes. Bare spelling no longer bypasses it.
 A.ok(UNPROVEN.test(risk('git.exe commit -m "fix `foo` bug"') || ''), 'a backtick is refused inside quotes too');
-A.eq(risk('git commit -m "fix `foo` bug"'), null, 'the bare spelling runs those words');
-A.ok(/not inside cmd \/c or powershell -c/.test(risk('cmd /c git.exe status') || ''), 'the refusal says a wrapper is no way round');
+A.ok(UNPROVEN.test(risk('git commit -m "fix `foo` bug"') || ''), 'the bare spelling receives the same backtick restriction');
+A.eq(risk('git commit -m "fix foo bug"'), null, 'ordinary quoted commit data still runs with proven console context');
+A.ok(/shell\.exec.*known working directory.*inside a shell wrapper/.test(risk('cmd /c git.exe status') || ''), 'the refusal names known-cwd shell.exec and says a wrapper is no way round');
 
 // ---- GUI programs are refused ----
 A.ok(GUI_RE.test(risk('tools\\app\\game.exe') || ''), 'a GUI PE is refused as a GUI runtime');
