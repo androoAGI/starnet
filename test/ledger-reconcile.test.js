@@ -6,7 +6,10 @@
    Janitor finding mappings, and the --ci staleness exit. The anchor-required register law (Law 7)
    is asserted through the same register core the CLI uses. A final smoke drives the REAL io shell
    against a throwaway git repo in the scratch tmpdir so `isAncestor`/`branchMerged`/`worktrees`
-   are proven against actual git, never just mocked. */
+   are proven against actual git, never just mocked, then runs the REAL CLI rooted at that repo (a
+   byte copy of its module graph under the repo's scripts/qa/) for its exit codes, --json and
+   --no-write, in seconds. Only the bad-argument check runs the CLI where it lives: it exits before
+   any scan. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -257,6 +260,26 @@ const rowOf = (res, fp) => res.records.find(r => r.fingerprint === fp);
 // ---- L. the REAL io shell against a throwaway git repo (isAncestor / branchMerged / worktrees / runTest) ----
 {
   const git = (cwd, args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+  // The CLI's module graph, copied from the repository into the fixture at the same relative paths: the entry file,
+  // then every file it reaches by a relative static or dynamic import (`from './x.mjs'`, `import './x.mjs'`,
+  // `import('../x.mjs')`). Read and written as text, not copyFileSync, so a mutation preload that wraps
+  // fs.readFileSync reaches the copy. A file the graph misses fails the CLI run with ERR_MODULE_NOT_FOUND, which the
+  // exit-0 check prints. Returns the copied paths, entry first.
+  const copyModuleGraph = (repo, fixture, entryRel) => {
+    const copied = [];
+    const visit = (rel) => {
+      if (copied.includes(rel)) return;
+      copied.push(rel);
+      const text = fs.readFileSync(path.join(repo, rel), 'utf8');
+      fs.mkdirSync(path.dirname(path.join(fixture, rel)), { recursive: true });
+      fs.writeFileSync(path.join(fixture, rel), text);
+      for (const m of text.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|^\s*import\s*)(['"])(\.\.?\/[^'"\r\n]+)\1/gm)) {
+        visit(path.posix.join(path.posix.dirname(rel), m[2]));
+      }
+    };
+    visit(entryRel);
+    return copied;
+  };
   let root = null;
   try {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-reconcile-'));
@@ -301,13 +324,13 @@ const rowOf = (res, fp) => res.records.find(r => r.fingerprint === fp);
     A.eq(realIo(root, { runHttp: true }).runTest('test/red.test.js').code, 1, '--http runs it and reports the red exit code');
     A.eq(io.runTest('test/env.test.js').ok, true, 'a test runs under the hermetic app-data profile (LOCALAPPDATA is a scratch dir)');
 
-    // the CLI end to end: one stale likely-fixed record -> --ci exits 3; --json prints the result.
+    // one stale likely-fixed record on disk (found 2026-07-01, fixed by the fixture's HEAD): the core judges it through
+    // realIo(root) below, and the CLI must exit 3 on it under --ci.
     const reg = makeBugRegister({ io: { listBugs: () => [], writeBug() {}, knownFingerprints: () => [] }, clock });
     const rec = record(reg, { title: 'stale on disk', slug: 'stale-on-disk', found: '2026-07-01', fix: base, sections: { Verdict: 'fixed in ' + base + '; regression test/green.test.js' } });
     fs.writeFileSync(path.join(root, 'qa', 'bugs', rec.file), rec.text);
-    const cli = path.resolve(__dirname, '..', 'scripts', 'qa', 'ledger-reconcile.mjs');
-    // the CLI roots itself at ITS OWN repo, so exercise the core through realIo(root) instead for
-    // the verdict, and the real CLI only for the arg/exit surface on this repo.
+    // the verdict, through the core over realIo(root) with the injected clock (the CLI dates by the real clock, so the
+    // exact age is asserted here); the CLI below is held to its arg, exit and --json surface.
     const R = makeReconciler({ io: realIo(root), clock });
     const res = R.reconcile();
     const row = res.records[0];
@@ -315,16 +338,36 @@ const rowOf = (res, fp) => res.records.find(r => r.fingerprint === fp);
     A.eq(row.confidence, 'hard', 'real node: the regression passes -> hard');
     A.eq(R.ciVerdict(res, { staleDays: 7 }).ok, false, 'real clock-free ci: 51 days open -> red');
 
-    // This CLI scans the real repository and can exceed two minutes on a busy multi-worktree host.
-    // Keep the exit-code and JSON checks; allow the scan to finish before treating it as a hang.
-    const run = spawnSync(process.execPath, [cli, '--no-write', '--no-run', '--json', '--ci', '--stale-days', '99999'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 300000 });
-    A.eq(run.status, 0, 'the real CLI on this repo exits 0 with an absurd stale window (spawn error: ' +
-      (run.error ? run.error.message : 'none') + '; stderr: ' + String(run.stderr).slice(0, 200) + ')');
+    // THE CLI, ON THE FIXTURE (R9). The CLI roots itself at path.resolve(its dir, '..', '..'), so run where it lives it
+    // scans this whole repository: 389 bug records and 2549 code files at 0b8441064, which took 318-543 s on a loaded
+    // box and hit the 300 s spawnSync timeout (ETIMEDOUT), only to check this surface. A byte copy of its module graph
+    // under the fixture's scripts/qa/ runs the same entry code rooted at the fixture, in seconds, and its JSON can be
+    // held to the fixture's HEAD and its one record, which a run over the repository could never pass.
+    const repo = path.resolve(__dirname, '..');
+    const graph = copyModuleGraph(repo, root, 'scripts/qa/ledger-reconcile.mjs');
+    A.ok(graph.includes('scripts/qa/bugs.mjs') && graph.includes('scripts/qa/bug-lifecycle.mjs'), 'the copy follows the entry file\'s imports (copied: ' + graph.join(', ') + ')');
+    // realpath, as Node does for the main module, so INVOKED_DIRECTLY (import.meta.url against argv[1]) holds even
+    // where the tmpdir sits behind a link (macOS /var -> /private/var).
+    const cli = fs.realpathSync(path.join(root, 'scripts', 'qa', 'ledger-reconcile.mjs'));
+    const runCli = (args) => spawnSync(process.execPath, [cli].concat(args), { cwd: root, encoding: 'utf8', timeout: 60000 });
+    const why = (r) => ' (spawn error: ' + (r.error ? r.error.message : 'none') + '; stderr: ' + String(r.stderr).slice(0, 300) + ')';
+    const run = runCli(['--no-write', '--no-run', '--json', '--ci', '--stale-days', '99999']);
+    A.eq(run.status, 0, 'the CLI exits 0 under --ci with an absurd stale window' + why(run));
     let parsed = null;
     try { parsed = JSON.parse(run.stdout); } catch (_) { parsed = null; }
     A.ok(parsed && Array.isArray(parsed.records) && parsed.summary, '--json prints the result object');
-    const bad = spawnSync(process.execPath, [cli, '--stale-days', '-1'], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', timeout: 60000 });
+    const recs = parsed && Array.isArray(parsed.records) ? parsed.records : [];
+    A.ok(parsed && parsed.head === base && recs.length === 1 && recs[0].fingerprint === rec.bug.fingerprint,
+      '--json judges the fixture alone: its HEAD and its one record (head ' + (parsed ? parsed.head : 'none') + ', ' + recs.length + ' record(s))');
+    const red = runCli(['--no-write', '--no-run', '--ci']);
+    A.eq(red.status, 3, '--ci with the default 7-day window exits 3 on the stale record' + why(red));
+    A.ok(String(red.stderr).includes('CI RED') && String(red.stderr).includes(rec.bug.fingerprint), '...and names it on stderr: CI RED and its fingerprint' + why(red));
+    A.ok(String(red.stdout).startsWith('# '), 'without --json, stdout is the markdown report');
+    A.eq(fs.existsSync(path.join(root, 'qa', 'digests')), false, '--no-write writes no digest');
+    // the real entry point, where it lives: a bad window is refused before any scan, so this costs one node start.
+    const bad = spawnSync(process.execPath, [path.join(repo, 'scripts', 'qa', 'ledger-reconcile.mjs'), '--stale-days', '-1'], { cwd: repo, encoding: 'utf8', timeout: 60000 });
     A.eq(bad.status, 1, 'a negative --stale-days is refused with exit 1');
+    A.ok(String(bad.stderr).includes('--stale-days must be a non-negative number'), '...with its message (stderr: ' + String(bad.stderr).slice(0, 200) + ')');
   } catch (e) {
     A.ok(false, 'real-git smoke threw: ' + (e && e.message));
   } finally {

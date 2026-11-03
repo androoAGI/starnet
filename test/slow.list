@@ -17,7 +17,9 @@ test/cli-dashboard-drive.test.js
 test/comms-owner.e2e.test.js
 # website-app-sync: runs scripts/sync-website-app.mjs --check over the whole frontend copy — 69.2 s.
 test/website-app-sync.test.js
-# ledger-reconcile: ends with a smoke of the real io shell against a throwaway git repo — 50.2 s.
+# ledger-reconcile: the real io shell and the real CLI against a throwaway git repo — 51.5 s, 80.6 s and 67.1 s
+# standalone on 2026-11-03 (CPU at 99-100%). Its time is about 33 git and node child processes, 1-6 s each on a loaded
+# box; the CLI's three runs (two on the fixture) are 20 s of it, no longer a scan of the whole repository (318-543 s).
 test/ledger-reconcile.test.js
 # browser: the browser automation contract suite — 42.6 s.
 test/browser.test.js
