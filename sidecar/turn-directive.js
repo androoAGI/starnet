@@ -25,20 +25,44 @@
                                              otherwise o.rekey('r' + runId) and null. Never throws
      keyBlind(text)                          text with every placeholder the store's redaction emits and every saved-key
                                              label (KeyTools.keyPlaceholder) replaced by one token, whitespace collapsed
-     echo(runStartExtra, runTranscript, reused, noteIdentity, brief)
+     echo(runStartExtra, runTranscript, reused, noteIdentity, noteBrief)
                                              after the directive write: run.start's directiveRowId (the written directive,
                                              else the reused one) and the run record's { turnId, directiveRowId }
-                                             (runStore.noteIdentity). `brief` is the run's task brief (commit 4 records the
-                                             directive row on it)
+                                             (runStore.noteIdentity); noteBrief(rowId), when given, records that row on the
+                                             run's task brief (taskBriefStore.noteDirective; a rejection is noted)
      startFields(runStartExtra)              { turnId, directiveRowId } for the lead's own agent.run.start
      interruptedIdentity(meta, store, state) an interrupted run's record identity from its journal: { turnId } plus the
                                              directive's rowId when findTurn's recent or run-rows rungs find it
+
+   THE DIRECTIVE IS CAPTURED ONCE, BEFORE EXPANSION (commit 4; bug e7dcb889). runOnceCore reads the newest user message
+   before attachments.expandForRun turns its files into text, so every reader of "what the Commander asked" reads the same
+   words: never a file's bytes, never the loop's screen-capture turn, never a repair prompt.
+     capture(messages, { typedDirective, turnId, recovery })
+                                             { text, label, attachments, turnId, typedTitleSource, captured: true }, or
+                                             null when there is no user message to read (an internal system-only run, an
+                                             assistant-only body). text = the message's own words (UserText DIRECTIVE);
+                                             label = '[image: name]' / '[file: name]' per attachment, joined ', ' (<= 600);
+                                             attachments = bounded refs (the transcript store's own rule). A recovery
+                                             continuation's directive is its SOURCE's title ({ recovered: true }); one
+                                             with no title is null (the trunk path reads the recovered prompt)
+     typedText(d)                            the typed words only ('' for null): KeyTools.ownerRun, learning's hand-off
+     wording(d)                              the one wording: non-blank text, else the label ('' for null)
+     row(d, contentBytes, kind)              setDirective's argument: { text, typed, attachments, kind }; contentBytes
+                                             itself for null (the trunk string path)
+     title(d, runDirective) / runTitle(source, keys) / interruptedTitle(meta, keys)
+                                             a run's title source (runDirective only for a null capture), scrubbed and
+                                             key-named the one way (PromptScrub.scrubStored(KeyTools.nameSavedKeys(…)))
+     packet(d, { redact, keys, row })        { rowId, text } for the verdict packet, golden and feedback: the wording,
+                                             key-named and redacted (the SAFE form); rowId from `row` (the written or
+                                             reused directive); null for a null capture
 
    Counted (failopen tags, ids only, never text): turn.recovery.ids-ignored, turn.id-ignored, turn.reuse.conflict.agent,
    turn.reuse.conflict.input, turn.reuse.horizon. */
 'use strict';
 const TurnKinds = require('../frontend/app/turnkinds.js');
+const UserText = require('../frontend/app/usertext.js');
 const KeyTools = require('./tools/builtin/keys.js');
+const PromptScrub = require('./prompt-scrub.js');
 const { note: failNote } = require('./failopen.js');
 
 const count = (tag, what) => failNote(tag, new Error(what));
@@ -90,19 +114,108 @@ function keyBlind(text) {
   return String(text == null ? '' : text).replace(BLIND_RE, '\u0000').replace(/\s+/g, ' ').trim();
 }
 
+// the request's words in the store's own form: key-named, then redacted
+function storedForm(text, a) {
+  const named = KeyTools.nameSavedKeys(text, a.keys);
+  return typeof a.redact === 'function' ? a.redact(named) : named;
+}
+function refIds(list) {
+  return (Array.isArray(list) ? list : []).map(r => String((r && (r.id || r.path)) || '')).sort().join('\u0000');
+}
+// the key-blind input check: a row that carries `typed` (the redacted wording) is compared on it, any other row on its
+// content (trunk's basis: the expanded words, or the label of a captionless turn); a row that names attachments also
+// needs the same attachment ids. A null capture never matches (the turn's words are unknown: an input conflict).
+function sameInput(row, a) {
+  const d = a.directive;
+  if (!d) return false;
+  if (Array.isArray(row.attachments) && refIds(row.attachments) !== refIds(d.attachments)) return false;
+  if (row.typed != null) return keyBlind(row.typed) === keyBlind(storedForm(wording(d), a));
+  const latest = typeof a.latestUserText === 'function' ? a.latestUserText(a.messages) : '';
+  return keyBlind(row.content) === keyBlind(storedForm(latest || d.label || '', a));
+}
+
 function reuse(store, o) {
   const a = o || {};
   const found = a.found;
   if (!found || found.state !== 'found' || !found.directive) return null;
   const row = found.directive;
-  const latest = typeof a.latestUserText === 'function' ? a.latestUserText(a.messages) : '';
-  const named = KeyTools.nameSavedKeys(latest, a.keys);
-  const asked = typeof a.redact === 'function' ? a.redact(named) : named;
-  if (keyBlind(row.content) === keyBlind(asked)) return row;
+  if (sameInput(row, a)) return row;
   count('turn.reuse.conflict.input', 'run ' + String(a.runId || '') + ': the words differ from the turn\'s directive; re-keyed');
   const own = TurnKinds.runTurnId(a.runId);
   if (own && typeof a.rekey === 'function') a.rekey(own);
   return null;
+}
+
+/* ---- the directive, captured once before expansion (commit 4) ---- */
+const LABEL_MAX = 600;
+const ATTACH_MAX = 16;
+const REF_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];   // transcriptstore attachmentRefs
+// the newest user message a run can read: its content flattens, or it carries attachments (latestUserText's walk)
+function newestUser(messages) {
+  const list = Array.isArray(messages) ? messages : [];
+  for (let i = list.length - 1; i >= 0; i--) {
+    const m = list[i];
+    if (!m || m.role !== 'user') continue;
+    if (UserText.flatten(m.content, UserText.DIRECTIVE) != null || (Array.isArray(m.attachments) && m.attachments.length)) return m;
+  }
+  return null;
+}
+function labelOf(atts) {
+  const parts = atts.filter(a => a && typeof a === 'object').map(a => '[' + (a.kind === 'image' ? 'image' : 'file') + ': ' + String(a.name || 'file') + ']');
+  return parts.join(', ').slice(0, LABEL_MAX);
+}
+function refsOf(atts) {
+  const out = [];
+  for (const a of atts) {
+    if (out.length >= ATTACH_MAX) break;
+    if (!a || typeof a !== 'object' || typeof a.path !== 'string' || a.path.indexOf('.attachments/') !== 0) continue;
+    const ref = {};
+    for (const [k, max] of REF_LIMITS) { const v = typeof a[k] === 'string' ? a[k].slice(0, max) : ''; if (v) ref[k] = v; }
+    out.push(ref);   // a reference only: never the attachment's bytes
+  }
+  return out;
+}
+function capture(messages, opts) {
+  const c = opts || {};
+  const turnId = TurnKinds.isTurnId(c.turnId) ? c.turnId : '';
+  if (c.recovery) {
+    const title = String(c.recovery.title || '');
+    if (!title) return null;
+    return { text: title, label: '', attachments: [], turnId, typedTitleSource: title, recovered: true, captured: true };
+  }
+  const m = newestUser(messages);
+  if (!m) return null;
+  const atts = Array.isArray(m.attachments) ? m.attachments : [];
+  const text = UserText.flatten(m.content, UserText.DIRECTIVE) || '';
+  const d = { text, label: labelOf(atts), attachments: refsOf(atts), turnId, typedTitleSource: '', captured: true };
+  const typed = typeof c.typedDirective === 'string' && c.typedDirective.trim() ? c.typedDirective : '';
+  d.typedTitleSource = typed || wording(d);
+  return d;
+}
+function typedText(d) { return d ? String(d.text || '') : ''; }
+function wording(d) {
+  if (!d) return '';
+  const t = String(d.text || '');
+  return t.trim() ? t : String(d.label || '');
+}
+function row(d, contentBytes, kind) {
+  if (!d) return contentBytes;
+  return { text: contentBytes || d.label, typed: wording(d), attachments: d.attachments, kind };
+}
+function title(d, runDirective) { return d ? String(d.typedTitleSource || '') : runDirective; }
+function runTitle(source, keys) { return PromptScrub.scrubStored(KeyTools.nameSavedKeys(source, keys), { whole: true }); }
+function interruptedTitle(meta, keys) {
+  const m = meta || {};
+  return runTitle(String(m.directiveTitle || m.userTitle || ''), keys);
+}
+function packet(d, o) {
+  if (!d) return null;
+  const a = o || {};
+  let text = '';
+  try { text = String(storedForm(wording(d), a)); }
+  catch (e) { failNote('turn.packet', e); text = ''; }   // fail closed: never the raw words
+  const r = a.row;
+  return { rowId: r && posInt(r.rowId) ? r.rowId : 0, text };
 }
 
 function startFields(runStartExtra) {
@@ -113,16 +226,22 @@ function startFields(runStartExtra) {
   return out;
 }
 
-function echo(runStartExtra, runTranscript, reused, noteIdentity, brief) {   // brief: read from commit 4 (the task brief's directive row)
+function echo(runStartExtra, runTranscript, reused, noteIdentity, noteBrief) {
   const x = runStartExtra || {};
-  let row = null;
-  try { row = runTranscript && typeof runTranscript.directiveRow === 'function' ? runTranscript.directiveRow() : null; }
-  catch (e) { failNote('turn.echo', e); row = null; }
-  const rowId = row && posInt(row.rowId) ? row.rowId : (reused && posInt(reused.rowId) ? reused.rowId : 0);
+  let written = null;
+  try { written = runTranscript && typeof runTranscript.directiveRow === 'function' ? runTranscript.directiveRow() : null; }
+  catch (e) { failNote('turn.echo', e); written = null; }
+  const rowId = written && posInt(written.rowId) ? written.rowId : (reused && posInt(reused.rowId) ? reused.rowId : 0);
   if (rowId) x.directiveRowId = rowId;
   const fields = startFields(x);
   if (Object.keys(fields).length && typeof noteIdentity === 'function') {
     try { noteIdentity(fields); } catch (e) { failNote('turn.echo', e); }
+  }
+  if (rowId && typeof noteBrief === 'function') {
+    try {
+      const p = noteBrief(rowId);
+      if (p && typeof p.then === 'function') p.then(null, e => failNote('turn.echo.brief', e));
+    } catch (e) { failNote('turn.echo.brief', e); }
   }
   return fields;
 }
@@ -141,4 +260,7 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
   return out;
 }
 
-module.exports = { turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity };
+module.exports = {
+  turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
+  capture, typedText, wording, row, title, runTitle, interruptedTitle, packet
+};

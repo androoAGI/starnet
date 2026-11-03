@@ -483,6 +483,9 @@ test/transcript-row-identity.test.js
 test/transcript-run.identity.test.js
 test/runstore.identity.test.js
 test/turn-merge.family.test.js
+test/user-text.census.test.js
+test/turn-directive.null-capture.test.js
+test/turn-run-order.lint.test.js
 test/recall.test.js
 test/session-tombstones.test.js
 test/transcript-selftalk.test.js

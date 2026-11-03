@@ -283,7 +283,7 @@ const OTHER = 'b7e1c0a9d4f2e6b8a3c5d7f9e1a2b4c6';
     // SOURCE LOCKS: the host wires the shared predicate, and the real callers still carry the flags it reads
     const read = rel => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', rel), 'utf8');
     const index = readSidecarSource();
-    A.ok(/const keyOwnerRun = KeyTools\.ownerRun\([\s\S]{0,200}eligible: TrustedLearning\.eligible, isHandoff: Pipeline\.isHandoff, latestText: latestUserText\(messages\)/.test(index), 'index.js decides keyOwnerRun with the shared TrustedLearning.eligible + Pipeline.isHandoff');
+    A.ok(/const keyOwnerRun = KeyTools\.ownerRun\([\s\S]{0,200}eligible: TrustedLearning\.eligible, isHandoff: Pipeline\.isHandoff, latestText: TurnDirective\.typedText\(directive\)/.test(index), 'index.js decides keyOwnerRun with the shared TrustedLearning.eligible + Pipeline.isHandoff, on the typed words only (the pre-expansion capture, never a file\'s bytes)');
     A.ok(/keyOwnerTexts = \(\) => keyOwnerRun \? recentUserTexts\(messages, KeyTools\.OWNER_TURNS\) : null/.test(index) && KT.OWNER_TURNS === 1, 'owner texts = this run\'s directive only');
     A.ok(/surface: 'interactive', lead: [^\n]*groupTools: tools/.test(index), 'the group run still passes groupTools');
     A.ok(/ownerDirective: ownerWording/.test(index) && /let ownerWording = !recipeId && !\(body && body\.recipeId\)/.test(index), '/api/run still mints ownerDirective false for a recipe launch');

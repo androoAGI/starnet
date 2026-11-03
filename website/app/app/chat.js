@@ -11745,6 +11745,7 @@ const Chat = (() => {
         recovery: recoveryResume ? opts.recovery : undefined,
         retryUserRunId: retry ? ((opts && opts.retryUserRunId) || (retryDirectiveTurn && retryDirectiveTurn.sourceRunId)) : undefined,
         ...turnIds,
+        goalContinuation: (goalContinuation && !recoveryResume) || undefined,   // the goal loop's own step: the station files it as one (kind goal-step), never as the Commander's wording
         connectorContinuationOf: opts && opts.connectorContinuationOf,
         recipeId: recipeId || undefined,   // provenance spine: the launching recipe rides to the durable run row (undefined for non-recipe runs)
         projectRoot: runRoot || undefined,   // project-anchored session: the sidecar injects the folder context ONLY if the root is still a standing blessed grant (truthful)

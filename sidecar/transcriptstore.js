@@ -33,6 +33,8 @@
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   // the turnId grammar, row kinds and quote stamp (frontend/app/turnkinds.js, the same module the page loads)
   const TurnKinds = (typeof require === 'function') ? require('../frontend/app/turnkinds.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnKinds) || null);
+  // the one flattener of a message's text parts (frontend/app/usertext.js; this store's join is its STORED policy)
+  const UserText = (typeof require === 'function') ? require('../frontend/app/usertext.js') : ((typeof globalThis !== 'undefined' && globalThis.UserText) || null);
 
   const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
@@ -112,11 +114,10 @@
     return row.taintKnown === true ? null : UNVERIFIED_ROW;
   }
 
-  // an OpenAI-format message's content is either a plain string or a multimodal parts array
+  // an OpenAI-format message's content is either a plain string or a multimodal parts array. BYTE-FROZEN (UserText.STORED):
+  // markRecorded and taintOf compare against rows this join already wrote
   function flattenContent(c) {
-    if (typeof c === 'string') return c;
-    if (Array.isArray(c)) return c.map(p => (p && typeof p.text === 'string') ? p.text : '').join(' ');
-    return '';
+    return UserText.flatten(c, UserText.STORED);
   }
 
   /* H1.1 BOUNDARY MARKER — why this is not just an integer.

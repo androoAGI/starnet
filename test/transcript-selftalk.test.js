@@ -30,8 +30,9 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
   // ---------------- 1. WRITE: the host stamps streamless self-talk 'internal' ----------------
   {
     const src = readSidecarSource();
-    const rule = src.match(/const transcriptState = \(o\.dispatchDelivery && o\.dispatchDelivery\.state\) \|\| \(internal && !o\.streamId \? 'internal' : undefined\);/);
-    A.ok(!!rule, 'runOnce names ONE transcript state: the dispatch envelope\'s, else \'internal\' for streamless self-talk');
+    // turn-identity commit 4: 'internal' in ANY stream (station speech is stamped), not only the streamless 'global' one
+    const rule = src.match(/const transcriptState = \(o\.dispatchDelivery && o\.dispatchDelivery\.state\) \|\| \(internal \? 'internal' : undefined\);/);
+    A.ok(!!rule, 'runOnce names ONE transcript state: the dispatch envelope\'s, else \'internal\' for self-talk in any stream');
     const mk = src.indexOf('const runTranscript = makeRunTranscript({');
     A.ok(mk > 0 && rule && rule.index < mk && /dispatchState: transcriptState,/.test(src.slice(mk, mk + 400)), 'makeRunTranscript writes with that state');
     const endAt = src.indexOf("if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append(");

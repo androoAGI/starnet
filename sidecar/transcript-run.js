@@ -101,13 +101,8 @@ function makeRunTranscript(opts) {
   }
   // the kind of a drained row: its tag; else 'station' for a user row (the directive is written by writeDirective, so
   // any user row a run drains is the station's own: a loop capture turn, a repair prompt, a recovered loop turn); else
-  // the run's row kind
-  function kindOf(m) {
-    const t = TurnKinds.tagOf(m);
-    if (t) return t.kind;
-    if (m && m.role === 'user') return 'station';
-    return rowKind || 'turn';
-  }
+  // the run's row kind (TurnKinds.messageKind: the run-end appendNew stamps by the same rule)
+  function kindOf(m) { return TurnKinds.messageKind(m, rowKind); }
   let directiveExtra = null;   // { typed, attachments, kind } from setDirective({ … })
   let directiveStored = null;  // the row appendStrict proved for the directive
 

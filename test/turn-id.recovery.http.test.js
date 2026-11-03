@@ -8,7 +8,10 @@
      2. a continuation POSTed while the page names T2 (turnId:T2, retryOf:T2, as a page that sent its tail ids would)
         answers T1: run.start.turnId == T1, the page's ids are ignored and counted (turn.recovery.ids-ignored)
      3. every row the continuation writes carries T1; T2's rows are untouched (same rows, same rowIds); T1 still holds ONE
-        directive row */
+        directive row
+     4. (commit 4) the source's journal names its directive title (the typed caption, 'quokka plan'; its userTitle is the
+        longer expanded text): the interrupted record and the continuation's run are both titled by it, through the one
+        runTitle (scrubStored(nameSavedKeys(…)), cut at 120 by runstore) */
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -44,6 +47,7 @@ const mock = http.createServer((req, res) => {
   const S = 'turn-recovery', SRC = 'src-run-0001';
   const T1 = TurnKinds.mintTurnId(() => 0.11), T2 = TurnKinds.mintTurnId(() => 0.77);
   const words = 'quokka plan: list the three habitats';
+  const typedTitle = 'quokka plan';   // the source's captured wording (its journal directiveTitle)
   const diskRows = () => {
     const root = path.join(fx.workspace, 'transcript-history-v2');
     const out = [];
@@ -59,7 +63,7 @@ const mock = http.createServer((req, res) => {
     fs.mkdirSync(path.join(fx.workspace, 'agent'), { recursive: true });
     fs.writeFileSync(path.join(fx.workspace, 'agent', 'habitats.txt'), 'forest, scrub, coast', 'utf8');
     const journal = makeRunJournal({ dir: path.join(fx.workspace, '.run-journal') });
-    journal.begin({ turnId: T1, runId: SRC, agentId: 'agent', streamId: S, trigger: 'directive', model: 'test/model', userTitle: words, startedAt: now - 60000 });
+    journal.begin({ turnId: T1, directiveTitle: typedTitle, runId: SRC, agentId: 'agent', streamId: S, trigger: 'directive', model: 'test/model', userTitle: words, startedAt: now - 60000 });
     journal.checkpoint(SRC, { phase: 'initial', turn: 0, messages: [{ role: 'system', content: 'Fixture system' }, { role: 'user', content: words }] });
     journal.checkpoint(SRC, { phase: 'assistant', turn: 1, messages: [{ role: 'assistant', content: '', tool_calls: [{ id: 'read-1', type: 'function', function: { name: 'fs_read', arguments: '{"path":"habitats.txt"}' } }] }] });
     journal.toolIntent(SRC, { callId: 'read-1', name: 'fs.read', argsRaw: '{"path":"habitats.txt"}', mutating: false, boundaryModel: 'prepared-dispatch-v1' });
@@ -80,6 +84,7 @@ const mock = http.createServer((req, res) => {
     A.ok(row && row.canAutoContinue, 'fixture: the interrupted source is listed and safe to continue automatically');
     const hist = (((await fx.json('GET', '/api/runs?agent=agent&runId=' + SRC)).body || {}).runs || []).find(x => x.runId === SRC) || {};
     A.eq([hist.reason, hist.turnId, hist.directiveRowId], ['interrupted', T1, d1.rowId], 'the interrupted run\'s record names its turn and directive row');
+    A.eq(hist.title, typedTitle, 'the interrupted record is titled by the journal\'s directive title, not its userTitle');
 
     // 2. continue while the page names its tail turn T2
     const prepared = await fx.json('POST', '/api/run-recoveries/continue', { runId: SRC, agentId: 'agent', recoveryToken: row && row.recoveryToken, continuationId: 'cont-0001', mode: 'automatic' });
@@ -103,6 +108,14 @@ const mock = http.createServer((req, res) => {
     A.ok(mine.every(x => x.turnId === T1), 'every continuation row carries T1: ' + JSON.stringify(mine.map(x => [x.role, x.turnId])));
     A.eq(JSON.stringify(rows.filter(x => x.turnId === T2).map(x => [x.rowId, x.role, x.content, x.turnId])), t2Before, 'T2\'s rows are untouched');
     A.eq(rows.filter(x => x.role === 'user' && x.directive === true && x.turnId === T1).length, 1, 'T1 holds ONE directive row');
+
+    // 4. the continuation's own run is titled by its source's directive title
+    let cont = null;
+    for (let i = 0; i < 30 && !cont; i++) {
+      cont = (((await fx.json('GET', '/api/runs?agent=agent&runId=' + start.runId)).body || {}).runs || []).find(x => x.runId === start.runId) || null;
+      if (!cont) await new Promise(res => setTimeout(res, 100));
+    }
+    A.eq(cont && cont.title, typedTitle, 'the continuation\'s run is titled by its source\'s directive title (the recovery capture), not the recovered prompt');
   } catch (e) {
     A.ok(false, 'threw: ' + ((e && e.stack) || e));
   } finally {

@@ -47,6 +47,9 @@ files.push(path.join(base, 'frontend', 'app', 'turnkinds.js'));
 // turnmerge.js is the page's turn-id side (mint, send, bind) the tests load as a module: a mint takes an injected rng,
 // a send an injected now
 files.push(path.join(base, 'frontend', 'app', 'turnmerge.js'));
+// usertext.js is the one flattener of a message's text parts, required by the sidecar (transcript store, run directive
+// capture, learning, observer): pure, no clock
+files.push(path.join(base, 'frontend', 'app', 'usertext.js'));
 
 const banned = [/\bMath\.random\b/, /\bDate\.now\b/, /\bperformance\.now\b/, /\bnew\s+Date\s*\(\s*\)/];
 const labels = ['Math.random', 'Date.now', 'performance.now', 'new Date()'];

@@ -21,7 +21,16 @@
      KINDS, isKind(v), SYSTEM_KINDS   row kinds; rows of a SYSTEM kind are stored with role 'system', so an older
                                       reader (reconstruct, appendNew, markRecorded, the page merges) skips them
      tag(msg, kind, extra) / tagOf(msg)   a kind carried on a message object under a non-enumerable Symbol: invisible
-                                      to JSON.stringify, so a tagged message's wire and disk bytes never change */
+                                      to JSON.stringify, so a tagged message's wire and disk bytes never change
+     ofRun(o, { internal, trigger })  a run's kinds, from host-minted origin flags only (never from content; commit 4):
+                                      { directiveKind, rowKind, line, kindOf }. directiveKind, first match wins:
+                                      station (internal / outputOnly / syntheticTrigger, any stream), hop (o.lineHop),
+                                      goal-step (o.goalContinuation), routine (trigger 'schedule' | 'manual', exactly
+                                      routine-identity.js isRoutineTrigger), group (o.groupTools), api (o.taskSource
+                                      'api'), else turn. rowKind 'station' | 'hop' | undefined; line 'lineId@dockId'
+                                      (<= 120) when o.lineHop; kindOf(m) = messageKind(m, rowKind)
+     messageKind(m, rowKind)          a drained row's kind: its tag; else 'station' for a user row (any user row a run
+                                      writes besides its directive is the station's own); else rowKind, else 'turn' */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory();
@@ -118,9 +127,33 @@
   }
   function tagOf(msg) { return msg && typeof msg === 'object' && msg[KIND_TAG] ? msg[KIND_TAG] : null; }
 
+  const LINE_MAX = 120;
+  const ROUTINE_TRIGGERS = Object.freeze(['schedule', 'manual']);   // routine-identity.js isRoutineTrigger (test-checked)
+  function messageKind(m, rowKind) {
+    const t = tagOf(m);
+    if (t) return t.kind;
+    if (m && m.role === 'user') return 'station';
+    return rowKind || 'turn';
+  }
+  function ofRun(o, ctx) {
+    const x = o && typeof o === 'object' ? o : {};
+    const c = ctx && typeof ctx === 'object' ? ctx : {};
+    let directiveKind = 'turn';
+    if (c.internal || x.internal || x.outputOnly || x.syntheticTrigger) directiveKind = 'station';
+    else if (x.lineHop === true) directiveKind = 'hop';
+    else if (x.goalContinuation === true) directiveKind = 'goal-step';
+    else if (ROUTINE_TRIGGERS.indexOf(c.trigger) >= 0) directiveKind = 'routine';
+    else if (x.groupTools) directiveKind = 'group';
+    else if (x.taskSource === 'api') directiveKind = 'api';
+    const rowKind = directiveKind === 'station' || directiveKind === 'hop' ? directiveKind : undefined;
+    const line = x.lineHop === true && (x.lineId || x.dockId)
+      ? (String(x.lineId || '') + '@' + String(x.dockId || '')).slice(0, LINE_MAX) : undefined;
+    return { directiveKind, rowKind, line, kindOf: m => messageKind(m, rowKind) };
+  }
+
   return {
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
     QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
-    KINDS, isKind, SYSTEM_KINDS, tag, tagOf
+    KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind
   };
 });
