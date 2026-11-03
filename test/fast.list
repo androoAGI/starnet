@@ -1295,6 +1295,7 @@ test/permissions-authority.test.js
 test/api-json-lifecycle.test.js
 test/harness-api.contract.test.js
 test/station-refusal-readers.test.js
+test/clipboard-ack.census.test.js
 test/routine-acknowledgement.test.js
 test/routine-preview-race.test.js
 test/marketplace-authority.test.js
