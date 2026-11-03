@@ -88,7 +88,8 @@ try {
     A.eq(readJsonResilient({ fs }, file).value.agg, {}, kind + ': blocked updates were not adopted');
   }
 } finally { fs.rmSync(root, { recursive: true, force: true }); }
-const idx = fs.readFileSync(path.join(__dirname, '../sidecar/index.js'), 'utf8');
+// This assertion deliberately pins index's boot order: the version callback must remain lazy across its TDZ.
+const idx = require('./helpers/source.js').readSidecarIndex();
 const construction = idx.slice(idx.indexOf('const turnDual = TurnDual.make('), idx.indexOf('// the desk\'s read-back'));
 A.ok(/version:\s*computeVersionSurface\b/.test(construction) && !/computeVersionSurface\s*\(/.test(construction), 'version resolver is injected lazily before its boot TDZ ends');
 A.ok(/read:\s*f\s*=>\s*readJsonResilient\(/.test(construction), 'soak uses status-preserving readJsonResilient');

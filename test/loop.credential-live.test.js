@@ -426,8 +426,10 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       };
       const wrapper = ['runOnce', 'runOnceQueued', 'settleRun'].map(sidecarTopLevelFunction).join('\n');
       const RunTable = require('../sidecar/run-table.js'), table = RunTable.makeRunTable();
-      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', wrapper + '\nreturn runOnce;')(
-        store, o => ({ provider: o.provider }), overseer, tracked, { view: (name, stream, opts) => { A.eq([name, opts.shape, opts.form], ['model-replay', 'pairs', 'pre'], 'queued credential refresh reads the canonical replay view'); refreshed++; return []; } },
+      const transcriptStore = { view: (name, stream, opts) => { A.eq([name, opts.shape, opts.form], ['model-replay', 'pairs', 'pre'], 'queued credential refresh reads the canonical replay view'); refreshed++; return []; } };
+      const turnWindow = require('../sidecar/turn-window.js').make({ transcriptStore });
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', wrapper + '\nreturn runOnce;')(
+        store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow,
         RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {});
       const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
       A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');
