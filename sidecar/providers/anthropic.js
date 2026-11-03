@@ -573,6 +573,9 @@
       applyThinking(body, req, wire);   // must run BEFORE the breakpoints: it can add top-level keys, never blocks
       const tools = toAnthropicTools(req.tools);
       if (tools) body.tools = tools;
+      // A disposable, toolless extraction is never read again. Avoid a cache-write premium without
+      // changing any model input or generation setting. Tool loops always retain their reusable cache.
+      const stamp = req.neverReread === true && !tools ? blocks => blocks : breakpoint;
       // One breakpoint for the whole static prefix. System is the preferred anchor because it sits AFTER the
       // tools and so caches both; with no system prompt the last tool is the only anchor that covers them.
       let systemAnchors = 1;
@@ -593,14 +596,14 @@
              a new conversation can reuse. Only a SPLIT system (a task run's cacheSystemPrefix + its per-conversation
              tail) takes this layout: an unsplit system has no stable block to keep, so it keeps the old one system
              anchor over the tools + 3 sliding tail anchors. */
-          breakpoint(tools);
-          body.system = texts.map((text, i) => (i === 0 ? breakpoint([{ type: 'text', text }])[0] : { type: 'text', text }));
+          stamp(tools);
+          body.system = texts.map((text, i) => (i === 0 ? stamp([{ type: 'text', text }])[0] : { type: 'text', text }));
           systemAnchors = 2;
         } else {
           systemAnchors = texts.length;
-          body.system = texts.map(text => breakpoint([{ type: 'text', text }])[0]);
+          body.system = texts.map(text => stamp([{ type: 'text', text }])[0]);
         }
-      } else if (tools) breakpoint(tools);
+      } else if (tools) stamp(tools);
       /* SLIDING TAIL ANCHORS: up to THREE messages (TWO with a split system) each carry a
          breakpoint — with the static-prefix anchor above, exactly the API's 4-breakpoint maximum.
          One trailing anchor was fragile for a mechanical reason: a breakpoint only looks BACK 20 content
@@ -610,7 +613,7 @@
          the anchors they slide off remain valid READ points as the tail grows. */
       const msgs = converted.messages;
       for (let k = Math.max(0, msgs.length - (4 - systemAnchors)); k < msgs.length; k++) {
-        if (msgs[k]) breakpoint(msgs[k].content);
+        if (msgs[k]) stamp(msgs[k].content);
       }
       return body;
     }

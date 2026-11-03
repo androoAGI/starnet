@@ -436,6 +436,7 @@ const ForkMarkers = require('../frontend/app/fork.js');               // the one
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
+const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
 const { tailLines, loadBounded, rotateIfLarge, appendJsonlDurable } = require('./logbound.js'); // P3: bounded boot-load + size rotation for the append-only JSONL logs
@@ -1470,6 +1471,12 @@ function auxCeilingRoute(id) {
 function auxTokensByRoute() { return ledger.ceilingTokensByProvider(Date.now() - AuxGovernor.TOKEN_WINDOW_MS, AuxGovernor.CEILING_KINDS); }
 function auxTokenGate(providerId) {
   return AuxGovernor.tokenGate({ unmetered: auxCeilingRoute(providerId), ceiling: memoryConfig.auxTokenCeiling, used: auxTokensByRoute()[auxRoute(providerId)] || 0 });
+}
+const auxAdmission = makeAuxAdmission({ gate: auxTokenGate });
+function automaticAux(route, kind, agentId, runId, work) {
+  return auxAdmission.schedule(auxRoute(route), work, g => {
+    console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached after settlement (' + g.used + '/' + g.ceiling + ' in 24h) DEFERRED[' + kind + ']');
+  });
 }
 // What the settings read shows: each capped route's own figure, and whether it has stopped its automatic passes.
 function auxTokenRoutes() {
@@ -10845,10 +10852,13 @@ function questRefreshTick() {
     return;
   }
   questRefreshCeilingNoted = false;
-  questRefreshState = QuestRefresh.stampCycle(questRefreshState, { now: Date.now(), contextKey: questContextKey() });
-  persistQuestRefresh();
   questRefreshingNow = true;
-  runQuestRefreshCycle(d.why).catch(swallow('aux.questrefresh.envelope')).finally(() => { questRefreshingNow = false; });
+  automaticAux(cronProviderFor(null), 'quest-refresh', 'station', 'quest-refresh', () => {
+    // Waiting is not a cycle. Stamp only when the route admits this automatic pass.
+    questRefreshState = QuestRefresh.stampCycle(questRefreshState, { now: Date.now(), contextKey: questContextKey() });
+    persistQuestRefresh();
+    return runQuestRefreshCycle(d.why);
+  }).catch(swallow('aux.questrefresh.envelope')).finally(() => { questRefreshingNow = false; });
 }
 let questRefreshTimer = null;
 function armQuestRefresh() {
@@ -24684,8 +24694,8 @@ async function runOnceCore(o) {
   // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
   // the explicit Claude boundary precedes changing context, while runtime identity remains last
   // for generic providers that automatically reuse matching prefixes.
-  // LEARNED STATE STAYS OUT OF THE PREFIX (issue #105, learned-tail.js): the persona's dossier, goal and fork blocks follow the
-  // prefix, ahead of the per-conversation blocks, so learning something never re-writes it. Same text; only the place moves.
+  // Learned state belongs beside the current user turn, not anywhere in the system message: changing even its tail
+  // invalidates the conversation cache after it. The full guarded text rides run_context below; no belief is dropped.
   const persona = stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
   const cacheSystemPrefix = persona.stable + toolNote + teamNote + operatorManual
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
@@ -24730,9 +24740,9 @@ async function runOnceCore(o) {
     try { const t = stationEvidenceNote(); if (t) stationEvidenceBlock = '\n\n' + t; } catch (e) { failNote('run.stationEvidence', e); }
   }
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
-  const perRunBlocks = runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
+  const perRunBlocks = LearnedTail.tail(persona.learned) + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + LearnedTail.tail(persona.learned) + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
@@ -25618,7 +25628,7 @@ async function runOnceCore(o) {
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
   // review, e.g. a failed run, stays due for the next finished one). Written only when it changes.
   if (_nudge) {
-    const _nudgeNext = _auxSpend.has('skill-review') ? 0 : _nudge.count;
+    const _nudgeNext = _nudge.count;   // reset only when the queued review is admitted
     if (_nudgeNext !== (skillNudge.get(agentId) || 0)) { skillNudge.set(agentId, _nudgeNext); persistSkillNudge(); }
   }
 
@@ -25640,34 +25650,38 @@ async function runOnceCore(o) {
   // so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' }).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
-    runFailureReview({
+    automaticAux(activeProviderId, 'failure-review', agentId, runId, () => runFailureReview({
       agentId, runId, messages: result.messages.slice(), reason: _leadOc.reason, outcome: _leadOc.outcome,
       failureStage: execution.failureStage(), failureCode: execution.failureCode(),
       toolTrace: execution.toolTraceList(), recoveryAttempts: execution.recoveryAttempts(),
       uncertainMutations: execution.uncertainMutations(),
       route: activeProviderId, provider: auxProvider, model: _auxFailModel, reasoningEffort: _auxFailEffort, cost, unmetered: providerUnmetered, projectRoot: o.projectRoot || ''
-    }).catch(swallow('aux.failreview.envelope')).finally(() => { failReviewingNow.delete(agentId); });
+    })).catch(swallow('aux.failreview.envelope')).finally(() => { failReviewingNow.delete(agentId); });
   }
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = latestUserText(result.messages);   // study the turn that actually ran, attachment or not
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    automaticAux(activeProviderId, 'study', agentId, runId, () => runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    automaticAux(activeProviderId, 'threadmine', agentId, runId, () => runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    automaticAux(activeProviderId, 'scout', agentId, runId, () => runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
-    runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+    automaticAux(activeProviderId, 'skill-review', agentId, runId, () => {
+      // Only an admitted review consumes its due nudge; a queued pass stopped by the ceiling stays due.
+      skillNudge.set(agentId, 0); persistSkillNudge();
+      return runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered });
+    }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal) {
     // CONSISTENCY LOOP (2026-08-22): park this real task run's review packet (a FAILED one too, 2026-10-01: the
@@ -25680,7 +25694,7 @@ async function runOnceCore(o) {
     verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone });
   }
   if (_auxSpend.has('skill-curator')) {
-    runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
+    automaticAux(activeProviderId, 'skill-curator', agentId, runId, () => runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered })).catch(swallow('aux.skillcurator.envelope'));
   }
 
   // TRUTHFUL TELEMETRY: when the governor holds the ceiling, record WHICH passes yielded. A deferral is NOT an

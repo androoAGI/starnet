@@ -9,9 +9,16 @@ const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { TAIL_GUARD } = require('../sidecar/learned-tail.js');
 const { TaskIntent } = require('../frontend/app/fork.js');
+const { runContextOf } = require('./helpers/host-notes.js');
 const text = content => typeof content === 'string' ? content : (content || []).map(p => p.text || '').join('');
 const DOSSIER = belief => 'WHAT YOU KNOW ABOUT YOUR COMMANDER (the station has learned this — honor it; if anything here is wrong, the Commander will correct it):\n- Style: ' + belief;
 const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, or not at all):\nFORK_PROOF';
+const HISTORY = [
+  { role: 'user', content: 'Keep the API compatible. Previous project evidence: ' + 'HISTORY_EVIDENCE_17 '.repeat(1500) },
+  { role: 'assistant', content: 'I will inspect the exact file.', tool_calls: [{ id: 'call_prior', type: 'function', function: { name: 'fs_read', arguments: '{"path":"src/exact-file.js"}' } }] },
+  { role: 'tool', tool_call_id: 'call_prior', content: 'EXACT_TOOL_RESULT: export const invariant = 1739; preserve this value.' },
+  { role: 'assistant', content: 'The compatibility constraint and value 1739 are verified.' }
+];
 (async () => {
   const bodies = [];
   const upstream = http.createServer(async (req, res) => {
@@ -34,7 +41,7 @@ const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, 
     await fixture.start();
     const run = async (provider, model, system, extra) => {
       const r = await fetch(fixture.baseUrl + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': fixture.token, Origin: fixture.baseUrl },
-        body: JSON.stringify(Object.assign({ provider, baseUrl, key: 'fixture-key', model, reasoningEffort: 'low', agentId: 'agent', streamId: 'learned-' + provider + '-' + Math.random(), isTask: true, placed: [], system, messages: [{ role: 'user', content: 'Write a short note about bees.' }] }, extra || {})) });
+        body: JSON.stringify(Object.assign({ provider, baseUrl, key: 'fixture-key', model, reasoningEffort: 'low', agentId: 'agent', streamId: 'learned-' + provider + '-' + Math.random(), isTask: true, placed: [], system, messages: HISTORY.concat([{ role: 'user', content: 'Write a short note about bees.' }]) }, extra || {})) });
       assert.equal(r.status, 200);
       const events = (await r.text()).trim().split('\n').map(l => JSON.parse(l));
       assert.equal(events.findLast(e => e.name === 'agent.run.end')?.payload.reason, 'done', provider + ': the run finished');
@@ -50,15 +57,21 @@ const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, 
       assert.ok(Array.isArray(a) && a.length >= 2, provider + ': the system is split into a prefix and a tail');
       assert.ok(a[0].cache_control, provider + ': the prefix keeps its cache anchor');
       assert.equal(a[0].text, b[0].text, provider + ': the cached block is byte-identical across a dossier change and a fork flip');
+      assert.deepEqual(a, b, provider + ': the WHOLE system stays identical so learned changes do not invalidate cached conversation history');
+      const priorEnd = body => body.messages.findIndex(m => m.role === 'assistant' && text(m.content) === HISTORY[3].content) + 1;
+      assert.ok(priorEnd(bodies[0]) > 0 && priorEnd(bodies[1]) > 0, provider + ': prior final answer retained');
+      assert.deepEqual(bodies[0].messages.slice(0, priorEnd(bodies[0])), bodies[1].messages.slice(0, priorEnd(bodies[1])), provider + ': prior conversation and exact tool evidence remain byte-identical');
+      assert.ok(JSON.stringify(bodies[0].messages).includes('EXACT_TOOL_RESULT') && JSON.stringify(bodies[0].messages).includes('src/exact-file.js'), provider + ': no tool evidence or call arguments removed');
+      assert.equal((JSON.stringify(bodies[0].messages).match(/HISTORY_EVIDENCE_17/g) || []).length, 1500, provider + ': no history shortening to manufacture savings');
       assert.ok(a[0].text.includes('LEARNED_TAIL_IDENTITY'), provider + ': the persona stays in the prefix');
       assert.ok(a[0].text.includes('<capabilities_ground_truth>'), provider + ': the capabilities stay in the prefix');
       assert.ok(!a[0].text.includes('WHAT YOU KNOW') && !b[0].text.includes('MID-TASK PREFERENCE FORK'), provider + ': no learned block inside it');
-      assert.ok(text(a.slice(1)).includes('- Style: terse'), provider + ': the dossier still reaches the model');
-      assert.ok(text(a.slice(1)).indexOf(TAIL_GUARD) >= 0 && text(a.slice(1)).indexOf(TAIL_GUARD) < text(a.slice(1)).indexOf('WHAT YOU KNOW'), provider + ': the guard opens the learned tail');
-      // IX3: the tail follows the prefix directly, ahead of every block that changes per conversation
-      assert.ok(text(a.slice(1)).trimStart().startsWith(TAIL_GUARD), provider + ': nothing sits between the prefix and the learned tail');
-      assert.ok(text(a.slice(1)).indexOf('- Style: terse') < text(a.slice(1)).indexOf('## FINISH THE JOB'), provider + ': the learned text comes before the closing doctrine');
-      assert.ok(text(b.slice(1)).includes('- Style: thorough') && text(b.slice(1)).includes('FORK_PROOF'), provider + ': the change and the fork block reach the model');
+      const noteA = runContextOf(bodies[0].messages), noteB = runContextOf(bodies[1].messages);
+      assert.ok(noteA.includes('- Style: terse'), provider + ': the dossier still reaches the model');
+      assert.ok(noteA.indexOf(TAIL_GUARD) >= 0 && noteA.indexOf(TAIL_GUARD) < noteA.indexOf('WHAT YOU KNOW'), provider + ': the guard opens the learned context');
+      // Learned state changes only the current turn, never an earlier cached system/history block.
+      assert.ok(!text(a).includes(TAIL_GUARD), provider + ': changing learned state is outside the top-level system');
+      assert.ok(noteB.includes('- Style: thorough') && noteB.includes('FORK_PROOF'), provider + ': the change and the fork block reach the model');
       console.log('OK ' + provider + ': cached block held at ' + a[0].text.length + ' chars');
     }
     // A chat wire with no cache markers (automatic prefix caching): the learned text sits after every stable byte.
@@ -67,17 +80,18 @@ const FORK = 'MID-TASK PREFERENCE FORK (you may use this AT MOST ONCE per task, 
     await run('custom', 'audit-model', persona + '\n\n' + DOSSIER('thorough'));
     const [x, y] = bodies.map(body => text(body.messages[0].content));
     const at = s => s.indexOf('WHAT YOU KNOW ABOUT YOUR COMMANDER');
-    assert.ok(at(x) > x.indexOf('<capabilities_ground_truth>'), 'custom: the dossier follows the capabilities');
-    assert.equal(x.slice(0, at(x)), y.slice(0, at(y)), 'custom: everything before it is byte-identical');
-    console.log('OK custom: ' + at(x) + ' chars of stable prefix');
+    assert.equal(at(x), -1, 'custom: learned context is outside the system');
+    assert.equal(x, y, 'custom: the entire system is byte-identical');
+    assert.ok(runContextOf(bodies[0].messages).includes('- Style: terse') && runContextOf(bodies[1].messages).includes('- Style: thorough'), 'custom: both preferences reach their current turn');
+    console.log('OK custom: ' + x.length + ' chars of stable system');
 
-    // IX3: a run on a valid stream id carries the Task Brief doctrine (the random ids above are not valid ones, so those runs have none). The learned text stays ahead of it.
+    // A real task keeps its Task Brief doctrine and the full learned context.
     bodies.length = 0;
     await run('custom', 'audit-model', persona + '\n\n' + DOSSIER('terse'), { streamId: 'learned-tail-brief' });
     const briefed = text(bodies[0].messages[0].content);
     const doctrine = briefed.indexOf(TaskIntent.directive('').trim().slice(0, 80));
     assert.ok(doctrine > 0, 'fixture: the task run carries the Task Brief doctrine');
-    assert.ok(briefed.indexOf('- Style: terse') < doctrine, 'the learned text comes before the Task Brief doctrine');
+    assert.ok(runContextOf(bodies[0].messages).includes('- Style: terse'), 'the learned text reaches the task alongside the current brief');
     console.log('OK task brief order');
 
     // IX1: STARNET_STABLE_PREFIX=0 restores the old single system prompt, and a recovery continuation takes this same branch

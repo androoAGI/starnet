@@ -1575,3 +1575,5 @@ test/test-ports.lint.test.js
 test/test-ports-imports.lint.test.js
 
 test/sound-controls.test.js
+test/aux-cache-policy.test.js
+test/aux-admission.test.js

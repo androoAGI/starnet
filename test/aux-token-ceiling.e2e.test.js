@@ -38,12 +38,16 @@ const log = o => fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify(o
 log({ ev: 'start', main, cacheOff: process.env.DISABLE_PROMPT_CACHING === '1' });
 process.stdin.resume();
 process.stdin.on('end', () => {
+  const finish = () => {
   out({ type: 'system', subtype: 'init', apiKeySource: 'none', tools: [] });
   const text = main ? ${JSON.stringify(LONG)} : 'nothing durable.';
   out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } });
   out({ type: 'result', subtype: 'success', is_error: false, result: text, stop_reason: 'end_turn', total_cost_usd: 0,
     usage: { input_tokens: 400, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 50 } });
   log({ ev: 'end' });
+  };
+  if (!main && Number(process.env.FAKE_AUX_DELAY_MS) > 0) setTimeout(finish, Number(process.env.FAKE_AUX_DELAY_MS));
+  else finish();
 });
 `;
 
@@ -142,6 +146,30 @@ async function ceilingArm() {
     A.eq((await cfg(f)).auxTokenBlocked, [], '0 stops nothing');
     const c = await run(f, 'ceiling-c');
     A.ok(c.spawned.filter(s => !s.main).length >= 1, 'with the ceiling off the passes run again');
+  } finally { await f.dispose(); }
+}
+
+// Concurrent foreground completions must not all spend the same remaining background headroom.
+async function concurrentArm() {
+  const f = SidecarFixture.create({ prefix: 'sk-auxrace-', env: Object.assign({}, COMMON, {
+    SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_AUX_BUDGET: '0', FAKE_AUX_DELAY_MS: '700'
+  }) });
+  try {
+    await f.start();
+    A.eq((await post(f, { auxTokenCeiling: 1 })).status, 200, 'concurrent fixture ceiling saved');
+    const before = starts().length;
+    const responses = await Promise.all(['race-a', 'race-b', 'race-c'].map(agentId => f.json('POST', '/api/run', {
+      provider: 'claude-cli', model: 'haiku', agentId, isTask: true, placed: [], system: MARK + ': you are Ada.',
+      messages: [{ role: 'user', content: 'Rebuild the staging rollback path and write up what changed and why.' }]
+    })));
+    for (const r of responses) {
+      const events = r.text.trim().split('\n').map(JSON.parse);
+      A.eq(events.findLast(e => e.name === 'agent.run.end')?.payload.reason, 'done', 'concurrent user work completes without waiting for background allowance');
+    }
+    await childrenDone(f, before, true);
+    const aux = starts().slice(before).filter(c => !c.main);
+    A.eq(aux.length, 1, 'only the first automatic pass may cross the ceiling; queued passes recheck settled spend');
+    A.eq(rowsOf(f).filter(r => r.aux).length, 1, 'one complete background response, one usage receipt');
   } finally { await f.dispose(); }
 }
 
@@ -258,6 +286,7 @@ async function questArm() {
 
 (async () => {
   try {
+    await concurrentArm();
     await ceilingArm();
     await scopeArm();
     await ollamaArm();

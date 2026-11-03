@@ -45,8 +45,9 @@
   /* THE TOKEN CEILING (issue #105). On an unmetered route (a subscription sign-in books $0 per call) no dollar guard can bind, so
      background aux work gets a rolling token ceiling instead, per route: tokens over 24 hours, cache re-reads at 1/10. A guard on
      passes only: the caller checks it before firing them and never on a user's run. It is SOFT: a pass's tokens count only once
-     it has finished and booked its row, so run-ends close together all see the old figure and each spends its budget. There is
-     no fixed bound on the overrun. A pass cut off before its usage line (a timeout) books 0 tokens, so the figure can also read low.
+     it has finished and booked its row. aux-admission.js serializes automatic passes per capped route and rechecks after each
+     settlement, so concurrent run-ends cannot all spend the same headroom. One admitted pass can finish above the ceiling;
+     it is never cut mid-response. A pass cut off before its usage line can still leave the figure incomplete.
      What it skips is not queued: a run's reflection, study and thread mining are gone, a failure review for good. A due skill
      review keeps its nudge count and fires on a later run.
      200k is a starting figure, not a measurement of any plan: reporter's 4-message test ran about 10 aux passes. 0 = off. */
