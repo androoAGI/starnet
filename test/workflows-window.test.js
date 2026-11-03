@@ -351,10 +351,10 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     A.ok(/const pinned = !!\(map && typeof getComputedStyle === 'function' && getComputedStyle\(map\)\.position === 'sticky'\);/.test(panelSrc)
       && /sc\.scrollTop \+= startsScrollBy\(sec\.getBoundingClientRect\(\)\.top, sc\.getBoundingClientRect\(\)\.top, pinned \? map\.getBoundingClientRect\(\)\.height : 0, z\);/.test(panelSrc),
       'scrollToStarts subtracts the map\'s height only while the map is actually sticky');
-    A.ok(src.includes('scheduled, channel, folder and webhook runs are filed in DELIVERABLES'), 'an empty LAST JOBS says where scheduled, channel, folder and webhook runs are filed');
-    // (org wire AUTO-P15-3) every start that writes no job record is named there: a folder or webhook trigger never records a line job
+    A.ok(A.fnBody(src, 'function jobRows(l)').includes('No recorded jobs on this line yet.'), 'empty LAST JOBS names the absence of recorded jobs without excluding automatic entries');
+    // Automatic entries now use the shared durable job book and belong in LAST JOBS too.
     const trSrc = rd('sidecar/routing/trigger-runner.js');
-    A.ok(!/jobs\.start\(|LineJobs/.test(trSrc), 'fixture: trigger-runner records no line job (if it ever does, its runs show in LAST JOBS and this note changes)');
+    A.ok(/lineRunner\.open\(\{ line: t\.lineId, entry: 'trigger'/.test(trSrc) && /lineRunner\.settle\(s\.current\.job,/.test(trSrc), 'folder and webhook triggers open and settle the shared line job');
   }
 
   /* ---------- org P14 (2026-10-14; final round): a delivered job waiting for its rating is rated right here, and the view a floor OUTBOX

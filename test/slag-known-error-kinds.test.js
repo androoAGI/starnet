@@ -18,7 +18,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const Friendly = require('../frontend/app/friendlyerror.js');
-const SlagLog = require('../frontend/app/slaglog.js');
+const SlagLog = require(process.env.SLAG_LOCAL_TIMEOUT_CONTROL || '../frontend/app/slaglog.js');
 
 const friendlySrc = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'friendlyerror.js'), 'utf8');
 const host = readSidecarSource();
@@ -38,7 +38,7 @@ const BUCKET = {
   billing: 'NAMED', managed_credit: 'NAMED', managed_credit_link: 'NAMED', auth: 'NAMED', no_model: 'NAMED', oauth: 'NAMED',
   grok_oauth_unavailable: 'NAMED', quota_exhausted: 'NAMED', model_not_found: 'NAMED', context_overflow: 'NAMED',
   content_policy_blocked: 'NAMED', capdenied: 'NAMED', spotify_not_connected: 'NAMED', stale_session: 'NAMED', spend_unknown: 'NAMED',
-  output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', endpoint_mismatch: 'NAMED',
+  output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', local_timeout: 'NAMED', endpoint_mismatch: 'NAMED',
   // the StarNet relay refused one call's price (2026-10-27): a resend is refused the same way; its message names the fixes
   call_too_expensive: 'NAMED',
   // typed-outcomes (2026-10-29): a refused chat template / an untrusted TLS certificate name their fix; nothing answering at the
@@ -133,6 +133,16 @@ const allocationFailure = 'Local model ran out of memory. [llama runner failed: 
     A.ok(['timeout', 'unknown'].includes(r.kind), 'unproven local failure stays timeout or unknown: ' + r.kind);
     A.ok(/diagnostics/.test(r.d.fix) && /report it/.test(r.d.fix) && !/allocate|memory/.test(r.d.cause), 'timeout and unknown retain their existing generic post-mortem');
   }
+}
+
+// A silent local server may already have produced earlier turns; preserve its specific recovery door.
+{
+  const verdict = Friendly.friendlyError(new Error('local server silent'), null, { code: 'local_timeout' });
+  const d = SlagLog.diagnose('error', { turns: 2, error: { kind: verdict.kind, msg: verdict.userMessage } });
+  A.eq(verdict.kind, 'local_timeout', 'the host local-timeout code keeps its specific kind');
+  A.eq(d.fix, verdict.userMessage, 'the post-mortem retains the local server log and model-picker guidance');
+  A.ok(NOT_FIXABLE_BY_RESEND.test(d.cause) && !/before doing any work|no useful work/.test(d.cause), 'local silence does not erase work from earlier turns');
+  A.ok(!/report it|copy the diagnostics|send the request again/.test(d.fix), 'known local silence does not prescribe blind resending or a generic bug report');
 }
 
 /* ---- 3. a stalled BUILD names the run's own error door (workqueststore.js stallBeat) ---- */

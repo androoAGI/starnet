@@ -59,7 +59,7 @@ function makeTriggerRunner(deps) {
   if (typeof d.load !== 'function' || typeof d.save !== 'function') throw new Error('trigger-runner: load/save are required');
   const warn = typeof d.warn === 'function' ? d.warn : function () {};
   const emit = typeof d.emit === 'function' ? d.emit : function () {};
-  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit });
+  const lineRunner = d.lineRunner || makeLineRunner({ runOnce: async () => {}, now, newId, emit, label: d.label });
   const bumpQueue = typeof d.bumpQueue === 'function' ? d.bumpQueue : function () { return 0; };
   const halted = typeof d.halted === 'function' ? d.halted : function () { return false; };
   // the halt is the station's own process-fault containment, not the Commander's E-STOP: only the words differ (see handoff-runner)

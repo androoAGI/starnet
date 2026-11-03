@@ -164,7 +164,7 @@ async function publisherRun(script) {
         hooks.onRouted({ agentId, dockId: dock }); hooks.onResolved({ chatId: msg.chatId, agentId, isTask: true, lineId: line, dockId: dock });
         const sid = hooks.streamId();
         return Promise.resolve().then(() => { runs[sid] = [{ runId: 'r' + (++n), agentId, dockId: dock, reason: 'done', usd: 0, streamId: sid, startedAt: 1000 }];
-          hooks.send('B OUT'); hooks.onLineOutcome({ agentId, dockId: dock, stopped: null, hops: [] }); });
+          hooks.send('B OUT'); hooks.onLineOutcome({ agentId, dockId: dock, outboxId: line === LA ? L[0].outbox : L[1].outbox, stopped: null, hops: [] }); });
       } }) });
     J.start({ id: 'job-cccc3333', line: LA, name: 'A', text: 'Write a post.', streamId: 'sample-u1', at: 990 });
     runs['sample-u1'] = [{ runId: 'u1', agentId: 'ag_' + L[0].bays[1], reason: 'done', usd: 0, streamId: 'sample-u1', startedAt: 995 }];
@@ -186,9 +186,10 @@ async function publisherRun(script) {
     A.ok(/if \(completed && lo && lo\.unapproved\) outcome\.unapproved = String\(lo\.unapproved\)/.test(trg), 'trigger runner: a fire’s outcome says it went on unapproved');
     const idx = readSidecarSource();
     A.ok(/const unapproved = \(sampleLineOutcome && sampleLineOutcome\.unapproved\) \? String\(sampleLineOutcome\.unapproved\) : '';/.test(idx), 'sample route reads unapproved from the line outcome');
-    A.ok(/unapproved: completed \? unapproved : ''/.test(idx), 'the job record keeps it');
+    const runner = read('sidecar/routing/line-runner.js');
+    A.ok(/unapproved: delivered \? String\(line\.unapproved \|\| ''\) : ''/.test(runner) && /jobs\.finish\(job\.id, Object\.assign\(\{ at: now\(\) \}, result\)\)/.test(runner), 'the shared delivered result keeps unapproved in the durable job record');
     A.ok(/\(shipped === false && unapproved\) \? \{ shippedWhy: 'unapproved' \} : shippedWhy \? \{ shippedWhy \} : null/.test(idx), 'the route says why it is not in SHIPPED');
-    A.ok(/sample: true \}, unapproved \? \{ unapproved \} : null\)\)/.test(idx) && /shippedWhy \? \{ shippedWhy \} : null, unapproved \? \{ unapproved \} : null/.test(idx), 'the crate and the answer carry it');
+    A.ok(/lineRunner\.deliverCrate\(result, \{[^\n]*sample: true/.test(idx) && /result\.unapproved \? \{ unapproved: result\.unapproved \} : null/.test(runner) && /shippedWhy \? \{ shippedWhy \} : null, unapproved \? \{ unapproved \} : null/.test(idx), 'the crate and the answer carry the same unapproved result');
     const T = require('../sidecar/routing/triggers.js');
     const tr = T.normalizeTrigger({ id: 'trg_abc12345', kind: 'webhook', lineId: 'p1', name: 'x', lastOutcome: { ok: true, at: 1, runs: 2, unapproved: 'the review loop used all 2 passes without VERDICT: approved, so the work went on unapproved' } });
     A.ok(tr && tr.lastOutcome && /used all 2 passes/.test(tr.lastOutcome.unapproved || ''), 'a trigger’s last outcome keeps unapproved through its normalizer');
@@ -205,6 +206,12 @@ async function publisherRun(script) {
     const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     const strip = h => String(h).replace(/<[^>]+>/g, '').replace(/&#39;/g, "'");
     const load = (src, headers, globals, extra) => {
+      if (headers.includes('function resultHTML(l, job)')) {
+        const owner = src.match(/^  const jobOutcome = .*;$/m);
+        A.ok(!!owner, 'the result view includes its actual typed job-outcome helper');
+        extra = (extra || '') + '\n' + owner[0];
+        globals = Object.assign({ RunOutcome: require('../frontend/app/runoutcome.js') }, globals);
+      }
       const body = headers.map(h => A.fnBody(src, h)).join('\n'), names = headers.map(h => /function (\w+)\(/.exec(h)[1]);
       const ctx = vm.createContext(Object.assign({ esc, console, JSON, Math, Date, String, Object, Array, Promise, Number, isFinite }, globals));
       return vm.runInContext((extra || '') + '\n' + body + '\n({ ' + names.join(', ') + ' })', ctx);

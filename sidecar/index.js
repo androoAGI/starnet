@@ -6332,6 +6332,7 @@ async function lineHandoffFiles(agentId, list, where) {
   return RunPaths.locateProduced({ fsp, pathMod: path, list, limit: 64, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(agentId)) });
 }
 const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
+  label: stepTestLabel,
   handoffFiles: lineHandoffFiles,
   liveRuns: { add: (runId, rec) => {
     const lease = runTable.admit(Object.assign({}, rec, { runId, blocksGroup: true }));
