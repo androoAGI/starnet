@@ -109,7 +109,7 @@ A.eq(todayTip('SHIPPED', '3'), todayTip('SHIPPED'), 'a known SHIPPED keeps its m
 A.ok(/counted once it can be read again, unless the station restarts first/.test(unknownTip) && !/the number comes back when/.test(unknownTip), 'the ? tip never promises the whole count back: ' + unknownTip);
 const atLeastTip = todayTip('SHIPPED', '5000+');
 A.ok(/^SHIPPED\nat least this many/.test(atLeastTip) && /the real number is higher/.test(atLeastTip) && !/recorded jobs that reached the OUTBOX/.test(atLeastTip), 'a lower-bound SHIPPED says it is at least that many: ' + atLeastTip);
-for (const key of ['RUNS', 'SHIPPED', 'FAILED', 'TESTS', 'MEDIAN', '$ TODAY (UTC)']) {
+for (const key of ['RUNS', 'SHIPPED', 'FAILED', 'UNFINISHED', 'TESTS', 'MEDIAN', '$ TODAY (UTC)']) {
   A.ok(todayTip(key).length > key.length, 'a meaning is available for the ' + key + ' number');
 }
 const shippedTip = todayTip('SHIPPED');
