@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 422 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 423 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -290,6 +290,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | sessions | [Queued save acknowledgements leave browser revision stale](bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md) | release-0112-finalprep-0911 | 767a3592516edea1062d82855be2d21a8b4f7e16 |
 | P1 | fixed | sessions | [Recent activity drops source provenance and reintroduces attachment text after restart](bugs/6e750350-recent-activity-drops-source-provenance.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | sessions | [Reload duplicates combined assistant replies beside durable turns](bugs/ec226657-reload-duplicates-combined-assistant-replies-bes.md) | agent/release-0112-audit-0910 | a66fc5638 |
+| P1 | fixed | sessions | [Remote host rejects proven desk caches without transcript proof readers](bugs/f9c18635-remote-host-rejects-proven-desk-caches-without-t.md) | batch3-codex-1103 | d4a54f29f |
 | P1 | fixed | sessions | [Reopened conversations send before history is restored and hide late messages](bugs/2426399e-reopened-conversations-send-before-history-is-re.md) | session-reliability-0919 | 8b8bf9531 |
 | P1 | fixed | sessions | [Retry duplicates the user message after restart](bugs/b30c1c8e-retry-duplicates-the-user-message-after-restart.md) | overnight-retry-history-0907 | 1611844713cfb4d88061ace1f786040436c59605 |
 | P1 | fixed | sessions | [Saved file links disappear when conversation history is restored](bugs/253e5a8e-saved-file-links-disappear-when-conversation-his.md) | agent/release-0120-prep-0915 | 8d4f3f5ca |
