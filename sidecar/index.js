@@ -249,7 +249,7 @@ const { collectSecretValues, SECRET_SHAPES } = require('./secret-values.js');   
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
 const WorkspaceReserved = require('./workspace-reserved.js');   // agent ids that name station-owned dirs (codex/, channels/ …)
 const { runRouteFailure } = require('./runroute.js');   // a failure escaping handleRun must never read as an empty 200
-const { json: respondJson, readJsonBody, isAgentId } = require('./respond.js');   // canonical json()/body/agent-id helpers — adopt incrementally, don't mass-migrate
+const { json: respondJson, fail: respondFail, readJsonBody, isAgentId, refuseBadAgentId, stampFailureCodes } = require('./respond.js');   // canonical json()/body/agent-id helpers — adopt incrementally, don't mass-migrate
 const { readBody, readBodyBuffer } = require('./http-body.js');
 // Channel connect/sync bodies carry the agent's COMPOSED system prompt (identity + purpose + context + standing
 // orders + Commander dossier — all user-written, none capped). The old 64 KB cap cut real users off: their CONNECT
@@ -566,29 +566,24 @@ function applyApiCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
-  res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache');
+  // X-StarNet-Code names a failure (respond.js CODES): hidden, the desktop page could not tell a stale key from any 403.
+  res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache, X-StarNet-Code');
   res.setHeader('Access-Control-Max-Age', '600');
-}
-function rejectApi(req, res) {
-  if (!isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403); res.end('forbidden host'); return true; }
-  // the Host rides along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62)
-  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) { noteApiRefusal(req, 'forbidden origin'); res.writeHead(403); res.end('forbidden origin'); return true; }
-  return false;
 }
 /* #62: a refused API call used to be SILENT server-side — the browser got a bare 403, the sidecar log and
    diag.errors.json said nothing, so a tunnel/proxy mismatch looked like "the provider rejected my key". Say it ONCE
    per distinct (reason, origin, host) — a stale page or a probing site cannot flood the log or evict real run errors
    from the diag ring. Header values are clipped and stripped to printable ASCII; no token or body is ever read here. */
 const apiRefusalsSeen = new Set();
+// a request with NO key is not a page from before a restart: it is a page this station withheld its key from (the
+// "withheld the station token" line names why) or not a StarNet page. Only a WRONG key is a stale page, and the
+// header-less shapes (EventSource, save beacon) carry theirs as a ?ticket=, so a stale ticket is a stale page too.
+function carriesNoKey(req) { const claim = apitickets.apiTicketClaim(req); return !apiauth.headerToken(req) && !(claim && claim.ticket); }
 function noteApiRefusal(req, reason) {
   try {
     const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7e]/g, '?').slice(0, 120);
     const origin = clean(req.headers.origin), host = clean(req.headers.host);
-    // a request with NO key is not a page from before a restart: it is a page this station withheld its key from (the
-    // "withheld the station token" line names why) or not a StarNet page. Only a WRONG key is a stale page, and the
-    // header-less shapes (EventSource, save beacon) carry theirs as a ?ticket=, so a stale ticket is a stale page too.
-    const ticketClaim = reason === 'forbidden token' ? apitickets.apiTicketClaim(req) : null;
-    const noKey = reason === 'forbidden token' && !apiauth.headerToken(req) && !(ticketClaim && ticketClaim.ticket);
+    const noKey = reason === 'forbidden token' && carriesNoKey(req);
     const sig = reason + (noKey ? ':none' : '') + '|' + origin + '|' + host;
     if (apiRefusalsSeen.has(sig) || apiRefusalsSeen.size >= 64) return;
     apiRefusalsSeen.add(sig);
@@ -601,16 +596,14 @@ function noteApiRefusal(req, reason) {
     recordDiagError(line);
   } catch (e) { failNote('api.refusal.note', e); }
 }
-function rejectBadApiToken(req, res) {
-  if (!requiresApiToken(req)) return false;
-  if (apiauth.apiTokenOk(req, API_TOKEN)) return false;
-  // Some browser surfaces provably cannot attach custom headers: link/tab opens (GET/HEAD /api/file), the SSE
-  // EventSource (GET /api/channels/events) and the unload save beacon (POST /api/save — navigator.sendBeacon).
-  // Those exact request shapes accept a ?ticket= minted for exactly that resource (apiauth.ticketOk); the MASTER
-  // token is never accepted from a query string (it leaked into browser history, Referer and copied links).
-  if (apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return false;
-  noteApiRefusal(req, 'forbidden token');
-  res.writeHead(403); res.end('forbidden token'); return true;
+/* THE GATE REFUSES IN ONE PLACE (the Host floor, the API Origin check, the launch token): noted once per cause (#62),
+   named on the wire (X-StarNet-Code forbidden_host / forbidden_origin / token_missing / token_stale; a 403 alone named
+   none of them), and the legacy text body byte-identical: an older page's stale-token recovery reads 'forbidden token'. */
+function refuseAtGate(req, res, reason) {
+  noteApiRefusal(req, reason);
+  const code = reason === 'forbidden host' ? 'forbidden_host' : reason === 'forbidden origin' ? 'forbidden_origin' : carriesNoKey(req) ? 'token_missing' : 'token_stale';
+  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'X-StarNet-Code': code });
+  res.end(reason); return true;
 }
 // OpenRouter base URL override (env SKYNET_OPENROUTER_BASE). Default undefined -> the provider's own
 // https://openrouter.ai/api/v1. Lets a user point at an OR-compatible proxy, and lets the boot+run E2E aim
@@ -11874,6 +11867,7 @@ if (SWEEP_BACKUP_TEMPS) try {
 } catch (e) { failNote('recovery.temp.sweep', e); }
 
 const server = http.createServer((req, res) => {
+  stampFailureCodes(res);   // ONE FAILURE SHAPE: every answer >= 400 below names itself in X-StarNet-Code (respond.js)
   // DNS-REBINDING FLOOR ON EVERY PATH (2026-09-23 security audit). The Host pin used to guard only /api/* (and
   // openai-compat's own routes), while `/` inlines the per-launch API token — a rebound page could read the secret
   // the token layer exists to protect, plus /workshop-run/ bytes and the pre-gate fault line. Every legitimate
@@ -11881,7 +11875,7 @@ const server = http.createServer((req, res) => {
   // ONE exemption: a line-trigger webhook POST /api/hooks/trg_… may arrive through a tunnel the Commander set up
   // (cloudflared/ngrok forward the PUBLIC Host). It is fenced by its own per-trigger secret and returns no token.
   const triggerHook = req.method === 'POST' ? TRIGGER_HOOK_RX.exec(String(req.url || '')) : null;
-  if (!triggerHook && !isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
+  if (!triggerHook && !isAllowedHost(req.headers.host)) return refuseAtGate(req, res, 'forbidden host');
   // Once an uncaught exception has made this process's in-memory state unprovable, the server becomes a recovery
   // shell. Static GET/HEAD keeps the already-installed UI reloadable; health + authenticated diagnostics explain
   // the fault. Every other API, external-harness, artifact and mutation surface fails closed with 503. This gate
@@ -11897,15 +11891,20 @@ const server = http.createServer((req, res) => {
   const isApi = String(req.url || '').indexOf('/api/') === 0 || req.url === '/api';
   if (isApi) {
     // Desktop serves the frontend from a Tauri app origin, while browser mode is same-origin loopback.
-    // Mirror only trusted origins and reject browser-driven localhost calls from arbitrary sites.
+    // Mirror only trusted origins and reject browser-driven localhost calls from arbitrary sites. The Host rides
+    // along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62).
     applyApiCors(req, res);
-    if (rejectApi(req, res)) return;
+    if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) return refuseAtGate(req, res, 'forbidden origin');
   }
   if (req.method === 'OPTIONS') {
     if (!isApi) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(204); return res.end();
   }
-  if (isApi && rejectBadApiToken(req, res)) return;
+  // The launch key, or for the shapes that provably cannot attach a header (link/tab opens: GET/HEAD /api/file; the SSE
+  // EventSource: GET /api/channels/events; the unload save beacon: POST /api/save) a ?ticket= minted for exactly that
+  // resource (apiauth.ticketOk). The MASTER token is never accepted from a query string (it leaked into browser history,
+  // Referer and copied links).
+  if (isApi && requiresApiToken(req) && !apiauth.apiTokenOk(req, API_TOKEN) && !apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return refuseAtGate(req, res, 'forbidden token');
   const mutationTicket = updatePreparation.beginRequest(req.method, req.url);
   if (!mutationTicket.ok) {
     res.writeHead(423, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -12781,6 +12780,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/voice/chat-model', h: handleVoiceChatSet },
   { m: 'POST', exact: '/api/config/export', h: handleConfigExport },   // P1-7 station backup
   { m: 'POST', exact: '/api/config/export/save', h: handleConfigExportSave },   // #134 desktop: the sidecar writes it + names the path
+  { m: 'POST', exact: '/api/export/save', h: backupFile.makeExportSaveHandler({ readBody, json: respondJson, fail: respondFail, home: () => os.homedir() }) },
   { m: 'POST', exact: '/api/config/import', h: handleConfigImport },
   { m: 'POST', exact: '/api/config/reset', h: handleConfigReset },
   { m: 'GET', exact: '/api/runtime/agent', h: handleRuntimeAgent },   // what a LOCAL headless caller needs to drive /api/run (no secrets)
@@ -15886,6 +15886,7 @@ function handleToolsetsList(req, res) {
   const u = new URL(req.url, 'http://127.0.0.1');
   const selected = u.searchParams.get('agent') || '';
   const alias = u.searchParams.get('agentId') || '';
+  if ((selected && refuseBadAgentId(res, selected)) || (alias && refuseBadAgentId(res, alias))) return;
   if (selected && alias && selected !== alias) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: 'agent and agentId must select the same agent' }));
@@ -18426,7 +18427,7 @@ async function handleWorkshopGrant(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   const on = body.on === true || body.on === 'true';
   try { await workshopStore.setGrant(agentId, on); } catch (e) { return json(500, { error: 'could not save that setting' }); }
   try { if (on) await armWorkshopShift(agentId); else await disarmWorkshopShift(agentId); } catch (_) {}
@@ -18439,7 +18440,7 @@ async function handleWorkshopQueue(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   const title = String(body.title || '').trim();
   if (!title && !String(body.detail || '').trim()) return json(400, { error: 'say what to build' });
   const item = { id: (body.id && /^[A-Za-z0-9_-]{1,64}$/.test(String(body.id))) ? String(body.id) : crypto.randomUUID(), title: title, detail: body.detail, source: (body.source === 'quest' ? 'quest' : 'queued') };
@@ -18773,7 +18774,7 @@ async function handleDeliverablesCleanupUndo(req, res) {
 async function handleWorkshopBacklog(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const agentId = String((new URL(req.url, 'http://x')).searchParams.get('agent') || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   let rec; try { rec = workshopStore.read(agentId); } catch (e) { return json(500, { error: 'could not read the backlog' }); }
   // AWAY-CARD TRUTH (2026-07-15 UX audit): the queue was invisible — no state, no cadence, no health. Derive
   // each item's honest state from the stored record (never a synthesized status), and surface the shift's
@@ -18806,7 +18807,7 @@ async function handleWorkshopRemove(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 14)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   let r; try { r = await workshopStore.remove(agentId, String(body.backlogId || '')); } catch (e) { return json(500, { error: 'could not update the queue' }); }
   if (r.removed) return json(200, { ok: true, removed: true });
   if (r.reason === 'built') return json(409, { ok: false, error: 'that one is already built — review it from its session (Implement / Discard) instead' });
@@ -18831,7 +18832,7 @@ function workshopBuiltAtOf(item) {
 async function handleWorkshopPending(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   const agentId = String((new URL(req.url, 'http://x')).searchParams.get('agent') || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   const rec = workshopStore.read(agentId);
   const out = [];
   for (const it of rec.backlog) {
@@ -18935,7 +18936,7 @@ async function handleWorkshopDecide(req, res) {
   const agentId = String(body.agentId || '');
   const runId = String(body.runId || '');
   const decision = String(body.decision || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   if (['keep', 'discard', 'later'].indexOf(decision) < 0) return json(400, { error: 'unknown decision' });
   const item = workshopStore.itemForRun(agentId, runId);
   const relDir = 'workshop/' + runId;
@@ -19049,7 +19050,7 @@ async function handleWorkshopUndo(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 14)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
   const runId = String(body.runId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'choose a valid agent' });
+  if (refuseBadAgentId(res, agentId)) return;
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(runId)) return json(400, { error: 'choose a valid run' });
   // GATE: only a genuinely KEPT deliverable can be undone. The lifecycle library is the durable proof a keep ran
   // (handleWorkshopDecide records a 'kept' row on every successful copy-out). No kept row → nothing to undo.
@@ -19127,7 +19128,7 @@ const WORKSHOP_RUN_PREFIX = '/workshop-run/';
 async function serveWorkshopRun(req, res) {
   const reqPath = String(req.url || '').split('?')[0];
   const ticketed = apitickets.splitRunTicket(reqPath);                 // { ticket, rest } | null
-  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) { res.writeHead(403); return res.end('forbidden token'); }
+  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) return refuseAtGate(req, res, 'forbidden token');
   let abs;
   try {
     const rawPath = decodeURIComponent(ticketed ? WORKSHOP_RUN_PREFIX + ticketed.rest : reqPath);
@@ -19136,19 +19137,19 @@ async function serveWorkshopRun(req, res) {
     if (slash <= 0) { res.writeHead(404); return res.end('not found'); }
     const agentId = tail.slice(0, slash);
     const rel = tail.slice(slash + 1);                                 // <runId>/<path...>
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) { res.writeHead(403); return res.end('forbidden'); }
+    if (refuseBadAgentId(res, agentId)) return;
     if (!rel || rel.slice(-1) === '/') { res.writeHead(404); return res.end('not found'); }   // no dir/trailing-slash
     if (rel.indexOf('/') <= 0) { res.writeHead(404); return res.end('not found'); }   // must name <runId>/<file>
     if (ticketed) {
       // the ticket is bound to (agentId, runId) — the VERIFIER derives both from the path, never from the ticket
       const runId = rel.slice(0, rel.indexOf('/'));
       const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'run', apitickets.scopeRun(agentId, runId), { now: Date.now() });
-      if (!v.ok) { res.writeHead(403); return res.end('forbidden ticket'); }
+      if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     }
     ({ abs } = await fsJail.resolveInside(agentId, 'workshop/' + rel));  // throws on '..'/absolute/symlink/bad agentId
   } catch (e) {
     const msg = (e && e.message) || '';
-    if (/escape|illegal|bad agentId/.test(msg)) { res.writeHead(403); return res.end('forbidden'); }
+    if (/escape|illegal|bad agentId/.test(msg)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
     res.writeHead(404); return res.end('not found');
   }
   let st;
@@ -19189,7 +19190,7 @@ async function serveWorkshopRun(req, res) {
 async function serveWorkspaceView(req, res) {
   const reqPath = String(req.url || '').split('?')[0];
   const ticketed = apitickets.splitViewTicket(reqPath);
-  if (!ticketed) { res.writeHead(403); return res.end('forbidden'); }
+  if (!ticketed) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden'); }
   let abs;
   try {
     const segs = ticketed.rest.split('/');
@@ -19198,15 +19199,15 @@ async function serveWorkspaceView(req, res) {
     const dirSeg = decodeURIComponent(segs[1]);
     const dir = dirSeg === '~' ? '' : dirSeg;
     const tail = segs.slice(2).map(decodeURIComponent);
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) { res.writeHead(403); return res.end('forbidden'); }
+    if (refuseBadAgentId(res, agentId)) return;
     const parts = (dir ? dir.split('/') : []).concat(tail.join('/').split('/'));
-    if (parts.some(s => !s || s.charAt(0) === '.' || s.indexOf('\\') >= 0)) { res.writeHead(403); return res.end('forbidden'); }
+    if (parts.some(s => !s || s.charAt(0) === '.' || s.indexOf('\\') >= 0)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
     const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'view', apitickets.scopeView(agentId, dir), { now: Date.now() });
-    if (!v.ok) { res.writeHead(403); return res.end('forbidden ticket'); }
+    if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     ({ abs } = await fsJail.resolveInside(agentId, parts.join('/')));
   } catch (e) {
     const msg = (e && e.message) || '';
-    if (/escape|illegal|bad agentId|URI/.test(msg)) { res.writeHead(403); return res.end('forbidden'); }
+    if (/escape|illegal|bad agentId|URI/.test(msg)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
     res.writeHead(404); return res.end('not found');
   }
   let st;
@@ -19239,7 +19240,7 @@ async function handleWorkshopOpen(req, res) {
 async function handleWorkshopShiftNow(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'choose a valid agent' })); }
+  if (refuseBadAgentId(res, agentId)) return;
   const sink = pageRunSink(body, res);   // the page's ONE run stream, when it named one (run-streams.js)
   if (sink === false) return;
   openRunAnswer(res, sink);
@@ -19264,7 +19265,7 @@ async function handleWorkshopImplement(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
   const agentId = String(body.agentId || '');
   const runId = String(body.runId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'choose a valid agent' })); }
+  if (refuseBadAgentId(res, agentId)) return;
   if (!runId) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'no deliverable named' })); }
   const sink = pageRunSink(body, res);   // the page's ONE run stream, when it named one (run-streams.js)
   if (sink === false) return;
@@ -19563,7 +19564,7 @@ async function handleCheckpointRestore(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || '');
   const snapshotId = String(body.snapshotId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'bad agentId' });
+  if (refuseBadAgentId(res, agentId)) return;
   const remoteEnv = executionEnvironment.backendIdFor(agentId) === 'ssh' ? executionEnvironment.forAgent(agentId) : null;
   if (remoteEnv ? !/^sshcp_[a-f0-9]{8}$/.test(snapshotId) : !checkpointStore.isValidId(snapshotId)) return json(400, { error: 'bad snapshotId' });
   const operationId = 'restore-' + crypto.randomUUID();
@@ -19596,7 +19597,7 @@ async function handleCheckpointList(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(400, { error: 'bad agentId' });
+    if (refuseBadAgentId(res, agent)) return;
     const remoteEnv = executionEnvironment.backendIdFor(agent) === 'ssh' ? executionEnvironment.forAgent(agent) : null;
     const snapshots = remoteEnv && typeof remoteEnv.listCheckpoints === 'function' ? await remoteEnv.listCheckpoints(agent) : checkpointStore.list(agent).snapshots;
     json(200, remoteEnv ? { enabled: true, snapshots } : { enabled: CHECKPOINTS_ENABLED, snapshots, health: checkpointStore.health(agent) });
@@ -19617,11 +19618,13 @@ function handleSubagentsList(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const id = u.searchParams.get('id');
+    const agentId = u.searchParams.get('agentId') || '';
+    if (agentId && refuseBadAgentId(res, agentId)) return;
     if (id) {
       const rec = subagents.get(id);
       return json(rec ? 200 : 404, rec || { error: 'not found' });
     }
-    json(200, { records: subagents.list({ leadId: u.searchParams.get('leadId') || undefined, agentId: u.searchParams.get('agentId') || undefined, status: u.searchParams.get('status') || undefined }) });
+    json(200, { records: subagents.list({ leadId: u.searchParams.get('leadId') || undefined, agentId: agentId || undefined, status: u.searchParams.get('status') || undefined }) });
   } catch (e) { json(500, { error: 'subagents list failed' }); }
 }
 
@@ -19662,7 +19665,7 @@ async function handleRoster(req, res) {
     if (!a || typeof a !== 'object' || Array.isArray(a)) return json(400, { error: 'each agent must be an object' });
     // agentId must be a real, non-coerced string id (the numeric-to-string coercion class the QA flagged:
     // a numeric agentId would previously coerce through String() and pass the id regex silently).
-    if (typeof a.agentId !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(a.agentId)) return json(400, { error: 'each agent needs a valid string agentId' });
+    if (refuseBadAgentId(res, a.agentId)) return;
   }
   // P1.1 anti-clobber (mirrors savestore.js:145-171): if the pusher stamped a freshness `updatedAt` and it is
   // OLDER than what we last accepted, refuse — a stale background tab / out-of-sync frontend can no longer legally
@@ -19738,7 +19741,7 @@ async function handleAgentModel(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 14)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'invalid agentId' });
+  if (refuseBadAgentId(res, agentId)) return;
   const cur = agentRoster.get(agentId);
   if (!cur) return json(404, { error: 'no agent "' + agentId + '" on this station' });
   const model = String(body.model == null ? '' : body.model).trim().slice(0, 200);
@@ -19819,7 +19822,7 @@ async function handleAgentApproval(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'invalid agentId' });
+  if (refuseBadAgentId(res, agentId)) return;
   const cur = agentRoster.get(agentId);
   if (!cur) return json(404, { error: 'no agent "' + agentId + '" on this station' });
   const mode = body.mode === 'full' ? 'full' : body.mode === 'ask' ? 'ask' : '';
@@ -19842,7 +19845,7 @@ async function handleAgentPersonality(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'invalid agentId' });
+  if (refuseBadAgentId(res, agentId)) return;
   const cur = agentRoster.get(agentId);
   if (!cur) return json(404, { error: 'no agent "' + agentId + '" on this station' });
   const personality = String(body.personality || '').trim().toLowerCase();
@@ -19865,7 +19868,7 @@ async function handleAgentDelete(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || body.agent || '');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'invalid agentId' });   // same id regex as roster/fs-jail surfaces
+  if (refuseBadAgentId(res, agentId)) return;   // same id regex as roster/fs-jail surfaces
   if (agentId === 'agent') return json(400, { error: 'cannot delete the hero agent' });   // the founder is undeletable (resume depends on it)
   // An agent whose id collides with a station directory (codex/, channels/ …) CAN be deleted — that is how the
   // Commander recovers it (re-recruit it and it gets a safe id) — but WORKSPACES/<id> is the station's, never moved.
@@ -20089,6 +20092,7 @@ function serveSlashCatalog(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     agentId = String(u.searchParams.get('agent') || 'agent');
+    if (refuseBadAgentId(res, agentId)) return;
     placedTypes = slashPlacedFor(u.searchParams.has('placed') ? (u.searchParams.get('placed') || '') : null, u.searchParams.get('client'), agentId);
   } catch (_) {}
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -20489,7 +20493,7 @@ async function handleSkillMarketShare(req, res) {
   const body = await readJsonBody(req, readBody, 1 << 16, res);
   if (body === null) return respondJson(res, 400, { ok: false, error: 'bad json' });
   const agentId = String(body.agentId || 'agent');
-  if (!isAgentId(agentId)) return respondJson(res, 403, { ok: false, error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const s = skillStore.view(agentId, String(body.id || ''), { includeArchived: true, bump: false });
   if (!s) return respondJson(res, 404, { ok: false, error: 'That skill is not in this agent\'s library.' });
   // someone else's skill (installed from a package or a registry) is theirs to publish, not this Commander's
@@ -20593,7 +20597,7 @@ async function handleSkillExchangeInstall(req, res) {
   const body = await readJsonBody(req, readBody, 1 << 16, res);
   if (body === null) return json(400, { ok: false, error: 'bad json' });
   const agentId = String(body.agentId || 'agent');
-  if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   try {
     const result = skillExchange.install({
       agentId, inspectionId: body.inspectionId, sourceDigest: body.sourceDigest
@@ -20610,35 +20614,35 @@ async function handleSkillExchangeCheck(req, res) {
   const body = await readJsonBody(req, readBody, 1 << 16, res);
   if (body === null) return json(400, { ok: false, error: 'bad json' });
   const agentId = String(body.agentId || 'agent');
-  if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   try { const preview = await skillExchange.check({ agentId, id: body.id }); skillMetrics.record('check', 'success', {}); return json(200, { ok: true, preview }); }
   catch (e) { skillMetrics.record('check', 'failed', { error: e && e.message }); return json(400, { ok: false, error: (e && e.message) || 'could not check for updates' }); }
 }
 async function handleSkillExchangeExport(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);
   const body = await readJsonBody(req, readBody, 1 << 16, res); if (body === null) return json(400, { ok: false, error: 'bad json' });
-  const agentId = String(body.agentId || 'agent'); if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  const agentId = String(body.agentId || 'agent'); if (refuseBadAgentId(res, agentId)) return;
   try { const result = skillExchange.exportPackage({ agentId, id: body.id }); skillMetrics.record('export', 'success', {}); return json(200, Object.assign({ ok: true }, result)); }
   catch (e) { skillMetrics.record('export', 'failed', { error: e && e.message }); return json(400, { ok: false, error: (e && e.message) || 'could not export that skill' }); }
 }
 async function handleSkillExchangePublishHandoff(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);
   const body = await readJsonBody(req, readBody, 1 << 16, res); if (body === null) return json(400, { ok: false, error: 'bad json' });
-  const agentId = String(body.agentId || 'agent'); if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  const agentId = String(body.agentId || 'agent'); if (refuseBadAgentId(res, agentId)) return;
   try { return json(200, { ok: true, handoff: skillExchange.publishHandoff({ agentId, id: body.id }) }); }
   catch (e) { return json(400, { ok: false, error: (e && e.message) || 'could not prepare a publish handoff' }); }
 }
 async function handleSkillExchangeGenerations(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);
   const body = await readJsonBody(req, readBody, 1 << 16, res); if (body === null) return json(400, { ok: false, error: 'bad json' });
-  const agentId = String(body.agentId || 'agent'); if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  const agentId = String(body.agentId || 'agent'); if (refuseBadAgentId(res, agentId)) return;
   try { return json(200, Object.assign({ ok: true }, skillExchange.generations({ agentId, id: body.id }))); }
   catch (e) { return json(400, { ok: false, error: (e && e.message) || 'could not list skill generations' }); }
 }
 async function handleSkillExchangeRollback(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);
   const body = await readJsonBody(req, readBody, 1 << 16, res); if (body === null) return json(400, { ok: false, error: 'bad json' });
-  const agentId = String(body.agentId || 'agent'); if (!isAgentId(agentId)) return json(403, { ok: false, error: 'forbidden' });
+  const agentId = String(body.agentId || 'agent'); if (refuseBadAgentId(res, agentId)) return;
   try { const result = skillExchange.rollback({ agentId, id: body.id, digest: body.digest, force: body.force === true }); skillMetrics.record('rollback', 'success', {}); return json(200, result); }
   catch (e) { skillMetrics.record('rollback', 'failed', { error: e && e.message }); return json(400, { ok: false, error: (e && e.message) || 'could not roll back that skill' }); }
 }
@@ -20652,7 +20656,7 @@ function serveSkillGoldens(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let u; try { u = new URL(req.url, 'http://x'); } catch (_) { return json(400, { error: 'bad url' }); }
   const agentId = String(u.searchParams.get('agent') || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const id = String(u.searchParams.get('id') || '').trim();
   if (id) return json(200, { agentId, skillId: id, goldens: goldensFor(agentId, id) });
   const out = {};
@@ -20667,7 +20671,7 @@ function serveAgentSkills(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agentId = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agentId)) return;
     const includeArchived = u.searchParams.get('archived') === '1' || u.searchParams.get('state') === 'all';
     const includeBody = u.searchParams.get('body') === '1';
     let skills = skillStore.list(agentId, { includeArchived });
@@ -20696,7 +20700,7 @@ async function handleAgentSkillManage(req, res) {
   const json = (code, obj) => { if (res.headersSent) return; res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 20, res)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const r = skillStore.manage(Object.assign({}, body, { agentId, createdBy: 'user' }));
   if (!r.ok) return json(400, { error: r.error || 'could not update skill' });
   chanEmit('deliverable', { id: r.skill.id, agentId, kind: 'skill', title: r.skill.name });
@@ -20712,7 +20716,7 @@ async function handleAgentSkillAllow(req, res) {
   const json = (code, obj) => { if (res.headersSent) return; res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16, res)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const id = String(body.id || body.target || '').trim();
   if (!id) return json(400, { error: 'which skill?' });
   const skill = skillStore.view(agentId, id, { includeArchived: true, bump: false });
@@ -20780,7 +20784,7 @@ function learningJson(res, code, value) {
 }
 function serveLearningStatus(req, res) {
   const u = new URL(req.url, 'http://localhost'), agentId = String(u.searchParams.get('agent') || 'agent');
-  if (!isAgentId(agentId)) return learningJson(res, 403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const rows = skillEvaluationIo.get('learning:' + agentId) || [];
   const runId = u.searchParams.get('runId');
   learningJson(res, 200, { agentId, receipts: runId ? rows.filter(r => r.runId === runId) : rows });
@@ -20788,7 +20792,7 @@ function serveLearningStatus(req, res) {
 function serveSkillCandidates(req, res) {
   try {
     const u = new URL(req.url, 'http://localhost'), agentId = String(u.searchParams.get('agent') || 'agent');
-    if (!isAgentId(agentId)) return learningJson(res, 403, { ok: false, error: 'forbidden' });
+    if (refuseBadAgentId(res, agentId)) return;
     const id = String(u.searchParams.get('candidateId') || u.searchParams.get('id') || '');
     /* latestEvaluation: a stored receipt for exactly this proposal and this active version, the whole row (the page
        reads its cases for a tie or a spend stop), so a panel reload no longer throws away a paid result. Only a receipt
@@ -20827,7 +20831,7 @@ async function handleSkillCandidateAction(req, res) {
   try { body = JSON.parse(await readBody(req, 256 * 1024, res)) || {}; }
   catch (_) { return learningJson(res, 400, { ok: false, error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!isAgentId(agentId)) return learningJson(res, 403, { ok: false, error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const action = new URL(req.url, 'http://localhost').pathname.split('/').pop();
   try {
     if (action === 'share') {
@@ -21127,7 +21131,7 @@ async function handleRun(req, res) {
   let recovery = null;
   if (body && body.recovery) {
     const accepted = consumeRunRecoveryContinuation(body.recovery, agentId, runId);
-    if (!accepted.ok) { if (sink) sink.release(); res.writeHead(accepted.code || 409); return res.end(accepted.error || 'continuation blocked'); }
+    if (!accepted.ok) { if (sink) sink.release(); if (accepted.stationCode) res.setHeader('X-StarNet-Code', accepted.stationCode); res.writeHead(accepted.code || 409); return res.end(accepted.error || 'continuation blocked'); }
     recovery = accepted.plan;
   }
 
@@ -26021,7 +26025,7 @@ async function handleAutonomyWrite(req, res) {
   // agentId keys the workspace jail + checkpoint store + persisted roster posture; validate it to the same
   // shape every sibling route enforces so a crafted id can't reach outside its lane (defense in depth on top of
   // the fs-jail resolveInside below). Matches ID_RE used across the roster/cron/orchestration surfaces.
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return sendJson(400, { ok: false, reason: 'invalid agentId' });
+  if (refuseBadAgentId(res, agentId)) return;
   const rel = body.path, content = body.content;
   if (typeof rel !== 'string' || !rel || typeof content !== 'string') return sendJson(400, { ok: false, reason: 'missing path or content' });
   // a one-off registry carrying the cabinet (fs) tools — assembled exactly like runOnce (same makeFsTools args).
@@ -26222,7 +26226,7 @@ function nightFocusView() {
 async function handleNightshiftBeatNow(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
   const agentId = String(body.agentId || NIGHTSHIFT_AGENT);
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: 'choose a valid agent' })); }
+  if (refuseBadAgentId(res, agentId)) return;
   res.writeHead(200, { 'Content-Type': 'application/x-ndjson; charset=utf-8', 'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no' });
   const bus = { emit: (name, payload) => { try { res.write(JSON.stringify({ name, payload: redact(payload) }) + '\n'); } catch (_) {} } };
   const emit = wrapEmitDiag(makeEmitter(bus, e => { if (e) console.warn('[event]', e.kind, e.event, (e.errors || []).join(';')); }));
@@ -26761,6 +26765,7 @@ async function handleLiveDoctor(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 1 << 13)) || {}; } catch (_) { return json(400, { error: 'bad json' }); }
   if (body.confirmedLiveProbes !== true) return json(409, { error: 'explicit live-probe consent is required', code: 'LIVE_DOCTOR_CONSENT_REQUIRED' });
   const requested = String(body.agentId || '').trim();
+  if (requested && refuseBadAgentId(res, requested)) return;
   const agentId = requested || (agentRoster.size ? String(agentRoster.keys().next().value) : '');
   const rec = agentId ? agentRoster.get(agentId) : null;
   if (requested && !rec) return json(404, { error: 'unknown agent' });
@@ -28524,11 +28529,12 @@ async function serveWorkspaceDir(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
+    if (refuseBadAgentId(res, agent)) return;
     const r = await fsJail.resolveInside(agent, '');   // '' → the agent's own workspace root; throws on bad agentId
     dir = r.abs;
   } catch (e) {
     const msg = (e && e.message) || '';
-    if (/escape|illegal|bad agentId/.test(msg)) { res.writeHead(403); return res.end('forbidden'); }
+    if (/escape|illegal|bad agentId/.test(msg)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
     res.writeHead(404); return res.end('not found');
   }
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -28565,10 +28571,12 @@ async function handleAttachmentUpload(req, res) {
   try { body = JSON.parse((await readBodyBuffer(req, Math.ceil(attachments.MAX_BYTES * 1.4), res)).toString('utf8') || '{}'); }
   catch (e) { if (res.headersSent) return; return json(400, { ok: false, error: 'bad json' }); }
   const agent = String((body && body.agent) || 'agent');
+  if (refuseBadAgentId(res, agent)) return;
   // op:'delete' prunes an attachment the Commander removed from the composer before sending (no orphan bytes).
   if (body && body.op === 'delete') { const d = await attachments.removeAttachment(agent, String((body && body.path) || '')); return json(d.ok ? 200 : 400, d); }
   const r = await attachments.saveAttachment(agent, String((body && body.name) || 'file'), body && body.dataUrl);
   if (r.ok) return json(200, r);
+  if (r.code === 403) res.setHeader('X-StarNet-Code', 'path_refused');
   return json(r.code || 400, { ok: false, error: r.error });
 }
 
@@ -28583,6 +28591,7 @@ async function serveWorkspaceFile(req, res) {
     const u = new URL(req.url, 'http://127.0.0.1');
     docView = u.searchParams.get('view') === 'doc';   // the readable document view (file-response.js documentViewHtml)
     const agent = u.searchParams.get('agent') || 'agent';
+    if (refuseBadAgentId(res, agent)) return;
     const rel = u.searchParams.get('path') || '';
     const project = u.searchParams.get('project') || '';
     if (project) {
@@ -28606,7 +28615,7 @@ async function serveWorkspaceFile(req, res) {
     }
   } catch (e) {
     const msg = (e && e.message) || '';
-    if (/escape|illegal|bad agentId|bad notebook/.test(msg)) { res.writeHead(403); return res.end('forbidden'); }
+    if (/escape|illegal|bad agentId|bad notebook/.test(msg)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
     res.writeHead(404); return res.end('not found');
   }
   let st;
@@ -28681,7 +28690,7 @@ function serveNotebook(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const r = notebookStore.readKey('notebook:' + agent);
     const bad = storeFailure(r);
     if (bad) return json(500, bad);
@@ -28701,7 +28710,7 @@ async function handleNotebookRestore(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 8 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agent = String(body.agent || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(400, { error: 'agentId must be 1-40 chars of [A-Za-z0-9_-]' });
+  if (refuseBadAgentId(res, agent)) return;
   const incoming = Array.isArray(body.notes) ? body.notes : [];
   try {
     // P1: merge under the per-agent lock, re-reading existing so a concurrent run's memory.write isn't lost.
@@ -28729,7 +28738,7 @@ function serveSaveLoad(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const state = saveStore.loadState(agent); // read before the recovery marker: may quarantine/recover
     if (state.status === 'unreadable') return json(503, { error: 'Saved station is temporarily unreadable. Retry to recover it.', unreadable: true });
     const doc = state.doc;
@@ -28749,7 +28758,7 @@ async function handleSaveRecoveryAck(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agent = String(body.agent || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(400, { error: 'agentId must be 1-40 chars of [A-Za-z0-9_-]' });
+  if (refuseBadAgentId(res, agent)) return;
   try { json(200, { ok: true, cleared: !!saveStore.clearRecoveryNotice(agent) }); }
   catch (e) { json(200, { ok: false, error: (e && e.message) || 'ack failed' }); }
 }
@@ -28938,7 +28947,7 @@ async function handleSaveWrite(req, res) {
   // the record key is the agent's OWN id — body.agent is the agent OBJECT ({id,name,...}), not a selector
   // string, so derive from body.agent.id (an explicit body.agentId wins if a future caller sends one).
   const agentId = String(body.agentId || (body.agent && body.agent.id) || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(400, { error: 'agentId must be 1-40 chars of [A-Za-z0-9_-]' });
+  if (refuseBadAgentId(res, agentId)) return;
   // P2.1: DEGRADED — refuse a save write when this workspace was stamped by a NEWER StarNet (writing a newer save
   // envelope shape through older code risks silent field loss). Reads (GET /api/save) still serve; runs continue.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
@@ -29191,7 +29200,7 @@ function serveRuns(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (agent !== '*' && !isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (agent !== '*' && refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('runId') || '';
     if (runId) {
       const allRows = runStore.all();
@@ -29492,14 +29501,15 @@ async function handleRunRecoveryResolve(req, res) {
   const runId = String(body.runId || '');
   const agentId = String(body.agentId || '');
   const resolutionId = String(body.resolutionId || '');
-  if (!runId || runId.length > 500 || !isAgentId(agentId)
+  if (refuseBadAgentId(res, agentId)) return;
+  if (!runId || runId.length > 500
     || !/^[A-Za-z0-9._:-]{8,100}$/.test(resolutionId)) {
     return json(400, { error: 'runId, owned agentId, and resolutionId are required' });
   }
   let current;
   try { current = inspectRunRecovery(runId); }
   catch (_) { return json(404, { error: 'recovery not found' }); }
-  if (String((current.meta && current.meta.agentId) || '') !== agentId) return json(403, { error: 'forbidden' });
+  if (String((current.meta && current.meta.agentId) || '') !== agentId) return respondFail(res, 403, 'wrong_owner', 'forbidden');
   const outcomes = Array.isArray(body.outcomes) ? body.outcomes.map(x => ({
     callId: String((x && x.callId) || ''), outcome: String((x && x.outcome) || '')
   })) : [];
@@ -29549,7 +29559,8 @@ async function handleRunRecoveryContinue(req, res) {
   const runId = String(body.runId || '');
   const agentId = String(body.agentId || '');
   const continuationId = String(body.continuationId || '');
-  if (!runId || runId.length > 500 || !isAgentId(agentId)
+  if (refuseBadAgentId(res, agentId)) return;
+  if (!runId || runId.length > 500
     || !/^[A-Za-z0-9._:-]{8,100}$/.test(continuationId)) {
     return json(400, { error: 'runId, owned agentId, and continuationId are required' });
   }
@@ -29560,7 +29571,7 @@ async function handleRunRecoveryContinue(req, res) {
   let current;
   try { current = inspectRunRecovery(runId); }
   catch (_) { return json(404, { error: 'recovery not found' }); }
-  if (String((current.meta && current.meta.agentId) || '') !== agentId) return json(403, { error: 'forbidden' });
+  if (String((current.meta && current.meta.agentId) || '') !== agentId) return respondFail(res, 403, 'wrong_owner', 'forbidden');
   if (current.continuation) {
     if (current.continuation.continuationId !== continuationId) return json(409, { error: 'a different continuation already exists' });
     if (String(current.continuation.mode || 'reviewed') !== (automatic ? 'automatic' : 'reviewed')) {
@@ -29611,7 +29622,7 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
     }
     return { ok: false, code: 404, error: 'recovery not found' };
   }
-  if (String((current.meta && current.meta.agentId) || '') !== String(agentId)) return { ok: false, code: 403, error: 'forbidden' };
+  if (String((current.meta && current.meta.agentId) || '') !== String(agentId)) return { ok: false, code: 403, stationCode: 'wrong_owner', error: 'forbidden' };
   const c = current.continuation;
   if (!c || c.state !== 'ready' || c.continuationId !== continuationId) return { ok: false, code: 409, error: 'continuation is not ready or was already consumed' };
   if (!constantTimeTextEqual(body.continuationToken, runContinuationToken(current))) return { ok: false, code: 409, error: 'continuation token is stale' };
@@ -29687,7 +29698,7 @@ function serveInsights(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent');
-    if (agent && !isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (agent && refuseBadAgentId(res, agent)) return;
     const rows = agent ? runStore.list(agent, { limit: 1000 }) : runStore.all();   // agent-scoped or whole station
     /* OUTCOME LEARNING (2026-08-30): the track record served alongside the usage fold, applied to THIS route's
        row scope (whole station, or ?agent=). Stated honestly (consistency sweep): this is the same PURE fold
@@ -29771,7 +29782,7 @@ function serveTranscript(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const stream = u.searchParams.get('stream') || 'global';
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
     const sourceRunId = u.searchParams.get('runId') || '';
@@ -29794,7 +29805,7 @@ async function handleChannelHandoff(req, res) {
   const agentId = body.agentId == null ? '' : String(body.agentId).trim();
   if (!/^[A-Za-z0-9:_-]{1,80}$/.test(channel) || !chatId || chatId.length > 200) return json(400, { error: 'channel and chatId are required' });
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(streamId)) return json(400, { error: 'invalid streamId' });
-  if (agentId && !isAgentId(agentId)) return json(400, { error: 'invalid agentId' });
+  if (agentId && refuseBadAgentId(res, agentId)) return;
   const bot = /^telegram:([^:]+)$/.exec(channel);
   const storeKey = bot ? bot[1] + '|' + chatId : chatId;
   const prior = channelStore.getChatRecord(storeKey);
@@ -29840,7 +29851,7 @@ function serveProposals(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('run') || '';
     // a named run gets exactly its own saves — never the agent's previous run's list (memcore.receiptBatchFor)
     const batch = memcore.receiptBatchFor(proposalsByRun, latestProposalRun, agent, runId);
@@ -29864,7 +29875,7 @@ function serveStudyProposals(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('run') || '';
     let batch = runId && studyByRun.get(runId);
     if (!batch) { const lr = latestStudyRun.get(agent); batch = lr && studyByRun.get(lr); }
@@ -29900,7 +29911,7 @@ async function handleStudyResolve(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const runId = String(body.runId || '');
   const id = String(body.id || '');
   // mirror the browser's studyDeclined denylist (capped, strings only) — runStudy() feeds it into the engine dedup.
@@ -29964,7 +29975,7 @@ function serveThreadProposals(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('run') || '';
     let batch = runId && threadsByRun.get(runId);
     if (!batch) { const lr = latestThreadRun.get(agent); batch = lr && threadsByRun.get(lr); }
@@ -29982,7 +29993,7 @@ async function handleThreadTurnin(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const runId = String(body.runId || '');
   const id = String(body.id || '');
   const verdict = String(body.verdict || '');
@@ -30320,7 +30331,7 @@ async function handleMemoryTurnin(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const runId = String(body.runId || '');
   const id = String(body.id || '');
   const verdict = String(body.verdict || '');
@@ -30406,7 +30417,7 @@ async function handleMemoryReset(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agent || body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   await resetAgentMemory(notebookStore, agentId);   // wipe notebook:/declined:/todo: (pure helper — unit-tested)
   // also drop any in-memory pending proposals for this agent so a stale turn-in can't land on the new hero
   for (const [rid, b] of proposalsByRun) { if (b && b.agentId === agentId) proposalsByRun.delete(rid); }
@@ -30427,7 +30438,7 @@ function serveMemoryRecords(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const rk = notebookStore.readKey('notebook:' + agent);
     const bad = storeFailure(rk);
     if (bad) return json(500, bad);
@@ -30449,7 +30460,7 @@ function servePending(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!isAgentId(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const rows = listPending(agent).map(p => redact({
       runId: p.runId || '', id: p.id || '', kind: p.kind || 'note',
       content: String(p.content || ''), scope: p.scope || 'global', projectRoot: p.projectRoot || null,
@@ -30469,7 +30480,7 @@ function serveDeclined(req, res) {
   try {
     const u = new URL(req.url, 'http://127.0.0.1');
     const agent = u.searchParams.get('agent') || 'agent';
-    if (!/^[A-Za-z0-9_-]{1,40}$/.test(agent)) return json(403, { error: 'forbidden' });
+    if (refuseBadAgentId(res, agent)) return;
     const rk = notebookStore.readKey('declined:' + agent);
     const bad = storeFailure(rk);
     if (bad) return json(500, bad);
@@ -30486,7 +30497,7 @@ async function handleDeclinedRestore(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || body.agent || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   const text = String(body.text || '').trim();
   if (!text) return json(400, { error: 'text required' });
   const removed = await restoreDeclined(notebookStore, agentId, text);
@@ -30501,7 +30512,7 @@ async function handleMemoryMutate(req, res, op) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const agentId = String(body.agentId || 'agent');
-  if (!/^[A-Za-z0-9_-]{1,40}$/.test(agentId)) return json(403, { error: 'forbidden' });
+  if (refuseBadAgentId(res, agentId)) return;
   if (!String(body.id || '')) return json(400, { error: 'id required' });
   const key = 'notebook:' + agentId;
   // P1: apply the pure memcore op under the per-agent lock, RE-READING the list so a concurrent run's

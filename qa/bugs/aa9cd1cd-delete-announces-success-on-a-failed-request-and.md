@@ -8,6 +8,7 @@ status: fixed
 found: 2026-07-28
 lane: sweep/world
 fix: 8e68bf5c
+family: truthful-ack
 ---
 
 # DELETE announces success on a failed request and leaves the row — same missing `resp.ok` check in ROUTINES, LOOPS and CONNECTORS
@@ -35,3 +36,5 @@ _Found by the `sweep/world` lane, 2026-07-28. Finder confidence: high. Severity 
 ## Verdict
 
 Confirmed across all reported sites. `3f0d1205` closed routines and loops; `8e68bf5c` completed the connector delete and enable-toggle paths. Every handler now checks `Response.ok` before announcing or committing visible success; connector failures keep edit state and revert the optimistic toggle. The focused routines/connectors source regressions pass.
+
+Truthful-ack family invariants: INV-3 fetch-truth ratchet, INV-5 proven-ack client, and INV-6 refusal-code readers. Shared regression anchors: `test/frontend-fetch-truth-ratchet.test.js`, `test/harness-api.contract.test.js`, and `test/station-refusal-readers.test.js`. Historical fix attribution above is unchanged; family registration is not new installed or recovery evidence.

@@ -33,10 +33,10 @@ function extract(name) {
   return m ? m[1] : '';
 }
 // eslint-disable-next-line no-new-func
-const renderMarkdown = new Function(
-  /const HTML_ESC = \{[^}]*\};/.exec(chatSrc)[0] + '\n' + /  const REL_PATH = [^\n]*;/.exec(chatSrc)[0] + '\n' +
+const renderMarkdown = new Function('U',
+  /  const REL_PATH = [^\n]*;/.exec(chatSrc)[0] + '\n' +
   ['escapeHtml', 'linkify', 'mdInline', 'hostOf', 'linkHostNote', 'appFileRef', 'fileRefLink', 'fileRefImage', 'reportInline', 'renderFence', 'renderMarkdown'].map(extract).join('\n') +
-  '\nreturn renderMarkdown;')();
+  '\nreturn renderMarkdown;')(require('../frontend/js/util.js'));
 // eslint-disable-next-line no-new-func
 const renderProse = new Function('renderMarkdown', 'hydrateFileRefs', /const MD_MARKERS = [^;]+;/.exec(chatSrc)[0] + '\n' + extract('renderProse') + '\nreturn renderProse;')(renderMarkdown, () => {});
 const Chat = { renderProse };

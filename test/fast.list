@@ -449,6 +449,9 @@ test/save.test.js
 test/saveversion.test.js
 test/backup-secrets.test.js
 test/station-export-location.test.js
+test/export-file-ownership.test.js
+test/download-helper.ratchet.test.js
+test/escape-parity.census.test.js
 test/schema-stamp.test.js
 test/rename-migrate.test.js
 test/update-state-parity.test.js
@@ -1420,6 +1423,9 @@ test/station-autosave.test.js
 test/durable-store-faults.test.js
 test/permissions-authority.test.js
 test/api-json-lifecycle.test.js
+test/harness-api.contract.test.js
+test/station-refusal-readers.test.js
+test/clipboard-ack.census.test.js
 test/routine-acknowledgement.test.js
 test/routine-preview-race.test.js
 test/marketplace-authority.test.js

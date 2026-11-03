@@ -8,6 +8,7 @@ status: fixed
 found: 2026-07-28
 lane: sweep/safecell
 fix: ed200caa
+family: truthful-ack
 ---
 
 # An errored /api/projects is rendered as a CONFIRMED EMPTY trust ledger ("NO TRUSTED PROJECTS") and silently wipes the persisted project scope
@@ -38,4 +39,6 @@ _Found by the `sweep/safecell` lane, 2026-07-28. Finder confidence: high. Severi
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Historical fix ed200caa is retained. The projects reader rejects a non-OK response and renders unavailable without replacing the selected scope with a fabricated empty ledger. The truthful-ack continuation preserves this distinction; no new installed acceptance is claimed.
+
+Truthful-ack family invariants: INV-3 fetch-truth ratchet, INV-5 proven-ack client, and INV-6 refusal-code readers. Shared regression anchors: `test/frontend-fetch-truth-ratchet.test.js`, `test/harness-api.contract.test.js`, and `test/station-refusal-readers.test.js`. Historical fix attribution above is unchanged; family registration is not new installed or recovery evidence.

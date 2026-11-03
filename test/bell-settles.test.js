@@ -20,6 +20,7 @@ const rd = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
   const ctx = vm.createContext({ console, setTimeout, clearTimeout, Promise, JSON,
     fetch: () => Promise.resolve({ status: 200, json: () => Promise.resolve(reply) }),
     StationUI: { settleNotifs: k => settled.push(k), notify: (t, c, cat, o) => notes.push(o), h: { present: [] } } });
+  require('./helpers/frontend-esc.js').installEsc(ctx);
   vm.runInContext(rd('frontend/app/stepin.js') + '\n;this.__StepIn = StepIn;', ctx, { filename: 'stepin.js' });
   const S = ctx.__StepIn;
   await S.refresh();

@@ -883,8 +883,7 @@ const Chat = (() => {
   // HTML-escape the WHOLE string first, then wrap only matched http(s) URL substrings in anchors. Escaping before
   // matching means the resulting markup can contain nothing the model authored as live HTML — only our own <a>
   // tags around escaped text. Used identically for live-streamed tokens, the final reply, and replayed history.
-  const HTML_ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => HTML_ESC[c]); }
+  function escapeHtml(s) { return (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s); }
   function linkify(text) {
     const s = String(text == null ? '' : text);
     const re = /https?:\/\/[^\s<>"']+/g;   // a run of non-space, non-markup chars after the scheme
@@ -1232,22 +1231,9 @@ const Chat = (() => {
     return typeof bodyEl.__proseSource === 'string' ? bodyEl.__proseSource : bodyEl.textContent;
   }
 
-  // COPY-TO-CLIPBOARD: the async Clipboard API (works on localhost, a secure context), with a hidden-textarea
-  // execCommand fallback for any context where it's unavailable. Resolves true on success so the button can confirm.
-  function copyText(text) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).then(() => true, () => fallbackCopy(text));
-    } catch (_) {}
-    return Promise.resolve(fallbackCopy(text));
-  }
-  function fallbackCopy(text) {
-    try {
-      const ta = document.createElement('textarea'); ta.value = text;
-      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      const ok = document.execCommand('copy'); ta.remove(); return ok;
-    } catch (_) { return false; }
-  }
+  // COPY-TO-CLIPBOARD: the one clipboard, U.copyText (frontend/js/util.js). It starts the write inside the click and resolves
+  // true only when a write happened, so every copy button here confirms from that boolean (Chat.copyText is this alias).
+  function copyText(text) { return U.copyText(text); }
   function showCopyResult(btn, ok) {
     if (!btn) return;
     const idleLabel = btn.getAttribute('data-copy-label') || 'Copy';
@@ -5743,8 +5729,9 @@ const Chat = (() => {
           const chips = document.createElement('span'); chips.className = 'consent-btns ws-destchips';
           const cp = document.createElement('button'); cp.className = 'consent-btn'; cp.textContent = 'copy path';
           cp.onclick = () => {
-            const done = () => { cp.textContent = 'copied ✓'; setTimeout(() => { cp.textContent = 'copy path'; }, 1400); };
-            try { navigator.clipboard.writeText(destPath).then(done, done); } catch (_) { done(); }
+            // the path is said copied only when the copy happened (it used to say "copied ✓" on a refusal too)
+            const done = ok => { cp.textContent = ok ? 'copied ✓' : 'copy failed — select the path above'; setTimeout(() => { cp.textContent = 'copy path'; }, 1400); };
+            copyText(destPath).then(done);
           };
           chips.appendChild(cp);
           const core = tauriCore();   // desktop shell only — a real Explorer/Finder reveal exists there

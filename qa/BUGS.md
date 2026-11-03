@@ -292,6 +292,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | sessions | [Concurrent stale workspace reclaimers both acquire ownership](bugs/c24336d5-concurrent-stale-workspace-reclaimers-both-acqui.md) | reliability-audit-0919 | d9f9b71f0 |
 | P1 | fixed | sessions | [Worker result links open another workspace](bugs/c68d5c40-delegated-file-provenance.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | sessions | [Capped and recovered worker runs overwrite current completion truth](bugs/dd9a34df-delegated-run-outcomes.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
+| P1 | fixed | sessions | [Export cleanup can remove a file it never created](bugs/6dec2aa8-export-cleanup-can-remove-a-file-it-never-create.md) | agent/truthful-ack-client-1103 | 662619da7 |
 | P1 | fixed | sessions | [Feedback cards do not identify the run being rated](bugs/c7fa86fc-feedback-run-reference-ambiguous.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
 | P1 | fixed | sessions | [Group file links choose the wrong author or saved version](bugs/4e58ef35-group-artifact-message-version.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | sessions | [Adding a participant to a direct conversation discards its existing attachments](bugs/408a0794-group-conversion-loses-attachments.md) | agent/adversarial-audit-0910 | 64ed8711b |

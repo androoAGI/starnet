@@ -179,7 +179,12 @@ const GroupChat = (() => {
       let r;
       try { r = await fetch('/api/groups' + query, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : deadline ? { cache: 'no-store', signal: deadline.signal } : { cache: 'no-store' }); }
       catch (e) { if (deadline && deadline.signal.aborted) throw timedOut(); throw e; }
-      if (r.status === 401 || r.status === 403) throw new Error('Reconnect to this station by refreshing the page. Your conversation is saved.');
+      // the GATE refused this page's key (the ONE reading, Harness.classifyApiFailure: the gate's own code; a bare 401/403 only
+      // from a station that names no refusal, or with no Harness loaded): a page it kept its key from says why, never "refresh"
+      const refused = typeof Harness !== 'undefined' && Harness && typeof Harness.classifyApiFailure === 'function' ? Harness.classifyApiFailure(r) : null;
+      if (refused ? (refused.staleSession || refused.tokenWithheld) : (r.status === 401 || r.status === 403)) {
+        throw new Error(refused && refused.tokenWithheld ? refused.tokenWithheld : 'Reconnect to this station by refreshing the page. Your conversation is saved.');
+      }
       if (r.status === 404 && !body && !query) throw new Error('Group chat is unavailable on this server. Run the current StarNet backend, then try again.');
       let out;
       try { out = await r.json(); } catch (_) { if (deadline && deadline.signal.aborted) throw timedOut(); throw new Error('The server could not load group chat. Try again.'); }
@@ -598,7 +603,7 @@ const GroupChat = (() => {
       const cp = h('button', { type: 'button', class: 'cmsg-copy', 'aria-label': 'Copy message', 'data-tip': 'copy message', 'data-copy-label': 'Copy message' }, '⧉');
       cp.addEventListener('click', () => {
         const done = ok => { cp.classList.add(ok ? 'copied' : 'copy-failed'); setTimeout(() => cp.classList.remove('copied', 'copy-failed'), 1400); };
-        try { navigator.clipboard.writeText(content).then(() => done(true), () => done(false)); } catch (_) { done(false); }
+        U.copyText(content).then(done);   // the one clipboard: the success mark only when the copy happened
       });
       return cp;
     };
@@ -792,8 +797,8 @@ const GroupChat = (() => {
           const copy = h('button', { type: 'button', class: 'bb gc-copy' }, idle);
           copy.addEventListener('click', () => {
             const done = ok => { copy.textContent = ok ? '✓ COPIED' : 'COPY FAILED: select the text'; setTimeout(() => { copy.textContent = idle; }, 1400); };
-            const text = ins.copy || ins.text;   // Chat.copyText falls back to a selection copy where the clipboard API is refused
-            try { (typeof Chat !== 'undefined' && Chat.copyText ? Chat.copyText(text) : navigator.clipboard.writeText(text).then(() => true)).then(done, () => done(false)); } catch (_) { done(false); }
+            // the one clipboard (a selection copy where the clipboard API is refused): COPIED only when the copy happened
+            U.copyText(ins.copy || ins.text).then(done);
           });
           detail.append(h('summary', {}, ins.label || 'Inspect the full request (secrets redacted)'), h('pre', {}, ins.text), copy);
           row.append(detail);

@@ -20,7 +20,7 @@ const sidecarFunctionSource = name => functionSourceIn(sidecar, name);
 const stationui = read('frontend', 'app', 'stationui.js');
 
 // ---- keyCheckFailure (pure, extracted from the browser source) ----
-const mFail = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(harness);
+const mFail = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(harness);
 A.ok(mFail, 'harness.js defines keyCheckFailure');
 const keyCheckFailure = new Function(mFail[0] + '\nreturn keyCheckFailure;')();
 A.eq(keyCheckFailure(200, { error: 'provider rejected this key (HTTP 401)' }, ''), 'provider rejected this key (HTTP 401)', 'a provider verdict passes through verbatim');
@@ -73,16 +73,20 @@ A.eq(diag.length, 1, 'the same line lands in the persisted diag error tail');
 A.ok(/providerCheckRoute\(req, res, true\)/.test(sidecarFunctionSource('handleProviderValidate')) && /providerCheckRoute\(req, res, false\)/.test(sidecarFunctionSource('handleProviderProbe')), 'validate and probe enter the same checked response with distinct route labels');
 
 // ---- refused API calls are no longer silent ----
-A.ok(/isAllowedApiOrigin\(String\(req\.headers\.origin \|\| ''\), PORT, req\.headers\.host\)\) \{ noteApiRefusal\(req, 'forbidden origin'\);/.test(sidecar), 'rejectApi passes the Host (tunnel same-origin) and notes an origin refusal');
-A.ok(/noteApiRefusal\(req, 'forbidden token'\);/.test(sidecar), 'a stale-token refusal is noted');
+A.ok(/isAllowedApiOrigin\(String\(req\.headers\.origin \|\| ''\), PORT, req\.headers\.host\)\) return refuseAtGate\(req, res, 'forbidden origin'\);/.test(sidecar), 'the Origin check passes the Host (tunnel same-origin) and refuses through refuseAtGate');
+A.ok(/function refuseAtGate\(req, res, reason\) \{\n  noteApiRefusal\(req, reason\);/.test(sidecar), 'refuseAtGate notes every refusal before it answers');
+A.ok(sidecar.includes("return refuseAtGate(req, res, 'forbidden token');"), 'a stale-token refusal goes through refuseAtGate, so it is noted');
 // sidecar-index-06: a page the station WITHHELD its key from sends no key at all. Its refusals must not be logged as "a
 // page from before a sidecar restart; reload it" (the station did not restart, and reloading changes nothing).
 {
   const m = /function noteApiRefusal\(req, reason\) \{[\s\S]*?\n\}/.exec(sidecar);
   A.ok(m, 'index.js defines noteApiRefusal');
+  // the one no-key rule, which refuseAtGate also reads to name token_missing / token_stale on the wire
+  const mKey = /function carriesNoKey\(req\) \{[^\n]*\}\n/.exec(sidecar);
+  A.ok(mKey, 'index.js defines carriesNoKey');
   const lines = [];
   // a fresh once-per-cause registry per instance, so each case below is logged
-  const noter = () => new Function('apiRefusalsSeen', 'apiauth', 'apitickets', 'PORT', 'recordDiagError', 'failNote', 'console', m[0] + '\nreturn noteApiRefusal;')(
+  const noter = () => new Function('apiRefusalsSeen', 'apiauth', 'apitickets', 'PORT', 'recordDiagError', 'failNote', 'console', mKey[0] + m[0] + '\nreturn noteApiRefusal;')(
     new Set(), require('../sidecar/apiauth.js'), require('../sidecar/apitickets.js'), 8787, () => {}, () => {}, { warn: l => lines.push(l) });
   const note = noter();
   note({ method: 'GET', url: '/api/state', headers: { host: '127.0.0.1:8787', origin: 'http://127.0.0.1:8787' } }, 'forbidden token');
@@ -103,7 +107,7 @@ A.ok(/const statWhy = [^\n]*health && !health\.credentialVerified\n[^\n]*health\
 // org P03: an empty probe error still prints what the probe saw — never a bare NOT VERIFIED / CHECK FAILED
 A.ok(/health\.reachable \? 'the provider answered but did not confirm this key' : 'the check got no answer from the provider'/.test(stationui), 'an empty probe error prints a fallback reason');
 A.ok(/<span class="prov-stat-t">' \+ stat \+ statWhy \+ [^\n]*'<\/span><\/span>'/.test(stationui), 'the reason renders inside the card status, right under the verdict it explains');
-A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text\)/.test(harness), 'a refused probe names the refusal instead of a blank CHECK FAILED');
+A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text, stationCodeOf\(r\)\)/.test(harness), 'a refused probe names the refusal (by the gate\'s own code) instead of a blank CHECK FAILED');
 
 // Actual route + shared verifier + diagnostic logger. Only transport/account/storage dependencies are fixtures;
 // identity redaction deliberately knows no secrets, so an unsaved echo must be scrubbed by this production path.

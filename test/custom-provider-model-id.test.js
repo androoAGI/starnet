@@ -67,7 +67,7 @@ function sidecarValidate(endpointFetch) {
 
 // The REAL browser key check (validateAndSetKey + postKeyCheck + keyCheckFailure) over a localStorage-shaped store.
 function browserHarness(store, validate, sent) {
-  const kcSrc = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(harness)[0];
+  const kcSrc = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(harness)[0];
   const H = new Function('normalizeProviderId', 'getProv', 'getModel', 'getBaseUrl', 'setKey', 'fetch', 'hasStoredCredential',
     "const cleanKey = k => String(k == null ? '' : k).replace(/[\\s\\u200b-\\u200d\\u2060\\ufeff]+/g, '');\n"
     + kcSrc + '\n' + A.fnBody(harness, 'function keyCheckLine(') + '\n' + A.fnBody(harness, 'async function postKeyCheck(') + '\n' + A.fnBody(harness, 'async function validateAndSetKey(')

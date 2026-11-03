@@ -9,10 +9,9 @@
    exported BEFORE the Skynet→StarNet rename holds `skynet.*` keys + a `skynet.backup` schema; both
    import fine and are mapped forward to `starnet.*` on restore.
 
-   v1 restores the browser-side state (which is what a wipe destroys). The notebook lives on the
-   sidecar's own disk and is preserved IN the file for portability + a future restore route, but is
-   not pushed back here — see docs note. Pure-ish: side effects are download + localStorage writes
-   only; everything else returns plain summaries and never throws. */
+   Restore applies the browser-side state and asks the sidecar to merge the notebook. A refused
+   notebook write reports a partial restore. Exports use U.saveFile: a confirmed desktop receipt
+   names its proven path; a browser download reports only the request. */
 'use strict';
 
 const Backup = (() => {
@@ -123,23 +122,14 @@ const Backup = (() => {
     };
   }
 
-  function triggerDownload(filename, text) {
-    try {
-      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1000);
-      return true;
-    } catch (e) { console.warn('[backup] download failed:', e); return false; }
-  }
+  function utilities() { return typeof U !== 'undefined' ? U : require('../js/util.js'); }
 
   async function exportAll() {
     const bundle = await build();
     const file = 'starnet-' + slug(bundle.agentName) + '-' + stamp(new Date()) + '.json';
-    const ok = triggerDownload(file, JSON.stringify(bundle, null, 2));
+    const receipt = await utilities().saveFile({ name: file, ext: 'json', text: JSON.stringify(bundle, null, 2) });
     const records = Object.keys(bundle.store).length;
-    return { ok, file, records, keys: records, secretsIncluded: false, notes: bundle.notebook ? bundle.notebook.length : 0 };
+    return Object.assign({}, receipt, { records, keys: records, secretsIncluded: false, notes: bundle.notebook ? bundle.notebook.length : 0 });
   }
 
   /* #134 EXPORT STATION (Settings › STATION BACKUP) — the line says where the file went only as far as the app KNOWS.
@@ -150,7 +140,8 @@ const Backup = (() => {
        browser: POST /api/config/export, hand the envelope to the browser as starnet-station-<day>.json, and say
                 exactly that: the file name, and that it went to the browser's downloads.
      A desktop save the sidecar could not make (folder permission denied, an older sidecar) falls back to the browser
-     hand-off and says why. `post` is Harness.api.post ({ ok, status, j }); `download` defaults to triggerDownload. */
+     hand-off and says why. U.saveFile owns the path validation, fallback and receipt line;
+     the host still builds/redacts the station envelope. `post` is Harness.api.post ({ ok, status, j }). */
   const SECRETS_NOTE = 'secrets excluded, re-enter keys after importing';
   function stationFileName(now) {
     return 'starnet-station-' + new Date(now == null ? Date.now() : Number(now)).toISOString().slice(0, 10) + '.json';
@@ -158,32 +149,20 @@ const Backup = (() => {
   async function exportStation(opts) {
     const o = opts || {};
     const post = o.post;
-    const download = typeof o.download === 'function' ? o.download : triggerDownload;
     const body = { sections: o.sections || {} };
-    let refused = '';
-    if (o.desktop) {
-      let r = null;
-      try { r = await post('/api/config/export/save', body); } catch (e) { r = null; refused = 'the station did not answer'; }
-      const j = r && r.j;
-      if (r && r.ok && j && j.ok && j.path) {
-        return { ok: true, where: 'disk', path: String(j.path), file: String(j.file || ''), line: '✓ saved to ' + j.path + ' — ' + SECRETS_NOTE };
+    const receipt = await utilities().saveFile({ name: stationFileName(o.now), ext: 'json', desktop: o.desktop, download: o.download,
+      save: () => post('/api/config/export/save', body),
+      text: async () => {
+        let r;
+        try { r = await post('/api/config/export', body); }
+        catch (_) { throw new Error('the station did not answer'); }
+        if (!r || !r.ok || !r.j || typeof r.j !== 'object' || r.j.starnetExport !== 1) {
+          throw new Error(r && r.j && r.j.error ? String(r.j.error) : 'the station did not confirm an export envelope');
+        }
+        return JSON.stringify(r.j, null, 2);
       }
-      if (j && j.error && r.status !== 404) refused = String(j.error);
-      else if (!refused) refused = 'this station cannot save files yet';
-    }
-    let r;
-    try { r = await post('/api/config/export', body); }
-    catch (e) { return { ok: false, line: 'export failed — the station did not answer' }; }
-    if (!r || !r.ok || !r.j || typeof r.j !== 'object') {   // never download an error body as a "backup"
-      const why = (r && r.j && r.j.error) ? String(r.j.error) : ('http ' + (r ? r.status : '?'));
-      return { ok: false, line: 'export failed — ' + why };
-    }
-    const file = stationFileName(o.now);
-    if (!download(file, JSON.stringify(r.j, null, 2))) return { ok: false, line: 'export failed — the file could not be handed to the browser' };
-    const handed = refused
-      ? 'could not save it (' + refused + ') — handed to the app\'s downloads as ' + file + ' instead (usually your Downloads folder)'
-      : 'sent to your browser\'s downloads as ' + file;
-    return { ok: true, where: 'browser', file, line: handed + ' — ' + SECRETS_NOTE };
+    });
+    return receipt.ok ? Object.assign({}, receipt, { line: receipt.line + ' — ' + SECRETS_NOTE }) : receipt;
   }
 
   /* RECOVERY BUNDLE (#119, Settings › APP & BACKUP): the whole station, not the configuration EXPORT STATION writes. The
@@ -335,16 +314,16 @@ const Backup = (() => {
 
   // push the bundle's memory snapshot back to the sidecar so a restored/moved agent isn't amnesiac. The route
   // merges additively (existing notes win), so this is safe to call even over an agent that already has memory.
-  // Best-effort: a UI-only preview or unreachable sidecar just yields 0 restored.
+  // A refusal is a partial restore, never a fabricated zero-memory success.
   // memory-truth: the sidecar skips a note the Commander FORGOT (its text is on the declined list) and reports how many
   // in `forgotten` — kept on the side so the status line can say so instead of a silent shortfall.
-  let lastForgotten = 0;
-  function restoreNotebook(notes) {
-    lastForgotten = 0;
-    return fetch('/api/notebook/restore', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent: 'agent', notes: notes })
-    }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.ok) { lastForgotten = Number(j.forgotten) || 0; return j.added || 0; } return 0; }).catch(() => 0);
+  async function restoreNotebook(notes) {
+    if (typeof Harness === 'undefined' || !Harness.api) throw new Error('the station is not connected');
+    const r = await Harness.api.post('/api/notebook/restore', { agent: 'agent', notes });
+    if (!r.ok || !r.j || r.j.ok !== true || !Number.isInteger(r.j.added) || r.j.added < 0) {
+      throw new Error(Harness.api.why(r) || 'the station did not confirm restored memories');
+    }
+    return { added: r.j.added, forgotten: Number(r.j.forgotten) || 0 };
   }
 
   async function importFile(file) {
@@ -379,8 +358,13 @@ const Backup = (() => {
       } catch (_) {}
     }
     if (res.ok && Array.isArray(doc.notebook) && doc.notebook.length) {
-      res.memoriesRestored = await restoreNotebook(doc.notebook);   // fold memory back into the sidecar
-      if (lastForgotten) res.memoriesForgotten = lastForgotten;   // forgotten memories stayed forgotten
+      try {
+        const restored = await restoreNotebook(doc.notebook);
+        res.memoriesRestored = restored.added;
+        if (restored.forgotten) res.memoriesForgotten = restored.forgotten;
+      } catch (error) {
+        return Object.assign({}, res, { ok: false, error: 'Backup partly restored; memories were not confirmed. ' + String(error && error.message || error) });
+      }
     }
     return res;
   }
