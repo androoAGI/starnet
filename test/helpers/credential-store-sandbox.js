@@ -143,7 +143,7 @@ function hostOf(sc, root) {
     // the shapes index.js imports from secret-values.js and hands the store (S5); a tree before S5 has none and never reads them
     SECRET_SHAPES: req(root, 'sidecar/secret-values.js').SECRET_SHAPES,
     // the channel layer's host (S8): no file of its own here, so a wired station's channels live in memory
-    crypto: require('crypto'), DESKTOP_SHELL: (sc.env || {}).STARNET_DESKTOP_SHELL === '1', readResilient: () => ({ status: 'absent' }), bothCopiesHold: () => true, channelsFollowStation: () => true
+    crypto: require('crypto'), DESKTOP_SHELL: (sc.env || {}).STARNET_DESKTOP_SHELL === '1', readResilient: () => ({ status: 'absent' }), bothCopiesHold: () => true, channelsFollowStation: () => true, channelCredential: null
   });
   host.loadResilient = (file, tag) => { host.loads++; return tag === 'desktop-endpoints' ? (kept.file === undefined ? undefined : JSON.parse(JSON.stringify(kept.file))) : undefined; };
   host.saveCredentialRemovalVerified = (file, value, proof, tag) => { host.saves.push(JSON.stringify(value)); return kept.saveOk !== false; };
@@ -155,7 +155,7 @@ function hostOf(sc, root) {
 const HOST_NAMES = ['getProviderProfile', 'listProviderProfiles', 'normalizeProviderIdFromRegistry', 'registryProviderUsesCodex', 'registryProviderUsesDeviceOAuth',
   'providerRequiresKey', 'providerRequiresBaseUrl', 'engineCredential', 'engineKeys', 'resolveCreditsConfig', 'codexTokens', 'oauthProviders', 'accountLive',
   'anyExtraAccountLive', 'loadResilient', 'saveCredentialRemovalVerified', 'console', 'path', 'WORKSPACES', 'require', 'SECRET_SHAPES',
-  'crypto', 'DESKTOP_SHELL', 'readResilient', 'bothCopiesHold', 'channelsFollowStation'];
+  'crypto', 'DESKTOP_SHELL', 'readResilient', 'bothCopiesHold', 'channelsFollowStation', 'channelCredential'];
 // the host functions every implementation lifts from its own tree: the env readers, normalizeProvider and the credential check
 const HOST_FUNCS = ['ENV', 'envFirst', 'normalizeProvider', 'providerHasCredential'];
 // ...and this tree's, whose envFirst reads through envFirstName (S2: the readout names the variable a key came from)
@@ -267,7 +267,7 @@ function channelStation(o) {
   const factory = compile('const credentialStore = host.credentialStore;\nconst { fs, channelSecretsMod, saveJsonVerified, saveResilient, writeFileDurable, CHANNELS_DIR, CHANNEL_SECRETS_FILE, channelTokenRuntime, channelTokenDurable, failNote, expiredSignInNote, resolveReasoningEffort } = host;\n' +
     adoption + '\n' + fns.join('\n') + '\n' + block + '\n' + views + '\n' + region +
     '\nreturn { credStore, reconciled: channelsReconciled, status: () => channelSecretsStatus, records: () => channelSecrets, view: channelCredential, hub: channelHubSecrets, save: () => saveChannelSecrets(channelSecrets), botRecord: saveTelegramBotRecord,' +
-    ' push: setProviderRuntimeConfig, putPage: (p, input, opts) => credStore.putPage(p, input, opts) };', ['channelsFollowStation']);
+    ' push: setProviderRuntimeConfig, putPage: (p, input, opts) => credStore.putPage(p, input, opts) };', ['channelsFollowStation', 'channelCredential']);
   return Object.assign(factory(sc, host), { host, warns: host.warns, files: { secrets: host.CHANNEL_SECRETS_FILE, bak: host.CHANNEL_SECRETS_FILE + '.bak',
     channel: path.join(o.dir, '.secrets', 'channel-credentials.json'), channelBak: path.join(o.dir, '.secrets', 'channel-credentials.json.bak') } });
 }

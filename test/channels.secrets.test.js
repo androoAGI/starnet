@@ -471,14 +471,20 @@ const root = path.resolve(__dirname, '..');
   const pair = h => [h.key, h.baseUrl, h.configured];
   // disk mutations a boot makes, faults on demand. crashAt: after that many the process is gone, as far as the disk can tell
   function disk() {
-    const st = { ops: 0, crashAt: null, block: null };
+    const st = { ops: 0, crashAt: null, block: null, readBlock: null, readBlockAfterWrite: null };
     const fsio = new Proxy(fs, { get(t, p) {
+      if (p === 'readFileSync') return (...a) => {
+        if (st.readBlock && st.readBlock.test(String(a[0]))) throw Object.assign(new Error('EIO: read-back unavailable'), { code: 'EIO' });
+        return t[p](...a);
+      };
       if (['renameSync', 'linkSync', 'unlinkSync', 'copyFileSync'].includes(p)) return (...a) => {
         const eio = () => Object.assign(new Error('EIO: i/o error'), { code: 'EIO' });
         if (st.block && st.block.test(String(a[a.length - 1]))) throw eio();
         if (st.crashAt !== null && st.ops >= st.crashAt) throw eio();
         st.ops++;
-        return t[p](...a);
+        const result = t[p](...a);
+        if (st.readBlockAfterWrite && st.readBlockAfterWrite.test(String(a[a.length - 1]))) st.readBlock = st.readBlockAfterWrite;
+        return result;
       };
       const v = t[p];
       return typeof v === 'function' ? v.bind(t) : v;
@@ -846,6 +852,85 @@ const root = path.resolve(__dirname, '..');
     d.st.block = null;
     A.eq(change(), true, operation + ': the unchanged retry repairs and reads back the destination');
     A.eq(holders(s, OWN), [], operation + ': a proven removal leaves the key in neither copy');
+  }
+
+  // ---- review r2: every unproven bind survives until the actual records identify what can be removed ----
+  // A record write can land while its read-back fails. A later write can fail before landing. Keeping oldest+latest alone
+  // then loses the middle key the authoritative record names. Exercise a deeper chain, provider changes, both restart and
+  // explicit settlement, and the redaction/lookup readers of every retained version.
+  for (const how of ['restart', 'settle']) {
+    const d = disk(), dir = seed({ secrets: { telegram: bot({ key: OWN }) } });
+    const s = channelStation({ dir, fs: d.fsio });
+    const middle = { provider: 'anthropic', key: OLDER, baseUrl: 'http://fixture:middle-secret@127.0.0.1:9/middle/v1' };
+    const chosen = s.credStore.putChannel('telegram', middle);
+    s.records().telegram = Object.assign({}, s.records().telegram, { provider: middle.provider, credential: chosen.credential });
+    d.st.readBlockAfterWrite = /[\\/]channels[\\/]secrets\.json$/;
+    A.eq(s.save(), false, how + ': the middle record write lands but its read-back fails');
+    A.eq(json(s.files.secrets).telegram.credential, chosen.credential, how + ': actual disk names the middle bind despite failed read-back');
+    d.st.readBlock = null;
+    d.st.readBlockAfterWrite = null;
+    d.st.block = /secrets\.json/;
+    const later = [NEWER, 'sk-or-v1-final-unproven-credential-0123456789'];
+    for (const key of later) {
+      const own = s.credStore.putChannel('telegram', { provider: 'openrouter', key });
+      s.records().telegram = Object.assign({}, s.records().telegram, { provider: 'openrouter', credential: own.credential });
+      A.eq(s.save(), false, how + ': a later record cannot reach disk');
+    }
+    for (const key of [OWN, OLDER].concat(later)) {
+      A.eq(holders(s, key), ['channel', 'channelBak'], how + ': each uncertain key remains in both destination copies');
+      A.ok(s.credStore.secretValues().includes(key), how + ': each retained key stays redacted');
+    }
+    A.ok(s.credStore.secretValues().includes('middle-secret'), how + ': a retained endpoint credential stays redacted');
+    A.eq(s.credStore.channel('telegram', { provider: 'anthropic', credential: chosen.credential }).key, OLDER, how + ': a live reader resolves a middle bind on its own provider');
+    A.eq(s.credStore.channel('telegram', { provider: 'openrouter', credential: chosen.credential }).keyLost, 'gone', how + ': that middle bind never crosses a provider');
+    d.st.block = null;
+    if (how === 'settle') {
+      A.eq(s.credStore.settleChannels(S.credentialRows(s.records()).concat(S.credentialRows(json(s.files.secrets)))), true, 'settle: both live and authoritative disk records select the versions to retain');
+      A.eq([holders(s, OWN), holders(s, later[0]), holders(s, OLDER), holders(s, later[1])], [[], [], ['channel', 'channelBak'], ['channel', 'channelBak']], 'settle: only versions neither record names are removed');
+    }
+    const after = channelStation({ dir });
+    A.eq([after.view('telegram').key, after.view('telegram').provider], [OLDER, 'anthropic'], how + ': restart uses the actual saved middle key/provider');
+    A.eq([holders(after, OWN), holders(after, later[0]), holders(after, later[1])], [[], [], []], how + ': restart removes only the versions its authoritative record does not name');
+  }
+
+  // Loading a file after an unreadable boot merges its durable versions with a connect's pending in-memory entry.
+  {
+    const d = disk(), ref = { ref: 'channel', bind: 'before-unreadable' };
+    const dir = seed({ secrets: { telegramBots: { 42: bot({ credential: ref }) } }, channel: envelope({ 'telegramBots:42': entry(ref.bind, { key: OWN }) }) });
+    d.st.readBlock = /channel-credentials\.json/;
+    const s = channelStation({ dir, fs: d.fsio });
+    const input = { provider: 'openrouter', key: NEWER };
+    const pending = s.credStore.putChannel('telegramBots:42', input);
+    A.eq(pending.persisted, false, 'reload: reconnect beside an unreadable channel file is unproven');
+    d.st.block = /secrets\.json/;
+    A.eq(s.botRecord('42', { credential: pending.credential, name: 'UNPROVEN' }), false, 'reload: record failure keeps the older live bind');
+    d.st.readBlock = null;
+    A.eq(s.credStore.putChannel('telegramBots:42', input).persisted, true, 'reload: once readable the pending entry can be saved');
+    A.eq([holders(s, OWN), holders(s, NEWER)], [['channel', 'channelBak'], ['channel', 'channelBak']], 'reload: saving the pending entry preserves the newly readable durable version');
+    A.eq(s.view('telegramBots:42').key, OWN, 'reload: the live old record resolves its durable key');
+    A.eq(channelStation({ dir }).view('telegramBots:42').key, OWN, 'reload: the saved old record still resolves its key after restart');
+  }
+
+  // A failed re-add can leave a newer pending entry beside an older live record. Station-key adoption must judge that live
+  // record's bind, including endpoint-only conversion, rather than silently switching the bot to the pending version.
+  for (const ownEndpoint of [false, true]) {
+    const d = disk(), dir = seed({ secrets: { telegramBots: { 42: bot({ key: OWN, baseUrl: ownEndpoint ? U : '' }) } } });
+    const s = channelStation({ dir, fs: d.fsio });
+    const oldRef = s.records().telegramBots['42'].credential;
+    const pending = s.credStore.putChannel('telegramBots:42', { provider: 'openrouter', key: NEWER });
+    d.st.readBlockAfterWrite = /[\\/]channels[\\/]secrets\.json$/;
+    A.eq(s.botRecord('42', { credential: pending.credential, name: 'UNPROVEN' }), false, 'conversion: a re-add lands but cannot be read back, and restores its old live record');
+    d.st.block = /secrets\.json/;
+    s.putPage('openrouter', { key: NEWER }, {});
+    A.eq([s.view('telegramBots:42').key, s.records().telegramBots['42'].credential], [OWN, oldRef], 'conversion: adopting the pending key does not replace the live bot key or bind');
+    s.push('openrouter', { key: OWN });
+    if (ownEndpoint) {
+      A.eq([s.view('telegramBots:42').key, s.view('telegramBots:42').baseUrl, s.records().telegramBots['42'].credential], ['', U, oldRef], 'conversion: only the named older version becomes endpoint-only');
+      A.eq(s.credStore.channel('telegramBots:42', { provider: 'openrouter', credential: pending.credential }).key, NEWER, 'conversion: the other uncertain version retains its own key');
+    } else {
+      A.eq(s.records().telegramBots['42'].credential, { ref: 'station' }, 'conversion: adopting the live named key converts that bot');
+      A.eq([holders(s, OWN), holders(s, NEWER)], [['channel', 'channelBak'], ['channel', 'channelBak']], 'conversion: an unproven record conversion retains every prior key');
+    }
   }
 
   // ---- a crash at every write of the boot: a key is never lost, and a recovery never rolls one back ----

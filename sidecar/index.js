@@ -1200,6 +1200,7 @@ const credStore = credentialStore.makeCredentialStore({
     load: () => readResilient(CHANNEL_CREDENTIALS_FILE, 'channel-credentials'),
     save: (envelope) => saveCredentialRemovalVerified(CHANNEL_CREDENTIALS_FILE, envelope, null, 'channel-credentials'),
     verify: (envelope) => bothCopiesHold(CHANNEL_CREDENTIALS_FILE, envelope),
+    record: channelCredential,   // lazy: a conversion follows the live record's bind, not an unproven newer entry
     newBind: () => crypto.randomBytes(6).toString('hex'),
     keepsKeys: () => !DESKTOP_SHELL,   // decision 3: the OS keychain has no slot for a bot's own key, so it lasts for the session
     follow: (ids) => channelsFollowStation(ids)

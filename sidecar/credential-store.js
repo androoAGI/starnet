@@ -102,6 +102,7 @@
                                       { load() -> readJsonResilient's { status, value }, save(envelope) -> bool proven,
                                       verify(envelope) -> whether both copies on disk hold exactly this, newBind() -> a fresh
                                       stamp, keepsKeys() -> false on the desktop (a key stays out of the file),
+                                      record(id) -> the live record/view (optional; the host supplies it lazily for conversions),
                                       follow(ids) -> bool proven: those records hold a station reference now }
        deps.digest(text)              a one-way digest (optional; index.js: SHA-256 hex): how the store remembers a key a layer
                                       let go of without keeping the key (S3, below). Without it, a pure 64-bit FNV-1a
@@ -221,16 +222,17 @@
    endpoint, or both; bind stamps it to its record, so an older build's rewrite or forget leaves an orphan the next boot can tell.
      A CHANGE LANDS WITH ITS RECORD (review r1). A connect, a sync or a bot add hands putChannel the new credential before the
    record that names it is saved. The new version is written under a bind of its own, with the version the saved record names
-   kept beside it as `prev` (same fields), and channel() serves whichever version a record names. settleChannels drops the other
+   kept beside it as `prev` (same fields, with its own `prev` while earlier changes remain unproven), and channel() serves whichever
+   version a record names. settleChannels drops only versions no proven disk record or live record names
    once a record is proven on disk (index.js saveChannelSecrets after its read-back; after a save that failed and a route that
    rolled its record back, against the file a boot would read); a boot keeps the version its loaded record names (BOOT step 0).
    So a record save that fails, or a station that stops between the two, leaves the record that was saved naming a version that
    is there: neither key is lost, and a route that answered "nothing was started" changed nothing. At 86ff765db the new entry was
    written over the old one at once: a failed or interrupted provider switch left the old record naming a bind nobody held, and
    the next boot deleted the new entry as an orphan, so neither key was left; on the same provider the bot came back on the new
-   key. A station reference takes effect the same way: its entry goes once a record that says so is proven saved. Residual: two
-   changes in a row whose saves both fail drop the middle one, so if that save landed although its read-back failed, and the
-   station then stops before any later save is proven, its bot is refused until it is reconnected.
+   key. A station reference takes effect the same way: its entry goes once a record that says so is proven saved. Every unproven
+   version stays until that read-back: a failed save may have landed, so keeping only the first and last versions loses a key
+   the authoritative record can still name (review r2).
      On the desktop an entry never holds a key (decision 3): the OS keychain has no slot for one, so ownKey: true says the bot was
    given one, which lives in memory for the session, and connect answers keyPersisted: false. A URL is not a key and is kept.
      RESOLUTION (channel()). An own key is an explicit key for that provider only: never swapped, no station pool, and its own
@@ -717,11 +719,16 @@
       const saved = (channelFile !== 'unreadable' && r.value && typeof r.value === 'object') ? r.value.channels : null;
       if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
       for (const id of Object.keys(saved)) {
-        const next = entries[id] ? null : versionRow(saved[id]);
-        if (!next) continue;
-        const prev = versionRow(saved[id].prev);
-        if (prev && prev.bind !== next.bind) next.prev = prev;
-        entries[id] = next;
+        // A connect while the file was unreadable may already have a pending live version. Reading the file again must
+        // join its durable versions to that pending chain, never skip the old key because memory has the same record id.
+        const rows = versionsOf(entries[id]), seen = new Set(rows.map(v => v.bind)), savedBinds = new Set();
+        for (let raw = saved[id]; raw; raw = raw.prev) {
+          const row = versionRow(raw);
+          if (!row || savedBinds.has(row.bind)) break;
+          savedBinds.add(row.bind);
+          if (!seen.has(row.bind)) { rows.push(row); seen.add(row.bind); }
+        }
+        if (rows.length) entries[id] = versionChain(rows);
       }
     }
     // one version of an entry as the file holds it, or null: a torn or hand-edited row never loads as a key
@@ -733,8 +740,23 @@
       if (typeof e.baseUrl === 'string' && e.baseUrl.trim()) v.baseUrl = e.baseUrl.trim();
       return v;
     }
-    // the version of an entry a record names by its bind: the entry itself, or the one a change is still waiting to replace
-    const versionNamed = (e, bind) => (!e || !bind) ? null : (e.bind === bind ? e : ((e.prev && e.prev.bind === bind) ? e.prev : null));
+    function versionsOf(e) {
+      const rows = [];
+      for (let v = e; v; v = v.prev) rows.push(v);
+      return rows;
+    }
+    function versionChain(rows) {
+      let next = null;
+      for (let i = rows.length - 1; i >= 0; i--) {
+        const row = Object.assign({}, rows[i]);
+        delete row.prev;
+        if (next) row.prev = next;
+        next = row;
+      }
+      return next;
+    }
+    // Each unproven write may have landed: a record can name any retained version, not only the first or latest.
+    const versionNamed = (e, bind) => (!e || !bind) ? null : (versionsOf(e).find(v => v.bind === bind) || null);
     // the file is read at first use, and again while it stays unreadable: a file that is locked now is never written over
     function channelsReady() {
       if (channelFile === 'unloaded' || channelFile === 'unreadable') loadChannels();
@@ -750,8 +772,7 @@
         return row;
       };
       for (const id of Object.keys(entries).sort()) {
-        channels[id] = rowOf(entries[id]);
-        if (entries[id].prev) channels[id].prev = rowOf(entries[id].prev);
+        channels[id] = versionChain(versionsOf(entries[id]).map(rowOf));
       }
       return { version: 1, channels };
     }
@@ -810,9 +831,8 @@
       const next = { provider, bind: newBind(), ownKey, rev: (cur ? cur.rev : 0) + 1 };
       if (ownKey) next.key = k;
       if (url) next.baseUrl = url;
-      // the version the record on disk names: the entry, or, when a change of it is still waiting for its record, the one before
-      const landed = cur ? (cur.prev || cur) : null;
-      if (landed) { next.prev = Object.assign({}, landed); delete next.prev.prev; }
+      // No record read-back has ruled any older bind out yet. Keep all of them until settlement can do so.
+      if (cur) next.prev = cur;
       entries[rid] = next;
       const persisted = ready && saveChannels();
       return { credential: { ref: 'channel', bind: next.bind }, persisted, keyPersisted: ownKey ? (persisted && keepsChannelKeys()) : undefined };
@@ -833,12 +853,10 @@
       let changed = false;
       for (const rid of Object.keys(entries)) {
         const e = entries[rid], keep = named[rid] || new Set();
-        const mine = keep.has(e.bind), before = !!e.prev && keep.has(e.prev.bind);
-        // named as it is; or the disk and memory name one version each (a save that did not land, live for this session)
-        if (mine && (!e.prev || before)) continue;
+        const versions = versionsOf(e), retained = versions.filter(v => keep.has(v.bind));
+        if (retained.length === versions.length) continue;
         changed = true;
-        if (mine) delete e.prev;
-        else if (before) entries[rid] = e.prev;
+        if (retained.length) entries[rid] = versionChain(retained);
         else delete entries[rid];
       }
       return changed ? saveChannels() : proveChannels();
@@ -856,11 +874,23 @@
     }
     function convertChannels(provider) {
       const id = normalizeId(provider), followers = [];
+      if (!channelsReady()) return;
       let changed = false;
       for (const rid of Object.keys(entries)) {
-        const e = entries[rid];
+        const head = entries[rid];
+        // The live record can still name an older version after a failed re-add. Production supplies its view lazily;
+        // injectable hosts without a record reader retain the historical single-entry contract.
+        const record = typeof chan.record === 'function' ? chan.record(rid) : null;
+        const c = record && record.credential;
+        const e = typeof chan.record === 'function'
+          ? (record && normalize(record.provider) === id && c && c.ref === 'channel' ? versionNamed(head, c.bind) : null)
+          : head;
+        if (!e) continue;
         if (e.provider !== id || !e.key || !stationHeld(id, e.key)) continue;
-        if (keepsOwnEndpoint(id, e.key, e.baseUrl)) { entries[rid] = endpointOnly(e); changed = true; }
+        if (keepsOwnEndpoint(id, e.key, e.baseUrl)) {
+          entries[rid] = versionChain(versionsOf(head).map(v => v === e ? endpointOnly(v) : v));
+          changed = true;
+        }
         else followers.push(rid);
       }
       // the records first (the header's CONVERSION). One that is not proven saved keeps its entry on disk, and the next boot converts it
@@ -895,8 +925,9 @@
       for (const row of list) {
         const e = entries[row.id], c = row.credential;
         if (!e || !e.prev) continue;
-        if (c && c.ref === 'channel' && c.bind === e.prev.bind) entries[row.id] = e.prev;
-        else delete e.prev;
+        const named = c && c.ref === 'channel' ? versionNamed(e, c.bind) : null;
+        // A valid named version wins even deep in the chain. With no bind, recovery still uses the newest entry (step 1a).
+        entries[row.id] = versionChain([named || e]);
       }
       const planned = Object.create(null), gone = new Set();
       const toStation = id => { res.credentials[id] = { ref: 'station' }; res.followers.push(id); if (entries[id]) gone.add(id); };
@@ -978,9 +1009,9 @@
       if (typeof page.secretValues === 'function') for (const v of page.secretValues() || []) hold(v);
       const copies = ids.map(id => page.get(id) || {});
       for (const c of copies) { hold(c.key); for (const k of c.keyPool || []) hold(k); }
-      // a channel's own credential (S8), both versions while a change waits for its record, and what a record whose move failed
+      // a channel's own credential (S8), every version while changes wait for their records, and what a record whose move failed
       // still carries
-      const channels = Object.values(entries).reduce((all, e) => all.concat(e.prev ? [e, e.prev] : [e]), []).concat(Object.values(carried));
+      const channels = Object.values(entries).flatMap(versionsOf).concat(Object.values(carried));
       for (const e of channels) hold(e.key);
       if (childEnv) return Array.from(out);
       // the credential parts of the keychain's and the page copy's endpoints (live), then the environment layer's values
@@ -1109,7 +1140,7 @@
       const id = normalizeId(provider), v = String(k || '').trim();
       if (!id || !v) return false;
       const mine = e => !!e && e.provider === id && e.key === v;
-      return Object.values(entries).some(e => mine(e) || mine(e.prev)) || Object.values(carried).some(mine);
+      return Object.values(entries).some(e => versionsOf(e).some(mine)) || Object.values(carried).some(mine);
     }
     /* fromStation(provider, key): a key the station resolved for a run — a layer holds it now, or held it until a REMOVE or a
        rotation took it out — and not a channel's own key. What the in-flight watch takes; never a key a caller brought. A key a
