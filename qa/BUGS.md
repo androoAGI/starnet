@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**29** open (open+claimed) of 389 total — 0 P0 · 0 P1 · 29 P2
+**28** open (open+claimed) of 395 total — 0 P0 · 0 P1 · 28 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -246,7 +246,10 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
+| P1 | fixed | sessions | [A locked deliverables library reads as empty for the whole session, and its torn-journal copy keeps only the last incident](bugs/06a5fb9e-a-locked-deliverables-library-reads-as-empty-for.md) | agent/persist-module-1103 | d05241c24 |
+| P1 | fixed | sessions | [A locked run journal is moved aside as corrupt, so its run drops out of the run list](bugs/c836f3f7-a-locked-run-journal-is-moved-aside-as-corrupt-s.md) | agent/persist-module-1103 | d05241c24 |
 | P1 | fixed | sessions | [A second save quarantine after a restart deletes the first quarantined copy the recovery notice points to](bugs/e862d9ff-a-second-save-quarantine-after-a-restart-deletes.md) | sweep/sessions | dd8662b5c |
+| P1 | fixed | sessions | [A store that was locked at boot starts empty, and its next save overwrites every entry it never read](bugs/ca42c717-a-store-that-was-locked-at-boot-starts-empty-and.md) | agent/persist-module-1103 | 9d4f5ff13 |
 | P1 | fixed | sessions | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | comms-add-agents-0906 | cf6b3ca03c372c404bcb46997a56d570d7747d70 |
 | P1 | fixed | sessions | [Agent session focus commands can unexpectedly retarget the composer](bugs/774641dc-agent-session-focus-commands-can-unexpectedly-re.md) | typing-focus-0916-c7a2 | 86b33ace3 |
 | P1 | fixed | sessions | [An empty station file never re-seeds from the browser save and the banner blames another window](bugs/5c019483-an-empty-station-file-never-re-seeds-from-the-br.md) | sweep/onboarding | 6849ada6d |
@@ -337,7 +340,6 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | open | safecell | [A process a shell command detaches (Start-Process) survives E-STOP and sidecar exit and nothing reports it](bugs/1ac8819d-a-process-a-shell-command-detaches-start-process.md) | sweep/safecell | — |
 | P2 | open | safecell | [Execution history shows a shortened shell command instead of the full redacted command](bugs/9f908b02-execution-history-shows-a-shortened-shell-comman.md) | release-0135-prep | — |
 | P2 | open | safecell | [First file write in a fresh station can time out while the checkpoint runs inside its 10s budget](bugs/e47efecf-first-file-write-in-a-fresh-station-can-time-out.md) | agent/ollama-fixes | — |
-| P2 | open | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | — |
 | P2 | open | sessions | [Saved station opening is blocked despite a reachable engine](bugs/4c0efd8c-saved-station-opening-is-blocked-despite-a-reach.md) | release-0135-prep | — |
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
@@ -408,6 +410,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | release | [Installed Mac acceptance receipts hard-code destination version](bugs/72cc1475-installed-mac-acceptance-receipts-hard-code-dest.md) | reliability-audit-0919 | 2098a36f9 |
 | P2 | fixed | release | [Linux AppImage staging includes incompatible musl Sharp binaries](bugs/694472bf-linux-appimage-staging-includes-incompatible-mus.md) | agent/release-0112-audit-0910 | bbbd7c13a |
 | P2 | fixed | release | [Mac receipt test fails when Python is missing](bugs/046bd4a1-mac-receipt-test-fails-when-python-is-missing.md) | issue-40-investigation | 4847acd6751b5719f87dc3ef4e1d3683b2c62782 |
+| P2 | fixed | release | [Pre-update bundles carry forensic copies and legacy temps as records, and can drop a repaired journal's damage evidence](bugs/f6b8f1aa-pre-update-bundles-carry-forensic-copies-and-leg.md) | agent/persist-module-1103 | d05241c24 |
 | P2 | fixed | release | [release:preflight shows the claims row as 'authority Â· 37 claims Â· 380 locked surface files' because claims.mjs carries double-encoded UTF-8 literals](bugs/395e037c-release-preflight-shows-the-claims-row-as-author.md) | sweep/release | a0aa90243 |
 | P2 | fixed | release | [Remembered update bypasses retry backoff after a failed native check](bugs/ab2fdd8c-remembered-update-bypasses-retry-backoff-after-a.md) | agent/issue-triage-1011 | 927ffb908 |
 | P2 | fixed | release | [Scale soak misclassifies separate scheduler ticks between store polls](bugs/59040543-scale-soak-misclassifies-separate-scheduler-tick.md) | agent/release-0112-audit-0910 | 7efce3552 |
@@ -427,6 +430,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | safecell | [Windows child tools lose required runtime environment and launch directory](bugs/08802e9f-windows-child-tools-lose-required-runtime-enviro.md) | agent/session-handoff-1011 | fc3c9132a |
 | P2 | fixed | sessions | [A project forgotten under its open home polls a 404 forever while saying reconnecting](bugs/82537ce6-a-project-forgotten-under-its-open-home-polls-a.md) | sweep/sessions | 121374d64 |
 | P2 | fixed | sessions | [A task whose run was stopped reads FINISHED - RESULT READY on the board](bugs/47e83241-a-task-whose-run-was-stopped-reads-finished-resu.md) | sweep/sessions | 898cdd327 |
+| P2 | fixed | sessions | [A torn store with no usable backup is overwritten with no copy of its bytes](bugs/d50f704b-a-torn-store-with-no-usable-backup-is-overwritte.md) | agent/persist-module-1103 | 9d4f5ff13 b1b0be499 cb6ff28fa |
 | P2 | fixed | sessions | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | agent/rating-repair-0908 | a55a1ed07 |
 | P2 | fixed | sessions | [Background worker responses leave answered prompts pending](bugs/402ce8f7-background-worker-response-pending.md) | thread-ux-review-1011 | 049e6ff7e7c92b7b0f38ab34ce1eeb9ae30c7833 |
 | P2 | fixed | sessions | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | agent/useful-starters-0906 | 33d995fed |
@@ -437,6 +441,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [A delayed assignment splits one handoff into redundant lead reports](bugs/2da05ff7-delegated-report-batching.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P2 | fixed | sessions | [Earned XP appears frozen or misses ratings from another window](bugs/6ad254f9-earned-xp-appears-frozen-or-misses-ratings-from.md) | agent/xp-status-0914 | 05a399cf0 |
 | P2 | fixed | sessions | [Escape from a terminal field loses the dialog keyboard boundary](bugs/8b2ef7e7-escape-from-a-terminal-field-loses-the-dialog-ke.md) | agent/glass-demo-0909 | e6ecdd986 |
+| P2 | fixed | sessions | [Every crash mid-write leaves a uniquely named full-copy tmp file that nothing ever sweeps](bugs/75558694-every-crash-mid-write-leaves-a-uniquely-named-fu.md) | sweep/sessions | 9d4f5ff13 b1b0be499 cb6ff28fa d05241c24 |
 | P2 | fixed | sessions | [Failed session repeats FAILED badge and leaves X steady](bugs/d07d3a35-failed-session-repeats-failed-badge-and-leaves-x.md) | agent/session-failed-marker-0910 | 407ac8433 |
 | P2 | fixed | sessions | [Files dropped onto chat do not attach in the desktop app](bugs/b48aa05d-files-dropped-onto-chat-do-not-attach-in-the-des.md) | agent/chat-drop-0917 | 68a4cfabe |
 | P2 | fixed | sessions | [Internal title and goal self-talk is stored as Commander dialogue in the global transcript and recalled as such](bugs/4dee26ba-internal-title-and-goal-self-talk-is-stored-as-c.md) | sweep/sessions | 284b20ed0 |
@@ -451,6 +456,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | sessions | [Stalled finite JSON mutations never release their callers](bugs/38aad6db-stalled-finite-json-mutations-never-release-thei.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | sessions | [The fast gate's save-quota-writethrough Q3 precondition flakes when two saves land in one millisecond](bugs/c9c58539-the-fast-gate-s-save-quota-writethrough-q3-preco.md) | sweep/sessions | 0151a2b74 |
 | P2 | fixed | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | 1b374f9ba |
+| P2 | fixed | sessions | [The START FRESH marker is written in place, so a crash mid-write leaves a torn receipt that refuses every re-seed](bugs/e055f56e-the-start-fresh-marker-is-written-in-place-so-a.md) | agent/persist-module-1103 | d05241c24 |
 | P2 | fixed | sessions | [Spoken approvals clear sibling waits before confirmation](bugs/35c720c1-voice-approval-sibling-settlement.md) | thread-ux-review-1011 | fcd8007ca473d52488986537e304370c37f7f9a0 |
 | P2 | fixed | sessions | [Worker recovery rebuilds an unrelated conversation and loses reader state](bugs/abb287e8-worker-recovery-reader-state.md) | thread-ux-review-1011 | a69664135e4983fe624ec11bea6b2bd4666ee651 |
 | P2 | fixed | sessions | [Workshop Keep accepts an empty decision acknowledgement](bugs/9bc0b751-workshop-keep-accepts-an-empty-decision-acknowle.md) | agent/system-polish-0920 | 4a2028759 |
@@ -528,7 +534,7 @@ User/owner reports: **115** · source fixed: **98** · installer verified: **6**
 | autonomy | 3 |
 | providers | 8 |
 | safecell | 3 |
-| sessions | 2 |
+| sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
 | world | 1 |
