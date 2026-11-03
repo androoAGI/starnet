@@ -117,13 +117,17 @@ ok(/body\.querySelectorAll\('\[data-act="to-prov-card"\]\[data-provider\]'\)\.fo
   const mk = top => ({ scrollTop: top });
   let pane = mk(640), section = 'providers';
   const open = {}, consoleSection = { settings: 'providers' };
-  const win = { querySelector: sel => sel === '.con-pane' ? pane : null };
+  let refreshed = 0;
+  const win = { querySelector: sel => sel === '.con-pane' ? pane : null,
+    _refreshProviderStatus: () => { refreshed++; pane.scrollTop = 0; consoleSection.settings = section; } };
   open.settings = win;
-  const rerender = () => { pane = mk(0); consoleSection.settings = section; };   // the rebuild: a fresh pane at the top
+  const originalPane = pane;
+  const rerender = () => { throw new Error('provider status must not replace unrelated forms'); };
   const run = new Function('open', 'consoleSection', 'rerender', 'setTimeout', 'SETTINGS_REPAINT_COALESCE_MS',
     'let settingsRepaintQueued = false;\n' + src + '\nreturn scheduleSettingsRepaint;')(open, consoleSection, rerender, fn => fn(), 120);
   run();
   ok(pane.scrollTop === 640, 'a background repaint restores the pane scroll (got ' + pane.scrollTop + ')');
+  ok(pane === originalPane && refreshed === 1, 'provider status refresh retains the live pane and its form controllers');
   pane = mk(300); section = 'autonomy'; run();
   ok(pane.scrollTop === 0, 'a repaint that changed the section never carries the old scroll across');
 }

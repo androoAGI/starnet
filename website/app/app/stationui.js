@@ -5496,7 +5496,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const w = open.settings;
       if (!w) return;
       const before = w.querySelector('.con-pane'), section = consoleSection.settings, top = before ? before.scrollTop : 0;
-      rerender('settings');
+      // Provider probes update their own pane. Rebuilding unrelated forms would detach
+      // an in-flight save callback and erase its confirmed receipt or unsaved edits.
+      if (typeof w._refreshProviderStatus === 'function') w._refreshProviderStatus();
       const after = open.settings && open.settings.querySelector('.con-pane');
       if (after && top > 0 && consoleSection.settings === section) after.scrollTop = top;
     }, SETTINGS_REPAINT_COALESCE_MS);
@@ -8000,7 +8002,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // The inner <h4 class="ms-h"> sub-headers stay (they read as sub-labels within a section and every
     // settings test source-locks them). mountConsole builds these panes once and returns a content host
     // that spans them all, so the wireX calls below reach every control with no per-section rewire.
-    const secProviders =
+    const secProviders = () =>
       // NB: no inner "PROVIDERS" heading — the console section head already prints PROVIDERS above the pane
       // (a second identical h4 read as a duplicated title in sys-settings.png).
       '<div class="prov-list">' + providersHtml() + '</div>' +
@@ -8543,7 +8545,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let paintBackdropSwatches = () => {};
 
     const sections = [
-      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: frag(secProviders + secModels) },
+      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: el => frag(secProviders() + secModels)(el) },
       // ONE WORD: AUTONOMY — the dial and what it did while you were away are one section (the old NIGHT SHIFT
       // section folded in; openTerm maps its id here so an old deep link still lands).
       { id: 'autonomy', label: 'AUTONOMY', glyph: '◈', desc: 'Choose when agents work on their own, where that work goes, and see what they did while you were away.', build: frag(secAutonomy + secAwayActivity) },
@@ -8576,6 +8578,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
     const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
+    if (settingsWindow) settingsWindow._refreshProviderStatus = () => {
+      const pane = host.querySelector('.con-sec[data-section="providers"] .con-sec-body');
+      if (!pane || !pane.isConnected) return;
+      frag(secProviders() + secModels)(pane);
+      wireProviderActions(pane);
+      wireKeyActions(pane);
+      wireCredits(pane);
+      wireFallbackChain(pane);
+      wireTierModels(pane);
+      wireVoiceChatModel(pane);
+    };
 
     wireProviderActions(host);
     wireKeyActions(host);

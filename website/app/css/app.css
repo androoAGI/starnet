@@ -4825,6 +4825,15 @@ input[type=number].key-input:disabled { opacity: .55; cursor: not-allowed; }
 #budget-form .set-row .bg-cap { flex: 1; font-size: 16px; padding: 5px 9px; text-align: right; }
 #budget-spend { font-size: 13px; margin: 2px 0 8px; }
 #budget-spend b { color: var(--ph-bright); }
+/* Effective limits are read-only facts, not the adjacent cap-input form. Keep each value
+   separate from its label and put a saved restart value on its own line in narrow panes. */
+#budget-effective .mc-effective-payer { margin: 12px 0; }
+#budget-effective summary { cursor: pointer; }
+#budget-effective .set-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 14px; }
+#budget-effective .set-row > span:first-child { flex: 1 1 160px; min-width: 0; }
+#budget-effective .set-row > strong { flex: 0 1 auto; overflow-wrap: anywhere; }
+#budget-effective .set-row > .dim { flex: 1 1 100%; }
+#budget-effective .mc-hint { margin-bottom: 16px; }
 /* soft-pool CAP-HIT row + one-click RESUME — rendered ONLY when the governor is actually refusing new runs
    (truthful telemetry: no pool hit, no row). Warn vocabulary, same as the readiness chips. */
 #budget-pools .bg-pool-hit { display: flex; align-items: center; gap: 10px; border: 1px solid var(--warn); background: rgba(0,0,0,.32); padding: 6px 9px; margin: 2px 0 8px; font-size: 12.5px; color: var(--warn); }
