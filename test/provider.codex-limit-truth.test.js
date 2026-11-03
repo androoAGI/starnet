@@ -68,6 +68,12 @@ const METERS = { 'x-codex-primary-used-percent': '4', 'x-codex-primary-window-mi
     A.eq(friendlyError('codex http 429 — Codex quota exceeded [provider: code=rate_limit_exceeded]').kind, 'rate_limit', 'rate_limit_exceeded alone stays a rate limit');
     for (const fact of ['secondary-used-percent=100', 'resets_in_seconds=400000', 'resets_in_seconds=901'])
       A.eq(friendlyError('codex http 429 — Codex quota exceeded [provider: code=rate_limit_exceeded; ' + fact + ']').kind, 'quota_exhausted', fact + ' beats the code');
+    // a live run's error reaches the page coded: the station's rate_limit holds against the word, and never against the provider's numbers
+    for (const fact of ['secondary-used-percent=100', 'resets_in_seconds=400000', 'resets_in_seconds=901'])
+      A.eq(friendlyError('codex http 429 — Codex quota exceeded [provider: code=rate_limit_exceeded; ' + fact + ']', null, { code: 'rate_limit' }).kind, 'quota_exhausted', fact + ' beats the station\'s code too');
+    A.eq(friendlyError('codex http 429 — Codex quota exceeded, try again in 2 days', null, { code: 'rate_limit' }).kind, 'quota_exhausted', 'and so does a long stated wait');
+    A.eq(friendlyError('codex http 429 — Codex quota exceeded', null, { code: 'rate_limit' }).kind, 'rate_limit', 'the word alone stays a coded rate limit');
+    A.eq(friendlyError('codex http 429 — Codex quota exceeded [provider: code=rate_limit_exceeded; secondary-used-percent=99; resets_in_seconds=900]', null, { code: 'rate_limit' }).kind, 'rate_limit', 'numbers short of the bound stay one too');
     A.eq(friendlyError('codex http 429 — Codex quota exceeded [provider: code=rate_limit_exceeded; resets_in_seconds=900]').kind, 'rate_limit', 'a reset at the bound is still a wait');
     A.eq(friendlyError('codex http 429 — Too many requests, try again in 30s [provider: secondary-used-percent=100]').kind, 'quota_exhausted', 'a meter at its limit beats a short wait and needs no word "quota"');
     A.eq(friendlyError('codex http 429 — Too many requests, try again in 30s [provider: secondary-used-percent=99]').kind, 'rate_limit', '99% is not at its limit');
