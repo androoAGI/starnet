@@ -418,6 +418,9 @@
           state: ok ? 'delivered' : 'pending', attempts: attempts,
           deliveredAt: ok ? iso(now) : null, lastError: error,
           deliveredTargets: Array.isArray(result.deliveredTargets) ? result.deliveredTargets.slice(0, 16) : (f.deliveredTargets || []),
+          // the targets the host gave up on for good (routine-delivery.js): kept with the receipt, so a later ask never sends
+          // to them again once the host's own bounded record of that refusal is gone
+          givenUpTargets: Array.isArray(result.givenUpTargets) ? result.givenUpTargets.slice(0, 16) : (f.givenUpTargets || []),
           nextAttemptAt: ok ? null : iso(now + Math.min(900000, 60000 * Math.pow(2, Math.min(attempts - 1, 4))))
         });
       };
@@ -792,7 +795,15 @@
     return normGrants(current.unattendedGrants);
   }
 
-  function toEnvelope(jobs) { return { version: ENVELOPE_VERSION, jobs: (jobs || []).slice() }; }
+  function toEnvelope(jobs, intakeReceiptFor) {
+    return { version: ENVELOPE_VERSION, jobs: (jobs || []).map(job => {
+      if (typeof intakeReceiptFor !== 'function') return job;
+      const next = Object.assign({}, job), receipt = intakeReceiptFor(job);
+      delete next.intakeBinding;
+      if (receipt) next.intakeBinding = receipt;   // host observation only; never in EDITABLE or used to dispatch
+      return next;
+    }) };
+  }
 
   return {
     makeJob: makeJob,

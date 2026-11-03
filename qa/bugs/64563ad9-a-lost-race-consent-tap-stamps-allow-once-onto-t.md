@@ -35,3 +35,9 @@ _Found by the `sweep/channels` lane, 2026-07-28. Finder confidence: high. Severi
 ## Verdict
 
 Fixed in `96fe108d` (2026-07-29; an ancestor of trunk, in every release since v0.8.0). The hub settles the consent with resolveConsent FIRST, then acks and stamps the message with the outcome the broker applied, so a tap that lost the race is never recorded as a grant; the separate "already expired" notice still follows. Regression: test/channels.buttons.test.js case 5E now inspects the stamp and the ack, not only the follow-up (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. Settling first fixed what the stamp says. It still went out as one fire-and-forget edit, marked done before its answer was known, so a 429 left the buttons live-looking for good on every settle path, and a crash with the ask open left them live with nothing that could ever stamp them. A stamp is now a delivery in its chat's lane, and a keyboard that lands with its ask open stays on the ledger until the settle's write swaps it for the stamp, so the next boot stamps what a crash left open.
+
+The invariant: `test/channels.consent-stamp.property.test.js`: for every settle path (tap, timeout, REMOTE, E-STOP, supersede, plain stop, a crash), both landing orders, and with or without a 429 on the first edit, on the hub lifted from startTelegram, the keyboard gets exactly one edit that lands, with no reply_markup, naming what the broker did. One exception is stated in its own row: a keyboard the platform took as the process died cannot be stamped, because its message id never came back.

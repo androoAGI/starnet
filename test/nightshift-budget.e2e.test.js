@@ -12,7 +12,9 @@
    would do), the two new pre-spend declines:
      · NO runnable provider  → binding:'no-provider' (the pure gates clear, but the beat could not call anything).
      · a cross-run budget POOL exhausted (seeded ledger) → binding:'budget', and it OUTRANKS 'no-provider' (an
-       exhausted pool is the actionable reason). Both stand down BEFORE the leash is spent. */
+       exhausted pool is the actionable reason). Both stand down BEFORE the leash is spent.
+   Every workspace holds a founded station (test/helpers/station.js): the night-shift tick stands down on a workspace
+   with none, so status == what the tick would do only where a station exists. */
 'use strict';
 
 const A = require('./_assert.js');
@@ -22,6 +24,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { seedActiveStation } = require('./helpers/station.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -32,7 +35,7 @@ const FAULT_BOOT = 'const b=require(' + JSON.stringify(BUDGET) + '),mk=b.makeBud
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // clear any AMBIENT OpenRouter key from the parent env so "no runnable provider" is deterministic (the dev seed holds
-// NO secret — the key lives only in runtimeKey, sourced from these envs; blanking them removes the credential).
+// NO secret — the key lives only in the credential store, sourced from these envs; blanking them removes the credential).
 const NO_KEY = { OPENROUTER_KEY: '', OPENROUTER_API_KEY: '', SKYNET_OPENROUTER_KEY: '' };
 
 function boot(port, env, attemptsLeft, injectBudgetFault) {
@@ -67,6 +70,7 @@ async function armAndStatus(B) {
   //         is reachable — declining here spends NO leash) =====
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-noprov-'));
+    seedActiveStation(ws);
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1' };
     let { child, port } = await boot(await allocatePort(), env, 20);
     const B = 'http://' + HOST + ':' + port;
@@ -83,6 +87,7 @@ async function armAndStatus(B) {
   // ===== 2. a cross-run BUDGET pool is exhausted → a pre-spend 'budget' stand-down that OUTRANKS 'no-provider' =====
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-exhausted-'));
+    seedActiveStation(ws);
     // seed the spend ledger with a finished run that blows the governed pools and lands in the trailing-day
     // window (ts ~ now), so budget.check reports the pool blocked at boot. The shipped defaults are now
     // UNGOVERNED (budget-legibility pass 2026-07-23), so the pools under test are pinned via env.
@@ -105,6 +110,7 @@ async function armAndStatus(B) {
   //          'budget': the budget is not exhausted, and no resume or cap change would clear it =====
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-unknown-'));
+    seedActiveStation(ws);
     const dir = path.join(ws, '.spend-pending');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(path.join(dir, require('crypto').createHash('sha256').update('interrupted').digest('hex') + '.json'), JSON.stringify({ runId: 'interrupted', agentId: 'agent' }));
@@ -124,6 +130,7 @@ async function armAndStatus(B) {
   // ===== 3. PRECHECK INSPECTION FAILURE -> fail closed, spend nothing, and leave a truthful durable decision =====
   {
     const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-nsbudget-precheck-fault-'));
+    seedActiveStation(ws);   // the tick below persists its decline only for a founded station
     const env = { SKYNET_WORKSPACES: ws, SKYNET_DEV: '1', SKYNET_NIGHTSHIFT_AWAY_MS: '1', SKYNET_NIGHTSHIFT_TICK_MS: '10' };
     let { child, port } = await boot(await allocatePort(), env, 20, true);
     const B = 'http://' + HOST + ':' + port;

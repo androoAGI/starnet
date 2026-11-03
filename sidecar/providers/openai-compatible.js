@@ -3,9 +3,9 @@
    It implements the same LLMProvider seam as OpenRouter and Codex. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./ollama-native.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openaiCompatible = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.ollamaNative); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, ollamaNative) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./ollama-native.js'), require('./endpoint-facts.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openaiCompatible = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.ollamaNative, root.SK.providers.endpointFacts); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, ollamaNative, endpointFacts) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -161,6 +161,37 @@
     let n = 0, background = 0;
     for (const e of ollamaOpen.get(endpoint) || []) if (e !== self) { n++; if (e.background) background++; }
     return { n, background };
+  }
+  /* The same, for a LOCAL /v1 endpoint (LOCAL SILENCE below): server -> Set of open calls. A local server often serves
+     one request at a time, so a silent request with another StarNet call open there may only be queued behind it: that
+     request is re-sent ONCE (BUSY: ONE RE-SEND, below). Keyed by the SERVER (host:port), not the configured URL string:
+     localhost, 127.0.0.1 and [::1] on one port are one server, and so are two paths on it. */
+  const localOpen = new Map();
+  function localServerKey(url) {
+    try {
+      const u = new URL(String(url));
+      let h = String(u.hostname || '').toLowerCase();
+      if (h === 'localhost' || h === '[::1]' || h === '::1' || /^127\.\d+\.\d+\.\d+$/.test(h)) h = 'loopback';
+      return h + ':' + (u.port || (u.protocol === 'https:' ? '443' : '80'));
+    } catch (_) { return String(url || ''); }
+  }
+  function openLocalCall(url, entry) {
+    const key = localServerKey(url);
+    let calls = localOpen.get(key);
+    if (!calls) { calls = new Set(); localOpen.set(key, calls); }
+    calls.add(entry);
+    return () => { calls.delete(entry); if (!calls.size && localOpen.get(key) === calls) localOpen.delete(key); };
+  }
+  function otherLocalCalls(url, self) {
+    let n = 0;
+    for (const e of localOpen.get(localServerKey(url)) || []) if (e !== self) n++;
+    return n;
+  }
+  function ceilingText(ms) {
+    const n = Math.max(0, Math.round(Number(ms) || 0));
+    if (n < 1000) return n + ' ms';
+    const s = Math.round(n / 1000);
+    return s < 120 ? s + ' s' : (Math.round(s / 6) / 10) + ' min';
   }
   // What an endpoint TOLD us at request time outranks every catalog and table, and a catalog reload never erases it.
   const learnedByEndpoint = new Map();   // endpoint -> Map(modelId -> levels)
@@ -389,10 +420,33 @@
     // context compaction work. Callers may opt out with an explicit includeUsage: false.
     const includeUsage = opts.includeUsage !== false;
     const defaultContext = Number(opts.defaultContext || 0) || 0;
+    /* LOCAL SILENCE (local-runtime-profile lane, 2026-11-03). A CUSTOM /v1 endpoint on this computer or this network (LM
+       Studio, vLLM, llama.cpp: endpoint-facts scope loopback/private; opts.localSilence from the factory) that goes silent
+       is not a busy cloud API. A connect timeout there was re-sent by this adapter twice and then by the loop's ladder
+       (7 sends of the same prompt, each restarting it on a server that may still have been working on the first), and a
+       body that went quiet ended as two idle stalls (provider_stalled). Like the native Ollama rule (NO RE-SEND OF A
+       LOADED MODEL'S SILENCE, below), silence in ANY phase — no response headers within the local connect ceiling, headers
+       and then no first byte, or nothing between two chunks within the idle ceiling — ends the turn on errorClass
+       `local_timeout` after that ONE request, with a sentence naming the host, the phase and the wait. A server still
+       loading a model gets the local connect ceiling (the Ollama profile's 300 s) and a wait note. Kept as before: a
+       public host. A request while another StarNet call is open on the same server (ours may be queued behind it) is
+       re-sent ONCE, and a second silence ends the turn the same way (BUSY: ONE RE-SEND, requestWithRetry).
+       The ceiling: SKYNET_LOCAL_CONNECT_TIMEOUT_MS when set, else an explicitly set SKYNET_PROVIDER_CONNECT_MS (the one
+       knob every card obeyed before this lane), else the local 300 s. */
+    const endpoint = endpointFacts ? endpointFacts.of(baseUrl) : { scope: '', local: false, host: '', hostPort: '' };
+    const localSilence = opts.localSilence === true && opts.nativeOllama !== true && endpoint.local === true;
     const configuredConnectMs = Number(opts.connectTimeoutMs);
+    const envSet = name => {
+      try { const v = typeof process !== 'undefined' && process.env ? process.env[name] : null; const n = v != null && String(v).trim() !== '' ? parseInt(v, 10) : NaN; return isFinite(n) && n > 0; }
+      catch (_) { return false; }
+    };
+    const localEnvName = String(opts.localConnectEnv || 'SKYNET_LOCAL_CONNECT_TIMEOUT_MS');
+    const hostedKnobWins = localSilence && !envSet(localEnvName) && envSet('SKYNET_PROVIDER_CONNECT_MS');
+    const localConnectMs = (localSilence && !hostedKnobWins) ? Math.max(0, Math.floor(Number(opts.localConnectTimeoutMs) || 0)) : 0;
     const connectTimeoutMs = Number.isFinite(configuredConnectMs) && configuredConnectMs > 0
       ? Math.floor(configuredConnectMs)
-      : undefined;
+      : (localConnectMs > 0 ? localConnectMs : undefined);
+    const localConnectEnv = hostedKnobWins ? 'SKYNET_PROVIDER_CONNECT_MS' : localEnvName;
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;
     // Provider-profile hints (registry): whether this endpoint documents the `reasoning_effort` chat
     // param, and a tool-capability fallback for catalogs that carry no capability metadata (most raw
@@ -575,7 +629,7 @@
        placement facts below used to surface only in the error thrown at the 300 s connect ceiling — which the ladder
        retries, so the user cancelled first and never saw them. Now, once a native request has gone `waitNoteMs`
        unanswered, /api/ps is read (then again every 3x that) and the facts go to the caller as they change. */
-    const waitNoteMs = Math.max(0, Math.floor(Number(opts.waitNoteMs) || 0));
+    const waitNoteMs = Math.max(0, Math.floor(Number(opts.waitNoteMs) || 0)) || (localSilence ? Math.max(0, Math.floor(Number(opts.localWaitNoteMs) || 0)) : 0);
     function waitProbe(body, onWait, self) {
       const promptTokens = ollamaNative.estimateTokens(body);
       const server = ollamaIsLoopback ? 'Ollama' : 'Ollama at ' + ollamaHost;
@@ -599,6 +653,61 @@
         // true once any read of this attempt answered without the model listed: it may have been loading during the wait
         sawMissing() { return missing; }
       };
+    }
+    /* LOCAL SILENCE wait note: a /v1 server has no /api/ps, so the note says only what StarNet knows — the server has not
+       answered, a load can take minutes, how long StarNet will wait in all (limitMs, for the wait line), and how many other
+       StarNet calls are open there. No probe: nothing is read from the server. Re-checked every 3x waitNoteMs; a note goes
+       out only when it changes.
+       THE LIMIT IS STATED ONLY WHEN IT IS TRUE (review M3): limitMs rides the note only when this request's silence would end
+       the turn — no other StarNet call open there, or the one busy re-send already spent (self.busyResent). A request that
+       would be re-sent states none. limitElapsedMs: how long THIS request has been out, so the wait line counts the ceiling
+       from this send, not from an earlier one in the same attempt. */
+    function localWaitProbe(onWait, self) {
+      const where = endpoint.scope === 'loopback' ? ' on this computer' : ' on this network';
+      const sentAt = clock ? clock.now() : null;
+      let timer = null, stopped = false, last = '';
+      const arm = ms => { timer = setTimeout(read, ms); if (timer && typeof timer.unref === 'function') timer.unref(); };
+      function read() {
+        timer = null;
+        if (stopped) return;
+        const others = otherLocalCalls(baseUrl, self);
+        const note = 'no answer yet from the model server at ' + (endpoint.hostPort || endpoint.host) + where + ' (a server loading a model can take minutes)'
+          + (others ? ' · ' + others + ' other StarNet call' + (others === 1 ? '' : 's') + ' still open there' : '');
+        const endsTurn = !others || !!(self && self.busyResent);
+        const key = note + (endsTurn ? '|limit' : '');
+        if (key !== last) {
+          last = key;
+          onWait(endsTurn ? { phase: 'connect', note, limitMs: connectTimeoutMs || timeouts.connectMs(), limitKind: 'connect', ...(clock ? { limitElapsedMs: Math.max(0, clock.now() - sentAt) } : {}) }
+            : { phase: 'connect', note });
+        }
+        arm(waitNoteMs * 3);
+      }
+      arm(waitNoteMs);
+      return { stop() { stopped = true; if (timer) clearTimeout(timer); timer = null; }, sawMissing() { return false; } };
+    }
+    /* The turn's end on a silent LOCAL server (LOCAL SILENCE above): the timeout error keeps its "timed out" words in
+       brackets and gains the sentence and errorClass's local_timeout flag. phase: 'connect' (no response headers),
+       'first byte' (headers, then nothing), 'between chunks' (the reply stopped mid-way). resent: the one busy re-send was
+       spent (BUSY: ONE RE-SEND) — the sentence says another StarNet call was open there and the request went twice.
+       The fix line names no "context length" or "window" (review M2): those words read as a context overflow on COMMS's
+       text ladder, which told the user to start a fresh chat. */
+    function localSilenceError(e, phase, ms, env, resent) {
+      const where = endpoint.scope === 'loopback' ? 'on this computer' : 'on this network';
+      const what = phase === 'connect' ? 'sent no response headers for ' + ceilingText(ms) + ' after the request went out'
+        : phase === 'first byte' ? 'answered with headers and then sent nothing for ' + ceilingText(ms)
+        : 'stopped sending in the middle of its reply: nothing for ' + ceilingText(ms) + ' after the last chunk';
+      const original = String((e && e.message) || 'timed out');
+      e.localModelTimeout = true;
+      e.localPhase = phase;
+      e.localResent = !!resent;
+      e.ownMessage = true;
+      e.message = 'The model server at ' + (endpoint.hostPort || endpoint.host) + ' ' + where + ' ' + what + ' (' + phase + ' phase), so this turn ended. '
+        + (resent
+          ? 'Another StarNet call was open on that server, so StarNet re-sent the request once in case it was only queued behind that call; the re-send got no answer either. '
+          : 'StarNet did not re-send the request: a re-send would start the same prompt over on a server that may still be working on it. ')
+        + 'Check the server\'s own log (a model too big for that machine\'s memory can stall there), pick a smaller model in the COMMS model dock, or raise '
+        + env + ' if it needs longer. [' + original + ']';
+      return e;
     }
     // The window this model actually gets here: a pinned size, else min(its trained maximum, the ceiling).
     function usableWindow(modelMax) {
@@ -658,11 +767,12 @@
     function stream(req) { return toolschema.withRestoredArgKeys(countedOllamaCall(wireStream(req), req), req && req.tools); }
     // Each native Ollama stream is one open call on its server (see ollamaOpen) until it ends, however it ends.
     const openCalls = new WeakMap();   // req -> its ollamaOpen entry, so its own wait note never counts itself
+    // ...and each stream on a LOCAL /v1 endpoint is one open call on its base URL (localOpen, LOCAL SILENCE above).
     async function* countedOllamaCall(inner, req) {
-      if (!nativeWire || !req || typeof req !== 'object') { yield* inner; return; }
+      if (!(nativeWire || localSilence) || !req || typeof req !== 'object') { yield* inner; return; }
       const entry = { background: !(req.tools && req.tools.length) && typeof req.isTask !== 'boolean' };
       openCalls.set(req, entry);
-      const close = openOllamaCall(nativeBase, entry);
+      const close = nativeWire ? openOllamaCall(nativeBase, entry) : openLocalCall(baseUrl, entry);
       try { yield* inner; } finally { close(); }
     }
 
@@ -801,8 +911,12 @@
       const waits = [];
       let wake = null;
       const rouse = () => { if (wake) { const f = wake; wake = null; f(); } };
-      const onWait = (wire && wire.native && waitNoteMs > 0) ? w => { waits.push(w); rouse(); } : null;
-      const pending = requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), requestHeaders(req), wire, onWait);
+      // (a LOCAL /v1 endpoint's request gets its own note: LOCAL SILENCE, localWaitProbe)
+      const localCall = (localSilence && !(wire && wire.native)) ? (openCalls.get(req) || null) : null;
+      // the loop's re-send of a busy silence (req.localBusyResent, loop.js): this request is that ONE re-send
+      if (localCall && req.localBusyResent === true) localCall.busyResent = true;
+      const onWait = (((wire && wire.native) || localCall) && waitNoteMs > 0) ? w => { waits.push(w); rouse(); } : null;
+      const pending = requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), requestHeaders(req), wire, onWait, localCall);
       let noted = false;
       if (onWait) {
         let settled = false;
@@ -815,7 +929,10 @@
       let res;
       try { res = await pending; }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
-      if (noted) yield { type: 'waiting', phase: 'streaming', note: '' };
+      // A LOCAL /v1 stream says its idle ceiling once the headers are in (the wait line's "gives up after … of silence") —
+      // only when a silence would end the turn (alone there, or the busy re-send spent: review M3); else no limit
+      if (localCall && !(wire && wire.native) && (localCall.busyResent || !otherLocalCalls(baseUrl, localCall))) yield { type: 'waiting', phase: 'streaming', note: '', limitMs: timeouts.idleMs(), limitKind: 'silence' };
+      else if (noted) yield { type: 'waiting', phase: 'streaming', note: '' };
       // Native NDJSON is translated into the chat-completions chunk shape, so everything below parses one format.
       const translate = (wire && wire.native) ? ollamaNative.makeChunkTranslator() : null;
       const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
@@ -906,14 +1023,16 @@
         reasoningText = '';
         yield { type: 'reasoning', block };
       }
+      let generationId = '';
       function* emitFrom(j) {
+        if (!generationId) { generationId = provider.generationId(j && j.id); if (generationId) yield { type: 'generation', id: generationId }; }
         if (j.error) {
           const err = new Error((j.error && (j.error.message || j.error.code)) || 'provider stream error');
           err.body = j;   // the structured error (code/type) — errorClass reads it
           err.ownMessage = true;
           throw localMemoryError(err);
         }
-        if (j.usage) yield { type: 'usage', usage: j.usage };
+        if (j.usage) yield { type: 'usage', usage: generationId ? Object.assign({}, j.usage, { generation_id: generationId }) : j.usage };
         const choice = j.choices && j.choices[0];
         if (!choice) return;
         const d = choice.delta || choice.message || {};
@@ -943,11 +1062,13 @@
         }
       }
 
+      let received = 0;   // body bytes so far: a LOCAL SILENCE idle stall is 'first byte' at 0, else 'between chunks'
       try {
         let sawSentinel = false;                     // the `data: [DONE]` end-of-stream marker
         while (!sawSentinel) {
           const { value, done } = await reader.read();
           if (done) break;
+          received += (value && value.byteLength) || 0;
           buf += dec.decode(value, { stream: true });
           let nl;
           while ((nl = buf.indexOf('\n')) >= 0) {
@@ -979,6 +1100,15 @@
         if (!doneEmitted) { yield* flushReasoning(); yield { type: 'done', finishReason: null, truncated: !sawSentinel }; }
       } catch (e) {
         if (isAbort(e, req.signal)) return;
+        // LOCAL SILENCE: the idle watchdog fired on a local /v1 server with no other StarNet call open there — one request, then
+        // the truth. With another call open there (ours may be queued behind it) the loop re-sends ONCE (e.localBusy ->
+        // req.localBusyResent); a silence on that re-send ends the turn too.
+        if (localCall && !translate && e && e.code === 'PROVIDER_STREAM_TIMEOUT' && e.phase === 'idle') {
+          const phase = received ? 'between chunks' : 'first byte';
+          if (localCall.busyResent) throw localSilenceError(e, phase, timeouts.idleMs(), 'SKYNET_PROVIDER_IDLE_MS', true);
+          if (!otherLocalCalls(baseUrl, localCall)) throw localSilenceError(e, phase, timeouts.idleMs(), 'SKYNET_PROVIDER_IDLE_MS');
+          e.localBusy = true;
+        }
         throw e;
       }
     }
@@ -997,7 +1127,7 @@
       return err;
     }
 
-    async function requestWithRetry(body, signal, maxRetries, wireHeaders, wire, onWait) {
+    async function requestWithRetry(body, signal, maxRetries, wireHeaders, wire, onWait, localCall) {
       // maxRetries: the loop may LOWER this ladder (req.preStreamRetries = 0 once it owns the pacing — provider.js).
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
@@ -1011,7 +1141,8 @@
         const guard = timeouts.connectGuard(signal, connectTimeoutMs);
         const native = !!(wire && wire.native && nativeWire);
         if (wire) wire.native = native;
-        const probe = (native && onWait) ? waitProbe(body, onWait, wire.openCall) : null;   // WAIT TRUTH (#99): one per attempt
+        const probe = (native && onWait) ? waitProbe(body, onWait, wire.openCall)   // WAIT TRUTH (#99): one per attempt
+          : (!native && localCall && onWait) ? localWaitProbe(onWait, localCall) : null;
         try {
           res = await doFetch(native ? nativeBase + '/api/chat' : baseUrl + chatPath, {
             method: 'POST',
@@ -1020,6 +1151,9 @@
             signal: guard.signal
           });
         } catch (e) {
+          // this send is over: its probe says nothing more (the finally below runs only after a retry's backoff, and a
+          // note from the backoff would describe a request that is no longer out)
+          if (probe && !native) probe.stop();
           if (isAbort(e, signal)) throw e;
           provider.runtime.stampRequestHost(e, native ? nativeBase : baseUrl);   // a TLS/socket cause names no host: say which one we dialled
           // Local Ollama silent past the connect ceiling: say where the model actually runs (one /api/ps read).
@@ -1035,6 +1169,17 @@
                on errorClass `local_timeout` with the placement above. Still re-sent: a model missing from any read (a
                load may have eaten the wait, or hung), an unreadable status, another StarNet call open there. */
             if (ollamaNative.psRow(ps, body.model) && !(probe && probe.sawMissing()) && !otherOllamaCalls(nativeBase, wire.openCall).n) e.localModelTimeout = true;
+          }
+          /* LOCAL SILENCE: a local /v1 server sent no headers within the local connect ceiling. Nothing else of ours open
+             there: the turn ends now. BUSY: ONE RE-SEND (review M1) — another StarNet call open there may hold the server, so
+             this request is re-sent ONCE (here when this ladder has a rung left, else by the loop: e.localBusy ->
+             req.localBusyResent); a silence on that re-send ends the turn on local_timeout, saying the other call was open.
+             Before, a busy silence kept the whole hosted ladder: 7 sends x the 300 s local ceiling, ~37 min. */
+          if (!native && localCall && e && e.timeout && e.phase === 'connect' && !e.localModelTimeout) {
+            const ceiling = connectTimeoutMs || timeouts.connectMs();
+            if (localCall.busyResent) localSilenceError(e, 'connect', ceiling, localConnectEnv, true);
+            else if (!otherLocalCalls(baseUrl, localCall)) localSilenceError(e, 'connect', ceiling, localConnectEnv);
+            else { localCall.busyResent = true; e.localBusy = true; }
           }
           // a TLS rejection, a crash in our own request code or a loaded model's silence (above) cannot heal by re-sending:
           // fail fast, unmarked
@@ -1168,6 +1313,8 @@
     // This instance's copy of a list (a shared list is never mutated): the profile's documented levels and, on the
     // native Ollama wire, each model's served window from the /api/show facts this process already holds.
     function ownRows(list) {
+      // ENDPOINT FACTS: the window each row REPORTED (reportedWindow), before this instance's Ollama facts change any copy
+      if (endpointFacts) for (const m of list) if (m && m.context_length > 0) endpointFacts.noteWindow(baseUrl, m.id, m.context_length);
       const out = list.map(m => declare(Object.assign({}, m, {
         supported_parameters: Array.isArray(m.supported_parameters) ? m.supported_parameters.slice() : [],
         reasoningEfforts: Array.isArray(m.reasoningEfforts) ? m.reasoningEfforts.slice() : []
@@ -1211,7 +1358,7 @@
       catalog = await catalogPromise;
       if (!catalog.length) {
         catalogPromise = null;
-        if (staticModels.length) catalog = staticModels.slice();
+        if (staticModels.length) catalog = staticModels.map(m => Object.assign({}, m, { fallback: true }));
       }
       return catalog;
     }
@@ -1334,9 +1481,51 @@
       return ['none'];
     }
 
+    async function verifyCredential(o) {
+      o = o || {};
+      const headers = Object.assign({}, opts.headers || {});
+      if (key) headers.Authorization = 'Bearer ' + key;
+      const proof = await provider.verifyResponse(doFetch, baseUrl + modelsPath, { headers, signal: o.signal },
+        j => (Array.isArray(j.data) ? j.data : (Array.isArray(j.models) ? j.models : [])).map(normalizeModel).filter(Boolean),
+        !!key && opts.modelsRequireAuth !== false, classifyApiError);
+      // Some profiles deliberately ship a static roster because their chat API has no model-list
+      // route. Its 404/405 proves nothing about the key; the smallest declared model can prove auth.
+      const staticProbe = !!key && staticModels.length > 0 && [404, 405].indexOf(proof.httpStatus) >= 0;
+      if (!staticProbe && (!proof.ok || !key || opts.modelsRequireAuth !== false)) return proof;
+      // Public catalogs cannot validate an optional custom key. Prove the actual inference wire, with
+      // the caller's deadline and a tiny output ceiling, before reporting an authenticated success.
+      try {
+        let answered = false;
+        const model = staticProbe ? staticModels[0].id : (o.model || proof.models[0].id);
+        for await (const ev of stream({ model, messages: [{ role: 'user', content: 'Reply OK.' }],
+          max_tokens: 8, isTask: false, signal: o.signal })) {
+          if (ev && ev.type === 'text' && ev.delta) { answered = true; break; }
+          if (ev && ev.type === 'done' && !ev.truncated && ev.finishReason === 'stop') answered = true;
+        }
+        return Object.assign({}, proof, { ok: answered, credentialVerified: answered, reachable: true, status: answered ? 'verified' : 'unverified',
+          httpStatus: answered ? 200 : proof.httpStatus, error: undefined,
+          ...(answered ? {} : { error: 'the endpoint did not complete a verification response' }) });
+      } catch (e) {
+        const httpStatus = Number(e && e.status) || 0, rejected = classifyApiError(e, {}).reason === 'auth';
+        return { ok: false, credentialVerified: false, reachable: !!httpStatus, httpStatus,
+          status: rejected ? 'rejected' : httpStatus ? 'unavailable' : 'unreachable', error: rejected ? 'provider rejected this key (HTTP ' + httpStatus + ')' : (e && e.message || 'verification failed') };
+      }
+    }
+
+    /* ENDPOINT FACTS (endpoint-facts.js): where this endpoint is and the window its /models row reported for the model — one
+       cached object per base URL, shared by every instance on it, filled from the catalog reads that already happen (a list
+       another instance loaded for this credential is adopted first). Synchronous, no IO. A model no read reported a window
+       for reads 0, never a default or a guess. localProfile = this instance runs the LOCAL SILENCE profile. */
+    function endpointFactsOf(model) {
+      adoptShared();
+      const f = endpointFacts ? endpointFacts.snapshot(baseUrl, model) : { scope: '', local: false, host: '', hostPort: '', window: 0 };
+      f.localProfile = localSilence;
+      return f;
+    }
+
     // localRuntime names the Ollama server this instance talks to, so the loop never fails a local out-of-memory
     // over to another model on the same server.
-    return { stream, listModels, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, localRuntime: nativeBase || undefined };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
   }
 
   return { makeOpenAICompatibleProvider, _internals: { normalizeModel, reportedWindow, cleanBaseUrl, responseErrorDetail, safeErrorField, makeArgsTracker, clampToDeclared, canonicalEffort, paramNamed, supportedEffortsFrom, toolsForceNone, replayReasoningContent } };

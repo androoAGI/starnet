@@ -101,10 +101,15 @@ function staticPin() {
     sites++;
     A.ok(lines.slice(i, i + 3).join('\n').indexOf('stationEvidence') >= 0, 'index.js:' + (i + 1) + ' feeds a server-composed persona into a run and asks for the station evidence');
   });
-  A.ok(sites >= 7, 'the pin found the persona-fed run sites (' + sites + ')');
+  A.ok(sites >= 5, 'the pin found the persona-fed run sites (' + sites + ')');
   for (const f of ['cron-driver.js', 'loopjob-driver.js', path.join('remote', 'host.js')]) {
     A.ok(/stationEvidence: true/.test(fs.readFileSync(path.join(root, f), 'utf8')), f + ': a driver-launched run asks for the station evidence');
   }
+  // a routine's line hops (the scheduled fire's and Run Now's) are the ONE hop executor's routine profiles (line-job-runner): the
+  // host hands them cronSystemFor, and the profile asks for the station evidence beside it
+  const src = readSidecarSource();
+  A.eq((src.match(/LineRunner\.profiles\.(schedule|manual)\(\{[\s\S]{0,1200}?system: cronSystemFor,/g) || []).length, 2, 'both routine hop profiles are handed the server-composed persona');
+  A.ok(/system: \(h\) => o\.system\(h\.agentId\),[\s\S]{0,300}?stationEvidence: true/.test(fs.readFileSync(path.join(root, 'routing', 'line-runner.js'), 'utf8')), 'and a routine hop asks for the station evidence');
 }
 
 (async () => {

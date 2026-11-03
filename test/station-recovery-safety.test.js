@@ -315,6 +315,19 @@ function craft(base, mutate) {
     const older = craft(cap(quietWs), b => { swapLoop(b); delete b.planKeepsRows; });
     const olderRun = Recovery.rehearse({ bundle: older, scratchRoot: fresh('rehearse-older'), now: 2000 });
     A.eq(olderRun.ok, true, 'an older bundle\'s raw store is still meant to come back cleaned');
+    // a build from before the lifecycle rule captured the source workspace's reset marker under the same marker (today's capture
+    // never does: station-record.js LIFECYCLE_FILES). The plan drops that row on purpose, so it is no rewrite; every other row
+    // is still held to its own bytes
+    const withMarker = b => { b.files.push(fileRow('.fresh-start.json', '{"version":1,"erased":false,"at":"1","acknowledgedRoots":[],"quarantine":null,"moved":[]}')); };
+    const marked = craft(cap(quietWs), withMarker);
+    A.eq(marked.planKeepsRows, true, 'fixture: the reset marker rides under planKeepsRows, as such a build wrote it');
+    const markedRun = Recovery.rehearse({ bundle: marked, scratchRoot: fresh('rehearse-marker'), now: 2000 });
+    A.eq([markedRun.ok, markedRun.rewrittenByPlan], [true, []], 'rehearse: the reset marker is no rewritten row (' + JSON.stringify(markedRun.rewrittenByPlan) + ')');
+    A.ok(markedRun.droppedOnRestore.some(x => x.path === '.fresh-start.json'), 'it is dropped and named, as a restore drops it');
+    const markedCli = run(['rehearse', '--bundle', bundleFile('marked', marked)]);
+    A.eq(markedCli.status, 0, 'and the check an in-app backup prints passes it: ' + markedCli.stderr);
+    const markedTampered = Recovery.rehearse({ bundle: craft(cap(quietWs), b => { withMarker(b); swapLoop(b); }), scratchRoot: fresh('rehearse-marker-tampered'), now: 2000 });
+    A.eq([markedTampered.ok, markedTampered.rewrittenByPlan], [false, ['loops.json']], 'a changed row beside it still fails, and is the one row named');
 
     // a store with nothing to switch off keeps its exact bytes; a torn one keeps its old behaviour
     const pretty = '{"loops":[{"id":"x","enabled":false,"state":"paused"}],  "version":1}';
@@ -364,7 +377,9 @@ function craft(base, mutate) {
       fileRow('agent/name.', 'dot'), fileRow('agent/aux.c', 'c'), fileRow('agent.save.json:ads', 'stream'),
       fileRow('permissions.bypass.json', '{"on":true}'), fileRow('cron.armed.json', '{"version":1,"armed":true}'),
       fileRow('_commander.autonomy.json', '{"v":1,"posture":{"leashPerDay":99}}'),
-      fileRow('permissions.allow.json', '{"allow":["shell.exec:*","path:C:/x"],"meta":{"shell.exec:*":{"at":1}}}'));
+      fileRow('permissions.allow.json', '{"allow":["shell.exec:*","path:C:/x"],"meta":{"shell.exec:*":{"at":1}}}'),
+      // a released capture carried the source workspace's legacy reset marker (station-record.js LIFECYCLE_FILES)
+      fileRow('.fresh-start.json', '{"version":1,"at":1}'));
   });
   A.ok(Recovery.validate(released).ok, 'an old bundle with awkward names is still a valid file: ' + Recovery.validate(released).errors.join('; '));
   const releasedFile = bundleFile('released', released);
@@ -381,9 +396,10 @@ function craft(base, mutate) {
   const landedOld = run(['restore', '--bundle', releasedFile, '--target', releasedTarget, '--allow-incomplete']);
   A.eq(landedOld.status, 0, 'and has an override, because this may be the only copy: ' + landedOld.stderr);
   const oldReceiptRun = out(landedOld).receipt;
-  for (const p of ['.migration-pending', 'agent/What?.md', 'agent/a:b', 'agent/name.', 'agent/aux.c', 'agent.save.json:ads', 'permissions.bypass.json', '_commander.autonomy.json']) {
+  for (const p of ['.migration-pending', 'agent/What?.md', 'agent/a:b', 'agent/name.', 'agent/aux.c', 'agent.save.json:ads', 'permissions.bypass.json', '_commander.autonomy.json', '.fresh-start.json']) {
     A.ok(oldReceiptRun.droppedOnRestore.some(x => x.path === p), 'dropped and named: ' + p);
   }
+  A.eq(fs.existsSync(path.join(releasedTarget, '.fresh-start.json')), false, 'the source workspace\'s reset marker never lands: the restored station records its own');
   A.eq(fs.readFileSync(path.join(releasedTarget, 'agent', 'report.md'), 'utf8'), 'deliverable', 'the rest lands');
   A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'cron.armed.json'), 'utf8')).armed, false, 'an old bundle\'s routines land switched off');
   A.eq(JSON.parse(fs.readFileSync(path.join(releasedTarget, 'permissions.allow.json'), 'utf8')).allow, [], 'with no "always allow"');

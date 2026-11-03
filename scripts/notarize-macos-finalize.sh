@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Resume an existing Apple notarization submission, tolerate transient runner
-# network failures, staple the accepted ticket, and prove Gatekeeper's verdict.
+# network failures, staple the accepted ticket, and prove Gatekeeper's verdict for both
+# the DMG itself and the app inside it.
 set -euo pipefail
 
 submission_json=${1:?usage: notarize-macos-finalize.sh <submission-json> <dmg>}
@@ -68,6 +69,11 @@ if ! xcrun stapler validate "$dmg" >/dev/null 2>&1; then
   exit 75
 fi
 
+# A user's Mac assesses the disk image before it mounts anything, so the DMG's own
+# signature, ticket and Gatekeeper verdict are proven first, then the app inside it.
+bash "$(dirname "$0")/verify-macos-dmg.sh" notarized "$dmg" "$APPLE_TEAM_ID"
+dmg_sha=$(shasum -a 256 "$dmg" | awk '{print $1}')
+
 mount_point=""
 cleanup_mount() {
   if [ -n "$mount_point" ]; then hdiutil detach "$mount_point" >/dev/null 2>&1 || true; fi
@@ -87,4 +93,12 @@ if ! grep -qi 'accepted' "$spctl_output" || ! grep -qi 'source=Notarized Develop
   echo "::error::Gatekeeper did not return the notarized Developer ID verdict for $app"
   exit 1
 fi
-echo "::notice::DMG stapled and Gatekeeper accepts source=Notarized Developer ID"
+
+# The bytes uploaded next must be the bytes whose signature was just verified.
+hdiutil detach "$mount_point" >/dev/null || hdiutil detach -force "$mount_point" >/dev/null
+mount_point=""
+if [ "$(shasum -a 256 "$dmg" | awk '{print $1}')" != "$dmg_sha" ]; then
+  echo "::error::the DMG changed after its signature was verified; refusing to hand those bytes to the release"
+  exit 1
+fi
+echo "::notice::DMG stapled; Gatekeeper accepts the DMG and its app as source=Notarized Developer ID (sha256 $dmg_sha)"

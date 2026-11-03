@@ -203,7 +203,8 @@ async function run() {
     const hub = makeChannelHub({ runOnce: okRun({}), store: fakeStore(), send, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen() });
 
     await hub.onInbound({ channel: 'telegram', chatId: '777', chatType: 'dm', userId: '5', text: 'hi', messageId: '4', ts: 1 });
-    A.eq(sent[0].opts, undefined, 'a DM carries NO send opts at all — one human in the room, a quote every turn is noise');
+    // a durable reply's part carries its idempotency key (channel-delivery-ledger S2), never a route: no topic, no quote
+    A.eq(Object.keys(sent[0].opts || {}).filter(k => k !== 'idempotencyKey'), [], 'a DM carries NO route opts at all — one human in the room, a quote every turn is noise');
 
     sent.length = 0;
     await hub.onInbound({ channel: 'telegram', chatId: '-1002', chatType: 'group', userId: '9', text: 'hi', messageId: '5', ts: 1 });

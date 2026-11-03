@@ -29,6 +29,14 @@ const unreachable = ErrorClass.classifyApiError(Object.assign(new TypeError('fet
   { cause: Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:11434'), { code: 'ECONNREFUSED', address: '127.0.0.1', port: 11434 }) }), {});
 A.eq([codex429.reason, codexPlan.reason, template.reason, unreachable.reason], ['rate_limit', 'quota_exhausted', 'template_refusal', 'unreachable'],
   'fixture: the station classifies the four failures');
+// a silent local /v1 server's turn end, as openai-compatible.js localSilenceError words it (local-runtime-silence.test.js pins the
+// adapter's real text through the same reader), the wording before review M2, and native Ollama's loaded-model silence
+const LOCAL_SILENT = "The model server at 127.0.0.1:1234 on this computer sent no response headers for 5 min after the request went out (connect phase), so this turn ended. StarNet did not re-send the request: a re-send would start the same prompt over on a server that may still be working on it. Check the server's own log (a model too big for that machine's memory can stall there), pick a smaller model in the COMMS model dock, or raise SKYNET_LOCAL_CONNECT_TIMEOUT_MS if it needs longer. [provider stream connect timed out after 300000ms with no bytes received]";
+const LOCAL_SILENT_OLD = LOCAL_SILENT.replace("the server's own log (a model too big for that machine's memory can stall there)", "the server's own log and the context length it loaded the model with");
+const OLLAMA_SILENT = 'provider stream connect timed out after 300000ms with no bytes received — Ollama on this computer had qwen3:8b loaded entirely on the CPU (no part of it is on a GPU) at a 8k window but sent no response to a ~6k-token prompt. A model running on the CPU reads StarNet task prompts slowly; a smaller model, or one that fits the GPU, answers sooner.';
+A.eq(ErrorClass.classifyApiError(new Error(LOCAL_SILENT_OLD), {}).reason, 'context_overflow', 'fixture: the older wording re-read from text alone is a context overflow upstream (why COMMS must recognise the sentence)');
+// what COMMS persists for an error row (chat.js errorHistoryLine): the verdict's userMessage
+const historyLine = new Function(A.fnBody(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8'), 'function errorHistoryLine(') + '\nreturn errorHistoryLine;')();
 
 for (const [where, F] of [['node', NodeF], ['browser', BrowserF]]) {
   // 1. the code decides — a ChatGPT 429 the classifier called a rate limit is a rate limit (doneMeans), a spent plan stays one
@@ -64,6 +72,27 @@ for (const [where, F] of [['node', NodeF], ['browser', BrowserF]]) {
   A.eq(F.friendlyError('no web — the DISH is gone', null, { code: 'capability_denied' }).kind, 'capdenied', where + ': capability_denied');
   // 7. a code may ride the error object itself
   A.eq(F.friendlyError(Object.assign(new Error(codex429.message), { failureCode: 'rate_limit' })).kind, 'rate_limit', where + ': an error object\'s own failureCode');
+  // 8. a silent LOCAL server (local_timeout, local-runtime-profile review M2) has its own words: the station's sentence leads,
+  //    no ↻ Try again, the model dock is the door — and it reads the same without the code (stationui's last-reason line)
+  for (const code of ['local_timeout', undefined]) {
+    const tag = where + ' (code ' + code + ')';
+    const v = F.friendlyError(LOCAL_SILENT, null, { engineAlive: true, code });
+    A.eq([v.kind, v.retryable, v.action], ['local_timeout', false, 'settings'], tag + ': a silent local server is local_timeout, not retryable');
+    A.ok(v.userMessage.indexOf('The model server at 127.0.0.1:1234 on this computer sent no response headers for 5 min') === 0, tag + ': it leads with the station\'s sentence: ' + v.userMessage);
+    A.ok(!/try again|took too long|fresh chat|\[provider stream/i.test(v.userMessage), tag + ': no "try again", no overflow advice, the raw words stay in raw');
+    A.eq((F.actionButton(v) || {}).label, '▸ PICK A MODEL', tag + ': its door is the model dock');
+    A.eq(historyLine(v), '⚠ ' + v.userMessage, tag + ': the persisted row keeps the sentence (it survives a switch-back)');
+    const ipv6 = F.friendlyError(LOCAL_SILENT.replace('127.0.0.1:1234', '[::1]:1234'), null, { engineAlive: true, code });
+    A.ok(ipv6.userMessage.indexOf('The model server at [::1]:1234 on this computer sent no response headers for 5 min') === 0
+      && /if it needs longer\.$/.test(ipv6.userMessage), tag + ': IPv6 address brackets survive removal of the trailing transport detail: ' + ipv6.userMessage);
+    // the words an older adapter said ("the context length it loaded the model with") read local_timeout too, never context_overflow
+    A.eq(F.friendlyError(LOCAL_SILENT_OLD, null, { engineAlive: true, code }).kind, 'local_timeout', tag + ': the older wording is no context overflow');
+    // native Ollama's loaded-model silence: its placement sentence leads
+    const o = F.friendlyError(OLLAMA_SILENT, null, { engineAlive: true, code: 'local_timeout' });
+    A.ok(/^Ollama on this computer had qwen3:8b loaded entirely on the CPU/.test(o.userMessage) && /StarNet ended this turn without sending the prompt again\.$/.test(o.userMessage), where + ': Ollama\'s placement sentence leads: ' + o.userMessage);
+  }
+  // a plain timeout stays a plain timeout
+  A.eq(F.friendlyError('provider stream connect timed out after 30000ms with no bytes received', null, { engineAlive: true }).kind, 'timeout', where + ': a hosted timeout is untouched');
 }
 
 // THE ONE TABLE covers every reason the provider classifier can return (a kind, or null = the words decide)

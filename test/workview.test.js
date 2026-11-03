@@ -21,4 +21,9 @@ assert.equal(V.project({streams:[{...stream,lastRunOk:true}],deliverables:[{id:'
 assert.equal(V.routineView({enabled:true,nextRunAt:'tomorrow'},{enabled:true,halted:true}).status,'Stopped by E-STOP');
 assert.equal(V.routineView({enabled:true,nextRunAt:'tomorrow'},{enabled:true,halted:true}).next,'');
 assert.equal(V.routineView({enabled:true},{enabled:true,health:{healthy:false}}).status,'Scheduler health unconfirmed');
-console.log('workview.test: OK (19 assertions)');
+const next = '2027-01-01T09:00:00Z';
+assert.equal(V.routineView({enabled:true,nextRunAt:next,nextFireAt:null},{enabled:true,scheduler:{enabled:true,held:'halted'}}).next,'');
+assert.equal(V.routineView({enabled:true,nextRunAt:next,nextFireAt:null},{enabled:true,scheduler:{enabled:true,held:'degraded'}}).status,'Scheduler storage needs recovery');
+assert.equal(V.routineView({enabled:true,nextRunAt:next,nextFireAt:next},{enabled:true,scheduler:{enabled:true,held:null},health:{healthy:false}}).status,'Scheduler health unconfirmed');
+assert.equal(V.routineView({enabled:true,nextRunAt:next,nextFireAt:next},{enabled:true,scheduler:{enabled:true,held:null},health:{healthy:false}}).next,next);
+console.log('workview.test: OK (23 assertions)');

@@ -159,7 +159,8 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
   assert.ok(start>0 && end>start);
   function buffer() {
     let now=10000, next=0; const timers=new Map(), chunks=[];
-    const ctx={closed:0,Voice:{speakChunk:(reply,s)=>chunks.push(s),endReply(){ctx.closed++;}},willSpeak:true,speechOwner:()=>true,speakSafe:s=>s,spokenIdx:0,acc:'',name:'agent',speech:{},Date:{now:()=>now},
+    // The real page has the shared splitter when the send closure runs; this harness uses that owner too.
+    const ctx={closed:0,SpeechSplit:require('../frontend/app/speech-split.js'),Voice:{speakChunk:(reply,s)=>chunks.push(s),endReply(){ctx.closed++;}},willSpeak:true,speechOwner:()=>true,speakSafe:s=>s,spokenIdx:0,acc:'',name:'agent',speech:{},Date:{now:()=>now},
       setTimeout:(fn,ms)=>{timers.set(++next,{fn,at:now+ms});return next;},clearTimeout:id=>timers.delete(id)};
     vm.createContext(ctx);vm.runInContext(chat.slice(start,end)+'\nthis.push=pushSpeech;',ctx);
     return {ctx,chunks,timers,token:s=>{ctx.acc+=s;ctx.push(false);},wait:ms=>{now+=ms;for(const [id,t] of [...timers])if(t.at<=now){timers.delete(id);t.fn();}}};

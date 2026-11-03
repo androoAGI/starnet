@@ -47,7 +47,8 @@ const AutoJobStore = (() => {
   // won't make. Injected accessor wins; else force the shared cron resource fresh. Undefined
   // on any failure so the caller can degrade to the neutral copy rather than assert a scheduler state it can't read.
   function cronRunnable(j) {
-    return j && typeof j.enabled === 'boolean' ? !!(j.enabled && !j.halted) : undefined;
+    if (j && j.scheduler) return !j.scheduler.held;
+    return j && typeof j.enabled === 'boolean' ? !!(j.enabled && !j.halted && !j.degraded) : undefined;
   }
   async function schedulerArmed() {
     try { if (deps.schedulerArmed) return !!(await deps.schedulerArmed()); } catch (_) {}

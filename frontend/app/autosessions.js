@@ -28,7 +28,7 @@
    never .emit()s (lint-emits stays green), self-contained, reads the same /api routes the return
    ritual reads. Depends on the Workstreams / Channels / Chat / App globals loaded before it. */
 'use strict';
-const AutoSessions = (() => {
+const AutoSessions = ((TurnMerge) => {
   const STREAM_PREFIX = 'cron-';
   let routines = null;         // jobId -> { name, agentId, prompt } cache from /api/cron (lazy)
   let wired = false;           // U.bus subscriptions installed once
@@ -214,13 +214,21 @@ const AutoSessions = (() => {
   // ---- session lifecycle ----------------------------------------------------------------------
   // Adopt (idempotent) the session for one cron run and mark it busy WITHOUT stealing focus. `job`
   // (optional) supplies the human title / agent / seeding prompt; absent, the row still forms honestly.
+  // the session's seed row (the routine's prompt) names its turn the way the station named the fire's directive ('r' + the cron
+  // runId, TurnKinds.runTurnId) and the run that answered it, so the page binds it to that directive by id (turn identity)
+  function seedRow(runId, prompt) {
+    const row = { role: 'user', content: String(prompt), sourceRunId: String(runId) };
+    const turnId = typeof TurnKinds !== 'undefined' ? TurnKinds.runTurnId(runId) : '';
+    if (turnId) row.turnId = turnId;
+    return row;
+  }
   function beginSession(runId, job) {
     if (!hasWS()) return null;
     const id = streamOf(runId);
     if (!validStream(id)) return null;
     const title = (job && job.name) || 'Routine';
     const agentId = (job && job.agentId) || 'agent';
-    const seed = (job && job.prompt) ? [{ role: 'user', content: String(job.prompt) }] : [];
+    const seed = (job && job.prompt) ? [seedRow(runId, job.prompt)] : [];
     const ws = Workstreams.adopt({ id: id, title: title, agentId: agentId, lane: 'active', history: seed,
       automation: { kind: 'routine', id: (job && job.id) || '', name: title } });
     if (!ws) return null;   // a session the Commander DELETED stays deleted (adopt refused the tombstoned id)
@@ -268,11 +276,11 @@ const AutoSessions = (() => {
     for (const t of (turns || [])) {
       if (!t || (t.role !== 'user' && t.role !== 'assistant')) continue;   // mechanics (tool/system) stay out of COMMS
       const content = String(t.content == null ? '' : t.content);
-      if (t.role === 'user') { next.push({ role: 'user', content: content }); continue; }
+      if (t.role === 'user') { next.push(TurnMerge.stationRow(t)); continue; }
       // assistant: a bare '[SILENT]' reply is a REAL, honest outcome (the routine chose to stay quiet) — mark it as
       // a status line rather than dropping it to a blank thread. Empty prose (tool-only turn) is skipped.
       if (content.trim() === '[SILENT]') { next.push(sysMarker('— routine ran, nothing to report —')); continue; }
-      if (content.trim()) next.push({ role: 'assistant', content: content });
+      if (content.trim()) next.push(TurnMerge.stationRow(t));
     }
     // "said something" = a real assistant reply OR an honest sys status line we already added (e.g. a [SILENT]
     // marker). Only when NEITHER exists do we need the settled/couldn't-load fallback — so a silent run shows ONE
@@ -438,7 +446,7 @@ const AutoSessions = (() => {
     let job = routineFor(p.jobId);
     if (!job && p.jobId) {
       // unknown routine → refresh the catalogue, then (re)seed the session's title once names arrive.
-      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && j.prompt) ws.history.push({ role: 'user', content: j.prompt }); refreshRail(); persist(); } });
+      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && j.prompt) ws.history.push(seedRow(p.runId, j.prompt)); refreshRail(); persist(); } });
     }
     beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job || {}));
   }
@@ -477,6 +485,6 @@ const AutoSessions = (() => {
   function reset() { routines = null; stopReconcilePoll(); }   // a fresh Commander re-reads the catalogue; sessions are cleared by Workstreams.reset()
 
   return { init, reset, _internals: { onResult, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
-})();
+})(typeof module !== 'undefined' && module.exports ? require('./turnmerge.js') : globalThis.TurnMerge);
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { AutoSessions };

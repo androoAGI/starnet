@@ -50,8 +50,8 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
 {
   const runNow = sidecarTopLevelFunction('handleCronRun');
   A.ok(runNow.length > 2000, 'fixture: handleCronRun is sliced');
-  const stageOne = runNow.slice(runNow.indexOf('await runOnce({'), runNow.indexOf('chainRunner.advance('));
-  A.ok(/\.\.\.routineRunIdentity\(job, firedAt\)/.test(stageOne), 'Run Now\'s run carries the same identity: recipe + scope + routine id');
+  const stageOne = runNow.slice(runNow.indexOf('await runOnce({'), runNow.indexOf('lineRunner.runLineJob('));
+  A.ok(stageOne.length > 500 && /\.\.\.routineRunIdentity\(job, firedAt\)/.test(stageOne), 'Run Now\'s run carries the same identity: recipe + scope + routine id');
   A.ok(/if \(runsAsCommand\(assembledPrompt, job\.script\)\)/.test(runNow), 'Run Now applies the scheduled command rule (a script routine is a model run)');
   A.ok(!/if \(assembledPrompt\.charAt\(0\) === '\/'\)/.test(runNow), 'and no longer its own looser one');
   const src = readSidecarSource();
@@ -66,8 +66,9 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
   A.eq(['schedule', 'manual', 'directive', 'event', 'loop', 'nightshift', '', undefined].map(isRoutineTrigger),
     [true, true, false, false, false, false, false, false], "a routine's run is the clock's ('schedule') or a Run Now press ('manual'), nothing else");
   const runNow = sidecarTopLevelFunction('handleCronRun');
-  const stageOne = runNow.slice(runNow.indexOf('await runOnce({'), runNow.indexOf('chainRunner.advance('));
-  A.ok(/surface: 'autonomous', trigger: 'manual'/.test(stageOne) && !/trigger: 'schedule'/.test(runNow), "Run Now's run, its line hops and its command path are labelled 'manual', never 'schedule'");
+  const stageOne = runNow.slice(runNow.indexOf('await runOnce({'), runNow.indexOf('lineRunner.runLineJob('));
+  // (its line hops: the one hop executor's manual profile, trigger 'manual' by construction — driven in test/line-runner.test.js)
+  A.ok(/surface: 'autonomous', trigger: 'manual'/.test(stageOne) && /LineRunner\.profiles\.manual\(\{/.test(runNow) && !/trigger: 'schedule'/.test(runNow), "Run Now's run, its line hops and its command path are labelled 'manual', never 'schedule'");
   A.ok(/runSlashRoutine\(assembledPrompt, \{[^}]*trigger: 'manual' \}\)/.test(runNow), "...its command routine's run.start too");
   A.ok(/unattendedGrants: Array\.isArray\(job\.unattendedGrants\)/.test(stageOne), '...on the same unattended posture and grants as the scheduled fire');
   // every routine-only rule asks isRoutineTrigger, so a 'manual' run keeps routine.notepad, the widget grant, the images hint

@@ -58,7 +58,7 @@ const QuestStateStore = (() => {
     // it, so the quest only flashes in its log (first-hour walk 2026-09-28: QUEST COMPLETE ×3 repeated TROPHY EARNED ×3).
     const mirrorsTrophy = q && (q.kind === 'milestone' || /^ms:/.test(String(q.id || '')));
     if (!mirrorsTrophy) { try { if (typeof SFX === 'object' && SFX.quest) SFX.quest(); } catch (_) {} }
-    if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false);   // if the log is open, the row flashes gold NOW (rerender is a no-op when closed)
+    if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests');   // if the log is open, the row flashes gold NOW (rerender is a no-op when closed)
     if (mirrorsTrophy) return;
     // COMMS: the terse quest-complete broadcast — an ambient system line, not a beat-slot card (coalesced +
     // in-game-gated inside Chat.broadcast, so it never competes with the post-run ask chain).

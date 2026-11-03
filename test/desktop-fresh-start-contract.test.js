@@ -16,6 +16,10 @@ A.ok(main.includes('compare_exchange(false, true'), 'restart and fresh-start com
 A.ok(main.includes('window.clear_all_browsing_data()'), 'packaged WebView2/WKWebView state is cleared natively');
 A.ok(native.includes('fs::rename(workspaces, destination)'), 'the prior station is moved, never deleted');
 A.ok(native.includes('const CREDITS_LINK: &str = ".secrets/credits.json"'), 'the StarNet credit-account identity survives the station reset');
+// the last-resort exit never refuses over an unreadable money record (test/native-process-ownership/tests/station_contract.rs
+// holds every carry row): the link stays in the set-aside generation, and the door says so
+A.eq(/reset refused/.test(native), false, 'an unreadable account link never refuses the reset');
+A.ok(main.includes('credits_left_aside: prepared.credits_left_aside'), 'the shell reports a link left behind (additive FreshStartView.creditsLeftAside)');
 // the owner claim is judged by process identity (process_identity.rs, the sidecar's own rule): a dead PID — or one Windows
 // has since recycled for another program — cannot strand the fresh-start escape
 A.ok(native.includes('owner_holds(&claim)') && /fn claim_still_held[\s\S]{0,200}process_identity::claim_is_held\(claim\)/.test(native),

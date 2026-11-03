@@ -26,6 +26,7 @@
         feedbackRef, the threads mined there stay, and those conversations read as before. */
 'use strict';
 const { readSidecarSource } = require('./helpers/source');
+const { makeMemoryTranscriptIo } = require('./helpers/memory-transcript-io.js');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -188,7 +189,7 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
       return store;
     } finally { remove(dir); }
   }
-  await storePaths('ram', () => ({ readAll() { return []; }, append() {} }));
+  await storePaths('ram', makeMemoryTranscriptIo);
   await storePaths('segmented', dir => makeSegmentedTranscriptIo({ fs, path, root: path.join(dir, 'history'), segmentBytes: 700, recentPerStream: 4 }));
 
   // a stream RAM has trimmed is answered from disk: the disk answer forgets too (segmented io, tiny RAM window)

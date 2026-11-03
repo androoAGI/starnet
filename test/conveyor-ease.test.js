@@ -158,7 +158,7 @@ A.ok(/lastStage: \(agentId, dockId\) => router\.chainShipsToOutbox\(agentId, doc
 const oneShot = at(sidecar, 'async function stationOneShot(prompt, tag, failLead) {', 'async function handleRoutingFixSuggest(req, res) {');
 const route = at(sidecar, 'async function handleRoutingFixSuggest(req, res) {', 'async function stepTestRunDock(h) {');
 A.ok(/\{ m: 'POST', exact: '\/api\/routing\/fix-suggest', h: handleRoutingFixSuggest \}/.test(sidecar), 'POST /api/routing/fix-suggest is a route');
-A.ok(oneShot.indexOf('budget.check(null, \'agent\', 0, Date.now(), null)') > 0 && oneShot.indexOf('budget.check(') < oneShot.indexOf('provider.stream('), '…the spending cap is read BEFORE the model call');
+A.ok(oneShot.indexOf('governor.admit(\'oneshot\', { providerId, agentId: \'agent\' })') > 0 && oneShot.indexOf('governor.admit(') < oneShot.indexOf('provider.stream(') && oneShot.indexOf('budget.check(') < 0, '…the spending cap is read BEFORE the model call (the one governor, by the station model\'s payer)');
 A.ok(/cfg = sampleRunConfigFor\('agent'\)/.test(oneShot) && /ledger\.record\(\{ runId: tag \+ '-' \+ crypto\.randomUUID\(\), agentId: 'station'/.test(oneShot) && /catch \(e\) \{ failNote\(tag \+ '\.ledger', e\); \}/.test(oneShot)
   && /stationOneShot\(LineFix\.buildPrompt\(input\), 'linefix', /.test(route), '…one call on the station default model, its spend booked on the ledger (a failed booking is noted)');
 // (sweep 10-02) a call that times out or errors after usage arrived still books it — those tokens were billed

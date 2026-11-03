@@ -24,12 +24,12 @@ A.ok(/killAll\([^)]*sampleInflight\)/.test(halt), 'handleHalt passes it to killA
 const quiesce = body('quiesceForProcessFault');
 A.ok(/contain\('sample',[^\n]*killAll\(null, \(sampleHub && sampleHub\._internals\) \? sampleHub\._internals\.inflight/.test(quiesce), 'the process-fault quiesce kills the sample run in its own containment');
 
-// the hub record shape the sample hub keeps ({ runId, abort, superseded, halted }) is what killAll aborts
+// the hub record shape the sample hub keeps ({ runId, abort, endReason }) is what killAll aborts
 let aborted = 0;
-const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, superseded: false, halted: false };
+const rec = { runId: 'r1', abort: { abort: () => { aborted++; } }, endReason: null };
 const n = killAll(null, new Map([['sample', rec]]));
 A.eq(n, 1, 'killAll counts the sample run');
 A.eq(aborted, 1, 'and aborts it');
-A.ok(rec.superseded === true, 'the record is marked so the hub abandons its reply');
+A.ok(rec.endReason === 'halted', 'the record is marked so the hub abandons its reply');
 
 A.report('estop-sample-hub.test');

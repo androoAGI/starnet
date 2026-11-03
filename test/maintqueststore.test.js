@@ -37,7 +37,7 @@ global.U = {
   }
 };
 const rerenders = [];
-global.StationUI = { rerender: k => rerenders.push(k) };
+global.StationUI = { invalidate: k => rerenders.push(k) };   // the render contract: a store pokes invalidate, never a sync rebuild
 
 const { MaintQuestStore } = require('../frontend/app/maintqueststore.js');
 const diag = (reason, title, fix) => ({ reason, title: title || (reason + ' happened'), fix: fix || 'do the fix', cause: 'because' });

@@ -32,7 +32,7 @@ const { makeClock } = require('../shared/clock-rng.js');
   // quick win 17: the gate reads the run's directive as captured BEFORE the loop (the loop appends its own user-role turns,
   // e.g. a screen capture, which made the post-loop latest user text the wrong turn to judge)
   const lh = sidecarTopLevelFunction('runOnceCore');
-  A.ok(/const _lineHop = !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(runDirective\)\);/.test(lh)
+  A.ok(/const _lineHop = !!o\.lineHop \|\| !!\(Pipeline\.isHandoff && Pipeline\.isHandoff\(runDirective\)\);/.test(lh)
     && lh.indexOf('const runDirective = latestUserText(') >= 0 && lh.indexOf('const runDirective = latestUserText(') < lh.indexOf('const _lineHop ='),
     'the gate reads the run\'s own directive, captured before the loop, for the hand-off frame');
   // memory-truth-1027: every pass reads the hand-off through ONE predicate (learning-eligibility.js; the full matrix is

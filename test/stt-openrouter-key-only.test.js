@@ -1,4 +1,5 @@
-/* node test/stt-openrouter-key-only.test.js — a page credential reaches openrouter.ai ONLY when it IS an OpenRouter key.
+/* node test/stt-openrouter-key-only.test.js — a page credential reaches the OpenRouter leg ONLY when it IS an OpenRouter key,
+   and that leg dials the endpoint the key resolves to (credential-store lane, S6).
 
    The desk's push-to-talk sent `Harness.getKey()` — the key of whatever provider the page RUNS on — as
    `X-OpenRouter-Key`, and /api/stt used any such header as a Bearer token on openrouter.ai/api/v1/chat/completions.
@@ -13,9 +14,10 @@ const fsp = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { makeMediaService } = require('../sidecar/media-service.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 
 const roots = [];
-async function service(calls) {
+async function service(calls, station) {
   const workspaces = await fsp.mkdtemp(path.join(os.tmpdir(), 'starnet-sttkey-'));
   roots.push(workspaces);
   return makeMediaService({
@@ -29,9 +31,8 @@ async function service(calls) {
     nativeStt: { status: () => ({ available: false }) },
     readBody: async () => '{}',
     readBodyBuffer: async req => req.__body,
-    providerRuntimeKey: () => '', providerRuntimeBaseUrl: () => '',
+    ...stationConsumers(station).media,   // what index.js hands the service; here a station with no key of its own
     normalizeProviderId: v => String(v || '').trim().toLowerCase(),
-    getRuntimeKey: () => '',
     env: () => '', processEnv: {}, redact: String, logger: { error() {}, warn() {}, log() {} },
     now: () => 1784000000000
   });
@@ -75,6 +76,15 @@ const toOpenRouter = calls => calls.filter(c => /openrouter\.ai/.test(c.url));
       A.ok(/no key/i.test(String(r.body.reason || '')), c.name + ': the degrade names the missing transcription key: ' + r.body.reason);
     }
   }
+  // a page key dials the endpoint IT resolves to: the page copy's own when it is that key, never another key's
+  const named = { 'x-openrouter-key': 'sk-or-v1-GOOD', 'x-speech-key-provider': 'openrouter' };
+  const proxied = [];
+  await stt(await service(proxied, { page: { openrouter: { key: 'sk-or-v1-GOOD', baseUrl: 'http://proxy.test/api/v1' } } }), raw(named));
+  A.eq(proxied.map(c => [c.url, c.auth])[0], ['http://proxy.test/api/v1/chat/completions', 'Bearer sk-or-v1-GOOD'], 'the page\'s key goes to the endpoint it was saved with, never openrouter.ai');
+  A.eq(toOpenRouter(proxied).length, 0, 'nothing reaches openrouter.ai when the key was saved with another endpoint');
+  const another = [];
+  await stt(await service(another, { page: { openrouter: { key: 'sk-or-v1-STATION', baseUrl: 'http://proxy.test/api/v1' } } }), raw(named));
+  A.eq(another.map(c => [c.url, c.auth])[0], ['https://openrouter.ai/api/v1/chat/completions', 'Bearer sk-or-v1-GOOD'], 'a page key the page copy does not hold never rides that copy\'s endpoint');
   for (const root of roots) { try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) { /* temp dir */ } }
   A.report('stt-openrouter-key-only');
 })().catch(e => { console.error(e); process.exit(1); });

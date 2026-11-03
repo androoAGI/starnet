@@ -24,7 +24,7 @@ const base = { workspaceDir: WS, pathMod: path };
   A.ok(inside.includes(path.join('made', 'a.md')) && !inside.includes(WS), 'an absolute path inside the jail is shown from the jail: ' + inside);
   const noJail = note({ hasFolder: false, pathMod: path, artifacts: [{ kind: 'file', path: path.join(WS, 'a.md') }] });
   A.eq(noJail, '', 'with no known jail (a Docker or SSH path means nothing here), an absolute path is never printed');
-  A.ok(/private workspace, not a project folder/.test(n) && /whatever the report above says/.test(n) && /WORKING FOLDER/.test(n), 'says what that means and the way back: ' + n);
+  A.ok(/private workspace, not a project folder/.test(n) && /later steps and SEND TO recipient/.test(n) && /WORKING FOLDER/.test(n), 'says who can read handed files and how to keep them in a project: ' + n);
   A.eq(note(Object.assign({ hasFolder: true, artifacts: [{ kind: 'file', path: 'project/reports/q3.md' }] }, base)), '', 'a line with a working folder: a relative path IS the project');
   const abs = path.resolve(path.sep, 'trusted', 'reports', 'q3.md');
   A.eq(note(Object.assign({ hasFolder: false, artifacts: [{ kind: 'file', path: abs }] }, base)), '', 'an absolute path the tool accepted is its own proven location');

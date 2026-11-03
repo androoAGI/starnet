@@ -109,8 +109,8 @@ const QuestRefreshStore = (() => {
       try { Chat.broadcast('YOUR MAIN GOAL — CONFIRM? · ' + String(ns.text).toUpperCase()); } catch (_) {}
     }
   }
-  function afterVerdict() { if (typeof StationUI !== 'undefined' && StationUI.rerender) { try { StationUI.rerender('quests', false); } catch (_) {} } }
-  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
+  function afterVerdict() { if (typeof StationUI !== 'undefined' && StationUI.invalidate) { try { StationUI.invalidate('quests'); } catch (_) {} } }
+  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
 
   /* FOLLOW THE CYCLE TO ITS END (2026-08-13). Starting a refresh is not finishing one: the POST returns
      `started` in milliseconds while the engine works for seconds afterwards, and `inFlight` only clears on a

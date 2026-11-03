@@ -83,7 +83,16 @@ async function main() {
   assert.match(String(meteredUnpriced.error && meteredUnpriced.error.message), /incomplete/);
   assert.ok(meteredUnpriced.marked.length > 0); assert.equal(meteredUnpriced.ledger.unsettledRuns().length, 1);
   assert.equal(meteredUnpriced.rows.length, 0);
+  // A receipt limit offers COUNT AS; it does not silently settle unknown spend beneath a chosen cap.
   assert.equal(meteredUnpriced.admission.code, 'spend_history_unavailable');
+  assert.equal(meteredUnpriced.admission.unknown, true); assert.equal(meteredUnpriced.admission.countAsUsd, 0.08);
+  assert.deepEqual(meteredUnpriced.ledger.unknownItems().map(i => [i.kind, i.bound]), [['evaluation', { usd: 0.08, source: 'limit' }]]);
+  const tightAdmission = makeBudget({ ledger: meteredUnpriced.ledger, caps: { day: 0.05 }, clock: { now: () => 1 } }).check(null, 'owner', 0);
+  assert.ok(tightAdmission && tightAdmission.scope === 'day' && tightAdmission.unknown, 'the lower cap also refuses unknown spend: ' + JSON.stringify(tightAdmission));
+  meteredUnpriced.ledger.settleUnsettled(meteredUnpriced.ledger.unknownItems()[0].runId, 0.08, 'limit');
+  assert.equal(makeBudget({ ledger: meteredUnpriced.ledger, caps: { day: 1 }, clock: { now: () => 1 } }).check(null, 'owner', 0), null, 'explicit COUNT AS settles the charge beneath the larger cap');
+  const settledTight = makeBudget({ ledger: meteredUnpriced.ledger, caps: { day: 0.05 }, clock: { now: () => 1 } }).check(null, 'owner', 0);
+  assert.ok(settledTight && Math.abs(settledTight.usd - 0.08) < 1e-9 && !settledTight.unknown, 'the confirmed charge remains above the smaller cap');
   // The host must pass the provider's unmetered flag to the runner too, or the second free turn is refused again.
   const host = readSidecarSource();
   const wiring = host.slice(host.indexOf('async function handleSkillCandidateAction'));

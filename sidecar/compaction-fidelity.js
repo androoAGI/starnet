@@ -24,12 +24,13 @@
    truthful ruler there is: it calibrates whether a fold really got under the window, and a named window smaller
    than the catalog's is adopted. */
 'use strict';
+const UserText = require('../frontend/app/usertext.js');
+const TurnKinds = require('../frontend/app/turnkinds.js');
 
 const VERBATIM_OPEN = '<user_messages_verbatim>';
 const VERBATIM_CLOSE = '</user_messages_verbatim>';
 const VERBATIM_LEAD = 'The user\'s own messages from the folded part of this conversation, carried word for word (oldest first). They are the user\'s actual words and outrank any paraphrase of them in the summary above.';
 const PER_MESSAGE_MAX_CHARS = 4000;
-const SCREEN_CAPTURE_PREFIX = '[BEGIN EXTERNAL SCREEN CAPTURE';
 const STEER_RE = /^<steering_note>([\s\S]*)<\/steering_note>$/;
 const LABEL = { user: 'user message', steer: 'steering note', task: 'current task' };
 const KIND_OF = { 'user message': 'user', 'steering note': 'steer', 'current task': 'task' };
@@ -55,28 +56,14 @@ function isScreenCapture(m) {
   if (!m || m.role !== 'user' || !Array.isArray(m.content)) return false;
   for (const p of m.content) {
     const t = typeof p === 'string' ? p : (p && typeof p.text === 'string' ? p.text : null);
-    if (t != null) return t.indexOf(SCREEN_CAPTURE_PREFIX) === 0;
+    if (t != null) return TurnKinds.classify({ role: 'user', content: t }).kind === 'capture';
   }
   return false;
 }
 
 // the user's words in a message's content: string as-is; array = its text parts (images counted, never carried)
 function userText(content) {
-  if (typeof content === 'string') return content.trim() ? content : '';
-  if (!Array.isArray(content)) return '';
-  const texts = [];
-  let images = 0;
-  for (const p of content) {
-    if (typeof p === 'string') { if (p.trim()) texts.push(p); continue; }
-    if (!p || typeof p !== 'object') continue;
-    const type = String(p.type || '');
-    if (typeof p.text === 'string' && (!type || /text/.test(type))) texts.push(p.text);
-    else if (/image/.test(type)) images++;
-  }
-  if (texts.length && texts[0].indexOf(SCREEN_CAPTURE_PREFIX) === 0) return '';   // tool pixels (loop.js SCREENSHOTS AS PIXELS)
-  const t = texts.join('\n');
-  if (!t.trim()) return '';
-  return images ? t + '\n[' + images + ' image' + (images === 1 ? '' : 's') + ' attached - not carried]' : t;
+  return UserText.flatten(content, UserText.LABELLED);
 }
 
 // the user/steering words inside a slice about to be folded, oldest first. opts.pinned = the run's own request

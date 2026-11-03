@@ -108,13 +108,16 @@
       onInbound: (deps.adapter && deps.adapter.onInbound) || hub.onInbound,
       onCallback: (deps.adapter && deps.adapter.onCallback) || hub.onCallback,
       onStatus: (deps.adapter && deps.adapter.onStatus) || hub.onStatus,
-      // OUR OWN membership changed (blocked / kicked): the hub marks the chat unreachable and drops its backlog. Only
+      // OUR OWN membership changed (blocked / kicked): the hub's delivery ledger marks the chat dead and gives its backlog up. Only
       // the bespoke station-Telegram wiring passed this (quick win 21). PLUMBING ONLY today: the platforms wired here
       // (Discord, Slack, Matrix, Signal) pass onMembership through, but none of their normalizers emits a `membership`
       // update yet (telegram.js is the only one), so in production it fires for no chat until one does. What stops a
-      // registry hub retrying a chat that removed the bot today is deliver()'s undeliverable rule (quick win 22).
+      // registry hub retrying a chat that removed the bot today is the ledger's undeliverable rule (quick win 22).
       // onDelivery is the caller's per-send outcome hook (delivery health).
       onMembership: (deps.adapter && deps.adapter.onMembership) || (typeof hub.onMembership === 'function' ? hub.onMembership : undefined),
+      // the "I was offline" notices leave through the host's ONE outbound contract when it wires one (index.js: the chat's
+      // lane, the dropped message's topic, a channel.delivery 'offline'); absent, the adapter sends them on its transport
+      sendNotice: (deps.adapter && deps.adapter.sendNotice) || undefined,
       onDelivery: (deps.adapter && deps.adapter.onDelivery) || undefined,
       // the groups the paired owner admitted with /allow, read live off the hub's chat records (a caller's own
       // list still wins). Absent, every group/guild/room message was dropped on every platform (2026-10-19).
@@ -126,9 +129,9 @@
     return { hub, adapter };
   }
 
-  /* unwireChannel({ hub, adapter }) — the ONE teardown for a wired channel: close the hub FIRST (stops its outbox retry
-     timer and any flush/recovery it would start), then disconnect the adapter. Dropping only the adapter left the old
-     hub's timer redelivering the shared outbox beside the reconnected hub's (quick win 21). Never throws; false = nothing. */
+  /* unwireChannel({ hub, adapter }) — the ONE teardown for a wired channel: close the hub FIRST (stops its recover timer and
+     takes its sender off the channel's lanes), then disconnect the adapter. Dropping only the adapter left the old hub
+     sending the shared backlog beside the reconnected hub (quick win 21). Never throws; false = nothing. */
   function unwireChannel(wired) {
     if (!wired) return false;
     if (wired.hub && typeof wired.hub.close === 'function') { try { wired.hub.close(); } catch (e) { failNote('channels.registry.unwire.hub', e); } }

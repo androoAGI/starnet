@@ -89,9 +89,11 @@
     ],
     "properties": [
       "agentId",
+      "directiveRowId",
       "model",
       "runId",
-      "trigger"
+      "trigger",
+      "turnId"
     ]
   },
   "agent.token": {

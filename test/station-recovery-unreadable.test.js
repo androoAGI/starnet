@@ -14,7 +14,12 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const A = require('./_assert.js');
-const R = require('../sidecar/station-recovery.js');
+let R = require('../sidecar/station-recovery.js');
+if (process.env.RECOVERY_REFERENCE_CONTROL) {
+  const Module = require('module'), filename = require.resolve('../sidecar/station-recovery.js');
+  const control = new Module(filename, module); control.filename = filename; control.paths = Module._nodeModulePaths(path.dirname(filename));
+  control._compile(fs.readFileSync(process.env.RECOVERY_REFERENCE_CONTROL, 'utf8'), filename); R = control.exports;
+}
 const Save = require('../frontend/app/save.js');
 const { writeFileDurable } = require('../sidecar/durable-write.js');
 const { makeUpdatePreparation } = require('../sidecar/update-preparation.js');
@@ -48,6 +53,20 @@ write('.checkpoints/auditor/git/locked-pack', 'pack');
 write('.checkpoints/auditor/git/denied/inner', 'x');
 write('.browser-profile/Default/Cookies', 'COOKIE');
 write('.secrets/spotify.json', { accessToken: 'SPOTIFY_SECRET' });
+// a channel's own credential (credential-store S8): a record holds a reference, and the key and its endpoint live in .secrets/
+write('.secrets/channel-credentials.json', { version: 1, channels: { telegram: { provider: 'custom', bind: 'b1', ownKey: true, key: 'CHANNEL_OWN_KEY', baseUrl: 'http://127.0.0.1:9/CHANNEL_OWN_URL/v1', rev: 1 } } });
+const forgedBind = 'sk-or-v1-' + 'a1'.repeat(32);   // recognized by the existing export sanitizer's token-shape policy
+write('channels/secrets.json', {
+  telegram: { token: 'BOT_TOKEN', model: 'm', provider: 'custom', enabled: true, credential: { ref: 'channel', bind: 'b1', key: 'FORBIDDEN_KEY', baseUrl: 'https://fixture.invalid/FORBIDDEN_URL', nested: { token: 'FORBIDDEN_NESTED_TOKEN' } } },
+  discord: { enabled: true, credential: { ref: 'station', bind: 'FORBIDDEN_STATION_BIND', token: 'FORBIDDEN_TOKEN' } },
+  slack: { enabled: true, credential: { ref: 'channel', bind: { key: 'FORBIDDEN_NESTED_BIND' } } },
+  matrix: { enabled: true, credential: { ref: 'channel', bind: 'https://fixture.invalid/FORBIDDEN_BIND_URL' } },
+  telegramBots: {
+    '101': { enabled: true, credential: { ref: 'channel', bind: 'b2', password: 'FORBIDDEN_BOT_PASSWORD' } },
+    '102': { enabled: true, credential: { ref: 'channel', bind: forgedBind } },
+    '103': { enabled: true, credential: { ref: 'unknown', bind: 'FORBIDDEN_UNKNOWN_REF' } }
+  }
+});
 fs.mkdirSync(path.join(source, 'codex'));   // an EMPTY provider dir: nothing to exclude, so no reauth receipt
 
 const GHOST = '.checkpoints/auditor/git/tw40mZg';   // the #91 entry: enumerated, but lstat says ENOENT
@@ -113,6 +132,27 @@ try {
     A.ok(bundle.report.reauthentication.some(x => x.kind === 'credential-store' && x.id === '.secrets'), 'skipping .secrets whole still earns its reauthentication receipt');
     A.eq(bundle.report.reauthentication.some(x => x.id === 'codex'), false, 'an EMPTY provider dir claims no credentials to re-establish');
     A.eq(JSON.stringify(bundle).indexOf('SPOTIFY_SECRET') < 0 && JSON.stringify(bundle).indexOf('COOKIE') < 0, true, 'skipped-whole directories leak nothing');
+    // S8: a backup carries a channel's reference and neither its key nor its endpoint, so a restored bot is refused until it is reconnected
+    const raw = bundle.files.map(f => Buffer.from(f.data, 'base64').toString('utf8')).join('\n');
+    A.ok(!/CHANNEL_OWN_KEY|CHANNEL_OWN_URL/.test(raw) && !/BOT_TOKEN/.test(raw), 'a channel\'s own key and endpoint are in no backup file');
+    const chan = bundle.files.find(f => f.path === 'channels/secrets.json');
+    const cleanChannels = chan && JSON.parse(Buffer.from(chan.data, 'base64').toString('utf8'));
+    A.eq(cleanChannels && cleanChannels.telegram.credential, { ref: 'channel', bind: 'b1' }, 'a channel record\'s reference survives the sanitizer with no extra credential fields');
+    A.eq(cleanChannels && cleanChannels.discord.credential, { ref: 'station' }, 'a station reference preserves only its schema-owned ref');
+    A.eq(cleanChannels && cleanChannels.telegramBots['101'].credential, { ref: 'channel', bind: 'b2' }, 'typed references also survive on actual multi-bot records');
+    A.ok(cleanChannels && !cleanChannels.slack.credential && !cleanChannels.matrix.credential && !cleanChannels.telegramBots['102'].credential && !cleanChannels.telegramBots['103'].credential, 'nested, URL, token-shaped and unknown references remain excluded');
+    A.ok(!raw.includes('FORBIDDEN_') && !raw.includes(forgedBind), 'arbitrary nested/extra credential material is absent from every captured file');
+    A.ok(cleanChannels && cleanChannels.telegram.enabled === false && cleanChannels.telegramBots['101'].enabled === false, 'preserving identity never rearms a restored channel or bot');
+    const target = path.join(tmp, 'reference-restore');
+    // The unreadable-entry bundle above deliberately has restore gaps. Exercise
+    // ordinary restore with a fresh, fully readable capture of this same fixture.
+    const restoreBundle = R.capture({ workspaceRoot: source, now: 1000, appVersion: 'test' });
+    R.restore({ bundle: restoreBundle, targetRoot: target });
+    const restored = JSON.parse(fs.readFileSync(path.join(target, 'channels', 'secrets.json'), 'utf8'));
+    A.eq(restored.telegram.credential, { ref: 'channel', bind: 'b1' }, 'actual restore retains the reference through its second sanitization');
+    const unavailable = require('./helpers/credential-store-sandbox.js').sandboxStore({}).channel('telegram', restored.telegram);
+    A.eq(unavailable.keyLost, 'gone', 'the restored own-key bot requires reconnect, never silently becomes a station follower');
+    A.ok(!fs.existsSync(path.join(target, '.secrets', 'channel-credentials.json')) && !/BOT_TOKEN|CHANNEL_OWN_KEY|FORBIDDEN_/.test(JSON.stringify(restored)), 'restore transfers no excluded credential material');
   }
 
   // C. Completeness stays truthful: an unreadable file that was a category's only member reads 'missing'.

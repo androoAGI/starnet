@@ -143,4 +143,18 @@ bus.on('notify', () => { throw new Error('boom'); });
 A.notThrows(() => emit('notify', 'hello'), 'a throwing handler does not propagate out of emit');
 A.eq(emit('notify', 'hello again'), true, 'emit still succeeds despite a throwing handler');
 
+// 7. TURN IDENTITY (additive, 2026-10-29): agent.run.start may name the turn it answers (turnId) and the transcript row
+// holding its directive (directiveRowId). Both optional: an old start stays valid, and each field is type-checked, so a
+// stringly row id or a numeric turn id is rejected rather than silently carried.
+{
+  const start = { agentId: 'a', runId: 'r', trigger: 'directive', model: 'm' };
+  A.ok(events.validate('agent.run.start', start).ok, 'a start without turn ids stays valid');
+  A.ok(events.validate('agent.run.start', Object.assign({}, start, { turnId: 'tabcdefgh12345678' })).ok, 'a start carrying its turnId validates');
+  A.ok(events.validate('agent.run.start', Object.assign({}, start, { directiveRowId: 12 })).ok, 'a start carrying its directiveRowId validates');
+  A.ok(events.validate('agent.run.start', Object.assign({}, start, { trigger: 'manual', turnId: 'r0123456789', directiveRowId: 12 })).ok,
+    "one start carrying trigger 'manual', a turnId and a directiveRowId together validates");
+  A.ok(!events.validate('agent.run.start', Object.assign({}, start, { directiveRowId: '12' })).ok, "directiveRowId '12' (a string) is rejected");
+  A.ok(!events.validate('agent.run.start', Object.assign({}, start, { turnId: 7 })).ok, 'turnId 7 (a number) is rejected');
+}
+
 A.report('contract.test');

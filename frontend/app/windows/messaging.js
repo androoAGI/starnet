@@ -496,6 +496,7 @@
       if (!document.body.contains(body)) { clearInterval(buildMessaging._poll); buildMessaging._poll = null; return; }
       refreshAll();
     }, 30000);
+    if (H.scopeOf) H.scopeOf(body).own('channels-poll', closed);   // the render contract: close stops the heartbeat and drops the refresh hook
 
     // ---- connect / disconnect / forget wiring, generated per card from the catalog ----
     // the SAME selected agent supplies the id, prompt AND name (previously the id came from the active workstream

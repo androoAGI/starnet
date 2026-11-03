@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
 const source = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
-const merge = new Function('return (' + A.fnBody(source, 'function mergeCanonicalHistory(local, turns)') + ')')();
+const merge = new Function('return (' + require('./helpers/turnmerge').source('mergeCanonicalHistory') + ')')();
 const user = { role: 'user', content: 'Write and verify', sourceRunId: 'run-1' };
 const first = { role: 'assistant', content: 'Written.', sourceRunId: 'run-1', rowId: 2 };
 const last = { role: 'assistant', content: 'Checked.', sourceRunId: 'run-1', rowId: 3 };
@@ -94,5 +94,5 @@ const stoppedFinal = merge([visible, { ...rejected, stopped: true, stopNote: 'ol
 A.eq(stoppedFinal.supersededStatus, { stopped: true, stopNote: 'old attempt stopped' }, 'prior stop evidence remains separate from accepted answer status');
 A.ok(!stoppedFinal.stopped && !stoppedFinal.stopNote, 'accepted answer does not offer a stale stop retry');
 const phoneSource = fs.readFileSync(path.join(__dirname, '../sidecar/remote/host.js'), 'utf8');
-A.eq(A.fnBody(source, 'function mergeCanonicalHistory(local, turns)').replace('mergeCanonicalHistory', 'mergeCanonical'), A.fnBody(phoneSource, 'function mergeCanonical(local, turns)'), 'desktop and phone use the same reconciliation algorithm');
+A.ok(/TurnMerge\.reconcile\(/.test(source) && /TurnMerge\.merge\(/.test(phoneSource) && !/const finals = new Map\(/.test(source + phoneSource), 'desk and phone delegate to the shared owner and hold no merge body');
 A.report('chat-history-reconcile.test');

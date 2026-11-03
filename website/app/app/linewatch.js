@@ -29,10 +29,10 @@
 'use strict';
 
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('./turnkinds.js').classify : row => root.TurnKinds.classify(row));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.LineWatch = api;
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (classifyTurn) {
   const FAILED = { error: true, refusal: true, max_iters: true, budget: true };   // the floor's dead-run (slag) set
   // (typed-outcomes) the outcomes that FAIL a bay — the server's own set (sidecar/routing/line-stats.js FAILED_OUTCOMES), so the live lamp and
   // the seed after a reload agree. A provider-cut reply is neither shipped nor failed: its crate card says CUT_SHORT, never DONE.
@@ -244,7 +244,7 @@
     const rows = [];
     // the crate's OWN text first (the redacted preview the sidecar placed it with), then the run's placement, then the
     // run row's title — skipping a hop's generic handoff header, which names the mechanism, not the job
-    const rowTitle = row && row.title && !/^PIPELINE HANDOFF\b/i.test(String(row.title)) ? row.title : '';
+    const rowTitle = row && row.title && classifyTurn({ role: 'user', content: String(row.title) }).kind !== 'hop' ? row.title : '';
     const title = str(p.preview || (run && run.preview) || rowTitle || '').replace(/\s+/g, ' ').trim().slice(0, 90);
     rows.push([handoff ? 'CARRIES' : p.outbound ? 'WORKED ON' : 'JOB', title || (p.outbound ? 'the finished run' : 'no text recorded for this crate')]);
     const lineId = p.lineId || (run && run.lineId) || (row && row.lineId) || null;

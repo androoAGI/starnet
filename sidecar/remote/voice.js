@@ -25,6 +25,7 @@
      · Every size is capped: frames per utterance, bytes per frame, text per reply, bytes per chunk.
      · An utterance too short to be speech returns an empty transcript instead of reaching a paid STT leg. */
 'use strict';
+const SpeechSplit = require('../speech-split.js');
 
 const nodeCrypto = require('crypto');
 const { note } = require('../failopen.js');
@@ -257,31 +258,14 @@ function decodeAdpcm(buf) {   // the device's decoder, in JS: what the tests (an
   return { rate, samples: out };
 }
 
-/* Sentences, so the first one is spoken while the rest are still being synthesised. A sentence ends only at
-   terminal punctuation followed by a space or the end (the local engine's own rule, local-voice speechPieces):
-   "3.5", "0.13.2" and "$4.99" are one number each, never "three. five". */
+/* Sentences, so the first one is spoken while the rest are still being synthesised: THE shared splitter
+   (sidecar/speech-split.js), the rule the desk and the built-in engine cut by too. "3.5", "0.13.2", "$4.99" and
+   "Dr. Smith" are never cut at a dot. Sentences are kept together up to MAX_SENTENCE: a voice engine given ONE
+   sentence at a time reads each as a standalone announcement (careful onset, full final fall, a pause), which on the
+   device sounded stilted next to the desk speaking the same reply in one breath. */
 const MAX_SENTENCE = 240;
 function splitSentences(text) {
-  const parts = String(text).match(/[^]*?[.!?]+["')\]]*(?=\s|$)\s*|[^]+$/g) || [String(text)];
-  const out = [];
-  for (let p of parts) {
-    p = p.trim();
-    while (p.length > MAX_SENTENCE) {
-      const cut = p.lastIndexOf(' ', MAX_SENTENCE);
-      out.push(p.slice(0, cut > 40 ? cut : MAX_SENTENCE).trim());
-      p = p.slice(cut > 40 ? cut : MAX_SENTENCE).trim();
-    }
-    if (p) out.push(p);
-  }
-  // Keep sentences together up to MAX_SENTENCE: a voice engine given ONE sentence at a time reads each as a standalone
-  // announcement (careful onset, full final fall, a pause), which on the device sounded stilted and over-articulated
-  // next to the desk speaking the same reply in one breath. Only a reply longer than that is cut, at sentences.
-  const merged = [];
-  for (const p of out) {
-    if (merged.length && merged[merged.length - 1].length + 1 + p.length <= MAX_SENTENCE) merged[merged.length - 1] += ' ' + p;
-    else merged.push(p);
-  }
-  return merged;
+  return SpeechSplit.pack(text, MAX_SENTENCE);   // nothing to say: no sentences
 }
 
 /* ---------- the verbs ---------- */
@@ -372,10 +356,12 @@ function makeRemoteVoice(deps) {
   }
 
   // provider: the engine the reply's first sentence came from. Later sentences are pinned to it, so a voice model
-  // that finishes loading mid-reply (or a flaky leg) never changes the speaker or the format halfway through.
-  async function synthOne(text, provider) {
+  // that finishes loading mid-reply (or a flaky leg) never changes the speaker or the format halfway through. A
+  // transient failure is retried inside the station's ladder (sidecar/speech-ladder.js: twice, spaced, the desk's rule)
+  // before this reply gives up; the reply's `error` then says why.
+  async function synthOne(text, provider, gone) {
     let r;
-    try { r = await synthesize(text, provider ? { provider } : undefined); }
+    try { r = await synthesize(text, Object.assign(provider ? { provider } : {}, gone ? { gone } : {})); }
     catch (e) { r = { ok: false, reason: (e && e.message) || String(e), outcome: SO.outcome([SO.errorLeg('station', e)]) }; }
     // the typed SpeechOutcome rides along (sidecar/speech-outcome.js): the device is told WHICH failure, not only its text.
     // A synthesizer that answered 'ok' with no audio, or failed without an outcome, is still typed and named.
@@ -423,7 +409,7 @@ function makeRemoteVoice(deps) {
     const pending = { at: now() };
     pendingReplies.set(deviceId, pending);
     replies.delete(deviceId);
-    const first = await synthOne(sentences[0]);
+    const first = await synthOne(sentences[0], '', () => pendingReplies.get(deviceId) !== pending);
     if (pendingReplies.get(deviceId) !== pending || now() - pending.at > VOICE_TTL_MS) {
       if (pendingReplies.get(deviceId) === pending) pendingReplies.delete(deviceId);
       return { ok: false, error: 'that reply was replaced, forgotten, or expired' };
@@ -440,7 +426,7 @@ function makeRemoteVoice(deps) {
     (async () => {
       for (let i = 1; i < sentences.length; i++) {
         if (replies.get(deviceId) !== rec) return;   // replaced or forgotten: stop spending on it
-        const r = await synthOne(sentences[i], rec.provider);
+        const r = await synthOne(sentences[i], rec.provider, () => replies.get(deviceId) !== rec);
         if (replies.get(deviceId) !== rec || now() - rec.at > VOICE_TTL_MS) {
           if (replies.get(deviceId) === rec) replies.delete(deviceId);
           return;

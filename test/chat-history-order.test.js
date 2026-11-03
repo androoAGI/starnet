@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
 const source = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
-const body = A.fnBody(source, 'function mergeCanonicalHistory(local, turns)');
+const body = require('./helpers/turnmerge').source('mergeCanonicalHistory');
 A.ok(body.length > 200 && body.length < source.length / 4, 'the reconcile function sliced to its own body');
 const merge = new Function(body + '; return mergeCanonicalHistory;')();
 const sig = rows => rows.map(r => (r.sys ? 'S' : r.role[0]) + ':' + r.content);

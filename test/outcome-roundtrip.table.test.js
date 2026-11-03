@@ -137,7 +137,7 @@ const CHIP = { done: true, cut: null, asked: null, budget: null, steps: null, em
 // a channel's delivery record (the run's end, as delivered)
 const CHANNEL_REASON = { done: 'done', cut: 'done', asked: 'clarifying', codex429: 'error', template: 'error', unreachable: 'error', policy: 'error',
   budget: 'budget', steps: 'max_iters', empty: 'empty', stopped: 'cancelled', noend: 'error', thrown: 'error', delegated: 'done', delegatedNoEnd: 'error' };
-const CHANNEL_SAYS = { cut: /cut short/, empty: /empty reply/, noend: /without reporting how it finished/, thrown: /run failed: boom/, delegatedNoEnd: /without reporting how it finished/ };
+const CHANNEL_SAYS = { cut: /cut short/, empty: /empty reply/, noend: /without reporting how it finished/, thrown: /sidecar failure: boom/, delegatedNoEnd: /without reporting how it finished/ };
 // a routine: only a succeeded run is ok (and only it pings "ran on its own")
 const ROUTINE_OK = { done: true, delegated: true };
 // review r7 (the family law): a fire someone STOPPED is its own outcome — its record says 'stopped' and so does cron.result, never 'error' /
@@ -185,7 +185,7 @@ const WINDOW_SAYS = { done: '✓ ok', cut: '⚠ the reply was cut short', asked:
   delegated: '✓ ok', delegatedNoEnd: '✕ failed (no_terminal_outcome)' };
 // a work line a reviewer BLOCKED: the routine's card (the 'blocked' outcome's one producer, RunOutcome.ofLine)
 const HELD_WHY = 'the reviewer at the gate review answered VERDICT: blocked, so the work is held there — not sent on, not shipped';
-const HELD_SAYS = '⚠ held: a reviewer blocked the work';   // review r8: a hold is no failure
+const HELD_SAYS = '⚠ held: the work was not accepted';   // review r8: a hold is no failure
 
 // ================================================= THE STATION =========================================================
 // the provider's own errors, shaped as the adapters throw them
@@ -219,17 +219,22 @@ async function loopRun(kind) {
 const CORE = sidecarTopLevelFunction('runOnceCore');
 A.ok(CORE.length > 100000, 'fixture: runOnceCore is sliced from the sidecar source');
 // runOnceCore's own outcome sink, when the station has one (sliced, with the map it hands the history row's stamp through)
-const SINK_SRC = /const emit = outcomeSink\(/.test(CORE) ? sidecarTopLevelFunction('outcomeSink') : '';
+// (run-table S2: the sink sits under the run table's guard, so the chain's head is `const chainEmit = outcomeSink(`)
+const SINK_SRC = /const (emit|chainEmit) = outcomeSink\(/.test(CORE) ? sidecarTopLevelFunction('outcomeSink') : '';
 function stationEmit(collect, endedOutcomes) {
   if (!SINK_SRC) return collect;
   return new Function('RunOutcome', 'endedOutcomes', SINK_SRC + '\nreturn outcomeSink;')(RunOutcome, endedOutcomes)(collect);
 }
 // THE RUN: its events as they leave runOnceCore, whether its runOnce throws, and the loop result its history row is built from
+// THE RUN TABLE heads that chain (run-table S2: the REAL sidecar/run-table.js guard, as runOnceCore wires it), and its BELT ends a run whose
+// runOnce threw before the throw reaches any surface (runOnce's finally: the run's error words and one end, through the chain)
+const RunTableMod = require('../sidecar/run-table.js');
 async function stationRun(kind) {
   const endedOutcomes = new Map();
   const out = [];
-  const emit = stationEmit((n, p) => out.push([n, p]), endedOutcomes);
   const runId = 'r-' + kind;
+  const tableRun = RunTableMod.makeRunTable().admit({ runId, agentId: 'agent' });
+  const emit = tableRun.entry.guard(stationEmit((n, p) => out.push([n, p]), endedOutcomes));
   let result, throws = false, taskQuestionAsked = false;
   if (kind === 'asked') {
     // the loop ended 'done' on a Task Brief question; runOnceCore re-emits its buffered end as 'clarifying'
@@ -246,7 +251,9 @@ async function stationRun(kind) {
       emit('agent.run.start', { agentId: 'worker', runId: 'w-1', trigger: 'delegated', model: 'm' });
       emit('agent.run.end', RunOutcome ? RunOutcome.stamp(wEnd, null) : wEnd);
     }
-    if (kind === 'thrown') { throws = true; result = undefined; } else result = { turns: 1, messages: [] };
+    // a thrown run is ended by the belt before its throw reaches a surface; a run that RESOLVED without its end (noend) is left as it
+    // is, so every surface's own reader of a stream without an end stays pinned (the belt's own case is test/run-lifecycle.invariants)
+    if (kind === 'thrown') { throws = true; result = undefined; tableRun.entry.settle(new Error('boom'), null); } else result = { turns: 1, messages: [] };
   } else {
     const r = await loopRun(kind);
     for (const [n, p] of r.events) {
@@ -261,6 +268,7 @@ async function stationRun(kind) {
     }
     result = r.result;
   }
+  tableRun.release();
   return { kind, runId, events: out, throws, result, taskQuestionAsked, endedOutcomes };
 }
 // replay a run's events onto a surface's own sink under that surface's run id (a forwarded worker's keep the worker's)
@@ -270,16 +278,19 @@ function replay(run, emit, runId, agentId) {
     emit(n, Object.assign({}, p, lead ? { runId: runId || p.runId } : {}, lead && agentId && p.agentId ? { agentId } : {}));
   }
 }
-// what /api/run streams: the run's events, and — when its runOnce threw — the error and end handleRun's OWN catch emits (sliced)
+// what /api/run streams: the run's events, and — when its runOnce threw — what handleRun's OWN catch adds (sliced): since run-table S2
+// nothing for a run runOnce's belt ended (its bus saw that end), the balanced receipt for a throw before runOnce began
 const HANDLE_RUN_SRC = sidecarTopLevelFunction('handleRun');
 const runCatchAt = HANDLE_RUN_SRC.indexOf("    if (recovery) settleRunRecoveryContinuation(recovery, runId, 'error');");
 const RUN_CATCH = runCatchAt < 0 ? '' : HANDLE_RUN_SRC.slice(runCatchAt, HANDLE_RUN_SRC.indexOf('  } finally {', runCatchAt));
-A.ok(/emit\('agent\.run\.error'/.test(RUN_CATCH) && /emit\('agent\.run\.end'/.test(RUN_CATCH), 'fixture: handleRun\'s catch (the thrown run\'s error and end) is sliced');
+A.ok(/RunTable\.thrownReceipt\(/.test(RUN_CATCH) && /if \(!leadEnded\)/.test(RUN_CATCH), 'fixture: handleRun\'s catch (the receipt of a throw its belt did not end) is sliced');
 function wireOf(run) {
   const w = run.events.slice();
   if (run.throws) {
-    new Function('e', 'recovery', 'leadStarted', 'leadEnded', 'agentId', 'runId', 'model', 'emit', 'failNote', 'settleRunRecoveryContinuation', 'RunOutcome', RUN_CATCH)(
-      new Error('boom'), null, true, false, 'agent', run.runId, 'm', (n, p) => w.push([n, p]), () => {}, () => {}, RunOutcome || undefined);
+    // handleRun's bus marks what reached the page under the run's own id, exactly as the route does
+    const seen = name => w.some(([n, p]) => n === name && p && p.runId === run.runId);
+    new Function('e', 'recovery', 'leadStarted', 'leadEnded', 'agentId', 'runId', 'model', 'emit', 'failNote', 'settleRunRecoveryContinuation', 'RunOutcome', 'RunTable', RUN_CATCH)(
+      new Error('boom'), null, seen('agent.run.start'), seen('agent.run.end'), 'agent', run.runId, 'm', (n, p) => w.push([n, p]), () => {}, () => {}, RunOutcome || undefined, RunTableMod);
   }
   return w;
 }
@@ -324,6 +335,8 @@ async function viaComms(run) {
   const sb = {
     // (review 8.1: the branch settles the board by the run's OUTCOME — Harness.chat's stamp — never the error flag alone)
     runOutcome: res.outcome, RunOutcome: RunOutcome || undefined,
+    TurnMerge: require('../frontend/app/turnmerge.js'),
+    liveRunTurns: new Map([['w', { sourceRunId: run.runId, turnId: require('../frontend/app/turnkinds.js').runTurnId(run.runId) }]]), retryDirectiveTurn: null,
     error: res.error, errorCode: res.errorCode, ws: { id: 'w', agentId: 'agent', history: [] }, acc: '', thisRunId: run.runId, runRoot: null, retry: false,
     text: 'go', input: null, busyRefusal: '', Friendly: BrowserFriendly, persistPartial() {}, Workstreams: { noteRunEnd() {} },
     StationUI: { notify() {} }, isActiveWs: () => true, activeLiveRow: { error: m => shown.push(m) }, resolvePresence() {},
@@ -366,7 +379,7 @@ const BUTTON_SRC = btnAt < 0 ? '' : btnSrc.slice(btnAt, btnSrc.indexOf('\n', btn
 A.ok(/agent\.run\.error/.test(BUTTON_SRC) && /notify\(/.test(BUTTON_SRC), 'fixture: the Run Now button\'s stream reader and verdict are sliced');
 async function viaRunNowButton(run) {
   const wire = run.events.slice();
-  if (run.throws) wire.push(['agent.run.error', { agentId: 'agent', runId: run.runId, message: 'sidecar failure: boom', transient: false }]);   // handleCronRun's catch
+  // (handleCronRun's catch emitted the thrown run's error here before run-table S2; runOnce's belt now ends it on the stream itself)
   const bytes = new TextEncoder().encode(wire.map(([name, payload]) => JSON.stringify({ name, payload })).join('\n') + '\n');
   let sent = false;
   const reader = { async read() { if (sent) return { done: true }; sent = true; return { done: false, value: bytes }; } };
@@ -497,27 +510,33 @@ A.ok(/const teeEmit = \(name, payload\) => \{/.test(RUN_NOW_SINK), 'fixture: Run
 A.ok(/\} finally \{/.test(RUN_NOW_SETTLE) && /cronDriver\.settleRun\(job\.id, runId, state, null\)/.test(RUN_NOW_SETTLE), 'fixture: Run Now\'s catch and finally are sliced, through the shared settlement');
 const cronDriverMod = require('../sidecar/cron-driver.js');
 const { foldLineIntoFire } = require('../sidecar/routing/line-fire.js');
+// Run Now's tee joins its reply the way every reply sink does (channel-delivery-ledger: sidecar/reply-assembler.js)
+const { makeReplyAssembler } = require('../sidecar/reply-assembler.js');
+const LineRunner = require('../sidecar/routing/line-runner.js');
 async function viaRunNow(run, line) {
   const T0 = 1700000000000;
   // the same routine as the scheduled fire's, with an earlier ok run the button's record must replace
   const job = Object.assign(cronStore.makeJob({ id: 'j1', prompt: 'do it', agentId: 'cron_j1', schedule: cron.parseSchedule('every 1m', T0) }, { id: 'j1', now: T0 }),
     { lastRunAt: new Date(T0 - 3600000).toISOString(), lastStatus: 'ok', lastReason: 'done', lastOutcome: 'succeeded' });
   let store = [job];
-  const events = [];
+  const events = [], crates = [];   // the shared driver settles the whole fire, including its crate
   const cronDriver = makeCronDriver({
     getJobs: () => store, setJobs: j => { store = j; return true; }, runOnce: () => Promise.resolve(),
+    settleWorkitem: (rid, reason) => crates.push(reason),
     emit: (name, payload) => events.push({ name, payload }), newId: () => 'cr-x', newAbort: () => new AbortController(),
     now: () => T0 + 60000, getKey: () => 'sk-test', defaultModel: 'test/model', persona: 'PERSONA', maxRunMs: 480000
   });
   const runId = 'rn-' + run.kind, ac = new AbortController();
   cronDriver.leases.set(job.id, { runId, startedAt: T0, heartbeatAt: T0, ac, isOnce: false });   // handleCronRun's manual lease
   const runReplay = async emit => { replay(run, emit, runId, job.agentId); if (run.throws) throw new Error('boom'); };
-  const crates = [];   // the reason Run Now's finally settles its crate with (settleCronWorkitem: 'done' = delivered to the OUTBOX)
-  const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+  const table = require('../sidecar/run-table.js').makeRunTable();
+  // the line runs through the ONE hop executor (line-job-runner): its runLineJob answers the line; the profile's seams are stubs
+  const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'lineRunner', 'LineRunner', 'cronHopConfigFor', 'cronSystemFor', 'hopStoppedSaid', 'hopStoppedByYou', 'foldLineIntoFire', 'router', 'assembledPrompt',
+    'runs', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler', 'runNowRun', 'cronItems',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
-  await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => line || null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+  await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { runLineJob: async () => line || null }, LineRunner, () => ({}), () => '', () => 'stopped by you', () => false, foldLineIntoFire, {}, 'do it',
+    new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler, table.admit({ runId, agentId: job.agentId, source: 'cron' }), new Map())();
+  A.eq(table.size(), 0, 'Run Now releases its exact admission');
   const settled = cronStore.getJob(store, 'j1');
   const result = events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null;
   return { status: settled && settled.lastStatus, cronOutcome: result && result.outcome, cronReason: result && result.reason, job: settled, crate: crates.length ? crates[0] : '(never settled)' };
@@ -570,24 +589,27 @@ async function viaPausedRunNow(run, pausedBefore) {
   try { new Function('cronDriver', 'cronStore', 'job', 'runId', 'ac', RUN_NOW_LEASE)(cronDriver, cronStore, job, runId, ac); }
   catch (e) { return { job: cronStore.getJob(store, 'j1'), delivered, result: null, threw: String((e && e.message) || e) }; }
   const runReplay = async emit => { if (!pausedBefore) store = cronStore.pauseJob(store, 'j1'); replay(run, emit, runId, job.agentId); };
-  const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+  const table = require('../sidecar/run-table.js').makeRunTable();
+  const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'lineRunner', 'LineRunner', 'cronHopConfigFor', 'cronSystemFor', 'hopStoppedSaid', 'hopStoppedByYou', 'foldLineIntoFire', 'router', 'assembledPrompt',
+    'runs', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler', 'runNowRun', 'cronItems',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
-  await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+  await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { runLineJob: async () => null }, LineRunner, () => ({}), () => '', () => 'stopped by you', () => false, foldLineIntoFire, {}, 'do it',
+    new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler, table.admit({ runId, agentId: job.agentId, source: 'cron' }), new Map())();
+  A.eq(table.size(), 0, 'Run Now releases its exact admission');
   for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
   const settled = cronStore.getJob(store, 'j1');
   return { job: settled, delivered, result: events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null };
 }
-// ---- review r7: the routine's DELIVERY headline (sidecar/index.js deliverCronResult, sliced) over the result its finalization hands on, to a
-//      routine that returns to its origin session (station.deliver) ----
-const DELIVER_SRC = sidecarTopLevelFunction('deliverCronResult');
+// ---- review r7: the routine's DELIVERY headline (deliverCronResult, sliced: sidecar/routine-delivery.js since channel-delivery-ledger S1
+//      moved it out of sidecar/index.js) over the result its finalization hands on, to a routine that returns to its origin session
+//      (station.deliver) ----
+const DELIVER_SRC = functionSourceIn(read('sidecar/routine-delivery.js'), 'deliverCronResult') || sidecarTopLevelFunction('deliverCronResult');
 A.ok(/station\.deliver/.test(DELIVER_SRC), 'fixture: deliverCronResult is sliced from the sidecar');
 async function viaDelivery(job, result) {
   let said = null;
-  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome',
-    DELIVER_SRC + '\nreturn deliverCronResult;')(() => '', { reconstruct: () => [], append: () => {} }, () => {}, () => true,
-    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined);
+  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome', 'TurnKinds', 'now',
+    DELIVER_SRC + '\nreturn deliverCronResult;')(() => '', { view: () => [], append: () => {} }, () => {}, () => true,
+    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined, require('../frontend/app/turnkinds.js'), () => 1700000000000);
   await deliver(Object.assign({}, job, { name: 'digest', deliver: 'local', origin: { sessionId: 's1', streamId: 's1' } }), result);
   return said;
 }
@@ -913,11 +935,11 @@ function check(surface, kind, ok, why) {
         check('ROUTINES window', 'held', w.card === HELD_SAYS, 'after ' + surface + ' the card reads "' + HELD_SAYS + '" (got "' + w.card + '")');
         check('ROUTINES window', 'held', w.history === HELD_SAYS, 'after ' + surface + ' that fire\'s RUN HISTORY line reads "' + HELD_SAYS + '", as the card does, never "✓ ok" (got "' + w.history + '")');
         const away = viaAway(entry, x.job);
-        check('away briefing', 'held', away.failed === 0 && away.unfinished === 1 && /held: a reviewer blocked the work/.test(String(away.text || '')), 'after ' + surface + ' a held fire is briefed as held, never under Done as "ran" (got failed=' + away.failed + ': ' + JSON.stringify(String(away.text || '').slice(-120)) + ')');
+        check('away briefing', 'held', away.failed === 0 && away.unfinished === 1 && /held: the work was not accepted/.test(String(away.text || '')), 'after ' + surface + ' a held fire is briefed as held, never under Done as "ran" (got failed=' + away.failed + ': ' + JSON.stringify(String(away.text || '').slice(-120)) + ')');
         // (review r8: a held fire did not finish — counted unfinished, never failed, never ran)
         // review 5.3: with the line's reviewer hop beside it (its own run succeeded) — the hop grouped as a separate "routine" under Done
         const withHop = viaAway(entry, x.job, [{ runId: 'hop-review', agentId: 'reviewer', reason: 'done', outcome: 'succeeded', title: '[PIPELINE HANDOFF] review the digest', deliveryText: 'VERDICT: blocked - the digest cites no sources.' }]);
-        check('away briefing', 'held', withHop.routines === 1 && withHop.failed === 0 && withHop.unfinished === 1 && /held: a reviewer blocked the work/.test(String(withHop.text || '')) && !/\bran\b/.test(String(withHop.text || '')) && !/PIPELINE HANDOFF/.test(String(withHop.text || '')),
+        check('away briefing', 'held', withHop.routines === 1 && withHop.failed === 0 && withHop.unfinished === 1 && /held: the work was not accepted/.test(String(withHop.text || '')) && !/\bran\b/.test(String(withHop.text || '')) && !/PIPELINE HANDOFF/.test(String(withHop.text || '')),
           'after ' + surface + ' a held fire\'s reviewer hop is a stage of that fire, never a routine of its own briefed under Done (got routines=' + withHop.routines + ', failed=' + withHop.failed + ': ' + JSON.stringify(String(withHop.text || '').slice(-160)) + ')');
         // review 6.1: then its routine is config-blocked (a missing credential, a channel not connected at tick time) or its schedule marked
         // unfireable. Neither runs a fire, but both cleared lastOutcome beside the held fire's lastRunId, and RUN HISTORY and the briefing
@@ -930,7 +952,7 @@ function check(surface, kind, ok, why) {
           check('ROUTINES window', 'held then ' + mark, marked.lastOutcome == null && wm.card === card && wm.history === HELD_SAYS,
             'after ' + surface + ' and ' + aMark + ' mark the card names the ' + mark + ' ("' + card + '") and the held fire\'s RUN HISTORY line still reads "' + HELD_SAYS + '", never "✓ ok" (got "' + wm.card + '" / "' + wm.history + '")');
           const am = viaAway(entry, marked);
-          check('away briefing', 'held then ' + mark, am.failed === 0 && am.unfinished === 1 && /held: a reviewer blocked the work/.test(String(am.text || '')) && !/\bran\b/.test(String(am.text || '')),
+          check('away briefing', 'held then ' + mark, am.failed === 0 && am.unfinished === 1 && /held: the work was not accepted/.test(String(am.text || '')) && !/\bran\b/.test(String(am.text || '')),
             'after ' + surface + ' and ' + aMark + ' mark the held fire is still briefed as held, never under Done as "ran" (got failed=' + am.failed + ': ' + JSON.stringify(String(am.text || '').slice(-120)) + ')');
         }
         // review 6.2: then the routine's NEXT fire runs clean — its normal next event, no block. The record's receipt kept only its LAST fire,
@@ -952,7 +974,11 @@ function check(surface, kind, ok, why) {
     // branch. The routine's record keeps the entry run's outcome with the line's stop facts (quick win 25), but its crate is no delivered
     // job: the channel hub, chain.js's own line-output receipt and the trigger / SEND TO runners all refuse it (routing/line-fire.js
     // lineDelivered). Both routine paths settled it 'done' — a crate rode to the OUTBOX for a line that never reached it.
-    for (const [kind, line] of [['stopped line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: 'EDITOR failed: its run failed (rate_limit)', usd: 0 }],
+    // (line-job-runner) a chain result carries its stop TYPED beside the words (chain.js out.stop): the fire's record keeps the code, and a
+    // stage that ran out of budget is a stage that did not finish — never "failed" (routing/line-fire.js lineStop)
+    const STAGE_FAILED = 'EDITOR failed: its run failed (rate_limit)', STAGE_UNFINISHED = 'EDITOR did not finish: hit a spending limit';
+    for (const [kind, line] of [['stopped line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: STAGE_FAILED, stop: { code: 'stage_failed', why: STAGE_FAILED, agentId: 'editor', dockId: 'edit' }, usd: 0 }],
+      ['unfinished line', { text: 'draft', hops: [{ agentId: 'editor', dockId: 'edit' }], stopped: STAGE_UNFINISHED, stop: { code: 'stage_incomplete', why: STAGE_UNFINISHED, agentId: 'editor', dockId: 'edit' }, usd: 0 }],
       ['partial join', { text: 'joined', hops: [{ agentId: 'joiner', dockId: 'join' }], stopped: null, partial: 'branch B never arrived', usd: 0 }]]) {
       const run = await stationRun('done');
       const rt = await viaRoutine(run, line);
@@ -961,6 +987,12 @@ function check(surface, kind, ok, why) {
       for (const [surface, x] of [['routines', rt], ['Run Now', rn]]) {
         if (!x) continue;
         check(surface, kind, x.crate !== 'done' && x.crate !== '(never settled)', 'a ' + kind + '\'s crate is drained, never delivered to the OUTBOX (settled with ' + JSON.stringify(x.crate) + ')');
+        if (line.stop) {
+          const ll = x.job.lastLine || {};
+          check(surface, kind, ll.stopCode === line.stop.code && ll.stopped === line.stop.why, 'the fire\'s record keeps the line\'s stop code beside its words (got ' + JSON.stringify(ll) + ')');
+          const said = String((x.job.finalization && (x.job.finalization.result || '')) || '') + ' ' + String((x.job.finalization && x.job.finalization.error) || '');
+          if (kind === 'unfinished line') check(surface, kind, /did not finish: hit a spending limit/.test(said) && !/EDITOR failed/.test(said), 'the fire says the stage did not finish, never that it failed (got ' + JSON.stringify(said.slice(-160)) + ')');
+        }
         // review 5.3: the briefing reads the failed stage as its fire's (its line stopped there), never as a routine of its own
         if (kind === 'stopped line') {
           const entry = Object.assign(historyRow(run), { runId: x.job.lastRunId });
@@ -1071,6 +1103,32 @@ function check(surface, kind, ok, why) {
       check('SLAG post-mortem', 'capdenied', slag.recorded && slag.kind === expect && expect === 'capdenied', 'a coded stop with no error event reads ' + expect + ', as COMMS does (got ' + (slag.recorded ? slag.kind : 'no post-mortem') + ')');
       const bq = viaBuildQuest(run);
       check('build quest', 'capdenied', bq.status !== 'done' && !/report it/i.test(bq.beat), 'the stalled build names the capability door, never "report it" (got ' + JSON.stringify(bq.beat) + ')');
+    }
+    /* HOW A LINE'S JOB ENDED (line-job-runner): a line's typed stop and an older job record's status read through ONE map, the WORKFLOWS
+       chips' words and tones. Written out here, never computed by frontend/app/runoutcome.js. A stop that left the job short of its
+       OUTBOX is stored as the 'problem' every older build reads; someone's STOP and the station's fault containment are stops; a hold
+       is its own; a refusal never ran; a restart interrupted it. */
+    {
+      const R = RunOutcome || {};
+      const SHORT = ['stopped_short', 'problem', 'problem', 'warn'];
+      const LINE_ORACLE = {   // code -> [outcome, the record's status, its chip word, its tone]
+        hop_limit: SHORT, usd_limit: SHORT, day_limit: SHORT, stage_incomplete: SHORT, stage_failed: SHORT, stage_empty: SHORT, loops_back: SHORT,
+        wrong_line: SHORT, no_outbox: SHORT, partial_join: SHORT, joiner_lost: SHORT, not_steppable: SHORT,
+        stopped: ['stopped', 'stopped', 'stopped', 'stop'], station_fault: ['stopped', 'stopped', 'stopped', 'stop'],
+        blocked: ['blocked', 'problem', 'blocked', 'warn'], refused: ['failed', 'failed', 'didn’t run', 'warn'], restart: ['interrupted', 'interrupted', 'interrupted', 'warn']
+      };
+      check('line outcomes', 'vocabulary', Array.isArray(R.LINE_STOPS) && R.LINE_STOPS.slice().sort().join() === Object.keys(LINE_ORACLE).sort().join()
+        && Array.isArray(R.LINE_OUTCOMES) && R.LINE_OUTCOMES.join() === 'running,paused,delivered,stopped_short,stopped,blocked,failed,interrupted',
+      'the line\'s stop codes and job outcomes are exactly these (got ' + JSON.stringify([R.LINE_STOPS, R.LINE_OUTCOMES]) + ')');
+      const read = x => (typeof R.lineOutcomeOf === 'function' ? [R.lineOutcomeOf(x), R.lineStatus(x), R.lineLook(x).word, R.lineLook(x).tone].join('|') : '(no line outcomes before the lane)');
+      for (const code of Object.keys(LINE_ORACLE)) check('line outcomes', code, read(code) === LINE_ORACLE[code].join('|'), 'ends the job ' + LINE_ORACLE[code][0] + ', stored "' + LINE_ORACLE[code][1] + '", shown "' + LINE_ORACLE[code][2] + '" (got ' + read(code) + ')');
+      check('line outcomes', 'no stop', read(null) === 'delivered|delivered|delivered|ok', 'a walk that reached its OUTBOX with no stop delivered (got ' + read(null) + ')');
+      // a record written before the codes carries neither field: its status says it, exactly as every older reader shows it
+      for (const [status, o, word, tone] of [['delivered', 'delivered', 'delivered', 'ok'], ['problem', 'stopped_short', 'problem', 'warn'], ['stopped', 'stopped', 'stopped', 'stop'],
+        ['failed', 'failed', 'didn’t run', 'warn'], ['interrupted', 'interrupted', 'interrupted', 'warn'], ['running', 'running', 'running', 'run'], ['paused', 'paused', 'paused', 'ask']]) {
+        check('line outcomes', 'record ' + status, read({ status }) === [o, status, word, tone].join('|'), 'an older "' + status + '" record reads ' + o + ' (got ' + read({ status }) + ')');
+      }
+      check('line outcomes', 'stamped record', read({ status: 'problem', outcome: 'blocked' }) === 'blocked|problem|blocked|warn', 'a stamped outcome outranks the status it is stored beside (got ' + read({ status: 'problem', outcome: 'blocked' }) + ')');
     }
   } finally {
     v1Server.closeAllConnections(); await new Promise(r => v1Server.close(r));

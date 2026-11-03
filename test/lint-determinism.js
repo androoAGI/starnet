@@ -41,6 +41,17 @@ files.push(path.join(base, 'frontend', 'app', 'pipeline.js'));
 // transport sim; the ghost projection's route-truth tests depend on it) — hold them to it here.
 files.push(path.join(base, 'frontend', 'app', 'conveyor.js'));
 files.push(path.join(base, 'frontend', 'app', 'ghostline.js'));
+// turnkinds.js is required by the sidecar's transcript store and run writer (turnId grammar, row kinds, quote stamps):
+// its mints take an injected rng and its time conversions an injected now
+files.push(path.join(base, 'frontend', 'app', 'turnkinds.js'));
+// turnmerge.js is the page's turn-id side (mint, send, bind) the tests load as a module: a mint takes an injected rng,
+// a send an injected now
+files.push(path.join(base, 'frontend', 'app', 'turnmerge.js'));
+// The shared page/station fitter and capability decisions are pure; host reads stay injected outside it.
+files.push(path.join(base, 'frontend', 'app', 'historyfit.js'));
+// usertext.js is the one flattener of a message's text parts, required by the sidecar (transcript store, run directive
+// capture, learning, observer): pure, no clock
+files.push(path.join(base, 'frontend', 'app', 'usertext.js'));
 
 const banned = [/\bMath\.random\b/, /\bDate\.now\b/, /\bperformance\.now\b/, /\bnew\s+Date\s*\(\s*\)/];
 const labels = ['Math.random', 'Date.now', 'performance.now', 'new Date()'];

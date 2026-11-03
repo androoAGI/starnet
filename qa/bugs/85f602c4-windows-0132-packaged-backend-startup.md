@@ -57,3 +57,9 @@ This establishes the selected public archive contents only. It does not identify
 Every bundle path (npm run desktop:build, desktop:dev, both CI workflows) stages through scripts/stage-frontend-dist.mjs before tauri copies sidecar/ and shared/ verbatim from the working tree, and nothing checked those trees. Commit 08d7735de: staging now refuses to package when any code file under sidecar/, shared/ or frontend/ is zero bytes, or when a git-tracked file with content is missing or emptied on disk, and names each file. Regression: test/bundle-source-integrity.test.js.
 
 This guards packages built from a damaged checkout only. The public 0.13.2 installer's shell.js was already shown whole, so this does not explain or repair the customer's installation, and no installed startup or recovery is claimed. The report stays open.
+
+## Diagnostic hardening - 2026-11-03
+
+Source 6b4c22ff0 embeds an installation manifest derived from the actual bundle map, reports named missing/empty/wrong-size files before engine startup, and hashes content in the background. Startup proceeds regardless of the diagnostic verdict. Review repair 61560264b keeps an install diagnosable when the entire sidecar tree is missing or replaced by a file, using surviving roots from the same resource map. A standalone executable remains not checked.
+
+The fresh native class suite passed ten tests, including every-entry damage and Windows/macOS/Linux layout cases. test/install-manifest.test.js passed 96 assertions; test/installed-integrity-proofs.test.js passed 46 through acceptance-script fixtures. These proofs establish the diagnostic source behavior, not an affected installed artifact or customer recovery. This report stays open; the original cause remains unknown. No fixedIn tag or shipped claim is added.

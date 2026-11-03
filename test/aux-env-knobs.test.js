@@ -54,7 +54,9 @@ const envRule = sidecarFunctionSource('runWireEnv');
 A.ok(/const env = runWireEnv\(\);/.test(dev) && envRule.includes("ENV('DEFAULT_MODEL')") && !/SKYNET_DEFAULT_MODEL/.test(dev + envRule),
   'the dev hub resolves its default model through ENV(), STARNET_ first (runWireEnv): ' + dev.slice(0, 300));
 const caps = decl('CAPS');
-A.ok(caps.startsWith('const CAPS = {') && caps.includes('maxIters') && !caps.includes('maxCostUsd'), 'CAPS carries no dead maxCostUsd');
+A.eq(caps.trim(), 'const CAPS = limitsRegistry.caps(ENV, runtimeKnobs);', 'CAPS resolves from the one inventory');
+const resolvedCaps = require('../sidecar/limits-registry.js').caps(() => null, {});
+A.ok(Object.prototype.hasOwnProperty.call(resolvedCaps, 'maxIters') && !Object.prototype.hasOwnProperty.call(resolvedCaps, 'maxCostUsd'), 'CAPS carries no dead maxCostUsd');
 A.ok(!/CAPS\.maxCostUsd/.test(all), 'and nothing reads one');
 
 A.report('aux-env-knobs.test');

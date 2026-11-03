@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 (async () => {
   let wire = [], effects = [], mode = 'direct';
   const server = http.createServer((req, res) => {
@@ -59,6 +60,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     return { events, prompts };
   }
   try {
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const setRoster = approvalMode => fixture.json('POST', '/api/roster', { agents: [
       { agentId: 'agent', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode, executionProfile: 'trusted-project' },

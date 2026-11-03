@@ -2022,7 +2022,8 @@ const World = (() => {
      wait out a still interval. Mirrors maybeGlance's own gates, in its order. */
   function heroGlanceAt(b, now) {
     if (activity === 'talk' || b.state === 'walk' || GLANCE_NONE[b.goal]) return Infinity;   // talk: listening glances ride the mic (input)
-    const t = Math.max(b.glance ? b.glance.until : 0, b.glanceCd || 0);
+    if (b.restSettled && b.stilling) return Infinity;                                         // THE CREW SETTLE: maybeGlance holds a settled hero still until the wake (input / a run)
+    const t =Math.max(b.glance ? b.glance.until : 0, b.glanceCd || 0);
     if (b.goal === 'use' || b.working) return Math.max(t, b.nextFidget || 0);
     if (b.goal == null || GLANCE_TAIL[b.goal] || GLANCE_BRANCH[b.goal] || b.stilling) return t;
     // any other goal: only THE LOOK-UP can act (revisit / watch, off task); a box to track is a crate, motion already
@@ -2429,6 +2430,7 @@ const World = (() => {
      re-stamp camUserAt), the scripted awakening camera always wins, and reduced-motion users never get a
      self-panning camera. Runs once per frame from the camera block — every branch below is O(bodies). */
   function cinecamTick(now) {
+    if (idleRenderer && liveRunCount() > 0) runSeenAt = now;                      // IDLE RENDERER: the station is working (the rest waits CINE_REST_MS after)
     if (camLock && camLock.source !== 'cine') return;                             // an explicit session lock owns the camera
     // NOTE: no document.hidden gate — the rAF loop already pauses in hidden tabs, and embedded webviews
     // (the preview harness, some Tauri states) report hidden while still rendering, which would dead-gate this.
@@ -2436,6 +2438,7 @@ const World = (() => {
       if (camLock) camLock = null;                                                // conditions lapsed mid-shot → release; the manual camera resumes untouched
       return;
     }
+    if (cineRested(now)) { if (camLock) camLock = null; return; }                 // IDLE RENDERER (flag): truly idle → the director rests where it is
     const cands = [];
     if (agent && !agent.unplaced) cands.push(agent);
     for (const b of crew) if (b && !b.unplaced) cands.push(b);
@@ -2462,6 +2465,69 @@ const World = (() => {
   }
   const cameraMode = () => camLock ? (camLock.source === 'cine' ? 'auto' : 'lock') : 'manual';   // HUD/verify truth: what drives the camera RIGHT NOW
   function setCinecamIdle(ms) { cineIdleMs = Math.max(1000, +ms || CINE_IDLE_MS); }               // DEV knob (console/verify only): shrink the hands-off threshold; floor 1s
+  /* THE IDLE RENDERER (wave 5: gh#69, gh#114, bug 9256a771, email E55), BEHIND A FLAG until Andrew has A/B'd the look.
+     On:  ?idleRenderer=1, or localStorage 'starnet.idleRenderer' = '1' (World.setIdleRenderer(true) writes it).
+     Off: the default, and ?idleRenderer=0 wins over the stored value. Off, nothing below changes a single draw. */
+  /* THE CINECAM RESTS when the station is TRULY idle. The auto-director is for when the Commander is away and the crew is
+     living: it trails walkers and cuts between them, so the floor is never still and draws at the full visible pace for
+     as long as the window is left open (perf-idle-ab P6, "the true left-open state"). With the flag on it stands down
+     once nobody has touched the window for its takeover time PLUS CINE_REST_MS, and no run has been live for CINE_REST_MS:
+     the camera stays exactly where the last shot left it, and the floor falls to the still pace Andrew approved on 10-21
+     (30 redraws/s of an unchanged scene; every moving thing still draws at 60, 144 while panning). Any hand on the window
+     or any live run ends the rest: the director comes back on its own rules. Nothing caps a frame rate here. */
+  const CINE_REST_MS = 5 * 60000;
+  let idleRenderer = false, runSeenAt = 0, cineRestMs = CINE_REST_MS;
+  function setCinecamRest(ms) { cineRestMs = Math.max(1000, +ms || CINE_REST_MS); }   // DEV knob (perf-idle-ab P7 only), like setCinecamIdle
+  try {
+    const q = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('idleRenderer') : null;
+    idleRenderer = q != null ? (q === '1' || q === 'on') : (typeof localStorage !== 'undefined' && localStorage.getItem('starnet.idleRenderer') === '1');
+  } catch (_) {}
+  function liveRunCount() { let n = 0; for (const runs of liveRunsByAgent.values()) n += runs.size; return n; }
+  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live
+  function cineRested(now) {
+    if (!idleRenderer || liveRunCount() > 0) return false;   // a working station is not idle, whatever the camera says
+    return now - camUserAt >= cineIdleMs + cineRestMs && now - runSeenAt >= cineRestMs;
+  }
+  /* THE CREW SETTLE (the idle renderer's second half: option A of the 11-02 design note, approved 11-03). A rested camera alone
+     left a P7 floor drawing ~47 times a second: the idle crew kept wandering and running their social life on screen, and every
+     on-screen body that moves books a full-pace frame. While the station rests (cineRested: ONE rule, so the flag, the hands-off
+     time and the no-live-run window are the camera's), a body reaching its next idle decision starts nothing new (no wander,
+     quirk, nap, social beat, chase, mimic, rounds or gathering) and holds still where it stands (standStill: no glance, no
+     swivel). Whatever it was doing when the rest began, it finishes first. Blinks and clock-driven pose frames go on as single due
+     frames, so the floor falls to the still pace. The first hand on the window or a live run ends the rest, and wakeSettledCrew
+     (run in the tick BEFORE any body steps) hands every settled body its next idle decision on that same tick. While the station
+     is in use nothing here runs; with the flag off cineRested is never true, so nothing here ever changes a body. */
+  const CREW_REST_HOLD_MS = 30000;   // a settled body re-checks the rest this often (a wake never waits for it)
+  let crewSettling = false;          // some body may be settled: the wake loop runs only while this is set
+  function crewRestGate(now) {       // decideIdle's first word while the station rests (self = the deciding body)
+    if (!cineRested(now)) return false;
+    standStill(now);
+    self.idleUntil = now + CREW_REST_HOLD_MS;
+    self.restSettled = true; crewSettling = true;
+    return true;
+  }
+  function wakeSettledCrew(now) {
+    if (!crewSettling || cineRested(now)) return;
+    crewSettling = false;
+    const wake = b => { if (b && b.restSettled) { b.restSettled = false; b.stilling = false; if (b.idleUntil > now) b.idleUntil = now; } };
+    wake(agent);
+    for (const b of crew) wake(b);
+  }
+  // cameraDbg readout: bodies holding still for the rest right now
+  function crewSettledCount() {
+    let n = 0;
+    const settled = b => b && b.restSettled && b.stilling && b.goal == null && !b.unplaced;
+    if (settled(agent)) n++;
+    for (const b of crew) if (settled(b)) n++;
+    return n;
+  }
+  // persist:false (perf-idle-ab's own A/B) changes the live rule without touching the stored opt-in
+  function setIdleRenderer(on, persist) {
+    idleRenderer = !!on;
+    if (persist !== false) try { localStorage.setItem('starnet.idleRenderer', idleRenderer ? '1' : '0'); } catch (_) {}
+    motionWake();   // the next frame judges itself under the new rule
+    return idleRenderer;
+  }
   function fitCamera() {
     if (!cache) return;
     const W = cache.W, H = cache.H;
@@ -6467,6 +6533,7 @@ const World = (() => {
   function decideIdle(now) {
     self.stilling = false;                            // every fresh decision starts clean (standStill re-sets it)
     if (chatStareHold(now)) return;                   // TIER D · D1: the Commander has COMMS focus on this body → give it your attention, don't choose to wander (G2: chatStareHold self-gates OFF while activity==='task'/working, so a summon still wins)
+    if (crewRestGate(now)) return;                    // THE CREW SETTLE (idle renderer, flag): the station rests → start nothing new, hold still where it stands
     // The grief + novelty reflexes read the MODULE pendingMourn/novelty queues, which are the HERO's awareness
     // (scanNovelty/maybeMourn only run for the hero). A crew body must NOT consume the hero's queue (J2) — gate
     // both reflexes to self===agent so only the hero acts on them. Crew get their idle life from the want-engine below.
@@ -6581,7 +6648,8 @@ const World = (() => {
     }
     if (agent.state === 'walk') return;                              // walking owns the facing
     if (agent.goal === 'sleep') return;                             // dormant: hold dead still (no head-turns)
-    if (agent.goal === 'firstwake') return;                         // FIRST LIGHT: stepFirstWake is the SOLE facing driver — no random flicks polluting the deliberate sweep
+    if (agent.restSettled && agent.stilling) return;                // THE CREW SETTLE: held still for the station's rest — no look-up, no swivel, until the wake
+    if (agent.goal === 'firstwake') return;                        // FIRST LIGHT: stepFirstWake is the SOLE facing driver — no random flicks polluting the deliberate sweep
     if (agent.goal === 'mimic' || agent.goal === 'chase') return;   // TIER D · D4: stepMimic/stepChase is the SOLE facing driver — no cargo-track/ambient flick hijacking the cursor follow / pursuit-stare
     if (agent.glance && agent.glance.until > now) return;
     if (now < (agent.glanceCd || 0)) return;
@@ -6702,7 +6770,8 @@ const World = (() => {
        read of live state instead of a second bookkeeping surface that could drift out of date. */
     if (stationAttended(now) || cursorPresent(now)) stationBusyAt = now;
     stepGatheringStation(now);
-    if (!gathering) maybeGather(now);
+    wakeSettledCrew(now);                                         // THE CREW SETTLE: the rest just ended → every settled body decides again on THIS tick (before stepCrew and the hero below)
+    if (!gathering && !cineRested(now)) maybeGather(now);         // ...and a resting station calls no new gathering (one in progress runs out on its own rules)
     sweepChase(now);                                              // TIER D · D4: station-level chase sweep (G4) — a seized/despawned/chat-focused chaser ALWAYS frees the lock same-tick, independent of its own stepper
     decayHabits(now);                                             // habituation fades (see FORGET_MS) — a floor watched for an hour must not run out of things worth looking at
     tickNeeds(dt);                                              // the inner meters drain/refill by what it is doing
@@ -12411,7 +12480,7 @@ const World = (() => {
        floor to the router. `station: false` = no floor loaded (nothing is known). */
     planStatus: () => Object.assign({ station: !!station, pending: !!(station && (geoDirty || !geo)),
       errors: (routingPlan && routingPlan.errors ? routingPlan.errors : []).filter(e => !e.warn), hash: routingPlan ? routingPlan.hash : null }, planPoster.state()),
-    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: dropRunFromPage, focusBody, lockBody, cameraMode, cameraState, restoreCamera, setFrameCap, yieldToUi, setOverlays, setCinecamIdle, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, awakeningHeld, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnPluginTerminal, setOnDesk, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgSendTo, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgDeskClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
+    loadStation, spawn, spawnAgent, despawnAgent, setSkin, relabel, setActivityFor, agentRunsLive, dropRun: dropRunFromPage, focusBody, lockBody, cameraMode, cameraState, restoreCamera, setFrameCap, yieldToUi, setOverlays, setCinecamIdle, setCinecamRest, setIdleRenderer, idleRendererOn: () => idleRenderer, setChatFocus, chatFocusPing, start, stop, setActivity, wakeIn, beginAwakening, playArrival, cancelArrival, setWakeProgress, igniteSpark, armKindle, kindleHold, camPushIn, camCreep, camPunch, camPullBack, awakenTurn, truthPulse, beginFlood, collapseFlood, endAwakening, releaseAwakening, awakeningHeld, say, focusAgent, getActivity: () => activity, getUse: () => (agent ? agent.usingProp : null), setOnClick, setOnArcade, setOnOutbox, setOnMissionBoard, setOnTrophyCase, setOnPluginTerminal, setOnDesk, setOnBayAssign, setOnIntakeFeed, setOnIntakeSample, refit, pauseBridge, resumeBridge, linkState, _dbgSeedRun, _dbgAgeRun, _dbgReconcile, _dbgSweep, _dbgSendTo, _dbgLinkState, _dbgDropBridge, _dbgCurveState, _dbgLoseCurveContext, _dbgLoseCanvases, _dbgCanvasLoss, _dbgKillStageContext, _dbgStageState, _dbgBeltLegibility, _dbgPropClientPoint, _dbgDeskClientPoint, _dbgSleep, _dbgUseProp, _dbgArrive, _dbgLeisure,
     // AGENT GROWTH: XpStore pushes pre-computed Xp.compute() snapshots here; pulseLevelUp fires
     // the addressed body's gold ring. The colony headline is the top-bar STATION chip.
     setXp: (agentId, a) => {
@@ -12435,7 +12504,7 @@ const World = (() => {
     // read-only camera truth for the DEV verify harness (+ the war-room HUD chip): who drives the camera
     // ('manual' | 'lock' = session follow | 'auto' = idle cinecam), which body is locked, and how long the
     // Commander has been hands-off. Pure read, no side effects — the testapi idiom.
-    cameraDbg: () => ({ mode: cameraMode(), lockId: camLock ? camLock.id : null, source: camLock ? camLock.source : null, idleMs: Math.round(performance.now() - camUserAt), thresholdMs: cineIdleMs, scale: +scale.toFixed(3), panX: Math.round(panX), panY: Math.round(panY), gates: { anim: !!camAnim, frozen: awakeFrozen, cache: !!cache, reduceMotion: reduceMotion() } }),
+    cameraDbg: () => ({ mode: cameraMode(), lockId: camLock ? camLock.id : null, source: camLock ? camLock.source : null, idleMs: Math.round(performance.now() - camUserAt), idleRenderer, cineRested: cineRested(performance.now()), crewSettled: crewSettledCount(), thresholdMs: cineIdleMs, scale: +scale.toFixed(3), panX: Math.round(panX), panY: Math.round(panY), gates: { anim: !!camAnim, frozen: awakeFrozen, cache: !!cache, reduceMotion: reduceMotion() } }),
     // TEST/DEBUG ONLY — the D3 border-meeting pure geometry (sharedEdge/borderTileFor), exposed read-only for the
     // DEV harness. No world state touched (both are pure; borderTileFor takes an injected walkable predicate).
     // The headless coverage lives in test/social-border.test.js (extracts the D3-PURE-GEOMETRY block from source).

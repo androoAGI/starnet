@@ -66,6 +66,29 @@ A.eq(waitNoteText(null), '', 'no note -> empty line (the slot hides)');
   A.eq(waitNoteText(n), 'waiting for 1:50 (stream open) on aide-qwen3-8b:latest', 'a beat without a note shows none (never carried over)');
   A.eq(foldWaitNote(null, 'agent.waiting', { phase: 'connect', sinceMs: 1, note: 'n'.repeat(500) }).note.length, 240, 'the note is bounded');
 }
+/* THE WAIT'S LIMIT (local-runtime-profile lane, gap D, 2026-11-03). A local server StarNet waits on once (LOCAL SILENCE)
+   states its ceiling on the beat: a connect ceiling counts down from the call going out (sinceMs), an idle ceiling is
+   restated (only the adapter sees the bytes that reset it). A ladder's limit is the backoff its patience still allows,
+   read off provider.retry (patienceMs − waitedMs − delayMs). Every number comes off an event; none is carried over. */
+{
+  const local = 'no answer yet from the model server at 127.0.0.1:1234 on this computer (a server loading a model can take minutes)';
+  let n = foldWaitNote(null, 'agent.waiting', { runId: 'r', phase: 'connect', sinceMs: 25000, model: 'qwen2.5-7b-instruct', note: local, limitMs: 300000, limitKind: 'connect' });
+  A.eq(waitNoteText(n), 'waiting for 25s · ' + local + ' · gives up in 4:35 — qwen2.5-7b-instruct', 'a local connect wait says when it gives up, counted from the event');
+  n = foldWaitNote(n, 'agent.waiting', { runId: 'r', phase: 'connect', sinceMs: 300000, model: 'qwen2.5-7b-instruct', limitMs: 300000, limitKind: 'connect' });
+  A.eq(waitNoteText(n), 'connecting for 5:00 (giving up) to qwen2.5-7b-instruct', 'at the ceiling it says so, never a negative countdown');
+  n = foldWaitNote(n, 'agent.waiting', { runId: 'r', phase: 'streaming', sinceMs: 40000, model: 'qwen2.5-7b-instruct', limitMs: 300000, limitKind: 'silence' });
+  A.eq(waitNoteText(n), 'waiting for 40s (stream open; gives up after 5:00 of silence) on qwen2.5-7b-instruct', 'an idle ceiling is restated, not counted down');
+  n = foldWaitNote(n, 'agent.waiting', { runId: 'r', phase: 'first_byte', sinceMs: 15000, model: 'qwen2.5-7b-instruct', limitMs: 120000, limitKind: 'silence' });
+  A.eq(waitNoteText(n), 'waiting for 15s (gives up after 2:00 of silence) on qwen2.5-7b-instruct', 'a first-byte wait with an idle ceiling');
+  n = foldWaitNote(n, 'agent.waiting', { runId: 'r', phase: 'first_byte', sinceMs: 45000, model: 'qwen2.5-7b-instruct' });
+  A.eq(waitNoteText(n), 'waiting for 45s on qwen2.5-7b-instruct', 'a beat without a limit shows none (never carried over)');
+  const r = foldWaitNote(null, 'provider.retry', { attempt: 3, maxAttempts: 6, reason: 'timeout', delayMs: 4000, waitedMs: 1600, patienceMs: 105600, model: 'm' });
+  A.eq(waitNoteText(r), 'retry 3/6 in 4s (timeout) · up to 1:40 more backoff — m', 'a ladder rung says how much backoff its patience still allows');
+  A.eq(waitNoteText(foldWaitNote(null, 'provider.retry', { attempt: 6, maxAttempts: 6, reason: 'timeout', delayMs: 60000, waitedMs: 45600, patienceMs: 105600, model: 'm' })),
+    'retry 6/6 in 1:00 (timeout) — m', 'the last rung, with nothing left after it, adds nothing');
+  A.eq(waitNoteText(foldWaitNote(null, 'provider.retry', { attempt: 1, maxAttempts: 1, reason: 'unreachable', delayMs: 400, waitedMs: 0, patienceMs: 105600, model: 'm' })),
+    'retry 1/1 in 1s (unreachable) — m', 'a class with only one retry never promises more backoff from the larger shared patience budget');
+}
 const longModel = 'x'.repeat(80);
 A.ok(waitNoteText(run([['agent.waiting', { phase: 'first_byte', sinceMs: 15000, model: longModel }]])).length < 80, 'a very long model id is clipped');
 /* FACTS FIRST (live browser proof 2026-09-24: the 520 px panel clipped every retry reason; 300 px showed only the model).

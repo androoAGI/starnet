@@ -36,6 +36,7 @@
 'use strict';
 const { note: failNote } = require('./failopen');
 const { assertWorkspaceId } = require('./workspace-reserved.js');
+const CHECKPOINT_HOLD_MAX_MS = 120000;   // the checkpoint maintenance ceiling; a stalled snapshot cannot hold a tool forever
 
 // The brand is MODULE-PRIVATE: only makeRunPaths below can mint an object isRunPaths accepts. A Symbol.for() key was
 // forgeable by any code that could build a plain object ({ [Symbol.for('starnet.runPaths')]: true, root: '/' }).
@@ -96,7 +97,12 @@ function makeResolver(deps) {
     const ctx = opts && opts.ctx;
     if (!ctx || typeof ctx.checkpointMutation !== 'function' || (opts && opts.scope) !== 'write') return;
     // a checkpoint is a safety net, never a gate on the write: it fails open, but never silently
+    // A cold snapshot must not spend the write's timeout. Cap the host's hold too: after that the tool's deadline resumes,
+    // but we still await the snapshot, so a timed-out/cancelled call cannot turn into a late write or race its snapshot.
+    const release = typeof ctx.holdTimeout === 'function' ? ctx.holdTimeout() : null;
+    const holdTimer = typeof release === 'function' ? setTimeout(release, CHECKPOINT_HOLD_MAX_MS) : null;
     try { await ctx.checkpointMutation(base, 'fs mutation', { resolvedRoot: true }); } catch (e) { failNote('runpaths.checkpoint', e); }
+    finally { if (holdTimer) clearTimeout(holdTimer); if (typeof release === 'function') release(); }
   }
   // Resolve a path and PROVE it is reachable. A relative path in a host-validated project session is rooted
   // at that exact project, not at the agent's private deliverables workspace. It still passes through the
@@ -262,7 +268,8 @@ async function locateProduced(o) {
   const baseReal = await realBase(o.projectRoot || o.jail);
   const ownReal = [await realBase(o.jail), await realBase(o.projectRoot)].filter(Boolean);
   const out = [];
-  for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, 20)) {
+  const limit = Number.isInteger(o.limit) ? Math.max(0, Math.min(64, o.limit)) : 20;
+  for (const a of (Array.isArray(o.list) ? o.list : []).slice(0, limit)) {
     const name = a && typeof a.path === 'string' ? a.path : '';
     const at = producedPath(name, { projectRoot: o.projectRoot, jail: o.jail }).path;
     if (!at || /^[\\/]{2}/.test(at)) continue;

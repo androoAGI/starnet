@@ -320,7 +320,10 @@
         try { return { json: JSON.parse(data) }; } catch (e) { return null; }
       }
 
+      let generationId = '';
+      function withGeneration(usage) { return generationId ? Object.assign({}, usage, { generation_id: generationId }) : usage; }
       function* emitFrom(ev) {
+        if (!generationId) { generationId = provider.generationId(ev && ev.response && ev.response.id); if (generationId) yield { type: 'generation', id: generationId }; }
         const type = ev && ev.type;
         if (!type) return;
         switch (type) {
@@ -369,14 +372,14 @@
           }
           case 'response.completed': {
             const r = ev.response || {};
-            if (r.usage) yield { type: 'usage', usage: normalizeUsage(r.usage) };
+            if (r.usage) yield { type: 'usage', usage: withGeneration(normalizeUsage(r.usage)) };
             doneEmitted = true;
             yield { type: 'done', finishReason: finishFor(r), truncated: false };
             return;
           }
           case 'response.incomplete': {
             const r = ev.response || {};
-            if (r.usage) yield { type: 'usage', usage: normalizeUsage(r.usage) };
+            if (r.usage) yield { type: 'usage', usage: withGeneration(normalizeUsage(r.usage)) };
             const reason = (r.incomplete_details && r.incomplete_details.reason) || '';
             doneEmitted = true;
             // an explicit `response.incomplete` is the SERVER stating it stopped early — a known, reported stop
@@ -598,7 +601,12 @@
     // Which reasoning levels a codex model exposes — the static entry's list, or the four-level default.
     function reasoningEfforts(id) { const m = findModel(id); return (m && Array.isArray(m.reasoningEfforts) && m.reasoningEfforts.length) ? m.reasoningEfforts.slice() : CODEX_EFFORT_LIST.slice(); }
 
-    return { stream, listModels, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    function verifyCredential(o) {
+      return provider.verifyResponse(doFetch, baseUrl + '/models?client_version=' + CLIENT_VERSION,
+        { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
+        j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
+    }
+    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   /* #118 (2026-10-15): the ids a listModels() answer proves the ACCOUNT offers, in the backend's priority order. The

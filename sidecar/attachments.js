@@ -15,6 +15,7 @@
 const { note: failNote } = require('./failopen.js');
 const { tagImageSource } = require('./providers/provider.js');
 const RunPaths = require('./run-paths.js');   // the run's one placement rule (placeJail) names a saved attachment
+const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (DIRECTIVE policy)
 
 module.exports = function makeAttachments(deps) {
   const fsp = deps.fsp;
@@ -106,14 +107,8 @@ module.exports = function makeAttachments(deps) {
   // tolerant text extractor for a user turn whose content is already an array — salvages the typed text when
   // expanding attachments. The provider adapters have their own richer content mappers.
   function textOf(content) {
-    if (typeof content === 'string') return content;
-    if (!Array.isArray(content)) return '';
-    const out = [];
-    for (const p of content) {
-      if (typeof p === 'string') out.push(p);
-      else if (p && typeof p.text === 'string') out.push(p.text);
-    }
-    return out.join('');
+    const t = UserText.flatten(content, UserText.DIRECTIVE);
+    return t == null ? '' : t;   // an unknown shape salvages nothing
   }
 
   // Expand each user message's attachment references into provider content blocks, just before the model call.

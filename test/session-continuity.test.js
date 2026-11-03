@@ -14,6 +14,7 @@ async function campaign(root, seed) {
   const w = { id: 'a', history: [{role:'user',content:'SECRET QUESTION',sourceRunId:'old'}] };
   const peer = { id:'b', history:[] }; sessions.set('a',w); sessions.set('b',peer);
   const context = vm.createContext({
+    TurnMerge: require('./helpers/turnmerge').TurnMerge,
     Date, WeakMap, Map, Promise, AbortController, setTimeout, clearTimeout,
     Workstreams:{get:id=>sessions.get(id)}, Channels:{isBusy:()=>false},
     App:{persist:()=>{saves++; saved=JSON.stringify([...sessions.values()]);}},
@@ -21,7 +22,7 @@ async function campaign(root, seed) {
     renderHistory:()=>paints++, replayChannel(){}, syncStatus(){}, maybeEmptyState(){}, pinLoadedHistoryAfterLayout(){},
     log:{innerHTML:''}, activeWs:w, historyPinSeq:5, historyPinPending:0, revealKey:'',
   });
-  const merge = A.fnBody(src,'function mergeCanonicalHistory(local, turns)')+'\n'+A.fnBody(src,'function placeSteerNotes(rows)');   // the read-back places mid-run notes after merging (comms-flow 10-26)
+  const merge = require('./helpers/turnmerge').source('mergeCanonicalHistory')+'\n'+A.fnBody(src,'function placeSteerNotes(rows)');   // the read-back places mid-run notes after merging (comms-flow 10-26)
   const seam = src.slice(src.indexOf('  const historyLoads = new WeakMap();'), src.indexOf('\n  // swap the rendered conversation',src.indexOf('  const historyLoads = new WeakMap();')));
   assert.ok(seam.length>1000 && seam.length<16000, 'bounded production seam');   // history-restore-boot-race's bound: the seam grew by the desk-copy redaction (qw18, 10-27)
   vm.runInContext(merge+'\n'+seam+'\nthis.api={loadServerHistory,ensureHistoryReady,continuityDiagnostics};',context);

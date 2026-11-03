@@ -3,7 +3,12 @@
    Locks the capability AND its containment: an agent can message a chat a human already opened with this
    station, and cannot message anything else. The second half is the point — channel.send is the one tool that
    carries content out to a third party under the Commander's own bot identity, so free-form addressing would
-   turn any prompt injection into an exfiltration primitive. */
+   turn any prompt injection into an exfiltration primitive.
+
+   Since channel-delivery-ledger S4 the HOST sends: the tool hands it the whole body once, with the run, the chat's agent,
+   its reason and the part limit, and the one outbound contract (channels/outbound.js) scrubs, chunks at the channel's
+   own limit, refuses past the limit before any part, and reports the channel.delivery. What the host does with them is
+   proven in test/channels.outbound.contract.test.js; here, what the tool asks for and what it tells the model. */
 'use strict';
 const A = require('./_assert.js');
 const { makeCommsTools, MAX_CHUNKS, TEXT_CHARS } = require('../sidecar/tools/builtin/comms.js');
@@ -38,32 +43,30 @@ const TARGETS = [
   // ---- channel.send: the happy path ------------------------------------------------------------------
   {
     const sent = [];
-    const emitted = [];
     const t = makeCommsTools({
       listTargets: () => TARGETS,
-      sendTo: (target, text) => { sent.push([target, text]); return Promise.resolve({ ok: true }); },
-      emit: (name, payload) => emitted.push([name, payload])
+      sendTo: (target, text, o) => { sent.push([target, text, o]); return Promise.resolve({ ok: true, parts: 1, sent: 1 }); }
     });
     const out = await t.sendTool.run({ target: 'bot1|55501', text: 'the build is green' }, { runId: 'run-77', agentId: 'agent' });
-    A.eq(sent.length, 1, 'one part, one send');
+    A.eq(sent.length, 1, 'one body, one send');
     A.eq(sent[0][0], 'bot1|55501', 'the send carries the TARGET KEY (the host resolves the real chatId)');
     A.eq(sent[0][1], 'the build is green', 'the body goes through intact');
     A.eq(JSON.parse(out.content).ok, true, 'the tool reports success');
 
-    // outbound telemetry on the SHIPPED contract event, so the floor pulses the sending agent's dish
-    const d = emitted.find(e => e[0] === 'channel.delivery');
-    A.ok(d, 'an agent-initiated send emits channel.delivery like a hub reply does');
-    A.eq(d[1].ok, true, 'delivery ok reflects the real outcome');
-    A.eq(d[1].chunks, 1, 'chunk count is what actually landed');
-    A.eq(d[1].agentId, 'agent', 'the delivery names the agent bound to that chat, so the RIGHT dish pulses');
+    // the host reports the delivery on the shipped contract event (the floor pulses the sending agent's dish): the tool
+    // hands it what makes that delivery attributable and bounded
+    const o = sent[0][2] || {};
+    A.eq(o.agentId, 'agent', 'the send names the agent bound to that chat, so the RIGHT dish pulses');
     /* The delivery must be ATTRIBUTABLE to the run that sent it. The first cut hardcoded runId:'' and made
        every agent-initiated send an orphan row; index.js already threads runId onto the dispatch context. */
-    A.eq(d[1].runId, 'run-77', 'the delivery carries the real runId from the dispatch context');
+    A.eq(o.runId, 'run-77', 'the send carries the real runId from the dispatch context');
+    A.eq([o.reason, o.maxParts], ['tool', MAX_CHUNKS], 'its reason is the tool\'s, and the host may split it into at most MAX_CHUNKS messages');
 
     // ...and with no context (a bare caller), it degrades to '' rather than throwing or inventing an id
-    const bare = makeCommsTools({ listTargets: () => TARGETS, sendTo: () => Promise.resolve({ ok: true }), emit: (n, p) => emitted.push([n, p]) });
+    const seen = [];
+    const bare = makeCommsTools({ listTargets: () => TARGETS, sendTo: (x, y, opt) => { seen.push(opt); return Promise.resolve({ ok: true }); } });
     await bare.sendTool.run({ target: 'bot1|55501', text: 'x' });
-    A.eq(emitted[emitted.length - 1][1].runId, '', 'a context-less dispatch reports an empty runId, never a fabricated one');
+    A.eq(seen[0] && seen[0].runId, '', 'a context-less dispatch reports an empty runId, never a fabricated one');
   }
 
   // ---- the redaction seam: this is the one tool that hands text to a third party ---------------------
@@ -124,35 +127,33 @@ const TARGETS = [
     A.eq(sent.length, 0, 'nothing was transmitted into a dead channel');
   }
 
-  // ---- chunking: split under the platform ceiling, in order ------------------------------------------
+  // ---- the host splits it under the platform ceiling: the tool reports what it says landed --------------
   {
     const sent = [];
     const t = makeCommsTools({
       listTargets: () => TARGETS,
-      sendTo: (target, text) => { sent.push(text); return Promise.resolve({ ok: true }); },
-      maxLenFor: () => 100
+      sendTo: (target, text) => { sent.push(text); return Promise.resolve({ ok: true, parts: 3, sent: 3 }); }
     });
     const para = ['A'.repeat(80), 'B'.repeat(80), 'C'.repeat(80)].join('\n\n');
     const out = await t.sendTool.run({ target: '99001', text: para });
-    A.eq(sent.length, 3, 'the body is split into platform-sized parts');
-    A.ok(sent.every(s => s.length <= 100), 'no part exceeds the ceiling: ' + sent.map(s => s.length).join(','));
-    A.eq(sent[0], 'A'.repeat(80), 'the split lands on the paragraph boundary, not mid-word');
-    A.eq(sent[1], 'B'.repeat(80), 'and parts stay IN ORDER — a shuffled reply is unreadable');
-    A.eq(JSON.parse(out.content).parts, 3, 'the tool reports how many chat messages it actually sent');
+    A.eq(sent, [para], 'the whole body goes to the host once (the one outbound contract chunks it at the channel\'s own limit)');
+    A.eq(JSON.parse(out.content).parts, 3, 'the tool reports how many chat messages actually landed');
+    A.ok(/in 3 parts/.test(out.summary), 'and says so: ' + out.summary);
   }
 
   // ---- a send is a message, not a file transfer ------------------------------------------------------
   {
-    const sent = [];
+    let calls = 0;
     const t = makeCommsTools({
       listTargets: () => TARGETS,
-      sendTo: (x, text) => { sent.push(text); return Promise.resolve({ ok: true }); },
-      maxLenFor: () => 100
+      // the host refuses, before the first part, a body that would take more than maxParts messages
+      sendTo: (x, text, o) => { calls++; return Promise.resolve({ ok: false, error: 'too many parts', refused: 'too-many-parts', parts: (o && o.maxParts || 0) + 3, sent: 0 }); }
     });
     let err = null;
-    try { await t.sendTool.run({ target: '99001', text: 'x'.repeat(100 * (MAX_CHUNKS + 3)) }); } catch (e) { err = e; }
-    A.ok(err && /limit /.test(err.message), 'a message that would spray the chat is refused up front');
-    A.eq(sent.length, 0, 'and NOTHING is sent — the refusal happens before the first part');
+    try { await t.sendTool.run({ target: '99001', text: 'x'.repeat(4000) }); } catch (e) { err = e; }
+    A.ok(err && /would take 11 chat messages \(limit 8\)/.test(err.message), 'a message that would spray the chat is refused up front: ' + (err && err.message));
+    A.ok(/send a summary/.test(err && err.message), 'and the refusal says what to do instead');
+    A.eq(calls, 1, 'the refusal is the host\'s, made before the first part: nothing reached the chat');
   }
 
   // ---- the per-call ceiling refuses whole instead of silently clipping a successful send ------------
@@ -171,22 +172,15 @@ const TARGETS = [
 
   // ---- PARTIAL DELIVERY IS REPORTED, never rounded up to success ------------------------------------
   {
-    const sent = [];
-    const emitted = [];
     const t = makeCommsTools({
       listTargets: () => TARGETS,
-      sendTo: (target, text) => { sent.push(text); return Promise.resolve(sent.length === 2 ? { ok: false, error: 'rate limited' } : { ok: true }); },
-      maxLenFor: () => 100,
-      emit: (n, p) => emitted.push([n, p])
+      // the host stopped at its first failure: one of three parts landed
+      sendTo: () => Promise.resolve({ ok: false, error: 'rate limited', parts: 3, sent: 1 })
     });
     let err = null;
     try { await t.sendTool.run({ target: '99001', text: ['A'.repeat(80), 'B'.repeat(80), 'C'.repeat(80)].join('\n\n') }); } catch (e) { err = e; }
     A.ok(err && /failed after 1 of 3 part/.test(err.message), 'the error says exactly how much landed: ' + (err && err.message));
     A.ok(/rate limited/.test(err.message), 'and carries the transport reason');
-    A.eq(sent.length, 2, 'it STOPS at the first failure instead of scattering the rest');
-    const d = emitted.find(e => e[0] === 'channel.delivery');
-    A.eq(d[1].ok, false, 'the delivery event records the failure');
-    A.eq(d[1].chunks, 1, 'and the honest count of parts that landed');
   }
 
   // ---- a throwing transport cannot take the run down -----------------------------------------------

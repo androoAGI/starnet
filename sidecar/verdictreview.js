@@ -53,7 +53,7 @@ const FINAL_CHARS = 60000;
 // transcript, and a packet on disk must never hold it in cleartext (every other durable transcript store redacts).
 function compactPacket(p, redact) {
   p = p || {};
-  const scrub = typeof redact === 'function' ? (t) => { try { return String(redact(t)); } catch (_) { return ''; } } : (t) => t;
+  const scrub = typeof redact === 'function' ? (t) => { try { return String(redact(t)); } catch (e) { failNote('verdict.compact', e); return ''; } } : (t) => t;   // fail closed, never silent
   const learningEvidence = buildLearningEvidence(p, redact);
   const msgs = learningEvidence.trustedOnly ? [] : (Array.isArray(p.messages) ? p.messages : []);
   let finalAt = -1;
@@ -77,12 +77,18 @@ function compactPacket(p, redact) {
     }
   }
   const skillRefs = list => (Array.isArray(list) ? list : []).map(s => s && ({ id: s.id, target: s.target, name: s.name, summary: s.summary, action: s.action })).filter(Boolean);
+  // the run's directive as the station captured it before expansion (TurnDirective.packet: { rowId, text }, text already
+  // safe; re-scrubbed here as a belt) and its stream, so a rating after a restart reads the same directive. Absent on a
+  // packet that never carried them (the persisted shape is then unchanged).
+  const d = p.directive && typeof p.directive === 'object' ? p.directive : null;
+  const directive = d ? { rowId: Number.isSafeInteger(d.rowId) && d.rowId > 0 ? d.rowId : 0, text: scrub(String(d.text == null ? '' : d.text).slice(0, PER_MESSAGE_CHARS)) } : null;
   return {
     learningEvidence,
     agentId: String(p.agentId || 'agent'), messages: keep, model: p.model ? String(p.model) : '',
     loadedSkills: skillRefs(p.loadedSkills), managedSkills: skillRefs(p.managedSkills), unmetered: !!p.unmetered, failed: !!p.failed,
     // the run's outcome rides beside its reason (typed outcomes): runOnceCore's stash hands the lead's outcome-aware reason and its outcome
-    reason: String(p.reason || ''), outcome: String(p.outcome || '').slice(0, 40), correctionSource: String(p.correctionSource || '')
+    reason: String(p.reason || ''), outcome: String(p.outcome || '').slice(0, 40), correctionSource: String(p.correctionSource || ''),
+    ...(directive ? { directive } : {}), ...(p.streamId ? { streamId: String(p.streamId).slice(0, 200) } : {})
   };
 }
 

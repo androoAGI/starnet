@@ -24,9 +24,11 @@
                             was the root of a live user bug: blind agents asked users for a key they never needed.
 
    makeImageTools({ openrouter:{apiKey, model?, baseUrl?}, fsp, pathMod, root, fetchImpl?, imageModel?, visionModel?,
-                    auxVision?, runModelSeesImages? })   // auxVision: async ({ messages, timeoutMs }) -> text (session-provider one-shot)
+                    auxVision?, runModelSeesImages?, keyGone? })   // auxVision: async ({ messages, timeoutMs }) -> text (session-provider one-shot)
                     // runModelSeesImages: (model) => true|false|null — the run provider's supportsImages(model), asked
                     // about the model this route would post; false keeps it off the vision route (DEFAULT_VISION_MODEL answers)
+                    // keyGone: () => '' | sentence — the run host's in-flight watch over the route's key (credential-store
+                    // lane): every keyed post asks first, and a sentence refuses that post with it
      -> { generateTool, analyzeTool, register(reg), _internals }
 
    Node 18+ (global fetch). No dependencies. Reuses the fs.js workspace jail so a generated/analyzed path
@@ -479,9 +481,19 @@
       ctx.emit('deliverable', d);
     }
 
+    /* The run host builds these tools once per run, on the route's key; a key removed or rotated away mid-run used to go out on
+       every later post until the run ended (credential-store lane, review r1). Each keyed post asks the host's in-flight watch
+       first, and a gone key refuses that post with the host's sentence. A check that throws reads as held, as the loop's does. */
+    function keyStillHeld() {
+      if (typeof deps.keyGone !== 'function') return;
+      let why = '';
+      try { why = String(deps.keyGone() || ''); } catch (e) { require('../../failopen.js').note('image.key-gone', e); }
+      if (why) throw new Error(why);
+    }
     async function orPost(body, timeoutMs, parentSignal) {
       checkCancelled(parentSignal);
       if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and connect an OpenRouter API key for image generation, or link this station to your StarNet account, then retry; no image was produced.');
+      keyStillHeld();
       const res = await withTimeout(signal => doFetch(orUrl, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://starnet.local', 'X-Title': 'STARNET' },
@@ -504,6 +516,7 @@
     async function openAIImagePost(body, timeoutMs, parentSignal) {
       checkCancelled(parentSignal);
       if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and connect an OpenAI or OpenRouter API key for image generation, or link this station to your StarNet account, then retry; no image was produced.');
+      keyStillHeld();
       const res = await withTimeout(signal => doFetch(openAIImageUrl, {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
@@ -526,6 +539,7 @@
     async function openAIEditPost(fields, ref, timeoutMs, parentSignal) {
       checkCancelled(parentSignal);
       if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and connect an OpenAI or OpenRouter API key for image generation, or link this station to your StarNet account, then retry; no image was produced.');
+      keyStillHeld();
       const res = await withTimeout(signal => {
         const form = new FormData();
         for (const k of Object.keys(fields)) if (fields[k] != null) form.append(k, String(fields[k]));

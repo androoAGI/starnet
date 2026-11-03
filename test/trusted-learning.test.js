@@ -110,7 +110,9 @@ assert.equal('trustedOnly' in L.evidence({runId:'c'}),false,'a clean run keeps t
   assert.deepEqual(cases.map(r => L.cleanOwnerRows([r], runs).length === 1), cases.map(r => rowTaint(r) === null), 'cleanOwnerRows agrees with rowTaint on every provenance shape');
   assert.deepEqual(cases.map(r => L.cleanOwnerRows([r], runs).length), [1, 0, 0, 0, 0], 'only the stamped clean row proves an owner request');
   const source = require('fs').readFileSync(require('path').join(__dirname, '../sidecar/trusted-learning.js'), 'utf8');
-  assert.ok(/\browTaint\(m\)/.test(source) && !/\.taintKnown\b/.test(source), 'trusted-learning.js reads row provenance through rowTaint, never its own taintKnown test');
+  const ownerSource = require('../sidecar/turn-view.js').ownerRow.toString();
+  assert.ok(/TurnView\.ownerRow\(m, \{ rowTaint,/.test(source) && /c\.rowTaint\(m\)/.test(ownerSource) && !/\.taintKnown\b/.test(source + ownerSource),
+    'trusted-learning delegates to the shared owner predicate with rowTaint, never its own taintKnown test');
   // review sidecar-index-03: ambient activity keeps its 400-row tail; a brief's proof is looked up across every row passed in
   const old = row({ taintKnown: true }), filler = Array.from({ length: 450 }, (_, i) => ({ role: 'assistant', agentId: 'a', streamId: 'global', content: 'step ' + i }));
   assert.equal(L.cleanOwnerRows([old, ...filler], runs).length, 0, 'ambient activity reads only the newest 400 rows');
@@ -276,7 +278,9 @@ assert.equal(L.quotedTurns(null), false);
     assert.ok(from > 0 && to > from, 'extract the actual owner-directive decision');
     const decide = o => vm.runInNewContext('(() => { ' + src.slice(from, to) + '; return ownerDirective; })()', {
       o, internal: !!o.internal, hostPowerWithheld: false, untrustedEntryRun: false, messages: [{ role: 'user', content: 'Plan the launch checklist' }],
-      latestUserText: list => L.textOf(list.filter(m => m && m.role === 'user').at(-1)), Pipeline: { isHandoff: () => false }, TrustedLearning: L });
+      latestUserText: list => L.textOf(list.filter(m => m && m.role === 'user').at(-1)), Pipeline: { isHandoff: () => false }, TrustedLearning: L,
+      // turn identity (commit 4): the hand-off check reads the run's pre-expansion capture
+      TurnDirective: require('../sidecar/turn-directive.js'), directive: require('../sidecar/turn-directive.js').capture([{ role: 'user', content: 'Plan the launch checklist' }], {}) });
     assert.equal(decide({ ownerDirective: true }), true, 'a typed COMMS directive is the owner\'s');
     assert.equal(decide({ channelSender: true, channelSenderOwner: true }), true, 'the bound owner\'s direct chat is the owner\'s');
     assert.equal(decide({ channelSender: true, channelSenderOwner: false }), false, 'a channel group guest is never the owner\'s directive');

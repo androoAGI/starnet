@@ -39,6 +39,10 @@ The real frontend Harness storage code was evaluated with persisted localStorage
 
 Before: the valid linked account succeeded, then the stale request endpoint produced the exact ECONNREFUSED localhost failure. After: the same request completes on the linked route, survives restart, preserves custom routing, and rejects an unlinked managed request before any provider call.
 
+Routines (credential-store lane, step S7): `test/credential-store.endpoint-pair.e2e.test.js` drives Run Now and the scheduled fire of a StarNet routine on a linked station that also holds a stale CUSTOM page URL and a stale starnet record in its page file, against a fake linked cloud that records the device token. Both go to the linked URL with the token, and a request naming the stale endpoint does too; nothing reaches the stale endpoint. These rows pass at trunk a3af8dafd too: they are the proof the record lacked, not a fix.
+
+Channels (credential-store lane, step S8): `test/credential-store.channel-ref.e2e.test.js` row 8 boots a station with a starnet Telegram record an older build left, carrying a stale endpoint and a stale key, and sends a real message through a real hub against a fake linked cloud. It goes to the linked URL with the device token, nothing reaches the stale endpoint, and the stale key goes nowhere. Like the routine rows, the delivery passes at trunk a3af8dafd: it is proof, not a fix. Since S8 the reconciliation also takes the stale endpoint and key off the record, because a linked account takes no channel credential.
+
 ## Verdict
 
 Managed requests now resolve the linked credential and endpoint before considering any per-request override. BYOK/custom providers retain their explicit routing. This does not repair an incorrect URL in the authoritative credits link, an operator CREDITS_URL override, or DNS/hosts redirection. Mike's report omits the requested hostname and destination port, so his personal root cause and recovery remain unconfirmed. No release or installer claim is made.
@@ -52,7 +56,8 @@ Managed requests now resolve the linked credential and endpoint before consideri
   ],
   "entrypoints": [
     { "target": "POST /api/run", "state": "covered", "test": "test/managed-endpoint.e2e.test.js", "scenario": "actual provider request completes", "gate": "http" },
-    { "target": "channels and routines", "state": "blocked", "reason": "Share the resolver, but stale-override executions were not separately driven through each ingress." }
+    { "target": "routines", "state": "covered", "test": "test/credential-store.endpoint-pair.e2e.test.js", "scenario": "Run Now and the scheduled fire of a StarNet routine run on the linked URL with the device token, under a stale CUSTOM page URL and a stale starnet record in the page file", "gate": "http" },
+    { "target": "channels", "state": "covered", "test": "test/credential-store.channel-ref.e2e.test.js", "scenario": "a Telegram message through a real hub, on a starnet record with a stale endpoint and a stale key, runs on the linked URL with the device token", "gate": "http" }
   ],
   "displays": [
     { "target": "frontend provider settings", "state": "covered", "test": "test/managed-endpoint.e2e.test.js", "scenario": "real Harness storage logic, provider switch and reload", "gate": "http" },

@@ -213,7 +213,12 @@
             for (const g of o.readGrants) {
               if (!g || !P.isAbsolute(String(g))) continue;
               let gReal = '';
-              try { gReal = await realpathOrSelf(String(g)); } catch (e) { continue; }   // a granted file since deleted grants nothing
+              try {
+                gReal = await fsp.realpath(String(g));
+                // Grants name canonical FILES at production time. Re-following a replacement symlink would lend
+                // this run a different agent's file; directories and deleted/re-pointed names carry no grant.
+                if (!pathInside(gReal, String(g)) || !pathInside(String(g), gReal) || !(await fsp.stat(gReal)).isFile()) continue;
+              } catch (e) { continue; }
               if (gReal && pathInside(real, gReal) && pathInside(gReal, real)) return { base: P.dirname(real), abs: norm, handoff: true };
             }
           }

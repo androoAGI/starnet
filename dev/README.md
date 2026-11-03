@@ -43,7 +43,7 @@ prompts interrupt a test.
 3. **`SKYNET_DEV=1`** makes the sidecar inject `window.__STARNET_DEV__ = {model, prov}` into the page.
    The frontend (`harness.js`) treats that like the desktop "server holds the key" seam: it reports
    `configured()` without a browser key and omits the key from run requests, so the sidecar uses its
-   own env key (`runtimeKey`). The existing boot path then auto-resumes the server-seeded save.
+   own env key (the credential store). The existing boot path then auto-resumes the server-seeded save.
 
 **The API key never leaves the server.** Only a model + provider hint cross to the page. The
 `SKYNET_DEV` flag is never set in a packaged build, so none of this can leak into shipping.

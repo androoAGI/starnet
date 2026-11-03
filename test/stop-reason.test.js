@@ -125,15 +125,20 @@ A.ok(/stopActive\('esc'\)/.test(chat) && /■ STOPPED BY YOU \(ESC\)/.test(chat)
 // … and never reaches the model's wire (coordinator ask, 2026-10-11)
 {
   const src = A.fnBody(chat, 'function historyWindowFrom(');
-  const historyWindowFrom = new Function('HISTORY_CAP', 'fitHistoryBytes', 'HISTORY_WIRE_MAX_BYTES', src + '\nreturn historyWindowFrom;')(100, (m) => m, 1e9);
-  const out = historyWindowFrom([
+  const stationModes = { window: 'legacy' };
+  const historyWindowFrom = new Function('HistoryFit', 'stationModes', src + '\nreturn historyWindowFrom;')(require('../frontend/app/historyfit.js'), stationModes);
+  const history = [
     { role: 'user', content: 'build the page' },
     { role: 'assistant', content: '⚠ Something went wrong on that turn — try again. (x)', error: true },
     { role: 'user', content: 'try again' },
     { role: 'assistant', content: 'partial', stopped: true, stopNote: 'stopped by you (Esc)' },
     { role: 'system', content: 'routine ran', sys: true }
-  ]);
-  A.eq(out.map(m => m.content), ['build the page', 'try again', 'partial'], 'a ⚠ error row stays visible to the Commander but is never replayed to the model');
+  ];
+  A.eq(historyWindowFrom(history).map(m => m.content), ['build the page', 'try again', 'partial'], 'legacy window retains its stopped partial while excluding the error annotation');
+  stationModes.window = 'id';
+  A.eq(historyWindowFrom(history).map(m => m.content), ['build the page', 'try again'], 'ID window excludes local stopped/error annotations through the shared classifier');
+  A.eq(historyWindowFrom(history.concat([{ rowId: 4, streamId: 's', role: 'assistant', kind: 'turn', content: 'partial' }])).map(m => m.content),
+    ['build the page', 'try again', 'partial'], 'actual canonical assistant prose remains replayable, even when a local stopped annotation had the same text');
 }
 // the stop reason rides the stopped turn and replays after a reload — in its outcome's own mark (review 9.3: endLogLine reads the end word
 // noteStopReason keeps beside it; the stop's ⏹ is a stop's alone)

@@ -325,12 +325,13 @@ function stationUi(cloudSave, uiStore) {
     {
       // 3e. (why the 0.14.0 boot offer was held) a copy the station could not READ this instant — locked by an antivirus scan
       // or a backup tool: EBUSY/EACCES — still holds the lost work. It used to be settled as "nothing to bring back" and was
-      // never offered again while it stayed unchanged.
+      // never offered again while it stayed unchanged. (A lock holds a file that is there: a copy not yet written reads
+      // ENOENT, so the save that writes it finds nothing locked; persist never replaces a file it could not read.)
       const root = workspace();
       let locked = true;
       const lfs = new Proxy(fs, { get(t, k) {
         if (k === 'readFileSync') return function (f) {
-          if (locked && /^agent\.save-conflict-/.test(path.basename(String(f)))) { const e = new Error('EBUSY: resource busy or locked'); e.code = 'EBUSY'; throw e; }
+          if (locked && /^agent\.save-conflict-/.test(path.basename(String(f))) && t.existsSync(String(f))) { const e = new Error('EBUSY: resource busy or locked'); e.code = 'EBUSY'; throw e; }
           return t.readFileSync.apply(t, arguments);
         };
         const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;

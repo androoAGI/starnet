@@ -1,5 +1,5 @@
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 /* settings-p1-backend.test.js — source-lock that the P1 settings rows are wired in the SIDECAR to the REAL code
    paths they claim to control (the honesty law — a knob that does nothing is a bug). Grep-guards over
    sidecar/index.js covering the endpoints + the precedence + the live seams:
@@ -27,24 +27,32 @@ ok(/agent: agentRoster\.get\(id\) \|\| null, hero: agentRoster\.get\('agent'\) \
 ok(/require\('\.\/configexport\.js'\)/.test(src), 'P1-7: the configexport module is required');
 ok(/'\/api\/config\/export'/.test(src) && /'\/api\/config\/import'/.test(src) && /'\/api\/config\/reset'/.test(src), 'P1-7: export/import/reset routes are registered');
 ok(/function collectExportSnapshot\(/.test(src), 'P1-7: a collector gathers the live server-side stores');
-// SECURITY: the collector must NOT read secrets into the snapshot — no channelSecrets / runtimeKeys / codex tokens.
+// SECURITY: the collector must NOT read secrets into the snapshot — no channelSecrets / provider keys / codex tokens.
 ok(!/collectExportSnapshot[\s\S]{0,900}channelSecrets/.test(src), 'P1-7: the export collector never reads channelSecrets (no bot tokens)');
-ok(!/collectExportSnapshot[\s\S]{0,900}runtimeKeys/.test(src), 'P1-7: the export collector never reads provider keys');
+// (credential-store lane, S1) provider keys live in the credential store, so the lock names the store's surface: credStore,
+// a secretValues() reader, providerRuntimeKey, and engineKeys (the page copy). The surface it names must exist, or the lock
+// passes vacuously, as the old `runtimeKeys` one would have once those maps left index.js.
+const collector = sidecarFunctionSource('collectExportSnapshot');
+ok(collector.length > 200 && /const credStore = credentialStore\.makeCredentialStore\(/.test(src) && /function providerRuntimeKey\(/.test(src) && /\bcredStore\.secretValues\(/.test(src),
+  'P1-7: fixture: the collector and the provider-key surface the next lock names both exist');
+ok(!/\b(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)\b/.test(collector)
+  && !/collectExportSnapshot[\s\S]{0,900}(?:credStore|secretValues|providerRuntimeKey|engineKeys|runtimeKeys)/.test(src), 'P1-7: the export collector never reads provider keys');
 // import writes through the SAME durable stores (not a bypass)
 ok(importBody.length > 0 && importBody.length < src.length, 'P1-7: import source-lock resolves the complete function body');
-ok(/saveBudgetOverrides\(\)/.test(importBody), 'P1-7: import persists budget through its durable store');
+ok(/saveBudgetOverrides\(v\)/.test(importBody), 'P1-7: import persists validated budget overrides through its durable store before publishing them');
 ok(/saveAgentRoster\(\)/.test(importBody), 'P1-7: import persists roster through its durable store');
 ok(/persistConnectorState\(nextState\.configs, nextState\.oauth\)/.test(importBody), 'P1-7: import transactionally persists connector config and OAuth state');
-ok(/handleConfigReset[\s\S]{0,2200}unknown or non-resettable section/.test(src), 'P1-7: reset rejects an unknown section');
+ok(sidecarFunctionSource('handleConfigReset').includes('unknown or non-resettable section'), 'P1-7: the complete reset owner rejects an unknown section');
 
 // ---- P1-9 advanced runtime knobs: env > saved > default ----
 ok(/function resolveKnob\(/.test(src), 'P1-9: resolveKnob implements the precedence');
-ok(/resolveKnob\('MAX_ITERS', 'maxIters', 0\)/.test(src), 'P1-9: maxIters defaults to unlimited and resolves via resolveKnob');
-ok(/resolveKnob\('MAX_CONCURRENT_AGENTS', 'maxConcurrentAgents', 0\)/.test(src), 'P1-9: maxConcurrentAgents defaults to unlimited and resolves via resolveKnob');
+const limits = require('../sidecar/limits-registry.js');
+ok(/const CAPS = limitsRegistry\.caps\(ENV, runtimeKnobs\)/.test(src) && limits.caps(() => undefined, {}).maxIters === 0, 'P1-9: maxIters defaults to unlimited through the runtime registry');
+ok(/const MAX_CONCURRENT_AGENTS = resolveKnob\('maxConcurrentAgents'\)/.test(src) && limits.resolve('maxConcurrentAgents', () => undefined, {}) === 0, 'P1-9: maxConcurrentAgents defaults to unlimited through the same runtime registry');
 // 2026-09-17: the four caps read their defaults from ONE shipped table (budgetcaps.SHIPPED_DEFAULTS) so the
 // runaway-loop day rail and the still-off per-run ceiling cannot drift apart. Per-run stays off — asserted on
 // the table itself, not on a literal the source no longer carries.
-ok(/perRun:\s*num\(ENV\('BUDGET_PER_RUN'\), BUDGET_SHIPPED\.perRun\)/.test(src), 'P1-9: the per-run spend ceiling resolves env > shipped default');
+ok(/const BUDGET_CAPS = Object\.fromEntries\(limitsRegistry\.definitions\('spending'\)\.map\(d => \[d\.key, num\(ENV\(d\.env\), d\.def\)\]\)\)/.test(src) && limits.BY_KEY.perRun.env === 'BUDGET_PER_RUN' && limits.BY_KEY.perRun.def === require('../sidecar/budgetcaps.js').shippedDefaults().perRun, 'P1-9: the per-run spend ceiling resolves env > shipped default through the spending registry');
 ok(require('../sidecar/budgetcaps.js').shippedDefaults().perRun === 0, 'P1-9: the per-run spend ceiling defaults off');
 ok(require('../sidecar/budgetcaps.js').shippedDefaults().perDay === 25, 'the per-day rail ships ON at $25 (the 2026-09-17 runaway-loop incident)');
 ok(/ORCH_PER_WORKER\s*=\s*num\(ENV\('BUDGET_PER_WORKER'\), 0\)/.test(src), 'P1-9: the delegated-worker spend ceiling defaults off');
@@ -58,9 +66,9 @@ ok(/runCapUsd = budgetCaps\.managedRunCapUsd\(\(runCapUsd > 0 && isFinite\(runCa
 ok(require('../sidecar/budgetcaps.js').managedRunCapUsd(0, 0.5, 2) === 0.5, 'managed credits: a wallet below the default still runs (clamped, not refused)');
 ok(!/Managed credits need a per-run budget cap/.test(src), 'managed credits: the set-an-env-var refusal is gone — no cap is required to run');
 ok(/if \(!\(runCapUsd > 0\)\) \{[\s\S]{0,1200}return;[\s\S]{0,300}const adm = credits\.beginRun\(\{ runId, agentId, capUsd: runCapUsd \}\);/.test(src), 'managed credits: an unknown/empty balance still fails CLOSED before any reservation (never spends against an unknown wallet)');
-ok(/resolveKnob\('CONSENT_TIMEOUT_MS', 'consentTimeoutMs', 120000\)/.test(src), 'P1-9: consent timeout is now env>saved>default (was hardcoded)');
-ok(/resolveKnob\('CRON_TICK_MS', 'cronTickMs', 60000\)/.test(src), 'P1-9: cron tick resolves via resolveKnob');
-ok(/function knobEnvLocked\(/.test(src) && /fields\[d\.key\] = \{[^}]*envLocked: locked/.test(src), 'P1-9: the status reports which knobs are env-locked');
+ok(/resolveKnob\('consentTimeoutMs'\)/.test(src) && limits.BY_KEY.consentTimeoutMs.env === 'CONSENT_TIMEOUT_MS' && limits.resolve('consentTimeoutMs', () => undefined, {}) === 120000, 'P1-9: consent timeout is env>saved>default');
+ok(/resolveKnob\('cronTickMs'\)/.test(src) && limits.BY_KEY.cronTickMs.env === 'CRON_TICK_MS' && limits.resolve('cronTickMs', () => undefined, {}) === 60000, 'P1-9: cron tick resolves via resolveKnob');
+ok(/return limitsRegistry\.runtimeStatus\(ENV, runtimeKnobs, activeRuntimeKnobs\(\), CONSENT_ACK_EXTEND_MS\)/.test(sidecarFunctionSource('runtimeKnobsStatus')) && limits.runtimeStatus(k => k === 'MAX_ITERS' ? '7' : undefined, {}, {}, 0).fields.maxIters.envLocked === true && limits.runtimeStatus(() => undefined, {}, {}, 0).fields.maxIters.envLocked === false, 'P1-9: the actual status owner reports which knobs are env-locked');
 ok(/'\/api\/runtime\/knobs'/.test(src), 'P1-9: the runtime-knobs routes are registered');
 // an env-locked knob can't be overwritten from the UI
 ok(/if \(knobEnvLocked\(d\.env\)\) continue/.test(src), 'P1-9: a POST cannot override an env-locked knob');

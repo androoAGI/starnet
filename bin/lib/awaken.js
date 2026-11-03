@@ -410,8 +410,9 @@ function makeAwakening(deps) {
     station.ensureWorkstation('agent');   // the Overseer's desk is a real prop (enterGame)
     ctx = { agent, station, dossier: M.Dossier.fresh(), profile: M.Profile.fresh(), rev: 0, birthLines: null, birthFailed: false, purposeSaid: '', persona: c.persona, quickTotal: 0, quickN: 0 };
     M.Dossier.seedFromDocs(ctx.dossier, agent.docs, now(), { resync: true });
-    // the save first (onboarded:false): until it lands, the resets below leave files that read as a PRIOR station to the app's
-    // recovery gate (workspace-lineage STATE_EVIDENCE), so a setup cut short between the two would strand the next start
+    // the save first (onboarded:false): it founds the station in its record (sidecar/station-record.js). Until it lands, the
+    // resets below leave files an older StarNet's recovery gate reads as a PRIOR station, so a setup cut short between the two
+    // would strand that start
     await persist();
     await pushRoster();
     // LOCK DOWN for the new Commander (onWakeAttempt): no inherited grants, the opening posture, a fresh journey and memory

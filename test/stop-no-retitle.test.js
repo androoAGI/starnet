@@ -87,12 +87,14 @@ function rig() {
     activeWs: ws, interview: null, focusVersion: 0, pendingTaskQuestion: null, lastShortVerdict: null, CORRECTION_WINDOW_MS: 600000,
     wiSeq: 0, stick: false, log: null, input: null, activeLiveRow: null, system: 'You are NOVA.', onTurn: null,
     interrupted: new Set(), stopSource: new Map(), aborters: new Map(), liveRunRoots: new Map(), queued: new Map(), crewJoining: new Set(),
+    TurnMerge: require('../frontend/app/turnmerge.js'), turnRng: Math.random, liveRunTurns: new Map(),   // send()'s turn ids (turn identity)
     RUN_META: new Map(), clarificationRuns: new Set(), notedRuns: new Set(), runWork: new Map(), runCrew: new Map(), interruptedStreams: new Set(),
     warmChat: noop, clearChoices: noop, stepOfferAside: noop, addUser: noop, capHistory: noop, goalStepLine: noop, goalStepOf: () => null, goalOf: () => null,
     postCorrection: noop, wiBump: () => 0, wiEmit: noop, liveVoiceCall: () => false, liveVoiceOwns: () => false,
     syncStatus: noop, ensureElapsedTimer: noop, startPresence: noop, renderPresence: noop, updateControls: noop, voiceModeRules: () => '',
     streamingAgent: () => liveRow, ensureHistoryReady: async () => ({ repaint: false }), renderHistory: noop,
-    historyWindow: w => w.history.slice(), endOnUserTurn: m => m,
+    HistoryFit: require('../frontend/app/historyfit.js'), stationCaps: null,
+    windowModelOf: () => ({ limit: 0, window: 'legacy' }),
     retirePriorRatings: noop, recClaimRun: () => null, steerEchoesOf: () => [], markSentNowLanded: noop, fileRunSteers: noop,
     presenceToolCall: noop, presenceToolResult: noop, toolChip: noop, resolveChip: noop, skillFlavor: () => false, recentInRunSkill: 0,
     breakLive: noop, toolLine: noop, endLogLine: noop, budgetStopLine: () => '', stoppedByLine: by => 'stopped by ' + by,
@@ -100,7 +102,7 @@ function rig() {
     noteStopReason: (w, line, runId, endReason) => stopReasons.push({ runId, endReason }),
     offerUnpricedDoor: noop, offerBudgetDoor: noop, offerTryAgain: noop, offerRetry: () => faults.push('offerRetry'),
     offerConnectorDoor: noop, holdConnectorDoor: noop, presentTaskQuestion: noop, restoreTaskQuestion: noop, offerFork: noop,
-    settleRunNeeds: noop, retireOpenConsents: noop, runWorkLine: async () => ({ hops: 0 }), claimCrew: () => [],
+    settleRunNeeds: noop, retireOpenConsents: noop, claimCrew: () => [],
     renderRunRecap: (w, runId) => recaps.push(runId), resolvePresence: noop,
     persistPartial: () => faults.push('persistPartial'), errorHistoryLine: () => 'error', armReconnectWatch: noop,
     brief: s => String(s), sessionNote: () => '', whoOf: () => 'NOVA',
@@ -234,19 +236,15 @@ const titleCalls = r => r.chats.filter(c => c.internal);
     A.eq(r.retitled, [], 'and no rename');
   }
 
-  // ── 1d. Stop lands while the turn awaits its work line: the line's reply makes the turn eligible again, and the final guard still holds ──
-  for (const [what, stop] of [['a Stop during the line', true], ['control: no Stop', false]]) {
-    const r = rig();
-    let finish = null, called = false;
-    r.ctx.runWorkLine = () => { called = true; return new Promise(res => { finish = res; }); };
+  // A legacy caller's lineId cannot reactivate the retired page executor or leave an extra title upgrade pending.
+  {
+    const r = rig(); let called = false;
+    r.ctx.runWorkLine = () => { called = true; throw new Error('retired page executor'); };
     const { done } = await r.start(TEXT, { lineId: 'L1' });
-    r.lead().resolve(endOf('done', 'Here is a first draft of the landing page.', 'run-1'));
-    for (let i = 0; i < 20 && !called; i++) await tick();
-    A.ok(called, what + ': the turn is waiting on its line');
-    if (stop) r.ctx.__stop('click');
-    finish({ hops: 1, text: 'The line finished the page.' });
+    r.lead().resolve(endOf('done', 'Here is the finished landing page.', 'run-1'));
     await done; await settle();
-    A.eq(titleCalls(r).length, stop ? 0 : 1, what + ': ' + (stop ? 'no title call' : 'the title call still comes') + ' (got ' + JSON.stringify(r.chats) + ')');
+    A.eq(called, false, 'a legacy line origin never launches browser line work');
+    A.eq(titleCalls(r).length, 1, 'the successful direct turn has only its ordinary title call');
   }
 
   // ── 4c. the run's filed verdict: a stop and every unfinished end are no verdict and keep their own word; a succeeded run is true ──

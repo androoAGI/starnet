@@ -6,21 +6,55 @@ const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const { pathToFileURL } = require('node:url');
 
-// Per-user model cache, alongside the rest of the app's data root (%LOCALAPPDATA%\StarNet on Windows,
-// ~/Library/Application Support/StarNet on macOS — the two platforms we ship). Never inside the repo:
-// these are ~150 MB of downloaded weights, and PRIVACY.md documents this path for manual removal.
-function defaultCacheRoot() {
-  if (process.platform === 'win32') {
-    return path.join(process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'StarNet', 'models');
-  }
-  if (process.platform === 'darwin') {
-    return path.join(os.homedir(), 'Library', 'Application Support', 'StarNet', 'models');
-  }
-  return path.join(process.env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'starnet', 'models');
+/* WHERE THE MODELS LIVE. A per-user cache in the app's own folder: %LOCALAPPDATA%\ai.skynet.harness\models on Windows
+   (local, not roaming: 150-330 MB of downloaded weights) and ~/Library/Application Support/ai.skynet.harness/models on
+   macOS, the two platforms we ship. Never inside the repo or the install folder, and PRIVACY.md and the troubleshooting
+   page document this path and the legacy one for manual removal. `legacy` is where an older build left the download: on
+   Windows %LOCALAPPDATA%\StarNet is the NSIS per-user install folder, so an uninstall orphaned the weights there and
+   they kept the folder alive. Linux keeps its cache folder and has nothing to move. A chosen STARNET_MODEL_CACHE wins
+   and pulls no legacy root in. test/fixtures/voice-cache-roots.json pins this one rule against erase_all.rs
+   voice_model_cache_roots, which is how ERASE EVERYTHING deletes both. */
+function voiceCacheRoots({ platform, env, homedir, join = path.join }) {
+  if (env.STARNET_MODEL_CACHE) return { root: env.STARNET_MODEL_CACHE, legacy: null };
+  const appData = platform === 'win32' ? env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local')
+    : platform === 'darwin' ? join(homedir(), 'Library', 'Application Support') : '';
+  if (!appData) return { root: join(env.XDG_CACHE_HOME || join(homedir(), '.cache'), 'starnet', 'models'), legacy: null };
+  return { root: join(appData, 'ai.skynet.harness', 'models'), legacy: join(appData, 'StarNet', 'models') };
 }
 
-const cacheRoot = process.env.STARNET_MODEL_CACHE || defaultCacheRoot();
-const state = { asr: 'cold', tts: 'cold', ttsPrecision: '', progress: null, error: '', cacheRoot };
+const roots = voiceCacheRoots({ platform: process.platform, env: process.env, homedir: os.homedir });
+const state = { asr: 'cold', tts: 'cold', ttsPrecision: '', progress: null, error: '', cacheMoveError: '' };
+
+/* The root a model loads from: never a guess, so a model already on disk is never downloaded again. Until a legacy cache
+   moves, or if the move failed, the legacy root IS the cache. With both present the one holding the model wins, the new
+   one first, and a model neither holds lands in the new root. Reads only, so status() and ttsCached can ask. */
+function rootHolding(holds) {
+  const { root, legacy } = roots;
+  if (!legacy || !fs.existsSync(legacy)) return root;
+  if (!fs.existsSync(root)) return legacy;
+  return !holds(root) && holds(legacy) ? legacy : root;
+}
+
+/* One try per process, on its first model load (warm, transcribe or synthesize; never at boot and never from a status
+   read): a legacy cache moves with one same-volume rename, and only when the new root does not exist yet, so nothing is
+   ever renamed over it. A link stays put, because renaming a relative one would lose its target. If the rename fails (a
+   file in use, another volume) this process reuses the legacy root in place and the next one retries; no new root
+   appears, or that retry could never run. If two sidecars race, rename decides and the loser's ENOENT is no failure:
+   rootHolding reads the disk, so it finds the moved root. */
+let cacheMoveTried = false;
+function moveLegacyCache() {
+  if (cacheMoveTried || !roots.legacy) return;
+  cacheMoveTried = true;
+  try {
+    const legacy = fs.lstatSync(roots.legacy, { throwIfNoEntry: false });
+    if (!legacy || !legacy.isDirectory() || fs.existsSync(roots.root)) return;
+    fs.mkdirSync(path.dirname(roots.root), { recursive: true });
+    fs.renameSync(roots.legacy, roots.root);
+  } catch (error) {
+    if (error.code !== 'ENOENT') state.cacheMoveError = String(error.code || error.message);
+  }
+}
+
 /* THE SPOKEN VOICE OF THE STATION — male by default. The written station voice is "a low, smooth American
    male with a subtle gravelly rasp" (personas.js STATION_VOICE) and the crew sprites read male, so a female
    default was simply wrong. These ids are the engine's own voice files (node_modules/kokoro-js/voices):
@@ -155,7 +189,7 @@ async function transformers() {
   if (!transformersPromise) {
     hardenSharpImageDecoders();
     transformersPromise = import('@huggingface/transformers').then(mod => {
-      mod.env.cacheDir = path.join(cacheRoot, 'transformers');
+      mod.env.cacheDir = path.join(asrRoot(), 'transformers');
       mod.env.allowLocalModels = true;
       mod.env.allowRemoteModels = true;
       return mod;
@@ -174,11 +208,20 @@ function onProgress(kind, event) {
   };
 }
 
+/* Is the Whisper model on disk? Both of its ONNX files, the ones `dtype: 'q8'` loads (the transformers file names). */
+const WHISPER_FILES = ['encoder_model_quantized.onnx', 'decoder_model_merged_quantized.onnx'];
+function whisperCached(root) {
+  const onnx = path.join(root, 'transformers', 'Xenova', 'whisper-tiny.en', 'onnx');
+  return WHISPER_FILES.every(file => fs.existsSync(path.join(onnx, file)));
+}
+function asrRoot() { return rootHolding(whisperCached); }
+
 async function loadAsr() {
   if (!transcriberPromise) {
     state.asr = 'loading';
     transcriberPromise = (async () => {
-      await fsp.mkdir(path.join(cacheRoot, 'transformers'), { recursive: true });
+      moveLegacyCache();
+      await fsp.mkdir(path.join(asrRoot(), 'transformers'), { recursive: true });
       const { pipeline } = await transformers();
       const pipe = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en', {
         dtype: 'q8',
@@ -208,7 +251,7 @@ async function loadAsr() {
 function kokoroOnnxDir(root) {
   return path.join(root, 'transformers-kokoro', 'onnx-community', 'Kokoro-82M-v1.0-ONNX', 'onnx');
 }
-function kokoroDtypes(root = cacheRoot) {
+function kokoroDtypes(root = ttsRoot()) {
   const pinned = String(process.env.STARNET_KOKORO_DTYPE || process.env.SKYNET_KOKORO_DTYPE || '').trim();
   if (pinned) return [pinned];
   const dir = kokoroOnnxDir(root);
@@ -220,16 +263,19 @@ function kokoroDtypes(root = cacheRoot) {
    otherwise its first load is a ~326 MB download. The station voice (media-service) waits for a disk load but
    never for a download. Checks the file of the precision kokoroDtypes puts first (the transformers file names). */
 const KOKORO_FILE_SUFFIX = { fp32: '', fp16: '_fp16', q8: '_quantized', int8: '_int8', uint8: '_uint8', q4: '_q4', q4f16: '_q4f16', bnb4: '_bnb4' };
-function kokoroCached(root = cacheRoot) {
+function kokoroCached(root = ttsRoot()) {
   const first = kokoroDtypes(root)[0];
   if (!Object.prototype.hasOwnProperty.call(KOKORO_FILE_SUFFIX, first)) return false;
   return fs.existsSync(path.join(kokoroOnnxDir(root), 'model' + KOKORO_FILE_SUFFIX[first] + '.onnx'));
 }
+function ttsRoot() { return rootHolding(kokoroCached); }
 
 async function loadTts() {
   if (!kokoroPromise) {
     state.tts = 'loading';
     kokoroPromise = (async () => {
+      moveLegacyCache();
+      const cacheRoot = ttsRoot();
       await fsp.mkdir(path.join(cacheRoot, 'transformers'), { recursive: true });
       await transformers();
       // kokoro-js 1.2 checks a free `__dirname` before import.meta.dirname when locating its bundled voice
@@ -247,7 +293,7 @@ async function loadTts() {
         path.join(cacheRoot, 'transformers-kokoro');
       const { KokoroTTS } = await import('kokoro-js');
       let model = null, lastError = null;
-      for (const dtype of kokoroDtypes()) {
+      for (const dtype of kokoroDtypes(cacheRoot)) {
         try {
           model = await KokoroTTS.from_pretrained('onnx-community/Kokoro-82M-v1.0-ONNX', {
             dtype,
@@ -341,39 +387,11 @@ const LEAD_S = 0.03;            // kept ahead of the first voiced sound (no clip
 const TAIL_S = 0.05;            // kept after the last voiced sound (lets the final syllable decay)
 const GAP_S = { sentence: 0.24, clause: 0.14, word: 0.06 };
 
+// THE shared splitter (sidecar/speech-split.js): the desk, the paired device and this engine cut a reply the same way
+// (a boundary is terminal punctuation FOLLOWED BY a space, never an abbreviation's dot; a long sentence is cut at its
+// last clause mark, else its last space).
 function speechPieces(text, max = PIECE_MAX) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return [];
-  const sentences = [];
-  const boundary = /[.!?…]+["'”’)\]]*(?= |$)/g;
-  let start = 0, m;
-  while ((m = boundary.exec(clean))) {
-    const end = m.index + m[0].length;
-    const s = clean.slice(start, end).trim();
-    if (s) sentences.push(s);
-    start = end;
-  }
-  if (start < clean.length && clean.slice(start).trim()) sentences.push(clean.slice(start).trim());
-  const pieces = [];
-  let cur = '';
-  for (const sentence of sentences) {
-    let s = sentence;
-    if (cur && cur.length + 1 + s.length <= max) { cur += ' ' + s; continue; }
-    if (cur) { pieces.push(cur); cur = ''; }
-    // One sentence over the cap: break at its last clause mark inside the window, else its last space.
-    while (s.length > max) {
-      const window = s.slice(0, max);
-      let cut = Math.max(window.lastIndexOf(', '), window.lastIndexOf('; '), window.lastIndexOf(': '),
-        window.lastIndexOf(' — '), window.lastIndexOf(' – '));
-      if (cut < max * 0.4) cut = window.lastIndexOf(' ');
-      if (cut <= 0) cut = max - 1;
-      pieces.push(s.slice(0, cut + 1).trim());
-      s = s.slice(cut + 1).trim();
-    }
-    cur = s;
-  }
-  if (cur) pieces.push(cur);
-  return pieces;
+  return require('./speech-split.js').pack(text, max);
 }
 
 function gapAfter(piece) {
@@ -490,7 +508,9 @@ function status() {
     ttsPrecision: ready ? state.ttsPrecision : '',
     progress: ready ? state.progress : null,
     error: ready ? state.error : UNAVAILABLE_REASON,
-    cacheRoot: state.cacheRoot,
+    // where the models really are right now, and why they stayed in the old folder if a move was refused
+    cacheRoot: rootHolding(root => whisperCached(root) || kokoroCached(root)),
+    cacheMoveError: state.cacheMoveError,
     voice: DEFAULT_LOCAL_VOICE,
     voices: LOCAL_VOICES.slice(),
     asrBusy,
@@ -500,5 +520,5 @@ function status() {
   };
 }
 
-module.exports = { warm, transcribe, synthesize, status, ttsCached: () => kokoroCached(), voices: () => LOCAL_VOICES.slice(), defaultVoice: () => DEFAULT_LOCAL_VOICE, normalizeLocalVoice, edgeVoiceFor, _hardenSharpImageDecoders: hardenSharpImageDecoders,
+module.exports = { warm, transcribe, synthesize, status, ttsCached: () => kokoroCached(), voices: () => LOCAL_VOICES.slice(), defaultVoice: () => DEFAULT_LOCAL_VOICE, normalizeLocalVoice, edgeVoiceFor, voiceCacheRoots, _hardenSharpImageDecoders: hardenSharpImageDecoders,
   _speechPieces: speechPieces, _renderSpeech: renderSpeech, _kokoroDtypes: kokoroDtypes, _kokoroCached: kokoroCached };

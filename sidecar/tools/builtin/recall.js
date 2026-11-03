@@ -96,7 +96,7 @@
       run: async (args, ctx) => {
         const a = args || {};
         const streamId = ctx && ctx.streamId ? String(ctx.streamId) : null;
-        if (!transcriptStore || typeof transcriptStore.search !== 'function') return { content: 'Conversation recall is unavailable.', summary: 'unavailable' };
+        if (!transcriptStore || typeof transcriptStore.view !== 'function') return { content: 'Conversation recall is unavailable.', summary: 'unavailable' };
         const limit = (Number(a.limit) > 0) ? Math.min(Number(a.limit), 20) : 5;
         // a non-owner / group run (and its workers) reads ONLY its own chat — the Commander's other workstreams are private
         const authority = ctx && ctx.connectorAuthority;
@@ -112,14 +112,15 @@
         const ownRows = list => pinned ? list.filter(r => r && r.streamId === streamId) : list;
 
         // ---- SCROLL: read around an anchor stamp ----
-        if ((a.anchor || (a.around != null && a.around !== '')) && typeof transcriptStore.around === 'function') {
+        if ((a.anchor || (a.around != null && a.around !== '')) && typeof transcriptStore.view === 'function') {
           const stable = a.anchor == null ? '' : String(a.anchor);
           const anchor = stable || Number(a.around);
           if ((!stable && (!isFinite(anchor) || anchor <= 0)) || (stable && !/^tx-\d+$/.test(stable))) return { content: 'Pass `anchor` as an id=tx-N value or `around` as a t= stamp copied from an earlier result.', summary: 'bad anchor' };
           if (pinned && a.stream && String(a.stream) !== streamId) return { content: LIMITED + ' Other workstreams cannot be read here.', summary: 'limited to this chat' };
           const where = pinned ? streamId : (a.stream ? String(a.stream) : streamId);
           let win = [];
-          try { win = ownRows(transcriptStore.around(where, anchor, { window: limit }) || []); } catch (_) { win = []; }
+          try { win = ownRows(transcriptStore.view('recall', where, { op: 'around', anchor, window: limit }) || []); }
+          catch (_) { return { content: 'Conversation history could not be read. This does not prove there are no turns around that point.', summary: 'history read incomplete' }; }
           if (!win.length) return { content: 'No turns found around ' + (stable ? 'id=' : 't=') + anchor + (where ? ' in workstream "' + where + '"' : '') + '.', summary: '0 turns' };
           const body = win.map(r => '[' + r.role + ' · t=' + r.ts + '] ' + oneLine(r.content, SNIPPET)).join('\n');
           return { content: 'Turns around ' + (stable ? 'id=' : 't=') + anchor + (where ? ' in "' + where + '"' : '') + ':\n' + body, summary: win.length + ' turn(s)', taintedBy: resultTaint(win) };
@@ -128,9 +129,10 @@
         // ---- BROWSE: which workstreams exist ----
         const q = a.query == null ? '' : String(a.query);
         if (!q.trim()) {
-          if (typeof transcriptStore.streams !== 'function') return { content: 'Provide a `query` (words to find in your earlier conversation).', summary: 'no query' };
+          if (typeof transcriptStore.view !== 'function') return { content: 'Provide a `query` (words to find in your earlier conversation).', summary: 'no query' };
           let list = [];
-          try { list = ownRows(transcriptStore.streams({ limit: pinned ? 100 : Math.max(limit, 10) }) || []); } catch (_) { list = []; }
+          try { list = ownRows(transcriptStore.view('recall', streamId, { op: 'streams', limit: pinned ? 100 : Math.max(limit, 10) }) || []); }
+          catch (_) { return { content: 'Conversation history could not be listed. This does not prove there are no recorded workstreams.', summary: 'history listing incomplete' }; }
           // pinned: this chat may sit past the listing window, so "nothing recorded" would be an unproven claim
           if (!list.length) return pinned ? { content: LIMITED + ' Search it with a `query`.', summary: 'limited to this chat' } : { content: 'No recorded conversation yet.', summary: '0 workstreams' };
           const body = list.map(s => {
@@ -158,7 +160,7 @@
         const key = h => h.rowId ? 'row:' + h.rowId : [h.streamId || '', h.role || '', h.ts || '', h.content || ''].join('\u0000');
         for (const scope of scopes) for (let qi = 0; qi < queries.length; qi++) {
           try {
-            const found = transcriptStore.search(streamId, queries[qi], { limit: Math.min(50, limit * 3), scope }) || [];
+            const found = transcriptStore.view('recall', streamId, { op: 'search', query: queries[qi], limit: Math.min(50, limit * 3), scope }) || [];
             for (const h of found) {
               if (!h || !h.content || (strictStream && h.streamId && h.streamId !== here) || (pinned && h.streamId !== streamId)) continue;
               const id = key(h);

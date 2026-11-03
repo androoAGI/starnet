@@ -59,7 +59,7 @@ const sidecarSource = readSidecarSource();
     fs.appendFileSync(path.join(root, 'deliverables.library.jsonl'), '{torn');
     const repaired = makeDeliverableStore({ fs, path, workspaces: root });
     A.eq(repaired.list().length, 2101, 'a torn journal tail retains every proven prior row');
-    A.ok(fs.existsSync(path.join(root, 'deliverables.library.jsonl.corrupt')), 'torn journal bytes are preserved for forensics');
+    A.ok(fs.existsSync(path.join(root, 'deliverables.library.jsonl.corrupt-1')), 'torn journal bytes are preserved for forensics (the first free numbered copy)');
     await repaired.record({ id: 'd2101', agentId: 'agent', runId: 'r2101', title: 'After repair', status: 'kept', files: [] }, 2101);
     A.eq(makeDeliverableStore({ fs, path, workspaces: root }).list().length, 2102, 'new appends remain replayable after torn-tail repair');
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
