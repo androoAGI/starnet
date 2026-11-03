@@ -1,0 +1,15 @@
+[package]
+name = "starnet-install-manifest-rules"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# The desktop shell's install manifest (src-tauri/src/install_manifest.rs), compiled BY PATH without the app or Tauri, so
+# its class tests run in the fast gate (.github/workflows/fast-gate.yml rust-policy) on every PR: every code file of a
+# fixture install laid out through the real tauri.conf.json map, damaged in turn, must be named. Same pins as
+# src-tauri/Cargo.lock.
+[dependencies]
+serde_json = "=1.0.150"
+sha2 = "=0.10.9"
+
+[workspace]

@@ -16,6 +16,9 @@ mod desktop_assets;
 mod erase_all;
 mod fresh_start;
 mod hud_mode;
+// compiled three ways (build.rs generates, this app checks, test/native-install-manifest tests): each uses part of it
+#[allow(dead_code)]
+mod install_manifest;
 mod lifecycle_preferences;
 mod process_identity;
 mod process_job;
@@ -59,6 +62,10 @@ use lifecycle_preferences::{
     LifecyclePreferences,
 };
 
+/// Every code file this build's bundle ships, with its size and sha256 (build.rs, install_manifest.rs). Embedded, so the
+/// exe's own signature signs it.
+static INSTALL_MANIFEST: &str = include_str!(concat!(env!("OUT_DIR"), "/install-manifest.json"));
+
 /// Shared runtime state: the fixed sidecar port, the per-launch IPC token (shared
 /// only with the sidecar), the project root, and the live child.
 struct AppState {
@@ -75,6 +82,9 @@ struct AppState {
     sidecar_log: Arc<sidecar_output::SidecarLog>,
     sidecar_output: Mutex<Option<sidecar_output::Capture>>,
     boot_failure_tail: Mutex<Vec<String>>,
+    // Is the install whole (install_manifest.rs)? Set by the presence pass before the first spawn and the content pass
+    // after it; read by the startup-failure text, the guardian's halt reason and BuildInfo.
+    install: Arc<install_manifest::Integrity>,
     keep_awake: Mutex<KeepAwakeState>,
     lifecycle_preferences_path: PathBuf,
     lifecycle_preferences: Mutex<LifecyclePreferences>,
@@ -2211,12 +2221,14 @@ fn record_crash_output(state: &AppState, pid: u32) {
     );
 }
 
-/// The middle of the startup-failure text both platforms show: the engine's own last lines when it
-/// printed any, otherwise the possible causes, then where the full logs are.
+/// The middle of the startup-failure text both platforms show: a damaged install first (the file it names and its
+/// exits, install_manifest.rs), then the engine's own last lines when it printed any, otherwise the possible causes,
+/// then where the full logs are.
 fn startup_failure_details(
     startup_log: &Option<PathBuf>,
     sidecar_log: Option<&Path>,
     engine_tail: &[String],
+    install: &install_manifest::Verdict,
 ) -> String {
     let cause = match sidecar_output::dialog_excerpt(engine_tail) {
         Some(excerpt) => format!(
@@ -2233,7 +2245,10 @@ fn startup_failure_details(
     if let Some(p) = sidecar_log {
         logs.push_str(&format!("\nFull engine output:\n{}", p.display()));
     }
-    format!("{cause}\n\n{logs}")
+    match install.dialog_lead() {
+        Some(lead) => format!("{lead}\n\n{cause}\n\n{logs}"),
+        None => format!("{cause}\n\n{logs}"),
+    }
 }
 
 #[cfg(test)]
@@ -2247,14 +2262,59 @@ mod startup_failure_text_tests {
             "Error: Cannot find module 'missing'".to_string(),
             "Node.js v22.23.2".to_string(),
         ];
-        let text = startup_failure_details(&startup, Some(Path::new("C:/data/sidecar.log")), &tail);
+        let whole = install_manifest::Verdict::Verified { files: 2351 };
+        let text = startup_failure_details(&startup, Some(Path::new("C:/data/sidecar.log")), &tail, &whole);
+        assert!(text.starts_with("The engine stopped before it became ready."), "{text}");
         assert!(text.contains("Error: Cannot find module 'missing'\nNode.js v22.23.2"));
         assert!(text.contains("C:/data/startup.log") && text.contains("C:/data/sidecar.log"));
         assert!(!text.contains("Possible causes"));
 
-        let silent = startup_failure_details(&startup, None, &[]);
+        let unchecked = install_manifest::Verdict::NotChecked("dev build".to_string());
+        let silent = startup_failure_details(&startup, None, &[], &unchecked);
+        assert!(silent.starts_with("The engine exited or did not become ready."), "{silent}");
         assert!(silent.contains("Possible causes"));
         assert!(silent.contains("C:/data/startup.log") && !silent.contains("Full engine output"));
+    }
+
+    /// 85f602c4 / E62: a zeroed shell.js. The engine's own last lines never name the file (this is the real tail at
+    /// 0b8441064, probe-zeroed-module.json); the failure text now leads with it and its exits, then those lines.
+    #[test]
+    fn a_damaged_install_leads_the_failure_text() {
+        let tail: Vec<String> = [
+            "uncaughtException: TypeError: makeShellTool is not a function",
+            "    at Object.<anonymous> (C:\\Users\\a\\AppData\\Local\\StarNet\\sidecar\\index.js:5892:24)",
+            "    at Module._compile (node:internal/modules/cjs/loader:1781:14)",
+            "    at Object..js (node:internal/modules/cjs/loader:1913:10)",
+            "    at Module.load (node:internal/modules/cjs/loader:1505:32)",
+            "[process-fault] uncaughtException: state is unproven — health flipped to DEGRADED; exiting(1) in 500ms so the shell watchdog restarts a clean process",
+        ]
+        .iter()
+        .map(|line| line.to_string())
+        .collect();
+        // the verdict the presence pass gives before the spawn, over a real install with shell.js zeroed
+        let dir = std::env::temp_dir().join(format!("starnet-failure-text-{}-{}", std::process::id(), now_ms()));
+        let shell = dir.join("sidecar").join("tools").join("builtin").join("shell.js");
+        std::fs::create_dir_all(shell.parent().unwrap()).unwrap();
+        std::fs::write(&shell, "module.exports = { makeShellTool() {} };\n".repeat(2000)).unwrap();
+        let (size, sha256) = install_manifest::sha256_file(&shell).unwrap();
+        let entries = vec![install_manifest::Entry { path: "sidecar/tools/builtin/shell.js".to_string(), size, sha256 }];
+        std::fs::write(&shell, b"").unwrap();
+        let verdict = install_manifest::Verdict::after_presence(1, install_manifest::presence_pass(&dir, &entries, None));
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let startup = Some(PathBuf::from("C:/data/startup.log"));
+        let text = startup_failure_details(&startup, Some(Path::new("C:/data/sidecar.log")), &tail, &verdict);
+        let lead = format!(
+            "StarNet's installation is damaged: sidecar/tools/builtin/shell.js is empty (0 of {} bytes).",
+            install_manifest::grouped(size)
+        );
+        assert!(text.starts_with(&lead), "{text}");
+        assert!(text.contains("restore it from that program's quarantine, or reinstall StarNet from starnetos.com"), "{text}");
+        assert!(text.contains("Your station, agents and keys are kept."), "{text}");
+        let named = text.find("sidecar/tools/builtin/shell.js").unwrap();
+        let engine = text.find("TypeError: makeShellTool is not a function").expect("the engine's own lines still follow");
+        assert!(named < engine, "{text}");
+        assert!(text.contains("C:/data/startup.log") && text.contains("C:/data/sidecar.log"));
     }
 }
 
@@ -2275,6 +2335,7 @@ fn show_startup_failure_dialog(_app: &AppHandle, state: &AppState) -> bool {
         &state.startup_log,
         state.sidecar_log.path(),
         &boot_failure_tail(state),
+        &state.install.verdict_for_failure(install_manifest::FAILURE_WAIT),
     );
     let body = format!(
         "StarNet could not start its local engine.\n\n\
@@ -2315,7 +2376,8 @@ fn show_startup_failure_dialog(app: &AppHandle, state: &AppState) -> bool {
             startup_failure_details(
                 &state.startup_log,
                 state.sidecar_log.path(),
-                &boot_failure_tail(state)
+                &boot_failure_tail(state),
+                &state.install.verdict_for_failure(install_manifest::FAILURE_WAIT)
             )
         ),
         || {},
@@ -2404,8 +2466,15 @@ fn report_window_startup_failure(
 /// the guardian must not turn a cancelled launch into hidden background work.
 /// Returns whether startup should proceed.
 fn spawn_sidecar_with_retry(app: &AppHandle, state: &AppState) -> bool {
+    let mut first = true;
     loop {
-        if spawn_sidecar(state) {
+        let listening = spawn_sidecar(state);
+        if std::mem::take(&mut first) {
+            // after the first spawn, never during the engine's own boot: hash every listed file in the background
+            let log = state.startup_log.clone();
+            install_manifest::start_content_pass(&state.install, move |line| log_startup(&log, line));
+        }
+        if listening {
             return true;
         }
         // No native Retry/Cancel dialog exists off Windows, so nobody pressed Cancel: treating the stub's
@@ -2572,10 +2641,11 @@ fn spawn_guardian(app: AppHandle) {
                             }
                             count = count.saturating_add(1);
                             if count >= GUARDIAN_MAX_CONSECUTIVE_CRASHES {
-                                let reason = format!(
+                                // led by a damaged install's named file, when there is one (install_manifest.rs)
+                                let reason = install_manifest::with_install_lead(&st.install.verdict(), format!(
                                     "crash-loop: the station service exited {count} times in {} minutes (last exit code {code:?}); the guardian stopped restarting it. Use RESTART STATION SERVICE to try again, or quit StarNet fully and reopen it.",
                                     GUARDIAN_CRASH_WINDOW.as_secs() / 60
-                                );
+                                ));
                                 log_startup(
                                     &st.startup_log,
                                     format!("watchdog: HALTED — {reason} (see the sidecar lines above for the fault)"),
@@ -4839,6 +4909,9 @@ struct BuildInfo {
     executable_sha256: String,
     #[serde(rename = "executableSize")]
     executable_size: u64,
+    /// Is the install whole (install_manifest.rs)? The copied diagnostics print it as their `install:` line.
+    #[serde(rename = "installIntegrity")]
+    install_integrity: serde_json::Value,
 }
 
 /// Hash an executable without loading it wholesale into memory. The identity is intentionally
@@ -4934,6 +5007,11 @@ fn starnet_build_info(app: AppHandle) -> BuildInfo {
         dirty: env!("STARNET_BUILD_DIRTY") == "1",
         executable_sha256,
         executable_size,
+        install_integrity: app
+            .try_state::<AppState>()
+            .map(|state| state.install.verdict())
+            .unwrap_or_else(|| install_manifest::Verdict::NotChecked("the shell is still starting".to_string()))
+            .to_info(),
     }
 }
 
@@ -5361,6 +5439,12 @@ fn main() {
     if let Some(code) = process_job::breakaway_main() {
         std::process::exit(code);
     }
+    // `--starnet-verify-install [--root DIR] [--out FILE]`: the install manifest's verdict over this exe's install,
+    // headless, for the CI installed proofs and support (install_manifest.rs). Exits 0 verified, 3 damaged, 4 not
+    // checked, before Tauri or the single-instance check start.
+    if let Some(code) = install_manifest::verify_install_main(std::env::args_os(), INSTALL_MANIFEST) {
+        std::process::exit(code);
+    }
     let mut context = tauri::generate_context!();
     context.assets = Box::new(desktop_assets::DesktopAssets::new(context.assets));
     // Pick the sidecar port BEFORE the app is built so the webview CSP can name exactly that
@@ -5538,6 +5622,7 @@ fn main() {
                 sidecar_log,
                 sidecar_output: Mutex::new(None),
                 boot_failure_tail: Mutex::new(Vec::new()),
+                install: Arc::new(install_manifest::Integrity::new()),
                 keep_awake: Mutex::new(KeepAwakeState::new()),
                 lifecycle_preferences_path,
                 lifecycle_preferences: Mutex::new(lifecycle_preferences),
@@ -5566,6 +5651,11 @@ fn main() {
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
                 .clone();
             reap_orphan_sidecars(&node_binary(&state.root), &keep, &state.startup_log);
+            // A damaged install names its file before the engine starts (install_manifest.rs): stat every file the
+            // bundle shipped, bounded, never holding up the spawn. Release builds only.
+            for line in install_manifest::startup_presence(&state.install, INSTALL_MANIFEST, cfg!(debug_assertions)) {
+                log_startup(&state.startup_log, line);
+            }
             // Bring the sidecar up before starting background supervision. Cancel drops
             // the owned state and child, before a guardian or hidden window can be created.
             // A setup Err becomes a panic in Tauri, and release builds use panic = "abort" — a user

@@ -230,3 +230,17 @@ jobs:
           for t in shared_fixtures_match_the_js_rule the_shared_boot_rule_matches_the_js_rule; do
             grep -Eq "test process_identity::tests::$t \.\.\. ok" "$RUNNER_TEMP/ownership.log" || { echo "::error::the parity test $t did not pass"; exit 1; }
           done
+
+      # The desktop shell's install manifest, compiled by path without the app (test/native-install-manifest): every code
+      # file of a fixture install laid out through the real tauri.conf.json map, damaged in turn (zeroed, deleted,
+      # truncated, edited at the same size, replaced by a folder), must be named; an absent or partial manifest is never
+      # read as verified. 85f602c4 / E62: a zeroed or quarantined shell.js that nothing named.
+      - name: Install-manifest rules (a damaged install names its file)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path test/native-install-manifest/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/install-manifest.log"
+          grep -Eq 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/install-manifest.log" || { echo "::error::the install-manifest crate ran no test"; exit 1; }
+          for t in every_entry_damaged_in_turn_is_named absent_or_partial_manifest_is_not_checked; do
+            grep -Eq "test install_manifest::tests::$t \.\.\. ok" "$RUNNER_TEMP/install-manifest.log" || { echo "::error::the class test $t did not pass"; exit 1; }
+          done
