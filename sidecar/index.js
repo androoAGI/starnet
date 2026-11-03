@@ -27598,12 +27598,14 @@ function noteKeyCheckFailure(route, id, result, candidate) {
   } catch (e) { failNote('providers.keycheck.note', e); }
 }
 // Probe and candidate validation share the adapter contract. Catalogs are never authentication proofs.
-async function verifyProviderPair(id, body, candidateOnly) {
+async function verifyProviderPair(id, body, candidateOnly, onCredential) {
   const profile = getProviderProfile(id);
   const oauth = registryProviderUsesCodex(id) || registryProviderUsesDeviceOAuth(id);
   const candidate = cleanProviderKey(body.key);
   let key = candidateOnly ? candidate : providerRuntimeKey(id, candidate);
   const baseUrl = providerRuntimeBaseUrl(id, body.baseUrl || body.base_url || '', candidateOnly ? candidate : undefined, candidate, !!candidate);
+  // Private route diagnostic only: keep the exact resolved pair out of every wire result.
+  if (!oauth && typeof onCredential === 'function') onCredential(key, baseUrl);
   if (providerRequiresKey(id) && !key) return { ok: false, credentialVerified: false, status: 'missing', error: 'a candidate key is required' };
   if (providerRequiresBaseUrl(id) && !baseUrl) return { ok: false, credentialVerified: false, status: 'missing', error: 'a base URL is required' };
   let slot = providerVerification.keySlot(id, key), account = '', adapter;
@@ -27612,6 +27614,7 @@ async function verifyProviderPair(id, body, candidateOnly) {
     account = acct && acct.id || '';
     const entry = account ? oauthAccountEntry(id, account) : null;
     key = entry ? await ensureAccountAccessToken(entry) : registryProviderUsesCodex(id) ? await ensureCodexAccessToken() : await ensureOAuthAccessToken(id);
+    if (typeof onCredential === 'function') onCredential(key, baseUrl);
     slot = id + '@' + (account || 'primary');
     adapter = selectProvider({ provider: id, fetch: globalThis.fetch, token: key, baseUrl,
       headers: id === 'kimi' ? (entry ? kimiMshHeaders(entry.deviceId) : oauthInferenceHeaders(id)) : undefined });
@@ -27649,9 +27652,9 @@ async function verifyProviderPair(id, body, candidateOnly) {
   } finally { clearTimeout(timer); }
 }
 async function providerCheckRoute(req, res, candidateOnly) {
-  let id = '', candidate = '';
+  let id = '', candidate = '', checkedKey = '', checkedEndpoint = '';
   const json = obj => {
-    if (obj.credentialVerified === false && candidate) noteKeyCheckFailure(candidateOnly ? 'validate' : 'probe', id, obj, candidate);
+    if (obj.credentialVerified === false && (checkedKey || candidate)) noteKeyCheckFailure(candidateOnly ? 'validate' : 'probe', id, obj, checkedKey || candidate);
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
     res.end(JSON.stringify(obj));
   };
@@ -27663,11 +27666,11 @@ async function providerCheckRoute(req, res, candidateOnly) {
   if (candidateOnly && (providerUsesCodex(id) || providerUsesDeviceOAuth(id) || id === 'claude-cli')) {
     return json({ ok: false, provider: id, credentialVerified: false, error: 'this provider does not accept an API key' });
   }
-  try { return json(await verifyProviderPair(id, body, candidateOnly)); }
+  try { return json(await verifyProviderPair(id, body, candidateOnly, (key, endpoint) => { checkedKey = key; checkedEndpoint = endpoint; })); }
   catch (e) {
     let error = String(e && e.message || 'credential verification failed');
     const endpoint = String(body.baseUrl || body.base_url || '');
-    for (const secret of [candidate, endpoint, ...credStore.urlSecretParts(endpoint)]) if (secret) error = error.split(String(secret)).join('[credential]');
+    for (const secret of [checkedKey, candidate, checkedEndpoint, endpoint, ...credStore.urlSecretParts(checkedEndpoint), ...credStore.urlSecretParts(endpoint)]) if (secret) error = error.split(String(secret)).join('[credential]');
     return json({ ok: false, provider: id, reachable: false, credentialVerified: false, error: redact(error), readiness: providerReadiness(id) });
   }
 }
