@@ -15,6 +15,8 @@
      charge and is retried;
    - the JS legacy mirror is field-identical to the native markers, and the reset and recovery builders write valid records
      that the next read accepts as they are;
+   - proofBeyondReceipt: what a crash-interrupted activation may set aside is only what the shell's first-run migration
+     copied in, byte for byte;
    - the frozen fallback is the rule workspace-lineage used, moved verbatim and declared once;
    - and the Rust half really runs: the contract test reads this fixture and the fast gate requires each test by name. */
 'use strict';
@@ -395,6 +397,33 @@ A.throws(() => SR.read({ fs, path, now: () => NOW }), 'a reader names its worksp
   A.eq([rv.persisted, rv.resetAt(), rv.autoImportBlock(), rv.station()], [true, null, 'erase-authority', true], 'a recovered generation saves freely and still blocks auto import');
   A.throws(() => SR.writeRecord(d, k.ws, Object.assign({}, fresh, { state: 'active' })), 'writeRecord refuses an invalid record (active with no generationId)');
   A.eq(SR.read(d).record, fresh, 'and wrote nothing');
+}
+
+/* ---- proofBeyondReceipt: the save and roster files a first-run migration did not put there, byte for byte. A crash between an
+   activation's two renames lets the desktop shell's migration run into the missing workspace first; what it imported may be
+   set aside with the rest (workspace-recovery.js resumeActivation), a station anyone founded there never. ---- */
+{
+  const crypto = require('node:crypto');
+  const dir = path.join(scratch, 'receipt-' + (++seq), 'workspaces');
+  fs.mkdirSync(dir, { recursive: true });
+  const d = { fs, path };
+  const put = (name, body) => fs.writeFileSync(path.join(dir, name), body);
+  const receipt = files => put('.migration-receipt.json', JSON.stringify({ version: 1, validated: true, sourceRoots: ['x'], files }));
+  const row = name => { const bytes = fs.readFileSync(path.join(dir, name)); return { path: name, bytes: bytes.length, sha256: crypto.createHash('sha256').update(bytes).digest('hex') }; };
+  A.eq(SR.proofBeyondReceipt(d, path.join(scratch, 'no-such-folder')), [], 'no folder: nothing founded');
+  put('ledger.jsonl', 'soft\n');
+  A.eq(SR.proofBeyondReceipt(d, dir), [], 'soft evidence is never a founding');
+  put('agent.save.json', '{"doc":1}');
+  put('agent.roster.json', '{"agents":[]}');
+  A.eq(SR.proofBeyondReceipt(d, dir), ['agent.roster.json', 'agent.save.json'], 'with no receipt every save and roster file is unaccounted for');
+  receipt([row('agent.save.json'), row('agent.roster.json')]);
+  A.eq(SR.proofBeyondReceipt(d, dir), [], 'a receipt that lists them byte for byte accounts for them');
+  put('agent.save.json', '{"doc":2}');
+  A.eq(SR.proofBeyondReceipt(d, dir), ['agent.save.json'], 'a file changed since the copy is not the copy');
+  put('agent.save.json.bak', '{"doc":1}');
+  A.eq(SR.proofBeyondReceipt(d, dir), ['agent.save.json', 'agent.save.json.bak'], 'nor is one the receipt never listed');
+  put('.migration-receipt.json', '{"files":');
+  A.eq(SR.proofBeyondReceipt(d, dir).length, 3, 'a receipt that cannot be read accounts for nothing');
 }
 
 /* ---- THE FROZEN FALLBACK: today's rule, moved verbatim, declared once — and no longer re-exported by a reader ---- */

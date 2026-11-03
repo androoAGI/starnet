@@ -276,16 +276,74 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   A.eq(fs.readdirSync(t.shelf), [], 'the shelf holds nothing');
   stranded(t, 'rolled back');
 
-  // even the rollback fails: the station is safe, and the error says where. Nothing is claimed that is not true.
+  // neither generation will take the name (a scanner holding both folders): the last exit writes the stage's own files there,
+  // so a boot never opens an unsealed workspace with the erase on the shelf (activation-crash-window.test.js holds the deaths)
   t = sandbox();
   plant(t.ws, ['agent.roster.json', 'ledger.jsonl']);
   bootRecord(t.ws);
   ask(t.ws);
   before = tree(t.ws);
-  r = boot(t.ws, { fs: failing((a, b) => /fresh-stage/.test(a) && b === t.ws ? err('ENOSPC', 'no space, rename') : (b === t.ws ? err('EPERM', 'denied, rollback') : null)) });
+  const noName = failing((a, b) => /fresh-stage/.test(a) && b === t.ws ? err('ENOSPC', 'no space, rename') : (b === t.ws ? err('EPERM', 'denied, rollback') : null));
+  r = boot(t.ws, { fs: noName });
+  A.eq([r.kind, r.ok, r.applied], ['fresh', true, true], 'with both names refused the clean generation is written in place (' + JSON.stringify(r) + ')');
+  A.eq(names(t.ws), clean(), 'sealed, with its record and mirror');
+  A.eq(tree(r.quarantine), before, 'and the old generation is whole on the shelf');
+  A.eq(fs.readdirSync(t.root).filter(n => /fresh-stage/.test(n)), [], 'no stage is left behind');
+  A.eq(fs.existsSync(t.requestFile), false, 'the request is consumed');
+
+  // and even that fails: the station is safe, the error says where, and nothing is claimed that is not true. The stage and the
+  // journal stay, because they are all that knows what this workspace was meant to be: the next boot finishes it.
+  t = sandbox();
+  plant(t.ws, ['agent.roster.json', 'ledger.jsonl']);
+  bootRecord(t.ws);
+  ask(t.ws);
+  before = tree(t.ws);
+  const stuck = t;
+  const noPlace = new Proxy(noName, { get(target, key) {
+    // only the last exit's own step fails: making the workspace again once it has gone to the shelf
+    if (key === 'mkdirSync') return (p, ...rest) => { if (String(p) === stuck.ws && !fs.existsSync(stuck.ws)) throw err('ENOSPC', 'no space left'); return fs.mkdirSync(p, ...rest); };
+    return target[key];
+  } });
+  r = boot(t.ws, { fs: noPlace });
   const aside = path.join(t.shelf, fs.readdirSync(t.shelf)[0]);
   A.ok(/rollback also failed/.test(r.error) && r.error.includes(aside) && !/Nothing was moved/.test(r.error), 'a stranded generation is named exactly (' + r.error + ')');
+  A.eq([r.kind, r.ok, r.applied, r.pending], ['fresh', false, false, true], 'it is not a refusal: the request stays pending');
+  A.ok(/finishes this at its next start/.test(r.error), 'and it says what happens next');
   A.eq(tree(aside), before, 'and it is whole');
+  A.eq(fs.existsSync(t.requestFile), true, 'the request keeps its journal');
+  A.eq(fs.readdirSync(t.root).filter(n => /fresh-stage/.test(n)).length, 1, 'and the stage stays');
+  A.eq(fs.readdirSync(t.root).filter(n => /\.fresh-request\.json\.failed-/.test(n)).length, 0, 'nothing was failed');
+  A.eq(lastFresh(t.ws).pending, true, 'lastFresh says so');
+  fs.mkdirSync(t.ws, { recursive: true });   // the boot goes on: index.js makes the workspace for its stores
+  const finished = boot(t.ws, { now: () => T0 + 5000 });
+  A.eq([finished.ok, finished.applied, finished.resumed], [true, true, true], 'the next boot finishes it (' + JSON.stringify(finished) + ')');
+  A.eq(names(t.ws), clean(), 'the clean generation is live');
+  A.eq(tree(aside), before, 'the old generation has not moved');
+  A.eq(fs.existsSync(t.requestFile), false, 'and the request is consumed');
+
+  // the workspace is made again between the two renames (an orphaned station browser writing its profile back): the generation
+  // cannot go back, nothing is written over or merged into that folder, and it is never reported as "nothing moved"
+  t = sandbox();
+  plant(t.ws, ['agent.roster.json', 'ledger.jsonl']);
+  bootRecord(t.ws);
+  ask(t.ws);
+  before = tree(t.ws);
+  const remade = t;
+  r = boot(t.ws, { fs: failing((a, b) => {
+    if (!/fresh-stage/.test(a) || b !== remade.ws) return null;
+    write(path.join(remade.ws, '.browser-profile', 'Default', 'Preferences'), 'an orphan wrote this');
+    return err('ENOTEMPTY', 'directory not empty, rename');
+  }) });
+  const shelved = path.join(t.shelf, fs.readdirSync(t.shelf)[0]);
+  A.eq([r.kind, r.ok, r.applied, r.pending], ['fresh', false, false, true], 'a workspace made again meanwhile strands the activation, pending (' + JSON.stringify(r) + ')');
+  A.ok(/made .* again while it was set aside/.test(r.error) && r.error.includes(shelved) && !/Nothing was moved/.test(r.error), 'and says what happened and where the generation is (' + r.error + ')');
+  A.eq(names(t.ws), ['.browser-profile/Default/Preferences'], 'nothing was written into the folder that appeared');
+  A.eq(tree(shelved), before, 'the generation is whole on the shelf');
+  const settled = boot(t.ws, { now: () => T0 + 5000 });
+  A.eq([settled.ok, settled.applied, settled.resumed], [true, true, true], 'the next boot finishes it (' + JSON.stringify(settled) + ')');
+  A.eq(names(t.ws), clean(), 'the clean generation is live');
+  A.eq(names(shelved + '-interrupted'), ['.browser-profile/Default/Preferences'], 'and what appeared is set aside beside the generation, never deleted');
+  A.eq(tree(shelved), before, 'which has not moved');
 
   // the quarantine shelf cannot be made: nothing moved, on every platform
   t = sandbox();

@@ -47,6 +47,7 @@
                          or ms), acknowledges(root); evidenceNames() is what a reader shows as the station's files.
      freshRecord / recoveryRecord / mirrorMarker / writeRecord / writeMirror — the reset and recovery writers' builders.
      freshFacts(deps)    what a START FRESH request pins and its apply compares (workspace-recovery.js applyFreshRequest).
+     proofBeyondReceipt(deps, dir)  the save and roster files in a generation that no first-run migration put there.
      carryInto(deps, from, stage)  THE CARRY RULE: what rides into START FRESH's clean generation, the same through both doors.
 
    RECONCILE (read() and ensure(), in this order)
@@ -79,6 +80,7 @@ const RECORD_FILE = '.station.json';
 // START FRESH / ERASE marker: the Commander chose a clean generation over prior evidence. Written by the native door
 // (fresh_start.rs) and, as a legacy mirror for downgrades, by every JS reset writer. Never itself "prior state".
 const FRESH_MARKER = '.fresh-start.json';
+const MIGRATION_RECEIPT = '.migration-receipt.json';   // the shell's first-run migration lists what it copied, with hashes
 const QUARANTINE_DIR = 'workspace-quarantine';
 const STATES = Object.freeze(['none', 'active', 'erased']);
 const BY = Object.freeze(['derived', 'promoted', 'copied', 'save', 'cli-bootstrap', 'recovery', 'start-fresh']);
@@ -663,6 +665,22 @@ function freshFacts(deps) {
   };
 }
 
+/* proofBeyondReceipt: the save and roster files in a generation that are not, byte for byte, what the shell's first-run
+   migration copied in (main.rs migrate_workspace_data, which runs before any sidecar and into any workspace with no seal).
+   Empty means nobody has founded anything here. */
+function proofBeyondReceipt(deps, dir) {
+  const fs = deps.fs, p = deps.path;
+  let files = [];
+  try {
+    const receipt = JSON.parse(fs.readFileSync(p.join(dir, MIGRATION_RECEIPT), 'utf8'));
+    if (isObj(receipt) && Array.isArray(receipt.files)) files = receipt.files;
+  } catch (e) { files = []; }
+  return hardProofNames(fs, dir).filter(name => {
+    const row = files.find(f => isObj(f) && f.path === name);
+    return !row || row.sha256 !== pinOf(fs, p.join(dir, name));
+  });
+}
+
 /* THE CARRY RULE, one rule through both doors (test/fixtures/station-record-cases.json; fresh_start.rs preserve_credits_link
    is the native half). A file in CARRY_ON_FRESH rides into the clean generation when it is a regular file of at most
    MAX_CARRY_BYTES holding a JSON object. Anything else stays in the set-aside generation, which keeps its bytes either way:
@@ -697,7 +715,7 @@ function carryInto(deps, from, stage) {
 module.exports = {
   SCHEMA, VERSION, RECORD_FILE, FRESH_MARKER, QUARANTINE_DIR, LIFECYCLE_FILES, SEAL, CARRY_ON_FRESH, BY,
   read, ensure, found,
-  freshRecord, recoveryRecord, mirrorMarker, writeRecord, writeMirror, freshFacts, carryInto,
+  freshRecord, recoveryRecord, mirrorMarker, writeRecord, writeMirror, freshFacts, proofBeyondReceipt, carryInto,
   parseMarker, parseRecord, markerAt, sameRoot, canonicalRoot,
   INFRA, STATION_BOOKKEEPING, STATE_EVIDENCE, meaningfulEntries,
   _internals: { deriveRecord, reconcile, invalidRecord, mintGenerationId, hardProofNames, setAsideOf, context, HARD_PROOF, GENERATION_ID }

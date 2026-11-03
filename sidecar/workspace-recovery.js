@@ -11,7 +11,10 @@
    the carry rule's files, exactly what the desktop shell's fresh_start.rs leaves. Inside the running sidecar the old
    generation cannot be renamed: its own stores, children and station browser hold it open. A request the workspace has
    since moved on from is refused and kept as .failed-<stamp>, and the result ({ kind: 'fresh' } in the same last-result
-   file) reaches the gate as lineage.lastFresh. */
+   file) reaches the gate as lineage.lastFresh.
+
+   AN ACTIVATION OUTLIVES ITS PROCESS. Its two renames cannot be one, so the request file carries a journal, and the next boot
+   settles a journaled activation before anything else looks at the workspace (resumeActivation). */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -21,6 +24,7 @@ const pathNative = require('node:path');
 const { makeCronLock } = require('./cron-lock.js');   // O_EXCL + pid:nonce + stale-break advisory lock (G4.3 primitive)
 const { makeWorkspaceOwner } = require('./workspace-owner.js');
 const { note: failNote } = require('./failopen.js');
+const { writeFileDurable } = require('./durable-write.js');
 // The station lifecycle's one module: the reset and erase authority automatic recovery honors, the one path rule, the
 // lifecycle files that never travel with a recovered station, and the record a restored generation starts with.
 const stationRecord = require('./station-record.js');
@@ -361,25 +365,166 @@ function recoveryLockFile(workspaceRoot, path) {
   return path.join(path.dirname(root), path.basename(root) + '.recovery.lock');
 }
 
+/* THE ACTIVATION JOURNAL. Two renames cannot be one: between them the live generation is on the shelf and the stage is not in
+   place, and a process that dies there (power, a hard kill) leaves a boot with no workspace, no seal, and nothing that says
+   an activation was under way. The request file outlives the process, so it says so, in two atomic steps:
+     { stage, aside }                     before the stage exists: nothing has moved, and a stage is never unaccounted for
+     { ready, record, result }            before the first rename: the stage is whole. record is the hash of its station
+                                          record, which is how a later boot knows that generation; result is what to report.
+   resumeActivation settles it, before any stale check (those guard a move that has already happened) and for any build. */
+const ACTIVATIONS = {
+  fresh: { file: freshRequestFile, stage: '.fresh-stage-', word: 'START FRESH',
+    shelf: (current, path) => ({ dir: path.join(path.dirname(current), stationRecord.QUARANTINE_DIR), prefix: 'station-' }) },
+  recovery: { file: requestFile, stage: '.recovery-stage-', word: 'The station recovery',
+    shelf: (current, path) => ({ dir: path.dirname(current), prefix: path.basename(current) + '.recovery-rollback-' }) }
+};
+function writeJournal(requestPath, request, fields, fs, path, now) {
+  request.activation = Object.assign({}, request.activation, fields);
+  writeJsonAtomic(requestPath, request, fs, path, now);
+}
+// a request's journal, when it is whole and names only what an activation of this workspace creates; anything else is no journal
+function journalOf(kind, request, current, path, platform) {
+  const j = isObj(request) ? request.activation : null;
+  if (!isObj(j) || typeof j.stage !== 'string' || typeof j.aside !== 'string') return null;
+  const shelf = ACTIVATIONS[kind].shelf(current, path);
+  const stage = path.resolve(j.stage), aside = path.resolve(j.aside), parent = path.dirname(current);
+  if (!samePath(path.dirname(stage), parent, path, platform) || !path.basename(stage).startsWith(path.basename(current) + ACTIVATIONS[kind].stage)) return null;
+  if (!samePath(path.dirname(aside), shelf.dir, path, platform) || !path.basename(aside).startsWith(shelf.prefix)) return null;
+  if (j.ready === true && (typeof j.record !== 'string' || !isObj(j.result))) return null;
+  return { stage, aside, ready: j.ready === true, record: j.record, result: j.result };
+}
+function recordHash(fs, path, dir) {
+  try { return sha256(fs.readFileSync(path.join(dir, stationRecord.RECORD_FILE))); } catch (_) { return null; }
+}
+function freeSibling(fs, file) {
+  let out = file;
+  for (let n = 1; fs.existsSync(out); n++) out = file + '-' + n;
+  return out;
+}
+function dropStage(fs, stage) {
+  if (!stage || typeof fs.rmSync !== 'function') return;
+  try { fs.rmSync(stage, { recursive: true, force: true }); } catch (error) { failNote('lineage.activation.stage', error); }
+}
+// the same refusal the native door makes: a generation with a live owner is never renamed under it
+function workspaceBusy(o, fs, path, now, current) {
+  if (!fs.existsSync(current)) return false;
+  const owner = makeWorkspaceOwner({ fs, path, now, pid: o.lockPid, nonce: o.lockNonce, pidAlive: o.lockPidAlive, bootedAt: o.lockBootedAt, processIdentity: o.lockProcessIdentity });
+  if (!owner.acquire(current).ok) return true;
+  owner.release();
+  return false;
+}
+
+/* THE LAST EXIT. When neither generation will take the workspace's name (a scanner or a stray handle holding both folders), the
+   stage's own files are written there, durably, and the name is not needed. A rename that keeps failing can then never leave
+   a boot on an unsealed workspace, or a pending request nothing can press past. */
+function landInPlace(fs, path, stage, current) {
+  (function copy(from, to) {
+    fs.mkdirSync(to, { recursive: true });
+    for (const name of fs.readdirSync(from).sort()) {
+      const source = path.join(from, name), target = path.join(to, name);
+      if (fs.lstatSync(source).isDirectory()) copy(source, target);
+      else writeFileDurable({ fs, path }, target, fs.readFileSync(source));
+    }
+  })(stage, current);
+  dropStage(fs, stage);
+}
+
 /* THE ONE ACTIVATION, shared by explicit recovery and START FRESH: the live generation moves to `aside` and the stage takes
-   its place, both renames on one volume. A failed move changes nothing. A failed activation puts the live generation back;
-   if even that fails the error says where the generation is. Returns whether a generation was moved aside. */
-function activateGeneration(fs, current, stage, aside) {
+   its place, both renames on one volume. A failed move changes nothing. A failed activation puts the live generation back. If
+   even that fails the stage is written in place, and only if that fails too is the generation stranded: the error says where
+   it is, and the journal and the stage stay for the next boot. A workspace something made again meanwhile (an orphaned
+   station browser writing its profile back) is never written over or merged into: the generation cannot go back, so it is
+   stranded, and the next boot sets that folder aside too. Returns whether a generation was moved aside. */
+function activateGeneration(fs, path, current, stage, aside) {
   let moved = false;
   try {
     if (fs.existsSync(current)) { fs.renameSync(current, aside); moved = true; }
     fs.renameSync(stage, current);
   } catch (error) {
     if (moved) {
-      try { if (!fs.existsSync(current) && fs.existsSync(aside)) fs.renameSync(aside, current); }
-      catch (rollback) {
-        error.message = String(error.message) + '; rollback also failed (' + String(rollback && rollback.message || rollback) + '); the station is preserved at ' + aside;
+      let back = null, last = null;
+      try {
+        if (fs.existsSync(current)) throw new Error('something made ' + current + ' again while it was set aside');
+        if (fs.existsSync(aside)) fs.renameSync(aside, current);
+      } catch (rollback) { back = rollback; }
+      if (back && !fs.existsSync(current)) {
+        try { landInPlace(fs, path, stage, current); return moved; } catch (e) { last = e; }
+      }
+      if (back) {
+        error.message = String(error.message) + '; rollback also failed (' + String(back.message || back) + '); the station is preserved at ' + aside +
+          (last ? '; the clean generation could not be written in its place either (' + String(last.message || last) + ')' : '');
         error.stranded = true;
       }
     }
     throw error;
   }
   return moved;
+}
+
+// A finished activation. Past the last rename it cannot un-happen, so neither of these can fail it. A request that cannot be
+// removed still carries its journal, and the next boot finishes it again.
+function finishActivation(fs, path, now, current, requestPath, result) {
+  try { fs.unlinkSync(requestPath); } catch (error) { failNote('lineage.activation.request', error); }
+  try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (error) { failNote('lineage.activation.result', error); }
+  return result;
+}
+// A stranded activation: nothing is failed and nothing is lost. The request keeps its journal, and the next boot finishes it.
+function strandedResult(fs, path, now, current, fields) {
+  const result = Object.assign({ version: 1, ok: false, applied: false, pending: true, at: now() }, fields);
+  try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (error) { failNote('lineage.activation.result', error); }
+  return result;
+}
+
+/* resumeActivation: a journaled activation is settled first, every boot, while the journal is the only thing that knows what
+   happened. Returns its result, or null when there is nothing to settle and the request (if any) runs as usual.
+     not ready                  nothing moved. The stage goes, and the request runs as it would have.
+     the workspace IS the stage the activation landed, and only its last step is left.
+     no stage, no workspace     something took the stage: the generation goes back, and the request runs again.
+     stage, workspace, no shelf the first rename never happened: as "not ready".
+     stage, shelf, workspace    a workspace appeared after the first rename. The shell's first-run migration runs before any
+                                sidecar and into any workspace with no seal, so after a power loss this is a fresh import of
+                                the very root the Commander chose past, or an empty sealed folder. It is set aside too, and
+                                the stage lands. Only a station no receipt accounts for stays, and the request ends there.
+     stage, no workspace        the window itself: the stage lands. */
+function resumeActivation(o) {
+  const fs = o.fs || fsNative, path = o.path || pathNative, platform = String(o.platform || process.platform);
+  const now = typeof o.now === 'function' ? o.now : function () { return 0; };
+  const current = path.resolve(String(o.workspaceRoot || ''));
+  for (const kind of Object.keys(ACTIVATIONS)) {
+    const requestPath = ACTIVATIONS[kind].file(current, path);
+    let request = null;
+    try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); } catch (_) { continue; }
+    const j = journalOf(kind, request, current, path, platform);
+    if (!j) continue;
+    const tag = kind === 'fresh' ? { kind } : {};
+    if (workspaceBusy(o, fs, path, now, current)) return Object.assign({}, tag, { applied: false, pending: true, code: kind.toUpperCase() + '_WORKSPACE_BUSY' });
+    const forget = () => { delete request.activation; writeJsonAtomic(requestPath, request, fs, path, now); return null; };
+    const finish = () => finishActivation(fs, path, now, current, requestPath, Object.assign({}, j.result, { resumed: true }));
+    const interrupted = () => failRequest(fs, path, now, current, requestPath, Object.assign({}, tag, kind === 'fresh' ? { code: 'FRESH_ACTIVATION_INTERRUPTED' } : {}, {
+      error: ACTIVATIONS[kind].word + ' was interrupted, and a station has been created here since: it was left as it is. The generation it set aside is at ' + j.aside + '.' }));
+    try {
+      if (!j.ready) { dropStage(fs, j.stage); return forget(); }
+      const live = fs.existsSync(current);
+      if (live && recordHash(fs, path, current) === j.record) { dropStage(fs, j.stage); return finish(); }
+      if (!fs.existsSync(j.stage)) {
+        if (live) return interrupted();
+        if (fs.existsSync(j.aside)) fs.renameSync(j.aside, current);
+        return forget();
+      }
+      if (live && !fs.existsSync(j.aside)) { dropStage(fs, j.stage); return forget(); }
+      if (live) {
+        if (stationRecord.proofBeyondReceipt({ fs, path }, current).length) { dropStage(fs, j.stage); return interrupted(); }
+        fs.renameSync(current, freeSibling(fs, j.aside + '-interrupted'));
+      }
+      try { fs.renameSync(j.stage, current); }
+      catch (_) { landInPlace(fs, path, j.stage, current); }
+      return finish();
+    } catch (error) {
+      return strandedResult(fs, path, now, current, Object.assign({}, tag, kind === 'fresh' ? { code: 'FRESH_ACTIVATION_FAILED' } : {}, {
+        error: ACTIVATIONS[kind].word + ' could not finish: ' + String(error && error.message || error) + '. The generation it set aside is at ' + j.aside + '. StarNet tries again at its next start.' }));
+    }
+  }
+  return null;
 }
 
 // A request that did not run: kept beside the workspace as .failed-<stamp>, and the result is what the Commander reads.
@@ -421,7 +566,7 @@ function freshFailure(fs, path, platform, current, error) {
   const holder = inUse ? freshHolder(fs, path, platform, current) : null;
   const what = inUse && !stranded ? 'this workspace could not be set aside (' + code + '): a program may still have a file in it open.' : String(error && error.message || error);
   const next = inUse ? ' Close what is using it, then press START FRESH again.' : ' Press START FRESH again once that is fixed.';
-  const fields = { code: 'FRESH_ACTIVATION_FAILED', error: stranded ? what : what + ' Nothing was moved.' + next };
+  const fields = { code: 'FRESH_ACTIVATION_FAILED', error: stranded ? what + '. StarNet finishes this at its next start.' : what + ' Nothing was moved.' + next };
   return holder ? Object.assign(fields, { holder }) : fields;
 }
 
@@ -432,13 +577,8 @@ function applyFreshRequest(o) {
   const now = typeof o.now === 'function' ? o.now : function () { return 0; };
   const current = path.resolve(String(o.workspaceRoot || ''));
   const requestPath = freshRequestFile(current, path);
-  // the same refusal the native door makes: a generation with a live owner is never renamed under it. The request stays
-  // pending, and this boot's own owner claim refuses in the usual way.
-  if (fs.existsSync(current)) {
-    const owner = makeWorkspaceOwner({ fs, path, now, pid: o.lockPid, nonce: o.lockNonce, pidAlive: o.lockPidAlive, bootedAt: o.lockBootedAt, processIdentity: o.lockProcessIdentity });
-    if (!owner.acquire(current).ok) return { kind: 'fresh', applied: false, pending: true, code: 'FRESH_WORKSPACE_BUSY' };
-    owner.release();
-  }
+  // the request stays pending, and this boot's own owner claim refuses in the usual way
+  if (workspaceBusy(o, fs, path, now, current)) return { kind: 'fresh', applied: false, pending: true, code: 'FRESH_WORKSPACE_BUSY' };
   const refuse = fields => failRequest(fs, path, now, current, requestPath, Object.assign({ kind: 'fresh' }, fields));
   let request = null;
   try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); } catch (_) { request = null; }
@@ -452,14 +592,14 @@ function applyFreshRequest(o) {
     if (stale) return refuse(stale);
     const stamp = cleanStamp(now);
     const home = path.join(path.dirname(current), stationRecord.QUARANTINE_DIR);
-    let aside = path.join(home, 'station-' + stamp);
-    for (let n = 1; fs.existsSync(aside); n++) aside = path.join(home, 'station-' + stamp + '-' + n);
+    const aside = freeSibling(fs, path.join(home, 'station-' + stamp));
     const hadGeneration = fs.existsSync(current);
     const record = stationRecord.freshRecord(recordDeps, stationRecord.read(recordDeps).record, {
       acknowledgedRoots: request.acknowledgedRoots, setAside: hadGeneration ? aside : null
     });
     stage = current + '.fresh-stage-' + stamp;
     if (fs.existsSync(stage)) { const taken = stage; stage = null; throw new Error('a fresh stage already exists at ' + taken); }
+    writeJournal(requestPath, request, { stage, aside }, fs, path, now);
     fs.mkdirSync(stage, { recursive: false });
     for (const name of stationRecord.SEAL) fs.writeFileSync(path.join(stage, name), '1');
     // the mirror keeps every older build honest, in the native door's marker shape; the record is this build's
@@ -467,20 +607,18 @@ function applyFreshRequest(o) {
     stationRecord.writeRecord(recordDeps, stage, record);
     const carry = stationRecord.carryInto(recordDeps, current, stage);
     fs.mkdirSync(home, { recursive: true });
-    const moved = activateGeneration(fs, current, stage, aside);
     const result = {
-      version: 1, kind: 'fresh', ok: true, applied: true, at: record.reset.at, quarantine: moved ? aside : null,
+      version: 1, kind: 'fresh', ok: true, applied: true, at: record.reset.at, quarantine: hadGeneration ? aside : null,
       creditsLeftAside: carry.leftAside.length > 0
     };
-    // past this line the clean generation is live: neither of these can un-happen it
-    try { fs.unlinkSync(requestPath); } catch (error) { failNote('lineage.fresh.request', error); }
-    try { writeJsonAtomic(lastResultFile(current, path), result, fs, path, now); } catch (error) { failNote('lineage.fresh.result', error); }
-    return result;
+    writeJournal(requestPath, request, { ready: true, record: recordHash(fs, path, stage), result }, fs, path, now);
+    activateGeneration(fs, path, current, stage, aside);
+    return finishActivation(fs, path, now, current, requestPath, result);
   } catch (error) {
-    if (stage && typeof fs.rmSync === 'function') {
-      try { fs.rmSync(stage, { recursive: true, force: true }); } catch (e) { failNote('lineage.fresh.stage', e); }
-    }
-    return refuse(freshFailure(fs, path, platform, current, error));
+    const failure = freshFailure(fs, path, platform, current, error);
+    if (error && error.stranded) return strandedResult(fs, path, now, current, Object.assign({ kind: 'fresh' }, failure));
+    dropStage(fs, stage);
+    return refuse(failure);
   }
 }
 
@@ -544,6 +682,8 @@ function applyPendingRecoveryLocked(opts) {
   const now = typeof o.now === 'function' ? o.now : function () { return 0; };
   const current = path.resolve(String(o.workspaceRoot || ''));
   const requestPath = requestFile(current, path);
+  const resumed = resumeActivation(o);
+  if (resumed) return resumed;
   if (!fs.existsSync(requestPath)) {
     if (fs.existsSync(freshRequestFile(current, path))) return applyFreshRequest(o);
     if (o.auto === true) {
@@ -571,6 +711,7 @@ function applyPendingRecoveryLocked(opts) {
   try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); }
   catch (error) { request = null; }
   const fail = error => failRequest(fs, path, now, current, requestPath, { error: String(error && error.message || error) });
+  let stage = null;
   try {
     if (!request || request.version !== REQUEST_VERSION || !/^[a-f0-9]{24}$/.test(String(request.candidateId || ''))) {
       throw new Error('invalid station recovery request');
@@ -584,9 +725,11 @@ function applyPendingRecoveryLocked(opts) {
     const selected = inspection.candidates.find(row => row.id === request.candidateId && row.recoverable);
     if (!selected || selected.saveSha256 !== request.expectedSaveSha256) throw new Error('selected recovery source changed before activation');
     const stamp = cleanStamp(now);
-    const stage = current + '.recovery-stage-' + stamp;
+    const staged = current + '.recovery-stage-' + stamp;
     const rollback = current + '.recovery-rollback-' + stamp;
-    if (fs.existsSync(stage) || fs.existsSync(rollback)) throw new Error('recovery stage or rollback name already exists');
+    if (fs.existsSync(staged) || fs.existsSync(rollback)) throw new Error('recovery stage or rollback name already exists');
+    writeJournal(requestPath, request, { stage: staged, aside: rollback }, fs, path, now);
+    stage = staged;
     const files = copyVerified(selected.sourceRoot, stage, { fs, path, maxFileBytes: o.maxFileBytes, maxTotalBytes: o.maxTotalBytes });
     writeJsonAtomic(path.join(stage, '.migration-receipt.json'), {
       version: 1, validated: true, sourceRoots: [selected.sourceRoot], files
@@ -596,20 +739,24 @@ function applyPendingRecoveryLocked(opts) {
     // here), the replaced generation's erase authority kept, and every root this recovery chose among acknowledged, so
     // a root the Commander did not pick never becomes the one automatic candidate if this station's save is lost later
     const recordDeps = { fs, path, platform: String(o.platform || process.platform), now, workspaceRoot: current };
+    const hadGeneration = fs.existsSync(current);
     stationRecord.writeRecord(recordDeps, stage, stationRecord.recoveryRecord(recordDeps, stationRecord.read(recordDeps).record, {
       sourceRoot: selected.sourceRoot, acknowledgedRoots: inspection.candidates.map(row => row.sourceRoot),
-      setAside: fs.existsSync(current) ? rollback : null
+      setAside: hadGeneration ? rollback : null
     }));
-    const moved = activateGeneration(fs, current, stage, rollback);
-    fs.unlinkSync(requestPath);
     const result = {
       version: 1, ok: true, applied: true, at: now(), candidateId: selected.id,
       stationName: selected.stationName, restoredFiles: files.length,
-      rollbackRetained: moved, sourcePreserved: fs.existsSync(selected.sourceRoot)
+      rollbackRetained: hadGeneration, sourcePreserved: fs.existsSync(selected.sourceRoot)
     };
-    writeJsonAtomic(lastResultFile(current, path), result, fs, path, now);
-    return result;
-  } catch (error) { return fail(error); }
+    writeJournal(requestPath, request, { ready: true, record: recordHash(fs, path, stage), result }, fs, path, now);
+    activateGeneration(fs, path, current, stage, rollback);
+    return finishActivation(fs, path, now, current, requestPath, result);
+  } catch (error) {
+    if (error && error.stranded) return strandedResult(fs, path, now, current, { error: String(error.message) + '. StarNet finishes this at its next start.' });
+    dropStage(fs, stage);
+    return fail(error);
+  }
 }
 
 // The last result as a reader may see it: no absolute local path survives, in the error text or in the quarantine it names.
