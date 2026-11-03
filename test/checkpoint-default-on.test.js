@@ -123,7 +123,11 @@ A.ok(/if \(environmentCheckpoints && mutatesWorkspace\(c\.name\) && !preciseChec
         const entered = new Promise(r => { enteredSnapshot = r; });
         const snapshot = new Promise(r => { finishSnapshot = r; });
         const reg = makeRegistry({ clock: { now: () => now } });
-        reg.register(Object.assign({}, T.writeTool, { timeoutMs: TOOL_MS }));
+        let finishedTool;
+        const finished = new Promise(r => { finishedTool = r; });
+        reg.register(Object.assign({}, T.writeTool, { timeoutMs: TOOL_MS, run: async (...args) => {
+          try { return await T.writeTool.run(...args); } finally { finishedTool(); }
+        } }));
         let result = null;
         const pendingWrite = write(reg, 'bounded.txt', { checkpointMutation: async () => { enteredSnapshot(); await snapshot; return null; } })
           .then(r => { result = r; return r; });
@@ -135,7 +139,7 @@ A.ok(/if \(environmentCheckpoints && mutatesWorkspace\(c\.name\) && !preciseChec
         A.ok(result && result.ok === false && /timed out/.test(String(result.content)), 'a stalled snapshot cannot hold the write past the host ceiling plus its own deadline');
         finishSnapshot();
         await pendingWrite;
-        await new Promise(r => setImmediate(r));
+        await finished;   // dispatch already settled at the timeout; wait for the real writer, not one event-loop turn
         A.eq(read('bounded.txt'), null, 'a snapshot settling after that deadline cannot cause a late write');
         A.eq(timers.size, 0, 'the checkpoint ceiling and tool deadline leave no timers behind');
       } finally {
