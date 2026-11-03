@@ -291,6 +291,7 @@ const { makeTelegramTransport } = require('./channels/telegram.transport.js');  
 const { makeEnvironmentProxyFetch } = require('./channels/proxy-fetch.js');
 const telegramOwnerPairing = require('./channels/owner-pairing.js');
 const { makeChannelStore } = require('./channels/store.js');
+const channelHubFactory = require('./channels/factory.js');
 const { makeChannelHub, menuCommands, dockSystem, COMMANDS: HUB_COMMANDS } = require('./channels/hub.js');
 const { makeWebhookVerifier } = require('./channels/webhook-auth.js');
 const { admitRelayMessage } = require('./channels/relay-admission.js');   // relay bodies cross the adapter's own owner/group admission
@@ -10993,6 +10994,42 @@ function resolveReasoningEffort(provider, value) {
 // request closed instead of leaking around a corporate egress policy.
 function telegramTransportFetch() { return makeEnvironmentProxyFetch(globalThis.fetch, process.env); }
 
+// Shared channel dependencies are resolved only when a hub is constructed. The factory's
+// explicit manifest keeps local owner authority and transport-only features on their own kinds.
+function makeHubDeps(kind, overrides) {
+  return channelHubFactory.makeHubDeps(kind, {
+    runOnce: runOnce,
+    store: channelStore,
+    steerRun: channelSteerRun,
+    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }),
+    observeInto: channelObserveInto,
+    runSlash: (input, sctx) => runSlashForChannel(input, sctx),
+    userCommandNames: () => userCommandEntries().map(c => c.name),
+    desktopCommand: isDesktopSlashCommand,
+    classify: Classify.isTaskDirective,
+    redact: redact,
+    emit: chanEmit,
+    taskIntent: TaskIntent,
+    briefFor: (key) => taskBriefStore.active(key),
+    groundedFor: (q) => taskBriefStore.groundedFor(q),
+    newId: () => crypto.randomUUID(),
+    now: () => Date.now(),
+    resolveAgent: (ctx) => router.resolveDock(ctx),
+    lineRunner: lineRunner,
+    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),
+    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
+    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
+    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),
+    roster: () => rosterWireRows(true),
+    setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
+    modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
+    transcribe: media.transcribeForMime,
+    saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
+    expandAttachments: (messages) => messages,
+    scrubOutbound: scrubOutbound,
+    resolveRunConfig: channelRunConfigFor
+  }, overrides);
+}
 function startTelegram(token, model, agentCfg) {
   stopTelegram();
   const cfg = agentCfg || {};
@@ -11013,74 +11050,31 @@ function startTelegram(token, model, agentCfg) {
   } });
   const secretsPersisted = saveChannelSecrets(channelSecrets);   // read-back-proven; surfaced by the connect route
   let adapterRef = null;
-  const hub = makeChannelHub({
-    channel: 'telegram', runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-    runSlash: (input, sctx) => runSlashForChannel(input, sctx),   // shared slash registry — identical answers to the desktop
-    userCommandNames: () => userCommandEntries().map(c => c.name), desktopCommand: isDesktopSlashCommand,
-    // Only the adapter can mint owner trust: its owner is claimed from an admitted DM and group traffic never
-    // claims it. A token-reachable group member therefore stays an ordinary channel caller.
+  const hub = makeChannelHub(makeHubDeps('telegram', {
+    channel: 'telegram',
     ownerTrusted: (msg) => !!(adapterRef && adapterRef._internals && msg && msg.chatType === 'dm'
       && adapterRef._internals.owner && String(msg.userId || '') === String(adapterRef._internals.owner)),
-    // the paired owner in ANY chat (owner-only control commands; see hub.js COMMANDS `owner`) — same adapter-minted id
     isOwner: (msg) => !!(adapterRef && adapterRef._internals && msg
       && adapterRef._internals.owner && String(msg.userId || '') === String(adapterRef._internals.owner)),
     send: (chatId, text, opts) => adapterRef ? adapterRef.send(chatId, text, opts) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // typing indicator: the hub's keep-alive loop refreshes Telegram's "typing…" bubble while a run is in flight
     chatAction: (chatId, actionOpts) => adapterRef ? adapterRef.chatAction(chatId, actionOpts) : Promise.resolve({ ok: false, error: 'no adapter', retryable: false }),
-    // INLINE KEYBOARDS (C6): multiple-choice answers and — for chats that ran /approvals on — approve/deny.
-    // The registry is per-BOT (its tokens address this bot's messages only). askConsent/resolveConsent keep the
-    // pause/resolve in the host; the hub only renders the keyboard and routes the tap back.
     prompts: makePromptRegistry({ newId: () => crypto.randomUUID() }),
     answerCallback: (cbId, text) => adapterRef ? adapterRef.answerCallback(cbId, text) : Promise.resolve({ ok: false, error: 'no adapter' }),
     editMessage: (chatId, msgId, text, opts) => adapterRef ? adapterRef.editMessage(chatId, msgId, text, opts) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // 👀 on the question while the run thinks, cleared when the answer lands — cosmetic, never load-bearing.
     setReaction: (chatId, msgId, emoji) => adapterRef ? adapterRef.setReaction(chatId, msgId, emoji) : Promise.resolve({ ok: false, error: 'no adapter', retryable: false }),
-    // editMessage + deleteMessage TOGETHER are what let the hub stream a reply in place: one to grow it, one to
-    // clear a partial it can no longer finish. Wiring only one would arm streaming with no way to clean up.
     deleteMessage: (chatId, msgId) => adapterRef ? adapterRef.deleteMessage(chatId, msgId) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // Telegram's edit-in-place token stream exposed unstable partial prose (and could replace it after a tool
-    // call reset the model buffer). Keep the durable typing/reaction acknowledgements, but publish only the final
-    // assembled answer. The hub's final delivery (the delivery ledger) remains durable and retryable.
     streamReplies: false,
     canReadAllGroupMessages: () => stationBotSeesAll,
-    askConsent: channelAskConsent, resolveConsent: channelResolveConsent, consentOutcome: channelConsentOutcome,
+    askConsent: channelAskConsent,
+    resolveConsent: channelResolveConsent,
+    consentOutcome: channelConsentOutcome,
     secrets: () => channelHubSecrets('telegram'),
-    // the ROUTED agent's live pair for every message (run-wire.js), never the connect-time snapshot above (stationHubRunConfig)
     resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('telegram')),
-    persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
-    briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: the fallback line carries the stored recommendation
-    groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
-    newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: 4096, textBatchWaitMs: 350,
-    // Phase B: the placed floor decides WHICH agent runs (resolveTarget); null -> the hub's own resolution
-    // (configured agentId else tg_<chatId>), so a no-floor or mis-wired station never stalls real work.
-    resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),                    // B5: a bay's room objects = that agent's caps
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),                     // the dock's standing brief rides the run's context (prompt text only)
-    // In-messenger control surface (channel-agnostic): list agents / switch agent / change the bound agent's model.
-    // roster + setModel read/write the SAME agentRoster the browser dossier uses (POST /api/roster) — one source
-    // of truth, no per-chat override. modelCatalog is the boot-warmed OpenRouter id snapshot (empty -> skip check).
-    roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
-    setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
-    modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },   // re-warm on demand if a boot-time /models failure left it empty
-    // MEDIA INGEST: a photo/video/voice/file sent in Telegram is downloaded (adapter getFile), stored in the
-    // resolved agent's workspace .attachments/ (the SAME store browser uploads use), and expanded into provider
-    // image/text blocks by the SAME expandUserAttachments the interactive run host calls — so "send the bot a
-    // photo" behaves exactly like attaching it in COMMS, no extra vision key needed.
-    fetchMedia: (item) => adapterRef ? adapterRef.getFile(item.fileId, { maxBytes: item.maxBytes }) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // VOICE NOTES: the same STT chain /api/stt uses (Groq whisper -> OpenAI whisper -> the chat-model
-    // fallback), so a member can hold the button and talk to their agent from a phone. Never throws — a
-    // failure degrades to a note naming the saved .ogg, exactly the old behaviour.
-    transcribe: media.transcribeForMime,
-    saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
-    expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
-    scrubOutbound: scrubOutbound
-  });
+    persona: TELEGRAM_PERSONA,
+    maxMessageLength: 4096,
+    textBatchWaitMs: 350,
+    fetchMedia: (item) => adapterRef ? adapterRef.getFile(item.fileId, { maxBytes: item.maxBytes }) : Promise.resolve({ ok: false, error: 'no adapter' })
+  }));
   const adapter = makeTelegramAdapter({
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
     // Owner-only admission: a fresh bot requires a locally issued /pair code; existing persisted owners
@@ -11315,74 +11309,38 @@ function startTelegramBot(botId) {
   // hoisted: the adapter's mention gate reads the SAME per-bot store the hub's /mention writes to. Two separate
   // instances would leave the command reporting success while the gate never changed.
   const botStore = makeBotScopedStore(botId);
-  const hub = makeChannelHub({
-    channel: 'telegram:' + botId, runOnce: runOnce, store: botStore, steerRun: channelSteerRun,
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-    runSlash: (input, sctx) => runSlashForChannel(input, sctx),   // shared slash registry — identical answers to the desktop
-    userCommandNames: () => userCommandEntries().map(c => c.name), desktopCommand: isDesktopSlashCommand,
+  const hub = makeChannelHub(makeHubDeps('telegram-bot', {
+    channel: 'telegram:' + botId,
+    store: botStore,
     ownerTrusted: (msg) => !!(adapterRef && adapterRef._internals && msg && msg.chatType === 'dm'
       && adapterRef._internals.owner && String(msg.userId || '') === String(adapterRef._internals.owner)),
-    // the paired owner in ANY chat (owner-only control commands; see hub.js COMMANDS `owner`) — same adapter-minted id
     isOwner: (msg) => !!(adapterRef && adapterRef._internals && msg
       && adapterRef._internals.owner && String(msg.userId || '') === String(adapterRef._internals.owner)),
     send: (chatId, text, opts) => adapterRef ? adapterRef.send(chatId, text, opts) : Promise.resolve({ ok: false, error: 'no adapter' }),
     chatAction: (chatId, actionOpts) => adapterRef ? adapterRef.chatAction(chatId, actionOpts) : Promise.resolve({ ok: false, error: 'no adapter', retryable: false }),
-    // live per-message read (same contract as the station bot). THE BOT IS ITS AGENT: identity (system prompt),
-    // model and provider come from the LIVE roster entry first — a dossier edit or model switch applies to the
-    // bot's next message with no reconnect, and two bots bound to different agents stay genuinely different
-    // even when the connect-time frontend had a stale/empty local copy of the prompt. The record's own values
-    // are the fallback (roster row deleted), then the station record. Keys fall back own credential → station → runtime,
-    // so a bot added on a keychain desktop needs no key of its own.
     secrets: () => {
       const r = channelCredential('telegramBots:' + botId);
       const cfg = channelRunConfigFor(r.agentId, r);
       if (!cfg.ok) return { configured: false, agentId: r.agentId, error: cfg.error };
       return Object.assign({}, cfg, { configured: true, agentId: r.agentId });
     },
-    persona: TELEGRAM_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
-    briefFor: (key) => taskBriefStore.active(key),
-    groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
-    newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: 4096, textBatchWaitMs: 350,
-    // HARD-LOCK: this bot IS its bound agent — resolveAgent (top of the hub's resolution order) always answers
-    // it, so /talk bindings and floor routing can never quietly change who @ThisBot is. No roster/setModel
-    // surface: /agents and /model answer their honest "not available here" fallback.
+    persona: TELEGRAM_PERSONA,
+    maxMessageLength: 4096,
+    textBatchWaitMs: 350,
     resolveAgent: () => (recOf().agentId || null),
-    // WORK-LINE PARITY (2026-08-04): the SAME chain executor every other surface gets (station hub, cron,
-    // COMMS). The hard-lock above still names stage ONE — a bound bot IS its agent — but the belts drawn PAST
-    // that agent's bay run here too; without this seam the same floor did less work depending on which bot
-    // carried the message. getTag rides along so a FILTER downstream branches on the reply, station-bot style.
-    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-    resolveRunConfig: channelRunConfigFor,                                    // every downstream dock owns its roster provider/model/credential
-    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),   // B3 supplies the real classifier
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // a bound bot's agent still crews its dock — the standing brief applies
     fetchMedia: (item) => adapterRef ? adapterRef.getFile(item.fileId, { maxBytes: item.maxBytes }) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // VOICE NOTES: the same STT chain /api/stt uses (Groq whisper -> OpenAI whisper -> the chat-model
-    // fallback), so a member can hold the button and talk to their agent from a phone. Never throws — a
-    // failure degrades to a note naming the saved .ogg, exactly the old behaviour.
-    transcribe: media.transcribeForMime,
-    saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
-    expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
-    scrubOutbound: scrubOutbound,
-    // INLINE KEYBOARDS (C6) — same wiring as the station bot, with its OWN registry so tokens minted for this
-    // bot's messages can never address another bot's chat. /approvals is per-chat here too.
     prompts: makePromptRegistry({ newId: () => crypto.randomUUID() }),
     answerCallback: (cbId, text) => adapterRef ? adapterRef.answerCallback(cbId, text) : Promise.resolve({ ok: false, error: 'no adapter' }),
     editMessage: (chatId, msgId, text, opts) => adapterRef ? adapterRef.editMessage(chatId, msgId, text, opts) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // 👀 on the question while the run thinks, cleared when the answer lands — cosmetic, never load-bearing.
     setReaction: (chatId, msgId, emoji) => adapterRef ? adapterRef.setReaction(chatId, msgId, emoji) : Promise.resolve({ ok: false, error: 'no adapter', retryable: false }),
-    // editMessage + deleteMessage TOGETHER are what let the hub stream a reply in place: one to grow it, one to
-    // clear a partial it can no longer finish. Wiring only one would arm streaming with no way to clean up.
     deleteMessage: (chatId, msgId) => adapterRef ? adapterRef.deleteMessage(chatId, msgId) : Promise.resolve({ ok: false, error: 'no adapter' }),
-    // Agent bots use the same final-only Telegram policy as the station bot. Typing + reaction prove liveness;
-    // raw token deltas never become user-visible, so a tool call cannot rewrite half-formed prose underneath them.
     streamReplies: false,
     canReadAllGroupMessages: () => { const v = (recOf() || {}).seesAllGroupMessages; return (typeof v === 'boolean') ? v : null; },
-    askConsent: channelAskConsent, resolveConsent: channelResolveConsent, consentOutcome: channelConsentOutcome
-  });
+    askConsent: channelAskConsent,
+    resolveConsent: channelResolveConsent,
+    consentOutcome: channelConsentOutcome,
+    resolveEntryRunConfig: (agentId) => { const cfg = channelRunConfigFor(agentId, channelCredential('telegramBots:' + botId)); return Object.assign({}, cfg, { configured: cfg.ok === true }); }
+  }));
   const adapter = makeTelegramAdapter({
     fetch: telegramTransportFetch(), token: token, apiBase: TELEGRAM_API_BASE, clock: { now: () => Date.now() },
     // owner-only admission per bot (trust-on-first-use): each contact is claimed independently.
@@ -11466,30 +11424,11 @@ function startDiscord(token, model, agentCfg) {
   const secretsPersisted = saveChannelSecrets(channelSecrets);   // read-back-proven; surfaced by the connect route
   const wired = wireChannel(channelRegistry.get('discord'), {
     outbound: scrubOutbound,   // the host-path scrub: the hub before it chunks, and the adapter's own sends (round 3)
-    hub: {
-      runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
-      historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
+    hub: makeHubDeps('discord', {
       secrets: () => channelHubSecrets('discord'),
-      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('discord')),   // the routed agent's live pair (run-wire.js)
-      persona: DISCORD_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
-      newId: () => crypto.randomUUID(), now: () => Date.now(),
-      resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-      lineRunner: lineRunner,
-      lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-      getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-      resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-      stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
-      // In-messenger control surface — identical to Telegram because it lives in the shared hub (roster/setModel/
-      // modelCatalog are the SAME app roster + boot-warmed catalog; NO per-channel routing logic here).
-      roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
-      setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
-      modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },   // re-warm on demand if a boot-time /models failure left it empty
-      // the shared slash registry + the Commander's own commands — the SAME wiring the Telegram hubs carry. Without
-      // it a "/standup" here fell through to the MODEL as paid chat, and /usage, /tools, /routine and /away answered
-      // "not available on this channel" (2026-10-18). Owner-only either way: the hub gates both on isOwner.
-      runSlash: (input, sctx) => runSlashForChannel(input, sctx),
-      userCommandNames: () => userCommandEntries().map(c => c.name), desktopCommand: isDesktopSlashCommand
-    },
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential('discord')),
+      persona: DISCORD_PERSONA
+    }),
     adapter: {
       fetch: globalThis.fetch, token: token, clock: { now: () => Date.now() },
       // P2-E: the REAL default injection — a live Discord gateway v10 WS client turning the bot token into a push
@@ -11587,45 +11526,24 @@ function devHubSecrets() {
 }
 function getDevHub() {
   if (devHub) return devHub;
-  devHub = makeChannelHub({
-    channel: 'dev', maxMessageLength: 4000, agentPrefix: 'dev_', textBatchWaitMs: 0,
-    ownerSurface: true,   // DEV_MODE-only local route behind the launch token: every inbound is the Commander
-    runSlash: (input, sctx) => runSlashForChannel(input, sctx),   // shared slash registry — identical answers to the desktop
-    userCommandNames: () => userCommandEntries().map(c => c.name), desktopCommand: isDesktopSlashCommand,
-    runOnce: runOnce, store: channelStore,
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
+  devHub = makeChannelHub(makeHubDeps('dev', {
+    channel: 'dev',
+    maxMessageLength: 4000,
+    agentPrefix: 'dev_',
+    textBatchWaitMs: 0,
+    ownerSurface: true,
     send: (chatId, text) => devCaptureReply(chatId, text),
     secrets: devHubSecrets,
-    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, devHubSecrets()),   // the routed agent's live pair; the env rule only with no roster
-    persona: DEV_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit, taskIntent: TaskIntent,
-    briefFor: (key) => taskBriefStore.active(key),   // TASK BRIEF v2: same recommendation line on the dev channel
-    groundedFor: (q) => taskBriefStore.groundedFor(q),   // provable history-backed suggestion outranks the model guess
-    newId: () => crypto.randomUUID(), now: () => Date.now(),
-    resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-    lineRunner: lineRunner,                                                       // and the belts drawn PAST that dock run the rest of the line
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
-    roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
-    setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
-    modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
+    resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, devHubSecrets()),
+    persona: DEV_PERSONA,
     onResolved: (info) => { devResolved = info; },
-    // MEDIA (dev): the injected message carries its own bytes as a dataUrl (no bot server to download from) —
-    // fetchMedia just decodes it; save/expand are the REAL attachment seams, so this route live-proves the same
-    // ingest path Telegram media takes (download -> workspace .attachments/ -> provider image blocks).
     fetchMedia: (item) => {
       const m = /^data:[^;,]*;base64,([\s\S]*)$/.exec(String((item && item.dataUrl) || ''));
       if (!m) return Promise.resolve({ ok: false, error: 'dev media item carries no dataUrl' });
       try { return Promise.resolve({ ok: true, buffer: Buffer.from(m[1], 'base64') }); }
       catch (e) { return Promise.resolve({ ok: false, error: 'bad base64' }); }
-    },
-    saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
-    // the references ride into runOnce as they are: runOnceCore expands them once the run's root is final (run-paths M3)
-    expandAttachments: (messages) => messages,
-    // a chat is never shown an absolute host path: the host's ONE scrub, on the whole text before the hub chunks it (round 3)
-    scrubOutbound: scrubOutbound
-  });
+    }
+  }));
   return devHub;
 }
 /* GET /api/dev/replies?chatId=... — read what this station has SENT to a dev chat, without disturbing it.
@@ -11778,29 +11696,12 @@ function startGenericChannel(id, token, model, agentCfg) {
   }
   const wired = wireChannel(desc, {
     outbound: scrubOutbound,   // the host-path scrub: the hub before it chunks, and the adapter's own sends (round 3)
-    hub: {
-      runOnce: runOnce, store: channelStore, steerRun: channelSteerRun,
-      historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
+    hub: makeHubDeps(id, {
       secrets: () => channelHubSecrets(id),
-      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential(id)),   // the routed agent's live pair (run-wire.js)
-      persona: channelPersona(desc.label), classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
-      newId: () => crypto.randomUUID(), now: () => Date.now(), maxMessageLength: desc.maxMessageLength,
-      resolveAgent: (ctx) => router.resolveDock(ctx),   // { agentId, dockId }: the hub runs AT the dock the floor routed to (multi-bay)
-      lineRunner: lineRunner,
-      lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-      getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-      resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-      stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the dock's standing brief rides the run's context (prompt text only)
-      // In-messenger control surface — identical across channels because it lives in the shared hub.
-      roster: () => rosterWireRows(true),   // /agents, /whoami, /model name the pair each agent really runs (run-wire.js)
-      setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
-      modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
-      // the shared slash registry + the Commander's own commands — the SAME wiring the Telegram hubs carry. Without
-      // it a "/standup" here fell through to the MODEL as paid chat, and /usage, /tools, /routine and /away answered
-      // "not available on this channel" (2026-10-18). Owner-only either way: the hub gates both on isOwner.
-      runSlash: (input, sctx) => runSlashForChannel(input, sctx),
-      userCommandNames: () => userCommandEntries().map(c => c.name), desktopCommand: isDesktopSlashCommand
-    },
+      resolveEntryRunConfig: (agentId) => stationHubRunConfig(agentId, channelCredential(id)),
+      persona: channelPersona(desc.label),
+      maxMessageLength: desc.maxMessageLength
+    }),
     adapter: adapterOpts
   });
   genericChannels[id] = { adapter: wired.adapter, hub: wired.hub };
@@ -13685,43 +13586,27 @@ function sampleRunConfigFor(agentId) {
 }
 function getSampleHub() {
   if (sampleHub) return sampleHub;
-  sampleHub = makeChannelHub({
-    channel: 'sample', maxMessageLength: 4000, agentPrefix: 'smp_', textBatchWaitMs: 0,
-    ownerSurface: true,   // the Commander's own sample-crate route behind the launch token
-    // PER-JOB TURN HISTORY (quick win 27): chat 'sample' + the line + the dock is the same hop key on every test job, so over
-    // the real store each job's hops replayed every earlier job's hand-offs. The job's own map (sampleInFlight.turns) holds them.
-    runOnce: runOnce, store: perFireStore(channelStore, (agentId) => { const f = sampleInFlight; if (!f || !f.turns) return []; const k = String(agentId || ''); return f.turns[k] || (f.turns[k] = []); }),
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-    /* THE SAMPLE IS UNADDRESSED, EVERY TIME. This route's whole claim is "a REAL run on the REAL UNADDRESSED
-       dispatch path" — the FILTER/SPLITTER must sort it. The hub's ordinary chat→agent bookkeeping saved a
-       binding for chatId 'sample' on the first run, so from the SECOND sample on resolveTarget took its
-       ADDRESSED branch and delivered the crate to the remembered dock without the junctions ever deciding.
-       bindChats:false makes this hub read and write no binding at all, so the proof proves the same thing on
-       run #2 as on run #1 (and on a station that already carries a stale record from before this fix). */
+  sampleHub = makeChannelHub(makeHubDeps('sample', {
+    channel: 'sample',
+    maxMessageLength: 4000,
+    agentPrefix: 'smp_',
+    textBatchWaitMs: 0,
+    ownerSurface: true,
+    store: perFireStore(channelStore, (agentId) => { const f = sampleInFlight; if (!f || !f.turns) return []; const k = String(agentId || ''); return f.turns[k] || (f.turns[k] = []); }),
     bindChats: false,
-    // once the job is stopped (■ STOP or E-STOP) nothing more is its output: the hub's "⏹ Stopped — E-STOP was pressed"
-    // courtesy notice (for a real chat) was kept as what the job made, and offered NEEDS CHANGES against
     send: (chatId, text) => { if (!(sampleInFlight && sampleInFlight.stopRequested)) { sampleReplies.push(String(text == null ? '' : text)); if (sampleReplies.length > 20) sampleReplies.shift(); } return Promise.resolve({ ok: true }); },
-    secrets: () => ({}),   // the selected dock owns the configuration, not an ambient provider
+    secrets: () => ({}),
     resolveEntryRunConfig: sampleRunConfigFor,
     resolveRunConfig: sampleRunConfigFor,
-    persona: SAMPLE_PERSONA, classify: Classify.isTaskDirective, redact: redact, emit: chanEmit,
-    newId: () => crypto.randomUUID(), now: () => Date.now(),
-    // line scope rides the ctx (additive): resolveTarget walks ONLY the named line's doors when set
+    persona: SAMPLE_PERSONA,
     resolveAgent: (ctx) => router.resolveDock(sampleLineScope ? Object.assign({}, ctx, { lineId: sampleLineScope }) : ctx),
-    lineRunner: lineRunner,                                                       // the belts drawn PAST the dock run the rest of the line
-    jobId: () => sampleInFlight && sampleInFlight.jobId, jobEntry: 'sample',
+    jobId: () => sampleInFlight && sampleInFlight.jobId,
+    jobEntry: 'sample',
     onJobSettled: result => { if (sampleInFlight) sampleInFlight.result = result; },
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),   // work belongs to a line: which line does work ARRIVING at this dock belong to? (null = a direct order)
-    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),   // sample runs inherit the dock's standing brief exactly like real dispatch
     onResolved: (info) => { sampleResolved = info; },
     onLineOutcome: (info) => { sampleLineOutcome = info; },
-    // every run of the line (entry dock + hops) records under the sample's OWN workstream, so the recorded
-    // rows in runs.jsonl are scoped exactly and the OUTBOX crate opens a readable transcript session.
     streamId: () => (sampleInFlight && sampleInFlight.streamId) || undefined
-  });
+  }));
   return sampleHub;
 }
 async function handleRoutingSample(req, res) {
@@ -14006,40 +13891,32 @@ const triggerFolderPolicy = makeFolderPolicy({
     : ['/etc', '/usr', '/bin', '/sbin', '/boot', '/dev', '/proc', '/sys', '/lib', '/lib64', '/System', '/Library', '/private/etc', '/private/var', '/var']).filter(Boolean)
 });
 function makeTriggerHub(hooks) {
-  return makeChannelHub({
-    channel: 'trigger', maxMessageLength: 4000, agentPrefix: 'trg_', textBatchWaitMs: 0,
-    // no chat senders: runs keep the owner-configured line's posture; a payload's /commands are refused (no owner)
+  return makeChannelHub(makeHubDeps(hooks.jobEntry === 'handoff' ? 'handoff' : 'trigger', {
+    channel: 'trigger',
+    maxMessageLength: 4000,
+    agentPrefix: 'trg_',
+    textBatchWaitMs: 0,
     untrustedSenders: false,
-    runOnce: runOnce,
-    // the channel store for chat/outbox bookkeeping, but per-agent TURN HISTORY is this fire's own (hooks.turns): a
-    // trigger fire is one standalone job, so a later fire's hops never inherit an earlier fire's handoffs
     store: perFireStore(channelStore, hooks.turns),
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }), observeInto: channelObserveInto,
-    bindChats: false,   // every fire is UNADDRESSED: the line's own doors decide the dock, never a remembered chat binding
+    bindChats: false,
     send: (chatId, text) => { hooks.send(text); return Promise.resolve({ ok: true }); },
-    scrubOutbound: scrubOutbound,   // a fire's replies leave as its job's output: never an absolute host path (round 3)
     secrets: () => ({}),
-    // only the dock the LINE routed to may run: a hub fallback agent gets no configuration, so no run and no spend
     resolveEntryRunConfig: (agentId) => hooks.entryAllowed(agentId) ? sampleRunConfigFor(agentId) : { ok: false, error: 'this trigger\'s line routed the work to no crewed dock' },
     resolveRunConfig: sampleRunConfigFor,
-    persona: hooks.persona || TRIGGER_PERSONA, classify: () => true, redact: redact, emit: chanEmit,   // a trigger's work is work, always (the belt is work-only)
-    newId: () => crypto.randomUUID(), now: () => Date.now(),
+    persona: hooks.persona || TRIGGER_PERSONA,
+    classify: () => true,
     resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? router.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
-    lineRunner: lineRunner,
-    jobId: hooks.jobId, jobEntry: hooks.jobEntry || 'trigger', onJobSettled: hooks.onJobSettled,
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),
-    getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),
-    onResolved: hooks.onResolved, onLineOutcome: hooks.onLineOutcome,
-    // a trigger's work item IS external data (a webhook body, a watched file's contents): the entry run starts
-    // TAINTED, so its sensitive tools stay consent-gated like any run that has read untrusted content
+    jobId: hooks.jobId,
+    jobEntry: hooks.jobEntry || 'trigger',
+    onJobSettled: hooks.onJobSettled,
+    onResolved: hooks.onResolved,
+    onLineOutcome: hooks.onLineOutcome,
     entryTaint: hooks.entryTaint || 'line trigger payload',
-    // a SEND TO hand-off carries the sending job's own verdicts (untrusted entry / sender withheld) instead of inferring
-    // an untrusted entry from the taint label; undefined (every other trigger) keeps the hub's default
-    entryUntrusted: hooks.entryUntrusted, senderWithheld: hooks.senderWithheld, handoffReads: hooks.handoffReads,
+    entryUntrusted: hooks.entryUntrusted,
+    senderWithheld: hooks.senderWithheld,
+    handoffReads: hooks.handoffReads,
     streamId: () => hooks.streamId()
-  });
+  }));
 }
 const triggerRunner = makeTriggerRunner({
   lineRunner,

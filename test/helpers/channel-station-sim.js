@@ -66,6 +66,8 @@ const HostPathScrub = require('../../sidecar/host-path-scrub.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
 const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps, readSidecarIndex, liftValues } = require('./source.js');
+const { productionHubBag } = require('./channel-hub-bags.js');
+const HubFactory = require('../../sidecar/channels/factory.js');
 const fsReal = require('fs');
 const pathReal = require('path');
 const cronStore = require('../../sidecar/cron-store.js');
@@ -110,7 +112,7 @@ const MANIFEST = {
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
       historyFor: 'no canonical transcript', observeInto: 'records overheard lines', runSlash: 'answers every slash command', userCommandNames: 'none',
-      desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider',
+      desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider', resolveRunConfig: 'a configured downstream provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
       briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',
       lineOriginFor: 'no line', getTag: 'no tag', resolveStation: 'office default', stageBriefFor: 'no brief', roster: 'empty', setModel: 'refused',
@@ -126,18 +128,18 @@ const MANIFEST = {
   }
 };
 // the agent bot's bags (startTelegramBot) carry the same delivery seams under the same names; its hub answers no roster
-// commands and resolves a hop's agent through resolveRunConfig instead of resolveEntryRunConfig
+// commands; its live bound entry and every later target now have explicit configuration resolvers.
 MANIFEST.botHub = { real: MANIFEST.stationHub.real.slice(), stub: Object.assign({}, MANIFEST.stationHub.stub, { resolveRunConfig: 'a configured provider' }) };
-for (const k of ['resolveEntryRunConfig', 'roster', 'setModel', 'modelCatalog']) delete MANIFEST.botHub.stub[k];
+for (const k of ['roster', 'setModel', 'modelCatalog']) delete MANIFEST.botHub.stub[k];
 MANIFEST.botAdapter = { real: MANIFEST.stationAdapter.real.slice(), stub: Object.assign({}, MANIFEST.stationAdapter.stub) };
 
 function productionBags() {
   const tg = sidecarTopLevelFunction('startTelegram');
   const bot = sidecarTopLevelFunction('startTelegramBot');
   return {
-    stationHub: objectProps(callRegion(tg, 'const hub = makeChannelHub({', '\n  });')),
+    stationHub: productionHubBag('telegram').props,
     stationAdapter: objectProps(callRegion(tg, 'const adapter = makeTelegramAdapter({', '\n  });')),
-    botHub: objectProps(callRegion(bot, 'const hub = makeChannelHub({', '\n  });')),
+    botHub: productionHubBag('telegram-bot').props,
     botAdapter: objectProps(callRegion(bot, 'const adapter = makeTelegramAdapter({', '\n  });'))
   };
 }
@@ -165,13 +167,14 @@ function liftedFactory(kind, scopeNames) {
   const adM = kind === 'bot' ? MANIFEST.botAdapter : MANIFEST.stationAdapter;
   const prop = (p, m, which) => '  ' + p.key + ': ' + (m.real.indexOf(p.key) >= 0 ? '(' + p.expr + ')' : '__stub.' + which + '[' + JSON.stringify(p.key) + ']');
   const body = 'let adapterRef = null;\n'
-    + 'const hub = makeChannelHub({\n' + hubBag.map(p => prop(p, hubM, 'hub')).join(',\n') + '\n});\n'
+    + 'const hub = makeChannelHub(__factory.makeHubDeps(' + JSON.stringify(kind === 'bot' ? 'telegram-bot' : 'telegram') + ', {}, {\n' + hubBag.map(p => prop(p, hubM, 'hub')).join(',\n') + '\n}));\n'
     + 'const adapterBag = {\n' + adBag.map(p => prop(p, adM, 'adapter')).join(',\n') + '\n};\n'
     + 'const adapter = makeTelegramAdapter(adapterBag);\n'
     + 'guardOutbound(adapter);\n'
     + 'adapterRef = adapter;\n'
     + 'return { hub: hub, adapter: adapter, adapterBag: adapterBag, status: function () { return telegramStatus; } };';
-  const fn = new Function(...scopeNames, '__stub', body);   // eslint-disable-line no-new-func
+  const compiled = new Function(...scopeNames, '__stub', '__factory', body);   // eslint-disable-line no-new-func
+  const fn = (...args) => compiled(...args, HubFactory);
   factoryCache.set(key, fn);
   return fn;
 }
