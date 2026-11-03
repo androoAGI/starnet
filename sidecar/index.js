@@ -40,6 +40,7 @@ const ImageTask = require('./image-task.js');
 const { makeCostEngine } = require('./cost.js');
 const { routePrefixMatches } = require('./route-prefix.js');   // how a ROUTES prefix entry matches (dispatchRoute)
 const { makeLedger, makeAuxMeter, auxLoopFloors } = require('./ledger.js');
+const { generationFields, makeGenerationReceipt } = require('./providers/provider.js');
 const { makeBudget } = require('./budget.js');
 const BillingClass = require('./billing-class.js');   // ONE BILLING CLASS: who pays for a call (key, StarNet credits, a sign-in plan, local) and every limit that follows
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
@@ -14645,6 +14646,7 @@ async function stationOneShot(prompt, tag, failLead) {
   const timer = setTimeout(() => ctrl.abort(), 120000);
   if (timer && timer.unref) timer.unref();
   stationOneShots.add(ctrl);
+  const generationReceipt = makeGenerationReceipt(), noteGeneration = generationReceipt.begin();
   let out = '', usage = null, usd = 0, tokens = 0, cost = null;
   // book whatever usage arrived — on a timeout or a provider error too: those tokens were billed (sweep 2026-10-02)
   const book = () => {
@@ -14653,7 +14655,7 @@ async function stationOneShot(prompt, tag, failLead) {
     try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); unpriced = !!c.unpriced; } catch (e) { failNote(tag + '.reconcile', e); return; }
     // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER; auxRowClass)
     const billingClass = billing.auxRowClass(providerId, usage.subscription === true), unmetered = !BillingClass.POLICY[billingClass].ledgerMetered;
-    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, billingClass, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
+    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, billingClass, unmetered, aux: 'oneshot-' + tag, ...generationReceipt.fields(), ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
   };
   try {
     const provider = await providerForRunConfig(cfg, reasoningEffort);
@@ -14661,7 +14663,8 @@ async function stationOneShot(prompt, tag, failLead) {
     for await (const ev of provider.stream({ model: cfg.model, stream: true, signal: ctrl.signal, reasoningEffort,
       messages: [{ role: 'system', content: prompt.system }, { role: 'user', content: prompt.user }] })) {
       if (ev && ev.type === 'text') out += ev.delta;
-      else if (ev && ev.type === 'usage') usage = ev.usage;
+      else if (ev && ev.type === 'generation') noteGeneration(ev.id);
+      else if (ev && ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); }
     }
   } catch (e) {
     book();
@@ -25608,7 +25611,7 @@ async function runOnceCore(o) {
     const mediaFlags = mediaRunFlags({ runUnmetered: rowUnmetered, mediaUsd, mediaUnpriced, runUnpriced });   // #164
     const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result) }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the

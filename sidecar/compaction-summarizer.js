@@ -41,6 +41,7 @@
    chunk is BOUNDED (head + tail of each oversized message, with an explicit marker) instead of forcing its own
    chunk, and what that cut is added to `truncatedChars` — a lossy fold says so in agent.compact. */
 'use strict';
+const { makeGenerationReceipt } = require('./providers/provider.js');
 
 const fidelity = require('./compaction-fidelity.js');
 
@@ -191,6 +192,7 @@ function makeSummarizer(deps) {
       chunks = keep;
     }
 
+    const generationReceipt = (live && live.generationReceipt) || makeGenerationReceipt();
     let running = (typeof prevSummary === 'string' && prevSummary.trim()) ? prevSummary.trim() : '';
     let usd = 0, tokens = 0, produced = false, rejected = null; const unpriced = [];
 
@@ -202,11 +204,13 @@ function makeSummarizer(deps) {
       const effort = auxEffortFor(sProvider, useModel);
       if (effort) req.reasoningEffort = effort;
       if (deps.runId) req.runId = deps.runId;   // run attribution (starnet proxy header; other providers ignore it)
+      const noteGeneration = generationReceipt.begin();
       let out = '', usage = null, finish = null, truncated = false;
       const it = deps.streamFn ? deps.streamFn(req, sProvider) : sProvider.stream(req);
       for await (const ev of it) {
         if (ev && ev.type === 'text') out += ev.delta;
-        else if (ev && ev.type === 'usage') usage = ev.usage;
+        else if (ev && ev.type === 'generation') noteGeneration(ev.id);
+        else if (ev && ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); }
         else if (ev && ev.type === 'done') { finish = ev.finishReason || null; truncated = !!ev.truncated; }   // WHY it stopped
       }
       const c = sCost ? sCost.reconcile(usage, useModel) : {};

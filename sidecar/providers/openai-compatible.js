@@ -906,14 +906,16 @@
         reasoningText = '';
         yield { type: 'reasoning', block };
       }
+      let generationId = '';
       function* emitFrom(j) {
+        if (!generationId) { generationId = provider.generationId(j && j.id); if (generationId) yield { type: 'generation', id: generationId }; }
         if (j.error) {
           const err = new Error((j.error && (j.error.message || j.error.code)) || 'provider stream error');
           err.body = j;   // the structured error (code/type) — errorClass reads it
           err.ownMessage = true;
           throw localMemoryError(err);
         }
-        if (j.usage) yield { type: 'usage', usage: j.usage };
+        if (j.usage) yield { type: 'usage', usage: generationId ? Object.assign({}, j.usage, { generation_id: generationId }) : j.usage };
         const choice = j.choices && j.choices[0];
         if (!choice) return;
         const d = choice.delta || choice.message || {};

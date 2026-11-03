@@ -320,7 +320,10 @@
         try { return { json: JSON.parse(data) }; } catch (e) { return null; }
       }
 
+      let generationId = '';
+      function withGeneration(usage) { return generationId ? Object.assign({}, usage, { generation_id: generationId }) : usage; }
       function* emitFrom(ev) {
+        if (!generationId) { generationId = provider.generationId(ev && ev.response && ev.response.id); if (generationId) yield { type: 'generation', id: generationId }; }
         const type = ev && ev.type;
         if (!type) return;
         switch (type) {
@@ -369,14 +372,14 @@
           }
           case 'response.completed': {
             const r = ev.response || {};
-            if (r.usage) yield { type: 'usage', usage: normalizeUsage(r.usage) };
+            if (r.usage) yield { type: 'usage', usage: withGeneration(normalizeUsage(r.usage)) };
             doneEmitted = true;
             yield { type: 'done', finishReason: finishFor(r), truncated: false };
             return;
           }
           case 'response.incomplete': {
             const r = ev.response || {};
-            if (r.usage) yield { type: 'usage', usage: normalizeUsage(r.usage) };
+            if (r.usage) yield { type: 'usage', usage: withGeneration(normalizeUsage(r.usage)) };
             const reason = (r.incomplete_details && r.incomplete_details.reason) || '';
             doneEmitted = true;
             // an explicit `response.incomplete` is the SERVER stating it stopped early — a known, reported stop

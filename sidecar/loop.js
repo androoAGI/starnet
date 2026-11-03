@@ -29,6 +29,7 @@
   const isRunContextNote = (typeof require === 'function') ? require('./providers/provider.js').isRunContextNote : null;
   // ... and the <crew_call> note (review 2026-10-12): it left the run-context note to trail the newest user message
   const isCrewCallNote = (typeof require === 'function') ? require('./providers/provider.js').isCrewCallNote : null;
+  const receiptApi = (typeof require === 'function') ? require('./providers/provider.js') : (globalThis.SK && globalThis.SK.providers && globalThis.SK.providers.provider);
 
   // tool-call argument repair (L2): recover mechanically-broken JSON from non-Anthropic models. Degrades to
   // identity if the module is absent (e.g. a browser build that never runs the loop).
@@ -1214,6 +1215,7 @@
     const REFUND_MAX = (limits.refundMax != null) ? limits.refundMax : 8;
     let refundsUsed = 0;
 
+    const generationReceipt = receiptApi ? receiptApi.makeGenerationReceipt() : { begin: () => () => {}, fields: () => ({}) };
     let spentUsd = 0, turns = 0, spentTokens = 0;
     // the part of spentTokens' input the provider served from its prompt cache (token-burn audit 2026-10-17): `tokens`
     // counts a cache read at full weight, so without this a run row could never show whether caching worked
@@ -1589,7 +1591,7 @@
       emit('agent.run.end', endPayload);
       const tail = messages[messages.length - 1];
       const terminalText = tail && tail.role === 'assistant' && !tail.tool_calls ? String(tail.content == null ? '' : tail.content) : '';
-      const out = { reason, messages, text: terminalText, usd: spentUsd, turns, tokens: spentTokens, cachedTokens: spentCachedTokens, model, unpricedUsage: unpricedUsage.slice() };
+      const out = { reason, messages, text: terminalText, usd: spentUsd, turns, tokens: spentTokens, cachedTokens: spentCachedTokens, model, unpricedUsage: unpricedUsage.slice(), ...generationReceipt.fields() };
       if (cut) out.finishReason = cut;
       if (subscriptionTokens > 0) out.subscriptionUsed = true;   // a nested loop's aux row names the $0 route it drew on (issue #105)
       if (typeof o.billingClassOf === 'function') out.billingClasses = billingClasses.slice();   // the host's row says what the attempts were
@@ -1850,7 +1852,7 @@
       let r;
       // Pass the loop's CURRENT provider/model/cost: after a rotation or a cross-provider fallback these are the
       // only live ones, and the injected summarizer captured its own bindings before the run started.
-      try { r = await summarize(foldOlder, prevSummary, { provider, model, cost }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
+      try { r = await summarize(foldOlder, prevSummary, { provider, model, cost, generationReceipt }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
       catch (e) { if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false; }   // summarizer threw -> skip
       if (signal.aborted) return false;
       const summary = (typeof r === 'string') ? r : ((r && r.summary) || '');
@@ -2105,6 +2107,7 @@
         if (attemptSpendStop) return attemptSpendStop;
         acc.text = ''; acc.toolCalls = {}; acc.reasoning = []; streamedTextChunks = []; usage = null; lastFinishReason = null;
         usageModel = model;
+        const noteGeneration = generationReceipt.begin();
         let streamErr = null;
         let sawTruncation = false;
         let sawStreamEvent = false;   // any event from this attempt's stream: provider.retry `stage` + the waiting phase
@@ -2126,6 +2129,7 @@
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             waiting.mark();
+            if (ev.type === 'generation') { noteGeneration(ev.id); continue; }   // reconciliation metadata, not billed usage or visible output
             if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note); continue; }   // the adapter's wait facts, not stream output (#99)
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
@@ -2150,7 +2154,7 @@
             else if (ev.type === 'reasoning') { if (ev.block) acc.reasoning.push(ev.block); }
             else if (ev.type === 'tool_start') { acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming'); }
             else if (ev.type === 'tool_args') { if (acc.toolCalls[ev.index]) acc.toolCalls[ev.index].args += (ev.chunk || ''); waiting.resume('streaming'); }
-            else if (ev.type === 'usage') { usage = ev.usage; if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
+            else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
             else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; }   // A3: remember WHY the turn stopped
             // 'tool_done' needs no action here
           }

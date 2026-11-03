@@ -56,6 +56,7 @@ test/memcore.test.js
 test/cost.test.js
 test/spend.test.js
 test/ledger.test.js
+test/ledger.generation-id.test.js
 test/ledger.aux-meter.test.js
 test/ledger.aux-receipt.test.js
 test/logbound.test.js

@@ -31,6 +31,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // The browser does not own spend booking; keep its standalone legacy reader loadable without transport modules.
+  const receiptApi = (typeof require === 'function') ? require('./providers/provider.js') : (globalThis.SK && globalThis.SK.providers && globalThis.SK.providers.provider);
+  const generationFields = receiptApi ? receiptApi.generationFields : () => ({});
+  const makeGenerationReceipt = receiptApi ? receiptApi.makeGenerationReceipt : () => ({ begin: () => () => {}, fields: () => ({}), reset() {} });
+
   const DAY_MS = 24 * 60 * 60 * 1000;
   const UNKNOWN_MODEL = '(unknown)';
   // who paid for a row (billing-class.js POLICY): its ledgerMetered decides the metered folds. Optional on a row: every row
@@ -151,6 +156,7 @@
         turns: num(e.turns), usd: num(e.usd), tokens: num(e.tokens),
         ...(num(e.cachedTokens) > 0 ? { cachedTokens: num(e.cachedTokens) } : {}),   // (additive) the cache-served part of `tokens`' input
         model: modelName(e.model),
+        ...generationFields(e),
         // a row that names its payer is unmetered exactly when that payer is a sign-in plan or a local model, so an older
         // build's folds (it reads unmetered alone) and this build's agree on the same file
         unmetered: knownClass(e.billingClass) ? !BillingClass.POLICY[e.billingClass].ledgerMetered : !!e.unmetered,
@@ -334,7 +340,7 @@
   // The flags a nested tool loop's aux row carries (the skill review, the curator). A subscription call is named on any route; the
   // floors (an unpriced model, a stream cut before usage) mean something only where dollars are metered.
   function auxLoopFloors(result, unmetered) {
-    const out = {};
+    const out = generationFields(result);
     if (result && result.subscriptionUsed === true) out.subscription = true;
     if (unmetered || !result) return out;
     if (Array.isArray(result.unpricedUsage) && result.unpricedUsage.length) out.unpriced = true;
@@ -345,8 +351,10 @@
     o = o || {};
     const ledger = o.ledger, kind = str(o.kind).trim() || 'aux', route = str(o.provider).trim();
     const rowClass = typeof o.rowClass === 'function' ? o.rowClass : null;
+    const generationReceipt = makeGenerationReceipt();
     let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0;
-    function add(usage, cost, model) {
+    function add(usage, cost, model, noteGeneration) {
+      (noteGeneration || generationReceipt.begin())(usage && usage.generation_id);
       calls++;
       if (usage && usage.subscription === true) subscription = true;
       let c = null;
@@ -358,6 +366,7 @@
     return {
       add,
       async stream(provider, req, cost) {
+        const noteGeneration = generationReceipt.begin();
         let out = '', usage = null;
         try {
           // A toolless housekeeping call is one request whose prompt nothing reads again: the adapter may skip the cache write
@@ -365,9 +374,10 @@
           const hasTools = !!(req && Array.isArray(req.tools) && req.tools.length);
           for await (const ev of provider.stream(hasTools ? req : Object.assign({}, req, { neverReread: true }))) {
             if (ev && ev.type === 'text') out += ev.delta;
+            else if (ev && ev.type === 'generation') noteGeneration(ev.id);
             else if (ev && ev.type === 'usage') usage = ev.usage;
           }
-        } finally { add(usage, cost, req && req.model); }
+        } finally { add(usage, cost, req && req.model, noteGeneration); }
         return out;
       },
       book(row) {
@@ -378,7 +388,8 @@
         if (!knownClass(billingClass)) billingClass = null;
         const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
         const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, ...(billingClass ? { billingClass } : {}), unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind });
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, ...generationReceipt.fields() });
+        generationReceipt.reset();
         calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
         return entry;
       },
