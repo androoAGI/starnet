@@ -4,10 +4,10 @@ slug: oversized-skill-downloads-strand-unread-response
 title: Oversized skill downloads strand unread response sockets
 surface: safecell
 severity: P1
-status: open
+status: fixed
 found: 2026-11-03
 lane: agent/safe-egress-module-1103
-fix:
+fix: dd74251f7e58453ad1d8e46375ea3e38157cf830
 origin: audit
 installer: unverified
 recovery: unconfirmed
@@ -36,4 +36,4 @@ Root logs are retained at `C:/Users/andro/gen-trees/_logs/codex-overnight-1103/s
 
 ## Verdict
 
-The focused repair cancels a response rejected before a reader owns its body, before yielding to per-hop or package graceful close. Size limits, deadlines, redirect checks, DNS validation and package authority are unchanged. Focused actual-socket proof passes; the repair is not yet committed or accepted by the second independent security review. No installed or customer recovery claim.
+Fixed in source by dd74251f7e58453ad1d8e46375ea3e38157cf830. The focused repair cancels a response rejected before a reader owns its body, before yielding to per-hop or package graceful close. Size limits, deadlines, redirect checks, DNS validation and package authority are unchanged. Focused actual-socket proof and round1 bounded source recheck pass; the second independent security review and combined lane acceptance remain pending. No installed or customer recovery claim.
