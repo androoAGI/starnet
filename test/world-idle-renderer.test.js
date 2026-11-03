@@ -36,6 +36,7 @@ function director(flagOn) {
     return {
       tick: now => cinecamTick(now), mode: () => camLock ? camLock.source : 'manual',
       touch: now => { camUserAt = now; camLock = null; },
+      sessionLock: () => { camLock = { id: 'a', sc: 2, source: 'session' }; }, clearLock: () => { camLock = null; },
       runStart: () => liveRunsByAgent.set('a', new Map([['r1', 0]])), runEnd: () => liveRunsByAgent.delete('a')
     };`)(flagOn, restMs);
 }
@@ -56,6 +57,9 @@ function director(flagOn) {
   A.eq(on.mode(), 'manual', 'flag on: truly idle (no hand, no run) — the director stands down; the camera stays where it is');
   for (let t = takeover + restMs; t < 4 * 3600 * 1000; t += 10 * MIN) on.tick(t);
   A.eq(on.mode(), 'manual', 'flag on: and stays down for as long as the station stays idle (no full-pace camera motion)');
+  on.sessionLock(); on.tick(4 * 3600 * 1000);
+  A.eq(on.mode(), 'session', 'a session lock still owns the camera outright: the rest never releases it');
+  on.clearLock();
 
   let t = 3 * 3600 * 1000;
   on.runStart(); on.tick(t);
@@ -121,11 +125,27 @@ function loadTextures(search, stored) {
   const st1 = lazy.T.status();
   A.eq(st1.artHeld, lru, 'drawing every material holds at most ART_LRU_MAX painted canvases');
   A.eq(st1.artEvicted, all.length - lru, 'the rest were let go, least recently used first');
-  A.ok(!lazy.T.status().assets.includes(all[0]) && lazy.T.status().assets.includes(all[all.length - 1]), 'the oldest use went out first, the newest stays');
-  A.ok(lazy.T._dbgArtTouch(all[0]) && lazy.T.status().artPainted === all.length + 1, 'an evicted material is painted again on its next draw');
+  A.eq(lazy.T.status().assets.length, all.length, 'status().assets still names every material loaded (the leak probe and the audit read it)');
+  lazy.T._dbgArtTouch(all[all.length - 1]);
+  A.eq(lazy.T.status().artPainted, all.length, 'the newest use is still held (no repaint)');
+  A.ok(lazy.T._dbgArtTouch(all[0]) && lazy.T.status().artPainted === all.length + 1, 'the oldest went out first: it is painted again on its next draw');
+  A.eq(lazy.T._dbgArtTouch('constructor'), false, 'a prototype name is never a material');
   A.eq(lazy.T._dbgArtTouch('no-such-material'), false, 'an unknown material is still absent (callers keep their fallback)');
   lazy.T.restoreMaterials();
   A.eq(lazy.T.status().artHeld, 0, 'a GPU-loss restore drops the painted canvases; they come back as they are drawn');
+  const paintedBefore = eager.T.status().assets.length;
+  eager.T.restoreMaterials();
+  A.eq(eager.T.status().assets.length, paintedBefore, 'flag off: a restore repaints every material, as before');
+
+  // a material whose paint fails at draw time is a failed material, as a failed paint at load was (the pack turns off if it is a base one)
+  const broken = loadTextures('', '1');
+  await broken.T.ready;
+  broken.created.length = 0;
+  const realCreate = broken.created.push.bind(broken.created);
+  broken.created.push = cv => { cv.getContext = () => { throw new Error('context lost'); }; return realCreate(cv); };
+  A.eq(broken.T._dbgArtTouch('floor'), false, 'a paint that throws gives no canvas');
+  A.ok(broken.T.status().failed.includes('floor') && broken.T.enabled() === false, '...it is recorded failed, and a lost base material turns the pack off (callers take their fallback, never a half-drawn frame)');
+  A.eq(broken.T._dbgArtTouch('floor'), false, 'and it is not retried on every draw');
 
   const query = loadTextures('?idleRenderer=0', '1');
   await query.T.ready;

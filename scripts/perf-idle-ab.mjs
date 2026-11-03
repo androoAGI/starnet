@@ -185,7 +185,7 @@ function pageState() {
     pace: { running: p.running, mode: p.mode, focused: p.focused, motion: p.motion, paceMs: p.paceMs, vsyncMs: p.vsyncMs, drawCostMs: p.drawCostMs, strained: p.strained, timerWait: p.timerWait,
       still: p.still, stillWhy: p.stillWhy, stillFrames: p.stillFrames, stillWhyCounts: p.stillWhyCounts || null },
     raf: { fired: r.fired || 0, booked: r.booked || 0, sampled: r.sampled || 0, sites: Object.assign({}, r.sites || {}) },
-    camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale } };
+    camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale, rested: c.cineRested === true } };
 }
 function reviewRead() {
   const o = World._dbgReviewPerformance(false), ms = o.samples.map(x => x.ms).sort((a, b) => a - b);
@@ -217,7 +217,7 @@ const PHASE_WANT = {
   P5: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
   AB: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
   P6: { focus: 'focused', visibility: 'visible', camera: 'auto', hz: true, mode: 'focused' },
-  P7: { focus: 'focused', visibility: 'visible', camera: 'manual', hz: true, mode: 'focused' },
+  P7: { focus: 'focused', visibility: 'visible', camera: 'manual', rested: true, hz: true, mode: 'focused' },   // rested: a never-engaged director also reads 'manual'
 };
 // the pacer's draw-rate rule and the STILL window readout live in proc-footprint.mjs (F.expectedDraws, F.stillWindow: tested there)
 
@@ -454,7 +454,7 @@ async function runOnce(k) {
     };
     const judge = (name, row, extra = {}) => {
       const w = PHASE_WANT[name] || {};
-      const v = F.phaseValidity({ name, focus: w.focus, visibility: w.visibility, camera: w.camera, hz: w.hz ? targetHz : null, ...extra }, row.obs);
+      const v = F.phaseValidity({ name, focus: w.focus, visibility: w.visibility, camera: w.camera, rested: w.rested, hz: w.hz ? targetHz : null, ...extra }, row.obs);
       return Object.assign({ phase: name, label: v.label || name, valid: v.valid, invalidWhy: v.reasons, checksSkipped: v.skipped }, row);
     };
     const show = r => console.log('  ' + (r.phase + (r.cap != null ? '@' + r.capLabel : '')).padEnd(14) + (r.valid ? 'ok     ' : 'INVALID') + (r.contended ? ' CONTENDED' : '          ') +
@@ -511,16 +511,23 @@ async function runOnce(k) {
         continue;
       }
       const saveCam = name === 'P6' || name === 'P7' ? await evalJS(page, 'World.cameraState()') : null;
-      const saveIdle = name === 'P7' ? await evalJS(page, 'World.idleRendererOn()') : null;
+      const hasIdle = await evalJS(page, 'typeof World.setIdleRenderer === "function"');
+      if (name === 'P7' && !hasIdle) { console.log('  P7            skipped: this tree has no idle renderer'); continue; }
+      const saveIdle = hasIdle && (name === 'P6' || name === 'P7') ? await evalJS(page, 'World.idleRendererOn()') : null;
       await setMode(want.mode);
       const js = PHASE_JS[name];
       if (js) await evalJS(page, js[0]);
       if (name === 'P6') {
+        if (hasIdle) await evalJS(page, '(World.setCinecamRest(1e9), 1)');   // the engaged director, even on a page loaded with the flag on
         await evalJS(page, '(World.setCinecamIdle(1000), 1)');
         for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().mode')) === 'auto') break; await sleep(500); }
       }
       if (name === 'P7') {
-        await evalJS(page, '(World.setIdleRenderer(true), World.setCinecamRest(2000), World.setCinecamIdle(1000), 1)');
+        // engage the director first and let its shot land (the zoom and culling P6 measured), THEN let it rest where it is
+        await evalJS(page, '(World.setIdleRenderer(true, false), World.setCinecamRest(1e9), World.setCinecamIdle(1000), 1)');
+        for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().mode')) === 'auto') break; await sleep(500); }
+        await sleep(4000);
+        await evalJS(page, '(World.setCinecamRest(1000), 1)');
         for (let i = 0; i < 60; i++) { if ((await evalJS(page, 'World.cameraDbg().cineRested')) === true) break; await sleep(500); }
       }
       await sleep(settleS * 1000);
@@ -534,8 +541,8 @@ async function runOnce(k) {
           meanMoving: +(ok.reduce((a, s) => a + s.reduce((x, y) => x + y, 0), 0) / ok.length).toFixed(2) } : null;
       }
       if (js) await evalJS(page, js[1]);
-      if (name === 'P6') { await evalJS(page, `(World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
-      if (name === 'P7') { await evalJS(page, `(World.setIdleRenderer(${JSON.stringify(!!saveIdle)}), World.setCinecamRest(0), World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
+      if (name === 'P6') { await evalJS(page, `(World.setCinecamIdle(1e9), ${hasIdle ? 'World.setCinecamRest(0), ' : ''}World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
+      if (name === 'P7') { await evalJS(page, `(World.setIdleRenderer(${JSON.stringify(!!saveIdle)}, false), World.setCinecamRest(0), World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       res.phases.push(row); show(row);
     }
     await setMode('focused').catch(() => {});

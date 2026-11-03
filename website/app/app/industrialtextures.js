@@ -13,7 +13,7 @@ const IndustrialTextures = (() => {
     crateReview = query.get('propReview') === 'crate';
     projectionReview = query.get('textures') !== 'classic' && query.get('propReview') !== 'skins' && query.get('propSet') !== 'approved';
   } catch (_) {}
-  const originals = {}, failed = [];
+  const originals = Object.create(null), failed = [];   // no prototype: a lazy read of 'constructor' is not a material
   /* THE IDLE RENDERER (wave 5: gh#69, gh#114, bug 9256a771, email E55), BEHIND A FLAG until Andrew has A/B'd the look.
      On:  ?idleRenderer=1, or localStorage 'starnet.idleRenderer' = '1' (World.setIdleRenderer(true) writes it; read once, at load).
      Off: the default, and ?idleRenderer=0 wins over the stored value. Off, nothing below changes a single draw. */
@@ -43,7 +43,12 @@ const IndustrialTextures = (() => {
         const img = originals[name];
         if (!img) return undefined;
         let cv = null;
-        try { cv = paintOriginal(name, img); } catch (_) { return undefined; }
+        try { cv = paintOriginal(name, img); } catch (_) {
+          // the same verdict a failed paint at load gave: the material is lost, and a lost base material turns the pack off
+          delete originals[name]; failed.push(name);
+          if (names.includes(name)) loaded = false;
+          return undefined;
+        }
         artStats.painted++;
         return hold(name, cv);
       },
@@ -147,11 +152,11 @@ const IndustrialTextures = (() => {
   // Paint stays a real material choice. Tint is applied once to the authored
   // albedo, before lighting; the dark engraved structure survives every hue.
   function material(name, base) {
-    const im = images[name];
     const gain = projectionReview ? Math.max(.65,Math.min(1.2,Number(name.includes('/floors/')?lighting.floorGain:name.includes('/walls/')?lighting.wallGain:1)||1)) : 1;
-    if (!im || !base && gain===1) return im;
     const key = name + ':' + base + ':' + gain;
-    if (materials.has(key)) return materials.get(key);
+    if ((base || gain !== 1) && materials.has(key)) return materials.get(key);   // a tinted copy needs no base read (LAZY ART: no repaint)
+    const im = images[name];
+    if (!im || !base && gain===1) return im;
     const cv = document.createElement('canvas'); cv.width = im.width; cv.height = im.height;
     const g = cv.getContext('2d');
     let paintGain=1;
@@ -438,10 +443,10 @@ const IndustrialTextures = (() => {
     return materialImage('shell-' + id, base, 2.05);
   }
   function materialImage(name, base, exposure) {
+    const tinted = /^#[0-9a-f]{6}$/i.test(base || ''), key = name + ':' + base;
+    if (tinted && shellTints.has(key)) return shellTints.get(key);   // the tinted copy first (LAZY ART: no repaint of an evicted base)
     const im = images[name];
-    if (!im || !/^#[0-9a-f]{6}$/i.test(base || '')) return im;
-    const key = name + ':' + base;
-    if (shellTints.has(key)) return shellTints.get(key);
+    if (!im || !tinted) return im;
     // Preserve the saved paint hue. Normalize the authored relief to the palette's
     // exposure instead of multiplying an already-coloured brick or wood picture.
     const cv = document.createElement('canvas'); cv.width = 576; cv.height = Math.max(1, Math.round(576 * im.height / im.width));
@@ -647,6 +652,6 @@ const IndustrialTextures = (() => {
     _dbgArtTouch: name => !!images[name],   // probes/tests: draw-side read of one material (LAZY ART paints it here)
     drawBase, floor, wall, wallStrip, wallPatch, crown, doorReturn, viewportFrame, shell, shellPlate, propPanel, workstation, workstationEmitter, chair, crate,
     furniture, workstationNext: () => wsChangeAt, supportsWall: id => enabled() && (wallIds.includes(id)||wallMaterials.includes(id)),
-    status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(images), lazyArt, artHeld: Object.keys(images).length, artPainted: artStats.painted, artEvicted: artStats.evicted }) });
+    status: () => ({ requested, loaded, failed: failed.slice(), assets: Object.keys(lazyArt ? originals : images), lazyArt, artHeld: lazyArt ? Object.keys(images).length : Object.keys(images).length, artPainted: artStats.painted, artEvicted: artStats.evicted }) });
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = IndustrialTextures;

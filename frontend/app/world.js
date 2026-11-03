@@ -2429,6 +2429,7 @@ const World = (() => {
      re-stamp camUserAt), the scripted awakening camera always wins, and reduced-motion users never get a
      self-panning camera. Runs once per frame from the camera block — every branch below is O(bodies). */
   function cinecamTick(now) {
+    if (idleRenderer && liveRunCount() > 0) runSeenAt = now;                      // IDLE RENDERER: the station is working (the rest waits CINE_REST_MS after)
     if (camLock && camLock.source !== 'cine') return;                             // an explicit session lock owns the camera
     // NOTE: no document.hidden gate — the rAF loop already pauses in hidden tabs, and embedded webviews
     // (the preview harness, some Tauri states) report hidden while still rendering, which would dead-gate this.
@@ -2481,14 +2482,15 @@ const World = (() => {
     idleRenderer = q != null ? (q === '1' || q === 'on') : (typeof localStorage !== 'undefined' && localStorage.getItem('starnet.idleRenderer') === '1');
   } catch (_) {}
   function liveRunCount() { let n = 0; for (const runs of liveRunsByAgent.values()) n += runs.size; return n; }
+  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live
   function cineRested(now) {
-    if (!idleRenderer) return false;
-    if (liveRunCount() > 0) { runSeenAt = now; return false; }   // the station is working: not idle, whatever the camera says
+    if (!idleRenderer || liveRunCount() > 0) return false;   // a working station is not idle, whatever the camera says
     return now - camUserAt >= cineIdleMs + cineRestMs && now - runSeenAt >= cineRestMs;
   }
-  function setIdleRenderer(on) {
+  // persist:false (perf-idle-ab's own A/B) changes the live rule without touching the stored opt-in
+  function setIdleRenderer(on, persist) {
     idleRenderer = !!on;
-    try { localStorage.setItem('starnet.idleRenderer', idleRenderer ? '1' : '0'); } catch (_) {}
+    if (persist !== false) try { localStorage.setItem('starnet.idleRenderer', idleRenderer ? '1' : '0'); } catch (_) {}
     motionWake();   // the next frame judges itself under the new rule
     return idleRenderer;
   }

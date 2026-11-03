@@ -198,6 +198,7 @@ export function phaseValidity(want = {}, obs = {}) {
       else if (Math.abs(hz - want.hz) / want.hz > VSYNC_TOLERANCE) reasons.push('vsync ' + hz.toFixed(1) + ' Hz is more than ' + (VSYNC_TOLERANCE * 100) + '% off the intended ' + want.hz + ' Hz');
     }
     if (want.camera && o.cameraMode !== want.camera) reasons.push('camera mode is ' + o.cameraMode + ', want ' + want.camera);
+    if (want.rested != null && o.cineRested !== want.rested) reasons.push('cinecam rested is ' + o.cineRested + ', want ' + want.rested);
   }
   return { label, valid: reasons.length === 0, reasons: [...new Set(reasons)], skipped: [...new Set(skipped)] };
 }
