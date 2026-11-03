@@ -219,7 +219,8 @@ function seedStream(stream, T, words, at, count, from, to) {
       now: () => Date.now(), newId: () => crypto.randomUUID(), broadcast: () => {},
       roster: () => [{ agentId: 'agent', name: 'Hero' }],
       credentials: () => ({ ok: true, key: 'sk-or-v1-retry-turn-fixture', model: 'test/model', provider: 'openrouter', system: '' }),
-      transcript: { history: () => [], streams: () => [] }, classify: () => true, askConsent: async () => 'deny', phoneAsksFirst: () => false,
+      transcript: require('../sidecar/transcriptstore.js').makeTranscriptStore({ io: require('../sidecar/transcript-history.js').makeMemoryTranscriptIo() }),
+      classify: () => true, askConsent: async () => 'deny', phoneAsksFirst: () => false,
       // the host's runOnce, carried to the station's run host: the host's station-clock turnAt rides as a pair with this clock
       runOnce: o => { const p = run(o.streamId, o.messages[o.messages.length - 1].content, { turnId: o.turnId, turnAt: o.turnAt, clientNow: o.turnAt === undefined ? undefined : Date.now(), turnRowId: o.turnRowId }); bridged.push(p); return p; }
     });
@@ -227,7 +228,7 @@ function seedStream(stream, T, words, at, count, from, to) {
     const phone = async args => { const before = bridged.length; const r = await gw.call({ verb: 'send', args }, { deviceId: 'dev-1' }); for (let i = 0; i < 400 && bridged.length === before; i++) await new Promise(res => setTimeout(res, 5)); return { reply: r, run: await bridged[bridged.length - 1] }; };
     n = Date.now();
     const b1 = await phone({ agentId: 'agent', text: SKW, streamId: SK, turnId: TK, turnAt: (n - 30 * MINUTE) + 24 * HOUR, clientNow: n + 24 * HOUR });
-    A.ok(b1.reply.ok, '(b) fixture: the gateway accepted the send');
+    A.ok(b1.reply.ok, '(b) fixture: the gateway accepted the send: ' + JSON.stringify(b1.reply));
     A.eq([b1.run.start.turnId, directives(SK, TK).length, tagCount('turn.reuse.horizon')], [TurnKinds.runTurnId(b1.run.runId), 1, 3], '(b) phone through the gateway: re-keyed, T keeps one directive, horizon counted');
     const SC = 'turn-phone', TC = mint(), p0 = Date.now() + 24 * HOUR;
     const c1 = await phone({ agentId: 'agent', text: 'PHONE: book the venue', streamId: SC, turnId: TC, turnAt: p0, clientNow: p0 });

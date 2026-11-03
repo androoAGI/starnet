@@ -139,7 +139,28 @@ function reuse(store, o) {
   const found = a.found;
   if (!found || found.state !== 'found' || !found.directive) return null;
   const row = found.directive;
-  if (sameInput(row, a)) return row;
+  if (sameInput(row, a)) {
+    if (a.retryOf === row.turnId && TurnKinds.isTurnId(row.turnId)) {
+      let result;
+      try {
+        result = store && typeof store.retract === 'function' ? store.retract({ streamId: a.streamId, agentId: a.agentId,
+          turnId: row.turnId, directiveRowId: row.rowId, runId: a.runId, reason: 'retry' }) : null;
+      } catch (error) {
+        // A failed strict write is a persistence failure, never evidence of a different turn. The
+        // host must settle this failure before any fallback or provider call; reuse itself stays no-throw.
+        failNote('turn.retract.persist', error);
+        if (typeof a.onRetractFailure === 'function') a.onRetractFailure(error);
+        return null;
+      }
+      if (!result || result.state !== 'done') {
+        count('turn.reuse.horizon', 'run ' + String(a.runId || '') + ': retract targets are unproven; re-keyed without mutation');
+        const own = TurnKinds.runTurnId(a.runId);
+        if (own && typeof a.rekey === 'function') a.rekey(own);
+        return null;
+      }
+    }
+    return row;
+  }
   count('turn.reuse.conflict.input', 'run ' + String(a.runId || '') + ': the words differ from the turn\'s directive; re-keyed');
   const own = TurnKinds.runTurnId(a.runId);
   if (own && typeof a.rekey === 'function') a.rekey(own);

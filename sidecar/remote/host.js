@@ -113,6 +113,15 @@ function makeRemoteHost(d) {
     const local = w && Array.isArray(w.history) ? w.history : [];
     const st = stationTurns(streamId);
     const projection = typeof d.turnProjection === 'function' ? d.turnProjection(streamId, st) : { turns: st, identity: null };
+    const ids = [...new Set(local.filter(row => row && row.idFrom !== 'collision' &&
+      (!row.streamId || row.streamId === streamId) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
+    if (ids.length) {
+      const proof = typeof d.transcript.cacheRetractions === 'function' && d.transcript.cacheRetractions(streamId, ids);
+      if (!proof || proof.state !== 'done') throw new Error('Cached transcript identity could not be proved');
+      const retracted = new Set(proof.retracted);
+      projection.turns = projection.turns.filter(row => !retracted.has(row.rowId));
+      projection.identity = Object.assign({ streamId }, projection.identity, { retracted: proof.retracted });
+    }
     const all = mergeCanonical(local, projection.turns, projection.identity).filter(isProse).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
     return Number(limit) > 0 ? all.slice(-Number(limit)) : all;
   }
@@ -124,9 +133,28 @@ function makeRemoteHost(d) {
     const rows = d.transcript.view('display', null, { op: 'streams', limit: 500, previewChars: 140 }) || [];
     const stationHas = new Set(rows.filter(r => Number(r.turns) > 0).map(r => r.streamId));
     const workers = workerStreams();
-    for (const w of deskSessions()) {
+    const sessions = deskSessions(), candidates = [], seenKeys = new Set();
+    for (const w of sessions) {
+      if (o.agentId && String(w.agentId || 'agent') !== o.agentId) continue;
+      for (const row of (Array.isArray(w.history) ? w.history : []).filter(isProse)) {
+        if (row.idFrom === 'collision' || (row.streamId && row.streamId !== w.id) || !Number.isSafeInteger(row.rowId) || row.rowId <= 0) continue;
+        const key = JSON.stringify([w.id, row.rowId]);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key); candidates.push({ streamId: w.id, rowId: row.rowId });
+          if (candidates.length > 2000) throw new Error('Cached thread-list identity exceeds its proof capacity');
+        }
+      }
+    }
+    let retracted = new Set();
+    if (candidates.length) {
+      const proof = typeof d.transcript.cacheRetractionsBatch === 'function' && d.transcript.cacheRetractionsBatch(candidates);
+      if (!proof || proof.state !== 'done') throw new Error('Cached thread-list identity could not be proved');
+      retracted = new Set(proof.retracted.map(row => JSON.stringify([row.streamId, row.rowId])));
+    }
+    for (const w of sessions) {
       const agentId = String(w.agentId || 'agent');
-      const hist = Array.isArray(w.history) ? w.history.filter(isProse) : [];
+      const hist = Array.isArray(w.history) ? w.history.filter(row => isProse(row) &&
+        ((row.streamId && row.streamId !== w.id) || !retracted.has(JSON.stringify([w.id, row.rowId])))) : [];
       seen.add(w.id);
       if (o.agentId && agentId !== o.agentId) continue;
       // an untouched blank session (no title, or only the agent's own name as one, and nothing recorded anywhere) is
@@ -190,7 +218,6 @@ function makeRemoteHost(d) {
     const turnId = TurnKinds.isTurnId(o.turnId) ? o.turnId : TurnKinds.phoneTurnId(runId);
     const ac = new AbortController();
     const rec = { ac, agentId: o.agentId, streamId, deviceId: o.deviceId || '', startedAt: now() };
-    remoteRuns.set(runId, rec);
 
     // the conversation so far: the desk's memory of this session plus anything the station recorded since
     const legacyReplay = () => mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
@@ -203,6 +230,9 @@ function makeRemoteHost(d) {
     let priorAgentTurn = '';
     for (let i = messages.length - 2; i >= 0; i--) if (messages[i] && messages[i].role === 'assistant') { priorAgentTurn = String(messages[i].content || ''); break; }
     try { if (typeof d.classify === 'function') isTask = !!d.classify(o.text, { priorAgentTurn }); } catch (e) { note('remote.host.classify', e); }
+    // An unproven history rejects before acceptance. It must not leave a live phone run whose
+    // runOnce/finally was never scheduled (including a failed affirmative cache-removal proof).
+    remoteRuns.set(runId, rec);
     noteRecent({ runId, agentId: o.agentId, streamId, title: clip(o.text.replace(/\s+/g, ' ').trim(), 80), startedAt: rec.startedAt, endedAt: null, live: true });
 
     // the reply, coalesced: a phone on cellular gets a few frames a second, not one per token

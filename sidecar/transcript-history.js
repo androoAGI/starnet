@@ -983,9 +983,13 @@ function makeSegmentedTranscriptIo(opts) {
     const strict = options && options.strict ? (runId ? line => line.includes(JSON.stringify(runId)) : true) : false;
     const claim = vouch ? (claimed => line => line.includes(claimed))(JSON.stringify(String(vouch.claim))) : null;
     const out = [], previewBudget = options && options.previewBudget;
-    let previewSegments = 0;
+    let previewSegments = 0, proofSegments = 0;
     for (const meta of relevantSegments(streamId, true)) {
       if (since > 0 && num(meta.maxTs) > 0 && num(meta.maxTs) < since - SINCE_SLACK_MS) continue;
+      if (Number.isSafeInteger(options && options.maxSegments) && ++proofSegments > options.maxSegments) {
+        const error = new Error('transcript history exceeds its segment proof budget');
+        error.code = 'TRANSCRIPT_UNVOUCHED'; throw error;
+      }
       if (previewBudget) {
         if (!Number.isSafeInteger(previewBudget.remaining) || previewBudget.remaining <= 0 || previewSegments >= PREVIEW_SEGMENTS_PER_STREAM) break;
         previewBudget.remaining--; previewSegments++;

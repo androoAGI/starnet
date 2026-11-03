@@ -560,6 +560,7 @@
         const targets = Array.from(new Set(e.targets.filter(t => Number.isSafeInteger(t) && t > 0))).slice(0, TARGETS_MAX);
         if (targets.length) entry.targets = targets;
       }
+      if (e.kind === 'retract' && (e.reason === 'retry' || e.reason === 'undo')) entry.reason = e.reason;
       if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
       if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
     }
@@ -830,6 +831,13 @@
       const live = r => !retracted.has(num(r.rowId));
       const seen = recent.filter(r => ofTurn(r) && live(r));
       const found = (directive, list) => {
+        // A row-id lookup may reach older than the newest suffix. Its later undo still decides
+        // authority, even when that retract row was not returned alongside the original directive.
+        let context;
+        try { context = projectionContext(list.concat([directive])); }
+        catch (error) { failNote('transcript.findTurn.retract', error); return { state: 'unknown' }; }
+        if (context.retractions instanceof Map) for (const id of context.retractions.keys()) retracted.add(id);
+        if (!live(directive)) return { state: 'unknown' };
         const all = new Map();
         for (const r of list.concat([directive])) if (ofTurn(r) && live(r)) all.set(num(r.rowId) || ('x' + all.size), r);
         return { state: 'found', directive: Object.assign({}, directive), rows: Array.from(all.values()).sort(byRowId).map(r => Object.assign({}, r)) };
@@ -935,6 +943,101 @@
         context.retractions = proof.retractions;
       }
       return context;
+    }
+    // A bounded, affirmative removal proof for one reader's actual cache. A newest transcript tail
+    // cannot tell a stale cache whether an older row was undone. Return IDs only, never stored text.
+    function cacheRetractions(streamId, rowIds) {
+      if (!SID_RE.test(str(streamId)) || !Array.isArray(rowIds) || rowIds.length > 2000 ||
+          rowIds.some(id => !Number.isSafeInteger(id) || id <= 0)) return { state: 'invalid' };
+      const result = cacheRetractionsBatch(rowIds.map(rowId => ({ streamId, rowId })));
+      return result.state === 'done' ? { state: 'done', retracted: result.retracted.map(row => row.rowId) } : result;
+    }
+    function cacheRetractionsBatch(requests) {
+      if (!Array.isArray(requests) || requests.length > 2000) return { state: 'invalid' };
+      const streams = new Map();
+      for (const request of requests) {
+        if (!request || !SID_RE.test(str(request.streamId)) || !Number.isSafeInteger(request.rowId) || request.rowId <= 0 ||
+            (streams.has(request.rowId) && streams.get(request.rowId) !== request.streamId)) return { state: 'invalid' };
+        streams.set(request.rowId, request.streamId);
+      }
+      const ids = [...streams.keys()];
+      if (!ids.length) return { state: 'done', retracted: [] };
+      let proof;
+      try { proof = typeof io.readByIds === 'function' ? io.readByIds(ids) : null; }
+      catch (error) { failNote('transcript.retract.cache', error); return { state: 'unknown' }; }
+      if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return { state: 'unknown' };
+      for (const id of ids) {
+        const row = proof.get(id);
+        if (!row || row.streamId !== streams.get(id) || (typeof io.isCollided === 'function' && io.isCollided(id))) return { state: 'unknown' };
+      }
+      return { state: 'done', retracted: ids.filter(id => proof.retractions.get(id) === 'undo').map(rowId => ({ streamId: streams.get(rowId), rowId })) };
+    }
+    // A mutation needs a complete target set, not findTurn's useful but possibly partial window.
+    // One bounded suffix must reach the original directive. An assistant-only undo instead requires
+    // that same strict read to cover the entire vouched stream. Every target is then proved from disk
+    // before a single strict append; unknown authority and invalid input never write partial retracts.
+    function retract(o) {
+      const a = o || {}, streamId = str(a.streamId), reason = a.reason;
+      const unknown = why => ({ state: 'unknown', why, targets: [] });
+      const invalid = why => ({ state: 'invalid', why, targets: [] });
+      if (!SID_RE.test(streamId) || (reason !== 'retry' && reason !== 'undo')) return invalid('invalid stream or reason');
+      const byTurn = TurnKinds.isTurnId(a.turnId);
+      if ((byTurn && a.rowIds != null) || (!byTurn && (a.turnId != null || reason === 'retry'))) return invalid('invalid target selector');
+      let targets, directive = null;
+      if (byTurn) {
+        let suffix, durableBefore = -1;
+        try {
+          if (typeof io.streamRows === 'function') durableBefore = io.streamRows(streamId);
+          if (typeof io.history === 'function') suffix = io.history(streamId, { limit: 5001, strict: true, maxSegments: 8 });
+          else { suffix = completeRows(streamId); if (suffix.length > 5001) return unknown('turn exceeds read horizon'); }
+        } catch (error) { failNote('transcript.retract.suffix', error); return unknown('turn suffix is unproven'); }
+        if (!Array.isArray(suffix)) return unknown('turn suffix is unavailable');
+        const own = suffix.filter(row => row && row.streamId === streamId && row.turnId === a.turnId);
+        const directives = own.filter(row => row.directive === true && row.role === 'user');
+        if (directives.length > 1) return unknown('original directive is not unique in the suffix');
+        directive = directives[0] || null;
+        if (!directive) {
+          let durableAfter = -1;
+          try { if (typeof io.streamRows === 'function') durableAfter = io.streamRows(streamId); }
+          catch (error) { failNote('transcript.retract.coverage', error); }
+          if (reason !== 'undo' || a.directiveRowId != null || !own.length || !Number.isSafeInteger(durableBefore) ||
+              durableBefore < 0 || durableBefore !== durableAfter || suffix.length !== durableBefore ||
+              suffix.some(row => !row || row.streamId !== streamId)) return unknown('directive-free turn coverage is unproven');
+        }
+        if (directive && (!Number.isSafeInteger(directive.rowId) || directive.rowId <= 0 || forgotten(directive) ||
+            (a.directiveRowId != null && a.directiveRowId !== directive.rowId) || (a.agentId && a.agentId !== directive.agentId))) return unknown('original directive is unproven');
+        const selected = own.filter(row => row.kind !== 'retract' && (reason === 'undo' || row.rowId > directive.rowId));
+        if (selected.some(row => !Number.isSafeInteger(row.rowId) || row.rowId <= 0) || new Set(selected.map(row => row.rowId)).size !== selected.length)
+          return unknown('turn target identities are unproven');
+        targets = selected.map(row => row.rowId);
+      } else {
+        if (!Array.isArray(a.rowIds) || !a.rowIds.length || a.rowIds.length > TARGETS_MAX ||
+            a.rowIds.some(id => !Number.isSafeInteger(id) || id <= 0)) return invalid('invalid target row ids');
+        targets = [...new Set(a.rowIds)];
+      }
+      const prove = [...new Set(targets.concat(directive ? [directive.rowId] : []))];
+      let proof;
+      try { proof = typeof io.readByIds === 'function' ? io.readByIds(prove) : null; }
+      catch (error) { failNote('transcript.retract.targets', error); return unknown('target read failed'); }
+      if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return unknown('target proof is unavailable');
+      let live;
+      try { live = typeof opts.live === 'function' ? opts.live() : opts.live; }
+      catch (error) { failNote('transcript.retract.live', error); return unknown('live-run authority is unavailable'); }
+      for (const id of prove) {
+        const row = proof.get(id);
+        if (!row || row.streamId !== streamId || row.kind === 'retract' || forgotten(row) ||
+            (typeof io.isCollided === 'function' && io.isCollided(id)) || (byTurn && row.turnId !== a.turnId)) return unknown('target does not belong to this turn and stream');
+        if (live && live.has(String(row.sourceRunId || '')) && row.sourceRunId !== a.runId) return unknown('target run is still active');
+      }
+      if (directive && reason === 'retry' && proof.retractions.has(directive.rowId)) return unknown('original directive was retracted');
+      targets = targets.filter(id => !proof.retractions.has(id) || (reason === 'undo' && proof.retractions.get(id) !== 'undo'));
+      if (targets.length > TARGETS_MAX) return unknown('turn exceeds retract capacity');
+      if (!targets.length) return { state: 'done', targets: [], rowId: null };
+      const row = appendStrict({ streamId, agentId: a.agentId || (directive && directive.agentId) || '', role: 'system', kind: 'retract',
+        content: '', targets, reason, turnId: byTurn ? a.turnId : undefined,
+        sourceRunId: a.runId || (directive && directive.sourceRunId) || '' });
+      if (!row || !Number.isSafeInteger(row.rowId) || row.rowId <= 0) throw unvouched('retract append has no durable identity');
+      return { state: 'done', targets, rowId: row.rowId };
     }
     function projectView(name, list, o, sharedContext) {
       // Boot recovery reads durable proof before live/display owners are initialized. Proof must not
@@ -1045,7 +1148,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, findTurn, ownerProof,
+      view, viewMany, findTurn, ownerProof, retract, cacheRetractions, cacheRetractionsBatch,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }
