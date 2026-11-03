@@ -453,9 +453,9 @@ function rowsOnDisk(fx, runId) {
     const desk = (streamId, text, agentId, modelId) => gx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ provider: 'openrouter', model: modelId || 'test/model', agentId, streamId, isTask: true, messages: [{ role: 'user', content: text }] }) }).then(r => r.text());
     const triple = (events, runId) => events.filter(e => e.payload && e.payload.runId === runId && /^agent\.run\.(start|error|end)$/.test(e.name)).map(e => [e.name, e.payload]);
-    // the base wrote { agentId, runId, trigger, model, ...runStartExtra }: a COMMS run's extra is its conversation (streamId)
+    // the base wrote { agentId, runId, trigger, model, ...runStartExtra }: a COMMS run's extra is its conversation and the C5 station-minted turn (streamId, turnId)
     const base = (runId, agentId, modelId, error, streamId) => [
-      ['agent.run.start', { agentId, runId, trigger: 'directive', model: modelId, streamId }],
+      ['agent.run.start', { agentId, runId, trigger: 'directive', model: modelId, streamId, turnId: 'r' + runId }],
       ['agent.run.error', error],
       ['agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0, outcome: 'failed', failureCode: error.failureCode }]
     ];

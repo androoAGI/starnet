@@ -112,7 +112,7 @@ const MANIFEST = {
       historyFor: 'no canonical transcript', observeInto: 'records overheard lines', runSlash: 'answers every slash command', userCommandNames: 'none',
       desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
-      briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', chain: 'no work line',
+      briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',
       lineOriginFor: 'no line', getTag: 'no tag', resolveStation: 'office default', stageBriefFor: 'no brief', roster: 'empty', setModel: 'refused',
       modelCatalog: 'empty', fetchMedia: 'no media', transcribe: 'no media', saveAttachment: 'no media', expandAttachments: 'identity'
     }
@@ -551,7 +551,7 @@ function makeWorld(seed, opts) {
         resolveEntryRunConfig: () => ({ ok: true, key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         resolveRunConfig: () => ({ ok: true, key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         persona: 'You are a simulated agent.', classify: () => true, redact: (p) => p, emit: emitter(channel, gen),
-        taskIntent: null, briefFor: () => null, groundedFor: () => null, resolveAgent: live, chain: null, lineOriginFor: live, getTag: () => undefined,
+        taskIntent: null, briefFor: () => null, groundedFor: () => null, resolveAgent: live, lineRunner: null, lineOriginFor: live, getTag: () => undefined,
         resolveStation: live, stageBriefFor: live, roster: () => [], setModel: () => ({ ok: false, error: 'not here' }), modelCatalog: () => [],
         fetchMedia: async () => ({ ok: false, error: 'no media' }), transcribe: null, saveAttachment: null, expandAttachments: (m) => m
       },

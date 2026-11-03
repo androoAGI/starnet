@@ -664,7 +664,7 @@
        from this send, not from an earlier one in the same attempt. */
     function localWaitProbe(onWait, self) {
       const where = endpoint.scope === 'loopback' ? ' on this computer' : ' on this network';
-      const sentAt = Date.now();
+      const sentAt = clock ? clock.now() : null;
       let timer = null, stopped = false, last = '';
       const arm = ms => { timer = setTimeout(read, ms); if (timer && typeof timer.unref === 'function') timer.unref(); };
       function read() {
@@ -677,7 +677,7 @@
         const key = note + (endsTurn ? '|limit' : '');
         if (key !== last) {
           last = key;
-          onWait(endsTurn ? { phase: 'connect', note, limitMs: connectTimeoutMs || timeouts.connectMs(), limitKind: 'connect', limitElapsedMs: Math.max(0, Date.now() - sentAt) }
+          onWait(endsTurn ? { phase: 'connect', note, limitMs: connectTimeoutMs || timeouts.connectMs(), limitKind: 'connect', ...(clock ? { limitElapsedMs: Math.max(0, clock.now() - sentAt) } : {}) }
             : { phase: 'connect', note });
         }
         arm(waitNoteMs * 3);

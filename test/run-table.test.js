@@ -292,7 +292,8 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
       else if (ch === ')') { depth--; if (!depth) break; }
       else if (ch === "'" || ch === '"' || ch === '`') { const q = ch; for (i++; i < CORE.length && CORE[i] !== q; i++) if (CORE[i] === '\\') i++; }
     }
-    return CORE.slice(from, i + 1) + ';';
+    const message = CORE.slice(at, from).match(/\bconst message = [^\n]+;/);   // the line-budget site hoists its private result's shared wording
+    return (message ? message[0] + '\n' : '') + CORE.slice(from, i + 1) + ';';
   }
   const NAMES = ['RunTable', 'emit', 'agentId', 'runId', 'trigger', 'model', 'runStartExtra', 'o', 'e', 'scan', 'checked', 'lim', 'concurrencyGate', 'refusal', 'agentModelBlocker', 'imageBlocker', 'ref', 'saved', 'providerId', 'oauthLabel'];
   const scope = x => Object.assign({ RunTable, agentId: 'forge', runId: 'r-ref', trigger: 'schedule', model: 'test/model', runStartExtra: { dockId: 'bay-1', workitemId: 'wi-1' },

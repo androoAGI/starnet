@@ -335,6 +335,7 @@ async function viaComms(run) {
   const sb = {
     // (review 8.1: the branch settles the board by the run's OUTCOME — Harness.chat's stamp — never the error flag alone)
     runOutcome: res.outcome, RunOutcome: RunOutcome || undefined,
+    TurnMerge: require('../frontend/app/turnmerge.js'), liveRunTurns: new Map(), retryDirectiveTurn: null,
     error: res.error, errorCode: res.errorCode, ws: { id: 'w', agentId: 'agent', history: [] }, acc: '', thisRunId: run.runId, runRoot: null, retry: false,
     text: 'go', input: null, busyRefusal: '', Friendly: BrowserFriendly, persistPartial() {}, Workstreams: { noteRunEnd() {} },
     StationUI: { notify() {} }, isActiveWs: () => true, activeLiveRow: { error: m => shown.push(m) }, resolvePresence() {},

@@ -79,7 +79,7 @@ function fakeLmStudio() {
 
 // the URL a card is configured with, dialled on the loopback server (no request ever leaves this machine)
 const viaLoopback = (s, origin) => (url, init) => fetch(String(url).replace(origin, 'http://127.0.0.1:' + s.port), init);
-const card = (s, origin) => factory.selectProvider({ provider: 'lmstudio', baseUrl: origin + '/v1', fetch: viaLoopback(s, origin) });
+const card = (s, origin, clock = { now: () => Date.now() }) => factory.selectProvider({ provider: 'lmstudio', baseUrl: origin + '/v1', fetch: viaLoopback(s, origin), clock });
 
 /* ANOTHER StarNet call held open on a server (a quest's background call): its own adapter instance, a fetch that never
    answers (it dials nothing — only its open-call entry matters), stopped by its caller. */
@@ -201,13 +201,17 @@ async function localRows(s, origin, hostPort, where, label) {
     // ---- 7. the wait note ----
     {
       s.mode = 'connect';
-      const p = card(s, 'http://127.0.0.1:' + s.port);
+      let clockNow = 1000;
+      const p = card(s, 'http://127.0.0.1:' + s.port, { now: () => clockNow });
+      s.onSend = () => { clockNow = 4000; };   // the request left; catalog warm reads do not advance time
       const seen = [];
       let error = null;
       try { for await (const ev of p.stream({ model: MODEL, messages: [{ role: 'user', content: 'note' }] })) seen.push(ev); } catch (e) { error = e; }
       const w = seen.find(e => e.type === 'waiting' && e.phase === 'connect');
       A.ok(!!w && /^no answer yet from the model server at 127\.0\.0\.1:\d+ on this computer \(a server loading a model can take minutes\)$/.test(w.note), 'an unanswered local request names the server on the wait line: ' + (w && w.note));
       A.eq(w && [w.limitMs, w.limitKind], [150, 'connect'], 'and carries the connect ceiling it will wait');
+      A.eq(w && w.limitElapsedMs, 3000, 'local wait elapsed time comes from the injected clock, not wall time');
+      s.onSend = null;
       A.ok(!!error && error.localModelTimeout === true, 'and still ends on the local timeout');
     }
     // ---- 7b. the limit only when the silence ends the turn (review M3) ----
