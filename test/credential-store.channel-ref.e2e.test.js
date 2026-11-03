@@ -59,7 +59,8 @@ const K = {
   slOwn: 'sk-or-v1-SLACK-OWN-KEY-0123456789abcdef012345678',
   slNext: 'sk-or-v1-SLACK-NEXT-KEY-0123456789abcdef01234567',
   botOwn: 'sk-or-v1-AGENT-BOT-OWN-KEY-0123456789abcdef01234',
-  poolBot: 'sk-or-v1-BOT-OWN-KEY-ALSO-A-STATION-BACKUP-0123'
+  poolBot: 'sk-or-v1-BOT-OWN-KEY-ALSO-A-STATION-BACKUP-0123',
+  lockOwn: 'sk-or-v1-BOT-OWN-KEY-IN-A-LOCKED-FILE-0123456789'
 };
 const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
 const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
@@ -473,6 +474,40 @@ function station(label, up, tg, env) {
       A.eq((await s.engineKey({ provider: 'openrouter', key: '', keyPool: [], baseUrl: '' })).status, 200, 'pool key: the page REMOVEs its copy');
       A.eq(await s.dm('POOL-KEY-AFTER-REMOVE'), [['/or/', K.poolBot]], 'pool key: ...and the bot keeps running on its own key, as it did before the store');
       A.ok(!up.seen.some(r => r.key === K.page && /POOL-KEY-/.test(r.body)), 'pool key: the station\'s primary is never sent for the bot');
+    });
+
+    /* ================= 11. a forget while the channel file cannot be read ================= */
+    await row('11', async () => {
+      const s = await open('unreadable', {}, x => {
+        x.seed('channels/secrets.json', { telegram: { token: TOKEN, key: K.lockOwn, provider: 'openrouter', model: MODEL, enabled: false, agentId: 'bot', ownerId: '99' } });
+      });
+      A.eq(holders(s.ws, K.lockOwn), OWN_FILES, 'unreadable: the boot moved the bot\'s own key into the channel file, both copies');
+      await s.fx.stop();
+      // the file is closed to the station, as when an antivirus scan or a backup agent holds it open with no sharing (EBUSY): a
+      // directory stands where it was (EISDIR), and the two copies wait outside the workspace
+      const chanFile = path.join(s.ws, OWN_FILES[0]);
+      const aside = fs.mkdtempSync(path.join(require('os').tmpdir(), 'cs-channel-ref-aside-'));
+      fs.renameSync(chanFile, path.join(aside, 'main'));
+      fs.renameSync(chanFile + '.bak', path.join(aside, 'bak'));
+      fs.mkdirSync(chanFile);
+      try {
+        await s.fx.start();
+        const UNREADABLE = 'this bot\'s own OPENROUTER key could not be read on this station just now (.secrets/channel-credentials.json is locked or unreadable) — it is read again with the next message; if that keeps failing, close whatever holds the file open, or reconnect the bot with its key';
+        A.eq((await s.fx.json('GET', '/api/channels/telegram/status')).body.warning, UNREADABLE, 'unreadable: the status line says the key could not be read, never that it is no longer saved');
+        const forgot = await s.fx.json('POST', '/api/channels/telegram/disconnect', { purge: true });
+        A.eq([forgot.status, forgot.body.purged, forgot.body.persisted], [200, false, false], 'unreadable: a forget cannot prove the key left the file, and its answer says so (86ff765db answered purged:true)');
+        A.ok(/channel-credentials\.json could not be read/.test(s.fx.output()), 'unreadable: the log says the file could not be read');
+      } finally {
+        // the lock clears while the station runs
+        fs.rmdirSync(chanFile);
+        fs.renameSync(path.join(aside, 'main'), chanFile);
+        fs.renameSync(path.join(aside, 'bak'), chanFile + '.bak');
+        fs.rmdirSync(aside);
+      }
+      A.eq(holders(s.ws, K.lockOwn), OWN_FILES, 'unreadable: the key is still in both copies once the file is back: nothing claimed otherwise');
+      const retried = await s.fx.json('POST', '/api/channels/telegram/disconnect', { purge: true });
+      A.eq([retried.status, retried.body.purged], [200, true], 'the file reads again: the Commander\'s retried forget claims it');
+      A.eq(holders(s.ws, K.lockOwn), [], '...and the key is in no file at all, the channel file\'s .bak included');
     });
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + live.map(s => s.fx.output().slice(-2500)).join('\n----\n'));

@@ -31,7 +31,7 @@
                                    stores) can never put back a key the Commander rotated or removed in another page.
                                    An explicit save / REMOVE (no o.boot) is last-write-wins.
        store.secretValues()     -> every saved key (the known-value redaction source)
-     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what, keylessUrl, gone })
+     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable })
      unpairedExits(o)    -> the two ways out of kind 'unpaired' (o = { baseUrlEnv }), for a surface that words its own refusal
      UNATTENDED_REMEDY   -> its provider-less remedy clause (the night-shift report reuses it verbatim)
 
@@ -177,7 +177,7 @@ function makeEngineKeys(deps) {
   return { get, revOf, put, secretValues };
 }
 
-/* credentialError({ id, label, kind, env, baseUrlEnv, what, keylessUrl, gone }) — why this unattended run cannot start, and the two
+/* credentialError({ id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable }) — why this unattended run cannot start, and the two
    real ways out: the page (which now hands the station its copy on save) or the operator's environment. `kind` is the
    provider's credential shape: key | baseUrl | codex | oauth | starnet | other — or 'removed' (credential-store lane S3,
    decision 7): a run in flight whose key was removed or replaced on this station stops before its next model call, and
@@ -187,7 +187,9 @@ function makeEngineKeys(deps) {
    key saved in the page is the only one that goes there, so each form names both exits — or 'channel-key' (S8, decision 3):
    a bot that was given a key of its own, which this station no longer holds. It is never moved onto the station's key, because
    that is another account to spend: its own key on a desktop app lasted for the session (the OS keychain has no slot for it),
-   or `gone`: its entry in .secrets/ is not there. Reconnecting is the exit either way. */
+   or `gone`: its entry in .secrets/ is not there. Reconnecting is the exit either way. `unreadable` (review r1): the file it
+   lives in cannot be read just now (an antivirus scan or a backup agent holding it open), which says nothing about the key: it is
+   read again with the next message, and the exits are freeing the file or reconnecting. */
 function unpairedExits(o) {
   return (o && o.baseUrlEnv ? 'set ' + o.baseUrlEnv + ', or ' : '') + 'save the key next to the URL under ' + WHERE;
 }
@@ -205,7 +207,9 @@ function credentialError(o) {
       (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
     case 'removed': return 'the ' + label + ' key ' + what + ' started on was removed or replaced on this station, so it stopped before its next model call — ' +
       'run it again to use the key the station holds now, or add one under ' + WHERE + (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
-    case 'channel-key': return 'this bot\'s own ' + label + ' key ' + (o.gone ? 'is no longer saved on this station' : 'was kept for that session only') +
+    case 'channel-key': return o.unreadable
+      ? 'this bot\'s own ' + label + ' key could not be read on this station just now (.secrets/channel-credentials.json is locked or unreadable) — it is read again with the next message; if that keeps failing, close whatever holds the file open, or reconnect the bot with its key'
+      : 'this bot\'s own ' + label + ' key ' + (o.gone ? 'is no longer saved on this station' : 'was kept for that session only') +
       ' — reconnect it with its key, or with none to use the station\'s';
     case 'unpaired': {
       const head = (o.env || 'a ' + label + ' key') + ' is set in ' + ENV_HOME + ', but no ' + label + ' base URL goes with it';

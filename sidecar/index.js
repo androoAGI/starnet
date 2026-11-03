@@ -3178,7 +3178,7 @@ function channelCredential(recordId) {
   const record = channelSecretsMod.recordAt(channelSecrets, recordId);
   return Object.assign({}, record, credStore.channel(recordId, record));
 }
-function channelKeyLostError(provider, how) { return engineCredential.credentialError({ kind: 'channel-key', label: providerLabelOf(provider), gone: how === 'gone' }); }
+function channelKeyLostError(provider, how) { return engineCredential.credentialError({ kind: 'channel-key', label: providerLabelOf(provider), gone: how === 'gone', unreadable: how === 'unreadable' }); }
 // the channel's own line in its status row (messaging.js shows it): a bot refused for its key says so before anyone messages it.
 // An agent that has moved to another provider is not refused: that key was only ever for the provider it was saved for.
 function channelKeyLostNote(recordId) {

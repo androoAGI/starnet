@@ -163,8 +163,9 @@
      store.putPage(provider, input, o)                         the page's copy (engine-key): page.put, then the channels it
                                                                turns into followers of the station (S8, below)
      store.channel(id, record) -> { key, baseUrl, keyLost }    a bot's own credential (S8, below); keyLost: '' | 'session' | 'gone'
+                                                               | 'unreadable' (the channel file cannot be read right now)
      store.putChannel(id, { provider, key, baseUrl }) -> { credential, persisted, keyPersisted }   what a connect or a sync saves
-     store.dropChannel(id) -> bool proven                      a forget
+     store.dropChannel(id) -> bool proven                      a forget: false while the channel file cannot be read
      store.reconcileChannels(rows, { recovered }) -> { credentials, moved, followers, refused, orphans, pending, finish(saved) }
                                                                the boot's reconciliation (S8, below)
      store.carriedChannels()                                   what records still carry, by record id, because their move failed
@@ -217,7 +218,10 @@
      RESOLUTION (channel()). An own key is an explicit key for that provider only: never swapped, no station pool, and its own
    endpoint rides it. An endpoint-only entry serves only a keyless run, as a record's endpoint did. An own key that was not
    kept (the desktop after a restart: keyLost 'session') or an entry that is gone ('gone') is REFUSED with the sentence
-   (engine-credential.js 'channel-key', state 5): the bot never moves onto the station's key, which is another account.
+   (engine-credential.js 'channel-key', state 5): the bot never moves onto the station's key, which is another account. While the
+   channel file cannot be read (an antivirus scan or a backup agent holding it open), a bot whose record names an entry is refused
+   with a sentence of its own ('unreadable'): its key is not gone, the file is read again with the next message, and the log says
+   it once (review r1: it read as 'gone', "reconnect it").
      WHOSE KEY IT IS: one test on every path (the connect, a conversion, the boot), stationHeld, the one the connect gate's
    channelConnectCredential asks: a key a station layer holds AS ITS KEY (the keychain's, the environment's, the page copy's) is
    the station's, and the bot follows it. A backup key in a layer's pool is not: the bot keeps the key it was given as its own,
@@ -242,7 +246,8 @@
         and its entry goes.
      5. An entry whose record is gone or carries another bind is deleted, once the records are saved (finish): this sweeps a
         forget on an older build.
-   An unreadable file is left alone: nothing moves from it and nothing is deleted because of it. A failed write moves nothing:
+   An unreadable file is left alone: nothing moves from it and nothing is deleted because of it, and a forget answers false until it
+   can be read (dropChannel), so no route claims a key gone that it could not see. A failed write moves nothing:
    the bot runs on what its record carried, which the store holds in memory (carried) and index.js's every save keeps on the
    record, and the next boot tries again. So a key reaches the new file before it leaves the old one, and a crash at any step
    leaves it in at least one durable file; a .bak recovery never rolls a newer entry back; and running this twice changes
@@ -369,6 +374,7 @@
     const entries = Object.create(null);   // record id -> { provider, bind, ownKey, key?, baseUrl?, rev }: the channel layer
     const carried = Object.create(null);   // record id -> { provider, key, baseUrl }: what a record carries whose move failed
     let channelFile = 'unloaded';          // what the last read of the channel file found (readJsonResilient's status)
+    let saidUnreadable = false;            // the log has said the channel file could not be read, and it still cannot
 
     /* ---- keys ---- */
     function key(provider, explicitKey) {
@@ -670,6 +676,10 @@
     function loadChannels() {
       const r = (typeof chan.load === 'function' ? chan.load() : null) || { status: 'absent' };
       channelFile = String(r.status || 'absent');
+      // said once while the file stays closed to us (an antivirus scan or a backup agent holding it open: EBUSY, EACCES), and again
+      // the next time it closes. Nothing in it is changed or decided meanwhile; it is read again at the next use (channelsReady)
+      if (channelFile === 'unreadable' && !saidUnreadable) warn('[channels] .secrets/channel-credentials.json could not be read: the bots with a key of their own are refused, and nothing in the file is changed, until it can be; it is read again at the next use');
+      saidUnreadable = channelFile === 'unreadable';
       const saved = (channelFile !== 'unreadable' && r.value && typeof r.value === 'object') ? r.value.channels : null;
       if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
       for (const id of Object.keys(saved)) {
@@ -715,7 +725,8 @@
       if (held && held.provider === provider) return { key: held.key, baseUrl: held.baseUrl, keyLost: '' };
       const c = r.credential;
       if (!c || c.ref !== 'channel') return { key: '', baseUrl: '', keyLost: '' };
-      channelsReady();
+      // a file closed to us says nothing about the key in it: not 'gone', and it is read again with the next message (review r1)
+      if (!channelsReady()) return { key: '', baseUrl: '', keyLost: 'unreadable' };
       const e = entries[rid];
       if (!e || e.bind !== c.bind || e.provider !== provider) return { key: '', baseUrl: '', keyLost: 'gone' };
       return { key: e.key || '', baseUrl: e.baseUrl || '', keyLost: (e.ownKey && !e.key) ? 'session' : '' };
@@ -742,12 +753,16 @@
       const persisted = same ? true : (ready && saveChannels());
       return { credential: { ref: 'channel', bind: next.bind }, persisted, keyPersisted: ownKey ? (persisted && keepsChannelKeys()) : undefined };
     }
+    // a forget: true only once the file is read and the entry is proven gone from it. A file that cannot be read answers false, so a
+    // route never claims purged for a key it could not see (review r1: the memory of an unread file is empty, and read as "nothing
+    // to forget" while the key stayed in both copies); the Commander's retry, once the file can be read, removes it
     function dropChannel(id) {
       const rid = String(id || '');
       delete carried[rid];
+      if (!channelsReady()) return false;
       if (!entries[rid]) return true;
       delete entries[rid];
-      return channelsReady() && saveChannels();
+      return saveChannels();
     }
     function convertChannels(provider) {
       const id = normalizeId(provider), followers = [];

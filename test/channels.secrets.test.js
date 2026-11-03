@@ -691,6 +691,34 @@ const root = path.resolve(__dirname, '..');
     fs.mkdirSync(path.join(dir2, 'channels', 'secrets.json'));
     const s2 = channelStation({ dir2, dir: dir2 });
     A.eq([s2.status(), holders(s2, OWN)], ['unreadable', ['channel', 'channelBak']], 'unreadable secrets.json: no entry is deleted because of it');
+
+    /* review r1: the channel file cannot be read while its record holds a REFERENCE (an antivirus scan or a backup agent holds it
+       open with no sharing: EBUSY, here a directory standing in its place). Nothing can be said about the bot's own key while the
+       file is closed to us: it is not "no longer saved", and a forget cannot have removed it. Red at 86ff765db: the bot read as
+       'gone' ("is no longer saved on this station — reconnect it"), and dropChannel answered true without touching the disk, so
+       the forget routes answered purged:true while the key stayed in both copies. */
+    const dir3 = seed({ secrets: { telegram: bot({ credential: { ref: 'channel', bind: 'b1' } }) }, channel: envelope({ telegram: entry('b1', { key: OWN }) }) });
+    const chan3 = path.join(dir3, '.secrets', 'channel-credentials.json');
+    const aside = path.join(root, 'aside-' + (++seq));
+    fs.mkdirSync(aside);
+    fs.renameSync(chan3, path.join(aside, 'main'));
+    fs.renameSync(chan3 + '.bak', path.join(aside, 'bak'));
+    fs.mkdirSync(chan3);
+    const locked = channelStation({ dir: dir3 });
+    const UNREADABLE = 'this bot\'s own OPENROUTER key could not be read on this station just now (.secrets/channel-credentials.json is locked or unreadable) — it is read again with the next message; if that keeps failing, close whatever holds the file open, or reconnect the bot with its key';
+    const lh = locked.hub('telegram');
+    A.eq([lh.key, lh.configured, lh.error], ['', false, UNREADABLE], 'unreadable channel file: the bot is refused with a sentence that says the file could not be read, never that its key is gone');
+    A.eq(json(locked.files.secrets).telegram.credential, { ref: 'channel', bind: 'b1' }, '...its record is left as it is');
+    A.eq(locked.credStore.dropChannel('telegram'), false, 'unreadable channel file: a forget cannot prove anything left it, so it answers false (the routes then answer purged:false)');
+    A.eq(locked.credStore.putChannel('telegram', { provider: 'openrouter', key: '' }).persisted, false, '...and a connect that turns the bot to the station says its old entry is not proven gone');
+    A.eq(locked.warns.filter(w => /channel-credentials\.json could not be read/.test(w)).length, 1, '...and the log says, once, that the file could not be read: ' + JSON.stringify(locked.warns));
+    // the lock clears: the same station reads the file again at its next use, and a retried forget proves the key is gone
+    fs.rmdirSync(chan3);
+    fs.renameSync(path.join(aside, 'main'), chan3);
+    fs.renameSync(path.join(aside, 'bak'), chan3 + '.bak');
+    A.eq(holders(locked, OWN), ['channel', 'channelBak'], 'fixture: the file is back, with the key in both copies');
+    A.eq(locked.credStore.dropChannel('telegram'), true, 'the lock clears: a retried forget answers true...');
+    A.eq(holders(locked, OWN), [], '...and the key is in neither copy');
   }
 
   // ---- a write that fails moves nothing ----
