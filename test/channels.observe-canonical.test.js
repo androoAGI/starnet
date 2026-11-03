@@ -8,6 +8,8 @@ const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
+const Bags = require('./helpers/channel-hub-bags.js');
+const Factory = require('../sidecar/channels/factory.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
 
 function build(over) {
@@ -81,10 +83,17 @@ const group = (userId, userName, text, extra) => Object.assign({ channel: 'teleg
   // ---- 4. every production hub that replays the canonical stream can file into it (source pin; never required) ----
   {
     const idx = readSidecarSource();
-    const hist = (idx.match(/historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\)/g) || []).length;
-    const obs = (idx.match(/historyFor: \(streamId\) => transcriptStore\.reconstruct\(streamId, \{ limit: 100 \}\), observeInto: channelObserveInto,/g) || []).length;
-    A.ok(hist >= 6, 'found the canonical-history hubs (' + hist + ')');
-    A.eq(obs, hist, 'each one passes observeInto');
+    const kinds = ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal', 'dev', 'sample', 'trigger', 'handoff'];
+    A.eq(Factory.KINDS, kinds, 'the census pins all ten production hub kinds');
+    for (const kind of kinds) {
+      const calls = [], observe = () => true;
+      const hooks = Bags.evaluate(Bags.productionHubBag(kind).props, ['historyFor', 'observeInto'], {
+        transcriptStore: { reconstruct: (stream, opts) => { calls.push([stream, opts]); return []; } }, channelObserveInto: observe
+      });
+      hooks.historyFor('chat-proof');
+      A.eq(calls, [['chat-proof', { limit: 100 }]], kind + ': effective shared bag reads the canonical chat stream');
+      A.eq(hooks.observeInto, observe, kind + ': effective shared bag carries the canonical observation owner');
+    }
     A.ok(/function channelObserveInto\(streamId, agentId, text, taint\) \{\s*transcriptStore\.append\(\{ streamId: String\(streamId\), agentId: String\(agentId \|\| ''\), role: 'user', taint: taint \|\| null,/.test(idx),
       'observeInto appends a run-less user row with the hub\'s taint verdict');
   }

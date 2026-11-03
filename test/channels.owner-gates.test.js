@@ -18,6 +18,7 @@ const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
+const Bags = require('./helpers/channel-hub-bags.js');
 const { makeChannelHub, COMMANDS, commandNeedsOwner, parseCommand } = require('../sidecar/channels/hub.js');
 const { wireChannel } = require('../sidecar/channels/registry.js');
 const { makeChannelAdapter } = require('../sidecar/channels/adapter.js');
@@ -205,8 +206,12 @@ const msg = (userId, text, chatType, chatId) => ({ channel: 'telegram', chatId: 
     // …which is this hub's own sender rule, narrowed (never widened) by a SEND TO hand-off's withheld sender (conveyor-backend-04)
     A.ok(/const runChannelSender = lineWithheld \? true : tagSenderRuns;\s*\n\s*const runChannelSenderOwner = lineWithheld \? false : channelSenderOwner;/.test(hub),
       'the run sender verdict is the hub\'s own, or withheld when the hand-off\'s sending job was');
-    A.ok(/channel: 'dev', [^\n]*\n    ownerSurface: true,/.test(idx) && /channel: 'sample', [^\n]*\n    ownerSurface: true,/.test(idx), 'the local dev and sample hubs are owner surfaces');
-    A.ok(/channel: 'trigger', [^\n]*\n[^\n]*\n    untrustedSenders: false,/.test(idx), 'the trigger hub has no chat senders');
+    for (const kind of ['dev', 'sample']) {
+      const bag = Bags.productionHubBag(kind).props;
+      A.eq(Bags.evaluate(bag, ['ownerSurface'], {}).ownerSurface, true, kind + ': its actual merged hub bag is an owner surface');
+    }
+    A.eq(Bags.evaluate(Bags.productionHubBag('trigger').props, ['untrustedSenders'], {}).untrustedSenders, false,
+      'the actual trigger hub has no chat senders');
     A.eq((idx.match(/    isOwner: \(msg\) => !!\(adapterRef && adapterRef\._internals && msg\n/g) || []).length, 2, 'both Telegram hubs name their paired owner');
   }
 
