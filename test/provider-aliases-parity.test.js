@@ -28,8 +28,11 @@ for (const [file, head] of TABLES) {
   const src = fs.readFileSync(path.join(APP, file), 'utf8');
   const name = /function (\w+)/.exec(head)[1];
   const fn = functionSourceIn(src, name);
-  A.ok(fn.includes('SK.providers.registry.normalizeProviderId'), file + ': delegates to the shared registry');
-  const normalize = new Function('SK', 'return (' + fn + ');')({ providers: { registry: Reg } });
+  A.ok(file === 'modeldock.js'
+    ? fn.includes('providerRegistry.normalizeProviderId') && src.includes("require('./provider-registry.js') : SK.providers.registry")
+    : fn.includes('SK.providers.registry.normalizeProviderId'), file + ': delegates to the shared registry');
+  const normalize = file === 'modeldock.js' ? require('../frontend/app/modeldock.js').labels.normProvider
+    : new Function('SK', 'return (' + fn + ');')({ providers: { registry: Reg } });
   for (const [alias, id] of pageAliases) A.eq(normalize(alias), id, file + ': ' + alias + ' follows the registry');
   A.eq(normalize('unknown-provider'), '', file + ': unknown provider never becomes OpenRouter');
 }
