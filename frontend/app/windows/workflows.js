@@ -144,7 +144,7 @@ const WorkflowsWindow = (() => {
      running — the window follows it on the floor's lamps and re-reads the record until the route settles it */
   function watchRunning() {
     const r = runningJob(), h = runningHandoff();   // (a handed-on job is followed too: its row and its line's view settle when it does)
-    if ((r || h) && !pollTimer) pollTimer = setInterval(() => { if (!alive()) return stopTimers(); loadJobs(); }, 2500);
+    if ((r || h) && !pollTimer) { pollTimer = setInterval(() => { if (!alive()) return stopTimers(); loadJobs(); }, 2500); ownTimers(); }
     if (!r && !h && pollTimer && !(S.out)) { clearInterval(pollTimer); pollTimer = 0; }
     if (r || S.out) startLive();
   }
@@ -224,7 +224,9 @@ const WorkflowsWindow = (() => {
     n.textContent = now.text;
     body.querySelectorAll('.wfw-map .wf-node[data-step]').forEach(t => t.classList.toggle('working', t.dataset.step === now.id));
   }
-  function startLive() { if (!liveTimer) liveTimer = setInterval(tickLive, 1000); }
+  function startLive() { if (!liveTimer) { liveTimer = setInterval(tickLive, 1000); ownTimers(); } }
+  // the render contract: the window's scope stops both timers (and the floor subscription) the moment it closes
+  function ownTimers() { const u = UI(); if (body && u && u.h && u.h.scopeOf) u.h.scopeOf(body).own('workflow-timers', stopTimers); }
 
   /* ---------- each step's own reply (its run's transcript: the OUTBOX's own read) ---------- */
   function readStep(r, streamId) {

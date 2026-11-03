@@ -132,7 +132,7 @@ const KeyCTA = (() => {
         else if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
       } catch (_) {}
       try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('brain → OLLAMA (local, free) — no key, no bill. local models run smaller than cloud ones; expect slower, rougher work.', 'good'); } catch (_) {}
-      try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('settings'); } catch (_) {}
+      try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('settings'); } catch (_) {}
       render();
       return true;
     });

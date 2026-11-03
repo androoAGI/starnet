@@ -780,6 +780,8 @@ test/declutter-recovery.test.js
 test/notifications-useful.test.js
 test/bell-settles.test.js
 test/quest-log-window.test.js
+test/window-render.ratchet.test.js
+test/world-idle-renderer.test.js
 test/personas-fun-five.test.js
 test/pride.test.js
 test/seedcredit.test.js

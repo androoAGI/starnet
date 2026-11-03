@@ -46,7 +46,7 @@ const WorkQuestStore = (() => {
     return null;
   }
   const nowMs = () => (typeof Date !== 'undefined' ? Date.now() : 0);
-  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
+  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
 
   /* ---------- the MINT: an accepted idea → a trackable build ----------
      parsed = the Pitch.parsePitch object ({ title, build:{ kind, recipeId } , gap }). ctx (optional) = {}. The

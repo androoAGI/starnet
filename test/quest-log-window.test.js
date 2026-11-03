@@ -191,14 +191,17 @@ const list = { scrollTop: 0 };
 const viewDescription = { textContent: '' };
 const body = {
   dataset: {}, classList: { add() {} },
-  querySelector: s => s === '.q-mission-list' ? list : s === '.q-view-description' ? viewDescription : null,
+  querySelector: s => s === '.q-mission-list' ? list : s === '.q-view-description' ? viewDescription
+    : s.startsWith('#q-view-') ? buttons['.q-view-panel'].find(p => '#' + p.id === s) || null
+    : s.startsWith('#q-tab-') ? buttons['[data-quest-view]'].find(b => '#q-tab-' + b.dataset.questView === s) || null : null,
   querySelectorAll: s => s === 'details' ? detailNodes : buttons[s] || [],
   get innerHTML() { return rendered; },
   set innerHTML(html) {
     rendered = html; buttons = { '.q-filter': [], '.q-mission': [], '[data-quest-view]': [], '.q-view-panel': [] };
     detailNodes = [resultDisclosure()];
     for (const id of ['pass', 'available', 'goals', 'progress', 'completed']) {
-      buttons['.q-view-panel'].push({ id: 'q-view-' + id, hidden: false });
+      // the render contract's lazy panes: a view not built yet renders as an empty panel marked data-lazy
+      buttons['.q-view-panel'].push({ id: 'q-view-' + id, hidden: false, dataset: new RegExp('id="q-view-' + id + '"[^>]*data-lazy="1"').test(html) ? { lazy: '1' } : {} });
       buttons['[data-quest-view]'].push({ dataset: { questView: id }, attributes: {},
         setAttribute(k, v) { this.attributes[k] = v; },
         addEventListener(event, fn) { this[event === 'click' ? 'click' : 'keydown'] = fn; },
@@ -238,10 +241,15 @@ A.eq(detailNodes[0].open, false, 'a result the user collapsed stays closed after
 detailNodes[0].open = true;
 ctx.buildQuests(body);
 A.eq(detailNodes[0].open, true, 'a result the user expanded stays open after a data repaint');
-const beforeTab = rendered;
+A.ok(/id="q-view-goals"[^>]*data-lazy="1"/.test(rendered) && /id="q-view-progress"[^>]*data-lazy="1"/.test(rendered), 'lazy panes: views never shown are not built');
 buttons['[data-quest-view]'][2].click();
 A.eq(body.dataset.questView, 'goals', 'Goals tab selects its own view');
-A.eq(rendered, beforeTab, 'tab changes do not rebuild forms or discard entered values');
+A.ok(!/id="q-view-goals"[^>]*data-lazy/.test(rendered), 'the first visit builds the GOALS view');
+const beforeTab = rendered;
+buttons['[data-quest-view]'][1].click();
+buttons['[data-quest-view]'][2].click();
+A.eq(body.dataset.questView, 'goals', 'back on GOALS');
+A.eq(rendered, beforeTab, 'moving between views already built rebuilds nothing, so no entered value is discarded');
 A.eq(buttons['.q-view-panel'].filter(p => !p.hidden).map(p => p.id).join(','), 'q-view-goals', 'only the selected panel is exposed');
 ctx.buildQuests(body);
 A.eq(body.dataset.questView, 'goals', 'background refresh preserves the selected tab');

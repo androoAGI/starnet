@@ -7450,7 +7450,7 @@ const Chat = (() => {
         postCorrection(runId, item.label, false, 'chip');   // the chip rides into the held skill review too (non-final: the typed message may still follow)
         DossierStore.upsert(b.dim, { text: b.text, source: b.source, weight: b.weight, observedAt: b.observedAt, sourceRunId: String(runId) });
         briefingReceipt(b.dim);   // the answer visibly pays off — the same receipt the curiosity path earns
-        try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('commander'); } catch (_) {}
+        try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('commander', null, { fresh: true }); } catch (_) {}
       });
       const beat = beatCards && beatCards.claim({ kind: 'nudge', node: r.d, data: { verdictFollowup: runId } });
       if (!beat) { if (choiceRow) { activeChoiceRows.delete(choiceRow); choiceRow.remove(); } vanish(r.d); return false; }
@@ -7476,7 +7476,7 @@ const Chat = (() => {
         Intake.start({
           skip: skip,
           onCommit: b => { if (typeof DossierStore !== 'undefined') DossierStore.upsert(b.dim, { text: b.text, source: 'curiosity', weight: b.weight }); if (typeof CuriosityStore !== 'undefined' && CuriosityStore.markAnswered) CuriosityStore.markAnswered(b.dim); briefingReceipt(b.dim); },   // R4: the answer visibly pays off — one provable "now in every agent's briefing" line (this was the ONE commit path with zero acknowledgment). V3: b.weight rides through (a canned chip stays 'seed' — never opens the readiness gate)
-          onDone: () => { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('commander'); },
+          onDone: () => { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('commander', null, { fresh: true }); },
           // LEAVING the curiosity-launched interview = the same "not now" wave-off: mark the dimension dismissed so it
           // isn't raised again this session (existing store, no new persistence — mirrors the choice-row "not now").
           onLeave: () => { if (typeof CuriosityStore !== 'undefined') CuriosityStore.markDismissed(dim); }
@@ -7503,7 +7503,7 @@ const Chat = (() => {
     Intake.start({
       skip: Dossier.DIM_KEYS.filter(k => k !== dim),   // exactly this one question
       onCommit: b => { if (typeof DossierStore !== 'undefined') DossierStore.upsert(b.dim, { text: b.text, source: 'curiosity', weight: b.weight }); if (typeof CuriosityStore !== 'undefined' && CuriosityStore.markAnswered) CuriosityStore.markAnswered(b.dim); briefingReceipt(b.dim); },
-      onDone: () => { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('commander'); },
+      onDone: () => { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('commander', null, { fresh: true }); },
       onLeave: () => { if (typeof CuriosityStore !== 'undefined') CuriosityStore.markDismissed(dim); }
     });
   }
@@ -8151,7 +8151,7 @@ const Chat = (() => {
          is a decline, and the loop is worth nothing if it cannot hear one. */
       if (confirmed) recAccept('arc', dim, false); else recDecline('arc', dim, false);
       settle(confirmed ? '✓ still true' : '✕ dropped it', !confirmed);
-      if (typeof StationUI !== 'undefined' && StationUI.rerender) { try { StationUI.rerender('commander'); } catch (_) {} }
+      if (typeof StationUI !== 'undefined' && StationUI.invalidate) { try { StationUI.invalidate('commander', null, { fresh: true }); } catch (_) {} }
     }
     const mk = (lbl, cls, fn) => { const b = document.createElement('button'); b.className = 'consent-btn' + (cls ? ' ' + cls : ''); b.textContent = lbl; b.onclick = fn; btns.appendChild(b); };
     mk('Still true', '', () => commit('confirm'));

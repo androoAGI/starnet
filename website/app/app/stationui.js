@@ -982,6 +982,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // readout before revealing it again. swap:false engages _render's form-state preservation, so a dirty
     // CONFIG draft (textarea value + data-dirty + caret) survives the rebuild instead of being reverted to
     // the persisted doc — fresh counters AND the draft, not a choice between them.
+    // the render contract: a window that went stale while minimized is painted now, once (the dossier is always repainted below)
+    const owedPaint = staleWins[key], owedFresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+    if (owedPaint && key !== 'agents') { try { paintStale(w, owedPaint, owedFresh); } catch (_) {} }
     if (key === 'agents') rerender('agents', false);
     // land it back at the remembered spot (or CSS-centre if never moved), lift to top, replay power-on.
     placeTerm(w, key);
@@ -1011,6 +1014,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const wasMin = !!minimized[key];
       if (wasMin) { delete minimized[key]; removeChip(key); }
       if (w._onClose) { try { w._onClose(w); } catch (_) {} }   // e.g. tear down the live arcade canvas (gets the closing window)
+      if (w._scope) w._scope.dispose();   // the render contract: its timers and outside listeners stop now, not at the next GC
+      delete staleWins[key];
       const opener = w._opener;   // a11y: the control that opened this window, to restore focus to
       // free the slot NOW so a re-open (toggle) mounts a fresh window while this one animates out.
       delete open[key]; sfx('close');
@@ -1277,6 +1282,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       save();
     };
     w._minimize = () => minimizeTerm(key); // Shared window action used by the glass controller.
+    w._scope = makeWindowScope();   // the render contract: what this window arms outside its DOM goes when it closes
     w._onClose = opts && opts.onClose;
     w._opener = opener;
     // a11y: a floating window is a real modal dialog — label it by its title, make it focusable.
@@ -1476,13 +1482,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (owed) { owed = false; paint(false); }
       } finally { building = false; owed = false; }
     };
+    w._isBuilding = () => building;   // the render contract: invalidate() owes a mid-build poke to this build's one follow-up
     const paint = (swap) => {
       const keep = swap === false ? captureForms() : null;   // background poke: preserve what the Commander typed
-      builder(body);
+      const outerScope = buildScope; buildScope = w._scope;   // scopeOf() inside this build (a console pane is built detached) is this window's
+      try { builder(body); } finally { buildScope = outerScope; }
       if (keep && keep.length) restoreForms(keep);
       // tab/section crossfade: fade the freshly-injected body in on RE-renders (tab swaps,
       // live refreshes) — not on the initial mount, which already plays the CRT power-on.
-      if (swap) {
+      if (swap === true) {
         body.classList.remove('swap-in');
         void body.offsetWidth;   // restart the animation if it was mid-flight
         body.classList.add('swap-in');
@@ -1506,7 +1514,116 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      panel the Commander is reading. */
   // swap=false → no crossfade AND form-state preservation: a background DATA poke repaints in place with
   // every in-progress field value, focus and selection carried across the rebuild (see w._render).
-  function rerender(key, swap) { if (open[key]) open[key]._render(swap !== false); }
+  function rerender(key, swap) { if (open[key]) { delete staleWins[key]; delete staleFresh[key]; open[key]._render(swap !== false); } }   // a full rebuild settles any paint owed
+  /* THE WINDOW RENDER CONTRACT (wave 4: gh#85, window-open-lag-1026, E14). rerender(key) is a SYNCHRONOUS full rebuild: right
+     for the Commander's own click, which must answer in the same frame, and wrong for everything else. A store that learns
+     something new does not need the window rebuilt this instant; it needs it to be right on the next frame. Six quest stores
+     each poked the open QUEST LOG on every sync, so one tick rebuilt the whole window up to six times, and each rebuild ran
+     the stores' syncs again.
+     invalidate(key, section) is that background door. It marks the window (or one named section of it) stale and paints
+     it ONCE on the next animation frame, however many pokes arrive in between:
+       · a closed window costs nothing (nothing is marked);
+       · a minimized window is painted when it is restored, not while nobody can see it;
+       · a poke that lands while the window is building is owed to that build's single follow-up paint (the reentrancy law
+         in w._render), so a store that pokes from inside its own sync can never loop the window frame after frame;
+       · a section the window registered (w._sections[id], see sectionsOf) repaints only that section; an unknown section,
+         or none, repaints the window in place (swap:false: no crossfade, every half-typed field carried across), or with
+         the window's own background repaint when it names one ('*': SETTINGS' coalesced, scroll-keeping repaint);
+       · invalidate(key, null, { fresh: true }) is for a change the window's FIELDS must show (a specialty deployed into the
+         dossier editor, an AUTO-CHECK toggled elsewhere): repainted in place with no crossfade, but no field is carried
+         across, so a stale draft cannot be saved back over the new truth. That is what those callers' old synchronous
+         rerender(key) did, minus the blink. A fresh poke and a draft-keeping one in the same frame paint fresh.
+     When a hidden page draws no frames, the paint waits for the first frame after it is seen again, which is when it
+     can next be looked at. */
+  const staleWins = {};   // key -> true (the whole window) or a Set of section ids
+  const staleFresh = {};  // key -> true when a poke asked that no typed field be carried across
+  let staleFrame = 0;
+  const nextFrame = fn => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+  function invalidate(key, section, opts) {
+    const w = open[key];
+    if (!w || w._closing) return false;
+    if (w._isBuilding && w._isBuilding()) { w._render(false); return true; }   // owed to the build in progress, once
+    const fresh = !!(opts && opts.fresh);
+    if (fresh) staleFresh[key] = true;
+    const known = !fresh && section && w._sections && typeof w._sections[section] === 'function';
+    if (!known) staleWins[key] = true;
+    else if (staleWins[key] !== true) (staleWins[key] || (staleWins[key] = new Set())).add(section);
+    if (!staleFrame) staleFrame = nextFrame(flushStale);
+    return true;
+  }
+  function paintStale(w, what, fresh) {
+    if (what === true) {
+      if (fresh) { w._render('fresh'); return; }   // no field carried across: the new truth shows
+      // a window with its own background repaint (SETTINGS keeps the reader's scroll and merges probe landings) names it '*'
+      const own = w._sections && w._sections['*'];
+      if (typeof own === 'function') { try { own(); return; } catch (_) {} }
+      w._render(false); return;
+    }
+    for (const id of what) {
+      const fn = w._sections && w._sections[id];
+      if (typeof fn !== 'function') { w._render(false); return; }
+      try { fn(); } catch (_) { w._render(false); return; }
+    }
+  }
+  function flushStale() {
+    staleFrame = 0;
+    for (const key of Object.keys(staleWins)) {
+      const w = open[key];
+      if (!w || w._closing) { delete staleWins[key]; continue; }
+      if (minimized[key]) continue;   // painted by restoreTerm, when it can be seen again
+      const what = staleWins[key], fresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+      if (!what) continue;   // a paint earlier in this loop already settled it (a restore, a close and re-open)
+      try { paintStale(w, what, fresh); } catch (_) { /* one window's throwing builder must not cost the others their frame */ }
+    }
+  }
+  /* SECTIONS: a builder that can repaint part of itself names those parts — sectionsOf(body).id = () => repaintThatPart().
+     invalidate(key, id) then runs only that painter. The map is the window's (it survives the builder's own rebuilds). */
+  function sectionsOf(el) { const w = el && el.closest ? el.closest('.term') : null; return w ? (w._sections || (w._sections = {})) : {}; }
+  /* WINDOW SCOPE: what a window arms outside its own DOM (a timer, a document or bus listener) is registered on the window's
+     scope, and closeTerm disposes it at once. Before this, each window tore its own pieces down by hand, or not at all; a
+     forgotten interval kept polling and kept the closed window's tree reachable. A named slot holds one timer: re-arming
+     it from a rebuild replaces the last one, so a window that is repainted 50 times still has exactly one poller. */
+  function makeWindowScope() {
+    const offs = [], slots = {};
+    let dead = false;
+    const add = fn => { if (typeof fn !== 'function') return fn; if (dead) { try { fn(); } catch (_) {} return fn; } offs.push(fn); return fn; };
+    const clearSlot = name => { const t = slots[name]; if (t) { delete slots[name]; try { t(); } catch (_) {} } };
+    const timer = (arm, disarm) => (fn, ms, slot) => {
+      if (dead) return null;
+      if (slot) clearSlot(slot);
+      const id = arm(fn, ms), stop = () => disarm(id);
+      if (slot) slots[slot] = stop; else add(stop);
+      return id;
+    };
+    return {
+      get disposed() { return dead; },
+      add,
+      on(target, type, fn, o) { if (dead || !target || typeof target.addEventListener !== 'function') return; target.addEventListener(type, fn, o); add(() => target.removeEventListener(type, fn, o)); },
+      bus(name, fn) { if (dead || typeof U === 'undefined' || !U.bus) return; U.bus.on(name, fn); add(() => { if (U.bus.off) U.bus.off(name, fn); }); },
+      every: timer((fn, ms) => setInterval(fn, ms), id => clearInterval(id)),
+      after: timer((fn, ms) => setTimeout(fn, ms), id => clearTimeout(id)),
+      stop: clearSlot,
+      // own(name, stop): a window that keeps its own timer handle hands the scope the way to stop it; a rebuild that re-arms
+      // names the same slot and replaces the stop (it already stopped the old timer itself). Close runs the last one.
+      own(name, stop) { if (typeof stop !== 'function') return; if (dead) { try { stop(); } catch (_) {} return; } slots[name] = stop; },
+      dispose() {
+        if (dead) return;
+        dead = true;
+        for (const name of Object.keys(slots)) clearSlot(name);
+        for (const fn of offs.splice(0).reverse()) { try { fn(); } catch (_) {} }
+      }
+    };
+  }
+  const DEAD_SCOPE = makeWindowScope(); DEAD_SCOPE.dispose();
+  let buildScope = null;   // the scope of the window whose builder is running right now
+  /* the scope of the window holding el (a builder passes its body or a pane). A console pane is built before it is attached,
+     so while a window's builder runs, that window's scope answers. Outside any open window the scope is already disposed,
+     so nothing armed from a detached tree can outlive it. */
+  function scopeOf(el) {
+    const w = el && el.closest ? el.closest('.term') : null;
+    if (w && w._scope) return w._scope;
+    return buildScope || DEAD_SCOPE;
+  }
   function syncBB() {
     document.querySelectorAll('.bb[data-term]').forEach(b => b.classList.toggle('active', !!open[b.dataset.term]));
     // a menu's dock button is lit while any of its windows is open
@@ -8532,6 +8649,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
     const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
+    sectionsOf(body)['*'] = scheduleSettingsRepaint;   // invalidate('settings') takes the coalesced, scroll-keeping repaint
 
     wireProviderActions(host);
     wireKeyActions(host);
@@ -9803,7 +9921,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       store.notifs.push(rec);
       if (store.notifs.length > 60) store.notifs = store.notifs.slice(-60);
       save(); badges();
-      if (open.notifs) rerender('notifs');
+      if (open.notifs) invalidate('notifs', null, { fresh: true });   // render contract: a notification landing paints the open list once, next frame
     }
     // quiet: re-file the bell entry without a toast or sound — the same wait, still waiting (answering one of two asks
     // used to re-pop and chime the one you had not touched)
@@ -9829,7 +9947,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (!key) return;
     let n = 0;
     store.notifs.forEach(r => { if (r.key === key && !r.done) { r.done = true; r.read = true; n++; } });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // Opening a session reads everything that pointed at it (the notification WAS the session; you're in it now). A question
   // its finished reply asked you (a stored wait with no prompt behind it) waited for exactly this — you came to read it — so
@@ -9841,7 +9959,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!r.read && r.go && r.go.ws === wsId) { r.read = true; n++; }
       if (r.kind === 'needs' && !r.done && !r.prompt && r.go && r.go.ws === wsId) { r.done = true; r.read = true; r.opened = true; n++; }
     });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // A caller that leads with an ALL-CAPS token + colon ("MODEL: gpt / high") is naming a READOUT,
   // not writing a sentence — that prefix becomes the card's engraved label and the rest becomes the
@@ -10022,7 +10140,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const r = id ? store.notifs.find(x => x && x.id === String(id) && isWaiting(x) && !liveCovered(x)) : null;
     if (!r) return false;
     r.done = true; r.read = true; r.opened = true;
-    save(); badges(); if (open.notifs) rerender('notifs');
+    save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true });
     return true;
   }
   function buildNotifs(body) {
@@ -10144,7 +10262,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const NY = liveNeeds();
     const n = store.notifs.filter(x => x && x.kind && !(NY && isWaiting(x)) && (isWaiting(x) || !x.read)).length + (NY ? NY.items().length : 0);
     // the open NOTIFICATIONS window follows the live list (an ask answered on the rail, a STEP-IN handed back)
-    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) rerender('notifs'); lastLiveShape = sh; }
+    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) invalidate('notifs', null, { fresh: true }); lastLiveShape = sh; }
     const b = $('#nf-badge');
     if (b) { const t = n ? String(n) : ''; if (b.textContent !== t) b.textContent = t; const d = n ? 'inline-block' : 'none'; if (b.style.display !== d) b.style.display = d; }
   }
@@ -11746,6 +11864,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       ['completed', 'HISTORY', 'Your goals, results, reflections, and changes of direction.']
     ];
     body.classList.add('quests-content');
+    /* LAZY PANES (the render contract): an open builds only the view on screen. A view is built the first time its tab is
+       chosen and kept from then on, for this window's life: moving back to it rebuilds nothing, and a draft typed there
+       is still there. Until then it is an empty panel marked data-lazy, so an open and every background repaint pay for
+       the views the Commander has looked at, not all five (PASS, the goal planner, the systems and journey readouts, the
+       chapter archive). */
+    const deepView = consoleSection.quests;
+    const activeView = (questViews.find(v => v[0] === (deepView || body.dataset.questView)) || questViews[0])[0];
+    const builtViews = body._questBuilt || (body._questBuilt = new Set());
+    builtViews.add(activeView);
+    const pane = (id, cls, html) => '<section id="q-view-' + id + '" class="q-view-panel' + (cls ? ' ' + cls : '') + '" role="tabpanel" aria-labelledby="q-tab-' + id + '"'
+      + (builtViews.has(id) ? '>' + html() : ' data-lazy="1">') + '</section>';
     body.innerHTML = '<div class="gx gx-quests">'
       + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">YOUR QUESTS</span><h2>Small steps toward your goals</h2></div>'
       + journalCount + '</header>'
@@ -11753,17 +11882,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         '<button type="button" role="tab" id="q-tab-' + v[0] + '" data-quest-view="' + v[0] + '" aria-controls="q-view-' + v[0] + '">' + v[1]
         + '</button>').join('') + '</div>'
       + '<p class="q-view-description"></p>'
-      + '<section id="q-view-pass" class="q-view-panel q-journal-pass" role="tabpanel" aria-labelledby="q-tab-pass">' + passHtml() + '</section>'
-      + '<section id="q-view-available" class="q-view-panel" role="tabpanel" aria-labelledby="q-tab-available">'
-      + questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
-      + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
-      + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : '')
-      + '</section><section id="q-view-goals" class="q-view-panel q-journal-planning" role="tabpanel" aria-labelledby="q-tab-goals">'
-      + questTrackHtml(arcs) + lifeGoalsHtml() + '<details class="q-refresh-options"><summary>Quest suggestions <span class="q-section-note">Direction &amp; refresh</span></summary>' + questRefreshHtml() + '</details>'
-      + '</section><section id="q-view-progress" class="q-view-panel q-journal-progress" role="tabpanel" aria-labelledby="q-tab-progress">'
-      + systemsHtml() + journeyHtml() + stationPrestigeHtml() + milestonesHtml
-      + '</section><section id="q-view-completed" class="q-view-panel q-journal-history" role="tabpanel" aria-labelledby="q-tab-completed">'
-      + journeyChaptersHtml() + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div></section></div>';
+      + pane('pass', 'q-journal-pass', () => passHtml())
+      + pane('available', '', () => questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
+        + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
+        + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : ''))
+      + pane('goals', 'q-journal-planning', () => questTrackHtml(arcs) + lifeGoalsHtml() + '<details class="q-refresh-options"><summary>Quest suggestions <span class="q-section-note">Direction &amp; refresh</span></summary>' + questRefreshHtml() + '</details>')
+      + pane('progress', 'q-journal-progress', () => systemsHtml() + journeyHtml() + stationPrestigeHtml() + milestonesHtml)
+      + pane('completed', 'q-journal-history', () => journeyChaptersHtml() + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div>')
+      + '</div>';
     // Stable field identities keep a background refresh from transplanting a draft into another chapter.
     body.querySelectorAll('.q-life-goal input, .q-life-goal textarea, .q-life-report textarea, .q-metric input, .q-metric-create input').forEach(el => {
       if (el.id) return;
@@ -11781,6 +11907,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const selectQuestView = id => {
       const selectedView = questViews.find(v => v[0] === id) || questViews[0];
       body.dataset.questView = selectedView[0];
+      // a view not built yet is built now (one view's worth), keeping focus on its tab when the tab had it
+      const target = body.querySelector('#q-view-' + selectedView[0]);
+      if (target && target.dataset && target.dataset.lazy) {
+        const ae = typeof document !== 'undefined' ? document.activeElement : null;
+        const focusInside = !!(ae && typeof body.contains === 'function' && body.contains(ae));
+        const tabHadFocus = !!(ae && ae.dataset && ae.dataset.questView);
+        builtViews.add(selectedView[0]);
+        rerender('quests', false);   // the Commander's own click: built in this frame, every typed field carried across
+        // the control that was focused (its tab, or a PASS GO) was rebuilt away: focus lands on the view's tab, inside the window's trap
+        const lost = focusInside && !(document.activeElement && body.contains(document.activeElement));
+        if (tabHadFocus || lost) { const t = body.querySelector('#q-tab-' + selectedView[0]); if (t) t.focus(); }
+        return;
+      }
       body.querySelector('.q-view-description').textContent = selectedView[2];
       body.querySelectorAll('[data-quest-view]').forEach(b => {
         const active = b.dataset.questView === selectedView[0];
@@ -11794,7 +11933,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       b.addEventListener('keydown', ev => {
         const next = ev.key === 'ArrowRight' ? (i + 1) % viewButtons.length : ev.key === 'ArrowLeft' ? (i + viewButtons.length - 1) % viewButtons.length : ev.key === 'Home' ? 0 : ev.key === 'End' ? viewButtons.length - 1 : -1;
         if (next < 0) return;
-        ev.preventDefault(); viewButtons[next].click(); viewButtons[next].focus();
+        ev.preventDefault(); const to = viewButtons[next].dataset.questView; viewButtons[next].click(); (body.querySelector('#q-tab-' + to) || viewButtons[next]).focus();
       });
     });
     // a deep link (openTerm('quests', 'progress') — the top-bar COMMANDER gauge, NEW SYSTEM ONLINE) lands on its view once
@@ -11897,7 +12036,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const suggest = body.querySelector('.q-goal-suggest');
     if (suggest) { suggest.disabled = suggest.disabled || !!body._journeyPlanning; suggest.setAttribute('aria-busy', String(!!body._journeyPlanning)); }
     const proposal = body._journeyPlan;
-    if (proposal) {
+    if (proposal && body.querySelector('.q-plan-proposal')) {   // the planner is in GOALS: while another view is up it is not built
       body.querySelector('.q-plan-proposal').innerHTML = '<div class="q-return-card"><span class="q-ns-eyebrow">SUGGESTED PLAN · NOT SAVED</span><h3>' + esc(proposal.title) + '</h3><p>' + esc(proposal.successCondition) + '</p><ol>'
         + proposal.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="q-journey-actions"><button class="consent-btn q-plan-use">USE &amp; EDIT THIS PLAN</button><button class="consent-btn q-plan-dismiss">DISMISS SUGGESTION</button></div></div>';
       const use = body.querySelector('.q-plan-use');
@@ -12321,7 +12460,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // dom + format primitives
     esc, mkEl, sfx, clock, ts, fmtRel,
     // hud + window plumbing
-    notify, settleNotifs, waitingNotifKeys, seenSession, toast, mountConsole, rerender, openTerm, openSignIn, navigateWork, workConversation,
+    notify, settleNotifs, waitingNotifKeys, seenSession, toast, mountConsole, rerender, invalidate, scopeOf, sectionsOf, openTerm, openSignIn, navigateWork, workConversation,
     // deep-link a missing capability object into the REAL placement surface (minimize this console,
     // open BUILD MODE, arm its palette on the exact prop). The TOOLSETS pane's inert rows use it, so a row
     // that diagnoses "no dish on station" can also cure it. Shared, never re-implemented: an auto-place
@@ -12718,7 +12857,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), offerPreservedSaves, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), offerPreservedSaves, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, invalidate, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

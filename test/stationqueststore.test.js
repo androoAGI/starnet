@@ -58,7 +58,7 @@ global.U = {
   }
 };
 const rerenders = [];
-global.StationUI = { rerender: k => rerenders.push(k) };
+global.StationUI = { invalidate: k => rerenders.push(k) };   // the render contract's background door
 
 const { StationQuestStore } = require('../frontend/app/stationqueststore.js');
 const fire = (name, agentId) => (listeners['agent.tool_call'] || []).forEach(fn => fn({ agentId, runId: 'r', callId: 'c', name }));
