@@ -161,7 +161,7 @@ try {
   const floor = await evalJS(cdp, `(() => { const st = App.station(), hero = App.heroId();
     const ip = st.props().find(p => p.t === 'intake' && p.label === 'SHIP IT');
     const bays = st.props().filter(p => p.t === 'bay');
-    return { rooms: st.rooms().filter(r => r.kind !== 'corridor').map(r => r.name), intake: ip && ip.id, cap: ip && ip.limits && ip.limits.maxUsdPerDay,
+    return { rooms: st.rooms().filter(r => r.kind !== 'corridor').map(r => r.name), intake: ip && ip.id, lineId: ip && ip.lineId, cap: ip && ip.limits && ip.limits.maxUsdPerDay,
       bays: bays.map(b => [b.role, b.agentId === hero, (b.brief || '').slice(0, 20)]), loop: (st.props().find(p => p.t === 'loop') || {}).maxIter }; })()`);
   check('a new room named for the line, beside the station', floor.rooms.length === before.rooms.length + 1 && floor.rooms.includes('SHIP IT'), JSON.stringify(floor.rooms));
   check('the Inbox is named and carries the $5 daily cap', !!floor.intake && floor.cap === 5, JSON.stringify(floor));
@@ -170,7 +170,8 @@ try {
   const posted = JSON.parse(readFileSync(join(workspace, 'routing.plan.json'), 'utf8'));
   const builtSync = await evalJS(cdp, 'World.planStatus()');
   check('the build receipt follows publication even with the frame pump held',
-    !!BL && !!BL.routing && BL.routing.published === true && (posted.lines || []).some(l => l.lineId === floor.intake && l.name === 'SHIP IT')
+    !!BL && !!BL.routing && BL.routing.published === true && typeof floor.lineId === 'string' && !!floor.lineId
+      && (posted.lines || []).some(l => l.lineId === floor.lineId && (l.intakes || []).includes(floor.intake) && l.name === 'SHIP IT')
       && !builtSync.pending && !builtSync.inflight && !builtSync.stale && !builtSync.refusedHash && BL.routing.hash === posted.hash,
     JSON.stringify({ routing: BL && BL.routing, hash: posted.hash, lines: (posted.lines || []).map(l => l.lineId), world: builtSync }));
 
