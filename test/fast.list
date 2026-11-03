@@ -1309,6 +1309,9 @@ test/line-continuation.test.js
 test/line-continuation.transitions.test.js
 test/linejobs.continuation.test.js
 test/linejobs.persistence.test.js
+test/line-spend.receipts.test.js
+test/line-spend.projection.test.js
+test/linejobs.receipts.test.js
 test/free-path-ollama.test.js
 test/keycta-recovery.test.js
 test/process-fault.test.js

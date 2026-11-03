@@ -7,12 +7,77 @@
 
    PURE + INJECTED I/O (sidecar determinism law): `now` is injected, persistence is a { load(), save(value) }
    pair the host builds over its domain store (index.js: makeDomainStore -> line-spend.json). Uninjected it is
-   memory-only — correct within a process, honest about not surviving one. Never throws: a ledger failure
-   must not gate a reply (chain.js's first law); it degrades to "cannot prove, does not refuse". */
+   memory-only — correct within a process, honest about not surviving one. Legacy note(line,usd) remains
+   best effort and never gates its reply. note(line,usd,{jobId,runId,endedAt}) is the private strict receipt
+   path: canonical readback must confirm the exact observed run before a continuation can advance. */
 'use strict';
 
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a failed ledger write must never be invisible
 const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_RECEIPT_BYTES = 2 * 1024 * 1024, MAX_JOB_RECEIPTS = 1024;
+const READONLY = Symbol('line-spend original receipt authority');
+const owns = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const plain = v => !!v && typeof v === 'object' && !Array.isArray(v);
+const id = v => typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,120}$/.test(v);
+const jobId = v => typeof v === 'string' && /^job-[a-z0-9]{8,24}$/.test(v);
+const uint = v => Number.isSafeInteger(v) && v >= 0;
+const money = v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= Number.MAX_SAFE_INTEGER;
+const num = v => (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0;
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const receiptFields = r => plain(r) && Object.keys(r).length === 4 && ['jobId', 'runId', 'day', 'usd'].every(k => owns(r, k))
+  && jobId(r.jobId) && id(r.runId) && uint(r.day) && money(r.usd);
+const withReceipts = r => plain(r) && (owns(r, 'receiptVersion') || owns(r, 'receipts'));
+
+function receiptProblem(value) {
+  const runs = new Map(), jobs = new Map();
+  for (const line of Object.keys(value || {})) {
+    const r = value[line];
+    if (!withReceipts(r)) continue;
+    if (!id(line) || r.receiptVersion !== 1 || Object.keys(r).length !== 4 || !['day', 'usd', 'receiptVersion', 'receipts'].every(k => owns(r, k)) || !uint(r.day) || !money(r.usd)
+      || !Array.isArray(r.receipts) || r.receipts.some(x => !receiptFields(x))) return 'unsupported or malformed saved receipt authority';
+    let bytes;
+    try { bytes = Buffer.byteLength(JSON.stringify(r)); } catch (_) { return 'saved receipts are not plain JSON'; }
+    if (bytes > MAX_RECEIPT_BYTES) return 'saved receipt data exceeds the per-line bound';
+    let floor = 0;
+    for (const rec of r.receipts) {
+      if (runs.has(rec.runId)) return 'saved run receipt is duplicated or names conflicting ownership';
+      runs.set(rec.runId, line);
+      const j = jobs.get(rec.jobId) || { line, count: 0 };
+      if (j.line !== line || ++j.count > MAX_JOB_RECEIPTS) return 'saved job receipts change line or exceed the attempt bound';
+      jobs.set(rec.jobId, j);
+      if (rec.day === r.day) floor += rec.usd;
+    }
+    // USD is binary floating point; use the same addition order at booking and a
+    // tiny relative rounding allowance only for the sum, never for receipt identity.
+    if (!money(floor) || floor > r.usd + Number.EPSILON * Math.max(1, floor, r.usd) * r.receipts.length) return 'saved receipts exceed their day bucket';
+  }
+  return '';
+}
+function clean(value) {
+  const out = Object.create(null);
+  if (!plain(value)) return out;
+  for (const k of Object.keys(value)) {
+    const r = value[k];
+    if (!plain(r)) continue;
+    if (withReceipts(r)) {
+      // Unknown/future/oversized authority remains intact. The encoder refuses
+      // its rewrite; legacy note must never clean it into an empty dedupe set.
+      out[k] = r;
+    } else if (typeof r.day === 'number' && isFinite(r.day)) out[k] = { day: r.day, usd: num(r.usd) };
+  }
+  const issue = receiptProblem(out);
+  if (issue) Object.defineProperty(out, READONLY, { value: issue });
+  else for (const k of Object.keys(out)) if (withReceipts(out[k])) {
+    const r = out[k];
+    out[k] = { day: r.day, usd: r.usd, receiptVersion: 1,
+      receipts: r.receipts.map(x => ({ jobId: x.jobId, runId: x.runId, day: x.day, usd: x.usd })) };
+  }
+  return out;
+}
+function assertWritable(value) {
+  const issue = value && value[READONLY] || receiptProblem(value);
+  if (issue) { const error = new Error('line-spend: ' + issue + '; original data must be preserved'); error.code = 'ELINE_SPEND_READONLY'; throw error; }
+}
 
 function makeLineSpend(o) {
   o = o || {};
@@ -20,42 +85,141 @@ function makeLineSpend(o) {
   const dayMs = (typeof o.dayMs === 'number' && o.dayMs > 0) ? o.dayMs : DAY_MS;
   const load = typeof o.load === 'function' ? o.load : function () { return null; };
   const save = typeof o.save === 'function' ? o.save : function () {};
+  const read = typeof o.read === 'function' ? o.read : null, write = typeof o.write === 'function' ? o.write : null;
   let table = null;
-  const num = v => (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0;
+  let knownStore = false, pending = null, issue = '';
   const dayOf = t => Math.floor(num(t) / dayMs);
-  function clean(v) {
-    const out = {};
-    if (!v || typeof v !== 'object') return out;
-    for (const k of Object.keys(v)) {
-      const r = v[k];
-      if (!r || typeof r !== 'object') continue;
-      const day = (typeof r.day === 'number' && isFinite(r.day)) ? r.day : null;
-      if (day == null) continue;
-      out[String(k)] = { day, usd: num(r.usd) };
+  function canonical(loaded) {
+    if (!read || !write) throw new Error('line-spend: owned receipts require canonical persistence');
+    loaded = loaded || read();
+    if (!loaded || (loaded.status !== 'ok' && loaded.status !== 'absent') || (loaded.status === 'absent' && knownStore)) {
+      knownStore = true;
+      throw new Error('line-spend: canonical primary is not confirmed');
     }
-    return out;
+    if (loaded.status === 'ok') knownStore = true;
+    const value = clean(loaded.value);
+    assertWritable(value);
+    return { value, status: loaded.status };
   }
-  function ensure() { if (!table) { try { table = clean(load()); } catch (_) { table = {}; } } return table; }
-  function persist() { try { save(clean(table)); } catch (e) { failNote('line-spend.persist', e); } }
+  function ensure() {
+    if (!table) {
+      try {
+        if (read && write) {
+          const loaded = read();
+          if (loaded && loaded.status === 'recovered') {
+            // Preserve the existing legacy cap projection from a valid backup.
+            // This value is never a canonical write or owned-receipt proof.
+            knownStore = true; table = clean(loaded.value);
+            issue = 'line-spend: canonical primary is not confirmed';
+            failNote('line-spend.load', new Error(issue));
+          } else table = canonical(loaded).value;
+        } else table = clean(load());
+      }
+      catch (error) { table = clean(null); issue = error.message; failNote('line-spend.load', error); }
+    }
+    return table;
+  }
+  function persist() { try { const value = clean(table); assertWritable(value); save(value); } catch (e) { failNote('line-spend.persist', e); } }
+  function writeExact(value) {
+    assertWritable(value);
+    knownStore = true; // a creation can land before its acknowledgement fails
+    write(value);
+    const after = canonical();
+    if (after.status !== 'ok' || !same(after.value, value)) throw new Error('line-spend: canonical readback did not confirm this write');
+    return after.value;
+  }
+  function flush() {
+    while (pending) {
+      const current = canonical().value;
+      let confirmed;
+      if (same(current, pending.next)) confirmed = current;
+      else if (same(current, pending.before)) confirmed = writeExact(pending.next);
+      else throw new Error('line-spend: canonical state changed outside the pending receipt; refusing cached overwrite');
+      const tail = pending.tail;
+      table = confirmed;
+      pending = same(tail, confirmed) ? null : { before: confirmed, next: tail, tail };
+    }
+    issue = '';
+  }
+  function begin(before, next) {
+    assertWritable(next);
+    pending = { before, next, tail: next };
+    // Do not resolve a new candidate from an absent file after marking possible
+    // creation. The first attempt writes directly; only retries enter flush().
+    table = writeExact(next);
+    pending = null; issue = '';
+  }
+  function legacyNext(current, line, day, usd) {
+    const next = Object.assign(Object.create(null), current), old = current[line];
+    const total = old && old.day === day ? num(old.usd) + usd : usd;
+    if (!money(total)) throw new Error('line-spend: observed daily total is outside the supported range');
+    next[line] = withReceipts(old) ? Object.assign(Object.create(null), old, { day, usd: total }) : { day, usd: total };
+    const result = clean(next);
+    assertWritable(result);
+    return result;
+  }
 
   // $ this line has spent TODAY (0 when nothing, or the bucket is from an earlier day)
   function spentToday(lineId) {
     if (lineId == null) return 0;
-    const r = ensure()[String(lineId)];
-    return (r && r.day === dayOf(now())) ? r.usd : 0;
+    const r = (pending ? pending.tail : ensure())[String(lineId)];
+    return (r && r.day === dayOf(now())) ? num(r.usd) : 0;
   }
   // add reconciled spend to the line's bucket for today (a stale bucket rolls to zero first)
-  function note(lineId, usd) {
+  function note(lineId, usd, observed) {
+    if (arguments.length >= 3) return noteReceipt(lineId, usd, observed);
     const u = num(usd);
     if (lineId == null || !u) return spentToday(lineId);
-    const t = ensure(), k = String(lineId), day = dayOf(now());
-    const r = t[k];
-    t[k] = (r && r.day === day) ? { day, usd: r.usd + u } : { day, usd: u };
-    persist();
-    return t[k].usd;
+    const k = String(lineId), day = dayOf(now());
+    ensure();
+    if (!read || !write) {
+      try { table = legacyNext(table, k, day, u); persist(); }
+      catch (error) { issue = error.message; failNote('line-spend.persist', error); }
+      return spentToday(k);
+    }
+    let appended = false;
+    try {
+      if (pending) { pending.tail = legacyNext(pending.tail, k, day, u); appended = true; flush(); }
+      else { table = canonical().value; const next = legacyNext(table, k, day, u); appended = true; begin(table, next); }
+    } catch (error) {
+      // A later legacy amount stays in the same pending write's bounded tail.
+      // It never changes the exact before/next evidence needed to resolve a lost ACK.
+      if (!appended && !pending) {
+        try { const next = legacyNext(table, k, day, u); pending = { before: table, next, tail: next }; }
+        catch (tailError) { failNote('line-spend.pending', tailError); }
+      }
+      issue = error.message; failNote('line-spend.persist', error);
+    }
+    return spentToday(k);
+  }
+  function noteReceipt(lineId, usd, observed) {
+    if (!id(lineId) || !money(usd) || !plain(observed) || Object.keys(observed).length !== 3 || !['jobId', 'runId', 'endedAt'].every(k => owns(observed, k))
+      || !jobId(observed.jobId) || !id(observed.runId) || !uint(observed.endedAt)) throw new Error('line-spend: invalid observed run receipt');
+    const receipt = { jobId: observed.jobId, runId: observed.runId, day: Math.floor(observed.endedAt / dayMs), usd };
+    let verified = false;
+    try {
+      if (pending) flush();
+      table = canonical().value;
+      verified = true; issue = '';
+      for (const line of Object.keys(table)) for (const prior of (table[line].receipts || [])) {
+        if (prior.runId !== receipt.runId) continue;
+        if (line !== lineId || !same(prior, receipt)) throw new Error('line-spend: run receipt conflicts with its original job, line, day or amount');
+        return { confirmed: true, replayed: true, receipt: Object.assign({}, prior) };
+      }
+      const row = table[lineId];
+      if (receipt.day > dayOf(now())) throw new Error('line-spend: observed receipt is from a future day');
+      if (row && row.day > receipt.day) return { confirmed: false, status: 'obsolete', receipt };
+      const next = Object.assign(Object.create(null), table);
+      next[lineId] = { day: receipt.day, usd: (row && row.day === receipt.day ? row.usd : 0) + usd, receiptVersion: 1,
+        receipts: (row && row.receipts || []).concat(receipt) };
+      assertWritable(next);
+      begin(table, clean(next));
+      return { confirmed: true, replayed: false, receipt: Object.assign({}, receipt) };
+    } catch (error) { if (!verified || pending) issue = error.message; throw error; }
   }
   function snapshot() { return clean(ensure()); }
-  return { spentToday, note, snapshot, clean };
+  return { spentToday, note, snapshot, clean, assertWritable,
+    status: () => ({ confirmed: !pending && !issue, pending: !!pending, issue: issue || null }) };
 }
 
-module.exports = { makeLineSpend, DAY_MS };
+module.exports = { makeLineSpend, DAY_MS, clean, assertWritable, MAX_RECEIPT_BYTES, MAX_JOB_RECEIPTS };

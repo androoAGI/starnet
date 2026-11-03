@@ -178,7 +178,7 @@ function invalid(v, job, depth) {
   const observed = v.attempts.filter(x => x.state === 'observed');
   if (!observed.some(x => x.runId === b.entryRunId) || a.entryUsd !== observed.filter(x => x.runId === b.entryRunId).reduce((n, x) => n + x.usd, 0)
     || a.hopUsd !== observed.filter(x => x.runId !== b.entryRunId).reduce((n, x) => n + x.usd, 0)
-    || !unique(a.dayReceipts.map(x => x.runId)) || a.dayReceipts.some(r => !observed.some(x => x.runId === r.runId && x.usd === r.usd))) {
+    || !unique(a.dayReceipts.map(x => x.runId)) || a.dayReceipts.some(r => !observed.some(x => x.runId === r.runId && x.usd === r.usd && r.day === Math.floor(x.endedAt / 86400000)))) {
     return problem('accounting', 'saved spend does not match its exact observed run receipts');
   }
   if (v.barriers.some(x => x.parts.some(p => !observed.some(a => a.runId === p.runId && a.branchId === p.branchId)
