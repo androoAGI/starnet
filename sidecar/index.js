@@ -12392,7 +12392,9 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   // Every admitted run, including its host work before and after runOnce, from the one registry.
   liveRuns: () => runTable.live().map(r => ({ runId: r.runId, agentId: r.agentId, startedAt: r.startedAt, source: r.source })),
   transcript: {
-    view: transcriptStore.view
+    view: transcriptStore.view,
+    cacheRetractions: transcriptStore.cacheRetractions,
+    cacheRetractionsBatch: transcriptStore.cacheRetractionsBatch
   },
   // the same resolution a scheduled routine uses (roster model/provider, runtime key), minus the routine note
   credentials: (agentId) => {
