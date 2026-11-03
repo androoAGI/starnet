@@ -38,9 +38,16 @@ function describeWriteError(e, dir) {
   return 'could not write into ' + dir + ' (' + (code || (e && e.message) || 'unknown error') + ')';
 }
 
-// remove a file this call created and then could not prove; a leftover partial file is not a backup
-function dropPartial(f, full) {
-  try { f.unlinkSync(full); return true; } catch (e) { return e && e.code === 'ENOENT'; }
+// Only the descriptor obtained by this call proves creation. A failed exclusive open
+// owns nothing. Keep the descriptor until cleanup/readback so a replaced name cannot
+// recycle its inode and be mistaken for the file we created.
+function dropPartial(f, full, owned) {
+  if (!owned) return false;
+  try {
+    const current = f.lstatSync(full);
+    if (!current.isFile() || current.dev !== owned.dev || current.ino !== owned.ino) return false;
+    f.unlinkSync(full); return true;
+  } catch (e) { return !!(e && e.code === 'ENOENT'); }
 }
 
 /* Write `text` as <dir>/<base>.json (or <base>-N.json when taken). Exclusive create, then a read-back: ok only
@@ -55,17 +62,26 @@ function saveExportFile(text, opts) {
   for (let i = 1; i <= MAX_SUFFIX; i++) {
     const file = base + (i === 1 ? '' : '-' + i) + '.json';
     const full = path.join(dir, file);
-    try { f.writeFileSync(full, body, { encoding: 'utf8', flag: 'wx' }); }
+    let fd;
+    try { fd = f.openSync(full, 'wx'); }
     catch (e) {
       if (e && e.code === 'EEXIST') continue;
-      dropPartial(f, full);
       return { ok: false, error: describeWriteError(e, dir), dir };
     }
-    let back;
-    try { back = f.readFileSync(full, 'utf8'); } catch (e) { back = null; }   // unreadable = unproven, below
-    if (back !== body) {
-      dropPartial(f, full);
-      return { ok: false, error: 'the file written to ' + dir + ' did not read back intact', dir };
+    let owned = null, error = null;
+    try {
+      owned = f.fstatSync(fd);
+      f.writeFileSync(fd, body, { encoding: 'utf8' });
+      const back = f.readFileSync(full, 'utf8');
+      const current = f.lstatSync(full);
+      if (back !== body || !current.isFile() || current.dev !== owned.dev || current.ino !== owned.ino) {
+        error = 'the file written to ' + dir + ' did not read back intact';
+      }
+    } catch (e) { error = describeWriteError(e, dir); }
+    const cleaned = error ? dropPartial(f, full, owned) : true;
+    try { f.closeSync(fd); } catch (e) { error = error || describeWriteError(e, dir); }
+    if (error) {
+      return { ok: false, error: error + (cleaned ? '' : '; cleanup could not be confirmed at ' + full), dir };
     }
     return { ok: true, path: full, file, dir, bytes: Buffer.byteLength(body, 'utf8') };
   }

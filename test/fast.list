@@ -449,6 +449,7 @@ test/save.test.js
 test/saveversion.test.js
 test/backup-secrets.test.js
 test/station-export-location.test.js
+test/export-file-ownership.test.js
 test/schema-stamp.test.js
 test/rename-migrate.test.js
 test/update-state-parity.test.js
