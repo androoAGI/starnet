@@ -348,9 +348,14 @@
     const agoText = ms => { const m = Math.round(ms / 60000); return m < 1 ? 'just now' : m < 60 ? m + 'm ago' : m < 2880 ? Math.round(m / 60) + 'h ago' : Math.round(m / 1440) + 'd ago'; };
     // the clock is INJECTED (sidecar determinism law); without one, "how long ago" is not claimed at all
     const clock = typeof deps.now === 'function' ? deps.now : null;
-    // a bay's last run (line-stats docks): its result is how that run ENDED (endedOf) — a bay the provider cut never reads 'done'
-    const lastRun = (d, now) => ({ result: endedOf(d), failed: !!d.failed, at: d.ts ? new Date(d.ts).toISOString() : null,
-      ago: (d.ts && now != null) ? agoText(Math.max(0, now - d.ts)) : null, runId: d.runId || null });
+    // a bay's last run (line-stats docks): its result is how that run ENDED (endedOf) — a bay the provider cut never reads 'done'. Its flags are the
+    // line's own counts: a dead run that FAILED is failed, one a refusal, a spend cap or a step limit ended is unfinished, and a cut bay (dead to
+    // neither count, d.failed false) is neither. d.failed stays the dead-run set: linewatch seeds the lamp from it.
+    const lastRun = (d, now) => {
+      const oc = d.outcome || (RunOutcome ? RunOutcome.ofRow(d).outcome : 'failed');
+      return Object.assign({ result: endedOf(d), failed: !!d.failed && oc === 'failed' }, d.failed && oc !== 'failed' ? { unfinished: true } : {}, {
+        at: d.ts ? new Date(d.ts).toISOString() : null, ago: (d.ts && now != null) ? agoText(Math.max(0, now - d.ts)) : null, runId: d.runId || null });
+    };
     function completeLayout(r, now) {
       const ro = r.routing || (r.routing = { state: 'unknown', note: 'The page could not say whether the router holds this floor.' });
       const held = call(lf.routed);
@@ -368,7 +373,7 @@
         if (b) { L.budget = { maxHops: b.maxHops, maxUsdPerMessage: b.maxUsdPerMessage, maxUsdPerDay: b.maxUsdPerDay == null ? null : b.maxUsdPerDay }; if (b.clamped && b.clamped.length) L.budget.clamped = b.clamped; }
         const t = byLine[L.lineId];
         if (t) {
-          L.today = { runs: t.runs, shipped: t.shipped, failed: t.failed, tests: t.tests, usd: t.usdToday, capUsdPerDay: t.capUsdPerDay, medianMs: t.medianMs, day: t.spendDay === 'utc' ? 'UTC day' : 'local day' };
+          L.today = { runs: t.runs, shipped: t.shipped, failed: t.failed, unfinished: t.unfinished, tests: t.tests, usd: t.usdToday, capUsdPerDay: t.capUsdPerDay, medianMs: t.medianMs, day: t.spendDay === 'utc' ? 'UTC day' : 'local day' };
           // shipped null = UNKNOWN (the shipment history could not be read) — said, so the lead never reports it as nothing shipped
           if (t.shipped == null && t.shippedUnknown) L.today.shippedUnknown = String(t.shippedUnknown);
           // a LOWER BOUND (some of today's jobs have no saved record): said, so the lead never reports it as the exact count

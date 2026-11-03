@@ -370,28 +370,36 @@ const detail = async (o, line) => (await layout(o, { line: line || 'draft & revi
     const { st, bays } = creative(['drafter', 'reviewer'], true);
     const key = lineKeyOf(st), now = Date.now();
     const facts = { routed: FACTS.routed, budget: id => (id === key ? { maxHops: 4, maxUsdPerMessage: 1, maxUsdPerDay: 5, clamped: [] } : null),
-      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: 1, failed: 1, tests: 2, usdToday: 0.1234, capUsdPerDay: 5, medianMs: 42000, spendDay: 'utc' }],
+      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: 1, failed: 1, unfinished: 1, tests: 2, usdToday: 0.1234, capUsdPerDay: 5, medianMs: 42000, spendDay: 'utc' }],
         docks: { [bays[0]]: { runId: 'r1', reason: 'budget', failed: true, ts: now - 5 * 60000 } } }) };
     const L = (await layout({ app: app(st, []), facts })).r.lines[0];
     A.eq(L.budget, { maxHops: 4, maxUsdPerMessage: 1, maxUsdPerDay: 5 }, 'the effective budget');
-    A.eq(L.today, { runs: 3, shipped: 1, failed: 1, tests: 2, usd: 0.1234, capUsdPerDay: 5, medianMs: 42000, day: 'UTC day' }, 'today\'s numbers, with the day they are counted in');
+    A.eq(L.today, { runs: 3, shipped: 1, failed: 1, unfinished: 1, tests: 2, usd: 0.1234, capUsdPerDay: 5, medianMs: 42000, day: 'UTC day' }, 'today\'s numbers, with the day they are counted in');
     A.eq(L.steps[0].lastRun, 'budget, 5m ago', 'the Bay\'s last run, as the lamp reads it');
     A.eq((await layout({ app: app(st, []), facts, now: null })).r.lines[0].steps[0].lastRun, 'budget', 'with no injected clock, "how long ago" is never guessed');
     const D = await detail({ app: app(st, []), facts });
-    A.eq([D.steps[0].lastRun.result, D.steps[0].lastRun.failed, D.steps[0].lastRun.runId], ['budget', true, 'r1'], 'the detail carries the run id to look it up');
+    A.eq([D.steps[0].lastRun.result, D.steps[0].lastRun.failed, D.steps[0].lastRun.unfinished, D.steps[0].lastRun.runId], ['budget', false, true, 'r1'], 'the detail carries the run id to look it up, and a spend cap is unfinished, as the line counts it');
+    // the detail's flags are the line's counts: a dead run that failed, one a limit ended with its outcome on the dock, and a cut bay, dead to neither
+    const dock = async d => (await detail({ app: app(st, []), facts: Object.assign({}, facts, { today: () => ({ lines: [], docks: { [bays[0]]: d } }) }) })).steps[0].lastRun;
+    const crash = await dock({ runId: 'r2', reason: 'error', outcome: 'failed', failed: true, ts: now });
+    A.eq([crash.result, crash.failed, crash.unfinished], ['error', true, undefined], 'a failed bay is failed, never unfinished');
+    const capped = await dock({ runId: 'r3', reason: 'error', outcome: 'out_of_budget', failed: true, ts: now });
+    A.eq([capped.failed, capped.unfinished], [false, true], 'the dock\'s own outcome decides, not its word');
+    const cut = await dock({ runId: 'r4', reason: 'done', outcome: 'cut_short', failed: false, ts: now });
+    A.eq([cut.result, cut.failed, cut.unfinished], ['cut_short', false, undefined], 'a cut bay is neither: the line counts it in neither');
     const r = (await layout({ app: app(st, []), facts: {} })).r;
     A.eq(r.todayUnread, true, 'no stats reader: today is said to be unread, never zero');
     // (runtime audit 2026-10-12) an unreadable shipment history: SHIPPED is unknown (null + why), the other numbers still stand
     const why = 'shipment history unreadable: shipment history could not be read (invalid)';
     const unread = { routed: FACTS.routed, budget: facts.budget,
-      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: null, shippedUnknown: why, failed: 1, tests: 0, usdToday: 0.5, capUsdPerDay: 5, medianMs: null, spendDay: 'utc' }], docks: {}, shippedUnknown: why }) };
+      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: null, shippedUnknown: why, failed: 1, unfinished: 0, tests: 0, usdToday: 0.5, capUsdPerDay: 5, medianMs: null, spendDay: 'utc' }], docks: {}, shippedUnknown: why }) };
     const U = (await layout({ app: app(st, []), facts: unread })).r.lines[0];
-    A.eq(U.today, { runs: 3, shipped: null, failed: 1, tests: 0, usd: 0.5, capUsdPerDay: 5, medianMs: null, day: 'UTC day', shippedUnknown: why }, 'an unknown SHIPPED is said with its reason, never as 0, and the rest still counts');
+    A.eq(U.today, { runs: 3, shipped: null, failed: 1, unfinished: 0, tests: 0, usd: 0.5, capUsdPerDay: 5, medianMs: null, day: 'UTC day', shippedUnknown: why }, 'an unknown SHIPPED is said with its reason, never as 0, and the rest still counts');
     // (runtime repair 2026-10-12) a LOWER BOUND (some of today's shipped jobs have no saved record) is said, never as the exact count
     const low = { routed: FACTS.routed, budget: facts.budget,
-      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: 5000, shippedAtLeast: true, failed: 0, tests: 0, usdToday: 0.5, capUsdPerDay: 5, medianMs: null, spendDay: 'utc' }], docks: {}, shippedAtLeast: true }) };
+      today: () => ({ lines: [{ lineId: key, runs: 3, shipped: 5000, shippedAtLeast: true, failed: 0, unfinished: 0, tests: 0, usdToday: 0.5, capUsdPerDay: 5, medianMs: null, spendDay: 'utc' }], docks: {}, shippedAtLeast: true }) };
     const Lo = (await layout({ app: app(st, []), facts: low })).r.lines[0];
-    A.eq(Lo.today, { runs: 3, shipped: 5000, failed: 0, tests: 0, usd: 0.5, capUsdPerDay: 5, medianMs: null, day: 'UTC day', shippedAtLeast: true }, 'a lower-bound SHIPPED reaches the lead marked as at least');
+    A.eq(Lo.today, { runs: 3, shipped: 5000, failed: 0, unfinished: 0, tests: 0, usd: 0.5, capUsdPerDay: 5, medianMs: null, day: 'UTC day', shippedAtLeast: true }, 'a lower-bound SHIPPED reaches the lead marked as at least');
   }
 
   /* ---- 18. the answer FITS the model's budget, as valid JSON, and names what it left out ---- */

@@ -155,7 +155,7 @@ function twoStagePlan() {
     const lineId = Pipeline.lineOf(plan, 'research-agent');
     let st = await call('GET', '/api/routing/lines/stats?since=' + t0);
     let L = (st.j.lines || []).find(l => l.lineId === lineId);
-    A.eq(L, { lineId, runs: 0, shipped: 0, failed: 0, tests: 0, medianMs: null, usdToday: 0, capUsdPerDay: 5, spendDay: 'utc' }, 'a line with no work answers zeros + its cap (and names its UTC spend day)');
+    A.eq(L, { lineId, runs: 0, shipped: 0, failed: 0, unfinished: 0, tests: 0, medianMs: null, usdToday: 0, capUsdPerDay: 5, spendDay: 'utc' }, 'a line with no work answers zeros + its cap (and names its UTC spend day)');
 
     /* ---- 3. a clean sample through the line ---- */
     const s1 = await call('POST', '/api/routing/sample', { line: lineId, text: 'FIRST JOB: summarize the notes.' });
@@ -182,7 +182,8 @@ function twoStagePlan() {
     st = await call('GET', '/api/routing/lines/stats?since=' + t0);
     L = st.j.lines.find(l => l.lineId === lineId);
     A.eq(L.runs, rows.length, 'runs == the stamped /api/runs rows (' + rows.length + ')');
-    A.eq(L.failed, failedRows.length, 'failed == the failed stamped rows');
+    A.eq(L.failed + L.unfinished, failedRows.length, 'failed + unfinished == the dead stamped rows');
+    A.eq(L.unfinished, 0, 'the writer\'s error is a failure, not an unfinished run');
     A.eq(st.j.docks.b2.failed, true, 'bay b2: last outcome FAILED (the lamp stays red until the next success)');
     A.eq(st.j.docks.b2.runId, failedRows[0].runId, 'bay b2 names the failed run');
     A.eq(st.j.docks.b1.failed, false, 'bay b1 is unaffected');
