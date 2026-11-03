@@ -97,7 +97,7 @@ function startModel() {
       if (last.includes('LINE-START')) return said('HOP-PAYLOAD gathered for the writer');
       // the overseer's lead (test/helpers/overseer-provider.js's default path): brief, a working session, a background dispatch
       if (last.includes('WORKER_PROOF')) return said('WORKER_FINDINGS: two verified observations.');
-      if (last.includes('OVERSEER-CELL')) {
+      if (last.includes('OVERSEER-CELL') || last.includes('FOREGROUND-CELL')) {
         const lastUserIndex = messages.map(m => m && m.role).lastIndexOf('user');
         const calls = messages.slice(lastUserIndex + 1).filter(m => m && m.role === 'assistant').flatMap(m => m.tool_calls || []).map(t => t.function && t.function.name);
         const system = messages.filter(m => m && m.role === 'system').map(m => m.content).join('\n');
@@ -105,7 +105,7 @@ function startModel() {
         const workerId = crew ? crew[1] : 'mira_custom';
         if (!calls.includes('brief_proceed')) return call('brief_proceed', { objective: 'Delegate research and review the findings', deliverable: 'Research findings' });
         if (!calls.includes('session_create')) return call('session_create', { title: 'Research proof', agentId: workerId });
-        if (!calls.includes('team_dispatch')) return call('team_dispatch', { workers: [{ agentId: workerId, session: 'Research proof', prompt: 'WORKER_PROOF: return two findings' }], background: true });
+        if (!calls.includes('team_dispatch')) return call('team_dispatch', { workers: [{ agentId: workerId, session: 'Research proof', prompt: last.includes('FOREGROUND-CELL') ? 'FG-WORKER_PROOF: return two findings' : 'WORKER_PROOF: return two findings' }], background: !last.includes('FOREGROUND-CELL') });
         return said('Research started. You can keep talking here.');
       }
       return said('Done.');
@@ -364,6 +364,11 @@ function startModel() {
     // ---- the overseer's review (driven without runOnce, admitted at its own site) ----
     await cell('overseer-review', (last, words, body) => /^Review the background work/.test(last), () => desk('home', 'OVERSEER-CELL Delegate research and review the findings'),
       { heldMs: 40000, mark: 'Review the background work', source: 'overseer' });
+
+    // A foreground dispatch was the removed host-only registry's distinctive member. Hold the actual worker while its
+    // lead awaits it: the table, snapshot and phone must still list the worker and keep manager-owned STOP semantics.
+    await cell('foreground-worker', userSaid('FG-WORKER_PROOF'), () => desk('rt-fg', 'FOREGROUND-CELL Delegate research and wait for the findings'),
+      { heldMs: 40000, mark: 'FG-WORKER_PROOF', manager: true, source: 'delegated', live: 2 });
 
     // ---- a background worker (team.spawn background:true; its manager owns its stop; after the review cell, so a review of its
     //      work, if one follows, is answered and never mistaken for the cell above) ----

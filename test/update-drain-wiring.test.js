@@ -118,7 +118,7 @@ function host() {
   const bare = calls.filter(c => c === 'runOnceCore(').length;
   // two bare mentions are allowed: the declaration `async function runOnceCore(o)` and the counted wrapper's own call
   A.eq(bare, 2, 'every runOnceCore caller goes through runOnceCoreCounted (only the declaration + the wrapper are bare)');
-  A.ok(calls.filter(c => c === 'runOnceCoreCounted(').length >= 4, 'the overseer review and both runOnceTrackedInner paths are counted');
+  A.eq(calls.filter(c => c === 'runOnceCoreCounted(').length, 3, 'the overseer review and runOnce browser-release belt call the counted core');
   const wrap = A.fnBody(src, 'async function runOnceCoreCounted(');
   A.ok(/coreRunsLive\+\+/.test(wrap) && /finally \{ coreRunsLive--; \}/.test(wrap), 'the counter covers the whole runOnceCore lifetime, finalizer included');
 }
@@ -140,10 +140,16 @@ function host() {
 // a DELEGATED foreground worker (parentRunId) is a live run too: without it the snapshot never listed the worker and the
 // 30 s reconcile painted its CREW card "idle" through its whole run (live walkthrough 2026-10-13)
 {
-  const src = readSidecarSource();
-  const inner = src.slice(src.indexOf('async function runOnceTrackedInner(o) {'), src.indexOf('/* UPDATE DRAIN (B10)'));
-  A.ok(inner.indexOf("const fgWorker = !!(o.parentRunId && typeof o.steer !== 'function');") >= 0 && inner.indexOf('!(o.lineId || o.dockId || fgWorker)') >= 0, 'a FOREGROUND delegated worker run registers in hostLiveRuns (the snapshot lists it); a background one stays listed by the subagent manager');
-  A.ok(inner.indexOf("source: fgWorker && !(o.lineId || o.dockId) ? 'delegated' : 'host'") >= 0, 'and is marked as a delegated run, not a line run');
+  const h = host();
+  const foreground = h.runTable.admit(RunTable.metaOf({ runId: 'fg-worker', agentId: 'research', parentRunId: 'lead' }));
+  A.eq(h.runTable.live().map(r => [r.runId, r.source, r.delegated]), [['fg-worker', 'delegated', true]], 'the table lists the foreground delegated worker with its owner facts');
+  A.eq(h.fns.updateLiveRunCount(), 1, 'the foreground worker holds the update barrier without a second host registry');
+  foreground.release();
+  const background = h.runTable.admit(RunTable.metaOf({ runId: 'bg-worker', agentId: 'research', parentRunId: 'lead', steer() {} }));
+  A.eq(h.runTable.live().map(r => [r.runId, r.source, r.delegated]), [['bg-worker', 'subagent', true]], 'a background worker keeps its manager-owned source');
+  A.eq(h.runTable.stoppable('bg-worker'), false, 'the table never offers a stop that bypasses the delegated manager');
+  background.release();
+  A.eq(h.fns.updateLiveRunCount(), 0, 'both workers release their update barrier admissions');
 }
 
 A.report('update-drain-wiring.test');

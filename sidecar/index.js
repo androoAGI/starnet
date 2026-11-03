@@ -21940,12 +21940,6 @@ async function runOnceQueued(o, run) {
   }
   run.running(); return runOnceTrackedBelt(o);
 }
-/* HOST RUNS ARE LIVE RUNS (sweep 2026-09-25). The hubs (line triggers, the sample, the dev injector), the chain hops,
-   the step test and the routine hops drive runOnce with their OWN run ids — most never enter runsMeta, so GET
-   /api/state/snapshot did not list them and the floor's 30 s reconcile stood their bay lamp down to IDLE mid-run (and
-   then ignored the run's real end). The run table now lists every run runOnce drives (the snapshot and the phone read
-   it); this older registry of LINE runs stays only for the diagnostics superset check until it is retired. */
-const hostLiveRuns = new Map();   // runId -> { agentId, startedAt, source }
 /* What a routine hop that ended 'cancelled' says on its record. Its stop came through its run-table stop: the Commander's STOP or
    E-STOP, OR the station's own process-fault containment (quiesceForProcessFault stops every run-table entry), and a fault stop
    is named as the fault, never "you" (halt.js markFaulted's law; the same faulted() reading the trigger and hand-off runners
@@ -21962,24 +21956,11 @@ async function runOnceTrackedBelt(o) {
   // BELT for the station browser: whatever way a run leaves (a throw before its own cleanup included), it must not
   // stay the browser's "driver" — that would lock the Commander out of their own browser. releaseRun is a no-op for
   // a run that never drove it.
-  try { return await runOnceTrackedInner(o); }
+  try { return await runOnceCoreCounted(o); }
   finally { if (o && o.runId) { try { browserViews.releaseRun(String(o.runId)); } catch (e) { failNote('browser-view.release-belt', e); } } }
 }
-async function runOnceTrackedInner(o) {
-  const rid = o && o.runId ? String(o.runId) : '';
-  // LINE work and DELEGATED workers (a run the host stamped with its line or bay, or a team.dispatch worker under a lead):
-  // harness self-talk and plain chats keep their own registries — this map exists so a bay lamp / a crew card is never
-  // stood down while its run is really working. A foreground dispatch worker was in none of the snapshot's sources, so
-  // the 30 s reconcile painted RESEARCH "idle" through its whole 42-step run (live walkthrough 2026-10-13).
-  // (a BACKGROUND worker carries its manager's steer and is listed by the subagent manager as source 'subagent' — not here)
-  const fgWorker = !!(o.parentRunId && typeof o.steer !== 'function');
-  if (!rid || hostLiveRuns.has(rid) || !(o.lineId || o.dockId || fgWorker) || o.internal || o.outputOnly) return runOnceCoreCounted(o);
-  hostLiveRuns.set(rid, { agentId: String((o && o.agentId) || 'agent'), startedAt: Date.now(), source: fgWorker && !(o.lineId || o.dockId) ? 'delegated' : 'host' });
-  try { return await runOnceCoreCounted(o); }
-  finally { hostLiveRuns.delete(rid); }
-}
 /* UPDATE DRAIN (B10): every runOnceCore in flight, whichever registry its caller keeps — the browser's `runs`, routine and
-   hop runsMeta, line hostLiveRuns, the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
+   hop runsMeta, the channel hubs, /v1, background workers. A run opens AND settles its spend receipt
    inside runOnceCore (budget.check -> ledger.beginRun, the finally's ledger.record), so the pre-update barrier waits on
    this count before it freezes durable writes. */
 let coreRunsLive = 0;
@@ -27068,12 +27049,12 @@ function harnessSnapshotForRun(runtime) {
   }).snapshot(runtime);
 }
 
-/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's runs and runsMeta, line
-   hostLiveRuns, every hub inflight record E-STOP reaches, the background workers — and the ones the table does not (missing). The stop
+/* THE RUN TABLE IS A SUPERSET (run-table lane): the run ids every legacy registry holds — the browser's runs and runsMeta,
+   every hub inflight record E-STOP reaches, the background workers — and the ones the table does not (missing). The stop
    handles are the table's own now (S3). Retired with those registries; until then a report pasted from a live station says whether it holds. */
 function runTableCheck() {
   try {
-    const ids = [...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys()];
+    const ids = [...runs.keys(), ...runsMeta.keys()];
     const hubs = [telegram && telegram.hub, discord && discord.hub, devHub, sampleHub, ...[...telegramBots.values()].map(w => w && w.hub), ...GENERIC_CHANNEL_IDS.map(id => genericChannels[id] && genericChannels[id].hub)];
     const inflights = hubs.map(h => h && h._internals && h._internals.inflight).concat(stepTest ? [stepTest.inflight] : [], triggerRunner.inflights(), handoffRunner ? handoffRunner.inflights() : []);
     for (const m of inflights) if (m && typeof m.values === 'function') for (const r of m.values()) if (r && r.runId) ids.push(String(r.runId));
