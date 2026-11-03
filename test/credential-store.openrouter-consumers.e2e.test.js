@@ -292,8 +292,12 @@ const toolOk = (events, name) => { const r = events.find(e => e.name === 'agent.
       A.eq((await s.engineKey({ provider: 'openai', key: K.openai })).status, 200, 'edge: the page saves an OpenAI key with no endpoint of its own');
       const r = await s.tts({ text: 'A sentence for the public host.' });
       A.eq(r.status, 200, 'edge: /api/tts answers (the 200-always media contract)');
-      A.eq(s.edge().filter(e => e.credentials.includes('Bearer ' + K.openai)).map(e => e.host + e.path), ['api.openai.com/v1/audio/speech'],
-        'edge: a voice leg dials through its own dispatcher (media-service voiceFetchOpts), and the edge records it: a global dispatcher alone would have let it out');
+      A.eq(s.edge().filter(e => e.credentials.includes('Bearer ' + K.openai)).map(e => e.host + e.path), Array(3).fill('api.openai.com/v1/audio/speech'),
+        'edge: the transient 503 uses the shared ladder\'s two bounded retries, all through the same credential-scoped voice dispatcher');
+      const declined = JSON.parse(r.bytes.toString('utf8'));
+      A.eq([declined.fallback, declined.retried], [true, true], 'edge: the actual response reports its failed, retried voice ladder');
+      A.ok(declined.outcome.legs.some(leg => leg.engine === 'openai' && leg.code === 'upstream_unavailable' && leg.http === 503),
+        'edge: the typed outcome retains the synthetic OpenAI 503, rather than claiming generated speech');
 
       // 5. the same key, saved with the default endpoint, is what native voice is for
       const voice = (await s.fx.json('GET', '/api/realtime/status?provider=openai')).body;
