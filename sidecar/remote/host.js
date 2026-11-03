@@ -22,6 +22,7 @@
      approval.opened / approval.closed            from the shared registry
      station      { name, payload }               the station floor's own redacted feed (SSE tee) */
 'use strict';
+const SteeringMessage = require('../../frontend/app/steering-message.js');
 
 const { note } = require('../failopen.js');
 const { withVoiceStyle } = require('./voice-style.js');
@@ -90,6 +91,17 @@ function makeRemoteHost(d) {
      order, a station turn with a twin enriches it, and a turn the desk never saw is inserted after the last row a
      station turn matched. Nothing is dropped and nothing is reordered. */
   function mergeCanonical(local, turns) {
+    local = (Array.isArray(local) ? local : []).slice();
+    const incomingSteers = (Array.isArray(turns) ? turns : []).filter(t => t && t.role === 'user' && t.steeringWire);
+    for (const t of incomingSteers) {
+      const echo = '[steering] ' + t.steeringWire;
+      if (!local.some(m => m && String(m.sourceRunId || '') === String(t.sourceRunId || '') &&
+          ((m.steerEcho && m.content === echo) || (m.role === 'assistant' && ('\n' + m.content + '\n').includes('\n' + echo + '\n'))))) {
+        local.push({ ...t, role: 'system', sys: true, steerEcho: true, content: echo });
+      }
+    }
+    turns = (Array.isArray(turns) ? turns : []).filter(t => !(t && t.role === 'user' && t.steeringWire));
+
     // Only the canonical final row can supersede saved prose, and only by explicit run identity.
     const finals = new Map(), finalSlots = new Map();
     const sameRun = (a, b) => !!a.sourceRunId && String(a.sourceRunId) === String(b.sourceRunId)
@@ -238,7 +250,7 @@ function makeRemoteHost(d) {
     const w = deskSessions().find(x => x.id === streamId);
     const local = (w && Array.isArray(w.history) ? w.history : []).map(r => (r && typeof r.content === 'string') ? Object.assign({}, r, { content: redactText(r.content) }) : r);
     const st = stationTurns(streamId);
-    const all = (local.length ? mergeCanonical(local, st) : st).filter(isProse);
+    const all = SteeringMessage.displayRows(local.length ? mergeCanonical(local, st) : st).filter(isProse);
     return Number(limit) > 0 ? all.slice(-Number(limit)) : all;
   }
   const lastUserLine = (turns) => { for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'user') return clip(turns[i].content.replace(/\s+/g, ' ').trim(), 140); return ''; };

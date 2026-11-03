@@ -443,6 +443,7 @@
         content: content,
         ts: num(e.ts) || clock.now()
       };
+      if (e.role === 'user' && typeof e.steeringWire === 'string') entry.steeringWire = str(redact(e.steeringWire)).slice(0, 700000);
       // H1.1: optional structured fields so a RESUME can rebuild the EXACT OpenAI-format turn — an assistant's
       // tool_calls and a tool result's tool_call_id. Redacted like content; absent fields => byte-identical to before.
       if (e.toolCalls != null) {
@@ -506,7 +507,7 @@
       for (let i = Math.max(0, num(fromIndex)); i < messages.length; i++) {
         const m = messages[i];
         if (!m || !ROLES.has(m.role) || m.role === 'system') continue;
-        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id });
+        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id });
         n++;
       }
       return n;
@@ -525,7 +526,7 @@
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         markPersisted([m]);                                    // mark BEFORE the role filter so fences aren't re-checked
         if (!ROLES.has(m.role) || m.role === 'system') continue;
-        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState });
+        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState });
         n++;
       }
       return n;
@@ -541,7 +542,7 @@
       for (const m of messages) {
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         if (!ROLES.has(m.role) || m.role === 'system') { markPersisted([m]); continue; }
-        appendStrict({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null });
+        appendStrict({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null });
         markPersisted([m]);
         n++;
       }

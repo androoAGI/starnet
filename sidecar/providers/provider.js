@@ -807,7 +807,7 @@
      user, tool and assistant content too, and inside a host message's own body; a host system message keeps exactly
      its outer fence, whatever its tag (a tool's stop prompt names its own, e.g. <terminal_domain>). Add a tag here
      when the loop (or a recovery path) starts sending a new fenced host message. */
-  const LOOP_HOST_TAGS = ['steering_note', 'task_list', 'hook_context', 'iteration_limit', 'memory_receipt', 'tool_markup',
+  const LOOP_HOST_TAGS = ['mid_task_message', 'resume_after_message', 'steering_note', 'task_list', 'hook_context', 'iteration_limit', 'memory_receipt', 'tool_markup',
     'continue_after_tools', 'empty_reply', 'continuation', 'failure_recovery', 'verify_before_done', 'verify_external_before_done',
     'verify_sources_before_done', 'acceptance_before_done', 'terminal_evidence', 'terminal_domain', 'loop_guard', 'failure_streak',
     'no_progress', 'failed_check_repair', 'output_continuation', 'automatic_recovery', 'operator_resolution', 'host_turn'];

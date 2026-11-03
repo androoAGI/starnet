@@ -2278,7 +2278,7 @@ function drainSteer(runId) { return steerBufs.drain(runId); }
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {
   const id = String(runId || '');
-  const out = steerBufs.post(id, text, !!id && (runs.has(id) || runStopHandles.has(id)));
+  const out = steerBufs.post(id, text, !!id && (runs.has(id) || runStopHandles.has(id)), 'channel_' + crypto.randomUUID(), { text, attachments: [] });
   return { ok: out.status === 200, status: out.status };
 }
 function closeSteer(runId) { return steerBufs.close(runId); }
@@ -25201,6 +25201,11 @@ async function runOnceCore(o) {
       },
       todoNote: () => Todo.formatForInjection(notebookStore, agentId),   // re-inject the active task plan after a compaction
       steer: typeof o.steer === 'function' ? o.steer : () => drainSteer(runId),   // live parent or generation-bound worker steering
+      prepareSteer: async note => {
+        if (note.attachments && note.attachments.length) execution.latchTaint('mid-task user attachments');
+        const expanded = await attachments.expandForRun([{ role: 'user', content: note.text, attachments: note.attachments }], agentId, o.projectRoot);
+        return expanded[0];
+      },
       // the parent's buffer closes as the loop ends (a worker's generation-bound steer has its own running gate)
       steerClose: typeof o.steer === 'function' ? null : () => closeSteer(runId),
       signal: signal, clock: { now: () => Date.now() }, random: Math.random,   // retry-ladder jitter source (loop.js never reads ambient randomness)
@@ -26654,12 +26659,12 @@ async function handleCancel(req, res) {
 // Bounded to STEER_MAX_PENDING pending notes per run. The success shape {ok:true, pending} is unchanged.
 async function handleRunSteer(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  let body; try { body = JSON.parse(await readBody(req, 1 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const runId = String(body.runId || '');
   const text = String(body.text == null ? '' : body.text).trim();
   // in flight = a desk run (`runs`) or any run runOnce is still driving (a routine/line/hub run has a stop handle, QA 2026-10-02)
   // noteId: the page's own id for a SEND NOW line, so it can ask afterwards whether the run read it (GET below)
-  const out = steerBufs.post(runId, text, !!runId && (runs.has(runId) || runStopHandles.has(runId)), body.noteId);
+  const out = steerBufs.post(runId, text, !!runId && (runs.has(runId) || runStopHandles.has(runId)), body.noteId, body.message);
   json(out.status, out.body);
 }
 

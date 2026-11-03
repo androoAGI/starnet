@@ -144,7 +144,7 @@ function setup() {
   {
     const fs = require('fs'), path = require('path');
     const idx = readSidecarSource();
-    A.ok(/steerBufs\.post\(runId, text, [^\n]*, body\.noteId\)/.test(idx), 'POST /api/run/steer hands the buffer the page\'s noteId');
+    A.ok(/steerBufs\.post\(runId, text, [^\n]*, body\.noteId, body\.message\)/.test(idx), 'POST /api/run/steer hands the buffer the page\'s noteId');
     A.ok(/\{ m: 'GET', qsplit: '\/api\/run\/steer', h: handleRunSteerStatus \}/.test(idx), 'GET /api/run/steer is routed');
     const h = A.fnBody(idx, 'function handleRunSteerStatus(req, res)');
     A.ok(h.length > 50 && /steerNoteStatus\(/.test(h) && /steerBufs\.status\(runId\)/.test(h) && /runStore\.latest\(runId\)/.test(h), 'it answers from the buffer, then the run record');

@@ -10,6 +10,8 @@ many of these — they win on any wording conflict.
 
 ## Product
 
+- **Ordinary mid-task messages automatically steer the current conversation (Andrew, 2026-11-03).** COMMS sends join the confirmed active run at its next model boundary, without a separate steering button. A status question gets a concise progress answer while the original objective continues; corrections update remaining work, and explicit pivots change the objective. Stop remains a separate immediate control; an in-flight action is never claimed cancelled by a steering receipt. Preserve full message text, attachment ownership, send order, and distinct message identity. Received is not proof of model action. Explicit `/queue` still requests a later turn. The initial implementation targets direct COMMS conversations and the existing direct-channel steering route; group dispatch and worker-generation controls retain their own admission paths.
+
 - **Feedback is critical, and it compounds (Andrew, 2026-10-01).** Every like and dislike the
   Commander gives must persist (survive restarts, no short TTLs, no RAM-only stores) and must reach
   later prompts, so agents converge on exactly how the Commander wants work done over months. A

@@ -279,7 +279,7 @@
         e.preventDefault();
         const inp = bar.querySelector('.app-change');
         const r = change(id, inp.value);
-        if (r.ok) { inp.value = ''; held.delete(id); notify(r.state === 'queued' ? 'Queued — your crew takes it when the current task finishes.' : 'Sent to your crew — follow along in COMMS.'); paintAll(id); }
+        if (r.ok) { inp.value = ''; held.delete(id); notify(r.state === 'pending' ? 'Message waiting for delivery to your crew — follow along in COMMS.' : 'Sent to your crew — follow along in COMMS.'); paintAll(id); }
         else if (r.state !== 'empty') notify('COMMS is not ready yet — your text is kept here; press the button again in a moment.', 'warn');
       });
       bar.querySelector('.app-refresh').addEventListener('click', () => refreshNow(id));
@@ -437,7 +437,7 @@
         const out = await create(name, what);
         nameEl.value = ''; whatEl.value = '';
         msg.textContent = out.sent.ok
-          ? (out.sent.state === 'queued' ? 'Created — queued: your crew builds it when the current task finishes.' : 'Building — follow along in COMMS.')
+          ? (out.sent.state === 'pending' ? 'Created — your request is waiting for delivery to the running task.' : 'Building — follow along in COMMS.')
           : 'Created, but COMMS was not ready, so your crew does not have it yet. Your description is in the box under the app\'s window — press BUILD there.';
         rerenderList();
       } catch (e) { msg.textContent = (e && e.message) || String(e); }

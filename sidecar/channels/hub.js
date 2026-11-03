@@ -1738,7 +1738,7 @@
         // write, and the follow-up waits (held) while it would not. Joined and then replayed as a task of its own is twice
         if (inboxIds.length && !delivery.writable()) throw ledgerHeld();
         let steered = false;
-        try { const r = await steerRun(liveRun.runId, note); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
+        try { const r = await steerRun(liveRun.runId, String(msg.text || '')); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
         catch (e) { failNote('channels.hub.steer', e); steered = false; }
         if (steered) {
           settleNow();   // joined the working run: this message ends here, before its ack is on the wire
