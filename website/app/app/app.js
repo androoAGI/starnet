@@ -1798,6 +1798,14 @@ const App = (() => {
     if (Harness.sessionStale && Harness.sessionStale()) return 'the station restarted; reload this page';
     return '';
   }
+  /* #39: did the station's GATE refuse this page's key — one from before a restart that Harness's in-place recovery could not
+     replace, or none at all? Read through the ONE reading of a refused reply (Harness.classifyApiFailure: the gate's own code;
+     the bare status only from a station that names no refusal). A route's own 403 is not one. Only then is a reload this
+     page's way back: the boot path re-reads its key and re-runs every gate. */
+  function gateRefusedPage(reply) {
+    const f = Harness.classifyApiFailure ? Harness.classifyApiFailure(reply) : null;
+    return !!(f && (f.staleSession || f.tokenWithheld));
+  }
   async function loadModels(provider) {
     const p = normalizeProviderId(provider || pickedProvider);
     const countEl = el('model-count'), inp = el('in-model');
@@ -2799,7 +2807,7 @@ const App = (() => {
     // local-engine fault, not "the link service"; a sidecar reply carries its classification of the cloud failure.
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j, why: r ? Harness.api.why(r) : '' }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => {
         if (generation !== _starnetLinkGeneration) return;
@@ -5944,9 +5952,9 @@ const App = (() => {
         const timer = setInterval(async () => {
           try {
             const probe = await fetch('/api/save?agent=agent', { cache: 'no-store' });
-            // #39: a 403 that survives Harness's in-place token recovery means only a reload can reconnect — and the
-            // recovery itself is already done. Reload once (the timer dies here, so it can never loop).
-            if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
+            // #39: the gate's refusal of this page's key that survives Harness's in-place token recovery means only a reload
+            // can reconnect — and the recovery itself is already done. Reload once (the timer dies here, so it can never loop).
+            if (gateRefusedPage(probe)) { clearInterval(timer); location.reload(); return; }
             const body = probe.ok ? await probe.json() : null;
             if (body && body.save && body.save.agent) { clearInterval(timer); location.reload(); }
           } catch (_) {}
@@ -6034,9 +6042,9 @@ const App = (() => {
               const probe = await fetch('/api/lineage', { cache: 'no-store' });
               // #39: this poll used to swallow a 403 as "not ready yet" — but START FRESH's own restart mints a new token,
               // so the poll could never answer and the button greyed out forever after a SUCCESS. Harness now re-reads
-              // the token and replays; a 403 that still gets here means only a reload can reconnect, and the work is
-              // already done — reload once (the timer dies here, so it can never loop).
-              if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
+              // the token and replays; the gate's refusal of this page's key that still gets here means only a reload can
+              // reconnect, and the work is already done — reload once (the timer dies here, so it can never loop).
+              if (gateRefusedPage(probe)) { clearInterval(timer); location.reload(); return; }
               const body = probe.ok ? await probe.json() : null;
               if (body && body.lineage && body.lineage.priorInstallEvidence === false) { clearInterval(timer); location.reload(); }
             } catch (_) {}

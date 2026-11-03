@@ -3354,7 +3354,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const id = b.closest('.ws-bl-row').getAttribute('data-blid');
         b.disabled = true;   // re-queueing the SAME id un-parks it server-side (clears the failed-attempt count)
         Harness.api.post('/api/workshop/queue', { agentId: aid, id: id, title: b.getAttribute('data-title') || '' })
-          .then(() => loadWsLive())
+          .then(r => { if (!r.ok) notify('could not re-queue that: ' + Harness.api.why(r), 'bad'); loadWsLive(); })   // a refusal is an answer: say it
           .catch(() => { notify('could not reach the station', 'bad'); loadWsLive(); });
       }));
       wsLive.querySelectorAll('.ws-bl-review').forEach(b => b.addEventListener('click', () => {
@@ -7086,7 +7086,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // Same failure facts as the genesis LINK (app.js startStarnetLink): a dead local engine is never "the link service".
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j, why: r ? Harness.api.why(r) : '' }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
       .catch(e => {
@@ -9532,7 +9532,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const payload = { agentId: box.getAttribute('data-exec-agent'), host: (box.querySelector('[data-ssh-host]') || {}).value || '', user: (box.querySelector('[data-ssh-user]') || {}).value || '', port: Number((box.querySelector('[data-ssh-port]') || {}).value || 22), remoteRoot: (box.querySelector('[data-ssh-root]') || {}).value || '/workspace' };
           Harness.api.post('/api/execution/ssh', payload).then(r => {
             const j = r.j, ready = r.ok && j && j.ok === true && j.ready === true;
-            notify(ready ? 'SSH target saved and ready' : (r.ok && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
+            // a 200 {ok:false, saved:true} is the station's "saved, but the probe failed" (r.ok folds j.ok, so the 2xx is read by status)
+            notify(ready ? 'SSH target saved and ready' : (r.status >= 200 && r.status < 300 && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save SSH target', 'bad'); refreshExecutionProfiles(); });
         }));

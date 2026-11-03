@@ -41,7 +41,10 @@
     // the station's own up-front refusals (typed outcomes, the unpark: each names its code at the refusal): a routine whose
     // pre-check script did not pass or whose required skill is gone, an agent being deleted, a model that cannot run the task, an
     // image task with no STUDIO route — the run never started, and its message names the fix
-    routine_precheck: 1, routine_skill: 1, agent_deleting: 1, model_unsuitable: 1, image_blocked: 1 };
+    routine_precheck: 1, routine_skill: 1, agent_deleting: 1, model_unsuitable: 1, image_blocked: 1,
+    // the station refused the request and named it (truthful acks, X-StarNet-Code): a route's own refusal leads with its sentence,
+    // and a page whose address the gate refused is told the address to use — a resend is refused the same way
+    station_refused: 1, wrong_address: 1 };
   // …and the retryable kinds whose message names a door that is NOT StarNet's bug: an unanswered StarNet balance check,
   // a provider's outage or rate limit, an agent still busy with its last run. Their own message is the fix; a resend in a
   // moment CAN go through, so the cause must not say it won't (2026-10-08: a refused link / an unanswered balance check

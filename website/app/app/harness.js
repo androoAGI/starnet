@@ -246,8 +246,10 @@ const Harness = (() => {
      would drop it) and makes the refused save actually land. Exactly-once is safe: rejectBadApiToken answers BEFORE
      any route runs, so the refused request had no effect.
      NARROW BY CONSTRUCTION — it never swallows a real 403:
-       · only a 403 whose body is exactly 'forbidden token' (rejectBadApiToken's own reply) counts; a route's own
-         refusal ('forbidden', 'forbidden host/origin', JSON errors) passes through untouched;
+       · only the gate's KEY refusal counts: a 403 named token_stale (a key rode and was wrong) or token_missing (none
+         rode) in X-StarNet-Code (sidecar/respond.js). A station that names no refusal (an older one) is read by its body,
+         exactly 'forbidden token' (refuseAtGate's own reply). A route's own refusal ('forbidden', 'forbidden host/origin',
+         JSON errors, any other code) passes through untouched;
        · a replay needs PROOF of a rotation — the served page carries a token different from the one just refused;
          the same token back (or none) is a real fault, reported by onStale, never retried;
        · at most ONE replay per request and ONE in-flight page read shared by every concurrent 403, so no loop.
@@ -259,8 +261,17 @@ const Harness = (() => {
     const MARK = 'forbidden token';
     const TOKEN_RE = /window\.__STARNET_API_TOKEN__=("(?:[^"\\]|\\.)*")/;
     let inflight = null;
+    // the gate's own name for its refusal (a lower-case code); '' from a station that sends none
+    function gateCode(res) {
+      let c = '';
+      try { c = String((res && res.headers && typeof res.headers.get === 'function' && res.headers.get('X-StarNet-Code')) || '').trim(); } catch (_) { c = ''; }
+      return /^[a-z][a-z0-9_]{0,63}$/.test(c) ? c : '';
+    }
     function isStaleReply(res) {
-      if (!res || res.status !== 403 || typeof res.clone !== 'function') return Promise.resolve(false);
+      if (!res || res.status !== 403) return Promise.resolve(false);
+      const code = gateCode(res);
+      if (code) return Promise.resolve(code === 'token_stale' || code === 'token_missing');
+      if (typeof res.clone !== 'function') return Promise.resolve(false);
       let copy; try { copy = res.clone(); } catch (_) { return Promise.resolve(false); }   // the caller keeps an unread body
       return Promise.resolve(copy.text()).then(t => String(t || '').trim() === MARK, () => false);
     }
@@ -290,7 +301,7 @@ const Harness = (() => {
       return isStaleReply(res).then(stale => {
         if (!stale) return res;
         return refresh(sent).then(fresh => {
-          if (!fresh || fresh === sent) { if (o.onStale) o.onStale(); return res; }
+          if (!fresh || fresh === sent) { if (o.onStale) o.onStale(gateCode(res)); return res; }   // which refusal it was: its reader words it
           return replay ? replay(fresh) : res;   // an unreplayable (stream) body: the NEXT call carries the fresh token
         });
       });
@@ -303,29 +314,39 @@ const Harness = (() => {
      rotated its key and this page could not adopt it). A page the station kept its key from (state.tokenWithheld) is
      never "restarted" — a reload only re-runs the same ownership check — and any other 403 is the route's own
      refusal. state.sessionStale undefined = a caller with no recovery state, read as before (a stale session).
+     THE GATE'S CODE DECIDES (truthful acks): a station that names its refusals (X-StarNet-Code, sidecar/respond.js) says which
+     one it was — token_stale is a stale session, token_missing a page that carries no key (the withheld notice), anything else
+     the route's own refusal, worded as an answer, never "unreachable". The status reading above is the legacy one, kept for a
+     station that sends no code. `response` is a fetch Response, or a Harness.api result (its code; one this page made up
+     itself, http_<n> or bad_body, is no station's).
      Pure over its two arguments: Harness.classifyApiFailure binds the live state, and tests lift it by source.
-     → null for a reply that is not a failure, else { code, status, terminal, staleSession, tokenWithheld, message }. */
+     → null for a reply that is not a failure, else { code, status, terminal, staleSession, tokenWithheld, message, stationCode }. */
   function classifyApiFailure(response, state) {
     if (!response || response.ok !== false) return null;
     const s = state || {};
     const status = Number(response.status) || 0;
-    if (status === 403 && s.tokenWithheld) {
-      return { code: 'token_withheld', status, terminal: true, staleSession: false,
+    let station = '';
+    try { station = String((response.headers && typeof response.headers.get === 'function' ? response.headers.get('X-StarNet-Code') : response.code) || '').trim(); } catch (_) { station = ''; }
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(station) || /^(?:http_\d+|bad_body)$/.test(station)) station = '';   // a station code is a lower-case name
+    if (station ? station === 'token_missing' : (status === 403 && s.tokenWithheld)) {
+      return { code: 'token_withheld', status, terminal: true, staleSession: false, stationCode: station,
         tokenWithheld: s.withheldNotice || 'StarNet could not confirm this browser is yours — see the station notice.',
         message: 'this browser was not verified as your own account — see the station notice' };
     }
-    if (status === 403 && s.sessionStale !== false) {
-      return { code: 'stale_session', status, terminal: true, staleSession: true, tokenWithheld: '',
+    if (station ? station === 'token_stale' : (status === 403 && s.sessionStale !== false)) {
+      return { code: 'stale_session', status, terminal: true, staleSession: true, tokenWithheld: '', stationCode: station,
         message: 'the station restarted — reload the page to reconnect' };
     }
     if (status === 403) {
-      return { code: 'forbidden', status, terminal: true, staleSession: false, tokenWithheld: '',
-        message: 'the station refused this request (HTTP 403)' };
+      return { code: 'forbidden', status, terminal: true, staleSession: false, tokenWithheld: '', stationCode: station,
+        message: station === 'forbidden_origin' ? 'this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
+          : station === 'forbidden_host' ? 'StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
+          : 'the station refused this request (HTTP 403)' };
     }
     // no answer, a timeout, a rate limit or a server fault may clear on its own; any other status will not
     const transient = status === 0 || status === 408 || status === 429 || status >= 500;
-    return { code: transient ? 'station_unavailable' : 'http_error', status, terminal: !transient, staleSession: false, tokenWithheld: '',
-      message: 'unreachable (HTTP ' + status + ')' };
+    return { code: transient ? 'station_unavailable' : 'http_error', status, terminal: !transient, staleSession: false, tokenWithheld: '', stationCode: station,
+      message: !station ? 'unreachable (HTTP ' + status + ')' : (status >= 500 ? 'the station hit an error' : 'the station refused this request') + ' (HTTP ' + status + ')' };
   }
   // Set when a stale-token 403 could NOT be recovered in place — the one state where the honest answer is
   // "reload this page". Surfaces read it (Harness.sessionStale) so they stop blaming the network or the catalog.
@@ -424,8 +445,9 @@ const Harness = (() => {
       stationUI('settleNotifs', [STALE_KEY]);   // the "has not picked up its new key" alert is handled now
       stationNotify('The station service restarted — this page reconnected on its own.', 'good', { key: STALE_KEY });
     },
-    onStale: () => {
-      if (tokenWithheld) { noteTokenWithheld(); return; }   // not a restart: say why the key was kept, never "restarted"
+    onStale: code => {
+      // not a restart: a page the station kept its key from says why (the gate's token_missing: no key rode), never "restarted"
+      if (tokenWithheld || code === 'token_missing') { noteTokenWithheld(); return; }
       sessionStale = true;
       if (!staleNotified) { staleNotified = true; stationNotify(staleLine(), 'warn', { kind: 'alert', key: STALE_KEY, onClick: reloadThisPage }); }
     }
@@ -836,8 +858,9 @@ const Harness = (() => {
   /* #62: WHY a key check failed, in words. The sidecar's /api/providers/validate answers 200 with { error } for a
      provider verdict, but the route itself can be refused before it runs (403 forbidden origin/host/token, 423 frozen)
      with a non-JSON body — which used to fold into "the provider did not verify this key" while the provider was
-     never even asked. Name the station's refusal and its fix instead. PURE (test-locked). */
-  function keyCheckFailure(status, j, text) {
+     never even asked. Name the station's refusal and its fix instead. `code`: the gate's own name for it
+     (X-StarNet-Code); the body's words are read only from a station that sends none. PURE (test-locked). */
+  function keyCheckFailure(status, j, text, code) {
     j = j || {};
     if (j.error) return String(j.error);
     const t = String(text == null ? '' : text).trim().slice(0, 80);
@@ -845,10 +868,12 @@ const Harness = (() => {
     // a page the station KEPT its key from refuses every key save with 'forbidden token' too — that is not a restart
     // (review threads-backend-05). The typeof guard keeps this pure when a test lifts it on its own.
     const withheld = typeof tokenWithheld === 'string' && tokenWithheld;
-    const hint = /forbidden origin/.test(t) ? ' — this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
-      : /forbidden host/.test(t) ? ' — StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
-      : /forbidden token/.test(t) && withheld ? ' — this browser was not verified as running under your own user account, so the station kept its key from this page (see the notice)'
-      : /forbidden token/.test(t) ? ' — the station restarted since this page loaded; reload the page'
+    const gate = code ? String(code) : /forbidden origin/.test(t) ? 'forbidden_origin' : /forbidden host/.test(t) ? 'forbidden_host'
+      : /forbidden token/.test(t) ? (withheld ? 'token_missing' : 'token_stale') : '';
+    const hint = gate === 'forbidden_origin' ? ' — this page’s address doesn’t match the station; open StarNet at the exact address you forward to it'
+      : gate === 'forbidden_host' ? ' — StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname'
+      : gate === 'token_missing' ? ' — this browser was not verified as running under your own user account, so the station kept its key from this page (see the notice)'
+      : gate === 'token_stale' ? ' — the station restarted since this page loaded; reload the page'
       : '';
     return 'the station refused the key check (HTTP ' + status + (t && !/^[{<]/.test(t) ? ' ' + t : '') + ')' + hint;
   }
@@ -866,14 +891,14 @@ const Harness = (() => {
     const r = await fetch(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const text = await r.text().catch(() => '');
     let j = {}; try { j = JSON.parse(text) || {}; } catch (_) { j = {}; }
-    return { r, j, text };
+    return { r, j, text, code: typeof stationCodeOf === 'function' ? stationCodeOf(r) : '' };   // the gate's name for a refusal
   }
   async function validateAndSetKeyPool(keys, provider) {
     const p = normalizeProviderId(provider || getProv());
     const cleaned = Array.from(new Set((Array.isArray(keys) ? keys : []).map(cleanKey).filter(Boolean))).slice(0, 8);
     for (const candidate of cleaned) {
-      const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
-      if (!r.ok || !j.credentialVerified) throw new Error((r.ok && !j.error ? 'a spare key was rejected' : keyCheckFailure(r.status, j, text)) + ' — your previous spare keys are unchanged');
+      const { r, j, text, code } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: p === getProv() ? getModel() : '' });
+      if (!r.ok || !j.credentialVerified) throw new Error((r.ok && !j.error ? 'a spare key was rejected' : keyCheckFailure(r.status, j, text, code)) + ' — your previous spare keys are unchanged');
     }
     return setKeyPool(cleaned, p);
   }
@@ -1131,7 +1156,7 @@ const Harness = (() => {
         reachable: !!(r.ok && j.reachable), catalogAvailable: !!(j && j.catalogAvailable),
         credentialVerified: !!(j && j.credentialVerified), selected,
         // a refused probe (403 origin/host/token) names the refusal, never a blank "check failed" (#62)
-        error: r.ok ? String((j && j.error) || '') : keyCheckFailure(r.status, j, text).replace('key check', 'provider check')
+        error: r.ok ? String((j && j.error) || '') : keyCheckFailure(r.status, j, text, stationCodeOf(r)).replace('key check', 'provider check')
       };
     } catch (_) { return fallback; }
   }
@@ -1146,9 +1171,9 @@ const Harness = (() => {
     if (!candidate) return setKey('', p);
     const hadKey = hasStoredCredential(p);   // a first-time WAKE has no previous key to keep — never claim one
     const checkModel = String(model || '').trim() || (p === getProv() ? getModel() : '');
-    const { r, j, text } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: checkModel });
+    const { r, j, text, code } = await postKeyCheck('/api/providers/validate', { provider: p, key: candidate, baseUrl: getBaseUrl(p) || '', model: checkModel });
     if (!r.ok || !j.credentialVerified) {
-      throw new Error(keyCheckLine(keyCheckFailure(r.status, j, text)) + (hadKey ? ' — your previous key is unchanged' : ' — nothing was saved'));
+      throw new Error(keyCheckLine(keyCheckFailure(r.status, j, text, code)) + (hadKey ? ' — your previous key is unchanged' : ' — nothing was saved'));
     }
     const stored = await Promise.resolve(setKey(candidate, p));
     return Object.assign({}, j, { stored: true }, (stored && stored.engine) ? { engine: stored.engine } : {});
@@ -1517,12 +1542,13 @@ const Harness = (() => {
     // failure: Not signed in to ChatGPT …"} JSON, handleRun's "missing key/model", the token gate's "forbidden
     // token". The old bare throw discarded it, so the friendly-error ladder never saw the text it classifies on
     // and the RECONNECT CHATGPT / reload doors were lost on this whole path (EL-10/EL-11). Read it (bounded)
-    // and carry it in the thrown message.
+    // and carry it in the thrown message. The station's own name for the refusal rides beside the words (stationCode:
+    // X-StarNet-Code), so COMMS decides a stale page, a wrong address or a route's refusal from it, never from a bare 403.
     if (!res.ok || !res.body) {
       if (shared) { shared.drop(); shared = null; }
       let detail = '';
       try { detail = sidecarErrorDetail(await res.text()); } catch (_) {}
-      throw new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : ''));
+      throw Object.assign(new Error('sidecar HTTP ' + res.status + (detail ? ' — ' + detail : '')), { status: res.status, stationCode: typeof stationCodeOf === 'function' ? stationCodeOf(res) : '' });
     }
     // the station took the run onto the page's stream (its answer is a small JSON receipt); a station that answered with
     // the run's own NDJSON stream keeps it on this response
@@ -1969,13 +1995,19 @@ const Harness = (() => {
     } catch (e) { return []; }
   }
 
-  /* Minimal JSON client for the sidecar's /api surface (the launch-token rides via the hardened
-     window.fetch above). Two shapes, matching the two call-site idioms this codebase already uses:
-       get(path)        -> resolves the parsed JSON; THROWS Error('http <status>') on a non-2xx.
-                           Callers keep their own .catch — silence stays an explicit .catch(() => …).
-       post(path, body) -> resolves { ok, status, j } where j is the parsed body EVEN on a non-2xx
-       del(path)           (the sidecar's {error} envelope), so callers can surface j.error; rejects
-                           only on network failure or a non-JSON body. body defaults to {}.
+  /* THE ONE CLIENT FOR THE STATION'S JSON EXCHANGES (the launch token rides via the hardened window.fetch above). Every
+     answer is read ONCE, by read(response) -> { ok, status, code, j } (truthful acks, 2026-11-03):
+       j     the parsed JSON body, or null — never synthesized
+       ok    2xx AND a JSON object AND j.ok !== false: a 200 {ok:false} is a refusal, not a success
+       code  '' when ok; else the station's own name for it (X-StarNet-Code, sidecar/respond.js CODES), else j.code, else
+             bad_body (a 2xx that is not a JSON object), refused (a 2xx {ok:false}) or http_<status>
+     The shapes:
+       get(path)        -> the parsed body of a 2xx JSON answer; else THROWS an Error('http <status>') carrying
+                           { status, code, j }. Callers keep their own .catch — silence stays an explicit .catch(() => …).
+       post(path, body) -> resolves { ok, status, code, j } for EVERY answer: a refusal is an answer (the gate's plain-text
+       del(path)           403, an HTML 5xx and a static 404 included), never "could not reach the station". Rejects only
+                           when no answer came (network, abort, deadline). body defaults to {}.
+       why(r)           -> the one sentence for a refused result; read(response) for a Response a caller already holds.
      Streaming responses (/api/run, /api/cron/run) and Response-shape consumers must NOT use this. */
   async function requestJson(path, init, options) {
       const controller = new AbortController();
@@ -1986,9 +2018,10 @@ const Harness = (() => {
       try {
         return await Promise.race([
           fetch(path, Object.assign({ cache: 'no-store' }, init, { signal: controller.signal })).then(async r => {
-            if (!init && !r.ok) throw new Error('http ' + r.status);
-            const j = await r.json();
-            return init ? { ok: r.ok, status: r.status, j } : j;
+            const out = await readReply(r);
+            if (init) return out;
+            if (out.status >= 200 && out.status < 300 && out.j !== null) return out.j;
+            throw Object.assign(new Error(out.status >= 200 && out.status < 300 ? 'unreadable reply (http ' + out.status + ')' : 'http ' + out.status), { status: out.status, code: out.code, j: out.j });
           }),
           new Promise((_, reject) => { deadline = setTimeout(() => {
             reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
@@ -1997,12 +2030,52 @@ const Harness = (() => {
         ]);
       } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
   }
+  // the station's own name for a failure (sidecar/respond.js stamps every answer >= 400: a lower-case code); '' from an older station
+  function stationCodeOf(response) {
+    let c = '';
+    try { c = String((response && response.headers && typeof response.headers.get === 'function' && response.headers.get('X-StarNet-Code')) || '').trim(); } catch (_) { c = ''; }
+    return /^[a-z][a-z0-9_]{0,63}$/.test(c) ? c : '';
+  }
+  // ONE reading of an answer, pure over the Response. A body read the caller aborted is no answer: it rejects.
+  async function readReply(response) {
+    const status = Number(response && response.status) || 0;
+    let j = null;
+    try { j = await response.json(); } catch (e) { if (e && e.name === 'AbortError') throw e; j = null; }
+    if (j === undefined) j = null;
+    const object = j !== null && typeof j === 'object';
+    const ok = status >= 200 && status < 300 && object && j.ok !== false;
+    if (ok) return { ok, status, code: '', j };
+    const own = object && typeof j.code === 'string' ? j.code.trim() : '';
+    const code = stationCodeOf(response) || own || (status >= 200 && status < 300 ? (object ? 'refused' : 'bad_body') : 'http_' + status);
+    return { ok, status, code, j };
+  }
+  /* The one sentence for a refused result (lower-case lead, no full stop: callers add their own). The gate's codes name this
+     page's own trouble (a key from before a restart, no key at all, a wrong address); any other refusal is the route's,
+     in its own words. The typeof guards keep this slice self-contained when a test lifts it on its own. */
+  function whyRefused(r) {
+    if (!r || r.ok) return '';
+    const status = Number(r.status) || 0, code = String(r.code || ''), j = r.j && typeof r.j === 'object' ? r.j : null;
+    if (code === 'token_stale') return 'the station restarted — reload the page to reconnect';
+    if (code === 'token_missing') {
+      const notice = typeof tokenWithheld === 'string' && tokenWithheld && typeof tokenWithheldNotice === 'function' ? tokenWithheldNotice(tokenWithheld) : '';
+      return notice ? notice.replace(/\.\s*$/, '') : 'this browser was not verified as your own account — see the station notice';
+    }
+    if (code === 'forbidden_origin') return 'this page’s address doesn’t match the station; open StarNet at the exact address you forward to it';
+    if (code === 'forbidden_host') return 'StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname';
+    const said = j && [j.error, j.message, j.reason].find(x => typeof x === 'string' && x.trim());
+    if (said) return said.trim().replace(/\.\s*$/, '');
+    if (code === 'bad_body') return 'the station answered (HTTP ' + status + ') but its reply could not be read';
+    return (status >= 500 ? 'the station hit an error' : 'the station refused this') + ' (HTTP ' + status + ')';
+  }
   // Finite JSON exchanges only: include body parsing in the deadline, never replay writes.
   // Mutations have a longer budget for connection setup and expose ambiguous completion honestly.
   const api = {
     get: (path, options) => requestJson(path, null, options),
     post: (path, body, options) => requestJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) }, options),
-    del: (path, options) => requestJson(path, { method: 'DELETE' }, options)
+    del: (path, options) => requestJson(path, { method: 'DELETE' }, options),
+    read: readReply,
+    why: whyRefused,
+    stationCode: stationCodeOf
   };
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND
@@ -2187,8 +2260,9 @@ const Harness = (() => {
     tokenWithheld: () => tokenWithheld,   // the station kept its key from this page (peerowner reason) — never "restarted"; '' = it has its key
     tokenWithheldNotice: () => tokenWithheldNotice(tokenWithheld),   // the full withheld sentence ('' = not withheld)
     tokenWithheldRetryable: () => withheldRetryable(tokenWithheld),   // a transient reason: a reload re-runs the check and may pass
-    // the ONE reading of a refused /api/* reply (voice synthesis, push-to-talk, the Live Voice probe): a 403 is a restart only when
-    // the stale-token recovery proved it (sessionStale), never for a withheld page, else the route's own refusal
+    // the ONE reading of a refused /api/* reply (voice synthesis, push-to-talk, the Live Voice probe, the restart polls, group chat,
+    // the rating store): the gate's own code decides (token_stale a restart, token_missing a withheld page); from a station that
+    // names no refusal, a 403 is a restart only when the stale-token recovery proved it (sessionStale), never for a withheld page
     classifyApiFailure: response => classifyApiFailure(response, { sessionStale, tokenWithheld, withheldNotice: tokenWithheldNotice(tokenWithheld) }),
     apiFetch: (u, init) => ensureApiToken().then(t => fetch(u, withApiToken(init, t))),
     totals: () => totals,

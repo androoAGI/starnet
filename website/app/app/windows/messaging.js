@@ -816,7 +816,8 @@
     if (notifyBox) notifyBox.addEventListener('change', async () => {
       try {
         const r = await Harness.api.post('/api/channels/notify', { on: notifyBox.checked });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
+        // a refusal is an answer: say the station's reason, never "the sidecar didn't answer"
+        if (!r.ok) { notifyBox.checked = !notifyBox.checked; setMsg(notifyMsg, '✕ couldn\'t save that — ' + Harness.api.why(r), ''); return; }
         sfx('click'); refreshAll();   // refresh so the zero-channel hint appears/clears from PROVEN status
       } catch (_) { notifyBox.checked = !notifyBox.checked; setMsg(notifyMsg, '✕ couldn\'t save that — the sidecar didn\'t answer', ''); }
     });
