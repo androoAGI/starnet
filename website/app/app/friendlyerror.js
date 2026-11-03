@@ -304,12 +304,16 @@
   /* #158: may a rate-limit verdict on a sign-in plan be re-read as its spent allowance? YES on the provider's own numbers,
      whatever the words: a meter at its limit, or a wait past SHORT_WAIT_MAX_S. Otherwise the word "quota" is the only
      clue, and it is not proof: not when the provider's code says something else, or it names a short wait. */
+  function planNumbersSpent(raw) {
+    const facts = providerFactsOf(raw);
+    const wait = statedWaitSeconds(raw);
+    return Object.keys(facts).some(k => /-used-percent$/.test(k) && Number(facts[k]) >= 100) || (wait != null && wait > SHORT_WAIT_MAX_S);
+  }
   function quotaWordMeansSpent(raw) {
+    if (planNumbersSpent(raw)) return true;
     const low = String(raw || '').toLowerCase();
     const facts = providerFactsOf(raw);
     const wait = statedWaitSeconds(raw);
-    if (Object.keys(facts).some(k => /-used-percent$/.test(k) && Number(facts[k]) >= 100)) return true;
-    if (wait != null && wait > SHORT_WAIT_MAX_S) return true;
     if (!/quota/.test(low) || SHORT_WINDOW_RE.test(low) || wait != null) return false;
     const code = String(facts.code || facts.type || '').toLowerCase();
     return !code || QUOTA_CODE_RE.test(code);
@@ -855,9 +859,9 @@
        "quota" / 402 as billing, and a ChatGPT plan 429 can read like any rate limit ("Codex quota exceeded" — its decisive
        code rides in a body the page never sees). When the adapter's own signature names a subscription provider, that
        is its plan allowance (a per-minute quota stays a rate limit). */
-    // (a CODED rate limit stays one: the station read the body's code the page never sees — only an uncoded one is re-read here)
+    // (a CODED rate limit stays one on the word alone: the station read the body's code the page never sees. The provider's own numbers still decide, code or no code)
     if ((kind === 'billing' || kind === 'rate_limit') && SUBSCRIPTION_IDS.indexOf(providerFromRaw(raw)) >= 0
-        && (kind === 'billing' || (!coded && quotaWordMeansSpent(raw)))) {
+        && (kind === 'billing' || planNumbersSpent(raw) || (!coded && quotaWordMeansSpent(raw)))) {
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
