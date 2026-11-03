@@ -192,6 +192,12 @@ jobs:
       - name: HTTP test gate (shard ${{ matrix.shard }}/4)
         run: node scripts/timeout.mjs --label test:http --timeout=1800000 -- node scripts/run-test-list.mjs test/http.list --shard=${{ matrix.shard }}/4 --deadline=1680000
 
+  # The station page boots in a real WebKit at the engine floor (webkit-floor-boot.yml): every API newer than
+  # scripts/lib/engine-floor.json's floor removed, and the boot guard must count every station script as run. The
+  # lexical half (syntax and unguarded APIs newer than the floor) is test/webkit-floor-syntax.test.js in the gate above.
+  webkit-floor:
+    uses: ./.github/workflows/webkit-floor-boot.yml
+
   # Pure Rust policy checks. The connector key policy tests in src-tauri/src/credentials.rs and the acceptance
   # harness's input guards use injected closures and input checks only: no keychain entry, no native process, no
   # app build. Running them here catches a policy regression (for example regenerating over a malformed existing
@@ -220,7 +226,11 @@ jobs:
       # The desktop shell's process-ownership rules, compiled by path without the app (test/native-process-ownership):
       # the PID-reuse and boot rules must match the sidecar's JS rule case for case (both read
       # test/fixtures/process-identity-cases.json), and the Linux probe runs for real here. Without this step the Rust half
-      # of that parity ran only when someone ran cargo test in src-tauri by hand.
+      # of that parity ran only when someone ran cargo test in src-tauri by hand. The same crate holds the station lifecycle
+      # contract (tests/station_contract.rs): the markers the native START FRESH and ERASE write must be the shapes the
+      # sidecar's record module derives from (both read test/fixtures/station-record-cases.json). It also holds the voice-model
+      # cache roots (tests/voice_cache_roots.rs): ERASE must delete exactly the roots the sidecar resolves, new and legacy (both
+      # read test/fixtures/voice-cache-roots.json).
       - name: Process-ownership rules shared with the sidecar (parity with the JS rule)
         shell: bash
         run: |
@@ -229,4 +239,24 @@ jobs:
           grep -Eq 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/ownership.log" || { echo "::error::the process-ownership crate ran no test"; exit 1; }
           for t in shared_fixtures_match_the_js_rule the_shared_boot_rule_matches_the_js_rule; do
             grep -Eq "test process_identity::tests::$t \.\.\. ok" "$RUNNER_TEMP/ownership.log" || { echo "::error::the parity test $t did not pass"; exit 1; }
+          done
+          for t in native_erase_marker_matches_the_fixture native_start_fresh_marker_matches_the_fixture an_erase_then_a_native_start_fresh_leaves_the_erase_where_derive_reads_it the_native_door_honours_every_carry_row; do
+            grep -Eq "^test $t \.\.\. ok" "$RUNNER_TEMP/ownership.log" || { echo "::error::the station lifecycle contract test $t did not pass"; exit 1; }
+          done
+          for t in the_voice_cache_roots_match_the_fixture every_voice_cache_root_is_starnet_owned a_profile_with_no_home_gives_erase_no_voice_target erase_removes_both_voice_cache_roots_and_keeps_the_fresh_workspace; do
+            grep -Eq "^test $t \.\.\. ok" "$RUNNER_TEMP/ownership.log" || { echo "::error::the voice-cache roots test $t did not pass"; exit 1; }
+          done
+
+      # The desktop shell's install manifest, compiled by path without the app (test/native-install-manifest): every code
+      # file of a fixture install laid out through the real tauri.conf.json map, damaged in turn (zeroed, deleted,
+      # truncated, edited at the same size, replaced by a folder), must be named; an absent or partial manifest is never
+      # read as verified. 85f602c4 / E62: a zeroed or quarantined shell.js that nothing named.
+      - name: Install-manifest rules (a damaged install names its file)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked --manifest-path test/native-install-manifest/Cargo.toml 2>&1 | tee "$RUNNER_TEMP/install-manifest.log"
+          grep -Eq 'test result: ok\. [1-9][0-9]* passed' "$RUNNER_TEMP/install-manifest.log" || { echo "::error::the install-manifest crate ran no test"; exit 1; }
+          for t in every_entry_damaged_in_turn_is_named absent_or_partial_manifest_is_not_checked; do
+            grep -Eq "test install_manifest::tests::$t \.\.\. ok" "$RUNNER_TEMP/install-manifest.log" || { echo "::error::the class test $t did not pass"; exit 1; }
           done

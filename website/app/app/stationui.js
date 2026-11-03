@@ -982,6 +982,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // readout before revealing it again. swap:false engages _render's form-state preservation, so a dirty
     // CONFIG draft (textarea value + data-dirty + caret) survives the rebuild instead of being reverted to
     // the persisted doc — fresh counters AND the draft, not a choice between them.
+    // the render contract: a window that went stale while minimized is painted now, once (the dossier is always repainted below)
+    const owedPaint = staleWins[key], owedFresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+    if (owedPaint && key !== 'agents') { try { paintStale(w, owedPaint, owedFresh); } catch (_) {} }
     if (key === 'agents') rerender('agents', false);
     // land it back at the remembered spot (or CSS-centre if never moved), lift to top, replay power-on.
     placeTerm(w, key);
@@ -1011,6 +1014,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const wasMin = !!minimized[key];
       if (wasMin) { delete minimized[key]; removeChip(key); }
       if (w._onClose) { try { w._onClose(w); } catch (_) {} }   // e.g. tear down the live arcade canvas (gets the closing window)
+      if (w._scope) w._scope.dispose();   // the render contract: its timers and outside listeners stop now, not at the next GC
+      delete staleWins[key];
       const opener = w._opener;   // a11y: the control that opened this window, to restore focus to
       // free the slot NOW so a re-open (toggle) mounts a fresh window while this one animates out.
       delete open[key]; sfx('close');
@@ -1277,6 +1282,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       save();
     };
     w._minimize = () => minimizeTerm(key); // Shared window action used by the glass controller.
+    w._scope = makeWindowScope();   // the render contract: what this window arms outside its DOM goes when it closes
     w._onClose = opts && opts.onClose;
     w._opener = opener;
     // a11y: a floating window is a real modal dialog — label it by its title, make it focusable.
@@ -1476,13 +1482,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (owed) { owed = false; paint(false); }
       } finally { building = false; owed = false; }
     };
+    w._isBuilding = () => building;   // the render contract: invalidate() owes a mid-build poke to this build's one follow-up
     const paint = (swap) => {
       const keep = swap === false ? captureForms() : null;   // background poke: preserve what the Commander typed
-      builder(body);
+      const outerScope = buildScope; buildScope = w._scope;   // scopeOf() inside this build (a console pane is built detached) is this window's
+      try { builder(body); } finally { buildScope = outerScope; }
       if (keep && keep.length) restoreForms(keep);
       // tab/section crossfade: fade the freshly-injected body in on RE-renders (tab swaps,
       // live refreshes) — not on the initial mount, which already plays the CRT power-on.
-      if (swap) {
+      if (swap === true) {
         body.classList.remove('swap-in');
         void body.offsetWidth;   // restart the animation if it was mid-flight
         body.classList.add('swap-in');
@@ -1506,7 +1514,116 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
      panel the Commander is reading. */
   // swap=false → no crossfade AND form-state preservation: a background DATA poke repaints in place with
   // every in-progress field value, focus and selection carried across the rebuild (see w._render).
-  function rerender(key, swap) { if (open[key]) open[key]._render(swap !== false); }
+  function rerender(key, swap) { if (open[key]) { delete staleWins[key]; delete staleFresh[key]; open[key]._render(swap !== false); } }   // a full rebuild settles any paint owed
+  /* THE WINDOW RENDER CONTRACT (wave 4: gh#85, window-open-lag-1026, E14). rerender(key) is a SYNCHRONOUS full rebuild: right
+     for the Commander's own click, which must answer in the same frame, and wrong for everything else. A store that learns
+     something new does not need the window rebuilt this instant; it needs it to be right on the next frame. Six quest stores
+     each poked the open QUEST LOG on every sync, so one tick rebuilt the whole window up to six times, and each rebuild ran
+     the stores' syncs again.
+     invalidate(key, section) is that background door. It marks the window (or one named section of it) stale and paints
+     it ONCE on the next animation frame, however many pokes arrive in between:
+       · a closed window costs nothing (nothing is marked);
+       · a minimized window is painted when it is restored, not while nobody can see it;
+       · a poke that lands while the window is building is owed to that build's single follow-up paint (the reentrancy law
+         in w._render), so a store that pokes from inside its own sync can never loop the window frame after frame;
+       · a section the window registered (w._sections[id], see sectionsOf) repaints only that section; an unknown section,
+         or none, repaints the window in place (swap:false: no crossfade, every half-typed field carried across), or with
+         the window's own background repaint when it names one ('*': SETTINGS' coalesced, scroll-keeping repaint);
+       · invalidate(key, null, { fresh: true }) is for a change the window's FIELDS must show (a specialty deployed into the
+         dossier editor, an AUTO-CHECK toggled elsewhere): repainted in place with no crossfade, but no field is carried
+         across, so a stale draft cannot be saved back over the new truth. That is what those callers' old synchronous
+         rerender(key) did, minus the blink. A fresh poke and a draft-keeping one in the same frame paint fresh.
+     When a hidden page draws no frames, the paint waits for the first frame after it is seen again, which is when it
+     can next be looked at. */
+  const staleWins = {};   // key -> true (the whole window) or a Set of section ids
+  const staleFresh = {};  // key -> true when a poke asked that no typed field be carried across
+  let staleFrame = 0;
+  const nextFrame = fn => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(fn) : setTimeout(fn, 16));
+  function invalidate(key, section, opts) {
+    const w = open[key];
+    if (!w || w._closing) return false;
+    if (w._isBuilding && w._isBuilding()) { w._render(false); return true; }   // owed to the build in progress, once
+    const fresh = !!(opts && opts.fresh);
+    if (fresh) staleFresh[key] = true;
+    const known = !fresh && section && w._sections && typeof w._sections[section] === 'function';
+    if (!known) staleWins[key] = true;
+    else if (staleWins[key] !== true) (staleWins[key] || (staleWins[key] = new Set())).add(section);
+    if (!staleFrame) staleFrame = nextFrame(flushStale);
+    return true;
+  }
+  function paintStale(w, what, fresh) {
+    if (what === true) {
+      if (fresh) { w._render('fresh'); return; }   // no field carried across: the new truth shows
+      // a window with its own background repaint (SETTINGS keeps the reader's scroll and merges probe landings) names it '*'
+      const own = w._sections && w._sections['*'];
+      if (typeof own === 'function') { try { own(); return; } catch (_) {} }
+      w._render(false); return;
+    }
+    for (const id of what) {
+      const fn = w._sections && w._sections[id];
+      if (typeof fn !== 'function') { w._render(false); return; }
+      try { fn(); } catch (_) { w._render(false); return; }
+    }
+  }
+  function flushStale() {
+    staleFrame = 0;
+    for (const key of Object.keys(staleWins)) {
+      const w = open[key];
+      if (!w || w._closing) { delete staleWins[key]; continue; }
+      if (minimized[key]) continue;   // painted by restoreTerm, when it can be seen again
+      const what = staleWins[key], fresh = !!staleFresh[key]; delete staleWins[key]; delete staleFresh[key];
+      if (!what) continue;   // a paint earlier in this loop already settled it (a restore, a close and re-open)
+      try { paintStale(w, what, fresh); } catch (_) { /* one window's throwing builder must not cost the others their frame */ }
+    }
+  }
+  /* SECTIONS: a builder that can repaint part of itself names those parts — sectionsOf(body).id = () => repaintThatPart().
+     invalidate(key, id) then runs only that painter. The map is the window's (it survives the builder's own rebuilds). */
+  function sectionsOf(el) { const w = el && el.closest ? el.closest('.term') : null; return w ? (w._sections || (w._sections = {})) : {}; }
+  /* WINDOW SCOPE: what a window arms outside its own DOM (a timer, a document or bus listener) is registered on the window's
+     scope, and closeTerm disposes it at once. Before this, each window tore its own pieces down by hand, or not at all; a
+     forgotten interval kept polling and kept the closed window's tree reachable. A named slot holds one timer: re-arming
+     it from a rebuild replaces the last one, so a window that is repainted 50 times still has exactly one poller. */
+  function makeWindowScope() {
+    const offs = [], slots = {};
+    let dead = false;
+    const add = fn => { if (typeof fn !== 'function') return fn; if (dead) { try { fn(); } catch (_) {} return fn; } offs.push(fn); return fn; };
+    const clearSlot = name => { const t = slots[name]; if (t) { delete slots[name]; try { t(); } catch (_) {} } };
+    const timer = (arm, disarm) => (fn, ms, slot) => {
+      if (dead) return null;
+      if (slot) clearSlot(slot);
+      const id = arm(fn, ms), stop = () => disarm(id);
+      if (slot) slots[slot] = stop; else add(stop);
+      return id;
+    };
+    return {
+      get disposed() { return dead; },
+      add,
+      on(target, type, fn, o) { if (dead || !target || typeof target.addEventListener !== 'function') return; target.addEventListener(type, fn, o); add(() => target.removeEventListener(type, fn, o)); },
+      bus(name, fn) { if (dead || typeof U === 'undefined' || !U.bus) return; U.bus.on(name, fn); add(() => { if (U.bus.off) U.bus.off(name, fn); }); },
+      every: timer((fn, ms) => setInterval(fn, ms), id => clearInterval(id)),
+      after: timer((fn, ms) => setTimeout(fn, ms), id => clearTimeout(id)),
+      stop: clearSlot,
+      // own(name, stop): a window that keeps its own timer handle hands the scope the way to stop it; a rebuild that re-arms
+      // names the same slot and replaces the stop (it already stopped the old timer itself). Close runs the last one.
+      own(name, stop) { if (typeof stop !== 'function') return; if (dead) { try { stop(); } catch (_) {} return; } slots[name] = stop; },
+      dispose() {
+        if (dead) return;
+        dead = true;
+        for (const name of Object.keys(slots)) clearSlot(name);
+        for (const fn of offs.splice(0).reverse()) { try { fn(); } catch (_) {} }
+      }
+    };
+  }
+  const DEAD_SCOPE = makeWindowScope(); DEAD_SCOPE.dispose();
+  let buildScope = null;   // the scope of the window whose builder is running right now
+  /* the scope of the window holding el (a builder passes its body or a pane). A console pane is built before it is attached,
+     so while a window's builder runs, that window's scope answers. Outside any open window the scope is already disposed,
+     so nothing armed from a detached tree can outlive it. */
+  function scopeOf(el) {
+    const w = el && el.closest ? el.closest('.term') : null;
+    if (w && w._scope) return w._scope;
+    return buildScope || DEAD_SCOPE;
+  }
   function syncBB() {
     document.querySelectorAll('.bb[data-term]').forEach(b => b.classList.toggle('active', !!open[b.dataset.term]));
     // a menu's dock button is lit while any of its windows is open
@@ -5496,7 +5613,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const w = open.settings;
       if (!w) return;
       const before = w.querySelector('.con-pane'), section = consoleSection.settings, top = before ? before.scrollTop : 0;
-      rerender('settings');
+      // Provider probes update their own pane. Rebuilding unrelated forms would detach
+      // an in-flight save callback and erase its confirmed receipt or unsaved edits.
+      if (typeof w._refreshProviderStatus === 'function') w._refreshProviderStatus();
       const after = open.settings && open.settings.querySelector('.con-pane');
       if (after && top > 0 && consoleSection.settings === section) after.scrollTop = top;
     }, SETTINGS_REPAINT_COALESCE_MS);
@@ -5613,8 +5732,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
   }
-  const providerHealth = Object.create(null);   // last no-generation sidecar probe, keyed by provider id
+  const providerHealth = Object.create(null);   // last sidecar credential check, keyed by provider id
   const providerProbePending = Object.create(null);
+  function providerActiveProof(row, id) {
+    return !!(row && row.unattendedReady && !row.cached && (row.credential.status === 'verified'
+      || (!row.credential.required && row.endpoint.status === 'reachable')
+      || (id === 'claude-cli' && row.credential.present && row.credential.status !== 'unavailable')));
+  }
   function invalidateProviderHealth(provider) { delete providerHealth[provider]; delete providerProbePending[provider]; }
   function refreshProviderHealth(provider) {
     const h = H();
@@ -5661,7 +5785,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (j.max > 0) claudeAccountsMax = j.max;
       })
       .catch(() => { claudeCliSt = null; claudeAccounts = null; })
-      .finally(() => { claudeCliStPending = false; scheduleSettingsRepaint(); });
+      .finally(async () => {
+        const h = H();
+        if (h && h.refreshProviderReadiness) await h.refreshProviderReadiness();
+        claudeCliStPending = false;
+        scheduleSettingsRepaint();
+      });
   }
   function claudeCliPlan(st) {
     if (!st) return '';
@@ -5963,34 +6092,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // refresh token) — that must never render as SIGNED IN. The row still exists (ks has the expired entry) so
       // RE-SIGN-IN is reachable. `codexDead` keeps its historical name because the source-lock tests pin
       // `codexDead ? 'avail expired'` / `&& !codexDead`; it now flags a dead sign-in for ANY OAuth provider.
-      const codexDead = isOAuthProvider(p.id) && oauthExpiredFor(p.id);
       const h = H();
-      const credentialSaved = isOAuthProvider(p.id) ? (ks.length > 0 && !codexDead) : !!(h && h.hasStoredCredential && h.hasStoredCredential(p.id));
-      const endpointConfigured = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && !!(h && h.getBaseUrl && h.getBaseUrl(p.id)));
-      const configured = credentialSaved || endpointConfigured;
+      const readiness = h && h.readiness ? h.readiness(p.id) : { credential: { present: false, status: 'unknown' }, endpoint: { configured: false }, cached: true };
+      const codexDead = isOAuthProvider(p.id) && readiness.credential.status === 'expired';
+      const credentialSaved = readiness.credential.present && !codexDead;
+      const endpointConfigured = !!readiness.endpoint.configured;
+      const configured = readiness.unattendedReady === true;
       const health = providerHealth[p.id];
       // ACTIVE is reserved for a selected model whose endpoint and credential (when applicable) were proven by
-      // the no-generation probe. Selection plus a model id is not evidence that a run can leave the station.
+      // the credential check. Selection plus a model id is not evidence that a run can leave the station.
       // CLAUDE CODE has no key to verify: its sign-in is proven by the CLI (claudeCliSt) and its catalog by the probe
-      const runnable = !!(health && health.reachable && (health.credentialVerified || (p.id === 'claude-cli' && claudeCliSt && claudeCliSt.loggedIn)) && p.id === active && h && h.getModel && h.getModel());
-      const claudeIn = p.id === 'claude-cli' && !!(claudeCliSt && claudeCliSt.loggedIn);
-      const cls = codexDead ? 'avail expired' : ((p.id === 'claude-cli' ? claudeIn : configured) ? 'conn' : (p.live ? 'avail' : 'soon'));
+      const runnable = !!(providerActiveProof(readiness, p.id) && p.id === active && h && h.getModel && h.getModel());
+      const cls = codexDead ? 'avail expired' : (configured ? 'conn' : (p.live ? 'avail' : 'soon'));
       // E5: `connected` is KEY PRESENCE, not a verified live connection — a saved key can be revoked,
       // rate-limited, or wrong, and we haven't round-tripped it. Label it "KEY SAVED" (or SIGNED IN for
       // the codex OAuth path, which IS real auth) rather than the over-claiming "CONNECTED". The
       // ACTIVE/runnable badge logic below is unchanged — that already gates on selected provider + model.
       const connLabel = isOAuthProvider(p.id) ? '● SIGNED IN' : '● KEY SAVED';
       const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved);
-      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : health === undefined ? '◐ LOCAL ENDPOINT CONFIGURED · CHECKING…'
-        : health && health.reachable ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
-      const keyStat = health === undefined ? connLabel + ' · CHECKING…'
-        : health && health.credentialVerified ? connLabel + ' · VERIFIED' : health && health.reachable ? connLabel + ' · NOT VERIFIED' : connLabel + ' · CHECK FAILED';
+      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : readiness.endpoint.status === 'unknown' ? '◐ LOCAL ENDPOINT CONFIGURED · UNVERIFIED'
+        : readiness.endpoint.status === 'reachable' ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
+      const keyStat = readiness.credential.status === 'rejected' ? 'KEY REJECTED' + (configured ? ' · ALTERNATE AVAILABLE' : ' — REPLACE KEY')
+        : readiness.credential.status === 'verified' && readiness.lastVerified ? connLabel + ' · VERIFIED' : connLabel + ' · UNVERIFIED';
       const isClaude = p.id === 'claude-cli';
-      const claudeStat = claudeCliSt === undefined ? '◐ CHECKING CLAUDE CODE…' : claudeCliSt === null ? '○ COULDN’T CHECK CLAUDE CODE'
-        : !claudeCliSt.installed ? '○ CLAUDE CODE NOT INSTALLED' : !claudeCliSt.loggedIn ? '○ NOT SIGNED IN'
-        : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
-      const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
+      const claudeStat = readiness.credential.status === 'unknown' ? '◐ CHECKING CLAUDE CODE…'
+        : readiness.credential.status === 'unavailable' ? '○ COULDN’T CHECK CLAUDE CODE'
+        : !configured ? String(readiness.reason || '○ NOT SIGNED IN').toUpperCase()
+        : '● SIGNED IN · REMOTE UNVERIFIED' + claudeCliPlan(claudeCliSt);
+      let stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
         : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+      if (readiness.cached) stat += ' · CACHED STATION STATUS';
+      if (readiness.persistenceError) stat += ' · CHECK NOT SAVED';
       // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
       // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
       // org P03: a probe that gave no reason still says what it saw — never a bare NOT VERIFIED / CHECK FAILED.
@@ -6141,10 +6273,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const rows = keys.map((k, i) => {
       // The credential row follows the same truth contract as the provider card above. Selection is useful context,
       // but ACTIVE is reserved for a selected model whose endpoint/credential probe proved it can run.
-      const health = providerHealth[k.provider];
+      const readiness = H() && H().readiness ? H().readiness(k.provider) : null;
       const selected = k.provider === active && !!k.model;
       // CLAUDE CODE has no key to verify: its row exists only while the CLI proves the sign-in (same rule as its card)
-      const runnable = !!(selected && health && health.reachable && (health.credentialVerified || k.claude));
+      const runnable = !!(selected && providerActiveProof(readiness, k.provider));
       const runState = runnable ? '<span class="key-stat on">ACTIVE</span>'
         : selected ? '<span class="key-stat">SELECTED</span>' : '<span class="key-stat">idle</span>';
       if (k.claude) {
@@ -7160,6 +7292,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const m = /^skill-eval-(.+)-(\d+)-([a-z]+)-[A-Za-z0-9]+$/.exec(s);
     return m ? 'skill eval ' + m[1].slice(0, 8) + '-' + m[2] + '-' + m[3] : 'run ' + s.slice(0, 8);
   }
+  // Read-only server facts, grouped by the payers the current station routes can use. No client-side admission rule.
+  function effectiveLimitsHtml(effective) {
+    if (!effective || !Array.isArray(effective.rows) || !Array.isArray(effective.classes)) return '<div class="dim">effective limits unavailable</div>';
+    const names = { metered: 'API KEY', managed: 'STARNET CREDITS', subscription: 'SIGN-IN PLAN', local: 'LOCAL MODEL' };
+    const valueText = row => {
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value)) return 'unavailable';
+      if (row.value === 0 && row.zero === 'off') return 'off';
+      if (row.value === 0 && row.zero === 'inherit') return 'station policy';
+      if (row.value === 0 && row.zero === 'wallet') return 'reported wallet';
+      return (row.unit === 'USD' || row.unit.indexOf('USD/') === 0 ? '$' : '') + row.value.toLocaleString('en-US') + (row.unit === 'USD' ? '' : ' ' + row.unit.replace('USD/', 'per '));
+    };
+    return effective.classes.map(cls => {
+      const rows = effective.rows.filter(r => Array.isArray(r.inUse) && r.inUse.indexOf(cls) >= 0);
+      if (!rows.length) return '';
+      return '<details class="mc-effective-payer"><summary>' + esc(names[cls] || cls) + '</summary>' + rows.map(r => {
+        const pending = typeof r.nextValue === 'number' ? ' <span class="dim">(saved: ' + esc(r.nextValue.toLocaleString('en-US')) + '; after restart)</span>' : '';
+        const media = r.group === 'spending' && (cls === 'subscription' || cls === 'local') ? ' Paid images only; chat calls spend no dollars.' : '';
+        return '<div class="set-row"><span>' + esc(r.label) + '</span><strong>' + esc(valueText(r)) + '</strong>' + pending + '</div>' +
+          '<div class="mc-hint">' + esc(r.source || 'unknown') + ' · ' + esc(r.where || '') + (r.env ? ' · STARNET_' + esc(r.env) : '') + '<br>' + esc((r.hint || '') + media) + '</div>';
+      }).join('') + '</details>';
+    }).join('') || '<div class="dim">No payer is selected yet.</div>';
+  }
   function wireBudget(body) {
     const form = body.querySelector('#budget-form');
     if (!form) return;
@@ -7180,6 +7334,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const paint = (st) => {
       if (!st || !st.caps || !BG_KEYS.every(k => typeof st.caps[k] === 'number' && Number.isFinite(st.caps[k]) && st.caps[k] >= 0)) throw new Error('invalid budget response');
       loaded = true; enable(true);
+      const effectiveEl = body.querySelector('#budget-effective');
+      if (effectiveEl) effectiveEl.innerHTML = effectiveLimitsHtml(st.effective);
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
@@ -7240,11 +7396,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : evals ? open + ' runs never recorded what they spent'
             : (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent');
         const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
+        // Estimates are recovery choices, not measured spend or permission to waive a chosen cap.
         spendEl.textContent = acc.writeError
           ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
           : (acc.readError === 'UNSETTLED_SPEND' && open)
             ? 'Spend history unavailable — ' + missing +
-              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+              '. Limits you chose refuse paid calls until this is settled; the shipped soft rail stays unenforced. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
             : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
@@ -7254,11 +7411,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       paintUnsettled(st);
       paintPools(st);
     };
-    // INTERRUPTED RUNS — a run that stopped before its spend was booked leaves that spend unknown, and a limit the
-    // Commander chose refuses every paid run until it is known. One row per run (/api/budget/status `unsettled`, only
-    // runs found at boot), settled ONLY by the amount the Commander enters from the provider dashboard, or — when the run
-    // started under a per-run limit — counted at that limit. Never a guessed figure (DECISIONS.md "Strict vs soft").
+    // UNKNOWN SPEND — an interrupted run, an unpriced skill evaluation or a damaged record line leaves one charge unknown
+    // (/api/budget/status `unsettled`, found at boot). Until the Commander settles it, each counts at its bound in every limit
+    // shown as a possible explicit settlement: the per-run limit it started with, the charge a damaged line still records, or
+    // the assumption for one nobody can read. An interrupted run with no limit counts at nothing, so a limit the Commander
+    // chose that contains it refuses paid runs until it is settled. Settled by the amount the Commander enters, or in one
+    // click (COUNT AS, every row) at the figure the row names; the booking says which. Never a figure nobody chose.
     const unsettledEl = body.querySelector('#budget-unsettled');
+    const BOUND_WORDS = { limit: 'ITS LIMIT', recorded: 'AS RECORDED', assumed: 'ASSUMED' };
+    const exactAt = (managed, byok) => managed ? 'the STORE’s RECENT ACTIVITY has the exact charge' : byok ? 'your provider dashboard has the exact charge' : 'verify the exact charge in the original billing records';
+    const countAsTip = (c, managed, byok) => (c.source === 'recorded'
+      ? 'book it at the ' + fmtUsd(c.usd) + ' the damaged line still records — the line was torn after that figure, so '
+      : c.source === 'assumed'
+        ? 'book it at ' + fmtUsd(c.usd) + ', the assumption for a charge nobody can read (the largest single charge in your spend history, or more) — the real charge may differ, so '
+        : 'book it at the ' + fmtUsd(c.usd) + ' per-run limit it started with — its last call can run past that limit, so ') + exactAt(managed, byok);
     const whenOf = ts => {
       if (!(typeof ts === 'number' && ts > 0)) return 'time unknown';
       try { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return new Date(ts).toISOString(); }
@@ -7298,13 +7464,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // a DAMAGED record line (sidecar ledgerIo): one line of the spend record could not be read, so its charge is
         // unknown. It is never rewritten or deleted; settling it books the verified charge once and history is whole again.
         const damaged = r.kind === 'damaged';
+        // what it counts at until it is settled (the server's bound; an older server sends none, and says nothing of it)
+        const bound = (r.bound && typeof r.bound.usd === 'number' && Number.isFinite(r.bound.usd) && r.bound.usd > 0) ? r.bound : null;
+        const countedTip = bound ? ' Suggested settlement: ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'estimate') + '). This is not a measured charge and does not waive a spending limit you chose.'
+          : ' A spending limit you chose refuses paid calls until this charge is settled.';
         if (damaged) row.setAttribute('data-tip', 'One line of your spend record could not be read (an older crash can leave a torn line), so what it recorded is unknown' +
-          (r.model ? ' (it names ' + r.model + ')' : '') + '. Match it to StarNet Recent Activity or your provider billing records, then enter only its verified charge: StarNet books it once, keeps the damaged line untouched, and your spending limits can be checked again.');
+          (r.model ? ' (it names ' + r.model + ')' : '') + '. Match it to StarNet Recent Activity or your provider billing records, then enter only its verified charge: StarNet books it once, keeps the damaged line untouched, and ' +
+          (bound ? 'the charge is settled.' : 'your spending limits can be checked again.') + countedTip);
         else row.setAttribute('data-tip', (evaluation ? 'This skill evaluation run has no recorded price: its provider usage came back without one, or the call failed or was cut off'
           : 'This run stopped before StarNet recorded what it spent') +
           (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
           (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as ' + creditRunTag(r.runId)
-            : byok ? '. Enter the charge your provider dashboard shows for it' : '. The billing source was not recorded. Match this run to StarNet Recent Activity or the original provider billing records, then enter only its verified charge') + ': StarNet books it once and your spending limits can be checked again.');
+            : byok ? '. Enter the charge your provider dashboard shows for it' : '. The billing source was not recorded. Match this run to StarNet Recent Activity or the original provider billing records, then enter only its verified charge') +
+          (bound ? ': StarNet books it once and the charge is settled.' : ': StarNet books it once and your spending limits can be checked again.') + countedTip);
         const what = document.createElement('span');
         what.className = 'bg-un-what';
         const name = document.createElement('b');
@@ -7313,6 +7485,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         what.appendChild(name);
         what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
         if (!managed && !byok && !damaged) what.appendChild(document.createTextNode(' · BILLING SOURCE UNKNOWN'));
+        if (bound) what.appendChild(document.createTextNode(' · ESTIMATE ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'ITS BOUND') + ')'));
+        else if (r.countAs) what.appendChild(document.createTextNode(' · CHARGE UNKNOWN'));
         const usd = document.createElement('input');
         usd.className = 'key-input bg-cap bg-un-usd';
         usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
@@ -7323,10 +7497,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
         const btns = [btn];
         let capBtn = null;
-        if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
+        // ONE CLICK FOR EVERY ITEM: the server's countAs (its bound, or the assumption for a run with none), posted as mode 'bound'
+        // so the server books its own figure; an older server's row offers its recorded limit only (mode 'limit')
+        const countAs = (r.countAs && typeof r.countAs.usd === 'number' && Number.isFinite(r.countAs.usd) && r.countAs.usd > 0) ? r.countAs : null;
+        const oneClick = countAs || ((typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) ? { usd: r.runCapUsd, source: 'limit' } : null);
+        if (oneClick) {
           capBtn = document.createElement('button');
-          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
-          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so ' + (managed ? 'the STORE’s RECENT ACTIVITY has the exact charge' : byok ? 'your provider dashboard has the exact charge' : 'verify the exact charge in the original billing records'));
+          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(oneClick.usd);
+          capBtn.setAttribute('data-tip', countAsTip(oneClick, managed, byok));
           btns.push(capBtn);
         }
         btn.addEventListener('click', () => {
@@ -7335,7 +7513,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (!Number.isFinite(n) || n < 0) { setMsg('enter ' + chargedBy + ' for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
           settleRun(r, { usd: n }, btns);
         });
-        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
+        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: countAs ? 'bound' : 'limit' }, btns));
         row.appendChild(what); row.appendChild(usd); row.appendChild(btn);
         if (capBtn) row.appendChild(capBtn);
         unsettledEl.appendChild(row);
@@ -7357,7 +7535,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         row.className = 'set-row bg-pool-hit';
         const label = scope === 'day' ? 'DAY POOL' : 'GLOBAL POOL';
         const txt = document.createElement('span');
-        txt.innerHTML = label + ' CAP HIT — <b>' + fmtUsd(p.usd) + '</b> of <b>' + fmtUsd(p.cap) + '</b>. New runs are paused by the governor.';
+        // a pool that counts unknown spend at its bound says how much of the figure that is (sidecar/budget.js status countedUsd)
+        const counted = (typeof p.countedUsd === 'number' && Number.isFinite(p.countedUsd) && p.countedUsd > 0) ? ' (' + fmtUsd(p.countedUsd) + ' of it is unknown spend, counted until you settle it above)' : '';
+        txt.innerHTML = label + ' CAP HIT — <b>' + fmtUsd(p.usd) + '</b> of <b>' + fmtUsd(p.cap) + '</b>' + counted + '. New runs are paused by the governor.';
         const btn = document.createElement('button');
         btn.className = 'bb sm';
         btn.textContent = 'RESUME (+' + fmtUsd(p.base) + ' headroom)';
@@ -7670,16 +7850,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // P1-9 ADVANCED runtime knobs — fetch the server's current + effective values, render an editable form, POST
   // saved overrides. Precedence (env > saved > default) is enforced + reported by the sidecar; the UI just shows
   // whether a field is env-locked (read-only + a note) or a saved override.
-  const ADV_FIELDS = [
-    { key: 'maxIters', label: 'MAX ITERATIONS', hint: 'the most tool steps one run may take. 0 = no limit (default).', min: 0, max: 200, step: 1 },
-    { key: 'maxConcurrentAgents', label: 'MAX CONCURRENT AGENTS', hint: 'the most agents working at the same time. 0 = no limit (default).', min: 0, max: 32, step: 1 },
-    { key: 'consentTimeoutMs', label: 'CONSENT TIMEOUT (MS)', hint: 'how long an approval card waits for your answer before it says no for you (so a run never hangs).', min: 5000, max: 600000, step: 1000 },
-    { key: 'cronTickMs', label: 'ROUTINE TICK (MS)', hint: 'how often the scheduler checks for due routines.', min: 5000, max: 600000, step: 1000 },
-    { key: 'maxSubscriptionTokens', label: 'CLAUDE CODE TOKEN CEILING', hint: 'tokens one run may use on a Claude subscription sign-in (cache re-reads count 1/10). 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 },
-    // issue #135: the ceiling on a model StarNet can't price (a custom provider's model) was env-only. Both token ceilings
-    // apply from the next run (the sidecar re-resolves them into CAPS on save); the other rows wait for a restart.
-    { key: 'maxUnpricedTokens', label: 'UNPRICED MODEL TOKEN CEILING', hint: 'tokens one run may use on a model StarNet has no price for. 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 }
-  ];
+
   /* the STANDING APPROVALS heading's tip (org P02): when an ask nobody answers is denied, in minutes, and where to change
      it. The number is the deadline the sidecar ENFORCES now (GET /api/runtime/knobs consentTimeoutMs.live — frozen at
      boot) and its ack bound (liveAckMs: an ask whose card is on screen waits 5× as long, capped at 15 min). A CONSENT
@@ -7709,22 +7880,24 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     const render = (st) => {
       const fields = (st && st.fields) || {};
-      form.innerHTML = ADV_FIELDS.map(f => {
+      const definitions = st && Array.isArray(st.definitions) ? st.definitions : [];
+      if (!definitions.length) { form.innerHTML = '<div class="dim">runtime settings unavailable</div>'; return; }
+      form.innerHTML = definitions.map(f => {
         const d = fields[f.key] || {};
         const envLocked = !!d.envLocked;
         const val = (d.effective != null) ? d.effective : (d.default != null ? d.default : '');
         const note = envLocked ? '<span class="dim"> · locked by an environment variable</span>'
           : (d.saved != null ? '<span class="dim"> · saved override</span>' : '<span class="dim"> · default</span>');
-        return '<div class="set-row"><label for="adv-' + f.key + '">' + f.label + note + '</label>' +
+        return '<div class="set-row"><label for="adv-' + f.key + '">' + esc(f.label) + (f.unit === 'ms' ? ' (MS)' : '') + note + '</label>' +
           '<input id="adv-' + f.key + '" class="key-input adv-in" data-key="' + f.key + '" type="number" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + esc(String(val)) + '"' + (envLocked ? ' disabled' : '') + '></div>' +
-          '<div class="mc-hint">' + esc(f.hint) + '</div>';
+          '<div class="mc-hint">' + esc(f.hint) + ' ' + esc({ 'next-run': 'Changes apply from the next run.', restart: 'Changes apply after restart.', live: 'Changes apply immediately.' }[f.applies] || '') + '</div>';
       }).join('') +
         '<div class="mc-acts"><button class="bb sm" id="adv-save">SAVE</button>' +
         '<button class="bb xs" id="adv-reset" title="clear every saved override so these follow the environment / built-in defaults again">RESET TO DEFAULTS</button></div>';
       const saveBtn = form.querySelector('#adv-save');
       if (saveBtn) saveBtn.addEventListener('click', () => {
         const payload = {};
-        for (const f of ADV_FIELDS) {
+        for (const f of definitions) {
           const el = form.querySelector('#adv-' + f.key); if (!el || el.disabled) continue;
           const raw = String(el.value).trim();
           if (raw === '') { payload[f.key] = null; continue; }   // blank -> clear override
@@ -7736,15 +7909,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         Harness.api.post('/api/runtime/knobs', payload)
           .then(({ ok, j }) => {
             if (!ok) { setMsg((j && j.error) || 'could not save'); sfx('bad'); return; }
-            render(j); setMsg('✓ saved (some limits apply on next restart)', true); sfx('click');
+            render(j); setMsg(j.appliesMessage || 'Saved.', true); sfx('click');
           }).catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
       const resetBtn = form.querySelector('#adv-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => {
-        const payload = {}; ADV_FIELDS.forEach(f => { payload[f.key] = null; });
+        const payload = {}; definitions.forEach(f => { payload[f.key] = null; });
         setMsg('resetting…');
         Harness.api.post('/api/runtime/knobs', payload)
-          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg('✓ reset to defaults', true); sfx('click'); })
+          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg(j.appliesMessage || 'Reset to defaults.', true); sfx('click'); })
           .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
     };
@@ -7959,7 +8132,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // The inner <h4 class="ms-h"> sub-headers stay (they read as sub-labels within a section and every
     // settings test source-locks them). mountConsole builds these panes once and returns a content host
     // that spans them all, so the wireX calls below reach every control with no per-section rewire.
-    const secProviders =
+    const secProviders = () =>
       // NB: no inner "PROVIDERS" heading — the console section head already prints PROVIDERS above the pane
       // (a second identical h4 read as a duplicated title in sys-settings.png).
       '<div class="prov-list">' + providersHtml() + '</div>' +
@@ -8140,7 +8313,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +
         '</div>' +
       '</div>' +
-      '<div id="budget-msg" class="msg"></div>';
+      '<div id="budget-msg" class="msg"></div>' +
+      '<h4 class="ms-h">WHAT CAN STOP A RUN</h4>' +
+      '<p class="set-about">The station’s active limits and background-work ceilings. Settings saved for a restart are shown separately. These are limits, not a promise of remaining provider allowance.</p>' +
+      '<div id="budget-effective"><span class="dim">reading effective limits…</span></div>';
     const secModels =
       // MODELS — the ordered FALLBACK CHAIN (P0-3). The primary model is chosen live in the COMMS model dock; this
       // sets what the loop tries NEXT if that model fails mid-run. Persisted server-side + applied live to every run
@@ -8499,7 +8675,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let paintBackdropSwatches = () => {};
 
     const sections = [
-      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: frag(secProviders + secModels) },
+      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: el => frag(secProviders() + secModels)(el) },
       // ONE WORD: AUTONOMY — the dial and what it did while you were away are one section (the old NIGHT SHIFT
       // section folded in; openTerm maps its id here so an old deep link still lands).
       { id: 'autonomy', label: 'AUTONOMY', glyph: '◈', desc: 'Choose when agents work on their own, where that work goes, and see what they did while you were away.', build: frag(secAutonomy + secAwayActivity) },
@@ -8532,6 +8708,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // ONE PLAIN LIST (Andrew 10-02): no intent-group buttons — a few natural pairs share a page instead (AI & MODELS,
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
     const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
+    sectionsOf(body)['*'] = scheduleSettingsRepaint;   // invalidate('settings') takes the coalesced, scroll-keeping repaint
+    if (settingsWindow) settingsWindow._refreshProviderStatus = () => {
+      const pane = host.querySelector('.con-sec[data-section="providers"] .con-sec-body');
+      if (!pane || !pane.isConnected) return;
+      frag(secProviders() + secModels)(pane);
+      wireProviderActions(pane);
+      wireKeyActions(pane);
+      wireCredits(pane);
+      wireFallbackChain(pane);
+      wireTierModels(pane);
+      wireVoiceChatModel(pane);
+    };
 
     wireProviderActions(host);
     wireKeyActions(host);
@@ -9803,7 +9991,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       store.notifs.push(rec);
       if (store.notifs.length > 60) store.notifs = store.notifs.slice(-60);
       save(); badges();
-      if (open.notifs) rerender('notifs');
+      if (open.notifs) invalidate('notifs', null, { fresh: true });   // render contract: a notification landing paints the open list once, next frame
     }
     // quiet: re-file the bell entry without a toast or sound — the same wait, still waiting (answering one of two asks
     // used to re-pop and chime the one you had not touched)
@@ -9829,7 +10017,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (!key) return;
     let n = 0;
     store.notifs.forEach(r => { if (r.key === key && !r.done) { r.done = true; r.read = true; n++; } });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // Opening a session reads everything that pointed at it (the notification WAS the session; you're in it now). A question
   // its finished reply asked you (a stored wait with no prompt behind it) waited for exactly this — you came to read it — so
@@ -9841,7 +10029,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!r.read && r.go && r.go.ws === wsId) { r.read = true; n++; }
       if (r.kind === 'needs' && !r.done && !r.prompt && r.go && r.go.ws === wsId) { r.done = true; r.read = true; r.opened = true; n++; }
     });
-    if (n) { save(); badges(); if (open.notifs) rerender('notifs'); }
+    if (n) { save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true }); }
   }
   // A caller that leads with an ALL-CAPS token + colon ("MODEL: gpt / high") is naming a READOUT,
   // not writing a sentence — that prefix becomes the card's engraved label and the rest becomes the
@@ -10022,7 +10210,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const r = id ? store.notifs.find(x => x && x.id === String(id) && isWaiting(x) && !liveCovered(x)) : null;
     if (!r) return false;
     r.done = true; r.read = true; r.opened = true;
-    save(); badges(); if (open.notifs) rerender('notifs');
+    save(); badges(); if (open.notifs) invalidate('notifs', null, { fresh: true });
     return true;
   }
   function buildNotifs(body) {
@@ -10144,7 +10332,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const NY = liveNeeds();
     const n = store.notifs.filter(x => x && x.kind && !(NY && isWaiting(x)) && (isWaiting(x) || !x.read)).length + (NY ? NY.items().length : 0);
     // the open NOTIFICATIONS window follows the live list (an ask answered on the rail, a STEP-IN handed back)
-    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) rerender('notifs'); lastLiveShape = sh; }
+    if (NY && NY.listShape) { const sh = NY.listShape(); if (lastLiveShape !== null && sh !== lastLiveShape && open.notifs) invalidate('notifs', null, { fresh: true }); lastLiveShape = sh; }
     const b = $('#nf-badge');
     if (b) { const t = n ? String(n) : ''; if (b.textContent !== t) b.textContent = t; const d = n ? 'inline-block' : 'none'; if (b.style.display !== d) b.style.display = d; }
   }
@@ -11746,6 +11934,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       ['completed', 'HISTORY', 'Your goals, results, reflections, and changes of direction.']
     ];
     body.classList.add('quests-content');
+    /* LAZY PANES (the render contract): an open builds only the view on screen. A view is built the first time its tab is
+       chosen and kept from then on, for this window's life: moving back to it rebuilds nothing, and a draft typed there
+       is still there. Until then it is an empty panel marked data-lazy, so an open and every background repaint pay for
+       the views the Commander has looked at, not all five (PASS, the goal planner, the systems and journey readouts, the
+       chapter archive). */
+    const deepView = consoleSection.quests;
+    const activeView = (questViews.find(v => v[0] === (deepView || body.dataset.questView)) || questViews[0])[0];
+    const builtViews = body._questBuilt || (body._questBuilt = new Set());
+    builtViews.add(activeView);
+    const pane = (id, cls, html) => '<section id="q-view-' + id + '" class="q-view-panel' + (cls ? ' ' + cls : '') + '" role="tabpanel" aria-labelledby="q-tab-' + id + '"'
+      + (builtViews.has(id) ? '>' + html() : ' data-lazy="1">') + '</section>';
     body.innerHTML = '<div class="gx gx-quests">'
       + '<header class="q-journal-header"><div><span class="q-journal-eyebrow">YOUR QUESTS</span><h2>Small steps toward your goals</h2></div>'
       + journalCount + '</header>'
@@ -11753,17 +11952,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         '<button type="button" role="tab" id="q-tab-' + v[0] + '" data-quest-view="' + v[0] + '" aria-controls="q-view-' + v[0] + '">' + v[1]
         + '</button>').join('') + '</div>'
       + '<p class="q-view-description"></p>'
-      + '<section id="q-view-pass" class="q-view-panel q-journal-pass" role="tabpanel" aria-labelledby="q-tab-pass">' + passHtml() + '</section>'
-      + '<section id="q-view-available" class="q-view-panel" role="tabpanel" aria-labelledby="q-tab-available">'
-      + questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
-      + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
-      + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : '')
-      + '</section><section id="q-view-goals" class="q-view-panel q-journal-planning" role="tabpanel" aria-labelledby="q-tab-goals">'
-      + questTrackHtml(arcs) + lifeGoalsHtml() + '<details class="q-refresh-options"><summary>Quest suggestions <span class="q-section-note">Direction &amp; refresh</span></summary>' + questRefreshHtml() + '</details>'
-      + '</section><section id="q-view-progress" class="q-view-panel q-journal-progress" role="tabpanel" aria-labelledby="q-tab-progress">'
-      + systemsHtml() + journeyHtml() + stationPrestigeHtml() + milestonesHtml
-      + '</section><section id="q-view-completed" class="q-view-panel q-journal-history" role="tabpanel" aria-labelledby="q-tab-completed">'
-      + journeyChaptersHtml() + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div></section></div>';
+      + pane('pass', 'q-journal-pass', () => passHtml())
+      + pane('available', '', () => questBriefingHtml() + proposalsHtml + filtersHtml + journalHtml
+        + (deferred.length ? '<details class="q-deferred"><summary>Saved for later / blocked (' + deferred.length + ')</summary><div class="gx-tros q-grid">' + deferred.map(tro).join('') + '</div></details>' : '')
+        + (otherGoals.length ? '<details class="q-other-goals"><summary>Other goals (' + otherGoals.length + ')</summary><div class="gx-tros q-grid">' + otherGoals.map(tro).join('') + '</div></details>' : ''))
+      + pane('goals', 'q-journal-planning', () => questTrackHtml(arcs) + lifeGoalsHtml() + '<details class="q-refresh-options"><summary>Quest suggestions <span class="q-section-note">Direction &amp; refresh</span></summary>' + questRefreshHtml() + '</details>')
+      + pane('progress', 'q-journal-progress', () => systemsHtml() + journeyHtml() + stationPrestigeHtml() + milestonesHtml)
+      + pane('completed', 'q-journal-history', () => journeyChaptersHtml() + '<div class="gx-tros q-grid q-done">' + (done.map(tro).join('') || '<div class="q-journal-empty"><h3>No completed quests yet</h3><p>Finished quests and their results will appear here.</p></div>') + '</div>')
+      + '</div>';
     // Stable field identities keep a background refresh from transplanting a draft into another chapter.
     body.querySelectorAll('.q-life-goal input, .q-life-goal textarea, .q-life-report textarea, .q-metric input, .q-metric-create input').forEach(el => {
       if (el.id) return;
@@ -11781,6 +11977,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const selectQuestView = id => {
       const selectedView = questViews.find(v => v[0] === id) || questViews[0];
       body.dataset.questView = selectedView[0];
+      // a view not built yet is built now (one view's worth), keeping focus on its tab when the tab had it
+      const target = body.querySelector('#q-view-' + selectedView[0]);
+      if (target && target.dataset && target.dataset.lazy) {
+        const ae = typeof document !== 'undefined' ? document.activeElement : null;
+        const focusInside = !!(ae && typeof body.contains === 'function' && body.contains(ae));
+        const tabHadFocus = !!(ae && ae.dataset && ae.dataset.questView);
+        builtViews.add(selectedView[0]);
+        rerender('quests', false);   // the Commander's own click: built in this frame, every typed field carried across
+        // the control that was focused (its tab, or a PASS GO) was rebuilt away: focus lands on the view's tab, inside the window's trap
+        const lost = focusInside && !(document.activeElement && body.contains(document.activeElement));
+        if (tabHadFocus || lost) { const t = body.querySelector('#q-tab-' + selectedView[0]); if (t) t.focus(); }
+        return;
+      }
       body.querySelector('.q-view-description').textContent = selectedView[2];
       body.querySelectorAll('[data-quest-view]').forEach(b => {
         const active = b.dataset.questView === selectedView[0];
@@ -11794,7 +12003,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       b.addEventListener('keydown', ev => {
         const next = ev.key === 'ArrowRight' ? (i + 1) % viewButtons.length : ev.key === 'ArrowLeft' ? (i + viewButtons.length - 1) % viewButtons.length : ev.key === 'Home' ? 0 : ev.key === 'End' ? viewButtons.length - 1 : -1;
         if (next < 0) return;
-        ev.preventDefault(); viewButtons[next].click(); viewButtons[next].focus();
+        ev.preventDefault(); const to = viewButtons[next].dataset.questView; viewButtons[next].click(); (body.querySelector('#q-tab-' + to) || viewButtons[next]).focus();
       });
     });
     // a deep link (openTerm('quests', 'progress') — the top-bar COMMANDER gauge, NEW SYSTEM ONLINE) lands on its view once
@@ -11897,7 +12106,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const suggest = body.querySelector('.q-goal-suggest');
     if (suggest) { suggest.disabled = suggest.disabled || !!body._journeyPlanning; suggest.setAttribute('aria-busy', String(!!body._journeyPlanning)); }
     const proposal = body._journeyPlan;
-    if (proposal) {
+    if (proposal && body.querySelector('.q-plan-proposal')) {   // the planner is in GOALS: while another view is up it is not built
       body.querySelector('.q-plan-proposal').innerHTML = '<div class="q-return-card"><span class="q-ns-eyebrow">SUGGESTED PLAN · NOT SAVED</span><h3>' + esc(proposal.title) + '</h3><p>' + esc(proposal.successCondition) + '</p><ol>'
         + proposal.steps.map(s => '<li>' + esc(s) + '</li>').join('') + '</ol><div class="q-journey-actions"><button class="consent-btn q-plan-use">USE &amp; EDIT THIS PLAN</button><button class="consent-btn q-plan-dismiss">DISMISS SUGGESTION</button></div></div>';
       const use = body.querySelector('.q-plan-use');
@@ -12321,7 +12530,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // dom + format primitives
     esc, mkEl, sfx, clock, ts, fmtRel,
     // hud + window plumbing
-    notify, settleNotifs, waitingNotifKeys, seenSession, toast, mountConsole, rerender, openTerm, openSignIn, navigateWork, workConversation,
+    notify, settleNotifs, waitingNotifKeys, seenSession, toast, mountConsole, rerender, invalidate, scopeOf, sectionsOf, openTerm, openSignIn, navigateWork, workConversation,
     // deep-link a missing capability object into the REAL placement surface (minimize this console,
     // open BUILD MODE, arm its palette on the exact prop). The TOOLSETS pane's inert rows use it, so a row
     // that diagnoses "no dish on station" can also cure it. Shared, never re-implemented: an auto-place
@@ -12718,7 +12927,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // GROWTH Tier 3: repaint the Settings AUTONOMY panel's EARNED badge if it is open (no-op otherwise — the paint fn
   // queries its own (possibly detached) host nodes, so a closed panel costs nothing). Called after a trust accept.
   const repaintAutonomy = () => { try { if (repaintAutonomyDial) repaintAutonomyDial(); } catch (_) {} };
-  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), offerPreservedSaves, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
+  return { init, enter, setRoster, leave, clearRunning, runningCount: () => runningAgents.size, isAgentRunning: (id) => agentLive(id), notify, warnIfStationLacksKey, settleNotifs, waitingNotifKeys, seenSession, storedWaits, settleStoredWait, flashSave, refreshSave: () => refreshSaveDurability(), offerPreservedSaves, openAgent, refreshCrew: () => crewTick(), openArcade, toggleTerm, openTerm, focusProvider, showTerm, showAgent, notifsMarkRead, notifsClear, badges, openDesk, closeTerm, rerender, invalidate, refreshBoard: refreshBoardLive, pokeQuests, setTheme, getTheme, setLook, lookNow, lookOptions, repaintAutonomy, initiativeLabel, refreshSystems, toggleFamily, familyOf, registerWindow, h, motionRestState, reseatToasts };
 })();
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { visibleTerminalRect, clampTerminalSize };

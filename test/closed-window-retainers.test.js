@@ -21,7 +21,7 @@ const sui = fs.readFileSync(path.join(__dirname, '../frontend/app/stationui.js')
   A.ok(/onClose: w => \{[^}]*OutboxView\.unmount\(w\)/.test(dlvEntry), 'BUILDERS.deliverables lets OutboxView go of the closing window');
   const run = Function('closeTermSrc', 'dropSrc', `
     let repaintAutonomyDial = () => 'paint', repaintPermAgents = () => 'paint';
-    const open = {}, minimized = {}, calls = [];
+    const open = {}, minimized = {}, calls = [], staleWins = {};   // staleWins: the render contract's paints owed (closeTerm drops them)
     const removeChip = () => {}, sfx = () => {}, syncBB = () => {}, syncScrim = () => {}, visibleCount = () => 1;
     const document = { getElementById: () => null };
     eval(dropSrc); eval(closeTermSrc);

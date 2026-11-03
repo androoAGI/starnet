@@ -892,29 +892,7 @@ const App = (() => {
     return map[provider] || String(provider || 'openrouter').toUpperCase();
   }
   function normalizeProviderId(provider) {
-    const p = String(provider || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'openai' || p === 'openai-api') return 'openai';
-    if (p === 'anthropic' || p === 'claude') return 'anthropic';
-    if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
-    // grok/kimi are their OWN keyless OAuth (subscription) providers — never aliases for the API-key ones
-    // (mirrors harness.js + modeldock.js normalize; 'xai' stays the API-key Grok).
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok' || p === 'xai-oauth') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-code' || p === 'kimi-for-coding' || p === 'kimi-oauth') return 'kimi';
-    if (p === 'xai' || p === 'x-ai') return 'xai';
-    if (p === 'groq') return 'groq';
-    if (p === 'mistral' || p === 'mistralai') return 'mistral';
-    if (p === 'deepseek') return 'deepseek';
-    if (p === 'together' || p === 'together-ai') return 'together';
-    if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
-    if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
-    if (p === 'cerebras') return 'cerebras';
-    // managed credits — its bearer is the linked device token, never a key the user pastes
-    if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return 'openrouter';
+    return SK.providers.registry.normalizeProviderId(provider || 'openrouter', '');
   }
   function providerNeedsKey(provider) {
     const p = normalizeProviderId(provider);
@@ -1101,7 +1079,7 @@ const App = (() => {
     agent.specialtyId = spec.id;
     const patch = Specialties.compose(spec);
     if (patch) applyAgentConfig(patch);   // folds purpose + manual (+ any new persona) into the live prompt, persists, syncs channels
-    if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('agents');   // refresh an open dossier
+    if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('agents', null, { fresh: true });   // refresh an open dossier next frame; its editor shows the new purpose, not the old draft
   }
 
   /* ---------- SUMMON: wake a NEW live agent onto the crew ----------
@@ -3286,15 +3264,10 @@ const App = (() => {
       if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
-      const cst = (claudeCliState && claudeCliState.loggedIn) ? claudeCliState : await refreshClaudeCliStatus();
-      if (!cst || !cst.loggedIn) {
-        msg.textContent = (cst && cst.installed === false) ? 'install Claude Code first — the command is above — then sign in with Claude.' : 'sign in with Claude first — press ⏼ SIGN IN WITH CLAUDE above.';
-        return false;
-      }
+      await refreshClaudeCliStatus();   // collect local status; the common row below decides eligibility (including extra accounts)
       Harness.setModel(model); Harness.setProv('claude-cli');
       wireVia = 'your Claude sign-in';
     } else if (isOAuthProviderId(pickedProvider)) {
-      if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
     } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && codexConnected) {
       // MERGED OPENAI CARD, ChatGPT half: a LIVE sign-in with no key TYPED rides codex. A typed key wins
@@ -3345,6 +3318,13 @@ const App = (() => {
     // wire. One real round-trip to the chosen provider+model, RIGHT NOW — not "configured", not "signed in":
     // ANSWERED. A dead wire keeps the Commander at the console with the honest reason; there is no world where
     // the ceremony silently degrades because the model never actually spoke.
+    await Harness.refreshProviderReadiness();
+    const readiness = Harness.readiness(Harness.getProv());
+    if (!readiness.unattendedReady) {
+      msg.className = 'msg bad';
+      msg.textContent = readiness.reason + (readiness.cached ? ' (cached station status)' : '') + '. check this connection before WAKE.';
+      return false;
+    }
     wakeBtnBusy(true);
     msg.textContent = 'testing the wire — one real call to ' + model + '…';
     const wire = await preflightWire();
@@ -5815,11 +5795,16 @@ const App = (() => {
             }
             browserResetBlocked = false;
             preservedReset = null;
+            // the carry rule's native half: an account link that could not be carried stayed with the old station, and is said
+            const account = result.creditsLeftAside
+              ? ' Your account link could not be carried over, so it stayed with the old station: link your account again. Purchased credits stay on your account.'
+              : ' Your account link and purchased credits were kept.';
             if (result.listening) {
-              setStatus('clean station ready — reopening now. Your account link and purchased credits were kept.' + where);
-              try { location.reload(); } catch (_) {}
+              setStatus('clean station ready — reopening now.' + account + where);
+              if (result.creditsLeftAside) setTimeout(() => { try { location.reload(); } catch (_) {} }, 8000);
+              else try { location.reload(); } catch (_) {}
             } else {
-              setStatus('clean station prepared, but the station service is still blocked. Fully quit StarNet and reopen it. Your account link and purchased credits were kept.' + where);
+              setStatus('clean station prepared, but the station service is still blocked. Fully quit StarNet and reopen it.' + account + where);
             }
           } catch (error) {
             resetting = false;
@@ -6002,33 +5987,38 @@ const App = (() => {
     };
     // START FRESH — the third exit. When nothing here is recoverable (a first run whose overseer never woke,
     // then a manual reset — 2026-08-22 report) RESTORE is dead and RETRY loops forever; this is the way out.
-    // Sidecar-backed: prior state is MOVED to a quarantine folder (never deleted) and external evidence is
-    // acknowledged, then the station service restarts into clean onboarding. Two clicks, never one.
+    // Sidecar-backed: this click only asks. As the station service restarts, the whole generation is MOVED to a
+    // quarantine folder (never deleted), external evidence is acknowledged, and the boot lands in clean onboarding.
+    // If that boot could not set it aside, lineage.lastFresh says why and the button re-arms. Two clicks, never one.
     const freshBtn = el('btn-lineage-fresh');
     if (freshBtn) {
       let armed = false;
+      const freshFailed = last => '＋ could not start fresh — ' + String(last.error || 'the station service refused it') + (last.holder ? ' It is held by ' + last.holder + '.' : '');
+      // the gate may open on a request that did not finish (a reload outran the poll below)
+      if (status && lineage && lineage.lastFresh && lineage.lastFresh.ok === false) status.textContent = freshFailed(lineage.lastFresh);
       freshBtn.onclick = async () => {
         SFX.click && SFX.click();
         if (!armed) {
           armed = true;
           freshBtn.textContent = '✦ CONFIRM — START A NEW STATION';
           if (status) status.textContent = validCandidates.length
-            ? '＋ a recoverable station exists above — START FRESH sets it aside in a quarantine folder (nothing is deleted). Press again to confirm.'
-            : '＋ nothing here is recoverable. START FRESH moves the leftover files to a quarantine folder (nothing is deleted) and opens a new station. Press again to confirm.';
+            ? '＋ a recoverable station exists above — START FRESH sets this workspace aside in a quarantine folder (nothing is deleted), including the sign-ins, channel bots and connectors it holds. Press again to confirm.'
+            : '＋ nothing here is recoverable. START FRESH sets this workspace aside in a quarantine folder (nothing is deleted), including the sign-ins, channel bots and connectors it holds, and opens a new station. Press again to confirm.';
           setTimeout(() => { if (armed) { armed = false; freshBtn.textContent = '✦ START FRESH'; } }, 12000);
           return;
         }
         armed = false;
         freshBtn.disabled = true;
-        if (status) status.textContent = '＋ setting prior state aside…';
+        if (status) status.textContent = '＋ closing the station browser…';
         try {
           const response = await fetch('/api/lineage/start-fresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
           const result = await response.json().catch(() => ({}));
           if (!response.ok || !result.ok) throw new Error(result.error || 'start-fresh request refused');
-          if (status) status.textContent = (result.moved && result.moved.length ? '＋ ' + result.moved.length + ' file(s) set aside in ' + result.quarantine + ' — ' : '＋ ') +
-            (result.desktopWillRestart ? 'station service restarting — opening your new station…' : 'restart the manual sidecar; this screen will continue automatically');
+          if (status) status.textContent = result.desktopWillRestart
+            ? '＋ station service restarting — the old station is set aside as it comes back, then your new station opens…'
+            : '＋ restart the manual sidecar — the old station is set aside as it boots, and this screen will continue automatically';
           // poll until the respawned sidecar answers, then reload: boot re-runs every gate and, with the
-          // evidence gone, lands on the first-run ceremony.
+          // evidence gone, lands on the first-run ceremony. A newer lastFresh is that boot's own word on the request.
           const timer = setInterval(async () => {
             try {
               const probe = await fetch('/api/lineage', { cache: 'no-store' });
@@ -6038,7 +6028,23 @@ const App = (() => {
               // already done — reload once (the timer dies here, so it can never loop).
               if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
               const body = probe.ok ? await probe.json() : null;
-              if (body && body.lineage && body.lineage.priorInstallEvidence === false) { clearInterval(timer); location.reload(); }
+              const next = body && body.lineage;
+              if (!next) return;
+              const last = next.lastFresh && Number(next.lastFresh.at) >= Number(result.requestedAt) ? next.lastFresh : null;
+              if (next.priorInstallEvidence !== false && !last) return;   // the old service, still going down
+              clearInterval(timer);
+              if (next.priorInstallEvidence !== false && last.ok === false) {
+                freshBtn.disabled = false; freshBtn.textContent = '✦ START FRESH';
+                if (status) status.textContent = freshFailed(last);
+                return;
+              }
+              // the sidecar door's half of the carry rule: an account link that could not be carried is said before the reload
+              if (last && last.creditsLeftAside) {
+                if (status) status.textContent = '＋ clean station ready — your account link could not be carried over, so it stayed with the old station. Link your account again; purchased credits stay on your account.';
+                setTimeout(() => location.reload(), 6000);
+                return;
+              }
+              location.reload();
             } catch (_) {}
           }, 1500);
         } catch (error) {
@@ -6054,7 +6060,7 @@ const App = (() => {
   async function init() {
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
     if (typeof StationUI !== 'undefined') StationUI.init();   // applies saved theme/CRT settings, wires the bottom bar
-    if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: StationUI.rerender });
+    if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: key => StationUI.invalidate(key, null, { fresh: true }) });   // the Update Center repaints next frame, its controls showing the new state
 
     /* EXTENSIONS AWAITING APPROVAL. Hooks and plugins are opt-in by design: an unapproved one is silently
        inert. That is the correct security posture and the worst possible UX if it is never surfaced — the

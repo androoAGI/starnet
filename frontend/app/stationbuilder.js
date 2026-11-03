@@ -131,9 +131,7 @@
     const errs = new Set((plan.errors || []).filter(e => e && !e.warn).map(e => { const t = world(e.tile); return e.code + ':' + (e.propId || '') + ':' + (t ? t.x + ',' + t.y : ''); }));
     const chains = {}, raw = L.dockChains || {};
     for (const d in raw) chains[d] = raw[d] && raw[d].tile ? Object.assign({}, raw[d], { tile: world(raw[d].tile) }) : raw[d];
-    // the OUTBOXes whose SEND TO hands on files the next crew cannot open (Pipeline.sendToFileAdvice — only where that is TRUE)
-    const privs = new Set((P.sendToFileAdvice ? P.sendToFileAdvice(plan) : []).map(a => a.propId));
-    return { geo, plan, errs, chains, reach: L.reachDock || plan.reachDock || {}, privs };
+    return { geo, plan, errs, chains, reach: L.reachDock || plan.reachDock || {} };
   }
   // where a walk starts: the walkable tile nearest the middle of the spawn room (a desk may stand on the middle itself)
   function spawnTile(doc, g) {
@@ -1887,10 +1885,6 @@
     const after = floorFacts(probe, P), warn = [];
     const newErr = [...after.errs].filter(e => !before.errs.has(e));
     if (newErr.length) warn.push(newErr.length + (newErr.length === 1 ? ' routing problem' : ' routing problems') + ' on the floor after it (' + [...new Set(newErr.map(e => e.split(':')[0]))].join(', ') + ')');
-    /* a SEND TO this refit makes (or a folder it takes away) that hands files on to a crew who cannot open them: said BEFORE the
-       Commander approves, never discovered on the OUTBOX afterwards (final floor lane M26); true only where it is (sendToFileAdvice) */
-    const priv = [...new Set([...(after.privs || [])].filter(id => !(before.privs || new Set()).has(id)).map(id => lineWordOf(probe, env, id)))];
-    if (priv.length) warn.push(priv.join(', ') + (priv.length > 1 ? ' have' : ' has') + ' no project folder: only the finished text rides on, and the next line’s crew cannot open the files ' + (priv.length > 1 ? 'they make' : 'it makes') + ' (give ' + (priv.length > 1 ? 'them' : 'it') + ' a shared project with { op: "folder" })');
     const wb = walkableRooms(live), wa = walkableRooms(probe), cut = probe.rooms().filter(r => r.kind !== 'corridor' && !wa.has(r.id) && (wb.has(r.id) || !live.rooms().some(x => x.id === r.id))).map(r => r.name);
     if (cut.length) warn.push((cut.length > 1 ? cut.join(', ') + ' cannot be walked into' : cut[0] + ' cannot be walked into') + ' from the main room');
     // a long refit shows its first edits, and EVERY edit that takes something away, moves or resizes, or changes what a line

@@ -26,12 +26,9 @@ const appSrc = fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), '
 const initStart = harnessSrc.indexOf('async function init()');
 A.ok(initStart > 0, 'harness.js still has the async init()');
 const initBody = harnessSrc.slice(initStart, harnessSrc.indexOf('function normalizeProviderId'));
-A.ok(initBody.indexOf('/api/auth/codex/status') >= 0,
-  'init() probes the codex sign-in status (keychain sweep can never report codex)');
-A.ok(/if\s*\(j\s*&&\s*j\.connected\)\s*_configuredByProvider\.codex\s*=\s*true/.test(initBody),
-  'a connected codex marks the desktop configured map at boot');
-A.ok(/catch\s*\(_\)\s*\{\s*\}/.test(initBody),
-  'the codex probe is fail-open (a dead route never blocks boot)');
+A.ok(initBody.includes('await refreshProviderReadiness()'), 'boot reads the sidecar provider readiness rows, including Codex');
+A.ok(!initBody.includes('_configuredByProvider'), 'keychain status cannot overwrite the sidecar readiness verdict');
+A.ok(harnessSrc.includes('readinessCache.offline()'), 'a failed fetch preserves cached state with an explicit stale label');
 
 /* ---------- 2. sign-in time: the status poll flips the map immediately ---------- */
 const refreshStart = appSrc.indexOf('async function refreshCodexStatus');

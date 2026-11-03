@@ -1,4 +1,8 @@
-# floor-canaries — LIVE checks of the free floors a keyless StarNet station stands on.
+# floor-canaries — LIVE checks of the external floors a StarNet station stands on.
+# The existing voice job retains its policy. The floor table adds search, direct page reading, model catalog,
+# prices, publisher Google registration, GitHub/ChatGPT device-start and the published update host. New floors
+# fail schedule/dispatch after one retry; reusable release calls report only. An unavailable Google registration
+# is explicitly unconfigured (warning), never a successful sign-in proof. No sign-in is completed here.
 #
 # WHY. A station with no OpenRouter, Gemini or OpenAI key speaks only through Microsoft's Edge read-aloud endpoint.
 # On 2026-10-26 that endpoint began refusing our v1 Sec-MS-GEC token with HTTP 403 and every keyless station went
@@ -35,6 +39,9 @@ on:
         default: "sidecar/index.js"
   workflow_call:
     inputs:
+      floors_report_only:
+        type: boolean
+        default: true
       blocking:
         type: boolean
         default: true
@@ -55,6 +62,65 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      floors: ${{ steps.table.outputs.floors }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha || github.sha }}
+          sparse-checkout: scripts/canary
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: table
+        shell: bash
+        run: echo "floors=$(node scripts/canary/floors.mjs --list)" >> "$GITHUB_OUTPUT"
+
+  floors:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        floor: ${{ fromJSON(needs.plan.outputs.floors) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha || github.sha }}
+          path: .canary-tool
+          sparse-checkout: scripts/canary
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Check the product's external floor
+        shell: bash
+        env:
+          FLOOR: ${{ matrix.floor }}
+          # A reusable workflow retains its caller's event name. Use its typed input, not an event-name guess.
+          REPORT_ONLY: ${{ inputs.floors_report_only == true }}
+          STARNET_GOOGLE_DESKTOP_CLIENT_JSON: ${{ matrix.floor == 'google-signin' && inputs.floors_report_only != true && secrets.STARNET_GOOGLE_DESKTOP_CLIENT_JSON || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p canary
+          args=(--floor "$FLOOR" --product-root "$GITHUB_WORKSPACE" --retry 1 --json "canary/$FLOOR.json")
+          if [ "$REPORT_ONLY" = "true" ]; then args+=(--report-only); fi
+          node .canary-tool/scripts/canary/floors.mjs "${args[@]}"
+      - name: Keep the floor verdict
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: external-floor-${{ matrix.floor }}-${{ github.run_id }}
+          path: canary/${{ matrix.floor }}.json
+          if-no-files-found: warn
+
   voice:
     runs-on: ubuntu-latest
     timeout-minutes: 15

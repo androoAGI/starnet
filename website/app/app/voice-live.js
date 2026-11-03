@@ -182,7 +182,7 @@ const VoiceLive = (() => {
     waveBars = Array.from(wave.children);
     restorePosition(panel);
     makeDraggable(panel);
-    $('lv-close').onclick = end;
+    $('lv-close').onclick = () => end();
     $('lv-retry').onclick = () => start(true);
     $('lv-barge').onclick = bargeIn;
     $('lv-pause').onclick = togglePause;
@@ -640,10 +640,10 @@ const VoiceLive = (() => {
   function rebind(id) {
     if (id) {
       const next = String(id);
-      // A voice-commanded session switch transfers ownership of the call. Cut any queued audio
-      // from the old owner before changing the id, so a late old-session sentence can never play
-      // into the newly-bound conversation.
-      if (boundWsId && boundWsId !== next && typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+      // A voice-commanded session switch transfers ownership of the call. Cancel the old owner's replies
+      // before changing the id, so a late old-session sentence can never play into the newly-bound
+      // conversation; the call's own lines and any other session's reply keep their place.
+      if (boundWsId && boundWsId !== next && typeof Voice !== 'undefined' && Voice.replies) Voice.replies().filter(reply => reply.owner === boundWsId).forEach(reply => Voice.cancelReply(reply, 'session_rebind'));
       boundWsId = next;
       refreshTask();
     }
@@ -671,6 +671,9 @@ const VoiceLive = (() => {
   function handleTranscript(text, measured = timing) {
     const value = String(text || '').trim();
     if (!value) { setState('listening'); return true; }
+    // The replies live BEFORE this turn acts: send() opens the new run's reply inside sendOrQueue, synchronously, so
+    // only this snapshot may be cancelled. A turn that starts a run supersedes it and a stop cuts it; nothing else does.
+    const prior = typeof Voice !== 'undefined' && Voice.replies ? Voice.replies() : [];
     // spoken words go to the session this call was opened in, wherever the Commander happens to be browsing
     ensureBoundFocus();
     markTiming('send', measured);
@@ -689,7 +692,8 @@ const VoiceLive = (() => {
       return true;
     }
     if (/^(?:stop (?:speaking|talking|reading)|quiet|be quiet|mute (?:your )?voice)$/.test(lower)) {
-      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking();
+      // what is speaking stops; a reply still thinking speaks when it arrives (the task is still running)
+      if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'user_stop');
       caption('agent', typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy()
         ? 'Speech stopped. The task is still running.' : 'Speech stopped.');
       setState('listening');
@@ -697,13 +701,17 @@ const VoiceLive = (() => {
     }
     const stopOnly = /^(?:stop|cancel|interrupt|hold on|wait|never ?mind)(?: the task| that)?$/.test(lower);
     const redirect = /^(?:stop|cancel|interrupt|hold on|wait)[,;:\s]+(.{3,})$/i.exec(value);
+    // A stop cuts the replies of the run it stops BEFORE stopping it: the stopped run flushes its partial text into its
+    // reply on the way out, and that must never play after 'Stopped.'.
     if (stopOnly) {
+      prior.forEach(reply => Voice.cancelReply(reply, 'user_stop'));
       const wasBusy = !!(typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy());
       if (wasBusy && Chat.stopActive) Chat.stopActive();
       speakLocal(wasBusy ? 'Stopped.' : 'Nothing is running.');
       return true;
     }
     if (redirect && typeof Chat !== 'undefined') {
+      prior.forEach(reply => Voice.cancelReply(reply, 'user_stop'));
       if (Chat.isBusy && Chat.isBusy() && Chat.stopActive) Chat.stopActive();
       const next = redirect[1].trim();
       if (Chat.sendOrQueue) Chat.sendOrQueue(next);
@@ -716,6 +724,8 @@ const VoiceLive = (() => {
       return true;
     }
     const result = Chat.sendOrQueue(value);
+    // a turn that STARTS a run replaces what the agent was about to say; a queued or answered turn leaves it alone
+    if (result && result.state === 'started') prior.forEach(reply => Voice.cancelReply(reply, 'superseded'));
     caption('agent', result && result.state === 'queued' ? 'Queued behind the current task.' : 'Working on it.');
     refreshTask();
     return true;
@@ -738,6 +748,26 @@ const VoiceLive = (() => {
     if (!active || state === 'ended') return;
     setState(state === 'ready' ? 'listening' : state);
     refreshTask();
+  }
+  /* ONE HOOK OBJECT FOR EVERY LEG. voice.js emits ten coordinator hooks (coordinatorEvent, plus onTranscript); the
+     models, dictation and realtime legs each passed their own literal with a different subset, so a speech note never
+     reached a dictation panel and a COMMS mic take bypassed a models-leg call. Every leg attaches this object; the two
+     with no panel effect are named no-ops (the diagnostics ring and the COMMS status line carry them). */
+  function coordinatorHooks() {
+    return {
+      onState, onAssistant, onOutputLevel, onTiming, onTranscript: handleTranscript,
+      onInterim: text => { if (!paused && text) { caption('user', text); setState('hearing'); } },
+      onSpeechInterrupted: value => setTransientError(value.message, 10000),
+      // voice.js PAUSED its mic loop (a refused microphone, or an engine that kept failing) and the awaited reply still
+      // speaks: the panel reads PAUSED with the reason in its error row, and RESUME MIC tries again
+      onFatal: value => {
+        if (!active) return;
+        if (!paused) togglePause();
+        setError(value && value.message || 'Voice input paused.');
+        caption('user', 'Microphone paused — voice input stopped.');
+      },
+      onSpeechEvent() {}, onError() {}
+    };
   }
 
   function downsample(frames, fromRate) {
@@ -1002,8 +1032,9 @@ const VoiceLive = (() => {
         beginStream(utterance, utteranceSeq, resumedText);
         lastPartialAt = performance.now();
         silenceMs = 0;
-        // Invalidate the old reply even if its first audio is still being generated.
-        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_activity', {
+        // Cut what the agent is SAYING (queued or playing) at once. A reply still thinking survives the onset: the turn
+        // cancels it only if it starts a run (handleTranscript), so a cough or an empty take never drops the answer.
+        if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'microphone_activity', {
           rms, threshold, noiseFloor, agentTalking, replyPending: !!replyPending, outputRms: agentLevel, onsetMs: speechOnsetMs, sampleRate: context.sampleRate
         });
         setState('hearing');
@@ -1024,6 +1055,11 @@ const VoiceLive = (() => {
     }
   }
 
+  // Cleanup for a stale async acquisition takes only its own resources, never the current call's globals.
+  function releaseInput(acquired, audioContext) {
+    try { if (acquired) acquired.getTracks().forEach(track => { track.onended = null; track.stop(); }); } catch (_) {}
+    try { const closing = audioContext && audioContext.close(); if (closing && closing.catch) closing.catch(() => {}); } catch (_) {}
+  }
   async function openMicrophone(seq) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('This browser cannot open a microphone.');
     const acquired = await navigator.mediaDevices.getUserMedia({
@@ -1045,16 +1081,20 @@ const VoiceLive = (() => {
     stream.getAudioTracks().forEach(track => { track.enabled = !paused; });
     const track = stream.getAudioTracks()[0];
     if (track) track.onended = () => { if (active && seq === sessionSeq) scheduleReconnect('Microphone disconnected.'); };
-    context = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-    await context.resume();
-    source = context.createMediaStreamSource(stream);
-    processor = context.createScriptProcessor(2048, 1, 1);
-    sink = context.createGain();
+    const openedContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+    context = openedContext;
+    const owns = () => active && seq === sessionSeq && context === openedContext && stream === acquired;
+    try { await openedContext.resume(); }
+    catch (error) { if (!owns()) { releaseInput(acquired, openedContext); return false; } throw error; }
+    if (!owns()) { releaseInput(acquired, openedContext); return false; }
+    source = openedContext.createMediaStreamSource(acquired);
+    processor = openedContext.createScriptProcessor(2048, 1, 1);
+    sink = openedContext.createGain();
     sink.gain.value = 0;
     processor.onaudioprocess = processFrame;
     source.connect(processor);
     processor.connect(sink);
-    sink.connect(context.destination);
+    sink.connect(openedContext.destination);
     calibratedUntil = performance.now() + 700;
     return true;
   }
@@ -1118,14 +1158,18 @@ const VoiceLive = (() => {
       try { acquired.getTracks().forEach(track => track.stop()); } catch (_) {}
       return;
     }
+    let openedContext = null;
+    const owns = () => active && dictation && seq === sessionSeq && tapStream === acquired && tapContext === openedContext;
     try {
       tapStream = acquired;
       tapStream.getAudioTracks().forEach(track => { track.enabled = !paused; });
-      tapContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
-      await tapContext.resume();
-      tapSource = tapContext.createMediaStreamSource(tapStream);
-      tapProcessor = tapContext.createScriptProcessor(2048, 1, 1);
-      tapSink = tapContext.createGain();
+      openedContext = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: 'interactive' });
+      tapContext = openedContext;
+      await openedContext.resume();
+      if (!owns()) { releaseInput(acquired, openedContext); return; }
+      tapSource = openedContext.createMediaStreamSource(acquired);
+      tapProcessor = openedContext.createScriptProcessor(2048, 1, 1);
+      tapSink = openedContext.createGain();
       tapSink.gain.value = 0;
       tapProcessor.onaudioprocess = event => {
         const frame = event.inputBuffer.getChannelData(0);
@@ -1135,8 +1179,9 @@ const VoiceLive = (() => {
       };
       tapSource.connect(tapProcessor);
       tapProcessor.connect(tapSink);
-      tapSink.connect(tapContext.destination);
+      tapSink.connect(openedContext.destination);
     } catch (error) {
+      if (!owns()) { releaseInput(acquired, openedContext); return; }
       console.warn('[voice-live] level meter tap failed to wire:', (error && error.message) || error);
       closeMeterTap();
     }
@@ -1181,12 +1226,13 @@ const VoiceLive = (() => {
       if (!active || seq !== sessionSeq) return;
       try {
         const opened = await openMicrophone(seq);
-        if (!opened) return;
+        if (!opened || !active || seq !== sessionSeq) return;
         reconnectAttempt = 0;
         setError('');
         setState('listening');
         if ($('lv-heard')) $('lv-heard').textContent = 'Microphone reconnected — listening.';
       } catch (error) {
+        if (!active || seq !== sessionSeq) return;
         scheduleReconnect(`Could not reopen the microphone: ${error && error.message || error}.`);
       }
     }, delay);
@@ -1195,7 +1241,7 @@ const VoiceLive = (() => {
   function bargeIn() {
     if (!active) return;
     if (paused) { togglePause(); return; }
-    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('microphone_button');
+    if (typeof Voice !== 'undefined' && Voice.stopSpeaking) Voice.stopSpeaking('audible', 'microphone_button');
     if (dictation && Voice.resumeCoordinator) Voice.resumeCoordinator();
     setState('listening');
     caption('user', 'Listening…');
@@ -1218,7 +1264,8 @@ const VoiceLive = (() => {
       if (dictation && typeof Voice !== 'undefined' && Voice.pauseCoordinator) Voice.pauseCoordinator();
     } else {
       setError('');   // a resume is a fresh attempt — a paused-for-errors reason must not linger over it
-      if (dictation && typeof Voice !== 'undefined' && Voice.resumeCoordinator) Voice.resumeCoordinator();
+      // on every leg: a pause voice.js set itself (a refused COMMS take mid-call) is lifted by the same RESUME
+      if (typeof Voice !== 'undefined' && Voice.resumeCoordinator) Voice.resumeCoordinator();
     }
     if (stream) stream.getAudioTracks().forEach(track => { track.enabled = !paused; });
     if (tapStream) tapStream.getAudioTracks().forEach(track => { track.enabled = !paused; });
@@ -1240,7 +1287,8 @@ const VoiceLive = (() => {
   async function start(retry) {
     ensurePanel();
     if (active && !retry) { $('live-voice-panel').hidden = false; return; }
-    if (retry) finish(true);
+    if (retry) finish('call_end');
+    const seq = ++sessionSeq;   // readiness and permission waits belong to this start, before either can yield
     paused = false; timing = {}; lastAudioStartMs = null;
     // Local Live rides on staged offline speech packages, so ASK the sidecar instead of assuming this particular
     // install is intact before opening the microphone. Going live first and failing on the first model import is
@@ -1258,6 +1306,7 @@ const VoiceLive = (() => {
        like a fix for. */
 
     const readiness = await probeAvailability();
+    if (seq !== sessionSeq) return;
     streamAvailable = !!(readiness && readiness.streaming);
     if (readiness && readiness.probeFailed) {
       $('live-voice-panel').hidden = false;
@@ -1283,6 +1332,7 @@ const VoiceLive = (() => {
       // That is NOT a reason to refuse: listening has a keyless ladder (Windows dictation through the
       // sidecar) and speaking already works through the Edge floor. Only refuse when neither exists.
       const native = await probeNativeStt();
+      if (seq !== sessionSeq) return;
       if (native && native.available) return startDictation();
       $('live-voice-panel').hidden = false;
       setState('unavailable');
@@ -1295,7 +1345,6 @@ const VoiceLive = (() => {
       reflectButton(false);
       return;
     }
-    const seq = ++sessionSeq;
     setError('');
     setState('connecting');
     resetLevel();
@@ -1309,15 +1358,14 @@ const VoiceLive = (() => {
     bindSession();   // the call belongs to the session it was OPENED in (see the binding note above)
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
-      // Entering hands-free means you expect to HEAR the reply. If the speaker is muted, turn it on for the
-      // session (restored on exit if we were the ones who flipped it) — otherwise live voice opens silent and
-      // looks broken until the Commander hunts down a toggle.
-      if (Voice.forceSpeakOn) Voice.forceSpeakOn();
-      // Local Live is now Starnet's one hands-free surface. A legacy loop can still exist through
-      // older saved state or API callers; close it before attaching this persistent microphone.
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      // Entering hands-free means you expect to HEAR the reply, so the call borrows the speaker: its own lease, given back
+      // at its end, never saved, and a choice the Commander makes meanwhile is theirs to keep. Local Live is Starnet's one
+      // hands-free surface; a legacy loop can still exist through older saved state or API callers, and it closes AFTER
+      // the lease is taken, so its hold ending never mutes the speaker in between (that would cancel the reply still thinking).
+      if (Voice.leaseSpeaker) Voice.leaseSpeaker('live');
+      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.endSession) Voice.endSession('live_start', { scope: 'audible' });
       if (Voice.setLocalTts) Voice.setLocalTts(true);
-      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming, onSpeechInterrupted: value => setTransientError(value.message, 10000) });
+      if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
     try {
       fetch('/api/local-voice/warm', { method: 'POST' }).catch(() => {});
@@ -1337,6 +1385,7 @@ const VoiceLive = (() => {
       clearInterval(taskTimer);
       taskTimer = setInterval(refreshTask, 500);
     } catch (error) {
+      if (seq !== sessionSeq) return;   // an older denied permission cannot end a newer call
       active = false;
       sessionSeq++;
       failed = true;
@@ -1346,13 +1395,9 @@ const VoiceLive = (() => {
         : String(error && error.message || error));
       closeMicrophone();
       reflectButton(false);
-      if (typeof Voice !== 'undefined') {
-        if (Voice.detachCoordinator) Voice.detachCoordinator();
-        if (Voice.setLocalTts) Voice.setLocalTts(false);
-        // start() may have lifted a user mute before the microphone permission request failed. A failed
-        // session must restore that preference just like a normal finish does.
-        if (Voice.restoreSpeak) Voice.restoreSpeak();
-      }
+      // start() leased the speaker before the microphone was refused: a failed session gives it back, with its hooks and
+      // built-in voice, just like a normal end, but a reply still thinking still speaks
+      if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession('live_start_failed', { lease: 'live', scope: 'audible' });
     }
   }
 
@@ -1618,10 +1663,9 @@ const VoiceLive = (() => {
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
       // The provider speaks for itself here, so OUR text-to-speech must stay silent or the reply is doubled.
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      if (Voice.endSession) Voice.endSession('provider_voice');
       if (Voice.setLocalTts) Voice.setLocalTts(false);
-      if (Voice.stopSpeaking) Voice.stopSpeaking();
-      if (Voice.attachCoordinator) Voice.attachCoordinator({ onState, onAssistant, onOutputLevel, onTiming });
+      if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
     try {
       const opened = await openMicrophone(seq);
@@ -1755,29 +1799,20 @@ const VoiceLive = (() => {
     bindSession();   // the shipped path binds too — the call belongs to the session it was opened in
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
-      /* ⛔ THE SAME LEVER start() PULLS, INCLUDING THE DEGRADE PATH. An explicit opt-out or damaged/custom
-         bundle lands here even in an installed station. Wiring the speaker auto-enable only into the models
-         path left that room muted: the Commander could talk, but never hear an answer. */
-      if (Voice.forceSpeakOn) Voice.forceSpeakOn();
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      /* ⛔ THE SAME LEVERS start() PULLS, IN THE SAME ORDER, INCLUDING THE DEGRADE PATH. An explicit opt-out or
+         damaged/custom bundle lands here even in an installed station. Wiring the speaker auto-enable only into the
+         models path left that room muted: the Commander could talk, but never hear an answer. */
+      if (Voice.leaseSpeaker) Voice.leaseSpeaker('live');
+      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.endSession) Voice.endSession('live_start', { scope: 'audible' });
       /* setLocalTts(TRUE) on the dictation leg too (2026-07-30). This flag means "speak with the BUILT-IN
          live-voice identity", not "the Kokoro engine is installed": the sidecar now maps the picked voice
          onto the keyless Edge floor when the engine is absent, so the picker keeps working on an installed
          build. Passing false here is what disconnected the picker and let the keyed provider voice speak —
          the identity bug Andrew heard. */
       if (Voice.setLocalTts) Voice.setLocalTts(true);
-      if (Voice.startCoordinator) Voice.startCoordinator({ onState, onAssistant, onOutputLevel, onTiming, onTranscript: handleTranscript,
-        onInterim: text => { if (!paused && text) { caption('user', text); setState('hearing'); } },
-        // the dictation engine failed repeatedly and Voice stopped re-arming it — the panel must stop saying
-        // "listening" and name the problem (it used to stay on LISTENING over a dead loop).
-        // Voice already paused its mic loop (the reply still speaks); show the panel's real PAUSED state so
-        // RESUME MIC retries, and every later state change keeps reading PAUSED instead of LISTENING.
-        onFatal: value => {
-          if (!active) return;
-          if (!paused) togglePause();
-          setError(value && value.message || 'Voice input paused.');
-          caption('user', 'Microphone paused — the speech engine kept failing.');
-        } });
+      // A paused loop (onFatal) shows the panel's real PAUSED state, so RESUME MIC retries and every later state change
+      // keeps reading PAUSED instead of LISTENING over a dead loop.
+      if (Voice.startCoordinator) Voice.startCoordinator(coordinatorHooks());
     }
     if (!active || seq !== sessionSeq) return;
     // The meter is real on this leg too (see openMeterTap): the tap arrives whenever the permission
@@ -1814,7 +1849,7 @@ const VoiceLive = (() => {
     taskTimer = setInterval(refreshTask, 500);
   }
 
-  function finish(stopVoice) {
+  function finish(cause) {
     if (ending) return;
     ending = true;
     active = false;
@@ -1829,22 +1864,17 @@ const VoiceLive = (() => {
     closeMicrophone();
     clearInterval(meterClock); meterClock = null;
     closeMeterTap();
-    if (typeof Voice !== 'undefined') {
-      if (stopVoice && Voice.stopSpeaking) Voice.stopSpeaking();
-      if (Voice.restoreSpeak) Voice.restoreSpeak();   // only undoes a mute WE lifted; a hand-set speaker stays
-      // Dictation mode STARTED the coordinator (which armed a listen loop), so detaching the hooks is not
-      // enough — that loop has to be stopped or the sidecar keeps being asked to dictate after the panel closes.
-      if (dictation && Voice.stopCoordinator) Voice.stopCoordinator();
-      if (Voice.detachCoordinator) Voice.detachCoordinator();
-      if (Voice.setLocalTts) Voice.setLocalTts(false);
-    }
+    // ONE teardown: every reply is cut with this call's cause; the listen loop dictation STARTED stops (detaching the hooks
+    // alone left the sidecar dictating after the panel closed); the call's hold on the speaker goes back (a hand-set speaker
+    // stays as the Commander left it); the hooks detach and ordinary speech returns to the persona ladder
+    if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession(cause, { lease: 'live' });
     dictation = false;
     boundWsId = null;   // the binding dies with the call — a later call binds to wherever it is opened
     if ($('live-voice-panel')) $('live-voice-panel').hidden = true;
     reflectButton(false);
     ending = false;
   }
-  function end() { finish(true); }
+  function end(cause = 'call_end') { finish(cause); }   // DISCONNECT and /voice off name theirs
 
   function init() {
     ensurePanel();
@@ -1860,7 +1890,12 @@ const VoiceLive = (() => {
       // Dictation mode holds no transcription mic, so `stream`/`context` are null by design — the checks
       // below would read that as "microphone lost" and fire a reconnect that opens a device we must not touch.
       if (!active || dictation || document.hidden) return;
-      if (context && context.state === 'suspended') context.resume().catch(() => scheduleReconnect('Audio session was suspended.'));
+      if (context && context.state === 'suspended') {
+        const ownedContext = context, seq = sessionSeq;
+        ownedContext.resume().catch(() => {
+          if (active && seq === sessionSeq && context === ownedContext) scheduleReconnect('Audio session was suspended.');
+        });
+      }
       const track = stream && stream.getAudioTracks()[0];
       if (!track || track.readyState === 'ended') scheduleReconnect('Microphone connection was lost.');
     });

@@ -22,9 +22,9 @@
      5. refreshTokens(tokenEndpoint, refreshToken, client credentials, now) -> tokens   (when needsRefresh) */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('node:crypto'), require('../net/safe-egress.js'));
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('node:crypto'), require('../net/safe-egress.js'), require('../failopen.js').note);
   else { root.SK = root.SK || {}; (root.SK.mcp = root.SK.mcp || {}).oauth = factory(null, null); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (nodeCrypto, egress) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (nodeCrypto, egress, failNote) {
   'use strict';
 
   const DEFAULT_TIMEOUT_MS = 15000;
@@ -110,11 +110,26 @@
     return u;
   }
 
+  // The consumer that stops reading owns the response body. The fetch wrapper
+  // returns a live Response and gracefully closes its dispatcher in the background;
+  // abandoning an unread body there would keep the socket alive after our deadline.
+  async function discardResponse(response) {
+    const body = response && response.body;
+    if (!body) return;
+    try {
+      if (typeof body.cancel === 'function') await body.cancel();
+      else if (typeof body.destroy === 'function') body.destroy();
+    } catch (error) { if (failNote) failNote('connector.oauth.discard-body', error); }
+  }
+
   async function getJson(fetchImpl, url, label, net) {
     assertSafeUrl(url, label);
     try { return await withDeadline(net, async signal => {
       const res = await fetchImpl(url, { headers: { 'Accept': 'application/json', 'MCP-Protocol-Version': '2025-06-18' }, redirect: 'manual', signal });
-      if (!res || res.status < 200 || res.status >= 300) throw new Error((label || 'fetch') + ' HTTP ' + (res && res.status));
+      if (!res || res.status < 200 || res.status >= 300) {
+        await discardResponse(res);
+        throw new Error((label || 'fetch') + ' HTTP ' + (res && res.status));
+      }
       try { return await res.json(); } catch (e) { throw new Error((label || 'fetch') + ' returned non-JSON'); }
     }, label); }
     catch (e) { throw new Error((label || 'fetch') + ' failed: ' + ((e && e.message) || e)); }
@@ -368,7 +383,7 @@
   return {
     base64url, makeVerifier, challengeOf, parseWwwAuthenticate,
     defaultResourceMetadataUrl, discover, registerClient, buildAuthorizeUrl,
-    exchangeCode, refreshTokens, tokensFromResponse, needsRefresh, withDeadline, chooseTokenEndpointAuthMethod,
+    exchangeCode, refreshTokens, tokensFromResponse, needsRefresh, withDeadline, discardResponse, chooseTokenEndpointAuthMethod,
     DEFAULT_TIMEOUT_MS, MAX_TIMEOUT_MS,
     _internals: { asMetadataUrls, getJson, postForm, authenticateTokenRequest }
   };

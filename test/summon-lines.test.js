@@ -55,9 +55,14 @@ const makeChildEmit = Function('FORWARD', A.fnBody(orch, 'function makeChildEmit
   const { runTeeView } = require('../sidecar/channels/sse.js');
   A.eq(runTeeView('crew.tool_step', step.payload), null, 'the SSE tee never broadcasts it (no worker step reaches a broadcast lead\'s floor as a quest signal, R2/R7)');
   // the server reply buffers / phone / ACP / v1 sinks all branch on agent.tool_call by name: none names crew.tool_step
-  for (const f of ['sidecar/channels/hub.js', 'sidecar/cron-driver.js', 'sidecar/openai-compat.js', 'sidecar/acp/core.js', 'sidecar/remote/host.js', 'sidecar/loopjob-driver.js']) {
+  // (reply-assembler.js is the reply buffer of the hub, the two drivers and the host's sinks: it does the branching for them)
+  for (const f of ['sidecar/reply-assembler.js', 'sidecar/openai-compat.js', 'sidecar/acp/core.js', 'sidecar/remote/host.js']) {
     const src = rd(f);
     A.ok(/agent\.tool_call/.test(src) && !/crew\.tool_step/.test(src), f + ': resets/attributes on agent.tool_call only, so a forwarded worker step can never wipe or join the lead\'s reply (R4/R6/R17/R28)');
+  }
+  for (const f of ['sidecar/channels/hub.js', 'sidecar/cron-driver.js', 'sidecar/loopjob-driver.js']) {
+    const src = rd(f);
+    A.ok(/ssembler\.feed\(name, p\)/.test(src) && !/crew\.tool_step/.test(src), f + ': its reply buffer is the assembler, and it names no crew.tool_step of its own');
   }
 })();
 

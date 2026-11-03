@@ -22,12 +22,17 @@
      approval.opened / approval.closed            from the shared registry
      station      { name, payload }               the station floor's own redacted feed (SSE tee) */
 'use strict';
+const SchedulerState = require('../scheduler-state.js');
 
 const { note } = require('../failopen.js');
 const { withVoiceStyle } = require('./voice-style.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');   // the held-call stamp a phone step reads as "not run yet"
 // TYPED OUTCOMES: a finished run's state on the phone is its recorded outcome, read through the ONE resolver every surface shares
 const RunOutcome = require('../../frontend/app/runoutcome.js');
+// TURN IDENTITY: the one turnId grammar, the phone host's mint ('ph' + runId) and the client time conversion
+const TurnKinds = require('../../frontend/app/turnkinds.js');
+const TurnMerge = require('../../frontend/app/turnmerge.js');
+const TurnWindow = require('../turn-window.js');
 
 const TEXT_FLUSH_MS = 250;
 
@@ -79,7 +84,7 @@ function makeRemoteHost(d) {
   }
   const STATION_TURNS = 2000;
   function stationTurns(streamId, limit) {
-    try { return (d.transcript.history(streamId, { limit: limit || STATION_TURNS }) || []).filter(isProse); }
+    try { return (d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || []).filter(isProse); }
     catch (e) { note('remote.host.stationTurns', e); return []; }
   }
   /* ONE CONVERSATION, TWO COPIES: the desk's save (its own order, its status lines) and the station's transcript
@@ -89,156 +94,36 @@ function makeRemoteHost(d) {
      does (frontend/app/chat.js mergeCanonicalHistory, copied here; keep the two in step): the desk's rows keep their
      order, a station turn with a twin enriches it, and a turn the desk never saw is inserted after the last row a
      station turn matched. Nothing is dropped and nothing is reordered. */
-  function mergeCanonical(local, turns) {
-    // Only the canonical final row can supersede saved prose, and only by explicit run identity.
-    const finals = new Map(), finalSlots = new Map();
-    const sameRun = (a, b) => !!a.sourceRunId && String(a.sourceRunId) === String(b.sourceRunId)
-      && (!a.agentId || !b.agentId || a.agentId === b.agentId)
-      && (!a.streamId || !b.streamId || a.streamId === b.streamId);
-    const withFinal = (prior, canonical) => {
-      const row = Object.assign({}, prior, canonical);
-      // A rejected attempt's failure flags are evidence, not the accepted answer's status.
-      // In particular, error:true would exclude this accepted answer from the next model turn.
-      const supersededStatus = Object.assign({}, prior.supersededStatus, canonical.supersededStatus);
-      for (const key of ['error', 'stopped', 'stopNote']) {
-        if (prior[key] != null) supersededStatus[key] = prior[key];
-        delete row[key];
-        if (Object.prototype.hasOwnProperty.call(canonical, key)) row[key] = canonical[key];
-      }
-      if (Object.keys(supersededStatus).length) row.supersededStatus = supersededStatus;
-      if (canonical.taint || prior.taint) row.taint = canonical.taint || prior.taint;
-      const attachments = [], seen = new Set();
-      for (const item of [].concat(prior.attachments || [], canonical.attachments || [])) {
-        const key = JSON.stringify(item);
-        if (!seen.has(key)) { seen.add(key); attachments.push(item); }
-      }
-      if (attachments.length) row.attachments = attachments;
-      return row;
-    };
-    for (const turn of Array.isArray(turns) ? turns : []) {
-      if (turn && !turn.sys && turn.role === 'assistant' && turn.dispatchState === 'final'
-          && turn.sourceRunId && String(turn.content || '').trim() && !finals.has(String(turn.sourceRunId))) finals.set(String(turn.sourceRunId), turn);
-    }
-    const runParts = new Map();
-    for (const turn of Array.isArray(turns) ? turns : []) {
-      if (!turn || turn.role !== 'assistant' || !turn.sourceRunId) continue;
-      const text = String(turn.content || '');
-      if (!text.trim()) continue;
-      const parts = runParts.get(String(turn.sourceRunId)) || [];
-      parts.push(text); runParts.set(String(turn.sourceRunId), parts);
-    }
-    /* EXPLICIT RUN IDENTITY, HARNESS BYTES ASIDE (rc walk 2026-10-14: a reload showed a reply twice — its durable turns AND
-       the page's saved aggregate). The page's aggregate of a run differs from that run's durable turns only by what the
-       harness itself adds or removes: the paragraph break streamed after a hidden Task Brief step (loop.js TURN BREAK) and
-       the choice marker the chat strips before saving. Only for a row that names its run (an unattributed one stays exact).
-       Self-contained (the phone runs this same function): the marker rule is fork.js's — a list number, keyword (MARKER_KEY's
-       one case rule), colon, `||` options. */
-    const squash = s => String(s == null ? '' : s).replace(/(?:\d{1,2}[.)][ \t]*)?[*_`~]*(?:\bF(?:ORK|ork)|[Tt][Aa][Ss][Kk]_[Qq][Uu][Ee][Ss][Tt][Ii][Oo][Nn])[*_`~]*[ \t]*:[^\n]*\|\|[^\n]*/g, '').replace(/\s+/g, '');
-    // A steering note folded mid-run streams into the local reply as a '\n[steering] …\n' line, but the durable
-    // transcript stores only the model's own turns. Twins are matched WITHOUT those lines; the local row (which
-    // still carries them, so a reload can redraw the note) is the one that survives.
-    const steerless = text => String(text || '').replace(/(?:^|\n)\[steering\] [^\n]*\n?/g, '');
-    const hasSteer = text => /(?:^|\n)\[steering\] /.test(String(text || ''));
-    // the [start, end] run of contiguous parts that joins to exactly `text`, or null
-    const joinsTo = (parts, text) => {
-      for (let start = 0; start < parts.length - 1; start++) {
-        if (!text.startsWith(parts[start])) continue;
-        let joined = parts[start];
-        for (let end = start + 1; end < parts.length; end++) {
-          joined += parts[end];
-          if (joined === text) return [start, end];
-          if (joined.length >= text.length) break;
-        }
-      }
-      return null;
-    };
-    // the durable parts this saved aggregate already shows (so a steered row can be enriched by them), or null.
-    // A rowId marks a durable row — except on a steered row: the merge that kept it lent it its first part's rowId, and that
-    // save is the next load's input (the desk's next open, the phone's every read), so it must find its span again each load.
-    const committedAggregate = (row, runId, explicit) => {
-      if (row.role !== 'assistant' || (row.rowId && !hasSteer(row.content)) || row.stopped || row.error || (row.attachments && row.attachments.length)) return null;
-      const parts = runParts.get(runId) || [], text = steerless(row.content);
-      let span = joinsTo(parts, text);
-      if (!span && explicit) { const target = squash(text); span = target ? joinsTo(parts.map(squash), target) : null; }
-      return span ? parts.slice(span[0], span[1] + 1) : null;
-    };
-    const kept = [], buckets = new Map();
-    let userRunId = '';
-    for (let row of Array.isArray(local) ? local : []) {
-      if (row && row.sys) { if (!row.transcriptPending) kept.push({ row, key: null }); continue; }
-      if (!row || (row.role !== 'user' && row.role !== 'assistant')) continue;
-      const final = row.role === 'assistant' && finals.get(String(row.sourceRunId || ''));
-      if (final && sameRun(row, final)) {
-        const id = String(final.sourceRunId);
-        if (finalSlots.has(id)) {
-          const keptRow = kept[finalSlots.get(id)];
-          keptRow.row = withFinal(row, keptRow.row);
-          continue;
-        }
-        row = withFinal(row, final);
-        finalSlots.set(id, kept.length);
-      }
-      if (row.role === 'user') userRunId = String(row.sourceRunId || '');
-      const aggregate = committedAggregate(row, String(row.sourceRunId || userRunId), !!row.sourceRunId);
-      if (aggregate && !hasSteer(row.content)) continue;
-      if (aggregate) {   // keep the steered row: each durable part it already shows enriches it instead of re-inserting
-        for (const part of aggregate) { const k = 'assistant\u0000' + part, q = buckets.get(k) || []; q.push(kept.length); buckets.set(k, q); }
-        kept.push({ row, key: null });
-        continue;
-      }
-      if (row.role === 'assistant' && !String(row.content == null ? '' : row.content).trim()) continue;
-      const key = row.role + '\u0000' + (row.role === 'assistant' ? steerless(row.content) : String(row.content || ''));
-      const q = buckets.get(key) || []; q.push(kept.length); buckets.set(key, q);
-      kept.push({ row, key });
-    }
-    const internalTranscriptPrompt = text => /^Shared conversation context \(/.test(text) || /^\[BEGIN EXTERNAL SCREEN CAPTURE/.test(text);
-    const inserts = new Map();
-    let anchor = -1;
-    for (const turn of Array.isArray(turns) ? turns : []) {
-      if (!turn || (turn.role !== 'user' && turn.role !== 'assistant')) continue;
-      const content = String(turn.content == null ? '' : turn.content);
-      if (turn.role === 'assistant' && !content.trim()) continue;
-      const key = turn.role + '\u0000' + content;
-      const q = buckets.get(key), authoritative = turn.role === 'assistant' && turn.dispatchState === 'final' && finals.get(String(turn.sourceRunId || '')) === turn;
-      // A matching sentence from another run must never acquire this dispatch's identity.
-      const at = q ? q.findIndex(i => authoritative ? sameRun(kept[i].row, turn)
-        : finalSlots.get(String(kept[i].row.sourceRunId || '')) !== i) : -1;
-      const idx = at >= 0 ? q.splice(at, 1)[0] : -1;
-      if (idx >= 0) {
-        const prior = kept[idx].row;
-        kept[idx].row = authoritative ? withFinal(prior, turn) : Object.assign({}, turn, prior, { role: turn.role, content: hasSteer(prior.content) ? prior.content : content, ts: turn.ts != null ? turn.ts : prior.ts });
-        anchor = idx;
-        continue;
-      }
-      if (turn.role === 'user' && internalTranscriptPrompt(content)) continue;
-      const list = inserts.get(anchor) || []; list.push(Object.assign({}, turn, { role: turn.role, content })); inserts.set(anchor, list);
-    }
-    const merged = [];
-    for (const turn of inserts.get(-1) || []) merged.push(turn);
-    for (let i = 0; i < kept.length; i++) {
-      merged.push(kept[i].row);
-      const list = inserts.get(i) || [], run = String(kept[i].row.sourceRunId || '');
-      /* A RUN KEEPS ITS OWN STATION ROWS (SEND NOW reload lane, 2026-10-14): a reload mid-run saves no copy of that run's
-         directive, so the transcript inserts it here, after the last row it matched — which put the NEXT run's directive
-         between an earlier run and the steer echo filed for it. This row's run gets its own inserted turns first, then
-         the station rows of the same run that follow it, then everyone else's. */
-      let k = 0;
-      if (run) while (k < list.length && String(list[k].sourceRunId || '') === run) merged.push(list[k++]);
-      while (run && k < list.length && i + 1 < kept.length && kept[i + 1].row.sys && String(kept[i + 1].row.sourceRunId || '') === run && !(inserts.get(i + 1) || []).length) merged.push(kept[++i].row);
-      for (; k < list.length; k++) merged.push(list[k]);
-    }
-    return merged;
+  function mergeCanonical(local, turns, identity) {
+    const legacy = () => TurnMerge.legacyWithIdentity(local.map(r => r && typeof r.content === 'string' ? Object.assign({}, r, { content: redactText(r.content) }) : r), turns, identity);
+    if (!d.turnDual || !identity) return legacy();
+    return d.turnDual.pick('merge', legacy, () => {
+      const next = TurnMerge.merge(local, turns, { identity, cap: STATION_TURNS, legacyKey: redactText });
+      const diff = TurnMerge.compare(legacy(), next.rows);
+      if (!diff.same) d.turnDual.record('merge', { streamId: identity.streamId, classes: diff.classes.concat(next.report.classes) });
+      return next.rows;
+    });
   }
   // the whole conversation, prose only, oldest first
   /* The desk save is raw; the station transcript is redacted when it is written. Redact the desk copy first, so a turn holding a
      secret-shaped token is ONE turn (the two copies' keys match) and its raw text never reaches the relay. */
-  const redactText = (t) => { try { return typeof d.redact === 'function' ? String(d.redact(String(t))) : String(t); } catch (e) { note('remote.host.redact', e); return String(t); } };
+  const redactText = (t) => { try { return typeof d.redact === 'function' ? String(d.redact(String(t))) : String(t); } catch (e) { note('remote.host.redact', e); throw e; } };
   // limit: the newest N turns (a phone SEND hands the model at most 100, as it always did; a page reads them all)
   function mergedTurns(streamId, limit) {
     const w = deskSessions().find(x => x.id === streamId);
-    const local = (w && Array.isArray(w.history) ? w.history : []).map(r => (r && typeof r.content === 'string') ? Object.assign({}, r, { content: redactText(r.content) }) : r);
+    const local = w && Array.isArray(w.history) ? w.history : [];
     const st = stationTurns(streamId);
-    const all = (local.length ? mergeCanonical(local, st) : st).filter(isProse);
+    const projection = typeof d.turnProjection === 'function' ? d.turnProjection(streamId, st) : { turns: st, identity: null };
+    const ids = [...new Set(local.filter(row => row && row.idFrom !== 'collision' &&
+      (!row.streamId || row.streamId === streamId) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
+    if (ids.length) {
+      const proof = typeof d.transcript.cacheRetractions === 'function' && d.transcript.cacheRetractions(streamId, ids);
+      if (!proof || proof.state !== 'done') throw new Error('Cached transcript identity could not be proved');
+      const retracted = new Set(proof.retracted);
+      projection.turns = projection.turns.filter(row => !retracted.has(row.rowId));
+      projection.identity = Object.assign({ streamId }, projection.identity, { retracted: proof.retracted });
+    }
+    const all = mergeCanonical(local, projection.turns, projection.identity).filter(isProse).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
     return Number(limit) > 0 ? all.slice(-Number(limit)) : all;
   }
   const lastUserLine = (turns) => { for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'user') return clip(turns[i].content.replace(/\s+/g, ' ').trim(), 140); return ''; };
@@ -246,12 +131,31 @@ function makeRemoteHost(d) {
   async function threads(o) {
     const out = [], seen = new Set();
     const names = new Map(agentsList().map(a => [a.agentId, String(a.name || '').toLowerCase()]));
-    const rows = d.transcript.streams({ limit: 500, previewChars: 140 }) || [];
+    const rows = d.transcript.view('display', null, { op: 'streams', limit: 500, previewChars: 140 }) || [];
     const stationHas = new Set(rows.filter(r => Number(r.turns) > 0).map(r => r.streamId));
     const workers = workerStreams();
-    for (const w of deskSessions()) {
+    const sessions = deskSessions(), candidates = [], seenKeys = new Set();
+    for (const w of sessions) {
+      if (o.agentId && String(w.agentId || 'agent') !== o.agentId) continue;
+      for (const row of (Array.isArray(w.history) ? w.history : []).filter(isProse)) {
+        if (row.idFrom === 'collision' || (row.streamId && row.streamId !== w.id) || !Number.isSafeInteger(row.rowId) || row.rowId <= 0) continue;
+        const key = JSON.stringify([w.id, row.rowId]);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key); candidates.push({ streamId: w.id, rowId: row.rowId });
+          if (candidates.length > 2000) throw new Error('Cached thread-list identity exceeds its proof capacity');
+        }
+      }
+    }
+    let retracted = new Set();
+    if (candidates.length) {
+      const proof = typeof d.transcript.cacheRetractionsBatch === 'function' && d.transcript.cacheRetractionsBatch(candidates);
+      if (!proof || proof.state !== 'done') throw new Error('Cached thread-list identity could not be proved');
+      retracted = new Set(proof.retracted.map(row => JSON.stringify([row.streamId, row.rowId])));
+    }
+    for (const w of sessions) {
       const agentId = String(w.agentId || 'agent');
-      const hist = Array.isArray(w.history) ? w.history.filter(isProse) : [];
+      const hist = Array.isArray(w.history) ? w.history.filter(row => isProse(row) &&
+        ((row.streamId && row.streamId !== w.id) || !retracted.has(JSON.stringify([w.id, row.rowId])))) : [];
       seen.add(w.id);
       if (o.agentId && agentId !== o.agentId) continue;
       // an untouched blank session (no title, or only the agent's own name as one, and nothing recorded anywhere) is
@@ -267,12 +171,12 @@ function makeRemoteHost(d) {
       }
       if (r.streamId === 'global' || /^(cron|nightshift|workshop)-/.test(r.streamId) || workers.has(r.streamId)) continue;   // background work has its own surfaces
       let agentId = r.agentId || '';
-      if (!agentId) { try { const h = d.transcript.history(r.streamId, { limit: 1 }); agentId = (h[0] && h[0].agentId) || ''; } catch (e) { note('remote.host.threadAgent', e); } }
+      if (!agentId) { try { const h = d.transcript.view('display', r.streamId, { limit: 1 }); agentId = (h[0] && h[0].agentId) || ''; } catch (e) { note('remote.host.threadAgent', e); } }
       if (o.agentId && agentId !== o.agentId) continue;
       out.push({ streamId: r.streamId, agentId, title: '', turns: r.turns, lastAt: r.lastAt, preview: r.preview || '', source: /^remote_/.test(r.streamId) ? 'phone' : 'station' });
     }
     out.sort((a, b) => (b.lastAt || 0) - (a.lastAt || 0));
-    return out.slice(0, o.limit);
+    return out.slice(0, o.limit).map(r => Object.assign({}, r, { title: redactText(r.title), preview: redactText(r.preview) }));
   }
 
   /* A PAGE OF A CONVERSATION: the newest `limit` turns before the newest `before` ones, within a byte budget so it
@@ -281,13 +185,18 @@ function makeRemoteHost(d) {
   const THREAD_BUDGET = 180 * 1024;
   async function thread(o) {
     const all = mergedTurns(o.streamId);
-    const end = Math.max(0, all.length - (Number(o.before) || 0));
-    const rows = all.slice(Math.max(0, end - (o.limit || 60)), end).map(r => ({ role: r.role, agentId: r.agentId || null, ts: r.ts || null, content: clip(r.content, 20000) }));
+    const cursor = Number(o.beforeRowId);
+    const cursorAt = Number.isSafeInteger(cursor) && cursor > 0 ? all.findIndex(r => r.streamId === o.streamId && r.rowId >= cursor) : -1;
+    const end = cursorAt >= 0 ? cursorAt : Number.isSafeInteger(cursor) && cursor > 0 ? all.length : Math.max(0, all.length - (Number(o.before) || 0));
+    const rows = all.slice(Math.max(0, end - (o.limit || 60)), end).map(r => Object.assign({ role: r.role, agentId: r.agentId || null, ts: r.ts || null, content: clip(r.content, 20000) }, TurnMerge.idsOf(r), typeof r.typed === 'string' ? { typed: clip(r.typed, 20000) } : null));
     let used = 0, keep = rows.length;
-    for (let i = rows.length - 1; i >= 0; i--) { used += Buffer.byteLength(rows[i].content) + 80; if (used > THREAD_BUDGET && i < rows.length - 1) break; keep = i; }
+    for (let i = rows.length - 1; i >= 0; i--) { used += Buffer.byteLength(JSON.stringify(rows[i])) + 1; if (used > THREAD_BUDGET && i < rows.length - 1) break; keep = i; }
     const page = rows.slice(keep);
     if (!o.page) return page;
-    return { turns: page, earlier: end - page.length, total: all.length };
+    // A legacy local row at the seam has no identity cursor. Keep the offset fallback for that page; jumping to a
+    // later keyed row would repeat the local prefix in the next page.
+    const firstKeyed = page[0] && page[0].streamId === o.streamId && Number.isSafeInteger(page[0].rowId) && page[0].rowId > 0 ? page[0] : null;
+    return { turns: page, earlier: end - page.length, total: all.length, beforeRowId: firstKeyed ? firstKeyed.rowId : null };
   }
 
   // what the desk needs to show a phone conversation as one of its own sessions (GET /api/remote/recent)
@@ -306,18 +215,30 @@ function makeRemoteHost(d) {
     if (!cred || !cred.ok) return { ok: false, error: (cred && cred.error) || 'this agent has no model set up yet' };
     const streamId = o.streamId || ('remote_' + String(o.agentId).replace(/[^A-Za-z0-9_-]/g, '_') + '_' + now().toString(36)).slice(0, 64);
     const runId = d.newId();
+    // this phone turn's id: the phone's own (a relay resend stays one turn), else this run's ('ph' + runId, never looked up)
+    const turnId = TurnKinds.isTurnId(o.turnId) ? o.turnId : TurnKinds.phoneTurnId(runId);
     const ac = new AbortController();
     const rec = { ac, agentId: o.agentId, streamId, deviceId: o.deviceId || '', startedAt: now() };
-    remoteRuns.set(runId, rec);
 
     // the conversation so far: the desk's memory of this session plus anything the station recorded since
-    const messages = mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: o.text }]);
+    const legacyRows = mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
+    const legacyReplay = () => legacyRows;   // one cache-authority proof serves this comparison and selection
+    const replay = () => d.transcript.view('model-replay', streamId, { limit: 100, shape: 'prose', form: 'pre', forAgent: o.agentId });
+    const prior = d.turnDual ? d.turnDual.pick('window', legacyReplay, () => {
+      const canonical = replay();
+      d.turnDual.record('window', Object.assign({ caller: 'phone', streamId, runId }, TurnWindow.compare(legacyReplay(), canonical, streamId)));
+      return canonical;
+    }) : replay();
+    const messages = prior.concat([{ role: 'user', content: o.text }]);
     let isTask = true;
     // the agent's last turn rides along, as on COMMS and the channels: "yes" to "want me to draft it?" is a TASK (tools),
     // not chat that can only promise (sweep 2026-10-02)
     let priorAgentTurn = '';
     for (let i = messages.length - 2; i >= 0; i--) if (messages[i] && messages[i].role === 'assistant') { priorAgentTurn = String(messages[i].content || ''); break; }
     try { if (typeof d.classify === 'function') isTask = !!d.classify(o.text, { priorAgentTurn }); } catch (e) { note('remote.host.classify', e); }
+    // An unproven history rejects before acceptance. It must not leave a live phone run whose
+    // runOnce/finally was never scheduled (including a failed affirmative cache-removal proof).
+    remoteRuns.set(runId, rec);
     noteRecent({ runId, agentId: o.agentId, streamId, title: clip(o.text.replace(/\s+/g, ' ').trim(), 80), startedAt: rec.startedAt, endedAt: null, live: true });
 
     // the reply, coalesced: a phone on cellular gets a few frames a second, not one per token
@@ -351,7 +272,7 @@ function makeRemoteHost(d) {
     };
     const prompt = (call, tool) => d.askConsent({ agentId: o.agentId, runId, signal: ac.signal, call, tool, surface: 'remote', onPrompt: () => {} });
 
-    broadcast({ type: 'run.started', runId, agentId: o.agentId, streamId });
+    broadcast({ type: 'run.started', runId, agentId: o.agentId, streamId, turnId });
     // setImmediate, not a microtask: runOnce does a second or more of synchronous set-up before its first await,
     // and the phone's "accepted" reply must leave first (measured: the ack took 1.3 s behind a microtask start).
     new Promise((resolve) => setImmediate(resolve)).then(() => d.runOnce({
@@ -362,6 +283,8 @@ function makeRemoteHost(d) {
       stationEvidence: true,
       voiceTurn: o.voice === true || undefined,   // a question spoken on a voice-only device is a voice turn: the voice chat model may answer it
       emit, signal: ac.signal, runId, streamId, trigger: 'event',
+      // the phone's elapsed time since the turn's first submission, from the station's now (a phone clock's offset cancels)
+      turnId, ...TurnKinds.clientTurnTime(o, now()), turnRowId: (Number.isSafeInteger(o.turnRowId) && o.turnRowId > 0) ? o.turnRowId : undefined,
       surface: 'interactive', prompt, ownerTrusted: true, floorless: true, broadcast: true, reflect: true,
       // A PHONE WORKS WITH THE DESK'S PERMISSIONS (Andrew 2026-10-02: "full access so I can vibe code on the go"): an
       // agent on Full Access acts from the phone without asking, exactly as at the desk. A phone the Commander marked
@@ -441,9 +364,7 @@ function makeRemoteHost(d) {
     let s = null;
     try { s = d.scheduler(); } catch (e) { note('remote.host.scheduler', e); return undefined; }
     if (!s || typeof s !== 'object') return undefined;
-    if (s.halted === true) return 'halted';
-    if (s.enabled !== true) return 'off';
-    return null;
+    return SchedulerState.holdOf(s);
   }
   async function routines() {
     const held = schedulerHold();
@@ -451,7 +372,9 @@ function makeRemoteHost(d) {
       id: j.id, name: j.name || null, agentId: j.agentId || null, enabled: j.enabled !== false, inFlight: !!j.inFlight,
       schedule: j.scheduleDisplay || (j.schedule && (j.schedule.display || j.schedule.kind)) || null,
       // a fire someone STOPPED reads 'stopped' (review r7), never 'error' — an older record kept 'error' beside its outcome 'stopped'
-      nextRunAt: j.nextRunAt || null, lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
+      nextRunAt: Object.prototype.hasOwnProperty.call(j, 'nextFireAt') ? j.nextFireAt :
+        (held || j.enabled === false ? null : j.nextRunAt || null),
+      lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
       prompt: clip(j.prompt, 200)
     }, held === undefined ? null : { held: held }));
   }

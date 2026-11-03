@@ -51,7 +51,22 @@ const n = J.normalizeAll({ jobs: [{ id: 'job-dddddddddddd', line: 'p1', status: 
 A.ok(n.jobs.length === 1 && n.jobs[0].output.length === J.MAX_OUTPUT, 'malformed and duplicate records are dropped; the output is bounded');
 let big = { jobs: [] };
 for (let i = 0; i < J.MAX_JOBS + 15; i++) big = J.start(big, { id: 'job-' + String(i).padStart(12, '0'), line: 'p1', text: 't', at: i }).state;
-A.ok(big.jobs.length === J.MAX_JOBS && big.jobs[0].id === 'job-' + String(15).padStart(12, '0'), 'the store keeps the newest ' + J.MAX_JOBS + ' jobs');
+A.eq(big.jobs.length, J.MAX_JOBS + 15, 'retention never evicts a job that is still running');
+for (const j of big.jobs) big = J.finish(big, j.id, { status: 'delivered', at: 1000 }).state;
+big = J.start(big, { id: 'job-other0000000', line: 'quiet-line', at: 2000 }).state;
+A.eq(big.jobs.length, J.MAX_JOBS, 'finished records are bounded when the next job opens');
+A.ok(big.jobs.some(j => j.line === 'quiet-line'), 'a busy line cannot evict the quiet line\'s live job');
+let fair = { jobs: [] };
+fair = J.start(fair, { id: 'job-quiet0000000', line: 'quiet-line', at: 1 }).state;
+fair = J.finish(fair, 'job-quiet0000000', { status: 'delivered', at: 2 }).state;
+for (let i = 0; i < J.MAX_JOBS + 10; i++) {
+  const id = 'job-' + String(i).padStart(12, '0');
+  fair = J.start(fair, { id, line: 'constructor', at: i + 3 }).state;
+  fair = J.finish(fair, id, { status: 'delivered', at: i + 4 }).state;
+}
+A.ok(fair.jobs.length === J.MAX_JOBS && fair.jobs.some(j => j.line === 'quiet-line'), 'fair retention keeps a quiet line\'s older finished record, even beside an object-property line name');
+const paused = J.mark(J.start(fair, { id: 'job-paused000000', line: 'quiet-line', entry: 'steptest', at: 4000 }).state, 'job-paused000000', 'paused');
+A.eq(J.get(J.boot(paused.state, 5000).state, 'job-paused000000').status, 'paused', 'boot preserves a paused step-through job for its session to reclaim');
 A.ok(J.isId('job-0123456789ab') && !J.isId('job-1') && !J.isId('../etc'), 'only a real job id is a job id');
 
 A.report('linejobs.test');

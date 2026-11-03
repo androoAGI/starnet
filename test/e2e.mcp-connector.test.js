@@ -16,6 +16,7 @@ const { bootToken } = require('./_httpToken.js');
 // message) quotes earlier chats as RECENT ACTIVITY, so a raw-content match would route a routine on a previous chat
 const { userWords } = require('./helpers/host-notes.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -233,6 +234,7 @@ async function readNdjson(res) {
   const mcp = await startMockMcp();
   const llm = await startMockOpenRouter();
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-mcp-e2e-'));
+  seedActiveStation(ws);
   const env = {
     SKYNET_WORKSPACES: ws,
     STARNET_WORKSPACES: ws,

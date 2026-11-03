@@ -77,7 +77,11 @@ test('persisted frontend endpoints stay provider scoped across switching and rel
   const values = new Map();
   const localStorage = { getItem: k => values.get(k) || null, setItem: (k, v) => values.set(k, String(v)), removeItem: k => values.delete(k) };
   const load = () => {
-    const context = { localStorage, console, window: {}, location: { search: '', origin: 'http://127.0.0.1:8787' }, URLSearchParams, URL, AbortController, setTimeout, clearTimeout };
+    const context = { localStorage, console, window: {}, location: { search: '', origin: 'http://127.0.0.1:8787' }, URLSearchParams, URL, AbortController, setTimeout, clearTimeout,
+      SK: { providers: { registry: require('../frontend/app/provider-registry.js') }, providerReadiness: require('../frontend/app/provider-readiness.js') },
+      // This reader proves persisted browser endpoint scope while the station is offline.
+      // Use the actual registry/cache owners; never invent a successful station write or readiness row.
+      fetch: async () => ({ ok: false, status: 503, json: async () => ({ error: 'fixture station offline' }) }) };
     vm.createContext(context);
     vm.runInContext(fs.readFileSync(path.resolve(__dirname, '../frontend/app/harness.js'), 'utf8') + ';globalThis.h=Harness;', context);
     return context.h;

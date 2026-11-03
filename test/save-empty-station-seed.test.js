@@ -243,7 +243,7 @@ const browserCopy = (over) => Object.assign({
       A.eq(((host.saveStore.load('agent') || {}).agent || {}).name, 'VEGA', '4: and the fresh station is untouched');
       A.ok(!light.banner.some(t => /restore this window/i.test(t)), '4: the reset banner offers no restore (' + JSON.stringify(light.banner) + ')');
 
-      // START FRESH through the sidecar (workspace-lineage.js startFresh): at = an ISO timestamp
+      // START FRESH through an older build's sidecar: at = an ISO timestamp
       const iso = workspace();
       fs.writeFileSync(path.join(iso, '.fresh-start.json'), JSON.stringify({ version: 1, at: new Date(7000).toISOString(), acknowledgedRoots: [], quarantine: null, moved: [] }));
       const isoStore = makeSaveStore({ fs, pathMod: path, root: iso, clock: { now: () => Date.now() } });

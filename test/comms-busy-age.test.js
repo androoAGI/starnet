@@ -14,7 +14,7 @@ A.eq(formatRunHolderAge(0), 'just now', '0s is just now');
 A.eq(formatRunHolderAge(59000), 'just now', '59s is still just now');
 A.eq(formatRunHolderAge(60000), '1 min ago', '60s is one minute');
 A.eq(formatRunHolderAge(5 * 60000), '5 min ago', 'multi-minute age is truthful');
-A.ok(/streamId/.test(src.slice(src.indexOf('runsMeta.set(runId'), src.indexOf('runsMeta.set(runId') + 600)),
+A.ok(/streamId/.test(src.slice(src.indexOf('const leadRun = runTable.admit('), src.indexOf('const leadRun = runTable.admit(') + 600)),
   'interactive run metadata retains the holding session id for refusal guidance');
 
 A.report('comms-busy-age.test');

@@ -4,8 +4,10 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const vm = require('vm');
 const { makeRemoteHost } = require('../sidecar/remote/host.js');
+const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
+const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 const source = fs.readFileSync(require.resolve('../sidecar/remote/host.js'), 'utf8');
-const body = A.fnBody(source, 'function mergeCanonical(local, turns)');
+const body = require('./helpers/turnmerge').source('mergeCanonical');
 A.ok(body.length > 1000 && body.length < 10000, 'read only the production merge function for metadata assertions');
 const merge = vm.runInNewContext('(' + body + ')');
 const final = { role: 'assistant', content: '{"answer":"accepted"}', sourceRunId: 'original', streamId: 's', agentId: 'forge',
@@ -44,9 +46,12 @@ const collision = merge([{ role: 'assistant', content: final.content, sourceRunI
 A.eq(collision.map(r => r.sourceRunId), ['ordinary', 'original'], 'ordinary canonical text cannot consume the reserved final slot');
 (async () => {
   let ran = null, priorAgentTurn = null;
+  const proofIo = makeMemoryTranscriptIo();
+  for (const row of local.concat(canonical)) if (Number.isSafeInteger(row.rowId) && row.rowId > 0) proofIo.appendDurable(Object.assign({ streamId: 's' }, row));
+  const proofStore = makeTranscriptStore({ io: proofIo, clock: { now: () => 1000 } });
   const host = makeRemoteHost({ now: () => 1000, newId: () => 'followup', broadcast: () => {}, roster: () => [{ agentId: 'forge' }], liveRuns: () => [],
     credentials: () => ({ ok: true }), classify: (_text, context) => { priorAgentTurn = context.priorAgentTurn; return true; },
-    runOnce: async options => { ran = options; }, transcript: { streams: () => [], history: () => canonical },
+    runOnce: async options => { ran = options; }, transcript: { view: (_name, _stream, options) => options.op === 'streams' ? [] : canonical, cacheRetractions: proofStore.cacheRetractions },
     deskSessions: () => [{ id: 's', agentId: 'forge', history: local.slice(0, 4) }] });
   A.eq((await host.thread({ streamId: 's', limit: 60 })).map(r => r.content), ['Visible request', final.content], 'actual phone thread shows only accepted same-run answer');
   await host.send({ streamId: 's', agentId: 'forge', text: 'continue' });

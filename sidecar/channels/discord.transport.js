@@ -65,7 +65,11 @@
           const res = await fetchImpl(apiBase + '/channels/' + encodeURIComponent(String(channelId)) + '/messages', {
             method: 'POST',
             headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: String(text == null ? '' : text) }),
+            // the part's idempotency key as nonce, with enforce_nonce: a resend of an accepted message returns that message
+            // instead of posting it twice (Discord dedupes a nonce for a few minutes)
+            body: JSON.stringify(sendOpts && sendOpts.idempotencyKey
+              ? { content: String(text == null ? '' : text), nonce: String(sendOpts.idempotencyKey).slice(0, 25), enforce_nonce: true }
+              : { content: String(text == null ? '' : text) }),
             signal: sendOpts && sendOpts.signal
           });
           if (res && res.ok) {

@@ -54,8 +54,8 @@ const lineOf = (pl, id) => pl.lineOfProp[id];
   A.ok(recA.name === 'A' && typeof recA.stages === 'number' && recA.stages >= 1 && recA.maxHops === P.LINE_LIMIT_DEFAULTS.maxHops, 'the line record carries its name and stages n / max — ' + JSON.stringify({ name: recA.name, stages: recA.stages, maxHops: recA.maxHops }));
   A.eq(p1.hash, hash0, 'plan.hash never moves with a SEND TO (dispatch topology is unchanged; SPLITTER counters keep)');
   // RESTORED (final floor lane M19 / M29): e2f430f6e narrowed this to /^SEND_TO_(MISSING|SELF|LOOP)$/ so a PRIVATE FILES warning
-  // could ride every default SEND TO. Whether the next crew can open this line's files is advice (Pipeline.sendToFileAdvice), never
-  // a routing finding: a clean SEND TO is no finding at all.
+  // could ride every default SEND TO. Exact produced files now ride the handoff as read grants, never
+  // as a routing warning: a clean SEND TO is no finding at all.
   A.ok(P.ok(p1) && !p1.errors.some(e => /^SEND_TO/.test(e.code)), 'a clean SEND TO is no finding');
 
   // the same pointer again burns no undo slot
@@ -275,15 +275,23 @@ const lineOf = (pl, id) => pl.lineOfProp[id];
   A.ok(/if \(p\.kind === 'handoff' && placeSendCrate\(p\)\) return;/.test(world) && /noteOutboxSink\(bx\.x, bx\.y\);/.test(world) && /fnow - c\.born >= HANDOFF_GRACE_MS/.test(world), 'the hand-off crate: held until the sending line’s crate sinks (or the grace runs out), then flown OUTBOX → INBOX');
   A.ok(/drawSendPlates\(\);/.test(world) && /const text = 'SENDS TO ' \+ \(\(station && station\.lineName \? station\.lineName\(st\.toLine\) \|\| station\.lineName\(st\.intakeId\) : null\) \|\| 'ANOTHER LINE'\);/.test(world) && /for \(const s of stat\) if \(s\.box\) taken\.push\(s\.box\);/.test(world), 'the OUTBOX plate SENDS TO LINE B, placed in the line plates’ own pass');
   A.ok(/: 'OUTBOX, then on to ' \+ to \+ ' \(SEND TO: that line’s own crew and budget work it next\)';/.test(cmds) && /out\.sendsWorkTo = /.test(cmds) && /P\.sendsReachedOf\(plan, lineId, pid\)/.test(cmds), 'station.map tells the agent where a line’s work goes after its OUTBOX — from the OUTBOX each step’s lane really ships into');
-  A.ok(/const jobStream = \/\^\(sample\|handoff\)-\/\.test/.test(outbox) && /: 'SENT ON TO ' \+ word\(sj\.sentTo\)/.test(outbox) && /'FROM ' \+ word\(sj\.from\)/.test(outbox), 'DELIVERABLES: a handed-on job opens in WORKFLOWS and says FROM / SENT ON TO');
+  A.ok(outbox.includes('/api/line-jobs?stream=') && outbox.includes('&runId=') && outbox.includes('lj.jobs.length === 1')
+    && outbox.includes("WorkflowsWindow.openJob(resolvedJob.id, 'deliverables')") && /: 'SENT ON TO ' \+ word\(sj\.sentTo\)/.test(outbox) && /'FROM ' \+ word\(sj\.from\)/.test(outbox), 'DELIVERABLES: an exactly proved handed-on job opens in WORKFLOWS and says FROM / SENT ON TO');
   A.ok(/sj\.sentTo\.refused \? 'NOT SENT ON TO ' \+ word\(sj\.sentTo\) \+ ' — ' \+ sj\.sentTo\.refused/.test(outbox), '…and a REFUSED hand-off says NOT SENT ON TO, with why (10-11 repair)');
   A.ok(/if \(!p \|\| p\.kind !== 'handoff' \|\| !p\.workitemId \|\| !p\.lineId \|\| !p\.jobId\) return;/.test(wfw) && /handoffCrates\.set\(String\(p\.workitemId\), String\(p\.jobId\)\);/.test(wfw)
     && /loadJob\(jobId\)\.then\(job => \{\s*const run = job && job\.status === 'delivered' && job\.from \? \(job\.runs \|\| \[\]\)\[0\] : null;/.test(wfw) && /ReturnStore\.foldRow\(\{ runId: run\.runId/.test(wfw) && !/'\/api\/line-jobs\?line=' \+ encodeURIComponent\(line\) \+ '&limit=1'/.test(wfw),
     'a handed-on job’s delivered run lands in DELIVERABLES › TO REVIEW — read back from THE job the crate names (never the line’s newest record)');
   A.ok(/<span class="wfw-k">The job<\/span>/.test(wfw) && /' handed in<\/summary>/.test(wfw) && /\(typeof job\.handedIn === 'string' && job\.handedIn\) \? \{ original: job\.text, output: job\.handedIn \}/.test(wfw), 'a handed-on job shows the job as it first arrived, and what the sending line handed in (its record’s own field), apart');
   A.ok(/>Sent on to ' \+ esc\(lineWord\(job\.sentTo\)\)/.test(wfw) && /'From ' \+ esc\(lineWord\(job\.from\)\)/.test(wfw) && /'<p class="wfw-why wfw-sent warn">NOT sent on to ' \+ esc\(lineWord\(job\.sentTo\)\)/.test(wfw), 'WORKFLOWS: each result says where it came from / went on to — or that it was NOT sent on');
-  A.ok(/const runningJob = \(\) => \(S\.jobs \|\| \[\]\)\.find\(j => j\.status === 'running' && !j\.from\) \|\| null;/.test(wfw) && /handoffRunningHTML\(l, runningHandoff\(l\.key\)\)/.test(wfw),
+  A.ok(/handoffRunningHTML\(l, runningHandoff\(l\.key\)\)/.test(wfw),
     'a running hand-off is not the Commander’s sample: no "You sent", no sample STOP, never blocks sending — it has its own view');
+  const runningJobSource = wfw.split('\n').find(line => line.includes('const runningJob ='));
+  const chooseSample = jobs => require('node:vm').runInNewContext(runningJobSource + '\nrunningJob();', { S: { jobs } });
+  const background = ['channel', 'schedule', 'trigger', 'steptest'].map(entry => ({ status: 'running', entry }));
+  background.push({ status: 'running', entry: 'sendto', from: { line: 'a' } }, { status: 'paused', entry: 'sample' });
+  A.eq(chooseSample(background), null, 'other live entries and paused jobs do not occupy the manual sample slot');
+  A.eq(chooseSample(background.concat([{ id: 'sample', entry: 'sample', status: 'running' }])).id, 'sample', 'the actual running sample owns that slot');
+  A.eq(chooseSample([{ id: 'legacy', status: 'running' }]).id, 'legacy', 'an older sample record without entry metadata still owns the slot');
   A.ok(/\(job\.from \? '' : '<button type="button" class="bb refit-primary" data-act="again"/.test(wfw) && /if \(!l \|\| !S\.job \|\| S\.job\.from\) return; S\.draft/.test(wfw), 'a handed-on job is never re-sent as a plain sample (its input is what the sending line delivered)');
 }
 

@@ -2,6 +2,9 @@
 'use strict';
 
 const ModelDock = (() => {
+  // The exported pure helpers use the same registry in Node and in the page.
+  const providerRegistry = typeof module !== 'undefined' && module.exports && typeof require === 'function'
+    ? require('./provider-registry.js') : SK.providers.registry;
   const el = id => document.getElementById(id);
   // Delegates to the one complete implementation (U.esc escapes & < > " ' — quotes included, so the id="…"
   // / title="…" attribute contexts this dock builds are injection-safe); keep the null-guard the local had.
@@ -158,28 +161,7 @@ const ModelDock = (() => {
     return map[p] || String(p || 'openrouter').toUpperCase();
   }
   function normalizeProvider(p) {
-    p = String(p || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'openai' || p === 'openai-api') return 'openai';
-    if (p === 'anthropic' || p === 'claude') return 'anthropic';
-    if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
-    // grok/kimi are their OWN keyless OAuth providers now — NOT aliases for the xAI (API KEY) provider.
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-for-coding') return 'kimi';
-    if (p === 'xai' || p === 'x-ai') return 'xai';
-    if (p === 'groq') return 'groq';
-    if (p === 'mistral' || p === 'mistralai') return 'mistral';
-    if (p === 'deepseek') return 'deepseek';
-    if (p === 'together' || p === 'together-ai') return 'together';
-    if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
-    if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
-    if (p === 'cerebras') return 'cerebras';
-    // managed credits — bearer is the linked device token (mirrors app.js + registry.js aliases)
-    if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return 'openrouter';
+    return providerRegistry.normalizeProviderId(p || 'openrouter', '');
   }
   function isAgentModel(item) {
     const p = item ? normalizeProvider(item.provider) : '';
@@ -365,36 +347,18 @@ const ModelDock = (() => {
 
   function providerEnabled(p) {
     p = normalizeProvider(p || provider());
-    if (p === provider()) return true;
-    try {
-      if (typeof Harness !== 'undefined' && Harness.getKey && Harness.getKey(p)) return true;
-      if (typeof Harness !== 'undefined' && Harness.configured && Harness.configured(p)) return true;
-    } catch (_) {}
-    if (p === 'ollama' || p === 'claude-cli') return true;   // keyless local brains: their catalog is the proof
-    return false;
+    return typeof Harness !== 'undefined' && !!(Harness.configured && Harness.configured(p));
   }
 
   async function codexEnabled() {
-    if (provider() === 'codex') return true;
-    try {
-      const r = await apiFetch('/api/auth/codex/status', { cache: 'no-store' });
-      const j = await r.json();
-      return !!(j && j.connected);
-    } catch (_) {
-      return false;
-    }
+    if (typeof Harness !== 'undefined' && Harness.refreshProviderReadiness) await Harness.refreshProviderReadiness();
+    return providerEnabled('codex');
   }
   // the generalized enablement probe for the other keyless device-code providers (grok/kimi): enabled iff it's
   // the active provider OR /api/auth/<pid>/status reports connected:true. Mirrors codexEnabled exactly.
   async function oauthProviderEnabled(pid) {
-    if (provider() === pid) return true;
-    try {
-      const r = await apiFetch('/api/auth/' + pid + '/status', { cache: 'no-store' });
-      const j = await r.json();
-      return !!(j && j.connected);
-    } catch (_) {
-      return false;
-    }
+    if (typeof Harness !== 'undefined' && Harness.refreshProviderReadiness) await Harness.refreshProviderReadiness();
+    return providerEnabled(pid);
   }
 
   function openRouterGroupName(item) {
@@ -526,16 +490,16 @@ const ModelDock = (() => {
 
   async function fetchProviderModels(p, force) {
     p = normalizeProvider(p);
+    if (typeof Harness !== 'undefined' && Harness.refreshProviderReadiness) await Harness.refreshProviderReadiness();
     const revision = selectionRevision();
-    if (!force && cacheRevisions[p] === revision && cache[p] && cache[p].length) {
-      return cache[p].slice();
-    }
     const request = catalogRequests[p] = (catalogRequests[p] || 0) + 1;
     const isCurrent = () => catalogRequests[p] === request && selectionRevision() === revision;
     const disconnected = () => {
       if (isCurrent()) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; cacheRevisions[p] = revision; }
       return [];
     };
+    if (!providerEnabled(p)) return disconnected();
+    if (!force && cacheRevisions[p] === revision && cache[p] && cache[p].length) return cache[p].slice();
     let list = [];
     let confirmed = false;
     try {
@@ -578,6 +542,7 @@ const ModelDock = (() => {
         }
       }
     } catch (_) {}
+    if (!providerEnabled(p)) return disconnected();
     if (!isCurrent()) return (cache[p] || []).slice();
     cacheRevisions[p] = revision;
     catalogState[p] = { confirmed: confirmed, reason: confirmed ? '' : 'catalog unavailable' };

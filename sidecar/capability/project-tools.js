@@ -44,8 +44,8 @@ const CrewDiet = require('../crew-diet.js');
 const { planConnectorDeferral } = require('../tools/builtin/toolsearch.js');
 const { note: failNote } = require('../failopen.js');
 
-/* DIRECT-DOMAIN WITHHOLDING — what a bounded one-host check may not even see: delegation and open web search, the
-   two typo-cascade routes. One predicate for the deferred pool, the wire list, tool.search and dispatch. */
+/* DIRECT-DOMAIN WITHHOLDING — what a run its lead scoped to one host (onlyHost) may not even see: delegation and open
+   web search, the two typo-cascade routes. One predicate for the deferred pool, the wire list, tool.search and dispatch. */
 function directDomainWithheld(directDomain, name) {
   return !!directDomain && (/^team\./.test(name) || name === 'web_search');
 }

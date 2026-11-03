@@ -35,3 +35,9 @@ _Found by the `sweep/channels` lane, 2026-07-28. Finder confidence: high. Severi
 ## Verdict
 
 Confirmed and fixed in `96fe108d`. Channel runs now distinguish E-STOP from ordinary supersession: both abandon stale partial output, but E-STOP delivers one explicit stopped notice while a newer-message supersede remains silent. The real hub/kill path is locked by `channels.hub.test.js` (124 assertions).
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. No user-visible defect remained here, but the mechanism had grown: a run's ending was four flags with three writers, where one flag carrying two meanings had been the bug. A withdrawn run now carries one endReason ('superseded', 'stopped', 'halted' or 'faulted'), and the first one written stands. hub.js and routing/steptest.js read only that.
+
+The invariant: the ending half of `test/reply-assembler.census.test.js` (no run-end flag is read or written in hub.js, steptest.js or halt.js, and nine ways a run is withdrawn, each with its endReason and exactly what the chat is told), with `test/halt.test.js`.

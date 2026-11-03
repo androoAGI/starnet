@@ -15,6 +15,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const VoiceRig = require('./helpers/voice-rig.js');
 
 const root = path.join(__dirname, '..');
 const VOICE = fs.readFileSync(path.join(root, 'frontend/app/voice.js'), 'utf8');
@@ -80,8 +81,7 @@ function bootVoice() {
   sandbox.globalThis = sandbox;
   sandbox.window.AudioContext = MockAC;
   vm.createContext(sandbox);
-  vm.runInContext(VOICE + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = VoiceRig.bootVoice(sandbox);   // the voice scripts in index.html order
   // the floor's wake, recording what the floor would read at that instant
   sandbox.World = { voiceChanged: () => wakes.push({ speaking: Voice.isSpeaking(), listening: Voice.isListening() }) };
   Voice.init({ name: 'Tester' });
@@ -93,9 +93,9 @@ function bootVoice() {
     const { Voice, wakes } = bootVoice();
     wakes.length = 0;
     Voice.setSpeakReplies(true);
-    const token = Voice.replyToken();
-    Voice.speakChunk('The relay is green.', 'agent', { replyToken: token });
-    Voice.endReply();
+    const reply = Voice.openReply({ owner: 'general' });   // chat.js opens the reply's handle at send
+    Voice.speakChunk(reply, 'The relay is green.', 'agent');
+    Voice.endReply(reply);
     A.ok(await until(() => Voice.isSpeaking(), 2000), '(the reply starts playing: the audio element fired play)');
     A.ok(wakes.some(w => w.speaking === true), 'voice.js wakes the floor the moment the voice starts (isSpeaking true when World.voiceChanged runs) — the talk track is drawn on the next vsync');
     const n = wakes.length;

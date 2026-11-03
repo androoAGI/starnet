@@ -7,6 +7,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const Pipeline = require('../frontend/app/pipeline.js');
 const IPC = 'customer-journey-fixture-ipc-token-1234567890';
 const providers = ['starnet', 'openrouter', 'custom', 'gemini', 'codex'];
@@ -99,6 +100,7 @@ test('customer journey: connect, select, tool, output, restart and repeat on all
     fs.writeFileSync(path.join(fixture.workspace, '.secrets', 'credits.json'), JSON.stringify({ url: base + '/starnet', accountId: 'fixture', linkedAt: Date.now() }));
     fs.mkdirSync(path.join(fixture.workspace, 'codex'), { recursive: true });
     fs.writeFileSync(path.join(fixture.workspace, 'codex', 'tokens.json'), JSON.stringify({ access_token: jwt, refresh_token: 'fixture', token_type: 'Bearer' }));
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const agents = providers.map(provider => ({ agentId: aid(provider), name: provider, system: 'Inspect the station then answer.', provider, model: modelFor(provider) }));
     assert.equal((await fixture.json('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);

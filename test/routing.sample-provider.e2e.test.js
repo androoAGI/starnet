@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const Pipeline = require('../frontend/app/pipeline.js');
 
 test('sample uses each dock provider and saved model without environment defaults, including restart', async () => {
@@ -33,6 +34,7 @@ test('sample uses each dock provider and saved model without environment default
     CUSTOM_OPENAI_KEY: 'direct-fixture', CUSTOM_OPENAI_BASE_URL: base + '/v1'
   } });
   try {
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const agents = [
       { agentId: 'entry', name: 'Entry', system: 'Sample', provider: 'starnet', model: 'openai/gpt-5.6-sol' },

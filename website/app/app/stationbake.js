@@ -4229,6 +4229,7 @@ const StationBake = (() => {
     return out;
   }
 
+  let ownershipReadbackWarned = false;
   function bakeHullExtrusion(b) {
     const skirt = Math.max(4, Math.round(WALL.skirt));
     // vertical working margin: a footprint whose bottom edge sits just ABOVE this viewport
@@ -4375,17 +4376,33 @@ const StationBake = (() => {
       if (img) {
         const d = img.data;
         own = new Uint16Array(CW * CH2);
-        for (let x = 0; x < CW; x++) {
+        decodeOwnership: for (let x = 0; x < CW; x++) {
           let last = 0, lastY = -1e9;
           for (let y = 0; y < CH2; y++) {
             const i = ((y * CW) + x) << 2;
-            if (d[i + 3]) { last = d[i] | (d[i + 1] << 8); lastY = y; }
+            if (d[i + 3]) {
+              const n = d[i] | (d[i + 1] << 8);
+              // Readback can be altered by the browser/driver. An opaque pixel must
+              // name a real footprint before it can reach tops, bounds or a mask.
+              // Discard the whole pass: keeping a partial mask would punch holes in
+              // the hull. The existing no-readback fallback still paints it, with
+              // less precise material overlap; the next bake tries ownership anew.
+              if (n < 1 || n > rects.length) {
+                own = null;
+                if (!ownershipReadbackWarned && typeof console !== 'undefined' && typeof console.warn === 'function') {
+                  ownershipReadbackWarned = true;
+                  console.warn('[stationbake] ownership readback ID ' + n + ' is outside 1..' + rects.length + '; using hull fallback');
+                }
+                break decodeOwnership;
+              }
+              last = n; lastY = y;
+            }
             else if (last && y - lastY <= skirt) own[y * CW + x] = last;
           }
         }
         // ...and each footprint's own skirt top per column, in one pass over the ownership map
-        tops = rects.map(() => new Int32Array(CW).fill(-1));
-        for (let x = 0; x < CW; x++) {
+        if (own) tops = rects.map(() => new Int32Array(CW).fill(-1));
+        for (let x = 0; own && x < CW; x++) {
           for (let y = 0; y < CH2; y++) {
             const n = own[y * CW + x];
             if (n && tops[n - 1][x] < 0) tops[n - 1][x] = y;

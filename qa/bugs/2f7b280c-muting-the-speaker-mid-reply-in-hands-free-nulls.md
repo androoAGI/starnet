@@ -34,4 +34,8 @@ _Found by the `sweep/voice` lane, 2026-07-28. Finder confidence: high. Severity 
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Confirmed as found. 50a8b07b fixed the mute path with a special case: muting called muteStopSpeaking, which re-armed the loop by hand, and `test/voice.button.test.js` pins that the mic re-opens after a mute mid-reply.
+
+The family stayed open: a cancel still threw the reply's end heartbeat away, and only the paths that re-armed by hand recovered. On the lane's base, a playing reply cut by the mic button, by a plain stopSpeaking() or by setSpeakReplies(false) never fired its endReply callback. The voice-reply-handles-and-speaker-lease lane closes the family. A spoken reply is now a handle from send to its last sentence (`frontend/app/voice-state.js`). Every reply ends in exactly one terminal state, done or cancelled with a typed cause, and fires its heartbeat exactly once on every path. The heartbeat fires after the queue is torn down, so the re-arm never sees the reply that just ended. A mute is one more cancel (speaker_off), and muteStopSpeaking is gone.
+
+The class invariant is `test/voice-reply-lifecycle.invariant.test.js` (I3). In hands-free it runs every way a reply ends on its own: a natural end, a skipped sentence, the cooldown, a playback error, a refused autoplay and a stalled clip. It also runs six cancels across both scopes, the mute included, each on a reply still thinking and on one speaking, before and after endReply. Every run must fire the heartbeat exactly once, re-open the mic exactly once (never, once hands-free is off) and account for every chunk, and every cause in CANCEL_CAUSES ends a reply exactly once. On the lane's base the cancel rows fail: the heartbeat never fired, no cancel was typed and the cancelled chunks vanished.

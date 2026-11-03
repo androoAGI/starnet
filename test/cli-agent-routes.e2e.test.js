@@ -20,6 +20,7 @@ const fs = require('fs');
 const path = require('path');
 const apitickets = require('../sidecar/apitickets.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // a listener on the station's bus; onCommand sees each station.command. A PAGE signs in as the app's EventSource does
@@ -53,6 +54,7 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
 (async () => {
   const fixture = SidecarFixture.create({ prefix: 'sk-cli-agent-routes-', env: ENV });
   try {
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const rosterFile = path.join(fixture.workspace, 'agent.roster.json');
     const onDisk = id => { try { return (JSON.parse(fs.readFileSync(rosterFile, 'utf8')).agents || []).find(a => a.agentId === id) || null; } catch (_) { return null; } };

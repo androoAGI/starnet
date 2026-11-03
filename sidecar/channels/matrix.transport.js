@@ -100,7 +100,8 @@
       // never throws: a network/abort/HTTP error becomes a SendResult so the adapter's bounded resend can run.
       async send(roomId, text, sendOpts) {
         const o2 = sendOpts || {};
-        const url = BASE + API + '/rooms/' + encodeURIComponent(String(roomId)) + '/send/m.room.message/' + encodeURIComponent(newId());
+        // the part's idempotency key is the transaction id: a resend PUTs the same txn, which the homeserver dedupes
+        const url = BASE + API + '/rooms/' + encodeURIComponent(String(roomId)) + '/send/m.room.message/' + encodeURIComponent(o2.idempotencyKey ? String(o2.idempotencyKey) : newId());
         try {
           const { res, data } = await call('PUT', url, { msgtype: 'm.text', body: String(text == null ? '' : text) }, o2.signal);
           if (res && res.ok) return { ok: true, messageId: String((data && data.event_id) || '') };

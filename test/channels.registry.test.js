@@ -134,8 +134,12 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
       adapter: { onDelivery: (d) => deliveries.push(d) }
     });
     wired.adapter.connect();
-    for (let i = 0; i < 50 && !(records.get('gone-1') || {}).unreachable; i++) await tick();
-    A.ok(!!(records.get('gone-1') || {}).unreachable, 'a membership notice reaches the wired hub: the chat is marked unreachable');
+    // the hub's delivery ledger keys the mark by '<channel>|<chatId>' (a Telegram block never touches a Discord chat with the
+    // same id), and the shared chat record's old unreachable flag is no longer written (channel-delivery-ledger S2)
+    const ledger = wired.hub._internals.ledger;
+    for (let i = 0; i < 50 && !ledger.chat('memb|gone-1').dead; i++) await tick();
+    A.ok(!!ledger.chat('memb|gone-1').dead, 'a membership notice reaches the wired hub: its delivery ledger marks the chat dead');
+    A.ok(!(records.get('gone-1') || {}).unreachable, 'and the chat record shared by every channel is not marked');
     await wired.adapter.send('c1', 'hello');
     A.eq(deliveries.length, 1, 'the caller\'s onDelivery hears the send outcome through wireChannel');
     A.eq(deliveries[0].ok, false, 'and it carries the real outcome');
@@ -171,10 +175,23 @@ function fakeFetch() { return async () => ({ ok: true, status: 200, async json()
   // ---- E. (quick win 21) the host's Discord + generic teardown close the hub (sliced, never the whole sidecar text) ----
   {
     const { sidecarTopLevelFunction } = require('./helpers/source.js');
+    const { unwireChannel } = require('../sidecar/channels/registry.js');
+    const definitions = ['stopDiscord','stopGenericChannel','stopChannel'].map(sidecarTopLevelFunction).join('\n');
     for (const fn of ['stopDiscord', 'stopGenericChannel']) {
       const body = sidecarTopLevelFunction(fn);
       A.ok(body.length > 0 && body.length < 2000, fn + ' is found and sliced');
-      A.ok(/unwireChannel\(/.test(body), fn + ' tears its channel down through unwireChannel (hub.close, then disconnect)');
+      const order = [];
+      const wired = {hub:{close:()=>order.push('hub')},adapter:{disconnect:()=>order.push('adapter')}};
+      const host = new Function('unwireChannel','wired',
+        'let discord=wired, discordStatus={connected:true}; const genericChannels={slack:wired},genericStatus={slack:{connected:true}};\n'
+        + definitions + '\nreturn {stopDiscord,stopGenericChannel,view:()=>({discord,discordStatus,genericChannels,genericStatus})};')(unwireChannel,wired);
+      host[fn]('slack');
+      A.eq(order,['hub','adapter'],fn + ': real host helper closes hub before disconnecting adapter');
+      const view=host.view();
+      A.eq(fn === 'stopDiscord' ? view.discord : view.genericChannels.slack, fn === 'stopDiscord' ? null : undefined,fn + ': reference released');
+      A.eq(fn === 'stopDiscord' ? view.discordStatus : view.genericStatus.slack,{connected:false,state:'down',detail:''},fn + ': status reflects completed shutdown');
+      host[fn]('slack');
+      A.eq(order,['hub','adapter'],fn + ': repeated stop cannot close an old sender again');
     }
   }
 

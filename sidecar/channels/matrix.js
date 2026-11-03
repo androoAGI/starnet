@@ -66,6 +66,7 @@
       onCallback: o.onCallback,
       onStatus: o.onStatus,
       onMembership: o.onMembership,   // our own membership changed (blocked/kicked) — the hub stops retrying that chat
+      sendNotice: o.sendNotice,       // the host's outbound contract for an "I was offline" notice (adapter.js), when wired
       onDelivery: o.onDelivery,       // per-send outcome (delivery health), separate from poll health
       clock: o.clock,
       sleep: o.sleep,

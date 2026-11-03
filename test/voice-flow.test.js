@@ -17,7 +17,7 @@ function harness() {
     window: {}, navigator: {}, localStorage: { getItem: () => null },
     performance: { now: () => now }, setTimeout: () => 1, clearTimeout() {}, setInterval: () => 1, clearInterval() {},
     VoiceStream: {open:hooks=>{streams.push(hooks);return {push(){},cancel(){}};}},
-    Voice: { isSpeaking: () => sandbox.agentTalking || false, stopSpeaking(reason, details) { interruptions.push({reason,details}); } },
+    Voice: { isSpeaking: () => sandbox.agentTalking || false, stopSpeaking(scope, reason, details) { interruptions.push({scope,reason,details}); } },
     Chat: { isBusy:()=>true, stopActive:()=>stops.push('cancel'), sendOrQueue: text => { sent.push(text); return { state: 'sent' }; } },
     fetch: (url, opts) => new Promise(resolve => requests.push({ url, opts, resolve: text => resolve({ ok: true, json: async () => ({ text }) }) }))
   };
@@ -49,8 +49,12 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
     assert.equal(h.node('lv-heard').textContent,'Keep this complete first phrase','continued recognition does not rewind the visible caption');
   }
   {
+    // the onset cuts what is AUDIBLE at once; a reply still thinking survives it (its turn decides: superseded only
+    // when the turn starts a run, test/voice-live-turns.table.test.js)
     const h = harness();h.frame(.1);h.frame(.1);h.frame(.1);
-    assert.equal(h.interruptions.length,1,'speech onset interrupts even before the old reply has audio');
+    assert.equal(h.interruptions.length,1,'speech onset asks Voice to cut the agent at once');
+    assert.equal(h.interruptions[0].scope,'audible','the onset asks for the audible scope, never all');
+    assert.equal(h.interruptions[0].reason,'microphone_activity');
   }
   {
     const h=harness(); h.sandbox.agentTalking=true;
@@ -155,7 +159,8 @@ const audio = () => Array.from({length:8}, () => new Float32Array(1000).fill(0.1
   assert.ok(start>0 && end>start);
   function buffer() {
     let now=10000, next=0; const timers=new Map(), chunks=[];
-    const ctx={closed:0,Voice:{speakChunk:s=>chunks.push(s),endReply(){ctx.closed++;}},willSpeak:true,speechOwner:()=>true,speakSafe:s=>s,spokenIdx:0,acc:'',name:'agent',speechOpts:{},Date:{now:()=>now},
+    // The real page has the shared splitter when the send closure runs; this harness uses that owner too.
+    const ctx={closed:0,SpeechSplit:require('../frontend/app/speech-split.js'),Voice:{speakChunk:(reply,s)=>chunks.push(s),endReply(){ctx.closed++;}},willSpeak:true,speechOwner:()=>true,speakSafe:s=>s,spokenIdx:0,acc:'',name:'agent',speech:{},Date:{now:()=>now},
       setTimeout:(fn,ms)=>{timers.set(++next,{fn,at:now+ms});return next;},clearTimeout:id=>timers.delete(id)};
     vm.createContext(ctx);vm.runInContext(chat.slice(start,end)+'\nthis.push=pushSpeech;',ctx);
     return {ctx,chunks,timers,token:s=>{ctx.acc+=s;ctx.push(false);},wait:ms=>{now+=ms;for(const [id,t] of [...timers])if(t.at<=now){timers.delete(id);t.fn();}}};

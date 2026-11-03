@@ -20,19 +20,10 @@ const KeyCTA = (() => {
   let spokenState = '', spokenLine = null, spokenChoices = null;
 
   function normProv(p) {
-    p = String(p || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-for-coding') return 'kimi';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return p;
+    return SK.providers.registry.normalizeProviderId(p || 'openrouter', '');
   }
   function providerNeedsKey(p) {
-    p = normProv(p);
-    // codex/grok/kimi are keyless OAuth sign-ins; ollama/custom are keyless-by-design endpoints.
-    return p !== 'codex' && p !== 'grok' && p !== 'kimi' && p !== 'ollama' && p !== 'custom' && p !== 'claude-cli';
+    return SK.providers.registry.providerRequiresKey(normProv(p));
   }
   function activeProvider() {
     return normProv((typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : 'openrouter');
@@ -49,8 +40,21 @@ const KeyCTA = (() => {
     const a = App.currentAgent();
     if (!a || !a.onboarded) return null;
     const p = activeProvider();
+    const readiness = typeof Harness !== 'undefined' && Harness.readiness ? Harness.readiness(p) : null;
+    if (readiness && !readiness.unattendedReady && readiness.credential && ['expired', 'rejected'].indexOf(readiness.credential.status) >= 0) {
+      return { kind: 'reconnect', provider: p, reason: readiness.reason, cached: readiness.cached };
+    }
     const modelGap = () => (typeof Harness !== 'undefined' && Harness.getModel && !String(Harness.getModel() || '').trim())
       ? { kind: 'nomodel', provider: p } : null;
+    if (readiness) {
+      if (readiness.unattendedReady) return modelGap();
+      if (readiness.cached || ['unknown', 'unavailable'].indexOf(readiness.credential.status) >= 0) {
+        return { kind: 'notready', provider: p, reason: readiness.reason, cached: readiness.cached };
+      }
+      if (p === 'starnet') return { kind: 'unlinked', provider: p };
+      if (readiness.credential.required && readiness.credential.status === 'missing' && providerNeedsKey(p)) return { kind: 'nokey', provider: p };
+      return { kind: 'notready', provider: p, reason: readiness.reason, cached: readiness.cached };
+    }
     if (p === 'starnet') {
       // managed credits are configured IFF the sidecar reports a linked account (Harness.configured mirrors
       // /api/credits) — no localStorage key can ever stand in for that.
@@ -132,7 +136,7 @@ const KeyCTA = (() => {
         else if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
       } catch (_) {}
       try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('brain → OLLAMA (local, free) — no key, no bill. local models run smaller than cloud ones; expect slower, rougher work.', 'good'); } catch (_) {}
-      try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('settings'); } catch (_) {}
+      try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('settings'); } catch (_) {}
       render();
       return true;
     });
@@ -155,7 +159,9 @@ const KeyCTA = (() => {
     let nm = ''; try { if (typeof App !== 'undefined' && App.currentAgent) { const a = App.currentAgent(); nm = (a && a.name) || ''; } } catch (_) {}
     const label = gap.provider.toUpperCase();
     const who = nm ? nm.toLowerCase() + ' — ' : '';
-    if (gap.kind === 'nomodel') {
+    if (gap.kind === 'reconnect' || gap.kind === 'notready') {
+      spokenLine = Chat.localLine(who + label + ': ' + gap.reason + (gap.cached ? ' (last station status; cached)' : '') + '. reconnect in Settings.');
+    } else if (gap.kind === 'nomodel') {
       spokenLine = Chat.localLine(who + 'no model is selected for ' + label + '. choose a model to send a message.');
     } else if (gap.kind === 'unlinked') {
       spokenLine = Chat.localLine(who + 'i’m awake, but no brain is wired: this station isn’t linked to a STARNET account, so i can’t actually run anything yet. link one, wire a different provider, or run me free on a local model.');
@@ -173,11 +179,14 @@ const KeyCTA = (() => {
 
   // ONE label per anchor: the primary door names exactly the thing that is missing.
   function primaryLabel(gap) {
+    if (gap && gap.kind === 'reconnect') return 'RECONNECT PROVIDER';
+    if (gap && gap.kind === 'notready') return 'OPEN PROVIDER SETTINGS';
     if (gap && gap.kind === 'nomodel') return '◇ CHOOSE MODEL';
     if (gap && gap.kind === 'unlinked') return '🔗 LINK STARNET';
     return '⚙ ADD ' + ((gap && gap.provider) || activeProvider()).toUpperCase() + ' KEY';
   }
   function bannerText(gap) {
+    if (gap.kind === 'reconnect' || gap.kind === 'notready') return gap.provider.toUpperCase() + ': ' + gap.reason + (gap.cached ? ' (cached station status)' : '') + '. check Settings.';
     if (gap.kind === 'nomodel') return 'no model selected for ' + gap.provider.toUpperCase() + ' — choose a model to send a message.';
     if (gap.kind === 'unlinked') return 'your agent is awake — but this station isn’t linked to a STARNET account, so it can’t run a task yet.';
     return 'your agent is awake — but it has no ' + gap.provider.toUpperCase() + ' key, so it can’t run a task yet.';

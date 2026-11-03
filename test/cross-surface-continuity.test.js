@@ -11,8 +11,7 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   const legacy = [{ role: 'user', content: 'legacy-only' }], appended = [], sends = [], runs = [];
   const store = {
     loadHistory: () => legacy.slice(), appendTurn: (_a, role, content) => appended.push({ role, content }),
-    getChatRecord: id => records[id], saveChatRecord: (id, patch) => (records[id] = Object.assign({}, records[id], patch)),
-    loadOutbox: () => [], pushOutbox: () => ({}), removeOutbox: () => true
+    getChatRecord: id => records[id], saveChatRecord: (id, patch) => (records[id] = Object.assign({}, records[id], patch))
   };
   const canonical = [{ role: 'user', content: 'from desktop' }, { role: 'assistant', content: 'desktop answer' }];
   const hub = makeChannelHub({
@@ -43,8 +42,8 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   const mirror = fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8');
   const index = readSidecarSource();
-  A.ok(/mergeCanonicalHistory/.test(chat) && /buckets\.get\(key\)/.test(chat), 'desktop reconciliation is occurrence-aware');
-  const mergeBody = A.fnBody(chat, 'function mergeCanonicalHistory(local, turns)');
+  A.ok(/TurnMerge\.reconcile\(/.test(chat) && /buckets\.get\(key\)/.test(require('./helpers/turnmerge').source()), 'desktop reconciliation is occurrence-aware');
+  const mergeBody = require('./helpers/turnmerge').source('mergeCanonicalHistory');
   const mergeCanonicalHistory = new Function(mergeBody + '; return mergeCanonicalHistory;')();
   const healed = mergeCanonicalHistory([
     { role: 'user', content: 'make the report' },

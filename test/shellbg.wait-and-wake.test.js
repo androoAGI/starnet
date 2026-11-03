@@ -172,6 +172,24 @@ let T = 1000; const clock = { now: () => T };
     A.eq(steer.drain('run_d').length, 1, 'the control case still wakes the live run');
   }
 
+  // The table-backed host asks for eligible owner rows at the instant of the wake; unrelated core entries never steal it.
+  {
+    const table = require('../sidecar/run-table.js').makeRunTable();
+    const steer = makeSteerBuffers({ maxPending: 8, maxNoteChars: 2000 });
+    const own = (runId, agentId, startedAt) => { const ac = new AbortController(); return table.admit({ runId, agentId, startedAt }, { signal: ac.signal, stop: () => ac.abort() }); };
+    const older = own('owner-old', 'a', 1), newer = own('owner-new', 'a', 2), other = own('other-agent', 'b', 9);
+    const core = table.admit({ runId: 'api-only', agentId: 'a', startedAt: 10 });
+    const wake = makeBgExitWaker({ steer, liveRuns: () => table.live().filter(r => table.owned(r.runId)) });
+    A.eq(wake({ agentId: 'a', text: 'worker exited', bgId: 'bg' }).runId, 'owner-new', 'fresh table projection targets newest eligible owner, never the newer API-only run');
+    A.eq(steer.drain('owner-new').length, 1, 'owner receives one real steering note');
+    steer.close('owner-new');
+    A.eq(wake({ agentId: 'a', text: 'another exit', bgId: 'bg2' }).runId, 'owner-old', 'closed newest buffer falls back to another eligible owner');
+    older.release(); newer.release();
+    A.eq(wake({ agentId: 'a', text: 'last exit', bgId: 'bg3' }).reason, 'no-live-run', 'released owners disappear without a stale metadata copy');
+    A.eq(steer.pending('api-only') + steer.pending('other-agent'), 0, 'unrelated work never receives the note');
+    core.release(); other.release();
+  }
+
   // ---- the note text is bounded and one line per output line ----
   {
     const text = exitNoticeText({ bgId: 'bg_x', cmd: 'x'.repeat(500), exitCode: 0, ms: 1500, tail: 'a\n\n' + 'y'.repeat(5000) + '\nlast' });

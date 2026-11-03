@@ -115,7 +115,7 @@ const StationQuestStore = (() => {
   }
 
   // if the log is open, refresh it so the new pin/row lands immediately (a no-op when closed).
-  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.rerender) StationUI.rerender('quests', false); } catch (_) {} }
+  function poke() { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
 
   /* ---------- the retired OUTBOX standing candidate (org P14, 2026-10-14) ----------
      It minted "The station reached for DELIVERY — place a OUTBOX in its bay" from ReturnStore's STATION-WIDE pending

@@ -6,6 +6,7 @@
 const { makeDomainStore } = require('./domain-store.js');
 // the ONE goal-step predicate every history reader shares (pure UMD module; the page loads the same file)
 const GoalLoop = require('../frontend/app/goalloop.js');
+const TurnKinds = require('../frontend/app/turnkinds.js');
 
 function isCoordinatorRun(o) {
   return o.agentId === 'agent' && !o.internal && !o.floorless
@@ -344,11 +345,12 @@ function makeOverseer(deps) {
    saved-history fallback go through GoalLoop.stepOfTurn. What the goal loop SENDS the model for its own continuation is
    untouched: this is only how another session's history reads. */
 function readTurn(m) {
-  const step = GoalLoop.stepOfTurn(m);
+  const step = TurnKinds.classify(m).kind === 'goal-step' ? GoalLoop.stepOfTurn(m) : null;
   if (step != null) return { speaker: 'station', sys: true, text: ('Goal step: ' + step).slice(0, 3000) };
   return { speaker: m.role, text: String(m.content || '').slice(0, 3000) };
 }
-// transcript rows first (already limited by the caller); the saved workstream history (last 12 visible turns) when none
+// Canonical callers pass only projected rows. The optional history argument is an explicit legacy-only fallback;
+// never supply it after a successful projection, whose empty result must stay authoritative.
 function readSessionTurns(rows, history) {
   const turns = (rows || []).filter(m => m && ['user', 'assistant'].includes(m.role)).map(readTurn);
   if (turns.length) return turns;

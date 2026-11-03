@@ -137,6 +137,7 @@ const fits = { credentialOk: true, contextLimit: 200000, efforts: null };
       effectiveVoiceChat: () => ({ provider: 'openrouter', model: 'x/fast-voice', reasoningEffort: '' }), agentRoster: new Map(),
       normalizeProvider: p => p || 'openrouter', chatModelId: (p, m) => m, providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'c', CRON_DEFAULT_MODEL: 'd',
       providerRuntimeKey: () => 'k', providerRuntimeBaseUrl: () => '', getProviderProfile: () => ({}), providerHasCredential: () => true,
+      billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) }),   // the voice route's payer (billing-class.js)
       voiceCatalogEntry: async (prov, model) => (model === 'x/fast-voice' ? { id: model, context_length: 40000 } : null), promptTierCeiling: () => 0,
       makeContext, RUN_CONTEXT_DEFAULTS, attachments, voiceChatRoute: V, console: { warn: () => {} },
       RunWire: require('../sidecar/run-wire.js'), normalizeProviderId: p => String(p || '').toLowerCase(),

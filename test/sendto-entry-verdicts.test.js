@@ -33,6 +33,7 @@ const taint = require('../sidecar/taint.js');
 const { entryUntrusted, hostPowerWithheldFor } = require('../sidecar/run-origin.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
 const { makeChainRunner } = require('../sidecar/routing/chain.js');
+const { makeLineRunner } = require('../sidecar/routing/line-runner.js');
 const { makeHandoffRunner } = require('../sidecar/routing/handoff-runner.js');
 const { crewedDocksOnLine } = require('../sidecar/routing/trigger-runner.js');
 
@@ -68,6 +69,7 @@ function hubHarness(extra) {
       o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId });
       o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'out of ' + o.agentId });
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
+      return { reason: 'done', text: 'out of ' + o.agentId };   // what runOnce returns: a stage hands on its terminal text
     },
     store: memStore(), send: () => Promise.resolve({ ok: true }), secrets: () => ({ key: 'k', model: 'm/x' }),
     classify: () => true, emit: () => {}, newId: () => 'r' + (++n), bindChats: false,
@@ -114,15 +116,18 @@ function world(opts) {
   const lastStage = (a, dock) => { const r = P.dockLayer(plan).dockChains[dock]; return !!(r && r.outbox && !r.deadEnd); };
   let n = 0, clock = 1000, R = null;
   const newId = () => 'id' + (++n) + 'abcdef0123456789';
-  const runs = [], rowsByStream = {}, shipped = [];
+  const runs = [], rowsByStream = {}, rowsById = new Map(), shipped = [];
   const runOnce = async (ro) => {
     clock++;
     runs.push(Object.assign({ line: nameOfLine[ro.lineId] || '?', agentId: ro.agentId, dockId: ro.dockId || null, streamId: ro.streamId || null,
       initialTaint: ro.initialTaint || null, entry: !/^upstream agent output$/.test(String(ro.initialTaint || '')) }, verdictsOf(ro)));
-    if (ro.streamId) (rowsByStream[ro.streamId] = rowsByStream[ro.streamId] || []).push({ runId: ro.runId, agentId: ro.agentId, dockId: ro.dockId || null, reason: 'done', usd: 0, streamId: ro.streamId, startedAt: clock });
+    const row = { runId: ro.runId, agentId: ro.agentId, dockId: ro.dockId || null, reason: 'done', outcome: 'succeeded', usd: 0, streamId: ro.streamId || '', startedAt: clock };
+    rowsById.set(ro.runId, row);   // the real run store records every run, including a legacy entry without a conversation stream
+    if (ro.streamId) (rowsByStream[ro.streamId] = rowsByStream[ro.streamId] || []).push(row);
     ro.emit('agent.run.start', { agentId: ro.agentId, runId: ro.runId });
     ro.emit('agent.token', { agentId: ro.agentId, runId: ro.runId, delta: 'work of ' + ro.agentId });
     ro.emit('agent.run.end', { agentId: ro.agentId, runId: ro.runId, reason: 'done', turns: 1, usd: 0 });
+    return { reason: 'done', text: 'work of ' + ro.agentId };   // what runOnce returns: a stage hands on its terminal text
   };
   const chain = makeChainRunner({
     nextAgent: () => null, now: () => clock, newId,
@@ -130,9 +135,12 @@ function world(opts) {
     lastStage,
     onShipped: (rec) => { shipped.push(rec); return R ? R.onShipped(rec) : null; }
   });
+  // Match the real host's shared runner and durable-row reader. A terminal token alone cannot finish a line job.
+  const lineRunner = makeLineRunner({ chain, runOnce, now: () => clock, newId,
+    runRow: id => rowsById.get(id) });
   const common = {
     runOnce, store: memStore(), classify: () => true, emit: () => {}, newId, now: () => clock, textBatchWaitMs: 0,
-    chain, lineOriginFor: (agentId, dock) => (dock ? plan.lineOfProp[dock] : null) || null
+    chain, lineRunner, lineOriginFor: (agentId, dock) => (dock ? plan.lineOfProp[dock] : null) || null
   };
   // the target line's hub, built the way index.js makeTriggerHub builds it for the handoff runner (+ the host half's forwarding)
   const makeHub = (hooks) => makeChannelHub(Object.assign({}, common, {
@@ -143,13 +151,14 @@ function world(opts) {
     resolveRunConfig: () => ({ key: 'k', model: 'm/x' }),
     resolveAgent: () => { const line = hooks.lineId(); const dock = line ? entryDock(line) : null; return hooks.onRouted(dock ? { agentId: plan.agentOfDock[dock], dockId: dock } : null); },
     onResolved: hooks.onResolved, onLineOutcome: hooks.onLineOutcome,
+    jobEntry: hooks.jobEntry, jobId: hooks.jobId, onJobSettled: hooks.onJobSettled,
     entryTaint: 'upstream line output',
     entryUntrusted: o.forward === false ? undefined : hooks.entryUntrusted,
     senderWithheld: o.forward === false ? undefined : hooks.senderWithheld,
     streamId: () => hooks.streamId()
   }));
   R = makeHandoffRunner({
-    makeHub, plan: () => plan, jobs: {}, emit: () => {}, shipsToOutbox: lastStage,
+    makeHub, lineRunner, plan: () => plan, jobs: {}, emit: () => {}, shipsToOutbox: lastStage,
     runsFor: (sid) => rowsByStream[sid] || [], now: () => clock, newId, warn: () => {}
   });
   // A's entry hub: routes every message to LINE A's entry dock
@@ -381,7 +390,7 @@ function world(opts) {
     const idx = readSidecarSource();
     const trig = (idx.split('function makeTriggerHub(hooks) {')[1] || '').split('\n}\n')[0];
     A.ok(trig.length > 0, 'found index.js makeTriggerHub');
-    A.ok(/entryUntrusted: hooks\.entryUntrusted, senderWithheld: hooks\.senderWithheld,/.test(trig), 'index.js makeTriggerHub forwards BOTH verdict hooks to the hub');
+    A.ok(/entryUntrusted: hooks\.entryUntrusted,\s*senderWithheld: hooks\.senderWithheld,/.test(trig), 'index.js makeTriggerHub forwards BOTH verdict hooks to the hub');
     A.ok(/makeHub: \(hooks\) => makeTriggerHub\(Object\.assign\(\{\}, hooks, \{ persona: HANDOFF_PERSONA, entryTaint: 'upstream line output' \}\)\)/.test(idx), '…and the handoff runner\'s hub passes its hooks straight through');
   }
 

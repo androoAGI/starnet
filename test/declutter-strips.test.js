@@ -91,7 +91,7 @@ const voice = read('frontend/app/voice.js');
 // (the speaker-off clear is one helper since 2026-10-15; voice.button.test proves every off path behaviorally)
 A.ok(/el\.addEventListener\('click', \(\) => showInterruption\(''\)\)/.test(voice)
   && /function speakerOffClearsNote\(\) \{ if \(interruptionMessage\) showInterruption\(''\); \}/.test(voice)
-  && /muteStopSpeaking\(\); speakerOffClearsNote\(\);/.test(voice),
+  && /stopSpeaking\('all', 'speaker_off'\); speakerOffClearsNote\(\);/.test(voice),
   'the speech-interrupted note can be dismissed and clears when the speaker goes off');
 
 /* ---- DELIVERABLES toolbar + drawer (org pass 10-14, P13): upkeep folds, filters stay, chips read plainly ---- */

@@ -26,6 +26,7 @@ let probeResult = { reachable: false };
 let starnetConfigured = false;
 let stored = Object.create(null);
 let prov = 'starnet';
+global.SK = { providers: { registry: require('../sidecar/providers/registry.js') } };
 global.document = { getElementById: () => null, querySelector: () => null };
 global.App = { currentAgent: () => ({ name: 'NOVA', onboarded: true }) };
 global.Harness = {

@@ -53,23 +53,24 @@ let T = 0; const clock = () => (T += 10);
     A.ok(Math.abs(seen[0][1] - 1.25) < 1e-9, 'the first hop may spend only what the entry left (got ' + seen[0][1] + ')');
     A.ok(Math.abs(seen[1][1] - 0.75) < 1e-9, 'the next hop only what is left after that (got ' + seen[1][1] + ')');
     A.ok(Math.abs(seen[2][1] - 0.25) < 1e-9, 'and the last one only the final quarter (got ' + seen[2][1] + ')');
-    // the hub's own hop runner (sidecar/channels/hub.js) also passes h.ceilingUsd. The host's hop runners are each sliced and
-    // must pass it: the scheduled routine's (the cronDriver wiring), Run Now's (handleCronRun) and, since quick win 28, the
-    // step tester's (stepTestRunDock) — a whole-text COUNT read the step tester's new pass as a broken cron runner.
+    // every entry's hop runs through the ONE hop executor (sidecar/routing/line-runner.js), which hands runOnce the hop's
+    // ceilingUsd BY CONSTRUCTION — driven here through each production profile the host builds (the hub's channel profile, the
+    // scheduled routine's, Run Now's and, since quick win 28, the step tester's), with a fake runOnce at the transport edge
     const idx = readSidecarSource({ except: ['sidecar/channels/hub.js'] });
-    const { sidecarTopLevelFunction } = require('./helpers/source');
-    const cdAt = idx.indexOf('const cronDriver = makeCronDriver({');
-    const runners = {
-      scheduled: cdAt < 0 ? '' : idx.slice(cdAt, idx.indexOf('\n});', cdAt) + 4),
-      runNow: sidecarTopLevelFunction('handleCronRun'),
-      stepTest: sidecarTopLevelFunction('stepTestRunDock')
-    };
     A.ok(idx.includes("!(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);"), 'runOnce lowers its cap to the ceiling (never raises it)');
-    for (const k of Object.keys(runners)) {
-      A.ok(runners[k].length > 200 && runners[k].indexOf('ceilingUsd: h.ceilingUsd') >= 0, 'the ' + k + ' hop runner passes the line\'s remaining ceiling');
+    const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+    const caps = [];
+    const lr = makeLineRunner({ runOnce: async (o) => { caps.push(o.ceilingUsd); o.emit('agent.run.end', { runId: o.runId, reason: 'done' }); return { reason: 'done', text: 'out', outcome: 'succeeded' }; } });
+    const routine = { config: () => ({ key: 'k', model: 'm' }), system: () => 'S', station: () => null };
+    const kinds = {
+      hub: profiles.channel({ channel: 'telegram', chatId: '1' }), scheduled: profiles.schedule(routine), runNow: profiles.manual(routine),
+      stepTest: profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {} })
+    };
+    for (const k of Object.keys(kinds)) {
+      caps.length = 0;
+      await lr.hopRunner(kinds[k])({ agentId: 'b', text: 'hand-off', ceilingUsd: 0.75 });
+      A.eq(caps, [0.75], 'the ' + k + ' hop runs under the line\'s remaining ceiling');
     }
-    const hub = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');
-    A.ok(hub.includes('ceilingUsd: h.ceilingUsd'), 'and so does the hub hop runner');
   }
 
   /* ---- the injected per-line reader (the compiled plan's LINE BUDGET) is read by lineId ---- */

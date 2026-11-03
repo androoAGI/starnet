@@ -40,6 +40,7 @@ function harness(root, opts) {
   const sessions = new Map([[w.id, w]]);
   const respond = (req, status, turns) => { if (!req.done) { req.done = true; req.resolve({ ok: status >= 200 && status < 300, status, json: async () => ({ stream: w.id, turns }) }); } };
   const context = vm.createContext({
+    TurnMerge: require('./helpers/turnmerge').TurnMerge,
     Date: FakeDate, WeakMap, Map, Promise, AbortController,
     setTimeout: (fn, ms) => { const t = { id: ++seq, at: now + Math.max(0, Number(ms) || 0), fn }; timers.push(t); return t.id; },
     clearTimeout: id => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },
@@ -59,7 +60,7 @@ function harness(root, opts) {
     log: { innerHTML: '' }, activeWs: w, historyPinSeq: 3, historyPinPending: 0, revealKey: '',
   });
   // the read-back places mid-run notes after merging (comms-flow 10-26): the real placeSteerNotes rides with the real merge
-  const merge = A.fnBody(src, 'function mergeCanonicalHistory(local, turns)') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
+  const merge = require('./helpers/turnmerge').source('mergeCanonicalHistory') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
   const start = src.indexOf('  const historyLoads = new WeakMap();');
   const seam = src.slice(start, src.indexOf('\n  // swap the rendered conversation', start));
   assert.ok(merge.length > 500 && start > 0 && seam.length > 1000 && seam.length < 16000, root + ': bounded production seam');

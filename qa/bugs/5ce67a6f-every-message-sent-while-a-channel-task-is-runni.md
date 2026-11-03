@@ -36,3 +36,9 @@ Same with step 2 = "/routine add every day at 9am | check the morning news" or "
 ## Verdict
 
 Fixed: recoverInbox re-checks that an item is still durably pending immediately before replaying it, so a message that finished on its own path while recovery waited is skipped. Live re-check on the fixed sidecar: steered "also add a sonnet" + "/away build a recipe card generator" during a held run -> one ack each, no second run, no duplicate /away reply. Fix: `2899b4102`.
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. The stale snapshot was one symptom of recovery firing on a drain: recoverInbox ran from the outbox flush's finally, so it fired mid-session on ordinary deliveries, and work a full outbox held replayed only when the whole channel's outbox emptied, so one failing chat parked every other chat's. Recovery now runs on 'up' and on a 30 s timer, never on a delivery, and every inbound ends in exactly one terminal transition: its answer's write or a settle.
+
+The invariant: P5 of `test/channels.delivery-ledger.property.test.js` and its soak `test/channels.delivery-ledger.soak.test.js`: every inbound the adapter acknowledged gets exactly one terminal outcome, follow-ups steered into a live run included (joined or run, never both), a slash command at most once, on hubs lifted from the production calls. `test/channels.decision-settle.test.js` holds the follow-up, the command and the stop to it across a crash in their ack, and `test/channels.intake-backpressure.test.js` keeps a stop and a follow-up from ever being held back behind a chat's owed replies. Case I of `test/channels.outbox.test.js` locks recovery's clock.

@@ -70,10 +70,21 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     assert.ok(runs.some(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')), 'review delivered to original conversation');
     assert.equal(runs.find(r => r.streamId === 'home' && /Reviewed findings/.test(r.deliveryText || '')).deliveryPrompt, '', 'automatic review uses existing assistant delivery without a delegated-task marker');
     const childId = snapshot.threads.find(w => w.title === 'Research proof').id;
-    await fixture.restart(); await sleep(2600);
+    const publicReview = transcript.filter(m => m.kind === 'delivery' && m.sourceRunId === snapshot.reviews[0].reviewRunId);
+    assert.equal(publicReview.length, 1, 'the completed review has exactly one canonical public delivery');
+    // Crash after publication but before the done acknowledgement: restart must recover the same row.
+    await fixture.stop();
+    const firstStatePath = path.join(fixture.workspace, 'overseer.json');
+    const firstState = JSON.parse(fs.readFileSync(firstStatePath, 'utf8'));
+    firstState.value.reviews[0].status = 'reviewing';
+    fs.writeFileSync(firstStatePath, JSON.stringify(firstState));
+    await fixture.start(); await sleep(2600);
     snapshot = (await fixture.json('GET', '/api/overseer')).body;
     assert.ok(snapshot.threads.some(w => w.id === childId), 'child identity survives restart');
     assert.equal(snapshot.reviews[0].status, 'done'); assert.equal(provider.reviews(), 1, 'restart does not re-run completed review');
+    const restartedTranscript = (await fixture.json('GET', '/api/transcript?stream=home&limit=100')).body.turns;
+    assert.deepEqual(restartedTranscript.filter(m => m.kind === 'delivery' && m.sourceRunId === snapshot.reviews[0].reviewRunId), publicReview,
+      'lost done acknowledgement reuses the exact public row after process restart');
     const followup = await fixture.json('POST', '/api/run', { model: 'test/model', agentId: 'agent', streamId: 'home', isTask: true,
       messages: [{ role: 'user', content: 'Follow up in the existing research thread' }] });
     assert.equal(followup.status, 200);

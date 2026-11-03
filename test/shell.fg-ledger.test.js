@@ -7,6 +7,9 @@
      - the child is recorded at spawn (kind shell.fg, REDACTED command, pin deferred), marked exited when the root
        exits, and released when the command is over;
      - a command shorter than the pin grace never pays an identity probe; a longer one is pinned once;
+     - a root that exits while its stdio stays open keeps its receipt, stamped exited, until stdio closes. The case
+       waits for the deferred stamp on timer turns, plain and under a 300 ms loop stall, never on a fixed sleep (R4:
+       a 50 ms sleep raced the stamp and went red whenever the box stalled);
      - the shell tool passes the redacted command, never the plaintext secret. */
 'use strict';
 const A = require('./_assert.js');
@@ -16,6 +19,7 @@ const path = require('path');
 const { runCommand, makeShellTool } = require('../sidecar/tools/builtin/shell.js');
 const { makeEnvironmentManager } = require('../sidecar/environment.js');
 const { trackChild } = require('../sidecar/procledger.js');
+const { stallSoon, waitFor } = require('./helpers/loop-stall.js');
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 function mkLedger() {
@@ -39,11 +43,12 @@ function makeFakeSpawn(opts) {
       _close: (code) => { (h.close || []).forEach(f => f(code)); }
     };
     spawn.children.push(child);
-    // the root exits at runMs; stdio closes closeLagMs later (a grandchild holding the pipe delays 'close')
+    // the root exits at runMs and stdio closes with it; with holdClose stdio stays open (a grandchild holding the
+    // pipe delays 'close') until the test calls child._close itself
     setTimeout(() => {
       if (child._data) child._data(Buffer.from('hello\n'));
       child._exit(0);
-      if (opts.closeLagMs) setTimeout(() => child._close(0), opts.closeLagMs); else child._close(0);
+      if (!opts.holdClose) child._close(0);
     }, opts.runMs || 0);
     return child;
   };
@@ -66,14 +71,24 @@ function makeFakeSpawn(opts) {
     A.ok(!L.events.some(e => e[0] === 'pin'), 'a command that finished inside the grace is never pinned');
   }
   // ---- 1b. the root exits but its stdio stays open (a grandchild holds the pipe): the exit freezes the window ----
-  {
+  // The stamp is deferred (ledgerExitStampMs 10), so the case waits for it on timer turns. Timers fire in due order,
+  // and every poll set after the exit callback is due at least 25 ms after it, past the stamp: the wait is exact
+  // under any loop timing. The second run blocks the loop for 300 ms right after the spawn, which a fixed sleep
+  // could not survive (R4). Stdio closes only when the test says so, so 'release' cannot come early either.
+  for (const stall of [0, 300]) {
+    const under = stall ? ' (under a ' + stall + ' ms loop stall)' : '';
     const L = mkLedger();
-    const spawn = makeFakeSpawn({ runMs: 5, closeLagMs: 80 });
+    const kinds = () => L.events.map(e => e[0]);
+    const spawn = makeFakeSpawn({ runMs: 5, holdClose: true });
     const p = runCommand({ spawn, cmd: 'start-server', cwd: '.', timeoutMs: 5000, isWin: true, ledger: L, ledgerCmd: 'start-server', ledgerPinAfterMs: 1000, ledgerExitStampMs: 10 });
-    await delay(50);
-    A.eq(L.events.map(e => e[0]), ['record', 'exited'], 'the lingering command keeps its receipt, stamped with the root exit');
+    const stalled = stall ? stallSoon(stall) : null;
+    const stamped = await waitFor(() => kinds().includes('exited'));
+    A.ok(stamped, 'the root exit is stamped while stdio stays open' + under + ' (events ' + JSON.stringify(kinds()) + ')');
+    A.eq(kinds(), ['record', 'exited'], 'the lingering command keeps its receipt, stamped with the root exit' + under);
+    if (stalled) { const ms = await stalled; A.ok(ms >= 240, 'the stall really blocked the loop (' + ms + ' ms)'); }
+    spawn.children[0]._close(0);
     await p;
-    A.eq(L.events.map(e => e[0]), ['record', 'exited', 'release'], 'and is released only when its stdio finally closes');
+    A.eq(kinds(), ['record', 'exited', 'release'], 'and is released only when its stdio finally closes' + under);
   }
   // ---- 2. a long command is pinned once, while it is still running ----
   {

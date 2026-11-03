@@ -10,6 +10,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 
 (async () => {
   const fixture = SidecarFixture.create({
@@ -148,6 +149,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     prefix: 'sk-roster-write-fault-',
     env: { OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '' }
   });
+  seedActiveStation(fault.workspace);
   await fault.start();
   try {
     const BF = fault.baseUrl;
@@ -182,6 +184,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     prefix: 'sk-agent-delete-write-fault-',
     env: { OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '' }
   });
+  seedActiveStation(deleteFault.workspace);
   await deleteFault.start();
   try {
     const BD = deleteFault.baseUrl;

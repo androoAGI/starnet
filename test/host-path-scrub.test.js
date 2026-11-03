@@ -14,7 +14,8 @@
         index.js startTelegram / startTelegramBot wire it) and the Slack / Matrix / Signal adapters through wireChannel's
         `outbound` (as index.js wires Discord and the generic channels), so a send that never passes a hub (channel.send,
         a routine delivery, the notifier, a loop notice, a step-in nudge) is scrubbed too;
-     4. channel.send chunks its body itself: wired as the host wires it, the body is scrubbed whole first;
+     4. every send outside a hub reply is scrubbed whole before it is chunked: channel.send through the ONE outbound
+        contract (channels/outbound.js, channel-delivery-ledger S4), which chunks for every such path;
      5. the host wires every one of those surfaces through the chokepoint (source locks over sidecar/index.js).
    Review round 4 (scratchpad rr4-redos*.js, rr4-scrub.js, rr4-scrub-locale.js): 1b. linear time on any text (a
    separator-led form never starts inside a separator run; a long text in bounded, overlapping windows); 1c. the
@@ -29,10 +30,13 @@
 const A = require('./_assert.js');
 const { makeHostPathScrub, hostPathForms, guardOutbound, PLACEHOLDER } = require('../sidecar/host-path-scrub.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
+const { makeChannelStore } = require('../sidecar/channels/store.js');
 const { makeChannelRegistry, wireChannel } = require('../sidecar/channels/registry.js');
 const { makeTelegramAdapter } = require('../sidecar/channels/telegram.js');
 const { makeCommsTools } = require('../sidecar/tools/builtin/comms.js');
-const { readSidecarIndex, functionSourceIn } = require('./helpers/source');
+const { makeChannelOutbound } = require('../sidecar/channels/outbound.js');
+const { makeDeliveryLedger, memoryIo } = require('../sidecar/channels/delivery-ledger.js');
+const { readSidecarIndex, functionSourceIn, sidecarSourceFiles } = require('./helpers/source');
 
 const WS = 'C:\\Users\\andro\\AppData\\Roaming\\StarNet\\workspaces';
 const leaks = (s) => /AppData|andro|Roaming/i.test(String(s));
@@ -242,10 +246,10 @@ function linearRun(f, unit, count) {
     }
   }
 
-  // ---- 2. the real hub: the WHOLE text before chunking (deliver and the outbox) ----
+  // ---- 2. the real hub: the WHOLE text before chunking (deliver, and a reply written before its first send) ----
   const hubWith = (extra, sent) => makeChannelHub(Object.assign({
     runOnce: async () => {}, maxMessageLength: 4096,
-    store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null, loadOutbox: () => [], removeOutbox: () => {} },
+    store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null },
     send: (c, t) => { sent.push(t); return Promise.resolve({ ok: true }); }, secrets: () => ({}), classify: () => true, newId: () => 'x'
   }, extra));
   const atEdge = 'x'.repeat(4096 - 25) + WS + '\\alpha\\shots\\x.png';
@@ -257,10 +261,20 @@ function linearRun(f, unit, count) {
     A.ok(sent.join('').indexOf('[workspace]\\alpha\\shots\\x') >= 0, 'hub deliver: the placeholder stands where the path was');
   }
   {
+    // a reply an older build queued (v1 outbox.json) enters the delivery ledger whole and is cut at its first send, by the
+    // lane's sender: the hub scrubs the WHOLE text there too, before chunking (channel-delivery-ledger S2)
+    const files = new Map();
+    const disk = {
+      readFileSync(f) { if (!files.has(f)) { const e = new Error('ENOENT'); e.code = 'ENOENT'; throw e; } return files.get(f); },
+      writeFileSync(f, d) { files.set(f, String(d)); }, renameSync(a, b) { files.set(b, files.get(a)); files.delete(a); }, mkdirSync() {}
+    };
+    files.set('/ws/channels/outbox.json', JSON.stringify({ version: 1, items: [{ id: 'o1', channel: 'telegram', chatId: 'chat1', text: atEdge, runId: 'r0', agentId: '', reason: 'done', ts: 1, tries: 0 }] }));
+    const store = makeChannelStore({ fs: disk, pathMod: require('path').posix, root: '/ws/channels', clock: { now: () => 2 } });
     const sent = [];
-    const hub = hubWith({ scrubOutbound: scrub, store: { loadHistory: () => [], append: () => {}, getChatRecord: () => null, removeOutbox: () => {}, loadOutbox: () => [{ id: 'o1', chatId: 'chat1', text: atEdge }] } }, sent);
-    await hub._internals.flushOutbox();
-    A.ok(sent.length >= 1 && !sent.some(leaks), 'hub outbox: a stored reply is scrubbed whole before it is re-chunked');
+    const hub = hubWith({ channel: 'telegram', scrubOutbound: scrub, store: Object.assign(Object.create(store), { loadHistory: () => [], getChatRecord: () => null }) }, sent);
+    await hub._internals.drain();
+    A.ok(sent.length >= 2 && !sent.some(leaks), 'hub, a stored reply: scrubbed whole before it is chunked at its first send (' + sent.length + ' parts)');
+    hub.close();
   }
   {
     // MAJOR-1 through the hub (rr4-redos-big.js): a 96,000-slash divider in a reply blocked the event loop for minutes
@@ -350,45 +364,72 @@ function linearRun(f, unit, count) {
     A.ok(sent.length >= 3 && !sent.some(leaks), id + ' (wireChannel outbound): the adapter\'s own sends and the hub\'s chunked reply reach the wire scrubbed');
   }
 
-  // ---- 4. channel.send chunks its own body: the host scrubs it whole first (index.js redact: t => scrubOutbound(redact(t))) ----
+  // ---- 4. every send outside a hub reply is scrubbed WHOLE before it is chunked: channel.send through the one contract ----
   {
+    // ChannelOutbound over a delivery ledger, a channel whose limit is 300 and a live adapter that records each part;
+    // the tool's sendTo is wired the way index.js wires it (channelOutbound.send, durable:false)
     const parts = [];
+    const ledger = makeDeliveryLedger({ io: memoryIo(), clock: { now: () => 1 } });
+    const adapter = { send: async (chatId, text) => { parts.push(text); return { ok: true, messageId: 'm' + parts.length }; } };
+    const outbound = makeChannelOutbound({
+      ledger: ledger, registry: { get: () => ({ maxMessageLength: 300 }) }, reach: () => ({ ok: true, live: { adapter: adapter } }),
+      chatRecord: () => ({ channel: 'telegram', chatId: '1' }), liveChannelFor: () => ({ adapter: adapter }), scrub: scrub, redact: (t) => t, emit: () => {}
+    });
     const tools = makeCommsTools({
       listTargets: () => [{ target: 't1', channel: 'telegram', chatId: '1', agentId: 'alpha', connected: true }],
-      sendTo: async (target, text) => { parts.push(text); return { ok: true }; },
-      maxLenFor: () => 300, redact: (t) => scrub(t)
+      sendTo: (target, text, o) => outbound.send(String(target), text, Object.assign({ reason: 'tool' }, o || {}, { durable: false }))
     });
     await tools.sendTool.run({ target: 't1', text: 'y'.repeat(280) + ' ' + WS + '\\alpha\\shots\\x.png done' }, { agentId: 'alpha' });
     A.ok(parts.length >= 2 && !parts.some(leaks), 'channel.send: a path at the part boundary never goes out in halves (' + JSON.stringify(parts.map(p => p.slice(-40))) + ')');
+    A.ok(parts.join('').indexOf('[workspace]\\alpha\\shots\\x.png') >= 0, 'channel.send: the placeholder stands where the path was');
   }
 
   // ---- 5. the host wires every surface through the ONE chokepoint (sidecar/index.js) ----
   {
     // index.js's own structure is the subject here (which adapters it guards, which calls it routes), so the exact file
     const idx = readSidecarIndex();
+    const { productionHubBag } = require('./helpers/channel-hub-bags');
+    const { KINDS } = require('../sidecar/channels/factory');
+    const getsHostScrub = kind => productionHubBag(kind).props.some(prop => prop.key === 'scrubOutbound' && prop.expr.trim() === 'scrubOutbound');
     A.eq((idx.match(/const scrubOutbound = HostPathScrub\.makeHostPathScrub\(\{ fixed: \[WORKSPACES\], prefixes: \(\) => HostPathScrub\.hostPathForms\(WORKSPACES, \{ realpath:/g) || []).length, 1, 'one host scrub: the configured root fixed (fail closed), its real path and spellings live');
     A.ok(!/hostPathPrefixes/.test(idx), 'no hub is left on round 2\'s per-hub prefix list');
     for (const fn of ['startTelegram', 'startTelegramBot']) {
       const body = functionSourceIn(idx, fn);
       A.ok(body.length > 1000 && /guardOutbound\(adapter\);[^\n]*\n\s*adapterRef = adapter;/.test(body), fn + ': the bot\'s adapter is guarded before anything holds it');
-      A.ok(/scrubOutbound: scrubOutbound/.test(body), fn + ': its hub scrubs the whole text before chunking');
+      A.ok(getsHostScrub(fn === 'startTelegram' ? 'telegram' : 'telegram-bot'), fn + ': its actual factory hub scrubs the whole text before chunking');
     }
     A.eq((idx.match(/wireChannel\([^\n]*\{\n\s*outbound: scrubOutbound,/g) || []).length, (idx.match(/= wireChannel\(/g) || []).length, 'every wireChannel call (Discord, Slack / Matrix / Signal) passes the outbound scrub');
     A.ok(/discord = \{ adapter: wired\.adapter/.test(idx) && /genericChannels\[id\] = \{ adapter: wired\.adapter/.test(idx), 'the live Discord / generic handles are the wired (guarded) adapters');
-    const hubs = idx.split('makeChannelHub({').slice(1).map(s => s.slice(0, s.indexOf('\n  });') > 0 ? s.indexOf('\n  });') : 6000));
-    const unscrubbed = hubs.filter(h => !/scrubOutbound: scrubOutbound/.test(h) && !/channel: 'sample'/.test(h));
-    A.eq(unscrubbed.length, 0, 'every hub the host builds (station + agent Telegram, DEV, trigger) carries the scrub; only the in-app sample hub does not (' + hubs.length + ' hubs)');
-    const cron = functionSourceIn(idx, 'deliverCronResult');
-    A.ok(/hubChunkText\(scrubOutbound\(redact\(chatText\)\)/.test(cron), 'a routine delivery scrubs the whole text before it is split');
-    A.ok(/live\.adapter\.send\(chatId, RoutineMedia\.missedNote\(/.test(cron), 'its missed-file note goes out on the live (guarded) adapter');
-    A.ok(/redact: \(t\) => scrubOutbound\(redact\(t\)\)/.test(idx), 'channel.send\'s body is scrubbed whole before the tool chunks it');
+    const hubs = idx.match(/makeChannelHub\(/g) || [];
+    A.ok(hubs.length > 0 && hubs.length === (idx.match(/makeChannelHub\(makeHubDeps\(/g) || []).length,
+      'every direct host hub constructor uses the classified factory bag');
+    A.ok(KINDS.filter(kind => kind !== 'sample').every(getsHostScrub),
+      'every external/deliverable hub takes the one scrub through its actual factory policy');
+    A.ok(!getsHostScrub('sample'), 'only the local in-app proof sample keeps the deliberate no-transport exception');
+    // every send outside a hub reply goes through the ONE outbound contract (channels/outbound.js, channel-delivery-ledger S4):
+    // index.js builds it over its ONE scrub, and builds the routine delivery (sidecar/routine-delivery.js) over it
+    const routine = (sidecarSourceFiles().find(x => x.rel === 'sidecar/routine-delivery.js') || { text: '' }).text;
+    const out = (sidecarSourceFiles().find(x => x.rel === 'sidecar/channels/outbound.js') || { text: '' }).text;
+    const obAt = idx.indexOf('const channelOutbound = makeChannelOutbound({');
+    const obCall = obAt < 0 ? '' : idx.slice(obAt, idx.indexOf('\n});', obAt));
+    A.ok(/scrub: scrubOutbound,/.test(obCall) && /reach: channelReach,/.test(obCall), 'index.js builds the one outbound contract over the host scrub and the live-handle gate');
+    const rdAt = idx.indexOf('const routineDelivery = makeRoutineDelivery({');
+    const rdCall = rdAt < 0 ? '' : idx.slice(rdAt, idx.indexOf('\n});', rdAt));
+    A.ok(/channelOutbound: channelOutbound,/.test(rdCall), 'index.js builds the routine delivery over that outbound contract');
+    const obSend = functionSourceIn(out, 'send');
+    A.ok(/const body = clean\(text\);/.test(obSend) && /chunkTextParts\(body,/.test(obSend) && obSend.indexOf('clean(text)') < obSend.indexOf('chunkTextParts(body'),
+      'ChannelOutbound.send scrubs the WHOLE text before it is split (a routine, channel.send, the notifier, a nudge, a loop notice)');
+    A.ok(/const clean = \(text\) => scrub\(redact\(/.test(out), 'its scrub is the host scrub over the secret redaction');
+    A.ok(/channelOutbound\.send\(/.test(functionSourceIn(routine, 'deliverCronResult')), 'a routine delivery sends through it');
+    A.ok(/const said = clean\(text\);/.test(out) && /ctx\.sender\.send\(rec\.chatId, said,/.test(out), 'a routine\'s missed-file note is scrubbed and goes out on its chat\'s lane, through the hub\'s (guarded) sender');
     A.ok(/devCaptureReply\(chatId, scrubOutbound\(text\)\)/.test(idx), 'the DEV channel\'s capture is scrubbed too');
-    // every other outbound text goes through a LIVE adapter handle (guarded at its creation above)
-    const sends = idx.match(/[\w.]*adapter\.send\(/g) || [];
+    // every other outbound text goes through a LIVE adapter handle (guarded at its creation above) — the host's own sends
+    // and those of the outbound contract it builds over the same handles
+    const sends = (idx + '\n' + routine + '\n' + out).match(/[\w.]*adapter\.send\(/g) || [];
     const live = sends.filter(s => /^(reach\.live\.adapter|t\.adapter|live\.adapter|adapter|adapterRef)\.send\($/.test(s));
     A.eq(live.length, sends.length, 'every adapter.send in the host is on a live (guarded) handle: ' + sends.join(' '));
-    const commsSend = functionSourceIn(idx, 'commsSendTo');
-    A.ok(/t\.adapter\.send\(/.test(commsSend) && /commsTargetReach\(target\)/.test(commsSend), 'channel.send resolves to the live adapter (commsTargetReach -> channelReach)');
+    const core = idx.slice(idx.indexOf('makeCommsTools({'), idx.indexOf('.register(registry)', idx.indexOf('makeCommsTools({')));
+    A.ok(/sendTo: \(target, text, o\) => channelOutbound\.send\(/.test(core), 'channel.send resolves to the live adapter through the one outbound contract');
   }
 
   A.report('host-path-scrub');

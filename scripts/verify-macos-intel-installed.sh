@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Installed Intel macOS acceptance: exercise the same Finder/LaunchServices path a user takes,
 # then prove a v0.9.0 manual-sidecar station is recovered into the desktop shelf and survives restart.
+# On the same notarized bytes, scripts/verify-macos-installed-integrity.sh then proves that every launch's page booted
+# whole, that the executable's own install-manifest verify reads verified after both launches, and that a zeroed module
+# in a copy of the app is named.
 set -euo pipefail
 
 dmg=${1:?usage: verify-macos-intel-installed.sh <StarNet_x64.dmg> [receipt.json]}
@@ -28,6 +31,11 @@ trust_log="$RUNNER_TEMP/starnet-intel-spctl.txt"
 source_hash_before=""
 source_hash_after=""
 launch_port=""
+launch_start=0
+first_launch_start=""
+integrity="$(dirname "$0")/verify-macos-installed-integrity.sh"
+integrity_dir="$RUNNER_TEMP/starnet-installed-integrity"
+[ -f "$integrity" ] || fail "installed-integrity proof is missing: $integrity"
 
 for target in "$legacy" "$desktop" "$installed"; do
   [ ! -e "$target" ] || fail "clean Intel runner invariant failed; target already exists: $target"
@@ -70,6 +78,9 @@ launch_with_finder() {
   local before_lines candidate_port
   before_lines=0
   if [ -f "$startup_log" ]; then before_lines=$(wc -l < "$startup_log"); fi
+  # this launch's startup.log lines start after launch_start: its page-boot verdict is judged from there
+  launch_start=$((before_lines))
+  [ -n "$first_launch_start" ] || first_launch_start=$launch_start
   osascript - "$installed" <<'APPLESCRIPT'
 on run argv
   set app_file to POSIX file (item 1 of argv)
@@ -105,6 +116,7 @@ quit_cleanly() {
 }
 
 launch_with_finder
+bash "$integrity" page-boot "$startup_log" "$launch_start" 90
 
 [ -f "$desktop/agent.save.json" ] || fail "desktop shelf did not receive the v0.9.0 station save"
 [ -f "$desktop/.migrated" ] || fail "desktop shelf has no completed migration marker"
@@ -136,6 +148,7 @@ source_hash_after=$(shasum -a 256 "$legacy/agent.save.json" | awk '{print $1}')
 
 quit_cleanly
 launch_with_finder
+bash "$integrity" page-boot "$startup_log" "$launch_start" 90
 
 python3 - "$desktop/agent.save.json" <<'PY'
 import json, sys
@@ -150,22 +163,48 @@ source_hash_after=$(shasum -a 256 "$legacy/agent.save.json" | awk '{print $1}')
 [ "$source_hash_after" = "$source_hash_before" ] || fail "v0.9.0 source save changed after desktop restart"
 quit_cleanly
 
-python3 - "$receipt" "$dmg" "$installed" "$launch_port" "$source_hash_before" "$require_notarized" <<'PY'
+# Installed integrity on these notarized bytes, now that the app has run twice and quit: every page load of both
+# launches booted whole, the executable's own install-manifest verify reads verified (85f602c4 / E62), and a zeroed
+# module in a copy of the app is named by that copy's verify.
+mkdir -p "$integrity_dir"
+bash "$integrity" page-boot "$startup_log" "$first_launch_start" 0 | tee "$integrity_dir/page-boot.txt"
+bash "$integrity" install "$installed" "$exe" "$integrity_dir"
+
+python3 - "$receipt" "$dmg" "$installed" "$launch_port" "$source_hash_before" "$require_notarized" "$integrity_dir" <<'PY'
 import datetime, hashlib, json, os, platform, plistlib, sys
-receipt, dmg, installed, port, source_hash, required = sys.argv[1:]
+receipt, dmg, installed, port, source_hash, required, integrity_dir = sys.argv[1:]
 with open(os.path.join(installed, "Contents", "Info.plist"), "rb") as handle:
     installed_version = plistlib.load(handle).get("CFBundleShortVersionString")
 if not isinstance(installed_version, str) or not installed_version.strip():
     raise ValueError("installed app has no CFBundleShortVersionString")
 with open(dmg, "rb") as handle:
     digest = hashlib.sha256(handle.read()).hexdigest()
+def integrity_receipt(name):
+    with open(os.path.join(integrity_dir, name), encoding="utf-8") as handle:
+        return json.load(handle)
+verify = integrity_receipt("install-verify.json")
+zeroed = integrity_receipt("zeroed-verify.json")
+with open(os.path.join(integrity_dir, "page-boot.txt"), encoding="utf-8") as handle:
+    page_boot = [line.rstrip("\n") for line in handle if line.startswith("page-boot: ")]
+module = "sidecar/tools/builtin/shell.js"
+named = [finding.get("path") for finding in zeroed.get("findings", [])]
+if verify.get("state") != "verified" or verify.get("exitCode") != 0:
+    raise ValueError("the installed app's install-verify receipt is not verified: %r" % verify)
+if zeroed.get("state") != "damaged" or zeroed.get("exitCode") != 3 or named != [module]:
+    raise ValueError("the zeroed copy's install-verify receipt does not name exactly %s: %r" % (module, zeroed))
+if not page_boot:
+    raise ValueError("no page-boot line was judged")
 value = {
     "schema": "starnet.intel-macos-installed-acceptance.v1",
     "generatedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "machine": {"architecture": platform.machine(), "runner": "macos-15-intel"},
     "artifact": {"path": os.path.basename(dmg), "sha256": digest, "notarizedRequired": required == "true"},
     "install": {"path": installed, "finderLaunch": True, "sidecarListening": True, "portObserved": bool(port)},
-    "upgrade": {"from": "0.9.0", "to": installed_version, "sourcePreservedSha256": source_hash, "restartSurvived": True}
+    "upgrade": {"from": "0.9.0", "to": installed_version, "sourcePreservedSha256": source_hash, "restartSurvived": True},
+    "installVerify": {"state": verify["state"], "files": verify.get("files"), "exitCode": verify["exitCode"], "root": verify.get("root")},
+    "pageBoot": {"passed": True, "lines": page_boot},
+    "zeroedModule": {"path": module, "inACopyOfTheApp": True, "state": zeroed["state"], "exitCode": zeroed["exitCode"],
+                     "named": [finding.get("text") for finding in zeroed.get("findings", [])]}
 }
 with open(receipt, "w", encoding="utf-8") as handle:
     json.dump(value, handle, indent=2)
@@ -173,4 +212,4 @@ with open(receipt, "w", encoding="utf-8") as handle:
 print(json.dumps(value, indent=2))
 PY
 
-echo "::notice::Intel macOS installed acceptance GREEN - Finder launch, v0.9.0 split-workspace recovery, source preservation, and restart all proved"
+echo "::notice::Intel macOS installed acceptance GREEN - Finder launch, v0.9.0 split-workspace recovery, source preservation, restart, the page's own boot in both launches, the install-manifest verify and a named zeroed module all proved"

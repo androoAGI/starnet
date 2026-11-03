@@ -112,6 +112,7 @@
         if (typeof metadata[name] === 'function') deferred[name] = (...args) => (live || metadata)[name](...args);
       }
       if (metadata.listModels) deferred.listModels = async (...args) => (await activate()).listModels(...args);
+      if (metadata.verifyCredential) deferred.verifyCredential = async (...args) => (await activate()).verifyCredential(...args);
       deferred.stream = async function* (req) {
         if (req && req.signal && req.signal.aborted) return;
         // Token refresh can be shared/cached independently of this run. Let Stop release this
@@ -200,6 +201,7 @@
         baseUrl: opts.baseUrl || profile.baseUrl,
         chatPath: profile.chatPath,
         modelsPath: profile.modelsPath,
+        modelsRequireAuth: profile.modelsRequireAuth !== false && id !== 'custom',
         reasoningEffort: opts.reasoningEffort,
         // profile wire hints: does this endpoint document `reasoning_effort`, and is tool support
         // asserted/denied at the provider level (fallback when the catalog carries no capability data)?
@@ -232,6 +234,13 @@
         numCtx: resolveMaxOutputTokens(wire, 'numCtx'),
         maxCtx: resolveMaxOutputTokens(wire, 'maxCtx'),
         waitNoteMs: resolveMaxOutputTokens(wire, 'waitNoteMs'),   // native Ollama: when an unanswered request names its placement (#99)
+        /* LOCAL RUNTIME PROFILE: a CUSTOM card on its own /v1 wire (not one that borrowed Ollama's native wire). The adapter
+           applies these only when the endpoint's host is on this computer or this network (endpoint-facts scope); a public
+           host is sent exactly what it was before. */
+        localSilence: id === 'custom' && wire === profile,
+        localConnectTimeoutMs: (id === 'custom' && wire === profile) ? resolveMaxOutputTokens(profile, 'localConnectTimeoutMs') : 0,
+        localWaitNoteMs: (id === 'custom' && wire === profile) ? resolveMaxOutputTokens(profile, 'localWaitNoteMs') : 0,
+        localConnectEnv: (id === 'custom' && wire === profile) ? String(profile.localConnectTimeoutMsEnv || '') : '',
         defaultContext: opts.defaultContext,
         headers: mergedHeaders,
         // run attribution header (starnet only — the profile names it; see openai-compatible requestHeaders)

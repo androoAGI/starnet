@@ -31,3 +31,4 @@ Traced by the wave 2 review (conveyor-backend-10 half fixed). `test/station-buil
 ## Verdict
 
 Fixed in `28cc8a595` (2026-10-15; an ancestor of trunk, first released in v0.13.5). The hub's line outcome carries the chain's outboxId, and the sample route keeps only the SEND TO of the OUTBOX the job reached (each destination names its OUTBOX); when the OUTBOX is unknown it keeps the old list. A job that lands in a non-sending OUTBOX now claims no onward hand-off (`sidecar/index.js` runSampleJob onwardDestinations). Regression: test/station-builder-lineops.test.js (passes on this tree). Reconciled 2026-10-27 (reliability wave 1, quick win 37).
+Line-job-runner family invariant: I7: station.test_line reads the shared job outcome and a confirmed sender job link; a current topology pointer alone never proves onward delivery.

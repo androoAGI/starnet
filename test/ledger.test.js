@@ -168,7 +168,11 @@ const clock = { now: () => t };
   A.eq(L.unsettledRuns()[0].model, 'example/model', 'returned receipt cannot mutate the recovery authority');
   const reboot = makeLedger({ io, clock });
   A.eq(reboot.unsettledRuns(), [expected], 'the already-durable receipt reconstructs identical unknown spend after restart');
-  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 } }).check('blocked', 'owner', 0).cause, 'unsettled', 'strict configured cap blocks immediately');
+  // A receipt's recorded limit is a recovery suggestion, not proof of its charge. Every chosen cap stays strict.
+  const roomy = makeBudget({ ledger: L, clock, caps: { day: 5 } }).check(null, 'owner', 0);
+  A.eq([roomy && roomy.scope, roomy && roomy.code, roomy && roomy.countAsUsd], ['day', 'spend_history_unavailable', 0.75], 'even a roomy chosen cap refuses until the unknown charge is explicitly settled');
+  const tight = makeBudget({ ledger: L, clock, caps: { day: 0.5 } }).check('blocked', 'owner', 0);
+  A.eq([tight && tight.scope, tight && tight.code, !!(tight && tight.unknown)], ['day', 'spend_history_unavailable', true], 'a tighter cap reports uncertain history, never a guessed ordinary cap stop');
   A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 }, strictScope: () => false }).check(null, 'owner', 0), null, 'the shipped soft-cap policy is unchanged');
   A.eq(makeBudget({ ledger: L, clock, caps: {} }).check(null, 'owner', 0), null, 'unconfigured quotas remain opt-in');
   const settled = L.settleUnsettled('ended', 0.2);

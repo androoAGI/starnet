@@ -35,3 +35,19 @@ failure teardown, in addition to the existing normal-finish assertion.
 
 Fixed by restoring the speaker preference in the startup catch path. `restoreSpeak()` only reverses
 the automatic force-on state, so a speaker choice changed manually during startup remains respected.
+
+## Regression
+
+The voice-reply-handles-and-speaker-lease lane closes the family this was one member of: a voice
+session wrote the speaker's one saved value, so its force could outlive it. A page that died mid-call
+reloaded speaking because the forced '1' was saved, and a legacy hands-free loop's restore muted a
+Local Live call opened over it. restoreSpeak is gone. A Local Live call now borrows the speaker with a
+lease that lives in memory and is never saved, and every way a call ends, a refused start included,
+gives the lease back through Voice.endSession.
+
+`test/voice-speaker.property.test.js` (I2) runs refused starts among seeded sequences of every speaker
+writer, reloads included. After every step it checks that the saved setting is the Commander's last
+explicit choice, and that the speaker is on only for that choice or for a session still holding it. On
+the lane's base the saved-setting law broke in 42 of 42 sequences and the on/off law in 26.
+`test/voice-live-ui.test.js` now pins `Voice.endSession('live_start_failed', { lease: 'live', scope: 'audible' })`
+in the refused start, where it used to pin `Voice.restoreSpeak()`.

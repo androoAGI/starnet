@@ -10,7 +10,8 @@
    the exact envelope it answers. That envelope is then fed to the REAL desk (frontend/app/voice.js in a vm, with the
    real Harness.classifyApiFailure lifted from harness.js), and the row pins, for one spoken sentence:
      - the typed code and terminal flag the sidecar decided (and the legacy `reason` kept for one release)
-     - how many /api/tts requests the desk spends on the sentence (a terminal verdict: 1; a transient one: 3)
+     - how many /api/tts requests the desk spends on the sentence (a terminal verdict: 1; a transient one: 3, unless
+       the sidecar's ladder already made those 3 attempts itself — speech-ladder.js — and said so with retried:true: 1)
      - the cold-off: whether the NEXT reply asks again
      - the speaker tooltip and the note, which must NAME the leg that failed
    No row may fall through as unclassified. The desk runs on an INJECTED clock (Voice.init({ now })), so the long
@@ -28,11 +29,12 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const vm = require('node:vm');
 const edge = require('../sidecar/edgetts.js');
+const { stationConsumers } = require('./helpers/credential-store-sandbox.js');
 const SO = require('../sidecar/speech-outcome.js');
 const { makeMediaService } = require('../sidecar/media-service.js');
 
 const ROOT = path.join(__dirname, '..');
-const VOICE_SRC = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'voice.js'), 'utf8');
+const { bootVoice } = require('./helpers/voice-rig.js');
 const HARNESS_SRC = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'harness.js'), 'utf8');
 const CLASSIFY_API_FAILURE = (() => {
   const m = /(  function classifyApiFailure\([\s\S]*?\n  \})/.exec(HARNESS_SRC);
@@ -94,8 +96,7 @@ async function sidecar(o) {
     nativeStt: { status: () => ({ available: false }) },
     readBody: o.readBody || (async req => req.__body),
     readBodyBuffer: async () => Buffer.alloc(0),
-    providerRuntimeKey: p => keys[p] || '',
-    providerRuntimeBaseUrl: () => '',
+    ...stationConsumers({ keys }).media,   // what index.js hands the service
     normalizeProviderId: v => String(v || '').trim().toLowerCase(),
     env: () => '', processEnv: {}, redact: String,
     logger: { error() {}, warn() {}, log() {} },
@@ -177,8 +178,7 @@ function desk(envelope, harness) {
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(VOICE_SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester', now: () => state.clock });   // the injected clock (gh#38): cold-offs move only when the test moves it
   Voice.setSpeakReplies(true);
   return { Voice, nodes, state, title: () => String(nodes['voice-toggle'].title || '') };
@@ -207,7 +207,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
         code: 'timeout', engine: 'edge', terminal: false, reason: /^edge: edge timeout$/,
         tooltip: /real voice unreachable — the free Edge voice timed out/, note: /couldn’t be spoken — the free Edge voice timed out\./ },
       { name: 'Edge stream cut before turn.end', setup: async () => { edgeMode = 'cut'; return tts(await sidecar({})); },
-        code: 'cut_stream', engine: 'edge', terminal: false, reason: /^edge: edge socket closed before turn\.end$/,
+        code: 'cut_stream', engine: 'edge', terminal: false, ladderRetries: true, reason: /^edge: edge socket closed before turn\.end$/,
         tooltip: /real voice unreachable — the free Edge voice cut the audio short/, note: /couldn’t be spoken — the free Edge voice cut the audio short\./ },
       { name: 'OpenRouter 401', setup: async () => tts(await sidecar({ keys: OR, edge: false, fetch: provider(401, '{"error":{"message":"No auth credentials found"}}') })),
         code: 'auth', engine: 'openrouter', http: 401, terminal: true, reason: /^openrouter 401 — .*; edge floor disabled$/,
@@ -220,7 +220,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
         code: 'billing', engine: 'openrouter', http: 402, terminal: true, reason: /^openrouter 402 — /,
         tooltip: /real voice offline — OpenRouter is out of credits/, note: /couldn’t be spoken — OpenRouter is out of credits\./ },
       { name: 'OpenRouter 429', setup: async () => tts(await sidecar({ keys: OR, edge: false, fetch: provider(429, '{"error":{"message":"Rate limit exceeded"}}') })),
-        code: 'rate_limited', engine: 'openrouter', http: 429, terminal: false, reason: /^openrouter 429 — /,
+        code: 'rate_limited', engine: 'openrouter', http: 429, terminal: false, ladderRetries: true, reason: /^openrouter 429 — /,
         tooltip: /real voice unreachable — OpenRouter is rate-limited/, note: /couldn’t be spoken — OpenRouter is rate-limited\./ },
       { name: 'OpenAI quota (insufficient_quota at HTTP 429)', setup: async () => tts(await sidecar({ keys: { openai: 'sk-proj-table' }, edge: false,
           fetch: provider(429, '{"error":{"message":"You exceeded your current quota, please check your plan and billing details.","type":"insufficient_quota","code":"insufficient_quota"}}') })),
@@ -228,7 +228,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
         tooltip: /real voice offline — OpenAI is out of credits/, note: /couldn’t be spoken — OpenAI is out of credits\./ },
       { name: 'Gemini per-minute quota (retry in 23s)', setup: async () => tts(await sidecar({ keys: { gemini: 'AIza-table' }, edge: false,
           fetch: provider(429, '{"error":{"code":429,"message":"You exceeded your current quota, please check your plan and billing details. * Quota exceeded for metric: generate_content_free_tier_requests, limit: 10 Please retry in 23s.","status":"RESOURCE_EXHAUSTED"}}') })),
-        code: 'rate_limited', engine: 'gemini', http: 429, terminal: false, retryAfterMs: 23000, requests: 1, reason: /^gemini 429 — /,
+        code: 'rate_limited', engine: 'gemini', http: 429, terminal: false, retryAfterMs: 23000, requests: 1, ladderRetries: false, reason: /^gemini 429 — /,
         tooltip: /real voice unreachable — Gemini is rate-limited \(retry in 23s\)/, note: /couldn’t be spoken — Gemini is rate-limited \(retry in 23s\)\./ },
       { name: 'a thrown /api/tts handler', setup: async () => {
           const svc = await sidecar({});
@@ -274,7 +274,10 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       // ---- the desk's side: requests, cold-off, tooltip and note, all from the verdict ----
       const d = desk(env, row.desk);
       const deskTerminal = row.deskTerminal != null ? row.deskTerminal : row.terminal;
-      const wantRequests = row.requests != null ? row.requests : (deskTerminal ? 1 : 3);
+      const ladderRetried = !!(env.json && env.json.retried === true);
+      const wantRequests = row.requests != null ? row.requests : (deskTerminal || ladderRetried ? 1 : 3);
+      // every transient row DECLARES whether the sidecar's ladder spent the retry rule (3 attempts) or left it to the desk
+      if (env.kind !== 'stale403' && !deskTerminal) A.eq(ladderRetried, !!row.ladderRetries, row.name + ': the sidecar\'s ladder ' + (row.ladderRetries ? 'retried the leg itself' : 'did not retry (no budget, a long Retry-After, or terminal)'));
       const spent = await speakOne(d, 'The first reply, one sentence.');
       A.eq(spent, wantRequests, row.name + ': the desk spends ' + wantRequests + ' request(s) on the sentence');
       A.eq(lastCode(d), row.code, row.name + ': the desk recorded the typed code, never an unclassified one');
@@ -368,7 +371,7 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       const r = await tts(svc, {}, { closeAfterMs: 150 });
       A.ok(r.ms < 3000, 'disconnect: the handler returns at once when the desk goes away (' + r.ms + ' ms)');
       A.eq(r.wrote, false, 'disconnect: nothing is written to a desk that is gone');
-      await until(() => edgeClosedEarly >= 1, 2000);
+      await until(() => edgeClosedEarly >= 1, 8000);
       A.ok(edgeClosedEarly >= 1, 'disconnect: the Edge websocket is closed, not left to its 15 s cap');
       const st = svc.ttsStatus();
       A.ok(!(st.legs.edge && st.legs.edge.code === 'cancelled'), 'disconnect: a cancelled leg is not recorded as the engine\'s failure');
@@ -397,10 +400,12 @@ const lastCode = d => { const ev = d.Voice.speechDiagnostics().filter(e => e.rea
       A.eq([calls, r.body.toString()], [1, 'ONE-PAID-CLIP'], 'abandon: the retry is answered by the ONE paid call');
       calls = 0; abortedAt = 0;
       const lone = tts(svc, { text: 'A sentence nobody waits for.' }, { closeAfterMs: 100 });
-      await until(() => abortedAt > 0, 4000);
+      await until(() => abortedAt > 0, 10000);
       A.ok(abortedAt > 0, 'abandon: with no desk left after the grace, the paid call is aborted');
       const fresh = tts(svc, { text: 'A sentence nobody waits for.' });   // arrives while the aborted call is still settling
-      await tick(50);
+      // the fresh call's own start, not a fixed slice: on a loaded box 50 ms was too short, release() then freed the dying call,
+      // and the fresh one sat out its 60 s cap. A request that joined the dying call never starts a second one, so this still fails
+      await until(() => calls >= 2, 5000);
       A.eq(calls, 2, 'abandon: a request after the abort starts its own call, never joins the dying one');
       release();
       await fresh;

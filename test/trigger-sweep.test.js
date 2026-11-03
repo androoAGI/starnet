@@ -27,9 +27,9 @@ function harness(opts) {
         const routed = hooks.onRouted({ agentId: 'agent-a', dockId: 'b1' });
         hooks.onResolved({ chatId: msg.chatId, agentId: routed.agentId, isTask: true, lineId: 'L1', dockId: 'b1' });
         const sid = hooks.streamId();
-        const rec = { runId: 'run-' + (++n), abort: { abort() { rec.aborted = true; } }, superseded: false, halted: false };
+        const rec = { runId: 'run-' + (++n), abort: { abort() { rec.aborted = true; } }, endReason: null };
         inflight.set(msg.chatId, rec);
-        return new Promise(res => parked.push(() => { inflight.delete(msg.chatId); runs[sid] = [{ runId: rec.runId, agentId: 'agent-a', reason: 'done', usd: 0.01, streamId: sid }]; hooks.onLineOutcome({ agentId: 'agent-a', dockId: 'b1', stopped: null }); res(); }));
+        return new Promise(res => parked.push(() => { inflight.delete(msg.chatId); runs[sid] = [{ runId: rec.runId, agentId: 'agent-a', reason: 'done', usd: 0.01, streamId: sid }]; hooks.onLineOutcome({ agentId: 'agent-a', dockId: 'b1', outboxId: 'out1', stopped: null }); res(); }));
       },
       close() { closed++; }
     };
@@ -181,7 +181,8 @@ function harness(opts) {
     const c = R.create({ kind: 'webhook', lineId: 'L1' }, { secretHash: T.hashSecret('k') });
     R.enqueue(c.trigger.id, { text: 'x' });
     await tick(20);
-    A.ok(/a stage \(NOVA\) ended "error"/.test(R.view(c.trigger.id).lastError || ''), 'the failed stage is named NOVA, not agent-a: ' + R.view(c.trigger.id).lastError);
+    A.ok(/NOVA failed/.test(R.view(c.trigger.id).lastError || '') && !/agent-a/.test(R.view(c.trigger.id).lastError || ''), 'the failed stage is named NOVA, not agent-a: ' + R.view(c.trigger.id).lastError);
+    A.eq(R.view(c.trigger.id).lastOutcome.agentId, 'agent-a', 'the display label never replaces the recorded agent identity');
   }
 
   /* ---- 10. an UNREADABLE file backs off instead of churning every poll ---- */

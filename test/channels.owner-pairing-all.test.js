@@ -45,7 +45,7 @@ const RAW = {
     const idx = readSidecarSource();
     A.ok(/ownerAdmission: \(message\) => channelOwnerAdmission\('discord', message\)/.test(idx), 'Discord adapter is built with the pairing admission');
     A.ok(/ownerAdmission: \(message\) => channelOwnerAdmission\(id, message\)/.test(idx), 'Slack/Matrix/Signal adapters are built with the pairing admission');
-    A.ok(/json\(200, withOwnerPairing\('discord'/.test(idx) && /json\(200, withOwnerPairing\(id,/.test(idx), 'connect responses carry a one-time code when no owner is bound');
+    A.ok(/json\(200, channelCredentialAnswer\(own, withOwnerPairing\('discord'/.test(idx) && /json\(200, channelCredentialAnswer\(own, withOwnerPairing\(id,/.test(idx), 'connect responses carry a one-time code when no owner is bound');
     A.ok(/const acceptingDms = !!st\.connected && ownerLocked;/.test(idx), 'status never reports an unpaired channel as accepting DMs');
     A.ok(/ownerPair: \/\^\\\/api\\\/channels\\\/\(discord\|slack\|matrix\|signal\)\\\/owner\\\/pair\$\//.test(idx), 'a PAIR OWNER route exists for every non-Telegram channel');
   }

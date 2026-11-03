@@ -36,6 +36,8 @@ module.exports = (async () => {
     URL, promptTierCeiling,
     normalizeProvider: p => String(p || '').trim().toLowerCase(),
     getProviderProfile: id => profiles[id] || null,
+    // the route's payer decides its window (billing-class.js POLICY promptTier), bound to the same profiles
+    billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: id => profiles[id] || null }),
     listModelsForProvider: async () => rows
   });
   async function catalog(provider, list) {

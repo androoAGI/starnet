@@ -31,3 +31,11 @@ Booted sidecar :9721, mock Telegram + scripted mock OpenRouter, owner DM 4242 wi
 ## Verdict
 
 Fixed: only a file that was read and then failed to upload is said to be on the station; an unreadable one is "could not be found in the workspace, so nothing was attached". Live re-check: "Note: this file could not be found in the workspace, so nothing was attached — \"../../channels/secrets.json\"." Fix: `00bc7ba60`.
+
+## Family
+
+Closed as a family by the channel-delivery-ledger lane. The copy was fixed, and the path stayed double: the missed-file note was composed and sent separately by channel.send and by routine delivery, neither emitted channel.delivery, and channel.send's note carried no thread. Both now go through ChannelOutbound, and a routine's note is a part of its ledger record.
+
+Since review round 1 the sentence itself has one home too: `comms.js` missedNote, which channel.send and a routine's note both say, so a refused or unreadable file is never "saved in the workspace" on either path.
+
+The invariants: `test/channels.outbound.contract.test.js` (the missed-file notes among the paths held to the one contract: the chat's topic and one delivery with its reason; and "the missed-file note": its wording per file on both paths) and `test/routine-delivery.lifecycle.test.js` (a file that resumes after a restart never resends the words).

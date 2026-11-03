@@ -10,8 +10,10 @@ const http = require('node:http');
 const {spawn} = require('node:child_process');
 const {once} = require('node:events');
 const {bootToken} = require('./_httpToken.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const root = path.resolve(__dirname, '..');
 const workspace = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-verdict-packets-'));
+const EPOCH = seedActiveStation(workspace).save.agent.createdAt;   // a rating names its station's founding (the save's agent.createdAt)
 let child, base, headers, out = '';
 const seen = [];
 const hung = [];   // the cold-model probe's review requests: never answered, so the pass's own deadline cancels them
@@ -64,7 +66,7 @@ const until = async (fn, ms) => { const end = Date.now() + ms; while (Date.now()
     await stop(); await boot();
     A.ok(/\[skills\] restored 1 verdict review packet/.test(out), 'the packet is restored on boot');
     const before = seen.length;
-    const rated = await api('/api/growth/ratings', {runId: end.payload.runId, verdict: 'miss', epoch: 1, correction: 'three bullets, not an essay'});
+    const rated = await api('/api/growth/ratings', {runId: end.payload.runId, verdict: 'miss', epoch: EPOCH, correction: 'three bullets, not an essay'});
     A.ok(rated.body.ok && rated.body.skillReviewArmed === true, 'the post-restart verdict armed a review: ' + JSON.stringify(rated.body));
     const armed = JSON.parse(fs.readFileSync(file, 'utf8')).rows.find(row => row.runId === end.payload.runId);
     A.ok(armed && armed.state === 'held' && armed.reviewStatus === 'pending', 'armed grace job is durable before HTTP acknowledges it');
@@ -87,21 +89,21 @@ const until = async (fn, ms) => { const end = Date.now() + ms; while (Date.now()
     const reviewCalls = probe => seen.filter(b => { const s = JSON.stringify(b.messages || []); return s.indexOf('COMMANDER VERDICT ON THIS RUN') >= 0 && s.indexOf(probe) >= 0; }).length;
     const ceiling = await taskRun('Draft the iteration-ceiling probe memo.');
     A.eq(ceiling && ceiling.payload.reason, 'done', 'ceiling probe run completed');
-    A.ok((await api('/api/growth/ratings', {runId: ceiling.payload.runId, verdict: 'miss', epoch: 1})).body.skillReviewArmed === true, 'ceiling probe review armed');
+    A.ok((await api('/api/growth/ratings', {runId: ceiling.payload.runId, verdict: 'miss', epoch: EPOCH})).body.skillReviewArmed === true, 'ceiling probe review armed');
     A.ok(await until(() => reviewCalls('iteration-ceiling probe') >= 6 && (heldRow(ceiling.payload.runId) || {}).reviewStatus !== 'running', 20000), 'the ceiling probe review ran to its turn ceiling');
     A.eq(reviewCalls('iteration-ceiling probe'), 6, 'one pass of six turns (maxIters), no second pass');
     const ceilingRow = heldRow(ceiling.payload.runId);
     A.ok(!ceilingRow || ceilingRow.reviewStatus === 'completed', 'RATCHET: a max_iters review is durably completed instead of queued for a paid retry: ' + JSON.stringify(ceilingRow && {reviewStatus: ceilingRow.reviewStatus, attempts: ceilingRow.attempts}));
     const outage = await taskRun('Draft the provider-outage probe memo.');
     A.eq(outage && outage.payload.reason, 'done', 'outage probe run completed');
-    A.ok((await api('/api/growth/ratings', {runId: outage.payload.runId, verdict: 'miss', epoch: 1})).body.skillReviewArmed === true, 'outage probe review armed');
+    A.ok((await api('/api/growth/ratings', {runId: outage.payload.runId, verdict: 'miss', epoch: EPOCH})).body.skillReviewArmed === true, 'outage probe review armed');
     A.ok(await until(() => reviewCalls('provider-outage probe') >= 1 && ((heldRow(outage.payload.runId) || {}).attempts || 0) >= 1 && heldRow(outage.payload.runId).reviewStatus !== 'running', 20000), 'the outage probe review pass ended');
     const outageRow = heldRow(outage.payload.runId);
     A.ok(outageRow && outageRow.reviewStatus === 'pending' && outageRow.attempts === 1, 'a review whose provider failed before any skill change is kept for a retry: ' + JSON.stringify(outageRow && {reviewStatus: outageRow.reviewStatus, attempts: outageRow.attempts}));
     // A pass the 45s deadline cancelled BEFORE the model produced anything did no work: it keeps its bounded retry (audit 10-12).
     const cold = await taskRun('Draft the cold-model probe memo.');
     A.eq(cold && cold.payload.reason, 'done', 'cold-model probe run completed');
-    A.ok((await api('/api/growth/ratings', {runId: cold.payload.runId, verdict: 'miss', epoch: 1})).body.skillReviewArmed === true, 'cold-model probe review armed');
+    A.ok((await api('/api/growth/ratings', {runId: cold.payload.runId, verdict: 'miss', epoch: EPOCH})).body.skillReviewArmed === true, 'cold-model probe review armed');
     A.ok(await until(() => reviewCalls('cold-model probe') >= 1 && (heldRow(cold.payload.runId) || {}).reviewStatus !== 'running', 30000), 'the cold-model probe review pass hit its deadline');
     A.eq(hung.length, 1, 'its one provider call hung with no byte back, so only the deadline could end the pass');
     const coldRow = heldRow(cold.payload.runId);

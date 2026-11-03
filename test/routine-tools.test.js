@@ -518,10 +518,23 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
   A.eq(updated.attachToSession, false, 'explicit detached local delivery is preserved');
   A.eq(result.job.deliver, 'local', 'read-back reports repaired delivery');
 }
+// Queuing on damaged storage retains intent but never prescribes an arm action or promises a tick.
+{
+  const job = { id: 'damaged', agentId: 'agent', name: 'Brief', enabled: true, nextRunAt: '2027-01-01T09:00:00Z' };
+  const tools = makeRoutineTools({ roster: () => new Map([['agent', {}]]), listJobs: () => [job],
+    scheduler: () => ({ enabled: true, halted: false, degraded: true }), triggerRoutine: async () => job });
+  const result = await tools.manageTool.run({ action: 'run_now', id: job.id }, { agentId: 'agent' });
+  const body = JSON.parse(result.content);
+  A.eq(body.schedulerArmed, true, 'degraded scheduler preserves armed intent');
+  A.ok(/storage needs recovery/.test(body.note) && !/DISARMED|until it is armed/.test(body.note), 'degraded queue names recovery rather than a false arm action');
+  A.ok(/storage needs recovery/.test(result.summary) && !/next tick/.test(result.summary), 'summary makes no held tick promise');
+  A.eq(body.job.nextFireAt, null, 'queued degraded job has no fire clock');
+}
 // Plain-English cadence rides every tool reply (a model read "cron 0 10 * * 1" and told the Commander "bi-weekly").
 {
   const j = { id: 'w1', name: 'Weekly', agentId: 'agent', scheduleDisplay: 'cron 0 10 * * 1', enabled: true, nextRunAt: '2026-10-05T14:00:00.000Z' };
   const t = makeRoutineTools({ roster: () => new Map([['agent', {}]]), listJobs: () => [j],
+    schedulerState: () => true,
     describeSchedule: job => ({ when: 'every Monday at 10:00 AM (America/New_York)', next: 'Mon, Oct 5 at 10:00 AM' }) });
   const listTool = t.listTool;
   const out = JSON.parse((await listTool.run({}, {})).content);

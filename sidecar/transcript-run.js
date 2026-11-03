@@ -40,8 +40,24 @@
    is genuinely missing (a kill between journal and transcript, a journaled-but-uncheckpointed tool result, the
    recovery planner's pairing results) and start() appends it, after the directive when the source never wrote one.
 
+   TURN IDENTITY (turn-identity commit 1; nothing in production passes these yet, and without them every row written is
+   byte-identical to before):
+     turnId      a string, or a function read at EACH write; a valid turnId (TurnKinds.isTurnId) is stamped on the
+                 directive row (with directive: true) and on every row the run writes
+     stamp       true: every drained row gets a kind (kindOf below), and the directive kind defaults to
+                 directiveKind || 'turn'
+     rowKind     'station' | 'hop': the kind of the run's assistant and tool rows (else 'turn')
+     directiveKind, line   the directive's default kind; 'lineId@dockId', passed through to every row
+     quotes      an array, or a function read at EACH drain, of [{id, at}] (a bare string is {id, at: 0}): the streams
+                 this run has read so far, stamped on each drained row as quotes + quotesAt (TurnKinds.quoteStamp)
+   setDirective({ text, typed, attachments, kind }) writes text as the content and the rest on the directive row;
+   directiveRow() is { rowId, turnId, text } once the directive is proven durable.
+
    Pure: no clock, no randomness, no I/O of its own — every write is the injected store's. */
 'use strict';
+
+const TurnKinds = require('../frontend/app/turnkinds.js');
+const ROW_KINDS = new Set(['station', 'hop']);
 
 function makeRunTranscript(opts) {
   const o = opts || {};
@@ -70,10 +86,54 @@ function makeRunTranscript(opts) {
      writes, held or not. A crash while held leaves those rows only in the run journal — the state a failed start()
      already leaves, which a recovery continuation appends. */
   const holding = typeof o.hold === 'function' ? function () { try { return !!o.hold(); } catch (e) { onFailure('hold', e); return false; } } : function () { return false; };
+  // turn identity (see the header): read at each write, so a re-key before the directive write reaches the directive
+  const stamp = o.stamp === true;
+  const rowKind = ROW_KINDS.has(o.rowKind) ? o.rowKind : undefined;
+  const directiveKind = TurnKinds.isKind(o.directiveKind) ? o.directiveKind : undefined;
+  const line = typeof o.line === 'string' && o.line ? o.line : undefined;
+  function turnIdNow() {
+    const v = typeof o.turnId === 'function' ? o.turnId() : o.turnId;
+    return TurnKinds.isTurnId(v) ? v : undefined;
+  }
+  function quotesNow() {
+    if (o.quotes == null) return {};
+    return TurnKinds.quoteStamp(typeof o.quotes === 'function' ? o.quotes() : o.quotes);
+  }
+  // the kind of a drained row: its tag; else 'station' for a user row (the directive is written by writeDirective, so
+  // any user row a run drains is the station's own: a loop capture turn, a repair prompt, a recovered loop turn); else
+  // the run's row kind (TurnKinds.messageKind: the run-end appendNew stamps by the same rule)
+  function kindOf(m) { return TurnKinds.messageKind(m, rowKind); }
+  let directiveExtra = null;   // { typed, attachments, kind } from setDirective({ … })
+  let directiveStored = null;  // the row appendStrict proved for the directive
+
+  // the directive row's turn fields ({} with none of the new opts: the row is the trunk row)
+  function directiveFields() {
+    const out = {};
+    const turnId = turnIdNow();
+    if (turnId) { out.turnId = turnId; out.directive = true; }
+    const extra = directiveExtra || {};
+    const kind = extra.kind !== undefined ? extra.kind : (stamp ? (directiveKind || 'turn') : undefined);
+    if (kind !== undefined) out.kind = kind;
+    if (extra.typed !== undefined) out.typed = extra.typed;
+    if (extra.attachments !== undefined) out.attachments = extra.attachments;
+    if (line) out.line = line;
+    return out;
+  }
+  // a drain's turn stamps, read at the drain ({} with none of the new opts)
+  function drainStamps() {
+    const out = {};
+    const turnId = turnIdNow();
+    if (turnId) out.turnId = turnId;
+    if (line) out.line = line;
+    const quoted = quotesNow();
+    if (quoted.quotes) { out.quotes = quoted.quotes; out.quotesAt = quoted.quotesAt; }
+    if (stamp) out.kindOf = kindOf;
+    return out;
+  }
 
   function writeDirective() {
     if (directiveWritten || !directive) return;
-    store.appendStrict({ streamId: streamId, agentId: agentId, role: 'user', content: directive, sourceRunId: runId, dispatchState, taint: taintNow(), from: from || undefined });
+    directiveStored = store.appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: 'user', content: directive, sourceRunId: runId, dispatchState, taint: taintNow(), from: from || undefined }, directiveFields()));
     directiveWritten = true;
   }
 
@@ -81,7 +141,7 @@ function makeRunTranscript(opts) {
   // unproven row (the compaction tiers rely on that: a failed drain leaves the history unfolded).
   function drain(messages) {
     writeDirective();
-    return Array.isArray(messages) ? store.appendNewStrict(streamId, agentId, messages, { sourceRunId: runId, dispatchState, taint: taintNow() }) : 0;
+    return Array.isArray(messages) ? store.appendNewStrict(streamId, agentId, messages, Object.assign({ sourceRunId: runId, dispatchState, taint: taintNow() }, drainStamps())) : 0;
   }
 
   function waitsForNextBoundary(phase, messages) {
@@ -91,8 +151,24 @@ function makeRunTranscript(opts) {
   }
 
   return {
-    // the triggering user text, captured by the host before the loop can add user-role turns of its own
-    setDirective(text) { directive = text == null ? '' : String(text); },
+    // the triggering user text, captured by the host before the loop can add user-role turns of its own; or
+    // { text, typed, attachments, kind }: the content, plus the typed words, attachment refs and kind of its row
+    setDirective(text) {
+      if (text && typeof text === 'object') {
+        directive = text.text == null ? '' : String(text.text);
+        directiveExtra = { typed: text.typed, attachments: text.attachments, kind: text.kind };
+        return;
+      }
+      directive = text == null ? '' : String(text);
+      directiveExtra = null;
+    },
+    // { rowId, turnId, text } of the directive once its row is proven durable; null before that (held, not yet
+    // written) or when the store kept no rowId (a store without a durable io)
+    directiveRow() {
+      const r = directiveStored;
+      if (!r || typeof r !== 'object' || !(Number(r.rowId) > 0)) return null;
+      return { rowId: r.rowId, turnId: r.turnId || null, text: r.typed != null ? r.typed : r.content };
+    },
     // run end's fallback: the host's end-of-run title, used only when no directive was captured pre-loop
     fallbackDirective(text) { if (!directive && text) directive = String(text); },
     // the directive is already durable (a continuation whose source run wrote it)

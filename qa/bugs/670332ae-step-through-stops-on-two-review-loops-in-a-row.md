@@ -35,3 +35,4 @@ Wave 2 repair 28d32bbfa: `sidecar/routing/steptest.js` resolveNext keeps a legac
 ## Verdict
 
 Fixed in source on agent/conveyor-final-runtime (3caf05fea; its legacy-session regression 28d32bbfa). Live-proven.
+Line-job-runner family invariant: I2: the shared typed-stop walk keeps each open review gate across consecutive loops; chain.join-loop and line-stops.invariant own the family.

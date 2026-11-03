@@ -187,7 +187,7 @@ const NY = require('../frontend/app/needsyou.js');
       { id: 'n8', kind: 'needs', done: true, txt: 'answered', key: 'needs:x', read: true, t: NOW - 2000 }
     ] },
     open: {}, save() {}, uid: () => 'u', esc: s => String(s), severityOf: () => 'warn', SEV_GLYPH: { warn: '⚠', bad: '✗', good: '✓', gold: '★', info: '▸' },
-    notifStamp: () => '[t]', reapDeadPrompts() {}, rerender() {}, sfx() {}, openNotif() {}, workConversation() {}, $: sel => sel === '#nf-badge' ? badge : null
+    notifStamp: () => '[t]', reapDeadPrompts() {}, rerender() {}, invalidate() {}, sfx() {}, openNotif() {}, workConversation() {}, $: sel => sel === '#nf-badge' ? badge : null
   };
   vm.runInNewContext(su.slice(from, to) + '\nthis.api = { buildNotifs, badges, notifsMarkRead, storedWaits, settleStoredWait };', ctx);
   // NeedsYou reads the station's stored waits through StationUI, as on the page
@@ -244,7 +244,7 @@ const NY = require('../frontend/app/needsyou.js');
 
   // ---- any route into its conversation settles it (the rail row, a toast, a station.show): seenSession ----
   {
-    const sctx = { store: ctx.store, open: {}, save() {}, badges() {}, rerender() {} };
+    const sctx = { store: ctx.store, open: {}, save() {}, badges() {}, rerender() {}, invalidate() {} };
     vm.runInNewContext(A.fnBody(su, 'function seenSession(wsId)') + '\nthis.seenSession = seenSession;', sctx);
     ctx.store.notifs.push({ id: 'n10', kind: 'needs', txt: 'NOVA has a question for you — Launch plan', key: 'needs:other', go: { ws: 'other' }, read: false, t: NOW - 1500 });
     ctx.store.notifs.push({ id: 'n11', kind: 'needs', txt: 'NOVA wants to write a file', key: 'needs:other-ask', prompt: 'p-other', go: { ws: 'other' }, read: false, t: NOW - 1400 });

@@ -41,6 +41,7 @@
    chunk is BOUNDED (head + tail of each oversized message, with an explicit marker) instead of forcing its own
    chunk, and what that cut is added to `truncatedChars` — a lossy fold says so in agent.compact. */
 'use strict';
+const { makeGenerationReceipt } = require('./providers/provider.js');
 
 const fidelity = require('./compaction-fidelity.js');
 
@@ -191,6 +192,10 @@ function makeSummarizer(deps) {
       chunks = keep;
     }
 
+    const generationReceipt = (live && live.generationReceipt) || makeGenerationReceipt();
+    const admissionStop = new Error('compaction call was not admitted');
+    const beforeAttempt = live && typeof live.beforeAttempt === 'function' ? live.beforeAttempt : null;
+    const settleAttempt = live && typeof live.settleAttempt === 'function' ? live.settleAttempt : null;
     let running = (typeof prevSummary === 'string' && prevSummary.trim()) ? prevSummary.trim() : '';
     let usd = 0, tokens = 0, produced = false, rejected = null; const unpriced = [];
 
@@ -202,17 +207,29 @@ function makeSummarizer(deps) {
       const effort = auxEffortFor(sProvider, useModel);
       if (effort) req.reasoningEffort = effort;
       if (deps.runId) req.runId = deps.runId;   // run attribution (starnet proxy header; other providers ignore it)
-      let out = '', usage = null, finish = null, truncated = false;
-      const it = deps.streamFn ? deps.streamFn(req, sProvider) : sProvider.stream(req);
-      for await (const ev of it) {
-        if (ev && ev.type === 'text') out += ev.delta;
-        else if (ev && ev.type === 'usage') usage = ev.usage;
-        else if (ev && ev.type === 'done') { finish = ev.finishReason || null; truncated = !!ev.truncated; }   // WHY it stopped
+      if (beforeAttempt && !(await beforeAttempt({ request: req, provider: sProvider, cost: sCost }))) throw admissionStop;
+      const noteGeneration = generationReceipt.begin();
+      let out = '', usage = null, finish = null, truncated = false, sawUsageOrOutput = false, done = false, perCall = true;
+      try {
+        const it = deps.streamFn ? deps.streamFn(req, sProvider) : sProvider.stream(req);
+        for await (const ev of it) {
+          if (!ev) continue;
+          if (ev.type === 'billing') { if (ev.perCall === false) perCall = false; continue; }
+          if (ev.type === 'generation') { noteGeneration(ev.id); continue; }
+          if (['text', 'usage', 'reasoning', 'tool_start', 'tool_args'].includes(ev.type)) sawUsageOrOutput = true;
+          if (ev.type === 'text') out += ev.delta;
+          else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); }
+          else if (ev.type === 'done') { done = true; finish = ev.finishReason || null; truncated = !!ev.truncated; }
+        }
+      } finally {
+        // Every real attempt books once, even if its stream, a later chunk, or the merge fails. No usage is invented.
+        const usageMissing = perCall && sawUsageOrOutput && (!done || truncated);
+        const c = settleAttempt ? (settleAttempt({ usage, model: useModel, cost: sCost, usageMissing }) || {})
+          : (usage && sCost ? sCost.reconcile(usage, useModel) : {});
+        if (!settleAttempt && usage) emit('agent.cost', { agentId: deps.agentId, runId: deps.runId, usd: c.usd || 0, model: useModel, reconciled: true });
+        usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
+        if (c.unpriced) unpriced.push({ model: useModel, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0 });
       }
-      const c = sCost ? sCost.reconcile(usage, useModel) : {};
-      emit('agent.cost', { agentId: deps.agentId, runId: deps.runId, usd: c.usd || 0, model: useModel, reconciled: true });
-      usd += c.usd || 0; tokens += (c.tokensIn || 0) + (c.tokensOut || 0);
-      if (c.unpriced) unpriced.push({ model: useModel, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0 });
       const text = out.trim();
       return { text, rejected: rejectReason(text, finish, truncated) };
     }
@@ -233,7 +250,12 @@ function makeSummarizer(deps) {
       else {
         let retried = false;
         try { res = await attempt(sModel, userMsg, hasPrev); }
-        catch (e) { if (signal.aborted) throw e; retried = true; res = await attempt(runModel, userMsg, hasPrev); }
+        catch (e) {
+          // a silent LOCAL server (errorClass local_timeout: the adapter already waited out its whole ceiling) is not retried
+          // on the run model: both go to the same server, and the retry would wait that ceiling again (review M4)
+          if (signal.aborted || e === admissionStop || (e && e.localModelTimeout === true)) throw e;
+          retried = true; res = await attempt(runModel, userMsg, hasPrev);
+        }
         if (!retried && res.rejected && !signal.aborted) res = await attempt(runModel, userMsg, hasPrev);
       }
       // ONE cut/refused chunk rejects the whole fold: merging later chunks onto the pre-cut summary would ship a

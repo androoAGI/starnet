@@ -25,6 +25,7 @@ const { sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/so
 const RunWire = require('../sidecar/run-wire.js');
 const Reg = require('../sidecar/providers/registry.js');
 const VoiceRoute = require('../sidecar/voice-chat-route.js');
+const { installStore } = require('./helpers/credential-store-sandbox.js');
 
 const K = 'sk-or-PAGE-KEY', OLD = 'https://old-gateway.example/v1', NEW = 'https://new-gateway.example/v1';
 const KA = 'sk-ant-PAGE-KEY', OLD_A = 'https://old-anthropic-proxy.example/v1';
@@ -32,9 +33,11 @@ const OR_DEFAULT = Reg.getProviderProfile('openrouter').baseUrl, ANT_DEFAULT = R
 const KIMI_DEFAULT = Reg.getProviderProfile('kimi').baseUrl;
 const STATION_OR = 'sk-or-STATION-KEYCHAIN', STATION_ANT = 'sk-ant-STATION-KEYCHAIN';
 
-const FUNCS = ['providerRuntimeKey', 'providerOperatorKey', 'pageCopyRidesWith', 'providerRuntimeBaseUrl', 'providerHasCredential',
+// (credential-store lane, S1) providerRuntimeKey and providerRuntimeBaseUrl are one-liners over the credential store; each station
+// below gets the REAL store, built from its own stubs (test/helpers/credential-store-sandbox.js installStore)
+const FUNCS = ['providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerHasCredential',
   'runWireEnv', 'runWireFor', 'runWireOfRun', 'voiceCatalogEntry', 'listModelsForProvider', 'applyVoiceTurnRoute',
-  'cleanProviderKey', 'handleProviderProbe', 'handleProviderValidate'];
+  'cleanProviderKey', 'verifyProviderPair', 'providerCheckRoute', 'handleProviderProbe', 'handleProviderValidate'];
 const LIFTED = FUNCS.map(n => { const s = sidecarFunctionSource(n); A.ok(s.length > 20, 'fixture: ' + n + ' is lifted'); return s; });
 
 /* One station. o.page: the #89 page copies (stale: saved with the OLD endpoints); o.keys: the keychain push; o.voice: the
@@ -50,12 +53,18 @@ function station(o) {
     runtimeKeys: Object.assign(Object.create(null), opts.keys || {}), runtimeBaseUrls: Object.create(null), runtimeKey: String((opts.keys || {}).openrouter || ''),
     engineKeys: { get: id => (opts.page && opts.page[id]) || null },
     normalizeProviderId: p => Reg.normalizeProviderId(p, ''), normalizeProvider: p => Reg.normalizeProviderId(p, 'openrouter'),
+    normalizeProviderIdFromRegistry: Reg.normalizeProviderId,
     getProviderProfile: Reg.getProviderProfile, registryProviderUsesCodex: Reg.providerUsesCodex, registryProviderUsesDeviceOAuth: Reg.providerUsesDeviceOAuth,
+    billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }),   // the route's payer (billing-class.js)
     providerUsesCodex: p => Reg.providerUsesCodex(Reg.normalizeProviderId(p, 'openrouter')), providerUsesDeviceOAuth: p => Reg.providerUsesDeviceOAuth(Reg.normalizeProviderId(p, 'openrouter')),
     providerRequiresKey: Reg.providerRequiresKey, providerRequiresBaseUrl: Reg.providerRequiresBaseUrl,
     ENV: k => env['STARNET_' + k], envFirst: names => { for (const n of names || []) if (env[n]) return env[n]; return ''; },
     codexTokens: null, CODEX_DEFAULT_MODEL: 'gpt-5.5', CRON_DEFAULT_MODEL: 'cron-default',
     oauthProviders: { kimi: { tokens: { access_token: 'synthetic-kimi-bearer' } } }, accountLive: () => true, anyExtraAccountLive: () => false,
+    orderedAccountChain: () => [{ id: '' }], oauthPrimaryStatus: id => c.oauthProviders[id] || {},
+    providerReadiness: () => ({ unattendedReady: true }),
+    providerVerification: require('../sidecar/provider-readiness.js').makeProviderReadiness({ now: () => 1000,
+      digest: s => require('crypto').createHash('sha256').update(s).digest('hex') }),
     resolveCreditsConfig: () => ({ url: '', apiKey: '' }),
     chatModelId: (p, m) => m, providerCredentialError: p => 'connect a ' + p + ' key',
     effectiveVoiceChat: () => Object.assign({ provider: '', model: '', reasoningEffort: '' }, opts.voice || {}),
@@ -65,13 +74,18 @@ function station(o) {
     extraAccountProviderFor: () => null, ensureCodexAccessToken: async () => 'synthetic-codex-bearer', forceRefreshCodexAccessToken: async () => '',
     ensureOAuthAccessToken: async () => 'synthetic-kimi-bearer', oauthInferenceHeaders: () => ({}),
     ImageTask: { isAgentModel: () => true }, isBatchOnlyModel: () => false,
-    selectProvider: cfg => ({ listModels: async () => { calls.push({ via: 'catalog', provider: cfg.provider, key: cfg.key || cfg.token || '', baseUrl: cfg.baseUrl || '' }); return [{ id: 'main-test' }, { id: 'voice-test' }]; } }),
-    fetch: async (url, init) => { calls.push({ via: 'fetch', url: String(url), auth: String(((init || {}).headers || {}).Authorization || '') }); return { ok: true, status: 200, body: null }; },
+    selectProvider: cfg => ({ listModels: async () => { calls.push({ via: 'catalog', provider: cfg.provider, key: cfg.key || cfg.token || '', baseUrl: cfg.baseUrl || '' }); return [{ id: 'main-test' }, { id: 'voice-test' }]; },
+      verifyCredential: args => require('../sidecar/providers/factory.js').selectProvider(cfg).verifyCredential(args) }),
+    fetch: async (url, init) => {
+      const headers = (init || {}).headers || {}, auth = String(headers.Authorization || '');
+      calls.push({ via: 'fetch', url: String(url), auth, key: headers['x-api-key'] || auth.replace(/^Bearer /, '') });
+      return new Response(JSON.stringify({ data: String(url).endsWith('/auth/key') ? { label: 'fixture' } : [{ id: 'main-test' }] }), { status: 200 });
+    },
     readBody: async () => JSON.stringify(c.reqBody || {}),
-    noteKeyCheckFailure: () => {}, failNote: () => {},
+    noteKeyCheckFailure: () => {}, failNote: () => {}, redact: s => s,
     AbortController, setTimeout, clearTimeout, console: { warn() {}, log() {} }
   };
-  vm.createContext(c);
+  vm.createContext(installStore(c));
   for (const s of LIFTED) vm.runInContext(s, c);
   c.calls = calls;
   c.call = async (handler, body) => {
@@ -133,13 +147,14 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     const fromAt = core.indexOf('  const providerFallbacks = [];');
     const toAt = core.indexOf('  const fallbacks = rotationFallbacks', fromAt);
     A.ok(fromAt > 0 && toAt > fromAt && toAt - fromAt < 6000, "fixture: runOnceCore's fallback loop is sliced");
-    const loop = (s, list) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
+    // runWatch: the run's watch over the keys its adapters send (credential-store.js inFlight, step S3), from this station's store
+    const entries = (s, list, runWatch) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
       'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', 'billing', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
       [], { fallbackProviders: list }, s.normalizeProvider, 'openai', (p, m) => m, 'primary-model',
       s.providerRuntimeBaseUrl, s.providerRuntimeKey, s.providerHasCredential, Reg.getProviderProfile, { configured: () => false }, '', false, s.providerUsesCodex, s.providerUsesDeviceOAuth,
-      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId)
-      .map(f => [f.providerId, f.provider.cfg.key || '', f.provider.cfg.baseUrl]);
+      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId, runWatch || s.credStore.inFlight(), require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }));
+    const loop = (s, list) => entries(s, list).map(f => [f.providerId, f.provider.cfg.key || '', f.provider.cfg.baseUrl]);
     const s = station({ page: PAGE, keys: { anthropic: STATION_ANT } });
     A.eq(loop(s, [{ provider: 'openrouter', model: 'main-test', key: K, baseUrl: NEW, keyInRequest: true }]), [['openrouter', K, NEW]], 'fixture: the loop builds the fallback on the key it was handed');
     const fb = list => loop(s, list).map(r => r[2]);
@@ -159,6 +174,18 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     A.eq(body[1].keyInRequest, true, '...without mutating the body');
     A.eq(fb(marked.slice(0, 2)), [NEW, ANT_DEFAULT], 'DEFECT fallback: a body fallback\'s own key (equal to the page copy\'s) runs at the endpoint sent beside it; the forged one runs the station key at its own endpoint');
     A.eq(mark(undefined), undefined, 'no body fallbacks: nothing is invented');
+    // S3 (decision 7): each fallback adapter is watched on the key it sends, never on a key the body sent itself
+    const page = JSON.parse(JSON.stringify(PAGE));
+    const sw = station({ page, keys: { anthropic: STATION_ANT } });
+    const w = sw.credStore.inFlight();
+    const built = entries(sw, mark([{ provider: 'openrouter', model: 'main-test', key: K, baseUrl: NEW }, { provider: 'anthropic', model: 'claude-x', baseUrl: NEW, keyInRequest: true }])
+      .concat([{ provider: 'openrouter', model: 'main-test-2', key: K, baseUrl: NEW }]), w);
+    A.eq(built.map(f => [f.providerId, f.provider.cfg.key]), [['openrouter', K], ['anthropic', STATION_ANT], ['openrouter', K]],
+      'S3 fixture: three fallbacks — the body\'s own key, a forged keyless mark (the station key), the page key handed back unmarked');
+    delete page.openrouter;                       // the page REMOVEs its OpenRouter copy while the run goes on
+    sw.runtimeKeys.anthropic = 'sk-ant-ROTATED';  // ...and the keychain rotates Anthropic
+    A.eq(built.map(f => w.gone(f.provider)), ['', 'anthropic', 'openrouter'],
+      'S3: a fallback on the key the body sent is never stopped; the station key behind a forged mark and the page key handed back unmarked stop once their layer lets them go');
   }
 
   // ================================ (c) a team.dispatch worker on the lead's own key ======================================
@@ -190,13 +217,13 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     // probe: the page re-checks its saved OpenRouter key at the endpoint it now shows (its copy still holds the old one)
     let s = station({ page: PAGE });
     let out = await s.call('handleProviderProbe', { provider: 'openrouter', key: K, baseUrl: NEW });
-    A.eq(ends(s.calls), [NEW, NEW + '/auth/key'], 'DEFECT probe: the catalog read and the credential probe go out on the body\'s key to the body\'s endpoint: ' + JSON.stringify(s.calls));
-    A.eq(s.calls[1].auth, 'Bearer ' + K, '...with that key');
+    A.eq(ends(s.calls), [NEW + '/auth/key'], 'DEFECT probe: the native credential verifier uses the body\'s endpoint without a catalog detour: ' + JSON.stringify(s.calls));
+    A.eq(s.calls[0].auth, 'Bearer ' + K, '...with that key');
     A.eq(out.credentialVerified, true, '...and the probe reports on that pair');
     // a probe naming an endpoint but no key (the desktop: the keychain holds it) never sends the station key there
     s = station({ keys: { openrouter: STATION_OR } });
     await s.call('handleProviderProbe', { provider: 'openrouter', baseUrl: NEW });
-    A.eq(ends(s.calls), [OR_DEFAULT, OR_DEFAULT + '/auth/key'], 'probe: the keychain key is checked at its own endpoint, never the one the body named');
+    A.eq(ends(s.calls), [OR_DEFAULT + '/auth/key'], 'probe: the keychain key is checked at its own endpoint, never the one the body named');
     // the page key handed to the catalog reader WITHOUT the mark (the voice route for a record key): the copy's endpoint
     s = station({ page: PAGE });
     await s.listModelsForProvider('openrouter', { key: K, baseUrl: NEW });
@@ -204,7 +231,7 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     // a sign-in's catalog never follows the endpoint a body names
     s = station({});
     await s.call('handleProviderProbe', { provider: 'kimi', key: 'sk-kimi-typed', baseUrl: NEW });
-    A.ok(s.calls.length > 0 && s.calls.every(x => x.baseUrl === KIMI_DEFAULT), 'probe: a sign-in lists its catalog on its own endpoint: ' + JSON.stringify(s.calls));
+    A.ok(s.calls.length > 0 && s.calls.every(x => x.url.startsWith(KIMI_DEFAULT)), 'probe: a sign-in verifies on its own endpoint: ' + JSON.stringify(s.calls));
 
     // validate: the candidate is the only key ever sent, and it came in THIS body
     s = station({ page: PAGE });
@@ -212,7 +239,7 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     A.eq([out.ok, ends(s.calls), s.calls[0] && s.calls[0].auth], [true, [NEW + '/auth/key'], 'Bearer ' + K], 'DEFECT validate: a candidate equal to the page copy\'s key is proven at the endpoint sent beside it');
     s = station({ page: PAGE });
     out = await s.call('handleProviderValidate', { provider: 'anthropic', key: KA, baseUrl: NEW });
-    A.eq([out.ok, s.calls.map(x => [x.key, x.baseUrl])], [true, [[KA, NEW]]], 'DEFECT validate: ...on a provider without a probe path too (its catalog read)');
+    A.eq([out.ok, s.calls.map(x => [x.key, x.url])], [true, [[KA, NEW + '/models']]], 'DEFECT validate: native Anthropic verification carries only its paired candidate');
     s = station({ keys: { anthropic: STATION_ANT } });
     out = await s.call('handleProviderValidate', { provider: 'anthropic', baseUrl: NEW });
     A.eq([out.ok, s.calls.length], [false, 0], 'validate: no candidate, nothing sent (a station key is never validated against a named endpoint)');

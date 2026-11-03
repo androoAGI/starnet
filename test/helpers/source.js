@@ -220,6 +220,82 @@ function sidecarFileContaining(needle) {
   return null;
 }
 
+/* THE WIRING index.js really passes a module: lift one property's expression out of a call's options object (balanced
+   brackets, strings skipped). '' when the call does not pass that property on a line of its own. Moved here from
+   test/run-wire.invariant.test.js, which lifts its seams with it. */
+function liftProp(region, name) {
+  const m = new RegExp('\\n\\s*' + name.replace(/[$]/g, '\\$') + ': ').exec(region);
+  if (!m) return '';
+  let i = m.index + m[0].length, depth = 0, quote = '';
+  const start = i;
+  for (; i < region.length; i++) {
+    const c = region[i];
+    if (quote) { if (c === '\\') { i++; continue; } if (c === quote) quote = ''; continue; }
+    if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+    if (c === '/' && region[i + 1] === '/') { const nl = region.indexOf('\n', i); if (depth === 0) break; i = nl < 0 ? region.length : nl; continue; }
+    if ('([{'.indexOf(c) >= 0) depth++;
+    else if (')]}'.indexOf(c) >= 0) { if (depth === 0) break; depth--; }
+    else if ((c === ',' || c === '\n') && depth === 0) break;
+  }
+  return region.slice(start, i).trim();
+}
+
+/* A call's own text: from its head to its closing line (so a lifted property is never another call's). */
+function callRegion(src, head, close) {
+  const at = src.indexOf(head);
+  if (at < 0) return '';
+  const end = src.indexOf(close, at);
+  return end < 0 ? '' : src.slice(at, end + close.length);
+}
+
+/* The VALUES a call passes for some of its properties: each one lifted (liftProp) and evaluated over `scope`, the names its
+   expression reads. { key: value } with undefined for a key the call does not pass, so a seam built from it loses exactly
+   what the production call lost (a hand-written bag would keep it and pass vacuously, 956fdecf). */
+function liftValues(region, keys, scope) {
+  const names = Object.keys(scope || {});
+  const out = {};
+  for (const k of keys) {
+    const expr = liftProp(region, k);
+    out[k] = expr ? new Function(...names, 'return (' + expr + ');')(...names.map(n => scope[n])) : undefined;   // eslint-disable-line no-new-func
+  }
+  return out;
+}
+
+/* Every property of the FIRST object literal in `region`, at its own top level, in order: [{ key, expr }] — the whole
+   bag a production call passes, a key sharing its line with others included (liftProp reads one key per line). A key
+   added to the call shows up here, so a test that lifts a bag property by property must account for it. Strings,
+   template literals and comments are skipped; a shorthand property's expr is its own name. A scanner, not a parser: a
+   regex literal holding a quote or a bracket inside the object would mislead it (no production bag has one). */
+function objectProps(region) {
+  const open = region.indexOf('{');
+  if (open < 0) return [];
+  const props = [];
+  let depth = 0, quote = '', cur = null, expectKey = true;
+  const close = (end) => { if (cur) { cur.expr = region.slice(cur.from, end).trim().replace(/\/\/[^\n]*$/gm, '').trim(); props.push({ key: cur.key, expr: cur.expr }); cur = null; } };
+  for (let i = open; i < region.length; i++) {
+    const c = region[i];
+    if (quote) { if (c === '\\') { i++; continue; } if (c === quote) quote = ''; continue; }
+    if (c === '/' && region[i + 1] === '/') { const nl = region.indexOf('\n', i); i = (nl < 0 ? region.length : nl) - 1; continue; }
+    if (c === '/' && region[i + 1] === '*') { const e = region.indexOf('*/', i + 2); i = e < 0 ? region.length : e + 1; continue; }
+    if (c === "'" || c === '"' || c === '`') { quote = c; expectKey = false; continue; }
+    if ('([{'.indexOf(c) >= 0) { depth++; expectKey = depth === 1; continue; }
+    if (')]}'.indexOf(c) >= 0) { depth--; if (depth === 0) { close(i); break; } continue; }
+    if (depth !== 1) continue;
+    if (c === ',') { close(i); expectKey = true; continue; }
+    if (expectKey && /[A-Za-z_$]/.test(c)) {
+      const m = /^[A-Za-z_$][\w$]*/.exec(region.slice(i));
+      const after = /^\s*(:|,|\})/.exec(region.slice(i + m[0].length));
+      if (after && after[1] === ':') { cur = { key: m[0], from: i + m[0].length + after[0].length }; i += m[0].length + after[0].length - 1; }
+      else if (after) { props.push({ key: m[0], expr: m[0] }); i += m[0].length - 1; }
+      else i += m[0].length - 1;
+      expectKey = false;
+      continue;
+    }
+    if (!/\s/.test(c)) expectKey = false;
+  }
+  return props;
+}
+
 module.exports = {
   readSidecarSource,
   readSidecarIndex,
@@ -229,6 +305,10 @@ module.exports = {
   functionSourceIn,
   locateSidecarFunction,
   sidecarFileContaining,
+  liftProp,
+  callRegion,
+  liftValues,
+  objectProps,
   isSkippedDir,
   SIDECAR_INDEX: INDEX_REL
 };

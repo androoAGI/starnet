@@ -19,6 +19,7 @@ const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -58,6 +59,7 @@ function boot(port, workspaces, attemptsLeft) {
 
 (async () => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cron-'));
+  seedActiveStation(ws);
   fs.mkdirSync(path.join(ws, 'channels'), { recursive: true });
   fs.writeFileSync(path.join(ws, 'channels', 'chatmap.json'), JSON.stringify({ version: 1, chats: { dev_target: { chatId: 'cron-dev', channel: 'dev', agentId: 'cron_brief' } } }), 'utf8');
   let booted = await boot(await allocatePort(), ws, 20);

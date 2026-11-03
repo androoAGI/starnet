@@ -66,15 +66,27 @@ function bareWorkspaces(env, platform) {
   return neu;
 }
 function exists(p) { try { return fs.existsSync(p); } catch (_) { return false; } }
-function hasStation(ws) { return exists(path.join(ws, 'agent.save.json')) || exists(path.join(ws, 'agent.roster.json')); }
+/* WHETHER A WORKSPACE HOLDS A STATION is its station record's answer (sidecar/station-record.js, the lifecycle's one
+   module, which the app's gate and its automatic recovery read too): P1, so a save or roster on disk under any of its
+   names always counts, the record decides soft bookkeeping, and a workspace with no usable record falls back to the
+   gate's own rule. read() never writes. Loaded on first use, so `starnet --version` never reads sidecar/. */
+let stationRecordModule = null;
+function stationOf(ws) {
+  if (!stationRecordModule) stationRecordModule = require(path.join(REPO, 'sidecar', 'station-record.js'));
+  return stationRecordModule.read({ fs, path, platform: process.platform, now: Date.now, workspaceRoot: ws });
+}
+function hasStation(ws) { return stationOf(ws).station(); }
 
-// The workspace a SPAWNED station runs against: the operator's pick, else the desktop station if one exists,
-// else a bare `npm start` station if one exists, else the desktop location (so a later desktop install finds it).
+// The workspace a SPAWNED station runs against: the operator's pick, else the desktop station if one exists, else a bare
+// `npm start` station if one exists and nothing on the desktop set it aside, else the desktop location (so a later
+// desktop install finds it). ERASE EVERYTHING and START FRESH acknowledge the bare root, and an erase blocks every
+// automatic pick: the same rule the app's automatic recovery keeps, so the terminal never boots an erased-over station (gh#101).
 function defaultWorkspace(opts) {
   if (opts.workspace) return path.resolve(opts.workspace);
   const d = desktopWorkspaces(), b = bareWorkspaces();
-  if (hasStation(d)) return d;
-  if (hasStation(b)) return b;
+  const desktop = stationOf(d);
+  if (desktop.station()) return d;
+  if (!desktop.blocksAutoImport(b) && hasStation(b)) return b;
   return d;
 }
 
@@ -312,15 +324,19 @@ function priorStationEvidence(ws, env) {
     const dev = /^(1|true|yes|on)$/i.test(String((('STARNET_DEV' in env) ? env.STARNET_DEV : env.SKYNET_DEV) || '').trim());   // the sidecar's DEV_MODE: no sideways look
     const roots = dev ? [] : safety.workspaceCandidates({ path, env, platform: process.platform, homedir: () => os.homedir() })
       .concat([path.join(REPO, 'sidecar', 'workspaces'), path.join(REPO, 'workspaces')]);
-    return !!lineage.inspectWorkspaceLineage({ fs, path, platform: process.platform, workspaceRoot: ws, candidateRoots: roots }).priorInstallEvidence;
+    return !!lineage.inspectWorkspaceLineage({ fs, path, platform: process.platform, workspaceRoot: ws, candidateRoots: roots, now: Date.now }).priorInstallEvidence;
   } catch (_) { return false; }
 }
 
 /* Write the roster + save the desktop's onboarding would have produced (core.bootstrapDocs). Refuses to touch a
-   workspace that already holds a station, and (unless the operator named the workspace) one where the app would offer
-   to recover a prior station. Returns { wrote, refused?, provider, model, reason }. */
+   workspace that already holds a station — a save or roster file first (P1: whatever its record says), then one its
+   record says was founded (its save is gone: the app's Recovery Mode owns it) — and (unless the operator named the
+   workspace) one where the app would offer to recover a prior station. Both files are written only where neither exists
+   ('wx'), then the station record says this generation was founded. Returns { wrote, refused?, provider, model, reason }. */
 function bootstrapWorkspace(ws, opts, env) {
-  if (hasStation(ws)) return { wrote: false, reason: 'workspace already holds a station' };
+  const record = stationOf(ws);
+  if (record.holdsHardProof()) return { wrote: false, reason: 'workspace already holds a station' };
+  if (record.station()) return { wrote: false, refused: true, reason: 'this workspace holds a station whose save is missing — open the StarNet app to recover it before setting up a new one' };
   if (!opts.workspace && priorStationEvidence(ws, env)) return { wrote: false, refused: true, reason: 'this computer has a station from an earlier StarNet install — open the StarNet app to recover it before setting up a new one' };
   const reg = loadRegistry();
   const profiles = reg ? reg.listProviderProfiles() : [];
@@ -331,8 +347,14 @@ function bootstrapWorkspace(ws, opts, env) {
   const model = String(opts.model || env.STARNET_DEFAULT_MODEL || env.SKYNET_DEFAULT_MODEL || '').trim();
   const docs = core.bootstrapDocs({ name: opts.name, model, provider: inferred.provider || 'openrouter', now: Date.now() });
   fs.mkdirSync(ws, { recursive: true });
-  fs.writeFileSync(path.join(ws, 'agent.roster.json'), JSON.stringify(docs.roster, null, 2));
-  fs.writeFileSync(path.join(ws, 'agent.save.json'), JSON.stringify(docs.save, null, 2));
+  try {
+    fs.writeFileSync(path.join(ws, 'agent.roster.json'), JSON.stringify(docs.roster, null, 2), { flag: 'wx' });
+    fs.writeFileSync(path.join(ws, 'agent.save.json'), JSON.stringify(docs.save, null, 2), { flag: 'wx' });
+  } catch (e) {
+    if (e && e.code === 'EEXIST') return { wrote: false, reason: 'workspace already holds a station' };   // another writer's, since the look above
+    throw e;
+  }
+  record.found({ by: 'cli-bootstrap' });   // never throws for a write: a failed one is recorded by the station's own next boot
   return { wrote: true, provider: inferred.provider, providerSource: inferred.source, model };
 }
 
@@ -504,6 +526,9 @@ async function statusCommand(opts, station) {
     version: { harness: v.harness || '', app: v.app || '', node: v.node || '' },
     workspace: workspace || null,
     providers: configured,
+    providerReadiness: (prov.ok && prov.json && Array.isArray(prov.json.providers)) ? prov.json.providers.map(p => ({ provider: p.id,
+      configured: !!p.configured, unattendedReady: !!p.unattendedReady, credential: p.credential, endpoint: p.endpoint,
+      lastVerified: p.lastVerified || null, reason: p.reason || 'unverified' })) : [],
     keychain: !!(prov.ok && prov.json && prov.json.keychainMode),
     // each agent's pair as its runs really use it (the row's resolved wire — an unpinned agent follows the station default)
     agents: Array.isArray(r.agents) ? r.agents.map(a => { const p = runPairOf(a); return { agentId: a.agentId, name: a.name, model: p.model || null, provider: p.provider || null, followsStation: p.followsStation, wireSource: p.source || undefined }; }) : []
@@ -514,6 +539,7 @@ async function statusCommand(opts, station) {
     'version    harness ' + (out.version.harness || '?') + (out.version.app ? ' · app ' + out.version.app : '') + ' · node ' + out.version.node,
     'workspace  ' + (out.workspace || 'not disclosed by the station'),
     'providers  ' + (out.providers.length ? out.providers.join(', ') : 'none configured') + (out.keychain ? ' (keys in the OS keychain)' : ''),
+    'readiness  ' + out.providerReadiness.filter(p => p.configured || (p.credential && p.credential.present)).map(p => p.provider + ': ' + p.reason).join(', '),
     'agents     ' + (out.agents.length ? out.agents.map(a => a.agentId + '=' + a.name + ' [' + (a.provider || '?') + '/' + (a.model || 'no model') + (a.followsStation ? ' · station default' : '') + ']').join('\n           ') : 'none')
   ].join('\n') + '\n');
   return 0;

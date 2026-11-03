@@ -63,12 +63,12 @@ const Voice = (() => {
   const canSpeak = () => (typeof Audio !== 'undefined') && (typeof fetch !== 'undefined');
 
   // ---- prefs --------------------------------------------------------------
-  // do agents speak their replies aloud? (persisted). DEFAULT OFF — and keep it off: when the speaker is
+  // do agents speak their replies aloud? (the Commander's saved choice). DEFAULT OFF — and keep it off: when the speaker is
   // on, chat.js routes even a real TASK to the one-on-one 'talk' stance (the agent faces you and answers on
   // the spot) INSTEAD of walking to its workstation. Defaulting this ON silently suppressed the signature
   // desk trip for every task on an untouched agent ("gave it a task, it just stood there"). Voice is opt-in;
-  // a user who turns it on (or enters hands-free mode, which force-enables it) gets the spoken one-on-one.
-  let speakReplies = loadPref(LS_SPEAK, false);
+  // a user who turns it on (or opens a hands-free session, which borrows it: setSpeaker) gets the spoken one-on-one.
+  const speaker = VoiceState.speaker({ key: LS_SPEAK, storage: () => localStorage });
   let convoMode = false;     // hands-free loop — a per-session mode (each game starts in push-to-talk)
   function loadPref(k, dflt) { try { const v = localStorage.getItem(k); return v == null ? dflt : v === '1'; } catch (_) { return dflt; } }
   function savePref(k, on) { try { localStorage.setItem(k, on ? '1' : '0'); } catch (_) {} }
@@ -100,7 +100,6 @@ const Voice = (() => {
   }
   let sentThisListen = false;       // did the just-finished listen actually send a message?
   let discarding = false;           // teardown in progress → drop any buffered transcript (don't send)
-  let forcedSpeak = false;          // voice mode flipped the speaker on for us → restore the user's mute on exit
   let resumePending = false;        // a refresh dropped hands-free → the mode button pulses to invite one-tap resume
 
   // a single status seam: prefer Chat.status (it owns #chat-status), fall back to the DOM node.
@@ -202,12 +201,10 @@ const Voice = (() => {
   // itself was fine, the silence ABOUT it wasn't). NB: NO permanent latch — this is a 60s cold-off that ANY
   // speaker-toggle clears, so a spurious startup 'no key' never disables voice for the whole session.
   const BILLING_COLD_MS = 60000;
-  // consecutive neural failures inside the reply that is CURRENTLY speaking. A cold-off may never guillotine
-  // a reply already in flight (see startSynth) — this counter is what eventually lets it, so a genuinely dead
-  // provider costs a couple of round-trips per reply instead of one per sentence.
-  let replyFails = 0;
-  let replyTried = false;  // has the reply currently speaking already ATTEMPTED a synth? Only then may it
-                           // outrank the cold-off — a BRAND-NEW reply still honors it in full (no hammering).
+  // A cold-off may never guillotine a reply already in flight (see startSynth). Each reply counts its OWN consecutive
+  // neural failures (reply.fails, on its record) and whether it has attempted a synth at all (reply.tried: only then may
+  // it outrank the cold-off — a brand-new reply still honors it in full). MID_REPLY_GIVEUP failures in a row let the
+  // cold-off silence the rest of that reply, so a dead provider costs a couple of round-trips per reply, not per sentence.
   const MID_REPLY_GIVEUP = 2;
   const RETRY_GAP_MS = [400, 1200];   // wait before retry 1 / retry 2: a blip must outlive ~1.6 s to cost a sentence
   let fbStreak = 0;        // consecutive neural failures (reset by the next neural success)
@@ -304,7 +301,7 @@ const Voice = (() => {
   }
   // the envelope /api/tts answered (or none), read ONCE into a verdict
   function verdictOf(j, r) {
-    if (j && j.outcome && typeof j.outcome === 'object' && j.outcome.code) return typedVerdict(j.outcome, j.reason || j.error);
+    if (j && j.outcome && typeof j.outcome === 'object' && j.outcome.code) return Object.assign(typedVerdict(j.outcome, j.reason || j.error), { retried: j.retried === true });
     if (j && (j.reason || j.error)) return legacyVerdict(j.reason || j.error);
     if (r && r.ok === false) {
       const f = apiFailureOf(r);
@@ -315,7 +312,9 @@ const Voice = (() => {
     return clientVerdict('bad_response', true, 'the station answered HTTP ' + (r && r.status) + ' with no audio and no reason', r && r.status);
   }
   const RETRY_WAIT_MAX_MS = 3000;   // a provider that asks for a longer wait is not retried inside the sentence
-  const retryableVerdict = v => !!v && !v.terminal && !(v.retryAfterMs > RETRY_WAIT_MAX_MS);
+  // retried: the sidecar's ladder already spent the one retry rule on this sentence (sidecar/speech-ladder.js); asking
+  // again would multiply it, so only a failure the ladder never saw (no answer, an older sidecar) is retried here
+  const retryableVerdict = v => !!v && !v.terminal && !v.retried && !(v.retryAfterMs > RETRY_WAIT_MAX_MS);
   // Failures the user can act on are named at once; a blip only once it proves persistent (three in a row).
   const NAMED_AT_ONCE = { billing: 1, auth: 1, no_key: 1, stale_session: 1, token_withheld: 1 };
   // What happened, in a few words: the note under the speaker and the tooltip both say it.
@@ -389,7 +388,7 @@ const Voice = (() => {
   // a chunk actually spoke → the neural path is PROVEN alive, so LIFT the cold-off too. Without this, a
   // single blip's 4s cold-off kept suppressing the rest of the reply (and the next reply's opening words)
   // even though the very next call would have succeeded.
-  function noteNeuralOk() { fbStreak = 0; replyFails = 0; neuralColdUntil = 0; neuralColdTerminal = false; neuralColdStale = false; if (fbNotified) { fbNotified = ''; fbMsg = ''; reflectToggle(); } }
+  function noteNeuralOk() { fbStreak = 0; neuralColdUntil = 0; neuralColdTerminal = false; neuralColdStale = false; if (fbNotified) { fbNotified = ''; fbMsg = ''; reflectToggle(); } }
   // ANY toggle of the speaker button clears all cold-offs and re-probes the neural path fresh (no latch).
   function clearNeuralCold() { neuralColdUntil = 0; neuralColdTerminal = false; neuralColdStale = false; fbStreak = 0; if (fbNotified) { fbNotified = ''; fbMsg = ''; } }
   // The ONE page credential /api/stt may use: the page's OpenRouter key, as an explicit {provider, key} pair (the
@@ -445,9 +444,9 @@ const Voice = (() => {
      Idempotent per persona so toggling doesn't re-warm needlessly. */
   let prewarmedFor = null;
   async function prewarmVoice() {
-    if (!speakReplies) return;
+    if (!speaker.isOn()) return;
     if (clockNow() < neuralColdUntil) return;        // neural path cooling off after a failure → don't hammer
-    if (draining) return;                            // a LIVE reply owns the voice path — never warm in front of it
+    if (draining()) return;                          // a LIVE reply owns the voice path — never warm in front of it
     if (prewarmedFor === activePersonaId) return;   // already warmed this persona's shelf
     prewarmedFor = activePersonaId;
     const p = (typeof Personas !== 'undefined' && Personas.get) ? Personas.get(activePersonaId) : null;
@@ -462,7 +461,7 @@ const Voice = (() => {
       // a reply started mid-warm → YIELD the provider to it at once. Background warm calls racing the live
       // reply's chunks is exactly how a rate-limited provider 429s the reply's second sentence — and a single
       // failed chunk is what used to take the whole rest of the reply down with it. Re-armed for a later warm.
-      if (draining) { prewarmedFor = null; break; }
+      if (draining()) { prewarmedFor = null; break; }
       try {
         // warm the SAME cache key the live path will request (model|voice|style|text) — we only need the
         // sidecar to synthesize + cache it; we discard the audio. A failure is silent (best-effort).
@@ -472,7 +471,7 @@ const Voice = (() => {
         });
         try { await r.arrayBuffer(); } catch (_) {}
       } catch (_) { break; }   // network gone → stop warming, don't hammer
-      if (!speakReplies) break;   // user muted mid-warm → abandon
+      if (!speaker.isOn()) break;   // user muted mid-warm → abandon
     }
   }
 
@@ -513,20 +512,16 @@ const Voice = (() => {
   }
 
   /* split one utterance that's too long for a single synth call, keeping each piece under the sidecar's
-     1200-char cap — so a long reply is spoken IN FULL instead of guillotined mid-word. */
+     1200-char cap — so a long reply is spoken IN FULL instead of guillotined mid-word. THE shared splitter
+     (speech-split.js, the sidecar's rule mirrored here): "v0.13.2", "$4.99" and "Dr. Smith" are never cut at a dot. */
+  const Split = (typeof SpeechSplit !== 'undefined' && SpeechSplit) || (typeof require === 'function' ? (() => { try { return require('./speech-split.js'); } catch (_) { return null; } })() : null);
   function splitForTts(t, max) {
     if (t.length <= max) return [t];
-    const out = [], parts = t.match(/[^.!?…]+[.!?…]+|\S[^.!?…]*$/g) || [t];
-    let cur = '';
-    for (const p of parts) {
-      let s = p;
-      // an oversize sentence gets hard-sliced straight into `out` — flush the accumulator FIRST or the
-      // preceding sentences would play AFTER this one's head slices (out-of-order speech).
-      if (s.length > max && cur.trim()) { out.push(cur.trim()); cur = ''; }
-      while (s.length > max) { out.push(s.slice(0, max).trim()); s = s.slice(max); }
-      if ((cur + s).length > max) { if (cur.trim()) out.push(cur.trim()); cur = s; } else cur += s;
-    }
-    if (cur.trim()) out.push(cur.trim());
+    if (Split) return Split.pack(t, max);
+    const out = [];   // the splitter is missing (a stripped page or harness): never lose words, cut at the last space
+    let s = t;
+    while (s.length > max) { const sp = s.lastIndexOf(' ', max); const cut = sp > max * 0.4 ? sp : max; out.push(s.slice(0, cut).trim()); s = s.slice(cut).trim(); }
+    if (s) out.push(s);
     return out;
   }
 
@@ -779,7 +774,6 @@ const Voice = (() => {
   function effectFor(engine) {
     return voiceEffect() || (engine === 'keyed' ? 'machine' : 'natural');
   }
-  let replyEffect = '';     // the chain this reply is pinned to (set by its first played clip)
   let lastChain = '';       // what the most recent clip ACTUALLY routed through ('natural'|'comms'|'machine'|'dry')
 
   // play an audio blob (mp3/wav), wiring start/end into the same speaking-state + loop hooks as the
@@ -885,7 +879,7 @@ const Voice = (() => {
     // Build the voice's effect graphs INSIDE a user gesture so they start running: created later (at the first
     // reply) they start suspended, and the opening sentence played dry — without the station shell — so the
     // reply's first words sounded like a different voice. Only while the speaker is on; idempotent.
-    if (speakReplies) {
+    if (speaker.isOn()) {
       try {
         const chosen = voiceEffect();
         if (chosen !== 'machine' && chosen !== 'comms') ensureNaturalGraph();          // natural or AUTO
@@ -902,10 +896,14 @@ const Voice = (() => {
   /* ======================================================================
      SPEAK QUEUE — stream the reply sentence-by-sentence so the FIRST words play while the rest is still
      being generated/synthesized (kills the multi-second "dead air" before the agent talks). Chunks are
-     synthesized one-ahead but ALWAYS played in order. `draining` stays true across the whole queue AND
-     every fetch gap, so the hands-free mic can't re-open into the agent's own voice (echo). Bumping
-     `speakSeq` (barge-in / teardown) invalidates every in-flight fetch + queued playback at once. */
-  let jobs = [];          // queued chunks: { text, opts, seq, result(Promise), ac(AbortController) }
+     synthesized one-ahead but ALWAYS played in order. Every job carries its REPLY (a handle from voice-state.js's
+     registry: chat.js opens one at send, speak()/mutter() their own), so a cancel names the replies it ends and
+     dead(job) is the one test every async step makes; other replies keep their place in the ONE FIFO. draining()
+     (some reply audible) holds across every fetch gap, so the hands-free mic can't re-open into the agent's voice. */
+  const registry = VoiceState.replies(recordSpeechEvent);
+  const dead = job => job.reply.state === 'cancelled';
+  const draining = () => registry.audible();
+  let jobs = [];          // queued pieces: { text, reply, chunk, voice, queuedAt, result(Promise), ac(AbortController) }
   let preferLocalTts = false;
   /* Which built-in voice speaks. Saved per station; empty falls back to the engine's default (male).
      Read at SPEAK time, not cached, so changing it in Settings takes effect on the very next line. */
@@ -959,10 +957,6 @@ const Voice = (() => {
   // it may never impersonate another speaker mid-session.
   let sessionDefaultVoice = '';
   let sessionVoices = new Map();
-  let replyVoice = null;
-  // WHO opened the reply now in the queue (chat.js passes its per-run speech opts object). endReply from a
-  // different producer must never close it — a backgrounded session's run ends minutes later, mid-someone-else.
-  let replyOwner = null;
   function speechVoice(agentId) {
     if (preferLocalTts && sessionVoices.has(agentId)) return sessionVoices.get(agentId);
     const override = voiceChoice(agentId);
@@ -985,12 +979,7 @@ const Voice = (() => {
   }
   let playIdx = 0;        // next job to PLAY
   let synthIdx = 0;       // next job to begin SYNTHESIZING (runs ahead of playIdx for prefetch)
-  let draining = false;   // a reply is in progress (queue non-empty or awaiting more chunks)
-  let replyClosed = true; // producer has signalled "no more chunks for this reply"
   let playing = false;    // a chunk is currently playing (serializes playback)
-  let speakSeq = 0;       // monotonic token; bump to invalidate all in-flight speak work
-  let ttsAbort = null;    // controller of the most-recent in-flight fetch
-  let onReplyDone = null; // heartbeat fired ONCE when the whole reply finishes (→ maybeRearm)
   const MAX_INFLIGHT = 2;        // synth at most this many chunks ahead of playback
   const TTS_CHUNK_MAX = 1000;
   const TTS_TIMEOUT_MS = 30000;              // one SENTENCE's deadline: every attempt and retry of it spends this budget
@@ -1000,7 +989,9 @@ const Voice = (() => {
   const PLAY_MAX_S = 120;                    // playback watchdog when the clip reports no duration
   const PLAY_GRACE_MS = 8000;                // slack past the clip's own length before a playback counts as stalled    // keep each synth call under the sidecar's 1200-char cap
 
-  function resetQueue() { jobs = []; replyVoice = null; replyEffect = ''; replyOwner = null; playIdx = 0; synthIdx = 0; draining = false; playing = false; replyClosed = true; replyFails = 0; replyTried = false; }
+  // the play head passed every live job: empty the queue; the station bed comes back once nothing is audible
+  function settle() { jobs = []; playIdx = 0; synthIdx = 0; playing = false; if (!draining()) duckSfx(false); }
+  const idle = () => !playing && !jobs.some((job, i) => i >= playIdx && !dead(job));
 
   // One attempt returns audio, a recoverable/terminal failure, or an intentional cancellation.
   // The sidecar owns credentials and the engine ladder. startSynth owns bounded retries/cold-off;
@@ -1008,7 +999,7 @@ const Voice = (() => {
   function synthOnce(job) {
     const cred = ttsCred(), cfg = ttsConfig();
     job.attempt = (job.attempt || 0) + 1;
-    const ac = new AbortController(); job.ac = ac; ttsAbort = ac;
+    const ac = new AbortController(); job.ac = ac;
     // ONE DEADLINE PER SENTENCE, not per attempt: the budget starts with the first attempt and every retry spends
     // what is left of it. The sidecar caps each leg of its ladder by what remains (deadlineMs), so it answers with
     // a typed outcome BEFORE this ceiling — which stays as the backstop for a sidecar that never answers. The first
@@ -1022,20 +1013,25 @@ const Voice = (() => {
       body: JSON.stringify({
         key: cred.key, keyProvider: cred.provider, preferProvider: runProvider(),
         text: job.text, model: cfg.model, voice: cfg.voice, style: cfg.style,
+        // the sidecar owns the voice (speech-ladder.js): it reads the persona and the surface; model, voice and style
+        // above are for an older sidecar only. pin = the engine that spoke this reply's first sentence (one continuity rule)
+        persona: activePersonaId || 'station', surface: job.voice.local ? 'live' : 'desk', pin: job.voice.engine || '',
         local: job.voice.local,
         localVoice: job.voice.id,
         localEngine: job.voice.engine,
         // a built-in voice is PACED by the engine (Kokoro takes a speed); stretching its clip in the browser
         // instead (playbackRate with pitch preserved) smears it into a phasey, robotic texture.
-        speed: job.voice.local ? cfg.speed * (job.opts.speedMul || 1) : cfg.speed,
+        speed: job.voice.local ? cfg.speed * (job.reply.speedMul || 1) : cfg.speed,
         // what is left of this sentence's deadline (a body field, not a header: a header would need a CORS preflight
         // an older sidecar does not allow, and that would cost the desktop page every sentence)
         deadlineMs: Math.max(1, Math.round(left))
       })
     }).then(async r => {
-      if (job.voice.local && job.seq === speakSeq && !job.voice.engine) {
+      if (!dead(job) && !job.voice.engine) {
+        // the engine that spoke the first sentence owns the reply (Live: the session), every later sentence is pinned to it
         const servedBy = String(r.headers.get('X-Voice-Provider') || '').toLowerCase();
-        const engine = servedBy === 'local-kokoro' ? 'local-kokoro' : (servedBy.indexOf('edge:') === 0 ? 'edge' : '');
+        const engine = servedBy === 'local-kokoro' ? 'local-kokoro' : (servedBy.indexOf('edge:') === 0 ? 'edge'
+          : (!job.voice.local && /^(openrouter|gemini|openai)$/.test(servedBy) ? servedBy : ''));
         if (engine) {
           job.voice.engine = engine;
           // The first request runs alone until it establishes the speaker. Resume normal prefetch now.
@@ -1048,12 +1044,12 @@ const Voice = (() => {
       let j = null;
       try { j = await r.json(); } catch (_) { j = null; }
       const v = verdictOf(j, r);
-      if (job.seq === speakSeq) recordSpeechEvent('synthesis_failure', { chunk: jobs.indexOf(job), attempt: job.attempt, httpStatus: r.status, code: v.code, terminal: v.terminal, engine: v.engine, source: v.source });
+      if (!dead(job)) recordSpeechEvent('synthesis_failure', { reply: job.reply.id, chunk: job.chunk, attempt: job.attempt, httpStatus: r.status, code: v.code, terminal: v.terminal, engine: v.engine, source: v.source });
       return { kind: 'fail', reason: v.reason || v.code, verdict: v };
     }).catch(e => {
-      if (e && e.name === 'AbortError' && job.seq !== speakSeq) return { kind: 'skip' };   // intentionally cancelled — stay silent
+      if (e && e.name === 'AbortError' && dead(job)) return { kind: 'skip' };   // its reply was cancelled — stay silent
       const v = timedOut ? clientVerdict('timeout', false, 'no answer within the sentence deadline') : clientVerdict('network', false, 'network: ' + ((e && e.message) || e));
-      if (job.seq === speakSeq) recordSpeechEvent('synthesis_failure', { chunk: jobs.indexOf(job), attempt: job.attempt, code: v.code, terminal: false, engine: 'station', source: 'client' });
+      if (!dead(job)) recordSpeechEvent('synthesis_failure', { reply: job.reply.id, chunk: job.chunk, attempt: job.attempt, code: v.code, terminal: false, engine: 'station', source: 'client' });
       return { kind: 'fail', reason: v.reason, verdict: v };
     }).finally(() => clearTimeout(ceiling));
   }
@@ -1064,36 +1060,36 @@ const Voice = (() => {
     // SPEAKING: one transient blip on the second chunk used to skip every remaining chunk's round-trip, so the
     // agent stopped dead after its opening words ("it only says the first word", reported 2026-07-28). While a
     // reply is mid-flight we keep asking until THIS reply has failed MID_REPLY_GIVEUP times in a row; only then
-    // does the cold-off apply to it. A reply that has not yet attempted anything (replyTried false — i.e. its
+    // does the cold-off apply to it. A reply that has not yet attempted anything (reply.tried false — i.e. its
     // OPENING chunk) honors only the LONG cold-off (a terminal verdict: no credential, an empty wallet, a refusal).
     // A transient 4s cold-off left by the PREVIOUS reply must not pre-fail this one: that cut the next reply before
     // it began (2026-10-01 "voice completely absent since 0.10.0"). One opening request per reply is not hammering.
     // Once THIS reply has failed MID_REPLY_GIVEUP chunks in a row, the rest of it stays quiet whatever the clock
     // says: re-asking a dead provider every sentence (3 attempts each, up to 30s apiece) kept the reply 'speaking'
     // for minutes with no audio. The next reply starts fresh.
-    if ((replyTried && replyFails >= MID_REPLY_GIVEUP) || (!replyTried && terminalColdHolds())) { job.result = Promise.resolve({ kind: 'fail', reason: 'cooldown' }); return; }
-    replyTried = true;
-    const seq = job.seq;
+    const reply = job.reply;
+    if ((reply.tried && reply.fails >= MID_REPLY_GIVEUP) || (!reply.tried && terminalColdHolds())) { job.result = Promise.resolve({ kind: 'fail', reason: 'cooldown' }); return; }
+    reply.tried = true;
     // Two retries for a TRANSIENT verdict (a timeout, a dropped connection, a 5xx, a rate limit) — a single provider
     // blip must cost a beat of latency, not a whole sentence of the reply. A TERMINAL verdict (no credential, an empty
     // wallet, a refused token, a code this desk does not know) is never retried: it will not fix itself in seconds.
     // A timeout that spent the sentence's whole deadline is not retried either (the budget is per sentence).
-    // A torn-down job (barge-in bumped speakSeq) is never retried. The retries are SPACED (RETRY_GAP_MS): fired
+    // A job whose reply was cancelled is never retried. The retries are SPACED (RETRY_GAP_MS): fired
     // instantly, all three attempts of every chunk in flight landed inside the same blip, so a 300 ms 429 window
     // failed the two prefetched opening chunks and MID_REPLY_GIVEUP silenced the whole reply (sweep 2026-10-20).
     const budgetLeft = () => job.deadlineAt ? job.deadlineAt - clockNow() : Infinity;
-    const retry = gap => res => (res.kind === 'fail' && retryableVerdict(res.verdict) && seq === speakSeq
+    const retry = gap => res => (res.kind === 'fail' && retryableVerdict(res.verdict) && !dead(job)
         && !(res.verdict.code === 'timeout' && budgetLeft() < TTS_MIN_RETRY_BUDGET_MS))
-      ? (job.recovering = true, new Promise(r => setTimeout(r, Math.max(gap, res.verdict.retryAfterMs || 0))).then(() => (seq === speakSeq ? synthOnce(job) : { kind: 'skip' }))) : res;
+      ? (job.recovering = true, new Promise(r => setTimeout(r, Math.max(gap, res.verdict.retryAfterMs || 0))).then(() => (dead(job) ? { kind: 'skip' } : synthOnce(job)))) : res;
     job.result = synthOnce(job)
       .then(retry(RETRY_GAP_MS[0]))
       .then(retry(RETRY_GAP_MS[1]))
       .then(res => {
         job.recovering = false;
-        if (seq !== speakSeq) return { kind: 'skip' };
-        if (res.kind === 'neural') { noteNeuralOk(); pumpSynth(); return res; }
-        if (res.kind === 'skip') return res;   // intentional barge-in/teardown cancel — not a failure
-        replyFails++;
+        if (dead(job)) return { kind: 'skip' };
+        if (res.kind === 'neural') { reply.fails = 0; noteNeuralOk(); pumpSynth(); return res; }
+        if (res.kind === 'skip') return res;   // its reply was cancelled — not a failure
+        reply.fails++;
         // cool the neural path off briefly (noteFallback lengthens this for a terminal verdict); never latch.
         neuralColdUntil = clockNow() + NEURAL_COLD_MS; neuralColdTerminal = false; neuralColdStale = false;
         console.warn('[voice] neural TTS recovery exhausted:', res.verdict ? res.verdict.code : '', res.reason);
@@ -1106,17 +1102,19 @@ const Voice = (() => {
     // No new prefetch while a chunk of this reply waits on a spaced retry: a dead provider must still cost two
     // sentences of attempts, not a third one started before the second's exhaustion lands (the play head itself
     // still starts the chunk it reaches; a recovered chunk resumes the prefetch above).
-    for (let i = playIdx; i < synthIdx; i++) if (jobs[i] && jobs[i].recovering) return;
+    for (let i = playIdx; i < synthIdx; i++) if (jobs[i] && jobs[i].recovering && !dead(jobs[i])) return;
     const next = jobs[synthIdx];
+    // Live's first sentence runs alone until it names the engine the session is pinned to. A keyed reply keeps its prefetch
+    // (gapless playback): its second sentence may already be in flight unpinned; every sentence after the first lands is pinned
     const limit = next && next.voice.local && !next.voice.engine ? 1 : MAX_INFLIGHT;
-    while (synthIdx < jobs.length && (synthIdx - playIdx) < limit) startSynth(jobs[synthIdx++]);
+    while (synthIdx < jobs.length && (synthIdx - playIdx) < limit) { const job = jobs[synthIdx++]; if (!dead(job)) startSynth(job); }
   }
 
   const speechDiagnostics = [];
-  let replyNumber = 0;
   let interruptionMessage = '';
+  // one ring of speech events; an event names its reply by id and a chunk by its index in it, never by its words
   function recordSpeechEvent(reason, details) {
-    const event = Object.assign({ at: Date.now(), reason, reply: replyNumber, generation: speakSeq }, details || {});
+    const event = Object.assign({ at: Date.now(), reason }, details || {});
     speechDiagnostics.push(event); if (speechDiagnostics.length > 100) speechDiagnostics.shift();
     console.warn('[voice] speech event', event);
     coordinatorEvent('onSpeechEvent', event);
@@ -1138,26 +1136,25 @@ const Voice = (() => {
   }
   /* Speaker off: a note about speech is moot — and nothing else would ever put it away. Only a new SPOKEN reply
      (or a click) clears it, and a muted station opens none, so a note raised in Local Live stayed under the
-     COMMS keys for good once ending the call restored the mute (2026-10-15 report). EVERY path that turns the
-     speaker off calls this — the speaker key, /voice off, and the two restores of a mute voice mode lifted. */
+     COMMS keys for good once ending the call restored the mute (2026-10-15 report). setSpeaker calls this on EVERY
+     transition that leaves the speaker off, whichever writer made it: the key, /voice off, a session giving it back. */
   function speakerOffClearsNote() { if (interruptionMessage) showInterruption(''); }
-  function failReply(stage, job, error) {
-    if (job.seq !== speakSeq) return;
-    recordSpeechEvent(stage, { chunk: playIdx, characters: job.text.length,
+  // autoplay refused: every later sentence would fail too, so the reply is cancelled (playback_blocked) and says why
+  function failReply(job, error) {
+    if (dead(job)) return;
+    recordSpeechEvent('playback_error', { reply: job.reply.id, chunk: job.chunk, characters: job.text.length,
       code: String(error && (error.name || error.code) || 'unavailable') });
-    const cb = onReplyDone;
-    stopSpeaking(stage);
-    showInterruption('Speech interrupted — ' + (stage === 'playback_error' ? 'audio playback failed' : 'voice synthesis failed') + '. Full reply remains in chat.');
-    if (cb) cb();
+    cancel([job.reply], 'playback_blocked');
+    showInterruption('Speech interrupted — audio playback failed. Full reply remains in chat.');
   }
   /* One sentence that survived no retry is SKIPPED, never the whole reply. Stopping the reply here (0.11.1 →
-     0.12.5) bumped the reply token, so every later sentence chat.js streamed was dropped: one provider blip
-     silenced the agent for the rest of the turn — and, via the cold-off, the next turn too (2026-10-01
+     0.12.5) bumped the old global reply token, so every later sentence chat.js streamed was dropped: one provider
+     blip silenced the agent for the rest of the turn — and, via the cold-off, the next turn too (2026-10-01
      customer report "voice completely absent since 0.10.0"). The reply text is in COMMS; the notice says
      exactly what was lost, and the next sentence gets its own fresh attempt. */
   function skipChunk(stage, job, error, advance) {
-    if (job.seq !== speakSeq) return;
-    recordSpeechEvent(stage, { chunk: playIdx, characters: job.text.length, skipped: true,
+    if (dead(job)) return;
+    recordSpeechEvent(stage, { reply: job.reply.id, chunk: job.chunk, characters: job.text.length, skipped: true,
       code: String(error && (error.name || error.code) || 'unavailable') });
     showInterruption(error && error.name === 'cooldown'
       ? 'Voice unavailable for the rest of this reply — full reply remains in chat.'
@@ -1168,104 +1165,119 @@ const Voice = (() => {
   }
   function pumpPlay() {
     if (playing) return;
-    if (playIdx >= jobs.length) { if (replyClosed && synthIdx >= jobs.length) finishReply(); return; }
-    const job = jobs[playIdx];
+    while (playIdx < jobs.length && dead(jobs[playIdx])) playIdx++;   // a cancelled reply's jobs are passed over, never played
+    if (playIdx >= jobs.length) { settle(); return; }
+    const job = jobs[playIdx], reply = job.reply;
     if (!job.result) { startSynth(job); if (synthIdx <= playIdx) synthIdx = playIdx + 1; }
     playing = true;
     pumpSynth();   // keep the prefetch window full while this chunk plays
     job.result.then(res => {
-      if (job.seq !== speakSeq) return;   // torn down: resetQueue already cleared `playing` — touching it here could free a NEW reply's queue mid-play (double-play)
-      const advance = () => { playing = false; playIdx++; pumpPlay(); };
+      if (dead(job)) return;   // cancelled: the cancel already moved the play head on — touching `playing` here could free another reply's chunk mid-play (double-play)
+      // the chunk left the queue: the play head moves on, and a closed reply whose last chunk this was is DONE
+      const advance = () => { playing = false; playIdx++; registry.played(reply); finish(reply); pumpPlay(); };
       if (res.kind === 'neural') {
         const cfg = ttsConfig();
-        const rate = res.engine === 'kokoro' ? 1 : cfg.speed * (job.opts.speedMul || 1);
-        if (!replyEffect) replyEffect = effectFor(res.engine);
-        const effect = replyEffect;
+        const rate = res.engine === 'kokoro' ? 1 : cfg.speed * (reply.speedMul || 1);
+        if (!reply.effect) reply.effect = effectFor(res.engine);
+        const effect = reply.effect;
         let attempts = 0;
         const play = () => {
-          if (job.seq !== speakSeq) return;
+          if (dead(job)) return;
           attempts++;
-          playBlob(res.blob, () => { if (job.seq === speakSeq) advance(); }, job.opts.volume, error => {
-            if (job.seq !== speakSeq) return;
-            recordSpeechEvent('playback_error', { chunk: playIdx, attempt: attempts,
+          playBlob(res.blob, () => { if (!dead(job)) advance(); }, reply.volume, error => {
+            if (dead(job)) return;
+            recordSpeechEvent('playback_error', { reply: reply.id, chunk: job.chunk, attempt: attempts,
               code: String(error && (error.name || error.code) || 'media_error') });
             const blocked = !!(error && error.name === 'NotAllowedError');
             if (attempts < 2 && !blocked) play();
-            else if (job.opts.mutter) advance();
-            // Autoplay blocked = every later sentence would fail too: stop and say so. Anything else is
-            // this one clip — skip it and keep speaking (see skipChunk).
-            else if (blocked) failReply('playback_error', job, error);
+            else if (reply.aside) advance();
+            // Autoplay blocked = every later sentence would fail too: cancel the reply and say so. Anything else
+            // is this one clip — skip it and keep speaking (see skipChunk).
+            else if (blocked) failReply(job, error);
             else skipChunk('playback_error', job, error, advance);
           }, rate, cfg.deep, cfg.shell, () => {
-            if (job.seq === speakSeq && !job.opts.mutter) coordinatorEvent('onTiming', { audioStartMs: Math.max(0, Date.now() - job.queuedAt) });
+            if (!dead(job) && !reply.aside) coordinatorEvent('onTiming', { audioStartMs: Math.max(0, Date.now() - job.queuedAt) });
           }, effect);
         };
         play();
       } else if (res.kind === 'fail') {
-        if (job.opts.mutter) advance(); // optional aside must not cancel the requested reply
+        if (reply.aside) advance(); // optional aside must not cancel the requested reply
         else skipChunk('synthesis_failure', job, res.reason === 'cooldown' ? { name: 'cooldown' } : (res.verdict ? { code: res.verdict.code, verdict: res.verdict } : null), advance);
       }
       else { advance(); }
     });
   }
-  function finishReply() {
-    const wasDraining = draining;
-    resetQueue();
-    duckSfx(false);
-    if (wasDraining) { const cb = onReplyDone; onReplyDone = null; if (cb) cb(); }
+  // Closed and drained: DONE. The queue settles before the heartbeat (endReply's onDone, else the hands-free re-arm)
+  // fires — exactly once per reply — so the re-arm only ever sees what is still talking, never this reply.
+  function finish(reply) {
+    if (!registry.done(reply)) return;
+    if (idle()) settle();
+    heartbeat(reply);
+  }
+  function heartbeat(reply) {
+    if (!registry.beat(reply)) return;
+    try { (reply.onDone || onReplyEnded)(); } catch (e) { console.warn('[voice] reply heartbeat threw', e); }
+  }
+  // Cancel these replies NOW (reply_cancelled once each); their jobs are aborted and passed over, others keep their place.
+  // The teardown precedes the heartbeat, and every cancel fires it: a mute mid-reply can't wedge hands-free (2f7b280c).
+  function cancel(list, cause) {
+    const hit = list.filter(reply => registry.cancel(reply, cause));
+    for (const job of jobs) if (job.ac && dead(job)) { try { job.ac.abort(); } catch (_) {} }
+    if (playing && dead(jobs[playIdx])) { playing = false; playIdx++; stopAudio(); }   // the chunk on the speaker was theirs
+    if (idle()) { stopAudio(); settle(); } else pumpPlay();
+    for (const reply of hit) heartbeat(reply);
+    return hit;
   }
 
-  /* ---- PRODUCER API ---- */
-  // push one chunk of an in-progress reply (chat.js streams these sentence-by-sentence). The first chunk
-  // opens a reply; endReply() closes it. mutter() rides the same path as a one-shot quiet aside.
-  function speakChunk(text, voiceId, opts) {
-    if (!speakReplies) return;
-    if (voiceId) activeVoiceId = voiceId;
+  /* ---- PRODUCER API ---- a spoken reply is a handle (voice-state.js): openReply({owner, agentId}) at send — chat.js
+     opens it synchronously, so nothing between a send and its first chunk can lose it — then speakChunk(handle, text,
+     voiceId) per sentence and endReply(handle, onDone). Optional delivery: {volume, speedMul}. The record keeps this
+     reply's synthesis pins: voice, effect (chain), fails/tried (MID_REPLY_GIVEUP), chunks, onDone, aside (mutter). */
+  function open(opts) {
     opts = opts || {};
-    if (opts.replyToken != null && opts.replyToken !== speakSeq) return;
+    return Object.assign(registry.open(opts), { voice: null, effect: '', fails: 0, tried: false, chunks: 0, onDone: null, aside: false, volume: opts.volume, speedMul: opts.speedMul });
+  }
+  function openReply(opts) { return open(opts).handle; }
+  // A chunk that cannot join an OPEN reply — no handle, a cancelled reply, one already closed — is dropped with a
+  // typed event (dropped_after_cancel), never in silence and never with a throw inside the producer's stream.
+  function speakChunk(handle, text, voiceId) {
+    const reply = registry.of(handle);
+    if (reply && reply.state === 'open' && !speaker.isOn()) cancel([reply], 'speaker_off');   // a muted speaker says nothing: the reply ends, typed
+    if (!registry.offer(reply, text)) return;
+    if (voiceId) activeVoiceId = voiceId;
     const clean = speakable(text);
-    let body = opts.mutter ? clean.slice(0, 80) : clean;
+    const body = reply.aside ? clean.slice(0, 80) : clean;
     if (!body.trim()) return;
-    const opening = (jobs.length === 0);
-    // A new producer takes over the open reply (its previous owner stopped feeding it — e.g. the Commander
-    // switched sessions mid-reply); from here the NEW owner's endReply is the one that closes it.
-    if (opts.owner && opts.owner !== replyOwner) replyOwner = opts.owner;
-    if (opening) replyNumber++;
+    const opening = !reply.audible;
     if (opening && interruptionMessage) showInterruption(''); // a new reply gets a fresh outcome
-    const agentId = String(opts.agentId || currentAgentId());
-    if (!replyVoice || replyVoice.agentId !== agentId) replyVoice = speechVoice(agentId);
-    if (!opts.mutter) coordinatorEvent('onAssistant', { text: body, opening });
-    replyClosed = false; draining = true;
-    const pieces = splitForTts(body, TTS_CHUNK_MAX);
-    for (const seg of pieces) { if (seg && seg.trim()) jobs.push({ text: seg, opts, voice: replyVoice, seq: speakSeq, queuedAt: Date.now(), result: null, ac: null }); }
+    const agentId = String(reply.agentId || currentAgentId());
+    if (!reply.voice || reply.voice.agentId !== agentId) reply.voice = speechVoice(agentId);
+    if (!reply.aside) coordinatorEvent('onAssistant', { text: body, opening });
+    const pieces = splitForTts(body, TTS_CHUNK_MAX).filter(seg => seg && seg.trim());
+    registry.queue(reply, pieces.length);   // AUDIBLE from here until the reply ends
+    for (const seg of pieces) jobs.push({ text: seg, reply, chunk: reply.chunks++, voice: reply.voice, queuedAt: Date.now(), result: null, ac: null });
     pumpSynth(); pumpPlay();
   }
-  // signal end-of-reply; the heartbeat (default: re-arm the hands-free loop) fires once the LAST chunk ends.
-  function endReply(onDone, opts) {
-    const owner = opts && opts.owner;
-    if (owner && replyOwner && owner !== replyOwner) return;   // not this producer's reply to close
-    onReplyDone = onDone || onReplyEnded;
-    replyClosed = true;
-    if (!draining && jobs.length === 0) { const cb = onReplyDone; onReplyDone = null; if (cb) cb(); return; }
+  // the producer is done: the reply ends once its last queued chunk played (closing an ended reply does nothing)
+  function endReply(handle, onDone) {
+    const reply = registry.of(handle);
+    if (!registry.close(reply)) return;
+    reply.onDone = typeof onDone === 'function' ? onDone : null;
+    finish(reply);
     pumpPlay();
   }
-  // public one-shot (non-streaming callers): speak a whole finished reply.
-  // A one-shot line spoken while a STREAMED reply is still open joins that reply instead of closing it early
-  // (a Live approval prompt used to end the reply mid-stream and re-open the mic over the rest of it).
-  function speak(text, voiceId) { speakChunk(text, voiceId); if (!(replyOwner && !replyClosed)) endReply(onReplyEnded); }
+  // public one-shot: a whole line as its own reply, queued FIFO behind whatever is speaking. A streamed reply still
+  // open keeps its own heartbeat, so the line never ends it early or re-opens the mic over the rest of it.
+  function speak(text, voiceId) { if (speaker.isOn()) { const handle = openReply(); speakChunk(handle, text, voiceId); endReply(handle); } }
+  function cancelReply(handle, cause) { const reply = registry.of(handle); return !!reply && cancel([reply], cause).length > 0; }
 
-  // tear everything down NOW: invalidate in-flight work, abort fetches, cut audio.
-  // Used by barge-in, mute, voice-mode-off, and DISCONNECT — the agent must go silent immediately.
-  function stopSpeaking(reason, details) {
-    if (draining || speaking || reason === 'microphone_activity') recordSpeechEvent(reason || 'explicit_stop', details);
-    speakSeq++;
-    for (const j of jobs) { if (j.ac) { try { j.ac.abort(); } catch (_) {} } }
-    if (ttsAbort) { try { ttsAbort.abort(); } catch (_) {} ttsAbort = null; }
-    stopAudio();
-    onReplyDone = null;
-    resetQueue();
-    duckSfx(false);
-    onSpeakEnd();
+  // Cut speech NOW. 'audible' (the default) cancels every reply with speech queued or playing; 'all' also cancels the
+  // replies still thinking (a session, a call or the speaker ending). Every cancel names its cause (CANCEL_CAUSES).
+  function stopSpeaking(scope, cause, details) {
+    cause = VoiceState.isCancelCause(cause) ? cause : 'user_stop';
+    if (talking() || cause === 'microphone_activity') recordSpeechEvent(cause, details);   // the stop itself, with its measurements
+    const all = scope === 'all';
+    cancel(registry.live().filter(reply => all || reply.audible), cause);
   }
 
   // an ambient, muttered aside — station-life flavor (from world.js curiosity remarks), in the agent's
@@ -1273,12 +1285,13 @@ const Voice = (() => {
   // exchange (incl. an open hands-free loop) so it can't collide with conversation or feed the open mic;
   // re-arming on end covers "voice mode toggled on mid-mutter" so the loop never hangs.
   function mutter(text) {
-    if (!speakReplies) return;
-    if (convoMode || speaking || draining || currentAudio || listening || rearmTimer || busyNow()) return;
+    if (!speaker.isOn()) return;
+    if (convoMode || speaking || draining() || currentAudio || listening || rearmTimer || busyNow()) return;
     const t = String(text || '').trim();
     if (!t) return;
-    speakChunk(t, activeVoiceId, { volume: 0.5, speedMul: 0.88, mutter: true });
-    endReply(maybeRearm);
+    const aside = open({ volume: 0.5, speedMul: 0.88 }); aside.aside = true;
+    speakChunk(aside.handle, t, activeVoiceId);
+    endReply(aside.handle, maybeRearm);
   }
 
   // pick an in-character ambient line for the active persona (so the gremlin and the old-salt don't both
@@ -1309,26 +1322,14 @@ const Voice = (() => {
 
   // re-open the mic once the turn is genuinely done: not in a run, not still speaking, not already
   // listening. Whichever finishing event (TTS end / run end) lands last is the one that arms it.
-  // NB: a reply enqueues its chunks (draining=true) before the first <audio> starts, so chat.js's
+  // NB: a reply enqueues its chunks (draining()) before the first <audio> starts, so chat.js's
   // run-end hook can land while `speaking` is still false but audio is imminent. We must treat that
   // enqueued/in-flight state as "not done" — otherwise the mic would re-open into the agent's own
   // voice (echo) or clip the not-yet-started reply (swallow). onReplyEnded then arms it.
-  // "is the agent making (or about to make) sound?" — `draining` covers the whole streamed reply incl.
+  // "is the agent making (or about to make) sound?" — draining() covers every audible reply incl.
   // every inter-chunk fetch gap, `playing`/`currentAudio` cover the live neural <audio>. The loop waits
-  // through all of it, or the re-opened mic would capture the agent's own voice (echo). (No synth queue
-  // to consider — neural is the only voice path now.)
-  function talking() { return draining || playing || !!currentAudio; }
-  /* MUTING MID-REPLY MUST NOT WEDGE HANDS-FREE. The rearm heartbeat has exactly two triggers: chat.js's
-     onTurnEnd(), which lands FIRST while audio is still draining and then correctly bails (the mic must
-     never open into the agent's own voice), and the queue's onReplyDone. stopSpeaking() nulls onReplyDone,
-     so muting the speaker while the agent was still speaking discarded the ONE surviving trigger — the mic
-     never re-opened and the mode button went on reading 'hands-free ON' over a dead conversation. Every
-     other stopSpeaking() caller covers itself (onMicClick re-arms after 150ms, stopConvo/init leave the
-     mode entirely); the two mute paths were the leak, so they share this one. */
-  function muteStopSpeaking() {
-    stopSpeaking();
-    if (convoMode) maybeRearm();
-  }
+  // through all of it, or the re-opened mic would capture the agent's own voice (echo).
+  function talking() { return draining() || playing || !!currentAudio; }
   function maybeRearm() {
     if (!convoMode || !canListen() || rearmTimer) return;
     if ((busyNow() && !coordinator) || coordinatorPaused || listening || talking()) return;
@@ -1340,7 +1341,7 @@ const Voice = (() => {
   }
 
   // turn hands-free on/off. ON jumps straight into listening; agents must be audible to converse,
-  // so it also flips the speaker on. OFF tears the loop down.
+  // so it also borrows the speaker for the loop. OFF tears the loop down.
   function toggleVoiceMode() {
     if (!canListen()) return;
     clearResumeCue();
@@ -1349,7 +1350,7 @@ const Voice = (() => {
     if (typeof SFX !== 'undefined') SFX.open();
     if (convoMode) {
       savePref(LS_CONVO, true);   // remember the hands-free intent so a refresh can offer one-tap resume
-      if (!speakReplies) { speakReplies = true; savePref(LS_SPEAK, true); forcedSpeak = true; reflectToggle(); }  // you have to hear it (restored on exit)
+      setSpeaker({ lease: 'handsfree' });   // you have to hear it: held on until the loop ends (endSession), never saved
       emptyStreak = 0; micErrStreak = 0;
       reflectMode();
       if ((!busyNow() || coordinator) && !listening && !speaking) startListening();
@@ -1360,23 +1361,26 @@ const Voice = (() => {
     }
   }
 
-  // fully stop the loop (toggle off, DISCONNECT, teardown).
-  function stopConvo() {
+  /* ONE teardown for hands-free exit, refused classic mic, DISCONNECT, /voice off, init and Live start/failure/end.
+     Revoke pending starts and abort the take without sending buffered words as a new run. Speech ends with this
+     cause ('all' by default; 'audible' preserves a thinking reply). Release handsfree plus the named lease, returning
+     to the Commander's speaker choice; releasing live also detaches that call's hooks and restores classic STT. */
+  function endSession(cause, opts) {
+    opts = opts || {};
     const was = convoMode;
     convoMode = false;
+    pendingListen = null;   // capability waits and delayed barge-in clicks belong to this session too
     clearTimeout(rearmTimer); rearmTimer = null;
-    // tear down WITHOUT sending a half-spoken utterance: abort() suppresses the final result, and the
-    // discarding flag drops it even if a final already arrived (else turning off mid-sentence, or a
-    // DISCONNECT, would fire the buffered words at the agent as a brand-new run).
     if (listening) { discarding = true; sttProvider.abort(); }
-    stopSpeaking();
-    // restore the speaker mute that voice-mode-on force-flipped — don't let a transient mode permanently
-    // clobber a deliberate preference (only if the user didn't manually re-touch the speaker meanwhile).
-    if (forcedSpeak) { forcedSpeak = false; speakReplies = false; savePref(LS_SPEAK, false); speakerOffClearsNote(); reflectToggle(); }
+    stopSpeaking(opts.scope || 'all', cause);
+    setSpeaker({ release: 'handsfree' });
+    if (opts.lease) setSpeaker({ release: opts.lease });
     reflectMode();
     if (was && !busyNow()) setStatus('online');
     if (was) coordinatorEvent('onState', 'ended');
+    if (opts.lease === 'live') { detachCoordinator(); sttProvider = classicSttProvider; setLocalTts(false); }
   }
+  function stopConvo() { endSession('handsfree_off'); }   // hands-free off
 
   // a silent listen in voice mode: try again a few times, then go passive so the mic isn't hot forever.
   function handleEmptyListen() {
@@ -1706,7 +1710,7 @@ const Voice = (() => {
         // A prompt answered AFTER the timeout still opens the microphone, and nothing would ever stop that stream:
         // the mic stayed live (the OS recording light on) until a reload. Release a late grant the moment it lands.
         if (asked) asked.then(late => { try { late.getTracks().forEach(t => t.stop()); } catch (_) {} }, () => {});
-        if (take !== previewSeq) return;   // a newer take owns the callbacks now
+        if (take !== previewSeq || aborted || delivered) return;   // a stopped or newer take owns the callbacks now
         // NotAllowedError / SecurityError → the user (or policy) denied the mic. Map to the SR error string
         // so startListening()'s existing not-allowed branch (drop hands-free + clear copy) fires unchanged.
         const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
@@ -1721,11 +1725,13 @@ const Voice = (() => {
       stream = granted;
       try {
         mime = pickMime();
-        mr = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
-        mime = mr.mimeType || mime;
-        mr.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
-        mr.onstop = () => { teardownAudio(); finish(); };
-        mr.onerror = () => { teardownAudio(); if (!delivered) { cb && cb.onError && cb.onError('rec-error'); } };
+        const recorder = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+        mr = recorder;
+        const owns = () => take === previewSeq && mr === recorder;
+        mime = recorder.mimeType || mime;
+        recorder.ondataavailable = e => { if (owns() && e.data && e.data.size) chunks.push(e.data); };
+        recorder.onstop = () => { if (owns()) { teardownAudio(); finish(); } };
+        recorder.onerror = () => { if (owns()) { teardownAudio(); if (!delivered) { cb && cb.onError && cb.onError('rec-error'); } } };
         // WebAudio level meter for silence auto-stop (guarded — if it fails we still record, just no VAD).
         try {
           const AC = window.AudioContext || window.webkitAudioContext;
@@ -1736,6 +1742,7 @@ const Voice = (() => {
             pcmProcessor = ac.createScriptProcessor(2048, 1, 1);
             pcmSink = ac.createGain(); pcmSink.gain.value = 0;
             pcmProcessor.onaudioprocess = e => {
+              if (!owns()) return;
               const samples = e && e.inputBuffer && e.inputBuffer.getChannelData(0);
               if (samples && samples.length) {
                 pcmFrames.push(new Float32Array(samples));
@@ -1754,8 +1761,8 @@ const Voice = (() => {
             }
           }
         } catch (_) { ac = null; }
-        mr.start();
-        hardCapTimer = setTimeout(() => { stop(); }, REC.HARD_CAP_MS);   // absolute ceiling
+        recorder.start();
+        hardCapTimer = setTimeout(() => { if (owns()) stop(); }, REC.HARD_CAP_MS);   // this take's absolute ceiling
       } catch (e) {
         teardownAudio();
         cb && cb.onError && cb.onError('rec-failed');
@@ -1825,7 +1832,7 @@ const Voice = (() => {
   let coordinatorPaused = false;
   let classicProviderReady = !!(forceRecorder || forceWebSpeech);
   let classicProviderProbe = null;
-  let startAfterProbe = false;
+  let pendingListen = null;
   function applyClassicSttStatus(status) {
     const preferred = String((status && status.preferred) || '');
     classicPreviewMode = status && status.local ? 'local' : status && status.native ? 'native' : '';
@@ -1842,10 +1849,11 @@ const Voice = (() => {
   function probeClassicStt() {
     if (forceRecorder || forceWebSpeech || typeof fetch === 'undefined') { classicProviderReady = true; return Promise.resolve(); }
     classicProviderReady = false;
-    classicProviderProbe = fetch('/api/stt/status', { method: 'GET' })
+    const probe = fetch('/api/stt/status', { method: 'GET' })
       .then(r => r.ok ? r.json() : null)
-      .then(applyClassicSttStatus)
-      .catch(() => { classicProviderReady = true; });
+      .then(status => { if (classicProviderProbe === probe) applyClassicSttStatus(status); })
+      .catch(() => { if (classicProviderProbe === probe) classicProviderReady = true; });
+    classicProviderProbe = probe;
     return classicProviderProbe;
   }
   /* the 'no key' latch: /api/stt fail-opens with {text:'', reason:'no key'} when the sidecar has NO
@@ -1863,16 +1871,29 @@ const Voice = (() => {
 
   function busyNow() { return typeof Chat !== 'undefined' && Chat.isBusy && Chat.isBusy(); }
 
+  /* A Live call's mic loop stops on an error ONE way (a refused microphone, or MAX_MIC_ERRORS failures in a row): it
+     PAUSES. Never stopConvo(), which cancels every reply, the answer the Commander is waiting for included. The reason
+     is the tick's last status write (setDiagStatus) and reaches the Live panel's PAUSED state, error row and RESUME
+     (onFatal). A resume, a new call or the call's end lifts the pause and the reason it parked (unpauseMicLoop). */
+  function pauseMicLoop(code, why) {
+    listening = false; setMicState(false);
+    clearTimeout(rearmTimer); rearmTimer = null;
+    coordinatorPaused = true; setDiagStatus(why);
+    coordinatorEvent('onFatal', { code: String(code || ''), message: why });
+  }
+  function unpauseMicLoop() { coordinatorPaused = false; pendingDiag = ''; }
+
   function startListening() {
     if (coordinatorPaused) return;
     // init probes the sidecar in the background. If the first click wins that race, preserve the click and
     // begin as soon as the truthful provider snapshot arrives instead of guessing from WebView browser APIs.
     if (!coordinator && !classicProviderReady && classicProviderProbe) {
-      if (!startAfterProbe) {
-        startAfterProbe = true;
+      if (!pendingListen) {
+        const intent = { probe: true };
+        pendingListen = intent;
         classicProviderProbe.finally(() => {
-          if (!startAfterProbe) return;
-          startAfterProbe = false; startListening();
+          if (pendingListen !== intent) return;
+          pendingListen = null; startListening();
         });
       }
       return;
@@ -1880,11 +1901,12 @@ const Voice = (() => {
     if (!canListen() || listening) return;
     if (!coordinator) sttProvider = classicSttProvider;
     if (busyNow() && !coordinator) { setStatus('busy — wait for the reply'); return; }  // classic mode stays half-duplex
-    clearTimeout(rearmTimer); rearmTimer = null;
-    // Don't let the agent's voice bleed into the mic — but only cut speech that EXISTS. An unconditional stop
-    // bumped the reply token on every Live re-arm (coordinator mode re-opens the mic while the run thinks),
-    // so the reply chat.js was about to stream was dropped whole: Live Voice never spoke (since 0.11.0).
-    if (talking()) stopSpeaking();
+    // Don't let the agent's voice bleed into the mic — but only cut speech that EXISTS: the audible scope leaves a
+    // reply still thinking alone. An unconditional stop on every Live re-arm (coordinator mode re-opens the mic
+    // while the run thinks) dropped the coming reply whole: Live Voice never spoke (since 0.11.0).
+    if (talking()) stopSpeaking('audible', 'listen_start');
+    clearTimeout(rearmTimer); rearmTimer = null;   // after the cut: its heartbeat must not schedule a second listen
+    pendingListen = null;   // this actual take supersedes any earlier delayed click
     listening = true; sentThisListen = false; discarding = false; takeErr = false; setMicState(true);
     dictShown = '';   // fresh listen: dictation has written nothing yet — a typed draft in the box stays untouchable
     savedStatus = currentStatusText();
@@ -1903,31 +1925,22 @@ const Voice = (() => {
       onFinal: text => { submitTranscript(text); },
       onError: msg => {
         coordinatorEvent('onError', String(msg || 'speech recognition failed'));
-        // a DENIED mic is a hard stop, not a recoverable hiccup: don't silently retry/re-arm into a mic
-        // that can never open — drop hands-free and tell the user the real problem + how to fix it.
+        // a DENIED mic is a hard stop, never a hiccup to re-arm into: a Live call pauses its loop, the classic loop
+        // ends (a reply still thinking still speaks), and both say how to fix it
         if (msg === 'not-allowed' || msg === 'service-not-allowed') {
+          if (coordinator) return pauseMicLoop(msg, microphoneHelp());
           listening = false; setMicState(false);
-          clearTimeout(rearmTimer); rearmTimer = null;
-          stopConvo();
+          endSession('mic_denied', { scope: 'audible' });
           setStatus(microphoneHelp());
           return;
         }
         const hard = msg !== 'no-speech' && msg !== 'aborted';
         if (hard) takeErr = true;
-        // A recognizer that fails every time must not be re-armed forever: Live dictation re-spawned a
-        // failing engine every ~150ms while the panel kept saying "listening". PAUSE the Live mic and say why —
-        // never stopConvo(): its stopSpeaking() would stale the reply token of the answer the Commander is
-        // waiting for (the run is usually still thinking when the third error lands). Classic hands-free keeps
-        // its own passive give-up (handleEmptyListen), which never looped.
+        // the third hard error in a row pauses a Live loop (dictation re-spawned a failing engine every ~150ms under
+        // "listening"); classic hands-free keeps its own passive give-up (handleEmptyListen), which never looped
         if (hard && coordinator && convoMode && ++micErrStreak >= MAX_MIC_ERRORS) {
           micErrStreak = 0;
-          const why = 'Voice input paused — ' + micErrorText(msg) + '. Resume the mic to try again.';
-          listening = false; setMicState(false);
-          clearTimeout(rearmTimer); rearmTimer = null;
-          coordinatorPaused = true;
-          setStatus(why);
-          coordinatorEvent('onFatal', { code: String(msg || ''), message: why });
-          return;
+          return pauseMicLoop(msg, 'Voice input paused — ' + micErrorText(msg) + '. Resume the mic to try again.');
         }
         endListening();
         // a failed mic OPEN (timeout on a dismissed prompt, getUserMedia error, recorder start failure) is
@@ -1999,10 +2012,19 @@ const Voice = (() => {
     clearResumeCue();
     // A second click while the capability probe is still resolving cancels the queued take. Without this,
     // two quick clicks could open the microphone late, after the Commander believed they had stopped it.
-    if (!coordinator && startAfterProbe && !listening) { startAfterProbe = false; setStatus('online'); return; }
+    if (!coordinator && pendingListen && pendingListen.probe && !listening) { pendingListen = null; setStatus('online'); return; }
     // barge-in: interrupt whenever the agent is making OR about to make sound (talking() also covers the
-    // neural-fetch gap, where `speaking` is still false but a reply is imminent) — stopSpeaking aborts it.
-    if (talking()) { stopSpeaking('microphone_button'); setTimeout(() => { if (!busyNow() && !listening) startListening(); }, 150); return; }
+    // neural-fetch gap, where `speaking` is still false but a reply is imminent) — the audible scope cancels it.
+    if (talking()) {
+      stopSpeaking('audible', 'microphone_button');
+      const intent = {}; pendingListen = intent;
+      setTimeout(() => {
+        if (pendingListen !== intent) return;
+        pendingListen = null;
+        if (!busyNow() && !listening) startListening();
+      }, 150);
+      return;
+    }
     if (convoMode) { if (!listening && !busyNow()) startListening(); return; }
     if (listening) stopListening(); else startListening();
   }
@@ -2015,7 +2037,7 @@ const Voice = (() => {
   // OAuth/local live mode keeps authentication on the existing Chat/Codex path and deliberately selects
   // browser speech recognition for input, so the voice layer itself needs no transcription API credential.
   function startCoordinator(hooks) {
-    micErrStreak = 0; coordinatorPaused = false;
+    micErrStreak = 0; unpauseMicLoop();
     if (!SR && typeof fetch === 'undefined') return false;
     coordinator = hooks || {};
     sttProvider = SR ? webSpeechProvider : nativeSpeechProvider;
@@ -2023,19 +2045,14 @@ const Voice = (() => {
     else if (!listening && !talking()) startListening();
     return true;
   }
-  function stopCoordinator() {
-    coordinatorPaused = false;
-    if (convoMode) stopConvo();
-    coordinator = null;
-    sttProvider = classicSttProvider;
-  }
+  function stopCoordinator() { endSession('call_end', { lease: 'live' }); }   // the call's loop, its hooks and its hold end
   function pauseCoordinator() {
     coordinatorPaused = true;
     clearTimeout(rearmTimer); rearmTimer = null;
     if (listening) { discarding = true; sttProvider.abort(); listening = false; setMicState(false); }
   }
   function resumeCoordinator() {
-    coordinatorPaused = false;
+    unpauseMicLoop();
     if (coordinator && convoMode && !listening) startListening();
   }
   // The downloaded local speech surface owns its persistent microphone/VAD loop, but still needs the mature
@@ -2044,7 +2061,7 @@ const Voice = (() => {
   function detachCoordinator() {
     // End the meter while its listener still exists so the panel receives the final zero sample.
     stopOutputMeter();
-    coordinator = null;
+    coordinator = null; unpauseMicLoop();   // a pause belongs to the call that set it: the COMMS mic is never left dead
   }
 
   /* ======================================================================
@@ -2070,22 +2087,23 @@ const Voice = (() => {
     // a spoken reply streams as several chunks — don't flip back to 'online' between them (draining),
     // and don't clobber a still-running task's 'working…' status.
     if (on) { if (!busyNow()) setStatus('speaking…'); }
-    else if (!listening && !busyNow() && !draining) setStatus('online');
+    else if (!listening && !busyNow() && !draining()) setStatus('online');
   }
   function reflectToggle() {
     if (!toggleBtn) return;
-    toggleBtn.classList.toggle('off', !speakReplies);
-    toggleBtn.innerHTML = speakReplies ? ICON.spkOn : ICON.spkOff;
+    const on = speaker.isOn();
+    toggleBtn.classList.toggle('off', !on);
+    toggleBtn.innerHTML = on ? ICON.spkOn : ICON.spkOff;
     /* The pinned degrade reason OUTRANKS the plain on/off copy. This tooltip is the only sanctioned channel
        for voice-outage telemetry (#chat-status is run-state only), so overwriting it unconditionally left the
        station silent while asserting 'agent voice: ON' with no way to find out why — the exact 2026-07-07
        escape the fbMsg machinery exists to prevent. Every path that legitimately clears the reason calls
        clearNeuralCold()/noteNeuralOk() first, which empty fbMsg; init() did not, and it runs on agent focus,
        persona change and dossier apply. Guarding here covers every caller instead of one. */
-    toggleBtn.title = (interruptionMessage ? interruptionMessage + ' ' : '') + ((speakReplies && fbMsg) ? fbMsg
-      : (speakReplies ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute'));
-    toggleBtn.setAttribute('aria-pressed', speakReplies ? 'true' : 'false');
-    toggleBtn.setAttribute('aria-label', speakReplies ? 'Agent voice: on, click to mute' : 'Agent voice: off, click to unmute');
+    toggleBtn.title = (interruptionMessage ? interruptionMessage + ' ' : '') + ((on && fbMsg) ? fbMsg
+      : (on ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute'));
+    toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-label', on ? 'Agent voice: on, click to mute' : 'Agent voice: off, click to unmute');
   }
   function reflectMode() {
     if (!modeBtn) return;
@@ -2114,28 +2132,25 @@ const Voice = (() => {
     if (modeBtn) modeBtn.classList.remove('resume');
     reflectMode();   // restore the normal title/aria for the current mode
   }
-  function toggleSpeakReplies() {
-    speakReplies = !speakReplies; savePref(LS_SPEAK, speakReplies);
-    forcedSpeak = false;   // a manual speaker change is the user's own choice — keep it (don't restore on voice-mode exit)
-    clearNeuralCold();     // ANY toggle re-probes the neural path fresh — no cold-off survives a deliberate flip
-    if (!speakReplies) { muteStopSpeaking(); speakerOffClearsNote(); }
-    else prewarmVoice();   // turning ON → quietly warm the stock lines so mutters/samples play instantly
+  /* THE SPEAKER's ONE transition (voice-state.js speaker: the Commander's saved choice plus the sessions holding it on,
+     never saved). Every writer goes through it and every change runs ONE fixed list, in order: a deliberate choice or a
+     flip re-probes the neural path fresh (no cold-off or degrade reason survives it); going off silences every reply,
+     thinking ones too; off always puts the speech note away; only the Commander turning it on warms the stock lines;
+     and the key always redraws, so its tooltip can never claim ON over a muted speaker. */
+  function setSpeaker(next) {
+    const s = speaker.apply(next);
+    if (s.explicit || s.changed) clearNeuralCold();
+    if (!s.on) { if (s.was) stopSpeaking('all', 'speaker_off'); speakerOffClearsNote(); }
+    else if (s.explicit && !s.was) prewarmVoice();   // quietly warm the stock lines so mutters/samples play instantly
     reflectToggle();
+    return s.on;
+  }
+  function toggleSpeakReplies() {
+    setSpeaker({ pref: !speaker.isOn() });   // the key flips what it shows: the Commander's choice, which ends any session's hold
     // the COMMS speaker key sounds like every other COMMS key (and the bottom docks): press(), not the Click_02 tick
     if (typeof SFX !== 'undefined') (SFX.press || SFX.click)();
   }
-  function setSpeakReplies(on) {
-    const want = on !== false;
-    clearNeuralCold();     // ANY toggle re-probes the neural path fresh — no cold-off survives a deliberate flip
-    // already off still clears: `/voice off` runs stopConvo first, which may have restored the mute already
-    if (speakReplies === want) { if (!want) speakerOffClearsNote(); reflectToggle(); return speakReplies; }
-    speakReplies = want; savePref(LS_SPEAK, speakReplies);
-    forcedSpeak = false;
-    if (!speakReplies) { muteStopSpeaking(); speakerOffClearsNote(); }
-    else prewarmVoice();
-    reflectToggle();
-    return speakReplies;
-  }
+  function setSpeakReplies(on) { return setSpeaker({ pref: on !== false }); }   // /voice on|off: the Commander's choice too
 
   // init is called from app.js right after Chat.init — agentName seeds this agent's voice.
   function init(opts) {
@@ -2143,10 +2158,9 @@ const Voice = (() => {
     activeVoiceId = opts.name || 'agent';
     if (typeof opts.now === 'function') clock = opts.now;   // an injected clock for every cold-off and sentence deadline
     if (opts.personaId) activePersonaId = opts.personaId;
-    convoMode = false;   // a fresh game session starts in push-to-talk; the toggle opts into hands-free
-    clearTimeout(rearmTimer); rearmTimer = null; emptyStreak = 0;
-    stopSpeaking();      // C4: cut any in-flight speech left by a PRIOR agent before this one takes the mic
-    forcedSpeak = false; // C3: clear the "we force-enabled the speaker, restore on exit" bookkeeping so it never carries across agents
+    // a fresh game session starts in push-to-talk (the toggle opts into hands-free). C4: any reply a PRIOR agent left is
+    // cut before this one takes the mic; C3: hands-free's hold on the speaker ends with it, so it never carries across agents
+    endSession('session_init'); emptyStreak = 0;
     inputEl = el('chat-input'); statusEl = el('chat-status');
     micBtn = el('chat-mic'); toggleBtn = el('voice-toggle'); modeBtn = el('voice-mode');
 
@@ -2180,55 +2194,43 @@ const Voice = (() => {
     // if the speaker is already on for this agent AND the harness is configured, warm the stock lines now
     // (background, fire-and-forget) so the very first mutter/sample plays from cache. No key → no-op.
     prewarmedFor = null;   // new agent/persona → allow a fresh warm
-    if (speakReplies) prewarmVoice();
+    if (speaker.isOn()) prewarmVoice();
   }
 
   // let other code (or a future hotkey) retarget the active voice when the workstream's agent changes.
   function setAgent(name) { if (name) activeVoiceId = name; }
   // A personality change on the FOCUSED agent re-keys the words, never the session: init() tore down the reply,
-  // dropped hands-free and the forced-speaker bookkeeping, so editing a persona mid-call killed the call.
+  // dropped hands-free and its hold on the speaker, so editing a persona mid-call killed the call.
   function setPersona(personaId, name) {
     if (name) activeVoiceId = name;
     if (personaId && personaId !== activePersonaId) {
       activePersonaId = personaId; prewarmedFor = null;
-      if (speakReplies) prewarmVoice();   // init() warmed the new persona's stock lines; keep that
+      if (speaker.isOn()) prewarmVoice();   // init() warmed the new persona's stock lines; keep that
     }
   }
 
   // is the agent going to SPEAK this reply? true when the speaker toggle is on and this environment can
   // play neural audio (Audio + fetch) — NOT gated on speechSynthesis anymore. chat.js uses this to decide
   // whether a conversational turn is "voice mode" (short/casual spoken reply) vs "type mode" (written).
-  function isOn() { return !!(speakReplies && canSpeak()); }
+  function isOn() { return !!(speaker.isOn() && canSpeak()); }
 
   return {
     recordSpeechEvent, speechDiagnostics: () => speechDiagnostics.map(event => Object.assign({}, event)),
-    replyToken: () => speakSeq, isReplyPending: () => draining,
+    isReplyPending: () => draining(),
+    openReply, cancelReply, replies: () => registry.live().map(reply => reply.handle),
     init, speak, speakChunk, endReply, mutter, ambientLine, setAgent, setPersona, isOn, setSpeakReplies,
     startListening, stopListening, toggleListen, stopSpeaking,
-    toggleVoiceMode, stopConvo, onTurnEnd,
+    toggleVoiceMode, stopConvo, endSession, onTurnEnd,
     canListen, canSpeak, startCoordinator, stopCoordinator, pauseCoordinator, resumeCoordinator, attachCoordinator, detachCoordinator,
     canOAuthLive: () => !!SR || typeof fetch !== 'undefined', personaId: () => activePersonaId,
     setLocalTts, voiceChoice, localVoiceId, setVoiceChoice, voiceLabel, rememberVoiceLabels, currentAgentId, microphoneHelp,
     voiceEffect, setVoiceEffect, playbackChain: () => lastChain,
-    /* LIVE VOICE MUST ARRIVE AUDIBLE. Opening a hands-free session with the speaker muted is a room where you
-       talk and nothing answers — the Commander then has to find a toggle to make the feature work at all.
-       Classic voice mode already force-enables the speaker in toggleVoiceMode(); the Local Live panel does not
-       route through that, so it needs the same lever. Reuses the SAME `forcedSpeak` bookkeeping, so a speaker
-       WE switched on is restored on exit while one the Commander chose themselves is left alone. */
-    forceSpeakOn: () => {
-      if (speakReplies) return false;          // already audible — nothing to restore later
-      speakReplies = true; savePref(LS_SPEAK, true); forcedSpeak = true; reflectToggle();
-      return true;
-    },
-    restoreSpeak: () => {
-      if (!forcedSpeak) return false;          // the Commander's own choice — never undo it
-      // a muted speaker is SILENT: stop what is playing or queued first, as every other speaker-off path does. A failed
-      // Local Live start (mic permission denied) restores the mute with no stop of its own, and the reply already speaking
-      // went on with the speaker key OFF (delta review 10-15).
-      muteStopSpeaking();
-      forcedSpeak = false; speakReplies = false; savePref(LS_SPEAK, false); speakerOffClearsNote(); reflectToggle();
-      return true;
-    },
+    /* LIVE VOICE MUST ARRIVE AUDIBLE. Opening a hands-free session with the speaker muted is a room where you talk and
+       nothing answers. Hands-free leases the speaker in toggleVoiceMode(); Local Live leases it for its call. A lease is
+       its owner's alone and never saved: giving it back returns the speaker to the Commander's own choice (one made
+       mid-call ends every lease and is kept), and a page that dies mid-call reloads to that choice, never a forced ON. */
+    leaseSpeaker: owner => setSpeaker({ lease: owner }), releaseSpeaker: owner => setSpeaker({ release: owner }),
+    speakerState: () => speaker.state(),
     // Which transcription engine is ACTUALLY selected right now ('recorder' | 'web' | 'native'). A UI that
     // names the engine has to read it rather than re-derive the selection rule, or the label drifts from
     // the truth the moment the ladder changes.

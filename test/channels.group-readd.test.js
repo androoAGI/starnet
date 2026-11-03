@@ -49,7 +49,8 @@ const inbound = (userId, text, extra) => Object.assign({ channel: 'telegram', ch
     t.store.saveChatRecord('-1001', { admittedOn: 'telegram', requireMention: true });
     t.hub.onMembership({ channel: 'telegram', chatId: '-1001', chatType: 'group', status: 'kicked', byUserId: '77' });
     A.eq(t.store.getChatRecord('-1001').admittedOn, '', 'kicked: the admission is withdrawn');
-    A.eq(t.store.getChatRecord('-1001').unreachable, true, 'and the chat is marked unreachable as before');
+    A.ok(!!t.hub._internals.ledger.chat('telegram|-1001').dead, 'and the chat is marked dead, in the delivery ledger (channel-delivery-ledger S2)');
+    A.eq(t.store.getChatRecord('-1001').unreachable, undefined, 'the shared chat record\'s old unreachable flag is no longer written');
     A.eq(t.store.getChatRecord('-1001').requireMention, true, 'its other settings are kept');
     A.eq(t.hub.chatAdmitted('-1001'), false, 'the adapter\'s per-message read now says closed');
 
@@ -65,7 +66,7 @@ const inbound = (userId, text, extra) => Object.assign({ channel: 'telegram', ch
     A.eq(t.store.getChatRecord('-4004').admittedOn, 'discord', 'another channel\'s admission is untouched');
     // a DM block never had an admission to withdraw
     t.hub.onMembership({ channel: 'telegram', chatId: 'c5', chatType: 'dm', status: 'kicked' });
-    A.ok(!Object.prototype.hasOwnProperty.call(t.store.getChatRecord('c5'), 'admittedOn'), 'a blocked DM writes no admission field');
+    A.ok(!Object.prototype.hasOwnProperty.call(t.store.getChatRecord('c5') || {}, 'admittedOn'), 'a blocked DM writes no admission field');
 
     // the whole path: the adapter's allow-list reads the hub, so after a re-add the room is closed to members
     const { ad } = mkAdapter({ allowedChats: (id) => t.hub.chatAdmitted(id) });

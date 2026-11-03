@@ -17,7 +17,7 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
 
   /* station.read_session as the OVERSEER answers it (org P29-sys review): the interactive lead's session.peek reaches
      overseerStation, never the page handler, so a goal-loop step (a user-role turn the Commander never typed) must read as
-     the station's 'Goal step: <goal>' HERE too, from transcript rows and from the saved-history fallback alike. */
+     the station's 'Goal step: <goal>' HERE too. The helper's explicit legacy fallback retains its labels separately. */
   {
     const { readSessionTurns } = require('../sidecar/overseer.js');
     const GL = require('../frontend/app/goalloop.js');
@@ -50,8 +50,8 @@ const { makeSubagentManager } = require('../sidecar/subagents.js');
     const idx = readSidecarSource();
     const at = idx.indexOf("if (verb === 'station.read_session') {");
     const block = at >= 0 ? idx.slice(at, idx.indexOf('return stationBridge.request(verb, args);', at)) : '';
-    assert.ok(/readSessionTurns\(\s*transcriptStore\.history\(w\.id, \{[^}]*\}\), w\.history\)/.test(block) && !/speaker: m\.role/.test(block),
-      'overseerStation answers read_session through readSessionTurns (no raw speaker: m.role mapping left)');
+    assert.ok(/transcriptStore\.view\('recall', w\.id,/.test(block) && /readSessionTurns\(rows\)/.test(block) && !/w\.history|speaker: m\.role/.test(block),
+      'overseerStation formats the canonical recall projection without a saved-history fallback');
   }
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-overseer-'));
   let serial = 0;

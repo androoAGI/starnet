@@ -181,12 +181,13 @@ A.eq(LW.fmtDur(61000), '1m', 'minute durations');
 {
   const fs = require('fs'), path = require('path');
   const src = readSidecarSource();
-  const core = src.slice(src.indexOf('async function runOnceCore(o) {'));
+  const core = A.fnBody(src, 'async function runOnceCore(o)');
   A.ok(/if \(o\.dockId\) runStartExtra\.dockId = String\(o\.dockId\);/.test(core) && /if \(o\.workitemId\) runStartExtra\.workitemId = String\(o\.workitemId\);/.test(core), 'runOnceCore carries the run\'s bay + crate');
-  const starts = (core.slice(0, core.indexOf('\n}\n')).match(/emit\('agent\.run\.start', \{[^}]*\}\)/g) || []);
-  A.ok(starts.length > 5 && starts.every(e => /\.\.\.runStartExtra/.test(e)), 'every run.start runOnceCore emits names them (' + starts.length + ')');
-  const hub = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'channels', 'hub.js'), 'utf8');
-  A.ok(/dockId: h\.dockId \|\| undefined, workitemId: h\.workitemId \|\| undefined/.test(hub), 'a hub line hop passes its crate id to the run');
+  A.ok(/RunTable\.refuseRun\(emit, \{[^\n]*extra: runStartExtra/.test(core)
+    && /if \(name === 'agent\.run\.start'[^\n]*payload\.runId === runId[^\n]*payload = Object\.assign\(\{\}, payload, runStartExtra\);/.test(core)
+    && !/\bemit\('agent\.run\.start'/.test(core), 'refusals and the shared live sink both carry the own-run start fields; no direct start bypasses them');
+  const runner = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'routing', 'line-runner.js'), 'utf8');
+  A.ok(/dockId: h\.dockId \|\| undefined, workitemId: h\.workitemId \|\| crateId \|\| undefined/.test(runner), 'the shared hop executor passes its bay and crate id to the run');
   const ev = require('../shared/events.js');
   const v = ev.validate ? ev.validate('agent.run.start', { agentId: 'a', runId: 'r', trigger: 'event', model: 'm', dockId: 'p1', workitemId: 'w1' }) : { ok: true };
   A.ok(v === true || (v && (v.ok === true || v.valid === true)) || (Array.isArray(v) && !v.length), 'the frozen agent.run.start contract accepts the additive fields: ' + JSON.stringify(v));

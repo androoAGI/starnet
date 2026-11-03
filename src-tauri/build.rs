@@ -1,4 +1,13 @@
-use std::{env, path::Path, process::Command};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
+
+// The app's own install-manifest module: this script uses its generating half (the app checks, the rules crate tests).
+#[allow(dead_code)]
+#[path = "src/install_manifest.rs"]
+mod install_manifest;
 
 // Cargo only re-runs a build script when one of its declared inputs changes. Git's HEAD/index
 // cover commits and staged edits, but not an unstaged edit to a file that Tauri embeds. Keep this
@@ -32,8 +41,9 @@ const SHIPPED_INPUTS: &[&str] = &[
 // git describe --dirty intentionally ignores untracked files. These are the repository-relative
 // roots whose Git-owned contents are packaged; include untracked additions when deciding whether
 // the source identity is dirty. Gitignored generated inputs (notably binaries/) remain governed by
-// the artifact hash rather than making every normal release build dirty.
-const SHIPPED_GIT_ROOTS: &[&str] = &["frontend", "sidecar", "shared", "src-tauri"];
+// the artifact hash rather than making every normal release build dirty. Every `../<tree>` resource of
+// tauri.conf.json is one of these (release-train-provenance.test.js reads the map).
+const SHIPPED_GIT_ROOTS: &[&str] = &["frontend", "sidecar", "shared", "bin", "src-tauri"];
 
 /// P1.5 (UPDATE_STATE_SAFETY_AUDIT): embed the git commit + dirty state at COMPILE TIME so every binary can say
 /// exactly which source it was built from. `git describe --always --dirty` yields e.g. `c160d905` (clean) or
@@ -149,8 +159,28 @@ fn build_provenance_kind(dirty: bool, commit: &str, source_tree: &str) -> &'stat
     }
 }
 
+/// OUT_DIR/install-manifest.json, which main.rs embeds: every code file of every bundle.resources tree, with its size
+/// and sha256 (install_manifest.rs). Runs inside `cargo build`, so inside `tauri build` it sees the trees after every
+/// staging, pruning and signing step, as the bundler is about to copy them. Always written, because the embed needs it:
+/// an absent tree (cargo check, a dev build) or an unreadable tauri.conf.json gives an incomplete manifest, which the
+/// app reads as "not checked" and the release train refuses.
+fn write_install_manifest() {
+    let base = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
+    let out = PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR")).join("install-manifest.json");
+    let manifest = match fs::read_to_string(base.join("tauri.conf.json"))
+        .map_err(|e| format!("tauri.conf.json: {e}"))
+        .and_then(|conf| install_manifest::resource_map(&conf))
+    {
+        Ok(resources) => install_manifest::generate(&base, &resources),
+        Err(why) => install_manifest::Manifest { complete: false, gaps: vec![why], entries: Vec::new() },
+    };
+    fs::write(&out, install_manifest::to_json(&manifest))
+        .unwrap_or_else(|e| panic!("could not write {}: {e}", out.display()));
+}
+
 fn main() {
     emit_rerun_inputs();
+    write_install_manifest();
 
     // `--always` falls back to the short hash when there is no tag; `--dirty` appends `-dirty` on an unclean tree.
     let mut describe = git_output(&["describe", "--always", "--dirty", "--tags"])

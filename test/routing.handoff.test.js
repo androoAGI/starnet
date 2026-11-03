@@ -110,11 +110,13 @@ function station(n) {
   A.ok(st.setSendTo(a.outbox, b.intake).ok && st.setSendTo(b.outbox, c.intake).ok, 'A → B → C');
   let plan = P.compileRoutingPlan(st.projectGeometry());
   const lineOf = id => plan.lineOfProp[id];
+  const arrival = dock => { const reach = {}; P.chainStepDock(plan, dock, { lineId: lineOf(dock), reach }); return reach.outboxId; };
   const LA = lineOf(a.intake), LB = lineOf(b.intake), LC = lineOf(c.intake), LD = lineOf(dd.intake), LEE = lineOf(e.intake);
   A.ok(plan.sendTo && plan.sendTo[a.outbox] && plan.sendTo[a.outbox].toLine === LB, 'the plan carries A → B');
 
   let jobs = { jobs: [] };
   const J = {
+    get: id => LineJobs.get(jobs, id),
     byStream: s => LineJobs.byStream(jobs, s),
     start: r => { const x = LineJobs.start(jobs, r); if (x.job) jobs = x.state; return x.job; },
     finish: (id, r) => { const x = LineJobs.finish(jobs, id, r); if (x.job) jobs = x.state; return x.job; },
@@ -123,6 +125,7 @@ function station(n) {
     again: (id, at) => { const x = LineJobs.again(jobs, id, at); if (x.job) jobs = x.state; return x.job; }
   };
   const runsByStream = {}, emitted = [], hubCalls = [], hooksSeen = [];
+  const fixtureFiles = async (agentId, list) => list.map(a => ({ abs: a.path }));   // transport fixture only; real locator/pathtrust proof is line-handoff-files.test
   let halted = false, cap = {}, hang = null, R = null, n = 0, clock = 1000;
   // the fake hub stands in for the target line's run: its ONE resolution walks only that line's doors (hooks.lineId), a clean
   // run is recorded on the hand-off's own stream, the line's answer is "sent", and — as chain.js would — the target line's
@@ -144,13 +147,15 @@ function station(n) {
           runsByStream[sid] = [{ runId: 'r' + (++n), agentId, dockId: dock, reason: 'done', usd: 0.01, streamId: sid, startedAt: clock }];
           const last = plan.lines.find(l => l.lineId === line).propIds.filter(id => plan.agentOfDock[id]).sort(P.propIdCmp).pop();
           hooks.send('OUTPUT OF ' + line);
-          hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, stopped: null, hops: [] });
-          R.onShipped({ lineId: line, agentId: plan.agentOfDock[last], dockId: last, text: 'OUTPUT OF ' + line, originalText: msg.text, streamId: sid, since: clock });
+          const outboxId = arrival(last);
+          hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, outboxId, stopped: null, hops: [] });
+          R.onShipped({ lineId: line, jobId: hooks.jobId(), agentId: plan.agentOfDock[last], dockId: last, outboxId, text: 'OUTPUT OF ' + line, originalText: msg.text, streamId: sid, since: clock });
         });
       }
     };
   }
   R = makeHandoffRunner({
+    handoffFiles: fixtureFiles,
     makeHub: fakeHub, plan: () => plan, jobs: J, emit: (nm, p) => emitted.push({ nm, p }),
     shipsToOutbox: (agentId, dockId) => !!dockId, dayCap: line => cap[line] || { cap: null, spent: 0 }, halted: () => halted,
     runsFor: sid => runsByStream[sid] || [], now: () => clock, newId: () => 'id' + (++n) + 'abcdef0123456789', warn: () => {}
@@ -163,7 +168,7 @@ function station(n) {
     { runId: 'x2', agentId: 'ag_' + a.bays[1], reason: 'done', usd: 0.02, streamId: xs, startedAt: clock + 1 }];
   const lastA = a.bays[1];
   clock += 5;   // the job ships AFTER its runs started (the run read-back stops at the ship time)
-  const q = R.onShipped({ lineId: LA, agentId: 'ag_' + lastA, dockId: lastA, text: 'Mars has two moons.', originalText: 'Find three facts about Mars.', streamId: xs, since: clock - 5 });
+  const q = R.onShipped({ lineId: LA, jobId: 'job-aaaa1111', agentId: 'ag_' + lastA, dockId: lastA, text: 'Mars has two moons.', originalText: 'Find three facts about Mars.', streamId: xs, since: clock - 5 });
   A.ok(q.ok && q.toLine === LB && q.queued === 1, 'a clean job on A is queued for B — ' + JSON.stringify(q));
   await tick(40);
   // the sending route finishes its own record after the hand-off went out: the link survives
@@ -210,7 +215,7 @@ function station(n) {
   A.ok(eRec && eRec.status === 'failed' && new RegExp('at most ' + MAX_DEPTH + ' lines').test(eRec.error), 'the 4th (D → E) is refused: a job crosses at most ' + MAX_DEPTH + ' lines — ' + JSON.stringify(eRec && eRec.error));
   delete plan.sendTo[c.outbox]; delete plan.sendTo[dd.outbox];
 
-  const fresh = (sid, line, dock, reason) => { runsByStream[sid] = [{ runId: 'f' + (++n), agentId: 'ag_' + dock, reason: reason || 'done', usd: 0, streamId: sid, startedAt: clock }]; return { lineId: line, agentId: 'ag_' + dock, dockId: dock, text: 'out', originalText: 'job', streamId: sid, since: clock }; };
+  const fresh = (sid, line, dock, reason) => { runsByStream[sid] = [{ runId: 'f' + (++n), agentId: 'ag_' + dock, reason: reason || 'done', usd: 0, streamId: sid, startedAt: clock }]; const source = LineJobs.byStream(jobs, sid); return { lineId: line, jobId: source && source.id, agentId: 'ag_' + dock, dockId: dock, text: 'out', originalText: 'job', streamId: sid, since: clock }; };
   const refusedOnB = () => jobs.jobs.filter(j => j.line === LB && j.status === 'failed').map(j => j.error);
   // E-STOP
   halted = true;
@@ -325,7 +330,7 @@ function station(n) {
   /* FILE POINTERS KEEP THE PRODUCER'S ROOT: the receiving line may use a different project or private workspace.
      The stub hub only captures the transport frame; no provider behavior or live-app completion is claimed here. */
   {
-    const handed = [], warnings = [];
+    const handed = [], lookedUp = [];
     const sourceRuns = [
       { agentId: 'project-agent', projectRoot: '/projects/source', reason: 'done', startedAt: 10,
         artifacts: [{ path: 'result.md' }, { path: 'result.md' }, { path: '/shared/absolute.md' }] },
@@ -340,47 +345,54 @@ function station(n) {
       makeHub: () => ({ onInbound(msg) { handed.push(msg.text); return Promise.resolve(); } }),
       plan: () => plan, jobs: {}, now: () => 20, newId: () => 'artifactpaths1234',
       runsFor: sid => sid === 'source-files' ? sourceRuns : [],
-      workspaceOf: aid => aid === 'private-agent' ? '/workspaces/private-agent' : null,
-      warn: msg => warnings.push(msg)
+      handoffFiles: async (agentId, list, where) => {
+        lookedUp.push({ agentId, list, where });
+        const path = require('node:path'), P = agentId === 'windows-agent' ? path.win32 : path.posix;
+        return require('../sidecar/run-paths.js').locateProduced({ pathMod: P, list, projectRoot: where.projectRoot,
+          jail: agentId === 'private-agent' ? '/workspaces/private-agent' : '',
+          fsp: { realpath: async p => p, stat: async () => ({ isFile: () => true }) } });
+      }, warn: () => {}
     });
+    for (const row of sourceRuns) for (const a of row.artifacts) a.kind = 'file';
     const sent = runner.onShipped({ lineId: LA, dockId: lastA, text: 'work product', originalText: 'make files',
       streamId: 'source-files', since: 0 });
     A.ok(sent.ok, 'file-bearing work is queued through the public handoff path');
     await tick(30);
     const paths = (handed[0] || '').split('\n').filter(line => line.startsWith('- ')).map(line => line.slice(2));
-    A.eq(paths, ['/projects/source/result.md', '/shared/absolute.md', '/workspaces/private-agent/result.md',
-      'D:\\project\\notes\\result.md', 'C:/already/absolute.md', '\\\\server\\share\\result.md'],
-      'handoff files resolve per producing run, dedupe exact pointers, and preserve absolute POSIX/Windows/UNC paths');
-    A.ok(warnings.some(msg => /leaves its source folder: \.\.\/neighbour\/secret\.md/.test(msg)) && !(handed[0] || '').includes('neighbour'),
-      'a produced name that climbs out of its run\'s base is omitted and said (run-paths producedPath), never resolved next door');
-    A.ok(warnings.some(msg => /unknown source folder: missing-root\.md/.test(msg))
-      && !(handed[0] || '').includes('missing-root.md'),
-      'an unknown origin is reported, never fabricated from the sidecar or receiving working directory');
+    A.eq(paths, ['/projects/source/result.md', '/workspaces/private-agent/result.md', 'D:\\project\\notes\\result.md'],
+      'handoff files use each producer base, dedupe canonical paths, and omit outside-root and network names');
+    A.ok(!paths.some(p => /neighbour|missing-root|server|already/.test(p)), 'unproved file names never enter the handoff frame');
+    A.eq(lookedUp.map(x => [x.agentId, x.where.projectRoot]), sourceRuns.map(x => [x.agentId, x.projectRoot || '']), 'the locator receives each producing run\'s own root');
   }
 
   /* THE SENDING JOB'S RUNS STOP AT ITS SHIP TIME: a channel chat's stream carries the NEXT message's runs too — a later run that
      ended cancelled must not refuse this job, and its files must not ride in this job's hand-off */
   {
     const calls = [];
-    const R5 = makeHandoffRunner({ makeHub: (hooks) => ({ onInbound(msg) {
+    const R5 = makeHandoffRunner({ handoffFiles: fixtureFiles, makeHub: (hooks) => ({ onInbound(msg) {
         calls.push(msg.text);
         const docks = crewedDocksOnLine(plan, hooks.lineId()).sort(P.propIdCmp), agentId = plan.agentOfDock[docks[0]];
         hooks.onRouted({ agentId, dockId: docks[0] }); hooks.onResolved({ agentId, lineId: hooks.lineId(), dockId: docks[0] });
         const sid = hooks.streamId();
         runsByStream[sid] = [{ runId: 'q' + (++n), agentId, dockId: docks[0], reason: 'done', usd: 0, streamId: sid, startedAt: clock }];
         const last = plan.lines.find(l => l.lineId === hooks.lineId()).propIds.filter(id => plan.agentOfDock[id]).sort(P.propIdCmp).pop();
-        hooks.send('B OUT'); hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, stopped: null });
+        hooks.send('B OUT'); hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, outboxId: arrival(last), stopped: null });
         return Promise.resolve();
       } }), plan: () => plan, jobs: J, shipsToOutbox: () => true, runsFor: sid => runsByStream[sid] || [], now: () => clock,
       newId: () => 'id' + (++n) + 'abcdef0123456789', warn: () => {} });
     clock = 5000;
     runsByStream['chat-1'] = [{ runId: 'm1', agentId: 'ag_' + lastA, reason: 'done', usd: 0, streamId: 'chat-1', startedAt: 4990, artifacts: [{ kind: 'file', path: 'C:/w/msg1.md' }] }];
-    const s1 = R5.onShipped({ lineId: LA, agentId: 'ag_' + lastA, dockId: lastA, text: 'msg1 out', originalText: 'msg1', streamId: 'chat-1', since: 4990 });
+    J.start({ id: 'job-chatold1', line: LA, text: 'msg1', streamId: 'chat-1', at: 4990 });
+    J.start({ id: 'job-chatnew2', line: LA, text: 'msg2', streamId: 'chat-1', at: 5000 });
+    const s1 = R5.onShipped({ lineId: LA, jobId: 'job-chatold1', agentId: 'ag_' + lastA, dockId: lastA, text: 'msg1 out', originalText: 'msg1', streamId: 'chat-1', since: 4990 });
     // …the chat's next message runs on the same stream before the hand-off dispatches, ends cancelled, writes a file
     runsByStream['chat-1'].push({ runId: 'm2', agentId: 'ag_' + lastA, reason: 'cancelled', usd: 0, streamId: 'chat-1', startedAt: 5010, artifacts: [{ kind: 'file', path: 'C:/w/msg2.md' }] });
     await tick(30);
     const sent1 = calls[calls.length - 1] || '';
     A.ok(s1.ok && /msg1 out/.test(sent1) && /C:\/w\/msg1\.md/.test(sent1) && !/msg2\.md/.test(sent1), 'msg1 is handed on with ITS file only, not refused by msg2’s cancelled run — ' + JSON.stringify(sent1.slice(-160)));
+    const oldSender = J.get('job-chatold1'), newerSender = J.get('job-chatnew2');
+    A.ok(oldSender.sentTo && !newerSender.sentTo, 'a shipment links the named older job, never the newest job on its reused chat stream');
+    A.eq(J.get(oldSender.sentTo.jobId).from.jobId, 'job-chatold1', 'the target record retains that exact sender identity');
   }
 
   /* A HAND-OFF WHOSE STEP THE PROVIDER CUT (typed-outcomes, review 4.2): the step's run row is { reason: 'done', outcome: 'cut_short' }
@@ -403,7 +415,7 @@ function station(n) {
     const sc = RC.onShipped({ lineId: LA, agentId: 'ag_' + lastA, dockId: lastA, text: 'A out', originalText: 'job', streamId: 'chat-cut', since: 5990 });
     await tick(30);
     const rec = jobs.jobs.find(j => j.streamId === tsid);
-    A.ok(sc.ok && rec && rec.status === 'problem' && /did not finish cleanly/.test(rec.error || ''), 'a hand-off whose step the provider cut is never delivered — ' + JSON.stringify(rec && { status: rec.status, error: rec.error }));
+    A.ok(sc.ok && rec && rec.status === 'problem' && rec.stop.code === 'stage_incomplete' && /reply was cut short/.test(rec.error || ''), 'a hand-off whose step the provider cut is never delivered — ' + JSON.stringify(rec && { status: rec.status, error: rec.error }));
     A.ok(rec && rec.runs && rec.runs[0] && rec.runs[0].outcome === 'cut_short', '…and its record keeps the step\'s outcome, so the WORKFLOWS window never reads it finished — ' + JSON.stringify(rec && rec.runs));
   }
 
@@ -422,7 +434,7 @@ function station(n) {
     A.ok(s6.ok && typeof release === 'function', 'the hand-off is running on LINE B');
     halted = true; release(); await tick(30); halted = false;
     const rec6 = jobs.jobs.filter(j => j.line === LB).pop();
-    A.ok(rec6 && rec6.status === 'stopped' && /E-STOP/.test(rec6.error), 'E-STOP: the hand-off’s record is STOPPED — ' + JSON.stringify(rec6 && { status: rec6.status, error: rec6.error }));
+    A.ok(rec6 && rec6.status === 'stopped' && rec6.stop.code === 'stopped', 'E-STOP: the hand-off’s record is STOPPED — ' + JSON.stringify(rec6 && { status: rec6.status, error: rec6.error }));
   }
 
   /* THE STATION'S OWN FAULT (wave 2 review, conveyor-backend-08): a process-fault containment quiesced the station while LINE B ran a
@@ -487,7 +499,7 @@ function station(n) {
     RE.onShipped(fresh('sample-busdown1', LA, lastA));
     await tick(30);
     const recE = jobs.jobs.filter(j => j.line === LB).pop(), sndE = jobs.jobs.find(j => j.id === 'job-busdown1');
-    A.ok(recE && recE.status === 'failed' && recE.error === 'the hand-off broke after it started (bus down)', 'entered, then broke: said as such — ' + JSON.stringify(recE && { status: recE.status, error: recE.error }));
+    A.ok(recE && recE.status === 'problem' && recE.stop.code === 'stage_failed' && recE.error === 'the hand-off broke after it started (bus down)', 'entered, then broke: said as such — ' + JSON.stringify(recE && { status: recE.status, error: recE.error }));
     A.ok(sndE && sndE.sentTo && !sndE.sentTo.refused && sndE.sentTo.jobId === recE.id, 'the sending job keeps its link to the record that says what happened — ' + JSON.stringify(sndE && sndE.sentTo));
   }
 
@@ -534,7 +546,8 @@ function station(n) {
         const sid = hooks.streamId();
         return new Promise(res => { release = () => {
           runsByStream[sid] = [{ runId: 'qt' + (++n), agentId, dockId: docks[0], reason: 'done', usd: 0.001, streamId: sid, startedAt: clock }];
-          hooks.onLineOutcome({ agentId, dockId: docks[0], stopped: null, hops: [] });
+          const last = plan.lines.find(l => l.lineId === hooks.lineId()).propIds.filter(id => plan.agentOfDock[id]).sort(P.propIdCmp).pop();
+          hooks.onLineOutcome({ agentId: plan.agentOfDock[last], dockId: last, outboxId: arrival(last), stopped: null, hops: [] });
           res();
         }; });
       } }), plan: () => plan, jobs: J, shipsToOutbox: () => true, runsFor: sid => runsByStream[sid] || [], now: () => clock,
@@ -562,7 +575,7 @@ function station(n) {
     RO.haltAll();
     A.ok(RO.onShipped(fresh('sample-after-estop', LA, lastA)).ok, 'an E-STOP drain alone leaves admission open');
     // the host's graceful shutdown is what closes it (sidecar/index.js gracefulShutdown — never require it: it boots a sidecar)
-    const shut = A.fnBody(readSidecarSource(), 'function gracefulShutdown(signal)');
+    const shut = A.fnBody(readSidecarSource(), 'function gracefulShutdown(signal, code)');
     A.ok(/handoffRunner\.haltAll\('the station stopped before this hand-off ran — send the job again', \{ close: true \}\)/.test(shut), 'gracefulShutdown drains AND closes SEND TO admission');
   }
 

@@ -6,7 +6,11 @@
    makeWebTools(deps?) -> { searchTool, fetchTool, register(registry),
                             webSearch(query,opts), webFetch(url,opts) }   // raw fns exported for reuse/testing
      deps.fetchImpl  : (url, init) => Promise<Response>   // injectable for tests; defaults to undici.fetch
-     deps.openrouter : { apiKey, model } | null           // enables the OpenRouter search/fetch FALLBACK
+     deps.openrouter : { apiKey, baseUrl, model } | null  // enables the OpenRouter search/fetch FALLBACK: the key, the
+                                                          // endpoint saved with it (the credential store's webRung), and
+                                                          // the model (absent: OpenRouter's search model)
+     deps.keyGone    : () => '' | sentence                // the run host's in-flight watch over that key (credential-store
+                                                          // lane): asked before each paid request; a sentence refuses it
      deps.userAgent  : override UA string
 
    DESIGN (re-validated live, June 2026):
@@ -477,7 +481,22 @@
     });
     const doFetch = (url, opts) => politeness.run(url, opts && opts.signal, () => rawFetch(url, opts));
     const UA = deps.userAgent || DEFAULT_UA;
-    const or = deps.openrouter || null;
+    /* The paid OpenRouter rung is armed only by a key AND the endpoint saved with it (index.js hands the credential
+       store's webRung: the run's own on an OpenRouter run, else the station's OpenRouter credential, never on a credits
+       run). It dials that endpoint and names that host on a transport failure; it used to dial https://openrouter.ai
+       whatever endpoint the key was saved with, so a key kept for a proxy went to openrouter.ai instead. */
+    const orIn = deps.openrouter || null;
+    const orBase = orIn ? String(orIn.baseUrl || '').trim().replace(/\/+$/, '') : '';
+    const or = orIn && String(orIn.apiKey || '').trim() && orBase ? { apiKey: String(orIn.apiKey).trim(), baseUrl: orBase, model: orIn.model } : null;
+    // named on a bare transport failure (nameTransport): the host alone, never the URL, which can carry a token
+    const orHost = or && URL.canParse(orBase) ? new URL(orBase).host : '';
+    // the run host's in-flight watch over the rung's key (credential-store lane, review r1): '' while a station layer still holds
+    // it, else the sentence. Asked before each paid request, so a key removed or rotated away mid-run is never sent; a check that
+    // throws reads as held, as the loop's does
+    const keyGone = () => {
+      if (typeof deps.keyGone !== 'function') return '';
+      try { return String(deps.keyGone() || ''); } catch (e) { failNote('web.key-gone', e); return ''; }
+    };
     // DNS: absent = this computer's resolver (dns.promises.lookup, read at call time); null = no DNS and no pin (tests only)
     const doLookup = deps.lookup;
     /* ONE DNS ANSWER PER HOP. resolveHop validates a hop and asks DNS once; fetchPinned dials exactly that answer, so a
@@ -589,16 +608,19 @@
 
     // FALLBACK3: OpenRouter web plugin. Hides the search as one model turn, but very robust. Enabled via the
     // `plugins:[{id:'web'}]` request field (NOT a tools entry) — results come back as message.annotations of
-    // type 'url_citation', which we read below.
+    // type 'url_citation', which we read below. OpenRouter's search model unless the caller names one (an OpenRouter
+    // run's own model): a run on another provider's model id would be a model OpenRouter does not have.
     async function openrouterSearch(query, parent) {
-      if (!or || !or.apiKey) throw new Error('no OpenRouter key for search fallback');
+      if (!or) throw new Error('no OpenRouter key for search fallback');
+      const gone = keyGone();
+      if (gone) throw new Error(gone);
       const body = {
         model: or.model || 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content:
           'Search the web for: ' + query + '\nReturn the top results as a numbered list, each line "Title — URL — one-sentence snippet".' }],
         plugins: [{ id: 'web', max_results: 8 }]
       };
-      const data = await withTimeout(signal => doFetch('https://openrouter.ai/api/v1/chat/completions', {
+      const data = await withTimeout(signal => doFetch(or.baseUrl + '/chat/completions', {
         method: 'POST',
         headers: { 'Authorization': 'Bearer ' + or.apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify(body), signal
@@ -636,7 +658,7 @@
       // down, still starting, or too slow — only when the rung was actually reached (an engine that answered first
       // makes the browser irrelevant to this search).
       let browserNote = '';
-      const laterRung = !!(or && or.apiKey);
+      const laterRung = !!or;
       if (reader) {
         const down = readerDown();
         const starting = !down && !!readerStarting && laterRung;
@@ -654,7 +676,7 @@
           return (r && r.results) || [];
         }]);
       }
-      if (laterRung) chain.push(['openrouter', () => openrouterSearch(query, parent), 'openrouter.ai']);
+      if (laterRung) chain.push(['openrouter', () => openrouterSearch(query, parent), orHost]);
       /* Throttling vs. no connection (2026-10-07). "Every engine declined" is web weather only if some engine
          ANSWERED (a status, an anomaly page, 0 results). When every HTTP engine failed before any server
          answered (offline, DNS down, TLS broken on this machine), calling that throttling would be the harness
@@ -844,7 +866,7 @@
        Mojeek + both DDG paths had consumed time — exactly when the fallback was most needed. */
     const searchChainTimeoutMs = (SEARCH_TIMEOUT_MS * 3)
       + (reader ? 45000 : 0)   // the reader rung: Chrome boot + up to two engine navigations
-      + ((or && or.apiKey) ? OPENROUTER_SEARCH_TIMEOUT_MS : 0)
+      + (or ? OPENROUTER_SEARCH_TIMEOUT_MS : 0)
       + 5000;
     const searchTool = {
       name: 'web_search', capability: 'web', impact: 'external-service', scope: 'read', requiresConsent: false, timeoutMs: searchChainTimeoutMs,
