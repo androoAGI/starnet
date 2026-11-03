@@ -8,6 +8,7 @@ status: fixed
 found: 2026-07-28
 lane: sweep/world
 fix: meeseeks layer removed 2026-07-30 (agent/meeseeks-visual)
+family: run-lifecycle
 ---
 
 # A Meeseeks helper sprite whose terminal `task` event is lost stays asserted LIVE forever — the ledger has no TTL, no snapshot reconcile, and no reset on NEW AGE
@@ -40,3 +41,5 @@ removed outright — the flickering cyan follower read as floating garbage on hi
 twice. world.js no longer constructs the ledger or draws any floating sub-agent marker; subagentsprites.js and
 its test are deleted. Sub-agent observability lives solely in the LIVE HELPERS panel (server-truth
 `/api/subagents`). Do not rebuild a follower sprite for this.
+
+Family run-lifecycle (run-table lane S2, 2026-11-03): the family is "a lost terminal event leaves a view asserting LIVE". It is now closed at the source for every run the station drives. Each admitted run ends exactly once, on its own sink and on the station floor, including a run whose host threw (runOnce's belt) and a run stopped while queued. Class invariant: test/run-lifecycle.invariants.http.test.js (RED at 0b8441064: a thrown /v1 or Run Now run started on the floor and never ended). The reconnect snapshot reading the one run table follows in the lane's S3. No sprite is rebuilt. Status unchanged.
