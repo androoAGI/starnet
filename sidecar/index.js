@@ -59,6 +59,7 @@ const { makeUpdatePreparation, sweepBackupTemps } = require('./update-preparatio
 const { makeAgentLifecycle } = require('./agent-lifecycle.js');
 const { makeConsentWait } = require('./consentwait.js');   // EL-11: fail-closed consent timer + human-visible ack extension
 const { killAll, markFaulted, killStopHandles } = require('./halt.js');
+const RunTable = require('./run-table.js');   // the one registry of every live run (run-table lane; S1: a shadow the diagnostics check proves a superset)
 const { makeRegistry, outputBudgetFor, outputWindowFor, attachResultScrub } = require('./tools/registry.js');
 const { makeOutputArtifacts, isParkedOutputPath } = require('./output-artifacts.js');
 const RunPaths = require('./run-paths.js');   // the ONE per-run path object every tool reads (ctx.paths)
@@ -2231,6 +2232,9 @@ attachSubUsage(subUsage);
 const accountAuthSeen = new Map();
 
 const runs = new Map();          // runId -> AbortController (the kill path)
+// THE RUN TABLE (sidecar/run-table.js): runOnce admits every run it drives at its entry, before the conversation queue, and releases it on
+// every exit. A SHADOW for now: only GET /api/diagnostics reads it (runTableCheck), and the legacy maps here stay until it is the proven superset.
+const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
 // RECONCILIATION snapshot metadata: runId -> { agentId, startedAt, source }. Populated alongside every runs.set
 // (interactive/cron/workshop) and dropped in the same finally that deletes from `runs`, so it exactly tracks the
 // set of live runs. Backs GET /api/state/snapshot — only real per-run facts, never fabricated telemetry.
@@ -6150,6 +6154,7 @@ async function tickOverseer() {
         const waiting = (review.waitingOn || []).map(m => subagents.get(m.workerId))
           .filter((w, i) => w && w.runId === review.waitingOn[i].workerRunId && w.status === 'running');
         const instruction = delegatedReportPrompt(members, waiting, review.followUp === true);
+        const reviewRun = runTable.admit({ runId, agentId: review.agentId, source: 'overseer', streamId: parent.id, state: 'running' });   // THE RUN TABLE: the one run that drives the run core without runOnce (released in its finally)
         try {
           await runOnceCoreCounted({ agentId: review.agentId, key, provider, baseUrl, model: reviewWire.model || ident.model, wireSource: reviewWire.source,
             system: ident.system || cronSystemFor(review.agentId), stationEvidence: !ident.system, lead: true, isTask: true,
@@ -6166,7 +6171,7 @@ async function tickOverseer() {
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
         } catch (e) { settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
-        finally { runs.delete(runId); runsMeta.delete(runId); grantsSession.delete(runId); task.running = false; }
+        finally { runs.delete(runId); runsMeta.delete(runId); reviewRun.release(); grantsSession.delete(runId); task.running = false; }
       });
       })().catch(e => console.warn('[overseer]', e.message)).finally(() => { if (reviewTasks.get(reviewId) === task) reviewTasks.delete(reviewId); });
     }
@@ -17864,6 +17869,7 @@ async function handleCronRun(req, res) {
   // header as the hub's entry runs. Prompt text only; a brief never changes grants/tools/routing.
   let runNowBrief = null;
   try { runNowBrief = router.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
+  const runNowRun = runTable.admit({ runId, agentId: job.agentId, source: 'cron' });   // THE RUN TABLE: this id spans the whole line (stage one, then every hop)
   try {
     await runOnce({
       key: key, model: model,
@@ -18004,6 +18010,7 @@ async function handleCronRun(req, res) {
     }
     runs.delete(runId);
     runsMeta.delete(runId);
+    runNowRun.release();
     // release OUR manual lease (never a successor's — the stale sweep may have reclaimed it) and settle the
     // conveyor work-item this route placed. Before this, Run Now's crate NEVER settled (its terminal events
     // bypass cronEmitNotify), so every press permanently inflated the agent's queueDepth by one.
@@ -21858,6 +21865,13 @@ function cascadeCancelToWorkers(signal, runId) {
    reply-assembler for the hub), the run lifecycle/cleanup, AND the consent SURFACE — 'interactive' + a live
    `prompt` for the watched browser; 'autonomous' (default-deny on ungranted mutation) for a headless chat. */
 async function runOnce(o) {
+  // THE RUN TABLE admits the run here, ahead of its conversation queue with no await before it (a run waiting there is live work),
+  // and the finally releases it however the call leaves: an end, a queued abort, a throw in the queue or in the run
+  const run = runTable.admit(RunTable.metaOf(o, o && o.runId ? runsMeta.get(String(o.runId)) : null));
+  try { return await runOnceQueued(o, run); }
+  finally { run.release(); }
+}
+async function runOnceQueued(o, run) {
   /* `parallelBranch` (2026-10-10): a line's PARALLEL branch hop (chain.js runBatch) keeps its stream — its run row, spend and
      transcript still belong to the line's conversation — but skips the stream's one-turn-at-a-time queue: three branches on
      it ran one after another, and a queued turn is rebuilt from the whole thread (each branch then saw the whole job). */
@@ -21893,10 +21907,10 @@ async function runOnce(o) {
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
           messages: transcriptStore.reconstruct(o.streamId, { limit: 80 }).concat((o.messages || []).slice(-1)) };
       }
-      return runOnceTracked(o);
+      run.running(); return runOnceTracked(o);
     });
   }
-  return runOnceTracked(o);
+  run.running(); return runOnceTracked(o);
 }
 /* HOST RUNS ARE LIVE RUNS (sweep 2026-09-25). The hubs (line triggers, the sample, the dev injector), the chain hops,
    the step test and the routine hops drive runOnce with their OWN run ids — most never enter runsMeta, so GET
@@ -26576,9 +26590,10 @@ async function handleNightshiftBeatNow(req, res) {
   // req listener here never runs (the EL-11 note above was right about the intent but attached to the dead seam;
   // 2026-07-14 adversarial sweep F1). res 'close' is premature-disconnect-aware and inert after the finally below.
   res.on('close', onClose);
+  const beatRun = runTable.admit({ runId: beatRunId, agentId, source: 'nightshift', state: 'running' });   // THE RUN TABLE: the beat's id spans the runs it drives
   try { result = await runNightshiftBeat({ agentId, emit, broadcast: true, signal: ac.signal }); }
   catch (e) { result = { delivered: false, reason: 'error: ' + ((e && e.message) || e) }; }
-  finally { runs.delete(beatRunId); runsMeta.delete(beatRunId); try { res.removeListener('close', onClose); } catch (_) {} }
+  finally { runs.delete(beatRunId); runsMeta.delete(beatRunId); beatRun.release(); try { res.removeListener('close', onClose); } catch (_) {} }
   if (ac.signal.aborted && !(result && result.delivered)) result = { delivered: false, reason: 'aborted' };   // halted/disconnected mid-beat — name it honestly
   try { res.write(JSON.stringify({ name: 'nightshift.beat.result', payload: result }) + '\n'); } catch (_) {}
   try { res.end(); } catch (_) {}
@@ -27076,11 +27091,24 @@ function harnessSnapshotForRun(runtime) {
   }).snapshot(runtime);
 }
 
+/* THE RUN TABLE IS A SUPERSET (run-table lane, shadow phase): the run ids every legacy registry holds — the browser's runs and runsMeta,
+   line hostLiveRuns, runOnce's stop handles, every hub inflight record E-STOP reaches, the background workers — and the ones the table
+   does not (missing). Retired with those registries; until then a report pasted from a live station says whether it holds. */
+function runTableCheck() {
+  try {
+    const ids = [...runs.keys(), ...runsMeta.keys(), ...hostLiveRuns.keys(), ...runStopHandles.keys()];
+    const hubs = [telegram && telegram.hub, discord && discord.hub, devHub, sampleHub, ...[...telegramBots.values()].map(w => w && w.hub), ...GENERIC_CHANNEL_IDS.map(id => genericChannels[id] && genericChannels[id].hub)];
+    const inflights = hubs.map(h => h && h._internals && h._internals.inflight).concat(stepTest ? [stepTest.inflight] : [], triggerRunner.inflights(), handoffRunner ? handoffRunner.inflights() : []);
+    for (const m of inflights) if (m && typeof m.values === 'function') for (const r of m.values()) if (r && r.runId) ids.push(String(r.runId));
+    for (const r of subagents.activeRuns()) if (r && r.runId) ids.push(String(r.runId));
+    return { live: runTable.size(), legacy: new Set(ids).size, missing: runTable.missing(ids) };
+  } catch (e) { failNote('diagnostics.run-table', e); return null; }
+}
 function handleDiagnostics(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let out;
   try {
-    out = diagnostics.assemble(collectDiagnosticsInput({ origin: String((req && req.headers && req.headers.origin) || '') }));
+    out = diagnostics.assemble(Object.assign(collectDiagnosticsInput({ origin: String((req && req.headers && req.headers.origin) || '') }), { runTable: runTableCheck() }));
   } catch (e) {
     return json(500, { error: 'diagnostics failed' });
   }

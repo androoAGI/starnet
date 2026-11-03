@@ -513,11 +513,15 @@ async function viaRunNow(run, line) {
   cronDriver.leases.set(job.id, { runId, startedAt: T0, heartbeatAt: T0, ac, isOnce: false });   // handleCronRun's manual lease
   const runReplay = async emit => { replay(run, emit, runId, job.agentId); if (run.throws) throw new Error('boom'); };
   const crates = [];   // the reason Run Now's finally settles its crate with (settleCronWorkitem: 'done' = delivered to the OUTBOX)
+  // the press's run-table admission (the REAL table, sidecar/run-table.js): its id spans the whole line, so the finally releases it
+  const runTable = require('../sidecar/run-table.js').makeRunTable();
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'runNowRun',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => line || null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined,
+    runTable.admit({ runId, agentId: job.agentId, source: 'cron' }))();
+  A.eq(runTable.size(), 0, 'Run Now / ' + run.kind + ': its finally releases the press\'s run-table entry' + (run.throws ? ' (the press threw)' : ''));
   const settled = cronStore.getJob(store, 'j1');
   const result = events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null;
   return { status: settled && settled.lastStatus, cronOutcome: result && result.outcome, cronReason: result && result.reason, job: settled, crate: crates.length ? crates[0] : '(never settled)' };
@@ -571,10 +575,11 @@ async function viaPausedRunNow(run, pausedBefore) {
   catch (e) { return { job: cronStore.getJob(store, 'j1'), delivered, result: null, threw: String((e && e.message) || e) }; }
   const runReplay = async emit => { if (!pausedBefore) store = cronStore.pauseJob(store, 'j1'); replay(run, emit, runId, job.agentId); };
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'runNowRun',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined,
+    require('../sidecar/run-table.js').makeRunTable().admit({ runId, agentId: job.agentId, source: 'cron' }))();
   for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
   const settled = cronStore.getJob(store, 'j1');
   return { job: settled, delivered, result: events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null };

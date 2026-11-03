@@ -43,6 +43,8 @@ function station(file, opts) {
   const gates = new Map();    // streamId -> the deferred that ends its review run
   const order = [];           // what ran on a conversation's line, in order
   const runs = new Map(), runsMeta = new Map(), grantsSession = new Map();
+  // the REAL run table (sidecar/run-table.js): a report is the one run that drives the run core without runOnce, so it admits itself
+  const runTable = require('../sidecar/run-table.js').makeRunTable();
   const reviewTasks = new Map();
   const deps = {
     workspaceDegraded: false, updateHolding: () => false, overseer,
@@ -53,7 +55,7 @@ function station(file, opts) {
     normalizeProvider: p => p, providerRuntimeKey: () => 'sk-test', providerRuntimeBaseUrl: () => '', providerHasCredential: () => o.credential !== false,
     // the reviewer's ONE pair (run-wire-resolver lane: index.js runWireFor), here the roster row as a pinned pair
     runWireFor: id => { const a = deps.agentRoster.get(id) || {}; return { ok: !!a.model, provider: a.provider, model: a.model, source: 'agent' }; },
-    crypto, runs, runsMeta,
+    crypto, runs, runsMeta, runTable,
     delegatedReportPrompt: () => 'Review the background work you delegated for this conversation.',
     runOnceCoreCounted: o => {
       calls.push(o.streamId); order.push('review:' + o.streamId);
@@ -71,7 +73,7 @@ function station(file, opts) {
   // a tick that must come back on its own: never awaited blind (the old tick hung on a busy lock)
   const tickReturns = async () => { let back = false; tick().then(() => { back = true; }); await flush(); return back; };
   const release = async conv => { gates.get(conv).resolve(); gates.delete(conv); await flush(); };
-  return { overseer, tick, tickReturns, release, settle, row, workers, calls, gates, order, runs, reviewTasks, proofs, reads };
+  return { overseer, tick, tickReturns, release, settle, row, workers, calls, gates, order, runs, runTable, reviewTasks, proofs, reads };
 }
 
 (async () => {
@@ -90,6 +92,7 @@ function station(file, opts) {
     s.settle('wA', 'convA'); s.settle('wB', 'convB');
     A.ok(await s.tickReturns(), 'the tick comes back while conversation A is mid-turn (it used to wait on A\'s lock)');
     A.eq(s.calls, ['convB'], 'B\'s report starts while A is busy');
+    A.ok(s.runTable.has(s.row('convB').reviewRunId) && s.runTable.size() === 1, 'B\'s running report is in the run table, under the run id its row names');
     A.eq([s.row('convA').status, s.row('convB').status], ['pending', 'reviewing'], 'A\'s report waits its turn, B\'s runs');
     A.eq(s.reviewTasks.size, 2, 'both reports have a task: A\'s queued on its conversation, B\'s running');
     // later ticks while B runs and A is busy: nothing is called interrupted, nothing runs twice, the tick never waits
@@ -102,7 +105,7 @@ function station(file, opts) {
     await s.release('convB');
     A.eq(s.row('convB').status, 'done', 'B\'S REPORT COMPLETED WHILE A\'S LOCK IS STILL HELD');
     A.eq(s.row('convA').status, 'pending', 'A\'s report is still waiting on A');
-    A.ok(!s.reviewTasks.has(s.row('convB').id) && s.runs.size === 0, 'B\'s task and run are gone');
+    A.ok(!s.reviewTasks.has(s.row('convB').id) && s.runs.size === 0 && s.runTable.size() === 0, 'B\'s task and run are gone (the run table released it)');
     A.ok(await s.tickReturns(), 'next tick');
     A.eq(s.calls, ['convB', 'convC'], 'C\'s report starts once B\'s is done, A still busy');
     await s.release('convC');
@@ -116,7 +119,7 @@ function station(file, opts) {
     await s.release('convA');
     A.eq(s.order, ['turnA1', 'review:convB', 'review:convC', 'review:convA', 'turnA2'], 'A\'s line: its turn, its report, then its later turn');
     A.eq(s.overseer.reviews().map(r => r.status), ['done', 'done', 'done'], 'every report done');
-    A.eq([s.reviewTasks.size, s.runs.size], [0, 0], 'no task or run left behind');
+    A.eq([s.reviewTasks.size, s.runs.size, s.runTable.size()], [0, 0, 0], 'no task or run left behind, in the run table either');
     A.ok(await s.tickReturns(), 'a settled station ticks');
     A.eq(s.calls.length, 3, 'and runs nothing again');
   }

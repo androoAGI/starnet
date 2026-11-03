@@ -28,6 +28,7 @@
        workspacePresent: bool                    // does the workspaces dir exist? (bool ONLY — never the path)
        agentCount: number                        // roster size (shape only)
        swallowed: { total, tagCount, truncated, tags:[{ tag, count, firstAt, lastAt }] }   // failopen.summary()
+       runTable:  { live, legacy, missing:[runId] }  // GET /api/diagnostics only: the run table's superset check (index.js runTableCheck)
 */
 'use strict';
 (function (root, factory) {
@@ -41,6 +42,7 @@
   const MAX_RATE_PROVIDERS = 4; // quota rows — the fallback chain can touch several providers in one session
   const MSG_MAX = 300;         // per-error message cap after redaction
   const MAX_SWALLOWED = 24;    // fail-open tag rows — the loudest seams first; enough to see pressure, bounded so the block stays pasteable
+  const MAX_MISSING_RUNS = 16; // run ids a legacy registry holds outside the run table — bounded; the count says how many more
   const IDENT = /* the fields that are shape-only by construction can still be length-clamped for readability */ 200;
 
   // collapse control chars + whitespace onto one clamped line (a message must not inject blank lines / smuggle
@@ -217,6 +219,15 @@
           };
         })()
       };
+      /* THE RUN TABLE (run-table lane; sidecar/run-table.js, shadow phase). live = the runs the one registry holds; legacy = the
+         distinct run ids the older registries hold; missing = those ids the table does not hold (the superset check: empty means
+         every live run is in it). Host-minted run ids only, bounded and redacted like every field. Absent when the caller could
+         not read it, never invented. */
+      const rt = s.runTable && typeof s.runTable === 'object' ? s.runTable : null;
+      if (rt) {
+        const ids = (Array.isArray(rt.missing) ? rt.missing : []).map(id => clean(id, 80)).filter(Boolean);
+        report.runTable = { live: num(rt.live), legacy: num(rt.legacy), missing: ids.slice(0, MAX_MISSING_RUNS), missingCount: ids.length };
+      }
 
       return { report, text: render(report) };
     }
@@ -249,6 +260,11 @@
         lines.push('Last run:      ' + r.lastRun.runId + ' — ' + r.lastRun.status + waited + (r.lastRun.ts ? ' @ ' + iso(r.lastRun.ts) : ''));
       } else {
         lines.push('Last run:      none yet');
+      }
+      if (r.runTable) {
+        const t = r.runTable, more = t.missingCount - t.missing.length;
+        lines.push('Live runs:     ' + t.live + ' in the run table · ' + t.legacy + ' in the older registries · '
+          + (t.missingCount ? t.missingCount + ' outside the table: ' + t.missing.join(', ') + (more > 0 ? ' (+' + more + ' more)' : '') : 'none outside the table'));
       }
       lines.push('Source commit: ' + (r.buildSha || 'unknown') + (r.buildDirty === true ? ' (dirty)' : ''));
       if (r.paidAccount) {
