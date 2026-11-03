@@ -602,5 +602,5 @@
     };
   }
 
-  return { makeRunStore };
+  return { makeRunStore, DELIVERY_TEXT_MAX };
 });

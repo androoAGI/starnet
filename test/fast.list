@@ -1609,6 +1609,7 @@ test/channels.poll-signal.test.js
 test/ssh-bg-read-remote.test.js
 test/overseer-idle-cost.test.js
 test/overseer-busy-lock.test.js
+test/overseer-delivery.test.js
 test/source-collapsed-escapes.test.js
 test/openrouter-free-daily-cap.test.js
 test/openrouter-inband-error.test.js

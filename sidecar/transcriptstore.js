@@ -1163,7 +1163,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch,
+      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

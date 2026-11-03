@@ -137,6 +137,7 @@ const { _internals: ProgressGuardInternals } = require('./tool-progress-guard.js
 const { recoverToolResult } = require('./tool-recovery.js'); // bounded retry for host-trusted transient reads only
 const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
+const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL } = require('./run-journal.js');
 const { makeAffinityIndex } = require('./agent-affinity.js');   // idle-life social graph: which agents the run log proves work together
@@ -6164,6 +6165,15 @@ async function tickOverseer() {
       if (review.status === 'reviewing') {
         const proof = runStore.all().find(r => r.runId === review.reviewRunId);
         const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
+        if (reviewed) {
+          try { OverseerDelivery.publish({ transcriptStore, redact }, review, proof); }
+          catch (error) {
+            // Only retry the saved answer's publication. This row must never become a new paid review.
+            overseer.patchReview(review.id, { ...(error.code === 'REVIEW_REMOVED' ? { status: 'cancelled' } : {}),
+              error: (error.code === 'REVIEW_REMOVED' ? error.message : 'Review finished; publication is pending: ' + error.message).slice(0, 300) });
+            continue;
+          }
+        }
         overseer.patchReview(review.id, { status: reviewed ? 'done' : 'interrupted',
           error: reviewed ? '' : 'Review interrupted; inspect the saved run before continuing.' });
         continue;
@@ -6238,6 +6248,15 @@ async function tickOverseer() {
             messages: transcriptStore.view('model-replay', parent.id, { limit: 80, shape: 'pairs' }).concat([{ role: 'user', content: instruction }]) });
           const proof = runStore.all().find(r => r.runId === runId);
           const reviewed = !!proof && RunOutcome.ofRow(proof).ok;   // a cut-short review is not a finished one
+          const current = overseer.review(review.id);
+          if (reviewed && current && current.status === 'reviewing' && current.reviewRunId === runId) {
+            try { OverseerDelivery.publish({ transcriptStore, redact }, current, proof); }
+            catch (error) {
+              settleReview({ ...(error.code === 'REVIEW_REMOVED' ? { status: 'cancelled' } : {}),
+                error: (error.code === 'REVIEW_REMOVED' ? error.message : 'Review finished; publication is pending: ' + error.message).slice(0, 300) });
+              return;
+            }
+          }
           settleReview({ status: reviewed ? 'done' : 'interrupted',
             error: reviewed ? '' : 'Review did not finish; inspect the saved run.' });
         } catch (e) { reviewError = e; settleReview({ status: 'interrupted', error: String(e.message).slice(0, 300) }); }
