@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-31
 lane: agent/credential-store-1031
-fix: 028604d6b
+fix: 028604d6b bfca6be28 531c9ef2c
 origin: audit
 family: B1-credential-sources
 ---
@@ -34,7 +34,7 @@ A routine, a chat or a worker that was already running when the Commander remove
 
 ## Verdict
 
-Fixed by 028604d6b on agent/credential-store-1031 (credential-store lane, step S3; decision 7; not merged yet).
+Fixed by 028604d6b on agent/credential-store-1031 (credential-store lane, step S3; decision 7; not merged yet). Review round 1 found two paths that fix left open, and closed them: bfca6be28 (a turn queued before the removal) and 531c9ef2c (the tools' keys). See "Review round 1" below.
 
 The loop takes `credentialGone(adapter)` and asks it, with the adapter it is about to call, at the top of each turn and of each attempt, beside the spend stop: the first call, a retry, a rotation onto a backup key, a model or provider fallback. It asks again before a paid compaction fold and before the compress recovery folds. While the key that adapter sends is held the answer is empty and nothing changes. Once it is not, the run ends `error` with the in-flight sentence (`agent.run.error`, failureStage `credential`) before the request goes out. A stream already running finishes its tokens. No `shared/events.js` change: the stop uses the existing reason `error`.
 
@@ -51,4 +51,19 @@ Tests:
 - `test/loop.credential-live.test.js` (fast, new): RED at a3af8dafd (35 problems, 13 ok), GREEN at 028604d6b. Removing any one of the loop's four checks fails a row, so does failing closed when the check throws, and so do seven mutations of the store's `holds` and `inFlight`.
 - `test/run-wire.request-key.test.js`: each fallback adapter is watched on its own key, never on a body key. `test/channels.station-key.test.js`: its census of `keyInRequest` counts the watch's two reads.
 
-Not covered here: a removal in the instant between a caller's gate and the run resolving its key (a few disk reads); tool calls that read a key once, at the run's start (the image studio route's key, the web search rung's OpenRouter key: step S6 moved where they read it to the store, but each is still read once per run, so a run in flight keeps what it read until it ends, and the watch above covers only the keys its provider adapters send); a verdict review parked by an earlier run that finished before the removal.
+## Review round 1
+
+Two paths stayed open after 028604d6b. Both were reproduced on a real sidecar at 86ff765db and are closed.
+
+1. A turn queued before the removal (bfca6be28). handleRun on the desktop, the channel hubs, the workers and the scheduler resolve the station's key themselves and hand it to the run as `o.key`. They do this before runOnce's one-turn-at-a-time queue, where a turn waits as long as the turn ahead of it runs. runOnceCore judged the key held or not when it started. A key removed meanwhile was held by no layer, so it read as a caller's own key and was never watched, and the queued turn ran to `done` on the removed key. The record above called this window "a few disk reads"; the queue makes it as long as the previous turn. Now a push or a page save remembers each key it takes out of a layer, as a SHA-256 digest only. `fromStation(provider, key)` still knows such a key as the station's, and never counts a channel's own key. The watch takes it, and runOnceCore ends the run once its primary adapter is built, ahead of its catalog read and its first call, with the same sentence. The same change keeps a bot's own key from being stopped when a station pool happens to hold the same key (6f87a3894 keeps such a key as the bot's).
+2. The tools' keys (531c9ef2c; CS-FIN-10, E25 class (e) on its tool paths). runOnceCore read the image route's key (studioRouteFor) and web_search's paid OpenRouter rung (webRung) once, at the run's start, and makeImageTools and makeWebTools kept them. So a long CUSTOM or Anthropic routine kept sending a removed or rotated-away OpenRouter key from its next web_search fallback and its next image_generate, to the endpoint it was saved with. Now both credentials are watched like adapters (the run's own key on its own route takes the run key's verdict). Each keyed request asks first: openrouterSearch, and image.js's orPost, openAIImagePost and openAIEditPost. A gone key refuses that one call with "the OPENROUTER key this run started with was removed or replaced on this station, so web_search did not send it — run it again to use the key the station holds now, …" (for images: "so the STUDIO image route did not send it"). The run goes on; image_analyze falls back to the run's own model.
+
+States it refuses, each with its exit: a run whose station key was removed or rotated away before it reached its adapter (a queued turn, a worker or a hub message resolved before the change) ends before its first call. Exit: send it again. One tool call on a key removed or rotated away mid-run is refused. Exit: run it again; it uses the key the station holds now.
+
+Tests (review round 1):
+- `test/credential-store.remove-rotate.e2e.test.js` section 4, row e (desktop, a turn queued behind a held one, the shell's REMOVE): RED at 0c9c1583f (3 problems, 112 ok: the queued turn ran to done and its request carried the removed key), GREEN at bfca6be28 (115).
+- `test/loop.credential-live.test.js`: six queued-turn shapes over the real store with no `held` handed in (keychain REMOVE, rotation, cleared pool, page REMOVE of the key and of a backup, page rotation), `fromStation`, and a bot's own key that a station pool holds, never stopped. RED at 0c9c1583f: 8 problems. Section C's census also checks that every tool factory runOnceCore hands a credential gets its in-flight check and that the credential is watched. RED at bfca6be28: 3 problems. GREEN: 93.
+- `test/credential-store.openrouter-consumers.e2e.test.js` section 7: a CUSTOM run on its own body key, its first tooled turn held while the page REMOVEs or rotates its OpenRouter copy. RED at bfca6be28 (7 problems: the rung and image_generate sent the removed key, the rotation's rung the old one), GREEN at 531c9ef2c (93).
+- `test/web.search.test.js` E3 and `test/image.test.js`: the modules with the check. RED at bfca6be28 (2 and 4 problems), GREEN (27 and 538).
+
+Not covered here: a verdict review parked by an earlier run that finished before the removal.
