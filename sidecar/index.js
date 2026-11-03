@@ -23389,7 +23389,7 @@ async function runOnceCore(o) {
     const ordered = credPool.order(pool);
     const nowMs = Date.now();
     const primaryCooling = credPool.coolingUntil(runKey) > nowMs;
-    const poolWatch = { sentByCaller: runKeyWatch.sentByCaller };   // S3: a pool the caller sent with its key is its own
+    const poolWatch = { held: !runKeyWatch.sentByCaller, sentByCaller: runKeyWatch.sentByCaller };   // host-selected station pool, or the caller's explicit pool
     if (primaryCooling) {
       const warm = ordered.find(rk => credPool.coolingUntil(rk) <= nowMs);
       if (warm) {

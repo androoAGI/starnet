@@ -435,6 +435,33 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       A.eq(refreshed, 1, kind + ': dequeue refreshed messages through the production options copy');
       A.eq([calls, result.res.reason], kind === 'station' ? [[], 'error'] : [['P', 'P'], 'done'], kind + ': admission keeps removed station keys stopped and caller/bot own keys exempt');
     }
+    // A station-selected backup remains the station's for this adapter even if a bot independently owns the same value.
+    // Take the warm/rotation options from production itself, then exercise the real loop. Removing only the pool before a
+    // rotation leaves the primary held, so the primary's watch cannot make the backup assertion pass vacuously.
+    const poolOptions = /const poolWatch = (\{[^;]+\});/.exec(sidecarTopLevelFunction('runOnceCore'));
+    A.ok(!!poolOptions, 'pool: the production warm/rotation provenance is present');
+    for (const kind of ['rotation', 'warm']) for (const caller of [false, true]) {
+      const store = G.sandboxStore({});
+      const primary = 'station-primary-key', backup = 'shared-bot-backup-key';
+      store.putChannel('telegram', { provider: 'openrouter', key: backup });
+      store.push('openrouter', { key: primary, keyPool: [backup] });
+      A.eq([store.keyPool('openrouter', caller ? [backup] : undefined, primary), store.fromStation('openrouter', backup)], [[backup], false],
+        kind + ': fixture selects the actual pool beside a bot-owned alternate');
+      const opts = poolOptions ? new Function('runKeyWatch', 'return (' + poolOptions[1] + ');')({ sentByCaller: caller }) : {};
+      const calls = [], w = store.inFlight();
+      let result;
+      if (kind === 'warm') {
+        const B = w.watch(twoTurns('B', backup, calls, () => store.push('openrouter', { key: '', keyPool: [] })), 'openrouter', backup, opts);
+        result = await run(B, w);
+      } else {
+        const P = w.watch(adapter('P', primary, calls, async function* () { store.push('openrouter', { keyPool: [] }); throw rateLimited(); }), 'openrouter', primary,
+          { held: true, sentByCaller: caller });
+        const B = w.watch(adapter('B', backup, calls, textTurn('backup served')), 'openrouter', backup, opts);
+        result = await run(P, w, { credKey: primary, fallbacks: [{ provider: B, model: 'm', credKey: backup }] });
+      }
+      const wantCalls = kind === 'warm' ? (caller ? ['B', 'B'] : ['B']) : (caller ? ['P', 'B'] : ['P']);
+      A.eq([calls, result.res.reason], [wantCalls, caller ? 'done' : 'error'], kind + ': station pool removal stops the shared alternate; explicit caller pool stays exempt (' + caller + ')');
+    }
     // the adapter a rotation or a provider fallback would use is watched on ITS key, through the loop
     {
       const { store } = station();
