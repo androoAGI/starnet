@@ -108,9 +108,17 @@ A.ok(/for path in SHIPPED_INPUTS[\s\S]*cargo:rerun-if-changed=\{path\}/.test(bui
 
 // `git describe --dirty` ignores untracked files. Lock the supplemental status check to the same
 // top-level Git roots that tauri.conf packages, so a newly added shipped file cannot claim clean provenance.
+// The roots come from the map, not a copy of it: every `../<tree>` resource is a Git-owned packaged root (bin/ was
+// missing while the bundle shipped it), plus frontend (staged into frontend-dist) and the crate itself.
 const shippedGitRoots = rustStringArray('SHIPPED_GIT_ROOTS');
-A.eq(shippedGitRoots, ['frontend', 'sidecar', 'shared', 'src-tauri'],
-  'dirty detection covers every Git-owned packaged root');
+const repoResourceRoots = Object.keys(tauriConf.bundle.resources)
+  .map(source => source.replace(/\\/g, '/'))
+  .filter(source => source.startsWith('../'))
+  .map(source => source.slice(3).split('/')[0]);
+A.ok(repoResourceRoots.includes('bin') && repoResourceRoots.includes('sidecar'), 'the map bundles repo trees: ' + JSON.stringify(repoResourceRoots));
+for (const rootName of new Set([...repoResourceRoots, 'frontend', 'src-tauri'])) {
+  A.ok(shippedGitRoots.includes(rootName), `dirty detection covers the Git-owned packaged root ${rootName}/`);
+}
 A.ok(/"diff"[\s\S]{0,220}"--quiet"[\s\S]{0,220}"--ignore-cr-at-eol"[\s\S]{0,220}"HEAD"/.test(buildRs) && /diff\.args\(SHIPPED_GIT_ROOTS\)/.test(buildRs),
   'tracked dirty detection catches real shipped-input changes but ignores Tauri CR-only rewrites');
 A.ok(/"ls-files"[\s\S]{0,220}"--others"[\s\S]{0,220}"--exclude-standard"/.test(buildRs) && /untracked\.args\(SHIPPED_GIT_ROOTS\)/.test(buildRs),
