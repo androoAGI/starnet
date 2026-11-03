@@ -113,6 +113,9 @@ const originFields = {
 const origin = x => plain(x) && own(originFields, x.kind) && record(x, originFields[x.kind])
   && (x.kind !== 'trigger' || (x.triggerKind === 'webhook'
     ? x.reservationId !== null && x.fingerprint !== null : x.sourceDigest !== null));
+const restriction = x => record(x, { entryUntrusted: bool, hostPowerWithheld: bool, taints });
+const limits = x => record(x, { maxHops: x => uint(x) && x <= 24, maxUsd: usd, maxUsdPerDay: nullable(usd) });
+const fileReceipt = f => record(f, { ref: hash, path: filePath, producerRunId: key, projectRoot: filePath, digest: hash, size: uint }) && f.ref === fileRef(f);
 function barrier(x) {
   if (!record(x, { joinId: tile, entryRunId: key, branchIds: list(key, MAX_PARTS),
     parts: list(p => record(p, { branchId: key, runId: key, workitemId: key, product }), MAX_PARTS),
@@ -139,12 +142,12 @@ function invalid(v, job, depth) {
     partial: nullable(text), unapproved: nullable(text) });
   const accounting = x => record(x, { entryUsd: usd, hopUsd: usd, runIds: list(key, MAX_ATTEMPTS),
     dayReceipts: list(r => record(r, { runId: key, day: uint, usd }), MAX_ATTEMPTS),
-    limits: l => record(l, { maxHops: x => uint(x) && x <= 24, maxUsd: usd, maxUsdPerDay: nullable(usd) }) });
+    limits });
   if (!record(v, { version: x => x === 1, revision: x => uint(x) && x > 0,
     phase: oneOf(['ready', 'held', 'intent', 'uncertain', 'terminal_pending', 'complete']), binding, origin,
-    restriction: x => record(x, { entryUntrusted: bool, hostPowerWithheld: bool, taints }),
+    restriction,
     walk, barriers: list(barrier, MAX_PARTS), accounting, attempts: list(attempt, MAX_ATTEMPTS),
-    files: list(f => record(f, { ref: hash, path: filePath, producerRunId: key, projectRoot: filePath, digest: hash, size: uint }) && f.ref === fileRef(f), MAX_FILES),
+    files: list(fileReceipt, MAX_FILES),
     hold: nullable(holdRecord), decisions: list(decision, MAX_ATTEMPTS), activeDecision: nullable(key),
     terminal: nullable(t => record(t, { outcome: oneOf(RunOutcome.LINE_OUTCOMES), output: text, usd,
       runIds: list(key, MAX_ATTEMPTS), stop: nullable(s => record(s, { code: RunOutcome.isLineStop,
@@ -294,4 +297,77 @@ function claimDecision(raw, job, request) {
   const next = Object.assign({}, before, { revision: before.revision + 1, decisions: before.decisions.concat(receipt), activeDecision: r.token });
   return { continuation: checkpoint(before, job, before.revision, next, DECISION_WRITE), receipt, replayed: false };
 }
-module.exports = { inspect, demand, checkpoint, claimDecision, fileRef, MAX_BYTES, MAX_DEPTH, MAX_ATTEMPTS, MAX_PARTS, MAX_FILES };
+/* Private pre-entry receipts use the same bounded data vocabulary. They carry no
+   execution permission: even a replayed intent must be reconciled by its eventual
+   host adapter, and an observed result with usageMissing has unresolved cost. */
+const entryInputDigest = input => digest([input.text, input.fileRefs]);
+const entryOutputDigest = p => digest([p.text, p.draft, p.verdict, p.files, [p.producer.kind, p.producer.runId], p.taints]);
+function canonicalEntryFact(x) {
+  if (Array.isArray(x)) return x.map(canonicalEntryFact);
+  if (!plain(x)) return x;
+  const out = Object.create(null);
+  for (const k of Object.keys(x).sort()) Object.defineProperty(out, k, { value: canonicalEntryFact(x[k]), enumerable: true });
+  return out;
+}
+const sameEntryFact = (a, b) => same(canonicalEntryFact(a), canonicalEntryFact(b));
+const ENTRY_IDENTITY = ['ledgerId', 'binding', 'origin', 'restriction', 'input', 'inputDigest', 'files', 'limits', 'at'];
+const uniqueEntryFiles = rows => unique(rows.map(f => f.ref))
+  && unique(rows.map(f => JSON.stringify([f.producerRunId, f.projectRoot, f.path])));
+function invalidEntry(v, job, depth) {
+  if (!plain(v) || v.version !== 1) return problem('unsupported_version', 'saved entry receipt version is not supported');
+  if (depth > MAX_DEPTH) return problem('depth', 'saved entry receipt exceeds executable nesting depth');
+  const binding = b => record(b, { jobId, lineId: key, intakeId: nullable(key), streamId: x => x === '' || key(x),
+    entryRunId: key, workitemId: key, entryNode: node, planHash: x => text(x) && /^[a-f0-9]{8}$/.test(x) });
+  const observation = o => record(o, { endedAt: uint, usd, usageMissing: bool, outcome: RunOutcome.isOutcome,
+    product, files: list(fileReceipt, MAX_FILES), outputDigest: hash });
+  if (!record(v, { version: x => x === 1, revision: x => uint(x) && x > 0,
+    state: oneOf(['intent', 'uncertain', 'observed']), ledgerId: key, binding, origin, restriction,
+    input: x => record(x, { text, fileRefs: files }), inputDigest: hash, files: list(fileReceipt, MAX_FILES), limits,
+    at: uint, observation: nullable(observation) })) return problem('shape', 'saved entry receipt fields are invalid');
+  const b = v.binding, o = v.observation;
+  if (job && (b.jobId !== job.id || b.lineId !== job.line || b.intakeId !== (job.intakeId || null)
+    || b.streamId !== job.streamId || v.origin.kind !== job.entry)) return problem('binding', 'saved entry receipt does not belong to this job and admission');
+  if ((v.state === 'observed') !== (o !== null)) return problem('observation', 'saved entry state and observed result disagree');
+  if (v.inputDigest !== entryInputDigest(v.input) || !unique(v.input.fileRefs)
+    || !uniqueEntryFiles(v.files) || v.files.length !== v.input.fileRefs.length
+    || v.input.fileRefs.some(ref => !v.files.some(f => f.ref === ref))) return problem('input', 'saved entry input has no exact content/file receipt');
+  if (o) {
+    const allFiles = v.files.concat(o.files), refs = allFiles.map(f => f.ref);
+    if (o.endedAt < v.at || o.product.producer.kind !== 'run' || o.product.producer.runId !== b.entryRunId
+      || o.outputDigest !== entryOutputDigest(o.product)) return problem('observation', 'saved entry result does not name its exact run, output and time');
+    if (allFiles.length > MAX_FILES || !uniqueEntryFiles(allFiles) || !unique(o.product.files)
+      || o.files.some(f => f.producerRunId !== b.entryRunId) || o.product.files.some(ref => !refs.includes(ref))) return problem('files', 'saved entry result lacks exact producer/file receipts');
+    if (v.restriction.taints.some(t => !o.product.taints.includes(t))) return problem('taint', 'saved entry result cannot discard restrictive source taint');
+  }
+  return null;
+}
+function inspectEntry(raw, job) {
+  const c = capture(raw), issue = c.issue || invalidEntry(c.value, job, c.depth);
+  return Object.assign(c, { ok: !issue, issue });
+}
+function demandEntry(raw, job) {
+  const r = inspectEntry(raw, job);
+  if (!r.ok) { const e = new Error(r.issue.message); e.code = 'ELINE_ENTRY_' + r.issue.code.toUpperCase(); throw e; }
+  return r.value;
+}
+function prepareEntry(raw, job, request) {
+  const intent = demandEntry(request, job);
+  if (intent.revision !== 1 || intent.state !== 'intent') throw new Error('line entry preparation requires its original intent');
+  if (raw === undefined) return { receipt: intent, replayed: false };
+  const prior = demandEntry(raw, job);
+  if (ENTRY_IDENTITY.some(k => !sameEntryFact(prior[k], intent[k]))) throw new Error('line entry preparation conflicts with its original identity or input');
+  return { receipt: prior, replayed: true }; // no reset and no dispatch permission
+}
+function checkpointEntry(raw, job, expectedRevision, next) {
+  const before = demandEntry(raw, job), after = demandEntry(next, job);
+  if (!uint(expectedRevision) || expectedRevision < 1 || !Number.isSafeInteger(expectedRevision + 1)
+    || after.revision !== expectedRevision + 1) throw new Error('line entry revision conflict');
+  if (before.revision === after.revision && sameEntryFact(before, after)) return { receipt: before, replayed: true };
+  if (before.revision !== expectedRevision) throw new Error('line entry revision conflict');
+  if (ENTRY_IDENTITY.some(k => !sameEntryFact(before[k], after[k]))) throw new Error('line entry cannot replace original identity, input or ceilings');
+  const allowed = { intent: ['uncertain', 'observed'], uncertain: ['observed'], observed: [] };
+  if (!allowed[before.state].includes(after.state)) throw new Error('line entry state cannot advance that way');
+  return { receipt: after, replayed: false };
+}
+module.exports = { inspect, demand, checkpoint, claimDecision, fileRef, inspectEntry, demandEntry, prepareEntry, checkpointEntry,
+  entryInputDigest, entryOutputDigest, MAX_BYTES, MAX_DEPTH, MAX_ATTEMPTS, MAX_PARTS, MAX_FILES };

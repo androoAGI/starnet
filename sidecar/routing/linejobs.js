@@ -139,9 +139,21 @@ function normJob(j) {
     job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
     job.error = 'saved human hold has no continuation';
   }
+  if (owns(j, 'entryAdmission')) {
+    const e = Continuation.inspectEntry(j.entryAdmission, job);
+    job.entryAdmission = e.value;
+    if (!e.ok) job.entryIssue = { code: e.issue.code, message: e.issue.message, readOnly: e.readOnly };
+    if (!e.ok || e.value.state === 'uncertain') {
+      const why = e.ok ? 'the saved entry attempt is uncertain; reconcile its original run before continuing' : e.issue.message;
+      job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
+      job.error = why; job.stop = { code: 'restart', why };
+    }
+  }
   return job;
 }
 function pendingContinuation(j) {
+  // Entry retirement/adoption is a later proved operation, never ordinary retention.
+  if (owns(j, 'entryAdmission')) return true;
   if (!owns(j, 'continuation')) return false;
   const c = Continuation.inspect(j.continuation, j);
   return !c.ok || c.value.phase !== 'complete' || j.endedAt == null;
@@ -153,6 +165,10 @@ function writable(state) {
     e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
   }
   for (const j of ((state && Array.isArray(state.jobs)) ? state.jobs : [])) {
+    if (owns(j, 'entryAdmission') && (owns(j, 'continuation') || Continuation.inspectEntry(j.entryAdmission, j).readOnly)) {
+      const e = new Error('line-jobs: entry authority cannot be rewritten or adopted by this operation; original store must be preserved');
+      e.code = 'ELINE_ENTRY_READONLY'; throw e;
+    }
     if (owns(j, 'continuation') && Continuation.inspect(j.continuation, j).readOnly) {
       const e = new Error('line-jobs: saved continuation cannot be rewritten losslessly; original store must be preserved');
       e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
@@ -179,7 +195,7 @@ function normalizeAll(value) {
   let protectedRows = Accounting.owns(value, Accounting.FIELD) && !Array.isArray(value.jobs) ? 1 : 0;
   const source = (value && Array.isArray(value.jobs)) ? value.jobs : [];
   for (const j of source) {
-    const hasContinuation = j && typeof j === 'object' && owns(j, 'continuation');
+    const hasContinuation = j && typeof j === 'object' && (owns(j, 'continuation') || owns(j, 'entryAdmission'));
     const n = normJob(j);
     if (!n) { if (hasContinuation) protectedRows++; continue; }
     if (seen.has(n.id)) {
@@ -226,7 +242,7 @@ const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.find
 function start(state, o) {
   writable(state);
   const existing = get(state, o.id);
-  if (existing && owns(existing, 'continuation')) throw new Error('line job continuation cannot be replaced by a new admission');
+  if (existing && (owns(existing, 'continuation') || owns(existing, 'entryAdmission'))) throw new Error('line job paid-work authority cannot be replaced by a new admission');
   const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery, intakeId: o.intakeId });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
@@ -238,6 +254,7 @@ function finish(state, id, o) {
   writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
+  if (owns(state.jobs[i], 'entryAdmission')) throw new Error('line entry must settle through its private receipt owner');
   if (owns(state.jobs[i], 'continuation')) {
     const c = Continuation.inspect(state.jobs[i].continuation, state.jobs[i]);
     if (!c.ok || !['terminal_pending', 'complete'].includes(c.value.phase)) throw new Error('line continuation must finish through its checkpoint owner');
@@ -257,7 +274,7 @@ function mark(state, id, status) {
   writable(state);
   const i = idx(state, id);
   if (i < 0 || !['paused', 'running'].includes(status) || !['paused', 'running'].includes(state.jobs[i].status)
-    || owns(state.jobs[i], 'continuation')) return { state, job: null };
+    || owns(state.jobs[i], 'continuation') || owns(state.jobs[i], 'entryAdmission')) return { state, job: null };
   const job = Object.assign({}, state.jobs[i], { status, outcome: status });
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: withJobs(state, jobs), job };
@@ -276,6 +293,7 @@ function again(state, id, at) {
   writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
+  if (owns(state.jobs[i], 'entryAdmission')) return { state, job: null };
   const cur = state.jobs[i];
   const job = normJob(Object.assign({}, cur, { repeats: Math.max(1, cur.repeats || 1) + 1, endedAt: num(at) || cur.endedAt }));
   const jobs = state.jobs.slice(); jobs[i] = job;
@@ -315,7 +333,24 @@ function boot(state, at, ownedIds) {
   try { writable(state); } catch (error) { return { state, changed: false, issue: error.message }; }
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
-    if (j.status !== 'running' || (ownedIds && !ownedIds.has(j.id))) return j;
+    if (ownedIds && !ownedIds.has(j.id)) return j;
+    if (owns(j, 'entryAdmission')) {
+      const e = Continuation.inspectEntry(j.entryAdmission, j);
+      if (!e.ok || e.value.state === 'uncertain') return j;
+      entryEnrollment(state, e.value);
+      if (e.value.state === 'observed') {
+        if (j.status !== 'running') return j;
+        const why = 'the saved entry result is retained; the line has not resumed after restart';
+        changed = true;
+        return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', endedAt: null,
+          stop: { code: 'restart', why }, error: why });
+      }
+      const next = Object.assign({}, e.value, { revision: e.value.revision + 1, state: 'uncertain' });
+      const r = Continuation.checkpointEntry(e.value, j, e.value.revision, next);
+      changed = true;
+      return normJob(Object.assign({}, j, { entryAdmission: r.receipt }));
+    }
+    if (j.status !== 'running') return j;
     changed = true;
     const continued = owns(j, 'continuation');
     const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
@@ -369,6 +404,7 @@ function checkpoint(state, id, expectedRevision, next) {
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
   const prior = state.jobs[i];
+  if (owns(prior, 'entryAdmission')) throw new Error('entry-to-continuation adoption is not implemented; no cost or execution authority may be inferred');
   if (!owns(prior, 'continuation') && prior.status !== 'running') throw new Error('a settled or paused job cannot acquire a review continuation');
   const c = Continuation.checkpoint(owns(prior, 'continuation') ? prior.continuation : undefined, prior, expectedRevision, next);
   if (prior.endedAt == null && (c.phase === 'complete' || (c.publication && c.publication.state === 'confirmed'))) throw new Error('line publication requires an accepted terminal job first');
@@ -396,6 +432,42 @@ function claimDecision(state, id, request) {
   return { state: withJobs(state, jobs), job, receipt: r.receipt, replayed: false };
 }
 
+function entryEnrollment(state, receipt) {
+  const enrolled = Accounting.demand(state, 'jobs');
+  if (!enrolled || enrolled.state !== 'confirmed' || enrolled.ledgerId !== receipt.ledgerId) throw new Error('line entry requires its exact confirmed accounting enrollment');
+}
+function entryMutation(state, id, change) {
+  writable(state);
+  const i = idx(state, id);
+  if (i < 0) return { state, job: null };
+  const prior = state.jobs[i];
+  if (owns(prior, 'continuation')) throw new Error('a saved continuation cannot acquire another entry');
+  const r = change(prior);
+  entryEnrollment(state, r.receipt);
+  if (r.replayed) return { state, job: prior, receipt: r.receipt, replayed: true };
+  const job = normJob(Object.assign({}, prior, { entryAdmission: r.receipt, status: 'running', outcome: 'running',
+    endedAt: null, stop: null, error: '' }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: withJobs(state, jobs), job, receipt: job.entryAdmission, replayed: false };
+}
+function prepareEntry(state, id, request) {
+  return entryMutation(state, id, prior => {
+    if (!owns(prior, 'entryAdmission') && (prior.status !== 'running' || prior.endedAt != null)) throw new Error('only an existing running job may prepare its first entry');
+    return Continuation.prepareEntry(owns(prior, 'entryAdmission') ? prior.entryAdmission : undefined, prior, request);
+  });
+}
+function checkpointEntry(state, id, expectedRevision, next) {
+  return entryMutation(state, id, prior => {
+    if (!owns(prior, 'entryAdmission')) throw new Error('job has no prepared entry');
+    return Continuation.checkpointEntry(prior.entryAdmission, prior, expectedRevision, next);
+  });
+}
+function entryBootPending(job) {
+  if (!owns(job, 'entryAdmission')) return false;
+  const e = Continuation.inspectEntry(job.entryAdmission, job);
+  return e.ok && e.value.state === 'intent';
+}
+
 module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
-  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope,
+  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending,
   MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };
