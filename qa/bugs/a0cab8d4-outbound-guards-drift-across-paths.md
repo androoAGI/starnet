@@ -35,7 +35,7 @@ The same URL got different verdicts depending on which outbound path asked, beca
 
 ## Verdict
 
-Fixed in the safe-egress lane: sidecar/net/safe-egress.js owns the outbound trust boundary, and every consumer names its POLICIES row and calls it. `test/safe-egress.conformance.test.js` holds every consumer to one table and its C11 census refuses a new copy anywhere in the sidecar; `test/safe-egress.real-socket.test.js` proves the pinned dial connects on Node 22. Not on trunk or in any tag yet; security review rounds 1 (S1-S3) and 2 (the whole lane) are still to run.
+Fixed in the safe-egress lane: sidecar/net/safe-egress.js owns the outbound trust boundary, and every consumer names its POLICIES row and calls it. `test/safe-egress.conformance.test.js` holds every consumer to one table and its C11 census refuses a new copy anywhere in the sidecar; `test/safe-egress.real-socket.test.js` proves the pinned dial connects on Node 22. Both independent security reviews now pass after repairing skill and OAuth body ownership. All29 affected checks and fresh six-consumer DNS/TLS canaries pass on PATH22.23.0 and bundled22.23.2 at bc80d6ed381742521a14c6e5e11825bbe76e3212 (`qa/evidence/safe-egress-1103/continuation-proof.json`). Not on trunk or in a tag; full combined gates and installed/customer recovery remain separate.
 
 ## Regression
 

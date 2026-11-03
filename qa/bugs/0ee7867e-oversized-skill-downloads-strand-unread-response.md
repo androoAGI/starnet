@@ -36,4 +36,4 @@ Root logs are retained at `C:/Users/andro/gen-trees/_logs/codex-overnight-1103/s
 
 ## Verdict
 
-Fixed in source by dd74251f7e58453ad1d8e46375ea3e38157cf830. The focused repair cancels a response rejected before a reader owns its body, before yielding to per-hop or package graceful close. Size limits, deadlines, redirect checks, DNS validation and package authority are unchanged. Focused actual-socket proof and round1 bounded source recheck pass; the second independent security review and combined lane acceptance remain pending. No installed or customer recovery claim.
+Fixed in source by dd74251f7e58453ad1d8e46375ea3e38157cf830. The focused repair cancels a response rejected before a reader owns its body, before yielding to per-hop or package graceful close. Size limits, deadlines, redirect checks, DNS validation and package authority are unchanged. Both security reviews, all29 combined affected checks and six-consumer live DNS/TLS checks on both Node22 runtimes pass at bc80d6ed381742521a14c6e5e11825bbe76e3212; see `qa/evidence/safe-egress-1103/continuation-proof.json`. Full combined gates and installed/customer recovery remain separate.

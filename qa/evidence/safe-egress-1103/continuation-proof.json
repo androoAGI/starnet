@@ -1,0 +1,648 @@
+{
+  "sourceHead": "bc80d6ed381742521a14c6e5e11825bbe76e3212",
+  "qualification": "Source/lane acceptance only; full combined FAST/HTTP, release and installed/customer recovery remain separate.",
+  "focused": {
+    "skillBody": {
+      "oldFailed": 4,
+      "oldPassed": 80,
+      "currentPassed": 84
+    },
+    "oauthBody": {
+      "oldFailed": 4,
+      "oldPassed": 43,
+      "currentPassed": 47
+    }
+  },
+  "affected": {
+    "files": 29,
+    "passed": 29,
+    "failed": 0,
+    "exitCode": 0,
+    "elapsed": "1m40s",
+    "wrapperPid": 40812,
+    "session": 19932,
+    "log": "C:\\Users\\andro\\gen-trees\\_logs\\codex-overnight-1103\\safe-egress-combined-2125.log"
+  },
+  "live": [
+    {
+      "result": {
+        "canary": "egress-floor",
+        "ok": true,
+        "url": "https://example.com/",
+        "node": "v22.23.0",
+        "execPath": "C:\\Users\\andro\\AppData\\Local\\hermes\\node\\node.exe",
+        "undici": {
+          "bundled": "6.27.0",
+          "npm": "6.28.1"
+        },
+        "attempts": 1,
+        "last": {
+          "ok": true,
+          "why": "",
+          "failed": [],
+          "checks": [
+            {
+              "check": "web_request",
+              "ok": true,
+              "status": 200,
+              "ms": 159,
+              "bytes": 842,
+              "marker": true
+            },
+            {
+              "check": "web_fetch",
+              "ok": true,
+              "status": 200,
+              "source": "direct",
+              "ms": 470,
+              "bytes": 171,
+              "marker": true
+            },
+            {
+              "check": "connector-oauth",
+              "ok": true,
+              "status": 200,
+              "ms": 598,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "skill-document",
+              "ok": true,
+              "status": 200,
+              "ms": 169,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "skill-package",
+              "ok": true,
+              "status": 200,
+              "ms": 157,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "browser-proxy",
+              "ok": true,
+              "status": 200,
+              "tunnel": 200,
+              "authorized": true,
+              "ms": 119,
+              "bytes": 928,
+              "marker": true
+            }
+          ]
+        }
+      },
+      "receipt": {
+        "head": "bc80d6ed381742521a14c6e5e11825bbe76e3212",
+        "executable": "C:\\Users\\andro\\AppData\\Local\\hermes\\node\\node.exe",
+        "args": [
+          "scripts/canary/egress-floor.mjs",
+          "--json",
+          "C:/Users/andro/gen-trees/_logs/codex-overnight-1103/safe-egress-live-2128-path.json"
+        ],
+        "pid": 64728,
+        "startedAt": "2026-11-03T21:27:08.946Z",
+        "qualification": "Six actual consumer DNS/TLS paths against example.com; no paid provider, no installed-app acceptance.",
+        "exitCode": 0,
+        "endedAt": "2026-11-03T21:27:11.209Z"
+      }
+    },
+    {
+      "result": {
+        "canary": "egress-floor",
+        "ok": true,
+        "url": "https://example.com/",
+        "node": "v22.23.2",
+        "execPath": "C:\\Users\\andro\\AppData\\Local\\StarNet\\node.exe",
+        "undici": {
+          "bundled": "6.28.0",
+          "npm": "6.28.1"
+        },
+        "attempts": 1,
+        "last": {
+          "ok": true,
+          "why": "",
+          "failed": [],
+          "checks": [
+            {
+              "check": "web_request",
+              "ok": true,
+              "status": 200,
+              "ms": 217,
+              "bytes": 842,
+              "marker": true
+            },
+            {
+              "check": "web_fetch",
+              "ok": true,
+              "status": 200,
+              "source": "direct",
+              "ms": 476,
+              "bytes": 171,
+              "marker": true
+            },
+            {
+              "check": "connector-oauth",
+              "ok": true,
+              "status": 200,
+              "ms": 157,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "skill-document",
+              "ok": true,
+              "status": 200,
+              "ms": 97,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "skill-package",
+              "ok": true,
+              "status": 200,
+              "ms": 118,
+              "bytes": 577,
+              "marker": true
+            },
+            {
+              "check": "browser-proxy",
+              "ok": true,
+              "status": 200,
+              "tunnel": 200,
+              "authorized": true,
+              "ms": 144,
+              "bytes": 928,
+              "marker": true
+            }
+          ]
+        }
+      },
+      "receipt": {
+        "head": "bc80d6ed381742521a14c6e5e11825bbe76e3212",
+        "executable": "C:/Users/andro/AppData/Local/StarNet/node.exe",
+        "args": [
+          "scripts/canary/egress-floor.mjs",
+          "--json",
+          "C:/Users/andro/gen-trees/_logs/codex-overnight-1103/safe-egress-live-2128-bundled.json"
+        ],
+        "pid": 44332,
+        "startedAt": "2026-11-03T21:27:11.535Z",
+        "qualification": "Six actual consumer DNS/TLS paths against example.com; no paid provider, no installed-app acceptance.",
+        "exitCode": 0,
+        "endedAt": "2026-11-03T21:27:13.325Z"
+      }
+    }
+  ],
+  "reviews": [
+    {
+      "path": "qa\\evidence\\safe-egress-1103\\safe-egress-round1-independent-review.md",
+      "sha256": "8d6e73a92563be3bca179915faaf7a7b0ec7e41f238231e14c8c3ab13931bc5f"
+    },
+    {
+      "path": "qa\\evidence\\safe-egress-1103\\safe-egress-round2-independent-review.md",
+      "sha256": "17068f596b01c14b02d8d3579c5783654b9992342bb7b7e13d5e5ce896f6194b"
+    }
+  ],
+  "ownedReconciliation": {
+    "head": "bc80d6ed381742521a14c6e5e11825bbe76e3212",
+    "date": "2026-11-03",
+    "registerValid": true,
+    "registerErrors": [],
+    "records": [
+      {
+        "fingerprint": "0ee7867e",
+        "file": "0ee7867e-oversized-skill-downloads-strand-unread-response.md",
+        "title": "Oversized skill downloads strand unread response sockets",
+        "surface": "safecell",
+        "severity": "P1",
+        "status": "fixed",
+        "found": "2026-11-03",
+        "ageDays": 0,
+        "fix": "dd74251f7e58453ad1d8e46375ea3e38157cf830",
+        "verdict": "likely-fixed",
+        "confidence": "soft",
+        "evidence": [
+          "fix commit dd74251f7e58453ad1d8e46375ea3e38157cf830 is an ancestor of HEAD",
+          "all 1 quoted line(s) are still present"
+        ],
+        "needs": [],
+        "checks": {
+          "commits": [
+            {
+              "sha": "dd74251f7e58453ad1d8e46375ea3e38157cf830",
+              "ancestor": true
+            }
+          ],
+          "tests": [
+            {
+              "file": "test/skill-exchange.body-close.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            }
+          ],
+          "files": [
+            {
+              "file": "sidecar/skills/exchange-fetch.js",
+              "exists": true
+            },
+            {
+              "file": "qa/evidence/safe-egress-1103/body-close-1103.json",
+              "exists": true
+            }
+          ],
+          "snippets": [
+            {
+              "text": "C:/Users/andro/gen-trees/_logs/codex-overnight-1103/safe-egress-body-2113-{old,current}.{log,json}",
+              "file": "qa/evidence/safe-egress-1103/body-close-1103.json",
+              "present": true,
+              "where": "qa/evidence/safe-egress-1103/body-close-1103.json"
+            }
+          ]
+        },
+        "audit": true
+      },
+      {
+        "fingerprint": "421f90e6",
+        "file": "421f90e6-tool-descriptions-name-another-platform.md",
+        "title": "Tool descriptions name another platform's OS and shell",
+        "surface": "safecell",
+        "severity": "P2",
+        "status": "fixed",
+        "found": "2026-10-17",
+        "ageDays": 17,
+        "fix": "448c99d2a",
+        "verdict": "likely-fixed",
+        "confidence": "soft",
+        "evidence": [
+          "fix commit 448c99d2a is an ancestor of HEAD",
+          "2 of 6 quoted line(s) still present"
+        ],
+        "needs": [],
+        "checks": {
+          "commits": [
+            {
+              "sha": "448c99d2a",
+              "ancestor": true
+            }
+          ],
+          "tests": [
+            {
+              "file": "test/runtimeinfo.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            },
+            {
+              "file": "test/tool-description.platform-snapshot.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            },
+            {
+              "file": "test/payload.budget.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            }
+          ],
+          "files": [
+            {
+              "file": "sidecar/tools/builtin/computer.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/tools/builtin/browser.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/runtimeinfo.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/tools/catalog.js",
+              "exists": true
+            }
+          ],
+          "snippets": [
+            {
+              "text": "PHYSICAL mouse/keyboard/screen control on the Windows desktop. Available under host-minted Full Power or to a locally paired Telegram owner; restricted runs remain synthetic-only.",
+              "file": "sidecar/tools/builtin/computer.js",
+              "present": false,
+              "where": "sidecar/tools/builtin/computer.js"
+            },
+            {
+              "text": "Physical pointer/keyboard locks are emulated inside the page, so they never reach Windows.', { type: 'object'",
+              "file": "sidecar/tools/builtin/browser.js",
+              "present": false,
+              "where": "sidecar/tools/builtin/browser.js"
+            },
+            {
+              "text": "hostFacts(platform)",
+              "file": "sidecar/tools/builtin/browser.js",
+              "present": true,
+              "where": "sidecar/runtimeinfo.js"
+            },
+            {
+              "text": "buildCatalog({ platform })",
+              "file": "sidecar/tools/catalog.js",
+              "present": true,
+              "where": "sidecar/runtimeinfo.js"
+            },
+            {
+              "text": ", and shell.exec's refused-forms clause (",
+              "file": "sidecar/tools/catalog.js",
+              "present": false,
+              "where": "sidecar/tools/catalog.js"
+            },
+            {
+              "text": ") is joined from its rows, so that description cannot drift from the floor either. Its invariant is",
+              "file": "sidecar/tools/catalog.js",
+              "present": false,
+              "where": "sidecar/tools/catalog.js"
+            }
+          ]
+        },
+        "audit": true
+      },
+      {
+        "fingerprint": "a0cab8d4",
+        "file": "a0cab8d4-outbound-guards-drift-across-paths.md",
+        "title": "Outbound guards drift across paths",
+        "surface": "safecell",
+        "severity": "P1",
+        "status": "fixed",
+        "found": "2026-11-02",
+        "ageDays": 1,
+        "fix": "eec83c9fd",
+        "verdict": "likely-fixed",
+        "confidence": "soft",
+        "evidence": [
+          "fix commit eec83c9fd is an ancestor of HEAD"
+        ],
+        "needs": [],
+        "checks": {
+          "commits": [
+            {
+              "sha": "eec83c9fd",
+              "ancestor": true
+            }
+          ],
+          "tests": [
+            {
+              "file": "test/safe-egress.conformance.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": true,
+              "skipped": true
+            },
+            {
+              "file": "test/safe-egress.real-socket.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": true,
+              "skipped": true
+            }
+          ],
+          "files": [
+            {
+              "file": "sidecar/net/safe-egress.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/tools/builtin/web.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/tools/builtin/browser.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/tools/builtin/browser-proxy.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/mcp/oauth.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/mcp/oauth-fetch.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/skills/exchange-fetch.js",
+              "exists": true
+            }
+          ],
+          "snippets": []
+        },
+        "audit": true
+      },
+      {
+        "fingerprint": "d6645716",
+        "file": "d6645716-native-web-request-fails-before-http.md",
+        "title": "Native web_request fails before HTTP while external clients succeed",
+        "surface": "providers",
+        "severity": "P1",
+        "status": "fixed",
+        "found": "2026-10-03",
+        "ageDays": 31,
+        "fix": "d1e3d43f3",
+        "verdict": "likely-fixed",
+        "confidence": "soft",
+        "evidence": [
+          "fix commit d1e3d43f3 is an ancestor of HEAD",
+          "1 of 5 quoted line(s) still present"
+        ],
+        "needs": [],
+        "checks": {
+          "commits": [
+            {
+              "sha": "d1e3d43f3",
+              "ancestor": true
+            }
+          ],
+          "tests": [
+            {
+              "file": "test/web.pinned-dispatcher.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            },
+            {
+              "file": "test/safe-egress.conformance.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            }
+          ],
+          "files": [
+            {
+              "file": "sidecar/tools/builtin/web.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/mcp/oauth-fetch.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/net/safe-egress.js",
+              "exists": true
+            },
+            {
+              "file": "scripts/canary/egress-floor.mjs",
+              "exists": true
+            }
+          ],
+          "snippets": [
+            {
+              "text": "{ all: true }",
+              "file": "test/web.pinned-dispatcher.test.js",
+              "present": null,
+              "skipped": true
+            },
+            {
+              "text": "(address, family)",
+              "file": "test/web.pinned-dispatcher.test.js",
+              "present": null,
+              "skipped": true
+            },
+            {
+              "text": "makeWebTools({}).webFetch('https://example.com')",
+              "file": "test/web.pinned-dispatcher.test.js",
+              "present": null,
+              "skipped": true
+            },
+            {
+              "text": "fetch('https://example.com')",
+              "file": "sidecar/tools/builtin/web.js",
+              "present": false,
+              "where": "sidecar/tools/builtin/web.js"
+            },
+            {
+              "text": "callback(null, address.address, address.family)",
+              "file": "",
+              "present": false,
+              "where": ""
+            },
+            {
+              "text": "{ all: true }",
+              "file": "",
+              "present": true,
+              "where": "sidecar/net/safe-egress.js"
+            },
+            {
+              "text": "{hints:0,all:true}",
+              "file": "",
+              "present": false,
+              "where": ""
+            },
+            {
+              "text": "). The safe-egress lane (agent/safe-egress-module-1103) closed the family: sidecar/net/safe-egress.js",
+              "file": "sidecar/mcp/oauth-fetch.js",
+              "present": false,
+              "where": "sidecar/mcp/oauth-fetch.js"
+            }
+          ]
+        },
+        "audit": true
+      },
+      {
+        "fingerprint": "d6d27580",
+        "file": "d6d27580-oauth-discovery-and-header-probes-abandon-unread.md",
+        "title": "OAuth discovery and header probes abandon unread response bodies",
+        "surface": "safecell",
+        "severity": "P1",
+        "status": "fixed",
+        "found": "2026-11-03",
+        "ageDays": 0,
+        "fix": "8929076bd79a5d081a7908374b849b20c4c03d34",
+        "verdict": "likely-fixed",
+        "confidence": "soft",
+        "evidence": [
+          "fix commit 8929076bd79a5d081a7908374b849b20c4c03d34 is an ancestor of HEAD"
+        ],
+        "needs": [],
+        "checks": {
+          "commits": [
+            {
+              "sha": "8929076bd79a5d081a7908374b849b20c4c03d34",
+              "ancestor": true
+            }
+          ],
+          "tests": [
+            {
+              "file": "test/mcp.oauth-body-close.test.js",
+              "exists": true,
+              "ok": null,
+              "regression": false,
+              "skipped": true
+            }
+          ],
+          "files": [
+            {
+              "file": "sidecar/mcp/oauth.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/index.js",
+              "exists": true
+            },
+            {
+              "file": "sidecar/mcp/oauth-fetch.js",
+              "exists": true
+            }
+          ],
+          "snippets": []
+        },
+        "audit": true
+      }
+    ],
+    "findings": [],
+    "grandfathered": [],
+    "summary": {
+      "records": {
+        "total": 0,
+        "likely-fixed": 0,
+        "still-open": 0,
+        "unverifiable": 0,
+        "hard": 0
+      },
+      "closedAudit": {
+        "total": 5,
+        "likely-fixed": 5,
+        "still-open": 0,
+        "unverifiable": 0,
+        "hard": 0
+      },
+      "findings": {
+        "total": 0,
+        "likely-fixed": 0,
+        "still-open": 0,
+        "unverifiable": 0,
+        "hard": 0
+      },
+      "findingsByCrew": {},
+      "grandfathered": 0
+    },
+    "scope": "Only five owned safe-egress QA records; source/ancestry reconciliation, no tests rerun or unrelated findings changed. Full affected29 and live proofs are separate receipts."
+  },
+  "productHashes": {
+    "sidecar/net/safe-egress.js": "a720a307929fc58983354600accb7d9f686841c732026fac38822e2de22b0ff0",
+    "sidecar/skills/exchange-fetch.js": "35275c07c322542e2ba18269cc057a26e8cefc30df29b1d046c0e930d546ddaa",
+    "sidecar/mcp/oauth.js": "e671586252cd19d9bbae6f684d2b1bbb150ba2d2fa9d905ba9a0af86269327ba",
+    "sidecar/mcp/oauth-fetch.js": "1af53cc37c14c10b7ec4bc17969341d12091805df2d3e5d9097b556f76981f40",
+    "sidecar/index.js": "04dfbefe9b40ac93bb3fab2cb26d3902a1ef999f38128710aa0c7c7e33e4bcbf",
+    "sidecar/tools/builtin/web.js": "8c1eeea72a55b8ee7cab9d633c9a9c2a24154770ec23345462a1eb44ae0a2750"
+  }
+}

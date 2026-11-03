@@ -22,6 +22,6 @@
     "passed": 84
   },
   "logs": "C:/Users/andro/gen-trees/_logs/codex-overnight-1103/safe-egress-body-2113-{old,current}.{log,json}",
-  "secondSecurityReview": "pending",
+  "secondSecurityReview": "closed at bc80d6ed381742521a14c6e5e11825bbe76e3212; continuation-proof.json",
   "installed": "unverified"
 }
