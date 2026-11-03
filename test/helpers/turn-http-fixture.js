@@ -129,6 +129,50 @@ class TurnHttpFixture {
     assert.ok(!JSON.stringify(read).includes('ghp_' + 'AbCd1234'.repeat(5)), label + ': readback scrubs token shape');
     this.page.save(); return read;
   }
+  async recoveryEvidence(start, records, source, raw) {
+    // Failure-only, read-only evidence. The original first-page predicate remains the assertion;
+    // finding the source on a later page does not retroactively turn that failed check green.
+    const brief = row => row ? { runId: row.runId, status: row.status, canAutoContinue: row.canAutoContinue,
+      damage: row.damage, forensicOnly: row.forensicOnly, repairError: row.repairError,
+      uncertain: row.uncertain, continuation: row.continuation,
+      checkpoint: { phase: row.checkpoint?.phase, turn: row.checkpoint?.turn, messages: row.checkpoint?.messages?.length } } : null;
+    const evidence = { sourceRunId: start.runId, firstPage: { total: records.total, offset: records.offset,
+      limit: records.limit, nextOffset: records.nextOffset, source: brief(source), listed: records.recoveries.map(brief) },
+      ownTokens: 0, ownTerminal: [], laterPages: [] };
+    try {
+      const events = eventsOf(raw.slice(0, raw.lastIndexOf('\n'))).filter(e => e.payload?.runId === start.runId);
+      evidence.ownTokens = events.filter(e => e.name === 'agent.token' && String(e.payload.delta).includes('INTERRUPTED_PARTIAL')).length;
+      evidence.ownTerminal = events.filter(e => e.name === 'agent.run.end').map(e => ({ reason: e.payload.reason, outcome: e.payload.outcome }));
+      const { _internals: J } = require('../../sidecar/run-journal.js');
+      const file = path.join(this.fx.workspace, '.run-journal', J.runFileName(start.runId));
+      const size = fs.statSync(file).size;
+      if (size > 4 * 1024 * 1024) evidence.journal = { bytes: size, inspection: 'over diagnostic bound' };
+      else {
+        const parsed = J.parseRecords(fs.readFileSync(file, 'utf8')), state = J.analyze(parsed.records, parsed.corrupt, parsed.damage);
+        let plan;
+        try { const result = require('../../sidecar/run-recovery.js').automaticContinuationPlan(state); plan = { ok: true, messages: result.messages.length }; }
+        catch (error) { plan = { ok: false, code: error.code, reason: String(error.message).slice(0, 300) }; }
+        evidence.journal = { bytes: size, status: state.status, records: state.records, terminal: state.terminal,
+          damage: state.damage, forensic: state.forensic, retirable: state.retirable, plan,
+          checkpoint: { phase: state.checkpoint.phase, turn: state.checkpoint.turn,
+            rows: (state.checkpoint.messages || []).slice(-200).map(m => ({ role: m.role, tool_call_id: m.tool_call_id,
+              calls: (m.tool_calls || []).map(c => ({ id: c.id, name: c.function?.name })) })) } };
+      }
+    } catch (error) { evidence.inspectionError = { code: error.code, reason: String(error.message).slice(0, 300) }; }
+    try {
+      let offset = records.nextOffset;
+      for (let n = 0; offset != null && n < 10; n++) {
+        const response = await this.fx.json('GET', '/api/run-recoveries?offset=' + offset + '&limit=100', undefined, { signal: AbortSignal.timeout(1000) });
+        if (response.status !== 200) { evidence.pagingStatus = response.status; break; }
+        const page = response.body;
+        evidence.laterPages.push({ total: page.total, offset: page.offset, nextOffset: page.nextOffset,
+          source: brief(page.recoveries.find(r => r.runId === start.runId)) });
+        if (page.nextOffset != null && page.nextOffset <= offset) { evidence.pagingError = 'nonadvancing offset'; break; }
+        offset = page.nextOffset;
+      }
+    } catch (error) { evidence.pagingError = String(error.message).slice(0, 300); }
+    return evidence;
+  }
   async interruptAndContinue() {
     const sent = await this.page.prepare('recover this exact directive'); this.holdNext = true;
     const response = await this.fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ model: 'test/model', provider: 'openrouter', isTask: false }, sent)) });
@@ -139,7 +183,8 @@ class TurnHttpFixture {
     this.phone.close(); await this.fx.stop(); await reading;
     this.page.consume(raw.slice(0, raw.lastIndexOf('\n')), sent); await this.fx.start(); this.connectPhone();
     const records = await this.json('GET', '/api/run-recoveries'), source = records.recoveries.find(r => r.runId === start.runId);
-    assert.ok(source && source.canAutoContinue, 'real interrupted run is continuable');
+    try { assert.ok(source && source.canAutoContinue, 'real interrupted run is continuable'); }
+    catch (error) { error.recoveryEvidence = await this.recoveryEvidence(start, records, source, raw); throw error; }
     const continuationId = 'property-' + this.seed + '-' + (++this.serial);
     assert.ok(/^[A-Za-z0-9._:-]{8,100}$/.test(continuationId), 'fixture satisfies the actual recovery route identifier grammar');
     const prepared = await this.json('POST', '/api/run-recoveries/continue', { runId: start.runId, agentId: 'agent', recoveryToken: source.recoveryToken, continuationId, mode: 'automatic' });

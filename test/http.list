@@ -322,6 +322,13 @@ test/retract.http.test.js
 test/turn-id.recovery.http.test.js
 test/directive-capture.e2e.test.js
 test/turn-identity.property.http.test.js
+test/turn-identity.property.shadow-18426.http.test.js
+test/turn-identity.property.shadow-19423.http.test.js
+test/turn-identity.property.shadow-20420.http.test.js
+test/turn-identity.property.id-17429.http.test.js
+test/turn-identity.property.id-18426.http.test.js
+test/turn-identity.property.id-19423.http.test.js
+test/turn-identity.property.id-20420.http.test.js
 
 test/ledger.generation-id.http.test.js
 test/spend.compaction-accounting.http.test.js
