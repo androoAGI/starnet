@@ -222,6 +222,8 @@ const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeCont
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
+const TurnKinds = require('../frontend/app/turnkinds.js');   // turn identity: the turnId grammar and mints the page and phone host share
+const TurnDirective = require('./turn-directive.js');   // turn identity: which turn a run answers, directive reuse by turnId, the run.start echo
 const { setStationSecretSource } = require('./child-env.js');   // station-secret-free env for every helper process
 const { collectSecretValues } = require('./secret-values.js');   // feeds redact()'s known-value layer (see setKnownSecretSource)
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
@@ -21663,6 +21665,7 @@ async function handleRun(req, res) {
       quotedOwnerInput,   // learning-only: skips the durable learning passes at run end, latches nothing
       ownerDirective: ownerWording,   // the Commander typed this directive at their own station (not a recipe template)
       retryUserRunId: body && body.retryUserRunId,
+      turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()),   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -22089,6 +22092,8 @@ async function runOnceCore(o) {
   // and WHICH stream it runs on (additive, 2026-09-29): a line test's run (a step test's steptest-…, RUN ONE REAL JOB's
   // sample-…) is real work whose words live in the line's TEST view, not the agent's COMMS — the crew row names it
   if (o.streamId) runStartExtra.streamId = String(o.streamId);
+  const turnIdOf = TurnDirective.turnOf(o, runId); if (turnIdOf) runStartExtra.turnId = turnIdOf;   // and WHICH turn it answers (turn identity)
+  const turnReuse = TurnDirective.reuseByTurn(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, retryOf: o.retryOf, recovery: !!o.recovery, internal: !!o.internal || !!o.outputOnly, turnAt: o.turnAt, turnRowId: o.turnRowId, rekey: t => { runStartExtra.turnId = t; } });
   const runStartedAt = Date.now();
   /* The persona system prompt is STORED text (the page bakes the Commander's dossier into every agent's systemPrompt;
      a routine, night beat or line hop reads the roster copy) — never the live turn. Scrubbed once here (prompt-scrub),
@@ -23830,6 +23835,7 @@ async function runOnceCore(o) {
   const transcriptState = (o.dispatchDelivery && o.dispatchDelivery.state) || (internal && !o.streamId ? 'internal' : undefined);
   const runTranscript = makeRunTranscript({
     store: runTranscriptStore, hold: keySaveOffered ? () => !keySavedThisRun : null, streamId: o.streamId, agentId, runId, from: o.delegatedBy || '', dispatchState: transcriptState,
+    turnId: () => runStartExtra.turnId,   // read at each write: the directive and every row of this run carry the run's turn
     // rows written after untrusted content entered this run carry its taint source (sec-taint 09-25)
     taint: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),
     // mid-run write failures never kill the run or reorder dialogue: the rows stay pending (and in the run journal)
@@ -24979,8 +24985,8 @@ async function runOnceCore(o) {
   // history the caller already supplied; gated to an explicit streamId (the global catch-all is not auto-seeded).
   // A retry is a new execution of an existing user turn. Reuse only the latest durable user
   // row whose run, agent, stream and text all match; equal text alone never deduplicates a send.
-  let retryDirective = null;
-  if (streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
+  let retryDirective = TurnDirective.reuse(transcriptStore, { found: turnReuse, streamId, agentId, runId, retryOf: o.retryOf, messages, latestUserText, redact, keys: turnReuse ? liveServiceKeys() : [], rekey: t => { runStartExtra.turnId = t; } }) || null;
+  if (!retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.history(streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
       && latest.content === redact(latestUserText(messages))) retryDirective = latest;
@@ -25176,6 +25182,7 @@ async function runOnceCore(o) {
   if (!internal) {
     try {
       runJournal.begin({
+        turnId: runStartExtra.turnId || '',   // turn identity: a continuation answers this turn, and an interrupted record names it
         runId, agentId, streamId: o.streamId || 'global', trigger, model,
         provider: activeProviderId, surface, parentRunId: o.parentRunId || '',   // additive: lets an interrupted-run history row name them truthfully
         recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '',
@@ -25198,6 +25205,7 @@ async function runOnceCore(o) {
   // H2: the user's directive (and a continuation's still-missing recovered turns) are durable BEFORE the first model
   // call. Never throws; a failure retries at the first loop boundary, ahead of any assistant row.
   if (execution.journalStarted()) { transcriptLiveRuns.add(runId); runTranscript.start(msgs); }
+  TurnDirective.echo(runStartExtra, runTranscript, retryDirective, f => runStore.noteIdentity(runId, f), taskBrief);   // run.start names the directive row; the run record its turn
   let bufferedTaskEnd = null;
   // Per-run. It was once an undeclared (implicit global) assignment, so overlapping runs shared one verdict.
   let finalCompletionEvidence = null;
@@ -25238,6 +25246,7 @@ async function runOnceCore(o) {
       if (name === 'agent.cost' && !providerUnmetered) spendPool.booked(runId, Number(payload.usd) || 0);
       else if (name === 'agent.tool_call') spendPool.idle(runId);
     }
+    if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.turnId || runStartExtra.directiveRowId) && payload.turnId === undefined) payload = Object.assign({}, payload, TurnDirective.startFields(runStartExtra));   // turn identity: the lead's start names its turn and directive row
     // LINE WATCH: the loop's own run.start is the normal path's — it must name the bay/crate like every early-exit
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     // (and a voice turn's route, so COMMS can say once why a voice model was passed over)
@@ -29616,6 +29625,7 @@ function syncInterruptedRunHistory(r) {
         .catch(e => failNote('cron.interrupted.mark', e));
     }
   }
+  runStore.noteIdentity(r.runId, TurnDirective.interruptedIdentity(meta, transcriptStore, r));   // its turn, from the journal (noteIdentity is in memory)
   return runStore.record({
     runId: r.runId, agentId: String(meta.agentId || 'agent'), provider: String(meta.provider || ''), cronJobId,
     reason: 'interrupted', turns: Number((r.checkpoint && r.checkpoint.turn) || 0) || 0, tokens: 0,
@@ -29918,7 +29928,7 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   // the work item the SOURCE ran under (its journaled idempotency scope — a routine's is 'cron:<job>:<fire>'): the continuation
   // dedupes its connector writes against the source's, not against 'run:<source>' it never wrote under (idempotency-ledger scopeFor)
   const idempotencyScope = String((current.meta && current.meta.idempotencyScope) || '');
-  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId }, idempotencyScope ? { idempotencyScope } : {}) };
+  return { ok: true, plan: Object.assign({}, plan, { sourceRunId, continuationId, sourceTurnId: String((current.meta && current.meta.turnId) || ''), sourceTitle: String((current.meta && (current.meta.directiveTitle || current.meta.userTitle)) || '') }, idempotencyScope ? { idempotencyScope } : {}) };
 }
 
 // Settles the SOURCE journal after its continuation run returned. Ordering mirrors finishAndRetire: the continued

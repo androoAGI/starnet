@@ -87,6 +87,7 @@ function rig() {
     activeWs: ws, interview: null, focusVersion: 0, pendingTaskQuestion: null, lastShortVerdict: null, CORRECTION_WINDOW_MS: 600000,
     wiSeq: 0, stick: false, log: null, input: null, activeLiveRow: null, system: 'You are NOVA.', onTurn: null,
     interrupted: new Set(), stopSource: new Map(), aborters: new Map(), liveRunRoots: new Map(), queued: new Map(), crewJoining: new Set(),
+    TurnMerge: require('../frontend/app/turnmerge.js'), turnRng: Math.random, liveRunTurns: new Map(),   // send()'s turn ids (turn identity)
     RUN_META: new Map(), clarificationRuns: new Set(), notedRuns: new Set(), runWork: new Map(), runCrew: new Map(), interruptedStreams: new Set(),
     warmChat: noop, clearChoices: noop, stepOfferAside: noop, addUser: noop, capHistory: noop, goalStepLine: noop, goalStepOf: () => null, goalOf: () => null,
     postCorrection: noop, wiBump: () => 0, wiEmit: noop, liveVoiceCall: () => false, liveVoiceOwns: () => false,

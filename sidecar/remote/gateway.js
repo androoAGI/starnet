@@ -44,6 +44,9 @@ const MAX_TEXT = 8000;
 const MAX_CHUNK = 256 * 1024;
 const ID_RE = /^[A-Za-z0-9_.:-]{1,128}$/;
 const STREAM_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const TurnKinds = require('../../frontend/app/turnkinds.js');   // the one turnId grammar (send's optional turn identity)
+// a safe integer at or above `min`, else undefined (a phone's turn time or rowId is passed on only when it is one)
+const safeInt = (v, min) => (Number.isSafeInteger(v) && v >= min ? v : undefined);
 
 function makeGateway(deps) {
   const host = deps.host;
@@ -100,7 +103,8 @@ function makeGateway(deps) {
       let streamId = a.streamId == null || a.streamId === '' ? '' : String(a.streamId);
       if (streamId && !STREAM_RE.test(streamId)) return bad('unknown conversation');
       // voice: the message was spoken on a voice-only device; the reply will only be heard (remote/voice-style.js)
-      const r = await host.send({ agentId, text, streamId, deviceId: ctx.deviceId, voice: a.voice === true });
+      // turn identity (optional, bounded): the phone's own turnId, its time pair (the host converts it) and the bound directive's rowId
+      const r = await host.send({ agentId, text, streamId, deviceId: ctx.deviceId, voice: a.voice === true, turnId: TurnKinds.isTurnId(a.turnId) ? a.turnId : undefined, turnAt: safeInt(a.turnAt, 0), clientNow: safeInt(a.clientNow, 0), turnRowId: safeInt(a.turnRowId, 1) });
       return r && r.ok === false ? bad(r.error || 'the task could not start') : good(r);
     },
 

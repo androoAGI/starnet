@@ -214,13 +214,21 @@ const AutoSessions = (() => {
   // ---- session lifecycle ----------------------------------------------------------------------
   // Adopt (idempotent) the session for one cron run and mark it busy WITHOUT stealing focus. `job`
   // (optional) supplies the human title / agent / seeding prompt; absent, the row still forms honestly.
+  // the session's seed row (the routine's prompt) names its turn the way the station named the fire's directive ('r' + the cron
+  // runId, TurnKinds.runTurnId) and the run that answered it, so the page binds it to that directive by id (turn identity)
+  function seedRow(runId, prompt) {
+    const row = { role: 'user', content: String(prompt), sourceRunId: String(runId) };
+    const turnId = typeof TurnKinds !== 'undefined' ? TurnKinds.runTurnId(runId) : '';
+    if (turnId) row.turnId = turnId;
+    return row;
+  }
   function beginSession(runId, job) {
     if (!hasWS()) return null;
     const id = streamOf(runId);
     if (!validStream(id)) return null;
     const title = (job && job.name) || 'Routine';
     const agentId = (job && job.agentId) || 'agent';
-    const seed = (job && job.prompt) ? [{ role: 'user', content: String(job.prompt) }] : [];
+    const seed = (job && job.prompt) ? [seedRow(runId, job.prompt)] : [];
     const ws = Workstreams.adopt({ id: id, title: title, agentId: agentId, lane: 'active', history: seed,
       automation: { kind: 'routine', id: (job && job.id) || '', name: title } });
     if (!ws) return null;   // a session the Commander DELETED stays deleted (adopt refused the tombstoned id)
@@ -438,7 +446,7 @@ const AutoSessions = (() => {
     let job = routineFor(p.jobId);
     if (!job && p.jobId) {
       // unknown routine → refresh the catalogue, then (re)seed the session's title once names arrive.
-      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && j.prompt) ws.history.push({ role: 'user', content: j.prompt }); refreshRail(); persist(); } });
+      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && j.prompt) ws.history.push(seedRow(p.runId, j.prompt)); refreshRail(); persist(); } });
     }
     beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job || {}));
   }

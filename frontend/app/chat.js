@@ -36,6 +36,9 @@ const Chat = (() => {
   // one thing that can't live in the pure model is the live AbortController (not serializable), so it stays here.
   const aborters = new Map();   // workstreamId -> AbortController for that stream's in-flight run
   const liveRunRoots = new Map();   // workstreamId -> the project root its in-flight run was sent with (null = none): a switch-back replays its files there
+  const liveRunTurns = new Map();   // workstreamId -> { turnId, sourceRunId } of its in-flight run: a partial or stopped turn names them (turn identity)
+  // a turnId's randomness (TurnMerge mints with it): crypto.getRandomValues, which also works outside a secure context
+  function turnRng() { const a = new Uint32Array(1); crypto.getRandomValues(a); return a[0] / 4294967296; }
   const interrupted = new Set();   // wsIds the Commander deliberately STOPPED this turn — send()'s catch reads this as a
                                    // graceful stop (keep the partial reply, log no error) rather than a disconnect. Consumed in finally.
   const interruptedStreams = new Set();   // wsIds whose in-flight run lost its stream; durable recovery decides
@@ -2629,7 +2632,7 @@ const Chat = (() => {
     if (!content.trim()) return false;
     const last = ws.history[ws.history.length - 1];
     if (last && last.role === 'assistant' && !last.error && last.content === content) return false;
-    ws.history.push({ role: 'assistant', content: content, ts: Date.now(), projectRoot: liveRunRoots.get(ws.id) });
+    ws.history.push(TurnMerge.ofTurn({ role: 'assistant', content: content, ts: Date.now(), projectRoot: liveRunRoots.get(ws.id) }, liveRunTurns.get(ws.id)));
     capHistory(ws);
     return true;
   }
@@ -9505,7 +9508,7 @@ const Chat = (() => {
       last.stopped = true;
       return;
     }
-    ws.history.push({ role: 'assistant', content: text, stopped: true, ts: Date.now(), projectRoot: liveRunRoots.get(ws.id) });   // the in-flight run's root (persistPartial)
+    ws.history.push(TurnMerge.ofTurn({ role: 'assistant', content: text, stopped: true, ts: Date.now(), projectRoot: liveRunRoots.get(ws.id) }, liveRunTurns.get(ws.id)));   // the in-flight run's root and turn (persistPartial)
   }
   // WHY it stopped, kept on the stopped turn itself (2026-10-11): the ⏹ work-log line was DOM-only, so after a reload the
   // thread showed a cut-off reply with no reason. renderHistory replays it as the same ⏹ line. Metadata only — the
@@ -9552,7 +9555,7 @@ const Chat = (() => {
     if (text == null) return localLine('Nothing to retry yet — send a message first.');
     load(activeWs);                 // re-render the thread cleanly (the popped ⚠ row is gone)
     const userTurn = h.slice().reverse().find(m => m.role === 'user');
-    send(text, { retry: true, retryUserRunId: (userTurn && userTurn.sourceRunId) || activeWs.runIds[activeWs.runIds.length - 1] });    // re-run it; the user turn is already present, so don't echo it
+    send(text, { retry: true, retryUserRunId: (userTurn && userTurn.sourceRunId) || (userTurn && userTurn.turnId ? undefined : activeWs.runIds[activeWs.runIds.length - 1]) });    // re-run it; the user turn is already present, so don't echo it. A row that names its turn retries by it (send's TurnMerge.sendIds); the last-run guess is only for an older row
   }
   // The shared plain recovery action for an intentional Stop and unknown retryable faults. It delegates to the
   // same guarded retryLast path as `/retry`, so an inactive/busy stream cannot start a duplicate run.
@@ -11422,16 +11425,19 @@ const Chat = (() => {
       // number the channel hub's hop sink reads) and Harness re-emits every stream event onto U.bus before
       // chat() resolves — latch it by the hop's own runId so a forwarded worker's end can't be mistaken for it.
       let hopUsd = 0, hopRunId = null;
+      // TURN IDENTITY: the hop's own turn (no user row of its own: its reply row binds by it); sent with its time pair, and
+      // replaced by the station's echo if the station answered it as another turn
+      let hopTurn = TurnMerge.newTurnId(turnRng); const hopAt = Date.now();
       const onHopEnd = p => { if (p && hopRunId && p.runId === hopRunId && typeof p.usd === 'number' && isFinite(p.usd) && p.usd > 0) hopUsd = p.usd; };
       const busOk = (typeof U !== 'undefined' && U.bus && U.bus.on && U.bus.off);
       if (busOk) { try { U.bus.on('agent.run.end', onHopEnd); } catch (_) {} }
       try {
         res = await Harness.chat({
           system: sys, messages: [{ role: 'user', content: prompt }], agentId: nx, isTask: true,
-          signal: seed.signal, streamId: ws.id,
+          signal: seed.signal, streamId: ws.id, turnId: hopTurn, turnAt: hopAt, clientNow: hopAt,
           placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(nx) : [],
           stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],
-          onRunId: id => { hopRunId = id; },
+          onRunId: (id, start) => { hopRunId = id; hopTurn = TurnMerge.bindStart(ws.history, start, id, { turnId: hopTurn }).turnId; },
           onToken: d => { hopAcc += d; if (hopRow) hopRow.append(d); App.refreshUsage(); },
           onTerminalReset: () => { hopAcc = ''; },
           onToolCall: ev => { if (isActiveWs(ws)) { if (hopRow && hopRow.breakSeg) hopRow.breakSeg(); toolChip(ev); } }
@@ -11452,7 +11458,7 @@ const Chat = (() => {
         return out;
       }
       wiEmit('workitem.delivered', { workitemId: wiHop, finalQueueId: nx, agentId: nx, box: '', ms: Date.now() - hopStart, ts: Date.now() });
-      ws.history.push({ role: 'assistant', content: hopText, agentId: nx, projectRoot: null, ts: Date.now() });   // agentId = the ACTUAL speaker (renderHistory names it); projectRoot null = its files are in nx's workspace
+      ws.history.push(TurnMerge.ofTurn({ role: 'assistant', content: hopText, agentId: nx, projectRoot: null, ts: Date.now() }, { turnId: hopTurn, sourceRunId: hopRunId || undefined }));   // agentId = the ACTUAL speaker (renderHistory names it); projectRoot null = its files are in nx's workspace
       capHistory(ws);
       out.text = hopText; out.agentId = nx; out.hops++;
       cur = nx; curDock = nxDock;
@@ -11515,7 +11521,7 @@ const Chat = (() => {
     // TIMESTAMP TRUTH (P0): stamp the turn with its REAL wall-clock time at push, and render the same instant on
     // screen — so a later replay/switch shows this turn's actual time, never the reload clock.
     // a goal-loop continuation shows as ONE station line (goalStepLine); its history turn — what the model receives — is unchanged
-    if (!retry) { const uts = Date.now(); if (goalContinuation) goalStepLine(goalStepOf(text) || ((goalOf(ws) || {}).goal) || ''); else addUser(text, attsIn, uts); ws.history.push(attsIn.length ? { role: 'user', content: text, attachments: attsIn, ts: uts } : { role: 'user', content: text, ts: uts }); capHistory(ws); }   // on RETRY the user turn is already in the thread + on screen
+    if (!retry) { const uts = Date.now(); if (goalContinuation) goalStepLine(goalStepOf(text) || ((goalOf(ws) || {}).goal) || ''); else addUser(text, attsIn, uts); ws.history.push(TurnMerge.pendingRow(attsIn.length ? { role: 'user', content: text, attachments: attsIn, ts: uts } : { role: 'user', content: text, ts: uts }, turnRng)); capHistory(ws); }   // on RETRY the user turn is already in the thread + on screen
     const retryDirectiveTurn = ws.history.slice().reverse().find(m => m.role === 'user');
     // name an untitled stream from its first real message (no-op on General / already-titled) — a goal step names it from
     // its GOAL, never the station's continuation prompt (the rail row and the COMMS title both show this name)
@@ -11726,6 +11732,9 @@ const Chat = (() => {
         renderHistory(); syncStatus();
         activeLiveRow = streamingAgent(undefined, undefined, runRoot); historyRead.repaint = false;
       }
+      // TURN IDENTITY: the ids this send names (a recovery continuation names none: it answers its source's turn)
+      const turnIds = recoveryResume ? {} : TurnMerge.sendIds(ws.history, { retry, retryRow: retryDirectiveTurn, now: Date.now() });
+      let thisTurnId = turnIds.turnId || '';
       const { text: reply, error, errorCode, endReason, finishReason, outcome: runOutcome, completionVerdict, effectVerdict, budgetScope, budgetCapUsd, budgetCapIsBalance, unpricedModel, unpricedCapTokens, subscriptionModel, subscriptionCapTokens, budgetProjected } = await Harness.chat({
         system: sys, messages: retry ? endOnUserTurn(historyWindow(ws)) : historyWindow(ws), agentId: ws.agentId || 'agent', isTask, recurring, signal: ac.signal, streamId: ws.id,
         // a SPOKEN reply may run on SETTINGS › Models › VOICE CHAT MODEL — never a live call's delegated work, which the
@@ -11735,12 +11744,13 @@ const Chat = (() => {
         postconditions: opts && opts.postconditions != null ? opts.postconditions : undefined,
         recovery: recoveryResume ? opts.recovery : undefined,
         retryUserRunId: retry ? ((opts && opts.retryUserRunId) || (retryDirectiveTurn && retryDirectiveTurn.sourceRunId)) : undefined,
+        ...turnIds,
         connectorContinuationOf: opts && opts.connectorContinuationOf,
         recipeId: recipeId || undefined,   // provenance spine: the launching recipe rides to the durable run row (undefined for non-recipe runs)
         projectRoot: runRoot || undefined,   // project-anchored session: the sidecar injects the folder context ONLY if the root is still a standing blessed grant (truthful)
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
-        onRunId: id => { retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
+        onRunId: (id, start) => { thisTurnId = TurnMerge.bindStart(ws.history, start, id, turnIds).turnId; liveRunTurns.set(ws.id, { turnId: thisTurnId, sourceRunId: id }); retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
         onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now() }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
@@ -11893,7 +11903,7 @@ const Chat = (() => {
         // a real, non-empty reply landed → this stream is eligible for a summary title. Never a cancelled run's partial reply:
         // its own run.end can beat Stop's local abort here, and an E-STOP / HALT ALL cancel never marks the stream stopped
         titleOk = !!replyText.trim() && endReason !== 'cancelled';
-        if (replyText.trim()) ws.history.push({ role: 'assistant', content: replyText, ts: Date.now(), sourceRunId: thisRunId || undefined, projectRoot: runRoot });   // never persist an empty turn
+        if (replyText.trim()) ws.history.push(TurnMerge.ofTurn({ role: 'assistant', content: replyText, ts: Date.now(), sourceRunId: thisRunId || undefined, projectRoot: runRoot }, { turnId: thisTurnId, sourceRunId: thisRunId }));   // never persist an empty turn
         // Lane 5 (truthful telemetry): a reply the PROVIDER cut off — finishReason 'length' (hit max_tokens
         // mid-thought) or 'content_filter' (output filtered) — is an AMPUTATED turn even though endReason==='done'.
         // It must NOT ship a "◈ delivered" crate / XP / workitem.delivered as if it were complete. Treat it like a
@@ -12107,6 +12117,7 @@ const Chat = (() => {
     } finally {
       aborters.delete(ws.id);
       liveRunRoots.delete(ws.id);
+      liveRunTurns.delete(ws.id);
       const stoppedHere = interrupted.has(ws.id);   // read before it is consumed: a join this reply asked for is dropped on a stop
       interrupted.delete(ws.id);   // consume the stop flag (whether or not it fired)
       stopSource.delete(ws.id);

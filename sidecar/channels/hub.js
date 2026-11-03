@@ -1647,6 +1647,12 @@
     const textBatches = new Map();
 
     const activeInbox = new Map();   // durable inbox id -> the one live processing promise (dedupes restart races)
+    // TURN IDENTITY: a chat message's turn is named by its durable receipt — 'ch' + fnv1a64x2(inbox id), two FNV-1a 32-bit
+    // passes (two offset bases) as 16 hex chars — so a recovered replay of the same receipt answers the same turn
+    function fnv1a64x2(s) {
+      const pass = basis => { let h = basis >>> 0; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(16).padStart(8, '0'); };
+      return pass(2166136261) + pass(2166136261 ^ 0x9e3779b9);
+    }
     function inboxId(msg) {
       if (!msg || msg.messageId == null || String(msg.messageId) === '') return '';
       return channel + '|' + String(msg.chatId) + '|' + String(msg.messageId) + (msg.edited ? '|edited' : '');
@@ -1667,7 +1673,7 @@
       if (intake && typeof intake.onAccepted === 'function') { try { intake.onAccepted({ id, durable: true }); } catch (_) {} }
       // A receipt that already carries an attempt is a RE-DELIVERY of work whose run had started — from recoverInbox,
       // or Telegram handing the same update over again. processInbound decides what that may do (attemptOf, heldOf).
-      const routed = withInbox(intake, [id], attemptOf(receipt), heldOf(receipt));
+      const routed = Object.assign(withInbox(intake, [id], attemptOf(receipt), heldOf(receipt)), Number.isSafeInteger(receipt && receipt.ts) ? { inboxAt: receipt.ts } : {});   // the receipt's station time: its turn's first submission
       const running = Promise.resolve().then(() => routeInbound(msg, routed)).then((value) => {
         store.removeInbox(id);   // reply delivered OR its undelivered remainder is now durable in the outbox
         return value;
@@ -2458,6 +2464,9 @@
             // a second go of an interrupted run reuses that run's durable directive row instead of filing the words again
             // (runOnceCore retryDirective: matched by run id, agent, stream AND exact text, so it can only ever dedupe this)
             retryUserRunId: (priorAttempt && attempt === 0) ? priorAttempt.runId : undefined,
+            // TURN IDENTITY: this message's turn, named by its first receipt (a keyboard tap has none: the station mints 'r' + runId),
+            // and the receipt's station time; a recovered replay reuses its directive under the station's reuse contract
+            turnId: inboxIds.length ? 'ch' + fnv1a64x2(inboxIds[0]) : undefined, turnAt: (intake && Number.isSafeInteger(intake.inboxAt)) ? intake.inboxAt : undefined,
             // a VOICE NOTE is a spoken turn: the voice chat model may answer it (never a work line's stage)
             voiceTurn: (!!spoken && !lineId) || undefined,
             initialTaint: entryTaint || (mediaIngest.attachments.length ? 'channel attachment' : (carriesThirdPartyText(msg) ? 'forwarded message' : null)),

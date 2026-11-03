@@ -28,6 +28,8 @@ const { withVoiceStyle } = require('./voice-style.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');   // the held-call stamp a phone step reads as "not run yet"
 // TYPED OUTCOMES: a finished run's state on the phone is its recorded outcome, read through the ONE resolver every surface shares
 const RunOutcome = require('../../frontend/app/runoutcome.js');
+// TURN IDENTITY: the one turnId grammar, the phone host's mint ('ph' + runId) and the client time conversion
+const TurnKinds = require('../../frontend/app/turnkinds.js');
 
 const TEXT_FLUSH_MS = 250;
 
@@ -306,6 +308,8 @@ function makeRemoteHost(d) {
     if (!cred || !cred.ok) return { ok: false, error: (cred && cred.error) || 'this agent has no model set up yet' };
     const streamId = o.streamId || ('remote_' + String(o.agentId).replace(/[^A-Za-z0-9_-]/g, '_') + '_' + now().toString(36)).slice(0, 64);
     const runId = d.newId();
+    // this phone turn's id: the phone's own (a relay resend stays one turn), else this run's ('ph' + runId, never looked up)
+    const turnId = TurnKinds.isTurnId(o.turnId) ? o.turnId : TurnKinds.phoneTurnId(runId);
     const ac = new AbortController();
     const rec = { ac, agentId: o.agentId, streamId, deviceId: o.deviceId || '', startedAt: now() };
     remoteRuns.set(runId, rec);
@@ -351,7 +355,7 @@ function makeRemoteHost(d) {
     };
     const prompt = (call, tool) => d.askConsent({ agentId: o.agentId, runId, signal: ac.signal, call, tool, surface: 'remote', onPrompt: () => {} });
 
-    broadcast({ type: 'run.started', runId, agentId: o.agentId, streamId });
+    broadcast({ type: 'run.started', runId, agentId: o.agentId, streamId, turnId });
     // setImmediate, not a microtask: runOnce does a second or more of synchronous set-up before its first await,
     // and the phone's "accepted" reply must leave first (measured: the ack took 1.3 s behind a microtask start).
     new Promise((resolve) => setImmediate(resolve)).then(() => d.runOnce({
@@ -362,6 +366,8 @@ function makeRemoteHost(d) {
       stationEvidence: true,
       voiceTurn: o.voice === true || undefined,   // a question spoken on a voice-only device is a voice turn: the voice chat model may answer it
       emit, signal: ac.signal, runId, streamId, trigger: 'event',
+      // the phone's elapsed time since the turn's first submission, from the station's now (a phone clock's offset cancels)
+      turnId, ...TurnKinds.clientTurnTime(o, now()), turnRowId: (Number.isSafeInteger(o.turnRowId) && o.turnRowId > 0) ? o.turnRowId : undefined,
       surface: 'interactive', prompt, ownerTrusted: true, floorless: true, broadcast: true, reflect: true,
       // A PHONE WORKS WITH THE DESK'S PERMISSIONS (Andrew 2026-10-02: "full access so I can vibe code on the go"): an
       // agent on Full Access acts from the phone without asking, exactly as at the desk. A phone the Commander marked

@@ -293,7 +293,7 @@ test('a reply keeps the folder its own run used after the session joins a projec
   for (const o of [s.streamingAgent(undefined,undefined,null),s.streamingAgent('NOVA','nova',null),s.streamingAgent()]) { o.append('see [it](site/index.html)'); o.done(); }
   assert.deepEqual(renders.map(r=>r[2]),[undefined,undefined,'C:/proj'],'a live reply resolves at the folder its run was sent with (none for a hop)');
   // every reply the send path persists records the folder that run was sent with; a hop records none
-  const p=ctx(part(chat,'  function persistPartial(', '  function isBusy(')+part(chat,'  function markStoppedTurn(', '  // WHY it stopped'),{capHistory(){},liveRunRoots:new Map([['a',null],['b','C:/proj']])});
+  const p=ctx(part(chat,'  function persistPartial(', '  function isBusy(')+part(chat,'  function markStoppedTurn(', '  // WHY it stopped'),{capHistory(){},liveRunRoots:new Map([['a',null],['b','C:/proj']]),TurnMerge:require('../frontend/app/turnmerge.js'),liveRunTurns:new Map()});
   const w={id:'a',history:[]}; p.persistPartial(w,'partial'); w.id='b'; p.markStoppedTurn(w,'');
   assert.deepEqual(w.history.map(m=>m.projectRoot),[null,'C:/proj'],'a partial or stopped turn carries its in-flight run\'s folder');
   const send=part(chat,'  async function send(text, opts) {', '  async function maybeRetitle(');

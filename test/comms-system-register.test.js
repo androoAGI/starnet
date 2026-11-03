@@ -97,7 +97,7 @@ const mkRow = () => { const cls = new Set(); return { d: { classList: { add: c =
   A.ok(send.length > 1000, 'send() sliced');
   A.ok(/if \(goalContinuation\) goalStepLine\(goalStepOf\(text\) \|\| \(\(goalOf\(ws\) \|\| \{\}\)\.goal\) \|\| ''\); else addUser\(text, attsIn, uts\);/.test(send),
     'a live continuation renders the goal step line instead of a Commander row');
-  A.ok(/ws\.history\.push\(attsIn\.length \? \{ role: 'user', content: text, attachments: attsIn, ts: uts \} : \{ role: 'user', content: text, ts: uts \}\)/.test(send),
+  A.ok(/ws\.history\.push\(TurnMerge\.pendingRow\(attsIn\.length \? \{ role: 'user', content: text, attachments: attsIn, ts: uts \} : \{ role: 'user', content: text, ts: uts \}, turnRng\)\)/.test(send),
     'the continuation still enters history as the same user-role turn (nothing new on the wire)');
   A.ok(/send\(prompt, \{ goalContinuation: true \}\)/.test(A.fnBody(chat, 'function kickGoal(')), 'kickGoal still sends GoalLoop.continuationPrompt as the turn');
   // the session's name: a goal step titles it from its GOAL (the rail row + the P26 COMMS title), never the marker prompt

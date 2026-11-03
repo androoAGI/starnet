@@ -481,6 +481,8 @@ test/transcript-history-v2.test.js
 test/transcript-perf-paths.test.js
 test/transcript-row-identity.test.js
 test/transcript-run.identity.test.js
+test/runstore.identity.test.js
+test/turn-merge.family.test.js
 test/recall.test.js
 test/session-tombstones.test.js
 test/transcript-selftalk.test.js
