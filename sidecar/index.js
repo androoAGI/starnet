@@ -227,7 +227,7 @@ const { collectSecretValues } = require('./secret-values.js');   // feeds redact
 const { makeConnectorOauthFetch } = require('./mcp/oauth-fetch.js');   // DNS-pinned fetch for every connector-OAuth leg
 const WorkspaceReserved = require('./workspace-reserved.js');   // agent ids that name station-owned dirs (codex/, channels/ …)
 const { runRouteFailure } = require('./runroute.js');   // a failure escaping handleRun must never read as an empty 200
-const { json: respondJson, readJsonBody, isAgentId } = require('./respond.js');   // canonical json()/body/agent-id helpers — adopt incrementally, don't mass-migrate
+const { json: respondJson, readJsonBody, isAgentId, stampFailureCodes } = require('./respond.js');   // canonical json()/body/agent-id helpers — adopt incrementally, don't mass-migrate
 const { readBody, readBodyBuffer } = require('./http-body.js');
 // Channel connect/sync bodies carry the agent's COMPOSED system prompt (identity + purpose + context + standing
 // orders + Commander dossier — all user-written, none capped). The old 64 KB cap cut real users off: their CONNECT
@@ -541,29 +541,24 @@ function applyApiCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
-  res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache');
+  // X-StarNet-Code names a failure (respond.js CODES): hidden, the desktop page could not tell a stale key from any 403.
+  res.setHeader('Access-Control-Expose-Headers', 'X-Voice-Provider, X-Voice-Cache, X-StarNet-Code');
   res.setHeader('Access-Control-Max-Age', '600');
-}
-function rejectApi(req, res) {
-  if (!isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403); res.end('forbidden host'); return true; }
-  // the Host rides along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62)
-  if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) { noteApiRefusal(req, 'forbidden origin'); res.writeHead(403); res.end('forbidden origin'); return true; }
-  return false;
 }
 /* #62: a refused API call used to be SILENT server-side — the browser got a bare 403, the sidecar log and
    diag.errors.json said nothing, so a tunnel/proxy mismatch looked like "the provider rejected my key". Say it ONCE
    per distinct (reason, origin, host) — a stale page or a probing site cannot flood the log or evict real run errors
    from the diag ring. Header values are clipped and stripped to printable ASCII; no token or body is ever read here. */
 const apiRefusalsSeen = new Set();
+// a request with NO key is not a page from before a restart: it is a page this station withheld its key from (the
+// "withheld the station token" line names why) or not a StarNet page. Only a WRONG key is a stale page, and the
+// header-less shapes (EventSource, save beacon) carry theirs as a ?ticket=, so a stale ticket is a stale page too.
+function carriesNoKey(req) { const claim = apitickets.apiTicketClaim(req); return !apiauth.headerToken(req) && !(claim && claim.ticket); }
 function noteApiRefusal(req, reason) {
   try {
     const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7e]/g, '?').slice(0, 120);
     const origin = clean(req.headers.origin), host = clean(req.headers.host);
-    // a request with NO key is not a page from before a restart: it is a page this station withheld its key from (the
-    // "withheld the station token" line names why) or not a StarNet page. Only a WRONG key is a stale page, and the
-    // header-less shapes (EventSource, save beacon) carry theirs as a ?ticket=, so a stale ticket is a stale page too.
-    const ticketClaim = reason === 'forbidden token' ? apitickets.apiTicketClaim(req) : null;
-    const noKey = reason === 'forbidden token' && !apiauth.headerToken(req) && !(ticketClaim && ticketClaim.ticket);
+    const noKey = reason === 'forbidden token' && carriesNoKey(req);
     const sig = reason + (noKey ? ':none' : '') + '|' + origin + '|' + host;
     if (apiRefusalsSeen.has(sig) || apiRefusalsSeen.size >= 64) return;
     apiRefusalsSeen.add(sig);
@@ -576,16 +571,14 @@ function noteApiRefusal(req, reason) {
     recordDiagError(line);
   } catch (e) { failNote('api.refusal.note', e); }
 }
-function rejectBadApiToken(req, res) {
-  if (!requiresApiToken(req)) return false;
-  if (apiauth.apiTokenOk(req, API_TOKEN)) return false;
-  // Some browser surfaces provably cannot attach custom headers: link/tab opens (GET/HEAD /api/file), the SSE
-  // EventSource (GET /api/channels/events) and the unload save beacon (POST /api/save — navigator.sendBeacon).
-  // Those exact request shapes accept a ?ticket= minted for exactly that resource (apiauth.ticketOk); the MASTER
-  // token is never accepted from a query string (it leaked into browser history, Referer and copied links).
-  if (apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return false;
-  noteApiRefusal(req, 'forbidden token');
-  res.writeHead(403); res.end('forbidden token'); return true;
+/* THE GATE REFUSES IN ONE PLACE (the Host floor, the API Origin check, the launch token): noted once per cause (#62),
+   named on the wire (X-StarNet-Code forbidden_host / forbidden_origin / token_missing / token_stale; a 403 alone named
+   none of them), and the legacy text body byte-identical: an older page's stale-token recovery reads 'forbidden token'. */
+function refuseAtGate(req, res, reason) {
+  noteApiRefusal(req, reason);
+  const code = reason === 'forbidden host' ? 'forbidden_host' : reason === 'forbidden origin' ? 'forbidden_origin' : carriesNoKey(req) ? 'token_missing' : 'token_stale';
+  res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8', 'X-StarNet-Code': code });
+  res.end(reason); return true;
 }
 // Desktop build: live BYOK keys are seeded from the OS keychain via env at spawn, and updated
 // in place via the token-guarded POST /api/key (the parent shell pushes changes; no restart).
@@ -12076,6 +12069,7 @@ if (SWEEP_BACKUP_TEMPS) try {
 } catch (e) { failNote('recovery.temp.sweep', e); }
 
 const server = http.createServer((req, res) => {
+  stampFailureCodes(res);   // ONE FAILURE SHAPE: every answer >= 400 below names itself in X-StarNet-Code (respond.js)
   // DNS-REBINDING FLOOR ON EVERY PATH (2026-09-23 security audit). The Host pin used to guard only /api/* (and
   // openai-compat's own routes), while `/` inlines the per-launch API token — a rebound page could read the secret
   // the token layer exists to protect, plus /workshop-run/ bytes and the pre-gate fault line. Every legitimate
@@ -12083,7 +12077,7 @@ const server = http.createServer((req, res) => {
   // ONE exemption: a line-trigger webhook POST /api/hooks/trg_… may arrive through a tunnel the Commander set up
   // (cloudflared/ngrok forward the PUBLIC Host). It is fenced by its own per-trigger secret and returns no token.
   const triggerHook = req.method === 'POST' ? TRIGGER_HOOK_RX.exec(String(req.url || '')) : null;
-  if (!triggerHook && !isAllowedHost(req.headers.host)) { noteApiRefusal(req, 'forbidden host'); res.writeHead(403, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('forbidden host'); }
+  if (!triggerHook && !isAllowedHost(req.headers.host)) return refuseAtGate(req, res, 'forbidden host');
   // Once an uncaught exception has made this process's in-memory state unprovable, the server becomes a recovery
   // shell. Static GET/HEAD keeps the already-installed UI reloadable; health + authenticated diagnostics explain
   // the fault. Every other API, external-harness, artifact and mutation surface fails closed with 503. This gate
@@ -12099,15 +12093,20 @@ const server = http.createServer((req, res) => {
   const isApi = String(req.url || '').indexOf('/api/') === 0 || req.url === '/api';
   if (isApi) {
     // Desktop serves the frontend from a Tauri app origin, while browser mode is same-origin loopback.
-    // Mirror only trusted origins and reject browser-driven localhost calls from arbitrary sites.
+    // Mirror only trusted origins and reject browser-driven localhost calls from arbitrary sites. The Host rides
+    // along so a port-forwarded page (Origin == its own loopback Host) is recognised as same-origin (#62).
     applyApiCors(req, res);
-    if (rejectApi(req, res)) return;
+    if (!isAllowedApiOrigin(String(req.headers.origin || ''), PORT, req.headers.host)) return refuseAtGate(req, res, 'forbidden origin');
   }
   if (req.method === 'OPTIONS') {
     if (!isApi) { res.writeHead(404); return res.end('not found'); }
     res.writeHead(204); return res.end();
   }
-  if (isApi && rejectBadApiToken(req, res)) return;
+  // The launch key, or for the shapes that provably cannot attach a header (link/tab opens: GET/HEAD /api/file; the SSE
+  // EventSource: GET /api/channels/events; the unload save beacon: POST /api/save) a ?ticket= minted for exactly that
+  // resource (apiauth.ticketOk). The MASTER token is never accepted from a query string (it leaked into browser history,
+  // Referer and copied links).
+  if (isApi && requiresApiToken(req) && !apiauth.apiTokenOk(req, API_TOKEN) && !apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return refuseAtGate(req, res, 'forbidden token');
   const mutationTicket = updatePreparation.beginRequest(req.method, req.url);
   if (!mutationTicket.ok) {
     res.writeHead(423, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -19407,7 +19406,7 @@ const WORKSHOP_RUN_PREFIX = '/workshop-run/';
 async function serveWorkshopRun(req, res) {
   const reqPath = String(req.url || '').split('?')[0];
   const ticketed = apitickets.splitRunTicket(reqPath);                 // { ticket, rest } | null
-  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) { res.writeHead(403); return res.end('forbidden token'); }
+  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) return refuseAtGate(req, res, 'forbidden token');
   let abs;
   try {
     const rawPath = decodeURIComponent(ticketed ? WORKSHOP_RUN_PREFIX + ticketed.rest : reqPath);
