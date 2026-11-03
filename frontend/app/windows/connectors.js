@@ -1088,7 +1088,7 @@
                 let r = null;
                 try { r = await Harness.api.post('/api/connectors/storage/start-fresh', { confirm: true }); } catch (_) {}
                 if (r && r.ok) { sfx('ok'); notify(startFreshKeptText(r.j)); }
-                else { sfx('bad'); notify('START FRESH failed: ' + ((r && r.j && r.j.error) || 'the station did not answer')); }
+                else { sfx('bad'); notify('START FRESH failed: ' + (r ? Harness.api.why(r) : 'the station did not answer')); }   // a refusal is an answer
                 refresh();
               }
             });
@@ -2032,8 +2032,10 @@
       const clientId = (clientInput.value || '').trim();
       msgEl.textContent = 'opening Spotify…';
       try {
-        const j = (await Harness.api.post('/api/spotify/auth/start', clientId ? { clientId } : {})).j;
-        if (j.error) { msgEl.textContent = '✕ ' + j.error; sfx('bad'); return; }
+        const r = await Harness.api.post('/api/spotify/auth/start', clientId ? { clientId } : {});
+        const j = r.j;
+        // a refusal (any body, or none) says the station's reason; only a confirmed answer opens a sign-in page
+        if (!r.ok || !j.url) { msgEl.textContent = '✕ ' + (r.ok ? 'the station did not return a sign-in link' : Harness.api.why(r)); sfx('bad'); return; }
         const opened = await openSignIn(j.url);
         if (!opened.opened) {
           // No consent window opened → don't poll and don't claim one is waiting (truthful-telemetry law).

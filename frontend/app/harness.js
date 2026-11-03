@@ -1969,13 +1969,19 @@ const Harness = (() => {
     } catch (e) { return []; }
   }
 
-  /* Minimal JSON client for the sidecar's /api surface (the launch-token rides via the hardened
-     window.fetch above). Two shapes, matching the two call-site idioms this codebase already uses:
-       get(path)        -> resolves the parsed JSON; THROWS Error('http <status>') on a non-2xx.
-                           Callers keep their own .catch — silence stays an explicit .catch(() => …).
-       post(path, body) -> resolves { ok, status, j } where j is the parsed body EVEN on a non-2xx
-       del(path)           (the sidecar's {error} envelope), so callers can surface j.error; rejects
-                           only on network failure or a non-JSON body. body defaults to {}.
+  /* THE ONE CLIENT FOR THE STATION'S JSON EXCHANGES (the launch token rides via the hardened window.fetch above). Every
+     answer is read ONCE, by read(response) -> { ok, status, code, j } (truthful acks, 2026-11-03):
+       j     the parsed JSON body, or null — never synthesized
+       ok    2xx AND a JSON object AND j.ok !== false: a 200 {ok:false} is a refusal, not a success
+       code  '' when ok; else the station's own name for it (X-StarNet-Code, sidecar/respond.js CODES), else j.code, else
+             bad_body (a 2xx that is not a JSON object), refused (a 2xx {ok:false}) or http_<status>
+     The shapes:
+       get(path)        -> the parsed body of a 2xx JSON answer; else THROWS an Error('http <status>') carrying
+                           { status, code, j }. Callers keep their own .catch — silence stays an explicit .catch(() => …).
+       post(path, body) -> resolves { ok, status, code, j } for EVERY answer: a refusal is an answer (the gate's plain-text
+       del(path)           403, an HTML 5xx and a static 404 included), never "could not reach the station". Rejects only
+                           when no answer came (network, abort, deadline). body defaults to {}.
+       why(r)           -> the one sentence for a refused result; read(response) for a Response a caller already holds.
      Streaming responses (/api/run, /api/cron/run) and Response-shape consumers must NOT use this. */
   async function requestJson(path, init, options) {
       const controller = new AbortController();
@@ -1986,9 +1992,10 @@ const Harness = (() => {
       try {
         return await Promise.race([
           fetch(path, Object.assign({ cache: 'no-store' }, init, { signal: controller.signal })).then(async r => {
-            if (!init && !r.ok) throw new Error('http ' + r.status);
-            const j = await r.json();
-            return init ? { ok: r.ok, status: r.status, j } : j;
+            const out = await readReply(r);
+            if (init) return out;
+            if (out.status >= 200 && out.status < 300 && out.j !== null) return out.j;
+            throw Object.assign(new Error(out.status >= 200 && out.status < 300 ? 'unreadable reply (http ' + out.status + ')' : 'http ' + out.status), { status: out.status, code: out.code, j: out.j });
           }),
           new Promise((_, reject) => { deadline = setTimeout(() => {
             reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
@@ -1997,12 +2004,52 @@ const Harness = (() => {
         ]);
       } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
   }
+  // the station's own name for a failure (sidecar/respond.js stamps every answer >= 400: a lower-case code); '' from an older station
+  function stationCodeOf(response) {
+    let c = '';
+    try { c = String((response && response.headers && typeof response.headers.get === 'function' && response.headers.get('X-StarNet-Code')) || '').trim(); } catch (_) { c = ''; }
+    return /^[a-z][a-z0-9_]{0,63}$/.test(c) ? c : '';
+  }
+  // ONE reading of an answer, pure over the Response. A body read the caller aborted is no answer: it rejects.
+  async function readReply(response) {
+    const status = Number(response && response.status) || 0;
+    let j = null;
+    try { j = await response.json(); } catch (e) { if (e && e.name === 'AbortError') throw e; j = null; }
+    if (j === undefined) j = null;
+    const object = j !== null && typeof j === 'object';
+    const ok = status >= 200 && status < 300 && object && j.ok !== false;
+    if (ok) return { ok, status, code: '', j };
+    const own = object && typeof j.code === 'string' ? j.code.trim() : '';
+    const code = stationCodeOf(response) || own || (status >= 200 && status < 300 ? (object ? 'refused' : 'bad_body') : 'http_' + status);
+    return { ok, status, code, j };
+  }
+  /* The one sentence for a refused result (lower-case lead, no full stop: callers add their own). The gate's codes name this
+     page's own trouble (a key from before a restart, no key at all, a wrong address); any other refusal is the route's,
+     in its own words. The typeof guards keep this slice self-contained when a test lifts it on its own. */
+  function whyRefused(r) {
+    if (!r || r.ok) return '';
+    const status = Number(r.status) || 0, code = String(r.code || ''), j = r.j && typeof r.j === 'object' ? r.j : null;
+    if (code === 'token_stale') return 'the station restarted — reload the page to reconnect';
+    if (code === 'token_missing') {
+      const notice = typeof tokenWithheld === 'string' && tokenWithheld && typeof tokenWithheldNotice === 'function' ? tokenWithheldNotice(tokenWithheld) : '';
+      return notice ? notice.replace(/\.\s*$/, '') : 'this browser was not verified as your own account — see the station notice';
+    }
+    if (code === 'forbidden_origin') return 'this page’s address doesn’t match the station; open StarNet at the exact address you forward to it';
+    if (code === 'forbidden_host') return 'StarNet answers only on localhost / 127.0.0.1; reach it through a port forward, not a hostname';
+    const said = j && [j.error, j.message, j.reason].find(x => typeof x === 'string' && x.trim());
+    if (said) return said.trim().replace(/\.\s*$/, '');
+    if (code === 'bad_body') return 'the station answered (HTTP ' + status + ') but its reply could not be read';
+    return (status >= 500 ? 'the station hit an error' : 'the station refused this') + ' (HTTP ' + status + ')';
+  }
   // Finite JSON exchanges only: include body parsing in the deadline, never replay writes.
   // Mutations have a longer budget for connection setup and expose ambiguous completion honestly.
   const api = {
     get: (path, options) => requestJson(path, null, options),
     post: (path, body, options) => requestJson(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body == null ? {} : body) }, options),
-    del: (path, options) => requestJson(path, { method: 'DELETE' }, options)
+    del: (path, options) => requestJson(path, { method: 'DELETE' }, options),
+    read: readReply,
+    why: whyRefused,
+    stationCode: stationCodeOf
   };
 
   // ONE fold point for context occupancy: every agent.cost on the bus — chat-stream re-emits AND

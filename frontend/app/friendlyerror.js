@@ -1002,9 +1002,11 @@
 
   /* ---- Why a STARNET account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
      "could not reach the link service", which blamed the cloud for a dead LOCAL engine and gave support nothing.
-     `info` is what the caller saw: { local:true } when the station's own POST never answered (refused, non-JSON, or
-     Harness.api's deadline), else { status, j } from the sidecar — j.reason is its stable classification of the
-     cloud failure (sidecar/index.js linkStartFailure). Lower-case lead, no trailing period (callers add their own). */
+     `info` is what the caller saw: { local:true } when the station's own POST never answered (a network failure or
+     Harness.api's deadline), else { status, j, why } from the sidecar — j.reason is its stable classification of the
+     cloud failure (sidecar/index.js linkStartFailure), and why is Harness.api.why's sentence for any other refusal (a
+     plain-text or HTML refusal is an answer too: it is never "the engine isn't answering"). Lower-case lead, no trailing
+     period (callers add their own). */
   function linkStartFailure(info) {
     const i = info || {}, j = i.j || {};
     if (i.local) return 'StarNet\'s engine on this computer isn\'t answering, so the link could not start — restart StarNet, then try again';
@@ -1016,6 +1018,7 @@
     if (j.reason === 'dns' || j.reason === 'unreachable') return 'StarNet could not reach the StarNet account service from this computer' + detail + ' — check a VPN or firewall, then try again';
     if (j.reason === 'cloud_5xx') return 'the StarNet account service is having trouble right now — try again in a minute';
     if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the StarNet account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
+    if (i.why) return 'the link could not start: ' + String(i.why);
     return 'could not reach the link service — try again';
   }
 
