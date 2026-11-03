@@ -16145,7 +16145,6 @@ function handleToolsetsList(req, res) {
 const TOOLSETS_PREVIEW_CONTEXT = Object.freeze({ origin: 'desktop-comms', role: 'lead', surface: 'interactive', isTask: true, phase: 'first-turn' });
 const TOOLSETS_PREVIEW_ASSUMES = Object.freeze([
   'no key pasted in the message (keys.save is offered only then)',
-  'not a check of one exact host (that withholds team.* and web_search)',
   "the image route of the agent's own wire on the station's stored credentials (a key the page sends with the request can add one)"
 ]);
 const TOOLSETS_PREVIEW_UNBOUND_PLUGIN = 'a plugin terminal named without its plugin (placed=plugin, not plugin:<pluginId>) is unbound: it projects no plugin tools, here or in a run';
