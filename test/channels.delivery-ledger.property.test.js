@@ -24,6 +24,11 @@
      P1 every finished reply lands line for line, exactly once. THE BOUNDARY: a part the platform took in the instant the
         process died, or whose answer was lost, may land once more on Telegram (each such window event is logged and
         allows one extra copy of exactly that part); on Discord, never. A durable delivery always lands or is given up.
+        "Finished" is the run host's fact (review round 1), never the ledger's own record: every run that ended 'done'
+        must land in its chat, unless its signal was aborted by then (taken back), its process died in that instant, or
+        its writes were failing when it ended and no later write reached the disk before its process died. And a reply
+        is given up only on a fact at the transport edge: the platform refused one of its parts for good (400, 403), or
+        its chat removed the bot between its finish and its tombstone.
      P2 per chat, replies land in the order they finished.
      P3 a healthy chat's reply lands within one drain, whatever another chat does: 16 s from its finish (or from the end
         of a hold or write-failure span) — its own blip costs the adapter's 1 s resend and its lane's 5 s retry. Since

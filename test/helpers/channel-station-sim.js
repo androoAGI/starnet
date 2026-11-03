@@ -217,7 +217,7 @@ function makeWorld(seed, opts) {
     editCalls: [], editFaults: [], kbHold: null, approvals: makeApprovals({ now: () => w.now }),
     // (review round 1) what the platform refused for good, and when the group removed the bot: the only grounds on which a
     // finished reply may be given up (P1); and every slash command the run host's registry was asked to run (P5)
-    refusals: [], kickLog: [], slashCalls: []
+    refusals: [], kickLog: [], slashCalls: [], stopAcks: []
   };
   w.uuid = () => 'u' + seed + '-' + (++w.seq);
 
@@ -359,7 +359,7 @@ function makeWorld(seed, opts) {
         if (!v.ok) w.contract.push(name + ': ' + v.errors.join('; '));
         ro.emit(name, payload);
       };
-      const run = { gen, runId: base.runId, tags, steps: 0, chat: ro.taskKey || '', ended: '' };
+      const run = { gen, runId: base.runId, tags, steps: 0, chat: ro.taskKey || '', ended: '', startedAt: w.now };
       w.runs.push(run);
       // when its signal was aborted (a newer message, a stop, E-STOP): a run taken back as it ended may finish 'done' unsaid
       const aborted = () => { if (run.abortedAt == null) { run.abortedAt = w.now; run.abortSeq = ++w.seq; } };
@@ -532,7 +532,7 @@ function makeWorld(seed, opts) {
   const consent = consentSlice(w);
   const scrub = HostPathScrub.makeHostPathScrub({ fixed: ['/ws/agents'] });
   // a dead process reports nothing: its events are fenced like its writes and its sends
-  function emitter(channel, gen) { return (name, payload) => { if (name === 'channel.delivery' && gen === w.gen) w.events.push(Object.assign({ gen: gen, at: w.now, via: channel }, payload)); }; }
+  function emitter(channel, gen) { return (name, payload) => { if (name === 'channel.delivery' && gen === w.gen) w.events.push(Object.assign({ gen: gen, at: w.now, seq: ++w.seq, via: channel }, payload)); }; }
   function stubs(gen, channel) {
     const live = () => null;
     return {
@@ -744,6 +744,7 @@ function makeWorld(seed, opts) {
   }
   function acked(u, current) {
     u.acked = true;
+    if (u.kind === 'stop') w.stopAcks.push({ chat: u.chat, at: w.now, gen: w.gen });   // the owner's "stop": an outcome for the run it stops
     for (const t of u.tags) if (!w.acked.has(t)) w.acked.set(t, { kind: u.kind, chat: u.chat, at: w.now, gen: w.gen, rid: u.rid || '' });
     if (u.kind === 'tap') w.taps.push({ cb: u.cb, tag: u.tags[0], chat: u.chat, gen: w.gen, at: w.now, kb: u.kb });
     if (u.kind === 'correction') {
@@ -970,38 +971,47 @@ function makeWorld(seed, opts) {
   const stripHeader = (t) => String(t).replace(new RegExp('^' + HEADER.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\n?'), '');
   const wireLines = (chat) => { const out = []; for (const m of w.wire) if (m.chat === chat) for (const l of stripHeader(m.text).split('\n')) if (l && l !== HEADER) out.push(l); return out; };
   const windowLines = (chat) => { const out = new Map(); for (const e of w.windows) if (e.chat === chat && !e.discord) for (const l of stripHeader(e.text).split('\n')) if (l) out.set(l, (out.get(l) || 0) + 1); return out; };
-  // the messages a "not run again" / "not finished" notice names: their runs' replies were never made (the attempt rule
-  // only ever meets a message whose answer was not written), so an event about such a run is about its notice
-  const noticedTags = () => { const s = new Set(); for (const m of w.wire) if (/NOT run again/.test(m.text)) for (const t of (m.text.match(/#(\d+)/g) || [])) s.add(t.slice(1)); return s; };
   // what a reply's chat must show: a question as its hub renders it (Discord's hub has no TaskIntent: as the run wrote it)
   const textIn = (rep, chat) => (rep.raw && String(chat).indexOf('discord|') === 0 ? rep.raw : rep.text);
-  // a finished reply: a run whose answer a live process reported with a channel.delivery, or any of whose lines reached
-  // the wire (then every line must, exactly once)
+  /* A FINISHED REPLY IS THE RUN HOST'S FACT (review round 1). The oracle took "finished" from what reached delivery.json,
+     the system under test's own record, so a reply the hub never wrote was never finished, and a hub that settled a
+     message's receipts without writing its answer lost replies in every chat with P1 and P3 green. Now every run that ended
+     'done' must land, in its own chat (its task key), unless the record outside the delivery says it may not:
+       · its signal was aborted by the instant it ended: a newer message, a stop or E-STOP took it back, and the hub drops
+         its partial and says so (an abort later in that instant, after its answer was written, is the durable clause's);
+       · its process died in that very instant: the answer write may not have run (the message's attempt rule applies);
+       · its writes were failing when it ended, and its process died before any later write reached the disk: the answer
+         stayed in memory (the attempt rule applies).
+     A reply that reached delivery.json lands whatever happened after (the durable clause below); P2 orders replies by
+     when they reached it. A tree without a ledger is judged by the same run-host facts. */
   function finishedReplies() {
-    const out = new Map();
-    const noticed = noticedTags();
-    // a build with a ledger says exactly which answers were made durable (a reply whose answer write failed, in a process
-    // that then died, never was: its message's attempt rule applies); a build without one is judged by its events
-    const durable = [...w.durable.values()].filter(d => d.kind === 'reply');
-    for (const d of durable) {
-      const rep = w.replies.get(d.runId);
-      if (rep && !out.has(d.runId)) out.set(d.runId, { runId: d.runId, chat: d.chat, text: textIn(rep, d.chat), at: d.at, gen: d.gen });
+    const out = [];
+    for (const run of w.runs) {
+      if (run.ended !== 'done' || !run.chatKey) continue;
+      const rep = w.replies.get(run.runId);
+      if (!rep) continue;
+      if (run.abortedAt != null && run.abortedAt <= run.endedAt) continue;
+      const crash = w.crashLog.find(c => c.gen === run.gen && c.at >= run.endedAt);
+      if (crash && (crash.at === run.endedAt || (run.endFault && crash.lastGood < run.endSeq))) continue;
+      out.push({ runId: run.runId, chat: run.chatKey, text: textIn(rep, run.chatKey), at: run.endedAt, gen: run.gen });
     }
-    if (!durable.length) for (const ev of w.events) {
-      const rep = w.replies.get(ev.runId);
-      // a notice or a command reply carries the run id it is about (a re-run, an interrupted attempt); it is not that reply
-      if (!rep || out.has(ev.runId) || /^(command|prompt|interrupted|admission|undeliverable|redelivery-gave-up|redelivery-delayed)$/.test(String(ev.reason || ''))) continue;
-      if (ev.reason === 'redelivered' && rep.tags.some(t => noticed.has(t))) continue;
-      const chat = (ev.via || ev.channel) + '|' + ev.chatId;
-      out.set(ev.runId, { runId: ev.runId, chat: chat, text: textIn(rep, chat), at: ev.at, gen: ev.gen });
-    }
-    for (const [runId, rep] of w.replies) {
-      if (out.has(runId)) continue;
-      const first = rep.text.split('\n')[0];
-      const m = w.wire.find(x => stripHeader(x.text).split('\n').indexOf(first) >= 0);
-      if (m) out.set(runId, { runId: runId, chat: m.chat, text: textIn(rep, m.chat), at: m.at, gen: m.gen });
-    }
-    return [...out.values()];
+    return out;
+  }
+  /* A REPLY MAY BE GIVEN UP ONLY ON A FACT AT THE TRANSPORT EDGE (review round 1). P1, P6 and the durable clause excused
+     every 'undeliverable' or 'redelivery-gave-up' tombstone, so a reply given up on a 502 (a retryable failure taken for a
+     refusal for good) passed. It may be given up when the platform refused one of its parts for good (400, 403: the fake
+     platform's own answer), or when its chat removed the bot between the moment it was finished and the moment it was
+     given up (every send to that chat is then refused 403, its delayed-reply line sent on its own too). */
+  function refusedLinesOf(chat) {
+    const s = new Set();
+    for (const r of w.refusals) if (r.chat === chat) for (const l of stripHeader(r.text).split('\n')) if (l && l !== HEADER) s.add(l);
+    return s;
+  }
+  function givenUpFairly(chat, lines, at, tombId) {
+    const refused = refusedLinesOf(chat);
+    if (lines.some(l => l && refused.has(l))) return true;
+    const until = w.tombAt.get(tombId);
+    return until != null && w.kickLog.some(k => k.chat === chat && k.at >= at && k.at <= until);
   }
   w.debug = { finishedReplies: () => finishedReplies(), stripHeader: (t) => stripHeader(t) };
   // what S4's routine fires drew (the property and the soak assert it: a clause over nothing proves nothing)
@@ -1075,15 +1085,21 @@ function makeWorld(seed, opts) {
     for (const c of w.contract) P.push('contract: ' + c);
     const tombed = new Set(w.events.filter(e => e.reason === 'undeliverable' || e.reason === 'redelivery-gave-up').map(e => e.runId));
     const refused = new Set(w.held.map(h => h.chat + '\u0000' + stripHeader(h.text).split('\n')[0]));
-    // P1: every finished reply lands line for line, exactly once (one extra copy per logged Telegram window event)
+    // P1: every finished reply lands line for line, exactly once (one extra copy per logged Telegram window event), unless
+    // the platform refused it for good or its chat removed the bot (givenUpFairly)
     for (const f of finishedReplies()) {
-      if (tombed.has(f.runId)) continue;
       const lines = wireLines(f.chat), allow = windowLines(f.chat);
-      for (const l of f.text.split('\n')) {
+      const all = f.text.split('\n');
+      const tomb = w.tombs.get('reply:' + f.runId);
+      const fair = givenUpFairly(f.chat, all, f.at, 'reply:' + f.runId);
+      for (const l of all) {
         if (!l) continue;
         const n = lines.filter(x => x === l).length;
         const max = 1 + (allow.get(l) || 0);
-        if (n < 1) { P.push('P1 ' + f.chat + ' reply ' + f.runId + ' never landed line "' + l.slice(0, 40) + '"'); break; }
+        if (n < 1) {
+          if (!fair) P.push('P1 ' + f.chat + ' reply ' + f.runId + ' never landed line "' + l.slice(0, 40) + '"' + (tomb ? ' (given up as ' + tomb + ', and the platform never refused it for good)' : ''));
+          break;
+        }
         if (n > max) { P.push('P1 ' + f.chat + ' reply ' + f.runId + ' line "' + l.slice(0, 40) + '" landed ' + n + 'x (window allows ' + max + ')'); break; }
       }
     }
@@ -1120,7 +1136,11 @@ function makeWorld(seed, opts) {
         const steers = w.steered.filter(s => tagged(tag).test(s.text));
         const rs = runsOf(tag);
         const instant = steers.some(s => w.crashLog.some(c => c.gen === s.gen && c.at === s.at));
-        if ((steers.length > 1 || (steers.length && rs.length)) && !instant) P.push('P5 the follow-up #' + tag + ' was acted on ' + (steers.length + rs.length) + 'x (joined the working run ' + steers.length + 'x, ran ' + rs.length + 'x)');
+        // twice: joined twice; or joined, then run (its replay a task of its own); or run with a tool step begun, then joined.
+        // A run cut before any tool step and then, on its second go, joined to the run working then, is its one second go
+        const ranAfter = steers.length && rs.some(r => r.startedAt >= steers[0].at);
+        const steppedFirst = steers.length && rs.some(r => r.startedAt < steers[0].at && (w.journal.get(r.tags.join('+') + '#0') || 0) > 0);
+        if ((steers.length > 1 || ranAfter || steppedFirst) && !instant) P.push('P5 the follow-up #' + tag + ' was acted on ' + (steers.length + rs.length) + 'x (joined the working run ' + steers.length + 'x, ran ' + rs.length + 'x)');
       }
       if (a.kind === 'slash') {
         const calls = w.slashCalls.filter(c => tagged(tag).test(c.line));
@@ -1169,7 +1189,9 @@ function makeWorld(seed, opts) {
       const answered = w.wire.some(m => m.chat === t.chat && stripHeader(m.text).split('\n')[0].indexOf('REPLY ' + t.tag + ' ') === 0)
         || rs.some(r => tombed.has(r.runId));
       const noticed = w.wire.some(m => m.chat === t.chat && /NOT run again/.test(m.text) && re.test(m.text));
-      const ended = rs.some(r => r.ended === 'cancelled');
+      // stopped: it ended cancelled, or the owner's "stop" in its chat aborted it (its message settles with the stop: a crash
+      // before it unwinds leaves nothing to replay, and that is the outcome the owner asked for)
+      const ended = rs.some(r => r.ended === 'cancelled' || (r.abortedAt != null && w.stopAcks.some(x => x.chat === t.chat && x.gen === r.gen && x.at <= r.abortedAt)));
       const steered = w.steered.some(s => re.test(s.text));
       if (!answered && !noticed && !ended && !steered) {
         P.push('P5 the tapped choice #' + t.tag + ' in ' + t.chat + ' (tap ' + t.cb + ', acknowledged at +' + (t.at - T0) + ' ms' + (toast ? '' : ', its answer never sent') + ') has no outcome: '
@@ -1182,10 +1204,14 @@ function makeWorld(seed, opts) {
     for (const [k, n] of stampsOf) if (n > 1) P.push('P5 the keyboard in ' + k + ' was stamped ' + n + 'x');
     // ...and a tap's answer quotes nothing: a reply only ever quotes a message a member sent in that chat
     for (const m of w.wire) if (m.replyTo && !w.heard.has(m.chat + '#' + m.replyTo)) P.push('P5 a reply in ' + m.chat + ' quotes message ' + m.replyTo + ', which no member sent');
-    // P1 (durability): every delivery that reached delivery.json lands, or is given up and said so (a ledger build only)
+    // P1 (durability): every delivery that reached delivery.json lands, or is given up on a fact at the transport edge and
+    // said so (a ledger build only); a record the cron took back with nothing of it sent is the routine clause's (P7)
     for (const [id, d] of w.durable) {
-      if (w.tombs.has(id) || w.withdrawn.has(id)) continue;   // given up and said so, or taken back with nothing of it sent
-      if (!d.first) continue;
+      if (w.withdrawn.has(id) || !d.first) continue;   // taken back with nothing of it sent; a keyboard's stamp has no words
+      if (w.tombs.has(id)) {
+        if (!givenUpFairly(d.chat, d.lines || [d.first], d.at, id)) P.push('P1 the durable delivery ' + id + ' in ' + d.chat + ' was given up (' + w.tombs.get(id) + '), and the platform never refused it for good');
+        continue;
+      }
       if (!w.wire.some(m => m.chat === d.chat && stripHeader(m.text).split('\n')[0] === d.first)) P.push('P1 the durable delivery ' + id + ' in ' + d.chat + ' never landed');
     }
     const left = [];
@@ -1196,7 +1222,10 @@ function makeWorld(seed, opts) {
     if (left.length) P.push('P5 receipts still pending after everything drained: ' + left.slice(0, 4).join(', ') + (left.length > 4 ? ' …' : ''));
     // P6: a refusal for good is reported once and never retried; no finished reply is dropped for capacity
     const undeliverable = new Map();
-    for (const e of w.events) if (e.reason === 'undeliverable' && e.runId) undeliverable.set(e.runId, (undeliverable.get(e.runId) || 0) + 1);
+    // a report whose tombstone never reached the disk (its process made it after its last durable write, and died before
+    // the next) is in the window: the next process does not know of it, tries once more, and reports it again
+    const unwritten = (e) => w.crashLog.some(c => c.gen === e.gen && c.lastGood < e.seq);
+    for (const e of w.events) if (e.reason === 'undeliverable' && e.runId && !unwritten(e)) undeliverable.set(e.runId, (undeliverable.get(e.runId) || 0) + 1);
     // ...a REPLY: a merged batch's answer that died in its write never was one (a build with a ledger says which were). Each
     // of its messages replays under the attempt rule with a '↻ running it again' notice of its own, naming that run, and in
     // a chat that removed this bot each notice is refused on its own
