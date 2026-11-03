@@ -27,7 +27,7 @@ const provEndM = provAt >= 0 ? provNext.exec(station) : null;
 const secProvidersTpl = provEndM ? station.slice(provAt, provEndM.index) : '';
 A.ok(secProvidersTpl.length > 0, 'the secProviders template is found as one const statement');
 A.ok(/id="credits-buy">＋ ADD CREDITS/.test(station) && secProvidersTpl.includes(`'<div id="credits-store"></div>'`) &&
-  /\{ id: 'providers', label: 'AI & MODELS'[^\n]*build: frag\(secProviders\b/.test(station),
+  /\{ id: 'providers', label: 'AI & MODELS'[^\n]*build: el => frag\(secProviders\(\) \+ secModels\)\(el\)/.test(station),
   'the STORE (+ ADD CREDITS) renders inside that same AI & MODELS pane');
 A.ok(!/label: 'PROVIDERS'/.test(station), 'no SETTINGS section is labelled PROVIDERS');
 

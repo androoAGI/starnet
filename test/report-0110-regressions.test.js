@@ -67,32 +67,40 @@ test('delayed memory decks do not reintroduce a superseded rating',()=>{assert.m
 
 test('QA 10-02: a skill review (also fired by a rating) checks the spending cap before it spends', async () => {
  const src = extract(backend, 'async function runBackgroundSkillReview(o)', 'async function runSkillCurator');
- const gate = src.indexOf("budget.check(null, String(agentId || 'agent'), 0, Date.now(), null)");
- assert.ok(gate > 0, 'the review asks the budget first');
+ // the one governor (billing-class.js, spend-governor S2) admits the pass by its route's payer, before any provider work
+ const gate = src.indexOf("governor.admit('skill-review', { providerId: o && o.route, agentId: String(agentId || 'agent'), trigger: verdict ? 'commander' : 'background' })");
+ assert.ok(gate > 0, 'the review asks the governor first');
  assert.ok(gate < src.indexOf('new AbortController()'), 'before any provider work starts');
- assert.ok(/if \(!unmetered\) \{/.test(src.slice(0, gate)), 'an unmetered provider is not gated by a cap it never spends against');
- // Execute the actual host function up to the first provider setup boundary.
- // The sentinel keeps this focused test independent of downstream skill tools.
+ assert.ok(!/budget\.check\(/.test(src), 'and asks no budget of its own');
+ // Execute the actual host function up to the first provider setup boundary, with the governor the host binds (index.js:
+ // the budget, the token gate, the registry's payer). The sentinel keeps this focused test independent of downstream skill tools.
  const reachedSetup = new Error('provider setup reached'), checks = [];
- let blocked = { scope: 'day' }, providerSetup = 0;
+ let blocked = { scope: 'day' }, providerSetup = 0, throwCheck = false;
+ const BillingClass = require('../sidecar/billing-class.js');
+ const billing = BillingClass.makeBilling({ profileOf: require('../sidecar/providers/registry.js').getProviderProfile });
+ const budget = { check: (...args) => { checks.push(args); if (throwCheck) throw new Error('ledger down'); return blocked; } };
  const ctx = {
   LearningEvidence: { buildLearningEvidence: () => ({ eligible: true }) }, redact: x => x,
   Date: { now: () => 123 }, console: { log() {} },
-  budget: { check: (...args) => { checks.push(args); return blocked; } },
+  governor: BillingClass.makeGovernor({ budget, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => billing.classOf(id) }),
   AbortController: class { constructor() { providerSetup++; throw reachedSetup; } }
  };
  vm.createContext(ctx); vm.runInContext(src, ctx);
- const packet = { agentId: 'nova', runId: 'rated-run', messages: [] };
+ const packet = { agentId: 'nova', runId: 'rated-run', messages: [], route: 'openrouter' };
  assert.equal(await ctx.runBackgroundSkillReview(packet), false, 'a reached cap defers the review');
- assert.deepEqual(checks, [[null, 'nova', 0, 123, null]]);
+ assert.deepEqual(checks, [[null, 'nova', 0, undefined, null, undefined]], 'side-effect-free: no run, no bus, no receipt (the budget reads its own clock)');
  assert.equal(providerSetup, 0, 'cap refusal stops before any provider setup');
  blocked = { unknown: true, code: 'spend_history_unavailable' };
  assert.equal(await ctx.runBackgroundSkillReview(packet), false, 'unknown spend also defers the review');
  assert.equal(providerSetup, 0);
+ throwCheck = true;
+ assert.equal(await ctx.runBackgroundSkillReview(packet), false, 'a check that throws defers it too (it used to read as "not blocked" and spend)');
+ assert.equal(providerSetup, 0);
+ throwCheck = false;
  const checksBeforeUnmetered = checks.length;
- await assert.rejects(ctx.runBackgroundSkillReview({ ...packet, unmetered: true }), error => error === reachedSetup);
- assert.equal(checks.length, checksBeforeUnmetered, 'unmetered review bypasses the metered budget check');
- assert.equal(providerSetup, 1, 'unmetered review actually passes the budget guard');
+ await assert.rejects(ctx.runBackgroundSkillReview({ ...packet, route: 'codex' }), error => error === reachedSetup);
+ assert.equal(checks.length, checksBeforeUnmetered, 'a ChatGPT plan\'s review is not gated by a cap it never spends against');
+ assert.equal(providerSetup, 1, 'the plan\'s review actually passes the guard');
 
  // Returning null would complete this job. The real queue must retain false
  // as pending and schedule another guarded attempt without doing paid work.

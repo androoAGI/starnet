@@ -11,7 +11,7 @@ const rows = [];
 for (let i = 1; i <= 20; i++) rows.push({ streamId: 's', rowId: i, role: i % 2 ? 'user' : 'assistant', content: 'row ' + i, turnId: runTurnId('turn-000' + Math.ceil(i / 2)), sourceRunId: 'run-' + Math.ceil(i / 2), directive: i % 2 === 1, kind: 'turn', ts: i });
 const desk = { id: 's', agentId: 'agent', title: 'title ' + secret, history: [{ role: 'user', content: secret + ' only on desk', ts: 0 }] };
 const host = makeRemoteHost({ now: () => ++now, roster: () => [{ agentId: 'agent' }], deskSessions: () => [desk], liveRuns: () => [],
-  transcript: { history: () => rows, streams: () => [{ streamId: 's', turns: rows.length, preview: 'preview ' + secret, lastAt: 100 }] },
+  transcript: { view: (_name, _stream, options) => options.op === 'streams' ? [{ streamId: 's', turns: rows.length, preview: 'preview ' + secret, lastAt: 100 }] : rows },
   turnDual: dual, turnProjection: (s, r) => dual.project(s, r), redact: s => s.split(secret).join('[redacted-key]') });
 (async () => {
   const threads = await host.threads({ limit: 5 });
@@ -29,7 +29,7 @@ const host = makeRemoteHost({ now: () => ++now, roster: () => [{ agentId: 'agent
   const cursorless = await host.thread({ streamId: 's', limit: 4, before: 4, page: true });
   A.eq(cursorless.turns.map(r => r.rowId), [14, 15, 16, 17], 'old client offset paging remains supported');
   const binary = makeRemoteHost({ now: () => ++now, roster: () => [], deskSessions: () => [], liveRuns: () => [],
-    transcript: { history: () => rows.map(r => Object.assign({}, r, { content: 'x'.repeat(20000), typed: 'y'.repeat(20000) })) },
+    transcript: { view: () => rows.map(r => Object.assign({}, r, { content: 'x'.repeat(20000), typed: 'y'.repeat(20000) })) },
     turnDual: dual, turnProjection: (s, r) => dual.project(s, r), redact: s => s });
   const large = await binary.thread({ streamId: 's', limit: 200, page: true });
   A.ok(Buffer.byteLength(JSON.stringify(large)) < 181 * 1024, 'byte budget includes typed labels and metadata as well as content');

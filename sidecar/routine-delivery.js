@@ -229,7 +229,7 @@ function makeRoutineDelivery(deps) {
     if (job.noAgent) {
       try {
         const streamId = 'cron-' + result.runId;
-        const recorded = transcriptStore.reconstruct(streamId, { limit: 2 });
+        const recorded = transcriptStore.view('proof', streamId, { limit: 2 });
         // provenance on both rows (memory-learning-07): the routine's prompt is the Commander's own; the script's stdout is
         // untrusted output, the same as the <untrusted_script_output> a scheduled pre-check script hands a run
         if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });

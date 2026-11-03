@@ -64,7 +64,7 @@ function station(file, opts) {
       return d.promise.then(() => { proofs.push({ runId: o.runId, reason: 'done' }); });
     },
     cronSystemFor: () => '', taintPolicy: { relayedTaint: () => undefined, firstTaint: () => '' }, chanEmit: () => {},
-    transcriptStore: { reconstruct: () => [] }, grantsSession, reviewTasks, REVIEW_RUNS_AT_ONCE: Number(cap)
+    transcriptStore: { view: (projection, streamId, options) => { A.eq([projection, options.shape], ['model-replay', 'pairs'], 'review uses canonical model replay'); A.ok(page.workstreams.some(w => w.id === streamId), 'review reads its actual conversation'); return []; } }, grantsSession, reviewTasks, REVIEW_RUNS_AT_ONCE: Number(cap)
   };
   const names = Object.keys(deps);
   const tick = new Function(...names, "'use strict';\nlet overseerTickRunning = false;\n" + countSrc + '\n' + settleSrc + '\n' + tickSrc + '\nreturn tickOverseer;')(...names.map(n => deps[n]));

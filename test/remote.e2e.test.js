@@ -104,7 +104,8 @@ function startMockModel() {
   const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
   const hash = text => require('crypto').createHash('sha256').update(text, 'utf8').digest('hex');
   let stamp = 100;
-  const seeded = makeTranscriptStore({ io: makeSegmentedTranscriptIo({ fs, path, root: path.join(fx.workspace, 'transcript-history-v2') }), clock: { now: () => ++stamp } });
+  const seedIo = makeSegmentedTranscriptIo({ fs, path, root: path.join(fx.workspace, 'transcript-history-v2') });
+  const seeded = makeTranscriptStore({ io: seedIo, clock: { now: () => ++stamp } });
   const accepted = '{"answer":"PHONE_ACCEPTED"}';
   // A pre-fix desk save can outlive the rejected execution and must not reintroduce it on merge.
   const staleDispatchSession = { id: 'dispatch_phone', title: 'Research', agentId: 'forge', conversationMode: 'direct', lastActiveAt: 0,
@@ -122,6 +123,13 @@ function startMockModel() {
   seeded.appendStrict({ streamId: 'pending_phone', agentId: 'forge', role: 'user', content: 'Pending user request' });
   append('pending_phone', 'phone_pending', 'pending', 'assistant', 'PENDING_RAW_OUTPUT');
   append('pending_phone', 'phone_pending_repair', 'internal', 'user', '[STRUCTURED RESULT REPAIR] PENDING_INTERNAL_PROMPT');
+  // The saved desk cache is a display copy. Canonical replay reads the host's durable
+  // transcript, as it does for a real completed desk turn; seed that same authority.
+  const deskHistory = [
+    seeded.appendStrict({ streamId: 'ws_desk_launch', agentId: 'forge', sourceRunId: 'desk_helix', turnId: 'desk_helix_turn_001', kind: 'turn', role: 'user', content: 'remember the code word is HELIX' }),
+    seeded.appendStrict({ streamId: 'ws_desk_launch', agentId: 'forge', sourceRunId: 'desk_helix', turnId: 'desk_helix_turn_001', kind: 'turn', role: 'assistant', content: 'Noted. The code word is HELIX.' })
+  ];
+  seedIo.close(); // publish the final seed index before the real host owns this directory
   async function checkDispatchPhone(phone, phase, preview) {
     const thread = await phone.call('thread', { streamId: 'dispatch_phone' });
     A.eq(thread.ok, true, phase + ': phone reads accepted dispatch thread');
@@ -184,10 +192,22 @@ function startMockModel() {
     await waitUntil(async () => (await fx.json('GET', '/api/remote')).body.connected.some(c => c.live), 5000, 'phone event stream attached');
 
     await checkDispatchPhone(client, 'before restart', 'Research request');
+    const beforeContinuation = llm.requests.length;
     const followDispatch = await client.call('send', { agentId: 'forge', streamId: 'dispatch_phone', text: 'Continue the accepted phone result' });
     A.eq(followDispatch.ok, true, 'phone can continue a finalized dispatch conversation');
     await waitUntil(() => events.some(e => e.type === 'run.ended' && e.runId === followDispatch.data.runId), 20000, 'phone dispatch continuation');
-    const contextRequest = llm.requests.find(r => (r.messages || []).some(m => m.role === 'user' && userWords(m) === 'Continue the accepted phone result'));
+    const continuationEnd = events.find(e => e.type === 'run.ended' && e.runId === followDispatch.data.runId);
+    A.eq([continuationEnd.outcome, continuationEnd.error], ['succeeded', null], 'the accepted phone continuation actually succeeds');
+    // Locate this owned action by its observed transport window. Chat role projection may combine adjacent
+    // user turns, leaving host notes in the middle; exact flattened userWords equality is not an identity.
+    const continuationRequests = llm.requests.slice(beforeContinuation);
+    A.eq(continuationRequests.length, 1, 'the continuation makes exactly one real synthetic-provider request');
+    const contextRequest = continuationRequests[0];
+    if (!contextRequest) throw new Error('phone continuation reached no provider: ' + JSON.stringify(continuationEnd));
+    const newestInput = [...contextRequest.messages].reverse().find(m => m.role === 'user');
+    const newestWords = userWords(newestInput);
+    A.ok(newestWords === 'Continue the accepted phone result' || newestWords.endsWith('\n\nContinue the accepted phone result'),
+      'the current phone input remains the newest complete user text after role projection');
     A.ok(contextRequest && contextRequest.messages.some(m => m.role === 'assistant' && m.content === accepted), 'phone send context contains the accepted answer');
     A.ok(!/RAW_CONTRACT|RAW_INVALID|RAW_REJECTED|INTERNAL_REPAIR|LATE_INTERNAL/.test(JSON.stringify(contextRequest.messages)), 'phone send context excludes raw output and repair instructions');
 
@@ -257,12 +277,14 @@ function startMockModel() {
     const saved = await fx.json('POST', '/api/save', { schema: 'starnet.save', version: 6, _saveRevision: persistedDispatch.body.revision, agent: { id: 'agent', name: 'ULTRON', createdAt: 1 },
       workstreams: [staleDispatchSession,
         { id: 'ws_desk_launch', title: 'Launch plan', agentId: 'forge', conversationMode: 'direct', lane: 'active', kind: 'chat', archived: false, lastActiveAt: Date.now() - 5000,
-          history: [{ role: 'user', content: 'remember the code word is HELIX' }, { role: 'assistant', content: 'Noted. The code word is HELIX.' }] },
+          history: deskHistory },
         { id: 'ws_desk_blank', title: null, agentId: 'forge', conversationMode: 'direct', lane: 'active', kind: 'chat', archived: false, lastActiveAt: Date.now() - 9000, history: [] },
         { id: 'ws_desk_archived', title: 'Old', agentId: 'forge', conversationMode: 'direct', archived: true, lastActiveAt: Date.now() - 100, history: [{ role: 'user', content: 'x' }] }
       ] });
     A.ok(saved.status === 200 && saved.body && saved.body.ok !== false, 'a desk save with sessions is stored: ' + JSON.stringify(saved.body).slice(0, 160));
     const tl = await client.call('threads', { limit: 50 });
+    if (!tl.ok) console.log('desk cache proof diagnostic', JSON.stringify({ seed: deskHistory, proof: await fx.json('POST', '/api/turn-identity/retractions', { streamId: 'ws_desk_launch', rowIds: deskHistory.map(row => row.rowId) }), transcript: await fx.json('GET', '/api/transcript?agent=forge&stream=ws_desk_launch&limit=50') }));
+    A.eq(tl.ok, true, 'canonical desk cache identities are proved by the real host: ' + JSON.stringify(tl.error || ''));
     const deskRow = tl.data.find(t => t.streamId === 'ws_desk_launch');
     A.ok(!!deskRow, 'the desk session is in the phone list');
     A.eq(deskRow && deskRow.title, 'Launch plan', 'with the desk title');

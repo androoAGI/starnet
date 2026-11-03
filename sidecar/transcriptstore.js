@@ -35,6 +35,7 @@
   const TurnKinds = (typeof require === 'function') ? require('../frontend/app/turnkinds.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnKinds) || null);
   // the one flattener of a message's text parts (frontend/app/usertext.js; this store's join is its STORED policy)
   const UserText = (typeof require === 'function') ? require('../frontend/app/usertext.js') : ((typeof globalThis !== 'undefined' && globalThis.UserText) || null);
+  const TurnView = (typeof require === 'function') ? require('./turn-view.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnView) || null);
 
   const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
@@ -42,7 +43,7 @@
   const ROLES = new Set(['user', 'assistant', 'tool', 'system']);
   const DEFAULT_LIMIT = 400;        // a sane cap so history() never returns an unbounded transcript
   const FINAL_CONTENT_MAX = 1048576; // matches the structured result validator; final writes reject oversize, never truncate
-  const CONTENT_MAX = 200000;       // per-turn guard against a pathological payload bloating the file
+  const CONTENT_MAX = TurnKinds.LEGACY_FINAL_CONTENT_MAX; // unchanged byte limit, shared with the final-row verifier
   const RAM_ROWS_MAX = 3000;        // global ceiling across many short streams; disk keeps lifetime truth
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
   function str(v) { return v == null ? '' : String(v); }
@@ -156,20 +157,7 @@
     return !row.dispatchState && row.role === 'user' ? str(row.content) : '';
   }
   function isFinalDeliveryRow(row, hash, expected) {
-    if (!row || row.dispatchState !== 'final' || row.role !== 'assistant' || !row.sourceRunId || typeof row.content !== 'string') return false;
-    const hasIntegrity = row.textLength != null || row.textSha256 != null;
-    const verified = hasIntegrity ? Number.isSafeInteger(row.textLength) && row.textLength === row.content.length
-      && /^[a-f0-9]{64}$/.test(String(row.textSha256 || '')) && (typeof hash !== 'function' || hash(row.content) === row.textSha256)
-      : row.content.length < CONTENT_MAX; // old rows at the historical cap may be truncated
-    if (!verified) return false;
-    if (expected && expected.state === 'final') {
-      if (!row.content.startsWith(String(expected.text || '')) || row.dispatchReason !== expected.reason
-          || (row.dispatchRepairRunId != null && row.dispatchRepairRunId !== expected.repairRunId)) return false;
-      if (hasIntegrity || expected.textLength != null || expected.textSha256 != null) {
-        if (row.textLength !== expected.textLength || row.textSha256 !== expected.textSha256) return false;
-      }
-    }
-    return true;
+    return TurnKinds.isFinalDeliveryRow(row, hash, expected);
   }
   function projectConversation(turns, readRun, hash) {
     const rows = Array.isArray(turns) ? turns : [];
@@ -207,7 +195,10 @@
       }
       const finalPrompt = final ? final.dispatchPrompt : delivery && delivery.state === 'final' && run.deliveryPrompt;
       if (row.role === 'user' && finalPrompt && !prompts.has(id)) {
-        out.push(Object.assign({}, row, { content: finalPrompt })); prompts.add(id);
+        const prompt = Object.assign({}, row, { content: finalPrompt });
+        if (final && isFinalDeliveryRow(final, hash, (record(id) || {}).dispatchDelivery)) prompt.displayOf = 'final';
+        else delete prompt.displayOf; // legacy display fallback does not prove an accepted recall/replay prompt
+        out.push(prompt); prompts.add(id);
       }
     }
     // THE PAGE WENT AWAY MID-ASK (rc-walk #60): one station line after the run's last row, saying it ended there and
@@ -259,6 +250,22 @@
       return at > 0 && num(r.ts) <= at;
     }
     function keep(list) { return deletedAt ? list.filter(r => !forgotten(r)) : list; }
+    function viewContext() {
+      return { forgotten, runOf: opts.runOf, hash: opts.hash, projectConversation,
+        isCollided: rowId => typeof io.isCollided === 'function' && io.isCollided(rowId),
+        isFinalDeliveryRow: row => isFinalDeliveryRow(row, opts.hash, ((typeof opts.runOf === 'function' && opts.runOf(row.sourceRunId)) || {}).dispatchDelivery),
+        rowTaint, quotedMaterial: opts.quotedMaterial, live: typeof opts.live === 'function' ? opts.live() : opts.live,
+        selfTalkRuns, note: failNote };
+    }
+    function ownerProof(rowIds) {
+      if (!TurnView || typeof io.readByIds !== 'function') return new Map();
+      let found;
+      try { found = io.readByIds(rowIds); }
+      catch (error) { failNote('transcript.owner-proof', error); return new Map(); }
+      if (!(found instanceof Map) || found.proofComplete !== true || !(found.retractions instanceof Map)) return new Map();
+      const proven = TurnView.project('owner-evidence', [...found.values()], Object.assign(viewContext(), { retractions: found.retractions }), {});
+      return new Map(proven.map(row => [row.rowId, row]));
+    }
     /* THE STATION'S SELF-TALK IS NOT DIALOGUE (bug 4dee26ba). A reason-only internal call with no workstream (the quiet
        title, the goal judge, pitch, autopilot, …) is filed in 'global'. Its rows are stamped dispatchState 'internal'
        (runOnce), and the readers that hand rows to a model as conversation (search, around) skip them, so recall never
@@ -266,10 +273,7 @@
        title prompt. Rows a station wrote before the stamp existed are recognised by the fixed shapes of those prompts,
        in 'global' only (the same words in a named session are the Commander's). Nothing is deleted. */
     function legacyPrompt(r) {
-      if (!r || r.streamId !== 'global' || r.role !== 'user') return false;
-      const c = str(r.content);
-      return c.indexOf('\n\nAssistant reply (context only): ') >= 0 || c.startsWith('INTERNAL —')
-        || (c.startsWith('Goal:\n') && /Is the goal satisfied — done or continue\?$/.test(c));
+      return TurnKinds.legacyPrompt(r);
     }
     /* A pre-stamp self-talk REPLY (the title itself, the goal judge's verdict restating the goal) has no shape of its
        own: it is known by its run, the sourceRunId of a recognised prompt. Learned from every row this store loads,
@@ -379,10 +383,10 @@
         const tf = Object.create(null); for (const t of tokenize(r.content)) tf[t] = (tf[t] || 0) + 1;
         let distinct = 0, freq = 0;
         for (const t of terms) { if (tf[t]) { distinct++; freq += tf[t]; } }
-        if (distinct) scored.push({ idx: i, streamId: r.streamId, role: r.role, content: r.content, ts: r.ts, score: distinct * 1000 + freq, taint: r.taint || '', taintKnown: r.taintKnown === true || !!r.taint });
+        if (distinct) scored.push(Object.assign({}, r, { idx: i, score: distinct * 1000 + freq, taint: r.taint || '', taintKnown: r.taintKnown === true || !!r.taint }));
       }
       scored.sort((a, b) => (b.score - a.score) || (b.ts - a.ts) || (b.idx - a.idx));
-      return scored.slice(0, limit).map(x => ({ streamId: x.streamId, role: x.role, content: x.content, ts: x.ts, score: x.score, taint: x.taint, taintKnown: x.taintKnown }));
+      return scored.slice(0, limit).map(x => { const row = Object.assign({}, x); delete row.idx; return row; });
     }
 
     // BROWSE (reference-harness parity: "list recent sessions"): every workstream present in the transcript, with its
@@ -556,6 +560,7 @@
         const targets = Array.from(new Set(e.targets.filter(t => Number.isSafeInteger(t) && t > 0))).slice(0, TARGETS_MAX);
         if (targets.length) entry.targets = targets;
       }
+      if (e.kind === 'retract' && (e.reason === 'retry' || e.reason === 'undo')) entry.reason = e.reason;
       if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
       if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
     }
@@ -826,6 +831,13 @@
       const live = r => !retracted.has(num(r.rowId));
       const seen = recent.filter(r => ofTurn(r) && live(r));
       const found = (directive, list) => {
+        // A row-id lookup may reach older than the newest suffix. Its later undo still decides
+        // authority, even when that retract row was not returned alongside the original directive.
+        let context;
+        try { context = projectionContext(list.concat([directive])); }
+        catch (error) { failNote('transcript.findTurn.retract', error); return { state: 'unknown' }; }
+        if (context.retractions instanceof Map) for (const id of context.retractions.keys()) retracted.add(id);
+        if (!live(directive)) return { state: 'unknown' };
         const all = new Map();
         for (const r of list.concat([directive])) if (ofTurn(r) && live(r)) all.set(num(r.rowId) || ('x' + all.size), r);
         return { state: 'found', directive: Object.assign({}, directive), rows: Array.from(all.values()).sort(byRowId).map(r => Object.assign({}, r)) };
@@ -902,9 +914,241 @@
       return out;
     }
 
+    function unvouched(message) {
+      const error = new Error('Transcript history cannot be vouched for: ' + message);
+      error.code = 'TRANSCRIPT_UNVOUCHED';
+      return error;
+    }
+    function completeRows(streamId) {
+      const want = normStream(streamId);
+      let durable;
+      try { durable = typeof io.streamRows === 'function' ? io.streamRows(want) : -1; }
+      catch (error) { throw unvouched(error.message); }
+      if (!Number.isSafeInteger(durable) || durable < 0) throw unvouched('durable row count is unknown');
+      const held = rows.filter(row => row.streamId === want);
+      if (!ramGaps.has(want) && held.length === durable) return held.map(row => Object.assign({}, row));
+      if (!durable) return [];
+      if (typeof io.history !== 'function') throw unvouched('complete disk reader is unavailable');
+      let found;
+      try { found = io.history(want, { limit: durable + 1, strict: true }); }
+      catch (error) { throw unvouched(error.message); }
+      if (!Array.isArray(found) || found.length !== durable) throw unvouched('durable row count changed during the read');
+      return found.map(row => Object.assign({}, row));
+    }
+    function projectionContext(list) {
+      const context = viewContext(), ids = list.map(row => row.rowId).filter(id => Number.isSafeInteger(id) && id > 0);
+      if (ids.length && typeof io.retractionsFor === 'function') {
+        const proof = io.retractionsFor(ids);
+        if (!proof || proof.proofComplete !== true || !(proof.retractions instanceof Map)) throw unvouched('retract context is unknown');
+        context.retractions = proof.retractions;
+      }
+      return context;
+    }
+    // A bounded, affirmative removal proof for one reader's actual cache. A newest transcript tail
+    // cannot tell a stale cache whether an older row was undone. Return IDs only, never stored text.
+    function cacheRetractions(streamId, rowIds) {
+      if (!SID_RE.test(str(streamId)) || !Array.isArray(rowIds) || rowIds.length > 2000 ||
+          rowIds.some(id => !Number.isSafeInteger(id) || id <= 0)) return { state: 'invalid' };
+      const result = cacheRetractionsBatch(rowIds.map(rowId => ({ streamId, rowId })));
+      return result.state === 'done' ? { state: 'done', retracted: result.retracted.map(row => row.rowId) } : result;
+    }
+    function cacheRetractionsBatch(requests) {
+      if (!Array.isArray(requests) || requests.length > 2000) return { state: 'invalid' };
+      const streams = new Map();
+      for (const request of requests) {
+        if (!request || !SID_RE.test(str(request.streamId)) || !Number.isSafeInteger(request.rowId) || request.rowId <= 0 ||
+            (streams.has(request.rowId) && streams.get(request.rowId) !== request.streamId)) return { state: 'invalid' };
+        streams.set(request.rowId, request.streamId);
+      }
+      const ids = [...streams.keys()];
+      if (!ids.length) return { state: 'done', retracted: [] };
+      let proof;
+      try { proof = typeof io.readByIds === 'function' ? io.readByIds(ids) : null; }
+      catch (error) { failNote('transcript.retract.cache', error); return { state: 'unknown' }; }
+      if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return { state: 'unknown' };
+      for (const id of ids) {
+        const row = proof.get(id);
+        if (!row || row.streamId !== streams.get(id) || (typeof io.isCollided === 'function' && io.isCollided(id))) return { state: 'unknown' };
+      }
+      return { state: 'done', retracted: ids.filter(id => proof.retractions.get(id) === 'undo').map(rowId => ({ streamId: streams.get(rowId), rowId })) };
+    }
+    // A mutation needs a complete target set, not findTurn's useful but possibly partial window.
+    // One bounded suffix must reach the original directive. An assistant-only undo instead requires
+    // that same strict read to cover the entire vouched stream. Every target is then proved from disk
+    // before a single strict append; unknown authority and invalid input never write partial retracts.
+    function retract(o) {
+      const a = o || {}, streamId = str(a.streamId), reason = a.reason;
+      const unknown = why => ({ state: 'unknown', why, targets: [] });
+      const invalid = why => ({ state: 'invalid', why, targets: [] });
+      if (!SID_RE.test(streamId) || (reason !== 'retry' && reason !== 'undo')) return invalid('invalid stream or reason');
+      const byTurn = TurnKinds.isTurnId(a.turnId);
+      if ((byTurn && a.rowIds != null) || (!byTurn && (a.turnId != null || reason === 'retry'))) return invalid('invalid target selector');
+      let targets, directive = null;
+      if (byTurn) {
+        let suffix, durableBefore = -1;
+        try {
+          if (typeof io.streamRows === 'function') durableBefore = io.streamRows(streamId);
+          if (typeof io.history === 'function') suffix = io.history(streamId, { limit: 5001, strict: true, maxSegments: 8 });
+          else { suffix = completeRows(streamId); if (suffix.length > 5001) return unknown('turn exceeds read horizon'); }
+        } catch (error) { failNote('transcript.retract.suffix', error); return unknown('turn suffix is unproven'); }
+        if (!Array.isArray(suffix)) return unknown('turn suffix is unavailable');
+        const own = suffix.filter(row => row && row.streamId === streamId && row.turnId === a.turnId);
+        const directives = own.filter(row => row.directive === true && row.role === 'user');
+        if (directives.length > 1) return unknown('original directive is not unique in the suffix');
+        directive = directives[0] || null;
+        if (!directive) {
+          let durableAfter = -1;
+          try { if (typeof io.streamRows === 'function') durableAfter = io.streamRows(streamId); }
+          catch (error) { failNote('transcript.retract.coverage', error); }
+          if (reason !== 'undo' || a.directiveRowId != null || !own.length || !Number.isSafeInteger(durableBefore) ||
+              durableBefore < 0 || durableBefore !== durableAfter || suffix.length !== durableBefore ||
+              suffix.some(row => !row || row.streamId !== streamId)) return unknown('directive-free turn coverage is unproven');
+        }
+        if (directive && (!Number.isSafeInteger(directive.rowId) || directive.rowId <= 0 || forgotten(directive) ||
+            (a.directiveRowId != null && a.directiveRowId !== directive.rowId) || (a.agentId && a.agentId !== directive.agentId))) return unknown('original directive is unproven');
+        const selected = own.filter(row => row.kind !== 'retract' && (reason === 'undo' || row.rowId > directive.rowId));
+        if (selected.some(row => !Number.isSafeInteger(row.rowId) || row.rowId <= 0) || new Set(selected.map(row => row.rowId)).size !== selected.length)
+          return unknown('turn target identities are unproven');
+        targets = selected.map(row => row.rowId);
+      } else {
+        if (!Array.isArray(a.rowIds) || !a.rowIds.length || a.rowIds.length > TARGETS_MAX ||
+            a.rowIds.some(id => !Number.isSafeInteger(id) || id <= 0)) return invalid('invalid target row ids');
+        targets = [...new Set(a.rowIds)];
+      }
+      const prove = [...new Set(targets.concat(directive ? [directive.rowId] : []))];
+      let proof;
+      try { proof = typeof io.readByIds === 'function' ? io.readByIds(prove) : null; }
+      catch (error) { failNote('transcript.retract.targets', error); return unknown('target read failed'); }
+      if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return unknown('target proof is unavailable');
+      let live;
+      try { live = typeof opts.live === 'function' ? opts.live() : opts.live; }
+      catch (error) { failNote('transcript.retract.live', error); return unknown('live-run authority is unavailable'); }
+      for (const id of prove) {
+        const row = proof.get(id);
+        if (!row || row.streamId !== streamId || row.kind === 'retract' || forgotten(row) ||
+            (typeof io.isCollided === 'function' && io.isCollided(id)) || (byTurn && row.turnId !== a.turnId)) return unknown('target does not belong to this turn and stream');
+        if (live && live.has(String(row.sourceRunId || '')) && row.sourceRunId !== a.runId) return unknown('target run is still active');
+      }
+      if (directive && reason === 'retry' && proof.retractions.has(directive.rowId)) return unknown('original directive was retracted');
+      targets = targets.filter(id => !proof.retractions.has(id) || (reason === 'undo' && proof.retractions.get(id) !== 'undo'));
+      if (targets.length > TARGETS_MAX) return unknown('turn exceeds retract capacity');
+      if (!targets.length) return { state: 'done', targets: [], rowId: null };
+      const row = appendStrict({ streamId, agentId: a.agentId || (directive && directive.agentId) || '', role: 'system', kind: 'retract',
+        content: '', targets, reason, turnId: byTurn ? a.turnId : undefined,
+        sourceRunId: a.runId || (directive && directive.sourceRunId) || '' });
+      if (!row || !Number.isSafeInteger(row.rowId) || row.rowId <= 0) throw unvouched('retract append has no durable identity');
+      return { state: 'done', targets, rowId: row.rowId };
+    }
+    function projectView(name, list, o, sharedContext) {
+      // Boot recovery reads durable proof before live/display owners are initialized. Proof must not
+      // consult visibility callbacks at all, including a live-set thunk whose binding is still in its TDZ.
+      const context = name === 'proof' ? {} : sharedContext || projectionContext(list);
+      const current = () => TurnView.project(name, list, context, o);
+      const surface = name === 'display' ? 'display' : name === 'model-replay' ? 'replay' : null;
+      return surface && typeof opts.pick === 'function'
+        ? opts.pick(surface, () => TurnView.project(name, list, context, Object.assign({}, o, { legacy: true })), current)
+        : current();
+    }
+    // At most 32 segment visits for a listing: 24 across all bounded previews, then the separate
+    // eight-segment retract-context budget. Sparse streams cannot turn a row limit into an unbounded scan.
+    const LISTING_PREVIEW_SEGMENTS = 24;
+    function listingCandidates(o) {
+      if (typeof io.streams !== 'function') return streams(o); // bounded RAM adapter; no segment IO
+      const limit = num(o.limit) > 0 ? Math.min(num(o.limit), 100) : 20;
+      const list = io.streams({ limit, previewChars: 1 }) || [];
+      return list.filter(candidate => {
+        if (typeof io.streamRows !== 'function' || io.streamRows(candidate.streamId) < 0) throw unvouched('listing metadata is unknown');
+        const at = deletedAt ? num(deletedAt(candidate.streamId)) : 0;
+        return !(at > 0 && num(candidate.lastAt) <= at);
+      });
+    }
+    function listingTail(streamId, budget) {
+      if (typeof io.preview === 'function') return io.preview(streamId, { limit: GLOBAL_PREVIEW_SCAN, budget });
+      // Test/legacy in-memory adapters may supply only readAll. A partial RAM tail is a preview, never
+      // complete history, and no unbounded history fallback is allowed at this listing boundary.
+      return rows.filter(row => row.streamId === streamId).slice(-GLOBAL_PREVIEW_SCAN).map(row => Object.assign({}, row));
+    }
+    // This is the production read boundary. Raw readers remain private backends (and the named channel
+    // rollback adapter until its port); callers select visibility, never reconstruct it from raw rows.
+    function view(name, streamId, options) {
+      if (!TurnKinds.VIEWS.includes(name)) throw new Error('unknown transcript view: ' + name);
+      const o = Object.assign({}, options, { streamId: normStream(streamId) });
+      if (name === 'model-replay' && o.shape !== 'prose' && o.shape !== 'pairs') throw new Error('model-replay requires a literal prose or pairs shape');
+      if ((name === 'recall' || name === 'display') && o.op === 'streams') {
+        const candidates = listingCandidates(o), out = [], previewMax = num(o.previewChars) > 0 ? num(o.previewChars) : 160;
+        const previewBudget = { remaining: LISTING_PREVIEW_SEGMENTS };
+        const tails = candidates.map(candidate => listingTail(candidate.streamId, previewBudget));
+        // A listing is not complete:true: it carries the existing durable metadata count and timestamp,
+        // with a bounded visible preview. A hidden-only tail has no preview, not proof of no older dialogue.
+        // One context lookup for the whole listing shares the same eight-segment cold-summary budget.
+        const context = projectionContext(tails.flat());
+        for (let i = 0; i < candidates.length; i++) {
+          const candidate = candidates[i];
+          const projected = projectView(name, tails[i], Object.assign({}, o, { streamId: candidate.streamId, limit: undefined }), context);
+          const entry = Object.assign({}, candidate, { preview: '', previewTaint: '', previewTaintKnown: false });
+          for (const row of projected) {
+            if (row.agentId) entry.agentId = row.agentId;
+            const preview = conversationPreview(row);
+            if (preview) { entry.preview = preview.replace(/\s+/g, ' ').trim().slice(0, previewMax); entry.previewTaint = row.taint || ''; entry.previewTaintKnown = row.taintKnown === true || !!row.taint; }
+          }
+          out.push(entry);
+        }
+        return out.sort((a, b) => b.lastAt - a.lastAt || a.streamId.localeCompare(b.streamId));
+      }
+      if (name === 'recall' && (o.op === 'search' || o.op === 'around')) {
+        const found = o.op === 'search' ? search(o.streamId, o.query, o) : around(o.streamId, o.anchor, { window: o.window || o.limit, rowId: o.rowId });
+        // A search hit alone cannot prove an accepted dispatch prompt. Supply its actual same-run rows
+        // to the common projector, then return only hits/anchor rows that survived that projection.
+        const byId = new Map(found.map(row => [row.rowId, row])), runs = new Set();
+        for (const row of found) if (row.sourceRunId && (row.dispatchState === 'pending' || row.dispatchState === 'final')) {
+          const key = JSON.stringify([row.streamId, row.sourceRunId]);
+          if (runs.has(key)) continue;
+          runs.add(key);
+          for (const contextRow of readHistory(row.streamId, { sourceRunId: row.sourceRunId, limit: 5000 }, false)) if (!byId.has(contextRow.rowId)) byId.set(contextRow.rowId, contextRow);
+        }
+        const projected = projectView(name, [...byId.values()].sort((a, b) => num(a.rowId) - num(b.rowId)), Object.assign({}, o, { limit: undefined }));
+        const visible = new Map(projected.map(row => [row.rowId, row]));
+        return found.filter(row => visible.has(row.rowId)).map(row => Object.assign({}, visible.get(row.rowId), row.score == null ? null : { score: row.score }));
+      }
+      const list = viewRows(name, streamId, o);
+      return projectView(name, list, o);
+    }
+    function viewRows(name, streamId, o) {
+      let list;
+      if (name === 'owner-evidence' && streamId == null) list = Number.isSafeInteger(o.limit) && o.limit >= 0
+        ? (o.limit ? rows.slice(-o.limit) : []) : rows.slice();
+      else if (o.complete === true) list = completeRows(o.streamId);
+      else list = readHistory(o.streamId, Object.assign({}, o, { sourceRunId: o.run || o.sourceRunId,
+        limit: name === 'proof' ? o.limit : (num(o.limit) > 0 ? num(o.limit) : cap) + 500 }), false);
+      if (o.run || o.sourceRunId) list = list.filter(row => row.sourceRunId === (o.run || o.sourceRunId));
+      if (o.dispatchState) list = list.filter(row => row.dispatchState === o.dispatchState);
+      if (o.turnId) list = list.filter(row => row.turnId === o.turnId);
+      if (name !== 'proof' && num(o.since) > 0) list = list.filter(row => num(row.ts) >= num(o.since));
+      if (!Object.prototype.hasOwnProperty.call(o, 'limit') && !(name === 'owner-evidence' && streamId == null) && !o.complete) o.limit = cap;
+      return list;
+    }
+    // One synchronous consumer assembly: fresh retract authority is read once and never retained across
+    // calls. This is the same projection as view(), with bounded per-stream rows and shared context IO.
+    function viewMany(name, streamIds, options) {
+      if (name !== 'model-replay') throw new Error('batched transcript view requires model-replay');
+      if (!Array.isArray(streamIds) || streamIds.length > 500) throw new Error('batched transcript view accepts at most 500 streams');
+      if (!options || (options.shape !== 'pairs' && options.shape !== 'prose')) throw new Error('model-replay requires a literal prose or pairs shape');
+      if (!Number.isSafeInteger(options.limit) || options.limit < 1 || options.limit > 400) throw new Error('batched transcript view requires a row limit from 1 to 400');
+      const unique = [...new Set(streamIds.map(normStream))], out = new Map();
+      if (!unique.length) return out;
+      const batches = unique.map(streamId => {
+        const o = Object.assign({}, options, { streamId });
+        if (o.complete === true) throw new Error('batched transcript view requires bounded reads');
+        return { streamId, o, rows: viewRows(name, streamId, o) };
+      });
+      const context = projectionContext(batches.flatMap(batch => batch.rows));
+      for (const batch of batches) out.set(batch.streamId, projectView(name, batch.rows, batch.o, context));
+      return out;
+    }
+
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      findTurn,
+      view, viewMany, findTurn, ownerProof, retract, cacheRetractions, cacheRetractionsBatch,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

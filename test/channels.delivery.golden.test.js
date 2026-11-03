@@ -393,7 +393,7 @@ scenario('routine', async (env) => {
     egressReader: { fireReader: () => read, shownName: (paths, p) => String(p), pathsFor: () => ({}) },
     readChannelUpload: read,
     transcriptStore: {
-      reconstruct: () => [],
+      view: name => { A.eq(name, 'proof', 'routine delivery checks canonical proof'); return []; },
       append: (row) => { env.store.push({ file: 'transcript:' + row.streamId, data: clone(row) }); }
     },
     stationBridge: { request: (name, payload) => { env.transport.push({ op: 'station', name: name, payload: clone(payload) }); return Promise.resolve({ ok: true, delivered: true }); } }

@@ -23,6 +23,7 @@ const OWN = 'frontend/app/usertext.js';
 
 // ---------------- 1. the census ----------------
 const ALLOW = {
+  'sidecar/channels/delivery-ledger.js#deliveryText': 'CDL delivery identity signature: compares text plus file-path sentinels for idempotency collisions, omits notes; not a prompt or user-message projection',
   'sidecar/providers/anthropic.js#textFromContent': 'provider wire mapper: a message into Anthropic\'s request shape (also reads `.content` parts)',
   'sidecar/providers/gemini.js#textFromContent': 'provider wire mapper: a message into Gemini\'s request shape (also reads `.content` parts)',
   'sidecar/providers/claude-cli.js#textOf': 'provider wire mapper: the CLI prompt, with image placeholders',

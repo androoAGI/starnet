@@ -26,9 +26,9 @@
    Pure, zero-dep, UMD: the sidecar require()s it; a page may load the same file. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
-  else { root.UserText = factory(); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./turnkinds.js'));
+  else { root.UserText = factory(root.TurnKinds); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
   'use strict';
 
   /* A policy is data: strings (a bare string part counts), typedOnly (only `type: 'text'` parts), blanks (any other part
@@ -76,7 +76,7 @@
       if (typeof p.text === 'string' && (!type || /text/.test(type))) texts.push(p.text);
       else if (/image/.test(type)) images++;
     }
-    if (texts.length && texts[0].indexOf('[BEGIN EXTERNAL SCREEN CAPTURE') === 0) return '';
+    if (texts.length && TurnKinds.classify({ role: 'user', content: texts[0] }).kind === 'capture') return '';
     const t = texts.join('\n');
     if (!t.trim()) return '';
     return images ? t + '\n[' + images + ' image' + (images === 1 ? '' : 's') + ' attached - not carried]' : t;

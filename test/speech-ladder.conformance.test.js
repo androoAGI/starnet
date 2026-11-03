@@ -192,7 +192,9 @@ function station(script, policy) {
         workspaces, fs, fsp, fetch, edgetts, localVoice,
         nativeStt: { status: () => ({ available: false }), recognize: async () => ({ ok: false, text: '' }) },
         readBody: async () => body, readBodyBuffer: async () => Buffer.alloc(0),
-        providerRuntimeKey: p => (p === 'openrouter' || p === 'gemini' ? 'key-' + p : ''), providerRuntimeBaseUrl: () => '',
+        providerRuntimeKey: p => (p === 'openrouter' || p === 'gemini' ? 'key-' + p : ''),
+        // Match the current media credential-pair contract. Every request is intercepted by fetch above.
+        endpointFor: (p, key) => key === 'key-' + p ? ({ openrouter: 'https://openrouter.ai/api/v1', gemini: 'https://generativelanguage.googleapis.com/v1beta' }[p] || '') : '',
         normalizeProviderId: v => String(v || '').toLowerCase(), env: () => '', processEnv: {}, redact: String,
         logger: { error() {}, warn() {}, log() {} }, now: () => 1234, randomUUID: () => 'u' + Math.random().toString(36).slice(2),
         sleep: async ms => { log.push('wait ' + ms); },

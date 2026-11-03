@@ -119,12 +119,15 @@ for (const [scope, cap, want] of [
   const note = endNote('budget', { budgetScope: 'run', unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 });
   A.ok(/2,000,000-token safety ceiling/.test(note) && !/SPENDING LIMITS/.test(note), 'channels name the token ceiling too: ' + note);
   const { stopSentence } = require('../sidecar/stop-reason.js');
-  // the SUBSCRIPTION-token ceiling (2026-10-12): a Claude Code sign-in books $0 per turn, so its run is bounded in tokens
+  // the SIGN-IN token ceiling (2026-10-12; every sign-in plan since spend-governor S1): a ChatGPT, Grok or Kimi plan or a
+  // Claude subscription books $0 per call, so its run is bounded in tokens — and every stop names that knob by its name
   const sub = budgetStopLine('run', null, false, null, { model: 'claude-opus-5-5', capTokens: 2000000 });
-  A.ok(/2,000,000-token per-run ceiling on your Claude subscription \(claude-opus-5-5\)/.test(sub) && /Runtime limits/.test(sub) && !/SPENDING LIMITS/.test(sub), 'COMMS names the subscription ceiling and its real lever: ' + sub);
-  A.ok(/subscriptionModel = payload\.subscriptionModel/.test(harness) && /else if \(endReason === 'budget' && !subscription\) offerBudgetDoor/.test(chat), 'the subscription stop rides to COMMS and never offers the $ door');
-  const subNote = endNote('budget', { budgetScope: 'run', subscriptionModel: 'claude-opus-5-5', subscriptionCapTokens: 2000000 });
-  A.ok(/2,000,000-token per-run ceiling/.test(subNote) && /STARNET_MAX_SUBSCRIPTION_TOKENS/.test(subNote) && !/SPENDING LIMITS/.test(subNote), 'channels name the subscription ceiling too: ' + subNote);
+  A.ok(/2,000,000-token per-run ceiling StarNet puts on a sign-in plan \(claude-opus-5-5\)/.test(sub) && /raise SIGN-IN TOKEN CEILING in SETTINGS › APP & BACKUP › Runtime limits \(0 = no ceiling\)/.test(sub) && !/SPENDING LIMITS/.test(sub), 'COMMS names the sign-in ceiling and its real lever: ' + sub);
+  A.ok(/subscriptionModel = payload\.subscriptionModel/.test(harness) && /else if \(endReason === 'budget' && !subscription\) offerBudgetDoor/.test(chat), 'the sign-in stop rides to COMMS and never offers the $ door');
+  A.ok(/subscription \? stopLine : budgetProjected/.test(chat) && !/Claude subscription ceiling/.test(chat), 'a background session\'s notify reuses that one stop line, not a copy of its own');
+  const subNote = endNote('budget', { budgetScope: 'run', subscriptionModel: 'gpt-5.5', subscriptionCapTokens: 2000000 });
+  A.ok(/2,000,000-token per-run ceiling StarNet puts on a sign-in plan \(gpt-5\.5\)/.test(subNote) && /SIGN-IN TOKEN CEILING/.test(subNote) && /STARNET_MAX_SUBSCRIPTION_TOKENS/.test(subNote) && !/SPENDING LIMITS/.test(subNote), 'channels name the sign-in ceiling and both its knobs: ' + subNote);
+  A.ok(/STARNET_MAX_SUBSCRIPTION_TOKENS/.test(stopSentence('budget', { subscriptionModel: 'grok-4', subscriptionCapTokens: 2000000, unattended: true })) && /run it again/.test(stopSentence('budget', { subscriptionModel: 'grok-4', subscriptionCapTokens: 2000000, unattended: true })), 'a routine\'s sentence names the variable and never says continue');
   A.ok(/STARNET_MAX_UNPRICED_TOKENS/.test(stopSentence('budget', { unpricedModel: 'x/mystery', unpricedCapTokens: 2000000 })), 'and the server-side sentence names the real knob');
   // the sidecar owns the fact: admission's clamp sets it, the lead's own per-run stop at that ceiling carries it
   const idx = readSidecarSource();

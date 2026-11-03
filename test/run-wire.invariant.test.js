@@ -77,12 +77,15 @@ function makeHost(sc) {
   const normalizeProviderId = p => { const v = String(p || '').trim().toLowerCase().replace(/^openai-codex$/, 'codex'); return KNOWN.indexOf(v) >= 0 ? v : ''; };
   const deps = {
     agentRoster, agentRosterRaw: new Map(), RunWire, codexTokens, runtimeKey: sc.env.orKey || '',
+    billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: require('../sidecar/providers/registry.js').getProviderProfile, creditsConfigured: () => false }),
     normalizeProviderId, normalizeProvider: p => normalizeProviderId(p) || 'openrouter',
     registryProviderUsesCodex: p => p === 'codex', providerUsesCodex: p => normalizeProviderId(p) === 'codex', providerUsesDeviceOAuth: () => false,
     providerRuntimeKey: (id, explicit) => String(explicit || '') || ((normalizeProviderId(id) || 'openrouter') === 'openrouter' ? (sc.env.orKey || '') : ''),
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
     providerHasStoredCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
+    // This matrix supplies credential presence; the real runtime handler now projects the common row.
+    providerReadiness: (id, pair) => ({ unattendedReady: normalizeProviderId(id) === 'codex' ? !!codexTokens : !!pair.key }),
     providerCredentialError: id => 'connect ' + id,
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',

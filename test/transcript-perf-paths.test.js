@@ -23,7 +23,13 @@ const os = require('node:os');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const history = require('../sidecar/transcript-history.js');
-const transcriptStoreModule = require('../sidecar/transcriptstore.js');
+let transcriptStoreModule = require('../sidecar/transcriptstore.js');
+if (process.env.TURN_BRIEFING_IO_CONTROL) {
+  const Module = require('node:module'), filename = require.resolve('../sidecar/transcriptstore.js'), loaded = new Module(filename, module);
+  loaded.filename = filename; loaded.paths = Module._nodeModulePaths(path.dirname(filename));
+  loaded._compile(fs.readFileSync(path.join(process.env.TURN_BRIEFING_IO_CONTROL, 'turn-identity-c6-store-pre-briefing-batch.js.txt'), 'utf8'), filename);
+  transcriptStoreModule = loaded.exports;
+}
 const { makeSegmentedTranscriptIo } = history;
 const { makeTranscriptStore } = transcriptStoreModule;
 
@@ -36,10 +42,12 @@ const track = io => { opened.push(io); return io; };
 const pending = [];   // the async checks (the away briefing); the report waits for every one
 
 // awayBriefingInputs, the REAL source sliced out of sidecar/index.js, over a transcript store and a list of runs
-const briefingSrc = A.fnBody(readSidecarSource(), 'async function awayBriefingInputs(');
-function briefingFrom(transcriptStore, runs) {
+const briefingSrc = process.env.TURN_BRIEFING_IO_CONTROL
+  ? require('./helpers/source.js').functionSourceIn(fs.readFileSync(path.join(process.env.TURN_BRIEFING_IO_CONTROL, 'turn-identity-c6-index-pre-briefing-batch.js.txt'), 'utf8'), 'awayBriefingInputs')
+  : A.fnBody(readSidecarSource(), 'async function awayBriefingInputs(');
+function briefingFrom(transcriptStore, runs, runStore) {
   const deps = {
-    runStore: { list: () => runs.map(r => Object.assign({}, r)) }, AwayBriefing: require('../sidecar/away-briefing.js'), transcriptStore,
+    runStore: runStore || { list: () => runs.map(r => Object.assign({}, r)) }, AwayBriefing: require('../sidecar/away-briefing.js'), transcriptStore,
     failNote: () => {}, workshopAgentIds: () => [], workshopStore: { read: () => ({ backlog: [] }) }, validateWorkshopManifest: async () => null,
     workshopBuiltAtOf: () => 0, nightshiftDrafts: [], cronJobs: [], loopJobs: [], currentInitiative: () => 'off', nightFocusState: null,
     overseer: { threads: () => [] },
@@ -308,6 +316,7 @@ try {
   {
     const idx = readSidecarSource();
     const sinceSrc = A.fnBody(idx, 'function transcriptRunSince(');
+    const projectionSrc = A.fnBody(idx, 'function transcriptProjection(');
     const serveSrc = A.fnBody(idx, 'function serveTranscript(');
     A.ok(serveSrc.length > 200 && serveSrc.length < 5000, 'serveTranscript sliced out of sidecar/index.js');
     const { fs: cfs, c } = countingFs();
@@ -327,12 +336,14 @@ try {
     let sent = null;
     const deps = {
       URL, crypto, runTable, runStore, transcriptStore, transcriptStoreModule, transcriptLiveRuns: new Set(),
+      turnDual: require('../sidecar/turn-dual.js').make({ now: () => 0, hash: text => crypto.createHash('sha256').update(text).digest('hex') }), transcriptIo: io,
+      sessionTombstones: { deletedAt: () => 0 },
       isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id)), failNote: () => {},
       respondJson: (res, code, obj) => { sent = { code, obj }; }, readRouteFailure: (n, e) => ({ error: String(e && e.message) }),
       conversationTranscript: () => []
     };
     const names = Object.keys(deps);
-    const serveTranscript = new Function(...names, "'use strict';\n" + sinceSrc + '\n' + serveSrc + '\nreturn serveTranscript;')(...names.map(n => deps[n]));
+    const serveTranscript = new Function(...names, "'use strict';\n" + sinceSrc + '\n' + projectionSrc + '\n' + serveSrc + '\nreturn serveTranscript;')(...names.map(n => deps[n]));
     for (const run of ['live1', 'done1']) {
       c.reset(); sent = null;
       serveTranscript({ url: '/api/transcript?agent=agent&stream=global&runId=' + run + '&limit=80' }, {});
@@ -544,16 +555,58 @@ try {
 
     // the away briefing: every overnight routine's own stream, read through the real store, a few to a segment
     const { fs: bfs, c: bc } = countingFs();
-    const briefStore = makeTranscriptStore({ io: track(makeSegmentedTranscriptIo({ fs: bfs, path, root })), clock: { now: () => ts++ } });
+    const briefIo = track(makeSegmentedTranscriptIo({ fs: bfs, path, root })), contextReads = [];
+    const readContext = briefIo.retractionsFor.bind(briefIo);
+    briefIo.retractionsFor = (...args) => { const at = bc.jsonl.length; const result = readContext(...args); contextReads.push(bc.jsonl.slice(at)); return result; };
+    const briefStore = makeTranscriptStore({ io: briefIo, clock: { now: () => ts++ } });
     A.ok(!briefStore.all().some(r => r.streamId.startsWith('cron-')), 'RAM holds none of the routine rows, so each is read from the segments');
-    let briefCalls = 0;
-    const counted = { reconstruct: (sid, o) => { briefCalls++; return briefStore.reconstruct(sid, o); } };
+    let briefCalls = 0, nonemptyViews = 0;
+    const viewOptions = [];
+    const counted = {
+      view: (name, sid, o) => { briefCalls++; viewOptions.push([name, o.limit, o.shape]);
+        const rows = briefStore.view(name, sid, o); if (rows.length) nonemptyViews++; return rows; },
+      viewMany: (name, streams, o) => { briefCalls += streams.length; streams.forEach(() => viewOptions.push([name, o.limit, o.shape]));
+        const result = briefStore.viewMany(name, streams, o); for (const rows of result.values()) if (rows.length) nonemptyViews++; return result; }
+    };
     bc.reset();
     const newestFirst = runs.slice().reverse();
     pending.push(briefingFrom(counted, newestFirst)(0, ts, 0).then(inputs => {
       A.eq(briefCalls, runs.length, 'each of the ' + runs.length + ' routine runs reads its own stream once');
-      A.ok(bc.jsonl.length <= routineSegs.length, 'segment reads ' + bc.jsonl.length + ' <= the ' + routineSegs.length + ' segments holding them (was one per run: ' + runs.length + ')');
+      // C6 adds one fresh active-segment retract proof per whole briefing. Keep the original closed-body
+      // reuse budget separately: validating current retractions must not reintroduce N+1 old-history scans.
+      const activeFile = history._internals.segmentName(active), activeReads = bc.jsonl.filter(name => name === activeFile).length;
+      const closedReads = bc.jsonl.filter(name => name !== activeFile);
+      const routineFiles = new Set(routineSegs.map(number => history._internals.segmentName(number)));
+      A.ok(closedReads.length <= routineSegs.length && closedReads.every(name => routineFiles.has(name)),
+        'closed history reads ' + closedReads.length + ' stay within the ' + routineSegs.length + ' routine segments, never one per run');
+      A.ok(activeReads <= 1, 'the whole briefing validates the active retract body at most once: ' + activeReads);
+      A.eq(contextReads.length, 1, 'all nonempty briefing streams share one fresh context assembly');
+      A.eq(contextReads.flat().filter(name => name === activeFile).length, activeReads, 'every added active read belongs to actual retract validation');
+      A.ok(contextReads.every(reads => reads.filter(name => name === activeFile).length <= 1), 'no single context lookup rereads the active body');
+      A.ok(viewOptions.every(([name, limit, shape]) => name === 'model-replay' && limit === 6 && shape === 'pairs'), 'each actual briefing read requests at most six paired replay turns');
+      console.log('away briefing segment reads: ' + JSON.stringify({ closed: closedReads.length, active: activeReads, contextActive: contextReads.flat().filter(name => name === activeFile).length,
+        nonemptyViews, streams: runs.length, total: bc.jsonl.length }));
       A.eq(inputs.runs.map(r => r.deliveryText), newestFirst.map(r => 'Inbox run ' + r.runId.slice(1) + ': ' + (Number(r.runId.slice(1)) + 2) + ' unread invoices.'), 'every routine carries its own last words');
+    }));
+  }
+
+  // The per-stream freshness allowance is bounded by the actual briefing run-store request, not lifetime streams.
+  {
+    const runStore = require('../sidecar/runstore.js').makeRunStore({ io: { readAll: () => [], append() {} }, clock: { now: () => 100 } });
+    for (let i = 0; i < 600; i++) runStore.record({ runId: 'cap-' + i, streamId: 'cron-cap-' + i, agentId: 'a',
+      reason: 'done', endedAt: 100 + i, cronJobId: 'cap', deliveryText: '' });
+    const viewCalls = [], listCalls = [], list = runStore.list.bind(runStore);
+    runStore.list = (agent, options) => { listCalls.push(options); return list(agent, options); };
+    const fixtureViews = {
+      view: (name, sid, o) => { viewCalls.push([name, sid, o.limit, o.shape]); return []; },
+      viewMany: (name, streams, o) => new Map(streams.map(sid => { viewCalls.push([name, sid, o.limit, o.shape]); return [sid, []]; }))
+    };
+    pending.push(briefingFrom(fixtureViews, [], runStore)(0, 1000, 0).then(inputs => {
+      A.eq(listCalls.map(o => o.limit), [500], 'actual briefing asks the real run store for at most 500 runs');
+      A.eq(inputs.runs.length, 500, '600 durable runs are capped before transcript reads');
+      A.eq(viewCalls.length, 500, 'distinct briefing stream views are bounded by the same 500-run request');
+      A.ok(viewCalls.every(([name, sid, limit, shape]) => sid.startsWith('cron-cap-') && name === 'model-replay' && limit === 6 && shape === 'pairs'),
+        'the bounded stream campaign retains six-turn paired projections');
     }));
   }
 
@@ -565,7 +618,8 @@ try {
     real.append({ streamId: 'loop-L1', role: 'assistant', content: 'Fixed the hero section build.', taint: null });
     real.append({ streamId: 'cron-c1', role: 'assistant', content: 'Three unread invoices.', taint: null });
     let reads = 0;
-    const transcriptStore = { reconstruct: (sid, o) => { reads++; return real.reconstruct(sid, o); } };
+    const transcriptStore = { view: (name, sid, o) => { reads++; return real.view(name, sid, o); },
+      viewMany: (name, streams, o) => { reads += streams.length; return real.viewMany(name, streams, o); } };
     const runs = [];
     for (let i = 0; i < 6; i++) runs.push({ runId: 'loop-run-' + i, streamId: 'loop-L1', reason: 'done', endedAt: 100 + i });
     runs.push({ runId: 'c1', streamId: 'cron-c1', cronJobId: 'inbox', reason: 'done', endedAt: 200 });

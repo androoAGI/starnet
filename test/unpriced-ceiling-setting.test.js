@@ -1,7 +1,7 @@
 /* node test/unpriced-ceiling-setting.test.js — issue #135: a model StarNet has no price for (a custom provider's
    deepseek-ai/deepseek-v4.1-flash-1107) stopped every run at a hardcoded 2,000,000 tokens. The only override was the
-   STARNET_MAX_UNPRICED_TOKENS environment variable; the Runtime limits row a user found (CLAUDE CODE TOKEN CEILING) is
-   the Claude-subscription ceiling and never touched it, so setting it to 5M or 0 changed nothing.
+   STARNET_MAX_UNPRICED_TOKENS environment variable; the Runtime limits row a user found (CLAUDE CODE TOKEN CEILING, now
+   SIGN-IN TOKEN CEILING) is the sign-in plans' ceiling and never touched it, so setting it to 5M or 0 changed nothing.
 
    GENUINE (the real sidecar/index.js knob code, run in a vm against a temp runtime.knobs.json — never the sidecar):
      • SAVE: POST /api/runtime/knobs { maxUnpricedTokens } persists, reports it, and is bounds-checked like its sibling;
@@ -31,8 +31,8 @@ const side = readSidecarSource();
 
 // the real knob code: the boot reader + resolver, the CAPS line, the defs/status, and the POST handler
 const BOOT = part(side, 'let runtimeKnobs = (function loadRuntimeKnobsAtBoot() {', '\n// maxIters: optional per-run tool-turn ceiling.');
-const CAPS_LINE = part(side, 'const CAPS = {', '\n');
-const DEFS = part(side, 'const RUNTIME_KNOB_DEFS = [', 'function handleRuntimeKnobsGet(');
+const CAPS_LINE = part(side, 'const CAPS = ', '\n');
+const DEFS = part(side, 'const RUNTIME_KNOB_DEFS = ', 'function handleRuntimeKnobsGet(');
 const SET = part(side, 'async function handleRuntimeKnobsSet(req, res) {', '\nfunction setProviderRuntimeConfig(');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unpriced-ceiling-'));
@@ -42,6 +42,8 @@ const FILE = path.join(dir, 'runtime.knobs.json');
 function boot(env) {
   const ctx = vm.createContext({
     fs, console: { warn: () => {} }, Object, Number, String, JSON, Math, isFinite,
+    limitsRegistry: require('../sidecar/limits-registry.js'), saveJsonVerified: require('../sidecar/durable-store.js').saveJsonVerified,
+    MAX_CONCURRENT_AGENTS: 0, CRON_TICK_MS: 60000,
     RUNTIME_KNOBS_FILE: FILE,
     ENV: suffix => (env || {})[suffix],
     CONSENT_TIMEOUT_MS: 120000, CONSENT_ACK_EXTEND_MS: 600000,
@@ -84,10 +86,12 @@ function runUnpriced(maxUnpricedTokens, perTurn, maxIters) {
   }).then(res => ({ res, end: s.seq.find(e => e.name === 'agent.run.end') }));
 }
 
-// the run seam's limits for the two token ceilings, sliced from runOnceCore and evaluated against a context's CAPS
-const SEAM = part(side, '        maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth)', '\n      },');
+// the run seam's limits for the two token ceilings, sliced from runOnceCore and evaluated against a context's CAPS. The
+// unpriced ceiling follows the run's payer (billing-class.js POLICY): a dollar payer has it, a sign-in plan does not.
+const { POLICY } = require('../sidecar/billing-class.js');
+const SEAM = part(side, '        maxUnpricedTokens: runBilling.policy.unpricedTokenCeiling', '\n      },');
 function nextRunLimits(ctx, exempt) {
-  return vm.runInContext('(function (providerUnmetered, usingCodex, usingDeviceOAuth) { return {' + SEAM + '}; })', ctx)(!!exempt, false, false);
+  return vm.runInContext('(function (runBilling) { return {' + SEAM + '}; })', ctx)({ policy: POLICY[exempt ? 'subscription' : 'metered'] });
 }
 // a Claude Code sign-in run: $0 turns marked usage.subscription (fresh input counts in full)
 function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
@@ -140,10 +144,10 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
     A.eq(off.res.reason, 'max_iters', '0 = no ceiling: 6,000,000 unpriced tokens and no token stop');
     A.eq(boot().CAPS.maxUnpricedTokens, 0, 'a restart keeps the saved 0 (not dropped to the default)');
 
-    // ---- the Claude Code ceiling applies live the same way ----
+    // ---- the sign-in ceiling applies live the same way ----
     r = await post(ctx, { maxSubscriptionTokens: 1000000 });
     A.eq(r.code, 200, 'POST maxSubscriptionTokens 1,000,000 → 200');
-    A.eq(nextRunLimits(ctx).maxSubscriptionTokens, 1000000, 'the next run gets the new Claude Code ceiling — no restart');
+    A.eq(nextRunLimits(ctx).maxSubscriptionTokens, 1000000, 'the next run gets the new sign-in ceiling — no restart');
     const sub = await runSubscription(nextRunLimits(ctx).maxSubscriptionTokens, 400000, 10);
     A.eq([sub.reason, sub.turns, sub.subscriptionCapTokens], ['budget', 3, 1000000], 'it stops at 1,000,000 (3 × 400k)');
     await post(ctx, { maxSubscriptionTokens: 0 });
@@ -178,24 +182,31 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
     const coreEnd = side.indexOf('\nasync function ', core + 10);
     const from = lineOf(core), to = coreEnd > 0 ? lineOf(coreEnd) : lines.length;
     const readers = lines.map((l, i) => [i, l]).filter(([, l]) => /CAPS\.max(Unpriced|Subscription)Tokens/.test(l) && !/^\s*\/\//.test(l));
-    const outside = readers.filter(([i, l]) => !/^const CAPS = \{/.test(l) && !(i > from && i < to));
-    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore');
+    const activeStart = lineOf(side.indexOf('function activeRuntimeKnobs() {'));
+    const activeEnd = lineOf(side.indexOf('\n}', side.indexOf('function activeRuntimeKnobs() {')));
+    const effectiveAt = side.indexOf('function effectiveLimitsStatus() {');
+    A.ok(effectiveAt > 0, 'effective payer readback is a runtime getter');
+    const effectiveStart = lineOf(effectiveAt), effectiveEnd = lineOf(side.indexOf('\n}', effectiveAt));
+    const outside = readers.filter(([i, l]) => !/^const CAPS = /.test(l) && !(i > from && i < to) && !(i > activeStart && i <= activeEnd) && !(i > effectiveStart && i <= effectiveEnd));
+    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore and the two live-status getters');
     A.ok(readers.length >= 3, 'the run seam reads them (' + readers.length + ' lines)');
-    A.ok(/for \(const d of RUNTIME_KNOB_DEFS\) if \(d\.live\) CAPS\[d\.key\] = resolveKnob\(d\.env, d\.key, d\.def\);/.test(side), 'the save re-resolves live knobs through resolveKnob (env > saved > default)');
-    A.eq(side.match(/\{ key: '\w+', env: '\w+', def: \d+, min: \d+, max: \d+, live: true \}/g).map(m => m.match(/key: '(\w+)'/)[1]), ['maxSubscriptionTokens', 'maxUnpricedTokens'], 'only the two per-run token ceilings are live');
+    A.ok(/for \(const d of RUNTIME_KNOB_DEFS\) if \(d\.applies === 'next-run'\) CAPS\[d\.key\] = resolveKnob\(d\.key\);/.test(side), 'the save re-resolves live knobs through resolveKnob (env > saved > default)');
+    A.eq(require('../sidecar/limits-registry.js').definitions('runtime').filter(d => d.applies === 'next-run').map(d => d.key), ['maxSubscriptionTokens', 'maxUnpricedTokens'], 'only the two per-run token ceilings are live');
   }
 
   // ---- the Settings row: in the existing Runtime limits list, the sidecar's bounds, says 0 and restart ----
   const ui = read('frontend/app/stationui.js');
-  const uc = vm.createContext({});
-  vm.runInContext(part(ui, '  const ADV_FIELDS = [', '\n  ];') + '\n  ];\n;this.F = ADV_FIELDS;', uc);
+  const uc = { F: require('../sidecar/limits-registry.js').definitions('runtime') };
+  A.ok(!/const ADV_FIELDS\s*=/.test(ui) && /definitions\.map\(f =>/.test(ui), 'Settings renders the server-owned definitions instead of a copied list');
   const row = uc.F.find(f => f.key === 'maxUnpricedTokens');
   const sib = uc.F.find(f => f.key === 'maxSubscriptionTokens');
   A.ok(!!row, 'Runtime limits has a maxUnpricedTokens row');
   A.eq(row && row.label, 'UNPRICED MODEL TOKEN CEILING', 'labelled for what it is');
-  A.eq(row && [row.min, row.max, row.step], sib && [sib.min, sib.max, sib.step], 'same bounds and step as CLAUDE CODE TOKEN CEILING');
-  A.ok(row && /0 = no ceiling/.test(row.hint) && /next run/.test(row.hint) && !/restart/.test(row.hint) && /price/.test(row.hint), 'the hint says what it governs, 0 = no ceiling, and when it applies: ' + (row && row.hint));
-  A.ok(sib && /next run/.test(sib.hint) && !/restart/.test(sib.hint), 'and so does CLAUDE CODE TOKEN CEILING: ' + (sib && sib.hint));
+  A.eq(row && [row.min, row.max, row.step], sib && [sib.min, sib.max, sib.step], 'same bounds and step as SIGN-IN TOKEN CEILING');
+  // spend-governor S1: the seatbelt covers every sign-in plan (ChatGPT, Grok, Kimi, a Claude subscription), and its row says so
+  A.ok(sib && sib.label === 'SIGN-IN TOKEN CEILING' && /ChatGPT, Grok, Kimi or a Claude subscription/.test(sib.hint), 'the sign-in ceiling is named for every sign-in it covers: ' + (sib && sib.label));
+  A.ok(row && /0 = no ceiling/.test(row.hint) && row.applies === 'next-run' && /price/.test(row.hint), 'the hint says what it governs, 0 = no ceiling, and when it applies: ' + (row && row.hint));
+  A.ok(sib && sib.applies === 'next-run', 'and so does SIGN-IN TOKEN CEILING: ' + (sib && sib.hint));
   A.eq(uc.F.length, 6, 'one new row, nothing else added');
 
   // ---- limits.set (station.power) carries every Runtime limits key ----

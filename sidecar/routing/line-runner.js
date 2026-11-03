@@ -62,7 +62,8 @@ function outcomeOf(facts) {
   const f = facts || {}, line = f.line || {}, runs = Array.isArray(f.runs) ? f.runs : [];
   let stop = f.stop || line.stop || null;
   const agentId = String(line.agentId || f.agentId || ''), dockId = line.dockId || f.dockId;
-  const make = (code, extra) => Object.assign(lineStop(code, Object.assign({ agent: agentId || undefined }, extra)),
+  const nameOf = id => (typeof f.label === 'function' && f.label(id)) || id || undefined;
+  const make = (code, extra) => Object.assign(lineStop(code, Object.assign({ agent: nameOf(agentId) }, extra)),
     agentId ? { agentId } : null, dockId ? { dockId } : null);
   // The entry can be stopped after its chain returned but before its reply settles. Its explicit fault/STOP wins over
   // the chain's earlier stop snapshot; fault containment must never turn into a claim that the Commander stopped it.
@@ -81,7 +82,7 @@ function outcomeOf(facts) {
         const o = RunOutcome.ofRow(bad);
         const code = o.outcome === 'stopped' ? 'stopped' : o.outcome === 'empty' ? 'stage_empty'
           : UNFINISHED.has(o.outcome) || o.failureCode === RunOutcome.NO_TERMINAL ? 'stage_incomplete' : 'stage_failed';
-        stop = make(code, { agent: bad.agentId || agentId || undefined, error: RunOutcome.line(o) });
+        stop = make(code, { agent: nameOf(bad.agentId || agentId), error: RunOutcome.line(o) });
         if (bad.agentId) stop.agentId = bad.agentId;
         if (bad.dockId) stop.dockId = bad.dockId;
       } else if (!runs.length) stop = make(f.refusedSaid ? 'refused' : 'stage_incomplete', { why: f.refusedSaid });
@@ -122,7 +123,7 @@ function makeJobBook(d, now, newId) {
     if (job && !job.result && runId) job.runs.set(String(runId), verdict || null);
   }
   function preview(job, facts) {
-    const f = Object.assign({}, facts);
+    const f = Object.assign({ label: d.label }, facts);
     if (job && job.stopRequested) {
       f.stopped = true;
       if (job.stopRequested === 'fault') f.stopCause = 'fault';

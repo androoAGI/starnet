@@ -7,6 +7,8 @@ const Module = require('node:module');
 const crypto = require('node:crypto');
 const { runTurnId } = require('../frontend/app/turnkinds.js');
 const { make } = require('../sidecar/turn-dual.js');
+const Store = require('../sidecar/transcriptstore.js');
+const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 const control = process.env.TURNMERGE_REVIEW_CONTROL_DIR;
 function load(actual, saved) {
   const filename = require.resolve(actual);
@@ -35,9 +37,15 @@ const history = [
 const contents = rows => rows.map(r => r.content).sort();
 function dual(mode) { return make({ now: () => 1, hash: s => crypto.createHash('sha256').update(s).digest('hex'), read: () => ({ merge: mode }) }); }
 function hostFor(stream, local, identity, mode) {
+  const io = makeMemoryTranscriptIo();
+  for (const row of local) if (row && (!row.streamId || row.streamId === stream) && Number.isSafeInteger(row.rowId) && row.rowId > 0)
+    io.appendDurable(Object.assign({}, row, { streamId: stream }));
+  if (Array.isArray(identity.retracted) && identity.retracted.length)
+    io.appendDurable({ streamId: stream, role: 'system', kind: 'retract', targets: identity.retracted, reason: 'undo' });
+  const proofStore = Store.makeTranscriptStore({ io, clock: { now: () => 1 } });
   return makeRemoteHost({ now: () => 1, roster: () => [], liveRuns: () => [],
-    deskSessions: () => [{ id: stream, agentId: 'agent', history: local }], transcript: { history: () => [], streams: () => [] },
-    turnDual: dual(mode), turnProjection: () => ({ identity }), redact: s => s });
+    deskSessions: () => [{ id: stream, agentId: 'agent', history: local }], transcript: { view: () => [], history: () => [], streams: () => [], cacheRetractions: proofStore.cacheRetractions },
+    turnDual: dual(mode), turnProjection: () => ({ turns: [], identity }), redact: s => s });
 }
 (async () => {
   // A revived stream can have a valid new tail while an old page still caches pre-delete rows.

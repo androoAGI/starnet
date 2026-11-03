@@ -13,6 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const CtxGauge = require('../frontend/app/ctxgauge.js');
+const TurnMerge = require('../frontend/app/turnmerge.js');
 
 const chatSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend/app/chat.js'), 'utf8');
 const from = chatSrc.indexOf('  const HISTORY_CAP = 120;');
@@ -23,7 +24,7 @@ let stringifies = 0, clock = 5000000, model = 'model-a', rev = 0;
 const limits = { 'model-a': 200000, 'model-b': 32000 };
 const countingJSON = { stringify: (...a) => { stringifies++; return JSON.stringify(...a); }, parse: JSON.parse };
 const ctx = vm.createContext({
-  JSON: countingJSON, CtxGauge, TextEncoder, Math, Number, String, Array, Object,
+  JSON: countingJSON, CtxGauge, TurnMerge, stationModes: { window: 'legacy' }, TextEncoder, Math, Number, String, Array, Object,
   Date: { now: () => clock },
   activeWs: null,
   Harness: {

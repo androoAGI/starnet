@@ -15,7 +15,7 @@ function finalizeDispatchDelivery(deps, runId, value) {
   const final = { state: 'final', text, reason: String(value.reason || 'error'), repairRunId: String(value.repairRunId || ''),
     textLength: text.length, textSha256: hash(text) };
   const streamId = source.streamId || 'global';
-  const rows = transcriptStore.history(streamId, { sourceRunId: runId, dispatchState: 'final', limit: 1, strict: true, proof: true, since: runSince(source) });
+  const rows = transcriptStore.view('proof', streamId, { sourceRunId: runId, dispatchState: 'final', limit: 1, strict: true, since: runSince(source) });
   const prior = rows.find(row => row.dispatchState === 'final');
   const saved = source.dispatchDelivery;
   if (prior && !require('./transcriptstore.js').isFinalDeliveryRow(prior, hash, saved)) throw new Error('The first accepted dispatch projection is incomplete or unverifiable.');
@@ -51,7 +51,7 @@ function recoverPendingDeliveries(deps) {
     if (!source.dispatchDelivery || source.dispatchDelivery.state !== 'pending') continue;
     try {
       const streamId = source.streamId || 'global';
-      const prior = transcriptStore.history(streamId, { sourceRunId: source.runId, dispatchState: 'final', limit: 1, strict: true, proof: true, since: runSince(source) })[0];
+      const prior = transcriptStore.view('proof', streamId, { sourceRunId: source.runId, dispatchState: 'final', limit: 1, strict: true, since: runSince(source) })[0];
       if (!prior) continue;
       if (!require('./transcriptstore.js').isFinalDeliveryRow(prior, hash) || !Number.isSafeInteger(prior.textLength)
           || prior.streamId !== streamId || prior.sourceRunId !== source.runId || !prior.dispatchReason) {

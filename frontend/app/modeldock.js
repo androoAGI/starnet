@@ -2,6 +2,9 @@
 'use strict';
 
 const ModelDock = (() => {
+  // The exported pure helpers use the same registry in Node and in the page.
+  const providerRegistry = typeof module !== 'undefined' && module.exports && typeof require === 'function'
+    ? require('./provider-registry.js') : SK.providers.registry;
   const el = id => document.getElementById(id);
   // Delegates to the one complete implementation (U.esc escapes & < > " ' — quotes included, so the id="…"
   // / title="…" attribute contexts this dock builds are injection-safe); keep the null-guard the local had.
@@ -158,7 +161,7 @@ const ModelDock = (() => {
     return map[p] || String(p || 'openrouter').toUpperCase();
   }
   function normalizeProvider(p) {
-    return SK.providers.registry.normalizeProviderId(p || 'openrouter', '');
+    return providerRegistry.normalizeProviderId(p || 'openrouter', '');
   }
   function isAgentModel(item) {
     const p = item ? normalizeProvider(item.provider) : '';

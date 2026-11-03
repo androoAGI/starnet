@@ -209,7 +209,7 @@ function boot(disk, script) {
   const { makeRoutineDelivery } = require('../sidecar/routine-delivery.js');
   const routine = makeRoutineDelivery({ channelStore: {}, channelOutbound: { provide() {} }, channelReach: () => ({}), channelRegistry: {},
     redact: x => x, runStore: {}, egressReader: {}, stationBridge: {}, now: () => clk++,
-    transcriptStore: { reconstruct: () => rows.slice(), append: row => rows.push(row) } });
+    transcriptStore: { view: (name, stream) => { A.eq(name, 'proof', 'routine retry reads durable proof'); return rows.filter(row => row.streamId === stream); }, append: row => rows.push(row) } });
   const job = { noAgent: true, agentId: 'agent', prompt: 'collect the report', deliver: 'local' };
   const result = { runId: 'routine-identity-001', outcome: 'ok', text: 'script report' };
   await routine.deliverCronResult(job, result);

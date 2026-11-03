@@ -108,7 +108,7 @@ const Delegated = (() => {
     stalled: 'made no progress', error: 'hit an error' };
   // review r8: a worker whose run did not finish, in its outcome's own words (stateOf's 'unfinished' state)
   const UNFINISHED_LIVE = { out_of_budget: 'budget limit reached', step_limit: 'step limit reached', cut_short: 'cut short by the provider', empty: 'the model sent an empty reply', refused: 'the model declined the task',
-    blocked: 'held: a reviewer blocked the work' };
+    blocked: 'held: the work was not accepted' };
   function whyOf(r) {
     const s = String(r || '').trim();
     return WHY[s] || WHY[s.split(':')[0].trim()] || (s.length > 40 ? '' : s.replace(/[_-]+/g, ' '));

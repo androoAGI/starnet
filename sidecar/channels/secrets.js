@@ -202,6 +202,14 @@
     return isChannelRecord(record) ? record : null;
   }
   const text = v => (typeof v === 'string' ? v.trim() : '');
+  // The record's public identity only, never a credential envelope or its arbitrary extra fields.
+  // Bind equality is byte-exact in credential-store.js; do not trim or invent a new bind grammar here.
+  function credentialReference(value) {
+    if (!isChannelRecord(value)) return null;
+    if (value.ref === 'station') return { ref: 'station' };
+    return value.ref === 'channel' && typeof value.bind === 'string' && value.bind
+      ? { ref: 'channel', bind: value.bind } : null;
+  }
   // one row per record: its credential field and the provider credential it still carries, if an older build wrote one
   function credentialRows(secrets) {
     const rows = [];
@@ -275,5 +283,5 @@
     };
   }
 
-  return { CHANNEL_IDS, TOKEN_FIELDS, STRIP_FIELDS, RECORD_CREDENTIAL_FIELDS, telegramBotSecretId, splitSecret, splitKeyOnly, stripTokens, migratePlaintext, recordAt, credentialRows, withCredentials, withCarried, withoutProviderCredentials, makeVerifiedPersist };
+  return { CHANNEL_IDS, TOKEN_FIELDS, STRIP_FIELDS, RECORD_CREDENTIAL_FIELDS, telegramBotSecretId, splitSecret, splitKeyOnly, stripTokens, migratePlaintext, recordAt, credentialReference, credentialRows, withCredentials, withCarried, withoutProviderCredentials, makeVerifiedPersist };
 });

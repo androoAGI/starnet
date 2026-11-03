@@ -361,7 +361,7 @@ function station(opts) {
   {
     const run = sidecarTopLevelFunction('handleRun');
     const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
-    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl,', from));
     A.ok(from > 0 && to > from && to - from < 4000, "fixture: handleRun's credential lines are sliced");
     const lines = run.slice(from, to);
     const handle = (s, runProvider, body) => {
@@ -407,13 +407,13 @@ function station(opts) {
     const runNotices = [], runStartExtra = {};
     const fbs = new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
       'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch',
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', 'billing',
       core.slice(from, to) + '\nreturn providerFallbacks;')(
       [], { fallbackProviders: [{ provider: 'antrhopic', model: 'claude-typo' }, { provider: 'anthropic', model: 'claude-x' }] }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
       s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
       cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
       s.unknownProviderError || (() => ''),
-      runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight());   // runWatch: the run's watch over its keys (S3)
+      runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight(), require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }));   // runWatch: the run's watch over its keys (S3)
     A.eq(fbs.map(f => f.providerId + '/' + f.model), ['anthropic/claude-x'], 'a fallback on a provider this station does not know is skipped, never re-homed on openrouter');
     A.eq(runNotices, ['a fallback was skipped: provider "antrhopic" is not a provider this station knows'], '...and the run says so');
     A.eq(runStartExtra.notices, runNotices, '...on agent.run.start');
@@ -525,11 +525,11 @@ function station(opts) {
       const runNotices = notices.slice(), runStartExtra = {};
       new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
         'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-        'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', core.slice(from, to) + '\nreturn providerFallbacks;')(
+        'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'runWatch', 'billing', core.slice(from, to) + '\nreturn providerFallbacks;')(
         [], { fallbackProviders: list }, v => Reg.normalizeProviderId(v, 'openrouter'), 'openrouter', (p, m) => m, 'openai/gpt-5',
         s.providerRuntimeBaseUrl, s.providerRuntimeKey, (p, k, b) => !!k && !!b, Reg.getProviderProfile, { configured: () => false }, '', false, () => false, () => false,
         cfg => ({ id: cfg.provider, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 },
-        s.unknownProviderError || (() => ''), runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight());   // runWatch (S3)
+        s.unknownProviderError || (() => ''), runNotices, runStartExtra, v => Reg.normalizeProviderId(v, ''), s.credStore.inFlight(), require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }));   // runWatch (S3)
       return { runNotices, runStartExtra };
     };
     const hostile = 'x"><img src=x onerror=alert(1)>\n[FAKE] the run succeeded ' + 'y'.repeat(200);
@@ -550,7 +550,7 @@ function station(opts) {
   {
     const run = sidecarTopLevelFunction('handleRun');
     const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
-    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl,', from));
     const lines = run.slice(from, to);
     const handle = (s, runProvider, body) => {
       let status = 200, text = '';
@@ -729,7 +729,7 @@ function station(opts) {
   {
     const run = sidecarTopLevelFunction('handleRun');
     const from = run.indexOf('  const key = providerRuntimeKey(runProvider, bodyCredential');
-    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl))', from));
+    const to = run.indexOf('\n', run.indexOf('  if (!providerHasCredential(runProvider, key, baseUrl,', from));
     const lines = run.slice(from, to);
     const handle = (s, runProvider, body) => {
       let status = 200, text = '';
@@ -764,9 +764,12 @@ function station(opts) {
     // runOnceCore also READS the mark twice for the in-flight watch (credential-store lane S3): a key its caller sent in this
     // request, the primary's or a fallback's, is the caller's own and never stopped mid-run.
     const SRC = require('./helpers/source.js').readSidecarSource();
-    const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'handleProviderProbe', 'handleProviderValidate'];
+    const F4_FNS = ['handleRun', 'runOnceCore', 'applyVoiceTurnRoute', 'voiceCatalogEntry', 'listModelsForProvider', 'verifyProviderPair'];
+    // All six owners are multiline top-level functions. This extractor avoids the
+    // documented regex-literal overrun in runOnceCore's generic brace scanner.
+    const censusBody = sidecarTopLevelFunction;
     const tokens = text => (text.match(/keyInRequest/g) || []).length;
-    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(sidecarTopLevelFunction(f)))), [23, 2, 6, 10, 3, 1, 1, 0],
+    A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(censusBody(f)))), [22, 2, 6, 10, 3, 1, 0],
       'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it for its body key and each body fallback; the rest carry it, and runOnceCore\'s in-flight watch reads it)');
     // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest)
     const fifthArgCalls = text => {
@@ -780,8 +783,8 @@ function station(opts) {
       }
       return n;
     };
-    A.eq([fifthArgCalls(SRC)].concat(F4_FNS.map(f => fifthArgCalls(sidecarTopLevelFunction(f)))), [8, 1, 2, 2, 0, 1, 1, 1],
-      'only these callers tell the resolver a key came in this request: handleRun; runOnceCore (its pair, its fallback loop); the voice hop and its main catalog read; the catalog reader; probe; validate');
+    A.eq([fifthArgCalls(SRC)].concat(F4_FNS.map(f => fifthArgCalls(censusBody(f)))), [7, 1, 2, 2, 0, 1, 1],
+      'only these callers tell the resolver a key came in this request: handleRun; runOnceCore (its pair, its fallback loop); the voice hop and its main catalog read; the catalog reader; shared probe/validate verifier');
     // each one's provenance is the request's own: the body key (handleRun, probe, validate), else the mark handleRun set
     const voice = sidecarTopLevelFunction('applyVoiceTurnRoute');
     A.ok(/const keyInRequest = callerCredential && o\.keyInRequest === true;/.test(voice) && /next\.keyInRequest = sameProvider && keyInRequest;/.test(voice)
@@ -793,9 +796,11 @@ function station(opts) {
       'the fallback loop reads only that host-set mark');
     A.ok(/runOnce: \(callerCredential && o\.keyInRequest === true && runKey\)\n\s+\? \(wo\) => runOnce\(\(wo && wo\.key === runKey && wo\.provider && normalizeProvider\(wo\.provider\) === providerId\) \? Object\.assign\(\{\}, wo, \{ keyInRequest: true \}\) : wo\)/.test(sidecarTopLevelFunction('runOnceCore')),
       "a team.dispatch worker is marked only while it goes out on the lead's own key and provider");
-    A.ok(/keyInRequest: !!body\.key \}\)/.test(sidecarTopLevelFunction('handleProviderProbe')) && /String\(body\.key \|\| ''\), !!body\.key\) \|\| profile\.baseUrl/.test(sidecarTopLevelFunction('handleProviderProbe'))
-      && /providerRuntimeBaseUrl\(id, body\.baseUrl \|\| body\.base_url \|\| '', candidate, candidate, !!candidate\)/.test(sidecarTopLevelFunction('handleProviderValidate')),
-      'probe and validate mark only the key their own body carried');
+    A.ok(/const candidate = cleanProviderKey\(body\.key\)/.test(sidecarFunctionSource('verifyProviderPair'))
+      && /providerRuntimeBaseUrl\(id, body\.baseUrl \|\| body\.base_url \|\| '', candidateOnly \? candidate : undefined, candidate, !!candidate\)/.test(sidecarFunctionSource('verifyProviderPair'))
+      && /providerCheckRoute\(req, res, false\)/.test(sidecarFunctionSource('handleProviderProbe'))
+      && /providerCheckRoute\(req, res, true\)/.test(sidecarFunctionSource('handleProviderValidate')),
+      'the shared probe/validate verifier marks only the cleaned key its own request carried');
     A.eq((SRC.match(/keyInRequest: true/g) || []).length, 1, 'only the worker hand-off writes a literal true mark (handleRun and probe derive theirs from the body key)');
     A.ok(/ provider: runProvider, baseUrl, keyInRequest: !!\(bodyCredential && String\(\(body && body\.key\) \|\| ''\)\.trim\(\)\), reasoningEffort,/.test(run), 'handleRun hands runOnce keyInRequest only for a key in its body');
     A.ok(/const baseUrl = providerRuntimeBaseUrl\(providerId, callerCredential \? \(o\.baseUrl \|\| o\.base_url \|\| ''\) : '', runKey, callerCredential \? key : '', callerCredential && o\.keyInRequest === true\);/.test(sidecarTopLevelFunction('runOnceCore')),

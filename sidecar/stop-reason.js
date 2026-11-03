@@ -45,8 +45,9 @@ function stopSentence(reason, extra) {
     }
     if (x.subscriptionModel) {
       const cap = Number(x.subscriptionCapTokens) > 0 ? Number(x.subscriptionCapTokens).toLocaleString('en-US') + '-token' : 'token';
-      // a Claude Code sign-in books $0 per turn: its run is bounded in TOKENS (loop.js maxSubscriptionTokens), not by the $ limits
-      return 'it used the ' + cap + ' per-run ceiling StarNet puts on your Claude subscription (' + x.subscriptionModel + ') — ' + (x.unattended ? 'run it again' : 'say "continue" to keep going') + ', or change the ceiling in SETTINGS › APP & BACKUP › Runtime limits, or with STARNET_MAX_SUBSCRIPTION_TOKENS';
+      // a sign-in plan (ChatGPT, Grok, Kimi, a Claude subscription) books $0 per call: its run is bounded in TOKENS (loop.js
+      // maxSubscriptionTokens), not by the $ limits. Name the real knob, its row and its variable.
+      return 'it used the ' + cap + ' per-run ceiling StarNet puts on a sign-in plan (' + x.subscriptionModel + ') — ' + (x.unattended ? 'run it again' : 'say "continue" to keep going') + ', or raise SIGN-IN TOKEN CEILING in SETTINGS › APP & BACKUP › Runtime limits (0 = no ceiling) or with STARNET_MAX_SUBSCRIPTION_TOKENS';
     }
     return 'it hit a spending limit (SETTINGS › SPENDING LIMITS)';
   }

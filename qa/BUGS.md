@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 419 total — 0 P0 · 1 P1 · 32 P2
+**32** open (open+claimed) of 432 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -167,6 +167,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | autonomy | [Repeat-work evidence attributes untrusted or duplicate task briefs to the owner](bugs/2b0d8101-repeat-work-attributes-untrusted-briefs-to-owner.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | autonomy | [Repeated promises without tool actions can end with done and no blocker explanation](bugs/b6f04205-repeated-promises-without-tool-actions-can-end-w.md) | agent/recall-report-0916 | 46c929a88 |
 | P1 | fixed | autonomy | [Result contracts reject useful constraints and API JSON formats are ignored](bugs/bc59eefe-result-contracts-reject-useful-constraints-and-a.md) | hermes-stress-0910 | 61eeac2b40c9fd0e2e0a5d2b342f44de74119078 |
+| P1 | fixed | autonomy | [Routine completion checks failed but downstream work and delivery continued](bugs/9fd07ca3-routine-completion-checks-failed-but-downstream.md) | line-postconditions-1103 | 59822864db36448d3338834d728714b73b155ff4 |
 | P1 | fixed | autonomy | [Routine delivery receipts are overwritten and only recovered at boot](bugs/e0a49891-routine-delivery-receipts-are-overwritten-and-on.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [Routine follow-up checkbox saves an unusable session origin](bugs/962032ba-routine-follow-up-checkbox-saves-an-unusable-ses.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [SEND TO loses producing workspace for relative file artifacts](bugs/cc760146-send-to-loses-producing-workspace-for-relative-f.md) | agent/session-handoff-1011 | 1428c8b11 |
@@ -179,7 +180,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
-| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 |
+| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 f4353cfb5 |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
@@ -205,11 +206,14 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | reliability-followup | 5b5f50a1d |
 | P1 | fixed | providers | [Casual replies continue after the local output ceiling](bugs/2e6344fc-casual-replies-continue-after-the-local-output-c.md) | agent/response-audit-0915-7c2a | fc4c9e0f415251870778da1405086c421aff0670 |
 | P1 | fixed | providers | [Claude continuation reminders can become rejected assistant prefill](bugs/d81c4e15-claude-continuation-reminders-can-become-rejecte.md) | agent/release-0112-audit-0910 | 9441660d0 |
+| P1 | fixed | providers | [Compaction calls lose booked usage and bypass per-attempt spending limits](bugs/a9ebad1a-compaction-calls-lose-booked-usage-and-bypass-pe.md) | spend-governor-1103 | 24a944920237b59148f3dc090d56c9b8b6d4c4ec |
 | P1 | fixed | providers | [Compatible API hides partial run failures and limits](bugs/ecd235e6-compatible-api-hides-partial-run-failures-and-li.md) | hermes-stress-0910 | f952835ab7e078d0f9dae490cbb52e7b9c8cc29f |
 | P1 | fixed | providers | [Compatible API retries dispatch duplicate agent runs](bugs/8d0e29aa-compatible-api-retries-dispatch-duplicate-agent.md) | hermes-stress-0910 | 4d5ee74c170330c977c766f6be200ffb4313f95c |
 | P1 | fixed | providers | [CUSTOM routine refused with a saved base URL](bugs/c543a9c1-custom-routine-refused-with-a-saved-base-url.md) | agent/credential-store-1031 | 775f12cda |
 | P1 | fixed | providers | [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P1 | fixed | providers | [Effective limits omit eligible saved fallback payers](bugs/05c52f08-effective-limits-omit-eligible-saved-fallback-pa.md) | spend-governor-1103 | f796a11ef21a65bfdc13b5dac6356559c021dd4c |
 | P1 | fixed | providers | [A provider key set in the environment, and a token inside an endpoint URL, reach transcripts unredacted](bugs/46874bf8-env-keys-and-endpoint-tokens-reach-transcripts.md) | agent/credential-store-1031 | 60ac93a75 |
+| P1 | fixed | providers | [Failed limit saves replace active settings without durable confirmation](bugs/d665f7fd-failed-limit-saves-replace-active-settings-witho.md) | spend-governor-1103 | f796a11ef21a65bfdc13b5dac6356559c021dd4c |
 | P1 | fixed | providers | [Follow station default retains managed model pin and blocks BYOK delegation](bugs/0e3d3914-follow-station-default-retains-managed-model-pin.md) | openrouter-delegation-0920 | 13a83534b |
 | P1 | fixed | providers | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | reliability-followup | c364e991d8d9c0c4d446c9978b8d31c33fcbe09d |
 | P1 | fixed | providers | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | reliability-followup | fe30cc1b4 |
@@ -228,12 +232,14 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Routed OpenRouter conversation fails on orphan tool results](bugs/112199f5-openrouter-orphan-tool-results.md) | reliability-followup | 14f34372a |
 | P1 | fixed | providers | [OpenRouter's free-model daily cap reads as a busy provider and is retried for about 100 seconds](bugs/0ae69a26-openrouter-s-free-model-daily-cap-reads-as-a-bus.md) | sweep/providers | 7436e401e |
 | P1 | fixed | providers | [Ordinary wording incorrectly requires image generation](bugs/b0431c24-ordinary-wording-incorrectly-requires-image-gene.md) | image-intent-0909 | e6cdd0f1a |
+| P1 | fixed | providers | [Provider fallback prices outgoing usage with the replacement cost engine](bugs/504d28fa-provider-fallback-prices-outgoing-usage-with-the.md) | spend-governor-1103 | 24a944920237b59148f3dc090d56c9b8b6d4c4ec |
 | P1 | fixed | providers | [A provider key removed in the desktop app keeps billing through its spawn environment copy](bugs/ec32cb8f-removed-desktop-key-keeps-billing-through-spawn.md) | agent/credential-store-1031 | f3ec6c5d3 |
 | P1 | fixed | providers | [Routine form provider overrides its selected agent provider](bugs/a496d1c7-routine-form-provider-overrides-its-selected-age.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | providers | [A run in flight keeps sending a provider key that was removed or replaced mid-run](bugs/f366863e-run-in-flight-keeps-sending-a-removed-key.md) | agent/credential-store-1031 | 028604d6b bfca6be28 531c9ef2c efcc397ba 0c19e17c8 110c2660e |
 | P1 | fixed | providers | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
+| P1 | fixed | providers | [Saved provider probes lose failure diagnostics and expose endpoint secrets](bugs/b8814ee3-saved-provider-probe-diagnostic-secret-boundary.md) | agent/batch3-fixture-repairs-1103 | dfeb64320de7c7a0901584e065b959575edf772b |
 | P1 | fixed | providers | [The PER RUN dollar cap does not bound team.spawn workers, so a 5-cent cap ran 24 cents](bugs/d3a76db3-the-per-run-dollar-cap-does-not-bound-team-spawn.md) | sweep/providers | 4439b14ee, d42189a18, d42d1bc7e, 9d4fc52b5, a1234b154, 32fc352e4, 8f4267c08, 9e32443bf |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
@@ -289,6 +295,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | sessions | [Queued save acknowledgements leave browser revision stale](bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md) | release-0112-finalprep-0911 | 767a3592516edea1062d82855be2d21a8b4f7e16 |
 | P1 | fixed | sessions | [Recent activity drops source provenance and reintroduces attachment text after restart](bugs/6e750350-recent-activity-drops-source-provenance.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | sessions | [Reload duplicates combined assistant replies beside durable turns](bugs/ec226657-reload-duplicates-combined-assistant-replies-bes.md) | agent/release-0112-audit-0910 | a66fc5638 |
+| P1 | fixed | sessions | [Remote host rejects proven desk caches without transcript proof readers](bugs/f9c18635-remote-host-rejects-proven-desk-caches-without-t.md) | batch3-codex-1103 | d4a54f29f |
 | P1 | fixed | sessions | [Reopened conversations send before history is restored and hide late messages](bugs/2426399e-reopened-conversations-send-before-history-is-re.md) | session-reliability-0919 | 8b8bf9531 |
 | P1 | fixed | sessions | [Retry duplicates the user message after restart](bugs/b30c1c8e-retry-duplicates-the-user-message-after-restart.md) | overnight-retry-history-0907 | 1611844713cfb4d88061ace1f786040436c59605 |
 | P1 | fixed | sessions | [Saved file links disappear when conversation history is restored](bugs/253e5a8e-saved-file-links-disappear-when-conversation-his.md) | agent/release-0120-prep-0915 | 8d4f3f5ca |
@@ -343,7 +350,6 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | open | onboarding | [A first task that fails at the provider consumes the hand-off with no retry](bugs/159d44fc-a-first-task-that-fails-at-the-provider-consumes.md) | sweep/onboarding | — |
 | P2 | open | onboarding | [Google Drive authorization is hard blocked for a fresh personal account](bugs/f2ac6356-google-drive-authorization-is-hard-blocked-for-a.md) | release-0135-prep | — |
 | P2 | open | onboarding | [Customer reports unusable visibility without build or platform details](bugs/6bb9d2a1-visibility-failure-without-diagnostics.md) | release-0120-prep-0915 | — |
-| P2 | open | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | — |
 | P2 | open | providers | [An OpenRouter stream that ends with finish_reason error is recorded as an empty run, and the provider's stated reason is dropped](bugs/64dbe836-an-openrouter-stream-that-ends-with-finish-reaso.md) | release-0142-copy | — |
 | P2 | open | providers | [Connector sign-in is lost after credential-store recovery](bugs/e7b2ffcd-connector-sign-in-is-lost-after-credential-store.md) | release-0135-prep | — |
 | P2 | open | providers | [Funded account runs fail again after a credit-limit workaround](bugs/a5060cc3-funded-account-runs-fail-again-after-a-credit-li.md) | release-0135-prep | — |
@@ -374,6 +380,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | autonomy | [Cancelled edit starts a replacement language server](bugs/37059128-cancelled-edit-starts-a-replacement-language-ser.md) | reliability-audit | 547dd03d7 |
 | P2 | fixed | autonomy | [Commander-reported plan step shown as StarNet recorded](bugs/024e4e15-commander-reported-plan-step-shown-as-starnet-re.md) | sweep/autonomy | e0b979995 |
 | P2 | fixed | autonomy | [Deliverable naming instruction conflicts with explicit stop limits](bugs/5a35bcfe-deliverable-note-overrides-stop.md) | report-0110-0908 | 72a8a3043c263cd53ed353daed2042e256c8e236 |
+| P2 | fixed | autonomy | [Line failure sentences lose the configured agent name](bugs/5b5da1f6-line-failure-sentences-lose-the-configured-agent.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | autonomy | [Loop pause and resume discard refused control responses](bugs/32fd08b2-loop-pause-and-resume-discard-refused-control-re.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Loop polling erases the rejection explanation being typed](bugs/2b5b18a3-loop-polling-erases-the-rejection-explanation-be.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | autonomy | [Lowering the autonomy dial to WAIT does not stop the night-shift beat already in flight](bugs/50551f59-lowering-the-autonomy-dial-to-wait-does-not-stop.md) | sweep/autonomy | ac17d27be |
@@ -410,16 +417,21 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | onboarding | [Text typed at an awakening read gate or mid-question is silently discarded](bugs/bc709e71-text-typed-at-an-awakening-read-gate-or-mid-ques.md) | sweep/onboarding | 773e82859 |
 | P2 | fixed | onboarding | [WAKE key-check failure claims a previous key on a fresh install and shows raw outage jargon](bugs/5d19823c-wake-key-check-failure-claims-a-previous-key-on.md) | sweep/onboarding | 2ad0d1c9a |
 | P2 | fixed | providers | [A run cancelled mid-stream is recorded as a known zero-dollar run instead of spend unknown](bugs/80de2a75-a-run-cancelled-mid-stream-is-recorded-as-a-know.md) | sweep/autonomy | bd501893e |
+| P2 | fixed | providers | [A run's ledger row cannot be matched to the provider's charge because no generation id is kept](bugs/6e32cb6c-a-run-s-ledger-row-cannot-be-matched-to-the-prov.md) | sweep/providers | 50147a05376c7c317b18741f3c2765bc3577a5ba |
 | P2 | fixed | providers | [A sign-in token-endpoint 429 tells a subscription user their account is out of credit](bugs/7631293b-a-sign-in-token-endpoint-429-tells-a-subscriptio.md) | sweep/providers | 8650b980a |
 | P2 | fixed | providers | [An OpenRouter in-band error loses its status and the upstream's words, so an in-band 401 is retried for about 100 seconds](bugs/cf675264-an-openrouter-in-band-error-loses-its-status-and.md) | sweep/providers | c486a4f0a |
 | P2 | fixed | providers | [An OpenRouter key credit limit or an upstream region refusal reads as a rejected API key](bugs/7d396570-an-openrouter-key-credit-limit-or-an-upstream-re.md) | sweep/providers | 613beeac9 |
+| P2 | fixed | providers | [Background provider updates erase settings save receipts](bugs/dbca103d-background-provider-updates-erase-settings-save.md) | spend-governor-1103 | 67d74dffe |
 | P2 | fixed | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | d503f00c5 |
 | P2 | fixed | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | 0c22f4fb0 |
+| P2 | fixed | providers | [Claude sign-in refusals lose their specific post-mortem guidance](bugs/7275bbf0-claude-sign-in-refusals-lose-their-specific-post.md) | batch3-next-fixture-repairs-1103 | 6aff8f2df |
 | P2 | fixed | providers | [credPool.penalize() on the run's PRIMARY key is inert — the sole credPool.order() call site (index.js:10580) receives a pool with runKey filtered out](bugs/8d7b0b52-credpool-penalize.md) | sweep/providers | fdbb12a2 |
+| P2 | fixed | providers | [Exported ModelDock helpers depend on a browser global](bugs/81209ef7-exported-modeldock-helpers-depend-on-a-browser-g.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | 0e25b955f |
 | P2 | fixed | providers | [Ollama timeout diagnostics infer loading from missing status](bugs/ef2c7d7c-ollama-timeout-diagnostics-infer-loading-from-mi.md) | agent/provider-triage-1011 | e91f3231e |
 | P2 | fixed | providers | [OpenAI image model is routed through a chat completion path](bugs/6c6c34e1-openai-image-model-selected-for-comms.md) | release-0120-prep-0915 | 7a9349aa071c8fd97f04b520333d37d821f55c69 |
 | P2 | fixed | providers | [An OpenRouter key saved in a page or a bare env var never reaches STT or web_search's paid rung, and a credits run spends the desktop's](bugs/5f2dd9f8-page-saved-openrouter-key-misses-stt-and-web.md) | agent/credential-store-1031 | eadd2da4b |
+| P2 | fixed | providers | [Pending local Claude sign-in check is reported as missing API credentials](bugs/2802aa4b-pending-local-claude-sign-in-check-is-reported-a.md) | batch3-fixture-repairs-1103 | 92a2b373a1449d233d1d2a7bd62f07c7c3250e62 |
 | P2 | fixed | providers | [Provider card status alignment and dated identity artwork](bugs/4a151231-provider-card-status-alignment-and-dated-identit.md) | agent/providers-polish-0910 | 3f2cc70d4 |
 | P2 | fixed | providers | [Retry status labels a refused or unresolvable provider connection as a timeout](bugs/8873fd77-retry-status-labels-a-refused-or-unresolvable-pr.md) | sweep/onboarding | d37ae7493 |
 | P2 | fixed | providers | [Run metadata invalidates reusable prompt cache and unused fallback authentication delays primary requests](bugs/c9201c15-run-metadata-invalidates-reusable-prompt-cache-a.md) | latency-audit-0913 | 9b2ce2d35804623e97fa0a081cc11ffddd33d534 |
@@ -526,6 +538,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [Finished sorter starters leave valid jobs without an OUTBOX](bugs/e5d8daf5-finished-sorter-starters-leave-valid-jobs-withou.md) | conveyor-caps-1012 | 9ac0faeec |
 | P2 | fixed | world | [Glass panel height resets after closing and reopening](bugs/12203375-glass-panel-height-resets-on-reopen.md) | audit-0112-0910 | 871561348 |
 | P2 | fixed | world | [Joined branch product crates ship before the barrier releases](bugs/4ba4989f-joined-branch-product-crates-ship-before-the-bar.md) | conveyor-caps-1012 | f88c461fb |
+| P2 | fixed | world | [Local model silence loses its specific recovery guidance](bugs/814b4035-local-model-silence-loses-its-specific-recovery.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | world | [Local settings save failure still permits saved confirmation](bugs/476c4f01-local-settings-save-failure-still-permits-saved.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | world | [`open()` has no `if (chanES) return` guard, so a re-entry (DATA › IMPORT → reentry → enterGame → resumeBridge) inside an SSE retry backoff leaves two live Event](bugs/d459160f-open.md) | sweep/world | f4d03511 |
 | P2 | fixed | world | [Parallel line offers a step-through test that cannot finish](bugs/1f4c3e40-parallel-line-offers-a-step-through-test-that-ca.md) | conveyor-finish-1012 | 30cbb0420 |
@@ -560,7 +573,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | --- | --- |
 | channels | 1 |
 | autonomy | 6 |
-| providers | 8 |
+| providers | 7 |
 | safecell | 3 |
 | sessions | 1 |
 | skills | 0 |

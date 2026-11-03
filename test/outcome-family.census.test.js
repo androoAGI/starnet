@@ -869,7 +869,7 @@ const OUTCOME_MAPS = {
   'sidecar/subagents.js': [["const TASK_STATUS = { succeeded: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked' };", '9026e429bd1b', "the bus 'task' STATUS (publishTask): the v7 event's coarse lifecycle (queued · running · done · failed · stopped · asked · unfinished, shared/events.js) — a success, a failure, a stop and a question each their own, every other end that did not finish 'unfinished' with its outcome and failureCode riding beside it"]],
   'frontend/app/delegated.js': [
     ["const WHY = { refused: 'couldn\\'t start (too many running, or a sign-in is needed)', timeout: 'ran out of time', empty: 'the model sent an empty reply', refusal: 'the model declined the task',", '5c920a2a6b2f', "the subagent LEDGER's reason codes ('refused' = it couldn't start, timeout, output_limit, …), no run outcomes: words for a worker record's reason, read only after stateOf has settled its outcome"],
-    ["const UNFINISHED_LIVE = { out_of_budget: 'budget limit reached', step_limit: 'step limit reached', cut_short: 'cut short by the provider', empty: 'the model sent an empty reply', refused: 'the model declined the task',", '80364e1858c7', "UNFINISHED_LIVE (review r8): the words for the unfinished outcomes ONLY — stateOf decides succeeded / stopped / asked / failed before it ever reads this map"],
+    ["const UNFINISHED_LIVE = { out_of_budget: 'budget limit reached', step_limit: 'step limit reached', cut_short: 'cut short by the provider', empty: 'the model sent an empty reply', refused: 'the model declined the task',", '9bdfab04cd00', "UNFINISHED_LIVE (review r8): the words for the unfinished outcomes ONLY — stateOf decides succeeded / stopped / asked / failed before it ever reads this map"],
     ["const WORD = { recorded: 'delivered', working: 'working', waiting: 'needs you', done: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked a question', unfinished: 'did not finish', interrupted: 'interrupted', queued: 'starting', unknown: 'status unknown' };", '201b35df50bd', "the card's STATE words (cls: recorded / working / waiting / done / failed / stopped / asked / unfinished / interrupted …), keyed on stateOf's state, each distinct — not on a run's outcome"]
   ],
   'frontend/app/floorstats.js': [["const SLAG_REASONS = { max_iters: 1, budget: 1, error: 1, refusal: 1 };", '080269391c6f', "a SET (the floor's slag reasons, beside the failed outcome on its reader's line), no word or colour map"]],
@@ -1761,7 +1761,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         JOBS = JOBS.map(j => (j.id === 'jbusy' ? recordOf('jbusy', 'held', 'heldbusy') : j));   // the line's reviewer held it: the fire settles
         await I.reconcileBusy();
         const got = { live, reload: view('heldlive'), older: view('heldold'), away: view('heldaway'), inFlight, reconciled: view('heldbusy'), clean: view('okaway') };
-        const HELD_MARK = '⚠ Routine did not finish — held: a reviewer blocked the work';   // review r8: a held fire is no failure — and never a success
+        const HELD_MARK = '⚠ Routine did not finish — held: the work was not accepted';   // review r8: a held fire is no failure — and never a success
         A.ok(live.ok == null && live.marker === HELD_MARK, 'fixture: a held fire\'s live cron.result fails its session (got ' + JSON.stringify(live) + ')');
         A.ok(got.reload.ok == null && got.older.ok == null && got.reload.marker === HELD_MARK && got.older.marker === HELD_MARK,
           'a held fire\'s session stays failed after a reload: its routine\'s record holds the fire\'s outcome, and an entry run\'s row (an older fire\'s) never clears it (got ' + JSON.stringify({ reload: got.reload, older: got.older }) + ')');
@@ -1876,7 +1876,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         A.ok(fly.open.busy && fly.open.ok == null && !fly.open.marker && fly.away.exists && fly.away.busy && fly.away.ok == null && !fly.away.marker && fly.olderFire.ok === true && !fly.olderFire.busy,
           'a reload while a fire\'s work line still runs leaves its session busy (or forms it busy, the page closed) — its entry run\'s row is no settlement — while an older fire of that routine still settles (got ' + JSON.stringify(fly) + ')');
         const held = view('heldok');
-        A.ok(held.ok == null && held.marker === '⚠ Routine did not finish — held: a reviewer blocked the work', 'a session a row had settled ok says "⚠ Routine failed — blocked" once its fire\'s record holds it, never a red lamp over a clean-looking transcript (got ' + JSON.stringify(held) + ')');
+        A.ok(held.ok == null && held.marker === '⚠ Routine did not finish — held: the work was not accepted', 'a session a row had settled ok says "⚠ Routine failed — blocked" once its fire\'s record holds it, never a red lamp over a clean-looking transcript (got ' + JSON.stringify(held) + ')');
         // the routine fires again, cleanly: the session the block failed stays ok (a row never clears a settled failure — so it must never be failed)
         JOBS = JOBS.map(j => (j.id === 'jblock' ? rec('jblock', 'nextblock', { lastOutcome: 'succeeded' }) : j));
         await I.backfill({ sleep: () => Promise.resolve() });
@@ -1947,7 +1947,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         A.ok(fixture, 'fixture: after a held (or interrupted) fire, the real block / unfireable reducers clear lastOutcome beside that fire\'s lastRunId (got ' + JSON.stringify(JOBS.map(j => j && ({ id: j.id, lastRunId: j.lastRunId, lastOutcome: j.lastOutcome, lastReason: j.lastReason }))) + ')');
         await I.backfill({ sleep: () => Promise.resolve() });   // the reload: the closed page's fires form from their rows
         await I.reconcileBusy();                                // the busy session's lost cron.result
-        const HELD_MARK = '⚠ Routine did not finish — held: a reviewer blocked the work';   // review r8: a held fire is no failure — and never a success
+        const HELD_MARK = '⚠ Routine did not finish — held: the work was not accepted';   // review r8: a held fire is no failure — and never a success
         const got = { awayBlock: view('awayblock'), awayUnfire: view('awayunfire'), busyBlock: view('busyheld'), awayInterrupted: view('awayint') };
         A.ok(['awayBlock', 'awayUnfire', 'busyBlock'].every(k => got[k].ok == null && got[k].marker === HELD_MARK && !got[k].busy),
           'a held fire stays "' + HELD_MARK + '" after its routine is config-blocked or marked unfireable — after a closed-page backfill and a busy reconcile (its entry run\'s row reads \'succeeded\'; the fire\'s receipt keeps the hold) (got ' + JSON.stringify(got) + ')');
@@ -2011,7 +2011,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         WS.reset(); busy = [];
         JOBS = [named(fired.held.job)]; BOOT = [row(heldId)];
         const heldLive = await live(fired.held, heldId);
-        A.ok(heldLive.ok == null && heldLive.marker === '⚠ Routine did not finish — held: a reviewer blocked the work' && !heldLive.busy, 'a held fire\'s live cron.result still fails its session by its receipt (got ' + JSON.stringify(heldLive) + ')');
+        A.ok(heldLive.ok == null && heldLive.marker === '⚠ Routine did not finish — held: the work was not accepted' && !heldLive.busy, 'a held fire\'s live cron.result still fails its session by its receipt (got ' + JSON.stringify(heldLive) + ')');
         // the HUD's toast for the same cron.result (world.js's cron.result listener, sliced whole)
         const at = worldSrc.indexOf("U.bus.on('cron.result', p => {");
         const listenerSrc = at < 0 ? '' : worldSrc.slice(at, worldSrc.indexOf('\n    });', at) + '\n    });'.length);
@@ -2020,7 +2020,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         if (listenerSrc) new Function('U', 'hudNote', 'RunOutcome', listenerSrc)({ bus: { on: (n, fn) => { if (n === 'cron.result') onCron = fn; } } }, (txt, cls) => toasts.push(txt + '|' + (cls || '')), RunOutcome);
         const toastOf = p => { toasts.length = 0; if (onCron) onCron(p); return toasts.join(' ; ') || '(none)'; };
         const said = { stopped: toastOf(stopped.result), held: toastOf(fired.held.result), ok: toastOf(fired.ok.result) };
-        A.ok(!!onCron && !/failed/.test(said.stopped) && /stopped/.test(said.stopped) && !/\|warn$/.test(said.stopped) && said.held === '⚠ routine did not finish — held: a reviewer blocked the work|warn' && said.ok === '◷ routine completed|good',
+        A.ok(!!onCron && !/failed/.test(said.stopped) && /stopped/.test(said.stopped) && !/\|warn$/.test(said.stopped) && said.held === '⚠ routine did not finish — held: the work was not accepted|warn' && said.ok === '◷ routine completed|good',
           'the HUD never toasts a stopped fire as "✕ routine failed — cancelled"; a held fire still warns, a clean one completes (got ' + JSON.stringify(said) + ')');
         // the held fire, then its routine's next fire runs clean (markRun as finishFire settles it): the record keeps the held fire's receipt
         WS.reset(); busy = [];
@@ -2035,8 +2035,8 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         I.beginSession(heldId, job);   // the page open: the held fire went busy, its cron.result lost to an SSE drop; the routine has fired again since
         await I.reconcileBusy();
         const reconciled = view(heldId);
-        A.ok(closed.held.ok == null && closed.held.marker === '⚠ Routine did not finish — held: a reviewer blocked the work' && closed.clean.ok === true && !closed.clean.marker
-          && reconciled.ok == null && reconciled.marker === '⚠ Routine did not finish — held: a reviewer blocked the work' && !reconciled.busy,
+        A.ok(closed.held.ok == null && closed.held.marker === '⚠ Routine did not finish — held: the work was not accepted' && closed.clean.ok === true && !closed.clean.marker
+          && reconciled.ok == null && reconciled.marker === '⚠ Routine did not finish — held: the work was not accepted' && !reconciled.busy,
           'a held fire stays "⚠ Routine failed — blocked" once its routine fires again cleanly — after a closed-page backfill and a busy reconcile; the clean fire settles ok (got ' + JSON.stringify({ closed, reconciled }) + ')');
         // the ring is bounded (RUN HISTORY's page): the oldest receipts go first, a succeeded fire writes none
         let many = [fired.held.job];

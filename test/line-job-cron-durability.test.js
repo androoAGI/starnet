@@ -12,11 +12,12 @@ const { makeLineRunner } = require('../sidecar/routing/line-runner.js');
 const T0 = Date.parse('2026-01-01T00:00:00Z');
 const flush = () => new Promise(r => setImmediate(r));
 
-function rig() {
+function rig(options) {
+  const opts = options || {};
   let time = T0, seq = 0, depth = 0, failStart = false, failFinish = false, failRoutineFinish = false, writes = 0, nextLine = null;
   let jobs = { jobs: [] };
   let routines = [cronStore.makeJob({ id: 'routine', agentId: 'researcher', prompt: 'research the moon', runsLine: true,
-    schedule: cron.parseSchedule('every 1m', T0) }, { id: 'routine', now: T0 })];
+    schedule: cron.parseSchedule('every 1m', T0), meta: opts.contract ? { postconditions: { requirements: [{ type: 'artifact_exists', path: 'required.txt' }] } } : undefined }, { id: 'routine', now: T0 })];
   const events = [], rows = new Map(), runs = [];
   const save = r => { jobs = r.state; return r.job; };
   const lineRunner = makeLineRunner({ runOnce: async () => {}, now: () => time, newId: () => String(++seq).padStart(12, '0'),
@@ -51,11 +52,13 @@ function rig() {
       await flush(); await flush(); await flush();
     },
     halt(cause) { host.processFaultQuiesced = cause === 'fault'; host.cronHalted = cause === 'user'; driver.abortAllLeases(); },
-    async complete() {
+    async complete(completionVerdict) {
       const run = runs[0];
       if (!run) return;
       const row = { runId: run.o.runId, agentId: 'researcher', reason: 'done', outcome: 'succeeded', usd: 0.1 };
-      rows.set(row.runId, row); run.o.emit('agent.token', { delta: 'finished work' }); run.o.emit('agent.run.end', row);
+      rows.set(row.runId, row); run.o.emit('agent.token', { delta: 'finished work' });
+      if (opts.contract) run.o.emit('agent.run.end', { runId: 'foreign-worker', reason: 'done', completionVerdict: 'completed_verified' });
+      run.o.emit('agent.run.end', Object.assign({}, row, completionVerdict ? { completionVerdict } : null));
       run.resolve({ reason: 'done', outcome: 'succeeded', text: 'finished work' });
       await flush(); await flush(); await flush();
     } };
@@ -132,6 +135,39 @@ async function main() {
     A.eq([routine.lastStatus, routine.lastLine && routine.lastLine.stopCode], accepted === 'fault' ? ['stopped', 'station_fault'] : ['error', 'day_limit'], 'routine retry preserves the accepted job cause');
     A.eq(receipt && receipt.payload.outcome, accepted === 'fault' ? 'stopped' : 'failed', 'event retry preserves the accepted job outcome');
     A.eq([r.runs.length, r.writes()], [1, 1], 'second-store recovery never reruns or rewrites LineJob');
+  }
+  for (const verdict of ['incomplete', 'verification_required', 'not_assessed', undefined]) {
+    const r = rig({ contract: true }); r.finishFault(true); r.tick(T0 + 60000); await r.complete(verdict);
+    A.eq(r.jobs().jobs[0].status, 'running', 'contract hold does not outrun failed job persistence: ' + verdict);
+    A.eq(r.events.filter(e => e.name === 'cron.result').length, 0, 'uncommitted contract hold emits no routine result');
+    r.finishFault(false); r.tick(T0 + 60001); await flush(); await flush();
+    const job = r.jobs().jobs[0], routine = r.routines()[0], event = r.events.find(e => e.name === 'cron.result');
+    A.eq([job.outcome, job.stop && job.stop.code, job.runs[0].outcome], ['blocked', 'blocked', 'succeeded'], 'own terminal evidence holds contract while preserving execution: ' + verdict);
+    A.eq([routine.lastStatus, routine.lastReason, routine.lastOutcome, routine.lastLine && routine.lastLine.stopCode], ['error', 'blocked', 'blocked', 'blocked'], 'routine retry commits the same hold');
+    A.eq([routine.lastError, routine.lastLine && routine.lastLine.blocked, event.payload.runOutcome], [job.error, job.error, 'blocked'], 'hold words and typed event agree');
+    A.eq([r.runs.length, r.writes(), r.host.cronItems.size, r.depth(), r.driver.leases.size], [1, 1, 0, 0, 0], 'held work retries persistence once and releases all ownership');
+    A.eq(r.events.filter(e => e.name === 'workitem.delivered').length, 0, 'unverified work publishes no crate');
+  }
+  for (const when of ['before-completion', 'during-finish-refusal']) for (const cause of ['user', 'fault']) {
+    const r = rig({ contract: true }); r.tick(T0 + 60000);
+    if (when === 'before-completion') r.halt(cause); else r.finishFault(true);
+    await r.complete('incomplete');
+    if (when === 'during-finish-refusal') { r.halt(cause); r.finishFault(false); r.tick(T0 + 60001); await flush(); await flush(); }
+    const job = r.jobs().jobs[0], routine = r.routines()[0], event = r.events.find(e => e.name === 'cron.result');
+    A.eq([job.outcome, job.stop && job.stop.code, routine.lastStatus, routine.lastReason, event.payload.runOutcome], ['stopped', cause === 'fault' ? 'station_fault' : 'stopped', 'stopped', 'cancelled', 'stopped'], when + ': owned ' + cause + ' supersedes uncommitted completion hold');
+    A.ok(!/Verification required/.test(job.error + routine.lastError), 'superseded hold is not the STOP/fault cause');
+    A.ok(!/Verification required/.test(String(routine.lastLine && routine.lastLine.blocked || '')), 'lastLine does not retain a superseded acceptance hold');
+    A.eq([r.runs.length, r.writes(), r.events.filter(e => e.name === 'workitem.delivered').length], [1, 1, 0], 'late stop/fault never reruns or publishes held work');
+  }
+  {
+    const r = rig({ contract: true }); r.routineFinishFault(true); r.tick(T0 + 60000); await r.complete('incomplete');
+    const accepted = JSON.stringify(r.jobs().jobs[0]);
+    A.eq(r.host.cronItems.size, 0, 'durable contract hold releases its host item before the second store retries');
+    r.halt('user'); r.routineFinishFault(false); r.tick(T0 + 60001); await flush(); await flush();
+    A.eq(JSON.stringify(r.jobs().jobs[0]), accepted, 'later STOP cannot rewrite a committed acceptance hold');
+    const routine = r.routines()[0], event = r.events.find(e => e.name === 'cron.result');
+    A.eq([routine.lastReason, routine.lastOutcome, event.payload.runOutcome], ['blocked', 'blocked', 'blocked'], 'second-store retry preserves accepted hold');
+    A.eq([r.runs.length, r.writes(), r.driver.leases.size], [1, 1, 0], 'second-store retry neither duplicates work nor leaks lease');
   }
   {
     const r = rig();

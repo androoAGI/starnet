@@ -103,15 +103,15 @@ const callerLine = grab(/\n  const callerCredential = [^\n]+;/, 'caller line');
 const pairLines = grab(/\n  const runKey = providerRuntimeKey\(providerId, [^\n]+;\n  const baseUrl = providerRuntimeBaseUrl\(providerId, [^\n]+;/, 'key and endpoint lines');
 const watchLine = (/\n  const runKeyWatch = [^\n]+;/.exec(core) || [''])[0];   // S3: the key the caller sent in this request
 const opens = core.indexOf('primaryProfile.credentialPool) {\n');
-const closes = core.indexOf('.filter(s => s && s !== runKey);\n', opens);
-const poolBlock = opens > 0 && closes > opens ? core.slice(core.indexOf('\n', opens), closes + '.filter(s => s && s !== runKey);'.length) : '';
+const poolBlock = opens > 0 ? ((/\n    const pool = providerRuntimeKeyPool\([\s\S]*?;\n/.exec(core.slice(opens)) || [''])[0]) : '';
 A.ok(/const pool = providerRuntimeKeyPool\(providerId, /.test(poolBlock), 'fixture: runOnceCore\'s rotation pool statement is found');
 const runLines = new Function('o', 'key', 'providerId', 'normalizeProvider', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerRuntimeKeyPool', 'credStore',
   "'use strict';" + callerLine + pairLines + watchLine + poolBlock + '\nreturn { callerCredential, runKey, baseUrl, pool };');
 const normalizeProvider = v => Reg.normalizeProviderId(v, 'openrouter');
 function run(api, p, o) {
-  const credStore = { holds: (id, k) => (typeof api.holds === 'function' ? api.holds(id, k) : false),
-    fromStation: (id, k) => (api.credStore && typeof api.credStore.fromStation === 'function' ? api.credStore.fromStation(id, k) : false) };
+  // Current production gets its real ownership/admission/readiness authority. The old-source control
+  // contract predates the credential store and only its historic holds/fromStation reads use this fallback.
+  const credStore = api.credStore || { holds: (id, k) => (typeof api.holds === 'function' ? api.holds(id, k) : false), fromStation: () => false };
   return runLines(o, o.key, p, normalizeProvider, api.key, api.baseUrl, api.keyPool, credStore);
 }
 
@@ -651,8 +651,7 @@ const DIALERS = {
   'sidecar/index.js probeChannelRunConfig': 'the channel connect probe: channelRunConfigFor\'s pair',
   'sidecar/index.js runQuestRefreshCycle': 'the quest refresh: cronKeyFor and the endpoint beside it',
   'sidecar/index.js handleLiveDoctor': 'the Live Doctor: the station\'s pair',
-  'sidecar/index.js handleProviderProbe': 'the provider probe: a key sent in this body rides that body\'s endpoint',
-  'sidecar/index.js handleProviderValidate': 'the key check: only the candidate is sent, to the endpoint for it',
+  'sidecar/index.js verifyProviderPair': 'the shared probe/validate verifier: a request candidate rides its endpoint; a saved probe resolves its actual saved pair',
   'sidecar/index.js listModelsForProvider': 'the catalog listing: the pair',
   'sidecar/index.js handleCodexModels': 'a sign-in\'s catalog: no API key',
   'sidecar/index.js oauthAccountProvider': 'a sign-in\'s adapter: no API key',
@@ -682,7 +681,7 @@ const KEY_ONLY = {
   cronKeyFor: 'a gate\'s key: cronHasCredential checks it, and the run resolves the endpoint for it'
 };
 const FEEDERS = { 'channel hubs': ['channelRunConfigFor'], 'group turns': ['groupSessions'], 'overseer review': ['tickOverseer'], 'the dev hub': ['devHubSecrets'],
-  'workers\' providerAuth': ['runOnceCore'], '/v1': ['openaiCompat'], 'runtime/agent': ['handleRuntimeAgent'], 'the Live Doctor': ['handleLiveDoctor'], 'the catalog and the probe': ['listModelsForProvider', 'handleProviderProbe'], 'the embedder': ['embedderFor'] };
+  'workers\' providerAuth': ['runOnceCore'], '/v1': ['openaiCompat'], 'runtime/agent': ['handleRuntimeAgent'], 'the Live Doctor': ['handleLiveDoctor'], 'the catalog and the probe': ['listModelsForProvider', 'verifyProviderPair'], 'the embedder': ['embedderFor'] };
 /* 8. THE CHANNEL ROWS (step S8). A channel's own credential is resolved as an explicit key for ITS provider and nowhere else, over a
    station of every provider class, each layer holding a key and an endpoint of its own, built by index.js's own wiring. THE ORACLE
    reads the row: on the bot's provider its own key at its own endpoint, with no station pool; on any other provider exactly what

@@ -69,9 +69,9 @@ module.exports = (async () => {
     // the import of the module that declares listModelsForProvider (index.js today), not the first such import anywhere
     const home = locateSidecarFunction('listModelsForProvider');
     const homeSrc = home ? sidecarSourceFiles().find(f => f.rel === home.rel).text : '';
-    const imp = /const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/.exec(homeSrc);
-    A.ok(!!imp, 'index.js destructures its provider.js helpers in one require');
-    for (const part of (imp ? imp[1].split(',') : [])) {
+    const imports = [...homeSrc.matchAll(/const \{([^}]*)\} = require\('\.\/providers\/provider\.js'\)/g)];
+    A.ok(imports.length > 0, 'index.js destructures its provider.js helpers');
+    for (const part of imports.flatMap(imp => imp[1].split(','))) {
       const [from, as] = part.split(':').map(s => s.trim());
       if (from && typeof provider[from] === 'function') helpers[as || from] = provider[from];
     }
@@ -193,9 +193,13 @@ module.exports = (async () => {
       providerCredentialError: () => 'not configured', resolveReasoningEffort: (p, v) => v || 'medium',
       extraAccountProviderFor: () => null, providerUsesCodex: () => false, providerUsesDeviceOAuth: () => false,
       selectProvider: () => fakeProvider, redact: s => s,
-      budget: { check: () => null }, stationOneShots: new Set(), makeCostEngine: () => ({ reconcile: () => ({ usd: 0 }) }),
-      ledger: { record() {} }, getProviderProfile: () => ({}), failNote() {}
+      stationOneShots: new Set(), makeCostEngine: () => ({ reconcile: () => ({ usd: 0 }) }),
+      ledger: { record() {} }, getProviderProfile: () => ({}), failNote() {},
+      BillingClass: require('../sidecar/billing-class.js'),
+      billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) })   // the one-shot's payer (billing-class.js)
     });
+    // the one governor, bound as index.js binds it (a clear budget: this part is about the model id)
+    sb.governor = sb.BillingClass.makeGovernor({ budget: { check: () => null }, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => sb.billing.classOf(id) });
     vm.runInNewContext(region + '\nthis.api = { channelRunConfigFor, probeChannelRunConfig, sampleRunConfigFor, stationOneShot };', sb);
     const api = sb.api;
     roster.set('agent', { provider: 'starnet', model: 'anthropic/claude-haiku-4.5:batch', name: 'Overseer' });
@@ -248,6 +252,7 @@ module.exports = (async () => {
       effectiveVoiceChat: () => require('../sidecar/voice-chat-route.js').cleanSetting(setting), agentRoster: voiceRoster,
       normalizeProvider: p => String(p || 'openrouter').toLowerCase(), providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'gpt-x', CRON_DEFAULT_MODEL: 'cron-x',
       providerRuntimeKey: () => 'k', providerRuntimeBaseUrl: () => '', getProviderProfile: () => ({}), providerHasCredential: () => true,
+      billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) }),   // the voice route's payer (billing-class.js)
       voiceCatalogEntry: async () => null, makeContext: () => ({ estimateMessages: () => 0, estimateTokens: () => 0 }), RUN_CONTEXT_DEFAULTS: {},
       voiceChatRoute: require('../sidecar/voice-chat-route.js'), console: { warn() {}, log() {} },
       promptTierCeiling: require('../sidecar/providers/prices.js').promptTierCeiling   // the price-tier window cap applyVoiceTurnRoute reads (context-cost lane)

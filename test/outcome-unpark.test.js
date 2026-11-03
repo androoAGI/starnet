@@ -217,7 +217,7 @@ async function postLoop(kind, opts) {
   const AUX_NAMES = ['_auxSpend', '_auxDone', '_auxFail', '_leadOc', 'result', 'agentId', 'runId', 'o', 'execution', 'ENV', 'isTask', 'internal',
     'runFailureReview', 'runBackgroundSkillReview', 'verdictReview', 'failReviewingNow', 'skillReviewingNow', 'auxProvider', '_auxFailModel', '_auxFailEffort',
     '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId',
-    'TurnDirective', 'directive', 'redact', 'liveServiceKeys', 'runTranscript', 'retryDirective'];   // the packet's directive (turn identity, commit 4): a null capture here
+    'TurnDirective', 'directive', 'redact', 'liveServiceKeys', 'runTranscript', 'retryDirective', '_keyGone'];   // the packet's directive and credential-presence gate are owned by the surrounding run
   const auxRun = new Function(...AUX_NAMES, slice("if (_auxSpend.has('failure-review')) {", "if (_auxSpend.has('study')) {") +
     slice("if (_auxSpend.has('skill-review')) {", "if (_auxSpend.has('skill-curator')) {"));
   const aux = (result, o, spend) => {
@@ -228,7 +228,7 @@ async function postLoop(kind, opts) {
       () => '', true, false,
       a => { got.failure = a; return settle(); }, a => { got.skill = a; return settle(); }, { stash: (id, p) => { got.stash = p; return true; } },
       new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1',
-      require('../sidecar/turn-directive.js'), null, t => t, () => [], { directiveRow: () => null }, null);
+      require('../sidecar/turn-directive.js'), null, t => t, () => [], { directiveRow: () => null }, null, false);
     return got;
   };
   const late = aux({ reason: 'done' }, { lateError: LATE }, ['failure-review']);

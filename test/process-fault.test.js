@@ -172,7 +172,7 @@ function harness(extra) {
     A.ok(/ENV\('UNCAUGHT_KEEP_SERVING'\)/.test(src), 'test opt-out env is honoured');
     A.ok(/const f = processFault\.fault\(\);\s*if \(f\) \{ res\.writeHead\(503/.test(src), '/api/health answers 503 while faulted');
     A.ok(/if \(rejectProcessFaultRequest\(req, res\)\) return;[\s\S]*if \(openaiCompat\.handle/.test(src), 'fault gate runs before the external /v1 compatibility API');
-    A.ok(/function quiesceForProcessFault\(\)[\s\S]*killAll\(runs,[\s\S]*connectors\.close/.test(src), 'fault quiesce aborts browser and channel runs and closes background connectors');
+    A.ok(/function quiesceForProcessFault\(\)[\s\S]*killAll\(null,[\s\S]*runTable\.stopAll\('fault'\)[\s\S]*connectors\.close/.test(src), 'fault quiesce aborts hub and owned runs and closes background connectors');
     A.ok(/function quiesceForProcessFault\(\)[\s\S]*groupSessions\.halt/.test(src), 'fault quiesce halts group sessions');
     A.ok(/function quiesceForProcessFault\(\)[\s\S]*for \(const id of GENERIC_CHANNEL_IDS\) stopGenericChannel\(id\)/.test(src), 'fault quiesce disconnects generic channels');
     A.ok(/function quiesceForProcessFault\(\)[\s\S]*clearInterval\(livePricesRefreshTimer\)/.test(src), 'fault quiesce stops the live-price refresh timer');
@@ -184,12 +184,12 @@ function harness(extra) {
     // (wave 2 repair, conveyor-backend-08 and its siblings) the containment is the station's OWN fault, never the Commander's E-STOP:
     // every hub run it kills is marked faulted FIRST (halt.js markFaulted), so a chat's notice, a STEP THROUGH, a hand-off and RUN ONE
     // REAL JOB name the fault — and a plain E-STOP never marks one
-    A.ok(/markFaulted\(tgInflight, dcInflight, \.\.\.genericInflights, \.\.\.tgBotInflights, devInflight, stepTest \? stepTest\.inflight : null\);\s*killAll\(runs, tgInflight, dcInflight, \.\.\.genericInflights, \.\.\.tgBotInflights, devInflight, stepTest \? stepTest\.inflight : null\);/.test(q), 'fault quiesce marks the channel, dev and step-test runs faulted before it kills them');
+    A.ok(/markFaulted\(tgInflight, dcInflight, \.\.\.genericInflights, \.\.\.tgBotInflights, devInflight, stepTest \? stepTest\.inflight : null\);\s*killAll\(null, tgInflight, dcInflight, \.\.\.genericInflights, \.\.\.tgBotInflights, devInflight, stepTest \? stepTest\.inflight : null\);/.test(q), 'fault quiesce marks the channel, dev and step-test runs faulted before it kills them');
     A.ok(/markFaulted\(\.\.\.triggerRunner\.inflights\(\)\);\s*killAll\(null, \.\.\.triggerRunner\.inflights\(\)\);/.test(q), '…the trigger runs');
     A.ok(/markFaulted\(\.\.\.handoffRunner\.inflights\(\)\); killAll\(null, \.\.\.handoffRunner\.inflights\(\)\);/.test(q), '…the hand-off runs');
     A.ok(/sampleInFlight\.stopCause = 'fault';[^\n]*markFaulted\(\(sampleHub && sampleHub\._internals\) \? sampleHub\._internals\.inflight : null\); killAll\(null,/.test(q), '…and the sample run, whose record and answer say the fault');
     const estop = A.fnBody(src, 'function handleHalt(req, res)');
-    A.ok(/killAll\(runs,/.test(estop) && !/markFaulted|stopCause/.test(estop), 'the Commander\'s E-STOP marks no fault');
+    A.ok(/runTable\.stopOwners\('estop'\) \+ killAll\(null,/.test(estop) && !/markFaulted|stopCause/.test(estop), 'the Commander\'s E-STOP marks no fault');
     const sample = A.fnBody(src, 'async function runSampleJob(readArgs)');
     // The sample's shared job verdict preserves fault provenance; it never calls this the Commander's STOP.
     A.ok(/stopCause: sampleInFlight\.stopCause/.test(sample) && /jobError: result\.error/.test(sample)

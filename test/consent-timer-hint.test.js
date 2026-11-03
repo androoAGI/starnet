@@ -7,7 +7,7 @@
    SOURCE-LOCKED: no approval card says it auto-denies; the line is only on the default card (never station.power /
    plugin.submit / browser.login, the freshConsent tools whose Always grants one call); the heading's tip is a data-tip. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -57,8 +57,11 @@ A.ok(/if \(f && Number\(f\.live\) > 0\) h\.setAttribute\('data-tip', consentTipT
 {
   const side = readSidecarSource();
   const st = part(side, 'function runtimeKnobsStatus() {', 'function handleRuntimeKnobsGet(');
-  A.ok(/fields\.consentTimeoutMs\.live = CONSENT_TIMEOUT_MS;/.test(st) && /fields\.consentTimeoutMs\.liveAckMs = CONSENT_ACK_EXTEND_MS;/.test(st),
-    'GET /api/runtime/knobs reports the boot-frozen constants the consent waiters use');
+  const statusContext = vm.createContext({ limitsRegistry: require('../sidecar/limits-registry.js'), ENV: () => undefined, runtimeKnobs: { consentTimeoutMs: 60000 },
+    CAPS: {}, MAX_CONCURRENT_AGENTS: 0, CONSENT_TIMEOUT_MS: 120000, CRON_TICK_MS: 60000, CONSENT_ACK_EXTEND_MS: 600000 });
+  vm.runInContext(sidecarFunctionSource('activeRuntimeKnobs') + '\n' + st + '\nthis.status = runtimeKnobsStatus();', statusContext);
+  A.eq([statusContext.status.fields.consentTimeoutMs.live, statusContext.status.fields.consentTimeoutMs.liveAckMs, statusContext.status.fields.consentTimeoutMs.effective], [120000, 600000, 60000],
+    'GET /api/runtime/knobs reports actual boot-frozen consent constants separately from a pending saved change');
   A.ok(/timeoutMs: CONSENT_TIMEOUT_MS, extendMs: CONSENT_ACK_EXTEND_MS/.test(side), 'those are the constants the waiters are handed');
 }
 A.ok(/<h4 class="ms-h" id="perm-standing-h" data-tip="' \+ esc\(consentTipText\(null\)\) \+ '">STANDING APPROVALS/.test(ui), 'the heading carries the tip as a data-tip (no new row, no native title)');

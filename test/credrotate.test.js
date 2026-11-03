@@ -186,10 +186,12 @@ function okProvider(text) {
     const src = readSidecarSource();
     const at = src.indexOf('let rotationFallbacks = []');
     A.ok(at > 0, 'index.js owns the rotation-fallback build');
-    const seg = src.slice(at, at + 2600);
+    const end = src.indexOf('\n  // SUBSCRIPTION STACKING (Claude Code)', at);
+    A.ok(end > at, 'the rotation block ends before the separate subscription-account policy');
+    const seg = end > at ? src.slice(at, end) : '';
     A.ok(/credPool\.coolingUntil\(runKey\)/.test(seg), 'the run asks whether its OWN primary key is cooling');
     A.ok(/activePrimaryKey = warm/.test(seg), 'and starts on a WARM pool key when it is');
-    A.ok(/ordered\.push\(runKey\)/.test(seg), 'demoting the cooling primary to the back rather than dropping it');
+    A.ok(/if \(!primaryRejected\) ordered\.push\(runKey\)/.test(seg), 'demoting a cooling primary to the back while excluding a known rejected pair');
     // subscription stacking: an unmetered OAuth subscription still names its ACCOUNT handle, so a spent account cools too
     A.ok(/credKey: \(providerUnmetered && !oauthAccounts\) \? null : activePrimaryKey/.test(src),
       'and the loop is told the key actually in use, so a failure cools the right credential');

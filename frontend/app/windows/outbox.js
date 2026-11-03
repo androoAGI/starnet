@@ -181,7 +181,7 @@
       const usd = (+rw.usd > 0 && typeof U !== 'undefined' && U.usd) ? ' · ' + esc(U.usd(+rw.usd)) : '';
       // title: routine name wins (it's the human name of the job); else the run title until the
       // transcript's real ask replaces it (stored run titles can be prompt+reply mush).
-      const lineTitle = /^PIPELINE HANDOFF — /.test(String(rw.title || ''));   // a work line's later stage (its stored title is the machine prompt)
+      const lineTitle = TurnKinds.classify({ role: 'user', content: String(rw.title || '') }).kind === 'hop';   // the shared legacy shape owner
       const provisionalTitle = rw.routine ? ('“' + rw.routine + '”') : lineTitle ? 'work line result' : firstLine(rw.title || 'an unnamed run', 64);
       let resolvedJob = null; // one durable membership read supplies both provenance and the workflow action
       row.innerHTML =

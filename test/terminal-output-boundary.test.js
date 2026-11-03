@@ -23,6 +23,7 @@ const ndjson = [
 ].map(row => JSON.stringify(row)).join('\n') + '\n';
 
 const sandbox = {
+  SK: { providers: { registry: require('../frontend/app/provider-registry.js') }, providerReadiness: require('../frontend/app/provider-readiness.js') },
   console, TextDecoder, TextEncoder, AbortController, URL, Headers, setTimeout, clearTimeout,
   localStorage: {
     getItem: key => storage.has(key) ? storage.get(key) : null,

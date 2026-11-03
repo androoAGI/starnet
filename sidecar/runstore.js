@@ -60,7 +60,9 @@
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
   const REASONS = new Set(['done', 'max_iters', 'budget', 'cancelled', 'error', 'empty', 'refusal', 'clarifying', 'interrupted']);
   const RECOVERY_STATUSES = new Set(['recoverable', 'needs_review', 'resolved', 'recovering', 'continued', 'forensic']);
-  const SETTLED_AS = new Set(['entered', 'limit']);   // how an interrupted run's spend was settled (ledger attestedAs)
+  // how an interrupted run's spend was settled (ledger.js ATTESTED_AS): one vocabulary, or a one-click settlement would never
+  // restamp its row and the history scan would re-append it from the ledger every time
+  const SETTLED_AS = new Set(['entered', 'limit', 'recorded', 'assumed']);
   const ERROR_MAX = 240;
   const DEFAULT_LIMIT = 200;        // a sane cap so list() never returns an unbounded history
   const TITLE_MAX = 120;
@@ -490,8 +492,8 @@
         for (const k of Object.keys(identity)) if (!Object.prototype.hasOwnProperty.call(entry, k)) entry[k] = identity[k];
       }
       // SETTLED SPEND (additive, 2026-10-08): the Commander settled this interrupted run's unknown spend in SETTINGS ›
-      // SPENDING LIMITS, so `usd` is the booked figure and `spendSettled` says how ('entered' | 'limit' — mirrors the
-      // ledger's attestedAs). A settlement is a fact about money; a later recovery-status update for the same run is
+      // SPENDING LIMITS, so `usd` is the booked figure and `spendSettled` says how ('entered' | 'limit' | 'recorded' |
+      // 'assumed' — mirrors the ledger's attestedAs). A settlement is a fact about money; a later recovery-status update for the same run is
       // not, so it inherits the settlement instead of re-opening the spend as unknown.
       const prior = (e.reason === 'interrupted' && entry.runId) ? chains.get(entry.runId) : null;
       const settledAs = SETTLED_AS.has(e.spendSettled) ? e.spendSettled

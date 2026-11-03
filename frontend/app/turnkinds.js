@@ -1,6 +1,6 @@
 /* frontend/app/turnkinds.js — the one home of a turn's identity grammar and of row kinds (turn-identity, commit 1).
 
-   Pure, zero-dep, UMD: the sidecar's transcript store and run writer require() it, and later the page and the phone
+   Pure UMD, reusing Pipeline and GoalLoop's legacy recognizers: the sidecar's transcript store and run writer require() it, and the page and phone
    host load the SAME module, so a turnId the desk mints and the station checks follow one grammar. No clock, no
    randomness, no fs, no crypto: a mint takes an injected rng, a time conversion an injected `now`.
 
@@ -33,9 +33,9 @@
                                       writes besides its directive is the station's own); else rowKind, else 'turn' */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
-  else { root.TurnKinds = factory(); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./pipeline.js'), require('./goalloop.js'));
+  else { root.TurnKinds = factory(root.Pipeline, root.GoalLoop); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (Pipeline, GoalLoop) {
   'use strict';
 
   const TURN_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
@@ -151,9 +151,115 @@
     return { directiveKind, rowKind, line, kindOf: m => messageKind(m, rowKind) };
   }
 
+  // Each non-boolean cell names the additional proof/context its view must supply. This is the shared
+  // visibility table; neither the page nor a sidecar reader keeps a second list of hidden kinds.
+  const VIEWS = Object.freeze(['model-replay', 'owner-evidence', 'recall', 'display', 'proof']);
+  const cells = (replay, owner, recall, display, proof) => Object.freeze(Object.fromEntries(VIEWS.map((v, i) => [v, [replay, owner, recall, display, proof][i]])));
+  const MATRIX = Object.freeze({
+    'turn-user': cells(true, 'owner', true, true, true),
+    'delegator': cells(true, false, true, true, true),
+    'api': cells(true, false, true, true, true),
+    'assistant': cells(true, false, true, true, true),
+    'tool': cells('pairs', false, true, true, true),
+    'goal-step': cells(true, false, true, true, true),
+    'routine': cells('own-stream', false, 'own-stream', true, true),
+    'group': cells('group', false, false, false, true),
+    'station': cells(false, false, false, false, true),
+    'capture': cells(false, false, false, false, true),
+    'hop': cells('own-line', false, true, true, true),
+    'steer': cells(true, 'owner', true, true, true),
+    'deliverable': cells(false, false, true, true, true),
+    'delivery': cells(true, false, true, true, true),
+    'observed': cells(true, false, true, true, true),
+    'carried': cells(true, false, true, true, true),
+    'dispatch-prompt': cells('paired-final', false, true, true, true),
+    'dispatch-final': cells(true, false, true, true, true),
+    'dispatch-unaccepted': cells(false, false, false, true, true),
+    'retract': cells(false, false, false, false, true),
+    'retract-target': cells(false, false, false, 'retry-target', true),
+    'forgotten': cells(false, false, false, false, true),
+    'live': cells(false, false, false, 'live-directive', true),
+    'idless': cells(false, false, false, false, false),
+    'local': cells(false, false, false, true, true)
+  });
+  function legacyPrompt(r) {
+    if (!r || r.streamId !== 'global' || r.role !== 'user') return false;
+    const c = r.content == null ? '' : String(r.content);
+    return c.indexOf('\n\nAssistant reply (context only): ') >= 0 || c.startsWith('INTERNAL —')
+      || (c.startsWith('Goal:\n') && /Is the goal satisfied — done or continue\?$/.test(c));
+  }
+  function runOf(row, ctx) { return ctx && typeof ctx.runOf === 'function' ? ctx.runOf(row && row.sourceRunId) : null; }
+  const LEGACY_FINAL_CONTENT_MAX = 200000;
+  // The final-row integrity rule is shared with the store and the page's model window. The station
+  // supplies its hash and expected durable run envelope; a page consumes the already verified GET row.
+  function isFinalDeliveryRow(row, hash, expected) {
+    if (!row || row.dispatchState !== 'final' || row.role !== 'assistant' || !row.sourceRunId || typeof row.content !== 'string') return false;
+    const hasIntegrity = row.textLength != null || row.textSha256 != null;
+    const verified = hasIntegrity ? Number.isSafeInteger(row.textLength) && row.textLength === row.content.length
+      && /^[a-f0-9]{64}$/.test(String(row.textSha256 || '')) && (typeof hash !== 'function' || hash(row.content) === row.textSha256)
+      : row.content.length < LEGACY_FINAL_CONTENT_MAX;
+    if (!verified) return false;
+    if (expected && expected.state === 'final') {
+      if (!row.content.startsWith(String(expected.text || '')) || row.dispatchReason !== expected.reason
+          || (row.dispatchRepairRunId != null && row.dispatchRepairRunId !== expected.repairRunId)) return false;
+      if (hasIntegrity || expected.textLength != null || expected.textSha256 != null) {
+        if (row.textLength !== expected.textLength || row.textSha256 !== expected.textSha256) return false;
+      }
+    }
+    return true;
+  }
+  function legacyKind(row, ctx) {
+    const r = row || {}, c = ctx || {}, run = runOf(r, c), text = typeof r.content === 'string' ? r.content : '';
+    if (r.dispatchState === 'internal' || (run && run.internal === true) || legacyPrompt(r)
+        || (r.streamId === 'global' && c.selfTalkRuns && c.selfTalkRuns.has(String(r.sourceRunId || '')))) return 'station';
+    if (r.role === 'user' && text.startsWith('[BEGIN EXTERNAL SCREEN CAPTURE')) return 'capture';
+    if (r.role === 'user' && text.startsWith('Shared conversation context (')) return 'group';
+    if ((r.role === 'user' && Pipeline && Pipeline.isHandoff(text)) || (c.hopRuns && c.hopRuns.has(String(r.sourceRunId || '')))
+        || (run && typeof run.taskKey === 'string' && run.taskKey.startsWith('chain:'))) return 'hop';
+    if (r.role === 'user' && text.startsWith('[STRUCTURED RESULT REPAIR]')) return 'station';
+    if (GoalLoop && GoalLoop.stepOfTurn(r)) return 'goal-step';
+    return 'turn';
+  }
+  function classify(row, ctx) {
+    const r = row || {}, c = ctx || {}, run = runOf(r, c), legacy = !isKind(r.kind);
+    // These marks are produced only after projectConversation verified/emitted the accepted final.
+    // A pending stored prompt remains pending on disk but is accepted in this projection.
+    if (r.displayOf === 'final' && r.role === 'user') return { kind: 'turn', cell: 'dispatch-prompt', speaker: 'brief', legacy };
+    if (r.dispatchState === 'final') return (typeof c.isFinalDeliveryRow === 'function' ? c.isFinalDeliveryRow(r) : isFinalDeliveryRow(r, c.hash, run && run.dispatchDelivery))
+      ? { kind: 'turn', cell: 'dispatch-final', speaker: 'assistant', legacy }
+      : { kind: 'station', cell: 'dispatch-unaccepted', speaker: 'station', legacy };
+    if (r.dispatchState === 'pending' || r.dispatchState === 'internal' || r.dispatchState === 'interrupted' || r.dispatchState === 'page-closed')
+      return { kind: 'station', cell: 'dispatch-unaccepted', speaker: 'station', legacy };
+    if (r.foreign || r.steerEcho || r.truncated || r.error || r.stopped || (r.sys && !isKind(r.kind)))
+      return { kind: 'local', cell: 'local', speaker: 'station', legacy };
+    const kind = legacy ? legacyKind(r, c) : r.kind;
+    let cell = kind, speaker = r.role === 'assistant' ? 'assistant' : 'station';
+    if (kind === 'turn') {
+      if (r.carriedBy) { cell = 'carried'; speaker = r.role; }
+      else if (r.role === 'tool' || (r.role === 'assistant' && !String(r.content || '').trim() && r.toolCalls)) { cell = 'tool'; speaker = r.role; }
+      else if (r.role === 'assistant') { cell = 'assistant'; speaker = 'assistant'; }
+      else if (r.role === 'user') { cell = r.from ? 'delegator' : 'turn-user'; speaker = r.from ? 'brief' : run && run.ownerDirective === true ? 'owner' : 'user'; }
+      else cell = 'local';
+    } else if (kind === 'api') speaker = 'member';
+    else if (kind === 'hop') speaker = 'agent';
+    else if (kind === 'delivery' || kind === 'routine') speaker = 'routine';
+    return { kind, cell: MATRIX[cell] ? cell : 'local', speaker, legacy };
+  }
+  function replayable(row, opts) {
+    const o = opts || {}, c = o.ctx || {}, classification = classify(row, c), rule = MATRIX[classification.cell]['model-replay'];
+    if (rule === true || rule === false) return rule;
+    if (rule === 'pairs') return o.shape === 'pairs';
+    if (rule === 'own-stream') return !o.streamId || !row.streamId || o.streamId === row.streamId;
+    if (rule === 'group') return o.group === true;
+    if (rule === 'own-line') return !!o.line && row.line === o.line;
+    if (rule === 'paired-final') return !!(c.finalRuns && c.finalRuns.has(String(row.sourceRunId || '')));
+    return false;
+  }
+
   return {
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
     QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
-    KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind
+    KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind,
+    VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
   };
 });
