@@ -188,6 +188,25 @@ const U = {
 const SFX = {
   ctx: null, master: null, fx: null, on: true, vol: 0.35, _noise: null, _lastAt: {},
 
+  // Awakening ambience has separate buses so muting a sustained pad silences its existing tail.
+  _ambience: { hum: true, heartbeat: true }, _ambienceBuses: {},
+  setAmbience(hum, heartbeat) {
+    SFX._ambience = { hum: hum !== false, heartbeat: heartbeat !== false };
+    for (const [name, bus] of Object.entries(SFX._ambienceBuses)) {
+      bus.gain.cancelScheduledValues(SFX.ctx.currentTime);
+      bus.gain.setTargetAtTime(SFX.on && SFX._ambience[name] ? 1 : 0, SFX.ctx.currentTime, 0.015);
+    }
+  },
+  _ambienceOut(name) {
+    if (!SFX._ambienceBuses[name]) {
+      const bus = SFX.ctx.createGain();
+      bus.gain.value = SFX.on && SFX._ambience[name] ? 1 : 0;
+      bus.connect(SFX.master || SFX.ctx.destination);
+      SFX._ambienceBuses[name] = bus;
+    }
+    return SFX._ambienceBuses[name];
+  },
+
   // per-sound gate: repeats inside the window are dropped; the FIRST one always sounds.
   // _lastAny lets the delegated UI layer (audio.js) yield to explicit cues that just played.
   _lastAny: 0,
@@ -496,8 +515,9 @@ const SFX = {
      master bus so they pass the limiter; self-terminating so nothing leaks. ---- */
   env(freq, o) {
     o = o || {};
-    if (!SFX.on || !SFX.ctx) return;
-    const c = SFX.ctx, t0 = c.currentTime + (o.when || 0), out = SFX.master || c.destination;
+    if (!SFX.on || !SFX.ctx || (o.channel && SFX._ambience[o.channel] === false)) return;
+    const c = SFX.ctx, t0 = c.currentTime + (o.when || 0);
+    const out = o.channel ? SFX._ambienceOut(o.channel) : SFX.master || c.destination;
     const osc = c.createOscillator(), g = c.createGain();
     osc.type = o.type || 'sine'; osc.frequency.value = freq;
     const a = o.attack || 0.01, h = o.hold || 0.05, r = o.release || 0.2, v = (o.vol || 0.1) * SFX.vol;

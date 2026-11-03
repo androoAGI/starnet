@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a2c08bb09006d0526dd5802da216b54879521a8a",
+    "sourceCommit": "aafe6b72feb76c00e13795deda023224ffe9a403",
     "pathSetSha256": "3b5f1d8ed32514cca8dfd062ba081e9f36f2bbf4a547e1e4940588d2060e1160",
     "files": [
       {
@@ -748,8 +748,8 @@
       },
       {
         "path": "frontend/app/onboarding.js",
-        "bytes": 74090,
-        "sha256": "26c4e15f6beaec8eeccf6ba4c7de92688a5a24ff8acddd4dcc5946c0a58fe359"
+        "bytes": 74242,
+        "sha256": "8938800e1bf2c666412fd365094b2af6610930d02d372e3ae08421ffea06112b"
       },
       {
         "path": "frontend/app/outputbrowser.js",
@@ -1218,8 +1218,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 995855,
-        "sha256": "873d003a4d3121cdac75e81d56240ff79eb88259e6ed57a2f4e7666d3c1099d5"
+        "bytes": 996858,
+        "sha256": "a5cd67eab66ed5a22dbafee995489290eb7140aa9acdd35f369225c4d9239446"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1873,8 +1873,8 @@
       },
       {
         "path": "frontend/js/util.js",
-        "bytes": 35075,
-        "sha256": "3397b25d7d283bbb3f8d1eb66c04e7c68cfc3609dbc18012bb20842deb02e1dd"
+        "bytes": 35990,
+        "sha256": "3198da4b558deb7e4cfa2107c2485eb86bee0a3afd2881e13194e228b0d3a257"
       },
       {
         "path": "frontend/plugin-kit/kit.css",
