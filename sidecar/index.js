@@ -17497,6 +17497,7 @@ async function handleCronRun(req, res) {
     // knows whether tools ran), exactly as on schedule. It only gates the line below: settleRun reads the same rule from the same
     // state, and an incomplete-run sentence written back as state.errMsg read there as an error the run raised (a cut reply: failed)
     state.lineStop = pressed && pressed.lineStop || null;
+    cronDriverMod.holdForCompletion(state, job.meta && job.meta.postconditions);
     const runNowOutcome = cronDriverMod.fireOutcome(state, null);
     /* RUN NOW MUST FIRE THE WHOLE LINE, exactly like the scheduled fire does. This route calls runOnce
        DIRECTLY (it streams to the watching browser), so it does not pass through the cron driver's

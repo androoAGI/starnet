@@ -189,7 +189,7 @@
     succeeded: 'finished', asked: 'asked a question', cut_short: 'the reply was cut short', failed: 'failed',
     refused: 'the model declined the request', stopped: 'stopped before it finished', out_of_budget: 'hit a spending limit',
     step_limit: 'reached the step limit', empty: 'the model sent back an empty reply', interrupted: 'interrupted when StarNet stopped',
-    blocked: 'held: a reviewer blocked the work'
+    blocked: 'held: the work was not accepted'
   });
   function line(o) {
     const x = o || {};

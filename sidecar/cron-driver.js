@@ -387,12 +387,19 @@
       if (settleWorkitem) {
         const jobFacts = { output: state.buf, error: state.errMsg || (threw && (threw.message || String(threw))) };
         if (state.lineStop && state.lineStop.code === 'day_limit') Object.assign(jobFacts, { stop: state.lineStop, admissionStop: state.lineStop, stopped: settled.outcome === 'stopped' });
+        // The host's acceptance hold is job authority, like a review hold; the successful provider row stays intact.
+        if (state.lineStop && state.lineStop.code === 'blocked') jobFacts.stop = state.lineStop;
         try {
           const jobResult = settleWorkitem(runId, settled.crate, jobFacts);
           if (jobResult && jobResult.jobId) {
             // The host has durably accepted this result. Keep it in the existing retry receipt: the host item
             // is gone after success, and a later routine-write retry must neither lose nor replace its cause.
             state.lineResult = { jobId: jobResult.jobId, outcome: jobResult.outcome, stop: jobResult.stop, error: jobResult.error };
+            if (jobResult.outcome === 'stopped' && state.completionHold && state.line && state.line.blocked === state.completionHold.why) {
+              // A late owned STOP/fault supersedes this acceptance hold. Keep unrelated review/partial facts.
+              state.line = Object.assign({}, state.line);
+              delete state.line.blocked;
+            }
             if (jobResult.stop) state.line = Object.assign({}, state.line, lineFacts({ stopped: jobResult.error, stop: jobResult.stop, halted: jobResult.outcome === 'stopped' }));
           }
           settled = fireOutcome(state, threw);
@@ -719,6 +726,7 @@
       Promise.resolve(p).then(
         function (ran) {
           state.lineStop = ran && ran.lineStop || null;
+          holdForCompletion(state, job.meta && job.meta.postconditions);
           // The line advances ONLY on a COMPLETED entry run. finishFire treats any terminal reason other
           // than 'done' as failure, yet this gate let a truncated run (max_turns/budget/missing terminal —
           // none of which set errMsg) buy every downstream hop on partial stage-one material, then recorded
@@ -1058,6 +1066,22 @@
      SUCCEEDED and whose work line delivered the whole job (routing/line-fire.js lineDelivered) — a line that stopped short (a hop
      failed) or whose joiner sent on without every branch keeps the fire's record as it was, but its crate drains as 'line_stopped',
      the rule the channel hub, chain.js's line-output receipt and the trigger / SEND TO runners hold. Otherwise the fire's outcome. */
+  // A caller-required contract is separate from provider execution. Only the lead's host-stamped terminal
+  // evidence can release that requirement; provider words and delegated workers' ends never populate state.end.
+  // Keep the hold on the fire so strict LineJob settlement and routine-write retries share the same decision.
+  function holdForCompletion(state, contract) {
+    if (!state || contract == null || (state.end && state.end.completionVerdict === 'completed_verified')) return false;
+    const ownError = state.errMsg ? { failureCode: state.failureCode || '' } : null;
+    const succeeded = RunOutcome.ofEnd(state.end || null, ownError).ok;
+    if (!succeeded) return false;   // an existing STOP, fault, cap or incomplete execution keeps its own cause
+    const why = "Verification required: the routine's completion checks were not proven; nothing was handed on.";
+    const stop = { code: 'blocked', why };
+    state.completionHold = stop;
+    state.lineStop = stop;
+    state.line = Object.assign({}, state.line, lineFacts({ stopped: why, blocked: why, stop }));
+    return true;
+  }
+
   function fireOutcome(state, threw) {
     const st = state || {};
     const terminalReason = String(st.reason || '').trim();
@@ -1079,5 +1103,5 @@
     return { errMsg: errMsg, outcome: ended.outcome, failureCode: ended.failureCode, crate: crate };
   }
 
-  return { makeCronDriver: makeCronDriver, fireOutcome: fireOutcome, SILENT_MARKER: SILENT_MARKER, clipScriptError: clipScriptError, SCRIPT_ERROR_TAIL: SCRIPT_ERROR_TAIL };
+  return { makeCronDriver: makeCronDriver, fireOutcome: fireOutcome, holdForCompletion: holdForCompletion, SILENT_MARKER: SILENT_MARKER, clipScriptError: clipScriptError, SCRIPT_ERROR_TAIL: SCRIPT_ERROR_TAIL };
 });
