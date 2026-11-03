@@ -83,6 +83,8 @@ function makeHost(sc) {
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
     providerHasStoredCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
+    // This matrix supplies credential presence; the real runtime handler now projects the common row.
+    providerReadiness: (id, pair) => ({ unattendedReady: normalizeProviderId(id) === 'codex' ? !!codexTokens : !!pair.key }),
     providerCredentialError: id => 'connect ' + id,
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',

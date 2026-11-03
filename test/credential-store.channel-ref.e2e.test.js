@@ -53,6 +53,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');
 
 const IPC = 'credential-store-channel-ref-ipc-0123456789abcdef';
 const K = {
@@ -197,6 +198,8 @@ function station(label, up, tg, env) {
       tg.pushText(4242, 99, marker + ' say done');
       await waitFor(() => sentFor(up, marker).length > 0, label + ': ' + marker + ' reaches an upstream');
       await waitFor(() => tg.sends.slice(from).some(m => /\bdone\b/.test(String(m.text || ''))), label + ': the bot answers ' + marker);
+      if (!sentFor(up, marker).length) console.error('CHANNEL_REF_ADMISSION ' + JSON.stringify({ marker,
+        replies: tg.sends.slice(from).map(m => String(m.text || '')), output: fx.output().slice(-2000) }));
       return once(sentFor(up, marker));
     },
     // one message the bot refuses: what it says back
@@ -524,8 +527,13 @@ function station(label, up, tg, env) {
 
     /* ================= 12. an agent-bound bot's re-add whose record cannot be saved changes nothing ================= */
     await row('12', async () => {
-      const s = await open('read-only');
-      A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'read-only: the roster is saved');
+      // A non-hero bot must survive a real restart. Before founding, roster pushes are deliberately
+      // live-only; that stationless policy is not a credential-store persistence failure.
+      const s = await open('read-only', {}, x => seedActiveStation(x.ws));
+      const rosterSaved = await s.roster({ bot: 'openrouter' });
+      A.eq([rosterSaved.status, rosterSaved.body.held === true], [200, false], 'read-only: the founded station persists its roster');
+      A.ok(JSON.parse(fs.readFileSync(path.join(s.ws, 'agent.roster.json'), 'utf8')).agents.some(a => a.agentId === 'bot'),
+        'read-only: the non-hero bot is actually on the durable roster before restart');
       const add = body => s.fx.json('POST', '/api/channels/telegram/bots/connect', Object.assign({ token: '777:CHANNEL-REF-AGENT-BOT', agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
       const first = await add({ key: K.addOne });
       A.eq([first.status, first.body.keyPersisted], [200, true], 'read-only: the agent-bound bot is added with its own key K1: ' + first.text.slice(0, 200));

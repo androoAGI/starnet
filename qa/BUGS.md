@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 420 total — 0 P0 · 1 P1 · 32 P2
+**33** open (open+claimed) of 421 total — 0 P0 · 1 P1 · 32 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -178,7 +178,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
 | P1 | fixed | channels | [A sidecar crash mid-run replays the whole Telegram message as a second identical user turn, so side effects run twice and the reply undercounts them](bugs/e5ecd6b8-a-sidecar-crash-mid-run-replays-the-whole-telegr.md) | sweep/channels | 254ebe0e0 |
 | P1 | fixed | channels | [A Telegram consent ask allowed from STARNET REMOTE is stamped 'expired — DENIED' by a late tap on the still-live keyboard](bugs/9e60dd9f-a-telegram-consent-ask-allowed-from-starnet-remo.md) | sweep/channels | 0fcbbd42d |
-| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 |
+| P1 | fixed | channels | [A channel record pins a stale provider key on disk](bugs/31cadf39-channel-record-pins-a-stale-provider-key-on-disk.md) | agent/credential-store-1031 | ffbb95fae 6f87a3894 e1d54e4be 0c9c1583f 772dcea9c c1b761297 f4353cfb5 |
 | P1 | fixed | channels | [`channel.targets` derives "reachable now" from the adapter handle's existence, so an errored (or still-connecting) channel is reported connected while telegramS](bugs/a199ee3c-channel-targets-derives-reachable-now-from-the-a.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [Chat replies cut off without confirmed completion](bugs/812c3bfb-chat-replies-cut-off-without-confirmed-completio.md) | agent/chat-cutoff-0919 | 93a4ee64c |
 | P1 | fixed | channels | [Connector stays up after an authenticated tool returns 401](bugs/9dc98fa0-connector-401-still-shows-up.md) | reliability-followup | 6adda1348 |
@@ -233,6 +233,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | providers | [Doctor works but sample ignores the saved provider](bugs/c978e7b7-sample-ignores-saved-provider.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Saved equipment omitted from interactive tool projection and toolset diagnostics](bugs/432df352-saved-equipment-omitted-from-interactive-tool-pr.md) | agent/tool-projection-0909 | 3c95b184fd28c5eacac8821ca2231d85da5b3395 |
 | P1 | fixed | providers | [Saved fallback changes model without switching provider](bugs/8b22d414-saved-fallback-changes-model-without-switching-p.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
+| P1 | fixed | providers | [Saved provider probes lose failure diagnostics and expose endpoint secrets](bugs/b8814ee3-saved-provider-probe-diagnostic-secret-boundary.md) | agent/batch3-fixture-repairs-1103 | dfeb64320de7c7a0901584e065b959575edf772b |
 | P1 | fixed | providers | [The PER RUN dollar cap does not bound team.spawn workers, so a 5-cent cap ran 24 cents](bugs/d3a76db3-the-per-run-dollar-cap-does-not-bound-team-spawn.md) | sweep/providers | 4439b14ee, d42189a18, d42d1bc7e, 9d4fc52b5, a1234b154, 32fc352e4, 8f4267c08, 9e32443bf |
 | P1 | fixed | providers | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | reliability-followup | e33914cb2 |
 | P1 | fixed | providers | [Unavailable OAuth model catalog clears the saved model selection](bugs/ebe2861a-unavailable-oauth-model-catalog-clears-the-saved.md) | release-0120-prep-0915 | 20be5165bcf5f2ec99f882b572cdb10e442ecb6c |
