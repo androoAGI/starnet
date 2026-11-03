@@ -14,8 +14,11 @@ const finalizeScript = fs.readFileSync(path.join(root, 'scripts', 'notarize-maco
 const installedScript = fs.readFileSync(path.join(root, 'scripts', 'verify-macos-intel-installed.sh'), 'utf8');
 const hydrateScript = fs.readFileSync(path.join(root, 'scripts', 'hydrate-sharp-macos-x64.sh'), 'utf8');
 const nativeScript = fs.readFileSync(path.join(root, 'scripts', 'sign-macos-native-deps.sh'), 'utf8');
+// read tolerantly: a missing proof is a named failure below, never a crash that hides the other assertions
+const readIf = (p) => (fs.existsSync(p) ? fs.readFileSync(p, 'utf8') : '');
 const dmgScriptPath = path.join(root, 'scripts', 'verify-macos-dmg.sh');
-const dmgScript = fs.readFileSync(dmgScriptPath, 'utf8');
+const dmgScript = readIf(dmgScriptPath);
+A.ok(dmgScript.length > 0, 'the DMG own-signature proof exists (scripts/verify-macos-dmg.sh)');
 
 A.ok(/os: macos-15-intel[\s\S]{0,120}target: darwin-x64/.test(yml),
   'public Intel release runs on an actual x86_64 hosted runner');
@@ -177,11 +180,17 @@ const prove = (mode, env, team = 'TEAM123456') => spawnSync(bash, [posix(dmgScri
   encoding: 'utf8',
   env: { ...process.env, ...env, RUNNER_TEMP: posix(tmp), PATH: tmp + path.delimiter + process.env.PATH }
 });
-const probe = bash && prove('notarized', {});
-if (!bash || probe.error || probe.status !== 0 || !/DMG notarized proof passed/.test(probe.stdout)) {
-  console.log(`SKIP: no usable POSIX bash for the stubbed DMG proof${probe ? ` (${probe.error ? probe.error.message : `exit ${probe.status}: ${(probe.stderr || probe.stdout).trim().slice(0, 200)}`})` : ''}; static assertions still run.`);
+const out = (r) => (r.error ? r.error.message : `exit ${r.status}: ${`${r.stdout || ''}${r.stderr || ''}`.trim().slice(-700)}`);
+// Whether this box has a usable POSIX bash is decided by a trivial probe, never by the script under test: a broken
+// proof must fail here, not read as "no bash" and skip.
+const bashProbe = bash && spawnSync(bash, ['-c', 'echo ok'], { encoding: 'utf8' });
+const bashUsable = !!(bashProbe && !bashProbe.error && bashProbe.status === 0 && bashProbe.stdout.trim() === 'ok');
+if (!bashUsable) {
+  console.log(`SKIP: no usable POSIX bash for the stubbed DMG proof${bashProbe ? ` (${out(bashProbe)})` : ''}; static assertions still run.`);
 } else {
-  A.ok(/team TEAM123456/.test(probe.stdout), 'a valid stapled Developer ID DMG passes the notarized proof');
+  const probe = prove('notarized', {});
+  A.ok(probe.status === 0 && /DMG notarized proof passed/.test(probe.stdout) && /team TEAM123456/.test(probe.stdout),
+    'a valid stapled Developer ID DMG passes the notarized proof: ' + out(probe));
   A.eq(prove('signed', { STUB_STAPLED: 'missing', STUB_SPCTL_EXIT: '3' }).status, 0,
     'the pre-submission proof needs only the signature (no ticket exists yet)');
   for (const [label, env, team] of [
@@ -209,5 +218,35 @@ A.ok(/tail -n "\+\$\(\(before_lines \+ 1\)\)"/.test(installedScript)
   'installed verifier proves the Finder-launched bundled sidecar is listening');
 A.ok(/\.migration-receipt\.json/.test(installedScript) && /receipt\.get\("validated"\) is True/.test(installedScript),
   'installed verifier requires the activated v0.9.0 migration receipt');
+
+// ---- Installed integrity on the notarized Intel install (85f602c4 / E62, gh#136) ----
+// scripts/verify-macos-installed-integrity.sh judges each launch's page-boot line, then the executable's own headless
+// verify over its embedded install manifest, then a zeroed module in a copy of the app. Here: how the acceptance wires it.
+const integrityPath = path.join(root, 'scripts', 'verify-macos-installed-integrity.sh');
+const integrityScript = readIf(integrityPath);
+const MODULE = 'sidecar/tools/builtin/shell.js';
+A.ok(integrityScript.length > 0, 'the installed-integrity proof exists (scripts/verify-macos-installed-integrity.sh)');
+
+A.ok(/exe="\$installed\/Contents\/MacOS\/skynet-desktop"/.test(installedScript)
+  && /startup_log="\$app_data\/startup\.log"/.test(installedScript),
+  'the executable and startup.log the integrity claims use are the acceptance\'s own variables');
+A.ok(/launch_start=\$\(\(before_lines\)\)/.test(installedScript) && /first_launch_start=\$launch_start/.test(installedScript),
+  'each Finder launch records where its own startup.log lines begin');
+A.eq((installedScript.match(/\nlaunch_with_finder\nbash "\$integrity" page-boot "\$startup_log" "\$launch_start" 90\n/g) || []).length, 2,
+  'each Finder launch waits for and judges its own page-boot line before the checks that follow it');
+const lastQuit = installedScript.lastIndexOf('\nquit_cleanly\n');
+const wholeBoot = installedScript.indexOf('bash "$integrity" page-boot "$startup_log" "$first_launch_start" 0 | tee "$integrity_dir/page-boot.txt"');
+const installClaims = installedScript.indexOf('bash "$integrity" install "$installed" "$exe" "$integrity_dir"');
+const receiptWriter = installedScript.indexOf('python3 - "$receipt" "$dmg" "$installed" "$launch_port" "$source_hash_before" "$require_notarized" "$integrity_dir"');
+A.ok(lastQuit > 0 && wholeBoot > lastQuit && installClaims > wholeBoot && receiptWriter > installClaims,
+  'after the last quit: every page-boot line of both launches is judged, then the install claims run, then the receipt is written');
+A.ok(/integrity_receipt\("install-verify\.json"\)/.test(installedScript) && /integrity_receipt\("zeroed-verify\.json"\)/.test(installedScript)
+  && installedScript.includes(`module = "${MODULE}"`) && /named != \[module\]/.test(installedScript),
+  'the receipt writer re-reads the machine receipts both verifies wrote and requires exactly the zeroed module');
+A.ok(/"installVerify": \{"state": verify\["state"\]/.test(installedScript) && /"pageBoot": \{"passed": True, "lines": page_boot\}/.test(installedScript)
+  && /"zeroedModule": \{"path": module, "inACopyOfTheApp": True/.test(installedScript),
+  'the acceptance receipt carries the three installed-integrity results');
+
+// The proof itself runs for real, executable stubbed, in test/installed-integrity-proofs.test.js.
 
 A.report('release-train-macos-trust.test');

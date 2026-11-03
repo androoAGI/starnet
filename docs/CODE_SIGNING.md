@@ -127,7 +127,11 @@ losing them prevents signing the next release with the same identity.
 2. On the first tagged release train, the Mac legs must show all of these:
    `Authority=Developer ID Application`, hardened runtime, Node `allow-jit`,
    `DMG notarized + stapled`, `DMG notarized proof passed`, and
-   `source=Notarized Developer ID`.
+   `source=Notarized Developer ID`. The Intel installed acceptance must also show a
+   `page-boot: passed` line for each Finder launch, `installed app: verified N files`, and
+   `a copy of the app with an empty sidecar/tools/builtin/shell.js: its headless verify exits 3 naming it`
+   (`scripts/verify-macos-installed-integrity.sh`); the Windows published-upgrade proof shows the
+   same verify and zeroed module for each upgraded install.
 3. Download each staged DMG on a clean Intel and Apple Silicon Mac. Drag StarNet to
    Applications and launch it normally while online, then repeat offline. There must be
    no “damaged,” unidentified developer, or Open Anyway path.

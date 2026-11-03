@@ -174,6 +174,114 @@ function Wait-Installer {
   }
 }
 
+# Installed integrity on the candidate's real install, after its upgrade and relaunch (85f602c4 / E62). The exe's own
+# headless verify (--starnet-verify-install, src-tauri/src/install_manifest.rs) over the install manifest embedded in it
+# must read verified over at least $MinFiles files of THIS install: the upgrade replaced every listed file and the
+# running candidate rewrote none. Then $Module zeroed in this disposable install must be named, alone and as empty, by
+# the same verify (exit 3). The module's bytes are restored, and proven restored, before the uninstall proof runs.
+# The floor and the module are the Intel installed acceptance's (scripts/verify-macos-installed-integrity.sh).
+function Assert-InstalledIntegrity {
+  param(
+    [Parameter(Mandatory = $true)][string]$App,
+    [Parameter(Mandatory = $true)][string]$InstallRoot,
+    [Parameter(Mandatory = $true)][string]$WorkRoot,
+    [Parameter(Mandatory = $true)][string]$Label,
+    [int]$MinFiles = 600,
+    [string]$Module = 'sidecar/tools/builtin/shell.js',
+    [int]$Seconds = 300
+  )
+
+  # a receipt field, or $null when absent (StrictMode refuses a missing property); scalars only
+  function Read-Field {
+    param($Object, [string]$Name)
+    if ($null -ne $Object -and @($Object.PSObject.Properties.Name) -contains $Name) { return $Object.$Name }
+    return $null
+  }
+
+  function Invoke-InstallVerify {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    $receiptPath = Join-Path $WorkRoot "$Name.json"
+    $stdoutPath = Join-Path $WorkRoot "$Name.txt"
+    $stderrPath = Join-Path $WorkRoot "$Name.stderr.txt"
+    foreach ($stale in @($receiptPath, $stdoutPath, $stderrPath)) {
+      if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Force }
+    }
+    # Start-Process, not the call operator: the release exe is a GUI-subsystem program, which & would not wait for.
+    $process = Start-Process -FilePath $App -ArgumentList ('--starnet-verify-install --out "{0}"' -f $receiptPath) `
+      -NoNewWindow -PassThru -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+    $null = $process.Handle  # Windows PowerShell keeps ExitCode readable only through a handle taken before the exit
+    if (-not $process.WaitForExit($Seconds * 1000)) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      throw "$Label headless install verify ($Name) did not exit within ${Seconds}s"
+    }
+    $output = ''
+    if (Test-Path -LiteralPath $stdoutPath) { $output = [IO.File]::ReadAllText($stdoutPath).Trim() }
+    if ($output) { Write-Host $output }
+    if (-not (Test-Path -LiteralPath $receiptPath -PathType Leaf)) {
+      throw "$Label candidate wrote no install-verify receipt ($Name, exit $($process.ExitCode)); an executable built before the install manifest has no --starnet-verify-install"
+    }
+    return [pscustomobject]@{
+      exitCode = $process.ExitCode
+      receipt = ([IO.File]::ReadAllText($receiptPath) | ConvertFrom-Json)
+      output = $output
+    }
+  }
+
+  $root = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
+  $whole = Invoke-InstallVerify 'install-verify'
+  $state = Read-Field $whole.receipt 'state'
+  $files = Read-Field $whole.receipt 'files'
+  if ($whole.exitCode -ne 0 -or $state -ne 'verified') {
+    throw "$Label installed candidate does not verify its install manifest (exit $($whole.exitCode), state '$state'): $($whole.output)"
+  }
+  if ($null -eq $files -or [int64]$files -lt $MinFiles) {
+    throw "$Label install manifest verified only $files files; one over the real resource trees lists at least $MinFiles"
+  }
+  $checked = [string](Read-Field $whole.receipt 'root')
+  if (-not $checked -or -not [string]::Equals([IO.Path]::GetFullPath($checked).TrimEnd('\'), $root, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "$Label headless install verify checked '$checked', not this install ($root)"
+  }
+
+  $modulePath = Join-Path $root ($Module.Replace('/', '\'))
+  if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw "$Label install has no $Module to zero" }
+  $original = [IO.File]::ReadAllBytes($modulePath)
+  if ($original.Length -eq 0) { throw "$Label install's $Module is already empty" }
+  $originalHash = (Get-FileHash -LiteralPath $modulePath -Algorithm SHA256).Hash
+  try {
+    [IO.File]::WriteAllBytes($modulePath, (New-Object byte[] 0))
+    $zeroed = Invoke-InstallVerify 'zeroed-verify'
+  } finally {
+    [IO.File]::WriteAllBytes($modulePath, $original)
+  }
+  if ((Get-FileHash -LiteralPath $modulePath -Algorithm SHA256).Hash -ne $originalHash) {
+    throw "$Label could not restore $Module after the zeroed-module proof"
+  }
+  $zeroedState = Read-Field $zeroed.receipt 'state'
+  if ($zeroed.exitCode -ne 3 -or $zeroedState -ne 'damaged') {
+    throw "$Label headless install verify did not report the zeroed $Module as damage (exit $($zeroed.exitCode), state '$zeroedState'): $($zeroed.output)"
+  }
+  $findings = @()
+  $listed = Read-Field $zeroed.receipt 'findings'
+  if ($null -ne $listed) { $findings = @($listed) }
+  $named = @($findings | ForEach-Object { Read-Field $_ 'path' })
+  if ($findings.Count -ne 1 -or (Read-Field $findings[0] 'path') -ne $Module -or (Read-Field $findings[0] 'damage') -ne 'empty') {
+    throw "$Label headless install verify named '$($named -join ', ')' instead of exactly $Module as empty"
+  }
+  $text = [string](Read-Field $findings[0] 'text')
+  Write-Host "::notice::$Label installed candidate verified $files files of its embedded install manifest; a zeroed $Module is named ($text)"
+  return [ordered]@{
+    state = 'verified'
+    files = [int64]$files
+    minimumFiles = $MinFiles
+    zeroedModule = [ordered]@{
+      path = $Module
+      exitCode = $zeroed.exitCode
+      named = $text
+      restored = $true
+    }
+  }
+}
+
 Remove-SafeTree $proofRoot
 New-Item -ItemType Directory -Path $proofRoot | Out-Null
 
@@ -260,6 +368,9 @@ try {
     Wait-ForExactProcess -Path $app
     Wait-ForExactProcess -Path $node
 
+    # The upgraded install is exactly the candidate's files, and a zeroed module in it is named.
+    $integrity = Assert-InstalledIntegrity -App $app -InstallRoot $installRoot -WorkRoot $scenarioRoot -Label "$($source.tag) -> $CandidateVersion"
+
     # The candidate's own uninstaller must now stop the active shell + sidecar cleanly. This
     # proves NSIS_HOOK_PREUNINSTALL for every user who installs this candidate or anything newer.
     $futureUninstall = Start-Process -FilePath $oldUninstaller -ArgumentList '/S' -PassThru
@@ -282,9 +393,10 @@ try {
       stateSha256After = $markerHash
       futureUninstallStoppedProcesses = $true
       futureUninstallPreservedState = $true
+      installIntegrity = $integrity
     }
 
-    Write-Host "::notice::$($source.tag) -> $CandidateVersion upgrade, active-process uninstall and state-preservation assertions passed; cleaning disposable installation."
+    Write-Host "::notice::$($source.tag) -> $CandidateVersion upgrade, installed integrity, active-process uninstall and state-preservation assertions passed; cleaning disposable installation."
     Reset-ProofInstall $installRoot
     Remove-ProofState $markerRoot
   }

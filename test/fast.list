@@ -1154,6 +1154,7 @@ test/desktop-build-macos-notarization.test.js
 test/desktop-build-macos-python-host.test.js
 test/desktop-artifact-open.test.js
 test/release-train-macos-trust.test.js
+test/installed-integrity-proofs.test.js
 test/release-train-windows-trust.test.js
 test/release-contract-docs.test.js
 test/website-deploy-staging.test.js
