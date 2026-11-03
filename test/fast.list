@@ -1293,6 +1293,8 @@ test/station-autosave.test.js
 test/durable-store-faults.test.js
 test/permissions-authority.test.js
 test/api-json-lifecycle.test.js
+test/harness-api.contract.test.js
+test/station-refusal-readers.test.js
 test/routine-acknowledgement.test.js
 test/routine-preview-race.test.js
 test/marketplace-authority.test.js
