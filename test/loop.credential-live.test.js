@@ -417,6 +417,18 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
     A.ok(built > 0 && /\n  \{ const gone = runKeyGone\(provider\); if \(gone\) \{ endUnstarted\(gone, false\); return; \} \}\n/.test(core.slice(built, built + 600)) &&
       core.indexOf('catalogRunWindow(provider, model)') > built + 300,
       'C: a run whose key is gone before its primary adapter is built ends there, ahead of its catalog read (review r1)');
+    /* ...and every credential runOnceCore hands a TOOL (review r1: web_search's paid rung and the STUDIO image route read their key
+       once, as the run started, and a run in flight kept sending it). Each tool factory call that takes a credential (an
+       `openrouter:` dependency) is handed its keyGone beside it, and each such credential is watched on the key it carries, the
+       run's own with the run key's verdict. So a new tool given a key cannot go unwatched. */
+    const factories = [];
+    for (const m of core.matchAll(/\n  (?:const \w+ = )?(make\w+Tools)\(\{(?:\s*\/\/[^\n]*)*\s*openrouter: /g)) factories.push({ name: m[1], at: m.index });
+    A.ok(factories.length >= 2, 'C: the census sees the tool factories runOnceCore hands a credential (web, image): ' + factories.map(f => f.name).join(', '));
+    A.eq(factories.filter(f => !/keyGone: toolKeyGone\((\w+), '[^']+'\)/.test(core.slice(f.at, f.at + 900))).map(f => f.name), [], 'C: EVERY tool factory handed a credential is handed its in-flight check');
+    A.ok(/\n  if \(studioRoute\.ok\) runWatch\.watch\(studioRoute, studioRoute\.provider, studioRoute\.key, studioRoute\.keySource === 'run' \? runKeyWatch : undefined\);\n/.test(core) &&
+      /\n  if \(webRung\) runWatch\.watch\(webRung, 'openrouter', webRung\.apiKey, providerId === 'openrouter' \? runKeyWatch : undefined\);\n/.test(core),
+      'C: ...and each of those credentials is watched on its key, the run\'s own with the run key\'s verdict');
+    A.ok(/const toolKeyGone = \(cred, tool\) => \(\) => \{ const id = runWatch\.gone\(cred\); return id \? engineCredentialError\(id, 'this run', tool\) : ''; \};/.test(core), 'C: ...answering with the tool\'s form of the in-flight sentence');
     A.ok(/\n      credentialGone: runKeyGone,/.test(core), 'C: the loop is handed credentialGone');
     A.ok(/const runKeyGone = adapter => \{ const id = runWatch\.gone\(adapter\); return id \? engineCredentialError\(id, 'this run', true\) : ''; \};/.test(core), 'C: ...answering with the in-flight sentence');
     A.ok(/const keyGone = runKeyGone\(auxVisionProvider\); if \(keyGone\) throw new Error\(keyGone\);/.test(core), 'C: the aux vision call (image_analyze on the run\'s own adapter) asks too');

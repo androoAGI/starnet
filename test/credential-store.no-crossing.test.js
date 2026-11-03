@@ -824,7 +824,8 @@ function census() {
   A.ok(/\.\.\.stationConsumers\.realtime,/.test(voice) && !/hasCredential:/.test(voice), 'Live Voice is wired from consumerDeps');
   A.ok(/\.\.\.stationConsumers\.imageRoute\(\),/.test(sidecarTopLevelFunction('studioRouteFor')), 'the image route is wired from consumerDeps');
   A.ok(!/stationOpenRouterKey|stationOpenRouterFill/.test(sidecarTopLevelFunction('studioRouteFor')), '...with one credential: the #146 second rung is gone');
-  A.ok(/openrouter: stationConsumers\.webRung\(\{ providerId, runKey, baseUrl, model \}\)/.test(core), 'the web rung is wired from consumerDeps');
+  A.ok(/\n  const webRung = stationConsumers\.webRung\(\{ providerId, runKey, baseUrl, model \}\);\n/.test(core) && /\n    openrouter: webRung, keyGone: toolKeyGone\(webRung, 'web_search'\),\n/.test(core),
+    'the web rung is wired from consumerDeps (and watched in flight: loop.credential-live)');
   A.ok(!/\bruntimeKey\b/.test(idx), 'the runtimeKey alias is gone from index.js');
 }
 

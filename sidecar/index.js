@@ -3376,17 +3376,18 @@ function cronCredentialError(provider, what) {
    credentialError), Run Now and the quest refresh (cronCredentialError). It says what the station is missing and the
    two real ways out: re-saving the key in the page (which now hands the station its copy) or the operator's env var.
    The night-shift report says the provider-less form (engine-credential.js UNATTENDED_REMEDY, nightreport.js). A run in
-   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3). What the
-   station lacks is the store's one resolution (resolve().missing): an env key with no endpoint is not "no base URL is
-   saved" when one is, so kind 'unpaired' names the variable the key is really in, and both exits (S7, decision 5). */
+   flight whose key was removed or replaced says its own form (kind 'removed', credential-store lane S3; `inFlight` a tool's
+   name for a tool's key, review r1). What the station lacks is the store's one resolution (resolve().missing): an env key with
+   no endpoint is not "no base URL is saved" when one is, so kind 'unpaired' names the variable the key is really in, and both
+   exits (S7, decision 5). */
 function engineCredentialError(provider, what, inFlight) {
   const id = normalizeProvider(provider);
   const profile = getProviderProfile(id);
   const envOf = names => { const list = Array.isArray(names) ? names : []; return list.find(n => /_API_KEY$/.test(n)) || list[0] || ''; };
-  const kind = inFlight === true ? 'removed' : registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
+  const kind = inFlight ? 'removed' : registryProviderUsesCodex(id) ? 'codex' : registryProviderUsesDeviceOAuth(id) ? 'oauth' : id === 'starnet' ? 'starnet'
     : credStore.resolve(id).missing || (providerRequiresKey(id) ? 'key' : 'other');
   const held = engineKeyPresence(id);
-  return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what,
+  return engineCredential.credentialError({ id, label: (profile && profile.label) || id, kind, what, tool: typeof inFlight === 'string' ? inFlight : '',
     env: (kind === 'unpaired' && held.envName) || envOf(profile && profile.keyEnv), baseUrlEnv: envOf(profile && profile.baseUrlEnv), keylessUrl: held.saved.baseUrl });
 }
 
@@ -22306,13 +22307,19 @@ async function runOnceCore(o) {
   let runRecipes = [];
   // the image route this run's provider, key and endpoint get (studioRouteFor: the TOOLSETS preview asks the same function)
   const studioRoute = studioRouteFor(providerId, runKey, baseUrl);
+  // the paid OpenRouter rung: an OpenRouter run's own key and endpoint, any other run the station's OpenRouter credential
+  // at the endpoint saved with it and OpenRouter's search model, a StarNet-credits run none (the store's webRung)
+  const webRung = stationConsumers.webRung({ providerId, runKey, baseUrl, model });
+  // S3 (review r1): a tool's key is this run's to watch too, like an adapter's: the image route's (the run's own on its own route,
+  // else the station's) and the rung's. Each keyed request asks first, so a key removed or rotated away mid-run is never sent
+  if (studioRoute.ok) runWatch.watch(studioRoute, studioRoute.provider, studioRoute.key, studioRoute.keySource === 'run' ? runKeyWatch : undefined);
+  if (webRung) runWatch.watch(webRung, 'openrouter', webRung.apiKey, providerId === 'openrouter' ? runKeyWatch : undefined);
+  const toolKeyGone = (cred, tool) => () => { const id = runWatch.gone(cred); return id ? engineCredentialError(id, 'this run', tool) : ''; };
   // web_search/web_fetch (DDG/Jina, OR fallback) + web_request. `accessSurface` is host authority: it comes
   // from the run host, never from tool args. An authenticated owner DM has the same stored-key reach as the
   // desktop; an ordinary autonomous caller remains restricted to explicitly unattended-approved keys.
   makeWebTools({
-    // the paid OpenRouter rung: an OpenRouter run's own key and endpoint, any other run the station's OpenRouter credential
-    // at the endpoint saved with it and OpenRouter's search model, a StarNet-credits run none (the store's webRung)
-    openrouter: stationConsumers.webRung({ providerId, runKey, baseUrl, model }),
+    openrouter: webRung, keyGone: toolKeyGone(webRung, 'web_search'),
     surface: accessSurface,
     redact: redact,
     // the station READER: automatic real-Chrome rung for bot-walled fetches + throttled search
@@ -22429,7 +22436,8 @@ async function runOnceCore(o) {
   const codexHostModels = codexMemoLiveModelIds(async () => selectProvider({ provider: 'codex', fetch: globalThis.fetch, token: await ensureCodexAccessToken(), renewToken: forceRefreshCodexAccessToken, baseUrl: studioRoute.baseUrl || '' }).listModels());
   const imageTools = makeImageTools({ openrouter: studioRoute.ok ? { apiKey: studioRoute.key, model, baseUrl: studioRoute.baseUrl, provider: studioRoute.provider, protocol: studioRoute.protocol,
     getToken: studioRoute.protocol === 'codex-responses' ? ensureCodexAccessToken : undefined,
-    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage,
+    renewToken: studioRoute.protocol === 'codex-responses' ? forceRefreshCodexAccessToken : undefined } : null, keyGone: toolKeyGone(studioRoute, 'the STUDIO image route'),
+    fsp, pathMod: path, root: WORKSPACES, imageModel: String(ENV('IMAGE_MODEL') || '').trim() || undefined, auxVision: auxVisionCall, signal, onUsage: recordMediaUsage,
     // vision-input 2026-10-23: the run's own model is the studio route's vision model only while its catalog does not call
     // it text-only; on false, image.js asks its default vision model instead of sending the picture to a model that
     // answers 404 "No endpoints found that support image input" on every image_analyze / browser.vision call. `m` is the

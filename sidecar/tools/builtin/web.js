@@ -8,6 +8,8 @@
      deps.openrouter : { apiKey, baseUrl, model } | null  // enables the OpenRouter search/fetch FALLBACK: the key, the
                                                           // endpoint saved with it (the credential store's webRung), and
                                                           // the model (absent: OpenRouter's search model)
+     deps.keyGone    : () => '' | sentence                // the run host's in-flight watch over that key (credential-store
+                                                          // lane): asked before each paid request; a sentence refuses it
      deps.userAgent  : override UA string
 
    DESIGN (re-validated live, June 2026):
@@ -543,6 +545,13 @@
     const or = orIn && String(orIn.apiKey || '').trim() && orBase ? { apiKey: String(orIn.apiKey).trim(), baseUrl: orBase, model: orIn.model } : null;
     // named on a bare transport failure (nameTransport): the host alone, never the URL, which can carry a token
     const orHost = or && URL.canParse(orBase) ? new URL(orBase).host : '';
+    // the run host's in-flight watch over the rung's key (credential-store lane, review r1): '' while a station layer still holds
+    // it, else the sentence. Asked before each paid request, so a key removed or rotated away mid-run is never sent; a check that
+    // throws reads as held, as the loop's does
+    const keyGone = () => {
+      if (typeof deps.keyGone !== 'function') return '';
+      try { return String(deps.keyGone() || ''); } catch (e) { failNote('web.key-gone', e); return ''; }
+    };
     // DNS-rebinding guard resolver: default to real Node DNS; pass deps.lookup:null to disable (tests).
     const doLookup = ('lookup' in deps) ? deps.lookup : nodeLookup;
     const makePinnedAgent = deps.agentFactory || (options => new undici.Agent(options));
@@ -660,6 +669,8 @@
     // run's own model): a run on another provider's model id would be a model OpenRouter does not have.
     async function openrouterSearch(query, parent) {
       if (!or) throw new Error('no OpenRouter key for search fallback');
+      const gone = keyGone();
+      if (gone) throw new Error(gone);
       const body = {
         model: or.model || 'openai/gpt-4o-mini',
         messages: [{ role: 'user', content:

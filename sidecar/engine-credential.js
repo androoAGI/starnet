@@ -31,7 +31,7 @@
                                    stores) can never put back a key the Commander rotated or removed in another page.
                                    An explicit save / REMOVE (no o.boot) is last-write-wins.
        store.secretValues()     -> every saved key (the known-value redaction source)
-     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable })
+     credentialError(o)  -> the ONE refusal sentence (o = { id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable, tool })
      unpairedExits(o)    -> the two ways out of kind 'unpaired' (o = { baseUrlEnv }), for a surface that words its own refusal
      UNATTENDED_REMEDY   -> its provider-less remedy clause (the night-shift report reuses it verbatim)
 
@@ -177,11 +177,12 @@ function makeEngineKeys(deps) {
   return { get, revOf, put, secretValues };
 }
 
-/* credentialError({ id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable }) — why this unattended run cannot start, and the two
+/* credentialError({ id, label, kind, env, baseUrlEnv, what, keylessUrl, gone, unreadable, tool }) — why this unattended run cannot start, and the two
    real ways out: the page (which now hands the station its copy on save) or the operator's environment. `kind` is the
    provider's credential shape: key | baseUrl | codex | oauth | starnet | other — or 'removed' (credential-store lane S3,
    decision 7): a run in flight whose key was removed or replaced on this station stops before its next model call, and
-   says so; running it again uses the key the station holds now — or 'unpaired' (S7, decision 5): an environment key
+   says so; running it again uses the key the station holds now. With `tool` (review r1), the key is a tool's (web_search's
+   paid rung, the STUDIO image route): that one call is refused and the run goes on — or 'unpaired' (S7, decision 5): an environment key
    (`env`, the variable it is in) for a provider that needs a base URL, with no endpoint to go with it. "No base URL is
    saved" would be false beside a URL saved in the page without a key (`keylessUrl`), and that URL is not its to use: a
    key saved in the page is the only one that goes there, so each form names both exits — or 'channel-key' (S8, decision 3):
@@ -205,7 +206,8 @@ function credentialError(o) {
       (o.baseUrlEnv ? ', or set ' + o.baseUrlEnv + ' in ' + ENV_HOME : '');
     case 'key': return 'no ' + label + ' API key is saved on this station for ' + what + ' — connect or re-save it under ' + WHERE +
       (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
-    case 'removed': return 'the ' + label + ' key ' + what + ' started on was removed or replaced on this station, so it stopped before its next model call — ' +
+    case 'removed': return 'the ' + label + ' key ' + what + (o.tool ? ' started with was removed or replaced on this station, so ' + o.tool + ' did not send it — '
+      : ' started on was removed or replaced on this station, so it stopped before its next model call — ') +
       'run it again to use the key the station holds now, or add one under ' + WHERE + (o.env ? ', or set ' + o.env + ' in ' + ENV_HOME : '');
     case 'channel-key': return o.unreadable
       ? 'this bot\'s own ' + label + ' key could not be read on this station just now (.secrets/channel-credentials.json is locked or unreadable) — it is read again with the next message; if that keeps failing, close whatever holds the file open, or reconnect the bot with its key'

@@ -133,6 +133,25 @@ function stubFetch(routes) {
     let orphan = '';
     try { await wNoEndpoint.webSearch('anthropic', {}); } catch (e) { orphan = String(e && e.__allFailed); }
     A.eq([keyOnly, orphan], [0, 'true'], 'a key with no endpoint arms nothing: there is nowhere it was saved to send it');
+
+    /* E3. A run in flight whose rung's key went (credential-store lane, review r1). The run host builds web_search once per run,
+       on the rung's key; it hands keyGone, its in-flight watch over that key: '' while a station layer still holds it, else the
+       sentence. The rung asks before it dials, so a key removed or rotated away mid-run is never sent, and the search says why
+       beside the free engines' own answers. Red at bfca6be28, where the rung sent the key the run started with until the run
+       ended. */
+    let why = '', dials = 0;
+    const wFlight = makeWebTools({ openrouter: { apiKey: 'flight-key', baseUrl: 'http://proxy.test/api/v1' }, keyGone: () => why, lookup: null,
+      fetchImpl: async url => { const free = engines(String(url)); if (free) return free; dials++; return { json: async () => ({ choices: [{ message: { content: '1. Rescue Result — https://example.com/rescue — usable evidence' } }] }) }; } });
+    A.eq([(await wFlight.webSearch('anthropic', {})).source, dials], ['openrouter', 1], 'E3: while its key is held the rung answers');
+    why = 'the OPENROUTER key this run started with was removed or replaced on this station, so web_search did not send it';
+    let refused = '';
+    try { await wFlight.webSearch('anthropic', {}); } catch (e) { refused = String(e && e.message || ''); }
+    A.eq(dials, 1, 'E3: once it is gone the rung never dials');
+    A.ok(refused.includes('openrouter: ' + why), 'E3: ...and the search says why, beside the free engines\' own answers: ' + refused.slice(0, 300));
+    let heldDials = 0;
+    const wThrows = makeWebTools({ openrouter: { apiKey: 'flight-key', baseUrl: 'http://proxy.test/api/v1' }, keyGone: () => { throw new Error('watch broke'); }, lookup: null,
+      fetchImpl: async url => { const free = engines(String(url)); if (free) return free; heldDials++; return { json: async () => ({ choices: [{ message: { content: '1. R — https://example.com/r — x' } }] }) }; } });
+    A.eq([(await wThrows.webSearch('anthropic', {})).source, heldDials], ['openrouter', 1], 'E3: a check that throws reads as held, as the loop\'s does');
   }
 
   // ---- F. A provider-local abort is surfaced as a timeout, not an opaque undici AbortError ----

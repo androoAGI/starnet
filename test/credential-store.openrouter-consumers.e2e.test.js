@@ -36,6 +36,10 @@
      5. LIVE VOICE (decision 6), through its real routes: an OpenAI key saved with a gateway reads composed, says why, is refused
         and never reaches the fixed realtime URL; a key saved with the default endpoint still opens natively.
      6. NO REQUEST carrying a key went anywhere but its own endpoint: at the upstream, and at the edge.
+     7. IN FLIGHT (review r1): a CUSTOM run on its own body key, its first tooled turn held at the model while the page REMOVEs or
+        rotates its OpenRouter copy: web_search's paid rung and image_generate send neither the removed nor the rotated-away key
+        and say why; the run goes on, and the next run's rung sends the new key (RED at bfca6be28: both tools sent the removed key,
+        and the rotation's rung the old one).
 
    RED at trunk a3af8dafd, run with this file and the preload copied into a scratch checkout: the first failure is the page
    row's /api/stt/status (cloud:false, probe P2), then no page or bare-env key arms the rung, so U sees no web-plugin call; TTS
@@ -48,6 +52,8 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const EC = require('../sidecar/engine-credential.js');
+const Reg = require('../sidecar/providers/registry.js');
 
 const EDGE = path.join(__dirname, 'helpers', 'outbound-edge.js');
 const IPC = 'credential-store-consumers-ipc-0123456789abcdef';
@@ -61,11 +67,16 @@ const K = {
   guard: 'sk-or-v1-PAGE-BESIDE-OPENAI-0123456789abcdefghij',
   model: 'custom-MODEL-key-0123456789abcdefghijklmnopqrs',
   openai: 'sk-proj-PAGE-OPENAI-key-0123456789abcdefghijklm',
-  device: 'starnet-device-token-0123456789abcdefghijklmnop'
+  device: 'starnet-device-token-0123456789abcdefghijklmnop',
+  flight: 'sk-or-v1-PAGE-key-REMOVED-MID-RUN-0123456789abcd',
+  flight2: 'sk-or-v1-PAGE-key-ROTATED-IN-MID-RUN-0123456789a'
 };
 // where each key may go: the path of the endpoint it was saved with
 const HOME = { [K.page]: '/page/', [K.keychain]: '/keychain/', [K.env]: '/env/', [K.run]: '/run/', [K.credits]: '/credits/', [K.guard]: '/guard/', [K.model]: '/model/',
-  [K.openai]: '/openai/', [K.device]: '/cloud/' };
+  [K.openai]: '/openai/', [K.device]: '/cloud/', [K.flight]: '/inflight/', [K.flight2]: '/inflight/' };
+// section 7 (in flight): a run whose prompt carries a held marker has its first tooled turn wait at the model until the test opens it
+const gates = new Map();
+const hold = marker => { let open; gates.set(marker, new Promise(r => { open = r; })); return open; };
 const WEB_HIT = 'https://example.test/found-by-the-openrouter-rung';
 const SPOKEN = Buffer.alloc(480, 1);
 
@@ -81,9 +92,13 @@ function modelTurn(res, body) {
   const said = JSON.stringify(body.messages || []);
   if ((body.messages || []).some(m => m && m.role === 'tool')) return sse(res, { content: 'The tool has answered.' }, 'stop');
   const call = (name, args) => sse(res, { tool_calls: [{ index: 0, id: 'call_' + name, type: 'function', function: { name, arguments: JSON.stringify(args) } }] }, 'tool_calls');
-  if (said.includes('SEARCH-THE-WEB')) return call('web_search', { query: 'where the station credential goes' });
-  if (said.includes('an image of a blue cube')) return call('image_generate', { prompt: 'a blue cube' });
-  return sse(res, { content: 'Nothing to do.' }, 'stop');
+  const answer = () => {
+    if (said.includes('SEARCH-THE-WEB')) return call('web_search', { query: 'where the station credential goes' });
+    if (said.includes('an image of a blue cube')) return call('image_generate', { prompt: 'a blue cube' });
+    return sse(res, { content: 'Nothing to do.' }, 'stop');
+  };
+  const held = [...gates.keys()].find(m => said.includes(m));
+  return (held && Array.isArray(body.tools) && body.tools.length) ? gates.get(held).then(answer) : answer();
 }
 function recorder() {
   const seen = [];
@@ -285,6 +300,56 @@ const toolOk = (events, name) => { const r = events.find(e => e.name === 'agent.
       A.eq([voice.mode, voice.connected, voice.available, 'note' in voice], ['native', true, true, false], 'Live Voice: a key saved with the default endpoint still opens natively');
       await s.sdp('openai');
       A.ok(s.edge().some(e => e.host + e.path === 'api.openai.com/v1/realtime/calls' && e.credentials.includes('Bearer ' + K.openai)), 'Live Voice: ...and the call goes to the realtime URL with that key, answered at the edge');
+    }
+
+    /* ================= 7. IN FLIGHT (review r1): the key leaves a run that is going, its tools included ================= */
+    // A CUSTOM run on its own body key whose tools read the station's OpenRouter credential once, as it started. The model's first
+    // tooled turn is held at the upstream while the page changes its copy; then it asks for the tool. Red at bfca6be28: web_search's
+    // paid rung and image_generate each sent the removed key to its endpoint, and the run ended 'done' on it.
+    {
+      const s = await boot(station('inflight', {}));
+      const U = at('inflight');
+      const removedFor = tool => EC.credentialError({ id: 'openrouter', label: Reg.getProviderProfile('openrouter').label, kind: 'removed', what: 'this run', tool, env: 'OPENROUTER_API_KEY' });
+      const waitFor = async (pred, label) => { for (let i = 0; i < 300; i++) { if (pred()) return; await new Promise(r => setTimeout(r, 100)); } A.ok(false, label + ': timed out waiting'); };
+      const midRun = async (marker, content, extra, change) => {
+        const open = hold(marker);
+        const running = s.run(custom('inflight-' + marker.toLowerCase(), marker + ' ' + content, extra));
+        await waitFor(() => up.seen.some(r => r.path.startsWith('/model/') && JSON.stringify(r.body.messages || []).includes(marker) && Array.isArray(r.body.tools) && r.body.tools.length),
+          'in flight, ' + marker + ': the run\'s first tooled turn reached the model');
+        const changed = await change();
+        const mark = up.seen.length, edgeMark = s.edge().length;
+        open();
+        const events = await running;
+        return { events, changed, after: up.seen.slice(mark), edgeAfter: s.edge().slice(edgeMark) };
+      };
+      const save = key => s.engineKey({ provider: 'openrouter', key, keyPool: [], baseUrl: U });
+      const remove = () => s.engineKey({ provider: 'openrouter', key: '', keyPool: [], baseUrl: '' });
+      const toolText = (events, name) => { const r = events.find(e => e.name === 'agent.tool_result' && e.payload.callId === 'call_' + name); return r ? String(r.payload.summary || '') + ' ' + String(r.payload.error || '') : ''; };
+
+      // a. web_search's paid rung, removed mid-run
+      A.eq((await save(K.flight)).status, 200, 'in flight: the page saves its OpenRouter key with its endpoint');
+      const web = await midRun('INFLIGHT-WEB', 'SEARCH-THE-WEB', { isTask: true }, remove);
+      A.eq(web.changed.body && web.changed.body.keySource, 'none', 'in flight, web_search: the page REMOVEs its copy while the run\'s first turn is held');
+      A.eq(web.after.filter(r => r.key === K.flight).map(r => r.path), [], 'in flight, web_search: no request after the REMOVE carries the removed key (bfca6be28: the rung sent it with plugins:[web])');
+      A.ok(toolAnswer('/model/').includes(removedFor('web_search')), 'in flight, web_search: the search tells the model why the paid rung was passed over: ' + toolAnswer('/model/').slice(0, 300));
+      A.eq(ended(web.events), 'done', 'in flight, web_search: the run is on its own key, and goes on to done');
+
+      // b. image_generate, removed mid-run
+      A.eq((await save(K.flight)).status, 200, 'in flight: the page saves the key again');
+      const image = await midRun('INFLIGHT-IMAGE', 'Generate an image of a blue cube', { isTask: true, placed: ['studio'] }, remove);
+      A.eq(image.after.filter(r => r.key === K.flight).map(r => r.path), [], 'in flight, image_generate: no request after the REMOVE carries the removed key (bfca6be28: it posted modalities:[image] with it)');
+      A.eq(toolOk(image.events, 'image_generate'), false, 'in flight, image_generate: the call is refused');
+      A.ok(toolAnswer('/model/').includes(removedFor('the STUDIO image route')), 'in flight, image_generate: ...with the sentence: ' + toolAnswer('/model/').slice(0, 300));
+
+      // c. a rotation: the rung sends neither the rotated-away key nor, in this run, the new one; the next run uses the new one
+      A.eq((await save(K.flight)).status, 200, 'in flight: the page saves the key a third time');
+      const rotated = await midRun('INFLIGHT-ROTATE', 'SEARCH-THE-WEB', { isTask: true }, () => save(K.flight2));
+      A.eq(rotated.after.filter(r => r.key === K.flight || r.key === K.flight2).map(r => r.path), [], 'in flight, a rotation: the run in flight sends neither key from its rung');
+      A.ok(toolAnswer('/model/').includes(removedFor('web_search')), 'in flight, a rotation: ...and says why');
+      const next = await s.run(custom('inflight-after-rotation', 'SEARCH-THE-WEB', { isTask: true }));
+      A.eq(up.seen.filter(r => Array.isArray(r.body.plugins) && r.key === K.flight2).map(r => r.path), [U.replace(up.base, '') + '/chat/completions'], 'in flight, a rotation: the next run\'s rung sends the new key, at the saved endpoint');
+      A.eq(ended(next), 'done', '...and ends done');
+      A.eq(s.edge().filter(e => e.credentials.some(c => c.includes(K.flight) || c.includes(K.flight2))).map(e => e.host + e.path), [], 'in flight: neither key went to any other host');
     }
 
     /* ================= 6. no request carried a key anywhere but its own endpoint ================= */
