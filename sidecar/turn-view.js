@@ -51,10 +51,12 @@ function permitted(name, row, classification, c, o) {
   if (rule === 'own-stream') return !!o.streamId && row.streamId === o.streamId;
   return false;
 }
-function messages(rows, c, o) {
+const PROJECTED_ROWS = Symbol('turn-view.projected-rows');
+function messages(rows, c, o, accept) {
   const out = [], ids = [];
   for (const row of rows) {
     const classification = Kinds.classify(row, c);
+    if (typeof accept === 'function' && !accept(row, classification)) continue;
     let role = row.role, content = !o.legacy && o.form === 'pre' && row.role === 'user' && classification.cell !== 'dispatch-prompt' ? row.typed ?? row.content : row.content;
     if (!o.legacy && classification.kind === 'steer') { role = 'user'; content = text(row).startsWith('[steering] ') ? text(row) : '[steering] ' + text(row); }
     let message;
@@ -103,7 +105,17 @@ function project(name, input, ctx, opts) {
     : permitted(name, row, Kinds.classify(row, c), c, o));
   if (o.delivery === true) rows = rows.filter(row => c.isFinalDeliveryRow(row));
   if (Number.isSafeInteger(o.limit) && o.limit >= 0) rows = o.limit ? rows.slice(-o.limit) : [];
-  return name === 'model-replay' && o.rows !== true ? messages(rows, c, o) : rows.map(row => Object.assign({}, row));
+  if (name === 'model-replay' && o.rows !== true) return messages(rows, c, o);
+  const out = rows.map(row => Object.assign({}, row));
+  if (name === 'model-replay') Object.defineProperty(out, PROJECTED_ROWS, { value: { context: c, options: o } });
+  return out;
+}
+// Channel hop admission filters one already-visible assembly. Keep its classifier context (accepted
+// final, typed directive and steer rules) private and use this same shaper; never re-read or re-project.
+function projectedMessages(rows, accept) {
+  const projection = rows && rows[PROJECTED_ROWS];
+  if (!projection) throw new Error('message shaping requires model-replay rows from this view');
+  return messages(rows, projection.context, projection.options, accept);
 }
 function slice(messages, start, end) {
   const out = messages.slice(start, end);
@@ -116,4 +128,4 @@ function concat(...arrays) {
     value: arrays.flatMap(array => Array.isArray(array[ROW_IDS]) ? array[ROW_IDS] : array.map(() => null)), enumerable: false });
   return out;
 }
-module.exports = { ROW_IDS, project, ownerRow, slice, concat };
+module.exports = { ROW_IDS, project, ownerRow, slice, concat, messages: projectedMessages };
