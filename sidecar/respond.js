@@ -32,6 +32,11 @@
                                             the 413-too-large answer when res is provided).
      isAgentId(s)                         — the ID_RE shape every roster/cron/orchestration route
                                             enforces on agent ids (defense in depth over the fs jail).
+     refuseBadAgentId(res, id)            — the ONE answer to a malformed agent id on every agent route: 400
+                                            bad_agent_id in the fail() envelope. True when the id was refused (the
+                                            caller returns), even once the head went out; false for a valid id. A
+                                            malformed id is a bad request, never a 403 (a reader must not take it
+                                            for a refused key or a lost station).
 
    Pure over (res, req) — no fs, no stores, no secrets; nothing here may synthesize state
    (truthful telemetry applies to JSON, not just pixels). */
@@ -102,6 +107,14 @@ function fail(res, status, code, message, extra) {
   return true;
 }
 
+// A missing id and a malformed one are both bad_agent_id; the sentence says which, so the page's line is true.
+function refuseBadAgentId(res, id) {
+  if (isAgentId(id)) return false;
+  fail(res, 400, 'bad_agent_id', id == null || id === '' ? 'choose an agent first: no agent id came with this request'
+    : 'that agent id is not valid (1-40 letters, digits, _ or -)');
+  return true;   // refused even when the head already went out: a malformed id never reaches a store or the jail
+}
+
 const STAMPED = Symbol('starnet.failureCodes');
 function stampFailureCodes(res) {
   if (!res || res[STAMPED] || typeof res.writeHead !== 'function') return res;
@@ -127,4 +140,4 @@ async function readJsonBody(req, readBody, max, res) {
   catch (_) { return null; }
 }
 
-module.exports = { json, fail, stampFailureCodes, failureCodeFor, CODES, readJsonBody, isAgentId };
+module.exports = { json, fail, stampFailureCodes, failureCodeFor, CODES, readJsonBody, isAgentId, refuseBadAgentId };
