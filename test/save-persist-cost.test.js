@@ -25,9 +25,14 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-save-cost-'));
 try {
   const file = path.join(root, 'agent.save.json');
   const c = { reads: 0, fsyncs: 0, bigStringify: 0 };
+  // a durable write is the fsync of a TEMP's bytes before its rename: the directory fsync that makes the rename itself
+  // durable on POSIX (persist writeAtomic) is part of that one write, so only fsyncs of fds opened on a .tmp path count
+  const fdPath = new Map();
   const cfs = new Proxy(fs, { get(t, p) {
     if (p === 'readFileSync') return function (f) { if (String(f) === file) c.reads++; return t.readFileSync.apply(t, arguments); };
-    if (p === 'fsyncSync') return function (fd) { c.fsyncs++; return t.fsyncSync(fd); };
+    if (p === 'openSync') return function (f) { const fd = t.openSync.apply(t, arguments); fdPath.set(fd, String(f)); return fd; };
+    if (p === 'closeSync') return function (fd) { fdPath.delete(fd); return t.closeSync(fd); };
+    if (p === 'fsyncSync') return function (fd) { if (/\.tmp$/.test(fdPath.get(fd) || '')) c.fsyncs++; return t.fsyncSync(fd); };
     const v = t[p]; return typeof v === 'function' ? v.bind(t) : v;
   } });
   const realStringify = JSON.stringify;

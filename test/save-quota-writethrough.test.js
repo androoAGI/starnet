@@ -42,8 +42,9 @@ function memfs() {
   };
 }
 function makeStore() {
-  // no `require` in the context: savestore's fail-open note falls back to console.warn (hermetic, nothing on disk)
-  const ctx = vm.createContext({ module: { exports: {} }, console: { warn() {}, log() {} }, Buffer });
+  // the context's require loads only the sidecar modules savestore imports (failopen, and sidecar/persist, which owns its
+  // reads and writes): every byte the store touches is still the in-memory fs (hermetic, nothing on disk)
+  const ctx = vm.createContext({ module: { exports: {} }, require: rel => require(path.join(ROOT, 'sidecar', rel)), console: { warn() {}, log() {} }, Buffer });
   vm.runInContext(src('sidecar/savestore.js'), ctx);
   return ctx.module.exports.makeSaveStore({ fs: memfs(), pathMod: path.posix, root: '/ws', clock: { now: () => Date.now() } });
 }

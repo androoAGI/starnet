@@ -15,11 +15,12 @@
       and the unread mark; replaceJson's D1/D2; the names grammar.
    2. The store matrix: the general durable-store and the full-state stores, each built exactly as sidecar/index.js
       composes them (makeDurableJsonStore with the update-frozen writer and the host's quarantineCorrupt as onCorrupt;
-      persist.host's loadResilient/saveResilient), and the channel store's chat map and transcripts (makeChannelStore
-      with that writer, through loadChatMap/saveChatRecord and loadHistory/appendTurn), against every fault row, with
-      hard links working and again with linkSync failing as EPERM, ENOTSUP, ENOSYS, EXDEV, EINVAL and EISDIR (FAT/exFAT
-      and friends). A row speaks in values (V0..V3) and raw torn bytes; each store keeps a value in its own record
-      format. Every store must give the row's expected normalized outcome:
+      persist.host's loadResilient/saveResilient), the channel store's chat map and transcripts (makeChannelStore with
+      that writer, through loadChatMap/saveChatRecord and loadHistory/appendTurn) and the station save (makeSaveStore,
+      through loadState and save(): a preservation it cannot make is its unreadable refusal), against every fault
+      row, with hard links working and again with linkSync failing as EPERM, ENOTSUP, ENOSYS, EXDEV, EINVAL and EISDIR
+      (FAT/exFAT and friends). A row speaks in values (V0..V3) and raw torn bytes; each store keeps a value in its own
+      record format. Every store must give the row's expected normalized outcome:
         read  = value:<V> | empty | refused:unreadable
         write = ok | refused:unreadable | refused:corrupt | refused:unseen | threw:<errno>
         plus the main, the .bak and the forensic copies (byte-exact) afterwards, and never a temp.
@@ -28,13 +29,13 @@
       an unhandled corrupt record a refusal; a locked channel file is a typed refusal, never empty).
    3. Files written by the base code, legacy siblings beside them, read back unchanged.
    4. The composition manifest: index.js binds persist.host with the options this suite composes, its writer is the
-      update freeze over durable-write, and no sidecar composition of makeDurableJsonStore or makeChannelStore passes
-      an option the matrix lacks.
+      update freeze over durable-write, and no sidecar composition of makeDurableJsonStore, makeChannelStore or
+      makeSaveStore passes an option the matrix lacks.
 
-   The next steps add savestore (S2) and the journals and recovery files (S3) to the matrix. On a tree without
-   sidecar/persist (the base this suite is proved RED on) the primitive rows report the module missing, and the store
-   rows run that tree's own code: index.js's inline quarantineCorrupt/loadResilient/saveResilient, sliced from its
-   source and run as written, and the stores' own modules. */
+   The next step adds the journals and recovery files (S3) to the matrix. On a tree without sidecar/persist (the base
+   this suite is proved RED on) the primitive rows report the module missing, and the store rows run that tree's own
+   code: index.js's inline quarantineCorrupt/loadResilient/saveResilient, sliced from its source and run as written,
+   and the stores' own modules. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -46,6 +47,7 @@ const failopen = require('../sidecar/failopen.js');
 const DS = require('../sidecar/durable-store.js');
 const { writeFileDurable: writeFileDurableRaw } = require('../sidecar/durable-write.js');
 const { makeChannelStore } = require('../sidecar/channels/store.js');
+const { makeSaveStore } = require('../sidecar/savestore.js');
 
 let persist = null, missing = '';
 try { persist = require('../sidecar/persist/index.js'); }
@@ -198,6 +200,9 @@ function composeChannels(io, dir, opts) {
     limits: { maxTurns: o.maxTurns || 1 } });
   return { store, state };
 }
+// the station save store exactly as index.js composes it: no writer option (a station save's update freeze is the HTTP
+// mutation gate, 423), so it writes through persist itself
+function composeSave(io, dir) { return { save: makeSaveStore({ fs: io, pathMod: path, root: dir, clock: CLOCK }) }; }
 // a read through a store API that throws its refusals (the channel store): the same normalized outcome
 function readThrough(fn) {
   try { return fn(); }
@@ -225,6 +230,9 @@ function written(fn) {
 const enc = s => J(VALUES[s]);
 const chatEnc = s => J({ version: 1, chats: { c: { k: VALUES[s].k, lastSeen: 1 } } });
 const historyEnc = s => J({ version: 1, messages: [{ role: 'user', content: VALUES[s].k, ts: 1 }] });
+const UPDATED = { V0: 10, V1: 11, V2: 12, V3: 13 };   // each value's updatedAt: a row's write is always newer than its seed
+const saveDoc = s => ({ updatedAt: UPDATED[s], k: VALUES[s].k });
+const saveEnc = s => J({ version: 1, agentId: 'agent', updatedAt: UPDATED[s], savedAt: 1, doc: saveDoc(s) });
 const KINDS = {
   general: {
     file: dir => path.join(dir, KEY + '.json'), compose, enc,
@@ -271,6 +279,34 @@ const KINDS = {
     base: {
       main: '{"version":1,"messages":[{"role":"user","content":"hello","ts":1700000000000},{"role":"assistant","content":"hi there","ts":1700000000001}]}',
       bak: '{"version":1,"messages":[{"role":"user","content":"hello","ts":1700000000000}]}'
+    }
+  },
+  // savestore: the station file (agent.save.json) through loadState and save(), on the anti-clobber path every write
+  // passes (each is newer than what it replaces; the revision CAS of the HTTP route is the save tests' own)
+  savestore: {
+    seen: true, file: dir => path.join(dir, 'agent.save.json'), compose: composeSave, enc: saveEnc,
+    skip: { 'update freeze': 'index.js composes saveStore without the host writer: a station save is frozen by the HTTP mutation gate (423)' },
+    read(c) {
+      const r = c.save.loadState('agent');
+      if (r.status === 'unreadable') return 'refused:unreadable';
+      return r.doc ? 'value:' + nameOf(s => J(saveDoc(s)), J(r.doc)) : 'empty';
+    },
+    write(c, s) {
+      let r;
+      try { r = c.save.save('agent', saveDoc(s)); }
+      catch (e) { return 'threw:' + ((e && e.code) || (e && e.message) || e); }
+      if (r && r.ok === true) return 'ok';
+      if (r && r.quarantineFailed) return 'refused:corrupt';   // { ok:false, stale:true, unreadable:true, quarantineFailed:true }
+      if (r && r.unreadable) return 'refused:unreadable';
+      return 'refused:' + J(r);
+    },
+    // a station file as the base code wrote it (HTTP wrapper fields included), and base savestore's own numbered quarantine
+    base: {
+      main: '{"version":1,"agentId":"agent","updatedAt":5,"savedAt":1700000000000,"requestUpdatedAt":5,"revision":3,"client":"tab1","doc":{"schema":"starnet.save","updatedAt":5,"_saveRevision":3,"_saveClient":"tab1","agent":{"id":"agent","name":"Kept"}}}',
+      bak: '{"version":1,"agentId":"agent","updatedAt":4,"savedAt":1699999999000,"doc":{"schema":"starnet.save","updatedAt":4,"agent":{"id":"agent","name":"Kept"}}}',
+      reads: 'value:{"schema":"starnet.save","updatedAt":5,"_saveRevision":3,"_saveClient":"tab1","agent":{"id":"agent","name":"Kept"}}',
+      legacy: { 'corrupt-1': 'LEGACY savestore quarantine', '2.tmp': 'LEGACY savestore temp' },
+      next: 'corrupt-2'
     }
   }
 };
@@ -800,6 +836,10 @@ function same(got, want, label) {
           clock: 'CLOCK (lastSeen and ts are part of the bytes compared)',
           writeDurable: 'the update-frozen writer (row "update freeze"; the crash rows pass a dead writer pid through it)',
           onRecover: 'the recovered rows'
+        },
+        makeSaveStore: {
+          fs: 'every savestore row (the fault facade)', pathMod: 'every savestore row', root: 'every savestore row',
+          clock: 'CLOCK (savedAt is part of the bytes compared)'
         }
       };
       for (const name of Object.keys(RECORD_COVERED)) {
