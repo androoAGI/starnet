@@ -30,7 +30,7 @@
         keeps the credential, a purge destroys it, which trunk ignored), a generic channel and an agent-bound bot. Each seeded as trunk
         writes it; a replaced key and everything forgotten end in no file at all, .bak files included, and a restart brings none back.
 
-   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 55 problems, 50 ok. The first failures are row 1's: the
+   RED at trunk a3af8dafd, with this file copied into a scratch checkout: 54 problems, 51 ok. The first failures are row 1's: the
    connect's answer, then K1 in channels/secrets.json and its .bak, there after the rotation and the restart too, and K1 still in
    secrets.json.bak after the sync. Row 2 fails at the stranded key: the bot sends K1 after the page rotates to K2. Row 3 fails at
    the answer and at the restart, where the status line stays silent. Row 7 sends the older key. Rows 5 and 6 use the new file, so
