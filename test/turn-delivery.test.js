@@ -21,6 +21,7 @@ function thrown(fn) { try { fn(); return null; } catch (error) { return error; }
   A.eq(rows.length, 2, 'public delivery is distinct from hidden execution of the same run');
   A.eq(rows[1].kind, 'delivery', 'single public row uses the delivery kind');
   A.eq(rows[1].role, 'assistant', 'publication never invents an owner user directive');
+  A.eq(rows[1].taintKnown, undefined, 'missing source provenance remains unverified rather than implicitly clean');
   A.eq(first.turnId, Kinds.runTurnId(options.runId), 'the delivered reply keeps the run-derived turn identity');
   A.eq(f.store.view('model-replay', 'chat', { shape: 'pairs' }).map(row => row.content), [options.text], 'only the public answer enters canonical replay');
   A.eq(Delivery.write(f.store, Object.assign({}, options, { text: 'a repeated publication does not rewrite prior bytes' })), first, 'repeat publication returns the already accepted identity');
@@ -34,6 +35,23 @@ function thrown(fn) { try { fn(); return null; } catch (error) { return error; }
   A.eq(Delivery.write(f.store, options), first, 'an undone delivery remains idempotent evidence');
   A.eq(f.io.streamRows('chat'), count, 'retrying publication cannot resurrect an undone answer');
   A.eq(f.store.view('model-replay', 'chat', { shape: 'pairs' }), [], 'the undone answer stays absent from replay');
+}
+{
+  const f = fixture(), taint = 'forwarded material '.repeat(20);
+  const first = Delivery.write(f.store, Object.assign({}, options, { taint }));
+  const row = f.store.view('proof', 'chat', { complete: true })[0];
+  A.eq(row.taint, taint.slice(0, 200), 'public delivery preserves the Store-normalized source taint');
+  A.eq(row.taintKnown, true, 'explicit source taint keeps its provenance stamp');
+  A.eq(Delivery.write(f.store, Object.assign({}, options, { taint })), first, 'a source longer than200 characters remains idempotent under the exact Store normalization');
+  A.ok(!!thrown(() => Delivery.write(f.store, Object.assign({}, options, { taint: null }))), 'a retry cannot relabel proven tainted publication as clean');
+  A.eq(f.io.streamRows('chat'), 1, 'conflicting publication provenance never adds another row');
+  const clean = Delivery.write(f.store, Object.assign({}, options, { streamId: 'clean', taint: null }));
+  const cleanRow = f.store.view('proof', 'clean', { complete: true })[0];
+  A.eq([cleanRow.taintKnown, cleanRow.taint], [true, undefined], 'explicit proved clean source uses the existing known-clean stamp');
+  A.eq(Delivery.write(f.store, Object.assign({}, options, { streamId: 'clean', taint: null })), clean, 'proved clean publication is idempotent');
+  A.ok(!!thrown(() => Delivery.write(f.store, Object.assign({}, options, { streamId: 'clean', taint: 'new conflicting evidence' }))), 'a retry cannot claim an old clean row proves a tainted source');
+  A.ok(!!thrown(() => Delivery.write(f.store, Object.assign({}, options, { streamId: 'unknown', taint: undefined }))), 'an explicit undefined source cannot accidentally produce a clean stamp');
+  A.eq(f.io.streamRows('unknown'), 0, 'invalid provenance refuses before append');
 }
 {
   const f = fixture(), write = f.io.appendDurable;
