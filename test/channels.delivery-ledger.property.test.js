@@ -65,6 +65,7 @@
 const A = require('./_assert.js');
 const Sim = require('./helpers/channel-station-sim.js');
 const { readSidecarIndex } = require('./helpers/source.js');
+const Bags = require('./helpers/channel-hub-bags.js');
 
 const STEPS = 40;
 const FROM = process.env.CDL_SEED ? Number(process.env.CDL_SEED) : 1;
@@ -116,9 +117,15 @@ const CLAUSES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
 
   // ---- the source lock: every hub stands over the station's store (or a view of it), or a named one-job fire ----
   // index.js's own structure is the subject (which store each hub it builds is given), so the exact file
-  const lock = Sim.storeSiteProblems(readSidecarIndex());
+  const actualSource = readSidecarIndex(), lock = Sim.storeSiteProblems(actualSource);
   A.eq(lock.problems, [], 'every makeChannelHub and wireChannel site in index.js builds over channelStore, makeBotScopedStore(…) or perFireStore(…)');
-  A.ok(lock.sites >= 7, 'the lock saw the station Telegram, agent bot, Discord, generic, dev, sample and trigger hubs (' + lock.sites + ' sites)');
+  A.eq(lock.sites, 7, 'the census sees exactly the seven production constructor sites');
+  A.eq(lock.kinds, ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal', 'dev', 'sample', 'trigger', 'handoff'],
+    'the shared generic and trigger constructors expand to all ten effective kinds');
+  const common = Bags.topLevel(actualSource, 'makeHubDeps');
+  A.ok(!!common && /store: channelStore,/.test(common), 'the common factory has the actual station store binding');
+  const changed = actualSource.replace(common, common.replace('store: channelStore,', 'store: unrelatedStore,'));
+  A.ok(Sim.storeSiteProblems(changed).problems.length > 0, 'negative control rejects an unrelated shared factory store');
   A.eq(lock.oneJob.sort(), Object.keys(Sim.ONE_JOB_SITES).sort(), 'the one-job hubs over perFireStore are exactly the named exemptions: ' + JSON.stringify(Sim.ONE_JOB_SITES));
 
   A.report('channels.delivery-ledger.property.test');

@@ -287,7 +287,13 @@ for (const rel of ENDING_FILES) {
   A.eq(flags.map(where), [], rel + ': no run-end flag is read or written: a withdrawn run carries one endReason');
 }
 for (const rel of ENDING_FILES.slice(0, 2)) A.ok(!/\.endReason\b/.test(fileText(rel)) && /\bendOf\(/.test(fileText(rel)), rel + ': reads the ending only through endOf(rec)');
-A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('sidecar/channels/hub.js').match(/\bmarkEnd\(/g) || []).length === 4, 'the hub writes it for supersede, /stop, plain stop and the LineJob stop handle, always first-wins');
+const hubEndSource = fileText('sidecar/channels/hub.js');
+const prestartStop = /if \(lineJob && lineJob\.stopRequested\) \{\s*markEnd\(myRec, lineJob\.stopRequested === 'fault' \? 'faulted' : 'halted'\);\s*if \(await abandoned\(\)\) \{ withdrawn = true; return; \}\s*\}/.exec(hubEndSource);
+A.ok(!!prestartStop && prestartStop.index < hubEndSource.indexOf('if (!markAttempt({ runId: runId'),
+  'the prestart STOP receipt is consumed through first-wins markEnd and withdrawal before any run attempt');
+const withoutPrestartStop = prestartStop ? hubEndSource.replace(prestartStop[0], '') : hubEndSource;
+A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutPrestartStop.match(/\bmarkEnd\(/g) || []).length === 4,
+  'the other first-wins owners remain supersede, /stop, plain stop and the LineJob live stop handle');
 
 (async () => {
   /* ---- the assembler itself ---- */

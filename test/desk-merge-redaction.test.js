@@ -58,6 +58,7 @@ function harness(root, w, stationTurns, opts) {
   const sessions = new Map([[w.id, w]]);
   const context = vm.createContext({
     TurnMerge: require('./helpers/turnmerge').TurnMerge,
+    HistoryFit: require('../' + root + '/historyfit.js'), stationModes: {}, stationCaps: {},
     Date, WeakMap, Map, Set, Promise, AbortController, setTimeout, clearTimeout,
     Workstreams: { get: id => sessions.get(id) }, Channels: { isBusy: () => false },
     App: { persist() {} },

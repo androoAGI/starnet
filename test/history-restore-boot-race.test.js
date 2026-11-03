@@ -41,6 +41,7 @@ function harness(root, opts) {
   const respond = (req, status, turns) => { if (!req.done) { req.done = true; req.resolve({ ok: status >= 200 && status < 300, status, json: async () => ({ stream: w.id, turns }) }); } };
   const context = vm.createContext({
     TurnMerge: require('./helpers/turnmerge').TurnMerge,
+    HistoryFit: require('../' + root + '/historyfit.js'), stationModes: {}, stationCaps: {},
     Date: FakeDate, WeakMap, Map, Promise, AbortController,
     setTimeout: (fn, ms) => { const t = { id: ++seq, at: now + Math.max(0, Number(ms) || 0), fn }; timers.push(t); return t.id; },
     clearTimeout: id => { const i = timers.findIndex(t => t.id === id); if (i >= 0) timers.splice(i, 1); },

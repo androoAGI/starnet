@@ -327,11 +327,12 @@ const { routineRunIdentity, runsAsCommand, isRoutineTrigger } = require('./routi
 const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
 const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STEP-THROUGH TEST engine (/api/routing/steptest)
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
+const LineContinuation = require('./routing/line-continuation.js'); // private saved-walk and exact attempt authority; no public resume route
 const LineDraft = require('./routing/linedraft.js');   // WORKFLOWS › SET IT UP FOR ME — "what should it make?" → a starter, a name, each step's instructions (/api/routing/line-draft)
 const LineFix = require('./routing/linefix.js');   // NOT RIGHT? — a result the Commander doesn't want → fixes to the line's step instructions (/api/routing/fix-suggest)
 const { lineStats: foldLineStats } = require('./routing/line-stats.js');   // LINE WATCH: per-line runs/shipped/failed/$ + each bay's last outcome (GET /api/routing/lines/stats)
 const { makeLineShipments, validateShipments, loadShipmentReceipts, cleanJobRows, provenWork, SHIPMENT_KEEP_MS } = require('./routing/line-shipments.js');
-const { makeLineSpend } = require('./routing/line-spend.js');   // per-line DAY spend ledger (LINE BUDGET maxUsdPerDay) — durable sibling of routing.plan.json
+const { makeLineSpend, clean: cleanLineSpend, assertWritable: assertLineSpendWritable, DAY_MS: LINE_SPEND_DAY_MS } = require('./routing/line-spend.js');   // existing per-line DAY ledger and owned run receipts
 const LineTriggers = require('./routing/triggers.js');   // LINE TRIGGERS (2026-09-23): folder/webhook events that start ONE line
 const { makeTriggerRunner, crewedDocksOnLine } = require('./routing/trigger-runner.js');
 const { makeHandoffRunner } = require('./routing/handoff-runner.js');   // SEND TO: a line's OUTBOX hands its finished work on to another line
@@ -6291,15 +6292,16 @@ const LINE_SPEND_FILE = path.join(WORKSPACES, 'line-spend.json');
 const lineSpendStore = makeDomainStore({
   fs, path, file: LINE_SPEND_FILE, version: 1, writeDurable: writeFileDurable,
   defaults: () => ({}),
-  normalize: value => makeLineSpend().clean(value || {}),
-  encode: value => ({ lines: value }),
-  decode: envelope => envelope && envelope.lines && typeof envelope.lines === 'object' && !Array.isArray(envelope.lines) ? envelope.lines : undefined,
-  onIssue: reportDomainStoreIssue('line-spend')
+  normalize: value => cleanLineSpend(value || {}),
+  encode: value => { assertLineSpendWritable(value); return { lines: value }; },
+  decode: envelope => envelope && (envelope.version === undefined || envelope.version === 1)
+    && envelope.lines && typeof envelope.lines === 'object' && !Array.isArray(envelope.lines) ? envelope.lines : undefined,
+  onIssue: (status) => console.warn('[line-spend] canonical history unavailable (' + status + '); preserving stored bytes.')
 });
 const lineSpend = makeLineSpend({
   now: () => Date.now(),
-  load: () => lineSpendStore.load().value,
-  save: v => { try { lineSpendStore.save(v); } catch (e) { console.warn('[line-spend] persist failed:', (e && e.message) || e); } }
+  read: () => lineSpendStore.load(),
+  write: value => lineSpendStore.save(value)
 });
 /* SHIPPED is durable terminal-job evidence, independent of later floor edits.
    Older runs have no receipt and are never reconstructed into guessed shipments. Receipts are kept for the retention
@@ -13659,6 +13661,51 @@ function lineJobsSet(change) {
     failNote('linejobs.save', error);
     throw error;
   }
+}
+/* Private H3 checkpoint bridge. It does not resume a runner or expose a route.
+   The ledger owns exact run/day dedupe; the same LineJob owns the saved acknowledgement.
+   The two verified writes deliberately tolerate either lost ACK without buying another run. */
+function lineJobsBookReceipt(id, expectedRevision, runId) {
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 1) throw new Error('line-jobs: invalid receipt checkpoint revision');
+  const state = lineJobsRefresh(), job = LineJobs.get(state, id);
+  if (!job) throw new Error('line-jobs: receipt has no saved job');
+  const c = LineContinuation.demand(job.continuation, job);
+  const attempt = c.attempts.find(r => r.runId === runId && r.state === 'observed');
+  if (!attempt) throw new Error('line-jobs: receipt has no exact observed attempt');
+  const receipt = { runId, day: Math.floor(attempt.endedAt / LINE_SPEND_DAY_MS), usd: attempt.usd };
+  const prior = c.accounting.dayReceipts.find(r => r.runId === runId);
+  let candidate = null;
+  if (!prior) {
+    candidate = Object.assign({}, c, { revision: c.revision + 1,
+      accounting: Object.assign({}, c.accounting, { dayReceipts: c.accounting.dayReceipts.concat(receipt) }) });
+    // Validate the cursor/revision/accepted-decision invariant before touching money.
+    candidate = LineContinuation.checkpoint(c, job, expectedRevision, candidate);
+  }
+  // This private slice requires an explicitly initialized canonical ledger. After
+  // a restart, absence cannot distinguish first creation from a lost write whose
+  // job ACK never landed. Activation must initialize durably before paid intent.
+  if (lineSpendStore.load().status !== 'ok') throw new Error('line-jobs: receipt history has no verified canonical ledger');
+  const proof = lineSpend.note(job.line, attempt.usd, { jobId: job.id, runId, endedAt: attempt.endedAt });
+  if (!proof || proof.confirmed !== true || !proof.receipt || proof.receipt.jobId !== job.id || proof.receipt.runId !== runId
+    || proof.receipt.day !== receipt.day || proof.receipt.usd !== receipt.usd) throw new Error('line-jobs: original-day spend receipt is unconfirmed');
+  let replayed = false;
+  const kept = lineJobsSet(fresh => {
+    const latest = LineJobs.get(fresh, id);
+    if (!latest) throw new Error('line-jobs: saved job disappeared before receipt acknowledgement');
+    const current = LineContinuation.demand(latest.continuation, latest);
+    if (['binding', 'origin', 'restriction'].some(k => JSON.stringify(current[k]) !== JSON.stringify(c[k]))
+      || ['maxHops', 'maxUsd', 'maxUsdPerDay'].some(k => current.accounting.limits[k] !== c.accounting.limits[k])
+      || JSON.stringify(current.attempts.find(r => r.runId === runId)) !== JSON.stringify(attempt)) throw new Error('line-jobs: receipt authority changed before acknowledgement');
+    const accepted = current.accounting.dayReceipts.find(r => r.runId === runId);
+    if (accepted) {
+      if (accepted.day !== receipt.day || accepted.usd !== receipt.usd) throw new Error('line-jobs: saved receipt changed before acknowledgement');
+      replayed = true;
+      return { state: fresh, job: latest };
+    }
+    if (!candidate) throw new Error('line-jobs: an acknowledged receipt disappeared');
+    return LineJobs.checkpoint(fresh, id, expectedRevision, candidate);
+  });
+  return { job: kept, receipt, replayed };
 }
 /* GET /api/line-jobs?line=&stream=&runId=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
    cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|

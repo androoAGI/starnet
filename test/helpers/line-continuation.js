@@ -19,7 +19,7 @@ function fixture() {
       product: clone(product), originalText: job.text, lastHanded: 'draft before review', producerVerdict: 'blocked', hop: 0, loopHops: 0, visited: [node.dockId],
       gates: [{ id: '12,4', count: 1, max: 5 }], openLoops: [], fromTile: null, via: null,
       entryOutput: clone(product), branchMode: false, pending: [], forced: null, fan: null, partial: null, unapproved: null },
-    barriers: [], accounting: { entryUsd: 0.125, hopUsd: 0, runIds: ['run-entry'], dayReceipts: [{ runId: 'run-entry', day: 20000, usd: 0.125 }],
+    barriers: [], accounting: { entryUsd: 0.125, hopUsd: 0, runIds: ['run-entry'], dayReceipts: [{ runId: 'run-entry', day: 0, usd: 0.125 }],
       limits: { maxHops: 24, maxUsd: 2, maxUsdPerDay: 10 } },
     attempts: [{ ordinal: 1, runId: 'run-entry', node: clone(node), branchId: null, workitemId: 'crate-entry', state: 'observed',
       inputDigest: digest(job.text), outputDigest: digest(product.text), usd: 0.125, usageMissing: false, outcome: 'succeeded', at: 100, endedAt: 110 }],

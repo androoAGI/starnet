@@ -315,6 +315,7 @@ test('an explicit reveal survives the load\'s server-history repaint; a reader g
       log,flushSysRuns(){},activeWs:ws,historyPinSeq:1,historyPinPending:1,stick:true,userScrollAt:0,revealKey:'',historyLoads:new Map([[ws,read]]),
       requestAnimationFrame:fn=>frames.push(fn),nearBottom:()=>log.scrollHeight-log.scrollTop-log.clientHeight<40,hideNewPill(){},showNewPill(){},
       Workstreams:{get:()=>ws},Channels:{isBusy:()=>false},noteContinuity(){},TurnMerge:require('./helpers/turnmerge').TurnMerge,placeSteerNotes:rows=>rows,App:{persist(){}},
+      HistoryFit:require('../frontend/app/historyfit.js'),stationModes:{},stationCaps:{},
       fetch:async()=>({ok:true,json:async()=>({turns:[{role:'assistant',content:'the lead followed up '+Math.random()}]})}),
       renderHistory(){},replayChannel(){},syncStatus(){},maybeEmptyState(){},Delegated:{presentFor:async()=>{current=makeRow();}},
       AbortController,setTimeout,clearTimeout,Date,JSON,String,Promise});

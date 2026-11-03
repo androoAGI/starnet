@@ -17,6 +17,7 @@ const { readSidecarSource } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
+const Bags = require('./helpers/channel-hub-bags.js');
 const { makeChannelAdapter } = require('../sidecar/channels/adapter.js');
 const { makeChannelHub, parseUserCommand, COMMANDS } = require('../sidecar/channels/hub.js');
 const slash = require('../sidecar/slash.js');
@@ -160,16 +161,17 @@ const settle = () => new Promise(r => setTimeout(r, 10));
   // ---- 5. wiring: every channel control-surface hub carries the registry + the Commander's names ----
   {
     const idx = readSidecarSource();
-    const starts = [];
-    // a construction (`= makeChannelHub({` / `return makeChannelHub({`), never the signature quoted in hub.js's header;
-    // a registry hub's wireChannel deps may lead with the host-path scrub (`outbound: scrubOutbound,`, run-paths lane)
-    const re = /(?:=|\breturn)\s*makeChannelHub\(\{|wireChannel\([^\n]*\{\s*\n(?:\s*outbound: [\w$.]+,[^\n]*\n)?\s*hub: \{/g;
-    let m;
-    while ((m = re.exec(idx))) starts.push(m.index);
-    // every messenger hub — not the sample-crate route or a line trigger, which have no chat senders to type one
-    const surfaces = starts.map(i => idx.slice(i, idx.indexOf('\n  });', i))).filter(b => !/channel: '(sample|trigger)'/.test(b));
-    A.ok(surfaces.length >= 5, 'found the Telegram, multi-bot, Discord, generic and dev hubs (' + surfaces.length + ')');
-    A.ok(surfaces.every(b => /runSlash:/.test(b) && /userCommandNames:/.test(b)), 'every one is handed runSlash + userCommandNames');
+    const surfaces = ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal', 'dev'];
+    for (const kind of surfaces) {
+      const props = Bags.productionHubBag(kind).props;
+      const hooks = Bags.evaluate(props, ['runSlash', 'userCommandNames'], {
+        runSlashForChannel: () => 'shared-registry', userCommandEntries: () => [{ name: 'standup' }]
+      });
+      A.eq(hooks.runSlash('/standup', {}), 'shared-registry', kind + ': the merged bag reaches the shared slash owner');
+      A.eq(hooks.userCommandNames(), ['standup'], kind + ': the merged bag reads the Commander command names');
+    }
+    for (const kind of ['sample', 'trigger', 'handoff']) A.ok(!Bags.productionHubBag(kind).props.some(p => p.key === 'runSlash' || p.key === 'userCommandNames'),
+      kind + ': a one-job hub has no ambient chat command authority');
     A.ok(/function publishCommandMenu[\s\S]{0,700}channelMenuCommands\(\)/.test(idx), 'the published menu includes the Commander\'s commands');
     A.ok(/userExecRefusal\(out\.directive\.name, \{ chatType: ctx\.chatType/.test(idx), 'runSlashForChannel words its refusal per chat');
   }
