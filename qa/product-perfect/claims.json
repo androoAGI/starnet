@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "a56aeee7e39c3ca0701fc086e07315cd75ea2ac7",
+    "sourceCommit": "25c5c1e4e9ecd51d01397e1dfaaf1db82ed2f0a4",
     "pathSetSha256": "7d588b0892082bdc1b906bd2dbb44dddec43d193f1516eca5d9e2b99c0fce425",
     "files": [
       {
@@ -318,8 +318,8 @@
       },
       {
         "path": "frontend/app/bootguard.js",
-        "bytes": 20371,
-        "sha256": "0fa65ac42e41528941f1919d96b2a1e28bc93901ee5d96221a2e10044929b4a1"
+        "bytes": 30989,
+        "sha256": "78abee47dd71b324433b53ee3ded79f8cb5282ef8a31d37c82389a43c42e7f8d"
       },
       {
         "path": "frontend/app/bottlestore.js",
@@ -463,8 +463,8 @@
       },
       {
         "path": "frontend/app/diagnostics.js",
-        "bytes": 25158,
-        "sha256": "cd769ef9b57047eba89f8164b33ac4f5f00bb3d03fc3d366ef8ff0485a3e5c23"
+        "bytes": 25302,
+        "sha256": "5a2d1b5e82024a85d60d2719a9a719c7504d09fb27a6c94f5be61585581ca0cb"
       },
       {
         "path": "frontend/app/dialogue.js",
