@@ -104,8 +104,8 @@ for (const text of CORPUS) {
   const start = chatSrc.indexOf('    let speechClosed = false;'), end = chatSrc.indexOf('\n    try {', start);
   A.ok(start > 0 && end > start, 'the streamer closure is sliced');
   const spokenChunks = [];
-  const ctx = { SpeechSplit: require('../frontend/app/speech-split.js'), Voice: { speakChunk: s => spokenChunks.push(s), endReply() {} }, willSpeak: true,
-    speechOwner: () => true, speakSafe: s => s, spokenIdx: 0, acc: '', name: 'agent', speechOpts: {}, Date: { now: () => 10000 },
+  const ctx = { SpeechSplit: require('../frontend/app/speech-split.js'), Voice: { speakChunk: (reply, s) => spokenChunks.push(s), endReply() {} }, willSpeak: true,
+    speechOwner: () => true, speakSafe: s => s, spokenIdx: 0, acc: '', name: 'agent', speech: {}, Date: { now: () => 10000 },
     setTimeout: () => 0, clearTimeout() {} };
   vm.createContext(ctx); vm.runInContext(chatSrc.slice(start, end) + '\nthis.push = pushSpeech;', ctx);
   for (let i = 0; i < c.length; i += 7) { ctx.acc = c.slice(0, i + 7); ctx.push(false); }

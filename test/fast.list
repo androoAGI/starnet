@@ -436,6 +436,12 @@ test/voice-flow.test.js
 test/voice-stream.test.js
 test/voice.draftguard.test.js
 test/voice.mic-release.test.js
+test/voice-reply.census.test.js
+test/voice-reply-lifecycle.invariant.test.js
+test/voice-live-turns.table.test.js
+test/voice-speaker.property.test.js
+test/voice-start-ownership.test.js
+test/voice-speech-integration.test.js
 test/save.test.js
 test/saveversion.test.js
 test/backup-secrets.test.js

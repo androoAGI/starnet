@@ -34,7 +34,7 @@ const SO = require('../sidecar/speech-outcome.js');
 const { makeMediaService } = require('../sidecar/media-service.js');
 
 const ROOT = path.join(__dirname, '..');
-const VOICE_SRC = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'voice.js'), 'utf8');
+const { bootVoice } = require('./helpers/voice-rig.js');
 const HARNESS_SRC = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'harness.js'), 'utf8');
 const CLASSIFY_API_FAILURE = (() => {
   const m = /(  function classifyApiFailure\([\s\S]*?\n  \})/.exec(HARNESS_SRC);
@@ -178,8 +178,7 @@ function desk(envelope, harness) {
   };
   sandbox.globalThis = sandbox;
   vm.createContext(sandbox);
-  vm.runInContext(VOICE_SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester', now: () => state.clock });   // the injected clock (gh#38): cold-offs move only when the test moves it
   Voice.setSpeakReplies(true);
   return { Voice, nodes, state, title: () => String(nodes['voice-toggle'].title || '') };
