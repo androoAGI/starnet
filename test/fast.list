@@ -226,6 +226,9 @@ test/spend.compaction-accounting.test.js
 test/spend.compaction-admission.test.js
 test/spend.compaction-pool.test.js
 test/spend.fallback-cost.test.js
+test/limits-registry.completeness.test.js
+test/effective-limits.test.js
+test/limits.persistence.test.js
 test/loopguard.test.js
 test/loopguard.dispatch.test.js
 test/continuation-guard.test.js

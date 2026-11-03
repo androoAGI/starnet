@@ -31,8 +31,8 @@ const side = readSidecarSource();
 
 // the real knob code: the boot reader + resolver, the CAPS line, the defs/status, and the POST handler
 const BOOT = part(side, 'let runtimeKnobs = (function loadRuntimeKnobsAtBoot() {', '\n// maxIters: optional per-run tool-turn ceiling.');
-const CAPS_LINE = part(side, 'const CAPS = {', '\n');
-const DEFS = part(side, 'const RUNTIME_KNOB_DEFS = [', 'function handleRuntimeKnobsGet(');
+const CAPS_LINE = part(side, 'const CAPS = ', '\n');
+const DEFS = part(side, 'const RUNTIME_KNOB_DEFS = ', 'function handleRuntimeKnobsGet(');
 const SET = part(side, 'async function handleRuntimeKnobsSet(req, res) {', '\nfunction setProviderRuntimeConfig(');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'unpriced-ceiling-'));
@@ -42,6 +42,8 @@ const FILE = path.join(dir, 'runtime.knobs.json');
 function boot(env) {
   const ctx = vm.createContext({
     fs, console: { warn: () => {} }, Object, Number, String, JSON, Math, isFinite,
+    limitsRegistry: require('../sidecar/limits-registry.js'), saveJsonVerified: require('../sidecar/durable-store.js').saveJsonVerified,
+    MAX_CONCURRENT_AGENTS: 0, CRON_TICK_MS: 60000,
     RUNTIME_KNOBS_FILE: FILE,
     ENV: suffix => (env || {})[suffix],
     CONSENT_TIMEOUT_MS: 120000, CONSENT_ACK_EXTEND_MS: 600000,
@@ -180,17 +182,19 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
     const coreEnd = side.indexOf('\nasync function ', core + 10);
     const from = lineOf(core), to = coreEnd > 0 ? lineOf(coreEnd) : lines.length;
     const readers = lines.map((l, i) => [i, l]).filter(([, l]) => /CAPS\.max(Unpriced|Subscription)Tokens/.test(l) && !/^\s*\/\//.test(l));
-    const outside = readers.filter(([i, l]) => !/^const CAPS = \{/.test(l) && !(i > from && i < to));
-    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore');
+    const activeStart = lineOf(side.indexOf('function activeRuntimeKnobs() {'));
+    const activeEnd = lineOf(side.indexOf('\n}', side.indexOf('function activeRuntimeKnobs() {')));
+    const outside = readers.filter(([i, l]) => !/^const CAPS = /.test(l) && !(i > from && i < to) && !(i > activeStart && i <= activeEnd));
+    A.eq(outside.map(([i, l]) => (i + 1) + ': ' + l.trim().slice(0, 80)), [], 'no boot-time copy of CAPS.max*Tokens outside runOnceCore and the active-status getter');
     A.ok(readers.length >= 3, 'the run seam reads them (' + readers.length + ' lines)');
-    A.ok(/for \(const d of RUNTIME_KNOB_DEFS\) if \(d\.live\) CAPS\[d\.key\] = resolveKnob\(d\.env, d\.key, d\.def\);/.test(side), 'the save re-resolves live knobs through resolveKnob (env > saved > default)');
-    A.eq(side.match(/\{ key: '\w+', env: '\w+', def: \d+, min: \d+, max: \d+, live: true \}/g).map(m => m.match(/key: '(\w+)'/)[1]), ['maxSubscriptionTokens', 'maxUnpricedTokens'], 'only the two per-run token ceilings are live');
+    A.ok(/for \(const d of RUNTIME_KNOB_DEFS\) if \(d\.applies === 'next-run'\) CAPS\[d\.key\] = resolveKnob\(d\.key\);/.test(side), 'the save re-resolves live knobs through resolveKnob (env > saved > default)');
+    A.eq(require('../sidecar/limits-registry.js').definitions('runtime').filter(d => d.applies === 'next-run').map(d => d.key), ['maxSubscriptionTokens', 'maxUnpricedTokens'], 'only the two per-run token ceilings are live');
   }
 
   // ---- the Settings row: in the existing Runtime limits list, the sidecar's bounds, says 0 and restart ----
   const ui = read('frontend/app/stationui.js');
-  const uc = vm.createContext({});
-  vm.runInContext(part(ui, '  const ADV_FIELDS = [', '\n  ];') + '\n  ];\n;this.F = ADV_FIELDS;', uc);
+  const uc = { F: require('../sidecar/limits-registry.js').definitions('runtime') };
+  A.ok(!/const ADV_FIELDS\s*=/.test(ui) && /definitions\.map\(f =>/.test(ui), 'Settings renders the server-owned definitions instead of a copied list');
   const row = uc.F.find(f => f.key === 'maxUnpricedTokens');
   const sib = uc.F.find(f => f.key === 'maxSubscriptionTokens');
   A.ok(!!row, 'Runtime limits has a maxUnpricedTokens row');
@@ -198,8 +202,8 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
   A.eq(row && [row.min, row.max, row.step], sib && [sib.min, sib.max, sib.step], 'same bounds and step as SIGN-IN TOKEN CEILING');
   // spend-governor S1: the seatbelt covers every sign-in plan (ChatGPT, Grok, Kimi, a Claude subscription), and its row says so
   A.ok(sib && sib.label === 'SIGN-IN TOKEN CEILING' && /ChatGPT, Grok, Kimi or a Claude subscription/.test(sib.hint), 'the sign-in ceiling is named for every sign-in it covers: ' + (sib && sib.label));
-  A.ok(row && /0 = no ceiling/.test(row.hint) && /next run/.test(row.hint) && !/restart/.test(row.hint) && /price/.test(row.hint), 'the hint says what it governs, 0 = no ceiling, and when it applies: ' + (row && row.hint));
-  A.ok(sib && /next run/.test(sib.hint) && !/restart/.test(sib.hint), 'and so does SIGN-IN TOKEN CEILING: ' + (sib && sib.hint));
+  A.ok(row && /0 = no ceiling/.test(row.hint) && row.applies === 'next-run' && /price/.test(row.hint), 'the hint says what it governs, 0 = no ceiling, and when it applies: ' + (row && row.hint));
+  A.ok(sib && sib.applies === 'next-run', 'and so does SIGN-IN TOKEN CEILING: ' + (sib && sib.hint));
   A.eq(uc.F.length, 6, 'one new row, nothing else added');
 
   // ---- limits.set (station.power) carries every Runtime limits key ----

@@ -40,10 +40,14 @@ const PASS_KINDS = ['reflection', 'failure-review', 'study', 'threadmine', 'scou
 {
   const offenders = [];
   for (const f of sidecarSourceFiles()) {
-    f.text.split('\n').forEach((l, i) => {
+    const lines = f.text.split('\n');
+    const runGuard = lines.findIndex(l => /^    function stopForSpend\(/.test(l));
+    const runGuardEnd = lines.findIndex((l, i) => i > runGuard && /^    \}$/.test(l));
+    lines.forEach((l, i) => {
       const code = l.replace(/\/\/.*$/, '');
       if (!/\bbudget\.check\(/.test(code) || /^\s*(\*|\/\*)/.test(l)) return;
-      const allowed = (f.rel === 'sidecar/billing-class.js') || (f.rel === 'sidecar/loop.js' && /const b = budget\.check\(spentUsd, nextCallUsd\);/.test(code));
+      const allowed = (f.rel === 'sidecar/billing-class.js') || (f.rel === 'sidecar/loop.js' && runGuard >= 0 && i > runGuard && i < runGuardEnd
+        && /const b = budget\.check\(spentUsd, callBound\);/.test(code));
       if (!allowed) offenders.push(f.rel + ':' + (i + 1) + ': ' + l.trim().slice(0, 100));
     });
   }
@@ -85,8 +89,9 @@ function startFake() {
 }
 
 const ENV = { STARNET_IPC_TOKEN: IPC, STARNET_BUDGET_PER_DAY: '1', SKYNET_AUX_BUDGET: '0', STARNET_DEBUG_CHANNELS: '1',
+  STARNET_WORKER_STALL_MS: '450000.9', STARNET_WORKER_STALL_IN_TOOL_MS: '100', STARNET_WORKER_MAX_ITERS: '3.5',
   STARNET_SKILL_REVIEW: '0', STARNET_SKILL_CURATOR: '0', STARNET_DEFAULT_MODEL: 'or/model', STARNET_CREDITS_URL: '', STARNET_CLOUD_URL: '' };
-for (const name of ['OPENROUTER_KEY', 'OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'XAI_API_KEY', 'CREDITS_API_KEY', 'AUX_MODEL', 'REFLECT_MODEL']) { ENV[name] = ''; ENV['STARNET_' + name] = ''; ENV['SKYNET_' + name] = ''; }
+for (const name of ['OPENROUTER_KEY', 'OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'XAI_API_KEY', 'CREDITS_API_KEY', 'AUX_MODEL', 'REFLECT_MODEL', 'MAX_ITERS', 'MAX_SUBSCRIPTION_TOKENS']) { ENV[name] = ''; ENV['STARNET_' + name] = ''; ENV['SKYNET_' + name] = ''; }
 
 function seed(workspace) {
   fs.mkdirSync(path.join(workspace, 'codex'), { recursive: true });
@@ -160,6 +165,26 @@ async function capArm(fake, shim) {
     await t.push('openrouter', 'or-fixture-key');
     await t.push('codex', '');
     await t.roster('openrouter');
+
+    // Readback comes from enforcing owners and actual station routes. Saving a restart-only choice must
+    // not advertise it as active, while the sign-in ceiling applies to the next run immediately.
+    const inventory = (await fixture.json('GET', '/api/budget/status')).body.effective;
+    A.ok(inventory && inventory.classes.includes('metered') && inventory.classes.includes('subscription'), 'effective inventory includes both configured payer routes');
+    const effectiveRow = (value, key) => value && value.rows.find(r => r.key === key);
+    const day = effectiveRow(inventory, 'perDay');
+    A.eq(day && [day.value, day.source], [1, 'env'], 'effective day rail is the actual configured cap');
+    A.eq([effectiveRow(inventory, 'workerStallMs').value, effectiveRow(inventory, 'workerStallInToolMs').value], [450000, 450000], 'liveness readback uses owner normalization and the tool-silence floor');
+    A.eq(effectiveRow(inventory, 'workerIters').value, 3, 'worker turn readback matches the whole-turn ceiling');
+    A.eq(effectiveRow(inventory, 'perRun').inUse, ['metered'], 'the plan route has no dollar-run cap');
+    const knobs = (await fixture.json('GET', '/api/runtime/knobs')).body;
+    A.eq(knobs.definitions.map(d => d.key), require('../sidecar/limits-registry.js').keys('runtime'), 'real API supplies the editor definitions');
+    const pending = await fixture.json('POST', '/api/runtime/knobs', { maxIters: 2, maxSubscriptionTokens: 3000000 });
+    A.eq(pending.status, 200, 'runtime limit choices saved through real handler');
+    A.ok(/next run/.test(pending.body.appliesMessage) && /restart/.test(pending.body.appliesMessage), 'save distinguishes the two application times');
+    const changed = (await fixture.json('GET', '/api/budget/status')).body.effective;
+    A.eq([effectiveRow(changed, 'maxIters').value, effectiveRow(changed, 'maxIters').nextValue], [0, 2], 'restart-only value remains pending');
+    A.eq([effectiveRow(changed, 'maxSubscriptionTokens').value, effectiveRow(changed, 'maxSubscriptionTokens').source], [3000000, 'saved'], 'next-run sign-in ceiling is active and saved');
+    A.eq((await fixture.json('POST', '/api/runtime/knobs', { maxIters: null, maxSubscriptionTokens: null })).status, 200, 'restore fixture defaults before paid-path proofs');
 
     // ===== ON THE KEY: under the cap the one-shot runs; a $2 run reaches the cap, and from there no metered call goes out =====
     const draft = await t.lineDraft();

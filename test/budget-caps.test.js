@@ -6,7 +6,7 @@
       writes, and a corrupt/negative persisted value silently falls back to env (never grants headroom).
    3) SOURCE GUARD: the frontend Budget panel + the /api/budget/caps endpoint + status fields actually exist. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
 const fs = require('fs');
 const path = require('path');
 const A = require('./_assert.js');
@@ -101,7 +101,10 @@ const ENV = { perRun: 3, perAgent: 5, perDay: 40, global: 100 };   // a fully-go
   const idx = readSidecarSource();
   A.ok(/\/api\/budget\/caps/.test(idx) && /handleBudgetCaps/.test(idx), 'POST /api/budget/caps route + handler present');
   A.ok(/require\('\.\/budgetcaps\.js'\)/.test(idx), 'host uses the pure budgetcaps helper (single source of logic)');
-  A.ok(/const budgetStore = makeDomainStore/.test(idx) && /budgetStore\.load\(\)\.value/.test(idx) && /budgetStore\.save\(budgetOverrides\)/.test(idx), 'caps persist via the normalized domain store (durable + .bak + read-back proof)');
+  const save = sidecarTopLevelFunction('saveBudgetOverrides');
+  A.ok(/const budgetStore = makeDomainStore/.test(idx) && /budgetStore\.load\(\)\.value/.test(idx)
+    && /budgetOverrides = budgetStore\.save\(next\)\.value;/.test(save) && !/catch\s*\(/.test(save),
+    'caps adopt only the normalized value returned by verified durable save; failures propagate before memory changes');
   A.ok(/applyBudgetCaps/.test(idx) && /budget\.setCaps/.test(idx), 'saved caps apply LIVE to the governor (no restart)');
   A.ok(/spentToday:\s*known \? ledger\.usdForDay\(now\) : null/.test(idx), 'status exposes spentToday from the real ledger read path');
   A.ok(/lifetime:\s*ledger\.totalUsd/.test(idx), 'status exposes lifetime from the real ledger read path');

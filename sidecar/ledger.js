@@ -276,6 +276,7 @@
         }
         return null;
       },
+      unknownChargeFloorUsd() { return unknownChargeUsd; },   // readback of the actual configured assumption floor, never a measured charge
       pendingRuns() { return pending.size; },
       all() { return rows.map(r => Object.assign({}, r)); },
       count() { return rows.length; },

@@ -47,6 +47,7 @@ const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
 const { makeTierList } = require('./tierlist.js');   // editorial model tier list from the linked cloud (picker badges)
 const { makeCreditsLink } = require('./credits-link.js');   // device-pairing client + durable link config (inert unless STARNET_CLOUD_URL is set)
+const limitsRegistry = require('./limits-registry.js');
 const budgetCaps = require('./budgetcaps.js');   // pure resolve(env,overrides) + validate patch — SETTINGS→Budget (P0-2)
 const fallbackChain = require('./fallbackchain.js');   // pure resolve(env,saved) + validate patch — SETTINGS→Models fallback chain (P0-3)
 const voiceChatRoute = require('./voice-chat-route.js');   // pure planner — SETTINGS→Models voice chat model (a spoken turn's own model)
@@ -848,15 +849,7 @@ let runtimeKnobs = (function loadRuntimeKnobsAtBoot() {
   // saveResilient writes a <file>.bak last-known-good snapshot; if the main file is torn/corrupt at boot, fall
   // back to that .bak instead of silently dropping every saved knob to env/default. (Inline .bak recovery — this
   // runs before loadResilient/readJsonResilient are usable due to declaration order, per the hardening plan.)
-  function parseKnobs(raw) {
-    const k = (raw && typeof raw === 'object' && raw.knobs && typeof raw.knobs === 'object') ? raw.knobs : {};
-    const out = {};
-    for (const key of ['maxIters', 'maxConcurrentAgents', 'consentTimeoutMs', 'cronTickMs', 'maxSubscriptionTokens', 'maxUnpricedTokens']) {
-      const v = k[key];
-      if (typeof v === 'number' && isFinite(v) && v >= 0) out[key] = Math.floor(v);
-    }
-    return out;
-  }
+  const parseKnobs = limitsRegistry.parseKnobs;
   try { return parseKnobs(JSON.parse(fs.readFileSync(RUNTIME_KNOBS_FILE, 'utf8'))); }
   catch (_) {
     try {
@@ -866,13 +859,10 @@ let runtimeKnobs = (function loadRuntimeKnobsAtBoot() {
     } catch (__) { return {}; }   // no usable main or .bak -> no overrides (fail-soft to env/default)
   }
 })();
+const runtimeBootSaved = Object.assign({}, runtimeKnobs);   // source of boot-frozen active values, separate from pending settings
 // resolve a knob: explicit env (via ENV suffix) > saved override > built-in default. envSuffix null = no env for it.
-function resolveKnob(envSuffix, savedKey, def) {
-  if (envSuffix) { const e = ENV(envSuffix); if (e != null && String(e).trim() !== '' && Number(e) >= 0) return Math.floor(Number(e)); }
-  const s = runtimeKnobs[savedKey];
-  return (typeof s === 'number' && s >= 0) ? s : def;
-}
-function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null; return e != null && String(e).trim() !== '' && Number(e) >= 0; }
+function resolveKnob(key) { return limitsRegistry.resolve(key, ENV, runtimeKnobs); }
+function knobEnvLocked(envSuffix) { return limitsRegistry.envLocked(ENV, envSuffix); }
 
 // maxIters: optional per-run tool-turn ceiling. Default OFF (0); users/deploys may opt into one.
 // maxToolBytes: the per-run tool-output FLOOR — the effective cap scales with the model's context window
@@ -886,7 +876,7 @@ function knobEnvLocked(envSuffix) { const e = envSuffix ? ENV(envSuffix) : null;
 // (handleRuntimeKnobsSet), so the next run uses the new value without a restart.
 // maxSubscriptionTokens: per-run TOKEN ceiling for $0 sign-in attempts (billing-class.js 'subscription': ChatGPT, Grok, Kimi, a Claude
 // subscription); cache re-reads count 1/10 (loop.js SIGN-IN SEATBELT). STARNET_MAX_SUBSCRIPTION_TOKENS or SETTINGS › APP & BACKUP; 0 disables.
-const CAPS = { maxIters: resolveKnob('MAX_ITERS', 'maxIters', 0), maxRepeat: 3, toolTimeoutMs: 30000, maxToolBytes: resolveKnob('MAX_TOOL_BYTES', 'maxToolBytes', 120000), maxUnpricedTokens: resolveKnob('MAX_UNPRICED_TOKENS', 'maxUnpricedTokens', 2000000), maxSubscriptionTokens: resolveKnob('MAX_SUBSCRIPTION_TOKENS', 'maxSubscriptionTokens', 2000000) };
+const CAPS = limitsRegistry.caps(ENV, runtimeKnobs);
 const MAX_TOOL_BYTES_PINNED = knobEnvLocked('MAX_TOOL_BYTES');
 const MCP_CALL_TIMEOUT_MS = 120000;   // default connector call/handshake budget (mcp/manager.js); per-connector timeoutMs overrides
 // Spend governance: per-run, per-agent and global ceilings default OFF; per-DAY ships ON as a soft rail
@@ -905,18 +895,13 @@ let lastToolFootprintLog = '';   // de-dupes the [tools] footprint log line to c
 // Users may retune any cap in SETTINGS › SPENDING LIMITS (0/blank = no cap); environment variables
 // still override for locked-down deploys. Unmetered subscription runs remain ungoverned.
 const BUDGET_SHIPPED = budgetCaps.shippedDefaults();
-const BUDGET_CAPS = {
-  perRun: num(ENV('BUDGET_PER_RUN'), BUDGET_SHIPPED.perRun),
-  perAgent: num(ENV('BUDGET_PER_AGENT'), BUDGET_SHIPPED.perAgent),   // multi-agent fairness rail: one agent's cumulative spend (0 = ungoverned; default OFF — a lifetime cap punishes engagement, not runaways)
-  perDay: num(ENV('BUDGET_PER_DAY'), BUDGET_SHIPPED.perDay),         // $25/day soft rail: run ends 'budget'/'day', one-click RESUME in the Budget panel
-  global: num(ENV('BUDGET_GLOBAL'), BUDGET_SHIPPED.global)
-};
+const BUDGET_CAPS = Object.fromEntries(limitsRegistry.definitions('spending').map(d => [d.key, num(ENV(d.env), d.def)]));
 // Issue #53: what a StarNet-credit run reserves (= its per-run ceiling) when no positive per-run cap is in force.
 // budgetcaps.DEFAULT_MANAGED_PER_RUN_USD explains the number; SKYNET_BUDGET_MANAGED_PER_RUN retunes it and 0
 // restores the old "the whole wallet is the ceiling" behaviour. A saved/env per-run cap > 0 always wins.
 const MANAGED_PER_RUN_DEFAULT = num(ENV('BUDGET_MANAGED_PER_RUN'), budgetCaps.DEFAULT_MANAGED_PER_RUN_USD);
 // Optional multi-agent fan-out ceiling. 0 = unlimited (the product default). See concurrency.js.
-const MAX_CONCURRENT_AGENTS = resolveKnob('MAX_CONCURRENT_AGENTS', 'maxConcurrentAgents', 0);   // P1-9: env > saved > default
+const MAX_CONCURRENT_AGENTS = resolveKnob('maxConcurrentAgents');   // P1-9: env > saved > default
 // Optional per-worker USD ceiling for delegated sub-runs. 0 = ungoverned.
 const ORCH_PER_WORKER = num(ENV('BUDGET_PER_WORKER'), 0);
 // Optional per-worker tool-turn ceiling. 0 inherits the unlimited station policy.
@@ -963,7 +948,7 @@ const CLOUD_URL = String(ENV('CLOUD_URL') || (CLOUD_LIVE ? CLOUD_URL_DEFAULT : '
 const CREDITS_TOKEN = String(ENV('CREDITS_TOKEN') || '').trim();
 // a live permission.prompt left unanswered this long auto-denies (never hangs a run). P1-9: env
 // STARNET_CONSENT_TIMEOUT_MS > a UI-saved override > the 120s default; the frozen resolve keeps it constant per boot.
-const CONSENT_TIMEOUT_MS = resolveKnob('CONSENT_TIMEOUT_MS', 'consentTimeoutMs', 120000);
+const CONSENT_TIMEOUT_MS = resolveKnob('consentTimeoutMs');
 // EL-11 FIX 1c: when the browser ATTESTS a consent prompt is rendered to a human (POST /api/consent/ack —
 // fired for the active card AND the new background toast/rail marker), the deny deadline extends ONCE to this
 // bound. Unattended surfaces never ack, so their fail-closed floor above is untouched; an AFK human still
@@ -976,7 +961,7 @@ const CONSENT_ACK_EXTEND_MS = Math.min(CONSENT_TIMEOUT_MS * 5, 900000);
 // absent model/credentials, a due job no-capability-skips rather than firing. Cadence + the self-healing lease
 // ceiling are env-tunable. The fire's consent surface is 'autonomous' (default-deny ungranted mutation).
 const CRON_ENABLED = /^(1|true|yes|on)$/i.test(String(ENV('CRON_ENABLED') || '').trim());
-const CRON_TICK_MS = resolveKnob('CRON_TICK_MS', 'cronTickMs', 60000);   // P1-9: env > saved > default
+const CRON_TICK_MS = resolveKnob('cronTickMs');   // P1-9: env > saved > default
 // Host IANA timezone, captured ONCE at boot as a boot-frozen constant (G4.1). A cron schedule with no
 // explicit tz fires on this LOCAL wall-clock (so "0 9 * * *" means 09:00 here and shifts across DST),
 // while the pure cron-math (sidecar/cron.js) stays determinism-clean by receiving this as an INJECTED
@@ -1610,9 +1595,9 @@ let budgetOverrides = {};   // only the keys the user has explicitly saved (each
 function loadBudgetOverrides() {
   return budgetStore.load().value;
 }
-function saveBudgetOverrides() {
-  try { budgetStore.save(budgetOverrides); }   // fsync-durable + .bak last-known-good + normalized read-back proof
-  catch (e) { console.warn('[budget] persist failed:', (e && e.message) || e); }
+function saveBudgetOverrides(next) {
+  // The store verifies normalized durable readback. Publish the saved/live choice only after it accepts.
+  budgetOverrides = budgetStore.save(next).value;
 }
 // recompute effectiveCaps from (persisted override ?? env default) and push the cross-run pools into the live
 // governor. Called at boot and after every saved cap change — no restart needed.
@@ -4153,8 +4138,8 @@ async function runThreadMine(o) {
   }
 }
 
-const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), 45000);
-const SKILL_REVIEW_MAX_COST_USD = num(ENV('SKILL_REVIEW_MAX_USD'), 0.08);
+const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), limitsRegistry.BY_KEY.skillReviewMs.def);
+const SKILL_REVIEW_MAX_COST_USD = num(ENV('SKILL_REVIEW_MAX_USD'), limitsRegistry.BY_KEY.skillReviewUsd.def);
 // THE SKILL NUDGE (skillreview.nudgeAfterRun): per agent, the model turns taken with skill tools on the wire since
 // its skillbase last changed. Carried across runs AND restarts: a desktop station restarts most days, and a count
 // that reset with the process would rarely reach the bar. SKYNET_SKILL_REVIEW_EVERY sets the bar (default 10, 0 = off).
@@ -4231,7 +4216,7 @@ async function rehydrateReviewJob(job) {
   });
 }
 const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
-const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), 0.12);
+const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), limitsRegistry.BY_KEY.skillCuratorUsd.def);
 const skillCuratorLastRun = new Map();
 async function runBackgroundSkillReview(o) {
   const { agentId, runId, messages, provider, model, cost, loadedSkills, managedSkills, verdict, correction } = o || {};
@@ -14911,6 +14896,51 @@ function handleUsageProviders(req, res) {
   try { rate = rateLimits.snapshot(); } catch (_) { rate = []; }
   res.end(JSON.stringify({ subscriptions, rate, now: Date.now() }));
 }
+// Inventory only: the actual owners still enforce every value. A pending restart never pretends to be active.
+function effectiveLimitsStatus() {
+  const routes = new Set([runWireFor('agent').provider]);
+  for (const id of agentRoster.keys()) routes.add(runWireFor(id).provider);
+  // SETTINGS' saved model chain uses OpenRouter for a non-OpenRouter/non-StarNet primary. Include that payer
+  // only when the same credential and billing rules used by runOnceCore admit the configured route. GET never
+  // refreshes credentials/credits or changes routing; environment-only and empty chains add no other provider.
+  if (fallbackSaved != null && effectiveFallbackChain().some(m => chatModelId('openrouter', String(m || '').trim()))) {
+    const key = providerRuntimeKey('openrouter', '');
+    const base = providerRuntimeBaseUrl('openrouter', '');
+    if (providerHasCredential('openrouter', key, base)) {
+      for (const primary of Array.from(routes)) {
+        if (primary === 'openrouter' || primary === 'starnet') continue;
+        const run = billing.runBillingFor({ providerId: primary, perRunUsd: effectiveCaps.perRun });
+        if (billing.fallbackBillingFor({ providerId: 'openrouter', runManaged: run.managed, runCapUsd: run.runCapUsd,
+          perRunUsd: effectiveCaps.perRun, unpricedTokens: CAPS.maxUnpricedTokens })) routes.add('openrouter');
+      }
+    }
+  }
+  const classes = new Set();
+  for (const route of routes) for (const cls of BillingClass.routeClasses(getProviderProfile(route), BillingClass.managedRoute(route, credits.configured(), CREDITS_URL))) classes.add(cls);
+  const fact = (key, value, mode) => {
+    const d = limitsRegistry.BY_KEY[key], raw = d.env ? ENV(d.env) : null;
+    const named = raw != null && String(raw).trim() !== '';
+    const valid = named && (mode === 'integer' ? /^\d+$/.test(String(raw).trim()) : Number.isFinite(Number(raw)) && (mode === 'positive' ? Number(raw) > 0 : Number(raw) >= 0));
+    return { value, source: valid ? 'env' : 'default' };
+  };
+  const imageRun = Number(ENV('IMAGE_UNKNOWN_COST_MAX'));
+  const workerStall = subagents.stallPolicy();
+  const readback = {
+    maxToolBytes: fact('maxToolBytes', CAPS.maxToolBytes), maxRepeat: fact('maxRepeat', CAPS.maxRepeat), toolTimeoutMs: fact('toolTimeoutMs', CAPS.toolTimeoutMs),
+    managedPerRun: fact('managedPerRun', MANAGED_PER_RUN_DEFAULT),
+    unknownImageRun: fact('unknownImageRun', imageRun > 0 ? Math.floor(imageRun) : limitsRegistry.BY_KEY.unknownImageRun.def, 'positive'),
+    unknownImageDay: fact('unknownImageDay', mediaDayGate.limit, 'positive'),
+    auxBudget: fact('auxBudget', AuxGovernor.parseBudget(ENV('AUX_BUDGET')), 'integer'),
+    auxTokenCeiling: { value: memoryConfig.auxTokenCeiling, source: 'memory settings' },
+    workerUsd: fact('workerUsd', ORCH_PER_WORKER), workerIters: fact('workerIters', Math.floor(ORCH_WORKER_MAX_ITERS)),
+    workerStallMs: fact('workerStallMs', workerStall.stallMs), workerStallInToolMs: fact('workerStallInToolMs', workerStall.inToolStallMs),
+    domainWorkerIters: fact('domainWorkerIters', DomainTask.WORKER_MAX_ITERS), domainWorkerTools: fact('domainWorkerTools', DomainTask.WORKER_MAX_TOOLS), domainWorkerMs: fact('domainWorkerMs', DomainTask.WORKER_MAX_MS),
+    skillReviewUsd: fact('skillReviewUsd', SKILL_REVIEW_MAX_COST_USD), skillCuratorUsd: fact('skillCuratorUsd', SKILL_CURATOR_MAX_COST_USD), skillReviewMs: fact('skillReviewMs', SKILL_REVIEW_TIMEOUT_MS),
+    unknownChargeUsd: fact('unknownChargeUsd', ledger.unknownChargeFloorUsd(), 'positive')
+  };
+  return limitsRegistry.effective({ env: ENV, classes: Array.from(classes), active: activeRuntimeKnobs(), runtimeSaved: runtimeKnobs,
+    runtimeBootSaved, budget: effectiveCaps, budgetSaved: budgetOverrides, readback });
+}
 function handleBudgetStatus(req, res) {
   const accounting = ledger.health();
   const known = accounting.complete && accounting.durable;
@@ -14930,6 +14960,7 @@ function handleBudgetStatus(req, res) {
       perRun: effectiveCaps.perRun, perAgent: effectiveCaps.perAgent,
       perDay: effectiveCaps.perDay, global: effectiveCaps.global
     },
+    effective: effectiveLimitsStatus(),
     pools: governor.caps,                             // the governor's own {agent,day,global} view, kept honestly
     saved: Object.assign({}, budgetOverrides),        // only the keys the user explicitly saved
     envDefaults: { perRun: BUDGET_CAPS.perRun, perAgent: BUDGET_CAPS.perAgent, perDay: BUDGET_CAPS.perDay, global: BUDGET_CAPS.global },
@@ -15220,8 +15251,8 @@ async function handleBudgetCaps(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const v = budgetCaps.validateOverridesPatch(body, budgetOverrides);   // pure: strict parse + merge onto current
   if (!v.ok) return json(400, { error: v.error });
-  budgetOverrides = v.overrides;
-  saveBudgetOverrides();
+  try { saveBudgetOverrides(v.overrides); }
+  catch (_) { return json(500, { error: 'Spending limit changes could not be confirmed on disk. Try saving again.', persisted: false }); }
   applyBudgetCaps();   // live, no restart
   return handleBudgetStatus(req, res);   // echo the fresh status so the UI repaints from one round-trip
 }
@@ -15678,7 +15709,9 @@ async function handleConfigImport(req, res) {
 
   if (want('budget')) {
     const v = budgetCaps.cleanOverrides(sec.budget || {});
-    budgetOverrides = v; saveBudgetOverrides(); applyBudgetCaps(); applied.push('budget');
+    try { saveBudgetOverrides(v); }
+    catch (_) { return json(500, { ok: false, error: 'Spending limit import could not be confirmed on disk. Try importing again.', applied }); }
+    applyBudgetCaps(); applied.push('budget');
   }
   if (want('fallback')) {
     const models = (sec.fallback && Array.isArray(sec.fallback.models)) ? fallbackChain.cleanChain(sec.fallback.models) : [];
@@ -15747,7 +15780,10 @@ async function handleConfigReset(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const section = String(body.section || '').trim();
   switch (section) {
-    case 'budget': budgetOverrides = {}; saveBudgetOverrides(); applyBudgetCaps(); break;
+    case 'budget':
+      try { saveBudgetOverrides({}); }
+      catch (_) { return json(500, { ok: false, section, error: 'Spending limit reset could not be confirmed on disk. Try resetting again.' }); }
+      applyBudgetCaps(); break;
     case 'fallback': fallbackSaved = null; saveFallbackChain(); break;
     case 'roster': agentRoster.clear(); saveAgentRoster(); break;
     case 'dossier': commanderDossier.set(''); break;
@@ -15783,31 +15819,26 @@ async function handleConfigReset(req, res) {
    var locks it (so the UI can gray it out honestly). POST persists overrides (env-locked knobs ignore the write).
    Saved values apply at NEXT BOOT (they feed the boot-frozen constants) — the UI discloses this. live:true = a per-run
    value runOnceCore reads off CAPS each run: a save re-resolves it into CAPS (env still wins), so the next run uses it. ---- */
-const RUNTIME_KNOB_DEFS = [
-  { key: 'maxIters', env: 'MAX_ITERS', def: 0, min: 0, max: 200 },
-  { key: 'maxConcurrentAgents', env: 'MAX_CONCURRENT_AGENTS', def: 0, min: 0, max: 32 },
-  { key: 'consentTimeoutMs', env: 'CONSENT_TIMEOUT_MS', def: 120000, min: 5000, max: 600000 },
-  { key: 'cronTickMs', env: 'CRON_TICK_MS', def: 60000, min: 5000, max: 600000 },
-  { key: 'maxSubscriptionTokens', env: 'MAX_SUBSCRIPTION_TOKENS', def: 2000000, min: 0, max: 100000000, live: true },
-  { key: 'maxUnpricedTokens', env: 'MAX_UNPRICED_TOKENS', def: 2000000, min: 0, max: 100000000, live: true }
-];
-function saveRuntimeKnobs() {
-  try { saveResilient(RUNTIME_KNOBS_FILE, { version: 1, knobs: runtimeKnobs }); }
-  catch (e) { console.warn('[knobs] persist failed:', (e && e.message) || e); }
+const RUNTIME_KNOB_DEFS = limitsRegistry.definitions('runtime');
+function saveRuntimeKnobs(next) {
+  const saved = saveJsonVerified({
+    save: () => saveResilient(RUNTIME_KNOBS_FILE, { version: 1, knobs: next }),
+    load: () => JSON.parse(fs.readFileSync(RUNTIME_KNOBS_FILE, 'utf8')),
+    proof: value => {
+      if (!value || value.version !== 1) return false;
+      const read = limitsRegistry.parseKnobs(value);
+      return Object.keys(read).length === Object.keys(next).length && Object.keys(next).every(key => read[key] === next[key]);
+    }
+  });
+  if (!saved.ok) throw new Error('runtime limit changes could not be confirmed on disk');
+  runtimeKnobs = next;
+}
+function activeRuntimeKnobs() {
+  return { maxIters: CAPS.maxIters, maxConcurrentAgents: MAX_CONCURRENT_AGENTS, consentTimeoutMs: CONSENT_TIMEOUT_MS,
+    cronTickMs: CRON_TICK_MS, maxSubscriptionTokens: CAPS.maxSubscriptionTokens, maxUnpricedTokens: CAPS.maxUnpricedTokens };
 }
 function runtimeKnobsStatus() {
-  const fields = {};
-  for (const d of RUNTIME_KNOB_DEFS) {
-    const locked = knobEnvLocked(d.env);
-    const saved = (typeof runtimeKnobs[d.key] === 'number') ? runtimeKnobs[d.key] : null;
-    const effective = resolveKnob(d.env, d.key, d.def);
-    fields[d.key] = { effective, default: d.def, saved, envLocked: locked, min: d.min, max: d.max };
-  }
-  // the consent deadline the waiters ENFORCE right now: frozen at boot, so a value saved since then is `effective` but not
-  // yet `live` (org P02 — the STANDING APPROVALS tip states only this, never an unapplied number)
-  fields.consentTimeoutMs.live = CONSENT_TIMEOUT_MS;
-  fields.consentTimeoutMs.liveAckMs = CONSENT_ACK_EXTEND_MS;
-  return { fields };
+  return limitsRegistry.runtimeStatus(ENV, runtimeKnobs, activeRuntimeKnobs(), CONSENT_ACK_EXTEND_MS);
 }
 function handleRuntimeKnobsGet(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -15887,12 +15918,14 @@ async function handleRuntimeKnobsSet(req, res) {
     if (!isFinite(n) || n < d.min || n > d.max) return json(400, { error: d.key + ' must be ' + d.min + '–' + d.max });
     next[d.key] = Math.floor(n);
   }
-  runtimeKnobs = next;
-  saveRuntimeKnobs();
+  const changed = RUNTIME_KNOB_DEFS.filter(d => Object.prototype.hasOwnProperty.call(next, d.key) !== Object.prototype.hasOwnProperty.call(runtimeKnobs, d.key)
+    || next[d.key] !== runtimeKnobs[d.key]).map(d => d.key);
+  try { saveRuntimeKnobs(next); }
+  catch (_) { return json(500, { error: 'Runtime limit changes could not be confirmed on disk. Try saving again.', persisted: false }); }
   // the per-run token ceilings take effect for the NEXT run (runOnceCore reads CAPS per run). resolveKnob keeps the
   // precedence: an env-locked knob re-resolves to its env value, so a save never pretends to move it.
-  for (const d of RUNTIME_KNOB_DEFS) if (d.live) CAPS[d.key] = resolveKnob(d.env, d.key, d.def);
-  return json(200, runtimeKnobsStatus());
+  for (const d of RUNTIME_KNOB_DEFS) if (d.applies === 'next-run') CAPS[d.key] = resolveKnob(d.key);
+  return json(200, Object.assign(runtimeKnobsStatus(), { changed, appliesMessage: limitsRegistry.applyMessage(changed) }));
 }
 
 // `report` (optional): endpointPersisted is set when the patch moved an endpoint — false = live now, NOT kept on disk

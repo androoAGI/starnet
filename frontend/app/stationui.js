@@ -7160,6 +7160,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const m = /^skill-eval-(.+)-(\d+)-([a-z]+)-[A-Za-z0-9]+$/.exec(s);
     return m ? 'skill eval ' + m[1].slice(0, 8) + '-' + m[2] + '-' + m[3] : 'run ' + s.slice(0, 8);
   }
+  // Read-only server facts, grouped by the payers the current station routes can use. No client-side admission rule.
+  function effectiveLimitsHtml(effective) {
+    if (!effective || !Array.isArray(effective.rows) || !Array.isArray(effective.classes)) return '<div class="dim">effective limits unavailable</div>';
+    const names = { metered: 'API KEY', managed: 'STARNET CREDITS', subscription: 'SIGN-IN PLAN', local: 'LOCAL MODEL' };
+    const valueText = row => {
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value)) return 'unavailable';
+      if (row.value === 0 && row.zero === 'off') return 'off';
+      if (row.value === 0 && row.zero === 'inherit') return 'station policy';
+      if (row.value === 0 && row.zero === 'wallet') return 'reported wallet';
+      return (row.unit === 'USD' || row.unit.indexOf('USD/') === 0 ? '$' : '') + row.value.toLocaleString('en-US') + (row.unit === 'USD' ? '' : ' ' + row.unit.replace('USD/', 'per '));
+    };
+    return effective.classes.map(cls => {
+      const rows = effective.rows.filter(r => Array.isArray(r.inUse) && r.inUse.indexOf(cls) >= 0);
+      if (!rows.length) return '';
+      return '<details class="mc-effective-payer"><summary>' + esc(names[cls] || cls) + '</summary>' + rows.map(r => {
+        const pending = typeof r.nextValue === 'number' ? ' <span class="dim">(saved: ' + esc(r.nextValue.toLocaleString('en-US')) + '; after restart)</span>' : '';
+        const media = r.group === 'spending' && (cls === 'subscription' || cls === 'local') ? ' Paid images only; chat calls spend no dollars.' : '';
+        return '<div class="set-row"><span>' + esc(r.label) + '</span><strong>' + esc(valueText(r)) + '</strong>' + pending + '</div>' +
+          '<div class="mc-hint">' + esc(r.source || 'unknown') + ' · ' + esc(r.where || '') + (r.env ? ' · STARNET_' + esc(r.env) : '') + '<br>' + esc((r.hint || '') + media) + '</div>';
+      }).join('') + '</details>';
+    }).join('') || '<div class="dim">No payer is selected yet.</div>';
+  }
   function wireBudget(body) {
     const form = body.querySelector('#budget-form');
     if (!form) return;
@@ -7180,6 +7202,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const paint = (st) => {
       if (!st || !st.caps || !BG_KEYS.every(k => typeof st.caps[k] === 'number' && Number.isFinite(st.caps[k]) && st.caps[k] >= 0)) throw new Error('invalid budget response');
       loaded = true; enable(true);
+      const effectiveEl = body.querySelector('#budget-effective');
+      if (effectiveEl) effectiveEl.innerHTML = effectiveLimitsHtml(st.effective);
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
@@ -7694,16 +7718,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // P1-9 ADVANCED runtime knobs — fetch the server's current + effective values, render an editable form, POST
   // saved overrides. Precedence (env > saved > default) is enforced + reported by the sidecar; the UI just shows
   // whether a field is env-locked (read-only + a note) or a saved override.
-  const ADV_FIELDS = [
-    { key: 'maxIters', label: 'MAX ITERATIONS', hint: 'the most tool steps one run may take. 0 = no limit (default).', min: 0, max: 200, step: 1 },
-    { key: 'maxConcurrentAgents', label: 'MAX CONCURRENT AGENTS', hint: 'the most agents working at the same time. 0 = no limit (default).', min: 0, max: 32, step: 1 },
-    { key: 'consentTimeoutMs', label: 'CONSENT TIMEOUT (MS)', hint: 'how long an approval card waits for your answer before it says no for you (so a run never hangs).', min: 5000, max: 600000, step: 1000 },
-    { key: 'cronTickMs', label: 'ROUTINE TICK (MS)', hint: 'how often the scheduler checks for due routines.', min: 5000, max: 600000, step: 1000 },
-    { key: 'maxSubscriptionTokens', label: 'SIGN-IN TOKEN CEILING', hint: 'tokens one run may use on a sign-in plan: ChatGPT, Grok, Kimi or a Claude subscription (cache re-reads count 1/10). 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 },
-    // issue #135: the ceiling on a model StarNet can't price (a custom provider's model) was env-only. Both token ceilings
-    // apply from the next run (the sidecar re-resolves them into CAPS on save); the other rows wait for a restart.
-    { key: 'maxUnpricedTokens', label: 'UNPRICED MODEL TOKEN CEILING', hint: 'tokens one run may use on a model StarNet has no price for. 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 }
-  ];
+
   /* the STANDING APPROVALS heading's tip (org P02): when an ask nobody answers is denied, in minutes, and where to change
      it. The number is the deadline the sidecar ENFORCES now (GET /api/runtime/knobs consentTimeoutMs.live — frozen at
      boot) and its ack bound (liveAckMs: an ask whose card is on screen waits 5× as long, capped at 15 min). A CONSENT
@@ -7733,22 +7748,24 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     const render = (st) => {
       const fields = (st && st.fields) || {};
-      form.innerHTML = ADV_FIELDS.map(f => {
+      const definitions = st && Array.isArray(st.definitions) ? st.definitions : [];
+      if (!definitions.length) { form.innerHTML = '<div class="dim">runtime settings unavailable</div>'; return; }
+      form.innerHTML = definitions.map(f => {
         const d = fields[f.key] || {};
         const envLocked = !!d.envLocked;
         const val = (d.effective != null) ? d.effective : (d.default != null ? d.default : '');
         const note = envLocked ? '<span class="dim"> · locked by an environment variable</span>'
           : (d.saved != null ? '<span class="dim"> · saved override</span>' : '<span class="dim"> · default</span>');
-        return '<div class="set-row"><label for="adv-' + f.key + '">' + f.label + note + '</label>' +
+        return '<div class="set-row"><label for="adv-' + f.key + '">' + esc(f.label) + (f.unit === 'ms' ? ' (MS)' : '') + note + '</label>' +
           '<input id="adv-' + f.key + '" class="key-input adv-in" data-key="' + f.key + '" type="number" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + esc(String(val)) + '"' + (envLocked ? ' disabled' : '') + '></div>' +
-          '<div class="mc-hint">' + esc(f.hint) + '</div>';
+          '<div class="mc-hint">' + esc(f.hint) + ' ' + esc({ 'next-run': 'Changes apply from the next run.', restart: 'Changes apply after restart.', live: 'Changes apply immediately.' }[f.applies] || '') + '</div>';
       }).join('') +
         '<div class="mc-acts"><button class="bb sm" id="adv-save">SAVE</button>' +
         '<button class="bb xs" id="adv-reset" title="clear every saved override so these follow the environment / built-in defaults again">RESET TO DEFAULTS</button></div>';
       const saveBtn = form.querySelector('#adv-save');
       if (saveBtn) saveBtn.addEventListener('click', () => {
         const payload = {};
-        for (const f of ADV_FIELDS) {
+        for (const f of definitions) {
           const el = form.querySelector('#adv-' + f.key); if (!el || el.disabled) continue;
           const raw = String(el.value).trim();
           if (raw === '') { payload[f.key] = null; continue; }   // blank -> clear override
@@ -7760,15 +7777,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         Harness.api.post('/api/runtime/knobs', payload)
           .then(({ ok, j }) => {
             if (!ok) { setMsg((j && j.error) || 'could not save'); sfx('bad'); return; }
-            render(j); setMsg('✓ saved (some limits apply on next restart)', true); sfx('click');
+            render(j); setMsg(j.appliesMessage || 'Saved.', true); sfx('click');
           }).catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
       const resetBtn = form.querySelector('#adv-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => {
-        const payload = {}; ADV_FIELDS.forEach(f => { payload[f.key] = null; });
+        const payload = {}; definitions.forEach(f => { payload[f.key] = null; });
         setMsg('resetting…');
         Harness.api.post('/api/runtime/knobs', payload)
-          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg('✓ reset to defaults', true); sfx('click'); })
+          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg(j.appliesMessage || 'Reset to defaults.', true); sfx('click'); })
           .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
     };
@@ -8164,7 +8181,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +
         '</div>' +
       '</div>' +
-      '<div id="budget-msg" class="msg"></div>';
+      '<div id="budget-msg" class="msg"></div>' +
+      '<h4 class="ms-h">WHAT CAN STOP A RUN</h4>' +
+      '<p class="set-about">The station’s active limits and background-work ceilings. Settings saved for a restart are shown separately. These are limits, not a promise of remaining provider allowance.</p>' +
+      '<div id="budget-effective"><span class="dim">reading effective limits…</span></div>';
     const secModels =
       // MODELS — the ordered FALLBACK CHAIN (P0-3). The primary model is chosen live in the COMMS model dock; this
       // sets what the loop tries NEXT if that model fails mid-run. Persisted server-side + applied live to every run

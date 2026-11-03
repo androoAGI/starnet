@@ -290,3 +290,4 @@ test/lsp-live-installed.test.js
 
 test/ledger.generation-id.http.test.js
 test/spend.compaction-accounting.http.test.js
+test/effective-limits.fallback.http.test.js
