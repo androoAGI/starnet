@@ -921,10 +921,20 @@ jobs:
       ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
   # -------------------------------------------------------------------------------------------
+  # The tag's own page boots in a real WebKit at the engine floor (webkit-floor-boot.yml): every API newer than
+  # scripts/lib/engine-floor.json's floor removed, every station script must run (gh#136). No draft without it.
+  # -------------------------------------------------------------------------------------------
+  webkit-floor-boot:
+    needs: gate
+    uses: ./.github/workflows/webkit-floor-boot.yml
+    with:
+      ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+
+  # -------------------------------------------------------------------------------------------
   # Job 4 — stage-draft: DRAFT release only. Nothing reaches users until a human clicks Publish.
   # -------------------------------------------------------------------------------------------
   stage-draft:
-    needs: [assemble, voice-floor-canary]
+    needs: [assemble, voice-floor-canary, webkit-floor-boot]
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}

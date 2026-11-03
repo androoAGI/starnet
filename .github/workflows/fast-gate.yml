@@ -192,6 +192,12 @@ jobs:
       - name: HTTP test gate (shard ${{ matrix.shard }}/4)
         run: node scripts/timeout.mjs --label test:http --timeout=1800000 -- node scripts/run-test-list.mjs test/http.list --shard=${{ matrix.shard }}/4 --deadline=1680000
 
+  # The station page boots in a real WebKit at the engine floor (webkit-floor-boot.yml): every API newer than
+  # scripts/lib/engine-floor.json's floor removed, and the boot guard must count every station script as run. The
+  # lexical half (syntax and unguarded APIs newer than the floor) is test/webkit-floor-syntax.test.js in the gate above.
+  webkit-floor:
+    uses: ./.github/workflows/webkit-floor-boot.yml
+
   # Pure Rust policy checks. The connector key policy tests in src-tauri/src/credentials.rs and the acceptance
   # harness's input guards use injected closures and input checks only: no keychain entry, no native process, no
   # app build. Running them here catches a policy regression (for example regenerating over a malformed existing

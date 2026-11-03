@@ -41,6 +41,7 @@ test/bootguard.test.js
 test/mac-boot-compat.test.js
 test/webkit-floor-syntax.test.js
 test/engine-floor.test.js
+test/webkit-floor-boot.test.js
 test/live-doctor.test.js
 test/live-doctor-ui.test.js
 test/report-0110-regressions.test.js
