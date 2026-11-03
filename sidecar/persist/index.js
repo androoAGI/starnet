@@ -2,7 +2,8 @@
 
    Four primitives and a grammar; every store keeps its own API and record format and calls them:
      writeAtomic(deps, file, data)            write.js     temp + fsync + rename, no temp left by a failure, the sweeper
-     readTagged(deps, file)                   read.js      ok | recovered | absent | corrupt | unreadable, the unread mark
+     readTagged(deps, file, { text }?)        read.js      ok | recovered | absent | corrupt | unreadable, the unread mark
+                                                           (text: one file read as text, for an append journal)
      moveAside / preserve(deps, file, label)  quarantine.js first-free <file>.<label>-<n>, honest on failure
      replaceJson(deps, file, value, opts)     replace.js   the last-known-good replace (D1, D2)
      names                                    names.js     the sibling-file grammar every reader classifies with

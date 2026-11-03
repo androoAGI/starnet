@@ -144,7 +144,7 @@ const SYNC_BASELINE = {
   'credits.js': 3,
   'cron-driver.js': 16,   // AUDITED — 16 left: emit() wrappers, warn wrapper, abort on stale lease / E-STOP (ratcheted down: the fire loop's swallowed throw now records a real failure, bug-sweep 2026-08-28)
   'cron-lock.js': 4,   // AUDITED — 4 left: fd close / unlink / release teardown
-  'deliverable-store.js': 3,   // AUDITED — 3 left: journal absent on first load, fd close in finally, stat size default
+  'deliverable-store.js': 2,   // AUDITED — 2 left: fd close in finally, stat size default (the journal read is persist's tagged read: a locked journal is a refusal, never empty)
   'domain-store.js': 1,
   'durable-store.js': 1,   // AUDITED — 1 left: saveJsonVerified's mkdir before a write that fails loudly itself (set()'s now notes; the read/write primitives moved to persist/, which starts at 0)
   'edgetts.js': 3,
@@ -186,7 +186,7 @@ const SYNC_BASELINE = {
   'providers/ratelimits.js': 1,   // AUDITED — 1 left: headers.get fall-through
   'questsweeps.js': 1,
   'routing/chain.js': 1,
-  'run-journal.js': 7,
+  'run-journal.js': 3,   // 3 left: cloneSafe's JSON and redactor value defaults, the append fd close (the quarantine is persist's moveAside; the repair's closes, temp and partial copy now note)
   'runroute.js': 2,
   'savestore.js': 2,   // AUDITED — 2 left: ensureRoot, the unreadable-refusal warn wrapper (the fd close and the .bak staging went to sidecar/persist with the write; the quarantine warn is no longer wrapped)
   'servicekeys.js': 1,
@@ -228,7 +228,7 @@ const SYNC_BASELINE = {
   'workspace-lease.js': 2,
   'workspace-lineage.js': 1,
   'workspace-owner.js': 2,
-  'workspace-recovery.js': 9,
+  'workspace-recovery.js': 7,   // writeJsonAtomic's two temp cleanups went with it to persist.writeAtomic
 };
 
 let syncOver = 0;

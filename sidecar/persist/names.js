@@ -15,7 +15,9 @@
    <file>.corrupt-<n> with a single number, so it never collides).
 
    Run-journal damage-evidence copies (<journal>.corrupt-r<hex>, <journal>.torn-r<hex>) are NOT forensic generations:
-   they mark a repaired journal and ride with it, so isForensic() never matches them.
+   they mark a repaired journal and ride with it, so isForensic() never matches them. The letter keeps a new one from
+   ever reading as a numbered quarantine; the base repair wrote a bare 10-hex nonce, and an all-digit one of those
+   (<64 hex>.jsonl.corrupt-<10 digits>) is told apart by the run-journal name and the nonce's fixed width.
 
    Pure string functions, no I/O. */
 'use strict';
@@ -32,6 +34,8 @@ const BROAD_TEMP = /\.tmp(?:$|\.)/i;
 const LEGACY_TEMP_ANY = /\.tmp-\d+-\d+-\d+$|\.repair-[0-9a-f]+$/i;
 const FORENSIC = /\.(?:corrupt(?:-\d+(?:-\d+)?)?|unseen-\d+)$/i;
 const BACKUP = /\.bak$/i;
+// a run journal's damage evidence, persist's (r<hex>) or the base repair's (a bare 10-hex nonce)
+const JOURNAL_EVIDENCE = /(?:^|[\\/])[0-9a-f]{64}\.jsonl\.(?:corrupt|torn)-(?:r[0-9a-f]+|[0-9a-f]{10})$/i;
 
 const OWN_TAIL = /^(\d+)\.([A-Za-z0-9_-]+)\.tmp$/;
 const LEGACY_TAILS = [/^\d+\.tmp$/, /^tmp-\d+-\d+-\d+$/, /^repair-[0-9a-f]+$/i];
@@ -40,6 +44,8 @@ const LEGACY_TAILS = [/^\d+\.tmp$/, /^tmp-\d+-\d+-\d+$/, /^repair-[0-9a-f]+$/i];
 function tempFor(file, pid, nonce) { return String(file) + '.' + pid + '.' + nonce + '.tmp'; }
 // the forensic copy name for <file> under label at number n
 function forensicName(file, label, n) { return String(file) + '.' + label + '-' + n; }
+// a run journal's damage-evidence copy: kind 'torn' (only the final record was cut off) or anything else 'corrupt'
+function evidenceFor(journal, kind, hex) { return String(journal) + (kind === 'torn' ? '.torn-r' : '.corrupt-r') + hex; }
 
 /* what a directory entry is to the store file named base (both bare names, no directory):
    { kind: 'own', pid, nonce } | { kind: 'legacy' } | null. Exact: another file's temps (the .bak's included) are null. */
@@ -60,9 +66,10 @@ function isTempOf(base, name) { return tempOf(base, name) !== null; }
 // any temp-shaped name, for the store-guarded classifiers (station-recovery, workspace-lineage)
 function isTemp(name) { const n = String(name); return BROAD_TEMP.test(n) || LEGACY_TEMP_ANY.test(n); }
 function isBackup(name) { return BACKUP.test(String(name)); }
-function isForensic(name) { return FORENSIC.test(String(name)); }
+function isJournalEvidence(name) { return JOURNAL_EVIDENCE.test(String(name)); }
+function isForensic(name) { const n = String(name); return FORENSIC.test(n) && !JOURNAL_EVIDENCE.test(n); }
 
 module.exports = {
   LABELS, QUARANTINE_N_SOURCE, TEMP_SHAPE,
-  tempFor, forensicName, tempOf, isOwnTemp, isTempOf, isTemp, isBackup, isForensic
+  tempFor, forensicName, evidenceFor, tempOf, isOwnTemp, isTempOf, isTemp, isBackup, isJournalEvidence, isForensic
 };

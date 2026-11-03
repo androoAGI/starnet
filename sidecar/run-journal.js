@@ -27,6 +27,8 @@ const pathDefault = require('path');
 const crypto = require('crypto');
 // failopen.note — the tagged SYNC swallow: a fail-open catch must never be invisible.
 const { note: failNote } = require('./failopen.js');
+// the quarantine, the repair temp's name and its sweep, and the evidence names are persist's (one grammar)
+const persist = require('./persist/index.js');
 
 const VERSION = 1;
 const MAX_STRING = 200000;
@@ -123,6 +125,34 @@ function writeAll(fs, fd, data) {
     at += n;
   }
 }
+function closeNoted(fs, fd, tag) { try { fs.closeSync(fd); } catch (e) { failNote(tag, e); } }
+// the damaged original, kept byte-exact under its evidence name; an exclusive copy never replaces another file, and a
+// copy that fails removes its own partial file (EXCL proves nothing was there before this call)
+function copyEvidence(fs, from, to) {
+  try { fs.copyFileSync(from, to, (fs.constants && fs.constants.COPYFILE_EXCL) || 1); }
+  catch (e) {
+    if (!e || e.code !== 'EEXIST') {
+      try { fs.unlinkSync(to); } catch (u) { if (!u || u.code !== 'ENOENT') failNote('run-journal.repair.partial', u); }
+    }
+    throw e;
+  }
+}
+// Windows may reject a replace-existing rename: rewrite the active file in place instead, so its discoverable pathname
+// is kept throughout; the evidence copy made first lets the next boot recover even if power fails during this rewrite
+function rewriteInPlace(fs, filePath, body) {
+  let active = null;
+  try {
+    active = fs.openSync(filePath, 'r+');
+    const bytes = Buffer.from(body, 'utf8');
+    let at = 0;
+    while (at < bytes.length) {
+      const n = fs.writeSync(active, bytes, at, bytes.length - at, at);
+      if (!(n > 0)) throw new Error('run journal repair short write');
+      at += n;
+    }
+    fs.ftruncateSync(active, bytes.length); fs.fsyncSync(active);
+  } finally { if (active != null) closeNoted(fs, active, 'run-journal.repair.close'); }
+}
 
 function makeFsIo(opts) {
   const fs = opts.fs || fsDefault;
@@ -149,7 +179,8 @@ function makeFsIo(opts) {
     read(runId) { return fs.readFileSync(file(runId), 'utf8'); },
     fileOf(runId) { return file(runId); },
     // Durable damage evidence left by an earlier repair of this journal: a `.corrupt*` sibling (forensic) or a
-    // `.torn-*` sibling (a torn tail was cut off; still actionable). Temp `.repair-*` leftovers are not evidence.
+    // `.torn-*` sibling (a torn tail was cut off; still actionable). Repair temps (persist's `.<pid>.<nonce>.tmp`, the
+    // legacy `.repair-*`) are not evidence.
     evidence(filePath) {
       const prefix = path.basename(filePath) + '.';
       const out = { corrupt: false, torn: false };
@@ -222,44 +253,40 @@ function makeFsIo(opts) {
         for (const n of fs.readdirSync(dir)) if (n.indexOf(prefix) === 0) fs.unlinkSync(path.join(dir, n));
       } catch (e) { failNote('run-journal.remove.torn-copy', e); }
     },
+    // A journal with no valid record moves to the first free <journal>.corrupt-<n> (persist: a second incident never
+    // replaces the first copy). null when it could not be moved: it stays where it was, and the next pass tries again.
     quarantine(filePath) {
-      const to = filePath + '.corrupt';
-      try { fs.renameSync(filePath, to); } catch (_) {}
-      return to;
+      const moved = persist.moveAside({ fs }, filePath, persist.names.LABELS.CORRUPT);
+      if (moved.ok) return moved.to;
+      if (!moved.absent) failNote('run-journal.quarantine', moved.error);
+      return null;
     },
     repair(filePath, records, kind) {
       const nonce = crypto.randomBytes(5).toString('hex');
-      // The sibling's NAME is the durable damage class: `.torn-*` (only the final record was cut off; the journal
-      // stays actionable) vs `.corrupt-*` (forensic-only). It is written before the active file is replaced, so a
-      // crash mid-repair can never leave an actionable journal whose damage evidence says otherwise.
-      const backup = filePath + (kind === 'torn' ? '.torn-' : '.corrupt-') + nonce;
-      const tmp = filePath + '.repair-' + nonce;
+      // The sibling's NAME is the durable damage class: `.torn-r*` (only the final record was cut off; the journal
+      // stays actionable) vs `.corrupt-r*` (forensic-only); the letter keeps it from ever reading as a numbered
+      // quarantine (persist names). It is written before the active file is replaced, so a crash mid-repair can never
+      // leave an actionable journal whose damage evidence says otherwise.
+      const backup = persist.names.evidenceFor(filePath, kind, nonce);
+      // persist's temp grammar (<journal>.<pid>.<nonce>.tmp): every failure below removes it, and a crashed repair's
+      // temp goes once its writer is dead or it is stale (persist.sweep, after this attempt)
+      const tmp = persist.names.tempFor(filePath, process.pid, nonce);
       const body = records.map(r => JSON.stringify(r)).join('\n') + '\n';
-      let fd = null;
+      let pending = false;   // this repair's temp is on disk
       try {
-        fd = fs.openSync(tmp, 'wx'); writeAll(fs, fd, body); fs.fsyncSync(fd);
-      } finally { if (fd != null) { try { fs.closeSync(fd); } catch (_) {} } }
-      fs.copyFileSync(filePath, backup);     // preserve the forensic original without removing the active path
-      try {
-        fs.renameSync(tmp, filePath);        // atomic replacement on platforms that support replace-existing
-      } catch (_) {
-        // Windows may reject replace-existing rename. Keep the discoverable active pathname throughout the
-        // fallback; the forensic backup above lets the next boot recover even if power fails during this rewrite.
-        let active = null;
+        let fd = null;
+        try { fd = fs.openSync(tmp, 'wx', 0o600); pending = true; writeAll(fs, fd, body); fs.fsyncSync(fd); }
+        finally { if (fd != null) closeNoted(fs, fd, 'run-journal.repair.close'); }
+        copyEvidence(fs, filePath, backup);   // preserve the forensic original without removing the active path
         try {
-          active = fs.openSync(filePath, 'r+');
-          const bytes = Buffer.from(body, 'utf8');
-          let at = 0;
-          while (at < bytes.length) {
-            const n = fs.writeSync(active, bytes, at, bytes.length - at, at);
-            if (!(n > 0)) throw new Error('run journal repair short write');
-            at += n;
-          }
-          fs.ftruncateSync(active, bytes.length); fs.fsyncSync(active);
-        } finally {
-          if (active != null) { try { fs.closeSync(active); } catch (__) {} }
-          try { fs.unlinkSync(tmp); } catch (__) {}
+          fs.renameSync(tmp, filePath);        // atomic replacement on platforms that support replace-existing
+          pending = false;
+        } catch (renameError) {
+          rewriteInPlace(fs, filePath, body);
         }
+      } finally {
+        if (pending) { try { fs.unlinkSync(tmp); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('run-journal.repair.temp', e); } }
+        try { persist.sweep({ fs, path }, filePath); } catch (e) { failNote('run-journal.repair.sweep', e); }
       }
       return backup;
     }
@@ -565,9 +592,27 @@ function makeRunJournal(opts) {
     heads.set(base, h);
     return h;
   }
+  /* A journal that cannot be READ right now (EBUSY/EACCES/EPERM: an antivirus scan or another process holds it, or it
+     is gone since it was listed) is not damage, so it is never repaired or moved aside: persist's errno policy, where
+     unreadable is never empty and never corrupt. It gets no live entry and keeps its cached head, and it carries no
+     identity, so the boot walk skips it and the next walk or listing reads it again. Every route that acts on a journal
+     refuses one with a repairError (resolve, continue, adopt), so it is listed for nothing until it reads. */
+  function unreadableState(file, err) {
+    const state = analyze([], false, 'none');
+    state.file = file;
+    state.unreadable = true;
+    state.readError = String((err && err.code) || (err && err.message) || err);
+    state.repairError = 'run journal could not be read (' + state.readError + '); left in place and read again on the next pass';
+    return state;
+  }
   function recoverFile(file, rawText, evidenceOf) {
+    let raw = rawText;
+    if (raw == null) {
+      try { raw = io.readFile(file); }
+      catch (e) { return unreadableState(file, e); }
+    }
     let parsed;
-    try { parsed = parseRecords(rawText != null ? rawText : io.readFile(file)); }
+    try { parsed = parseRecords(raw); }
     catch (_) { parsed = { records: [], corrupt: true, damage: 'corrupt' }; }
     const state = analyze(parsed.records, parsed.corrupt, parsed.damage);
     state.file = file;

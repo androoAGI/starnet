@@ -21,6 +21,10 @@
    main / bak are the per-file kinds above (bak is absent from the result when the .bak was not read), so the caller's
    read policy can tell a present-but-bad copy (isBad) from a missing one.
 
+   readTagged({ fs }, file, { text: true }) -> { status, value, err?, main }   the same errno policy for a file that is
+     not one JSON value (an append journal, whose own replay judges every line): the file alone (no .bak), no parse, and
+     zero-length is just ''. 'ok' (value = the text) | 'absent' | 'unreadable' (never empty; it marks the file unread).
+
    THE UNREAD MARK: an 'unreadable' result marks the file as unread in this process; only a successful replace of that
    file (replace.js) clears it. A writer that never read the file and replaces it while it is marked (a full-state store
    whose boot load was locked) first keeps every present copy as <file>.unseen-<n> (decision D2). */
@@ -43,8 +47,20 @@ function readOne(fs, file, keepRaw) {
   return keepRaw ? { kind: 'ok', value: value, raw: raw } : { kind: 'ok', value: value };
 }
 
-function readTagged(deps, file) {
+function readText(fs, file) {
+  let raw;
+  try { raw = fs.readFileSync(file, 'utf8'); }
+  catch (e) {
+    if (isAbsentError(e)) return { value: undefined, status: 'absent', main: 'absent' };
+    unread.add(String(file));
+    return { value: undefined, status: 'unreadable', err: e, main: 'unreadable' };
+  }
+  return { value: raw == null ? '' : String(raw), status: 'ok', main: 'ok' };
+}
+
+function readTagged(deps, file, opts) {
   const fs = deps.fs;
+  if (opts && opts.text) return readText(fs, file);
   const m = readOne(fs, file);
   if (m.kind === 'ok') return { value: m.value, status: 'ok', main: 'ok' };
   if (m.kind === 'unreadable') {

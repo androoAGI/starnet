@@ -8,6 +8,7 @@
 const { makeDurableJsonStore } = require('./durable-store.js');
 const { note: failNote } = require('./failopen.js');   // tagged SYNC swallow: a fail-open catch must never be invisible
 const { writeFileDurable } = require('./durable-write.js');
+const persist = require('./persist/index.js');   // the journal's tagged read and its forensic copy
 
 // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
 // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
@@ -74,6 +75,9 @@ function makeDeliverableStore(deps) {
   const canAppend = fs && typeof fs.openSync === 'function' && typeof fs.writeSync === 'function'
     && typeof fs.fsyncSync === 'function' && typeof fs.closeSync === 'function';
   let state = null, nextSeq = 1, journalOps = 0;
+  // appendHold: why appends wait (a torn journal tail not yet kept and cut), else null. tornKept: that tail's copy, once
+  // made, so a cut that failed is retried without copying the same bytes again.
+  let appendHold = null, tornKept = null;
 
   function applyOp(s, op) {
     if (!op || Number(op.seq) <= Number(s.appliedSeq || 0)) return s;
@@ -112,30 +116,59 @@ function makeDeliverableStore(deps) {
     s.appliedSeq = Number(op.seq) || s.appliedSeq;
     return s;
   }
+  function unreadable(file, err) {
+    const e = new Error('deliverables: ' + file + ' cannot be read right now (' + ((err && err.code) || 'EUNKNOWN') + '); nothing was loaded or cached, and the next read tries again');
+    e.code = 'ESTORE_UNREADABLE'; e.cause = err; e.file = file;
+    return e;
+  }
+  /* The snapshot through the store's own read policy (a torn main is moved aside, a good .bak recovers it) and the
+     journal through persist's errno policy: a file that is present but cannot be read (EBUSY/EACCES/EPERM) throws
+     ESTORE_UNREADABLE, never an empty library, and nothing is cached, so the real rows read back once the lock clears. */
   function load() {
     if (state) return state;
-    try { state = normalize(durable.get(KEY)); } catch (_) { state = normalize(null); }
-    let raw = '';
-    try { raw = fs.readFileSync(journalFile, 'utf8'); } catch (_) {}
+    const snap = durable.readKey(KEY);
+    if (snap.status === 'unreadable') throw unreadable(snap.problemFile || pathMod.join(deps.workspaces, 'deliverables.library.json'), snap.err);
+    const journal = persist.readTagged({ fs }, journalFile, { text: true });
+    if (journal.status === 'unreadable') throw unreadable(journalFile, journal.err);
+    const s = normalize(snap.status === 'ok' || snap.status === 'recovered' ? snap.value : null);
+    const raw = journal.status === 'ok' ? journal.value : '';
     const validLines = [];
-    let torn = false;
-    for (const line of String(raw || '').split(/\r?\n/)) {
+    let torn = false, next = 1, ops = 0;
+    for (const line of raw.split(/\r?\n/)) {
       if (!line.trim()) continue;
       let op; try { op = JSON.parse(line); } catch (_) { torn = true; break; }
       if (!op || op.v !== 2 || !(Number(op.seq) > 0)) { torn = true; break; }
       validLines.push(line);
-      nextSeq = Math.max(nextSeq, Number(op.seq) + 1); journalOps++;
-      applyOp(state, op);
+      next = Math.max(next, Number(op.seq) + 1); ops++;
+      applyOp(s, op);
     }
-    if (torn && canAppend) {
-      // Preserve the forensic bytes, then repair the active append path to the proven prefix.
-      // Otherwise every later valid append would sit after the torn line and disappear again
-      // on the next restart because replay correctly stops at the first untrusted record.
-      try { fs.copyFileSync(journalFile, journalFile + '.corrupt'); } catch (e) { failNote('deliverables.journal.quarantine', e); }
-      durableWrite({ fs, path: pathMod }, journalFile, validLines.join('\n') + (validLines.length ? '\n' : ''));
+    appendHold = (torn && canAppend) ? cutTornTail(raw, validLines) : null;
+    nextSeq = Math.max(nextSeq, next, s.appliedSeq + 1);
+    journalOps = ops;
+    // a torn tail not yet kept and cut: the proven rows are served, nothing is cached, and appends wait (commit)
+    if (!appendHold) state = s;
+    return s;
+  }
+  /* Keep the torn bytes, then cut the active append path to the proven prefix: otherwise every later valid append would
+     sit after the torn line and disappear again on the next restart, because replay correctly stops at the first
+     untrusted record. The copy is persist's first-free <journal>.corrupt-<n> made by an exclusive COPY (the journal is
+     appended in place, so a shared inode would change the copy), and the cut happens only once that copy exists.
+     Returns null once cut, else why appends must wait: nothing was cut, and the next load tries again. */
+  function cutTornTail(raw, validLines) {
+    const kept = tornKept && tornKept.bytes === raw.length && (typeof fs.existsSync !== 'function' || fs.existsSync(tornKept.to));
+    if (!kept) {
+      const copy = persist.preserve({ fs }, journalFile, persist.names.LABELS.CORRUPT, { copyOnly: true });
+      if (!copy.ok) {
+        const why = copy.error || new Error('the torn journal could not be kept');
+        failNote('deliverables.journal.quarantine', why);
+        return why;
+      }
+      tornKept = { bytes: raw.length, to: copy.to };
     }
-    nextSeq = Math.max(nextSeq, state.appliedSeq + 1);
-    return state;
+    try { durableWrite({ fs, path: pathMod }, journalFile, validLines.join('\n') + (validLines.length ? '\n' : '')); }
+    catch (e) { failNote('deliverables.journal.cut', e); return e; }
+    tornKept = null;
+    return null;
   }
   function appendLine(op) {
     fs.mkdirSync(deps.workspaces, { recursive: true });
@@ -159,7 +192,13 @@ function makeDeliverableStore(deps) {
     journalOps = 0;
   }
   function commit(op) {
-    const s = load(); op = Object.assign({ v: 2, seq: nextSeq++ }, op);
+    const s = load();
+    if (appendHold) {
+      const e = new Error('deliverables: the journal ' + journalFile + ' has a torn tail that could not be kept and cut yet; nothing was appended, and the next load tries again');
+      e.code = 'ESTORE_CORRUPT'; e.cause = appendHold;
+      throw e;
+    }
+    op = Object.assign({ v: 2, seq: nextSeq++ }, op);
     if (canAppend) { appendLine(op); journalOps++; applyOp(s, op); maybeCompact(s); }
     else { applyOp(s, op); durable.set(KEY, s); }
     return s;

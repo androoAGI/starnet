@@ -30,7 +30,6 @@ const SKIP_FILES = new Set([
   '.starnet-workspace-owner.json', 'cron.lock', 'proc-ledger.json',
   '.migration-pending', '.migration-receipt.json', '.migrated'
 ]);
-let atomicSequence = 0;
 
 function sha256(data) { return crypto.createHash('sha256').update(data).digest('hex'); }
 function slash(value) { return String(value || '').replace(/\\/g, '/').replace(/^\.\//, ''); }
@@ -158,21 +157,11 @@ function lastResultFile(workspaceRoot, path) {
   return path.join(path.dirname(root), path.basename(root) + '.recovery-last.json');
 }
 
+// persist's atomic write (temp, fsync, rename; a failure leaves no temp, and a crashed writer's temp is swept by the
+// file's next write), keeping the pretty JSON and the trailing newline
 function writeJsonAtomic(file, value, fs, path, now) {
   fs.mkdirSync(path.dirname(file), { recursive: true });
-  const temp = file + '.tmp-' + process.pid + '-' + now() + '-' + (++atomicSequence);
-  let fd;
-  try {
-    fd = fs.openSync(temp, 'wx');
-    fs.writeFileSync(fd, JSON.stringify(value, null, 2) + '\n');
-    if (typeof fs.fsyncSync === 'function') fs.fsyncSync(fd);
-    fs.closeSync(fd); fd = undefined;
-    fs.renameSync(temp, file);
-  } catch (error) {
-    try { if (fd !== undefined) fs.closeSync(fd); } catch (_) {}
-    try { if (fs.existsSync(temp)) fs.unlinkSync(temp); } catch (_) {}
-    throw error;
-  }
+  require('./persist/index.js').writeAtomic({ fs, path }, file, JSON.stringify(value, null, 2) + '\n');
 }
 
 function requestRecovery(opts) {

@@ -1,6 +1,7 @@
 /* sidecar/workspace-lineage.js — bounded evidence that this machine had StarNet state before this boot. */
 'use strict';
 const { note: failNote } = require('./failopen.js');
+const persist = require('./persist/index.js');   // the sibling-name grammar, and the marker's atomic write
 
 // The desktop migration transaction seals even an empty first-run generation with a receipt. The receipt is
 // bookkeeping, not user state; any files it actually migrated are scanned independently below.
@@ -19,14 +20,14 @@ const STATION_BOOKKEEPING = /^_station\.questrefresh\.json(?:\.bak)?$/i;
 // Positive evidence only. The former "anything not on the infrastructure denylist" rule made every newly
 // introduced cache/receipt a fake prior station. This covers the harness-owned durable authorities without
 // treating an arbitrary future `*.cache.json` as proof that a Commander already created a station.
-const STATE_EVIDENCE = /^(?:agent\.save\.json(?:\.bak|\.corrupt-\d+)?|agent\.roster\.json(?:\.bak)?|(?:transcript|ledger|runs|growth-ratings|skills|skillprefs|autonomy\.ledger|deliverables\.library)\.jsonl|(?:budget|fallback|station\.widgets|memory\.config|study\.state|projects|personalization|recommendations|task-briefs|threads|execution-settings|terminal-sessions|subagents|routing\.plan|toolsets|usercommands)\.json(?:\.bak)?|(?:skills-allowed|skill-registries|skill-exchange-metrics|permissions\.(?:allow|bypass)|hooks(?:-allowed)?|plugins-allowed|cron\.(?:jobs|armed)|loops|nightshift\.(?:drafts|learn|acts)|nightfocus\.state|scout\.(?:interests|state))\.json(?:\.bak)?|_(?:station|commander)\.[a-z0-9._-]+\.json(?:\.bak)?|[a-z0-9_-]+\.(?:notebook|todo|declined|minted|pending|workshop|deliverables)\.json(?:\.bak)?|.*\.starnet-(?:backup|recovery)\.json)$/i;
+const STATE_EVIDENCE = new RegExp(String.raw`^(?:agent\.save\.json(?:\.bak|${persist.names.QUARANTINE_N_SOURCE})?|agent\.roster\.json(?:\.bak)?|(?:transcript|ledger|runs|growth-ratings|skills|skillprefs|autonomy\.ledger|deliverables\.library)\.jsonl|(?:budget|fallback|station\.widgets|memory\.config|study\.state|projects|personalization|recommendations|task-briefs|threads|execution-settings|terminal-sessions|subagents|routing\.plan|toolsets|usercommands)\.json(?:\.bak)?|(?:skills-allowed|skill-registries|skill-exchange-metrics|permissions\.(?:allow|bypass)|hooks(?:-allowed)?|plugins-allowed|cron\.(?:jobs|armed)|loops|nightshift\.(?:drafts|learn|acts)|nightfocus\.state|scout\.(?:interests|state))\.json(?:\.bak)?|_(?:station|commander)\.[a-z0-9._-]+\.json(?:\.bak)?|[a-z0-9_-]+\.(?:notebook|todo|declined|minted|pending|workshop|deliverables)\.json(?:\.bak)?|.*\.starnet-(?:backup|recovery)\.json)$`, 'i');
 
 function meaningfulEntries(fs, path, root) {
   try {
     if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) return [];
     return fs.readdirSync(root).filter(name => {
       if (INFRA.test(name) || STATION_BOOKKEEPING.test(name)) return false;
-      if (/\.tmp(?:\.|$)/i.test(name)) return false;
+      if (persist.names.isTemp(name)) return false;
       if (name === '.browser-profile') return false;
       return STATE_EVIDENCE.test(name);
     }).slice(0, 40).map(name => ({ name, path: path.join(root, name) }));
@@ -146,7 +147,7 @@ function startFresh(deps) {
   };
   try {
     try { fs.mkdirSync(current, { recursive: true }); } catch (e) { failNote('lineage.startFresh.mkdir', e); }   // the write below reports the real failure
-    fs.writeFileSync(path.join(current, FRESH_MARKER), JSON.stringify(marker, null, 2));
+    persist.writeAtomic({ fs, path }, path.join(current, FRESH_MARKER), JSON.stringify(marker, null, 2));   // old or new, never torn
   } catch (e) { return { ok: false, error: 'could not write the fresh-start marker: ' + String(e && e.message || e), quarantine, moved }; }
   return { ok: true, quarantine: marker.quarantine, moved, acknowledgedRoots: marker.acknowledgedRoots };
 }

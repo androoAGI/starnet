@@ -1,5 +1,5 @@
 /* node test/persist.conformance.test.js — sidecar/persist: one write, read, quarantine and name policy, and the SAME
-   normalized outcome from every store built on it, under every fault (persist-module lane: INV-1 to INV-5).
+   normalized outcome from every store built on it, under every fault (persist-module lane: INV-1 to INV-6).
 
    THE FAMILIES IT CLOSES
      75558694  a failed or crashed write left its temp behind, and nothing ever swept one                         (INV-2)
@@ -16,8 +16,9 @@
    2. The store matrix: the general durable-store and the full-state stores, each built exactly as sidecar/index.js
       composes them (makeDurableJsonStore with the update-frozen writer and the host's quarantineCorrupt as onCorrupt;
       persist.host's loadResilient/saveResilient), the channel store's chat map and transcripts (makeChannelStore with
-      that writer, through loadChatMap/saveChatRecord and loadHistory/appendTurn) and the station save (makeSaveStore,
-      through loadState and save(): a preservation it cannot make is its unreadable refusal), against every fault
+      that writer, through loadChatMap/saveChatRecord and loadHistory/appendTurn), the station save (makeSaveStore,
+      through loadState and save(): a preservation it cannot make is its unreadable refusal) and the deliverables
+      library's snapshot (makeDeliverableStore, through read() and compaction's durable.set), against every fault
       row, with hard links working and again with linkSync failing as EPERM, ENOTSUP, ENOSYS, EXDEV, EINVAL and EISDIR
       (FAT/exFAT and friends). A row speaks in values (V0..V3) and raw torn bytes; each store keeps a value in its own
       record format. Every store must give the row's expected normalized outcome:
@@ -29,18 +30,24 @@
       an unhandled corrupt record a refusal; a locked channel file is a typed refusal, never empty).
    3. Files written by the base code, legacy siblings beside them, read back unchanged.
    4. The composition manifest: index.js binds persist.host with the options this suite composes, its writer is the
-      update freeze over durable-write, and no sidecar composition of makeDurableJsonStore, makeChannelStore or
-      makeSaveStore passes an option the matrix lacks.
+      update freeze over durable-write, and no sidecar composition of makeDurableJsonStore, makeChannelStore,
+      makeSaveStore, makeDeliverableStore or makeRunJournal passes an option the matrix lacks.
+   5. The journals and recovery files: run journals (a quarantine is the first free .corrupt-<n> and honest when it
+      cannot be made; a journal that cannot be read is never repaired or moved aside; a failed or crashed repair leaves
+      no temp), the deliverables journal (a torn tail is kept before it is cut, or nothing is cut and appends wait; a
+      locked snapshot or journal is a typed refusal that caches nothing), the recovery request (workspace-recovery) and
+      the START FRESH marker (workspace-lineage): a crash at every write point, a torn write included, leaves the old or
+      the new bytes and the next write leaves no temp (INV-2, INV-3, INV-5).
+   6. The names golden table: every sibling name persist or a legacy writer makes beside six store files, as
+      station-recovery's bundle policy and workspace-lineage's evidence read it (INV-6).
 
-   The next step adds the journals and recovery files (S3) to the matrix. On a tree without sidecar/persist (the base
-   this suite is proved RED on) the primitive rows report the module missing, and the store rows run that tree's own
-   code: index.js's inline quarantineCorrupt/loadResilient/saveResilient, sliced from its source and run as written,
-   and the stores' own modules. */
+   On a tree without sidecar/persist (the base this suite is proved RED on) the primitive rows report the module
+   missing, and the store rows run that tree's own code: index.js's inline quarantineCorrupt/loadResilient/
+   saveResilient, sliced from its source and run as written, and the stores' own modules. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { spawnSync } = require('child_process');
 const A = require('./_assert.js');
 const src = require('./helpers/source.js');
 const failopen = require('../sidecar/failopen.js');
@@ -48,6 +55,11 @@ const DS = require('../sidecar/durable-store.js');
 const { writeFileDurable: writeFileDurableRaw } = require('../sidecar/durable-write.js');
 const { makeChannelStore } = require('../sidecar/channels/store.js');
 const { makeSaveStore } = require('../sidecar/savestore.js');
+const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
+const RJ = require('../sidecar/run-journal.js');
+const Recovery = require('../sidecar/workspace-recovery.js');
+const Lineage = require('../sidecar/workspace-lineage.js');
+const StationRecovery = require('../sidecar/station-recovery.js');
 
 let persist = null, missing = '';
 try { persist = require('../sidecar/persist/index.js'); }
@@ -82,13 +94,14 @@ function section(name, fn) {
 }
 
 function alive(pid) { try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); } }
-// a pid that is provably dead: a child that has exited (a crashed writer's temp carries one)
+// a pid that is provably dead (a crashed writer's temp carries one) and STAYS dead for the whole run: past every OS's
+// pid range (Linux pid_max is at most 2^22, macOS's 99998, Windows hands out small multiples of 4), so no process
+// started meanwhile can be given it. An exited child's pid was used before, but on a busy Windows box that pid went to a
+// new process mid-run, and the sweeper then (rightly) kept that live writer's temp.
 const DEAD = (() => {
-  for (let i = 0; i < 5; i++) {
-    const r = spawnSync(process.execPath, ['-e', '0'], { windowsHide: true });
-    if (r.pid && !alive(r.pid)) return r.pid;
-  }
-  throw new Error('no dead pid could be found');
+  const pid = 2147483644;
+  if (alive(pid)) throw new Error('no provably dead pid (' + pid + ' answers kill(0))');
+  return pid;
 })();
 const LIVE = process.pid;
 
@@ -126,6 +139,33 @@ function killable(io, killAt) {
       return function () {
         if (state.dead) throw injected('KILLED', String(k));
         if (MUTATING.has(k) && ++state.calls === killAt) { state.dead = true; throw injected('KILLED', String(k)); }
+        return v.apply(t, arguments);
+      };
+    }
+  });
+  return { io: proxy, state };
+}
+// killable, and a write that is killed tears: its first half is on disk first (power lost part-way through a write)
+function tearing(io, killAt) {
+  const state = { calls: 0, dead: false };
+  const proxy = new Proxy(io, {
+    get(t, k) {
+      const v = t[k];
+      if (typeof v !== 'function') return v;
+      return function () {
+        if (state.dead) throw injected('KILLED', String(k));
+        if (MUTATING.has(k) && ++state.calls === killAt) {
+          state.dead = true;
+          const a = Array.from(arguments);
+          if (k === 'writeSync' && Buffer.isBuffer(a[1])) {
+            const off = a[2] || 0, len = a[3] == null ? a[1].length - off : a[3];
+            if (len > 1) t.writeSync(a[0], a[1], off, Math.floor(len / 2), a[4]);
+          } else if (k === 'writeFileSync') {
+            const data = Buffer.isBuffer(a[1]) ? a[1] : Buffer.from(String(a[1]));
+            if (data.length > 1) t.writeFileSync(a[0], data.subarray(0, Math.floor(data.length / 2)), a[2]);
+          }
+          throw injected('KILLED', String(k));
+        }
         return v.apply(t, arguments);
       };
     }
@@ -203,6 +243,18 @@ function composeChannels(io, dir, opts) {
 // the station save store exactly as index.js composes it: no writer option (a station save's update freeze is the HTTP
 // mutation gate, 423), so it writes through persist itself
 function composeSave(io, dir) { return { save: makeSaveStore({ fs: io, pathMod: path, root: dir, clock: CLOCK }) }; }
+// the deliverables library exactly as index.js composes it (its update-frozen writer, an observer onRecover, the host's
+// quarantineCorrupt as onCorrupt): its snapshot is read by load() (with the journal beside it) and written by compaction
+function composeDeliverables(io, dir, opts) {
+  const o = opts || {};
+  const state = { frozen: !!o.frozen, pid: o.pid || 0 };
+  const writeFileDurable = frozenWriter(state);
+  const host = hostFor({ fs: io, path: path, writeDurable: writeFileDurable });
+  const store = makeDeliverableStore({ fs: io, path: path, workspaces: dir, writeDurable: writeFileDurable,
+    onRecover: (key, file) => console.warn('[deliverables] recovered ' + file + ' from .bak last-known-good.'),
+    onCorrupt: (key, file) => host.quarantineCorrupt(file, 'deliverables') });
+  return { store, state };
+}
 // a read through a store API that throws its refusals (the channel store): the same normalized outcome
 function readThrough(fn) {
   try { return fn(); }
@@ -233,6 +285,9 @@ const historyEnc = s => J({ version: 1, messages: [{ role: 'user', content: VALU
 const UPDATED = { V0: 10, V1: 11, V2: 12, V3: 13 };   // each value's updatedAt: a row's write is always newer than its seed
 const saveDoc = s => ({ updatedAt: UPDATED[s], k: VALUES[s].k });
 const saveEnc = s => J({ version: 1, agentId: 'agent', updatedAt: UPDATED[s], savedAt: 1, doc: saveDoc(s) });
+// one library row per value, in the store's normalized shape (key order included), so read() gives these exact bytes
+const delivRow = s => ({ id: 'd', agentId: 'agent', runId: 'r', title: VALUES[s].k, source: 'workshop', status: 'kept', kind: 'files', summary: '', files: [], createdAt: 1, updatedAt: UPDATED[s] });
+const delivEnc = s => J({ v: 2, appliedSeq: 0, rows: [delivRow(s)], undo: [], cleared: [], clearUndo: [] });
 const KINDS = {
   general: {
     file: dir => path.join(dir, KEY + '.json'), compose, enc,
@@ -307,6 +362,24 @@ const KINDS = {
       reads: 'value:{"schema":"starnet.save","updatedAt":5,"_saveRevision":3,"_saveClient":"tab1","agent":{"id":"agent","name":"Kept"}}',
       legacy: { 'corrupt-1': 'LEGACY savestore quarantine', '2.tmp': 'LEGACY savestore temp' },
       next: 'corrupt-2'
+    }
+  },
+  // deliverable-store: the library snapshot (deliverables.library.json), read through read() (load: the snapshot, then
+  // its journal, which these rows leave absent; section 5 has the journal's own rows) and written by the snapshot's one
+  // writer, compaction's durable.set of the whole state, on the store's own composed durable store
+  'deliverables snapshot': {
+    file: dir => path.join(dir, 'deliverables.library.json'), compose: composeDeliverables, enc: delivEnc,
+    read(c) {
+      return readThrough(() => {
+        const s = c.store.read();
+        return s.rows.length ? 'value:' + nameOf(delivEnc, J(s)) : 'empty';
+      });
+    },
+    write(c, s) { return written(() => c.store._durable.set('deliverables', JSON.parse(delivEnc(s)))); },
+    // a snapshot as the base code's compaction wrote it (normalize's shape)
+    base: {
+      main: '{"v":2,"appliedSeq":3,"rows":[{"id":"workshop:agent:r1","agentId":"agent","runId":"r1","title":"Report","source":"nightshift","status":"kept","kind":"files","summary":"","files":[{"path":"report.md","bytes":12}],"createdAt":100,"updatedAt":100}],"undo":[],"cleared":["run:a"],"clearUndo":[]}',
+      bak: '{"v":2,"appliedSeq":1,"rows":[],"undo":[],"cleared":[],"clearUndo":[]}'
     }
   }
 };
@@ -840,6 +913,16 @@ function same(got, want, label) {
         makeSaveStore: {
           fs: 'every savestore row (the fault facade)', pathMod: 'every savestore row', root: 'every savestore row',
           clock: 'CLOCK (savedAt is part of the bytes compared)'
+        },
+        makeDeliverableStore: {
+          fs: 'every deliverables row (the fault facade)', path: 'every deliverables row', workspaces: 'every deliverables row',
+          writeDurable: 'the update-frozen writer (row "update freeze"; the crash rows pass a dead writer pid through it; the journal cut)',
+          onRecover: 'the recovered rows', onCorrupt: 'the host quarantine (the corrupt rows)'
+        },
+        makeRunJournal: {
+          dir: 'every run-journal row', fs: 'every run-journal row (the fault facade)', path: 'every run-journal row',
+          clock: 'the record stamps only (ts is in the records, never in how the file is written, read or kept)',
+          redact: 'identity in the rows (redaction shapes record payloads, never how the file is written, read or kept)'
         }
       };
       for (const name of Object.keys(RECORD_COVERED)) {
@@ -855,6 +938,318 @@ function same(got, want, label) {
           A.ok(Object.prototype.hasOwnProperty.call(RECORD_COVERED[name], key), 'manifest: ' + f.where + ' composes ' + name + ' with "' + key + '", an option persist.conformance has no row for — add one');
       }
       A.ok(/makeChannelStore\(\{[^\n]*\bwriteDurable: writeFileDurable\b/.test(INDEX), 'manifest: index.js hands the channel store its update-frozen writeFileDurable (composeChannels mirrors it with frozenWriter)');
+      A.ok(/makeDeliverableStore\(\{[^}]*\bwriteDurable: writeFileDurable\b[^}]*onCorrupt: \(key, file\) => quarantineCorrupt\(file, 'deliverables'\)/.test(INDEX), 'manifest: index.js hands the deliverables store its update-frozen writeFileDurable and the host quarantine (composeDeliverables mirrors both)');
+    });
+
+    /* ============================== 5. JOURNALS AND RECOVERY FILES ============================== */
+    const STALE = persist ? persist.STALE_MS : 10 * 60 * 1000;
+    const textOf = f => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '-');
+    // every name beside a file, as its suffix after '<file>.'
+    const siblings = file => fs.readdirSync(path.dirname(file)).filter(n => n.indexOf(path.basename(file) + '.') === 0).map(n => n.slice(path.basename(file).length + 1)).sort();
+    const tempsOf = file => siblings(file).filter(s => TEMP_NAME.test('.' + s));
+    async function sectionAsync(name, fn) { try { await fn(); } catch (e) { A.ok(false, name + ' threw: ' + ((e && e.stack) || e)); } }
+    // a run journal as a crashed run of an earlier process left it: begin + an unmatched intent (needs_review)
+    const journalOf = (dir, runId) => path.join(dir, RJ._internals.runFileName(runId));
+    function seedJournal(dir, runId, tail) {
+      const j = RJ.makeRunJournal({ dir, fs, path, clock: { now: () => 1 } });
+      j.begin({ runId, agentId: 'agent', streamId: 's' });
+      j.toolIntent(runId, { callId: 'w1', name: 'fs.write', argsRaw: '{}' });
+      if (tail) fs.appendFileSync(journalOf(dir, runId), tail);
+      return journalOf(dir, runId);
+    }
+    const TORN_TAIL = '{"v":1,"runId":"torn';
+    await quietly(async () => {
+      // 5a. INV-3 run journals: a journal with no valid record, twice across a restart, is .corrupt-1 then .corrupt-2,
+      //     byte-exact; a move that cannot be made says so (quarantinedTo null) and leaves the journal where it was
+      await sectionAsync('5a run-journal quarantine', async () => {
+        for (const linkMode of LINK_MODES) {
+          const dir = fresh('rj-two-' + linkMode);
+          const file = journalOf(dir, 'no-record');
+          fs.writeFileSync(file, 'FIRST-INCIDENT{');
+          reset();
+          const one = RJ.makeRunJournal({ dir, fs: facade(linkMode, {}), path }).recoverFile(file);
+          fs.writeFileSync(file, 'SECOND-INCIDENT{');
+          reset();   // a restart: nothing in memory remembers the first copy
+          const two = RJ.makeRunJournal({ dir, fs: facade(linkMode, {}), path }).recoverFile(file);
+          const tag = '[run journal | link ' + linkMode + '] ';
+          A.eq([path.basename(one.quarantinedTo || ''), path.basename(two.quarantinedTo || '')], [path.basename(file) + '.corrupt-1', path.basename(file) + '.corrupt-2'], 'INV-3 ' + tag + 'two incidents across a restart are .corrupt-1 and .corrupt-2');
+          A.eq([textOf(file + '.corrupt-1'), textOf(file + '.corrupt-2'), textOf(file)], ['FIRST-INCIDENT{', 'SECOND-INCIDENT{', '-'], 'INV-3 ' + tag + 'byte-exact, and nothing is left at the journal\'s name');
+          const stuck = journalOf(dir, 'stuck');
+          fs.writeFileSync(stuck, 'LOCKED-GARBAGE{');
+          reset();
+          const held = facade(linkMode, { unlinkSync: a => (a[0] === stuck ? 'EBUSY' : null), renameSync: a => (a[0] === stuck ? 'EBUSY' : null) });
+          const st = RJ.makeRunJournal({ dir, fs: held, path }).recoverFile(stuck);
+          A.eq([st.quarantinedTo, textOf(stuck), siblings(stuck)], [null, 'LOCKED-GARBAGE{', []], 'INV-3 ' + tag + 'a move that cannot be made reports quarantinedTo null and leaves the journal where it was, with no copy');
+        }
+      });
+
+      // 5b. INV-3 / INV-5 run journals: one that cannot be READ (EBUSY/EACCES/EPERM) is never repaired or moved aside,
+      //     takes no record, and is read (and repaired, or moved aside) by the first pass after the lock clears
+      await sectionAsync('5b run-journal unreadable', async () => {
+        for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+          const dir = fresh('rj-locked-' + code);
+          const torn = seedJournal(dir, 'locked-torn', TORN_TAIL), junk = journalOf(dir, 'locked-junk');
+          fs.writeFileSync(junk, 'NO-RECORD{');
+          const before = { [torn]: textOf(torn), [junk]: textOf(junk) };
+          const lock = { on: true };
+          reset();
+          const j = RJ.makeRunJournal({ dir, fs: facade('link', { readFileSync: a => (lock.on && (a[0] === torn || a[0] === junk) ? code : null) }), path });
+          const tag = '[run journal | ' + code + '] ';
+          for (const f of [torn, junk]) {
+            const st = j.recoverFile(f);
+            A.eq([st.unreadable === true, st.runId, st.quarantinedTo || null, st.repairedFrom || null, !!st.repairError], [true, '', null, null, true], 'INV-3 ' + tag + (f === torn ? 'a torn' : 'an unparseable') + ' journal it cannot read is unreadable: neither repaired nor moved aside, and refused for every action');
+            A.eq([textOf(f), siblings(f)], [before[f], []], 'INV-3 ' + tag + 'its bytes stay where they are: no copy, no evidence, no temp');
+          }
+          A.throws(() => j.checkpoint('locked-torn', { phase: 'x', messages: [] }), 'INV-5 ' + tag + 'a record to it is refused while it cannot be read (no live entry)');
+          const page = j.recoverPage({ limit: 10 });
+          A.ok(page.rows.length === 2 && page.rows.every(r => r.runId === '' && r.unreadable === true), 'INV-5 ' + tag + 'the listing carries both as unreadable rows with no identity (the boot walk skips them)');
+          lock.on = false;
+          const after = j.recoverFile(torn), afterJunk = j.recoverFile(junk);
+          A.ok(after.runId === 'locked-torn' && after.records === 2 && /\.torn-r[0-9a-f]{10}$/.test(String(after.repairedFrom || '')), 'INV-5 ' + tag + 'once the lock clears the next pass reads the journal and repairs its torn tail');
+          A.eq(path.basename(afterJunk.quarantinedTo || ''), path.basename(junk) + '.corrupt-1', 'INV-3 ' + tag + 'and only then moves the unparseable one aside');
+        }
+      });
+
+      // 5c. INV-2 run journals: a repair that fails leaves the journal untouched and no temp of it
+      await sectionAsync('5c run-journal repair failures', async () => {
+        const inTemp = (f, p) => String(p).indexOf(f + '.') === 0 && TEMP_NAME.test(String(p));
+        for (const [label, rules, evidence] of [
+          ['the evidence copy fails', f => ({ copyFileSync: a => (a[0] === f ? 'ENOSPC' : null) }), 0],
+          ['the temp write fails', f => ({ writeSync: (a, ctx) => (inTemp(f, ctx.pathOf(a[0])) ? 'ENOSPC' : null) }), 0],
+          ['the temp fsync fails', f => ({ fsyncSync: (a, ctx) => (inTemp(f, ctx.pathOf(a[0])) ? 'EIO' : null) }), 0],
+          ['the rename and the in-place rewrite fail', f => ({ renameSync: a => (a[1] === f ? 'EPERM' : null), openSync: a => (a[0] === f && a[1] === 'r+' ? 'EBUSY' : null) }), 1]
+        ]) {
+          const dir = fresh('rj-repair-fails-' + label);
+          const file = seedJournal(dir, 'repair-fails', TORN_TAIL);
+          const before = textOf(file);
+          reset();
+          const st = RJ.makeRunJournal({ dir, fs: facade('link', rules(file)), path }).recoverFile(file);
+          const tag = 'INV-2 [run journal repair] ' + label + ': ';
+          A.ok(!!st.repairError, tag + 'the repair reports its error');
+          A.eq([textOf(file), tempsOf(file)], [before, []], tag + 'the journal is untouched and no temp of it is left');
+          A.eq(siblings(file).filter(s => /^(?:torn|corrupt)-/.test(s)).length, evidence, tag + (evidence ? 'the evidence made before the replace is kept' : 'no partial evidence copy is left'));
+        }
+      });
+
+      // 5d. INV-2 run journals: a crash at every write point of a repair; the reboot repairs the journal it finds and
+      //     leaves no temp (the crashed process is gone, so its temp names a dead pid)
+      await sectionAsync('5d run-journal repair crashes', async () => {
+        const refDir = fresh('rj-crash-ref');
+        const refFile = seedJournal(refDir, 'crash', TORN_TAIL);
+        reset();
+        const ref = killable(facade('link', {}), 0);
+        const refState = RJ.makeRunJournal({ dir: refDir, fs: ref.io, path }).recoverFile(refFile);
+        A.ok(/\.torn-r[0-9a-f]{10}$/.test(String(refState.repairedFrom || '')) && !(persist && persist.names.isForensic(refState.repairedFrom)), 'INV-6 a repair\'s evidence copy is .torn-r<hex>: its nonce carries a letter, so it never reads as a numbered quarantine');
+        const points = ref.state.calls;
+        let leftTemp = 0;
+        for (let k = 1; k <= points; k++) {
+          const dir = fresh('rj-crash-' + k);
+          const file = seedJournal(dir, 'crash', TORN_TAIL);
+          reset();
+          try { RJ.makeRunJournal({ dir, fs: killable(facade('link', {}), k).io, path }).recoverFile(file); } catch (_) { /* the process died here */ }
+          if (tempsOf(file).length) leftTemp++;
+          crashed(dir);
+          reset();   // the reboot
+          const st = RJ.makeRunJournal({ dir, fs, path }).recoverFile(file);
+          const label = 'INV-2 [run journal repair] killed at write point ' + k + '/' + points;
+          A.eq([st.runId, st.records, st.status], ['crash', 2, 'needs_review'], label + ': the reboot recovers the proven prefix');
+          A.eq([RJ._internals.parseRecords(textOf(file)).damage, tempsOf(file)], ['none', []], label + ': the journal is repaired and no temp of it is left');
+        }
+        A.ok(leftTemp > 0, 'the run-journal crash rows are real: ' + leftTemp + ' of ' + points + ' kill points left a dead writer\'s temp');
+      });
+
+      // 5e. INV-3 the deliverables journal: a torn tail is kept as the first free .corrupt-<n> (an exclusive copy,
+      //     byte-exact, across a restart) before the journal is cut to its proven prefix
+      const delivJournal = dir => path.join(dir, 'deliverables.library.jsonl');
+      const delivOp = (seq, id) => J({ v: 2, seq, op: 'upsert', row: { id, agentId: 'agent', runId: 'r' + seq, title: 'T' + seq, source: 'workshop', status: 'kept', kind: 'files', summary: '', files: [], createdAt: seq, updatedAt: seq } });
+      const ids = rows => rows.map(r => r.id).sort();
+      const newRow = id => ({ id, agentId: 'agent', runId: 'r-' + id, title: id, status: 'kept', files: [] });
+      async function settled(p) { try { await p; return 'ok'; } catch (e) { return (e && e.code) || String(e); } }
+      const PROVEN = delivOp(1, 'd1') + '\n' + delivOp(2, 'd2') + '\n';
+      await sectionAsync('5e deliverables torn journal', async () => {
+        for (const linkMode of LINK_MODES) {
+          const dir = fresh('deliv-torn-' + linkMode);
+          const jf = delivJournal(dir);
+          fs.writeFileSync(jf, PROVEN + '{"v":2,"seq":3,"op":"ups');
+          const first = textOf(jf);
+          reset();
+          let c = composeDeliverables(facade(linkMode, {}), dir);
+          const tag = '[deliverables journal | link ' + linkMode + '] ';
+          A.eq(ids(c.store.list()), ['d1', 'd2'], 'INV-3 ' + tag + 'a torn tail keeps every proven row');
+          A.eq(textOf(jf), PROVEN, 'INV-3 ' + tag + 'the journal is cut to its proven prefix');
+          A.eq(await settled(c.store.record(newRow('d3'), 3)), 'ok', 'INV-3 ' + tag + 'and takes the next append');
+          fs.appendFileSync(jf, '{"v":2,"seq":5,"op":"tor');
+          const second = textOf(jf);
+          reset();   // a restart: nothing in memory remembers the first copy
+          c = composeDeliverables(facade(linkMode, {}), dir);
+          A.eq(ids(c.store.list()), ['d1', 'd2', 'd3'], 'INV-3 ' + tag + 'the append after the cut replays across a restart');
+          A.eq(look(jf).forensic, ['corrupt-1=' + first, 'corrupt-2=' + second], 'INV-3 ' + tag + 'two torn incidents across a restart are .corrupt-1 and .corrupt-2, byte-exact');
+          A.ok(fs.existsSync(jf + '.corrupt-1') && fs.statSync(jf + '.corrupt-1').nlink === 1, 'INV-3 ' + tag + 'the copy is a copy (the journal is appended in place: a shared inode would change it)');
+        }
+        // the copy, or the cut, cannot be made: nothing is cut, the proven rows still read, appends are refused (record()
+        // rejects into callers that catch), and the next load tries again; a failed cut never copies the same bytes twice
+        for (const [label, rules] of [
+          ['the copy fails', (jf, fault) => ({ copyFileSync: a => (fault.on && a[0] === jf ? 'ENOSPC' : null) })],
+          ['the cut fails', (jf, fault) => ({ renameSync: a => (fault.on && a[1] === jf ? 'EPERM' : null) })]
+        ]) {
+          const dir = fresh('deliv-hold-' + label);
+          const jf = delivJournal(dir);
+          fs.writeFileSync(jf, PROVEN + '{"v":2,"seq":3,"op":"ups');
+          const torn = textOf(jf);
+          const fault = { on: true };
+          reset();
+          const c = composeDeliverables(facade('link', rules(jf, fault)), dir);
+          const tag = 'INV-3 [deliverables journal] ' + label + ': ';
+          A.eq(ids(c.store.list()), ['d1', 'd2'], tag + 'the proven rows still read');
+          A.eq(textOf(jf), torn, tag + 'nothing is cut: the torn bytes stay in the journal until they are kept');
+          A.eq(await settled(c.store.record(newRow('d3'), 3)), 'ESTORE_CORRUPT', tag + 'an append is refused while the tail is neither kept nor cut');
+          A.eq(textOf(jf), torn, tag + 'and nothing was appended');
+          A.eq(look(jf).forensic, label === 'the copy fails' ? [] : ['corrupt-1=' + torn], tag + (label === 'the copy fails' ? 'no partial copy is left' : 'the copy was made once, never again for the same bytes'));
+          fault.on = false;
+          A.eq(await settled(c.store.record(newRow('d3'), 3)), 'ok', tag + 'once the fault clears the next load keeps it and cuts, and the append lands');
+          A.eq([look(jf).forensic, ids(composeDeliverables(facade('link', {}), dir).store.list())], [['corrupt-1=' + torn], ['d1', 'd2', 'd3']], tag + 'one byte-exact copy, and every row replays');
+        }
+      });
+
+      // 5f. INV-5 deliverables: a locked snapshot or journal is a typed refusal, never an empty library; nothing is
+      //     cached, the write it would feed is refused, and the real rows read back once the lock clears
+      await sectionAsync('5f deliverables unreadable', async () => {
+        for (const code of ['EBUSY', 'EACCES', 'EPERM']) for (const which of ['snapshot', 'journal']) {
+          const dir = fresh('deliv-locked-' + which + '-' + code);
+          const snap = path.join(dir, 'deliverables.library.json'), jf = delivJournal(dir);
+          fs.writeFileSync(snap, J({ v: 2, appliedSeq: 1, rows: [JSON.parse(delivOp(1, 'd1')).row], undo: [], cleared: [], clearUndo: [] }));
+          fs.writeFileSync(jf, delivOp(2, 'd2') + '\n');
+          const before = [textOf(snap), textOf(jf)];
+          const lock = { on: true };
+          const target = which === 'snapshot' ? snap : jf;
+          reset();
+          const c = composeDeliverables(facade('link', { readFileSync: a => (lock.on && a[0] === target ? code : null) }), dir);
+          const tag = 'INV-5 [deliverables | locked ' + which + ' | ' + code + '] ';
+          let err = null;
+          try { c.store.list(); } catch (e) { err = e; }
+          A.eq([err && err.code, err && err.cause && err.cause.code], ['ESTORE_UNREADABLE', code], tag + 'the library is a typed refusal (the errno its cause), never empty');
+          A.eq(await settled(c.store.record(newRow('d3'), 3)), 'ESTORE_UNREADABLE', tag + 'and the write it would feed is refused');
+          A.eq([textOf(snap), textOf(jf), look(snap).forensic, look(jf).forensic], before.concat([[], []]), tag + 'nothing on disk changed and nothing was moved aside');
+          lock.on = false;
+          A.eq(ids(c.store.list()), ['d1', 'd2'], tag + 'nothing was cached: the real rows read back once the lock clears');
+        }
+      });
+
+      // 5g. INV-2 the recovery request (workspace-recovery writeJsonAtomic, through requestRecovery): the format kept, no
+      //     temp left by a failed or crashed write (a torn one included), and a crashed or stale legacy writer's temp
+      //     swept by the next write
+      const CAND = { id: 'a'.repeat(24), recoverable: true, saveSha256: 'b'.repeat(64) };
+      const REQUESTED_AT = 1700000000000;
+      const requestText = JSON.stringify({ version: 1, candidateId: CAND.id, expectedSaveSha256: CAND.saveSha256, requestedAt: REQUESTED_AT }, null, 2) + '\n';
+      const requestOf = root => Recovery._internals.requestFile(root, path);
+      const request = (io, root) => Recovery.requestRecovery({ fs: io, path, workspaceRoot: root, candidateId: CAND.id, inspection: { candidates: [CAND] }, now: () => REQUESTED_AT });
+      await sectionAsync('5g recovery request', async () => {
+        const root = path.join(fresh('req-format'), 'ws');
+        reset();
+        request(facade('link', {}), root);
+        A.eq([textOf(requestOf(root)), tempsOf(requestOf(root))], [requestText, []], 'recovery request: the pretty JSON and its trailing newline, exactly as the base code wrote it, and no temp');
+        const refused = path.join(fresh('req-rename'), 'ws');
+        let err = null;
+        try { request(facade('link', { renameSync: a => (a[1] === requestOf(refused) ? 'EPERM' : null) }), refused); } catch (e) { err = e; }
+        A.eq([err && err.code, textOf(requestOf(refused)), tempsOf(requestOf(refused))], ['EPERM', '-', []], 'INV-2 recovery request, rename refused: the error reaches the caller and no temp is left');
+
+        const refRoot = path.join(fresh('req-crash-ref'), 'ws');
+        reset();
+        const ref = tearing(facade('link', {}), 0);
+        request(ref.io, refRoot);
+        const points = ref.state.calls;
+        let leftTemp = 0;
+        for (let k = 1; k <= points; k++) {
+          const dir = fresh('req-crash-' + k), at = path.join(dir, 'ws'), file = requestOf(at);
+          reset();
+          try { request(tearing(facade('link', {}), k).io, at); } catch (_) { /* the process died here */ }
+          if (tempsOf(file).length) leftTemp++;
+          crashed(dir);
+          reset();   // the reboot
+          const label = 'INV-2 [recovery request] killed at write point ' + k + '/' + points;
+          const landed = textOf(file);
+          A.ok(landed === '-' || landed === requestText, label + ': the reboot finds no request or the whole one, never a torn one: ' + JSON.stringify(landed.slice(0, 60)));
+          if (landed !== '-') fs.unlinkSync(file);   // a pending request is consumed by the boot that applies it
+          request(fs, at);
+          A.eq([textOf(file), tempsOf(file)], [requestText, []], label + ': the next request lands and leaves no temp');
+        }
+        A.ok(leftTemp > 0, 'the recovery-request crash rows are real: ' + leftTemp + ' of ' + points + ' kill points left a dead writer\'s temp');
+
+        const legacyRoot = path.join(fresh('req-legacy'), 'ws'), legacyFile = requestOf(legacyRoot);
+        const stale = legacyFile + '.tmp-4242-1700000000000-1', young = legacyFile + '.tmp-4242-1700000000000-2';
+        fs.writeFileSync(stale, 'LEGACY'); fs.writeFileSync(young, 'LEGACY');
+        const oldSec = (fs.statSync(stale).mtimeMs - STALE - 60000) / 1000;
+        fs.utimesSync(stale, oldSec, oldSec);
+        reset();
+        request(fs, legacyRoot);
+        A.eq([fs.existsSync(stale), fs.existsSync(young)], [false, true], 'INV-2 recovery request: a legacy temp is swept by the next write once stale, and a fresh one waits');
+      });
+
+      // 5h. the START FRESH marker (workspace-lineage startFresh): a crash at every write point, a torn write included,
+      //     leaves the old marker or the new one, never a torn receipt (savestore reads a torn one as NaN and refuses
+      //     every re-seed of the fresh station); the next START FRESH lands and leaves no temp
+      await sectionAsync('5h start-fresh marker', async () => {
+        const NOW = Date.UTC(2026, 10, 3);
+        const startFreshAt = (io, ws) => Lineage.startFresh({ fs: io, path, workspaceRoot: ws, candidateRoots: [], snapshotsRoot: path.join(path.dirname(ws), 'no-snapshots'), platform: process.platform, now: () => NOW });
+        const prior = { version: 1, at: '2026-01-01T00:00:00.000Z', acknowledgedRoots: ['/old/root'], quarantine: null, moved: [] };
+        const priorText = JSON.stringify(prior, null, 2);
+        const nextText = JSON.stringify(Object.assign({}, prior, { at: new Date(NOW).toISOString() }), null, 2);
+        const seedWs = dir => { const ws = path.join(dir, 'ws'); fs.mkdirSync(ws, { recursive: true }); fs.writeFileSync(path.join(ws, Lineage.FRESH_MARKER), priorText); return ws; };
+        const refWs = seedWs(fresh('marker-crash-ref'));
+        reset();
+        const ref = tearing(facade('link', {}), 0);
+        A.eq(startFreshAt(ref.io, refWs).ok, true, 'START FRESH: the reference run writes its marker');
+        A.eq(textOf(path.join(refWs, Lineage.FRESH_MARKER)), nextText, 'START FRESH keeps the marker\'s format (pretty JSON, the acknowledged roots merged)');
+        const points = ref.state.calls;
+        for (let k = 1; k <= points; k++) {
+          const ws = seedWs(fresh('marker-crash-' + k)), marker = path.join(ws, Lineage.FRESH_MARKER);
+          reset();
+          try { startFreshAt(tearing(facade('link', {}), k).io, ws); } catch (_) { /* the process died here */ }
+          crashed(ws);
+          reset();   // the reboot
+          const label = 'START FRESH marker killed at write point ' + k + '/' + points;
+          const landed = textOf(marker);
+          A.ok(landed === priorText || landed === nextText, label + ': the reboot reads the old marker or the new one, never a torn one: ' + JSON.stringify(landed.slice(0, 60)));
+          A.eq([startFreshAt(fs, ws).ok, textOf(marker), tempsOf(marker)], [true, nextText, []], label + ': the next START FRESH lands and leaves no temp');
+        }
+      });
+    });
+
+    /* ============================== 6. THE NAMES GOLDEN TABLE (INV-6) ============================== */
+    section('6 names golden table', () => {
+      const HASH = 'ab'.repeat(32) + '.jsonl';
+      const FILES = ['agent.save.json', 'agent.roster.json', 'channels/secrets.json', 'agent.notebook.json', '.run-journal/' + HASH, 'deliverables.library.jsonl'];
+      // every sibling persist or a legacy writer makes beside a store file, and what it is
+      const SIBLINGS = [
+        ['bak', 'backup'],
+        [LIVE + '.0a1b2c.tmp', 'temp'], ['bak.' + LIVE + '.0a1b2c.tmp', 'temp'],                          // persist's temps
+        ['3.tmp', 'temp'], ['tmp-4242-1700000000000-1', 'temp'], ['repair-ab12cd34ef', 'temp'],           // legacy temps
+        ['corrupt-1', 'forensic'], ['corrupt-12', 'forensic'], ['bak.corrupt-1', 'forensic'],
+        ['unseen-1', 'forensic'], ['bak.unseen-2', 'forensic'],                                             // persist's copies
+        ['corrupt', 'forensic'], ['corrupt-4242-1', 'forensic']                                             // legacy copies
+      ];
+      // a run journal's damage evidence: persist's (r<hex>) and the base repair's bare 10-hex nonce, all-digit included
+      const EVIDENCE = ['torn-r0a1b2c3d4e', 'corrupt-r0a1b2c3d4e', 'torn-0a1b2c3d4e', 'corrupt-0a1b2c3d4e', 'torn-0123456789', 'corrupt-0123456789'].map(s => [s, 'evidence']);
+      const rowsOf = file => SIBLINGS.concat(file.indexOf('.run-journal/') === 0 ? EVIDENCE : []);
+      const BUNDLE = { backup: 'skip', temp: 'skip', forensic: 'skip', evidence: 'include' };
+      const policyOf = rel => StationRecovery._internals.classifyPolicy(rel, null).action;
+      for (const file of FILES) {
+        A.eq(policyOf(file), file === 'channels/secrets.json' ? 'sanitize' : 'include', 'INV-6 [bundle] ' + file + ' itself is captured');
+        for (const [suffix, kind] of rowsOf(file)) A.eq(policyOf(file + '.' + suffix), BUNDLE[kind], 'INV-6 [bundle] ' + file + '.' + suffix + ' (' + kind + '): ' + BUNDLE[kind]);
+      }
+      // workspace-lineage counts only positive station evidence: never a temp, always agent.save.json's numbered quarantine
+      const dir = fresh('names-lineage');
+      for (const file of FILES.filter(f => f.indexOf('/') < 0)) {
+        fs.writeFileSync(path.join(dir, file), '{}');
+        for (const [suffix] of SIBLINGS) fs.writeFileSync(path.join(dir, file + '.' + suffix), '{}');
+      }
+      A.eq(Lineage._internals.meaningfulEntries(fs, path, dir).map(e => e.name).sort(),
+        ['agent.notebook.json', 'agent.notebook.json.bak', 'agent.roster.json', 'agent.roster.json.bak', 'agent.save.json', 'agent.save.json.bak', 'agent.save.json.corrupt-1', 'agent.save.json.corrupt-12', 'deliverables.library.jsonl'],
+        'INV-6 [lineage] the station evidence beside these stores: each store, its .bak where it has one and agent.save.json.corrupt-<n>; never a temp or any other copy');
+      if (havePersist('6 names')) for (const file of FILES) for (const [suffix, kind] of rowsOf(file)) {
+        const name = path.basename(file) + '.' + suffix, N = persist.names;
+        A.eq([N.isTemp(name), N.isBackup(name), N.isForensic(name)], [kind === 'temp', kind === 'backup', kind === 'forensic'], 'INV-6 [names] ' + name + ' is ' + kind);
+      }
     });
   } catch (e) {
     A.ok(false, 'persist.conformance threw: ' + ((e && e.stack) || e));
