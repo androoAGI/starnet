@@ -16,7 +16,9 @@
         heterogeneous clones stay within the cap plus one call at every cap, while clones that fit still run in
         parallel; a family whose calls take turns is never timed out by the waits alone (team.spawn's timeout and each
         team.dispatch worker's slice pause while a call is held), nor stopped as stalled by the host's liveness sweep
-        (subagents.js checkStalls, run on the real clock: a held worker's stall clock stops too). */
+        (subagents.js checkStalls: a held worker's stall clock stops too). The liveness families run the manager on its
+        own clock, which moves in the 20ms steps a call takes, and sweep after every step, where index.js sweeps every
+        30s: a loaded box cannot move that clock, and one real loop stall in each of those families shows it. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -32,6 +34,7 @@ const { makeCostEngine } = require('../sidecar/cost.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeContext } = require('../sidecar/context.js');
+const { stallNow, waitFor } = require('./helpers/loop-stall.js');
 
 const near = (a, b) => Math.abs(a - b) < 1e-9;
 const counter = () => { let n = 0; return () => 'child_' + (++n); };
@@ -444,16 +447,35 @@ try {
   const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   async function family(label, capUsd, leadUsd, workerUsd, opt) {
     // timeoutMs: the orchestration budget (deps.dispatchTimeoutMs) — the tool is then registered with its own timeout
-    // and the real clock, as index.js does; workerDelayMs: real time each worker's call stays in flight
-    // workerStreamMs: real time each worker's call streams a token every 20ms before its answer; stallMs: the subagent
-    // manager runs on the real clock with this liveness threshold and the host's sweep (checkStalls) runs every few ms,
-    // as index.js runs it every 30s; background: the lead starts its workers with background:true and the family waits
+    // and the real clock, as index.js does; workerDelayMs: how long each worker's call stays in flight showing nothing;
+    // workerStreamMs: how long each worker's call streams, a token every 20ms, before its answer (both real time, except
+    // in a liveness family); stallMs: a LIVENESS FAMILY — the subagent manager runs with this liveness threshold on its
+    // own clock, which moves in the 20ms steps the workers' calls take, and the host's sweep (checkStalls) runs after
+    // every step, where index.js runs it every 30s (VIRTUAL TIME below); loopStallMs: one real event-loop stall of this
+    // length in a liveness family; background: the lead starts its workers with background:true and the family waits
     // for them to settle
-    const { models, selfSystem, synthUsd, workerTurns, workerDelay, workerDelayMs, workerStreamMs, tasks, tool, timeoutMs, stallMs, background } = opt || {};
+    const { models, selfSystem, synthUsd, workerTurns, workerDelay, workerDelayMs, workerStreamMs, tasks, tool, timeoutMs, stallMs, loopStallMs, background } = opt || {};
     const viaDispatch = tool === 'dispatch';
     const ends = [], invalid = [];
     const newId = counter();
     let modelCalls = 0;
+    /* VIRTUAL TIME, the liveness families (pending register R8; test/helpers/loop-stall.js names the evidence). Their
+       threshold ran on the real clock, swept every 15ms, and on a loaded box a late sweep read the event loop's own delay
+       as a worker's silence and stopped the worker as stalled. Now the manager's clock (deps.clock, which index.js fills
+       with Date.now) reads vnow, and vnow moves only in step(): the 20ms steps a worker's call takes, workerDelayMs of
+       silence or workerStreamMs of one token a step. The sweep runs after every step, from a clean stack (setImmediate),
+       so it sees every value the clock takes, and no event-loop delay can move the clock: the verdict is the same under
+       any load. loopStallMs shows that on every run, with one real stall after the first call's third token (or a silent
+       call's third step) while the other calls are held. */
+    const virtual = !!stallMs;
+    let vnow = 1000, liveStreams = 0, loopStalledMs = null;
+    const staled = [];
+    const step = ms => new Promise(resolve => setImmediate(() => {
+      vnow += ms;
+      for (const w of subagents.checkStalls()) staled.push(w.agentId);
+      resolve();
+    }));
+    const stallOnce = () => { if (loopStallMs > 0 && loopStalledMs === null) loopStalledMs = stallNow(loopStallMs); };
     async function hostRun(o) {
       const pool = isRunSpendPool(o.spendPool) ? o.spendPool : makeRunSpendPool({ capUsd });
       pool.join(o.runId);
@@ -472,8 +494,18 @@ try {
         return r;
       };
       const replay = makeReplayProvider({ turns: o.turns, models });
+      // a liveness family's call (VIRTUAL TIME above): its silence and its tokens move the manager's clock, 20ms a step
+      async function* steppedStream(req) {
+        modelCalls++; liveStreams++;
+        try {
+          for (let i = 0; i < (o.delay || 0); i++) await tick();
+          for (let q = 0; q < (o.delayMs || 0) / 20; q++) { await step(20); if (q === 2) stallOnce(); }
+          for (let k = 0; k < (o.streamMs || 0) / 20; k++) { await step(20); yield { type: 'text', delta: '.' }; if (k === 2) stallOnce(); }
+          yield* replay.stream(req);
+        } finally { liveStreams--; }
+      }
       // a clone that answers later (its delay in ticks before the stream starts): the cheap clone books first
-      const provider = Object.assign({}, replay, { stream: async function* (req) {
+      const provider = Object.assign({}, replay, { stream: virtual ? steppedStream : async function* (req) {
         modelCalls++;
         for (let i = 0; i < (o.delay || 0); i++) await tick();
         if (o.delayMs) await sleep(o.delayMs);
@@ -496,10 +528,8 @@ try {
       ends.push({ agentId: o.agentId, part: o.part, end: end && end.payload });
       return res;
     }
-    const subagents = makeSubagentManager({ fs, pathMod: path, file: path.join(root, label + '.json'), clock: { now: stallMs ? () => Date.now() : () => 1000 }, emit: () => {}, newId,
+    const subagents = makeSubagentManager({ fs, pathMod: path, file: path.join(root, label + '.json'), clock: { now: virtual ? () => vnow : () => 1000 }, emit: () => {}, newId,
       ...(stallMs ? { stallMs, inToolStallMs: stallMs } : {}) });
-    const staled = [];
-    const sweep = stallMs ? setInterval(() => { for (const w of subagents.checkStalls()) staled.push(w.agentId); }, Math.max(5, Math.floor(stallMs / 10))) : null;
     const runOnce = (o) => {
       const part = partOf(o);
       return hostRun({ runId: o.runId, agentId: o.agentId || 'sub', spendPool: o.spendPool, system: o.system, messages: o.messages, part, emit: o.emit, signal: o.signal,
@@ -511,9 +541,19 @@ try {
     const teamTool = viaDispatch ? dispatchTool : spawnTool;
     const wireName = viaDispatch ? 'team_dispatch' : 'team_spawn';
     const leadPool = makeRunSpendPool({ capUsd });   // index.js mints the lead's pool and puts it on its tool ctx
-    let peak = 0;
+    let peak = 0, maxHeldMs = 0;
     const realAdmit = leadPool.admit;
-    leadPool.admit = (...a) => { const r = realAdmit(...a); if (r === null) peak = Math.max(peak, leadPool.status().inFlight); return r; };
+    leadPool.admit = (...a) => {
+      const r = realAdmit(...a);
+      if (r === null) peak = Math.max(peak, leadPool.status().inFlight);
+      // a liveness family also times each worker's hold on the manager's clock, from the hold to the settle that ends it
+      // (the lead is no subagent: nothing sweeps it, so its own holds are skipped)
+      else if (virtual && r.hold && a[0] !== 'lead') {
+        const from = vnow, held = () => { maxHeldMs = Math.max(maxHeldMs, vnow - from); };
+        Promise.resolve(r.hold).then(held, held);
+      }
+      return r;
+    };
     // as index.js: the run's registry has the real clock, and the tool runs on the registry's own ctx (its signal, its
     // holdTimeout) plus the host-minted pool
     const reg = makeRegistry(timed ? { clock: { now: () => Date.now() } } : undefined);
@@ -525,14 +565,17 @@ try {
     await hostRun({ runId: 'lead', agentId: 'agent', spendPool: leadPool, turns: [leadTurn, turnText('combined brief', synthUsd === undefined ? leadUsd : synthUsd)],
       tools: [{ type: 'function', function: { name: wireName, parameters: teamTool.schema } }],
       dispatch: async (c, ctx) => { const r = await reg.dispatch(c, ctx); toolResult = r; return r; } });
-    // background workers outlive the lead's turn: wait (bounded) until each has settled
-    for (let t = 0; background && t < 1000 && ends.filter(e => e.agentId !== 'agent').length < (tasks || 4); t++) await sleep(10);
-    if (sweep) clearInterval(sweep);
+    // background workers outlive the lead's turn: wait until each has settled, on loop turns (bounded by a count, never a
+    // deadline; every background family is a liveness family, whose clock moves only in such turns)
+    const settled = () => ends.filter(e => e.agentId !== 'agent').length;
+    if (background) A.ok(await waitFor(() => settled() >= (tasks || 4), { turns: 20000, everyMs: 0 }), label + ': every background worker settled: ' + settled() + ' of ' + (tasks || 4));
+    // a worker the sweep stopped mid-call runs on until its call yields again: no call outlives its family
+    if (virtual) A.ok(await waitFor(() => liveStreams === 0, { turns: 20000, everyMs: 0 }), label + ': every call the family started has ended (' + liveStreams + ' still streaming)');
     const lead = ends.find(e => e.agentId === 'agent');
     const workers = ends.filter(e => e.agentId !== 'agent').sort((a, b) => a.part - b.part);
     const st = typeof leadPool.status === 'function' ? leadPool.status() : {};
     return { lead: lead && lead.end, workers: workers.map(w => w.end), invalid, spentUsd: st.spentUsd, calls: st.calls, modelCalls, peak, toolResult,
-      staled, records: subagents.list() };
+      staled, records: subagents.list(), loopStalledMs, maxHeldMs };
   }
   const { endNote: channelNote } = require('../sidecar/channels/hub.js');
   const commsLine = new Function(A.fnBody(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8'), 'function budgetStopLine(') + '\nreturn budgetStopLine;')();
@@ -736,25 +779,32 @@ try {
   // the host's liveness sweep (subagents.js checkStalls: no progress for 450s, swept every 30s by index.js) covers every
   // team.spawn clone and every background team.dispatch worker. 8f4267c08 paused team.spawn's timeout and the dispatch
   // slices during holds, but not that sweep: a clone held longer than the threshold was stopped as stalled, its work
-  // "INCOMPLETE and not accepted", in a family well under its cap. Scaled: a 150ms threshold swept every 15ms on the real
-  // clock, a model nothing prices (one call in flight at a time), three workers whose calls each stream a token every
-  // 20ms for 240ms — each worker is busy for its whole call, and every call after the first waits longer than 150ms.
+  // "INCOMPLETE and not accepted", in a family well under its cap. Scaled: a 150ms threshold on the manager's own clock,
+  // which moves in the 20ms steps a call takes and is swept after every step (VIRTUAL TIME in family()), a model nothing
+  // prices (one call in flight at a time), three workers whose calls each stream a token every 20ms for 240ms — each
+  // worker is busy for its whole call, and each call after the first is held 240ms at a time, past the threshold. One
+  // real 300ms loop stall lands after the first call's third token, while the others are held: on the real clock that
+  // got the streaming worker stopped as stalled; on the manager's clock it moves nothing.
   for (const [shape, extra] of [['spawn', {}], ['background spawn', { background: true }], ['background dispatch', { tool: 'dispatch', background: true }]]) {
-    const f = await family('heldStall' + shape.replace(/ /g, ''), 1, 0.01, 0.01, Object.assign({ models: FREE, tasks: 3, workerStreamMs: 240, stallMs: 150, synthUsd: 0.01 }, extra));
+    const f = await family('heldStall' + shape.replace(/ /g, ''), 1, 0.01, 0.01, Object.assign({ models: FREE, tasks: 3, workerStreamMs: 240, stallMs: 150, loopStallMs: 300, synthUsd: 0.01 }, extra));
     A.eq(f.invalid, [], 'held ' + shape + ', liveness sweep: every event passed the event contract');
     A.eq(f.staled, [], 'held ' + shape + ', liveness sweep: no worker was stopped as stalled while its call waited for room');
     A.eq(f.records.map(r => r.status), ['done', 'done', 'done'], 'held ' + shape + ', liveness sweep: the record of every worker is done: ' + JSON.stringify(f.records.map(r => [r.agentId, r.status, r.reason])));
     A.eq(f.workers.map(w => w && w.reason), ['done', 'done', 'done'], 'held ' + shape + ', liveness sweep: the run of every worker finished');
     A.eq(f.peak, 1, 'held ' + shape + ', liveness sweep: the calls took turns (each later one was held past the threshold)');
     A.eq(f.lead && f.lead.reason, 'done', 'held ' + shape + ', liveness sweep: the lead finished');
+    A.ok(f.loopStalledMs >= 240, 'held ' + shape + ', liveness sweep: a real loop stall landed after the first call\'s third token: ' + f.loopStalledMs + 'ms');
+    A.ok(f.maxHeldMs > 150, 'held ' + shape + ', liveness sweep: a worker\'s call was held past the 150ms threshold on the manager\'s clock: ' + f.maxHeldMs + 'ms');
   }
   {
-    // the sweep still catches a worker that is really silent: one clone whose own call shows nothing for 300ms
-    const f = await family('silentStall', 1, 0.01, 0.01, { models: FREE, tasks: 1, workerDelayMs: 300, stallMs: 150, synthUsd: 0.01 });
+    // the sweep still catches a worker that is really silent: one clone whose own call shows nothing for 300ms on the
+    // manager's clock is stopped at the first 20ms step at or past the threshold, under the same loop stall
+    const f = await family('silentStall', 1, 0.01, 0.01, { models: FREE, tasks: 1, workerDelayMs: 300, stallMs: 150, loopStallMs: 300, synthUsd: 0.01 });
     A.eq(f.staled.length, 1, 'silent clone: the liveness sweep still stops a worker whose own call is silent past the threshold: ' + JSON.stringify(f.staled));
     A.eq(f.records.map(r => r.status), ['stale'], 'silent clone: its record is stale, not done');
     A.ok(f.toolResult && /made no progress/.test(String(f.toolResult.content)), 'silent clone: the lead is told the worker was stopped for no progress: ' + JSON.stringify(f.toolResult && String(f.toolResult.content).slice(0, 160)));
-    await sleep(300);   // the aborted clone's replay call settles before the next family
+    A.eq((f.records[0] || {}).stalledAfterMs, 160, 'silent clone: stopped at the first 20 ms step at or past the 150 ms threshold');
+    A.ok(f.loopStalledMs >= 240, 'silent clone: a real loop stall landed while its call was silent: ' + f.loopStalledMs + 'ms');
   }
   // A $0 LEAD AND A $0 WORKER (calls, not only dollars): nothing booked a cent to reserve by, and a1234b154 let every
   // paid clone fire on that $0 — the lead's $0 turn was "no measure" and a $0 call in flight counted as nothing.
