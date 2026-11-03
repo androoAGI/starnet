@@ -23,11 +23,12 @@
               and session lifecycle, refusal() and the DNS-filter exit; plus the wording web.js and browser.js give
               today, read through their own entry points.
      CONSUMERS each consumer built the way index.js builds it, fakes only at the transport edge (dns.promises.lookup
-              replaced in-process as the http preload rigs replace it, a fetch and an agentFactory recorder), run over
-              the same rows: web_fetch and web_request (caller URL, redirect hops, one DNS question per hop, the dial
-              pinned to exactly the validated addresses and closed).
-   The browser, proxy, connector OAuth and skill rows and the one-classifier census join this file as those consumers
-   move onto the module. Real sockets: test/safe-egress.real-socket.test.js. */
+              replaced in-process as the http preload rigs replace it, a fetch and an agentFactory recorder, the CDP
+              driver, the desktop opener), run over the same rows: web_fetch and web_request (caller URL, redirect
+              hops, one DNS question per hop, the dial pinned to exactly the validated addresses and closed),
+              browser.navigate (caller URL and where the page landed), the login window and desktop links.
+   The proxy, connector OAuth and skill rows and the one-classifier census join this file as those consumers move onto
+   the module. Real sockets: test/safe-egress.real-socket.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const net = require('node:net');
@@ -699,6 +700,7 @@ const DNS_TEXT = {
   }
   const { makeRegistry } = require('../sidecar/tools/registry.js');
   const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
+  const BT = require('../sidecar/tools/builtin/browser.js');
   const WEB_TOOLS = ['web_fetch', 'web_request'];
   const plain = (status, loc) => ({ status, text: async () => 'consumer row ok',
     headers: { get: k => { k = String(k).toLowerCase(); return k === 'content-type' ? 'text/plain' : (k === 'location' ? loc || '' : ''); } } });
@@ -823,6 +825,101 @@ const DNS_TEXT = {
       A.eq([probe, asked.map(q => q[0])], [1, ['start.example.com', DNS_HOST]], tag + ': each hop asked DNS once; the later (loopback) answer was never asked for');
       A.eq(rec.agents.map((a, i) => pinOf(a, i ? DNS_HOST : 'start.example.com').all), [[[PUB4.address, 4]], [[PUB6.address, 6], [PUB4.address, 4]]], tag + ': each hop dials exactly its validated addresses');
       A.eq(rec.agents.map(a => a.closed), [1, 1], tag + ': every hop\'s dispatcher is closed');
+    }
+  });
+
+  // browser.navigate and the login window as index.js builds the browser (makeBrowserTools, no lookup: this computer's
+  // DNS); the CDP driver is the edge: it records where it was sent and lands where the row says
+  function browserRig(landing) {
+    const rec = { navigated: [], askedAtNavigate: [], prompts: [] };
+    const driver = { navigate: async url => { rec.navigated.push(url); rec.askedAtNavigate.push(asked.length); return landing ? landing(url) : url; } };
+    const reg = BT.makeBrowserTools({ driver, env: {}, attendedLogin: { prompt: async p => { rec.prompts.push(p.argsSummary); return 'deny'; } } }).register(makeRegistry());
+    rec.run = (tool, url) => reg.dispatch({ id: 'row-' + tool, name: tool, args: { url } }, { agentId: 'agent' });
+    return rec;
+  }
+  const NAV_WORDS = host => 'refusing to navigate to private/loopback/intranet host: ' + host;
+
+  // ---- C4. browser.navigate and the login window: the caller's own URL, every HOST_ROW and DNS_ROW ----
+  await section('C4', async () => {
+    for (const [url, want, , note] of HOST_ROWS) {
+      const host = hostOfUrl(url), name = new URL(url).hostname;
+      for (const tool of ['browser.navigate', 'browser.login']) {
+        asked.length = 0; answerFor = () => [PUB4];
+        const rec = browserRig();
+        const r = await rec.run(tool, url);
+        const tag = tool + ' ' + url + (note ? ' [' + note + ']' : '');
+        if (want === 'refuse') {
+          A.eq([r.isError, r.hostAuthored === true, r.content, r.summary], [true, true, failed(tool, NAV_WORDS(host)), 'private address refused'], tag + ': refused in the browser\'s words, host-authored');
+          A.eq([asked.length, rec.navigated.length, rec.prompts.length], [0, 0, 0], tag + ': no DNS question, the browser sent nowhere, the Commander never asked');
+          continue;
+        }
+        A.ok(!r.isError, tag + ': allowed' + (r.isError ? ' (refused: ' + r.content + ')' : ''));
+        if (tool === 'browser.navigate') A.eq([rec.navigated, rec.askedAtNavigate], [[new URL(url).href], [isLiteral(url) ? 0 : 1]], tag + ': the browser is sent there after exactly one DNS question for the caller\'s URL');
+        else A.eq([rec.prompts, asked.map(q => q[0])], [[host], isLiteral(url) ? [] : [name]], tag + ': the Commander is asked, after one DNS question');
+      }
+    }
+    for (const row of DNS_ROWS) {
+      const host = row.host || DNS_HOST, url = 'https://' + host + '/x';
+      for (const tool of ['browser.navigate', 'browser.login']) {
+        asked.length = 0; answerFor = answerRow(row);
+        const rec = browserRig();
+        const r = await rec.run(tool, url);
+        const tag = tool + ' DNS ' + row.label;
+        A.eq(asked.slice(0, 1), row.local ? [] : [[host, { all: true }]], tag + (row.local ? ': answered locally, never asked of DNS' : ': the caller\'s URL asks DNS once'));
+        if (row.allow) { A.ok(!r.isError && (tool === 'browser.login' ? rec.prompts.length === 1 : rec.navigated.length === 1), tag + ': allowed'); continue; }
+        A.eq([rec.navigated.length, rec.prompts.length], [0, 0], tag + ': the browser is sent nowhere and the Commander never asked');
+        if (row.refuse === 'private-answer') {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, true, failed(tool, DNS_TEXT[row.refuse]('browser', row) + '. ' + S.privateAnswerExit(host, row.address, 'browser'))],
+            tag + ': the browser\'s words plus its DNS-filter exit, host-authored (the caller\'s own URL: no taint)');
+        } else if (row.refuse) {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed(tool, DNS_TEXT[row.refuse]('browser', row))], tag + ': the browser\'s words, never host-authored');
+        } else {
+          A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed(tool, 'getaddrinfo ' + (row.fails || row.local) + ' ' + host)], tag + ': the resolver\'s own error, never host-authored');
+        }
+      }
+    }
+  });
+
+  // ---- C5. browser.navigate: where the page LANDED (the site's choice), every refused row ----
+  await section('C5', async () => {
+    const START = 'https://start.example.com/page';
+    for (const [url, want] of HOST_ROWS) {
+      if (want !== 'refuse') continue;
+      asked.length = 0; answerFor = () => [PUB4];
+      const rec = browserRig(sent => (sent === 'about:blank' ? sent : new URL(url).href));
+      const r = await rec.run('browser.navigate', START);
+      const tag = 'browser.navigate landing on ' + url;
+      A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed('browser.navigate', 'blocked unsafe redirect: ' + NAV_WORDS(hostOfUrl(url)))], tag + ': blocked in the browser\'s words, never host-authored');
+      A.eq(rec.navigated, [START, 'about:blank'], tag + ': and the tab is sent away from it');
+    }
+    for (const row of DNS_ROWS) {
+      if (row.allow) continue;
+      const host = row.host || DNS_HOST;
+      asked.length = 0; answerFor = answerRow(row, { 'start.example.com': [PUB4] });
+      const rec = browserRig(sent => (sent === 'about:blank' ? sent : 'https://' + host + '/x'));
+      const r = await rec.run('browser.navigate', START);
+      const tag = 'browser.navigate landing, DNS ' + row.label;
+      const words = row.refuse ? DNS_TEXT[row.refuse]('browser', row) : 'getaddrinfo ' + (row.fails || row.local) + ' ' + host;
+      A.eq([r.isError, r.hostAuthored === true, r.content], [true, false, failed('browser.navigate', 'blocked unsafe redirect: ' + words)], tag + ': blocked, never host-authored');
+      A.eq(asked.map(q => q[0]), row.local ? ['start.example.com'] : ['start.example.com', host], tag + ': one DNS question for the landing host');
+    }
+  });
+
+  // ---- C6. desktop links: makeDesktopTools as index.js builds it (the browser's URL rule); the opener is the edge ----
+  await section('C6', async () => {
+    const { makeDesktopTools } = require('../sidecar/tools/builtin/desktop.js');
+    for (const [url, want, , note] of HOST_ROWS) {
+      const opened = [];
+      const D = makeDesktopTools({ opener: async c => { opened.push(c.target); return 'opened'; } });
+      const r = await settle(D._internals.open(url, {}));
+      const tag = 'desktop link ' + url + (note ? ' [' + note + ']' : '');
+      if (want === 'refuse') {
+        const e = r.error;
+        A.eq(e && [e.message, e.hostAuthored === true, e.toolSummary], [NAV_WORDS(hostOfUrl(url)), true, 'private address refused'], tag + ': refused in the browser\'s words, host-authored');
+        A.eq(opened, [], tag + ': nothing opened');
+      } else {
+        A.eq(opened, [new URL(url).href], tag + ': opened as written');
+      }
     }
   });
 

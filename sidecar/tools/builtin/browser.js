@@ -4,7 +4,9 @@
    get_text, and vision. Element refs are valid only until the next snapshot.
 
    SECURITY: browser.navigate refuses private/loopback/intranet URLs before
-   navigation and validates the final URL after redirects. Mutating actions are
+   navigation and validates the final URL after redirects, through the ONE outbound
+   boundary (sidecar/net/safe-egress.js, POLICIES.browser), as do the login window,
+   desktop links and the owned browser's network proxy. Mutating actions are
    consent-gated by the same registry/capability path as every other tool. */
 'use strict';
 (function (root, factory) {
@@ -19,6 +21,7 @@
   const FS = require('node:fs');
   const CP = require('../../child-env.js').guardChildProcess(require('node:child_process'));   // Chrome never inherits station secrets
   const NET = require('node:net');
+  const Egress = require('../../net/safe-egress.js');   // the ONE outbound boundary: classifier, one DNS answer, pinned dial
   const { swallow, note: failNote } = require('../../failopen.js');
   const RunPaths = require('../../run-paths.js');   // the run's one path decision: receipts name paths the next tool opens
   const Challenge = require('./browserchallenge.js');
@@ -602,82 +605,55 @@
     return { text: ' — HTTP ' + code + (r.statusText ? ' ' + r.statusText : '') +
              ' (the page below is the server\'s error response, not the content you asked for)', summary: ' ' + code };
   }
-  /* The host, normalized for COMPARISON. Two normalizations matter and both were missing:
-     · lowercase + IPv6 bracket strip (as before).
-     · TRAILING DOTS. `http://localhost./` is the FQDN-root spelling of `localhost` and every resolver
-       treats them as the same name — but WHATWG only strips the dot for IP literals, so the name kept it
-       and `h === 'localhost'`, `h.endsWith('.local')`, and the single-label `bareName` rule ALL missed.
-       Every name-based rule in assertSafeUrl was therefore one keystroke from being bypassed
-       (`localhost.`, `svc.internal.`, `router.lan.`, `wiki.` all reached the network). Strip the root
-       label here so the one comparison helper is right for every caller. */
-  function hostOf(u) {
-    let h = u.hostname.toLowerCase();
-    if (h.charAt(0) === '[') h = h.slice(1, -1);
-    else h = h.replace(/\.+$/, '');
-    return h;
-  }
-  function isPrivateV4(h) {
-    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return false;
-    const p = h.split('.').map(Number);
-    if (p.some(n => n > 255)) return true;
-    const a = p[0], b = p[1];
-    return a === 0 || a === 127 || a === 10 ||
-      (a === 192 && b === 168) || (a === 169 && b === 254) ||
-      (a === 172 && b >= 16 && b <= 31) ||
-      (a === 100 && b >= 64 && b <= 127);
-  }
-  function isPrivateV6(h) {
-    h = String(h).toLowerCase();
-    return h === '::1' || h === '::' || /^::ffff:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h) || /^f[cd][0-9a-f]{2}:/.test(h);
-  }
+  /* The host, normalized for COMPARISON: lowercase, IPv6 brackets off, and the FQDN root dots off. `http://localhost./`
+     is the root spelling of `localhost`, and WHATWG strips that dot only for IP literals, so every name rule was one
+     keystroke from a bypass (`localhost.`, `svc.internal.`, `router.lan.`, `wiki.`). The boundary's normalizeHost is
+     the one place that rule lives. */
+  function hostOf(u) { return Egress.normalizeHost(u.hostname); }
+  // one-line delegates kept for the tests that name them: the boundary's classifier decides
+  const isPrivateV4 = h => /^\d{1,3}(\.\d{1,3}){3}$/.test(String(h)) && !Egress.classifyHost(String(h)).public;
+  const isPrivateV6 = h => String(h).indexOf(':') >= 0 && !Egress.classifyHost(String(h)).public;
   /* A refusal the HOST wrote (never page bytes): it does not taint the run (index.js taint observation), and its row
      says why in a few words instead of "✗ error" (registry toolSummary). Live walkthrough 2026-10-13: an agent's
      browser.navigate to its OWN saved file:// page was refused, the refusal latched "outside content", and a later
-     shell call was locked with a false reason. */
+     shell call was locked with a false reason. The URL guard's refusals come from the boundary, marked the same way
+     for the caller's own URL; this one serves the browser's other refusals (the loopback test URL rule). */
   function hostRefusal(msg, summary) {
     const e = new Error(msg);
     e.hostAuthored = true;
     if (summary) e.toolSummary = summary;
     return e;
   }
-  function assertSafeUrl(raw) {
-    let u;
-    try { u = new URL(raw); } catch (e) { throw hostRefusal('invalid URL: ' + raw, 'invalid URL'); }
-    if (u.protocol === 'file:') throw hostRefusal('only http(s) URLs are allowed. To check a file you saved, fs_read it; the Commander opens it from its deliverable card.', 'not a web address (file://)');
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') throw hostRefusal('only http(s) URLs are allowed', 'not a web address');
-    const h = hostOf(u);
-    const numericHost = /^\d+$/.test(h) || /^0x[0-9a-f]+$/i.test(h);
-    const blockedName = h === 'localhost' || h === '0.0.0.0' || h.endsWith('.localhost') || h.endsWith('.local') ||
-      h.endsWith('.internal') || h.endsWith('.lan') || h.endsWith('.intranet') || h.endsWith('.home') || h.endsWith('.corp');
-    const bareName = h.indexOf('.') < 0 && h.indexOf(':') < 0 && !numericHost;
-    if (blockedName || bareName || numericHost || isPrivateV4(h) || isPrivateV6(h)) {
-      throw hostRefusal('refusing to navigate to private/loopback/intranet host: ' + h, 'private address refused');
-    }
-    return u;
-  }
-  /* DNS-REBINDING GUARD — the half assertSafeUrl structurally cannot do. Name rules only ever see the
-     STRING; a public name that RESOLVES to 127.0.0.1 / RFC-1918 (nip.io, localtest.me, or simply an
-     attacker-controlled A record) walked straight through them. web_fetch has resolved every hop since the
-     web lane (web.js assertResolvedSafe); browser.navigate — the tool that then RUNS the page's scripts —
-     did not, so the weaker guard sat in front of the more capable tool.
-     Resolution fails closed. The owned browser's proxy pins each validated DNS answer to its TCP dial,
-     including page subresources. Pass lookup:null only in injected driver tests. */
-  function nodeLookup(host) { const dns = require('node:dns'); return dns.promises.lookup(host, { all: true }); }
-  // every address the lookup answered, each one checked — [] for an IP literal or no lookup
-  async function resolveVerified(u, lookup) {
-    if (!lookup) return [];
-    const h = hostOf(u);
-    if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h) || h.indexOf(':') >= 0) return [];   // already a literal
-    const addrs = await lookup(h);
-    if (!Array.isArray(addrs) || !addrs.length) throw new Error('no verified DNS address for ' + h);
-    for (const a of (addrs || [])) {
-      const ip = (a && a.address) || '';
-      if (!NET.isIP(ip)) throw new Error('resolver returned an invalid IP address for ' + h);
-      if (isPrivateV4(ip) || isPrivateV6(ip)) throw new Error('refusing to navigate: ' + h + ' resolves to private address ' + ip);
-    }
-    return addrs;
+  // the browser's URL rule (POLICIES.browser): http(s) only, and no private, loopback, intranet or metadata host
+  function assertSafeUrl(raw) { return Egress.validateUrl(raw, 'browser'); }
+  /* DNS-REBINDING GUARD — the half assertSafeUrl structurally cannot do. Name rules only ever see the STRING; a public
+     name that RESOLVES to 127.0.0.1 / RFC-1918 (nip.io, localtest.me, or simply an attacker-controlled A record) walked
+     straight through them, and the browser is the tool that then RUNS the page's scripts. The boundary asks DNS ONCE
+     and checks every answer; resolution fails closed. The owned browser's proxy checks each of its connections the
+     same way (page subresources included) and pins that connection's one answer to its TCP dial. lookup: absent = this
+     computer's DNS (read at call time); null = no DNS, only in injected driver tests. origin 'redirect' for a URL the
+     site chose: its refusal is never the host's own. */
+  // every validated address ({address, family}), in DNS order; [] for an IP literal or with lookup:null
+  async function resolveVerified(u, lookup, origin) {
+    const dest = await Egress.resolveValidated(u, { policy: 'browser', lookup, origin });
+    return dest.literal ? [] : dest.addresses;
   }
   async function assertResolvedSafe(u, lookup) { return (await resolveVerified(u, lookup))[0]; }
+  /* The caller's OWN URL (navigate, the login window): validated, and its DNS asked once. Its refusal is the host's own
+     (it never taints the run, as web_fetch's never did), and a PUBLIC name answered privately says which setting on
+     this computer answered, in explainRefusal's words. */
+  async function resolveCallerUrl(u, lookup) {
+    try { return await resolveVerified(u, lookup); }
+    catch (e) {
+      if (e && e.egress && e.egress.reason === 'private-answer') e.message += '. ' + Egress.privateAnswerExit(e.egress.host, e.egress.address, 'browser');
+      throw e;
+    }
+  }
+  /* The owned browser's proxy guards (makeCdpDriver starts the proxy for every Chromium it spawns): the browser's URL
+     rule, and every address of ONE validated DNS answer, which the proxy pins to its dial. */
+  function proxyGuards(lookup) {
+    return { validate: assertSafeUrl, resolve: u => resolveVerified(u, lookup) };
+  }
   /* The proxy's refusal behind a tunnel failure: the one for the host this navigation asked for, else the latest (a
      redirect hop, e.g. etsy.com -> www.etsy.com, is refused under ITS name). */
   function pickRefusal(list, url) {
@@ -696,12 +672,8 @@
     const reason = String((r && r.reason) || 'refused');
     const host = String((r && r.host) || 'the site');
     const priv = /resolves to private address (\S+)/.exec(reason);
-    if (priv) {
-      return { code: 'NETWORK_REFUSED', text: 'StarNet\'s browser safety check refused it: this computer\'s DNS answered ' + priv[1] + ' for ' + host +
-        ', a private or blocked address. That answer usually comes from a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), ' +
-        'a VPN, a security app or the hosts file on this computer. A browser using its own secure DNS can still open the site, so it may work there. ' +
-        'StarNet\'s browser uses no outside proxy, VPN or gateway: it connects from this computer. Fix or allow ' + host + ' in that DNS filter.' };
-    }
+    // the DNS-filter exit lives with the boundary now (web_fetch and web_request say it too), in the browser's voice here
+    if (priv) return { code: 'NETWORK_REFUSED', text: Egress.privateAnswerExit(host, priv[1], 'browser') };
     if (/ENOTFOUND|EAI_AGAIN|ESERVFAIL|ETIMEOUT|ECONNREFUSED.*53|getaddrinfo|no verified DNS address/i.test(reason)) {
       return { code: 'NAVIGATION_FAILED', text: 'this computer could not look up ' + host + ' (' + reason + '). Its DNS did not answer for that name; ' +
         'if it keeps failing, check this computer\'s DNS or VPN settings.' };
@@ -1400,10 +1372,7 @@
       // writes the bound port into this profile's DevToolsActivePort, which stays the readiness proof.
       launchPort = privatePort ? await allocateEphemeralPort() : cdpPort;
       if (spawn === CP.spawn && deps.networkProxy !== false) {
-        networkProxy = await startPinnedProxy({
-          validate: assertSafeUrl,
-          resolve: u => resolveVerified(u, ('lookup' in deps) ? deps.lookup : nodeLookup)
-        });
+        networkProxy = await startPinnedProxy(proxyGuards(deps.lookup));
         for (const origin of allowedLocalOrigins) networkProxy.allowLocal(origin);
       }
       const args = ['--disable-blink-features=AutomationControlled', '--no-first-run', '--no-default-browser-check',
@@ -3299,21 +3268,15 @@
       return '[' + ((n && n.role) || 'element') + ']' + ((n && n.text) ? ' "' + String(n.text).slice(0, 60) + '"' : '');
     }
     // DNS-rebinding resolver for PUBLIC navigation (never for the loopback test tool, which is an explicit
-    // allowlist). Defaults to real Node DNS; deps.lookup === null disables it for rigs/tests.
-    const doLookup = ('lookup' in deps) ? deps.lookup : nodeLookup;
+    // allowlist). Absent: this computer's DNS, read at call time; deps.lookup === null disables it for rigs/tests.
+    const doLookup = deps.lookup;
     async function navigate(url, opts) {
       opts = opts || {};
       const local = opts.local === true;
       const validate = local ? assertLoopbackUrl : assertSafeUrl;
       const u = validate(url);
-      if (!local) {
-        try { await assertResolvedSafe(u, doLookup); }   // refuse names that RESOLVE private (rebinding)
-        catch (e) {
-          // a PUBLIC name answered privately is this computer's DNS filter/VPN far more often than an attack: say which
-          if (/resolves to private address/.test(String(e && e.message))) e.message += '. ' + explainRefusal({ host: hostOf(u), reason: e.message }).text;
-          throw e;
-        }
-      }
+      // refuse names that RESOLVE private (rebinding); a PUBLIC name answered privately says which DNS setting answered
+      if (!local) await resolveCallerUrl(u, doLookup);
       const wantedMode = local ? false : ('visible' in opts ? !!opts.visible : undefined);
       let d = wantedMode === undefined ? ensureDriver() : await ensureDriverMode(wantedMode);
       if (local && typeof d.allowLocal === 'function') d.allowLocal(u.href);
@@ -3368,9 +3331,10 @@
       }
       if (finalUrl) {
         try {
-          validate(finalUrl);
-          // the post-redirect host must clear the SAME resolution bar as the one we asked for
-          if (!local) await assertResolvedSafe(new URL(finalUrl), doLookup);
+          // the post-redirect host must clear the SAME bar (and resolution) as the one we asked for; where the page
+          // landed is the site's choice, so its refusal is a redirect hop's (origin 'redirect'), never the host's own
+          if (local) validate(finalUrl);
+          else await resolveVerified(finalUrl, doLookup, 'redirect');
         } catch (e) {
           try { await d.navigate('about:blank'); } catch (_) {}
           throw new Error('blocked unsafe redirect: ' + e.message);
@@ -3748,7 +3712,7 @@
         throw new Error('browser.login unavailable: this host pins the browser headless (STARNET_BROWSER_HEADLESS)');
       }
       const u = assertSafeUrl(url);
-      await assertResolvedSafe(u, doLookup);   // same rebinding bar as navigate — a login window is not a weaker surface
+      await resolveCallerUrl(u, doLookup);   // same rebinding bar as navigate — a login window is not a weaker surface
       const host = hostOf(u);
       const approved = d => !!d && d !== 'deny';
       // fresh: both asks approve THIS sign-in only. askHuman marks the prompt freshConsent, so handleConsent applies and
@@ -3789,7 +3753,8 @@
       let finalUrl = null;
       try {
         finalUrl = await d.navigate(u.href);
-        if (finalUrl) assertSafeUrl(finalUrl);
+        // where the sign-in page landed is the site's choice: its refusal is a redirect hop's, never the host's own
+        if (finalUrl) Egress.validateUrl(finalUrl, 'browser', 'redirect');
         const vis = typeof d.visible === 'function' ? d.visible() : true;
         if (!vis) throw new Error('no full Chrome found — only a headless-shell binary, so a visible login window is impossible; install Chrome or set STARNET_CHROME');
       } catch (e) {
@@ -4635,5 +4600,5 @@
     return { tools, session, releaseUploads, register(reg) { tools.forEach(t => reg.register(t)); return reg; }, _internals: { assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, CHROME_CANDIDATES } };
   }
 
-  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
+  return { makeBrowserTools, _internals: { CdpClient, assertSafeUrl, assertLoopbackUrl, assertResolvedSafe, resolveVerified, proxyGuards, isPrivateV4, isPrivateV6, makeBrowserSession, makeCdpDriver, makeDownloadLedger, downloadClickReceipt, findChrome, resolveChrome, setExtraChrome, needsNoSandbox, profileOwnerPid, macEditingCommands, headlessRequested, SYNTHETIC_INPUT_BOOTSTRAP, SETTLE_BOOTSTRAP, SETTLE_PROBE, SETTLE_QUIET_POLLS, describeResponse, pickRefusal, explainRefusal, jsLiteral, normalizeBrowserLocale, detectBrowserVersion, makeLaunchIdentity, browserVersionFrom, cleanBrandRows, makeCdpIdentity, CHROME_CANDIDATES } };
 });
