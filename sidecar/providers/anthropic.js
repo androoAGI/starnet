@@ -958,7 +958,11 @@
     // dock asks this before a catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return effortsFor(id); }
 
-    return { stream, listModels, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
+    function verifyCredential(o) {
+      return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
+        j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key);
+    }
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag } };

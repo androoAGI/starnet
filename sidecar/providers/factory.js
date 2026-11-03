@@ -112,6 +112,7 @@
         if (typeof metadata[name] === 'function') deferred[name] = (...args) => (live || metadata)[name](...args);
       }
       if (metadata.listModels) deferred.listModels = async (...args) => (await activate()).listModels(...args);
+      if (metadata.verifyCredential) deferred.verifyCredential = async (...args) => (await activate()).verifyCredential(...args);
       deferred.stream = async function* (req) {
         if (req && req.signal && req.signal.aborted) return;
         // Token refresh can be shared/cached independently of this run. Let Stop release this
@@ -200,6 +201,7 @@
         baseUrl: opts.baseUrl || profile.baseUrl,
         chatPath: profile.chatPath,
         modelsPath: profile.modelsPath,
+        modelsRequireAuth: profile.modelsRequireAuth !== false && id !== 'custom',
         reasoningEffort: opts.reasoningEffort,
         // profile wire hints: does this endpoint document `reasoning_effort`, and is tool support
         // asserted/denied at the provider level (fallback when the catalog carries no capability data)?

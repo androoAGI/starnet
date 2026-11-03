@@ -790,7 +790,7 @@
       if (!st.ok) throw st.error;
       return MODELS.map(m => ({
         id: m.id, name: m.name, context_length: m.context || DEFAULT_CONTEXT, max_completion_tokens: null, pricing: null,
-        supportsTools: true, supportsReasoning: true, supported_parameters: ['tools', 'reasoning'], reasoningEfforts: EFFORTS.slice()
+        supportsTools: true, supportsReasoning: true, supported_parameters: ['tools', 'reasoning'], reasoningEfforts: EFFORTS.slice(), fallback: true
       }));
     }
 
@@ -1433,6 +1433,13 @@
     return {
       stream,
       listModels,
+      async verifyCredential() {
+        // Local auth status proves a stored sign-in, not that the remote service accepted it. Never mint
+        // lastVerified from this or the curated model list (and never spend on a model just to show a badge).
+        const st = await host.authStatus();
+        return { ok: false, credentialVerified: false, status: 'unverified', reachable: !!st.installed,
+          credentialPresent: !!st.loggedIn, error: st.loggedIn ? 'local sign-in present; remote credential not verified' : 'Claude Code is not signed in' };
+      },
       release,
       persistStats() {
         const closing = Array.from(ownedSessions).filter(s => s.closing);
