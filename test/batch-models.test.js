@@ -193,10 +193,13 @@ module.exports = (async () => {
       providerCredentialError: () => 'not configured', resolveReasoningEffort: (p, v) => v || 'medium',
       extraAccountProviderFor: () => null, providerUsesCodex: () => false, providerUsesDeviceOAuth: () => false,
       selectProvider: () => fakeProvider, redact: s => s,
-      budget: { check: () => null }, stationOneShots: new Set(), makeCostEngine: () => ({ reconcile: () => ({ usd: 0 }) }),
+      stationOneShots: new Set(), makeCostEngine: () => ({ reconcile: () => ({ usd: 0 }) }),
       ledger: { record() {} }, getProviderProfile: () => ({}), failNote() {},
+      BillingClass: require('../sidecar/billing-class.js'),
       billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) })   // the one-shot's payer (billing-class.js)
     });
+    // the one governor, bound as index.js binds it (a clear budget: this part is about the model id)
+    sb.governor = sb.BillingClass.makeGovernor({ budget: { check: () => null }, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => sb.billing.classOf(id) });
     vm.runInNewContext(region + '\nthis.api = { channelRunConfigFor, probeChannelRunConfig, sampleRunConfigFor, stationOneShot };', sb);
     const api = sb.api;
     roster.set('agent', { provider: 'starnet', model: 'anthropic/claude-haiku-4.5:batch', name: 'Overseer' });

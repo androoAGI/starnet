@@ -41,8 +41,12 @@
                                          fallback's limits, or null when it would move the run to another payer
      evaluationBillingFor({ providerId, perRunUsd, managedDefaultUsd, shippedDefaultUsd })   a skill evaluation's
      runRowClass({ routes, attempts }) / bookedClass(cls, unmetered)     what a finished run's ledger row says it was
+     auxRowClass(route, signedIn)        what a housekeeping or one-shot row says it was
    Each is a move of the expression it replaced in sidecar/index.js; test/billing-class.parity.test.js holds every one to
    the golden snapshot taken from the base source (test/fixtures/billing-class.golden.json).
+   makeGovernor({ budget, auxTokenGate, classOfProvider }).admit(kind, o) is the ONE admission every paid call path asks
+   before its call (a run's turns, an image, the run-end passes, skill review and curator, the night shift, quest refresh,
+   station one-shots, skill evaluation): it routes by POLICY to the mechanisms, which stay where they are.
 
    PURE: no clock, no IO, no ambient state (lint-determinism). */
 'use strict';
@@ -187,8 +191,95 @@
         : (o.managedDefaultUsd > 0 && isFinite(o.managedDefaultUsd)) ? o.managedDefaultUsd : o.shippedDefaultUsd;
       return { providerId: o.providerId, cls, policy, unmetered: !policy.ledgerMetered, managed: policy.managedAdmission, perRunCapUsd };
     }
-    return { classOf, policyOf, classifierFor, auxCeilingRoute, runBillingFor, spendPoolCapFor, fallbackBillingFor, evaluationBillingFor, runRowClass, bookedClass };
+    /* the class a HOUSEKEEPING row carries (a run-end pass, a quest refresh, a skill review or curator, a station one-shot): its
+       route's payer, and a sign-in when one of its calls reported one (Claude Code's login is known only per call) */
+    function auxRowClass(route, signedIn) { return billingClassOf({ providerId: route, profile: profileOf(route), usage: signedIn ? { subscription: true } : null, managed: managedFor(route) }); }
+    return { classOf, policyOf, classifierFor, auxCeilingRoute, runBillingFor, spendPoolCapFor, fallbackBillingFor, evaluationBillingFor, runRowClass, bookedClass, auxRowClass };
   }
 
-  return { CLASSES, PAYING_ORDER, POLICY, billingClassOf, managedRoute, perCallRoute, routeClasses, spendPoolCapFor, runRowClass, bookedClass, makeBilling };
+  /* ONE GOVERNOR (spend-governor S2): every paid call path asks admit(kind, o) before it calls a model, and the answer follows
+     the route's payer (POLICY) with ONE error rule. It was nine blocks of their own: three readings of a check that throws
+     (proceed, refuse, note and proceed), a dollar cap on calls that spend no dollars (a ChatGPT plan's one-shot and night
+     shift), and no admission at all for the skill curator.
+       a dollar payer (metered, managed)  budget.check (budget.js): the day/agent/global pools, strict and soft as before. A run's
+                                          own check (kind 'run') asks its family's spend pool first (o.pool, run-spend-pool.js):
+                                          the pool's hold or 'run' stop is its answer, and a call the pools then stop gives its
+                                          reservation back.
+       a sign-in plan, a local model      no dollar check: nothing either spends is dollars.
+       an image (kind 'media')            budget.check whoever's run makes it: an image is paid in dollars (#164).
+       a BACKGROUND kind                  first, the host's 24-hour background token gate for its route (auxgovernor.js, #105): the
+                                          kinds whose rows that ceiling counts (CEILING_KINDS). The gate is route-level, so Claude
+                                          Code keeps it and a key or a local model never meets it. A call the Commander triggered
+                                          (trigger 'commander': a rating's review, REFRESH QUESTS) runs past it; its row still counts.
+     A check that THROWS refuses (gate 'check'), never "not blocked": the refusal reads as unknown spend, so every reader of a
+     verdict fails closed, and it names its exit. -> null (admitted), the pool's own verdict, or a refusal { gate: 'dollars' |
+     'tokens' | 'check', kind, cls, why, exit, ...the verdict }. budget.check is asked with no clock (its own); this stays pure. */
+  const KINDS = Object.freeze({
+    run: Object.freeze({ background: false }),                    // a run's own calls, every turn (runOnceCore runBudget)
+    media: Object.freeze({ background: false, dollars: true }),   // an image a run generates (makeMediaSpendCheck crossRun)
+    aux: Object.freeze({ background: true }),                     // the run-end passes, decided together (auxgovernor.js decide)
+    'skill-review': Object.freeze({ background: true }),          // a run-end nudge; a rating's review is the Commander's
+    'skill-curator': Object.freeze({ background: true }),
+    'quest-refresh': Object.freeze({ background: true }),         // the automatic look; REFRESH QUESTS is the Commander's
+    nightshift: Object.freeze({ background: false }),             // the pre-spend check; its beats are runs (the per-run seatbelt)
+    oneshot: Object.freeze({ background: false }),                // NOT RIGHT? / SET IT UP FOR ME: a press
+    'skill-evaluation': Object.freeze({ background: false })      // EVALUATE: before each case run and each of its calls
+  });
+  const LIMITS = 'SETTINGS › SPENDING LIMITS';
+  function refusalWords(r) {
+    const n = v => (Number(v) || 0).toLocaleString('en-US'), usd = v => '$' + (Number(v) || 0).toFixed(2);
+    if (r.gate === 'tokens') return { why: 'the 24-hour background token ceiling is reached on this route (' + n(r.used) + ' of ' + n(r.ceiling) + ' tokens)',
+      exit: 'it lifts as the 24 hours roll on, or raise BACKGROUND TOKEN CEILING in an agent’s MEMORY tab (0 = off)' };
+    if (r.gate === 'check') return { why: 'the spending check failed (' + r.error + ')', exit: 'restart StarNet; ' + LIMITS + ' shows what the spend record holds' };
+    if (r.unknown) return { why: 'spend history is unavailable (' + (r.cause || 'unknown') + ')',
+      exit: r.cause === 'write' ? 'restart StarNet: it replays the spend it could not save'
+        : (r.cause === 'unsettled' || r.cause === 'damaged') ? 'settle the unknown charge in ' + LIMITS : 'see ' + LIMITS };
+    return { why: 'the ' + (r.scope || 'spending') + ' spending cap is reached' + (typeof r.cap === 'number' ? ' (' + usd(r.usd) + ' of ' + usd(r.cap) + ')' : ''),
+      exit: 'RESUME it or raise it in ' + LIMITS };
+  }
+  /* makeGovernor({ budget, auxTokenGate(providerId) -> { blocked, used, ceiling }, classOfProvider(providerId) -> class,
+     onError(kind, e)? }). onError notes what a refused check threw; it must not throw (the host's failNote never does). */
+  function makeGovernor(deps) {
+    deps = deps || {};
+    const budget = deps.budget, auxTokenGate = deps.auxTokenGate, classOfProvider = deps.classOfProvider;
+    const onError = typeof deps.onError === 'function' ? deps.onError : function () {};
+    function refuse(kind, cls, gate, verdict) {
+      const r = Object.assign({}, verdict, { gate, kind, cls });
+      return Object.assign(r, refusalWords(r));
+    }
+    // a check that threw: noted, the reservation it held handed back (that failure noted too), and refused
+    function failed(kind, cls, e, pool) {
+      onError(kind, e);
+      if (pool) { try { pool.withdraw(); } catch (w) { onError(kind, w); } }
+      return refuse(kind, cls, 'check', { unknown: true, code: 'spend_history_unavailable', cause: 'check', error: String((e && e.message) || e || 'unknown error').slice(0, 200) });
+    }
+    function admit(kind, o) {
+      o = o || {};
+      const k = Object.prototype.hasOwnProperty.call(KINDS, kind) ? KINDS[kind] : null;
+      let cls = 'metered';
+      try {
+        if (!k) throw new Error('no paid call path named ' + String(kind));
+        if (!k.dollars) { const c = classOfProvider(o.providerId); if (isClass(c)) cls = c; }   // an unknown answer reads as a key: the strictest
+      } catch (e) { return failed(kind, cls, e); }
+      // the token gate first: it is the one a figure that drops on its own clears, so a caller can wait on it alone (the
+      // automatic quest look stops before it stamps its cadence only for this one)
+      if (k.background && o.trigger !== 'commander' && typeof auxTokenGate === 'function') {
+        let g = null;
+        try { g = auxTokenGate(o.providerId); } catch (e) { return failed(kind, cls, e); }
+        if (g && g.blocked) return refuse(kind, cls, 'tokens', { ceiling: g.ceiling, used: g.used });
+      }
+      if (k.dollars || POLICY[cls].dollarCaps) {
+        let reserved = false;
+        try {
+          if (o.pool) { const pooled = o.pool.admit(); if (pooled) return pooled; reserved = true; }
+          const b = budget.check(o.runId == null ? null : o.runId, o.agentId, Number(o.spentUsd) || 0, o.now, o.emit || null, o.receiptMeta);
+          if (b) { if (reserved) { reserved = false; o.pool.withdraw(); } return refuse(kind, cls, 'dollars', b); }
+        } catch (e) { return failed(kind, cls, e, reserved ? o.pool : null); }
+      }
+      return null;
+    }
+    return { admit, kinds: Object.keys(KINDS) };
+  }
+
+  return { CLASSES, PAYING_ORDER, POLICY, KINDS, billingClassOf, managedRoute, perCallRoute, routeClasses, spendPoolCapFor, runRowClass, bookedClass, makeBilling, makeGovernor };
 });

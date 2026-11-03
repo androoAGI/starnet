@@ -1428,11 +1428,17 @@ const ledgerIo = {
 const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, nextId: () => crypto.randomUUID() });
 // #164: images whose cost is unknown, in any 24 hours across every run (spend.js makeMediaDayGate)
 const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(), limit: Number(ENV('IMAGE_UNKNOWN_COST_DAY_MAX')) });
-// every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js)
-const auxSpend = (kind, route) => makeAuxMeter({ ledger, kind, provider: auxRoute(route) });
+// every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js);
+// its row names its payer by the pass's route (billing-class.js auxRowClass)
+const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null }); };
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
+// ...naming its payer by its route (billing-class.js auxRowClass); a pass that names no route keeps the flag it was handed
+function auxLoopRow(o, result) {
+  const route = auxRoute(o && o.route), billingClass = route ? billing.auxRowClass(route, !!(result && result.subscriptionUsed === true)) : undefined;
+  return { billingClass, unmetered: billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!(o && o.unmetered) };
+}
 // THE ONE BILLING BINDING (billing-class.js): every billing decision reads its payer and POLICY row through this, never a
 // profile flag of its own. credits is read at each decision (a relink can change it); CREDITS_URL is the deployment's.
 const billing = BillingClass.makeBilling({ profileOf: getProviderProfile, creditsConfigured: () => credits.configured(), creditsUrl: CREDITS_URL });
@@ -1465,6 +1471,9 @@ function budgetScopeIsExplicit(scope) {
   if (env != null && String(env).trim() !== '') return true;
   return !!(budgetOverrides && Object.prototype.hasOwnProperty.call(budgetOverrides, 'perDay'));
 }
+// THE ONE GOVERNOR (billing-class.js makeGovernor): every paid call path asks it before its call; it answers by the route's payer,
+// and a check that throws refuses with its exit named (noted here), never "not blocked".
+const governor = BillingClass.makeGovernor({ budget, auxTokenGate, classOfProvider: id => billing.classOf(id), onError: (kind, e) => failNote('governor.' + kind, e) });
 /* ---- managed credits (config-gated). Shares the SAME spend ledger as the run finalizer, so a managed run's
    final truth lands in one place. INERT (configured() === false) unless CREDITS_URL is set — then admission can
    reserve/refund against a managed account and the STORE surface + /api/credits come alive. */
@@ -4222,14 +4231,10 @@ const skillCuratorLastRun = new Map();
 async function runBackgroundSkillReview(o) {
   const { agentId, runId, messages, provider, model, cost, loadedSkills, managedSkills, verdict, correction } = o || {};
   if (!LearningEvidence.buildLearningEvidence(o, redact).eligible) { console.log('[skills] review skipped run=' + String(runId || '') + ': no trusted learning evidence'); return true; }
-  const unmetered = !!(o && o.unmetered);   // Codex/unmetered parity: mirror reflection/study so a Codex-only user's budget isn't drained by phantom aux spend
   // a spending cap that is reached stops this paid pass too: a thumbs-down after the daily cap used to fire a review call
-  // anyway (one per rating) — the verdict path reaches here with no budget check of its own (QA 2026-10-02)
-  if (!unmetered) {
-    let blocked = null;
-    try { blocked = budget.check(null, String(agentId || 'agent'), 0, Date.now(), null); } catch (_) { blocked = null; }
-    if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': ' + (blocked.unknown ? 'spend history is unavailable' : 'the spending cap is reached')); return false; }
-  }
+  // anyway (one per rating) — the verdict path reaches here with no budget check of its own (QA 2026-10-02). The governor, by payer
+  const blocked = governor.admit('skill-review', { providerId: o && o.route, agentId: String(agentId || 'agent'), trigger: verdict ? 'commander' : 'background' });
+  if (blocked) { console.log('[skills] review skipped run=' + String(runId || '') + ': ' + (blocked.gate !== 'dollars' ? blocked.why + ' — ' + blocked.exit : blocked.unknown ? 'spend history is unavailable' : 'the spending cap is reached')); return false; }
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const reviewRunId = String(runId || 'run') + '_skill_review_' + crypto.randomUUID();
@@ -4298,7 +4303,8 @@ async function runBackgroundSkillReview(o) {
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+      const { billingClass, unmetered } = auxLoopRow(o, result);
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -4317,7 +4323,6 @@ function auxCuratorDue(agentId, nowMs) {
 
 async function runSkillCurator(o) {
   const { agentId, runId, provider, model, cost } = o || {};
-  const unmetered = !!(o && o.unmetered);   // Codex/unmetered parity: mirror reflection/study so a Codex-only user's budget isn't drained by phantom aux spend
   const nowMs = Date.now();
   if (SKILL_CURATOR_INTERVAL_MS > 0 && (nowMs - (skillCuratorLastRun.get(agentId) || 0)) < SKILL_CURATOR_INTERVAL_MS) return;
   const all = skillStore.list(agentId, { includeArchived: true });
@@ -4326,6 +4331,9 @@ async function runSkillCurator(o) {
     skillCuratorLastRun.set(agentId, nowMs);
     return;
   }
+  // the paid pass is admitted like every other (it had no admission of its own): unstamped when refused, so it retries once admitted
+  const blocked = governor.admit('skill-curator', { providerId: o && o.route, agentId });
+  if (blocked) { console.log('[skills] curator skipped agent=' + String(agentId || '') + ': ' + blocked.why + ' — ' + blocked.exit); return; }
   skillCuratorLastRun.set(agentId, nowMs);
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
@@ -4357,7 +4365,8 @@ async function runSkillCurator(o) {
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), unmetered }); } catch (_) {}
+      const { billingClass, unmetered } = auxLoopRow(o, result);
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}
     }
   }
 }
@@ -9183,16 +9192,15 @@ function nightshiftPrecheck() {
     // {scope,usd,cap} (truthy) or null. Checked FIRST so an exhausted pool names the ACTIONABLE reason ('budget',
     // which the Commander clears by resume/raising the cap) rather than a downstream 'no-provider'/'readiness'.
     // Spend history it cannot see binds 'spend-unknown' instead: no resume or cap change clears that, and claiming an
-    // exhausted budget would assert spend nobody can prove.
-    let b = null;
-    try { b = budget.check(null, NIGHTSHIFT_AGENT, 0, Date.now(), null); }
-    catch (_) { return { ok: false, reason: 'precheck-error' }; }
-    if (b) return { ok: false, reason: b.unknown ? 'spend-unknown' : 'budget' };
+    // exhausted budget would assert spend nobody can prove. By the beat's payer: a plan or a local model meets no dollar cap.
+    let provider = null;
+    try { provider = cronProviderFor({ agentId: NIGHTSHIFT_AGENT }); } catch (_) { return { ok: false, reason: 'precheck-error' }; }
+    const b = governor.admit('nightshift', { providerId: provider, agentId: NIGHTSHIFT_AGENT });
+    if (b) return { ok: false, reason: b.gate === 'check' ? 'precheck-error' : b.unknown ? 'spend-unknown' : 'budget' };
     // LANE L — CAPABILITY GATE (pre-spend, same wart): with no runnable provider/credential a beat stands down at
     // 'no-capability' AFTER the leash was spent (runNightshiftBeat). Read it locally (no model call) and decline
     // before the spend. A lookup hiccup stands down visibly; uncertainty is not unattended-work permission.
     try {
-      const provider = cronProviderFor({ agentId: NIGHTSHIFT_AGENT });
       if (!cronModelFor({ agentId: NIGHTSHIFT_AGENT }) || !cronHasCredential(provider, cronKeyFor(provider))) return { ok: false, reason: 'no-provider' };
     } catch (_) { return { ok: false, reason: 'precheck-error' }; }
     const snap = commanderPosture.beliefs() || {};
@@ -10910,18 +10918,14 @@ async function runQuestRefreshCycle(why) {
       questRefreshNote({ outcome: 'skipped', reason: 'not enough is known yet (empty dossier, no goal, no activity) — the refresh waits for the station to learn more' });
       return;
     }
-    // Standalone auxiliary calls bypass runAgentLoop, so enforce its cross-run spending boundary here too.
-    // A manual refresh changes the cadence, not the spending authority; only an explicit budget resume does.
-    if (billing.policyOf(providerId).dollarCaps) {
-      let blocked;
-      try { blocked = budget.check(null, 'station', 0, Date.now(), null); }
-      catch (_) { blocked = { unknown: true }; }
-      if (blocked) {
-        questRefreshNote({ outcome: 'skipped', reason: blocked.unknown
-          ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
-          : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
-        return;
-      }
+    // Standalone auxiliary calls bypass runAgentLoop, so the governor admits this one too (REFRESH QUESTS runs past the token
+    // ceiling). A manual refresh changes the cadence, not the spending authority; only an explicit budget resume does.
+    const blocked = governor.admit('quest-refresh', { providerId, agentId: 'station', trigger: why === 'manual' ? 'commander' : 'background' });
+    if (blocked) {
+      questRefreshNote({ outcome: 'skipped', reason: blocked.gate === 'tokens' ? 'background token ceiling reached' : blocked.unknown
+        ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
+        : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
+      return;
     }
     // evidence exists → NOW pay for the provider (codex token fetch is a network hop; never spend it on a cold save).
     let provider = extraAccountProviderFor(providerId, baseUrl);   // subscription stacking: first live sign-in
@@ -11010,8 +11014,9 @@ function questRefreshTick() {
   if (!d.fire) return;
   // THE TOKEN CEILING (issue #105) stops the AUTOMATIC look, before the cadence is stamped: a blocked look spends no cycle, so the
   // refresh runs on the first tick after the figure drops. One ledger line per stretch, or every 5-minute tick would write one. The
-  // manual route never comes through here: a Commander asking IS the trigger.
-  if (auxTokenGate(cronProviderFor(null)).blocked) {
+  // manual route never comes through here: a Commander asking IS the trigger. A dollar stand-down is the cycle's own (it stamps).
+  const look = governor.admit('quest-refresh', { providerId: cronProviderFor(null), agentId: 'station' });
+  if (look && look.gate === 'tokens') {
     if (!questRefreshCeilingNoted) { questRefreshCeilingNoted = true; questRefreshNote({ outcome: 'skipped', reason: 'background token ceiling reached' }); }
     return;
   }
@@ -14622,15 +14627,15 @@ function providerForRunConfig(c, reasoningEffort) {
 // each had its own 120 s controller nothing else could reach)
 const stationOneShots = new Set();
 async function stationOneShot(prompt, tag, failLead) {
-  let blocked = null;
-  try { blocked = budget.check(null, 'agent', 0, Date.now(), null); } catch (_) { blocked = null; }
-  if (blocked) return { ok: false, status: 409, error: blocked.unknown
-    ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
-    : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
   let cfg = null;
   try { cfg = sampleRunConfigFor('agent'); } catch (e) { cfg = null; }
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };
   const providerId = normalizeProvider(cfg.provider);
+  // by the station model's payer: a ChatGPT plan spends no dollars, so no dollar cap refuses it; a throw refuses with its exit
+  const blocked = governor.admit('oneshot', { providerId, agentId: 'agent' });
+  if (blocked) return { ok: false, status: 409, error: blocked.gate === 'check' ? 'the station’s spending limits can’t be checked: ' + blocked.why + ' — ' + blocked.exit + ', then ask again'
+    : blocked.unknown ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
+    : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
   const reasoningEffort = resolveReasoningEffort(providerId, cfg.reasoningEffort);
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 120000);
@@ -14642,9 +14647,9 @@ async function stationOneShot(prompt, tag, failLead) {
     if (!usage || !cost) return;
     let unpriced = false;
     try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); unpriced = !!c.unpriced; } catch (e) { failNote(tag + '.reconcile', e); return; }
-    // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER)
-    const unmetered = !billing.policyOf(providerId).ledgerMetered;
-    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
+    // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER; auxRowClass)
+    const billingClass = billing.auxRowClass(providerId, usage.subscription === true), unmetered = !BillingClass.POLICY[billingClass].ledgerMetered;
+    try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, billingClass, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
   };
   try {
     const provider = await providerForRunConfig(cfg, reasoningEffort);
@@ -21199,10 +21204,10 @@ async function handleSkillCandidateAction(req, res) {
       const runCase = SkillEvaluationRunner.makeAgentLoopCaseRunner({ provider, model: cfg.model, unmetered, cost: makeCostEngine({ priceOf: provider.priceOf }), clock: { now: () => Date.now() },
         runIdPrefix: evalPrefix, limits: { maxIters: 8, maxCostUsd: lim.perRunUsd, grace: false },
         scrub: PromptScrub.scrubStored,   // the skill under evaluation is stored exact; it reaches the model scrubbed
-        authorize: async () => !controller.signal.aborted && accounting.canContinue() && (unmetered || !budget.check(null, agentId, 0, Date.now(), null)),
+        authorize: async () => !controller.signal.aborted && accounting.canContinue() && !governor.admit('skill-evaluation', { providerId, agentId }),
         beforeRun: accounting.beforeRun,
         beforeStream: ({ runId, spentUsd }) => !controller.signal.aborted && accounting.canContinue(spentUsd) &&
-          (unmetered || !budget.check(runId, agentId, spentUsd, Date.now(), null)),
+          !governor.admit('skill-evaluation', { providerId, agentId, runId, spentUsd }),
         onStream: accounting.onStream,
         onRun: accounting.onRun
       });
@@ -22655,7 +22660,7 @@ async function runOnceCore(o) {
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
     mediaUsd: () => mediaUsd,
-    crossRun: spent => budget.check(runId, agentId, spent, Date.now(), emit, runReceiptMeta),
+    crossRun: spent => governor.admit('media', { runId, agentId, spentUsd: spent, emit, receiptMeta: runReceiptMeta }),
     onCheckError: e => failNote('image.spend-check', e) });
   let auxVisionProvider = null;
   // the run's PRIMARY provider: the catalog the studio route's pinned vision model (`model` below) came from. Bound with
@@ -23859,14 +23864,8 @@ async function runOnceCore(o) {
   // set. nextCallUsd is the most the call about to go out can cost (loop.js: its prompt plus the most output it can
   // bill — the model's output ceiling or a reported window's room — at catalog prices): the pool reserves it while the
   // call is in flight.
-  const runBudget = { check: (spentThisRun, nextCallUsd) => {
-    if (providerUnmetered) return null;
-    const pooled = spendPool.admit(runId, spentThisRun, nextCallUsd);
-    if (pooled) return pooled;
-    const b = budget.check(runId, agentId, spentThisRun, Date.now(), emit, runReceiptMeta);
-    if (b) spendPool.withdraw(runId);   // stopped by a day/global pool: this run's call never goes out
-    return b;
-  } };
+  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run', { providerId: activeProviderId, agentId, runId, spentUsd: spentThisRun, emit, receiptMeta: runReceiptMeta,
+    pool: { admit: () => spendPool.admit(runId, spentThisRun, nextCallUsd), withdraw: () => spendPool.withdraw(runId) } }) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
   // (supportsTools returns null when the catalog is cold, so this never false-refuses a real model).
@@ -25817,16 +25816,14 @@ async function runOnceCore(o) {
   if (_gateSkillReview) _auxCandidates.push('skill-review');
   if (_gateCurator) _auxCandidates.push('skill-curator');
   // A RUN STOPPED BY ITS SPENDING CAP SPENDS NOTHING MORE: every pass below is a paid call, and a run that ended on 'budget' (or an
-  // agent whose cap is reached now) sent its failure review straight to the provider the cap had just stopped
-  let _capReached = !!(result && result.reason === 'budget');
-  if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); } catch (e) { failNote('aux.budget', e); } }
-  if (_capReached) _auxCandidates.length = 0;
+  // agent whose cap is reached now) sent its failure review straight to the provider the cap had just stopped. The governor admits
+  // the passes together by the route's payer, and a check that throws stops them too (it used to be noted and let through).
   // ON A SUBSCRIPTION NO DOLLAR CAP CAN BIND (issue #105): at the token ceiling these passes do not fire. Nothing queues them: this
   // run's reflection, study and thread mining are gone, and a failure review is lost for good. No cooldown is armed, so the next
   // run can spend once the figure drops, and a due skill review keeps its nudge count. It sits past the run's end: a user's run never reads it.
-  const _auxTokens = auxTokenGate(activeProviderId);
-  if (_auxTokens.blocked && _auxCandidates.length) {
-    console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached (' + _auxTokens.used + '/' + _auxTokens.ceiling + ' in 24h) DEFERRED[' + _auxCandidates.join(',') + ']');
+  const _auxStop = (result && result.reason === 'budget') ? { why: 'the run stopped at its spending cap' } : _auxCandidates.length ? governor.admit('aux', { providerId: activeProviderId, agentId }) : null;
+  if (_auxStop && _auxCandidates.length) {
+    console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' ' + (_auxStop.gate === 'tokens' ? 'token ceiling reached (' + _auxStop.used + '/' + _auxStop.ceiling + ' in 24h)' : _auxStop.why + (_auxStop.exit ? ' — ' + _auxStop.exit : '')) + ' DEFERRED[' + _auxCandidates.join(',') + ']');
     _auxCandidates.length = 0;
   }
   // External transcript text never enters a durable learning pass: reflection, failure review, study and thread mining

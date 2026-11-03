@@ -14,7 +14,10 @@
    text at 0b8441064, for every registry profile and option (credits configured or not, a CREDITS_URL deployment, a caller
    cap, a line ceiling, PER RUN). This test evaluates the CALL SITES that replaced those expressions, sliced from the
    sidecar as it is now, against the real registry, and allows only the deliberate changes listed in DELIBERATE.
-   LEDGER: a row that names its payer is unmetered exactly when the payer is a plan or a local model. */
+   LEDGER: a row that names its payer is unmetered exactly when the payer is a plan or a local model.
+   GOVERNOR (S2): makeGovernor admits every paid call path by POLICY: a dollar payer meets the cross-run caps, a plan or a local
+   model never does, an image always does, a background pass meets the 24-hour token ceiling on a route that may sign in unless
+   the Commander triggered it, and a check that throws (the budget, the payer lookup, the token gate) refuses with its exit. */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -176,9 +179,14 @@ const goldenPart = loopPart.then(async () => {
   const fbPush = line('    providerFallbacks.push(Object.assign({ provider: fbProvider, providerId: fbProviderId, model: fbModel,');
   const fallbackOf = new Function('billing', 'fbProviderId', 'managedRun', 'runCapUsd', 'o', 'effectiveCaps', 'CAPS', 'fbProvider', 'fbModel', 'fbKey', 'makeCostEngine',
     'const providerFallbacks = [];\n' + fbAdmit.replace(/continue;$/, 'return null;') + '\n' + fbPush + '\nreturn providerFallbacks[0];');
-  const crossOf = new Function('providerUnmetered', (() => { const i = at('  const runBudget = { check: (spentThisRun, nextCallUsd) => {'); const a = src.indexOf('\n', i) + 1; return src.slice(a, src.indexOf('\n', a)); })() + "\nreturn 'checked';");
+  // the governor the host binds (index.js: budget, auxTokenGate, billing.classOf), over a budget that counts its checks
+  const governed = (b, gate) => { const budget = { n: 0, check() { this.n++; return null; } }; return { budget, governor: BillingClass.makeGovernor({ budget, auxTokenGate: gate || (() => ({ blocked: false })), classOfProvider: id => b.classOf(id) }) }; };
+  const runBudgetOf = new Function('governor', 'activeProviderId', 'agentId', 'runId', 'emit', 'runReceiptMeta', 'spendPool',
+    through("  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run',", '}) };') + '\nreturn runBudget;');
+  const crossOf = id => { const g = governed(plain); runBudgetOf(g.governor, id, 'a', 'r', null, () => ({}), { admit: () => null, withdraw() {} }).check(0, 0); return g.budget.n === 1; };
   const bookOf = new Function('name', 'providerUnmetered', 'spendPool', 'runId', 'payload', line("      if (name === 'agent.cost' && !providerUnmetered) spendPool.booked(runId, Number(payload.usd) || 0);") + '\nreturn spendPool.n;');
-  const auxOf = new Function('_capReached', 'providerUnmetered', 'budget', 'agentId', 'failNote', line('  if (!_capReached && !providerUnmetered) { try { _capReached = !!budget.check(null, agentId, 0, Date.now(), null); }') + '\nreturn budget.n;');
+  const auxStopOf = new Function('result', '_auxCandidates', 'governor', 'activeProviderId', 'agentId', line("  const _auxStop = (result && result.reason === 'budget')") + '\nreturn _auxStop;');
+  const auxOf = id => { const g = governed(plain); auxStopOf({ reason: 'done' }, ['reflection'], g.governor, id, 'a'); return g.budget.n === 1; };
   const fbFlipOf = new Function('next', 'providerUnmetered', 'runUnmetered', 'runRoutes', through("          if (typeof next.unmetered === 'boolean') providerUnmetered = next.unmetered;", 'runRoutes.push(next.billingClassOf);') + '\nreturn runUnmetered;');
   const finalizerOf = new Function('billing', 'BillingClass', 'runRoutes', 'result', 'finalUsd', 'mediaUsd', 'mediaUnpriced', 'mediaRunFlags',
     through('    const rowClass = billing.runRowClass({ routes: runRoutes,', 'const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);') + '\nreturn { unmetered: mediaFlags.unmetered, usageMissing, billingClass: rowBillingClass };');
@@ -186,9 +194,11 @@ const goldenPart = loopPart.then(async () => {
   const exprOf = (needle, re, variable) => { const m = line(needle).match(re); if (!m) throw new Error('expression not found: ' + needle.slice(0, 60)); return new Function('billing', variable, 'return (' + m[0] + ');').bind(null, plain); };
   const POLICY_READ = /!billing\.policyOf\(\w+\)\.\w+/;
   const rehydrateOf = exprOf('    unmetered: !billing.policyOf(providerId).ledgerMetered\n  });', POLICY_READ, 'providerId');
-  const questCheckOf = new Function('billing', 'providerId', line('    if (billing.policyOf(providerId).dollarCaps) {') + ' return true; }\nreturn false;').bind(null, plain);
+  const questAdmitOf = new Function('governor', 'providerId', 'why', line("    const blocked = governor.admit('quest-refresh', { providerId, agentId: 'station',") + '\nreturn blocked;');
+  const questCheckOf = id => { const g = governed(plain); questAdmitOf(g.governor, id, 'manual'); return g.budget.n === 1; };
   const questBookOf = exprOf("    try { spend.book({ runId: 'questrefresh-' + Date.now(), agentId: 'station', model: model || '', unmetered: ", POLICY_READ, 'providerId');
-  const oneshotOf = exprOf('    const unmetered = !billing.policyOf(providerId).ledgerMetered;\n    try { ledger.record({ runId: tag', POLICY_READ, 'providerId');
+  const oneshotRowOf = new Function('billing', 'BillingClass', 'providerId', 'usage', line('    const billingClass = billing.auxRowClass(providerId, usage.subscription === true), unmetered = ') + '\nreturn { billingClass, unmetered };').bind(null, plain, BillingClass);
+  const oneshotOf = id => oneshotRowOf(id, GOLDEN.grid.usage.plain).unmetered;
   const voiceTierOf = exprOf('  const tierCeiling = promptTierCeiling(tProvider, setting.model, ', POLICY_READ, 'tProvider');
   const modelsTierOf = exprOf('    const tierExempt = !billing.policyOf(id).promptTier;', POLICY_READ, 'id');
   const runTierOf = new Function('promptTierCeiling', 'activeProviderId', 'model', 'providerUnmetered', line('  const runWindowCeiling = () => promptTierCeiling(activeProviderId, model, providerUnmetered);') + '\nreturn runWindowCeiling();');
@@ -234,9 +244,9 @@ const goldenPart = loopPart.then(async () => {
       const l = limitsOf(runCapOf(plain, id, {}, { perRun: 0 }).runBilling, { maxUnpricedTokens: t, maxSubscriptionTokens: 2000000 });
       got.limits['unpriced=' + t] = { maxUnpricedTokens: enc(l.maxUnpricedTokens), maxSubscriptionTokens: enc(l.maxSubscriptionTokens) };
     }
-    got.crossRunCheck = crossOf(unmetered) === 'checked';
+    got.crossRunCheck = crossOf(id);
     { const sp = { n: 0, booked() { this.n++; } }; got.poolBooking = bookOf('agent.cost', unmetered, sp, 'r', { usd: 1 }) === 1; }
-    { const b = { n: 0, check() { this.n++; return null; } }; got.auxDollarCheck = auxOf(false, unmetered, b, 'a', () => {}) === 1; }
+    got.auxDollarCheck = auxOf(id);
     { let seen = null; got.runWindowTierExempt = runTierOf((p, m, u) => { seen = u; return 0; }, id, 'm', unmetered) === 0 && seen; }
     got.auxCeilingRoute = auxRouteOf(id);
     got.rehydrateUnmetered = rehydrateOf(id);
@@ -307,4 +317,89 @@ const ledgerPart = goldenPart.then(() => {
   A.eq(rows.map(r => JSON.stringify(r)), [sub, met, legacy, odd].map(r => JSON.stringify(r)), 'what is appended is what is recorded');
 });
 
-ledgerPart.then(() => A.report('billing-class.parity.test')).catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });
+// ---- 5. GOVERNOR (spend-governor S2): one admission per paid call, routed by POLICY, with one error rule ----
+const governorPart = ledgerPart.then(async () => {
+  if (!BillingClass || typeof BillingClass.makeGovernor !== 'function') { A.ok(false, 'billing-class.js exports makeGovernor'); return; }
+  const billing = BillingClass.makeBilling({ profileOf: registry.getProviderProfile });
+  const CAP = { scope: 'day', usd: 5, cap: 1 };
+  function rig(o) {
+    o = o || {};
+    const seen = { checks: [], errors: [] };
+    const budget = { check: (...a) => { seen.checks.push(a); if (o.throwCheck) throw new Error('ledger down'); return o.verdict === undefined ? CAP : o.verdict; } };
+    const auxTokenGate = id => { if (o.throwGate) throw new Error('gate down'); return { blocked: !!o.tokensReached && billing.auxCeilingRoute(id), used: 250000, ceiling: 200000 }; };
+    const classOfProvider = id => { if (o.throwClass) throw new Error('registry down'); return billing.classOf(id); };
+    return { seen, governor: BillingClass.makeGovernor({ budget, auxTokenGate, classOfProvider, onError: (kind, e) => seen.errors.push([kind, e.message]) }) };
+  }
+  const BACKGROUND = ['aux', 'quest-refresh', 'skill-curator', 'skill-review'];
+  A.eq(Object.keys(BillingClass.KINDS).sort(), ['aux', 'media', 'nightshift', 'oneshot', 'quest-refresh', 'run', 'skill-curator', 'skill-evaluation', 'skill-review'], 'every paid call path is a named kind');
+  A.eq(Object.keys(BillingClass.KINDS).filter(k => BillingClass.KINDS[k].background).sort(), BACKGROUND, 'the background kinds are the paths whose rows the 24-hour token ceiling counts');
+  for (const kind of Object.keys(BillingClass.KINDS)) {
+    for (const id of ['openrouter', 'starnet', 'codex', 'grok', 'kimi', 'ollama', 'claude-cli', 'custom']) {
+      const cls = billing.classOf(id), dollars = kind === 'media' || BillingClass.POLICY[cls].dollarCaps, where = kind + ' on ' + id + ' (' + cls + ')';
+      // a reached day cap refuses a dollar payer; a plan or a local model spends no dollars, so it is never asked
+      const capped = rig();
+      const r = capped.governor.admit(kind, { providerId: id, agentId: 'a' });
+      A.eq(capped.seen.checks.length, dollars ? 1 : 0, where + ': ' + (dollars ? 'the cross-run caps are asked' : 'no dollar cap is asked'));
+      if (dollars) A.eq([r.gate, r.scope, r.cap, r.kind, r.cls, /day spending cap is reached \(\$5\.00 of \$1\.00\)/.test(r.why), /RESUME/.test(r.exit)], ['dollars', 'day', 1, kind, kind === 'media' ? 'metered' : cls, true, true], where + ': the cap\'s own verdict, what it is and its exit');
+      else A.eq(r, null, where + ': admitted under a reached dollar cap');
+      // the 24-hour token ceiling: a background kind on a route that may sign in meets it, unless the Commander triggered the call
+      const t = rig({ verdict: null, tokensReached: true }).governor.admit(kind, { providerId: id, agentId: 'a' });
+      const meets = BACKGROUND.includes(kind) && billing.auxCeilingRoute(id);
+      A.eq(t ? t.gate : null, meets ? 'tokens' : null, where + ': ' + (meets ? 'the token ceiling stops it' : 'the token ceiling never applies'));
+      if (meets) A.ok(/background token ceiling is reached on this route \(250,000 of 200,000 tokens\)/.test(t.why) && /BACKGROUND TOKEN CEILING/.test(t.exit), where + ': the token stop names its figure and its knob');
+      A.eq(rig({ verdict: null, tokensReached: true }).governor.admit(kind, { providerId: id, agentId: 'a', trigger: 'commander' }), null, where + ': a call the Commander triggered runs past the token ceiling');
+      // ONE ERROR RULE: a check that throws refuses as unknown spend, never "not blocked", and names its exit
+      const thrown = rig({ throwCheck: true });
+      const x = thrown.governor.admit(kind, { providerId: id, agentId: 'a' });
+      if (dollars) {
+        A.eq([x.gate, x.unknown, x.code, x.cause, x.error], ['check', true, 'spend_history_unavailable', 'check', 'ledger down'], where + ': a throwing budget refuses');
+        A.ok(/spending check failed \(ledger down\)/.test(x.why) && /restart StarNet/.test(x.exit) && /SPENDING LIMITS/.test(x.exit), where + ': with its exit: ' + x.exit);
+        A.eq(thrown.seen.errors, [[kind, 'ledger down']], where + ': the error is noted under its kind');
+      } else A.eq(x, null, where + ': never asks the budget, so its throw cannot reach it');
+    }
+  }
+  // the other inputs that can throw: the payer lookup and the token gate. Each refuses; none reads as admitted
+  for (const [what, o, kind] of [['the payer lookup', { throwClass: true }, 'oneshot'], ['the token gate', { throwGate: true, verdict: null }, 'aux']]) {
+    const r = rig(o).governor.admit(kind, { providerId: 'codex', agentId: 'a' });
+    A.eq(r && [r.gate, r.unknown, r.cause, /restart StarNet/.test(r.exit)], ['check', true, 'check', true], what + ' throwing refuses ' + kind + ' with its exit');
+  }
+  A.eq(rig({ verdict: null }).governor.admit('nonsense', { providerId: 'openrouter' }).gate, 'check', 'a path with no name is refused, never admitted');
+  // a run's own check: its family's pool answers first; a call the pools then stop gives its reservation back
+  {
+    const order = [];
+    const pool = v => ({ admit: () => { order.push('pool'); return v; }, withdraw: () => order.push('withdraw') });
+    const hold = { hold: Promise.resolve() };
+    const g = rig();
+    A.eq(g.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', pool: pool(hold) }), hold, 'run: the pool\'s hold is the answer, unchanged');
+    A.eq([order.splice(0), g.seen.checks.length], [['pool'], 0], 'run: a held call never asks the pools');
+    const stopped = g.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', spentUsd: 0.5, emit: 'EMIT', receiptMeta: 'META', pool: pool(null) });
+    A.eq([order.splice(0), stopped.gate, g.seen.checks[0]], [['pool', 'withdraw'], 'dollars', ['r', 'a', 0.5, undefined, 'EMIT', 'META']], 'run: the pools get the run, its spend, its bus and its receipt; their stop withdraws the reservation');
+    A.eq([rig({ throwCheck: true }).governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', pool: pool(null) }).gate, order.splice(0)], ['check', ['pool', 'withdraw']], 'run: a throwing check after the reservation withdraws it and refuses');
+    A.eq([rig().governor.admit('run', { providerId: 'codex', agentId: 'a', runId: 'r', pool: pool(null) }), order.splice(0)], [null, []], 'run: a plan run never meets the pools and never reserves in them');
+  }
+  // Claude Code may sign in: a background pass on it meets the token ceiling (first: it clears on its own) and its dollar caps
+  A.eq([rig({ tokensReached: true }).governor.admit('aux', { providerId: 'claude-cli', agentId: 'a' }).gate, rig().governor.admit('aux', { providerId: 'claude-cli', agentId: 'a' }).gate], ['tokens', 'dollars'], 'claude-cli: both gates bind a background pass');
+  // EVERY BOOKED ROW NAMES ITS PAYER: a housekeeping or one-shot row is its route's payer, a sign-in when its call reported one
+  A.eq(['openrouter', 'codex', 'ollama', 'claude-cli'].map(id => billing.auxRowClass(id, false)), ['metered', 'subscription', 'local', 'metered'], 'auxRowClass: the route\'s payer');
+  A.eq(billing.auxRowClass('claude-cli', true), 'subscription', 'auxRowClass: a Claude Code call that reported a sign-in is a subscription row');
+  const oneshotRow = new Function('billing', 'BillingClass', 'providerId', 'usage', line('    const billingClass = billing.auxRowClass(providerId, usage.subscription === true), unmetered = ') + '\nreturn { billingClass, unmetered };');
+  A.eq(oneshotRow(billing, BillingClass, 'claude-cli', GOLDEN.grid.usage.signIn), { billingClass: 'subscription', unmetered: true }, 'the one-shot row of a Claude Code sign-in is a subscription row (as its run row is)');
+  {
+    const { makeAuxMeter } = require('../sidecar/ledger.js');
+    const rows = [];
+    const L = makeLedger({ io: { readAll: () => [], append: r => rows.push(r) }, clock: { now: () => 1000 } });
+    const cost = makeCostEngine({ priceOf: () => null });
+    for (const [id, usage, want] of [['codex', GOLDEN.grid.usage.costZero, ['subscription', true]], ['openrouter', GOLDEN.grid.usage.priced, ['metered', false]], ['claude-cli', GOLDEN.grid.usage.signIn, ['subscription', true]], ['claude-cli', GOLDEN.grid.usage.priced, ['metered', false]]]) {
+      const m = makeAuxMeter({ ledger: L, kind: 'reflection', provider: id, rowClass: signedIn => billing.auxRowClass(id, signedIn) });
+      m.add(usage, cost, 'm');
+      const row = m.book({ runId: 'r-' + id, agentId: 'a', model: 'm', unmetered: id === 'codex' });
+      A.eq([row.billingClass, row.unmetered], want, 'an aux meter row on ' + id + ' names its payer and its flag follows it');
+    }
+    const legacy = makeAuxMeter({ ledger: L, kind: 'embed' });
+    legacy.add(GOLDEN.grid.usage.plain, cost, 'm');
+    const lr = legacy.book({ runId: 'e', agentId: 'a', model: 'm', unmetered: true });
+    A.eq(['billingClass' in lr, lr.unmetered], [false, true], 'a meter with no route keeps the flag it was handed');
+  }
+});
+
+governorPart.then(() => A.report('billing-class.parity.test')).catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });

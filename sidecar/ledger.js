@@ -274,12 +274,15 @@
      abort) leaves a metered row usageMissing and an unpriced model leaves it unpriced (both: usd is a floor, never a
      proven $0), the same metered-only rule the run finalizer uses. The row is tagged `aux` so run counters stay runs.
 
-     makeAuxMeter({ ledger, kind }) -> {
+     makeAuxMeter({ ledger, kind, provider?, rowClass? }) -> {
        stream(provider, req, cost) -> text,   // one streamed completion, metered even when the stream throws
        add(usage, cost, model),               // one finished call (usage null = none arrived)
        book({ runId, agentId, model, unmetered, turns? }) -> entry | null,   // no call ran = no row
        calls(), usd(), tokens()
-     } */
+     }
+     rowClass(signedIn) -> the row's payer (the host's billing-class.js auxRowClass for the pass's route: the route's payer, a
+     sign-in when one of its calls reported one). The row then carries billingClass and its unmetered follows it; with none
+     (a pass that names no route) the caller's unmetered flag stands, as before. */
   // The flags a nested tool loop's aux row carries (the skill review, the curator). A subscription call is named on any route; the
   // floors (an unpriced model, a stream cut before usage) mean something only where dollars are metered.
   function auxLoopFloors(result, unmetered) {
@@ -293,6 +296,7 @@
   function makeAuxMeter(o) {
     o = o || {};
     const ledger = o.ledger, kind = str(o.kind).trim() || 'aux', route = str(o.provider).trim();
+    const rowClass = typeof o.rowClass === 'function' ? o.rowClass : null;
     let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0;
     function add(usage, cost, model) {
       calls++;
@@ -321,8 +325,11 @@
       book(row) {
         if (!calls || !ledger) return null;
         row = row || {};
-        const unmetered = !!row.unmetered;
-        const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, unmetered,
+        let billingClass = null;
+        try { billingClass = rowClass ? rowClass(subscription) : null; } catch (_) { billingClass = null; }   // no payer named: the caller's flag
+        if (!knownClass(billingClass)) billingClass = null;
+        const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
+        const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, ...(billingClass ? { billingClass } : {}), unmetered,
           unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind });
         calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
         return entry;
