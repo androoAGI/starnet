@@ -1,7 +1,7 @@
 /* node test/unpriced-ceiling-setting.test.js — issue #135: a model StarNet has no price for (a custom provider's
    deepseek-ai/deepseek-v4.1-flash-1107) stopped every run at a hardcoded 2,000,000 tokens. The only override was the
-   STARNET_MAX_UNPRICED_TOKENS environment variable; the Runtime limits row a user found (CLAUDE CODE TOKEN CEILING) is
-   the Claude-subscription ceiling and never touched it, so setting it to 5M or 0 changed nothing.
+   STARNET_MAX_UNPRICED_TOKENS environment variable; the Runtime limits row a user found (CLAUDE CODE TOKEN CEILING, now
+   SIGN-IN TOKEN CEILING) is the sign-in plans' ceiling and never touched it, so setting it to 5M or 0 changed nothing.
 
    GENUINE (the real sidecar/index.js knob code, run in a vm against a temp runtime.knobs.json — never the sidecar):
      • SAVE: POST /api/runtime/knobs { maxUnpricedTokens } persists, reports it, and is bounds-checked like its sibling;
@@ -142,10 +142,10 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
     A.eq(off.res.reason, 'max_iters', '0 = no ceiling: 6,000,000 unpriced tokens and no token stop');
     A.eq(boot().CAPS.maxUnpricedTokens, 0, 'a restart keeps the saved 0 (not dropped to the default)');
 
-    // ---- the Claude Code ceiling applies live the same way ----
+    // ---- the sign-in ceiling applies live the same way ----
     r = await post(ctx, { maxSubscriptionTokens: 1000000 });
     A.eq(r.code, 200, 'POST maxSubscriptionTokens 1,000,000 → 200');
-    A.eq(nextRunLimits(ctx).maxSubscriptionTokens, 1000000, 'the next run gets the new Claude Code ceiling — no restart');
+    A.eq(nextRunLimits(ctx).maxSubscriptionTokens, 1000000, 'the next run gets the new sign-in ceiling — no restart');
     const sub = await runSubscription(nextRunLimits(ctx).maxSubscriptionTokens, 400000, 10);
     A.eq([sub.reason, sub.turns, sub.subscriptionCapTokens], ['budget', 3, 1000000], 'it stops at 1,000,000 (3 × 400k)');
     await post(ctx, { maxSubscriptionTokens: 0 });
@@ -195,9 +195,11 @@ function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {
   const sib = uc.F.find(f => f.key === 'maxSubscriptionTokens');
   A.ok(!!row, 'Runtime limits has a maxUnpricedTokens row');
   A.eq(row && row.label, 'UNPRICED MODEL TOKEN CEILING', 'labelled for what it is');
-  A.eq(row && [row.min, row.max, row.step], sib && [sib.min, sib.max, sib.step], 'same bounds and step as CLAUDE CODE TOKEN CEILING');
+  A.eq(row && [row.min, row.max, row.step], sib && [sib.min, sib.max, sib.step], 'same bounds and step as SIGN-IN TOKEN CEILING');
+  // spend-governor S1: the seatbelt covers every sign-in plan (ChatGPT, Grok, Kimi, a Claude subscription), and its row says so
+  A.ok(sib && sib.label === 'SIGN-IN TOKEN CEILING' && /ChatGPT, Grok, Kimi or a Claude subscription/.test(sib.hint), 'the sign-in ceiling is named for every sign-in it covers: ' + (sib && sib.label));
   A.ok(row && /0 = no ceiling/.test(row.hint) && /next run/.test(row.hint) && !/restart/.test(row.hint) && /price/.test(row.hint), 'the hint says what it governs, 0 = no ceiling, and when it applies: ' + (row && row.hint));
-  A.ok(sib && /next run/.test(sib.hint) && !/restart/.test(sib.hint), 'and so does CLAUDE CODE TOKEN CEILING: ' + (sib && sib.hint));
+  A.ok(sib && /next run/.test(sib.hint) && !/restart/.test(sib.hint), 'and so does SIGN-IN TOKEN CEILING: ' + (sib && sib.hint));
   A.eq(uc.F.length, 6, 'one new row, nothing else added');
 
   // ---- limits.set (station.power) carries every Runtime limits key ----

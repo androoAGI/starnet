@@ -1542,8 +1542,8 @@ const Harness = (() => {
     // additive: a 'budget' stop at the per-run TOKEN ceiling for a model with no known price (loop.js maxUnpricedTokens).
     // The $ cap never governed it, so COMMS must name the real limit instead of "raise your spend cap".
     let unpricedModel = null, unpricedCapTokens = 0;
-    // additive: a 'budget' stop at the per-run SUBSCRIPTION-token ceiling (loop.js maxSubscriptionTokens) — a Claude Code
-    // sign-in books $0 per turn, so this is the only ceiling it has; COMMS names it instead of a $ cap.
+    // additive: a 'budget' stop at the per-run SIGN-IN token ceiling (loop.js maxSubscriptionTokens) — a sign-in plan books $0
+    // per call, so this is the only ceiling it has; COMMS names it (SIGN-IN TOKEN CEILING) instead of a $ cap.
     let subscriptionModel = null, subscriptionCapTokens = 0;
     // TYPED OUTCOMES (additive): the station's own code for how the lead's run ended, and why it failed — COMMS maps the
     // code to words through one table (friendlyerror.js) instead of re-reading the error's text

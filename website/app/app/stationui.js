@@ -7675,7 +7675,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     { key: 'maxConcurrentAgents', label: 'MAX CONCURRENT AGENTS', hint: 'the most agents working at the same time. 0 = no limit (default).', min: 0, max: 32, step: 1 },
     { key: 'consentTimeoutMs', label: 'CONSENT TIMEOUT (MS)', hint: 'how long an approval card waits for your answer before it says no for you (so a run never hangs).', min: 5000, max: 600000, step: 1000 },
     { key: 'cronTickMs', label: 'ROUTINE TICK (MS)', hint: 'how often the scheduler checks for due routines.', min: 5000, max: 600000, step: 1000 },
-    { key: 'maxSubscriptionTokens', label: 'CLAUDE CODE TOKEN CEILING', hint: 'tokens one run may use on a Claude subscription sign-in (cache re-reads count 1/10). 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 },
+    { key: 'maxSubscriptionTokens', label: 'SIGN-IN TOKEN CEILING', hint: 'tokens one run may use on a sign-in plan: ChatGPT, Grok, Kimi or a Claude subscription (cache re-reads count 1/10). 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 },
     // issue #135: the ceiling on a model StarNet can't price (a custom provider's model) was env-only. Both token ceilings
     // apply from the next run (the sidecar re-resolves them into CAPS on save); the other rows wait for a restart.
     { key: 'maxUnpricedTokens', label: 'UNPRICED MODEL TOKEN CEILING', hint: 'tokens one run may use on a model StarNet has no price for. 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 }

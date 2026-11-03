@@ -120,6 +120,7 @@ const loopPart = (async () => {
     A.eq([r.reason, p.calls(), end.subscriptionCapTokens, r.subscriptionTokens], ['budget', 3, 100000, 120000],
       id + ': a sign-in attempt that reports no subscription flag counts — the run stops at the 100,000-token seatbelt after 3 calls (was max_iters after 8)');
     A.eq(r.billingClasses, ['subscription'], id + ': the run reports what its attempts were');
+    A.ok(/SIGN-IN TOKEN CEILING/.test(r.budgetNote || '') && /STARNET_MAX_SUBSCRIPTION_TOKENS/.test(r.budgetNote || ''), id + ': the loop\'s own stop note names the knob: ' + r.budgetNote);
   }
   {
     const p = toolProvider(Object.assign({}, CODEX_USAGE, { cost: 0, subscription: true }));

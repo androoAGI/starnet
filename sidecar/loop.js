@@ -1578,8 +1578,8 @@
           endPayload.unpricedTokens = Number(extra.unpricedTokens) || 0;
           endPayload.unpricedCapTokens = Number(extra.unpricedCapTokens) || 0;
         }
-        // the SUBSCRIPTION-token ceiling (additive, like the unpriced fields): which model, how far, which ceiling —
-        // so the stop reads "used N tokens of your Claude subscription" instead of a $ cap that never governed it
+        // the SIGN-IN token ceiling (additive, like the unpriced fields): which model, how far, which ceiling — so the stop
+        // names SIGN-IN TOKEN CEILING (every sign-in plan: ChatGPT, Grok, Kimi, a Claude subscription), never a $ cap
         if (extra.subscriptionModel) {
           endPayload.subscriptionModel = String(extra.subscriptionModel).slice(0, 120);
           endPayload.subscriptionTokens = Number(extra.subscriptionTokens) || 0;
@@ -1600,7 +1600,7 @@
       }
       if (endPayload.subscriptionModel) {
         out.subscriptionModel = endPayload.subscriptionModel; out.subscriptionTokens = endPayload.subscriptionTokens; out.subscriptionCapTokens = endPayload.subscriptionCapTokens;
-        out.budgetNote = 'stopped: ' + endPayload.subscriptionTokens.toLocaleString('en-US') + ' subscription tokens on ' + endPayload.subscriptionModel + ' (cache re-reads count 1/10) reached the ' + endPayload.subscriptionCapTokens.toLocaleString('en-US') + '-token per-run ceiling (SETTINGS > APP & BACKUP > Runtime limits, or STARNET_MAX_SUBSCRIPTION_TOKENS)';
+        out.budgetNote = 'stopped: ' + endPayload.subscriptionTokens.toLocaleString('en-US') + ' subscription tokens on ' + endPayload.subscriptionModel + ' (cache re-reads count 1/10) reached the ' + endPayload.subscriptionCapTokens.toLocaleString('en-US') + '-token per-run ceiling (SETTINGS > APP & BACKUP > Runtime limits > SIGN-IN TOKEN CEILING, or STARNET_MAX_SUBSCRIPTION_TOKENS)';
       }
       if (reason === 'cancelled' && abortedWait) out.cancelledWhile = Object.assign({}, abortedWait);   // #99: what the cancel interrupted
       if (reason === 'cancelled' && streamCut) out.streamCut = true;   // 80de2a75: a call's usage never arrived (see streamCut)
