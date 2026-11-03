@@ -34,4 +34,8 @@ _Found by the `sweep/voice` lane, 2026-07-28. Finder confidence: high. Severity 
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Confirmed as found. 50a8b07b fixed it inside reflectToggle, which covers every redraw rather than init alone: while the speaker is on, a pinned degrade reason outranks the plain on/off copy. `test/voice.button.test.js` pins that Voice.init keeps the reason and that a deliberate toggle still clears it.
+
+The family was the speaker's many paths, each running its own subset of what a change needs: clear the cold-off and the degrade reason, silence speech, put the speech note away, warm the stock lines and redraw the key. Six writers saved or flipped the speaker, and init redrew it without clearing. The voice-reply-handles-and-speaker-lease lane closes the family. setSpeaker is now the speaker's one transition, and every writer goes through it: the key, /voice, hands-free, Local Live, every session teardown and Voice.init. Every change runs one fixed effect list in one order, so no path can skip a step another path takes. A transition that leaves the speaker as it was, like Voice.init over a speaker the Commander turned on, keeps a pinned reason.
+
+The class invariant is `test/voice-speaker.property.test.js` (I2). It drives seeded sequences of every speaker writer, Voice.init and a reload included, and checks after every step that the saved setting is the Commander's last explicit choice, that a muted speaker shows no speech note and no ON tooltip, and that `frontend/app/voice-state.js` is the key's only writer. On the lane's base the saved-setting and one-writer laws broke in every sequence; the muted-speaker law already held there. The on side, a pinned reason surviving a redraw, rests on reflectToggle's guard and stays pinned by `test/voice.button.test.js`.
