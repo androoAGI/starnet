@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 429 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 430 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -422,6 +422,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | providers | [Background provider updates erase settings save receipts](bugs/dbca103d-background-provider-updates-erase-settings-save.md) | spend-governor-1103 | 67d74dffe |
 | P2 | fixed | providers | [BYOK image recovery omits the supported OpenRouter key option](bugs/3a2837bd-byok-image-recovery-only-offers-paid-link.md) | audit-0112-0910 | d503f00c5 |
 | P2 | fixed | providers | [ChatGPT plan-allowance copy hardcodes a weekly reset and never shows the provider's reset time](bugs/06331054-chatgpt-plan-allowance-copy-hardcodes-a-weekly-r.md) | sweep/providers | 0c22f4fb0 |
+| P2 | fixed | providers | [Claude sign-in refusals lose their specific post-mortem guidance](bugs/7275bbf0-claude-sign-in-refusals-lose-their-specific-post.md) | batch3-next-fixture-repairs-1103 | 6aff8f2df |
 | P2 | fixed | providers | [credPool.penalize() on the run's PRIMARY key is inert — the sole credPool.order() call site (index.js:10580) receives a pool with runKey filtered out](bugs/8d7b0b52-credpool-penalize.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | providers | [Exported ModelDock helpers depend on a browser global](bugs/81209ef7-exported-modeldock-helpers-depend-on-a-browser-g.md) | agent/batch3-runtime-fixtures-1103 | fb33da958e1b8998a661e793d8a5f0a0aa44129a |
 | P2 | fixed | providers | [Ollama task runs finish without reported filesystem tool calls](bugs/678ac951-ollama-task-runs-finish-without-reported-filesys.md) | agent/reliability-audit-0919 | 0e25b955f |
