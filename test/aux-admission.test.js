@@ -28,5 +28,25 @@ const defer = () => { let resolve; const promise = new Promise(r => { resolve = 
   const c2 = q.schedule('claude', async () => { entered++; });
   await Promise.resolve(); used = 100; changed.resolve();
   assert.deepEqual(await Promise.all([c1, c2]), [true, false], 'a changed limit is read at dispatch, not enqueue');
+  // Execute the real quest tick with a held admission: changing the default must not spend on an unadmitted route,
+  // and switching autonomy off while waiting must cancel the look before it stamps a cycle or calls a model.
+  const { sidecarTopLevelFunction } = require('./helpers/source.js');
+  for (const pause of [false, true]) {
+    let route = 'claude', enabled = true, queued, admitted, called, stamps = 0;
+    const names = ['processFaultQuiesced', 'process', 'questRefreshingNow', 'commanderPosture', 'stationLife', 'QuestRefresh',
+      'questRefreshState', 'questRefreshOpenCount', 'questContextKey', 'auxTokenGate', 'cronProviderFor', 'questRefreshCeilingNoted',
+      'questRefreshNote', 'automaticAux', 'persistQuestRefresh', 'runQuestRefreshCycle', 'swallow'];
+    const tick = new Function(...names, sidecarTopLevelFunction('questRefreshTick') + '; return questRefreshTick;')(
+      false, { env: {} }, false, { summary: () => ({ enabled }) }, { station: () => ({}) },
+      { decide: () => ({ fire: true, why: 'due' }), stampCycle: () => { stamps++; return {}; } }, {}, () => 0, () => 'ctx',
+      () => ({ blocked: false }), () => route, false, () => {},
+      (r, kind, agent, run, work) => { admitted = r; queued = work; return Promise.resolve(); }, () => {},
+      (why, r) => { called = r; }, () => () => {});
+    tick(); route = 'codex'; if (pause) enabled = false;
+    await queued();
+    assert.equal(admitted, 'claude');
+    assert.equal(called, pause ? undefined : 'claude', 'queued quest uses its admitted route and honors a later pause');
+    assert.equal(stamps, pause ? 0 : 1, 'a paused queued quest does not consume its cadence');
+  }
   console.log('aux-admission: PASS (settlement, independent routes, failure release, exempt routes, live recheck)');
 })().catch(e => { console.error(e); process.exitCode = 1; });

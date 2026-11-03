@@ -10675,9 +10675,9 @@ setImmediate(() => reconcileCompletedJourneyQuests().then(() => advanceGoalFromQ
 
 let questRefreshingNow = false;   // one cycle in flight, ever (the scout's in-flight-guard discipline)
 let questRefreshCeilingNoted = false;   // this stretch at the token ceiling already has its ledger line
-async function runQuestRefreshCycle(why) {
+async function runQuestRefreshCycle(why, admittedProviderId) {
   // standalone provider (no live run to ride): the cron seam's provider/credential resolution, verbatim.
-  const providerId = cronProviderFor(null);
+  const providerId = admittedProviderId || cronProviderFor(null);
   const usingCodex = providerUsesCodex(providerId);
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
   const baseUrl = providerRuntimeBaseUrl(providerId, '');
@@ -10847,17 +10847,20 @@ function questRefreshTick() {
   // THE TOKEN CEILING (issue #105) stops the AUTOMATIC look, before the cadence is stamped: a blocked look spends no cycle, so the
   // refresh runs on the first tick after the figure drops. One ledger line per stretch, or every 5-minute tick would write one. The
   // manual route never comes through here: a Commander asking IS the trigger.
-  if (auxTokenGate(cronProviderFor(null)).blocked) {
+  const refreshProvider = cronProviderFor(null);
+  if (auxTokenGate(refreshProvider).blocked) {
     if (!questRefreshCeilingNoted) { questRefreshCeilingNoted = true; questRefreshNote({ outcome: 'skipped', reason: 'background token ceiling reached' }); }
     return;
   }
   questRefreshCeilingNoted = false;
   questRefreshingNow = true;
-  automaticAux(cronProviderFor(null), 'quest-refresh', 'station', 'quest-refresh', () => {
+  automaticAux(refreshProvider, 'quest-refresh', 'station', 'quest-refresh', () => {
+    // A queued look can outlive an autonomy change. Recheck authority before spending or stamping.
+    if (processFaultQuiesced || process.env.SKYNET_QUEST_REFRESH === '0' || !(commanderPosture.summary() || {}).enabled || !stationLife.station()) return;
     // Waiting is not a cycle. Stamp only when the route admits this automatic pass.
     questRefreshState = QuestRefresh.stampCycle(questRefreshState, { now: Date.now(), contextKey: questContextKey() });
     persistQuestRefresh();
-    return runQuestRefreshCycle(d.why);
+    return runQuestRefreshCycle(d.why, refreshProvider);
   }).catch(swallow('aux.questrefresh.envelope')).finally(() => { questRefreshingNow = false; });
 }
 let questRefreshTimer = null;
