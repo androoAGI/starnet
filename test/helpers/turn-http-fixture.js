@@ -8,7 +8,7 @@ const { once } = require('node:events');
 const { SidecarFixture } = require('./sidecar-fixture.js');
 const { allocatePort } = require('./ports.js');
 const Phone = require('../../relay/app/phone-client.js');
-const { userWords } = require('./host-notes.js');
+const { userWords, runContextOf } = require('./host-notes.js');
 const { PageModel } = require('./page-model.js');
 const { check, key, dialogue } = require('./turn-oracle.js');
 const Merge = require('../../frontend/app/turnmerge.js');
@@ -23,7 +23,7 @@ async function until(fn, label, ms = 20000) {
 }
 const eventsOf = text => String(text).split('\n').filter(Boolean).map(line => JSON.parse(line));
 class TurnHttpFixture {
-  constructor(seed, rng) { this.seed = seed; this.rng = rng; this.requests = []; this.phone = null; this.serial = 0; this.holdNext = false; this.failNext = false; this.held = null; }
+  constructor(seed, rng) { this.seed = seed; this.rng = rng; this.requests = []; this.phone = null; this.serial = 0; this.holdRequest = null; this.failNext = false; this.held = null; this.heldRequest = null; }
   async start() {
     this.mock = http.createServer((req, res) => {
       if (/\/models(?:\?|$)/.test(req.url)) { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify({ data: [{ id: 'test/model', context_length: 128000, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] }] })); }
@@ -37,9 +37,13 @@ class TurnHttpFixture {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
         const emit = delta => res.write('data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n');
         const finish = reason => { res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: reason }], usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } }) + '\n\n'); res.end('data: [DONE]\n\n'); };
-        if (this.holdNext) {
-          this.holdNext = false; emit({ content: 'INTERRUPTED_PARTIAL' });
-          this.held = res; res.once('close', () => { if (this.held === res) this.held = null; }); return;
+        if (this.holdRequest && words === this.holdRequest.words) {
+          const intent = this.holdRequest;
+          this.holdRequest = null; emit({ content: intent.token });
+          const run = /Run id:\s*([^\s<]+)/.exec(runContextOf(messages));
+          this.held = res;
+          this.heldRequest = { response: res, body, runId: run && run[1], token: intent.token };
+          res.once('close', () => { if (this.held === res) { this.held = null; this.heldRequest = null; } }); return;
         }
         const brief = (body.tools || []).find(t => t.function && t.function.name === 'brief_proceed');
         const alreadyBriefed = messages.some(m => m.role === 'assistant' && (m.tool_calls || []).some(t => t.function && t.function.name === 'brief_proceed'));
@@ -174,12 +178,23 @@ class TurnHttpFixture {
     return evidence;
   }
   async interruptAndContinue() {
-    const sent = await this.page.prepare('recover this exact directive'); this.holdNext = true;
+    const marker = String(this.seed) + '-' + (++this.serial);
+    const words = 'recover this exact directive [fixture interruption ' + marker + ']';
+    const sent = await this.page.prepare(words);
+    const token = 'INTERRUPTED_PARTIAL_' + marker;
+    this.holdRequest = { words, token };
     const response = await this.fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ model: 'test/model', provider: 'openrouter', isTask: false }, sent)) });
     assert.equal(response.status, 200); const reader = response.body.getReader(), decoder = new TextDecoder(); let raw = '';
     const reading = (async () => { try { for (;;) { const part = await reader.read(); if (part.done) break; raw += decoder.decode(part.value, { stream: true }); } } catch (_) {} })();
-    await until(() => this.held && raw.includes('agent.run.start'), 'interrupted source reached provider');
-    const start = eventsOf(raw.slice(0, raw.lastIndexOf('\n'))).find(e => e.name === 'agent.run.start').payload;
+    const start = await until(() => {
+      const events = eventsOf(raw.slice(0, raw.lastIndexOf('\n')));
+      const own = events.find(e => e.name === 'agent.run.start')?.payload;
+      if (!own) return false;
+      assert.ok(!events.some(e => e.name === 'agent.run.end' && e.payload?.runId === own.runId), 'interrupted source cannot finish before its owned partial');
+      const held = this.heldRequest;
+      return held && this.held === held.response && !held.response.destroyed && held.runId === own.runId && held.token === token &&
+        events.some(e => e.name === 'agent.token' && e.payload?.runId === own.runId && String(e.payload.delta).includes(token)) && own;
+    }, 'interrupted source owns held provider response and partial token');
     this.phone.close(); await this.fx.stop(); await reading;
     this.page.consume(raw.slice(0, raw.lastIndexOf('\n')), sent); await this.fx.start(); this.connectPhone();
     const records = await this.json('GET', '/api/run-recoveries'), source = records.recoveries.find(r => r.runId === start.runId);
