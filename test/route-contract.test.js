@@ -18,7 +18,11 @@
 'use strict';
 const A = require('./_assert.js');
 const http = require('node:http');
+const fs = require('node:fs');
+const path = require('node:path');
 const respond = require('../sidecar/respond.js');
+const Tickets = require('../sidecar/apitickets.js');
+const { makeRunJournal } = require('../sidecar/run-journal.js');
 const errorClass = require('../sidecar/providers/errorClass.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { readSidecarSource, sidecarSourceFiles } = require('./helpers/source.js');
@@ -160,8 +164,25 @@ async function stampOnRealResponses() {
 // ---- 4. the seam: the real sidecar ---------------------------------------------------------------------------------
 async function seam() {
   const app = SidecarFixture.create({ prefix: 'starnet-route-contract-' });
-  await app.start();
+  // Exact old index bytes may replace only the composition root. All relative dependencies,
+  // actual stores, route table and HTTP transport remain the real isolated sidecar's.
+  if (process.env.ACK_ROUTE_CONTROL) {
+    const original = path.resolve(process.env.ACK_ROUTE_CONTROL);
+    const index = path.resolve(__dirname, '../sidecar/index.js');
+    const entry = path.join(app.profile, 'route-control.cjs');
+    fs.writeFileSync(entry, "const fs=require('node:fs'),M=require('node:module'),p=require('node:path');\n"
+      + 'const f=' + JSON.stringify(index) + ',m=new M(f,module);m.filename=f;m.paths=M._nodeModulePaths(p.dirname(f));\n'
+      + 'm._compile(fs.readFileSync(' + JSON.stringify(original) + ",'utf8'),f);\n");
+    app.entry = entry;
+  }
+  const journal = makeRunJournal({ dir: path.join(app.workspace, '.run-journal') });
+  journal.begin({ runId: 'ack-owned-recovery', agentId: 'agent', streamId: 'ack-stream', trigger: 'directive', model: 'fixture-no-call' });
+  journal.checkpoint('ack-owned-recovery', { phase: 'initial', turn: 0, messages: [{ role: 'user', content: 'fixture history only' }] });
+  const site = path.join(app.workspace, 'agent', 'ack-site');
+  fs.mkdirSync(site, { recursive: true });
+  fs.writeFileSync(path.join(site, 'index.html'), '<h1>ACK ownership fixture</h1>');
   try {
+    await app.start();
     const B = app.baseUrl, port = Number(new URL(B).port);
     const ask = (p, headers, init) => fetch(B + p, Object.assign({ headers: Object.assign({ Origin: B }, headers || {}), signal: AbortSignal.timeout(DEADLINE_MS) }, init || {}));
     const keyed = headers => Object.assign({ 'X-StarNet-Token': app.token }, headers || {});
@@ -210,6 +231,8 @@ async function seam() {
     const hook = await rawRequest(port, 'POST', '/api/hooks/trg_nosuchtrigger01', { Host: 'abc.trycloudflare.com', 'Content-Type': 'application/json' }, '{}');
     A.eq([hook.status, hook.headers[CODE], hook.body], [401, 'refused', '{"ok":false,"error":"unauthorized"}'], 'the trigger webhook\'s 401 (an unlisted 4xx) is named refused, its body untouched');
 
+    await agentRoutes(app, ask, keyed);
+
     // a 2xx NDJSON stream carries no code and streams as it always did
     const ac = new AbortController();
     const timer = setTimeout(() => ac.abort(), DEADLINE_MS);
@@ -223,6 +246,100 @@ async function seam() {
   } finally {
     await app.dispose();
   }
+}
+
+// S4: these are real routes with all unrelated required fields supplied. A malformed
+// agent never reaches its store, file jail, stream or provider path. Defaults remain
+// a separate positive contract; an unknown well-formed agent is not a malformed ID.
+async function agentRoutes(app, ask, keyed) {
+  const bad = 'bad.id';
+  const gets = [
+    '/api/notebook', '/api/save', '/api/runs', '/api/insights', '/api/transcript',
+    '/api/memory/proposals', '/api/study/proposals', '/api/threads/proposals',
+    '/api/memory/records', '/api/memory/pending', '/api/memory/declined',
+    '/api/checkpoint', '/api/agent-skills', '/api/agent-skills/goldens',
+    '/api/agent-skills/candidates', '/api/agent-skills/candidate', '/api/learning-status',
+    '/api/workshop/backlog', '/api/workshop/pending', '/api/toolsets', '/api/slash/catalog',
+    '/api/workspace/dir', '/api/file'
+  ];
+  const posts = [
+    ['/api/workshop/grant', { agentId: bad }], ['/api/workshop/queue', { agentId: bad }],
+    ['/api/workshop/remove', { agentId: bad }], ['/api/workshop/decide', { agentId: bad }],
+    ['/api/workshop/undo', { agentId: bad }], ['/api/workshop/shift', { agentId: bad }],
+    ['/api/workshop/implement', { agentId: bad }], ['/api/checkpoint/restore', { agentId: bad }],
+    ['/api/agent/model', { agentId: bad }], ['/api/agent/approval', { agentId: bad }],
+    ['/api/agent/personality', { agentId: bad }], ['/api/agent/delete', { agentId: bad }],
+    ['/api/roster', { agents: [{ agentId: bad }] }],
+    ['/api/skill-market/share', { agentId: bad }],
+    ...['install', 'check', 'export', 'publish-handoff', 'generations', 'rollback'].map(x => ['/api/skill-exchange/' + x, { agentId: bad }]),
+    ...['manage', 'allow', 'evaluate-candidate', 'approve-candidate', 'reject-candidate', 'evaluation-suite', 'share'].map(x => ['/api/agent-skills/' + x, { agentId: bad }]),
+    ['/api/autonomy/write', { agentId: bad, path: 'must-not-exist.txt', content: 'never write' }],
+    ['/api/nightshift/beat', { agentId: bad }],
+    ['/api/notebook/restore', { agent: bad, notes: [] }], ['/api/save/recovery-ack', { agent: bad }],
+    ['/api/save', { agent: { id: bad } }],
+    ['/api/channels/handoff', { agentId: bad, channel: 'dev', chatId: 'ack-chat', streamId: 'ack_stream' }],
+    ['/api/study/resolve', { agentId: bad }], ['/api/threads/turnin', { agentId: bad }],
+    ...['turnin', 'reset', 'declined/restore', 'pin', 'edit', 'forget'].map(x => ['/api/memory/' + x, { agentId: bad }]),
+    ['/api/attachments', { agent: bad, name: 'must-not-exist.txt', dataUrl: 'data:text/plain;base64,bmV2ZXI=' }],
+    ['/api/diagnostics/live', { agentId: bad, confirmedLiveProbes: true }],
+    ['/api/run-recoveries/resolve', { agentId: bad, runId: 'ack-owned-recovery', resolutionId: 'ack-resolution' }],
+    ['/api/run-recoveries/continue', { agentId: bad, runId: 'ack-owned-recovery', continuationId: 'ack-continuation', confirmedSafeContinuation: true }]
+  ];
+  async function read(p, body) {
+    const r = await ask(p, keyed(body ? { 'Content-Type': 'application/json' } : null),
+      body ? { method: 'POST', body: JSON.stringify(body) } : null);
+    const text = await r.text();
+    let j = null; try { j = JSON.parse(text); } catch (_) {}
+    return { status: r.status, code: r.headers.get(CODE), text, j };
+  }
+  async function invalid(p, body) {
+    const r = await read(p, body);
+    A.eq([r.status, r.code, r.j && r.j.ok, r.j && r.j.code], [400, 'bad_agent_id', false, 'bad_agent_id'],
+      (body ? 'POST ' : 'GET ') + p + ': malformed ID has one honest refusal (got ' + r.text.slice(0, 150) + ')');
+    A.ok(r.j && typeof r.j.error === 'string' && r.j.error.length > 0, p + ': the refusal gives a reason');
+  }
+  for (const p of gets) await invalid(p + '?agent=' + bad);
+  await invalid('/api/toolsets?agentId=' + bad);
+  await invalid('/api/subagents?agentId=' + bad);
+  await invalid('/workshop-run/' + bad + '/run/index.html');
+  await invalid('/view/~t/not-a-ticket/' + bad + '/ack-site/index.html');
+  for (const [p, body] of posts) await invalid(p, body);
+  A.ok(!fs.existsSync(path.join(app.workspace, bad)), 'malformed operations never create an agent workspace');
+  A.ok(!fs.existsSync(path.join(app.workspace, bad + '.save.json')), 'malformed save never creates an agent record');
+
+  for (const p of ['/api/runs?agent=*', '/api/runs', '/api/insights', '/api/subagents', '/api/toolsets', '/api/slash/catalog']) {
+    const r = await read(p);
+    A.eq([r.status, r.code], [200, null], p + ': its existing default or wildcard remains valid');
+  }
+  const unknown = await read('/api/toolsets?agent=missing_valid_agent');
+  A.eq([unknown.status, unknown.code], [404, 'not_found'], 'a valid-shaped unknown agent remains not found, never malformed');
+  const consent = await read('/api/diagnostics/live', { agentId: bad });
+  A.eq(consent.status, 409, 'the live doctor retains consent-before-probe refusal');
+
+  for (const [p, body] of [
+    ['/api/run-recoveries/resolve', { runId: 'ack-owned-recovery', agentId: 'another_agent', resolutionId: 'ack-resolution', confirmedNoReplay: true }],
+    ['/api/run-recoveries/continue', { runId: 'ack-owned-recovery', agentId: 'another_agent', continuationId: 'ack-continuation', confirmedSafeContinuation: true }]
+  ]) {
+    const r = await read(p, body);
+    A.eq([r.status, r.code, r.j && r.j.code], [403, 'wrong_owner', 'wrong_owner'], p + ': another owner remains authorization refusal');
+  }
+  const held = await read('/api/run-recoveries?limit=100');
+  A.ok(held.j && Array.isArray(held.j.recoveries) && held.j.recoveries.some(x => x.runId === 'ack-owned-recovery'), 'the real journal recovery remains present after refused decisions');
+
+  const view = dir => '/view/~t/' + Tickets.mint(app.token, 'view', Tickets.scopeView('agent', dir), { now: Date.now() }) + '/agent/' + (dir || '~') + '/';
+  const page = await read(view('ack-site') + 'index.html');
+  A.eq([page.status, page.code], [200, null], 'a real folder-scoped ticket still reads its owned file');
+  A.ok(page.text.includes('ACK ownership fixture'), 'ticket positive proves actual file bytes');
+  for (const p of ['/view/agent/ack-site/index.html', '/view/~t/wrong/agent/ack-site/index.html',
+    view('other-site').replace('/other-site/', '/ack-site/') + 'index.html']) {
+    const r = await read(p);
+    A.eq([r.status, r.code], [403, 'ticket_refused'], p.split('/').slice(0, 3).join('/') + ': missing/wrong-scope ticket is not a stale page');
+  }
+  for (const p of ['/api/file?agent=agent&path=..%2Foutside.txt', '/workshop-run/agent/run/..%2F..%2Foutside.txt', view('ack-site') + '.env']) {
+    const r = await read(p);
+    A.eq([r.status, r.code], [403, 'path_refused'], 'a genuine path refusal stays403 with its own code: ' + p.slice(0, 75));
+  }
+  A.eq(fs.readFileSync(path.join(app.workspace, 'agent', 'ack-site', 'index.html'), 'utf8'), '<h1>ACK ownership fixture</h1>', 'refusal controls preserve the exact real file');
 }
 
 // ---- 5. census: the gate refuses in one place ----------------------------------------------------------------------
