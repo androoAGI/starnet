@@ -6391,8 +6391,8 @@ const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now:
     return () => lease.release();
   } },
   // Lazy closures: the durable job store is initialized below before any entry can dispatch work.
-  jobs: { start: rec => lineJobsSet(LineJobs.start(lineJobs, rec), true), finish: (id, rec) => lineJobsSet(LineJobs.finish(lineJobs, id, rec), true),
-    get: id => LineJobs.get(lineJobs, id), mark: (id, status) => lineJobsSet(LineJobs.mark(lineJobs, id, status), true), all: () => lineJobs.jobs },
+  jobs: { start: rec => lineJobsSet(state => LineJobs.start(state, rec)), finish: (id, rec) => lineJobsSet(state => LineJobs.finish(state, id, rec)),
+    get: id => LineJobs.get(lineJobs, id), mark: (id, status) => lineJobsSet(state => LineJobs.mark(state, id, status)), all: () => lineJobs.jobs },
   runRow: runId => runStore.latest(runId),
   emit: chanEmit });
 /* RESTART TRUTH (2026-07-06 audit): the router used to hold the posted plan ONLY in memory — after a sidecar
@@ -13599,38 +13599,101 @@ function handleRoutingSampleStatus(_req, res) {
    additionalProperties:false — re-proven by validate() in test/routing.sample.e2e.test.js). ---- */
 /* ---- LINE JOBS (2026-09-30): the record of every job POST /api/routing/sample sends down a line (sidecar/routing/linejobs.js) — the
    WORKFLOWS window's history and its result page after a reload, and the OUTBOX's way back to it. A job the station stopped under is
-   said as interrupted at boot. A failed write is noted, never fatal: the job itself already ran, and its runs are in runs.jsonl. ---- */
+   said as interrupted at boot. Save refusal stays visible and never publishes an unconfirmed mutation. ---- */
 const LINE_JOBS_FILE = path.join(WORKSPACES, 'line-jobs.json');
+let lineJobsStorageIssue = null;
+let lineJobsKnownStore = false;
+let lineJobsBootIds = null; // captured once from the first readable boot state, never from later active runs
+const lineJobsBootAt = Date.now();
 const lineJobStore = makeDomainStore({
   fs, path, file: LINE_JOBS_FILE, version: 1, writeDurable: writeFileDurable,
   defaults: () => ({ jobs: [] }),
   normalize: value => LineJobs.normalizeAll(value),
-  encode: value => ({ jobs: value.jobs }),
+  encode: value => { LineJobs.assertWritable(value); return { jobs: value.jobs }; },
   decode: envelope => (envelope && Array.isArray(envelope.jobs)) ? { jobs: envelope.jobs } : undefined,
-  onIssue: reportDomainStoreIssue('line-jobs')
+  onIssue: status => { lineJobsKnownStore = true; lineJobsStorageRefusal(status); }
 });
-let lineJobs = (() => {
-  const b = LineJobs.boot(lineJobStore.load().value, Date.now());
-  if (b.changed) { try { lineJobStore.save(b.state); } catch (e) { failNote('linejobs.boot', e); } }
-  return b.state;
-})();
-function lineJobsSet(r, strict) {
+let lineJobs = { jobs: [] };
+function lineJobsStorageRefusal(code) {
+  lineJobsStorageIssue = { ready: false, code: String(code || 'unconfirmed').slice(0, 80),
+    message: 'Line job storage is unconfirmed. Existing work is preserved; no further mutation is accepted until the saved state can be verified.' };
+}
+function lineJobsStorageStatus() { return lineJobsStorageIssue || { ready: true, code: 'verified' }; }
+function lineJobsReadVerified() {
+  const loaded = lineJobStore.load();
+  if ((loaded.status !== 'ok' && loaded.status !== 'absent') || (loaded.status === 'absent' && lineJobsKnownStore)) {
+    const error = new Error('line-jobs: canonical storage is ' + loaded.status);
+    error.code = 'ELINE_JOBS_READ'; throw error;
+  }
+  if (loaded.status === 'ok') lineJobsKnownStore = true;
+  LineJobs.assertWritable(loaded.value);
+  return loaded;
+}
+function lineJobsWriteVerified(next) {
+  LineJobs.assertWritable(next);
+  lineJobsKnownStore = true; // a thrown creation may already have landed; later absence cannot mean brand new
+  const saved = lineJobStore.save(next);
+  const readback = lineJobsReadVerified();
+  if (readback.status !== 'ok' || JSON.stringify(readback.value) !== JSON.stringify(saved.value)) {
+    const error = new Error('line-jobs: canonical readback did not confirm this mutation');
+    error.code = 'ELINE_JOBS_UNCONFIRMED'; throw error;
+  }
+  return readback.value;
+}
+function lineJobsRefresh() {
+  const loaded = lineJobsReadVerified();
+  lineJobs = loaded.value; // fresh canonical state before computing any mutation, including after a lost save acknowledgement
+  if (lineJobsBootIds === null) lineJobsBootIds = new Set(lineJobs.jobs.filter(j => j.status === 'running').map(j => j.id));
+  if (lineJobsBootIds.size) {
+    const b = LineJobs.boot(lineJobs, lineJobsBootAt, lineJobsBootIds);
+    if (b.changed) lineJobs = lineJobsWriteVerified(b.state);
+    lineJobsBootIds.clear();
+  }
+  lineJobsStorageIssue = null;
+  return lineJobs;
+}
+try { lineJobsRefresh(); }
+catch (error) { lineJobsStorageRefusal(error && error.code); failNote('linejobs.boot', error); }
+function lineJobsRefreshForRead() {
+  if (!lineJobsStorageIssue) return;
+  try { lineJobsRefresh(); }
+  catch (error) { lineJobsStorageRefusal(error && error.code); failNote('linejobs.read', error); }
+}
+function lineJobsSet(change) {
+  if (typeof change !== 'function') throw new Error('line-jobs: a mutation must be computed against the current saved state');
+  let current;
+  try { current = lineJobsRefresh(); }
+  catch (error) { lineJobsStorageRefusal(error && error.code); failNote('linejobs.read', error); throw error; }
+  // Validation/revision refusal is not a storage failure. The freshly read state
+  // remains authoritative; the caller must submit a decision for that revision.
+  const r = change(current);
   if (!r || !r.job) return null;
-  try { lineJobStore.save(r.state); } catch (e) { failNote('linejobs.save', e); if (strict) throw e; }
-  lineJobs = r.state;
-  return r.job;
+  try {
+    // Callers supply the operation, not a snapshot computed before an ambiguous save.
+    // The expected continuation revision/token remains the pure owner's authority.
+    lineJobs = lineJobsWriteVerified(r.state);
+    lineJobsStorageIssue = null;
+    return LineJobs.get(lineJobs, r.job.id);
+  } catch (error) {
+    lineJobsStorageRefusal(error && error.code);
+    failNote('linejobs.save', error);
+    throw error;
+  }
 }
 /* GET /api/line-jobs?line=&stream=&runId=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
    cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
    'example', dockId, role, field, text, was, why} — what the Commander changed because of it. An unknown id is 404 {ok:false}. */
 function handleLineJobsList(req, res) {
+  lineJobsRefreshForRead();
   const u = new URL(req.url, 'http://127.0.0.1');
-  respondJson(res, 200, { ok: true, jobs: LineJobs.list(lineJobs, { line: u.searchParams.get('line') || '', stream: u.searchParams.get('stream') || '', runId: u.searchParams.get('runId'), limit: u.searchParams.get('limit') || 30 }) });
+  respondJson(res, lineJobsStorageIssue ? 503 : 200, { ok: !lineJobsStorageIssue, storage: lineJobsStorageStatus(), jobs: LineJobs.list(lineJobs, { line: u.searchParams.get('line') || '', stream: u.searchParams.get('stream') || '', runId: u.searchParams.get('runId'), limit: u.searchParams.get('limit') || 30 }) });
 }
 async function handleLineJobId(req, res, gm) {
+  if (req.method === 'GET') lineJobsRefreshForRead();
   const id = gm[1], job = LineJobs.get(lineJobs, id);
+  if (!job && lineJobsStorageIssue) return respondJson(res, 503, { ok: false, error: 'Line job storage could not be verified.', storage: lineJobsStorageStatus() });
   if (!job) return respondJson(res, 404, { ok: false, error: 'no such job' });
-  if (req.method === 'GET' && !gm[2]) return respondJson(res, 200, { ok: true, job });
+  if (req.method === 'GET' && !gm[2]) return respondJson(res, lineJobsStorageIssue ? 503 : 200, { ok: !lineJobsStorageIssue, storage: lineJobsStorageStatus(), job });
   if (req.method === 'DELETE' && !gm[2]) {
     if (job.status !== 'running' && job.status !== 'paused') return respondJson(res, 200, { ok: true, stopRequested: false, job });
     try {
@@ -13646,9 +13709,11 @@ async function handleLineJobId(req, res, gm) {
     let body = {};
     try { const raw = await readBody(req, 1 << 15); body = raw && raw.trim() ? (JSON.parse(raw) || {}) : {}; }
     catch (_) { return respondJson(res, 400, { ok: false, error: 'bad json' }); }
-    const r = LineJobs.note(lineJobs, id, Object.assign({}, body, { at: Date.now() }));
-    if (!r.job) return respondJson(res, 400, { ok: false, error: 'not a change this record keeps' });
-    return respondJson(res, 200, { ok: true, job: lineJobsSet(r) });
+    try {
+      const kept = lineJobsSet(state => LineJobs.note(state, id, Object.assign({}, body, { at: Date.now() })));
+      if (!kept) return respondJson(res, 400, { ok: false, error: 'not a change this record keeps' });
+      return respondJson(res, 200, { ok: true, job: kept });
+    } catch (_) { return respondJson(res, 503, { ok: false, error: 'This note could not be confirmed durably. Read the job before retrying.', storage: lineJobsStorageStatus() }); }
   }
   return respondJson(res, 405, { ok: false, error: 'method not allowed' });
 }
@@ -14064,9 +14129,9 @@ handoffRunner = makeHandoffRunner({
       projectRoot: r.projectRoot || '', startedAt: r.startedAt, artifacts: Array.isArray(r.artifacts) ? r.artifacts.filter(a => a && (a.kind === 'file' || a.kind === 'image') && a.path).map(a => ({ kind: a.kind, path: a.path })) : [] })),
   jobs: {
     get: id => LineJobs.get(lineJobs, id),
-    link: (id, to) => lineJobsSet(LineJobs.link(lineJobs, id, to)),
+    link: (id, to) => lineJobsSet(state => LineJobs.link(state, id, to)),
     latest: (line) => LineJobs.latest(lineJobs, line),
-    again: (id, at) => lineJobsSet(LineJobs.again(lineJobs, id, at))
+    again: (id, at) => lineJobsSet(state => LineJobs.again(state, id, at))
   },
   emit: chanEmit, bumpQueue: bumpQueue, queueCap: QUEUE_CAP,
   now: () => Date.now(), newId: () => crypto.randomUUID(),

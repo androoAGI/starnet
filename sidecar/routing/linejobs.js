@@ -287,13 +287,13 @@ function note(state, id, n) {
    restart). A PAUSED record is a step-through test waiting on you: its session comes back paused, so its record stays as it is (the
    step test's own boot finishes one whose session is gone). */
 const BOOT_WHY = 'the station stopped while this job was out — send it again';
-function boot(state, at) {
+function boot(state, at, ownedIds) {
   // Do not replace original bytes while boot-normalizing another row beside an
   // oversized/uncapturable payload. Every public mutation helper refuses it too.
   try { writable(state); } catch (error) { return { state, changed: false, issue: error.message }; }
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
-    if (j.status !== 'running') return j;
+    if (j.status !== 'running' || (ownedIds && !ownedIds.has(j.id))) return j;
     changed = true;
     const continued = owns(j, 'continuation');
     const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
