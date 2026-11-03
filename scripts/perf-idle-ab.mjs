@@ -422,7 +422,7 @@ async function runOnce(k) {
         cdp: { rendererPct: cpuBy.renderer ?? 0, stationRendererPct: renderers[0] ? renderers[0].pct : null, renderers: renderers.length, gpuPct: cpuBy.GPU ?? 0, browserPct: cpuBy.browser ?? 0,
           utilityPct: cpuBy.utility ?? 0, otherPct: +Object.entries(cpuBy).filter(([t]) => !['renderer', 'GPU', 'browser', 'utility'].includes(t)).reduce((s, [, v]) => s + v, 0).toFixed(2), procs: perProc },
         jsHeapMB: Math.round(b.m.JSHeapUsedSize / 1048576), nodes: b.m.Nodes,
-        obs: [a.s, b.s].map(s => ({ hasFocus: s.hasFocus, focusEmulated, visibilityState: s.visibilityState, vsyncMs: s.vsyncMs, vsyncGaps: s.vsyncGaps, worldVsyncMs: s.pace.vsyncMs, cameraMode: s.camera.mode, paceMode: s.pace.mode, paceMs: s.pace.paceMs, running: s.pace.running,
+        obs: [a.s, b.s].map(s => ({ hasFocus: s.hasFocus, focusEmulated, visibilityState: s.visibilityState, vsyncMs: s.vsyncMs, vsyncGaps: s.vsyncGaps, worldVsyncMs: s.pace.vsyncMs, cameraMode: s.camera.mode, cineRested: s.camera.rested, paceMode: s.pace.mode, paceMs: s.pace.paceMs, running: s.pace.running,
           // the STILL pace books rAF from a timer ~30x a second: the probe sees the timer's gaps, not the panel's (see phaseValidity)
           hzExempt: s.pace.mode === 'still' ? 'the still pace is timer-booked: no vsync-rate frame to read the panel from' : null, stillWhy: s.pace.stillWhy })),
         still: F.stillWindow({ draws: a.s.draws, stillFrames: a.s.pace.stillFrames, stillWhyCounts: a.s.pace.stillWhyCounts }, { draws: b.s.draws, stillFrames: b.s.pace.stillFrames, stillWhyCounts: b.s.pace.stillWhyCounts }),

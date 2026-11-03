@@ -150,5 +150,18 @@ function loadTextures(search, stored) {
   const query = loadTextures('?idleRenderer=0', '1');
   await query.T.ready;
   A.eq(query.T.status().lazyArt, false, '?idleRenderer=0 wins over a stored opt-in');
+
+  /* ---- 3. THE A/B MEASURES A RESTED CAMERA (perf-idle-ab's P7 validity, the real phaseValidity) ---- */
+  const ab = fs.readFileSync(path.join(ROOT, 'scripts/perf-idle-ab.mjs'), 'utf8');
+  A.ok(/rested: c\.cineRested === true/.test(ab), 'the page probe reads whether the cinecam rests');
+  A.ok(/cameraMode: s\.camera\.mode, cineRested: s\.camera\.rested,/.test(ab), '...and hands that reading to the phase validity');
+  A.ok(/P7: \{[^}]*rested: true/.test(ab) && /rested: w\.rested/.test(ab), 'P7 is valid only on a rested camera');
+  const F = await import(require('url').pathToFileURL(path.join(ROOT, 'scripts/lib/proc-footprint.mjs')).href);
+  const base = { hasFocus: true, visibilityState: 'visible', cameraMode: 'manual' };
+  const want = { name: 'P7', focus: 'focused', visibility: 'visible', camera: 'manual', rested: true };
+  const ok = F.phaseValidity(want, [{ ...base, cineRested: true }]);
+  const bad = F.phaseValidity(want, [{ ...base, cineRested: false }]);
+  A.ok(!(ok.reasons || []).some(r => /rested/.test(r)), 'a rested camera passes P7');
+  A.ok((bad.reasons || []).some(r => /rested/.test(r)), 'a never-engaged director (also manual) does not');
   A.report('world-idle-renderer');
 })().catch(e => { console.error(e); process.exit(1); });
