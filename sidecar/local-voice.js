@@ -387,39 +387,11 @@ const LEAD_S = 0.03;            // kept ahead of the first voiced sound (no clip
 const TAIL_S = 0.05;            // kept after the last voiced sound (lets the final syllable decay)
 const GAP_S = { sentence: 0.24, clause: 0.14, word: 0.06 };
 
+// THE shared splitter (sidecar/speech-split.js): the desk, the paired device and this engine cut a reply the same way
+// (a boundary is terminal punctuation FOLLOWED BY a space, never an abbreviation's dot; a long sentence is cut at its
+// last clause mark, else its last space).
 function speechPieces(text, max = PIECE_MAX) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim();
-  if (!clean) return [];
-  const sentences = [];
-  const boundary = /[.!?…]+["'”’)\]]*(?= |$)/g;
-  let start = 0, m;
-  while ((m = boundary.exec(clean))) {
-    const end = m.index + m[0].length;
-    const s = clean.slice(start, end).trim();
-    if (s) sentences.push(s);
-    start = end;
-  }
-  if (start < clean.length && clean.slice(start).trim()) sentences.push(clean.slice(start).trim());
-  const pieces = [];
-  let cur = '';
-  for (const sentence of sentences) {
-    let s = sentence;
-    if (cur && cur.length + 1 + s.length <= max) { cur += ' ' + s; continue; }
-    if (cur) { pieces.push(cur); cur = ''; }
-    // One sentence over the cap: break at its last clause mark inside the window, else its last space.
-    while (s.length > max) {
-      const window = s.slice(0, max);
-      let cut = Math.max(window.lastIndexOf(', '), window.lastIndexOf('; '), window.lastIndexOf(': '),
-        window.lastIndexOf(' — '), window.lastIndexOf(' – '));
-      if (cut < max * 0.4) cut = window.lastIndexOf(' ');
-      if (cut <= 0) cut = max - 1;
-      pieces.push(s.slice(0, cut + 1).trim());
-      s = s.slice(cut + 1).trim();
-    }
-    cur = s;
-  }
-  if (cur) pieces.push(cur);
-  return pieces;
+  return require('./speech-split.js').pack(text, max);
 }
 
 function gapAfter(piece) {

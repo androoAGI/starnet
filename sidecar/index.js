@@ -22628,8 +22628,9 @@ async function runOnceCore(o) {
   // Gated by a 'studio' object (in the default office below) exactly like web/files; outputs save to the workspace.
   imageTools.register(registry);
   // STUDIO, third skill: voice_generate — the agent MAKES a clip (voiceover, narration, audio message) into its
-  // workspace. It drives the SAME media-service ladder /api/tts does (keyed neural chain, then the
-  // free keyless Edge floor), so it needs no voice-specific credential and a zero-key station can still record.
+  // workspace. It runs the ONE speech ladder (sidecar/speech-ladder.js) as the 'agent' surface: the station's voice on
+  // the keyed chain, then the free keyless Edge floor, the same leg order, retry and continuity as /api/tts and the
+  // paired device. It needs no voice-specific credential, and a zero-key station can still record.
   makeVoiceTools({ synth: media.synthesizeForAgent, fsp, pathMod: path, root: WORKSPACES, pathTrust: runPathTrust }).register(registry);   // pathTrust: project-scoped relative paths land in the project (issue #77)
   // STUDIO, the edit bay: DaVinci Resolve. Timeline FILES work with free Resolve; live control needs Resolve Studio and
   // runs a fixed embedded Python bridge (never a shell). Media paths outside the workspace go through this run's path-trust.
