@@ -1,17 +1,20 @@
 /* sidecar/persist/replace.js — replaceJson: the ONE "replace a JSON store, keeping a last-known-good" policy.
-   (durable-store writeJsonResilient, and in the next steps savestore's writeAtomic and channels' writeJsonAtomic.)
+   (durable-store writeJsonResilient, savestore's writeAtomic and channels/store's writeJsonAtomic all call it.)
 
-   replaceJson({ fs, path, writeDurable? }, file, value, { prior?, seen? }) -> void, or throws:
+   replaceJson({ fs, path, writeDurable? }, file, value, { prior?, seen? }) -> { backup, text }, or throws:
      ESTORE_UNREADABLE  the main is unreadable, or the main is missing or bad and the .bak is unreadable: the only
                         authority is inaccessible, so nothing is replaced (cause: the errno)
      ESTORE_CORRUPT     the main is present but bad and its bytes could not be kept: bytes untouched
      ESTORE_UNSEEN      a blind write over a file this process could not read, and its bytes could not be kept
      <errno>            the write itself failed (writeAtomic leaves no temp behind)
+   On success: backup = how the .bak was refreshed ('link' | 'copy' | 'failed', or null when the main was not good, so
+   the .bak was left alone), text = the exact text written (a caller's cache keeps it; a 'link' .bak IS the old main).
 
    In order:
-   1. What is on disk: the main is read (and the .bak when the main is not good). prior = { status, raw } from the
+   1. What is on disk: the main is read (and the .bak when the main is not good). prior = { status, raw? } from the
       caller's own read moments before, with no await in between (a read-modify-write store's memo or stat cache), skips
-      that read when it settles the question ('ok' with its raw, or 'absent').
+      that read when it settles the question ('ok', or 'absent'). An 'ok' prior without its raw (a memo of this process's
+      own last write, a stat-cache hit) reads the main only when a .bak must be copied (no hard links).
    2. D2, bytes nobody read: when this process's read of the file came back unreadable (read.js marks it) and the caller
       is a BLIND writer (no prior, not seen: a full-state store saving the memory it built from that failed load), every
       present copy (main, .bak) is kept as <file>.unseen-<n> / <file>.bak.unseen-<n> first, byte-exact.
@@ -54,12 +57,13 @@ function linkAsBackup(fs, file) {
   }
 }
 
+// 'link' | 'copy' | 'failed' (noted: D1, never blocks the main write)
 function refreshBackup(fs, pathMod, wd, file, raw) {
-  if (linkAsBackup(fs, file)) return true;
+  if (linkAsBackup(fs, file)) return 'link';
   try {
     wd({ fs: fs, path: pathMod }, file + '.bak', raw != null ? raw : fs.readFileSync(file, 'utf8'));
-    return true;
-  } catch (e) { failNote('persist.bak', e); return false; }
+    return 'copy';
+  } catch (e) { failNote('persist.bak', e); return 'failed'; }
 }
 
 function replaceJson(deps, file, value, opts) {
@@ -72,7 +76,7 @@ function replaceJson(deps, file, value, opts) {
 
   // 1. what is on disk now
   let main;
-  if (prior && prior.status === 'ok' && prior.raw != null) main = { kind: 'ok', raw: prior.raw };
+  if (prior && prior.status === 'ok') main = { kind: 'ok', raw: prior.raw };   // raw unknown: read only for a .bak copy
   else if (prior && prior.status === 'absent') main = { kind: 'absent' };
   else main = read.readOne(fs, file, true);
   if (main.kind === 'unreadable') throw refusal('ESTORE_UNREADABLE', 'persist: refusing to replace unreadable state', main.err, file);
@@ -101,12 +105,13 @@ function replaceJson(deps, file, value, opts) {
   }
 
   // 4. D1: the good main becomes the .bak; a .bak that cannot be refreshed never blocks the write
-  if (main.kind === 'ok') refreshBackup(fs, pathMod, wd, file, main.raw);
+  const backup = main.kind === 'ok' ? refreshBackup(fs, pathMod, wd, file, main.raw) : null;
 
   // 5. the replace
   wd({ fs: fs, path: pathMod }, file, data);
   read.clearUnread(file);
   try { sweep({ fs: fs, path: pathMod }, file + '.bak'); } catch (e) { failNote('persist.sweep', e); }
+  return { backup: backup, text: data };
 }
 
 module.exports = { replaceJson, refreshBackup, linkAsBackup, NO_LINK };

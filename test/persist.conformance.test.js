@@ -1,5 +1,5 @@
 /* node test/persist.conformance.test.js — sidecar/persist: one write, read, quarantine and name policy, and the SAME
-   normalized outcome from every store built on it, under every fault (persist-module lane: INV-1 to INV-4).
+   normalized outcome from every store built on it, under every fault (persist-module lane: INV-1 to INV-5).
 
    THE FAMILIES IT CLOSES
      75558694  a failed or crashed write left its temp behind, and nothing ever swept one                         (INV-2)
@@ -15,22 +15,26 @@
       and the unread mark; replaceJson's D1/D2; the names grammar.
    2. The store matrix: the general durable-store and the full-state stores, each built exactly as sidecar/index.js
       composes them (makeDurableJsonStore with the update-frozen writer and the host's quarantineCorrupt as onCorrupt;
-      persist.host's loadResilient/saveResilient), against every fault row, with hard links working and again with
-      linkSync failing as EPERM, ENOTSUP, ENOSYS, EXDEV, EINVAL and EISDIR (FAT/exFAT and friends). Every store must give
-      the row's expected normalized outcome:
-        read  = value:<json> | empty | refused:unreadable
+      persist.host's loadResilient/saveResilient), and the channel store's chat map and transcripts (makeChannelStore
+      with that writer, through loadChatMap/saveChatRecord and loadHistory/appendTurn), against every fault row, with
+      hard links working and again with linkSync failing as EPERM, ENOTSUP, ENOSYS, EXDEV, EINVAL and EISDIR (FAT/exFAT
+      and friends). A row speaks in values (V0..V3) and raw torn bytes; each store keeps a value in its own record
+      format. Every store must give the row's expected normalized outcome:
+        read  = value:<V> | empty | refused:unreadable
         write = ok | refused:unreadable | refused:corrupt | refused:unseen | threw:<errno>
         plus the main, the .bak and the forensic copies (byte-exact) afterwards, and never a temp.
-      Then a crash at every write point of each store's write, and the read-modify-write path (update(), which re-reads
-      under its lock, so it carries prior bytes in the main and keeps an unhandled corrupt record a refusal).
+      Then a crash at every write point of each store's write, and the read-modify-write paths (durable-store update()
+      and the channel store's callers re-read before they write, so they carry prior bytes in the main; update() keeps
+      an unhandled corrupt record a refusal; a locked channel file is a typed refusal, never empty).
    3. Files written by the base code, legacy siblings beside them, read back unchanged.
    4. The composition manifest: index.js binds persist.host with the options this suite composes, its writer is the
-      update freeze over durable-write, and no sidecar makeDurableJsonStore call passes an option the matrix lacks.
+      update freeze over durable-write, and no sidecar composition of makeDurableJsonStore or makeChannelStore passes
+      an option the matrix lacks.
 
-   The next steps add savestore and the channels chatmap/history (S2) and the journals and recovery files (S3) to the
-   matrix. On a tree without sidecar/persist (the base this suite is proved RED on) the primitive rows report the module
-   missing, and the store rows run that tree's own code: index.js's inline quarantineCorrupt/loadResilient/saveResilient,
-   sliced from its source and run as written. */
+   The next steps add savestore (S2) and the journals and recovery files (S3) to the matrix. On a tree without
+   sidecar/persist (the base this suite is proved RED on) the primitive rows report the module missing, and the store
+   rows run that tree's own code: index.js's inline quarantineCorrupt/loadResilient/saveResilient, sliced from its
+   source and run as written, and the stores' own modules. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -41,6 +45,7 @@ const src = require('./helpers/source.js');
 const failopen = require('../sidecar/failopen.js');
 const DS = require('../sidecar/durable-store.js');
 const { writeFileDurable: writeFileDurableRaw } = require('../sidecar/durable-write.js');
+const { makeChannelStore } = require('../sidecar/channels/store.js');
 
 let persist = null, missing = '';
 try { persist = require('../sidecar/persist/index.js'); }
@@ -161,6 +166,11 @@ function frozenWriter(state) {
   };
 }
 const KEY = 'store';
+const VALUES = { V0, V1, V2, V3 };
+const SYMS = Object.keys(VALUES);
+// a symbol of VALUES when `json` is that value as `enc` writes it, else the JSON itself
+const nameOf = (enc, json) => SYMS.find(s => enc(s) === json) || json;
+const CLOCK = { now: () => 1 };   // savedAt, lastSeen and ts are part of the bytes compared
 function compose(io, dir, opts) {
   const o = opts || {};
   const state = { frozen: !!o.frozen, pid: o.pid || 0 };
@@ -177,6 +187,22 @@ function compose(io, dir, opts) {
   });
   return { host, general, state, file: path.join(dir, KEY + '.json') };
 }
+// the channel store exactly as index.js composes it (its update-frozen writer, an observer onRecover). limits { maxTurns:
+// 1 } is the history's own trim, no persistence option: it makes one appendTurn replace the transcript's content, so
+// the history rows compare whole files like every other store (index.js keeps the default 40 turns, as 2d does).
+function composeChannels(io, dir, opts) {
+  const o = opts || {};
+  const state = { frozen: !!o.frozen, pid: o.pid || 0 };
+  const store = makeChannelStore({ fs: io, pathMod: path, root: dir, clock: CLOCK, writeDurable: frozenWriter(state),
+    onRecover: file => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.'),
+    limits: { maxTurns: o.maxTurns || 1 } });
+  return { store, state };
+}
+// a read through a store API that throws its refusals (the channel store): the same normalized outcome
+function readThrough(fn) {
+  try { return fn(); }
+  catch (e) { return (e && e.code === 'ESTORE_UNREADABLE') ? 'refused:unreadable' : 'threw:' + ((e && e.code) || (e && e.message) || e); }
+}
 function written(fn) {
   try { fn(); return 'ok'; }
   catch (e) {
@@ -187,25 +213,75 @@ function written(fn) {
     return 'threw:' + (c || (e && e.message) || e);
   }
 }
+/* Every store of the matrix, in its own record format. A row speaks in symbols (V0..V3 = VALUES) and raw torn bytes:
+     file(dir)          the store's file in a row's folder
+     compose(io, dir)   the store as index.js composes it, over the row's fault facade
+     enc(sym)           the exact bytes this store keeps for that value (seeds are written with it; what is on disk
+                        afterwards is read back into symbols with it)
+     read(c)            value:<sym> | empty | refused:unreadable (value:<json> for a value no symbol names)
+     write(c, sym)      ok | refused:unreadable | refused:corrupt | refused:unseen | threw:<errno>
+     seen               a read-modify-write store: every write re-reads the file first (never a blind writer, so D2 has
+                        nothing to keep; what it read rides in the main or becomes the .bak) */
+const enc = s => J(VALUES[s]);
+const chatEnc = s => J({ version: 1, chats: { c: { k: VALUES[s].k, lastSeen: 1 } } });
+const historyEnc = s => J({ version: 1, messages: [{ role: 'user', content: VALUES[s].k, ts: 1 }] });
 const KINDS = {
   general: {
+    file: dir => path.join(dir, KEY + '.json'), compose, enc,
     read(c) {
       const r = c.general.readKey(KEY);
-      if (r.status === 'ok' || r.status === 'recovered') return 'value:' + J(r.value);
+      if (r.status === 'ok' || r.status === 'recovered') return 'value:' + nameOf(enc, J(r.value));
       return r.status === 'unreadable' ? 'refused:unreadable' : 'empty';
     },
-    write(c, v) { return written(() => c.general.set(KEY, v)); }
+    write(c, s) { return written(() => c.general.set(KEY, VALUES[s])); }
   },
   'full-state': {
+    file: dir => path.join(dir, KEY + '.json'), compose, enc,
     read(c) {
       const before = failopen.counts()['persist.load.unreadable'] || 0;
       const v = c.host.loadResilient(c.file, 'dossier');
-      if (v !== undefined) return 'value:' + J(v);
+      if (v !== undefined) return 'value:' + nameOf(enc, J(v));
       return (failopen.counts()['persist.load.unreadable'] || 0) > before ? 'refused:unreadable' : 'empty';
     },
-    write(c, v) { return written(() => c.host.saveResilient(c.file, v)); }
+    write(c, s) { return written(() => c.host.saveResilient(c.file, VALUES[s])); }
+  },
+  // channels/store: one chat record ('c') in chatmap.json, through loadChatMap and saveChatRecord (its merge keeps no key
+  // of an earlier value here: every value is { k } plus the lastSeen the store stamps)
+  'channels chatmap': {
+    seen: true, file: dir => path.join(dir, 'chatmap.json'), compose: composeChannels, enc: chatEnc,
+    read(c) {
+      return readThrough(() => {
+        const map = c.store.loadChatMap();
+        return Object.keys(map.chats).length ? 'value:' + nameOf(chatEnc, J(map)) : 'empty';
+      });
+    },
+    write(c, s) { return written(() => c.store.saveChatRecord('c', { k: VALUES[s].k })); },
+    base: { main: '{"version":1,"chats":{"77":{"agentId":"tg_77","channel":"telegram","lastSeen":1700000000000}}}', bak: '{"version":1,"chats":{}}' }
+  },
+  // channels/store: an agent's transcript (h.history.json), through loadHistory and appendTurn
+  'channels history': {
+    seen: true, file: dir => path.join(dir, 'h.history.json'), compose: composeChannels, enc: historyEnc,
+    read(c) {
+      return readThrough(() => {
+        const messages = c.store.loadHistory('h');
+        return messages.length ? 'value:' + nameOf(historyEnc, J({ version: 1, messages })) : 'empty';
+      });
+    },
+    write(c, s) { return written(() => c.store.appendTurn('h', 'user', VALUES[s].k)); },
+    base: {
+      main: '{"version":1,"messages":[{"role":"user","content":"hello","ts":1700000000000},{"role":"assistant","content":"hi there","ts":1700000000001}]}',
+      bak: '{"version":1,"messages":[{"role":"user","content":"hello","ts":1700000000000}]}'
+    }
   }
 };
+// a seed or an expectation: a symbol's bytes in this store's format, else the raw bytes themselves
+const bytesOf = (kind, x) => (Object.prototype.hasOwnProperty.call(VALUES, x) ? kind.enc(x) : x);
+// what is on disk beside a store's file, in symbols
+function lookAs(kind, file) {
+  const l = look(file);
+  const sym = b => (b === '-' ? b : nameOf(kind.enc, b));
+  return { main: sym(l.main), bak: sym(l.bak), forensic: l.forensic.map(f => { const i = f.indexOf('='); return f.slice(0, i + 1) + sym(f.slice(i + 1)); }), temps: l.temps };
+}
 
 function canon(o) { const out = {}; for (const k of Object.keys(o).sort()) out[k] = o[k]; return out; }
 function same(got, want, label) {
@@ -466,102 +542,115 @@ function same(got, want, label) {
     const forensicDest = a => FORENSIC_NAME.test(String(a[1]));
     const mainTemp = (f, p) => p.indexOf(f + '.') === 0 && p.indexOf(f + '.bak.') !== 0 && /\.tmp$/.test(p);
     const ROWS = [
-      { id: 'ok', seed: { main: J(V1) },
-        want: { read: 'value:' + J(V1), write: 'ok', main: J(V2), bak: J(V1), forensic: [] } },
+      { id: 'ok', seed: { main: 'V1' },
+        want: { read: 'value:V1', write: 'ok', main: 'V2', bak: 'V1', forensic: [] } },
       { id: 'absent', seed: {},
-        want: { read: 'empty', write: 'ok', main: J(V2), bak: '-', forensic: [] } },
-      { id: '.bak only', seed: { bak: J(V1) },
-        want: { read: 'value:' + J(V1), write: 'ok', main: J(V2), bak: J(V1), forensic: [] } },
-      { id: 'empty main + good .bak', seed: { main: '', bak: J(V1) },
-        want: { read: 'value:' + J(V1), afterRead: ['corrupt-1='], write: 'ok', main: J(V2), bak: J(V1), forensic: ['corrupt-1='] } },
-      { id: 'torn main + good .bak', seed: { main: T1, bak: J(V1) },
-        want: { read: 'value:' + J(V1), afterRead: ['corrupt-1=' + T1], write: 'ok', main: J(V2), bak: J(V1), forensic: ['corrupt-1=' + T1] } },
+        want: { read: 'empty', write: 'ok', main: 'V2', bak: '-', forensic: [] } },
+      { id: '.bak only', seed: { bak: 'V1' },
+        want: { read: 'value:V1', write: 'ok', main: 'V2', bak: 'V1', forensic: [] } },
+      { id: 'empty main + good .bak', seed: { main: '', bak: 'V1' },
+        want: { read: 'value:V1', afterRead: ['corrupt-1='], write: 'ok', main: 'V2', bak: 'V1', forensic: ['corrupt-1='] } },
+      { id: 'torn main + good .bak', seed: { main: T1, bak: 'V1' },
+        want: { read: 'value:V1', afterRead: ['corrupt-1=' + T1], write: 'ok', main: 'V2', bak: 'V1', forensic: ['corrupt-1=' + T1] } },
       { id: 'torn main, no .bak', seed: { main: T1 },
-        want: { read: 'empty', afterRead: ['corrupt-1=' + T1], write: 'ok', main: J(V2), bak: '-', forensic: ['corrupt-1=' + T1] } },
+        want: { read: 'empty', afterRead: ['corrupt-1=' + T1], write: 'ok', main: 'V2', bak: '-', forensic: ['corrupt-1=' + T1] } },
       { id: 'torn both', seed: { main: T1, bak: TB },
-        want: { read: 'empty', afterRead: ['bak.corrupt-1=' + TB, 'corrupt-1=' + T1], write: 'ok', main: J(V2), bak: '-', forensic: ['bak.corrupt-1=' + TB, 'corrupt-1=' + T1] } }
+        want: { read: 'empty', afterRead: ['bak.corrupt-1=' + TB, 'corrupt-1=' + T1], write: 'ok', main: 'V2', bak: '-', forensic: ['bak.corrupt-1=' + TB, 'corrupt-1=' + T1] } }
     ].concat(['EBUSY', 'EACCES', 'EPERM'].map(code => (
-      { id: 'busy main ' + code, seed: { main: J(V1), bak: J(V0) }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f ? code : null) }),
-        want: { read: 'refused:unreadable', afterRead: [], write: 'refused:unreadable', main: J(V1), bak: J(V0), forensic: [], afterUnlock: 'value:' + J(V1) } }
+      { id: 'busy main ' + code, seed: { main: 'V1', bak: 'V0' }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f ? code : null) }),
+        want: { read: 'refused:unreadable', afterRead: [], write: 'refused:unreadable', main: 'V1', bak: 'V0', forensic: [], afterUnlock: 'value:V1' } }
     )), [
-      { id: 'busy .bak', seed: { main: J(V1), bak: J(V0) }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f + '.bak' ? 'EBUSY' : null) }),
-        want: { read: 'value:' + J(V1), write: 'ok', main: J(V2), bak: J(V1), forensic: [] } },
-      { id: 'torn main + busy .bak', seed: { main: T1, bak: J(V0) }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f + '.bak' ? 'EBUSY' : null) }),
-        want: { read: 'refused:unreadable', afterRead: [], write: 'refused:unreadable', main: T1, bak: J(V0), forensic: [], afterUnlock: 'value:' + J(V0) } },
+      { id: 'busy .bak', seed: { main: 'V1', bak: 'V0' }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f + '.bak' ? 'EBUSY' : null) }),
+        want: { read: 'value:V1', write: 'ok', main: 'V2', bak: 'V1', forensic: [] } },
+      { id: 'torn main + busy .bak', seed: { main: T1, bak: 'V0' }, rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f + '.bak' ? 'EBUSY' : null) }),
+        want: { read: 'refused:unreadable', afterRead: [], write: 'refused:unreadable', main: T1, bak: 'V0', forensic: [], afterUnlock: 'value:V0' } },
       { id: 'second quarantine after a restart', seed: { main: T1 + '-1' }, restart: T1 + '-2',
-        want: { read: 'empty', write: 'ok', read2: 'empty', write2: 'ok', main: J(V2), bak: '-', forensic: ['corrupt-1=' + T1 + '-1', 'corrupt-2=' + T1 + '-2'] } },
+        want: { read: 'empty', write: 'ok', read2: 'empty', write2: 'ok', main: 'V2', bak: '-', forensic: ['corrupt-1=' + T1 + '-1', 'corrupt-2=' + T1 + '-2'] } },
       { id: 'move-aside fails', seed: { main: T1 },
         rules: f => ({ unlinkSync: a => (a[0] === f ? 'EPERM' : null), renameSync: a => (forensicDest(a) ? 'EPERM' : null) }),
-        want: { read: 'empty', afterRead: [], mainAfterRead: T1, write: 'ok', main: J(V2), bak: '-', forensic: ['corrupt-1=' + T1] } },
+        want: { read: 'empty', afterRead: [], mainAfterRead: T1, write: 'ok', main: 'V2', bak: '-', forensic: ['corrupt-1=' + T1] } },
       { id: 'preserve fails', seed: { main: T1 },
         rules: f => ({ unlinkSync: a => (a[0] === f ? 'EPERM' : null), renameSync: a => (forensicDest(a) ? 'EPERM' : null),
           linkSync: a => (forensicDest(a) ? 'EPERM' : null), copyFileSync: a => (forensicDest(a) ? 'ENOSPC' : null) }),
         want: { read: 'empty', afterRead: [], write: 'refused:corrupt', main: T1, bak: '-', forensic: [] } },
-      { id: 'rename fails', seed: { main: J(V1), bak: J(V0) }, rules: f => ({ renameSync: a => (a[1] === f ? 'EPERM' : null) }),
-        want: { read: 'value:' + J(V1), write: 'threw:EPERM', main: J(V1), bak: J(V1), forensic: [] } },
-      { id: 'short write', seed: { main: J(V1), bak: J(V0) }, rules: f => ({ writeSync: (a, ctx) => (mainTemp(f, ctx.pathOf(a[0])) ? 'NO-PROGRESS' : null) }),
-        want: { read: 'value:' + J(V1), write: 'threw:ESHORTWRITE', main: J(V1), bak: J(V1), forensic: [] } },
-      { id: 'fsync fails', seed: { main: J(V1), bak: J(V0) }, rules: f => ({ fsyncSync: (a, ctx) => (mainTemp(f, ctx.pathOf(a[0])) ? 'EIO' : null) }),
-        want: { read: 'value:' + J(V1), write: 'threw:EIO', main: J(V1), bak: J(V1), forensic: [] } },
-      { id: '.bak refresh fails', seed: { main: J(V1), bak: J(V0) },
+      { id: 'rename fails', seed: { main: 'V1', bak: 'V0' }, rules: f => ({ renameSync: a => (a[1] === f ? 'EPERM' : null) }),
+        want: { read: 'value:V1', write: 'threw:EPERM', main: 'V1', bak: 'V1', forensic: [] } },
+      { id: 'short write', seed: { main: 'V1', bak: 'V0' }, rules: f => ({ writeSync: (a, ctx) => (mainTemp(f, ctx.pathOf(a[0])) ? 'NO-PROGRESS' : null) }),
+        want: { read: 'value:V1', write: 'threw:ESHORTWRITE', main: 'V1', bak: 'V1', forensic: [] } },
+      { id: 'fsync fails', seed: { main: 'V1', bak: 'V0' }, rules: f => ({ fsyncSync: (a, ctx) => (mainTemp(f, ctx.pathOf(a[0])) ? 'EIO' : null) }),
+        want: { read: 'value:V1', write: 'threw:EIO', main: 'V1', bak: 'V1', forensic: [] } },
+      { id: '.bak refresh fails', seed: { main: 'V1', bak: 'V0' },
         rules: f => ({ linkSync: a => (a[1] === f + '.bak' ? 'EPERM' : null), renameSync: a => (a[1] === f + '.bak' ? 'ENOSPC' : null) }),
-        want: { read: 'value:' + J(V1), write: 'ok', main: J(V2), bak: '-', forensic: [] } },
-      { id: 'boot read unreadable, then a later write', seed: { main: J(V1), bak: J(V0) }, unlockBeforeWrite: true,
+        want: { read: 'value:V1', write: 'ok', main: 'V2', bak: '-', forensic: [] } },
+      // a blind writer keeps every copy it never read (D2); a read-modify-write store re-reads first, so what it read
+      // becomes the .bak like any write's and nothing unseen is left to keep (INV-4: it carries those bytes itself)
+      { id: 'boot read unreadable, then a later write', seed: { main: 'V1', bak: 'V0' }, unlockBeforeWrite: true,
         rules: (f, lock) => ({ readFileSync: a => (lock.on && a[0] === f ? 'EBUSY' : null) }),
-        want: { read: 'refused:unreadable', afterRead: [], write: 'ok', main: J(V2), bak: J(V1), forensic: ['bak.unseen-1=' + J(V0), 'unseen-1=' + J(V1)] } },
-      { id: 'update freeze', seed: { main: J(V1), bak: J(V0) }, frozen: true,
-        want: { read: 'value:' + J(V1), write: 'threw:UPDATE_MUTATIONS_FROZEN', main: J(V1), forensic: [] } }
+        want: { read: 'refused:unreadable', afterRead: [], write: 'ok', main: 'V2', bak: 'V1', forensic: ['bak.unseen-1=V0', 'unseen-1=V1'] },
+        wantSeen: { forensic: [] } },
+      { id: 'update freeze', seed: { main: 'V1', bak: 'V0' }, frozen: true,
+        want: { read: 'value:V1', write: 'threw:UPDATE_MUTATIONS_FROZEN', main: 'V1', forensic: [] } }
     ]);
-    function runRow(row, kindName, linkMode) {
-      const kind = KINDS[kindName];
-      const dir = fresh(kindName + '-' + linkMode + '-' + row.id);
-      const file = path.join(dir, KEY + '.json');
-      if (row.seed.main !== undefined) fs.writeFileSync(file, row.seed.main);
-      if (row.seed.bak !== undefined) fs.writeFileSync(file + '.bak', row.seed.bak);
+    function runRow(row, kind, linkMode, label) {
+      const dir = fresh(label + '-' + linkMode + '-' + row.id);
+      const file = kind.file(dir);
+      if (row.seed.main !== undefined) fs.writeFileSync(file, bytesOf(kind, row.seed.main));
+      if (row.seed.bak !== undefined) fs.writeFileSync(file + '.bak', bytesOf(kind, row.seed.bak));
       const lock = { on: true };
       const io = facade(linkMode, row.rules ? row.rules(file, lock) : {});
       const got = {};
       reset();   // a process boots onto the seeded files
-      let c = compose(io, dir, { frozen: row.frozen });
+      let c = kind.compose(io, dir, { frozen: row.frozen });
       got.read = kind.read(c);
-      const r1 = look(file);
+      const r1 = lookAs(kind, file);
       got.afterRead = r1.forensic;
       got.mainAfterRead = r1.main;
       if (row.unlockBeforeWrite) lock.on = false;
-      got.write = kind.write(c, V2);
+      got.write = kind.write(c, 'V2');
       if (row.restart) {
         fs.writeFileSync(file, row.restart);
         reset();   // the second incident is met by a new process
-        c = compose(io, dir);
+        c = kind.compose(io, dir);
         got.read2 = kind.read(c);
-        got.write2 = kind.write(c, V2);
+        got.write2 = kind.write(c, 'V2');
       }
-      Object.assign(got, look(file));
+      Object.assign(got, lookAs(kind, file));
       if (row.want.afterUnlock) {
         lock.on = false;
         reset();
-        got.afterUnlock = kind.read(compose(facade(linkMode, {}), dir));
+        got.afterUnlock = kind.read(kind.compose(facade(linkMode, {}), dir));
       }
       return got;
     }
     quiet(() => section('2 store matrix', () => {
       for (const linkMode of LINK_MODES) for (const row of ROWS) for (const kindName of Object.keys(KINDS)) {
-        const got = runRow(row, kindName, linkMode);
-        same(got, Object.assign({ temps: [] }, row.want), 'INV-1 [' + kindName + ' | link ' + linkMode + '] ' + row.id);
+        const kind = KINDS[kindName];
+        if (kind.skip && kind.skip[row.id]) continue;
+        const got = runRow(row, kind, linkMode, kindName);
+        same(got, Object.assign({ temps: [] }, row.want, kind.seen ? row.wantSeen : null), 'INV-1 [' + kindName + ' | link ' + linkMode + '] ' + row.id);
       }
     }));
 
     // 2b. INV-2 for each store: a crash at every write point of its write reboots onto the old or the new value, and the
-    //     next write leaves no temp of the file or its .bak
+    //     next write leaves no temp of the file or its .bak. The crashed process is gone, so a temp it left names a dead
+    //     pid: a store writing through the host's writer has DEAD stamped by it (compose's pid); one writing through
+    //     persist itself (savestore) left this process's pid, which crashed() renames to the dead pid it stands for.
+    const OWN_TEMP = /^(.*)\.(\d+)\.([A-Za-z0-9_-]+)\.tmp$/;
+    function crashed(dir) {
+      for (const n of fs.readdirSync(dir)) {
+        const m = OWN_TEMP.exec(n);
+        if (m && Number(m[2]) === LIVE) fs.renameSync(path.join(dir, n), path.join(dir, m[1] + '.' + DEAD + '.' + m[3] + '.tmp'));
+      }
+    }
     quiet(() => section('2b crash matrix', () => {
       for (const linkMode of LINK_MODES) for (const kindName of Object.keys(KINDS)) {
         const kind = KINDS[kindName];
-        const seed = dir => { const file = path.join(dir, KEY + '.json'); fs.writeFileSync(file, J(V1)); fs.writeFileSync(file + '.bak', J(V0)); return file; };
+        const seed = dir => { const file = kind.file(dir); fs.writeFileSync(file, kind.enc('V1')); fs.writeFileSync(file + '.bak', kind.enc('V0')); return file; };
         const refDir = fresh('crash-ref-' + kindName + '-' + linkMode);
         seed(refDir);
         reset();
         const ref = killable(facade(linkMode, {}), 0);
-        A.eq(kind.write(compose(ref.io, refDir, { pid: DEAD }), V2), 'ok', 'crash reference [' + kindName + ' | link ' + linkMode + '] writes');
+        A.eq(kind.write(kind.compose(ref.io, refDir, { pid: DEAD }), 'V2'), 'ok', 'crash reference [' + kindName + ' | link ' + linkMode + '] writes');
         const points = ref.state.calls;
         let leftTemp = 0;
         for (let k = 1; k <= points; k++) {
@@ -569,15 +658,16 @@ function same(got, want, label) {
           const file = seed(dir);
           reset();
           const killed = killable(facade(linkMode, {}), k);
-          kind.write(compose(killed.io, dir, { pid: DEAD }), V2);
+          kind.write(kind.compose(killed.io, dir, { pid: DEAD }), 'V2');
           if (look(file).temps.length) leftTemp++;
+          crashed(dir);
           reset();   // the reboot
-          const c = compose(facade(linkMode, {}), dir);
+          const c = kind.compose(facade(linkMode, {}), dir);
           const boot = kind.read(c);
           const label = 'INV-2 [' + kindName + ' | link ' + linkMode + '] killed at write point ' + k + '/' + points;
-          A.ok(boot === 'value:' + J(V1) || boot === 'value:' + J(V2), label + ': the reboot reads the old or the new value, got ' + boot);
-          A.eq(kind.write(c, V3), 'ok', label + ': the next write lands');
-          A.eq([look(file).main, look(file).temps], [J(V3), []], label + ': and leaves no temp of the file or its .bak');
+          A.ok(boot === 'value:V1' || boot === 'value:V2', label + ': the reboot reads the old or the new value, got ' + boot);
+          A.eq(kind.write(c, 'V3'), 'ok', label + ': the next write lands');
+          A.eq([lookAs(kind, file).main, look(file).temps], ['V3', []], label + ': and leaves no temp of the file or its .bak');
         }
         A.ok(leftTemp > 0, 'the crash rows are real [' + kindName + ' | link ' + linkMode + ']: ' + leftTemp + ' of ' + points + ' kill points left a dead writer\'s temp');
       }
@@ -610,34 +700,67 @@ function same(got, want, label) {
         try { await store.update(KEY, () => V2); } catch (e) { err = e; }
         A.eq([err && err.code, look(file).main, look(file).forensic], ['ESTORE_CORRUPT', T1, []], 'update() with ' + label + ' refuses a corrupt record and keeps its bytes exactly where they are');
         fs.writeFileSync(file + '.bak', J(V0));
-        A.eq(KINDS.general.read({ general: store }), 'value:' + J(V0), 'with ' + label + ' a good .bak still recovers');
+        A.eq(KINDS.general.read({ general: store }), 'value:V0', 'with ' + label + ' a good .bak still recovers');
         A.eq(written(() => store.set(KEY, V2)), 'ok', 'with ' + label + ' a blind set() after the recovery lands');
         A.eq([look(file).main, look(file).forensic], [J(V2), ['corrupt-1=' + T1]], 'with ' + label + ' the torn main was kept (moved aside on read, or kept by the replace), never dropped');
       }
     } catch (e) { A.ok(false, '2c read-modify-write threw: ' + ((e && e.stack) || e)); } });
 
+    // 2d. channels: the read-modify-write callers. A file that cannot be read is a typed refusal (ESTORE_UNREADABLE, the
+    //     errno its cause), never an empty map or transcript: nothing is cached and the write it would feed is refused.
+    //     Once the lock clears the next write re-reads, so every record already there rides in the main (INV-4, INV-5).
+    quiet(() => section('2d channels read-modify-write', () => {
+      const refused = fn => { try { fn(); return 'not refused'; } catch (e) { return (e && e.code) + ':' + (e && e.cause && e.cause.code); } };
+      for (const linkMode of LINK_MODES) for (const code of ['EBUSY', 'EACCES', 'EPERM']) {
+        const dir = fresh('chan-rmw-' + linkMode + '-' + code);
+        const map = path.join(dir, 'chatmap.json'), hist = path.join(dir, 'h.history.json');
+        fs.writeFileSync(map, J({ version: 1, chats: { a: { agentId: 'tg_a' }, b: { agentId: 'tg_b' } } }));
+        fs.writeFileSync(map + '.bak', J({ version: 1, chats: { a: { agentId: 'tg_a' } } }));
+        fs.writeFileSync(hist, J({ version: 1, messages: [{ role: 'user', content: 'kept', ts: 1 }] }));
+        const lock = { on: true };
+        reset();
+        const c = composeChannels(facade(linkMode, { readFileSync: a => (lock.on && (a[0] === map || a[0] === hist) ? code : null) }), dir, { maxTurns: 40 });
+        const tag = '[channels | link ' + linkMode + ' | ' + code + '] ';
+        A.eq(refused(() => c.store.loadChatMap()), 'ESTORE_UNREADABLE:' + code, 'INV-5 ' + tag + 'a locked chat map is a typed refusal, the errno its cause, never an empty map');
+        A.eq(refused(() => c.store.saveChatRecord('c', { agentId: 'tg_c' })), 'ESTORE_UNREADABLE:' + code, 'INV-5 ' + tag + 'and the write it would feed is refused');
+        A.eq(refused(() => c.store.appendTurn('h', 'user', 'new')), 'ESTORE_UNREADABLE:' + code, 'INV-5 ' + tag + 'a locked transcript refuses an append the same way');
+        lock.on = false;
+        A.eq(Object.keys(c.store.loadChatMap().chats).sort(), ['a', 'b'], 'INV-5 ' + tag + 'nothing was cached: once the lock clears the real map reads back');
+        c.store.saveChatRecord('c', { agentId: 'tg_c' });
+        c.store.appendTurn('h', 'user', 'new');
+        A.eq(Object.keys(JSON.parse(fs.readFileSync(map, 'utf8')).chats).sort(), ['a', 'b', 'c'], 'INV-4 ' + tag + 'the next write re-read the map: chats a and b ride in the main');
+        A.eq(JSON.parse(fs.readFileSync(hist, 'utf8')).messages.map(m => m.content), ['kept', 'new'], 'INV-4 ' + tag + 'and the transcript keeps its earlier turn');
+        A.eq([look(map).forensic, look(map).temps, look(hist).forensic, look(hist).temps], [[], [], [], []], 'INV-4 ' + tag + 'with no copy needed and no temp left');
+      }
+    }));
+
     /* ============================== 3. BASE-WRITTEN FILES ============================== */
     quiet(() => section('3 base-written files', () => {
       const LEGACY = {
-        'corrupt-4242-1': 'LEGACY index.js quarantine', corrupt: 'LEGACY bare quarantine', '3.tmp': 'LEGACY savestore temp',
+        'corrupt-4242-1': 'LEGACY index.js quarantine', corrupt: 'LEGACY bare quarantine', '3.tmp': 'LEGACY savestore/channels temp',
         'tmp-4242-1700000000000-1': 'LEGACY recovery temp', 'repair-ab12cd': 'LEGACY repair temp'
       };
       const MAIN = '{"version":1,"widgets":[{"id":"w1","label":"Kept"}]}', BAK = '{"version":1,"widgets":[]}';
       for (const kindName of Object.keys(KINDS)) {
         const kind = KINDS[kindName];
+        // each store's own record as the base code wrote it (a general store's, unless the kind names its own), the legacy
+        // siblings any older build may have left beside it, and that store's own legacy quarantine names
+        const base = kind.base || { main: MAIN, bak: BAK };
+        const legacy = Object.assign({}, LEGACY, base.legacy);
         const dir = fresh('base-written-' + kindName);
-        const file = path.join(dir, KEY + '.json');
-        fs.writeFileSync(file, MAIN); fs.writeFileSync(file + '.bak', BAK);
-        for (const s of Object.keys(LEGACY)) fs.writeFileSync(file + '.' + s, LEGACY[s]);
+        const file = kind.file(dir);
+        fs.writeFileSync(file, base.main); fs.writeFileSync(file + '.bak', base.bak);
+        for (const s of Object.keys(legacy)) fs.writeFileSync(file + '.' + s, legacy[s]);
         reset();
-        const c = compose(facade('link', {}), dir);
-        A.eq(kind.read(c), 'value:' + MAIN, 'base-written [' + kindName + ']: the file reads back unchanged');
-        A.eq(kind.write(c, V2), 'ok', 'base-written [' + kindName + ']: and takes the next write');
-        for (const s of Object.keys(LEGACY)) A.eq(fs.existsSync(file + '.' + s) && fs.readFileSync(file + '.' + s, 'utf8'), LEGACY[s], 'base-written [' + kindName + ']: legacy sibling .' + s + ' is kept (fresh legacy temps wait to go stale)');
+        const c = kind.compose(facade('link', {}), dir);
+        A.eq(kind.read(c), base.reads || 'value:' + base.main, 'base-written [' + kindName + ']: the file reads back unchanged');
+        A.eq(kind.write(c, 'V2'), 'ok', 'base-written [' + kindName + ']: and takes the next write');
+        for (const s of Object.keys(legacy)) A.eq(fs.existsSync(file + '.' + s) && fs.readFileSync(file + '.' + s, 'utf8'), legacy[s], 'base-written [' + kindName + ']: legacy sibling .' + s + ' is kept (fresh legacy temps wait to go stale)');
         fs.writeFileSync(file, T1);
         reset();
-        kind.read(compose(facade('link', {}), dir));
-        A.eq(fs.existsSync(file + '.corrupt-1') && fs.readFileSync(file + '.corrupt-1', 'utf8'), T1, 'base-written [' + kindName + ']: the next quarantine is .corrupt-1 (first-free numbering steps over legacy names)');
+        kind.read(kind.compose(facade('link', {}), dir));
+        const next = base.next || 'corrupt-1';
+        A.eq(fs.existsSync(file + '.' + next) && fs.readFileSync(file + '.' + next, 'utf8'), T1, 'base-written [' + kindName + ']: the next quarantine is .' + next + ' (first-free numbering steps over legacy names)');
       }
     }));
 
@@ -670,6 +793,28 @@ function same(got, want, label) {
       for (const call of calls) for (const key of call.keys)
         A.ok(Object.prototype.hasOwnProperty.call(COVERED, key), 'manifest: ' + call.where + ' composes makeDurableJsonStore with "' + key + '", an option persist.conformance has no row for — add one');
       A.ok(calls.some(c => c.where === 'sidecar/index.js' && c.keys.indexOf('onCorrupt') >= 0), 'manifest: index.js composes general stores with an onCorrupt (the host quarantine) — the rows above build that shape');
+      // the record stores: every option a sidecar composition of them passes has a row here too
+      const RECORD_COVERED = {
+        makeChannelStore: {
+          fs: 'every channels row (the fault facade)', pathMod: 'every channels row', root: 'every channels row',
+          clock: 'CLOCK (lastSeen and ts are part of the bytes compared)',
+          writeDurable: 'the update-frozen writer (row "update freeze"; the crash rows pass a dead writer pid through it)',
+          onRecover: 'the recovered rows'
+        }
+      };
+      for (const name of Object.keys(RECORD_COVERED)) {
+        const re = new RegExp('(?:=|\\breturn|\\(|,)\\s*' + name + '\\(\\s*(\\{)?', 'g');
+        const found = [];
+        for (const file of src.sidecarSourceFiles()) {
+          let m;
+          re.lastIndex = 0;
+          while ((m = re.exec(file.text))) found.push({ where: file.rel, keys: m[1] ? topLevelKeys(file.text, m.index + m[0].length - 1) : ['<not an object literal>'] });
+        }
+        A.ok(found.some(f => f.where === 'sidecar/index.js'), 'manifest: the scan finds index.js composing ' + name);
+        for (const f of found) for (const key of f.keys)
+          A.ok(Object.prototype.hasOwnProperty.call(RECORD_COVERED[name], key), 'manifest: ' + f.where + ' composes ' + name + ' with "' + key + '", an option persist.conformance has no row for — add one');
+      }
+      A.ok(/makeChannelStore\(\{[^\n]*\bwriteDurable: writeFileDurable\b/.test(INDEX), 'manifest: index.js hands the channel store its update-frozen writeFileDurable (composeChannels mirrors it with frozenWriter)');
     });
   } catch (e) {
     A.ok(false, 'persist.conformance threw: ' + ((e && e.stack) || e));

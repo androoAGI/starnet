@@ -64,6 +64,8 @@ const mk = (fs) => makeChannelStore({ fs, pathMod, root: ROOT, clock, limits: { 
   A.eq(s.loadHistory('tg_9'), [], 'corrupt history -> []');
   s.appendTurn('tg_9', 'user', 'recover');
   A.eq(s.loadHistory('tg_9').length, 1, 'append recovers over a corrupt file');
+  // ...and never by dropping the torn bytes: they were moved aside on read, byte-exact (persist, the 34c58f4f family)
+  A.eq(fs.files.get(pathMod.join(ROOT, 'tg_9.history.json.corrupt-1')), '{not json', 'the corrupt history is kept aside as .corrupt-1, byte-exact');
   // malformed turns inside an otherwise-valid file are dropped on load
   fs.files.set(pathMod.join(ROOT, 'tg_9.history.json'), JSON.stringify({ version: 1, messages: [{ role: 'user', content: 'ok' }, { role: 'bogus', content: 'x' }, { junk: 1 }] }));
   A.eq(s.loadHistory('tg_9'), [{ role: 'user', content: 'ok' }], 'malformed turns filtered out');
