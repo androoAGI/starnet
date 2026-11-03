@@ -385,6 +385,20 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       const Q = w2.watch(twoTurns('Q', 'pg-cu-pool', calls2), 'custom', 'pg-cu-pool');
       A.eq([(await run(Q, w2)).res.reason, calls2], ['done', ['Q', 'Q']], '11: ...nor a run that starts after it');
     }
+    // ...but a key a station layer holds AS ITS KEY is the station's, even while a channel entry still holds it too (the page saved
+    // the bot's key as its copy and the record's turn to the station could not be saved, so the entry waits for the next boot):
+    // a station run on it is watched, and a REMOVE stops it
+    {
+      const env = { ANTHROPIC_API_KEY: 'en-ant' };
+      const engineKeys = EC.makeEngineKeys({ load: () => ({ version: 1, providers: {} }), persist: () => true, verify: () => true, newRev: () => 'r2' });
+      const store = G.sandboxStore(Object.assign({ engineKeys, channelsFollowStation: () => false }, envReaders(env)));
+      A.eq(store.putChannel('telegram', { provider: 'custom', key: 'both-held' }).credential.ref, 'channel', 'fixture: a bot is given a key of its own');
+      store.putPage('custom', { key: 'both-held', baseUrl: 'http://u.test/v1' }, {});
+      A.eq([store.stationHeld('custom', 'both-held'), store.fromStation('custom', 'both-held')], [true, true], '11: the page saves it as its own key, and its record\'s turn to the station is not saved: the key is the station\'s');
+      const w = store.inFlight(), calls = [];
+      const P = w.watch(twoTurns('P', 'both-held', calls, () => store.putPage('custom', {}, {})), 'custom', 'both-held');
+      A.eq([(await run(P, w)).res.reason, calls], ['error', ['P']], '11: ...so a station run on it stops at its next call once the page REMOVEs it');
+    }
     // the adapter a rotation or a provider fallback would use is watched on ITS key, through the loop
     {
       const { store } = station();

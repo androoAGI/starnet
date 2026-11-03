@@ -1102,10 +1102,12 @@
       return Object.values(entries).some(e => mine(e) || mine(e.prev)) || Object.values(carried).some(mine);
     }
     /* fromStation(provider, key): a key the station resolved for a run — a layer holds it now, or held it until a REMOVE or a
-       rotation took it out — and not a channel's own key. What the in-flight watch takes; never a key a caller brought. */
+       rotation took it out — and not a channel's own key. What the in-flight watch takes; never a key a caller brought. A key a
+       layer holds AS ITS KEY is the station's even while a channel entry still holds it too (a conversion whose record could not
+       be saved waits for the next boot): a station run on it is never exempt. */
     function fromStation(provider, k) {
       const id = normalizeId(provider), v = String(k || '').trim();
-      if (!id || !v || channelOwns(id, v)) return false;
+      if (!id || !v || (channelOwns(id, v) && !stationHeld(id, v))) return false;
       return holds(id, v) || letGoKeys.has(fingerprint(id, v));
     }
     /* A run resolves its keys as it starts and builds one provider adapter on each (its primary, every backup key it may
