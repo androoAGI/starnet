@@ -84,10 +84,12 @@ function runUnpriced(maxUnpricedTokens, perTurn, maxIters) {
   }).then(res => ({ res, end: s.seq.find(e => e.name === 'agent.run.end') }));
 }
 
-// the run seam's limits for the two token ceilings, sliced from runOnceCore and evaluated against a context's CAPS
-const SEAM = part(side, '        maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth)', '\n      },');
+// the run seam's limits for the two token ceilings, sliced from runOnceCore and evaluated against a context's CAPS. The
+// unpriced ceiling follows the run's payer (billing-class.js POLICY): a dollar payer has it, a sign-in plan does not.
+const { POLICY } = require('../sidecar/billing-class.js');
+const SEAM = part(side, '        maxUnpricedTokens: runBilling.policy.unpricedTokenCeiling', '\n      },');
 function nextRunLimits(ctx, exempt) {
-  return vm.runInContext('(function (providerUnmetered, usingCodex, usingDeviceOAuth) { return {' + SEAM + '}; })', ctx)(!!exempt, false, false);
+  return vm.runInContext('(function (runBilling) { return {' + SEAM + '}; })', ctx)({ policy: POLICY[exempt ? 'subscription' : 'metered'] });
 }
 // a Claude Code sign-in run: $0 turns marked usage.subscription (fresh input counts in full)
 function runSubscription(maxSubscriptionTokens, perTurn, maxIters) {

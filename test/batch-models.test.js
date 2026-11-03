@@ -194,7 +194,8 @@ module.exports = (async () => {
       extraAccountProviderFor: () => null, providerUsesCodex: () => false, providerUsesDeviceOAuth: () => false,
       selectProvider: () => fakeProvider, redact: s => s,
       budget: { check: () => null }, stationOneShots: new Set(), makeCostEngine: () => ({ reconcile: () => ({ usd: 0 }) }),
-      ledger: { record() {} }, getProviderProfile: () => ({}), failNote() {}
+      ledger: { record() {} }, getProviderProfile: () => ({}), failNote() {},
+      billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) })   // the one-shot's payer (billing-class.js)
     });
     vm.runInNewContext(region + '\nthis.api = { channelRunConfigFor, probeChannelRunConfig, sampleRunConfigFor, stationOneShot };', sb);
     const api = sb.api;
@@ -248,6 +249,7 @@ module.exports = (async () => {
       effectiveVoiceChat: () => require('../sidecar/voice-chat-route.js').cleanSetting(setting), agentRoster: voiceRoster,
       normalizeProvider: p => String(p || 'openrouter').toLowerCase(), providerUsesCodex: () => false, CODEX_DEFAULT_MODEL: 'gpt-x', CRON_DEFAULT_MODEL: 'cron-x',
       providerRuntimeKey: () => 'k', providerRuntimeBaseUrl: () => '', getProviderProfile: () => ({}), providerHasCredential: () => true,
+      billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: () => ({}) }),   // the voice route's payer (billing-class.js)
       voiceCatalogEntry: async () => null, makeContext: () => ({ estimateMessages: () => 0, estimateTokens: () => 0 }), RUN_CONTEXT_DEFAULTS: {},
       voiceChatRoute: require('../sidecar/voice-chat-route.js'), console: { warn() {}, log() {} },
       promptTierCeiling: require('../sidecar/providers/prices.js').promptTierCeiling   // the price-tier window cap applyVoiceTurnRoute reads (context-cost lane)

@@ -41,6 +41,7 @@ const { makeCostEngine } = require('./cost.js');
 const { routePrefixMatches } = require('./route-prefix.js');   // how a ROUTES prefix entry matches (dispatchRoute)
 const { makeLedger, makeAuxMeter, auxLoopFloors } = require('./ledger.js');
 const { makeBudget } = require('./budget.js');
+const BillingClass = require('./billing-class.js');   // ONE BILLING CLASS: who pays for a call (key, StarNet credits, a sign-in plan, local) and every limit that follows
 const RunSpendPool = require('./run-spend-pool.js');   // one PER RUN cap shared by a run and every worker it starts (bug d3a76db3)
 const { makeCredits } = require('./credits.js');   // managed-credit backend adapter (inert unless STARNET_CREDITS_URL is set)
 const { makeTierList } = require('./tierlist.js');   // editorial model tier list from the linked cloud (picker badges)
@@ -1432,17 +1433,16 @@ const auxSpend = (kind, route) => makeAuxMeter({ ledger, kind, provider: auxRout
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
+// THE ONE BILLING BINDING (billing-class.js): every billing decision reads its payer and POLICY row through this, never a
+// profile flag of its own. credits is read at each decision (a relink can change it); CREDITS_URL is the deployment's.
+const billing = BillingClass.makeBilling({ profileOf: getProviderProfile, creditsConfigured: () => credits.configured(), creditsUrl: CREDITS_URL });
 /* issue #105: the background token ceiling. PER ROUTE: Ollama or Codex rows never count against a Claude sign-in, or the reverse.
    A local model draws on no allowance, so it has no ceiling. The Claude CLI profile is not `unmetered` (an API-key sign-in bills)
-   and its sign-in is only known per call, so that route qualifies by adapter and the rows decide. The key is the route, not the
-   account: extra Claude accounts share one figure. An API-key sign-in books no subscription rows of its own, but earlier subscription
-   rows on the route still count, so it can be stopped for up to 24 hours after a switch. */
-const AUX_CEILING_EXEMPT = new Set(['ollama']);
+   and its sign-in is only known per call, so that route qualifies (billing-class.js auxCeilingRoute) and the rows decide. The key
+   is the route, not the account: extra Claude accounts share one figure. An API-key sign-in books no subscription rows of its own,
+   but earlier subscription rows on the route still count, so it can be stopped for up to 24 hours after a switch. */
 function auxRoute(id) { return normalizeProviderId(String(id == null ? '' : id), ''); }
-function auxCeilingRoute(id) {
-  const route = auxRoute(id), profile = getProviderProfile(route) || {};
-  return !AUX_CEILING_EXEMPT.has(route) && (!!profile.unmetered || profile.adapter === 'claude-cli');
-}
+function auxCeilingRoute(id) { return billing.auxCeilingRoute(auxRoute(id)); }
 function auxTokensByRoute() { return ledger.ceilingTokensByProvider(Date.now() - AuxGovernor.TOKEN_WINDOW_MS, AuxGovernor.CEILING_KINDS); }
 function auxTokenGate(providerId) {
   return AuxGovernor.tokenGate({ unmetered: auxCeilingRoute(providerId), ceiling: memoryConfig.auxTokenCeiling, used: auxTokensByRoute()[auxRoute(providerId)] || 0 });
@@ -4213,7 +4213,7 @@ async function rehydrateReviewJob(job) {
   return Object.assign({}, job, {
     provider, route: providerId, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
-    unmetered: !!((getProviderProfile(providerId) || {}).unmetered)
+    unmetered: !billing.policyOf(providerId).ledgerMetered
   });
 }
 const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
@@ -10912,7 +10912,7 @@ async function runQuestRefreshCycle(why) {
     }
     // Standalone auxiliary calls bypass runAgentLoop, so enforce its cross-run spending boundary here too.
     // A manual refresh changes the cadence, not the spending authority; only an explicit budget resume does.
-    if (!((getProviderProfile(providerId) || {}).unmetered)) {
+    if (billing.policyOf(providerId).dollarCaps) {
       let blocked;
       try { blocked = budget.check(null, 'station', 0, Date.now(), null); }
       catch (_) { blocked = { unknown: true }; }
@@ -10984,7 +10984,7 @@ async function runQuestRefreshCycle(why) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {
     clearTimeout(timer);
-    try { spend.book({ runId: 'questrefresh-' + Date.now(), agentId: 'station', model: model || '', unmetered: !!((getProviderProfile(providerId) || {}).unmetered) }); } catch (_) {}
+    try { spend.book({ runId: 'questrefresh-' + Date.now(), agentId: 'station', model: model || '', unmetered: !billing.policyOf(providerId).ledgerMetered }); } catch (_) {}
   }
 }
 
@@ -14643,7 +14643,7 @@ async function stationOneShot(prompt, tag, failLead) {
     let unpriced = false;
     try { const c = cost.reconcile(usage, cfg.model); usd = c.usd || 0; tokens = (c.tokensIn || 0) + (c.tokensOut || 0); unpriced = !!c.unpriced; } catch (e) { failNote(tag + '.reconcile', e); return; }
     // $0 too: a subscription route reports no dollars, and the call still drew on the plan (ledger.js AUX METER)
-    const unmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+    const unmetered = !billing.policyOf(providerId).ledgerMetered;
     try { ledger.record({ runId: tag + '-' + crypto.randomUUID(), agentId: 'station', turns: 0, usd, tokens, model: cfg.model, unmetered, aux: 'oneshot-' + tag, ...(unpriced && !unmetered ? { unpriced: true } : {}) }); } catch (e) { failNote(tag + '.ledger', e); }
   };
   try {
@@ -15437,7 +15437,7 @@ async function applyVoiceTurnRoute(o) {
   const limit = (tEntry && Number(tEntry.context_length)) || 0;
   // the voice run works in its model's price-tier window (runOnceCore runWindowCeiling), so "fits without a fold" is
   // measured against that window: a conversation the voice run would fold stays on the agent's model
-  const tierCeiling = promptTierCeiling(tProvider, setting.model, !!(getProviderProfile(tProvider) || {}).unmetered);
+  const tierCeiling = promptTierCeiling(tProvider, setting.model, !billing.policyOf(tProvider).promptTier);
   const runLimit = (tierCeiling > 0 && limit > tierCeiling) ? tierCeiling : limit;
   let promptTokens = 0;
   if (limit) {
@@ -21177,23 +21177,21 @@ async function handleSkillCandidateAction(req, res) {
        support file, a hand-edited SKILL.md), which made such a proposal impossible to evaluate or approve. */
     const baseline = skillStore.view(agentId, candidate.skill.id, { bump: false, includeArchived: true, hydrate: false });
     if (SkillEvaluation.digestSkill(baseline) !== candidate.baseDigest) return learningJson(res, 409, { ok: false, error: 'the active skill changed after this proposal; reject it or wait for the agent to propose a new revision' });
-    const providerId = normalizeProvider(cfg.provider), unmetered = !!((getProviderProfile(providerId) || {}).unmetered);
     /* Limits sized to the chosen suite and the Commander's per-run cap (SkillEvaluationRunner.evaluationLimits): a fixed
        120 s and $0.08 per run stopped every evaluation on a slow reasoning model or a premium-priced one. Each run
        gets the Commander's PER RUN cap; with none set (the shipped default) it gets the ceiling the station gives a
        run nobody capped (MANAGED_PER_RUN_DEFAULT, issue #53), never the runner's $0.08 fallback, which ended every
-       premium-model run with 'budget'. The whole evaluation is bounded by runs x that cap, and the day rail still applies. */
+       premium-model run with 'budget'. The whole evaluation is bounded by runs x that cap, and the day rail still applies.
+       managed: the billing source the host knows, by the same rule as a run (billing-class.js): StarNet credits, or the key. */
+    const providerId = normalizeProvider(cfg.provider);
+    const evalBilling = billing.evaluationBillingFor({ providerId, perRunUsd: effectiveCaps.perRun, managedDefaultUsd: MANAGED_PER_RUN_DEFAULT, shippedDefaultUsd: budgetCaps.DEFAULT_MANAGED_PER_RUN_USD });
+    const { unmetered, managed } = evalBilling;
     const evalSuite = evaluationSuitesFor(agentId, candidate.skill).find(s => s.id === String(body.suiteId || ''));
-    const perRunCap = unmetered ? undefined
-      : (effectiveCaps.perRun > 0 && isFinite(effectiveCaps.perRun)) ? effectiveCaps.perRun
-      : (MANAGED_PER_RUN_DEFAULT > 0 && isFinite(MANAGED_PER_RUN_DEFAULT)) ? MANAGED_PER_RUN_DEFAULT : budgetCaps.DEFAULT_MANAGED_PER_RUN_USD;
-    const lim = SkillEvaluationRunner.evaluationLimits({ cases: evalSuite ? evalSuite.cases.length : 0, runCapUsd: perRunCap });
+    const lim = SkillEvaluationRunner.evaluationLimits({ cases: evalSuite ? evalSuite.cases.length : 0, runCapUsd: evalBilling.perRunCapUsd });
     let timedOut = false;
     const controller = new AbortController(), timer = setTimeout(() => { timedOut = true; controller.abort(); }, lim.wallClockMs);
     const onClose = () => { if (!res.writableEnded) controller.abort(); };
     res.once('close', onClose); stationOneShots.add(controller); skillEvaluationsNow.add(agentId);
-    // managed: the billing source the host knows, by the same rule as a run (managedRun): StarNet credits, or the Commander's own key
-    const managed = credits.configured() && !unmetered && (providerId === 'starnet' || !!CREDITS_URL);
     const accounting = makeEvaluationAccounting({ ledger, budget, agentId, provider: providerId, model: cfg.model, unmetered, managed, runCapUsd: lim.perRunUsd, maxUsd: lim.totalUsd });
     const evalPrefix = crypto.randomUUID();   // the runner adds the skill-eval- namespace itself
     try {
@@ -22151,7 +22149,7 @@ async function runOnceCore(o) {
   const callerCredential = !o.provider || normalizeProvider(o.provider) === providerId;
   const usingCodex = providerUsesCodex(providerId);
   const usingDeviceOAuth = providerUsesDeviceOAuth(providerId);
-  let providerUnmetered = !!((getProviderProfile(providerId) || {}).unmetered);
+  let providerUnmetered = !billing.policyOf(providerId).ledgerMetered;   // the run's live payer flag (billing-class.js); onFallback moves it
   let runUnmetered = providerUnmetered;
   // THE ONE EFFORT RULE (run-wire.js, resolved with the pair by runWireOfRun): the explicit run-option, then this agent's
   // own roster record (its pin's effort, else the class applied default — Class Loadouts S1), then the Overseer's effort
@@ -22426,16 +22424,12 @@ async function runOnceCore(o) {
   // A metered run (BYOK-shaped, real $ cost) reserves its per-run cap against the managed account BEFORE the
   // model is called; unused headroom refunds at settle. Codex/unmetered runs never touch managed credit. When
   // credits aren't configured, credits.beginRun() is an inert byok pass-through — zero behaviour change.
-  // The per-run cap the loop enforces (o.maxCostUsd override, else the Balanced perRun; 0/∞ => ungoverned).
-  // An UNMETERED (OAuth-subscription) run skips the default per-run $ cap: its "spend" is a token estimate
-  // against a flat subscription, so stopping it at $N stops it at an imaginary number (2026-07-23, Andrew-
-  // approved). An EXPLICIT caller cap (o.maxCostUsd — e.g. a delegated worker's perWorker) is still honored.
-  let runCapUsd = (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd
-    : (providerUnmetered ? Infinity
-    : ((effectiveCaps.perRun > 0 && isFinite(effectiveCaps.perRun)) ? effectiveCaps.perRun : Infinity));
+  // The per-run cap the loop enforces (billing-class.js runBillingFor): the caller's o.maxCostUsd (a delegated worker's
+  // perWorker), else PER RUN for a dollar payer (0/∞ => ungoverned); a plan or local run is not capped at an imaginary
+  // figure (2026-07-23, Andrew-approved); a line hop's o.ceilingUsd only ever LOWERS a dollar payer's cap (QA 2026-10-02).
+  const runBilling = billing.runBillingFor({ providerId, callerCapUsd: o.maxCostUsd, ceilingUsd: o.ceilingUsd, perRunUsd: effectiveCaps.perRun });
+  let runCapUsd = runBilling.runCapUsd;
   let runCapIsBalance = false;   // managed admission: the ceiling IS the reported StarNet balance (set below)
-  // o.ceilingUsd (a line hop: what is left of the line's $ ceiling) only ever LOWERS the cap (QA 2026-10-02)
-  if (!providerUnmetered && typeof o.ceilingUsd === 'number' && isFinite(o.ceilingUsd) && o.ceilingUsd >= 0 && !(runCapUsd <= o.ceilingUsd)) runCapUsd = Math.max(0.01, o.ceilingUsd);
   // Same rule as o.maxCostUsd for the TURN budget: an explicit caller cap (o.maxIters -- e.g. a delegated
   // worker's ORCH_WORKER_MAX_ITERS) is honored, but may only LOWER the ceiling. Without this the value
   // orchestration.js has always passed was silently dropped and every worker ran the lead's full budget.
@@ -22449,7 +22443,8 @@ async function runOnceCore(o) {
   // WAKE ("Out of managed credit" with a valid key in hand) and double-billed funded ones at settle. An env
   // STARNET_CREDITS_URL deployment is operator-metered: there the operator fronts every metered run's keys,
   // so ALL metered runs still reserve/settle against the managed account (original P2 semantics, unchanged).
-  const managedRun = credits.configured() && !providerUnmetered && (providerId === 'starnet' || !!CREDITS_URL);
+  // The rule lives in billing-class.js (managedRoute): the run's payer is 'managed'.
+  const managedRun = runBilling.managed;
   if (managedRun) {
     await credits.refresh().catch(swallow('credits.refresh'));   // adapter owns the active bearer+account identity
     // A managed reservation needs a FINITE cap to hold, and the reservation is also the loop's maxCostUsd
@@ -22499,8 +22494,7 @@ async function runOnceCore(o) {
      (run-spend-pool.js). A lead on a flat subscription (unmetered: no default $ cap of its own) still bounds the
      metered crew it starts by the PER RUN setting. A pool with one member decides nothing: a run that never
      delegates is governed by its loop's own check exactly as before. */
-  const spendPoolCapUsd = (runCapUsd > 0 && isFinite(runCapUsd)) ? runCapUsd
-    : ((providerUnmetered && effectiveCaps.perRun > 0 && isFinite(effectiveCaps.perRun)) ? effectiveCaps.perRun : Infinity);
+  const spendPoolCapUsd = billing.spendPoolCapFor({ runCapUsd, policy: runBilling.policy, perRunUsd: effectiveCaps.perRun });
   const spendPool = RunSpendPool.isRunSpendPool(o.spendPool) ? o.spendPool : RunSpendPool.makeRunSpendPool({ capUsd: spendPoolCapUsd });
   spendPool.join(runId);
 
@@ -23702,10 +23696,9 @@ async function runOnceCore(o) {
     const fbBaseUrl = providerRuntimeBaseUrl(fbProviderId, fb.baseUrl || fb.base_url || '', undefined, fb.key || fb.apiKey || fb.api_key || '', fb.keyInRequest === true);   // F4: host-set (handleRun, the voice route)
     const fbKey = providerRuntimeKey(fbProviderId, fb.key || fb.apiKey || fb.api_key || '');
     if (!providerHasCredential(fbProviderId, fbKey, fbBaseUrl)) continue;
-    const fbUnmetered = !!getProviderProfile(fbProviderId)?.unmetered;
-    const fbManaged = credits.configured() && !fbUnmetered && (fbProviderId === 'starnet' || !!CREDITS_URL);
-    // A fallback cannot borrow a reservation from another payer or spend managed credit without admission.
-    if (fbManaged !== managedRun) continue;
+    // A fallback cannot borrow a reservation from another payer or spend managed credit without admission (null: skipped).
+    const fbBilling = billing.fallbackBillingFor({ providerId: fbProviderId, runManaged: managedRun, runCapUsd, callerCapUsd: o.maxCostUsd, perRunUsd: effectiveCaps.perRun, unpricedTokens: CAPS.maxUnpricedTokens });
+    if (!fbBilling) continue;
     let fbProvider;
     if (providerUsesCodex(fbProviderId)) {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: ensureCodexAccessToken, renewToken: forceRefreshCodexAccessToken, baseUrl: fbBaseUrl, reasoningEffort });
@@ -23714,10 +23707,8 @@ async function runOnceCore(o) {
     } else {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort });
     }
-    providerFallbacks.push({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }),
-      unmetered: fbUnmetered,
-      maxCostUsd: Math.min(runCapUsd, (o.maxCostUsd > 0 && isFinite(o.maxCostUsd)) ? o.maxCostUsd : fbUnmetered ? Infinity : (effectiveCaps.perRun > 0 ? effectiveCaps.perRun : Infinity)),
-      maxUnpricedTokens: fbUnmetered ? Infinity : CAPS.maxUnpricedTokens });
+    // its limits (billing-class.js): unmetered, maxCostUsd (its PER RUN under the run's cap), maxUnpricedTokens
+    providerFallbacks.push(Object.assign({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }) }, fbBilling.entry));
   }
   if (fbUnsaid) {
     runNotices.push('and ' + fbUnsaid + ' more fallback' + (fbUnsaid === 1 ? '' : 's') + ' on a provider this station does not know ' + (fbUnsaid === 1 ? 'was' : 'were') + ' skipped');
@@ -25396,8 +25387,8 @@ async function runOnceCore(o) {
         outputContinuation: !isTask && !internal ? false : undefined,
         grace: o.outputOnly ? false : undefined, refundMax: o.outputOnly ? 0 : undefined,
         turnOutputMax: () => runOutputBudget().turnMax,   // 30% of the live window (see WINDOW-SCALED TOOL OUTPUT)
-        // unpriced-token seatbelt: metered API-key providers only — a subscription/OAuth/unmetered run bills nothing
-        maxUnpricedTokens: (providerUnmetered || usingCodex || usingDeviceOAuth) ? Infinity : CAPS.maxUnpricedTokens,
+        // unpriced-token seatbelt: dollar payers only (billing-class.js POLICY) — a sign-in plan or a local model bills nothing
+        maxUnpricedTokens: runBilling.policy.unpricedTokenCeiling ? CAPS.maxUnpricedTokens : Infinity,
         // subscription seatbelt: counts only turns whose usage says `subscription` (a Claude Code sign-in), whatever the provider
         maxSubscriptionTokens: CAPS.maxSubscriptionTokens
       },
@@ -28260,10 +28251,10 @@ async function handleProviderModels(req, res) {
     // runWindow (context-cost-1023): the window a run on THIS route works in — the model's own, stopped at the
     // long-context price tier the spend caps do not price (prices.js promptTierCeiling, as runOnceCore sizes the run's
     // context manager). /compress names it, so "Chat memory" never measures against a 1M window a run folds inside 200k.
-    const unmetered = !!(getProviderProfile(id) || {}).unmetered;
+    const tierExempt = !billing.policyOf(id).promptTier;
     json(200, { provider: id, models: models.map(m => {
       const row = publicModel(m);
-      const tier = promptTierCeiling(id, row.id, unmetered);
+      const tier = promptTierCeiling(id, row.id, tierExempt);
       if (row.context_length > 0) row.runWindow = (tier > 0 && tier < row.context_length) ? tier : row.context_length;
       return row;
     }) });

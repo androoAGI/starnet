@@ -64,6 +64,7 @@ test/budget-caps.test.js
 test/budget-stop-door.test.js
 test/run-spend-pool.test.js
 test/unpriced-ceiling-setting.test.js
+test/billing-class.parity.test.js
 test/fallback-chain.test.js
 test/voice-chat-route.test.js
 test/configexport.test.js

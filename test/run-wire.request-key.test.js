@@ -51,6 +51,7 @@ function station(o) {
     engineKeys: { get: id => (opts.page && opts.page[id]) || null },
     normalizeProviderId: p => Reg.normalizeProviderId(p, ''), normalizeProvider: p => Reg.normalizeProviderId(p, 'openrouter'),
     getProviderProfile: Reg.getProviderProfile, registryProviderUsesCodex: Reg.providerUsesCodex, registryProviderUsesDeviceOAuth: Reg.providerUsesDeviceOAuth,
+    billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }),   // the route's payer (billing-class.js)
     providerUsesCodex: p => Reg.providerUsesCodex(Reg.normalizeProviderId(p, 'openrouter')), providerUsesDeviceOAuth: p => Reg.providerUsesDeviceOAuth(Reg.normalizeProviderId(p, 'openrouter')),
     providerRequiresKey: Reg.providerRequiresKey, providerRequiresBaseUrl: Reg.providerRequiresBaseUrl,
     ENV: k => env['STARNET_' + k], envFirst: names => { for (const n of names || []) if (env[n]) return env[n]; return ''; },
@@ -135,10 +136,10 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
     A.ok(fromAt > 0 && toAt > fromAt && toAt - fromAt < 6000, "fixture: runOnceCore's fallback loop is sliced");
     const loop = (s, list) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',
       'getProviderProfile', 'credits', 'CREDITS_URL', 'managedRun', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'selectProvider', 'reasoningEffort', 'makeCostEngine', 'runCapUsd',
-      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
+      'effectiveCaps', 'CAPS', 'unknownProviderError', 'runNotices', 'runStartExtra', 'normalizeProviderId', 'billing', core.slice(fromAt, toAt) + '\nreturn providerFallbacks;')(
       [], { fallbackProviders: list }, s.normalizeProvider, 'openai', (p, m) => m, 'primary-model',
       s.providerRuntimeBaseUrl, s.providerRuntimeKey, s.providerHasCredential, Reg.getProviderProfile, { configured: () => false }, '', false, s.providerUsesCodex, s.providerUsesDeviceOAuth,
-      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId)
+      cfg => ({ cfg, priceOf: () => null }), 'medium', () => ({}), Infinity, {}, { maxUnpricedTokens: 1 }, () => '', [], {}, s.normalizeProviderId, require('../sidecar/billing-class.js').makeBilling({ profileOf: Reg.getProviderProfile }))
       .map(f => [f.providerId, f.provider.cfg.key || '', f.provider.cfg.baseUrl]);
     const s = station({ page: PAGE, keys: { anthropic: STATION_ANT } });
     A.eq(loop(s, [{ provider: 'openrouter', model: 'main-test', key: K, baseUrl: NEW, keyInRequest: true }]), [['openrouter', K, NEW]], 'fixture: the loop builds the fallback on the key it was handed');
