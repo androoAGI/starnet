@@ -36,7 +36,9 @@
                                platform where it redelivers from an offset (Telegram), else by the adapter, which hands
                                it over again first on its next pass (channels/adapter.js keep).
                                A chat whose lane owes laneMaxDeliveries replies or laneMaxChars unsent characters gets
-                               its new receipts deferred: kept, not run (backpressure before the paid run).
+                               its new receipts deferred: kept, not run (backpressure before the paid run) — never a
+                               message that starts no run (entry.deferrable false), and never counted against the
+                               channel's cap; past deferredPerChat waiting, one is not kept ({ overflow }), said once.
      markAttempt(ids, patch)   how far the message's run got: { runId } at its start (replay: replays+1), { tools }
      answer(ids, delivery)     the receipts leave and the reply enters its chat's lane in the SAME write
      enqueue(delivery)         a durable delivery that answers no receipt (an existing id returns that record)
@@ -94,9 +96,11 @@ const { note: failNote, swallow } = require('../failopen.js');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULTS = Object.freeze({
-  maxPendingPerChannel: 200,      // intake: pending receipts per channel (a full channel stops acknowledging; others never)
+  maxPendingPerChannel: 200,      // intake: receipts being worked on per channel (a full channel stops acknowledging; others
+                                  // never), a chat's deferred ones not counted: one chat's backlog never shuts another out
   laneMaxDeliveries: 20,          // backpressure: undelivered durable deliveries one chat may owe before its new work waits
   laneMaxChars: 200000,           // ...or unsent characters
+  deferredPerChat: 50,            // ...and the messages it may keep waiting meanwhile: past that one is not kept, said once
   tombstonesPerChannel: 50,       // the last 50 per channel...
   tombstoneTtlMs: 30 * DAY_MS,    // ...for 30 days
   doneTtlMs: 7 * DAY_MS,          // a 'caller' record its caller never released
@@ -112,6 +116,9 @@ const DEFAULTS = Object.freeze({
 });
 // the line a reply that could not go out at once carries when it finally lands (rides its first unsent part when it fits)
 const DELAYED_HEADER = '⌛ delayed reply — the channel was unreachable when this was first sent:';
+// what a chat is told, once per spell, when a message it sent was not kept (receive: OVERFLOW)
+const OVERFLOW_NOTICE = (n) => '⚠ Not every message you sent here while StarNet could not deliver this chat\'s replies was kept: it holds '
+  + n + ' waiting messages per chat, and the ones after that were dropped. Send again what still needs doing once the replies above have arrived.';
 
 const chatKeyOf = (channel, chatId) => String(channel) + '|' + String(chatId);
 const codeOf = (e) => String((e && (e.code || e.name)) || 'error').slice(0, 40);
@@ -791,6 +798,25 @@ function makeDeliveryLedger(deps) {
     return 'continue';
   }
 
+  /* A CHAT THAT KEEPS NO MORE WAITING MESSAGES (receive): the message is acknowledged and not kept, and the chat is told
+     once per spell, in a notice queued behind the replies it is owed (none is added while one is still queued). The notice
+     is written like a receipt: when it cannot be, nothing is recorded and the throw keeps the update unacknowledged. */
+  function overflow(id, channel, chatId, chat) {
+    const out = { id: id, channel: channel, chatId: chatId, overflow: true, notice: null };
+    if (doc.deliveries.some(d => d.chat === chat && d.state === 'queued' && d.id.indexOf('notice:overflow:') === 0)) return out;
+    const c = doc.chats[chat];
+    const placed = placeDelivery(newDelivery({ id: 'notice:overflow:' + chat + ':' + now(), channel: channel, chatId: chatId, kind: 'notice', reason: 'overflow',
+      route: c && c.route ? c.route : null, parts: [OVERFLOW_NOTICE(limits.deferredPerChat)] }));
+    const wasDirty = dirty;
+    try { io.write(serialize()); }
+    catch (err) { removeDelivery(placed.id); failNote('channels.ledger.write.overflow', err); throw err; }
+    dirty = false; writeError = null; persistDelay = 0;
+    if (wasDirty) { if (persistTimer) { clearTimer(persistTimer); persistTimer = null; } healthChanged(); kickAll(); }
+    try { log('[' + channel + '] chat ' + chatId + ' keeps ' + limits.deferredPerChat + ' waiting messages while its replies cannot be delivered: newer ones are not kept, and the chat is told'); } catch (e) { failNote('channels.ledger.log', e); }
+    out.notice = placed;
+    return out;
+  }
+
   // ---- the ledger ---------------------------------------------------------------------------------------------------
   const ledger = {
     bootId: bootId,
@@ -812,11 +838,19 @@ function makeDeliveryLedger(deps) {
       if (existing) return existing;   // a platform redelivery or a recovery: idempotent at the intake edge
       const channel = String(e.channel || '');
       const chatId = String(e.chatId != null ? e.chatId : message.chatId);
-      if (doc.receipts.filter(r => r.channel === channel).length >= limits.maxPendingPerChannel) {
+      const chat = chatKeyOf(channel, chatId);
+      /* BACKPRESSURE, per chat (review round 1). A message that may start a run waits (deferred) while its chat owes too
+         much, and behind any of its chat's messages already waiting; one that starts no run (entry.deferrable === false:
+         a command, a stop, an overheard line) is never held back. The channel's cap counts only the receipts being worked
+         on: a chat's waiting ones are its own, so one chat whose sends keep failing while it keeps talking can never shut
+         the channel's intake on every other chat. A chat that already keeps deferredPerChat waiting messages keeps no more:
+         the message is acknowledged and not kept, and the chat is told so once per spell, behind the replies it is owed. */
+      const deferred = e.deferrable !== false && (laneFull(chat) || hasDeferred(chat));
+      if (!deferred && doc.receipts.filter(r => r.channel === channel && !r.deferred).length >= limits.maxPendingPerChannel) {
         throw Object.assign(new Error('channel inbox is full; refusing to acknowledge more work'), { code: 'INTAKE_FULL' });
       }
-      const chat = chatKeyOf(channel, chatId);
-      const r = { id: id, channel: channel, chatId: chatId, message: clone(message), ts: now(), attempt: null, deferred: laneFull(chat) || hasDeferred(chat) };
+      if (deferred && doc.receipts.filter(r => r.deferred && chatKeyOf(r.channel, r.chatId) === chat).length >= limits.deferredPerChat) return overflow(id, channel, chatId, chat);
+      const r = { id: id, channel: channel, chatId: chatId, message: clone(message), ts: now(), attempt: null, deferred: deferred };
       const before = doc.chats[chat] ? clone(doc.chats[chat]) : undefined;
       if (e.route !== undefined || (doc.chats[chat] && doc.chats[chat].dead)) {
         const c = chatRec(chat);
@@ -1124,4 +1158,4 @@ function makeDeliveryLedger(deps) {
   return ledger;
 }
 
-module.exports = { makeDeliveryLedger, memoryIo, shortHash, partKey, chatKeyOf, normalizeDoc, DEFAULTS, DELAYED_HEADER };
+module.exports = { makeDeliveryLedger, memoryIo, shortHash, partKey, chatKeyOf, normalizeDoc, DEFAULTS, DELAYED_HEADER, OVERFLOW_NOTICE };

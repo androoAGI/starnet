@@ -7,7 +7,7 @@
      makeHubDelivery(ctx) -> { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt,
                                settleWithNotice, stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger }
        ctx = { channel, store, send, editMessage, deleteMessage, scrubHostPaths, maxMessageLength, routeOpts, forgetThread,
-               emit, routeInbound, now?, setTimeout?, clearTimeout?, recoverMs? }
+               emit, routeInbound, deferrable?, now?, setTimeout?, clearTimeout?, recoverMs? }
 
    THE LEDGER is the store's (store.ledger: one per save directory, shared by every hub over that store and every
    makeBotScopedStore view of it). A one-job hub's store answers its own in-memory ledger (channels/fire-store.js), and a
@@ -59,6 +59,12 @@ function makeHubDelivery(ctx) {
   const forgetThread = c.forgetThread;
   const emit = c.emit;
   const routeInbound = c.routeInbound;         // how the hub processes a message once its receipt is durable
+  // deferrable(msg) -> false for a message that starts no run (a command, a stop, an overheard line…): backpressure never
+  // holds it back (hub.js deferrable). Absent: every message may be held, as before.
+  const deferrable = (msg) => {
+    if (typeof c.deferrable !== 'function') return true;
+    try { return c.deferrable(msg) !== false; } catch (e) { failNote('channels.hub.deferrable', e); return true; }
+  };
   if (!store || typeof send !== 'function' || typeof routeInbound !== 'function' || typeof scrubHostPaths !== 'function'
       || typeof routeOpts !== 'function' || typeof forgetThread !== 'function' || typeof emit !== 'function') {
     throw new Error('makeHubDelivery: store, send, scrubHostPaths, routeOpts, forgetThread, emit and routeInbound are required');
@@ -252,9 +258,13 @@ function makeHubDelivery(ctx) {
     // the one the chat was last heard in stays
     const threadId = (msg.threadId == null || msg.threadId === '') ? '' : String(msg.threadId);
     const route = msg.tap ? undefined : (threadId ? { threadId: threadId } : null);
-    // durable BEFORE this returns (the adapter acknowledges only then); it throws synchronously -> no acknowledgement
-    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: route });
+    // durable BEFORE this returns (the adapter acknowledges only then); it throws synchronously -> no acknowledgement. A
+    // message that starts no run is never held back (deferrable: false); one that may is, when its chat owes too much
+    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: route, deferrable: deferrable(msg) });
     accepted(intake, { id, durable: true });
+    // OVERFLOW: this chat already holds its whole share of kept messages while its replies cannot get out. The message was
+    // not kept, and the chat is told so once, behind the replies it is owed (delivery-ledger.js receive).
+    if (receipt.overflow) { if (receipt.notice) ledger.drive(receipt.notice.chat).catch(swallow('channels.hub.lane')); return { id: id, start: () => Promise.resolve() }; }
     // BACKPRESSURE BEFORE THE PAID RUN: this chat still owes too many replies. The message is kept (deferred) and the
     // recover timer runs it, in order, once the chat's lane is under its mark — no finished reply is ever refused.
     if (receipt.deferred) return { id: id, start: () => Promise.resolve() };

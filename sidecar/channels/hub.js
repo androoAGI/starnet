@@ -843,8 +843,37 @@
     const delivery = makeHubDelivery({
       channel: channel, store: store, send: send, editMessage: editMessage, deleteMessage: deleteMessage, scrubHostPaths: scrubHostPaths,
       maxMessageLength: maxMessageLength, routeOpts: routeOpts, forgetThread: forgetThread, emit: emit, routeInbound: routeInbound,
-      now: o.now, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, recoverMs: o.recoverMs
+      deferrable: deferrable, now: o.now, setTimeout: o.setTimeout, clearTimeout: o.clearTimeout, recoverMs: o.recoverMs
     });
+    /* WHAT BACKPRESSURE MAY HOLD BACK (review round 1). A chat that owes too many undelivered replies has its new messages
+       kept (deferred) until its lane drains: it starts no new paid run meanwhile. A message that starts no run is never held
+       — its own answer is ephemeral and adds nothing to the lane — and holding one took the chat's controls away: a deferred
+       /stop or "stop" never reached the run still working and spending. Those are: a hub command, the Commander's own or a
+       desktop command (not a note command, which may start a run), a stop word or a follow-up to the run this chat has
+       working (it joins that run), an overheard group line, an admission or pairing message, and an edit of an older
+       message. Everything else may start a run, and waits its turn. Read at intake, before the receipt is written. */
+    function deferrable(msg) {
+      if (!msg || msg.tap) return true;
+      if (msg.directReply || msg.admissionOnly || msg.observeOnly) return false;
+      if (msg.edited && !editIsCurrent(msg)) return false;
+      const text = String(msg.text || '');
+      const third = carriesThirdPartyText(msg);
+      if (!third && text.trim().charAt(0) === '/') {
+        if (parseCommand(text)) return false;
+        let names = [];
+        try { names = userCommandNames() || []; } catch (e) { failNote('channels.hub.userCommandNames', e); names = []; }
+        if (parseUserCommand(text, names)) return false;
+        const desk = desktopCommandFn ? parseDesktopCommand(text) : null;
+        if (desk && !NOTE_CMDS[desk.name]) return false;
+      }
+      const live = inflight.get(String(msg.chatId));
+      if (live && live.abort && !endOf(live)) {
+        if (STOP_WORDS_RE.test(text)) return false;
+        const media = Array.isArray(msg.media) && msg.media.length;
+        if (steerRun && msg.chatType !== 'group' && !msg.edited && !third && !media && text.trim()) return false;
+      }
+      return true;
+    }
     const { deliver, close, onInbound, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, notModified } = delivery;
 
     /* GROUP ADMISSION lives on the chat's own record, like /mention and /approvals: the adapter's allow-list reads

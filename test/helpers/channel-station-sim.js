@@ -339,6 +339,10 @@ function makeWorld(seed, opts) {
       };
       const run = { gen, runId: base.runId, tags, steps: 0, chat: ro.taskKey || '', ended: '' };
       w.runs.push(run);
+      // when its signal was aborted (a newer message, a stop, E-STOP): a run taken back as it ended may finish 'done' unsaid
+      const aborted = () => { if (run.abortedAt == null) { run.abortedAt = w.now; run.abortSeq = ++w.seq; } };
+      if (ro.signal && ro.signal.aborted) aborted();
+      else if (ro.signal && typeof ro.signal.addEventListener === 'function') ro.signal.addEventListener('abort', aborted, { once: true });
       emit('agent.run.start', { trigger: 'event', model: 'sim/model' });
       const plan = planFor(tags);
       w.live.set(base.runId, run);
@@ -706,7 +710,7 @@ function makeWorld(seed, opts) {
   }
   function acked(u, current) {
     u.acked = true;
-    for (const t of u.tags) if (!w.acked.has(t)) w.acked.set(t, { kind: u.kind, chat: u.chat });
+    for (const t of u.tags) if (!w.acked.has(t)) w.acked.set(t, { kind: u.kind, chat: u.chat, at: w.now, gen: w.gen, rid: u.rid || '' });
     if (u.kind === 'tap') w.taps.push({ cb: u.cb, tag: u.tags[0], chat: u.chat, gen: w.gen, at: w.now, kb: u.kb });
     if (u.kind === 'correction') {
       // kept but not run yet (its chat's lane is over the mark): when the recover timer runs it, a newer message may have
@@ -740,6 +744,7 @@ function makeWorld(seed, opts) {
     let u;
     if (chat === CHATS.dcDm) {
       u = { via: 'discord', chat, kind, tags, raw: { id: String(++w.discordId), channel_id: OWNER, author: { id: DC_OWNER, username: 'ana' }, content: text } };
+      u.rid = 'discord|' + OWNER + '|' + u.raw.id;
     } else {
       const chatId = chat === CHATS.tgGroup ? GROUP : OWNER;
       if (chat === CHATS.tgGroup && kind !== 'observe' && !sub.raw) text = '@simbot ' + text;
@@ -747,10 +752,15 @@ function makeWorld(seed, opts) {
       const raw = sub.edit ? tgRaw(chatId, text, OWNER, sub.edit, sub.editDate) : tgRaw(chatId, text, sub.from || OWNER);
       if (!sub.edit) { w.lastTgMsg.set(chat, raw.message.message_id); w.heard.add(chat + '#' + raw.message.message_id); }
       u = { via, chat, kind, tags, raw };
+      if (!sub.edit) u.rid = chat + '|' + raw.message.message_id;   // its receipt's id ('<channel>|<chatId>|<messageId>')
     }
+    const gen = w.gen;
     w.lastAck = deliverUpdate(u);
+    // (P3) the healthy chat's message refused at intake by a live process whose writes work: another chat's doing
+    if (chat === w.healthy && kind === 'message' && !w.lastAck && proc && proc.gen === gen && gen === w.gen && !w.writeFault && !w.holding) w.healthyRefused.push({ tag: tag, at: w.now });
     return tag;
   };
+  w.healthyRefused = [];
   /* A TAP on one of a keyboard's buttons (S3): the owner's callback_query for the message the keyboard rode, with that
      button's callback_data. Its tag is the option's ('choose #<tag>'). Telegram hands an unacknowledged tap over again
      with the same callback id. */
@@ -964,13 +974,28 @@ function makeWorld(seed, opts) {
     if (w.holding || w.writeFault) return;   // the update barrier or failing writes hold every chat: not another chat's doing
     const chat = w.healthy;
     const lines = new Set(wireLines(chat));
+    const fail = (p) => { w.problems.push(p); w.checkHealthy = () => {}; };
     for (const f of finishedReplies()) {
       // within one drain: a blip of its own costs the adapter's 1 s resend and its lane's first 5 s retry; another chat's
       // head, down for 20-50 s, costs it nothing. A hold or a write-failure span that ended since restarts its clock.
       const from = Math.max(f.at, w.disrupted);
       if (f.chat !== chat || from > w.now - 16000 || f.gen !== w.gen) continue;
       const first = f.text.split('\n')[0];
-      if (!lines.has(first)) { w.problems.push('P3 the healthy chat ' + chat + ' still waits for reply ' + f.runId + ' (finished at +' + (f.at - T0) + ' ms, now +' + (w.now - T0) + ' ms)'); w.checkHealthy = () => {}; return; }
+      if (!lines.has(first)) return fail('P3 the healthy chat ' + chat + ' still waits for reply ' + f.runId + ' (finished at +' + (f.at - T0) + ' ms, now +' + (w.now - T0) + ' ms)');
+    }
+    /* (review round 1) ...and its messages get IN, whatever another chat does: one chat whose sends keep failing while its
+       members keep talking must not fill the channel's intake. A message the healthy chat sent is acknowledged, unless a
+       crash, a hold or failing writes came within the 16 s before it, and reaches a run (or joins the one working) within
+       one drain — a message its own lane held back (its own replies owed) is its own backpressure, not another chat's. */
+    for (const r of w.healthyRefused) {
+      if (r.at - w.disrupted < 16000) continue;
+      return fail('P3 the healthy chat ' + chat + '\'s message #' + r.tag + ' was refused at intake at +' + (r.at - T0) + ' ms (another chat holds the channel\'s intake)');
+    }
+    for (const [tag, a] of w.acked) {
+      if (a.chat !== chat || a.kind !== 'message' || a.gen !== w.gen || Math.max(a.at, w.disrupted) > w.now - 16000 || w.deferredIds.has(a.rid)) continue;
+      const re = new RegExp('#' + tag + '(?!\\d)');
+      if (w.runs.some(r => r.tags.indexOf(tag) >= 0) || w.steered.some(s => re.test(s.text))) continue;
+      return fail('P3 the healthy chat ' + chat + '\'s message #' + tag + ' (acknowledged at +' + (a.at - T0) + ' ms) has not reached a run by +' + (w.now - T0) + ' ms');
     }
   };
   // the tail: nothing new is drawn for `ms` while what was drawn plays out (a chat that is down stays down until its span
