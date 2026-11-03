@@ -17,7 +17,7 @@ const block = src.slice(start, end);
     const context = { runTable: table, RunOutcome, endedOutcomes: new Map(), review: { agentId: 'reviewer' }, runId: 'review-proof',
       parent: { id: 'parent' }, key: 'fake', provider: 'fake', baseUrl: '', reviewWire: {}, ident: {}, members: [{ runId: 'worker' }],
       taintPolicy: { relayedTaint: () => null, firstTaint: () => '' }, cronSystemFor: () => '', reviewAbort: new AbortController(),
-      transcriptStore: { reconstruct: () => [] }, instruction: 'review the work', runStore: { all: () => [] },
+      transcriptStore: { view: (projection, streamId, options) => { A.eq([projection, streamId, options.shape], ['model-replay', 'parent', 'pairs'], 'review reads the canonical pair projection'); return []; } }, instruction: 'review the work', runStore: { all: () => [] },
       settleReview: () => {}, runs: new Map(), grantsSession: new Map(), task: { running: true },
       chanEmit: (name, payload) => events.push({ name, payload }) };
     context.runOnceCore = async o => {
