@@ -30,6 +30,14 @@ const DEFAULT_SEGMENT_BYTES = 4 * 1024 * 1024;
 const DEFAULT_RECENT_PER_STREAM = 1200;
 const TOKEN_MAX = 64;
 const UNREADABLE = Object.freeze([]);   // readRows' answer for a segment it could not read (never cached as its rows)
+/* UNIQUE ROWIDS ON EVERY BOOT PATH (turn-identity, A2-ID-01). Every copy of a turn is matched by (streamId, rowId), so
+   no boot may mint an id it cannot prove unused: see provenFloor() below. */
+const LEASE_FILE = 'rowid-lease.json';   // { v: 1, next }: the durable rowId high-water mark (never minted at or above)
+const ROWID_LEASE = 1024;                // ids leased per lease write: one small fsync'd write per boot and per 1024 rows
+const REPROBE_MS = 30 * 1000;            // unsafe mode re-runs its proof at most this often (on an append)
+const AUDIT_MAX = 50;                    // idCollisions kept for status()
+// the default clock of the re-probe when none is injected: monotonic, so a wall-clock step never delays it
+function monotonicMs() { return Number(process.hrtime.bigint() / 1000000n); }
 const CJK_CHAR = /^(?:\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}|\p{Script=Hangul})$/u;
 const HAS_CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
 
@@ -141,6 +149,16 @@ function makeSegmentedTranscriptIo(opts) {
   const closedIndexes = { map: new Map(), bytes: 0, budget: indexCacheBytes }; // n -> { order, index, bytes } verified indexes
   const streamSlices = { map: new Map(), bytes: 0, budget: sliceCacheBytes };  // n + sid -> { order, rows, bytes }
   const verifiedIndex = new Map(); // n -> index file size:mtime + the manifest checksum it already matched
+  const now = typeof o.now === 'function' ? o.now : monotonicMs;   // the unsafe-mode re-probe's clock
+  const leaseFile = path.join(root, LEASE_FILE);
+  let lease = 0;                 // the persisted lease's `next` (0: none parses): no id at or above it is ever minted
+  let unsafe = false;            // no proven rowId floor: appendRaw refuses before minting (TRANSCRIPT_DEGRADED_UNSAFE)
+  let unsafeWhy = '';
+  let probedAt = 0;              // when the floor was last (re)proven while unsafe
+  let idCollisions = [];         // the boot audit: [{ kind, a, b, lo, hi }]
+  let resized = [];              // closed segments this boot found at a size their persisted meta does not record
+  const staleIndexes = new Set();   // segments whose index this process built from an unreadable file
+  const scans = new Map();       // n -> what a parse of segment n proved about its rowIds (noteScan)
 
   function warning(message) { try { warn(message); } catch (_) {} }
   function ensureRoot() { fs.mkdirSync(root, { recursive: true }); }
@@ -202,19 +220,38 @@ function makeSegmentedTranscriptIo(opts) {
     }
   }
   // One parse of a segment file: its rows, its unreadable non-blank lines (kept for strict reads), and its count of
-  // non-empty lines (the index's corruptLines arithmetic).
+  // non-empty lines (the index's corruptLines arithmetic). torn: the last unreadable line is the file's unterminated
+  // final fragment (a crashed append's tail, which appendRaw never acknowledged).
   function parseSegment(buf) {
     const rows = [], bad = [];
-    let nonempty = 0;
-    for (const line of buf.toString('utf8').split(/\r?\n/)) {
+    let nonempty = 0, torn = false;
+    const lines = buf.toString('utf8').split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
       if (line) nonempty++;
       if (!line.trim()) continue;
       let row = null;
       try { row = JSON.parse(line); } catch (_) { row = null; }
       if (row && typeof row === 'object' && num(row.rowId) > 0) { rows.push(row); continue; }
       bad.push(line);
+      if (i === lines.length - 1) torn = true;
     }
-    return { rows, bad, nonempty, bytes: buf.length };
+    return { rows, bad, nonempty, bytes: buf.length, torn };
+  }
+  /* What one parse proves about a segment's rowIds (provenFloor's (i)): its max; its newline-terminated damaged lines
+     (`damaged`: an unterminated final fragment is not one); and the ids met that are not above every id before them
+     (dupLo..dupHi: trunk's degraded boot appended ids from 1 into a segment that already held them). */
+  function noteScan(n, seg) {
+    let max = 0, dupLo = 0, dupHi = 0;
+    for (const row of seg.rows) {
+      const id = num(row.rowId);
+      if (id > max) { max = id; continue; }
+      if (!dupLo || id < dupLo) dupLo = id;
+      if (id > dupHi) dupHi = id;
+    }
+    const scan = { size: seg.bytes, max, damaged: seg.bad.length - (seg.torn ? 1 : 0), unreadable: false, dupLo, dupHi };
+    scans.set(n, scan);
+    return scan;
   }
   function readSegmentFile(n) { return parseSegment(fs.readFileSync(segFile(n))); }
   /* WHICH CLOSED PARSES STAY: the newest segments that fit the budget. A conversation reads newest-first and a
@@ -307,7 +344,15 @@ function makeSegmentedTranscriptIo(opts) {
     index.bytes = bytes;
     let seg;
     try { seg = readSegmentFile(n); }
-    catch (e) { warning('segment ' + n + ' unreadable: ' + ((e && e.message) || e)); return index; }
+    catch (e) {
+      warning('segment ' + n + ' unreadable: ' + ((e && e.message) || e));
+      // still the empty index it always was, but marked: its maxRowId 0 proves nothing (provenFloor)
+      index.unreadable = true;
+      scans.set(n, { size: bytes, unreadable: true });
+      staleIndexes.add(n);
+      return index;
+    }
+    noteScan(n, seg);
     if (seg.bad.length) warning('segment ' + n + ' isolated ' + seg.bad.length + ' corrupt line(s)');
     for (const row of seg.rows) noteIndex(index, row);
     index.corruptLines = Math.max(0, seg.nonempty - seg.rows.length);
@@ -367,32 +412,56 @@ function makeSegmentedTranscriptIo(opts) {
   }
   function rebuildManifest(old) {
     const next = freshManifest();
-    let names = [];
-    try { names = fs.readdirSync(root); } catch (_) {}
-    const numbers = names.map(parseSegmentNumber).filter(Boolean).sort((a, b) => a - b);
+    const listed = listSegments();
+    const numbers = listed.numbers || [];
+    const built = [];
     for (const n of numbers) {
       const index = buildIndex(n);
-      try { saveIndex(index); } catch (e) { warning('index rebuild write failed for segment ' + n + ': ' + ((e && e.message) || e)); }
+      built.push(index);
       next.segments.push(metaFromIndex(index));
       next.nextRowId = Math.max(next.nextRowId, index.maxRowId + 1);
     }
     next.activeSegment = numbers.length ? numbers[numbers.length - 1] : 1;
     if (old && Array.isArray(old.legacy)) next.legacy = old.legacy;
+    // the floor reads the index files as they stand, so the rebuilt ones are written after it
+    const parsed = old && typeof old === 'object' ? old : null;
+    const pf = provenFloor({ listed, metas: null, manifestNext: parsed ? num(parsed.nextRowId) : 0, activeHint: 0, blocked: blockedOf(parsed) });
+    for (const index of built) {
+      try { saveIndex(index); } catch (e) { warning('index rebuild write failed for segment ' + index.segment + ': ' + ((e && e.message) || e)); }
+    }
+    next.nextRowId = Math.max(next.nextRowId, pf.floor);
+    if (parsed && Array.isArray(parsed.unprovenSegments)) next.unprovenSegments = parsed.unprovenSegments;
+    settleProof(next, pf);
     return next;
   }
   function reconcileManifest(loaded) {
-    let names = [];
-    try { names = fs.readdirSync(root); } catch (_) {}
-    const numbers = names.map(parseSegmentNumber).filter(Boolean).sort((a, b) => a - b);
-    const known = new Map((loaded.segments || []).map(s => [s.number, s]));
+    const persisted = new Map((loaded.segments || []).map(s => [s.number, s]));   // as persisted: (ii)'s evidence
+    const persistedNext = num(loaded.nextRowId);
+    const persistedActive = num(loaded.activeSegment) || 1;
+    const listed = listSegments();
+    const numbers = listed.numbers || [];
+    const known = new Map(persisted);
     // A roll persists the NEXT active number before its first row. If the process dies in that tiny gap,
     // there is deliberately no file yet; retain the manifest's higher pointer instead of reopening the
     // last closed segment and violating immutability.
-    const active = Math.max(num(loaded.activeSegment) || 1, numbers.length ? numbers[numbers.length - 1] : 1);
-    // Closed segment metadata stays lazy: its durable index is loaded only if a query needs it.
-    // Rebuild only the append-active tail and any segment absent from the manifest.
+    const active = Math.max(persistedActive, numbers.length ? numbers[numbers.length - 1] : 1);
+    // Closed segment metadata stays lazy: its durable index is loaded only if a query needs it. Rebuilt: every segment
+    // at or above the persisted active pointer (the append-active tail, and the stranded tail of an earlier boot that
+    // appended after its last manifest save and then moved on to a newer segment), any segment absent from the
+    // manifest, and any closed one no longer the size its meta records (trunk's degraded boots appended into closed
+    // segments). The healthy cost is one stat per closed segment.
+    resized = [];
+    const sizes = new Map();
     for (const n of numbers) {
-      if (n !== active && known.has(n)) continue;
+      let rebuild = n >= persistedActive || !known.has(n);
+      if (!rebuild) {
+        let size = -1;
+        try { size = fs.statSync(segFile(n)).size; }
+        catch (e) { warning('segment ' + n + ' could not be measured: ' + ((e && e.message) || e)); }
+        if (size >= 0) sizes.set(n, size);
+        if (size >= 0 && size !== num(known.get(n).bytes)) { rebuild = true; resized.push(n); }
+      }
+      if (!rebuild) continue;
       const index = buildIndex(n);
       known.set(n, metaFromIndex(index));
     }
@@ -400,7 +469,180 @@ function makeSegmentedTranscriptIo(opts) {
     loaded.activeSegment = active;
     loaded.nextRowId = 1;
     for (const meta of loaded.segments) loaded.nextRowId = Math.max(loaded.nextRowId, num(meta.maxRowId) + 1);
+    const pf = provenFloor({ listed, sizes, metas: persisted, manifestNext: persistedNext, activeHint: persistedActive, blocked: blockedOf(loaded) });
+    loaded.nextRowId = Math.max(loaded.nextRowId, pf.floor);
+    settleProof(loaded, pf);
     return loaded;
+  }
+  // the segment numbers on disk, ascending ({ numbers: null, error } when the root cannot be listed: unsafe mode)
+  function listSegments() {
+    let names;
+    try { names = fs.readdirSync(root); }
+    catch (e) { return { numbers: null, error: str((e && e.message) || e) || 'unlisted' }; }
+    return { numbers: names.map(parseSegmentNumber).filter(Boolean).sort((a, b) => a - b), error: '' };
+  }
+  function readLease() {
+    const v = readJson(leaseFile);
+    return v && v.v === 1 && Number.isSafeInteger(v.next) && v.next > 0 ? v.next : 0;
+  }
+  function writeLease(next) {
+    durableWrite({ fs, path }, leaseFile, JSON.stringify({ v: 1, next }));
+    lease = next;
+  }
+  function metaMapOf(m) {
+    return m && typeof m === 'object' && Array.isArray(m.segments) ? new Map(m.segments.filter(s => s && typeof s === 'object').map(s => [s.number, s])) : null;
+  }
+  // segments a boot found unproven: the meta and index that boot rebuilt for them are no proof (ii) of anything
+  function blockedOf(m) {
+    const list = m && typeof m === 'object' && Array.isArray(m.unprovenSegments) ? m.unprovenSegments : [];
+    return new Set(list.map(Number).filter(n => Number.isSafeInteger(n) && n > 0));
+  }
+  /* THE PROVEN FLOOR (turn-identity, A2-ID-01 + A2-ID-01-R): the lowest rowId no acknowledged row can hold, from the
+     disk alone (never a clock, never a size). One function serves rebuildManifest, reconcileManifest, the degraded
+     init and the unsafe-mode re-probe. A non-empty segment's max is PROVEN by
+       (i)  the max rowId over its parsable lines, or
+       (ii) for a CLOSED segment only, a persisted manifest meta or index file whose `bytes` equals the file's current
+            size and whose rows > 0 (the append-active segment, the highest file or the manifest's pointer when
+            higher, is proven only by (i): its index is written only at a roll or a rebuild).
+     Without a lease (rowid-lease.json absent or unparsable), (i) proves only a segment with no newline-terminated
+     damaged line, whatever its id order: appendRaw acknowledges a row only after reading back its newline-terminated
+     bytes, so every acknowledged id still on disk is parsed. A damaged line's id is unknown, and neither a parsable
+     row after it nor the order of the survivors bounds it. One unterminated final fragment is allowed: a crashed
+     append's tail was never acknowledged. A complete line cut away after acknowledgement leaves nothing to detect;
+     without the lease the floor then rests on the parse and the persisted manifest (the named residual, Q37).
+     floor = 1 + max(every proven max, the persisted nextRowId - 1, lease.next - 1). Any non-empty segment unproven,
+     or the root unlisted: ok false, and the caller enters unsafe mode. */
+  function provenFloor(ctx) {
+    const c = ctx || {};
+    const listed = c.listed || listSegments();
+    lease = readLease();
+    const base = Math.max(0, num(c.manifestNext) - 1, lease - 1);
+    if (!listed.numbers) return { ok: false, unlisted: listed.error || 'unlisted', numbers: [], maxListed: 0, floor: base + 1, unproven: [] };
+    const numbers = listed.numbers;
+    const maxListed = numbers.length ? numbers[numbers.length - 1] : 0;
+    const activeN = Math.max(maxListed, num(c.activeHint));
+    let top = base;
+    const unproven = [];
+    for (const n of numbers) {
+      const p = proveSegment(n, n === activeN, c);
+      if (p.empty) continue;
+      if (p.proven) top = Math.max(top, p.max); else unproven.push({ n, why: p.why });
+    }
+    return { ok: !unproven.length, unlisted: '', numbers, maxListed, floor: top + 1, unproven };
+  }
+  function proveSegment(n, active, c) {
+    let size = c.sizes && c.sizes.has(n) ? c.sizes.get(n) : -1;
+    if (size < 0) {
+      try { size = fs.statSync(segFile(n)).size; }
+      catch (e) { return { proven: false, why: 'could not be measured: ' + ((e && e.message) || e) }; }
+    }
+    if (!size) return { empty: true };
+    let scan = scans.get(n);
+    const proves = s => !s.unreadable && (lease > 0 || !s.damaged);
+    if (scan && !scan.unreadable && scan.size === size && proves(scan)) return { proven: true, max: scan.max };
+    if (!active && !(c.blocked && c.blocked.has(n))) {
+      const meta = c.metas && c.metas.get(n);
+      if (meta && num(meta.bytes) === size && num(meta.rows) > 0) return { proven: true, max: num(meta.maxRowId) };
+      const index = readJson(idxFile(n));
+      if (index && index.segment === n && num(index.bytes) === size && num(index.rows) > 0) return { proven: true, max: num(index.maxRowId) };
+    }
+    if (!scan || scan.unreadable || scan.size !== size) {
+      try { scan = noteScan(n, readSegmentFile(n)); }
+      catch (e) { scans.set(n, { size, unreadable: true }); return { proven: false, why: 'unreadable: ' + ((e && e.message) || e) }; }
+    }
+    if (proves(scan)) return { proven: true, max: scan.max };
+    return { proven: false, why: scan.damaged + ' damaged line(s) and no rowid lease' };
+  }
+  function describeUnproven(pf) {
+    if (pf.unlisted) return 'the transcript root could not be listed (' + pf.unlisted + ')';
+    return pf.unproven.map(u => segmentName(u.n) + ' ' + u.why).join('; ');
+  }
+  // a boot's verdict: unsafe mode when any segment is unproven. The unproven segments are recorded in the manifest,
+  // because the meta (and, on a rebuild, the index) this boot writes for them was built from the very bytes that
+  // could not prove them, and must never stand as a later boot's proof (ii).
+  function settleProof(m, pf) {
+    if (pf.ok) { delete m.unprovenSegments; return; }
+    const blocked = blockedOf(m);
+    for (const u of pf.unproven) blocked.add(u.n);
+    if (blocked.size) m.unprovenSegments = Array.from(blocked).sort((a, b) => a - b);
+    enterUnsafe(pf);
+  }
+  function enterUnsafe(pf) {
+    unsafe = true;
+    unsafeWhy = describeUnproven(pf);
+    probedAt = num(now());
+    warning('rowIds unproven: ' + unsafeWhy + '. Appends are refused (TRANSCRIPT_DEGRADED_UNSAFE) so no id is reissued; '
+      + 'the proof is re-run on an append at most every ' + (REPROBE_MS / 1000) + ' s');
+  }
+  function unsafeError() {
+    const e = new Error('transcript appends refused: rowIds unproven (' + unsafeWhy + ')');
+    e.code = 'TRANSCRIPT_DEGRADED_UNSAFE';
+    return e;
+  }
+  /* UNSAFE MODE'S WAY OUT: at most once per REPROBE_MS (the injected clock), an append re-runs provenFloor(). On success
+     the io re-indexes what it could not read, opens a NEW segment above every listed one with nextRowId at or above the
+     floor, leaves unsafe mode, and the append proceeds; otherwise the append is refused as before. */
+  function reprobe() {
+    const t = num(now());
+    if (t < probedAt) probedAt = t;   // a clock that stepped back waits from its new reading
+    if (t - probedAt < REPROBE_MS) return false;
+    probedAt = t;
+    const persisted = readJson(manifestFile);
+    const blocked = blockedOf(persisted);
+    for (const n of blockedOf(manifest)) blocked.add(n);
+    const pf = provenFloor({ metas: metaMapOf(persisted), manifestNext: Math.max(manifest.nextRowId, persisted ? num(persisted.nextRowId) : 0), activeHint: manifest.activeSegment, blocked });
+    if (!pf.ok) {
+      unsafeWhy = describeUnproven(pf);
+      warning('rowIds still unproven: ' + unsafeWhy + '. Appends stay refused');
+      return false;
+    }
+    if (!degraded) {
+      const listed = new Set(pf.numbers);
+      for (const n of new Set([manifest.activeSegment].concat(Array.from(staleIndexes)))) {
+        if (!listed.has(n)) continue;
+        staleIndexes.delete(n);
+        upsertMeta(buildIndex(n));
+      }
+    }
+    closeAppend();
+    activeRows = null; tail = null;
+    manifest.activeSegment = Math.max(pf.maxListed + 1, manifest.activeSegment);   // above every listed file: a new one
+    manifest.nextRowId = Math.max(manifest.nextRowId, pf.floor);
+    activeIndex = emptyIndex(manifest.activeSegment);
+    delete manifest.unprovenSegments;
+    unsafe = false; unsafeWhy = '';
+    warning('rowIds proven: appends resume in ' + segmentName(manifest.activeSegment) + ' (a new segment) from rowId ' + manifest.nextRowId);
+    return true;
+  }
+  /* THE BOOT AUDIT: ids already duplicated on disk by earlier boots (trunk's degraded init reissued ids from 1, into
+     closed segment-000001). Three kinds: overlapping [minRowId, maxRowId] ranges of two segments; ids met while
+     (re)building one segment's index that are not above every id before them (a === b); and a closed segment whose
+     size differs from its persisted meta. Kept in status().idCollisions (at most 50), with one warning. A
+     duplicated id loses only its key rung downstream; the segment itself still proves its max. */
+  function audit() {
+    const found = [];
+    const ranged = manifest.segments.filter(s => num(s.rows) > 0 && num(s.minRowId) > 0)
+      .sort((a, b) => (num(a.minRowId) - num(b.minRowId)) || (a.number - b.number));
+    let reach = null;   // the segment reaching the highest id so far
+    for (const s of ranged) {
+      if (reach && num(s.minRowId) <= num(reach.maxRowId)) {
+        found.push({ kind: 'overlap', a: Math.min(reach.number, s.number), b: Math.max(reach.number, s.number),
+          lo: num(s.minRowId), hi: Math.min(num(s.maxRowId), num(reach.maxRowId)) });
+      }
+      if (!reach || num(s.maxRowId) > num(reach.maxRowId)) reach = s;
+    }
+    for (const [n, scan] of scans) if (scan.dupLo) found.push({ kind: 'duplicate', a: n, b: n, lo: scan.dupLo, hi: scan.dupHi });
+    for (const n of resized) {
+      const meta = manifest.segments.find(s => s.number === n) || {};
+      found.push({ kind: 'size', a: n, b: n, lo: num(meta.minRowId), hi: num(meta.maxRowId) });
+    }
+    found.sort((x, y) => (x.a - y.a) || (x.b - y.b));
+    idCollisions = found.slice(0, AUDIT_MAX);
+    if (found.length) {
+      warning('rowId audit: ' + found.length + ' id collision(s) already on disk (earlier boots reissued ids): '
+        + idCollisions.slice(0, 5).map(c => c.kind + ' ' + segmentName(c.a) + (c.b !== c.a ? '/' + segmentName(c.b) : '') + ' ids ' + c.lo + '-' + c.hi).join(', ')
+        + (found.length > 5 ? ', …' : ''));
+    }
   }
   /* PREVIEW UPGRADE (one time). Closed segments indexed before previews carried provenance (previewVersion) have
      summaries streams() must not trust, so those conversations listed with no preview. Closed JSONL is immutable,
@@ -480,9 +722,17 @@ function makeSegmentedTranscriptIo(opts) {
   }
   function appendRaw(entry, options) {
     const settings = options || {};
+    // UNSAFE MODE: no proven floor, so refuse before an id is consumed or a byte is written (a strict writer fails
+    // through its onFailure and the run journal stays the record; a fail-open row stays RAM-only)
+    if (unsafe && !reprobe()) throw unsafeError();
     if (!activeIndex) activeIndex = loadIndex(manifest.activeSegment, false);
     let row = Object.assign({}, entry);
-    if (num(row.rowId) <= 0) row.rowId = manifest.nextRowId++;
+    const supplied = num(row.rowId) > 0;   // only migrateLegacy supplies one; it never lowers the counter
+    // THE LEASE (A2-ID-01-R): no id at or above the persisted lease is minted or accepted until the lease is renewed
+    // above it, durably, first. A failed renewal throws here: no id consumed, no byte written.
+    const id = supplied ? num(row.rowId) : manifest.nextRowId;
+    if (id >= lease) writeLease(Math.floor(id) + 1 + ROWID_LEASE);
+    if (!supplied) row.rowId = manifest.nextRowId++;
     else manifest.nextRowId = Math.max(manifest.nextRowId, num(row.rowId) + 1);
     const encoded = Buffer.from(JSON.stringify(row) + '\n', 'utf8');
     if (activeIndex.rows > 0 && activeIndex.bytes + encoded.length > segmentBytes) {
@@ -632,8 +882,11 @@ function makeSegmentedTranscriptIo(opts) {
         manifest.segments = manifest.segments.filter(s => s.number !== manifest.activeSegment);
       }
     }
-    migrateLegacy();
+    // the import appends; while rowIds are unproven it waits for a later boot (it is idempotent: done files are skipped)
+    if (!unsafe) migrateLegacy();
+    else if (legacyFiles.length) warning('legacy transcript import deferred to a later boot: appends are refused while rowIds are unproven');
     saveManifest();
+    audit();
   }
   function appendDurable(entry, options) {
     try { return appendRaw(entry, options); }
@@ -695,17 +948,35 @@ function makeSegmentedTranscriptIo(opts) {
   // finalize lookup never re-reads a long stream's whole lifetime ('global'). The slack absorbs a small clock
   // step between the run's start and its rows.
   const SINCE_SLACK_MS = 60 * 60 * 1000;
+  /* A VOUCHED READ (options.vouch = { claim }; turn-identity, findTurn's absence proof): the rows returned are every row
+     of the stream in the segments read, or the read throws. It throws TRANSCRIPT_UNVOUCHED before reading when this
+     view cannot vouch for the disk (degraded, unvouched: the states in which streamRows answers -1; or unsafe). An
+     unreadable segment throws; a damaged line throws only when it names the claim. A closed segment's cached parse
+     (which keeps its damaged lines) stands in for a re-read, since closed segments are immutable; the per-stream
+     slice cache keeps no damaged lines and is never used. */
+  function vouchedRowsIn(n, sid, claim) {
+    const seg = segmentRows(n, false).seg;   // throws on an unreadable file
+    for (const line of seg.bad) if (claim(line)) throw new Error('segment ' + n + ' contains unreadable transcript evidence naming the claim');
+    return seg.rows.filter(row => row.streamId === sid);
+  }
   function history(streamId, options) {
+    const vouch = options && options.vouch && typeof options.vouch === 'object' ? options.vouch : null;
+    if (vouch && (degraded || unvouched || unsafe)) {
+      const e = new Error('transcript history cannot be vouched for: ' + (degraded ? 'initialization degraded' : unvouched ? 'the active segment changed outside this process' : 'rowIds unproven'));
+      e.code = 'TRANSCRIPT_UNVOUCHED';
+      throw e;
+    }
     const limit = Math.max(1, num(options && options.limit) || 400);
     const runId = String((options && options.sourceRunId) || '');
     const since = num(options && options.since);
     // A strict lookup for ONE run fails closed only on a damaged line that names that run. A torn fragment of
     // some other row (a killed append) never names it, so it was never an accepted row of this run.
     const strict = options && options.strict ? (runId ? line => line.includes(JSON.stringify(runId)) : true) : false;
+    const claim = vouch ? (claimed => line => line.includes(claimed))(JSON.stringify(String(vouch.claim))) : null;
     const out = [];
     for (const meta of relevantSegments(streamId, true)) {
       if (since > 0 && num(meta.maxTs) > 0 && num(meta.maxTs) < since - SINCE_SLACK_MS) continue;
-      const rows = streamRowsIn(meta.number, streamId, strict);
+      const rows = claim ? vouchedRowsIn(meta.number, streamId, claim) : streamRowsIn(meta.number, streamId, strict);
       for (let i = rows.length - 1; i >= 0 && out.length < limit; i--) if ((!runId || rows[i].sourceRunId === runId) && (!(options && options.dispatchState) || rows[i].dispatchState === options.dispatchState)) out.push(rows[i]);
       if (out.length >= limit) break;
     }
@@ -825,12 +1096,27 @@ function makeSegmentedTranscriptIo(opts) {
 
   try { init(); upgradeStalePreviews(); }
   catch (e) {
-    warning('history initialization degraded to an empty in-memory view: ' + ((e && e.message) || e));
     closeAppend();
     forgetCaches();
     degraded = true;
-    manifest = freshManifest();
+    idCollisions = [];
+    unsafe = false; unsafeWhy = '';   // re-decided below, from the disk, for this boot outcome
+    /* A DEGRADED BOOT NEVER REISSUES AN ID (A2-ID-01). It used to start over at rowId 1 in segment-000001, a closed and
+       immutable segment, so every id it minted already named a row. Now it opens a NEW segment above every listed
+       one, from the proven floor; with any segment unproven (or the root unlisted) it refuses appends instead. */
+    const persisted = readJson(manifestFile);
+    const okP = !!persisted && typeof persisted === 'object';
+    let pf;
+    try {
+      pf = provenFloor({ metas: metaMapOf(persisted), manifestNext: okP ? num(persisted.nextRowId) : 0, activeHint: okP ? num(persisted.activeSegment) : 0, blocked: blockedOf(persisted) });
+    } catch (proofError) {   // never silent: settleProof below warns with this reason and refuses appends
+      pf = { ok: false, unlisted: 'the proof failed: ' + ((proofError && proofError.message) || proofError), numbers: [], maxListed: 0, floor: 1, unproven: [] };
+    }
+    manifest = { version: VERSION, nextRowId: Math.max(1, pf.floor), activeSegment: pf.maxListed + 1, segments: [], legacy: [] };
     activeIndex = emptyIndex(manifest.activeSegment);
+    warning('history initialization degraded to an empty in-memory view: ' + ((e && e.message) || e)
+      + (pf.ok ? '; new rows go to ' + segmentName(manifest.activeSegment) + ' (a new segment) from rowId ' + manifest.nextRowId : ''));
+    settleProof(manifest, pf);
   }
   return {
     append: appendDurable,
@@ -845,9 +1131,48 @@ function makeSegmentedTranscriptIo(opts) {
     readById,
     // releases the open append handle (the next append reopens it); the process exit releases it too
     close() { closeAppend(); },
-    status() { return JSON.parse(JSON.stringify(manifest)); },
-    _internals: { root, manifestFile, segFile, idxFile, tokenize }
+    // the manifest copy, plus whether boot degraded, whether appends are refused (unsafe), and the boot audit
+    status() { return Object.assign(JSON.parse(JSON.stringify(manifest)), { degraded, unsafe, idCollisions: idCollisions.map(clone) }); },
+    _internals: { root, manifestFile, leaseFile, segFile, idxFile, tokenize }
   };
 }
 
-module.exports = { makeSegmentedTranscriptIo, _internals: { tokenize, wordTokens, countTerms, segmentName, indexName } };
+/* AN IN-MEMORY IO FOR UNIT TESTS (turn-identity). It mints rowIds exactly like appendRaw (monotone from 1; a supplied
+   positive rowId is kept and advances the counter) and returns the stored copy, in the segmented io's public row shape
+   (a JSON round trip, no legacyKey). It has no `history`, so a store over it reads RAM, and findTurn's absence proof
+   over it can only be the whole-stream RAM count (streamRows). The store's own default io stays as it is. The clock is
+   accepted for parity with the store's options; a row keeps the ts its writer stamped. */
+function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
+  const stored = [];
+  let nextRowId = 1;
+  function appendDurable(entry) {
+    let row = Object.assign({}, entry);
+    if (num(row.rowId) <= 0) row.rowId = nextRowId++;
+    else nextRowId = Math.max(nextRowId, num(row.rowId) + 1);
+    row = JSON.parse(JSON.stringify(row));
+    stored.push(row);
+    return publicRow(row);
+  }
+  function readRecent(options) {
+    const perStream = Math.max(1, num(options && options.perStream) || DEFAULT_RECENT_PER_STREAM);
+    const globalLimit = Math.max(0, num(options && options.globalLimit));
+    const counts = new Map(), out = [];
+    for (let i = stored.length - 1; i >= 0 && !(globalLimit > 0 && out.length >= globalLimit); i--) {
+      const row = stored[i], n = counts.get(row.streamId) || 0;
+      if (n >= perStream) continue;
+      counts.set(row.streamId, n + 1); out.push(row);
+    }
+    out.sort((a, b) => num(a.rowId) - num(b.rowId));
+    return out.map(publicRow);
+  }
+  return {
+    append: appendDurable,
+    appendDurable,
+    readAll: readRecent,
+    readRecent,
+    readById(rowId) { const id = num(rowId); const row = id ? stored.find(r => num(r.rowId) === id) : null; return row ? publicRow(row) : null; },
+    streamRows(streamId) { const sid = str(streamId); let n = 0; for (const r of stored) if (r.streamId === sid) n++; return n; }
+  };
+}
+
+module.exports = { makeSegmentedTranscriptIo, makeMemoryTranscriptIo, _internals: { tokenize, wordTokens, countTerms, segmentName, indexName, LEASE_FILE, ROWID_LEASE } };

@@ -479,6 +479,8 @@ test/qa-installed-smoke.test.js
 test/transcript.test.js
 test/transcript-history-v2.test.js
 test/transcript-perf-paths.test.js
+test/transcript-row-identity.test.js
+test/transcript-run.identity.test.js
 test/recall.test.js
 test/session-tombstones.test.js
 test/transcript-selftalk.test.js

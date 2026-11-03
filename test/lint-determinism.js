@@ -41,6 +41,9 @@ files.push(path.join(base, 'frontend', 'app', 'pipeline.js'));
 // transport sim; the ghost projection's route-truth tests depend on it) — hold them to it here.
 files.push(path.join(base, 'frontend', 'app', 'conveyor.js'));
 files.push(path.join(base, 'frontend', 'app', 'ghostline.js'));
+// turnkinds.js is required by the sidecar's transcript store and run writer (turnId grammar, row kinds, quote stamps):
+// its mints take an injected rng and its time conversions an injected now
+files.push(path.join(base, 'frontend', 'app', 'turnkinds.js'));
 
 const banned = [/\bMath\.random\b/, /\bDate\.now\b/, /\bperformance\.now\b/, /\bnew\s+Date\s*\(\s*\)/];
 const labels = ['Math.random', 'Date.now', 'performance.now', 'new Date()'];

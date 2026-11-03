@@ -223,7 +223,7 @@ const SYNC_BASELINE = {
   'tools/builtin/webreader.js': 3,
   'tools/builtin/win32desktop.js': 1,
   'tools/registry.js': 3,   // AUDITED — 3 left: abort-listener attach/detach, abort() in timeout
-  'transcript-history.js': 4,
+  'transcript-history.js': 2,   // turn-identity commit 1: the two manifest readdir catches became unsafe mode (a root that cannot be listed refuses appends)
   'transcriptstore.js': 2,   // AUDITED — 2 left: frozen message marker, tool_calls JSON value default
   'update-preparation.js': 4,
   'workspace-lease.js': 2,

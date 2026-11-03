@@ -31,6 +31,8 @@
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the turnId grammar, row kinds and quote stamp (frontend/app/turnkinds.js, the same module the page loads)
+  const TurnKinds = (typeof require === 'function') ? require('../frontend/app/turnkinds.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnKinds) || null);
 
   const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
@@ -42,6 +44,59 @@
   const RAM_ROWS_MAX = 3000;        // global ceiling across many short streams; disk keeps lifetime truth
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
   function str(v) { return v == null ? '' : String(v); }
+
+  /* ROW IDENTITY (turn-identity). A copy of a stored row is matched by (streamId, rowId): rowIds are global and unique
+     by the durable io's contract, and a row of another stream is never the same row. '' = the row has no identity. */
+  function rowKeyOf(row) {
+    if (!row || typeof row !== 'object') return '';
+    const sid = str(row.streamId), id = row.rowId;
+    if (!sid || id == null || id === '' || !(Number(id) > 0)) return '';
+    return 'r:' + sid + ':' + id;
+  }
+
+  /* ADDITIVE TURN FIELDS (turn-identity commit 1). Every field is optional and validated; an invalid value is dropped,
+     never thrown, and a row given none of them is byte-identical to before (the keys are appended after taintKnown).
+     Nothing in production passes them yet. */
+  const TURN_FIELDS_ATTACH_MAX = 16;
+  const TARGETS_MAX = 500;
+  const NOTE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+  const ATTACH_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];
+  function isSafeNonNeg(v) { return Number.isSafeInteger(v) && v >= 0; }
+  function attachmentRefs(list) {
+    if (!Array.isArray(list)) return null;
+    const out = [];
+    for (const a of list) {
+      if (out.length >= TURN_FIELDS_ATTACH_MAX) break;
+      if (!a || typeof a !== 'object' || typeof a.path !== 'string' || a.path.indexOf('.attachments/') !== 0) continue;
+      const ref = {};
+      for (const [k, max] of ATTACH_LIMITS) { const v = typeof a[k] === 'string' ? a[k].slice(0, max) : ''; if (v) ref[k] = v; }
+      out.push(ref);   // a reference only: never the attachment's bytes
+    }
+    return out.length ? out : null;
+  }
+  // quotes + quotesAt as one aligned list: ids are stream ids (or the '*' marker); more than QUOTES_MAX distinct ids, or
+  // the marker, is the saturated stamp ['*'] (never a silent truncation). A quotesAt that is not one non-negative safe
+  // integer per given quote is dropped whole (every quote time then counts as 0).
+  function quoteFields(quotes, quotesAt) {
+    if (!Array.isArray(quotes) || !quotes.length) return null;
+    const timed = Array.isArray(quotesAt) && quotesAt.length === quotes.length && quotesAt.every(isSafeNonNeg);
+    const ids = [], at = new Map();
+    let saturated = false, minAt = Infinity;
+    quotes.forEach((q, i) => {
+      if (typeof q !== 'string' || (q !== '*' && !SID_RE.test(q))) return;
+      const t = timed ? quotesAt[i] : 0;
+      if (t < minAt) minAt = t;
+      if (q === '*') { saturated = true; return; }
+      if (!at.has(q)) { at.set(q, t); ids.push(q); } else if (t < at.get(q)) at.set(q, t);
+    });
+    const max = TurnKinds ? TurnKinds.QUOTES_MAX : 32;
+    if (saturated || ids.length > max) {
+      failNote('turn.quotes.saturated', new Error((saturated ? 'saturated marker' : ids.length + ' quoted streams') + ' stored as the saturated stamp'));
+      return timed ? { quotes: ['*'], quotesAt: [minAt] } : { quotes: ['*'] };
+    }
+    if (!ids.length) return null;
+    return timed ? { quotes: ids, quotesAt: ids.map(id => at.get(id)) } : { quotes: ids };
+  }
 
   /* ROW PROVENANCE — the one rule for reading a stored row's taint (review memory-learning-07; docs/DECISIONS.md).
      A row with `taint` was written by a run that had read untrusted content: that is its source. A row whose writer
@@ -472,7 +527,36 @@
       // Distinguish the host explicitly checking a clean row from legacy/missing provenance.
       // Never infer clean merely because old storage omitted its taint field.
       if (Object.prototype.hasOwnProperty.call(e, 'taint')) entry.taintKnown = true;
+      if (TurnKinds) turnFields(entry, e);
       return entry;
+    }
+    // the additive turn fields (ADDITIVE TURN FIELDS above), appended in this order after every existing key
+    function turnFields(entry, e) {
+      if (TurnKinds.isTurnId(e.turnId)) entry.turnId = e.turnId;
+      if (TurnKinds.isKind(e.kind)) {
+        entry.kind = e.kind;
+        // a kind an older reader would misread is stored as a system row, whatever role the writer passed (M2)
+        if (TurnKinds.SYSTEM_KINDS.indexOf(e.kind) >= 0) entry.role = 'system';
+      }
+      if (e.directive === true && entry.role === 'user' && entry.turnId) entry.directive = true;
+      if (e.typed != null) {
+        // the pre-expansion words of a directive: redacted like content, kept only when they differ from it
+        let typed = str(e.typed).slice(0, CONTENT_MAX), ok = true;
+        try { typed = str(redact(typed)).slice(0, CONTENT_MAX); }
+        catch (error) { ok = false; failNote('transcript.redact', error); }   // never stored unredacted
+        if (ok && typed && typed !== entry.content) entry.typed = typed;
+      }
+      const attachments = attachmentRefs(e.attachments);
+      if (attachments) entry.attachments = attachments;
+      if (typeof e.line === 'string') { const line = e.line.slice(0, 120); if (line) entry.line = line; }
+      const quoted = quoteFields(e.quotes, e.quotesAt);
+      if (quoted) { entry.quotes = quoted.quotes; if (quoted.quotesAt) entry.quotesAt = quoted.quotesAt; }
+      if (Array.isArray(e.targets)) {
+        const targets = Array.from(new Set(e.targets.filter(t => Number.isSafeInteger(t) && t > 0))).slice(0, TARGETS_MAX);
+        if (targets.length) entry.targets = targets;
+      }
+      if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
+      if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
     }
 
     function persistEntry(entry, strict) {
@@ -517,6 +601,29 @@
     // shape and same skip rule (injected 'system' fences are not dialogue), so the durable file is unchanged;
     // only WHICH messages are considered new differs. Idempotent: appending the same array twice writes once,
     // which also makes it safe to drain mid-run (at a compaction) and again at run end.
+    /* TURN STAMPS ON A DRAIN (turn-identity). opts.turnId / line / quotes / quotesAt ride every row written;
+       opts.kindOf(m) gives each row its kind. Only with kindOf, a system message tagged with a SYSTEM kind
+       (TurnKinds.tag: a folded steer note, …) is a row of its own, stored as role 'system' with that kind and noteId;
+       every other system message stays a skipped fence, exactly as without kindOf. Returns null for a skipped one. */
+    function systemRowTag(m, opts) {
+      if (!opts || typeof opts.kindOf !== 'function' || !TurnKinds || m.role !== 'system') return null;
+      const t = TurnKinds.tagOf(m);
+      return t && TurnKinds.SYSTEM_KINDS.indexOf(t.kind) >= 0 ? t : null;
+    }
+    function turnStamps(m, opts, sysTag) {
+      if (!opts) return {};
+      const out = {};
+      if (opts.turnId !== undefined) out.turnId = opts.turnId;
+      if (opts.line !== undefined) out.line = opts.line;
+      if (opts.quotes !== undefined) { out.quotes = opts.quotes; out.quotesAt = opts.quotesAt; }
+      if (typeof opts.kindOf === 'function') {
+        const t = sysTag || (TurnKinds ? TurnKinds.tagOf(m) : null);
+        out.kind = sysTag ? sysTag.kind : opts.kindOf(m);
+        if (t && t.noteId != null) out.noteId = t.noteId;
+      }
+      return out;
+    }
+
     function appendNew(streamId, agentId, messages, opts) {
       if (!Array.isArray(messages)) return 0;
       const taint = opts && opts.taint ? opts.taint : null;
@@ -524,8 +631,9 @@
       for (const m of messages) {
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         markPersisted([m]);                                    // mark BEFORE the role filter so fences aren't re-checked
-        if (!ROLES.has(m.role) || m.role === 'system') continue;
-        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState });
+        const sysTag = systemRowTag(m, opts);
+        if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) continue;
+        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
         n++;
       }
       return n;
@@ -540,8 +648,9 @@
       let n = 0;
       for (const m of messages) {
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
-        if (!ROLES.has(m.role) || m.role === 'system') { markPersisted([m]); continue; }
-        appendStrict({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null });
+        const sysTag = systemRowTag(m, opts);
+        if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) { markPersisted([m]); continue; }
+        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
         markPersisted([m]);
         n++;
       }
@@ -690,6 +799,84 @@
       return out;
     }
 
+    /* FIND A TURN BY ITS turnId (turn-identity, A2-ID-04): { state: 'found', directive, rows } | { state: 'absent' } |
+       { state: 'unknown' }. The directive is ONLY the `directive: true` row of that turnId (a capture or repair row is
+       user-role and carries the turnId too, and is never taken for it). Rungs 1-3 only ever PROVE 'found': a read that
+       misses something (a RAM fallback, a skipped segment) just falls through. 'absent' comes only from rung 4, a read
+       that provably covers every row of the stream written since `since` — never from readHistory, whose RAM fallback
+       and non-strict segment reads can silently return fewer rows, and never from io.history's `since`, which only
+       skips segments. Whether the caller minted the turnId itself is the caller's question (TurnKinds.ownMint). */
+    const FIND_RECENT = 1200, FIND_RUN_ROWS = 5000, FIND_RUNS_MAX = 4, FIND_COVER = 5000, FIND_SLACK_MS = 10 * 60 * 1000;
+    function retractTargets(list, into) {
+      const out = into || new Set();
+      for (const r of list) if (r && r.kind === 'retract' && Array.isArray(r.targets)) for (const t of r.targets) out.add(num(t));
+      return out;
+    }
+    function findTurn(streamId, turnId, o) {
+      o = o || {};
+      if (!TurnKinds || !TurnKinds.isTurnId(turnId) || !SID_RE.test(str(streamId))) return { state: 'absent' };
+      const want = str(streamId);
+      const ofTurn = r => r && r.streamId === want && r.turnId === turnId;
+      const isDirective = r => ofTurn(r) && r.directive === true && r.role === 'user';
+      const byRowId = (a, b) => num(a.rowId) - num(b.rowId);
+      // 1. the newest rows of the stream (deletes honoured: a tombstoned directive is never found), retracts applied
+      const recent = history(want, { limit: FIND_RECENT });
+      const retracted = retractTargets(recent);
+      const live = r => !retracted.has(num(r.rowId));
+      const seen = recent.filter(r => ofTurn(r) && live(r));
+      const found = (directive, list) => {
+        const all = new Map();
+        for (const r of list.concat([directive])) if (ofTurn(r) && live(r)) all.set(num(r.rowId) || ('x' + all.size), r);
+        return { state: 'found', directive: Object.assign({}, directive), rows: Array.from(all.values()).sort(byRowId).map(r => Object.assign({}, r)) };
+      };
+      let directive = seen.find(isDirective);
+      if (directive) return found(directive, seen);
+      // 2. T's rows are here without their directive: each run that wrote them wrote its directive first
+      if (seen.length) {
+        const runs = Array.from(new Set(seen.map(r => str(r.sourceRunId)).filter(Boolean))).slice(0, FIND_RUNS_MAX);
+        for (const runId of runs) {
+          const runRows = history(want, { sourceRunId: runId, limit: FIND_RUN_ROWS });
+          retractTargets(runRows, retracted);
+          directive = runRows.find(r => isDirective(r) && live(r));
+          if (directive) return found(directive, seen.concat(runRows.filter(ofTurn)));
+        }
+      }
+      // 3. the client named the directive's rowId: prove it by reading that row
+      if (o.turnRowId != null && num(Number(o.turnRowId)) > 0) {
+        let row = null;
+        try {
+          if (typeof io.readById === 'function') row = io.readById(Number(o.turnRowId));
+          else row = rows.find(r => num(r.rowId) === Number(o.turnRowId)) || null;
+        } catch (e) { failNote('transcript.findTurn', e); row = null; }
+        if (row && isDirective(row) && !forgotten(row) && live(row)) return found(row, seen);
+      }
+      if (seen.length) return { state: 'unknown' };   // T's rows exist, but no rung could find its directive
+      // 4. the absence proof: every row of the stream written since `since` was read, and none is T's
+      const turnAt = o.turnAt;
+      if (!(Number.isSafeInteger(turnAt) && turnAt >= 0)) return { state: 'unknown' };
+      const since = Math.min(turnAt, num(clock.now())) - FIND_SLACK_MS;
+      let cover = null;
+      if (typeof io.streamRows === 'function' && !ramGaps.has(want)) {
+        // (a) RAM holds the whole stream (ramHistory's own test): a short stream, no disk read
+        let durable = -1;
+        try { durable = io.streamRows(want); } catch (e) { failNote('transcript.findTurn', e); durable = -1; }
+        const held = rows.filter(r => r.streamId === want);
+        if (typeof durable === 'number' && durable >= 0 && durable === held.length) cover = held;
+      }
+      if (!cover && typeof io.history === 'function') {
+        // (b) a VOUCHED read of raw rows, directly (no RAM, no fallback, no forget filter: forgotten rows count)
+        let got;
+        try { got = io.history(want, { limit: FIND_COVER, since, vouch: { claim: turnId } }); }
+        catch (e) { failNote('transcript.findTurn', e); return { state: 'unknown' }; }
+        if (!Array.isArray(got)) return { state: 'unknown' };
+        const complete = got.length < FIND_COVER || num(got[0] && got[0].ts) < since;
+        if (!complete) return { state: 'unknown' };
+        cover = got;
+      }
+      if (!cover) return { state: 'unknown' };
+      return cover.some(r => r && r.turnId === turnId) ? { state: 'unknown' } : { state: 'absent' };
+    }
+
     // H1.2: rebuild the recent dialogue for a stream as an OpenAI-format messages array, so a fresh run (empty
     // browser history) can RESUME exact prior state. Pairing-safe: a tool message needs its assistant tool_call,
     // so we drop a leading orphaned 'tool' (truncated-slice start) and strip tool_calls off a trailing assistant
@@ -716,11 +903,12 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
+      findTurn,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }
     };
   }
 
-  return { makeTranscriptStore, projectConversation, conversationPreview, isFinalDeliveryRow, markPersisted, rowTaint, UNVERIFIED_ROW, _internals: { SID_RE, ROLES, PERSISTED, flattenContent } };
+  return { makeTranscriptStore, projectConversation, conversationPreview, isFinalDeliveryRow, markPersisted, rowTaint, rowKeyOf, UNVERIFIED_ROW, _internals: { SID_RE, ROLES, PERSISTED, flattenContent } };
 });
