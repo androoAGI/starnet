@@ -20,6 +20,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
+  // a failure it swallows is noted (failopen.js) where the module system can reach it
+  const failNote = (function () {
+    if (typeof require !== 'function') return null;
+    try { return require('./failopen.js').note; } catch (e) { return null; }
+  })();
   // why this withdrawn run ended, or null while it is still the live run
   function endOf(rec) { return (rec && rec.endReason) || null; }
   /* the first writer wins; true when this call is the one that wrote it. A record that carries onEnd(reason) (a channel
@@ -29,7 +34,7 @@
   function markEnd(rec, reason) {
     if (!rec || typeof rec !== 'object' || rec.endReason) return false;
     rec.endReason = reason;
-    if (typeof rec.onEnd === 'function') { try { rec.onEnd(reason); } catch (_) { /* a stop must never throw */ } }
+    if (typeof rec.onEnd === 'function') { try { rec.onEnd(reason); } catch (e) { if (failNote) failNote('halt.markEnd.onEnd', e); } }
     return true;
   }
 
