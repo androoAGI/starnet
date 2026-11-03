@@ -27,9 +27,13 @@
               driver, the desktop opener, the proxy's net.connect), run over the same rows: web_fetch and web_request
               (caller URL, redirect hops, one DNS question per hop, the dial pinned to exactly the validated addresses
               and closed), browser.navigate (caller URL and where the page landed), the login window, desktop links,
-              and the owned browser's proxy (CONNECT) with the guards makeCdpDriver gives it.
-   The connector OAuth and skill rows and the one-classifier census join this file as those consumers move onto the
-   module. Real sockets: test/safe-egress.real-socket.test.js. */
+              the owned browser's proxy (CONNECT) with the guards makeCdpDriver gives it, connector OAuth's literal
+              check (mcp/oauth.js) and its fetch (makeConnectorOauthFetch({ onCloseError }), globalThis.fetch read per
+              call: every leg and publicDestination), and the skill document fetch (makeSkillDocumentFetcher({
+              fetchImpl }): a document, its redirect hops, a package's one session per host).
+     CENSUS   ONE CLASSIFIER: no sidecar file but the boundary holds a private-range or intranet-name table, answers a
+              connect-time lookup or asks DNS for a destination itself (code only; one documented exception).
+   Real sockets: test/safe-egress.real-socket.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const net = require('node:net');
@@ -229,7 +233,7 @@ const DNS_TEXT = {
   // ---- M0. the module loads no network code and holds no state worth a clock ----
   A.ok(!undiciAtLoad, 'requiring the module does not load undici (it is required at dial time)');
   A.eq(Object.keys(S).sort(), ['EXITS', 'POLICIES', 'TABLE', 'classifyHost', 'normalizeHost', 'pinnedDispatcher', 'pinnedLookup',
-    'privateAnswerExit', 'refusal', 'resolveValidated', 'session', 'validateUrl', 'withPinned'], 'the module exports the boundary and nothing else');
+    'privateAnswerExit', 'refusal', 'resolveValidated', 'session', 'validateUrl', 'withAnswerExit', 'withPinned'], 'the module exports the boundary and nothing else');
 
   // ---- M1. the table is data: frozen, ordered, every refused row names an exit that exists ----
   A.ok(Object.isFrozen(S.TABLE) && Object.isFrozen(S.TABLE.v4) && Object.isFrozen(S.TABLE.v4[0]) && Object.isFrozen(S.POLICIES.web) &&
@@ -654,6 +658,21 @@ const DNS_TEXT = {
     A.ok(/DNS answered 0\.0\.0\.0 for auth\.example/.test(station) && /Fix or allow auth\.example in that DNS filter\.$/.test(station) && !/own secure DNS/.test(station),
       'connector sign-in speaks in the station voice (a policy name picks its voice)');
     A.eq(S.privateAnswerExit('h.example', '0.0.0.0', S.POLICIES.web), S.privateAnswerExit('h.example', '0.0.0.0', 'web'), 'a POLICIES row picks its voice too');
+    // withAnswerExit: the one way every consumer appends it (as its own sentence, once), and only to a private answer
+    const priv = async p => (await settle(S.resolveValidated('https://h.example/', { policy: p, lookup: async () => [{ address: '0.0.0.0', family: 4 }] }))).error;
+    for (const p of POLICY_NAMES) {
+      const e = await priv(p);
+      const before = e.message;
+      A.ok(S.withAnswerExit(e, p) === e && e.message === before + '. ' + (s => s.charAt(0).toUpperCase() + s.slice(1))(S.privateAnswerExit('h.example', '0.0.0.0', p)), p + ': withAnswerExit appends the exit in its voice, as a sentence');
+      S.withAnswerExit(e, p);
+      A.ok(e.message.split('Fix or allow').length === 2 && e.code === 'EGRESS_REFUSED' && e.egress.reason === 'private-answer', p + ': once, however often it is called, and the refusal keeps its code and record');
+    }
+    const browserE = await priv('browser');
+    A.eq(S.withAnswerExit(browserE, 'browser').message, 'refusing to navigate: h.example resolves to private address 0.0.0.0. ' + S.privateAnswerExit('h.example', '0.0.0.0', 'browser'), 'the browser\'s sentence starts as explainRefusal\'s does');
+    const other = S.refusal('no-address', { policy: 'web', host: 'h.example' });
+    const plainErr = new Error('getaddrinfo ENOTFOUND h.example');
+    A.ok(S.withAnswerExit(other, 'web').message === 'no verified DNS address for h.example' && S.withAnswerExit(plainErr, 'web').message === 'getaddrinfo ENOTFOUND h.example' && S.withAnswerExit(null, 'web') === null,
+      'any other refusal or error comes back untouched');
   }
 
   // ---- M14. the module speaks each consumer's words today: read through web.js and browser.js's own entry points ----
@@ -993,7 +1012,358 @@ const DNS_TEXT = {
       await proxy.close();
     }
   });
+
+  const tick = () => new Promise(r => setImmediate(r));
+  // the sentence connector sign-in and the skill downloads append to a private-answer refusal (the station's voice)
+  const stationExit = (p, host, address) => '. ' + cap(S.privateAnswerExit(host, address, p));
+  // the https and the plain-http form of a HOST_ROW (connector OAuth and the skill sources are https-only)
+  const asScheme = (url, scheme) => url.replace(/^https?:/, scheme);
+
+  // ---- C8. connector OAuth's literal check (mcp/oauth.js), made wherever an endpoint is named (discovery, client
+  //      registration, the token endpoint, the authorization URL): the https form of every HOST_ROW through getJson ----
+  await section('C8', async () => {
+    const O = require('../sidecar/mcp/oauth.js');
+    for (const [url, want, , note] of HOST_ROWS) {
+      const target = asScheme(url, 'https:'), host = hostOfUrl(target);
+      const fetched = [];
+      const fetchImpl = async u => { fetched.push(String(u)); return { status: 200, json: async () => ({ ok: true }) }; };
+      const r = await settle(O._internals.getJson(fetchImpl, target, 'protected-resource metadata', {}));
+      const tag = 'connector literal check ' + target + (note ? ' [' + note + ']' : '');
+      if (want === 'refuse') A.eq([r.error && r.error.message, fetched.length], ['protected-resource metadata: refusing an endpoint on an internal host (' + host + ')', 0], tag + ': refused in its own words, nothing fetched');
+      else A.eq([r.error ? r.error.message : 'fetched', fetched], ['fetched', [target]], tag + ': allowed, fetched as written');
+    }
+    // https comes first, as it always did: a plain-http endpoint is refused for that, whatever its host
+    for (const url of ['http://example.com/.well-known/oauth-protected-resource', 'http://127.0.0.1/x']) {
+      const r = await settle(O._internals.getJson(async () => { throw new Error('must not fetch'); }, url, 'token endpoint', {}));
+      A.eq(r.error && r.error.message, 'token endpoint: url must be https (' + url + ')', 'connector literal check ' + url + ': refused as plain http first');
+    }
+  });
+
+  // ---- C9. connector OAuth's fetch as index.js builds it, makeConnectorOauthFetch({ onCloseError }): every leg's URL
+  //      (a remote server chose it), every HOST_ROW in both schemes and every DNS_ROW, then publicDestination (a custom
+  //      server's authorization endpoint). globalThis.fetch is swapped the way the preload rigs swap it ----
+  await section('C9', async () => {
+    const { makeConnectorOauthFetch } = require('../sidecar/mcp/oauth-fetch.js');
+    const realFetch = globalThis.fetch;
+    const rec = { fetched: [], agents: [], closeErrors: [] };
+    const reset = () => { asked.length = 0; rec.fetched.length = 0; rec.agents.length = 0; };
+    globalThis.fetch = async (url, init) => { rec.fetched.push({ url: String(url), init: init || {} }); return { status: 200, ok: true }; };
+    const agentFactory = o => { const a = { o, closed: 0, close: async () => { a.closed++; } }; rec.agents.push(a); return a; };
+    try {
+      const C = makeConnectorOauthFetch({ onCloseError: e => rec.closeErrors.push(e), agentFactory });
+      for (const [url, want, , note] of HOST_ROWS) {
+        for (const scheme of ['https:', 'http:']) {
+          const target = asScheme(url, scheme), host = hostOfUrl(target), name = new URL(target).hostname;
+          reset(); answerFor = () => [PUB4];
+          const r = await settle(C.connectorOauthFetch(target, { method: 'POST', redirect: 'follow' }));
+          await tick();
+          const tag = 'connector OAuth ' + target + (note ? ' [' + note + ']' : '');
+          if (want === 'refuse') {
+            A.eq(r.error && [r.error.message, r.error.hostAuthored === true, r.error.egress && r.error.egress.reason], ['refusing to fetch private/loopback/intranet host: ' + host, false, 'not-public'],
+              tag + ': refused in the connector\'s words, never host-authored (a remote server named it)');
+            A.eq([asked.length, rec.fetched.length, rec.agents.length], [0, 0, 0], tag + ': no DNS question, no fetch, no dispatcher');
+            continue;
+          }
+          if (scheme === 'http:') {
+            A.eq([r.error && r.error.message, asked.length, rec.fetched.length], [HTTPS_TEXT.connectorOauth, 0, 0], tag + ': a public host over plain http is refused for that, before any DNS question');
+            continue;
+          }
+          A.ok(r.value && r.value.status === 200, tag + ': allowed' + (r.error ? ' (refused: ' + r.error.message + ')' : ''));
+          const f = rec.fetched[0] || { init: {} };
+          A.eq([rec.fetched.length, f.url, f.init.redirect, f.init.method], [1, new URL(target).href, 'manual', 'POST'], tag + ': one fetch, of the URL as written, redirects manual');
+          if (isLiteral(target)) {
+            A.eq([asked.length, rec.agents.length, f.init.dispatcher || null], [0, 0, null], tag + ': an IP literal needs no DNS and no pin');
+            continue;
+          }
+          A.eq(asked, [[name, { all: true }]], tag + ': ONE DNS question, for the URL\'s own name');
+          A.ok(rec.agents.length === 1 && f.init.dispatcher === rec.agents[0], tag + ': the fetch dials through the leg\'s pinned dispatcher');
+          if (rec.agents[0]) A.eq([pinOf(rec.agents[0], name), rec.agents[0].closed], [{ all: [[PUB4.address, 4]], one: [PUB4.address, 4] }, 1], tag + ': which answers only the validated address, and is closed');
+        }
+      }
+      for (const row of DNS_ROWS) {
+        const host = row.host || DNS_HOST, url = 'https://' + host + '/x';
+        reset(); answerFor = answerRow(row);
+        const r = await settle(C.connectorOauthFetch(url));
+        await tick();
+        const tag = 'connector OAuth DNS ' + row.label;
+        A.eq(asked, row.local ? [] : [[host, { all: true }]], tag + (row.local ? ': answered locally, never asked of DNS' : ': exactly one DNS question'));
+        if (row.allow) {
+          A.ok(r.value && rec.fetched.length === 1 && rec.agents.length === 1 && rec.fetched[0].init.dispatcher === rec.agents[0], tag + ': allowed, dialed through one pinned dispatcher');
+          if (rec.agents[0]) A.eq([pinOf(rec.agents[0], host), rec.agents[0].closed], [{ all: row.allow.map(a => [a.address, a.family]), one: [row.allow[0].address, row.allow[0].family] }, 1],
+            tag + ': the dial gets EVERY validated address, in order (the first for a single answer), and its dispatcher is closed');
+          continue;
+        }
+        A.eq([rec.fetched.length, rec.agents.length], [0, 0], tag + ': nothing fetched, nothing dialed');
+        const e = r.error;
+        if (row.refuse === 'private-answer') A.eq(e && [e.message, e.hostAuthored === true], [DNS_TEXT[row.refuse]('connectorOauth', row) + stationExit('connectorOauth', host, row.address), false], tag + ': the connector\'s words plus the DNS-filter exit, never host-authored');
+        else if (row.refuse) A.eq(e && [e.message, e.hostAuthored === true], [DNS_TEXT[row.refuse]('connectorOauth', row), false], tag + ': the connector\'s words, never host-authored');
+        else A.eq(e && [e.message, e.code, e.hostAuthored === true], ['getaddrinfo ' + (row.fails || row.local) + ' ' + host, row.fails || row.local, false], tag + ': the resolver\'s own error, its code kept (it may pass)');
+      }
+      // a rebinding resolver: [IPv6, IPv4] for a leg's one question, loopback for the next: each leg asks once, dials its own answer
+      {
+        reset();
+        let n = 0;
+        answerFor = () => (++n === 1 ? [PUB6, PUB4] : [{ address: '127.0.0.1', family: 4 }]);
+        const first = await settle(C.connectorOauthFetch('https://' + DNS_HOST + '/register', { method: 'POST' }));
+        const second = await settle(C.connectorOauthFetch('https://' + DNS_HOST + '/token', { method: 'POST' }));
+        await tick();
+        A.ok(first.value && rec.agents.length === 1 && rec.agents[0].closed === 1, 'connector OAuth rebinding: the first leg dials its one answer, and closes');
+        A.eq(rec.agents[0] && pinOf(rec.agents[0], DNS_HOST).all, [[PUB6.address, 6], [PUB4.address, 4]], 'connector OAuth rebinding: that answer, every address of it');
+        A.eq([n, rec.fetched.length], [2, 1], 'connector OAuth rebinding: one DNS question per leg; the second leg\'s loopback answer is never fetched');
+        A.ok(second.error && second.error.message.startsWith('refusing: ' + DNS_HOST + ' resolves to private address 127.0.0.1. '), 'connector OAuth rebinding: it is refused, with the DNS-filter exit');
+      }
+      // publicDestination: a custom server's authorization endpoint (the Commander's browser opens it; nothing is fetched)
+      for (const [url, want, , note] of HOST_ROWS) {
+        const target = asScheme(url, 'https:');
+        reset(); answerFor = () => [PUB4];
+        const r = await settle(C.publicDestination(target));
+        const tag = 'connector publicDestination ' + target + (note ? ' [' + note + ']' : '');
+        if (want === 'refuse') A.eq([r.error && r.error.message, asked.length], ['refusing to fetch private/loopback/intranet host: ' + hostOfUrl(target), 0], tag + ': refused in the connector\'s words');
+        else A.eq([r.error ? r.error.message : 'ok', r.value && Object.isFrozen(r.value), r.value && r.value.href, r.value && r.value.policy, asked.length, rec.fetched.length, rec.agents.length],
+          ['ok', true, new URL(target).href, 'connectorOauth', isLiteral(target) ? 0 : 1, 0, 0], tag + ': a frozen connectorOauth Destination, one DNS question for a name, nothing fetched or dialed');
+      }
+      for (const row of DNS_ROWS.filter(x => x.refuse === 'private-answer')) {
+        reset(); answerFor = answerRow(row);
+        const r = await settle(C.publicDestination('https://' + DNS_HOST + '/authorize'));
+        A.eq(r.error && r.error.message, DNS_TEXT[row.refuse]('connectorOauth', row) + stationExit('connectorOauth', DNS_HOST, row.address), 'connector publicDestination DNS ' + row.label + ': refused with the DNS-filter exit');
+      }
+      A.eq(rec.closeErrors, [], 'connector OAuth: no dispatcher close failed');
+    } finally { globalThis.fetch = realFetch; }
+  });
+
+  // the skill document fetch as index.js builds it, makeSkillDocumentFetcher({ fetchImpl }) (Skill Exchange, the Skill
+  // Market catalog, community maps, imports); the fetch and the dispatcher factory are recorded at the edge
+  const SF = require('../sidecar/skills/exchange-fetch.js');
+  const skillAnswer = (rec, status, text, loc) => ({ status, ok: status >= 200 && status < 300,
+    headers: { get: k => (String(k).toLowerCase() === 'location' ? (loc || null) : null) },
+    body: { cancel: async () => { rec.cancelled++; }, async *[Symbol.asyncIterator]() { yield Buffer.from(String(text || '')); } } });
+  function skillRig(answer) {
+    const rec = { fetched: [], agents: [], cancelled: 0 };
+    rec.fetchDocument = SF.makeSkillDocumentFetcher({
+      fetchImpl: async (url, init) => { rec.fetched.push({ url: String(url), dispatcher: (init && init.dispatcher) || null }); return answer ? answer(rec, String(url)) : skillAnswer(rec, 200, 'consumer row ok'); },
+      agentFactory: o => { const a = { o, closed: 0, close: async () => { a.closed++; } }; rec.agents.push(a); return a; }
+    });
+    return rec;
+  }
+
+  // ---- C10. the skill document fetch: a document's own URL (every HOST_ROW in both schemes, every DNS_ROW), its
+  //      redirect hops, and a package's ONE session per host ----
+  await section('C10', async () => {
+    for (const [url, want, , note] of HOST_ROWS) {
+      for (const scheme of ['https:', 'http:']) {
+        const target = asScheme(url, scheme), host = hostOfUrl(target), name = new URL(target).hostname;
+        asked.length = 0; answerFor = () => [PUB4];
+        const rec = skillRig();
+        const r = await settle(rec.fetchDocument(target));
+        const tag = 'skill fetch ' + target + (note ? ' [' + note + ']' : '');
+        if (want === 'refuse') {
+          A.eq(r.error && [r.error.message, r.error.hostAuthored === true], ['refusing to fetch private/loopback/intranet host: ' + host, false], tag + ': refused in the skill source\'s words, never host-authored');
+          A.eq([asked.length, rec.fetched.length, rec.agents.length], [0, 0, 0], tag + ': no DNS question, no fetch, no dispatcher');
+          continue;
+        }
+        if (scheme === 'http:') {
+          A.eq([r.error && r.error.message, asked.length, rec.fetched.length], [HTTPS_TEXT.skillSource, 0, 0], tag + ': a public host over plain http is refused for that, before any DNS question');
+          continue;
+        }
+        A.eq([r.error ? r.error.message : 'ok', r.value && r.value.text, rec.fetched.map(f => f.url)], ['ok', 'consumer row ok', [new URL(target).href]], tag + ': allowed, one fetch of the URL as written');
+        if (isLiteral(target)) {
+          A.eq([asked.length, rec.agents.length, rec.fetched[0] && rec.fetched[0].dispatcher], [0, 0, null], tag + ': an IP literal needs no DNS and no pin');
+          continue;
+        }
+        A.eq(asked, [[name, { all: true }]], tag + ': ONE DNS question, for the URL\'s own name');
+        A.ok(rec.agents.length === 1 && rec.fetched[0].dispatcher === rec.agents[0], tag + ': the fetch dials through the hop\'s pinned dispatcher (it handed none before)');
+        if (rec.agents[0]) A.eq([pinOf(rec.agents[0], name), rec.agents[0].closed], [{ all: [[PUB4.address, 4]], one: [PUB4.address, 4] }, 1], tag + ': which answers only the validated address, and is closed after the body');
+      }
+    }
+    for (const row of DNS_ROWS) {
+      const host = row.host || DNS_HOST, url = 'https://' + host + '/SKILL.md';
+      asked.length = 0; answerFor = answerRow(row);
+      const rec = skillRig();
+      const r = await settle(rec.fetchDocument(url));
+      const tag = 'skill fetch DNS ' + row.label;
+      A.eq(asked, row.local ? [] : [[host, { all: true }]], tag + (row.local ? ': answered locally, never asked of DNS' : ': exactly one DNS question'));
+      if (row.allow) {
+        A.ok(r.value && rec.fetched.length === 1 && rec.agents.length === 1 && rec.fetched[0].dispatcher === rec.agents[0], tag + ': allowed, dialed through one pinned dispatcher');
+        if (rec.agents[0]) A.eq([pinOf(rec.agents[0], host), rec.agents[0].closed], [{ all: row.allow.map(a => [a.address, a.family]), one: [row.allow[0].address, row.allow[0].family] }, 1],
+          tag + ': the dial gets every validated address, in order, and its dispatcher is closed');
+        continue;
+      }
+      A.eq([rec.fetched.length, rec.agents.length], [0, 0], tag + ': nothing fetched, nothing dialed');
+      const e = r.error;
+      if (row.refuse === 'private-answer') A.eq(e && [e.message, e.hostAuthored === true], [DNS_TEXT[row.refuse]('skillSource', row) + stationExit('skillSource', host, row.address), false], tag + ': the skill source\'s words plus the DNS-filter exit');
+      else if (row.refuse) A.eq(e && [e.message, e.hostAuthored === true], [DNS_TEXT[row.refuse]('skillSource', row), false], tag + ': the skill source\'s words');
+      else A.eq(e && [e.message, e.code], ['getaddrinfo ' + (row.fails || row.local) + ' ' + host, row.fails || row.local], tag + ': the resolver\'s own error, its code kept (it may pass)');
+    }
+    // redirect hops (the source chose them): validated as their own destination, one DNS question each, bodies discarded
+    const START = 'https://start.example.com/SKILL.md';
+    const bounceTo = loc => (rec, url) => (url.indexOf('://start.example.com/') > 0 ? skillAnswer(rec, 302, 'moved', loc) : skillAnswer(rec, 200, 'landed'));
+    for (const [url, want] of HOST_ROWS) {
+      if (want !== 'refuse') continue;
+      const target = asScheme(url, 'https:');
+      asked.length = 0; answerFor = () => [PUB4];
+      const rec = skillRig(bounceTo(target));
+      const r = await settle(rec.fetchDocument(START));
+      const tag = 'skill fetch redirect to ' + target;
+      A.eq(r.error && [r.error.message, r.error.hostAuthored === true, r.error.egress && r.error.egress.origin], ['refusing to fetch private/loopback/intranet host: ' + hostOfUrl(target), false, 'redirect'], tag + ': refused in the same words, as a redirect hop');
+      A.eq([asked.map(q => q[0]), rec.fetched.length, rec.cancelled, rec.agents.map(a => a.closed)], [['start.example.com'], 1, 1, [1]],
+        tag + ': the refused hop is neither asked of DNS nor fetched; the redirect\'s body was cancelled and the first hop\'s dispatcher closed');
+    }
+    for (const row of DNS_ROWS) {
+      if (row.allow) continue;
+      const host = row.host || DNS_HOST;
+      asked.length = 0; answerFor = answerRow(row, { 'start.example.com': [PUB4] });
+      const rec = skillRig(bounceTo('https://' + host + '/x'));
+      const r = await settle(rec.fetchDocument(START));
+      const tag = 'skill fetch redirect hop, DNS ' + row.label;
+      A.eq([asked.map(q => q[0]), rec.fetched.length], [row.local ? ['start.example.com'] : ['start.example.com', host], 1], tag + ': one DNS question per hop, and only the first hop fetched');
+      const want = row.refuse === 'private-answer' ? DNS_TEXT[row.refuse]('skillSource', row) + stationExit('skillSource', host, row.address)
+        : row.refuse ? DNS_TEXT[row.refuse]('skillSource', row) : 'getaddrinfo ' + (row.fails || row.local) + ' ' + host;
+      A.eq(r.error && [r.error.message, r.error.hostAuthored === true], [want, false], tag + ': refused in the skill source\'s words');
+    }
+    {
+      let probe = 0;
+      asked.length = 0;
+      answerFor = name => (name === 'start.example.com' ? [PUB4] : (++probe === 1 ? [PUB6, PUB4] : [{ address: '127.0.0.1', family: 4 }]));
+      const rec = skillRig(bounceTo('https://' + DNS_HOST + '/x'));
+      const r = await settle(rec.fetchDocument(START));
+      A.eq([r.value && r.value.text, probe, asked.map(q => q[0])], ['landed', 1, ['start.example.com', DNS_HOST]], 'skill fetch rebinding redirect hop: followed on its one validated answer; the later (loopback) answer was never asked for');
+      A.eq(rec.agents.map((a, i) => [pinOf(a, i ? DNS_HOST : 'start.example.com').all, a.closed]), [[[[PUB4.address, 4]], 1], [[[PUB6.address, 6], [PUB4.address, 4]], 1]], 'skill fetch rebinding redirect hop: each hop dials exactly its validated addresses, and closes');
+    }
+    // an error status: its body is discarded too, and the hop's dispatcher closed
+    {
+      asked.length = 0; answerFor = () => [PUB4];
+      const rec = skillRig((r2, url) => skillAnswer(r2, 404, 'not here'));
+      const r = await settle(rec.fetchDocument('https://gone.example.com/SKILL.md'));
+      A.eq([r.error && r.error.message, rec.cancelled, rec.agents.map(a => a.closed)], ['skill source returned HTTP 404', 1, [1]], 'skill fetch HTTP 404: refused as before, its body cancelled, its dispatcher closed');
+    }
+    // a package: ONE DNS question and ONE keep-alive pinned dispatcher per host for the whole package, closed at its end
+    {
+      const FILES = { '/demo/SKILL.md': '---\nname: demo\n---\nRead references/guide.md then run scripts/check.js.', '/demo/references/guide.md': 'See assets/pixel.txt.',
+        '/demo/scripts/check.js': 'console.log(1)', '/demo/assets/pixel.txt': 'px' };
+      asked.length = 0; answerFor = () => [PUB6, PUB4];
+      const rec = skillRig((r2, url) => { const p = new URL(url).pathname; return FILES[p] != null ? skillAnswer(r2, 200, FILES[p]) : skillAnswer(r2, 404, 'missing'); });
+      const got = await settle(SF.makeSkillPackageFetcher({ fetchDocument: rec.fetchDocument, now: () => 0 })('https://pkg.example.com/demo/SKILL.md'));
+      A.eq(got.value && got.value.files.map(f => f.path).sort(), ['SKILL.md', 'assets/pixel.txt', 'references/guide.md', 'scripts/check.js'], 'skill package: every declared file arrives' + (got.error ? ' (' + got.error.message + ')' : ''));
+      A.eq(asked, [['pkg.example.com', { all: true }]], 'skill package: ONE DNS question for its host, for the whole package');
+      A.ok(rec.agents.length === 1 && rec.fetched.length === 4 && rec.fetched.every(f => f.dispatcher === rec.agents[0]), 'skill package: every file dialed through the one keep-alive pinned dispatcher of its host');
+      A.eq(rec.agents[0] && [pinOf(rec.agents[0], 'pkg.example.com').all, rec.agents[0].closed], [[[PUB6.address, 6], [PUB4.address, 4]], 1], 'skill package: which answers every validated address, and is closed once, at the end');
+      // a GitHub package: the listing host and the download host each get one question and one dispatcher
+      const listing = JSON.stringify([
+        { type: 'file', path: 'skills/demo/SKILL.md', download_url: 'https://raw.githubusercontent.com/o/r/main/skills/demo/SKILL.md' },
+        { type: 'file', path: 'skills/demo/references/a.md', download_url: 'https://raw.githubusercontent.com/o/r/main/skills/demo/references/a.md' }
+      ]);
+      asked.length = 0; answerFor = name => (name === 'api.github.com' ? [{ address: '140.82.112.6', family: 4 }] : [PUB4]);
+      const gh = skillRig((r2, url) => (new URL(url).hostname === 'api.github.com' ? skillAnswer(r2, 200, listing) : skillAnswer(r2, 200, '# doc')));
+      const out = await settle(SF.makeSkillPackageFetcher({ fetchDocument: gh.fetchDocument, now: () => 0 })('https://raw.githubusercontent.com/o/r/main/skills/demo/SKILL.md'));
+      A.eq(out.value && out.value.files.map(f => f.path), ['SKILL.md', 'references/a.md'], 'GitHub package: its files arrive' + (out.error ? ' (' + out.error.message + ')' : ''));
+      A.eq([asked.map(q => q[0]), gh.agents.length, gh.agents.map(a => a.closed)], [['api.github.com', 'raw.githubusercontent.com'], 2, [1, 1]], 'GitHub package: one DNS question and one dispatcher per host, each closed at the end');
+      // a package that fails partway still closes its session
+      asked.length = 0; answerFor = () => [PUB4];
+      const bad = skillRig((r2, url) => (/SKILL\.md$/.test(url) ? skillAnswer(r2, 200, 'Read references/missing.md.') : skillAnswer(r2, 404, 'missing')));
+      const failed = await settle(SF.makeSkillPackageFetcher({ fetchDocument: bad.fetchDocument, now: () => 0 })('https://pkg.example.com/x/SKILL.md'));
+      A.ok(failed.error && /HTTP 404/.test(failed.error.message) && bad.agents.length === 1 && bad.agents[0].closed === 1, 'skill package: a failed package still closes its one dispatcher');
+    }
+  });
   dns.promises.lookup = realDnsLookup;
+
+  /* =============================================== CENSUS =============================================== */
+  // ---- C11. ONE CLASSIFIER. No sidecar file but the boundary holds a private-range or intranet-name table, answers a
+  //      connect-time lookup, or asks DNS for a destination itself: each of those copies drifted from the others
+  //      before the module (the browser allowed metadata.goog, connector OAuth refused every IPv6 literal, three
+  //      hand-rolled pins disagreed on Node's { all: true }). Code only: comments are blanked by a small lexer that
+  //      keeps strings and regex literals (the tables were written in both). Not counted, on purpose: a path segment
+  //      such as '.local' in path.join, the cleartext rule of mcp/transport.http.js (whether the Commander's OWN
+  //      connector URL is loopback, so a token may travel over http) and peerowner.js (who is calling the station). ----
+  {
+    const { sidecarSourceFiles, functionSourceIn } = require('./helpers/source.js');
+    const BOUNDARY = 'sidecar/net/safe-egress.js';
+    // the one documented exception: it words a refusal, it refuses nothing
+    const EXCEPTIONS = [{ rel: 'sidecar/providers/errorClass.js', fn: 'hostScope',
+      why: 'words a provider\'s ECONNREFUSED message (this computer, this network or elsewhere); it is not a trust boundary, and errorClass is a UMD module the frontend loads too' }];
+    const CENSUS = [
+      ['an IPv6 range test', /fe\[89ab\]|f\[cd\]\[|\bfe80:|\bf[cd]00:/i],
+      ['a private IPv4 octet test', /===\s*169\s*&&\s*\w+\s*===\s*254|===\s*172\s*&&\s*\w+\s*>=\s*16|===\s*192\s*&&\s*\w+\s*===\s*168|===\s*100\s*&&\s*\w+\s*>=\s*64|(?:169|192|100|172)\\\.(?:254|168|\(\?:)|startsWith\(\s*['"](?:10|127|169\.254|192\.168|172\.(?:1[6-9]|2\d|3[01])|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7]))\./],
+      ['an intranet-name test', /endsWith\(\s*['"]\.(?:local|internal|lan|intranet|home|corp|home\.arpa|metadata\.goog)['"]\s*\)|===\s*['"]metadata\.goog['"]|\\\.\(\?:(?:local|lan|internal|intranet|home|corp)\b/],
+      ['a hand-rolled connect-time lookup branch', /\b([A-Za-z_$][\w$]*)\s*&&\s*\1\.all\b/],
+      ['a hand-rolled connect-time lookup', /\blookup\s*(?::\s*(?:async\s+)?(?:function\b\s*)?)?\(\s*[\w$]+\s*,\s*[\w$]+\s*,\s*[\w$]+\s*\)\s*(?:=>|\{)/],
+      ['a connect option carrying its own lookup', /\bconnect\s*:\s*\{[^{}]{0,200}\blookup\b/],
+      ['a DNS question asked outside the boundary', /\b(?:dns|dnsPromises)\s*\.\s*(?:promises\s*\.\s*)?lookup\s*\(|\bpromises\s*\.\s*lookup\s*\(|require\(\s*['"](?:node:)?dns['"]\s*\)/]
+    ];
+    // a `/` opens a regex literal (not a division) after an operator, an opening bracket or one of these keywords
+    const regexCanStart = out => {
+      let k = out.length - 1;
+      while (k >= 0 && /\s/.test(out[k])) k--;
+      if (k < 0 || '(,=:[!&|?{};+-*%<>~^'.indexOf(out[k]) >= 0) return true;
+      const w = /[A-Za-z_$]+$/.exec(out.slice(Math.max(0, k - 9), k + 1));
+      return !!w && /^(?:return|typeof|case|of|in|void|throw|delete|new|else|do|yield|await)$/.test(w[0]);
+    };
+    // comments blanked (newlines kept); strings, template literals and regex literals kept whole
+    const codeOnly = src => {
+      let out = '', i = 0;
+      const n = src.length;
+      while (i < n) {
+        const c = src[i], d = src[i + 1];
+        if (c === '/' && d === '*') { const e = src.indexOf('*/', i + 2), end = e < 0 ? n : e + 2; out += src.slice(i, end).replace(/[^\n]/g, ' '); i = end; continue; }
+        if (c === '/' && d === '/') { while (i < n && src[i] !== '\n') { out += ' '; i++; } continue; }
+        if (c === '/' && regexCanStart(out)) {
+          let j = i + 1, cls = false;
+          while (j < n && src[j] !== '\n') { if (src[j] === '\\') { j += 2; continue; } if (src[j] === '[') cls = true; else if (src[j] === ']') cls = false; else if (src[j] === '/' && !cls) break; j++; }
+          j++;
+          while (j < n && /[a-z]/i.test(src[j])) j++;
+          out += src.slice(i, j); i = j; continue;
+        }
+        if (c === '\'' || c === '"' || c === '`') {
+          let j = i + 1;
+          while (j < n && src[j] !== c) { if (src[j] === '\\') j++; j++; }
+          out += src.slice(i, j + 1); i = j + 1; continue;
+        }
+        out += c; i++;
+      }
+      return out;
+    };
+    const hits = code => CENSUS.filter(([, re]) => re.test(code)).map(([what]) => what);
+    // the census proves itself first: every row finds the copy it was written from (verbatim from the files that held
+    // them), and nothing benign trips it
+    const COPIES = [
+      ['an IPv6 range test', 'return h === \'::1\' || h === \'::\' || /^::ffff:/.test(h) || /^fe[89ab][0-9a-f]:/.test(h) || /^f[cd][0-9a-f]{2}:/.test(h);'],
+      ['a private IPv4 octet test', 'return a === 0 || a === 127 || a === 10 ||\n      (a === 192 && b === 168) || (a === 169 && b === 254) ||'],
+      ['a private IPv4 octet test', 'if (/^10\\./.test(h) || /^192\\.168\\./.test(h) || /^169\\.254\\./.test(h)) return \'private\';'],
+      ['an intranet-name test', 'h.endsWith(\'.localhost\') || h.endsWith(\'.local\') || h.endsWith(\'.internal\') ||'],
+      ['an intranet-name test', '|| /\\.(?:local|lan|internal|home|home\\.arpa)$/.test(h)'],
+      ['a hand-rolled connect-time lookup branch', 'if (options && options.all) callback(null, pinned.map(a => Object.assign({}, a)));'],
+      ['a hand-rolled connect-time lookup', 'lookup: (_name, opts, cb) => (opts && opts.all) ? cb(null, pinned) : cb(null, pinned[0].address, pinned[0].family) };'],
+      ['a connect option carrying its own lookup', 'const dispatcher = pinned ? makePinnedAgent({ connect: {\n        lookup(hostname, options, callback) {'],
+      ['a DNS question asked outside the boundary', 'lookup: host => dns.promises.lookup(host, { all: true }),'],
+      ['a DNS question asked outside the boundary', 'function nodeLookup(host) { const dns = require(\'node:dns\'); return dns.promises.lookup(host, { all: true }); }']
+    ];
+    for (const [what, snippet] of COPIES) A.ok(hits(codeOnly(snippet)).indexOf(what) >= 0, 'census self-test: "' + what + '" finds ' + JSON.stringify(snippet.slice(0, 70)));
+    const BENIGN = [
+      'const dir = path.posix.join(o.home, \'.local\', \'bin\');',
+      'const pair = (c & 0xfc00) === 0xdc00 && i >= 2;',
+      '// a 302 -> http://169.254.169.254/ cloud-metadata endpoint, fe80::1, h.endsWith(\'.internal\'), opts && opts.all',
+      '/* lookup(hostname, options, callback) answers the validated list; dns.promises.lookup is asked once */',
+      'const u = \'https://example.com//x\'; const re = /\\/\\//; if (row.internal) return true;',
+      'const all = opts && opts.allow; lookupDeps(a, b, c);',
+      'if (n === 0 && m === 0) return; if (a === 192 && b === 0) x();'
+    ];
+    for (const snippet of BENIGN) A.eq(hits(codeOnly(snippet)), [], 'census self-test: benign code is not counted: ' + JSON.stringify(snippet.slice(0, 70)));
+
+    const files = sidecarSourceFiles();
+    A.ok(files.length > 100 && files.some(f => f.rel === BOUNDARY) && files[0].rel === 'sidecar/index.js', 'the census reads every sidecar file through test/helpers/source.js (' + files.length + ')');
+    A.ok(hits(codeOnly(files.find(f => f.rel === BOUNDARY).text)).length > 0, 'and the boundary itself is where the table and the pinned lookup live');
+    const found = [];
+    for (const f of files) {
+      if (f.rel === BOUNDARY) continue;
+      let code = codeOnly(f.text);
+      for (const x of EXCEPTIONS.filter(e => e.rel === f.rel)) {
+        const body = functionSourceIn(code, x.fn);
+        A.ok(body && hits(body).length > 0, 'the documented exception ' + x.rel + ' ' + x.fn + ' still exists and still needs its exception (' + x.why + ')');
+        if (body) code = code.replace(body, '');
+      }
+      for (const what of hits(code)) found.push(f.rel + ': ' + what);
+    }
+    A.eq(found, [], 'ONE CLASSIFIER: no sidecar file but ' + BOUNDARY + ' holds a range or name table, answers a connect-time lookup or asks DNS itself');
+  }
 
   A.report('safe-egress.conformance.test');
 })().catch(e => { console.log('FAIL: ' + (e && e.stack || e)); process.exit(1); });

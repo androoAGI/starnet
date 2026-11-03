@@ -221,7 +221,7 @@ function fakeStack(tools) {
   const sidecar = readSidecarSource();
   A.ok(/resolveConnectorOauthTarget\([^\n]+connectorCatalog, connectorConfigs\)/.test(sidecar),
     'OAuth start resolves both catalog and durably saved custom connector ids');
-  A.ok(/connectorOauthPublicUrl[\s\S]{0,500}assertResolvedSafe/.test(sidecar) && /fetchImpl: connectorOauthFetch/.test(sidecar)
+  A.ok(/connectorOauthPublicUrl[\s\S]{0,500}publicDestination/.test(sidecar) && /fetchImpl: connectorOauthFetch/.test(sidecar)
       && /if \(target\.custom\) await connectorOauthPublicUrl\(disc\.authorizationEndpoint\)/.test(sidecar),
     'custom OAuth discovery/token legs use the public-host DNS guard');
   A.ok(/oauthAuthorized/.test(sidecar), 'connector status distinguishes a configured OAuth row from a stored grant');

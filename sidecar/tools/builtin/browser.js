@@ -644,10 +644,7 @@
      this computer answered, in explainRefusal's words. */
   async function resolveCallerUrl(u, lookup) {
     try { return await resolveVerified(u, lookup); }
-    catch (e) {
-      if (e && e.egress && e.egress.reason === 'private-answer') e.message += '. ' + Egress.privateAnswerExit(e.egress.host, e.egress.address, 'browser');
-      throw e;
-    }
+    catch (e) { throw Egress.withAnswerExit(e, 'browser'); }
   }
   /* The owned browser's proxy guards (makeCdpDriver starts the proxy for every Chromium it spawns): the browser's URL
      rule, and every address of ONE validated DNS answer, which the proxy pins to its dial. */

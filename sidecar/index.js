@@ -22,7 +22,6 @@ function attributeAsks(broker, who) {
   return wrapped;
 }
 const os = require('node:os');
-const dns = require('node:dns');
 // Consume the native envelope key before any subsystem can snapshot process.env
 // or launch a worker. The key stays in the vault closure, never a child environment.
 const connectorVaultMod = require('./connector-vault.js');
@@ -2086,16 +2085,11 @@ function evaluationSuiteMetadata(agentId, skills) {
     generic: !String(s.id).startsWith('owner:'), waitMs: SkillEvaluationRunner.evaluationLimits({ cases: s.cases.length }).wallClockMs + 30000 })));
 }
 
-// SKILL EXCHANGE: the existing web guard owns public-host validation; the exchange adds HTTPS-only,
-// bounded markdown fetching and an inspect-before-install stage. No external bytes enter skillStore
-// until the Commander has received the exact digest + body + guard verdict.
-const skillWebInternals = makeWebTools({})._internals;
-const fetchSkillDocument = makeSkillDocumentFetcher({
-  fetchImpl: globalThis.fetch,
-  assertSafeUrl: skillWebInternals.assertSafeUrl,
-  assertResolvedSafe: skillWebInternals.assertResolvedSafe,
-  lookup: (host) => dns.promises.lookup(host, { all: true })
-});
+// SKILL EXCHANGE: sidecar/skills/exchange-fetch.js owns its outbound guard (the boundary's skillSource row: a public
+// https host with no credentials, one DNS answer per hop, the socket pinned to it); the exchange adds bounded markdown
+// fetching and an inspect-before-install stage. No external bytes enter skillStore until the Commander has received the
+// exact digest + body + guard verdict.
+const fetchSkillDocument = makeSkillDocumentFetcher({ fetchImpl: globalThis.fetch });
 const fetchSkillPackage = makeSkillPackageFetcher({ fetchDocument: fetchSkillDocument, now: () => Date.now() });
 const skillRegistry = makeSkillRegistry({ fetchDocument: fetchSkillDocument, now: () => Date.now() });
 const SKILL_REGISTRIES_FILE = path.join(WORKSPACES, 'skill-registries.json');
@@ -6727,25 +6721,11 @@ if (require.main === module) {
    returned by /api/connectors. The access token lives ONLY here — an oauth connector's persisted config carries
    `oauth:true` but no token, so a stale/expired token is never persisted or reused. ---- */
 const CONNECTOR_OAUTH_REDIRECT = 'http://127.0.0.1:' + PORT + '/api/connectors/oauth/callback';
-// Custom connector discovery opens OAuth metadata URLs supplied by an untrusted server. Apply the same public-host
-// + DNS-resolution boundary as web.fetch to EVERY OAuth leg (probe, metadata, DCR, token exchange, refresh). The
-// OAuth module separately requires HTTPS and disables redirects; this wrapper closes the hostname->private-IP gap.
-async function connectorOauthPublicUrl(raw) {
-  const u = skillWebInternals.assertSafeUrl(raw);
-  if (u.protocol !== 'https:') throw new Error('connector OAuth endpoints must use https');
-  if (u.username || u.password) throw new Error('connector OAuth endpoints cannot contain embedded credentials');
-  await skillWebInternals.assertResolvedSafe(u, host => dns.promises.lookup(host, { all: true }));
-  return u;
-}
-// Every leg's socket is PINNED to the address that passed the check (sidecar/mcp/oauth-fetch.js): resolving once to
-// validate and again to connect let a DNS-rebinding authorization server aim DCR/token POSTs at a private address.
-const connectorOauthFetcher = makeConnectorOauthFetch({
-  assertSafeUrl: skillWebInternals.assertSafeUrl,
-  assertResolvedSafe: skillWebInternals.assertResolvedSafe,
-  lookup: host => dns.promises.lookup(host, { all: true }),
-  agentFactory: options => new (require('undici').Agent)(options),
-  onCloseError: e => failNote('connector.oauth.dispatcher-close', e)
-});
+// EVERY connector-OAuth leg (probe, metadata, DCR, token exchange, refresh) and a custom server's authorization endpoint
+// go through sidecar/mcp/oauth-fetch.js, which owns the outbound boundary's connectorOauth row: a public https host with
+// no credentials, one DNS answer per leg, the socket pinned to every address that answer validated.
+const connectorOauthFetcher = makeConnectorOauthFetch({ onCloseError: e => failNote('connector.oauth.dispatcher-close', e) });
+async function connectorOauthPublicUrl(raw) { return (await connectorOauthFetcher.publicDestination(raw)).url; }
 async function connectorOauthFetch(raw, options) { return connectorOauthFetcher.connectorOauthFetch(raw, options); }
 // drop the cached dynamically-registered client for an authorization server (when the AS reports it invalid), so the
 // next sign-in RE-REGISTERS a fresh one instead of wedging forever on a pruned/rotated client id.

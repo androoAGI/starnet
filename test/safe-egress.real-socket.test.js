@@ -17,10 +17,13 @@
    address does not (the control); TLS SNI and Host keep the requested name; options.family is honoured by a raw
    net.connect; withPinned closes its Agent; a session's host keeps one keep-alive connection across requests.
    CONSUMER rows, each built as index.js builds it, its DNS question answered where the http preload rigs answer it
-   (dns.promises.lookup, read at call time): web_request and web_fetch (npm undici.fetch) through a redirect, and the
-   owned browser's proxy (a CONNECT tunnel, with the guards makeCdpDriver gives it). Connector OAuth and the skill fetch
-   join as they move onto the module. Run it under the installed StarNet node too
-   (C:/Users/andro/AppData/Local/StarNet/node.exe). */
+   (dns.promises.lookup, read at call time): web_request and web_fetch (npm undici.fetch) through a redirect, the
+   owned browser's proxy (a CONNECT tunnel, with the guards makeCdpDriver gives it), connector OAuth and the skill
+   document fetch, a single document and a package session (globalThis.fetch, Node's bundled fetch, with the module's
+   npm-undici Agent). Those two are https-only, so their proof is the TLS ClientHello a raw listener receives at the
+   live address: the connection was made, past the dead first address, and SNI names the requested host (for the http
+   consumers the Host header does). Each consumer row is its own section: one failing consumer cannot hide the next.
+   Run it under the installed StarNet node too (C:/Users/andro/AppData/Local/StarNet/node.exe). */
 'use strict';
 const A = require('./_assert.js');
 const S = require('../sidecar/net/safe-egress.js');
@@ -124,13 +127,16 @@ async function listenWithDeadV6(server) {
     res.writeHead(200, { 'content-type': 'text/plain' }); res.end('pinned ok ' + req.headers.host);
   });
   const port = await listenWithDeadV6(srv);
-  const seen = [];
+  const seen = [], helloFrom = [];
   const tlsSrv = net.createServer(s => {
     let b = Buffer.alloc(0);
-    s.on('data', d => { b = Buffer.concat([b, d]); if (b.length >= 5 && b.length >= 5 + b.readUInt16BE(3)) { seen.push(sniOf(b)); s.destroy(); } });
+    s.on('data', d => { b = Buffer.concat([b, d]); if (b.length >= 5 && b.length >= 5 + b.readUInt16BE(3)) { seen.push(sniOf(b)); helloFrom.push(s.remoteAddress); s.destroy(); } });
     s.on('error', () => { /* the client resets a hung-up handshake; nothing to record */ });
   });
   const tport = await listenWithDeadV6(tlsSrv);
+  async function section(name, fn) {
+    try { await fn(); } catch (e) { A.ok(false, name + ': the section threw ' + (e && e.stack || e)); }
+  }
 
   try {
     {
@@ -259,7 +265,7 @@ async function listenWithDeadV6(server) {
 
     // ---- R6. web_request and web_fetch as index.js builds them (npm undici.fetch, no lookup of their own): both hops
     //      of a redirect connect past the dead first address, each hop asks DNS ONCE, and each hop's Agent is closed ----
-    {
+    await section('R6', async () => {
       const { makeWebTools } = require('../sidecar/tools/builtin/web.js');
       dns.promises.lookup = validating;
       try {
@@ -278,12 +284,12 @@ async function listenWithDeadV6(server) {
           A.ok(rec.agents.length === 2 && rec.agents.every(a => a.closed === true), tool + ': one Agent per hop, each closed once its body was read');
         }
       } finally { dns.promises.lookup = trapped; }
-    }
+    });
 
     // ---- R7. the owned browser's proxy with the guards makeCdpDriver gives it (no lookup of its own): a CONNECT tunnel
     //      through [dead IPv6, live IPv4] reaches the live address with one DNS question and none at connect time, and
     //      a TLS ClientHello sent through the tunnel reaches the server untouched (SNI the requested name) ----
-    {
+    await section('R7', async () => {
       const B = require('../sidecar/tools/builtin/browser.js')._internals;
       const { startPinnedProxy } = require('../sidecar/tools/builtin/browser-proxy.js');
       const tls = require('node:tls');
@@ -339,7 +345,63 @@ async function listenWithDeadV6(server) {
         dns.promises.lookup = trapped;
         await proxy.close();
       }
-    }
+    });
+
+    // the https consumers' proof: the ClientHello a raw listener receives at the live address (the [::1] twin is closed)
+    const hello = async (run) => {
+      const before = seen.length;
+      const out = await run().then(() => 'answered', e => causeOf(e) + ': ' + (e && e.message));
+      await new Promise(r => setTimeout(r, 50));   // the listener records the hello as the client hangs up
+      return { out, sni: seen.slice(before), from: helloFrom.slice(before) };
+    };
+
+    // ---- R8. connector OAuth as index.js builds it, makeConnectorOauthFetch({ onCloseError }): globalThis.fetch read
+    //      per call with the module's npm-undici Agent, no lookup of its own. Through [dead IPv6, live IPv4] a leg
+    //      reaches the live address with ONE DNS question and none at connect time (before the module the pin held only
+    //      the first address and made no connection at all) ----
+    await section('R8', async () => {
+      const { makeConnectorOauthFetch } = require('../sidecar/mcp/oauth-fetch.js');
+      dns.promises.lookup = validating;
+      try {
+        answered.length = 0;
+        const rec = recorder(), closeErrors = [];
+        const f = makeConnectorOauthFetch({ onCloseError: e => closeErrors.push(e), agentFactory: edgeAgent(rec) });
+        const got = await hello(() => f.connectorOauthFetch('https://as.pinned.example:' + tport + '/token', { method: 'POST', body: 'grant_type=refresh_token' }));
+        A.eq([got.sni, got.from], [['as.pinned.example'], ['127.0.0.1']], 'connector OAuth: the leg connected at the live address past the dead first one, and its ClientHello names as.pinned.example (' + got.out + ')');
+        A.ok(got.out !== 'answered' && !/ECONNREFUSED|ENOTFOUND/.test(got.out), 'connector OAuth: it failed only at the hung-up handshake (' + got.out + ')');
+        A.eq([answered, rec.lists], [['as.pinned.example'], [[PUBLIC_V6, PUBLIC_V4]]], 'connector OAuth: one DNS question, and the socket was handed every validated address, in order');
+        A.ok(rec.options[0] && rec.options[0].connect.autoSelectFamily === true, 'connector OAuth: autoSelectFamily on for two addresses');
+        await new Promise(r => setTimeout(r, 50));
+        A.ok(rec.agents.length === 1 && rec.agents[0].closed === true && closeErrors.length === 0, 'connector OAuth: the leg\'s Agent is closed in the background');
+      } finally { dns.promises.lookup = trapped; }
+    });
+
+    // ---- R9. the skill document fetch as index.js builds it, makeSkillDocumentFetcher({ fetchImpl: globalThis.fetch }):
+    //      one document, then a package through its session, each through [dead IPv6, live IPv4] to the live address,
+    //      one DNS question per host, SNI the requested name, every Agent closed (before the module the fetch carried no
+    //      dispatcher, and its connect asked the OS resolver for the name all over again) ----
+    await section('R9', async () => {
+      const { makeSkillDocumentFetcher, makeSkillPackageFetcher } = require('../sidecar/skills/exchange-fetch.js');
+      dns.promises.lookup = validating;
+      try {
+        answered.length = 0;
+        const rec = recorder();
+        const fetchDocument = makeSkillDocumentFetcher({ fetchImpl: globalThis.fetch, agentFactory: edgeAgent(rec) });
+        const doc = await hello(() => fetchDocument('https://skill.pinned.example:' + tport + '/SKILL.md'));
+        A.eq([doc.sni, doc.from], [['skill.pinned.example'], ['127.0.0.1']], 'skill fetch: connected at the live address past the dead first one, ClientHello names skill.pinned.example (' + doc.out + ')');
+        A.eq([answered, rec.lists], [['skill.pinned.example'], [[PUBLIC_V6, PUBLIC_V4]]], 'skill fetch: one DNS question, and the socket was handed every validated address, in order');
+        A.ok(rec.agents.length === 1 && rec.agents[0].closed === true, 'skill fetch: the hop\'s Agent is closed once the hop is done');
+
+        answered.length = 0;
+        const prec = recorder();
+        const pkgDocument = makeSkillDocumentFetcher({ fetchImpl: globalThis.fetch, agentFactory: edgeAgent(prec) });
+        const fetchPackage = makeSkillPackageFetcher({ fetchDocument: pkgDocument, now: () => Date.now() });
+        const pkg = await hello(() => fetchPackage('https://pkg.pinned.example:' + tport + '/demo/SKILL.md'));
+        A.eq([pkg.sni, pkg.from], [['pkg.pinned.example'], ['127.0.0.1']], 'skill package: its session connected at the live address, ClientHello names pkg.pinned.example (' + pkg.out + ')');
+        A.eq([answered, prec.lists, prec.agents.length], [['pkg.pinned.example'], [[PUBLIC_V6, PUBLIC_V4]], 1], 'skill package: one DNS question and one Agent for its host, handed every validated address');
+        A.ok(prec.agents[0] && prec.agents[0].closed === true, 'skill package: the session\'s Agent is closed at the end of the package, even a failed one');
+      } finally { dns.promises.lookup = trapped; }
+    });
 
     A.eq([trap.lookup, trap.promises], [0, 0], 'no connect above asked DNS: every socket dialed the validated answer');
   } finally {

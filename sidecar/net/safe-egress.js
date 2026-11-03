@@ -37,7 +37,7 @@
    · A refusal is host-authored (it never taints the run) only for a tool consumer's OWN URL. A redirect hop names a
      host the remote server chose, and the connector and skill consumers never mark one (test/untrusted-taint.test.js).
    · The wording is each consumer's own, from its POLICIES row, byte for byte as before this module. The one addition
-     is privateAnswerExit, the DNS-filter exit a consumer appends to a private-answer refusal.
+     is privateAnswerExit, the DNS-filter exit every consumer appends to a private-answer refusal (withAnswerExit).
    No clock and no randomness (test/lint-determinism.js). Close errors are reported through failopen, never swallowed. */
 'use strict';
 
@@ -589,10 +589,21 @@ function privateAnswerExit(host, address, who) {
     'comes from a DNS filter (Pi-hole, AdGuard, NextDNS, router parental controls), a VPN, a security app or the hosts file ' +
     'on this computer. ' + v.ownDns + v.route + 'Fix or allow ' + h + ' in that DNS filter.';
 }
+/* The one way a consumer says it: a private-answer refusal gains that exit as its own sentence, in `who`'s voice, once.
+   Any other error comes back untouched. web_fetch, web_request, the browser, connector sign-in and the skill downloads
+   all append it here, so the words cannot drift apart again. */
+const EXPLAINED = Symbol('safe-egress.explained');
+function withAnswerExit(e, who) {
+  if (!e || e.code !== 'EGRESS_REFUSED' || !e.egress || e.egress.reason !== 'private-answer' || e[EXPLAINED]) return e;
+  const exit = privateAnswerExit(e.egress.host, e.egress.address, who);
+  e.message += '. ' + exit.charAt(0).toUpperCase() + exit.slice(1);
+  Object.defineProperty(e, EXPLAINED, { value: true });
+  return e;
+}
 
 module.exports = {
   POLICIES, TABLE, EXITS,
   classifyHost, normalizeHost, validateUrl, resolveValidated,
   pinnedLookup, pinnedDispatcher, withPinned, session,
-  refusal, privateAnswerExit
+  refusal, privateAnswerExit, withAnswerExit
 };

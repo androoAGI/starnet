@@ -329,13 +329,7 @@
   /* A PUBLIC name answered with a private or blocked address is this computer's DNS filter, VPN, security app or hosts
      file far more often than an attack (the Etsy reports, 2026-10-08), so that refusal says which, as the browser's
      already did. Only that refusal gains the sentence; every other wording is the boundary's, unchanged. */
-  function withAnswerExit(e) {
-    if (e && e.egress && e.egress.reason === 'private-answer') {
-      const exit = egress.privateAnswerExit(e.egress.host, e.egress.address, 'web');
-      e.message += '. ' + exit.charAt(0).toUpperCase() + exit.slice(1);
-    }
-    return e;
-  }
+  const withAnswerExit = e => egress.withAnswerExit(e, 'web');
 
   // ---------- HTML -> readable text (web_fetch fallback) ----------
   /* HTML -> readable text, in ONE LINEAR PASS.
