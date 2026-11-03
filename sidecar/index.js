@@ -24462,9 +24462,7 @@ async function runOnceCore(o) {
   if (retractFailure) {
     execution.recordFailure('transcript_retract_persist', 'checkpoint_failed');
     const failed = RunOutcome.stamp({ agentId, runId, reason: 'error', failureCode: 'checkpoint_failed', turns: 0, usd: 0 });
-    emit('agent.run.start', { agentId, runId, trigger, model, ...runStartExtra });
-    emit('agent.run.error', { agentId, runId, transient: false, message: 'The station could not confirm the retry record. Check transcript storage before retrying.', failureCode: 'checkpoint_failed' });
-    emit('agent.run.end', failed);
+    refuse({ reason: 'error', failureCode: 'checkpoint_failed', message: 'The station could not confirm the retry record. Check transcript storage before retrying.' });
     return failed;
   }
   // A supplied modern selector owns the attempt even when lookup is absent or unproven. Only a
