@@ -131,20 +131,25 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       for (; i < src.length; i++) { if (src[i] === '{') depth++; else if (src[i] === '}' && --depth === 0) break; }
       return src.slice(src.lastIndexOf('const ', arrow), i + 1) + ';';
     };
-    const HS = "const hs = { buf: '', errMsg: null, usd: 0, end: null };";
-    const ST = "const st = { buf: '', err: null, usd: 0, tools: 0, calls: {}, denied: [], end: null };";
+    // (channel-delivery-ledger: each sink keeps its reply in a ReplyAssembler, sidecar/reply-assembler.js, declared between its
+    // state and the sink; the state no longer holds the text, so the slice runs from the state to the sink's end)
+    const { makeReplyAssembler } = require('../sidecar/reply-assembler.js');
+    const HS = "const hs = { errMsg: null, usd: 0, end: null };";
+    const ST = "const st = { err: null, usd: 0, calls: {}, denied: [], end: null };";
+    const sinkFrom = (src, at) => { const code = sinkAfter(src, at); const head = src.slice(at, src.lastIndexOf('const ', src.indexOf('= (name, payload) => {', at))); return head + code; };
     const sinks = [];
-    for (let at = idx.indexOf(HS); at >= 0; at = idx.indexOf(HS, at + 1)) sinks.push({ where: sinks.length ? 'Run Now' : 'the scheduled seam', state: HS, code: sinkAfter(idx, at) });
+    for (let at = idx.indexOf(HS); at >= 0; at = idx.indexOf(HS, at + 1)) sinks.push({ where: sinks.length ? 'Run Now' : 'the scheduled seam', code: sinkFrom(idx, at) });
     const stAt = idx.indexOf(ST);
-    if (stAt >= 0) sinks.push({ where: 'the step-through test', state: ST, code: sinkAfter(idx, stAt) });
+    if (stAt >= 0) sinks.push({ where: 'the step-through test', code: sinkFrom(idx, stAt) });
     A.eq(sinks.length, 3, 'fixture: the routine seam\'s, Run Now\'s and the step test\'s hop sinks are sliced from the sidecar');
-    const build = s => new Function('hopRunId', 'runId', 'runTeeView', 'cronEmitNotify', 'emit', 'redact', s.state + '\n' + s.code
-      + '\nconst fold = typeof hs !== "undefined" ? hs : st;\nreturn { fold, sink: typeof hopSink === "function" ? hopSink : sink };');
+    const build = s => new Function('hopRunId', 'runId', 'runTeeView', 'cronEmitNotify', 'emit', 'redact', 'makeReplyAssembler', s.code
+      + '\nconst fold = typeof hs !== "undefined" ? hs : st;\nconst said = typeof hopAssembler !== "undefined" ? hopAssembler : assembler;'
+      + '\nreturn { fold, text: () => said.text(), sink: typeof hopSink === "function" ? hopSink : sink };');
     const noop = () => null, same = x => x;
     const errOf = f => hopError({ errMsg: f.errMsg || f.err, stopped: f.stopped, end: f.end }, 'stopped by you');
     for (const s of sinks) {
       // a worker the hop delegated to failed (a provider 429) and another was stopped; the hop recovered and ended clean
-      const { fold, sink } = build(s)('hop-1', 'hop-1', noop, noop, noop, same);
+      const { fold, sink, text } = build(s)('hop-1', 'hop-1', noop, noop, noop, same, makeReplyAssembler);
       sink('agent.run.start', { agentId: 'writer', runId: 'hop-1' });
       sink('agent.run.start', { agentId: 'researcher', runId: 'worker-1' });
       sink('agent.run.error', { agentId: 'researcher', runId: 'worker-1', message: 'rate limited by the provider (429)', failureCode: 'rate_limit' });
@@ -153,13 +158,13 @@ const dm = text => ({ channel: 'telegram', chatId: '555', chatType: 'dm', userId
       sink('agent.run.end', { agentId: 'researcher', runId: 'worker-2', reason: 'cancelled', outcome: 'stopped', turns: 1, usd: 0 });
       sink('agent.token', { agentId: 'writer', runId: 'hop-1', delta: 'the finished answer' });
       sink('agent.run.end', { agentId: 'writer', runId: 'hop-1', reason: 'done', outcome: 'succeeded', turns: 2, usd: 0.01 });
-      A.ok(errOf(fold) === null && fold.buf === 'the finished answer', s.where + ': a worker\'s forwarded error or STOP is never the hop\'s — the hop that ended clean hands its answer on (got ' + JSON.stringify({ err: errOf(fold), buf: fold.buf }) + ')');
+      A.ok(errOf(fold) === null && text() === 'the finished answer', s.where + ': a worker\'s forwarded error or STOP is never the hop\'s — the hop that ended clean hands its answer on (got ' + JSON.stringify({ err: errOf(fold), buf: text() }) + ')');
       // the hop's OWN error and its own STOP still stop the line
-      const own = build(s)('hop-2', 'hop-2', noop, noop, noop, same);
+      const own = build(s)('hop-2', 'hop-2', noop, noop, noop, same, makeReplyAssembler);
       own.sink('agent.run.error', { agentId: 'writer', runId: 'hop-2', message: 'the hop itself failed' });
       own.sink('agent.run.end', { agentId: 'writer', runId: 'hop-2', reason: 'error', turns: 1, usd: 0 });
       A.eq(errOf(own.fold), 'the hop itself failed', s.where + ': the hop\'s own error still stops the line');
-      const stop = build(s)('hop-3', 'hop-3', noop, noop, noop, same);
+      const stop = build(s)('hop-3', 'hop-3', noop, noop, noop, same, makeReplyAssembler);
       stop.sink('agent.token', { agentId: 'writer', runId: 'hop-3', delta: 'half' });
       stop.sink('agent.run.end', { agentId: 'writer', runId: 'hop-3', reason: 'cancelled', turns: 1, usd: 0 });
       A.ok(stop.fold.stopped === true && errOf(stop.fold) === 'stopped by you', s.where + ': the hop\'s own STOP still stops the line');
