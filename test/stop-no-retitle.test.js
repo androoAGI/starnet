@@ -21,6 +21,7 @@ const vm = require('vm');
 const src = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
 const Channels = require('../frontend/app/channels.js');
 const Workstreams = require('../frontend/app/workstreams.js');
+const RunOutcome = require('../frontend/app/runoutcome.js');
 
 // one function's source, from its declaration to the next named anchor (send() holds regexes with quotes in a character
 // class, which fnBody's brace scan cannot skip, so it is sliced between its own header and the next function's)
@@ -77,7 +78,7 @@ function rig() {
   const liveRow = { append: noop, done: noop, error: noop, breakSeg: noop, cleanTaskIntent: noop };
   const ctx = vm.createContext({
     console, Promise, setTimeout, clearTimeout, Date, JSON, AbortController, encodeURIComponent,
-    Channels, Harness: harness,
+    Channels, Harness: harness, RunOutcome,
     Workstreams: Object.assign({}, Workstreams, { retitle: (id, t, strong) => { retitled.push({ id, t, strong }); return Workstreams.retitle(id, t, strong); } }),
     App: { refreshRail: noop, refreshUsage: noop },
     World: { setActivityFor: noop, setActivity: noop, say: noop, focusAgent: noop, dropRun: noop, agentRunsLive: () => 0 },
@@ -93,7 +94,7 @@ function rig() {
     historyWindow: w => w.history.slice(), endOnUserTurn: m => m,
     retirePriorRatings: noop, recClaimRun: () => null, steerEchoesOf: () => [], markSentNowLanded: noop, fileRunSteers: noop,
     presenceToolCall: noop, presenceToolResult: noop, toolChip: noop, resolveChip: noop, skillFlavor: () => false, recentInRunSkill: 0,
-    breakLive: noop, toolLine: noop, budgetStopLine: () => '', stoppedByLine: by => 'stopped by ' + by,
+    breakLive: noop, toolLine: noop, endLogLine: noop, budgetStopLine: () => '', stoppedByLine: by => 'stopped by ' + by,
     markStoppedTurn: (w, t) => stoppedTurns.push(t),
     noteStopReason: (w, line, runId, endReason) => stopReasons.push({ runId, endReason }),
     offerUnpricedDoor: noop, offerBudgetDoor: noop, offerTryAgain: noop, offerRetry: () => faults.push('offerRetry'),

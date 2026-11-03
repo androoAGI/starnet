@@ -16,7 +16,7 @@ const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
 
 const call = (name, args, id) => ({ id: id || 'c1', name, args: args || {}, argsRaw: JSON.stringify(args || {}), parseError: null });
-const tool = (name, run) => ({ name, description: name, capability: 'compute', scope: 'read', schema: { type: 'object', properties: {} }, run });
+const tool = (name, run) => ({ name, description: name, capability: 'compute', scope: 'read', impact: 'none', schema: { type: 'object', properties: {} }, run });
 
 (async () => {
   const reg = makeRegistry();

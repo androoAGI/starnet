@@ -41,7 +41,7 @@ const rd = p => fs.readFileSync(path.join(__dirname, '..', p), 'utf8');
 
   // a background run that made a file AND ends asking something still puts its question in NEEDS YOU ("made X" alone hid it)
   const ch = rd('frontend/app/chat.js');
-  A.ok(/!\(thisRunId && notedRuns\.has\(thisRunId\) && !taskQuestion && endReason !== 'clarifying'\)/.test(ch), 'a run that already announced a file is skipped only when it does NOT end on a question');
+  A.ok(/!\(thisRunId && notedRuns\.has\(thisRunId\) && !taskQuestion && chipOc !== 'asked'\)/.test(ch), 'a run that already announced a file is skipped only when it does NOT end on a question');
 
   // B5: a prompt answered ANYWHERE (desk, phone, Telegram, voice — permission.response on the bus) settles its bell entry;
   // R8: re-rendering a pending prompt (reopening its session) never re-announces it

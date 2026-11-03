@@ -362,7 +362,7 @@ async function readNdjson(res) {
     await cancelledRun;
     await sse.waitFor(events => events.filter(e => e.name === 'cron.result' && e.payload && e.payload.jobId === job.id).length > resultCount, 5000, 'cancelled cron result');
     const cancelledResult = sse.events.filter(e => e.name === 'cron.result' && e.payload && e.payload.jobId === job.id).slice(-1)[0];
-    A.eq(cancelledResult.payload.outcome, 'failed', 'cancelled Run Now is never announced as successful');
+    A.eq(cancelledResult.payload.outcome, 'stopped', 'a cancelled Run Now is announced as stopped, never as successful');
     A.eq(cancelledResult.payload.reason, 'cancelled', 'cancelled Run Now retains its terminal reason');
   } finally {
     if (sse) sse.close();

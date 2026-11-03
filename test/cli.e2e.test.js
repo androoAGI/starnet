@@ -119,7 +119,7 @@ function hermetic(profile) {
       A.eq(r.code, 0, 'a clean run exits 0 (stderr: ' + r.err.slice(0, 300) + ')');
       A.ok(r.out.indexOf('Hello from the station.') >= 0, 'the model text really streamed to stdout: ' + JSON.stringify(r.out));
       A.ok(/▸ .*attached http:\/\/127\.0\.0\.1:/.test(r.err), 'stderr names the attached station');
-      A.ok(/■ done · 1 turn\(s\)/.test(r.err), 'stderr carries the station\'s own terminal reason: ' + r.err.split('\n').filter(l => l.indexOf('■') === 0).join(''));
+      A.ok(/■ done · finished · 1 turn\(s\)/.test(r.err), 'stderr carries the station\'s own terminal reason: ' + r.err.split('\n').filter(l => l.indexOf('■') === 0).join(''));
       A.ok(!/^\s*[{[]/.test(r.out.trim()), 'stdout is prose, not JSON, without --json');
     }
 

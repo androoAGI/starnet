@@ -46,6 +46,7 @@ function station(file, opts) {
   const reviewTasks = new Map();
   const deps = {
     workspaceDegraded: false, updateHolding: () => false, overseer,
+    RunOutcome: require('../frontend/app/runoutcome.js'),
     subagents: { list: () => workers.slice(), get: id => workers.find(w => w.id === id) },
     runStore: { all: () => proofs.slice() }, isBlessedRoot: () => true,
     agentRoster: new Map([['agent', { provider: 'openrouter', model: 'test/model', system: 'You coordinate work.' }]]),
