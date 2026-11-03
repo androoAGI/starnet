@@ -239,7 +239,7 @@ const TERMINAL_HOPS = [['the hub\'s line hop', hubHop], ['a scheduled fire\'s li
 
 /* ---- 4. A WITHDRAWN RUN: each way, through a real hub, with what the chat is told ----------------------------------------- */
 function parkedRun() {
-  const sends = [];
+  const sends = [], deliveries = [];
   let calls = 0, release = null;
   const latch = new Promise(r => { release = r; });
   const runOnce = async (o) => {
@@ -251,8 +251,8 @@ function parkedRun() {
     await latch;   // still unwinding: the record stays in the chat's inflight slot until the test lets it go
     o.emit('agent.run.end', Object.assign({ reason: 'cancelled', turns: 0, usd: 0 }, ids));
   };
-  const h = { sends, onEmit: null, release: () => release() };
-  h.hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'end-run-' + (++seq), isOwner: () => true,
+  const h = { sends, deliveries, calls: () => calls, onEmit: null, release: () => release() };
+  h.hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); deliveries.push({ chatId: String(c), text: t }); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'end-run-' + (++seq), isOwner: () => true,
     emit: (name, payload) => { if (h.onEmit) h.onEmit(name, payload); } });
   h.live = () => h.hub._internals.inflight;
   return h;
@@ -270,11 +270,11 @@ const ENDINGS = [
   ['/stop, then an E-STOP while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); killAll(null, h.live()); }],
   ['/stop, then a newer message while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); await newer(h); }],
   ['E-STOP, then a newer message while it unwinds', 'halted', [SAID_ESTOP], async (h) => { killAll(null, h.live()); await newer(h); }],
-  // the one instant a kill can still find a superseded run in the chat's slot: its replacement has not been filed yet
-  ['a newer message, then an E-STOP before its run starts', 'superseded', [SAID_SUPERSEDE], async (h) => {
-    h.onEmit = (name) => { if (name === 'channel.inbound') { h.onEmit = null; killAll(null, h.live()); } };
+  // The older run retains superseded; the new preparation already owns its own cancellable record.
+  ['a newer message, then an E-STOP before its run starts', 'superseded', [SAID_SUPERSEDE, SAID_ESTOP], async (h) => {
+    h.onEmit = (name) => { if (name === 'channel.inbound') { h.onEmit = null; h.newerOwner = h.live().get('4242'); killAll(null, h.live()); } };
     await newer(h);
-  }]
+  }, 0]
 ];
 
 /* ---- 5. THE SOURCE: one field, one reader -------------------------------------------------------------------------------- */
@@ -291,8 +291,12 @@ const hubEndSource = fileText('sidecar/channels/hub.js');
 const prestartStop = /if \(lineJob && lineJob\.stopRequested\) \{\s*markEnd\(myRec, lineJob\.stopRequested === 'fault' \? 'faulted' : 'halted'\);\s*if \(await abandoned\(\)\) \{ withdrawn = true; return; \}\s*\}/.exec(hubEndSource);
 A.ok(!!prestartStop && prestartStop.index < hubEndSource.indexOf('if (!markAttempt({ runId: runId'),
   'the prestart STOP receipt is consumed through first-wins markEnd and withdrawal before any run attempt');
+const editDispatchGuard = /if \(msg\.edited && !delivery\.editReady\(msg, intake\)\) \{\s*markEnd\(myRec, delivery\.editState\(msg, intake\) === 'superseded' \? 'superseded' : 'faulted'\);\s*withdrawn = true; await abandoned\(\); return;\s*\}/.exec(hubEndSource);
+A.ok(!!editDispatchGuard && hubEndSource.indexOf('if (!markAttempt({ runId: runId', editDispatchGuard.index) > editDispatchGuard.index,
+  'an edit whose receipt lost admission withdraws through first-wins markEnd before the paid attempt');
 const withoutPrestartStop = prestartStop ? hubEndSource.replace(prestartStop[0], '') : hubEndSource;
-A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutPrestartStop.match(/\bmarkEnd\(/g) || []).length === 4,
+const withoutNamedGuards = editDispatchGuard ? withoutPrestartStop.replace(editDispatchGuard[0], '') : withoutPrestartStop;
+A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutNamedGuards.match(/\bmarkEnd\(/g) || []).length === 4,
   'the other first-wins owners remain supersede, /stop, plain stop and the LineJob live stop handle');
 
 (async () => {
@@ -363,7 +367,7 @@ A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutPrestartStop.match(/\bmark
   });
 
   /* ---- every way a run is withdrawn ---- */
-  for (const [how, end, said, withdraw] of ENDINGS) {
+  for (const [how, end, said, withdraw, expectedNewerReplies] of ENDINGS) {
     await guard(how, async () => {
       const h = parkedRun();
       const first = h.hub.onInbound(dm('do the long thing'));
@@ -377,7 +381,12 @@ A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutPrestartStop.match(/\bmark
       A.eq(rec.endReason, end, how + ': the record says how the run ended');
       for (const re of ALL_SAID) A.eq(h.sends.filter(t => re.test(t)).length, said.includes(re) ? 1 : 0, how + ': ' + re + ' — ' + JSON.stringify(h.sends));
       A.ok(!h.sends.some(t => /half an answ/.test(t)), how + ': the stale partial is abandoned');
-      A.eq(h.sends.filter(t => t === 'the newer reply').length, /newer message/.test(how) ? 1 : 0, how + ': the newer message is answered, whatever ended the run before it');
+      A.eq(h.sends.filter(t => t === 'the newer reply').length, expectedNewerReplies == null ? (/newer message/.test(how) ? 1 : 0) : expectedNewerReplies, how + ': only a newer message that was not itself stopped is answered');
+      if (h.newerOwner) {
+        A.ok(h.newerOwner !== rec && h.newerOwner.runId === '' && h.newerOwner.endReason === 'halted', 'E-STOP names the distinct newer preparation, without changing the older first-wins ending');
+        A.eq(h.calls(), 1, 'the newer stopped preparation never dispatches a provider call');
+        A.eq(h.deliveries.filter(d => SAID_ESTOP.test(d.text)).map(d => d.chatId), ['4242'], 'the pending-work stop acknowledgement reaches the same actual chat');
+      }
       A.eq(Object.keys(rec).filter(k => /^(superseded|supersededBy|halted|faulted)$/.test(k)), [], how + ': and carries none of the old flags');
     });
   }

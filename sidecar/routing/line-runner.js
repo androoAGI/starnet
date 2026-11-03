@@ -34,6 +34,7 @@
    does, and that history is the EARLIER jobs of the chat, read once per job and dock, so a loop-back carries the draft once. */
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');
+const TurnView = require('../turn-view.js');
 const { hopError, lineStop } = require('./line-fire.js');
 const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
@@ -298,15 +299,22 @@ function makeLineRunner(deps) {
       try {
         if (p.crate && typeof p.crate.place === 'function') crateId = p.crate.place(h, { t0, newId }) || null;
         if (history) {
-          try { hist = history.load(h) || []; } catch (_) { hist = []; }
-          history.append(h, 'user', h.text);
+          try {
+            hist = await history.load(h);
+            if (!Array.isArray(hist)) throw new Error('The line history owner returned no replay');
+          } catch (e) {
+            failNote('channels.hub.hop-history', e);
+            hs.errMsg = "this line's history could not be read";
+            throw e;
+          }
+          if (typeof history.append === 'function') await history.append(h, 'user', h.text);
         }
         const own = typeof p.options === 'function' ? (p.options(h, cfg) || {}) : {};
         ret = await runOnce(Object.assign({}, own, {
           key: cfg.key, model: cfg.model, provider: cfg.provider, wireSource: cfg.wireSource || undefined,
           baseUrl: cfg.baseUrl || cfg.base_url || '', reasoningEffort: cfg.reasoningEffort || cfg.reasoning_effort,
           system: typeof p.system === 'function' ? p.system(h, cfg) : undefined,
-          messages: hist.map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: h.text }]),
+          messages: TurnView.concat(hist, [{ role: 'user', content: h.text }]),
           agentId: h.agentId, isTask: true, emit: sink, signal: h.signal, runId, trigger: p.trigger || 'event',
           streamId: (typeof p.streamId === 'function' ? p.streamId(h) : undefined) || undefined, parallelBranch: !!h.parallel,
           ceilingUsd: h.ceilingUsd,   // what is left of the line's $ ceiling (lower-only)
@@ -315,7 +323,8 @@ function makeLineRunner(deps) {
           initialTaint: h.entry ? null : UPSTREAM_TAINT,
           surface: 'autonomous', reflect: true, unattendedGrants: [],
           station: (typeof p.station === 'function' ? p.station(h) : null) || undefined,   // the hop's OWN bay room (multi-bay)
-          lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || crateId || undefined
+          lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || crateId || undefined,
+          lineHop: !h.entry || undefined
         }));
       } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
       finally {
@@ -328,7 +337,7 @@ function makeLineRunner(deps) {
       // a stop the profile says nobody made (its fault containment) is never "stopped by you": a profile with no words of its own says the fault
       const error = v.stopCode !== 'stopped' ? v.error : (stopped || typeof p.stoppedSaid === 'function') ? stoppedSaid(hs) : FAULT_SAID;
       if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, v.ok, { t0, now });
-      if (history && v.ok) history.append(h, 'assistant', v.text);
+      if (history && v.ok && typeof history.append === 'function') await history.append(h, 'assistant', v.text);
       const product = await workProduct(Object.assign({}, ret || {}, { text: v.text, runId }), h);
       return Object.assign(product, { usd: hs.usd, error, stopped, stopCode, stop: v.stop || null, lineStop: ret && ret.lineStop || null, workitemId: h.workitemId || crateId || null, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) });
     };

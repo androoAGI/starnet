@@ -201,7 +201,8 @@ async function run() {
       o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 });
     };
     const hub = makeChannelHub({ runOnce, store, send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen() });
-    const p1 = hub.onInbound(dm('first'));   // parks
+    const p1 = hub.onInbound(dm('first'));
+    await waitFor(() => call === 1);            // this case supersedes an already-started run
     await hub.onInbound(dm('second'));         // aborts the first, runs + delivers
     await p1;                                  // first unwinds: superseded -> no delivery
     // 2026-10-11: superseded, never SILENT — a one-line notice that the earlier task stopped, then the newer reply; no stale partial
@@ -382,6 +383,7 @@ async function run() {
     });
     const pa = hub.onInbound(dm('from-A', 'A'));   // chat A -> agent 'shared'
     const pb = hub.onInbound(dm('from-B', 'B'));   // chat B -> the SAME agent 'shared'
+    await waitFor(() => Object.keys(parks).length === 2);   // both actual runs passed awaited history
     for (const id in parks) parks[id]();           // release both in-flight runs
     await Promise.all([pa, pb]);
     A.eq(sends.length, 2, 'both chats got a reply — neither superseded the other despite sharing an agent');
@@ -807,6 +809,7 @@ async function run() {
     };
     const hub = makeChannelHub({ runOnce, store, send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: idGen() });
     const p1 = hub.onInbound(dm('first'));
+    await waitFor(() => call === 1);   // this notice belongs to work that actually started
     await hub.onInbound(dm('second'));
     await p1;
     A.ok(!sends.some(x => /stale partial/.test(x)), 'no stale partial');

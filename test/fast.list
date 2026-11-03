@@ -1113,6 +1113,11 @@ test/channels.history-adapters.test.js
 test/channels.history-import.test.js
 test/channels.history-port.test.js
 test/channels.history-review.test.js
+test/channels.history-consumers.test.js
+test/channels.history-handoff.test.js
+test/channels.history-ownership.test.js
+test/channels.history-preparation.test.js
+test/channels.edit-admission.test.js
 test/delivery-ledger.test.js
 test/channels.ledger-migration.test.js
 test/channels.ledger-write-failure.test.js

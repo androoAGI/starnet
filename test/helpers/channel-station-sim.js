@@ -1,4 +1,5 @@
 'use strict';
+const CanonicalHistory = require('./channel-history.js');
 /* test/helpers/channel-station-sim.js — a station's channels, faked only at the transport edge, for the delivery property
    (test/channels.delivery-ledger.property.test.js) and its soak (channel-delivery-ledger S2), and for the intake receipts
    of edits and taps (test/channels.intake-receipts.test.js, S3).
@@ -108,10 +109,10 @@ const MANIFEST = {
     // taskIntent is real since S3: a question's keyboard is what a choice tap answers
     real: ['channel', 'store', 'ownerTrusted', 'isOwner', 'send', 'chatAction', 'prompts', 'answerCallback', 'editMessage', 'setReaction',
       'deleteMessage', 'streamReplies', 'askConsent', 'resolveConsent', 'consentOutcome', 'newId', 'now', 'maxMessageLength', 'textBatchWaitMs',
-      'scrubOutbound', 'taskIntent'],
+      'scrubOutbound', 'taskIntent', 'history'],
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
-      historyFor: 'no canonical transcript', observeInto: 'records overheard lines', runSlash: 'answers every slash command', userCommandNames: 'none',
+      runSlash: 'answers every slash command', userCommandNames: 'none',
       desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider', resolveRunConfig: 'a configured downstream provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
       briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',
@@ -545,7 +546,7 @@ function makeWorld(seed, opts) {
           w.steered.push({ runId: String(runId), text: String(note == null ? '' : note), gen, at: w.now });
           return { ok: true };
         },
-        historyFor: () => [], observeInto: () => {}, userCommandNames: () => [],
+        userCommandNames: () => [],
         runSlash: async (line) => { w.slashCalls.push({ line: String(line), gen: gen, at: w.now }); return { ok: true, text: 'done' }; },
         desktopCommand: () => false, canReadAllGroupMessages: () => null,
         secrets: () => ({ key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
@@ -559,10 +560,19 @@ function makeWorld(seed, opts) {
       adapter: { onOwnerClaim: () => {}, ownerAdmission: () => null }
     };
   }
+  const historyByStore = new WeakMap();
+  let transcriptIo;
+  function historyForStore(store) {
+    if (!historyByStore.has(store)) {
+      const built = CanonicalHistory.make(store, { io: transcriptIo, now: () => w.now });
+      transcriptIo = built.io; historyByStore.set(store, built.history);
+    }
+    return historyByStore.get(store);
+  }
   function scopeFor(gen, store, extra) {
     return Object.assign({
       makeChannelHub, makeTelegramAdapter, makePromptRegistry, guardOutbound: (a) => HostPathScrub.guardOutbound(a, scrub), TaskIntent,
-      channelStore: store, crypto: { randomUUID: () => w.uuid() }, Date: { now: () => w.now },
+      channelStore: store, channelHistory: historyForStore(store), crypto: { randomUUID: () => w.uuid() }, Date: { now: () => w.now },
       channelAskConsent: consent.channelAskConsent, channelResolveConsent: consent.channelResolveConsent, channelConsentOutcome: consent.channelConsentOutcome,
       scrubOutbound: scrub, telegramTransportFetch: () => w.tgFetch(gen), token: '1:SIM', TELEGRAM_API_BASE: 'http://tg.sim',
       stationBotUsername: 'simbot', stationBotName: 'Sim', stationBotSeesAll: null, channelSecrets: { telegram: { ownerId: OWNER } },
@@ -577,7 +587,7 @@ function makeWorld(seed, opts) {
   }
   function bootBot(gen, store) {
     // makeBotScopedStore, sliced out of index.js over this process's store
-    const scoped = new Function('channelStore', sidecarTopLevelFunction('makeBotScopedStore') + '\nreturn makeBotScopedStore;')(store);   // eslint-disable-line no-new-func
+    const scoped = new Function('channelStore', 'botScopedStores', sidecarTopLevelFunction('makeBotScopedStore') + '\nreturn makeBotScopedStore;')(store, new Map());   // eslint-disable-line no-new-func
     const rec = { username: 'simbot2', botName: 'SimTwo', name: 'Agent', ownerId: OWNER };
     const entry = { adapter: null, hub: null, status: { connected: false, state: 'connecting', detail: '', delivery: { state: 'unknown', detail: '', at: 0 } } };
     const scope = scopeFor(gen, store, {
@@ -593,7 +603,7 @@ function makeWorld(seed, opts) {
     const st = stubs(gen, 'discord').hub;
     return wireChannel(reg.get('discord'), {
       outbound: scrub,
-      hub: { runOnce: st.runOnce, store: store, steerRun: st.steerRun, secrets: st.secrets, persona: st.persona, classify: st.classify, redact: st.redact,
+      hub: { runOnce: st.runOnce, store: store, history: historyForStore(store), steerRun: st.steerRun, secrets: st.secrets, persona: st.persona, classify: st.classify, redact: st.redact,
         emit: st.emit, newId: () => w.uuid(), now: () => w.now, roster: st.roster, runSlash: st.runSlash, userCommandNames: st.userCommandNames },
       adapter: { fetch: w.dcFetch(gen), token: 'D', clock: { now: () => w.now }, connectGateway: () => ({ close() {} }), ownerUserId: DC_OWNER }
     });

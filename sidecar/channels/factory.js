@@ -27,7 +27,7 @@ const POLICY = Object.freeze({
   getTag: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   groundedFor: { wired: ["telegram", "telegram-bot", "dev"], off: "This hub does not offer a task clarification keyboard." },
   handoffReads: { wired: ["trigger", "handoff"], off: "Only handoff/trigger jobs import proved upstream files." },
-  historyFor: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
+  history: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "Every production hub carries its canonical history owner." },
   hostPathPrefixes: { wired: [], off: "The host supplies its shared scrubOutbound instead." },
   isOwner: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal"], off: "Only adapter-paired conversation channels expose owner commands." },
   jobEntry: { wired: ["sample", "trigger", "handoff"], off: "Ordinary channel jobs use the shared channel entry." },
@@ -40,7 +40,6 @@ const POLICY = Object.freeze({
   modelCatalog: { wired: ["telegram", "discord", "slack", "matrix", "signal", "dev"], off: "Only station conversation hubs expose model selection." },
   newId: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   now: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
-  observeInto: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   onJobSettled: { wired: ["sample", "trigger", "handoff"], off: "Only host-owned sample/trigger jobs publish this receipt." },
   onLineOutcome: { wired: ["sample", "trigger", "handoff"], off: "Only host-owned sample/trigger jobs consume this outcome callback." },
   onResolved: { wired: ["dev", "sample", "trigger", "handoff"], off: "Only dev/sample/trigger need a constructor-level resolution observer." },
@@ -104,6 +103,8 @@ function makeHubDeps(kind, common, overrides) {
   }
   if (typeof out.resolveEntryRunConfig !== 'function' || typeof out.resolveRunConfig !== 'function')
     throw new Error(kind + ' requires live entry and downstream configuration');
+  if (!out.history || out.history.legacy === true || ['context', 'streamFor', 'replay', 'count', 'observe', 'rotate', 'deliver'].some(name => typeof out.history[name] !== 'function'))
+    throw new Error(kind + ' requires its canonical channel history owner');
   // Only Telegram supplies botUsername and reads this chat's mention settings at ingress.
   // A setting saved for another transport would claim a change its adapter never applies.
   out.mentionControl = kind === 'telegram' || kind === 'telegram-bot';

@@ -298,7 +298,9 @@ const { makeEnvironmentProxyFetch } = require('./channels/proxy-fetch.js');
 const telegramOwnerPairing = require('./channels/owner-pairing.js');
 const { makeChannelStore } = require('./channels/store.js');
 const channelHubFactory = require('./channels/factory.js');
-const { makeChannelHub, menuCommands, dockSystem, COMMANDS: HUB_COMMANDS } = require('./channels/hub.js');
+const ChannelHistory = require('./channels/history-port.js');
+const TurnDelivery = require('./turn-delivery.js');
+const { makeChannelHub, DEFAULT_AGENT_PREFIX: CHANNEL_AGENT_PREFIX, menuCommands, dockSystem, COMMANDS: HUB_COMMANDS } = require('./channels/hub.js');
 const { makeWebhookVerifier } = require('./channels/webhook-auth.js');
 const { admitRelayMessage } = require('./channels/relay-admission.js');   // relay bodies cross the adapter's own owner/group admission
 const { hostPowerWithheldFor, entryUntrusted, standingWorkEscalates } = require('./run-origin.js');   // Full Power follows the owner, not the chat (non-owner channel senders never inherit it)
@@ -5316,6 +5318,16 @@ if (!channelsReconciled.pending.length) scrubChannelSecretsBak();
 nameChannelQuarantines();
 function channelKeyIsStationHeld(provider, key) { return credStore.stationHeld(provider, key); }
 const channelStore = makeChannelStore({ fs, pathMod: path, root: CHANNELS_DIR, clock: { now: () => Date.now() }, writeDurable: writeFileDurable, timers: { setTimeout, clearTimeout }, holding: () => updateHolding(), onRecover: (file) => console.warn('[channels] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.') });
+// Stable scoped data access only: no bot config/credential snapshot. Initialize before saved bots auto-start.
+const botScopedStores = new Map();
+const channelHistory = ChannelHistory.make({
+  view: transcriptStore.view, append: transcriptStore.appendStrict, legacyStore: channelStore,
+  cacheRetractions: transcriptStore.cacheRetractions,
+  hash: text => crypto.createHash('sha256').update(text).digest('hex'), now: () => Date.now(),
+  newId: () => crypto.randomUUID(), deletedAt: id => sessionTombstones.deletedAt(id), redact, failNote,
+  outcomeOf: runId => { const row = runStore.latest(runId); return row ? RunOutcome.ofRow(row).outcome : null; },
+  writeDelivery: fields => TurnDelivery.write(transcriptStore, fields)
+});
 
 // ---- Codex (personal ChatGPT subscription) OAuth tokens — a protected sibling of the fs jail, SAME posture
 //      as the channel secrets above: the agent's own fs.* tools can't reach it, and the access/refresh tokens
@@ -11075,8 +11087,7 @@ function makeHubDeps(kind, overrides) {
     runOnce: runOnce,
     store: channelStore,
     steerRun: channelSteerRun,
-    historyFor: (streamId) => transcriptStore.reconstruct(streamId, { limit: 100 }),
-    observeInto: channelObserveInto,
+    history: channelHistory,
     runSlash: (input, sctx) => runSlashForChannel(input, sctx),
     userCommandNames: () => userCommandEntries().map(c => c.name),
     desktopCommand: isDesktopSlashCommand,
@@ -11366,12 +11377,16 @@ function issueTelegramBotOwnerPairing(botId) {
 // chat-record namespace wrapper: '<botId>|<chatId>' keys so two bots DM'd by the same user never cross-bind;
 // the REAL chatId + this instance's channel ride ON the record so the notifier can still address the chat.
 function makeBotScopedStore(botId) {
-  return Object.assign(Object.create(channelStore), {
-    getChatRecord(chatId) { return channelStore.getChatRecord(botId + '|' + String(chatId)); },
+  const key = String(botId);
+  if (botScopedStores.has(key)) return botScopedStores.get(key);
+  const scoped = Object.assign(Object.create(channelStore), {
+    getChatRecord(chatId, options) { return channelStore.getChatRecord(key + '|' + String(chatId), options); },
     saveChatRecord(chatId, patch) {
-      return channelStore.saveChatRecord(botId + '|' + String(chatId), Object.assign({}, patch, { chatId: String(chatId), channel: 'telegram:' + botId }));
+      return channelStore.saveChatRecord(key + '|' + String(chatId), Object.assign({}, patch, { chatId: String(chatId), channel: 'telegram:' + key }));
     }
   });
+  botScopedStores.set(key, scoped);
+  return scoped;
 }
 function startTelegramBot(botId) {
   stopTelegramBot(botId);
@@ -20191,10 +20206,7 @@ async function runSlashRoutine(line, opts) {
 /* /mention observe: a group line the bot overheard, filed as a run-less user row in the chat's canonical stream — the
    stream a channel hub's historyFor replays — so the next addressed run actually sees it. `taint` is the hub's verdict
    (null for a member's own words, a source for a forwarded one); passing it, null included, stamps the row's provenance. */
-function channelObserveInto(streamId, agentId, text, taint) {
-  transcriptStore.append({ streamId: String(streamId), agentId: String(agentId || ''), role: 'user', taint: taint || null, content: String(text || '') });
-  return true;
-}
+function channelObserveInto(ctx) { return channelHistory.observe(ctx); }
 
 /* Does the shared registry's BUILT-IN table know this token (a name or an alias)? What a channel hub answers as a
    desktop command instead of handing it to the model as paid chat (bug 6cd531b1). Built-ins only: a skill or recipe
@@ -29653,6 +29665,19 @@ function serveTranscript(req, res) {
   } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
 }
 
+// A disconnected conversation keeps the same constructor-owned namespace. Custom/per-job hubs have
+// no reconstructible context here; only their actual live hub can vouch for one.
+function disconnectedChannelHistory(channel, chatId) {
+  const bot = /^telegram:([^:]+)$/.exec(channel), kind = bot ? 'telegram-bot' : channel;
+  if (!channelHubFactory.KINDS.includes(kind) || channelHubFactory.manifest(kind).agentPrefix.mode !== 'off') return null;
+  if (bot) {
+    const records = telegramBotRecords();
+    if (!Object.prototype.hasOwnProperty.call(records, bot[1]) || !records[bot[1]] || typeof records[bot[1]] !== 'object') return null;
+  } else if (!channelRegistry.has(channel)) return null;
+  return channelHistory.context({ store: bot ? makeBotScopedStore(bot[1]) : channelStore, channel, chatId,
+    legacyKey: ChannelHistory.keyFor(chatId, CHANNEL_AGENT_PREFIX), bindChats: true });
+}
+
 /* Bind a local authenticated messaging conversation to an existing desktop workstream. This mutates only
    routing metadata: it never sends a message or starts a model run. */
 async function handleChannelHandoff(req, res) {
@@ -29665,12 +29690,22 @@ async function handleChannelHandoff(req, res) {
   if (agentId && !isAgentId(agentId)) return json(400, { error: 'invalid agentId' });
   const bot = /^telegram:([^:]+)$/.exec(channel);
   const storeKey = bot ? bot[1] + '|' + chatId : chatId;
-  const prior = channelStore.getChatRecord(storeKey);
+  const prior = channelStore.getChatRecord(storeKey, { readOnly: true });
   if (prior && prior.channel && String(prior.channel) !== channel) return json(409, { error: 'chatId is already owned by ' + prior.channel });
   const patch = { channel, chatId, streamId };
   if (agentId) patch.agentId = agentId;
   const saved = channelStore.saveChatRecord(storeKey, patch);
-  json(200, { ok: true, channel, chatId, streamId, agentId: saved.agentId || null, turns: transcriptStore.view('display', streamId, { limit: 200 }).length });
+  let turns = null;
+  try {
+    const live = liveChannelFor(channel);
+    if (live && live.hub && typeof live.hub.countHistory === 'function') turns = await live.hub.countHistory(chatId, saved.agentId || '', streamId);
+    else {
+      const chat = disconnectedChannelHistory(channel, chatId);
+      if (chat) turns = await channelHistory.count({ chat, agentId: saved.agentId || '' });
+    }
+    if (turns !== null && (!Number.isSafeInteger(turns) || turns < 0)) throw new Error('The chat history count is unproven');
+  } catch (e) { failNote('channels.handoff.history', e); turns = null; }
+  json(200, { ok: true, channel, chatId, streamId, agentId: saved.agentId || null, turns, historyAvailable: turns !== null });
 }
 
 /* Authenticated relay ingress. API-token auth is still required by the global HTTP guard; this second HMAC
