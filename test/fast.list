@@ -1291,6 +1291,7 @@ test/line-verdict.shared.test.js
 test/line-continuation.test.js
 test/line-continuation.transitions.test.js
 test/linejobs.continuation.test.js
+test/linejobs.persistence.test.js
 test/free-path-ollama.test.js
 test/keycta-recovery.test.js
 test/process-fault.test.js

@@ -100,10 +100,13 @@ async function main() {
   const vm = require('node:vm');
   const commitSource = require('./helpers/source.js').sidecarTopLevelFunction('lineJobsSet');
   const previous = { jobs: [{ id: 'already-saved' }] }, next = { jobs: [{ id: 'not-saved' }] };
-  const host = { lineJobs: previous, lineJobStore: { save: () => { throw new Error('disk full'); } }, failNote: () => {},
-    change: { state: next, job: next.jobs[0] } };
+  let writeAttempts = 0;
+  const host = { lineJobs: previous, lineJobsRefresh: () => previous,
+    lineJobsWriteVerified: () => { writeAttempts++; throw new Error('disk full'); }, lineJobsStorageRefusal: () => {}, failNote: () => {}, LineJobs: J,
+    change: () => ({ state: next, job: next.jobs[0] }) };
   A.throws(() => vm.runInNewContext(commitSource + '\nlineJobsSet(change, true);', host), 'production host propagates a refused strict finish');
   A.eq(host.lineJobs, previous, 'production host keeps its previous state when a strict write failed');
+  A.eq(writeAttempts, 1, 'refusal reaches the actual writer boundary, not a missing lifted dependency');
   await entryIntegration();
   A.report('line-jobs.invariant.test');
 }
