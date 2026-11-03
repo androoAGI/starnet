@@ -19,7 +19,10 @@
    fakes only at the transport edge: fetch (the station's voice routes), Audio (a clip plays to its end), AudioContext
    (its script processor is the microphone frame seam), SpeechRecognition, getUserMedia and localStorage, plus the page
    modules voice-live.js reads (Chat, Workstreams, Channels) as plain state on `w`. leg 'models' (default) answers the
-   offline engine ready; 'dictation' answers it absent with Windows dictation available, so start() takes that leg. */
+   offline engine ready; 'dictation' answers it absent with Windows dictation available, so start() takes that leg
+   (w.leg can change between calls). opts.store is the localStorage behind the window, so a fresh window over the same
+   store is a reload; every write is on w.writes with the stack that made it. w.denyMic refuses getUserMedia, a clip
+   whose text is in w.failClips fails to play, and w.key(key) runs the page's document keydown handlers. */
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
@@ -78,10 +81,11 @@ const tick = (ms = 10) => new Promise(r => setTimeout(r, ms));
 const FRAME = 2048, RATE = 48000;   // one ScriptProcessor buffer at the AudioContext's rate: ~43 ms
 function liveWindow(opts) {
   opts = opts || {};
-  const nodes = new Map(), store = {};
+  const nodes = new Map(), store = opts.store || {};
   const w = {
     leg: opts.leg || 'models', skew: 0, busy: false, sendState: null, transcript: '', pending: null, chips: [],
-    spoken: [], statuses: [], sent: [], runs: [], stops: [], mics: [], processors: []
+    spoken: [], statuses: [], sent: [], runs: [], stops: [], mics: [], processors: [],
+    denyMic: false, failClips: new Set(), listeners: {}, writes: []
   };
   const node = () => ({ textContent: '', value: '', title: '', innerHTML: '', hidden: false, disabled: false, dataset: {}, children: [], options: [],
     style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
@@ -101,9 +105,12 @@ function liveWindow(opts) {
     createScriptProcessor() { const processor = { connect() {}, disconnect() {}, onaudioprocess: null }; w.processors.push(processor); return processor; }
     createGain() { return { connect() {}, disconnect() {}, gain: { value: 0 } }; }
   }
-  class AutoEndAudio {   // a clip that plays to its end
+  class AutoEndAudio {   // a clip that plays to its end (or, named in w.failClips, fails as a broken media file does)
     constructor(src) { this.src = src; this.onplay = this.onended = this.onerror = null; this.volume = 1; this.playbackRate = 1; this.ended = false; }
-    play() { setTimeout(() => { if (this.onplay) this.onplay(); setTimeout(() => { this.ended = true; w.spoken.push(this.src); if (this.onended) this.onended(); }, 0); }, 0); return Promise.resolve(); }
+    play() {
+      if (w.failClips.has(this.src)) { setTimeout(() => { this.error = { code: 4, name: 'MediaError' }; if (this.onerror) this.onerror(); }, 0); return Promise.resolve(); }
+      setTimeout(() => { if (this.onplay) this.onplay(); setTimeout(() => { this.ended = true; w.spoken.push(this.src); if (this.onended) this.onended(); }, 0); }, 0); return Promise.resolve();
+    }
     pause() {} load() {} addEventListener() {} removeEventListener() {}
   }
   const json = body => Promise.resolve({ ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => body });
@@ -111,12 +118,17 @@ function liveWindow(opts) {
   let mods = null;
   const sandbox = {
     window: { SpeechRecognition: SR, AudioContext: AC, addEventListener() {} },
-    document: { getElementById: $, addEventListener() {}, createElement: () => node(), body: { appendChild: el => { if (el && el.id) nodes.set(el.id, el); } },
+    document: { getElementById: $, addEventListener: (type, fn) => { (w.listeners[type] = w.listeners[type] || []).push(fn); },
+      createElement: () => node(), body: { appendChild: el => { if (el && el.id) nodes.set(el.id, el); } },
       querySelectorAll: sel => (sel === '#chat-log .choice-row button.choice' ? w.chips : []) },
     navigator: { platform: 'Win32', userAgent: 'test', mediaDevices: { addEventListener() {},
-      getUserMedia: async () => ({ getTracks: () => [track], getAudioTracks: () => [track] }) } },
+      getUserMedia: async () => {
+        if (w.denyMic) { const error = new Error('Permission denied'); error.name = 'NotAllowedError'; throw error; }
+        return { getTracks: () => [track], getAudioTracks: () => [track] };
+      } } },
     location: { search: '' },
-    localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
+    localStorage: { getItem: k => (k in store ? store[k] : null), removeItem: k => { delete store[k]; },
+      setItem: (k, v) => { store[k] = String(v); w.writes.push({ key: k, value: String(v), stack: new Error().stack }); } },
     SpeechRecognition: SR, MediaRecorder: undefined, AudioContext: AC, Audio: AutoEndAudio,
     performance: { now: () => Date.now() + w.skew }, Event: class { constructor(type) { this.type = type; } },
     requestAnimationFrame: cb => setTimeout(() => cb(Date.now()), 16), cancelAnimationFrame: clearTimeout,
@@ -157,6 +169,8 @@ function liveWindow(opts) {
   mods = bootVoice(sandbox, { through: 'voice-live.js' });
   // ---- drivers ----
   w.mic = () => w.mics[w.mics.length - 1];   // the recognizer listening now (the dictation leg's ear, or a COMMS take)
+  // a key pressed on the page: every document keydown handler the voice scripts registered, in registration order
+  w.key = key => { const ev = { key, defaultPrevented: false, preventDefault() { this.defaultPrevented = true; } }; (w.listeners.keydown || []).forEach(fn => fn(ev)); return ev; };
   // one microphone frame at `level` into the script processor the models leg wired (its ear), on the page's clock
   w.frame = level => {
     const processor = w.processors[w.processors.length - 1];
@@ -176,7 +190,7 @@ function liveWindow(opts) {
     await tick(30);
     return closed;
   };
-  return Object.assign(mods, { w, spoken: w.spoken, node: $, press: id => $(id).onclick() });
+  return Object.assign(mods, { w, spoken: w.spoken, node: $, press: id => $(id).onclick(), sandbox });
 }
 
 module.exports = { bootVoice, VOICE_SCRIPTS, chatReply, liveWindow };

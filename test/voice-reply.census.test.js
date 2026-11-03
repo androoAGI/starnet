@@ -10,10 +10,15 @@
    states which of the two it expects.
    THE CENSUS. Every key of Voice and of VoiceLive has a row (a new export without one fails, so does a stale row); no
    replyToken is left anywhere in frontend/app; every production speakChunk/endReply passes a reply handle; every
-   stopSpeaking/cancelReply/endSession call names its scope and a CANCEL_CAUSES cause; both HTML entries load
+   stopSpeaking/cancelReply/endSession call names its scope and a CANCEL_CAUSES cause, and every endSession cause the
+   code uses has its own sweep row (SESSION_ENDS, with the scope it runs). Two forwarders pass a session's own cause on
+   instead of naming one, each in exactly one call: voice.js endSession's stop, and Local Live's end(cause) ->
+   finish(cause) -> endSession. Every call INTO them names nothing (call_end) or a table cause. Both HTML entries load
    voice-state.js before voice.js.
    The Live-turn rows run the call's own turn path through liveWindow's real microphone frame (VAD onset, endpoint,
-   transcription) and recognizer: every handleTranscript outcome and a refused microphone. The speaker-lease rows follow. */
+   transcription) and recognizer: every handleTranscript outcome and a refused microphone. The speaker rows: a session
+   taking and giving back the speaker, every session end, and Local Live opened over a legacy loop, refused or ended by
+   DISCONNECT and /voice off. */
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -50,6 +55,11 @@ const turn = (text, o) => async e => {
   A.ok(e.w.onset(), 'live turn "' + text + '": the call heard the onset');
   A.ok(await e.w.endTurn(text), 'live turn "' + text + '": the endpoint closed the turn into the transcription');
 };
+// every voice session end the code runs, as [cause, options]: 'all' cancels a reply still thinking, 'audible' lets it speak
+const SESSION_ENDS = [
+  ['handsfree_off'], ['session_init'], ['mic_denied', { scope: 'audible' }], ['live_start', { scope: 'audible' }],
+  ['live_start_failed', { lease: 'live', scope: 'audible' }], ['call_end', { lease: 'live' }], ['disconnect'], ['voice_off'], ['provider_voice']
+];
 const ROWS = [
   V('recordSpeechEvent', '', e => e.Voice.recordSpeechEvent('microphone_settings', {}), 'spoken'),
   V('speechDiagnostics', '', e => e.Voice.speechDiagnostics(), 'spoken'),
@@ -78,13 +88,15 @@ const ROWS = [
   V('stopSpeaking', "audible/microphone_activity (the Live onset's call)", e => e.Voice.stopSpeaking('audible', 'microphone_activity', { rms: 0.1 }), 'spoken'),
   V('toggleVoiceMode', 'hands-free on', e => e.Voice.toggleVoiceMode(), 'spoken'),
   V('toggleVoiceMode', 'hands-free on, then off', e => { e.Voice.toggleVoiceMode(); e.Voice.toggleVoiceMode(); }, 'handsfree_off'),
-  V('stopConvo', 'Esc, DISCONNECT, /voice off', e => e.Voice.stopConvo(), 'handsfree_off'),
+  V('stopConvo', 'Esc, the spoken exit, hands-free off', e => e.Voice.stopConvo(), 'handsfree_off'),
+  ...SESSION_ENDS.map(([cause, opts]) => V('endSession', cause + (opts ? ' ' + JSON.stringify(opts) : ''),
+    e => e.Voice.endSession(cause, opts), opts && opts.scope === 'audible' ? 'spoken' : cause)),
   V('onTurnEnd', '', e => e.Voice.onTurnEnd(), 'spoken'),
   V('canListen', '', e => e.Voice.canListen(), 'spoken'),
   V('canSpeak', '', e => e.Voice.canSpeak(), 'spoken'),
   V('startCoordinator', '', e => e.Voice.startCoordinator(hooks), 'spoken'),
-  V('stopCoordinator', 'with no coordinator', e => e.Voice.stopCoordinator(), 'spoken'),
-  V('stopCoordinator', 'ending a dictation loop', e => e.Voice.stopCoordinator(), 'handsfree_off', e => { e.Voice.startCoordinator(hooks); }),
+  V('stopCoordinator', 'with no coordinator (it ends a call: endSession call_end)', e => e.Voice.stopCoordinator(), 'call_end'),
+  V('stopCoordinator', 'ending a dictation loop', e => e.Voice.stopCoordinator(), 'call_end', e => { e.Voice.startCoordinator(hooks); }),
   V('pauseCoordinator', '', e => e.Voice.pauseCoordinator(), 'spoken', e => { e.Voice.startCoordinator(hooks); }),
   V('resumeCoordinator', '', e => { e.Voice.pauseCoordinator(); e.Voice.resumeCoordinator(); }, 'spoken', e => { e.Voice.startCoordinator(hooks); }),
   V('attachCoordinator', '', e => e.Voice.attachCoordinator(hooks), 'spoken'),
@@ -102,15 +114,24 @@ const ROWS = [
   V('voiceEffect', '', e => e.Voice.voiceEffect(), 'spoken'),
   V('setVoiceEffect', '', e => e.Voice.setVoiceEffect('natural'), 'spoken'),
   V('playbackChain', '', e => e.Voice.playbackChain(), 'spoken'),
-  V('forceSpeakOn', '', e => e.Voice.forceSpeakOn(), 'spoken'),
-  V('restoreSpeak', 'nothing to restore', e => e.Voice.restoreSpeak(), 'spoken'),
+  V('leaseSpeaker', 'a Live call borrows the speaker', e => e.Voice.leaseSpeaker('live'), 'spoken'),
+  V('releaseSpeaker', "the call gives it back to the Commander's choice (on)", e => e.Voice.releaseSpeaker('live'), 'spoken', e => { e.Voice.leaseSpeaker('live'); }),
+  V('releaseSpeaker', 'the call gives it back to a hand-set mute', e => e.Voice.releaseSpeaker('live'), 'speaker_off',
+    e => { e.Voice.setSpeakReplies(false); e.Voice.leaseSpeaker('live'); }),
+  V('speakerState', '', e => e.Voice.speakerState(), 'spoken'),
   V('sttEngine', '', e => e.Voice.sttEngine(), 'spoken'),
   V('isListening', '', e => e.Voice.isListening(), 'spoken'),
   V('isSpeaking', '', e => e.Voice.isSpeaking(), 'spoken'),
   V('inVoiceMode', '', e => e.Voice.inVoiceMode(), 'spoken'),
   L('init', '', e => e.VoiceLive.init(), 'spoken'),
   L('start', 'Local Live opens on the models leg', e => e.VoiceLive.start(false), 'spoken'),
+  // the legacy loop's hold ends AFTER the call's begins: the speaker never goes off between them, which would cancel it
+  L('start', 'over a legacy hands-free loop over a hand-set mute', e => e.VoiceLive.start(false), 'spoken',
+    e => { e.Voice.setSpeakReplies(false); e.Voice.toggleVoiceMode(); }),
+  L('start', 'the microphone is refused', e => { e.w.denyMic = true; return e.VoiceLive.start(false); }, 'spoken'),
   L('end', 'the call ends', e => e.VoiceLive.end(), 'call_end'),
+  L('end', 'DISCONNECT', e => e.VoiceLive.end('disconnect'), 'disconnect', startCall),
+  L('end', '/voice off', e => e.VoiceLive.end('voice_off'), 'voice_off', startCall),
   L('isActive', '', e => e.VoiceLive.isActive(), 'spoken'),
   L('statusSnapshot', '', e => e.VoiceLive.statusSnapshot(), 'spoken'),
   L('voices', '', e => e.VoiceLive.voices('agent'), 'spoken'),
@@ -166,10 +187,21 @@ const ROWS = [
     A.ok(state > 0 && voice > state, entry + ' loads app/voice-state.js before app/voice.js');
   }
   const APP = fs.readdirSync(path.join(ROOT, 'frontend', 'app')).filter(f => f.endsWith('.js')).map(f => 'frontend/app/' + f);
-  const seen = { handles: 0, stops: 0 };   // the census must find the calls it rules on, or it proves nothing
+  // the forwarders: in each, the ONE call that passes a session's own cause on (every call into them is checked below)
+  const FORWARDS = {
+    'frontend/app/voice.js': [['  function endSession(cause, opts) {', "stopSpeaking(opts.scope || 'all', cause)"]],
+    'frontend/app/voice-live.js': [['  function finish(cause) {', "endSession(cause, { lease: 'live' })"], ["  function end(cause = 'call_end') {", 'finish(cause)']]
+  };
+  const seen = { handles: 0, stops: 0, sessions: 0, ends: 0 };   // the census must find the calls it rules on, or it proves nothing
   for (const file of APP) {
     const raw = read(file), src = strip(raw);
     A.ok(raw.indexOf('replyToken') < 0, file + ': no replyToken (a reply is a handle, never a global token)');
+    const forwards = (FORWARDS[file] || []).map(([header, call]) => {
+      const body = A.fnBody(src, header), from = src.indexOf(header);
+      A.ok(body.length > 0 && body.split(call).length === 2, file + ': ' + header.trim() + ' forwards its own cause in one call: ' + call);
+      return { from, to: from + body.length, call };
+    });
+    const forwarded = m => forwards.some(f => m.index >= f.from && m.index < f.to && m[0] === f.call);
     const handles = new Set(Array.from(src.matchAll(/\bconst (\w+) = [^;\n]*?\b(?:Voice\.)?open(?:Reply)?\(/g), m => m[1]));
     for (const m of src.matchAll(/(?<!function )\b(speakChunk|endReply)\(\s*([^,)\s]*)/g)) {
       const arg = m[2], held = handles.has(arg) || (/\.handle$/.test(arg) && handles.has(arg.slice(0, -'.handle'.length)));
@@ -178,6 +210,7 @@ const ROWS = [
     }
     for (const m of src.matchAll(/(?<!function )\bstopSpeaking\(([^)]*)\)/g)) {
       seen.stops++;
+      if (forwarded(m)) continue;
       const a = /^\s*'(audible|all)'\s*,\s*'([a-z_]+)'/.exec(m[1]);
       A.ok(!!a && CAUSES.indexOf(a[2]) >= 0, file + ': stopSpeaking(' + m[1].trim().slice(0, 40) + ') names its scope and a CANCEL_CAUSES cause');
     }
@@ -186,11 +219,23 @@ const ROWS = [
       A.ok(!!a && CAUSES.indexOf(a[1]) >= 0, file + ': cancelReply(' + m[1].trim() + ') names a CANCEL_CAUSES cause');
     }
     for (const m of src.matchAll(/(?<!function )\bendSession\(([^)]*)\)/g)) {
-      const a = /^\s*'([a-z_]+)'/.exec(m[1]);
+      seen.sessions++;
+      if (forwarded(m)) continue;
+      const a = /^\s*'([a-z_]+)'/.exec(m[1]), row = a && SESSION_ENDS.find(r => r[0] === a[1]);
       A.ok(!!a && CAUSES.indexOf(a[1]) >= 0, file + ': endSession(' + m[1].trim().slice(0, 40) + ') names a CANCEL_CAUSES cause');
+      A.ok(!!row && /scope: 'audible'/.test(m[1]) === !!(row[1] && row[1].scope === 'audible'),
+        file + ': endSession(' + m[1].trim().slice(0, 60) + ') has a SESSION_ENDS sweep row running its scope');
+    }
+    // Local Live's end(cause) -> finish(cause): every call ends the call with nothing (call_end) or a table cause
+    const enders = file === 'frontend/app/voice-live.js' ? /(?<!function )(?<![\w.])(?:end|finish)\(([^)]*)\)/g : /\bVoiceLive\.end\(([^)]*)\)/g;
+    for (const m of src.matchAll(enders)) {
+      seen.ends++;
+      if (forwarded(m)) continue;
+      const arg = m[1].trim(), a = /^'([a-z_]+)'$/.exec(arg);
+      A.ok(arg === '' || (!!a && CAUSES.indexOf(a[1]) >= 0), file + ': ' + m[0] + ' ends the call with nothing (call_end) or a CANCEL_CAUSES cause');
     }
   }
-  A.ok(seen.handles >= 8 && seen.stops >= 12, 'the census reads the production speech calls (' + JSON.stringify(seen) + ')');
+  A.ok(seen.handles >= 8 && seen.stops >= 6 && seen.sessions >= 11 && seen.ends >= 8, 'the census reads the production speech calls (' + JSON.stringify(seen) + ')');
 
   // ---- THE SWEEP ----
   for (const row of ROWS) {

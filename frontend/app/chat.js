@@ -10697,8 +10697,8 @@ const Chat = (() => {
       return localLine('Voice replies are on.');
     }
     if (/^(off|false|no|mute)$/.test(raw)) {
-      if (typeof VoiceLive !== 'undefined' && VoiceLive.end) VoiceLive.end();
-      if (Voice.stopConvo) Voice.stopConvo();
+      if (typeof VoiceLive !== 'undefined' && VoiceLive.end) VoiceLive.end('voice_off');
+      if (Voice.endSession) Voice.endSession('voice_off');
       if (Voice.setSpeakReplies) Voice.setSpeakReplies(false);
       return localLine('Voice replies are off.');
     }
@@ -12263,8 +12263,8 @@ const Chat = (() => {
      req.on('close') then stops the loop) AND tell the sidecar to kill the run by id — belt-and-suspenders. */
   function abort() {
     // drop hands-free on disconnect — Live Voice included (its own microphone loop stayed hot behind DISCONNECT)
-    if (typeof VoiceLive !== 'undefined' && VoiceLive.isActive && VoiceLive.isActive() && VoiceLive.end) VoiceLive.end();
-    if (typeof Voice !== 'undefined' && Voice.stopConvo) Voice.stopConvo();
+    if (typeof VoiceLive !== 'undefined' && VoiceLive.isActive && VoiceLive.isActive() && VoiceLive.end) VoiceLive.end('disconnect');
+    if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession('disconnect');
     // teardown is a DELIBERATE interrupt, not a dropped connection: flag every in-flight stream interrupted BEFORE
     // aborting so send()'s catch reads `stopped` and stays silent — otherwise the AbortError gets reclassified as a
     // network fault and a spurious "can't reach the sidecar" row is pushed into ws.history + persisted. (A reader

@@ -182,7 +182,7 @@ const VoiceLive = (() => {
     waveBars = Array.from(wave.children);
     restorePosition(panel);
     makeDraggable(panel);
-    $('lv-close').onclick = end;
+    $('lv-close').onclick = () => end();
     $('lv-retry').onclick = () => start(true);
     $('lv-barge').onclick = bargeIn;
     $('lv-pause').onclick = togglePause;
@@ -1272,7 +1272,7 @@ const VoiceLive = (() => {
   async function start(retry) {
     ensurePanel();
     if (active && !retry) { $('live-voice-panel').hidden = false; return; }
-    if (retry) finish(true);
+    if (retry) finish('call_end');
     paused = false; timing = {}; lastAudioStartMs = null;
     // Local Live rides on staged offline speech packages, so ASK the sidecar instead of assuming this particular
     // install is intact before opening the microphone. Going live first and failing on the first model import is
@@ -1341,13 +1341,12 @@ const VoiceLive = (() => {
     bindSession();   // the call belongs to the session it was OPENED in (see the binding note above)
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
-      // Entering hands-free means you expect to HEAR the reply. If the speaker is muted, turn it on for the
-      // session (restored on exit if we were the ones who flipped it) — otherwise live voice opens silent and
-      // looks broken until the Commander hunts down a toggle.
-      if (Voice.forceSpeakOn) Voice.forceSpeakOn();
-      // Local Live is now Starnet's one hands-free surface. A legacy loop can still exist through
-      // older saved state or API callers; close it before attaching this persistent microphone.
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      // Entering hands-free means you expect to HEAR the reply, so the call borrows the speaker: its own lease, given back
+      // at its end, never saved, and a choice the Commander makes meanwhile is theirs to keep. Local Live is Starnet's one
+      // hands-free surface; a legacy loop can still exist through older saved state or API callers, and it closes AFTER
+      // the lease is taken, so its hold ending never mutes the speaker in between (that would cancel the reply still thinking).
+      if (Voice.leaseSpeaker) Voice.leaseSpeaker('live');
+      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.endSession) Voice.endSession('live_start', { scope: 'audible' });
       if (Voice.setLocalTts) Voice.setLocalTts(true);
       if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
@@ -1378,13 +1377,9 @@ const VoiceLive = (() => {
         : String(error && error.message || error));
       closeMicrophone();
       reflectButton(false);
-      if (typeof Voice !== 'undefined') {
-        if (Voice.detachCoordinator) Voice.detachCoordinator();
-        if (Voice.setLocalTts) Voice.setLocalTts(false);
-        // start() may have lifted a user mute before the microphone permission request failed. A failed
-        // session must restore that preference just like a normal finish does.
-        if (Voice.restoreSpeak) Voice.restoreSpeak();
-      }
+      // start() leased the speaker before the microphone was refused: a failed session gives it back, with its hooks and
+      // built-in voice, just like a normal end, but a reply still thinking still speaks
+      if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession('live_start_failed', { lease: 'live', scope: 'audible' });
     }
   }
 
@@ -1650,9 +1645,8 @@ const VoiceLive = (() => {
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
       // The provider speaks for itself here, so OUR text-to-speech must stay silent or the reply is doubled.
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      if (Voice.endSession) Voice.endSession('provider_voice');
       if (Voice.setLocalTts) Voice.setLocalTts(false);
-      if (Voice.stopSpeaking) Voice.stopSpeaking('all', 'provider_voice');
       if (Voice.attachCoordinator) Voice.attachCoordinator(coordinatorHooks());
     }
     try {
@@ -1787,11 +1781,11 @@ const VoiceLive = (() => {
     bindSession();   // the shipped path binds too — the call belongs to the session it was opened in
     reflectButton(true);
     if (typeof Voice !== 'undefined') {
-      /* ⛔ THE SAME LEVER start() PULLS, INCLUDING THE DEGRADE PATH. An explicit opt-out or damaged/custom
-         bundle lands here even in an installed station. Wiring the speaker auto-enable only into the models
-         path left that room muted: the Commander could talk, but never hear an answer. */
-      if (Voice.forceSpeakOn) Voice.forceSpeakOn();
-      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.stopConvo) Voice.stopConvo();
+      /* ⛔ THE SAME LEVERS start() PULLS, IN THE SAME ORDER, INCLUDING THE DEGRADE PATH. An explicit opt-out or
+         damaged/custom bundle lands here even in an installed station. Wiring the speaker auto-enable only into the
+         models path left that room muted: the Commander could talk, but never hear an answer. */
+      if (Voice.leaseSpeaker) Voice.leaseSpeaker('live');
+      if (Voice.inVoiceMode && Voice.inVoiceMode() && Voice.endSession) Voice.endSession('live_start', { scope: 'audible' });
       /* setLocalTts(TRUE) on the dictation leg too (2026-07-30). This flag means "speak with the BUILT-IN
          live-voice identity", not "the Kokoro engine is installed": the sidecar now maps the picked voice
          onto the keyless Edge floor when the engine is absent, so the picker keeps working on an installed
@@ -1837,7 +1831,7 @@ const VoiceLive = (() => {
     taskTimer = setInterval(refreshTask, 500);
   }
 
-  function finish(stopVoice) {
+  function finish(cause) {
     if (ending) return;
     ending = true;
     active = false;
@@ -1852,22 +1846,17 @@ const VoiceLive = (() => {
     closeMicrophone();
     clearInterval(meterClock); meterClock = null;
     closeMeterTap();
-    if (typeof Voice !== 'undefined') {
-      if (stopVoice && Voice.stopSpeaking) Voice.stopSpeaking('all', 'call_end');
-      if (Voice.restoreSpeak) Voice.restoreSpeak();   // only undoes a mute WE lifted; a hand-set speaker stays
-      // Dictation mode STARTED the coordinator (which armed a listen loop), so detaching the hooks is not
-      // enough — that loop has to be stopped or the sidecar keeps being asked to dictate after the panel closes.
-      if (dictation && Voice.stopCoordinator) Voice.stopCoordinator();
-      if (Voice.detachCoordinator) Voice.detachCoordinator();
-      if (Voice.setLocalTts) Voice.setLocalTts(false);
-    }
+    // ONE teardown: every reply is cut with this call's cause; the listen loop dictation STARTED stops (detaching the hooks
+    // alone left the sidecar dictating after the panel closed); the call's hold on the speaker goes back (a hand-set speaker
+    // stays as the Commander left it); the hooks detach and ordinary speech returns to the persona ladder
+    if (typeof Voice !== 'undefined' && Voice.endSession) Voice.endSession(cause, { lease: 'live' });
     dictation = false;
     boundWsId = null;   // the binding dies with the call — a later call binds to wherever it is opened
     if ($('live-voice-panel')) $('live-voice-panel').hidden = true;
     reflectButton(false);
     ending = false;
   }
-  function end() { finish(true); }
+  function end(cause = 'call_end') { finish(cause); }   // DISCONNECT and /voice off name theirs
 
   function init() {
     ensurePanel();

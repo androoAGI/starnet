@@ -818,32 +818,34 @@ async function opensWithin(t, ms) {
   // --- EVERY speaker-off path puts the speech note away -----------------------------------------
   // 2026-10-15 report: "this warning pops up and never goes away once you turn off voice whilst the agent is
   // chatting". Only a new SPOKEN reply (or a click) cleared the note, and a muted station opens none — the
-  // speaker key cleared it, but ending Local Live / hands-free (the restore of a mute voice mode lifted) and
-  // `/voice off` after it did not, so the note sat under the COMMS keys for good.
+  // speaker key cleared it, but ending Local Live / hands-free (a session giving back the speaker it borrowed over a
+  // mute) and `/voice off` after it did not, so the note sat under the COMMS keys for good.
   {
     const fail503 = url => String(url).includes('/api/tts')
       ? Promise.resolve({ok:false,status:503,headers:{get:()=> 'application/json'},json:async()=>({reason:'unavailable'})})
       : Promise.resolve({ok:true,json:async()=>({})});
     const noted = t => /couldn.t be spoken/.test(t.nodes['voice-toggle'].title);
-    const raiseNote = async t => {
-      t.Voice.setSpeakReplies(false); A.ok(t.Voice.forceSpeakOn(), 'note: voice mode lifts a hand-set mute');
+    const raiseNote = async (t, owner) => {
+      t.Voice.setSpeakReplies(false); t.Voice.leaseSpeaker(owner);
+      A.ok(t.Voice.isOn(), 'note: a voice session (' + owner + ') borrows the speaker over a hand-set mute');
       const reply = t.Voice.openReply({owner:'general'});   // its run keeps streaming after the mute
       t.Voice.speakChunk(reply, 'A sentence the engine drops.', 'agent');
       await until(() => noted(t), 1000);
       A.ok(noted(t), 'note: a dropped sentence raises the note while the speaker is on');
       return reply;
     };
+    // [the session that borrowed the speaker, how the speaker goes off]
     const paths = {
-      'Local Live ends (restoreSpeak)': t => { t.Voice.stopSpeaking(); t.Voice.restoreSpeak(); },
-      // delta review 10-15: a Local Live start that fails (mic permission denied) restores the mute with NO stop first
-      'a failed Local Live start (restoreSpeak alone)': t => t.Voice.restoreSpeak(),
-      'hands-free ends (stopConvo)': t => t.Voice.stopConvo(),
-      '/voice off (stopConvo, then setSpeakReplies off)': t => { t.Voice.stopConvo(); t.Voice.setSpeakReplies(false); },
-      'the speaker key': t => t.nodes['voice-toggle'].onclick()
+      'Local Live ends (endSession, its lease)': ['live', t => t.Voice.endSession('call_end', { lease: 'live' })],
+      // delta review 10-15: a Local Live start that fails (mic permission denied) gives the speaker back with no stop of its own
+      'a failed Local Live start': ['live', t => t.Voice.endSession('live_start_failed', { lease: 'live', scope: 'audible' })],
+      'hands-free ends (stopConvo)': ['handsfree', t => t.Voice.stopConvo()],
+      '/voice off (endSession, then setSpeakReplies off)': ['live', t => { t.Voice.endSession('voice_off'); t.Voice.setSpeakReplies(false); }],
+      'the speaker key': ['live', t => t.nodes['voice-toggle'].onclick()]
     };
-    for (const [name, mute] of Object.entries(paths)) {
+    for (const [name, [owner, mute]] of Object.entries(paths)) {
       const t = boot({Audio:AutoEndAudio, fetch:fail503});
-      const reply = await raiseNote(t);
+      const reply = await raiseNote(t, owner);
       mute(t);
       A.eq(t.Voice.isOn(), false, 'note: ' + name + ' leaves the speaker off');
       A.ok(!noted(t), 'note: ' + name + ' puts the speech note away');
@@ -855,11 +857,11 @@ async function opensWithin(t, ms) {
     }
   }
 
-  // --- a speaker restored to its mute goes SILENT, even with a sentence mid-play ---------------
-  // delta review 10-15: a failed Local Live start (mic permission denied) re-mutes through Voice.restoreSpeak() with no
-  // stopSpeaking() of its own, so the sentence already playing — and every one queued behind it — went on with the
-  // speaker key OFF. The audio here plays until something stops it (the playback watchdog is held off), so the outcome
-  // never depends on timing.
+  // --- a speaker given back to its mute goes SILENT, even with a sentence mid-play ---------------
+  // delta review 10-15: a failed Local Live start (mic permission denied) re-muted with no stopSpeaking() of its own, so
+  // the sentence already playing — and every one queued behind it — went on with the speaker key OFF. Here the call's
+  // lease is given back with NO stop before it: setSpeaker's own on -> off effect must silence it. The audio plays until
+  // something stops it (the playback watchdog is held off), so the outcome never depends on timing.
   {
     const played = [], paused = [];
     class HeldAudio extends MockAudio {
@@ -873,12 +875,13 @@ async function opensWithin(t, ms) {
     const compressed = t.sandbox.setTimeout;   // the rig compresses long timers; keep the 2-minute playback watchdog real
     t.sandbox.setTimeout = (fn, ms, ...a) => ms >= 100000 ? setTimeout(fn, ms, ...a).unref() : compressed(fn, ms, ...a);
     t.Voice.setSpeakReplies(false);
-    A.ok(t.Voice.forceSpeakOn(), 'held: Local Live lifts the hand-set mute as it starts');
+    t.Voice.leaseSpeaker('live');
+    A.ok(t.Voice.isOn(), 'held: Local Live borrows the speaker over the hand-set mute as it starts');
     stream(t, ['The first sentence is playing.', 'The second sentence waits its turn.']);
     await until(() => t.Voice.isSpeaking(), 1000);
     A.ok(t.Voice.isSpeaking() && played.length === 1, 'held: the first sentence is playing, the second queued behind it');
-    t.Voice.restoreSpeak();   // the failed start's catch: nothing stopped the voice before it
-    A.eq(t.Voice.isOn(), false, 'held: the restore leaves the speaker off');
+    t.Voice.releaseSpeaker('live');   // the lease alone goes back: nothing stopped the voice before it
+    A.eq(t.Voice.isOn(), false, 'held: giving back the lease leaves the speaker at the Commander\'s mute');
     A.ok(!t.Voice.isSpeaking(), 'held: the sentence that was playing stops with it');
     A.ok(paused.length > 0 && paused.every(src => src === 'The first sentence is playing.'), 'held: its audio is paused: ' + paused.join('|'));
     A.ok(!t.Voice.isReplyPending(), 'held: nothing is left queued');

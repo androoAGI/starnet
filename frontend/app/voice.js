@@ -63,12 +63,12 @@ const Voice = (() => {
   const canSpeak = () => (typeof Audio !== 'undefined') && (typeof fetch !== 'undefined');
 
   // ---- prefs --------------------------------------------------------------
-  // do agents speak their replies aloud? (persisted). DEFAULT OFF — and keep it off: when the speaker is
+  // do agents speak their replies aloud? (the Commander's saved choice). DEFAULT OFF — and keep it off: when the speaker is
   // on, chat.js routes even a real TASK to the one-on-one 'talk' stance (the agent faces you and answers on
   // the spot) INSTEAD of walking to its workstation. Defaulting this ON silently suppressed the signature
   // desk trip for every task on an untouched agent ("gave it a task, it just stood there"). Voice is opt-in;
-  // a user who turns it on (or enters hands-free mode, which force-enables it) gets the spoken one-on-one.
-  let speakReplies = loadPref(LS_SPEAK, false);
+  // a user who turns it on (or opens a hands-free session, which borrows it: setSpeaker) gets the spoken one-on-one.
+  const speaker = VoiceState.speaker({ key: LS_SPEAK, storage: () => localStorage });
   let convoMode = false;     // hands-free loop — a per-session mode (each game starts in push-to-talk)
   function loadPref(k, dflt) { try { const v = localStorage.getItem(k); return v == null ? dflt : v === '1'; } catch (_) { return dflt; } }
   function savePref(k, on) { try { localStorage.setItem(k, on ? '1' : '0'); } catch (_) {} }
@@ -100,7 +100,6 @@ const Voice = (() => {
   }
   let sentThisListen = false;       // did the just-finished listen actually send a message?
   let discarding = false;           // teardown in progress → drop any buffered transcript (don't send)
-  let forcedSpeak = false;          // voice mode flipped the speaker on for us → restore the user's mute on exit
   let resumePending = false;        // a refresh dropped hands-free → the mode button pulses to invite one-tap resume
 
   // a single status seam: prefer Chat.status (it owns #chat-status), fall back to the DOM node.
@@ -443,7 +442,7 @@ const Voice = (() => {
      Idempotent per persona so toggling doesn't re-warm needlessly. */
   let prewarmedFor = null;
   async function prewarmVoice() {
-    if (!speakReplies) return;
+    if (!speaker.isOn()) return;
     if (clockNow() < neuralColdUntil) return;        // neural path cooling off after a failure → don't hammer
     if (draining()) return;                          // a LIVE reply owns the voice path — never warm in front of it
     if (prewarmedFor === activePersonaId) return;   // already warmed this persona's shelf
@@ -470,7 +469,7 @@ const Voice = (() => {
         });
         try { await r.arrayBuffer(); } catch (_) {}
       } catch (_) { break; }   // network gone → stop warming, don't hammer
-      if (!speakReplies) break;   // user muted mid-warm → abandon
+      if (!speaker.isOn()) break;   // user muted mid-warm → abandon
     }
   }
 
@@ -882,7 +881,7 @@ const Voice = (() => {
     // Build the voice's effect graphs INSIDE a user gesture so they start running: created later (at the first
     // reply) they start suspended, and the opening sentence played dry — without the station shell — so the
     // reply's first words sounded like a different voice. Only while the speaker is on; idempotent.
-    if (speakReplies) {
+    if (speaker.isOn()) {
       try {
         const chosen = voiceEffect();
         if (chosen !== 'machine' && chosen !== 'comms') ensureNaturalGraph();          // natural or AUTO
@@ -1132,8 +1131,8 @@ const Voice = (() => {
   }
   /* Speaker off: a note about speech is moot — and nothing else would ever put it away. Only a new SPOKEN reply
      (or a click) clears it, and a muted station opens none, so a note raised in Local Live stayed under the
-     COMMS keys for good once ending the call restored the mute (2026-10-15 report). EVERY path that turns the
-     speaker off calls this — the speaker key, /voice off, and the two restores of a mute voice mode lifted. */
+     COMMS keys for good once ending the call restored the mute (2026-10-15 report). setSpeaker calls this on EVERY
+     transition that leaves the speaker off, whichever writer made it: the key, /voice off, a session giving it back. */
   function speakerOffClearsNote() { if (interruptionMessage) showInterruption(''); }
   // autoplay refused: every later sentence would fail too, so the reply is cancelled (playback_blocked) and says why
   function failReply(job, error) {
@@ -1238,7 +1237,7 @@ const Voice = (() => {
   // typed event (dropped_after_cancel), never in silence and never with a throw inside the producer's stream.
   function speakChunk(handle, text, voiceId) {
     const reply = registry.of(handle);
-    if (reply && reply.state === 'open' && !speakReplies) cancel([reply], 'speaker_off');   // a muted speaker says nothing: the reply ends, typed
+    if (reply && reply.state === 'open' && !speaker.isOn()) cancel([reply], 'speaker_off');   // a muted speaker says nothing: the reply ends, typed
     if (!registry.offer(reply, text)) return;
     if (voiceId) activeVoiceId = voiceId;
     const clean = speakable(text);
@@ -1264,7 +1263,7 @@ const Voice = (() => {
   }
   // public one-shot: a whole line as its own reply, queued FIFO behind whatever is speaking. A streamed reply still
   // open keeps its own heartbeat, so the line never ends it early or re-opens the mic over the rest of it.
-  function speak(text, voiceId) { if (speakReplies) { const handle = openReply(); speakChunk(handle, text, voiceId); endReply(handle); } }
+  function speak(text, voiceId) { if (speaker.isOn()) { const handle = openReply(); speakChunk(handle, text, voiceId); endReply(handle); } }
   function cancelReply(handle, cause) { const reply = registry.of(handle); return !!reply && cancel([reply], cause).length > 0; }
 
   // Cut speech NOW. 'audible' (the default) cancels every reply with speech queued or playing; 'all' also cancels the
@@ -1281,7 +1280,7 @@ const Voice = (() => {
   // exchange (incl. an open hands-free loop) so it can't collide with conversation or feed the open mic;
   // re-arming on end covers "voice mode toggled on mid-mutter" so the loop never hangs.
   function mutter(text) {
-    if (!speakReplies) return;
+    if (!speaker.isOn()) return;
     if (convoMode || speaking || draining() || currentAudio || listening || rearmTimer || busyNow()) return;
     const t = String(text || '').trim();
     if (!t) return;
@@ -1338,7 +1337,7 @@ const Voice = (() => {
   }
 
   // turn hands-free on/off. ON jumps straight into listening; agents must be audible to converse,
-  // so it also flips the speaker on. OFF tears the loop down.
+  // so it also borrows the speaker for the loop. OFF tears the loop down.
   function toggleVoiceMode() {
     if (!canListen()) return;
     clearResumeCue();
@@ -1347,7 +1346,7 @@ const Voice = (() => {
     if (typeof SFX !== 'undefined') SFX.open();
     if (convoMode) {
       savePref(LS_CONVO, true);   // remember the hands-free intent so a refresh can offer one-tap resume
-      if (!speakReplies) { speakReplies = true; savePref(LS_SPEAK, true); forcedSpeak = true; reflectToggle(); }  // you have to hear it (restored on exit)
+      setSpeaker({ lease: 'handsfree' });   // you have to hear it: held on until the loop ends (endSession), never saved
       emptyStreak = 0; micErrStreak = 0;
       reflectMode();
       if ((!busyNow() || coordinator) && !listening && !speaking) startListening();
@@ -1358,23 +1357,28 @@ const Voice = (() => {
     }
   }
 
-  // fully stop the loop (toggle off, DISCONNECT, teardown).
-  function stopConvo() {
+  /* ONE teardown for every voice session: hands-free off (the toggle, Esc, the spoken exit), a refused classic mic,
+     DISCONNECT, /voice off, Voice.init, and a Local Live call's start, failure and end. The loop stops WITHOUT sending
+     a half-spoken utterance: abort() suppresses the final result, and the discarding flag drops it even if a final
+     already arrived (else turning off mid-sentence, or a DISCONNECT, would fire the buffered words at the agent as a
+     brand-new run). Speech is cut with the session's cause ('all' by default; 'audible' leaves a reply still thinking
+     to speak). The session's holds on the speaker go back ('handsfree', plus the lease named), so the speaker returns
+     to the Commander's own choice once no session holds it, and a 'live' lease's end detaches that call. */
+  function endSession(cause, opts) {
+    opts = opts || {};
     const was = convoMode;
     convoMode = false;
     clearTimeout(rearmTimer); rearmTimer = null;
-    // tear down WITHOUT sending a half-spoken utterance: abort() suppresses the final result, and the
-    // discarding flag drops it even if a final already arrived (else turning off mid-sentence, or a
-    // DISCONNECT, would fire the buffered words at the agent as a brand-new run).
     if (listening) { discarding = true; sttProvider.abort(); }
-    stopSpeaking('all', 'handsfree_off');
-    // restore the speaker mute that voice-mode-on force-flipped — don't let a transient mode permanently
-    // clobber a deliberate preference (only if the user didn't manually re-touch the speaker meanwhile).
-    if (forcedSpeak) { forcedSpeak = false; speakReplies = false; savePref(LS_SPEAK, false); speakerOffClearsNote(); reflectToggle(); }
+    stopSpeaking(opts.scope || 'all', cause);
+    setSpeaker({ release: 'handsfree' });
+    if (opts.lease) setSpeaker({ release: opts.lease });
     reflectMode();
     if (was && !busyNow()) setStatus('online');
     if (was) coordinatorEvent('onState', 'ended');
+    if (opts.lease === 'live') { detachCoordinator(); sttProvider = classicSttProvider; setLocalTts(false); }
   }
+  function stopConvo() { endSession('handsfree_off'); }   // hands-free off
 
   // a silent listen in voice mode: try again a few times, then go passive so the mic isn't hot forever.
   function handleEmptyListen() {
@@ -1914,12 +1918,11 @@ const Voice = (() => {
       onError: msg => {
         coordinatorEvent('onError', String(msg || 'speech recognition failed'));
         // a DENIED mic is a hard stop, never a hiccup to re-arm into: a Live call pauses its loop, the classic loop
-        // drops hands-free, and both say how to fix it
+        // ends (a reply still thinking still speaks), and both say how to fix it
         if (msg === 'not-allowed' || msg === 'service-not-allowed') {
           if (coordinator) return pauseMicLoop(msg, microphoneHelp());
           listening = false; setMicState(false);
-          clearTimeout(rearmTimer); rearmTimer = null;
-          stopConvo();
+          endSession('mic_denied', { scope: 'audible' });
           setStatus(microphoneHelp());
           return;
         }
@@ -2025,12 +2028,7 @@ const Voice = (() => {
     else if (!listening && !talking()) startListening();
     return true;
   }
-  function stopCoordinator() {
-    unpauseMicLoop();
-    if (convoMode) stopConvo();
-    coordinator = null;
-    sttProvider = classicSttProvider;
-  }
+  function stopCoordinator() { endSession('call_end', { lease: 'live' }); }   // the call's loop, its hooks and its hold end
   function pauseCoordinator() {
     coordinatorPaused = true;
     clearTimeout(rearmTimer); rearmTimer = null;
@@ -2076,18 +2074,19 @@ const Voice = (() => {
   }
   function reflectToggle() {
     if (!toggleBtn) return;
-    toggleBtn.classList.toggle('off', !speakReplies);
-    toggleBtn.innerHTML = speakReplies ? ICON.spkOn : ICON.spkOff;
+    const on = speaker.isOn();
+    toggleBtn.classList.toggle('off', !on);
+    toggleBtn.innerHTML = on ? ICON.spkOn : ICON.spkOff;
     /* The pinned degrade reason OUTRANKS the plain on/off copy. This tooltip is the only sanctioned channel
        for voice-outage telemetry (#chat-status is run-state only), so overwriting it unconditionally left the
        station silent while asserting 'agent voice: ON' with no way to find out why — the exact 2026-07-07
        escape the fbMsg machinery exists to prevent. Every path that legitimately clears the reason calls
        clearNeuralCold()/noteNeuralOk() first, which empty fbMsg; init() did not, and it runs on agent focus,
        persona change and dossier apply. Guarding here covers every caller instead of one. */
-    toggleBtn.title = (interruptionMessage ? interruptionMessage + ' ' : '') + ((speakReplies && fbMsg) ? fbMsg
-      : (speakReplies ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute'));
-    toggleBtn.setAttribute('aria-pressed', speakReplies ? 'true' : 'false');
-    toggleBtn.setAttribute('aria-label', speakReplies ? 'Agent voice: on, click to mute' : 'Agent voice: off, click to unmute');
+    toggleBtn.title = (interruptionMessage ? interruptionMessage + ' ' : '') + ((on && fbMsg) ? fbMsg
+      : (on ? 'agent voice: ON — click to mute' : 'agent voice: OFF — click to unmute'));
+    toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-label', on ? 'Agent voice: on, click to mute' : 'Agent voice: off, click to unmute');
   }
   function reflectMode() {
     if (!modeBtn) return;
@@ -2116,28 +2115,25 @@ const Voice = (() => {
     if (modeBtn) modeBtn.classList.remove('resume');
     reflectMode();   // restore the normal title/aria for the current mode
   }
-  function toggleSpeakReplies() {
-    speakReplies = !speakReplies; savePref(LS_SPEAK, speakReplies);
-    forcedSpeak = false;   // a manual speaker change is the user's own choice — keep it (don't restore on voice-mode exit)
-    clearNeuralCold();     // ANY toggle re-probes the neural path fresh — no cold-off survives a deliberate flip
-    if (!speakReplies) { stopSpeaking('all', 'speaker_off'); speakerOffClearsNote(); }
-    else prewarmVoice();   // turning ON → quietly warm the stock lines so mutters/samples play instantly
+  /* THE SPEAKER's ONE transition (voice-state.js speaker: the Commander's saved choice plus the sessions holding it on,
+     never saved). Every writer goes through it and every change runs ONE fixed list, in order: a deliberate choice or a
+     flip re-probes the neural path fresh (no cold-off or degrade reason survives it); going off silences every reply,
+     thinking ones too; off always puts the speech note away; only the Commander turning it on warms the stock lines;
+     and the key always redraws, so its tooltip can never claim ON over a muted speaker. */
+  function setSpeaker(next) {
+    const s = speaker.apply(next);
+    if (s.explicit || s.changed) clearNeuralCold();
+    if (!s.on) { if (s.was) stopSpeaking('all', 'speaker_off'); speakerOffClearsNote(); }
+    else if (s.explicit && !s.was) prewarmVoice();   // quietly warm the stock lines so mutters/samples play instantly
     reflectToggle();
+    return s.on;
+  }
+  function toggleSpeakReplies() {
+    setSpeaker({ pref: !speaker.isOn() });   // the key flips what it shows: the Commander's choice, which ends any session's hold
     // the COMMS speaker key sounds like every other COMMS key (and the bottom docks): press(), not the Click_02 tick
     if (typeof SFX !== 'undefined') (SFX.press || SFX.click)();
   }
-  function setSpeakReplies(on) {
-    const want = on !== false;
-    clearNeuralCold();     // ANY toggle re-probes the neural path fresh — no cold-off survives a deliberate flip
-    // already off still clears: `/voice off` runs stopConvo first, which may have restored the mute already
-    if (speakReplies === want) { if (!want) speakerOffClearsNote(); reflectToggle(); return speakReplies; }
-    speakReplies = want; savePref(LS_SPEAK, speakReplies);
-    forcedSpeak = false;
-    if (!speakReplies) { stopSpeaking('all', 'speaker_off'); speakerOffClearsNote(); }
-    else prewarmVoice();
-    reflectToggle();
-    return speakReplies;
-  }
+  function setSpeakReplies(on) { return setSpeaker({ pref: on !== false }); }   // /voice on|off: the Commander's choice too
 
   // init is called from app.js right after Chat.init — agentName seeds this agent's voice.
   function init(opts) {
@@ -2145,10 +2141,9 @@ const Voice = (() => {
     activeVoiceId = opts.name || 'agent';
     if (typeof opts.now === 'function') clock = opts.now;   // an injected clock for every cold-off and sentence deadline
     if (opts.personaId) activePersonaId = opts.personaId;
-    convoMode = false;   // a fresh game session starts in push-to-talk; the toggle opts into hands-free
-    clearTimeout(rearmTimer); rearmTimer = null; emptyStreak = 0;
-    stopSpeaking('all', 'session_init');   // C4: cut any reply left by a PRIOR agent before this one takes the mic
-    forcedSpeak = false; // C3: clear the "we force-enabled the speaker, restore on exit" bookkeeping so it never carries across agents
+    // a fresh game session starts in push-to-talk (the toggle opts into hands-free). C4: any reply a PRIOR agent left is
+    // cut before this one takes the mic; C3: hands-free's hold on the speaker ends with it, so it never carries across agents
+    endSession('session_init'); emptyStreak = 0;
     inputEl = el('chat-input'); statusEl = el('chat-status');
     micBtn = el('chat-mic'); toggleBtn = el('voice-toggle'); modeBtn = el('voice-mode');
 
@@ -2182,25 +2177,25 @@ const Voice = (() => {
     // if the speaker is already on for this agent AND the harness is configured, warm the stock lines now
     // (background, fire-and-forget) so the very first mutter/sample plays from cache. No key → no-op.
     prewarmedFor = null;   // new agent/persona → allow a fresh warm
-    if (speakReplies) prewarmVoice();
+    if (speaker.isOn()) prewarmVoice();
   }
 
   // let other code (or a future hotkey) retarget the active voice when the workstream's agent changes.
   function setAgent(name) { if (name) activeVoiceId = name; }
   // A personality change on the FOCUSED agent re-keys the words, never the session: init() tore down the reply,
-  // dropped hands-free and the forced-speaker bookkeeping, so editing a persona mid-call killed the call.
+  // dropped hands-free and its hold on the speaker, so editing a persona mid-call killed the call.
   function setPersona(personaId, name) {
     if (name) activeVoiceId = name;
     if (personaId && personaId !== activePersonaId) {
       activePersonaId = personaId; prewarmedFor = null;
-      if (speakReplies) prewarmVoice();   // init() warmed the new persona's stock lines; keep that
+      if (speaker.isOn()) prewarmVoice();   // init() warmed the new persona's stock lines; keep that
     }
   }
 
   // is the agent going to SPEAK this reply? true when the speaker toggle is on and this environment can
   // play neural audio (Audio + fetch) — NOT gated on speechSynthesis anymore. chat.js uses this to decide
   // whether a conversational turn is "voice mode" (short/casual spoken reply) vs "type mode" (written).
-  function isOn() { return !!(speakReplies && canSpeak()); }
+  function isOn() { return !!(speaker.isOn() && canSpeak()); }
 
   return {
     recordSpeechEvent, speechDiagnostics: () => speechDiagnostics.map(event => Object.assign({}, event)),
@@ -2208,30 +2203,17 @@ const Voice = (() => {
     openReply, cancelReply, replies: () => registry.live().map(reply => reply.handle),
     init, speak, speakChunk, endReply, mutter, ambientLine, setAgent, setPersona, isOn, setSpeakReplies,
     startListening, stopListening, toggleListen, stopSpeaking,
-    toggleVoiceMode, stopConvo, onTurnEnd,
+    toggleVoiceMode, stopConvo, endSession, onTurnEnd,
     canListen, canSpeak, startCoordinator, stopCoordinator, pauseCoordinator, resumeCoordinator, attachCoordinator, detachCoordinator,
     canOAuthLive: () => !!SR || typeof fetch !== 'undefined', personaId: () => activePersonaId,
     setLocalTts, voiceChoice, localVoiceId, setVoiceChoice, voiceLabel, rememberVoiceLabels, currentAgentId, microphoneHelp,
     voiceEffect, setVoiceEffect, playbackChain: () => lastChain,
-    /* LIVE VOICE MUST ARRIVE AUDIBLE. Opening a hands-free session with the speaker muted is a room where you
-       talk and nothing answers — the Commander then has to find a toggle to make the feature work at all.
-       Classic voice mode already force-enables the speaker in toggleVoiceMode(); the Local Live panel does not
-       route through that, so it needs the same lever. Reuses the SAME `forcedSpeak` bookkeeping, so a speaker
-       WE switched on is restored on exit while one the Commander chose themselves is left alone. */
-    forceSpeakOn: () => {
-      if (speakReplies) return false;          // already audible — nothing to restore later
-      speakReplies = true; savePref(LS_SPEAK, true); forcedSpeak = true; reflectToggle();
-      return true;
-    },
-    restoreSpeak: () => {
-      if (!forcedSpeak) return false;          // the Commander's own choice — never undo it
-      // a muted speaker is SILENT: stop what is playing or queued first, as every other speaker-off path does. A failed
-      // Local Live start (mic permission denied) restores the mute with no stop of its own, and the reply already speaking
-      // went on with the speaker key OFF (delta review 10-15).
-      stopSpeaking('all', 'speaker_off');
-      forcedSpeak = false; speakReplies = false; savePref(LS_SPEAK, false); speakerOffClearsNote(); reflectToggle();
-      return true;
-    },
+    /* LIVE VOICE MUST ARRIVE AUDIBLE. Opening a hands-free session with the speaker muted is a room where you talk and
+       nothing answers. Hands-free leases the speaker in toggleVoiceMode(); Local Live leases it for its call. A lease is
+       its owner's alone and never saved: giving it back returns the speaker to the Commander's own choice (one made
+       mid-call ends every lease and is kept), and a page that dies mid-call reloads to that choice, never a forced ON. */
+    leaseSpeaker: owner => setSpeaker({ lease: owner }), releaseSpeaker: owner => setSpeaker({ release: owner }),
+    speakerState: () => speaker.state(),
     // Which transcription engine is ACTUALLY selected right now ('recorder' | 'web' | 'native'). A UI that
     // names the engine has to read it rather than re-derive the selection rule, or the label drifts from
     // the truth the moment the ladder changes.

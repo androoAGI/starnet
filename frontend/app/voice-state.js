@@ -1,4 +1,4 @@
-/* STARNET — voice-state.js : what a spoken reply IS, as data (no audio, no DOM, no timers).
+/* STARNET — voice-state.js : what a spoken reply and the speaker ARE, as data (no audio, no DOM, no timers).
 
    A spoken reply is a HANDLE from the moment a turn is sent to the moment its last sentence ends. voice.js used to name
    the reply by a global counter that every teardown bumped, so ANY stop between a send and its first chunk dropped the
@@ -21,6 +21,14 @@
 
    The handle a producer holds is a read-only view {id, owner, agentId, state, audible, cause}. voice.js keeps its own
    per-reply synthesis pins (voice, effect chain, fail streak) on the record; this module never reads them.
+
+     speaker(opts)    does the station speak its replies? pref is the Commander's own choice, the ONLY thing ever saved
+                      (opts.key in opts.storage(), the '1'/'0' shape every build reads; absent is off). leases are the
+                      sessions holding it on while they run (SPEAKER_LEASES: a room you talk to has to answer), memory
+                      only, so a page that dies mid-call comes back to the last choice the Commander made. on = pref ||
+                      a lease. apply(next) is its one transition: {pref} an explicit choice (saved; it ends every lease,
+                      so no session's end can undo it), {lease: owner} / {release: owner} one session's hold. It answers
+                      {was, on, explicit, changed}; the effects of a change are voice.js's. This is the key's one writer.
    UMD like diagnostics.js: the page gets a VoiceState global (loaded right before voice.js); node tests require it. */
 'use strict';
 (function (root, factory) {
@@ -101,5 +109,25 @@
     };
   }
 
-  return { CANCEL_CAUSES, isCancelCause, replies };
+  const SPEAKER_LEASES = Object.freeze(['handsfree', 'live']);   // the legacy hands-free loop, a Local Live call
+  function speaker(opts) {
+    opts = opts || {};
+    let pref = false;
+    try { pref = opts.storage().getItem(opts.key) === '1'; } catch (_) {}   // blocked storage reads as a first visit: off
+    const leases = new Set();
+    const on = () => pref || leases.size > 0;
+    function apply(next) {
+      next = next || {};
+      const was = on(), explicit = typeof next.pref === 'boolean';
+      if (explicit) {
+        pref = next.pref; leases.clear();
+        try { opts.storage().setItem(opts.key, pref ? '1' : '0'); } catch (_) {}   // unsaved, the choice still holds for this page
+      } else if (SPEAKER_LEASES.indexOf(next.lease) >= 0) leases.add(next.lease);
+      else if (SPEAKER_LEASES.indexOf(next.release) >= 0) leases.delete(next.release);
+      return { was, on: on(), explicit, changed: was !== on() };
+    }
+    return { apply, isOn: on, state: () => ({ pref, leases: Array.from(leases), on: on() }) };
+  }
+
+  return { CANCEL_CAUSES, isCancelCause, replies, SPEAKER_LEASES, speaker };
 });
