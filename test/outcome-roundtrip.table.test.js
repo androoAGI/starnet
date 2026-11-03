@@ -57,48 +57,7 @@
      Run Now button 7/15  a cut, asked, budget, step-limit, empty or stopped run toasted "routine ran" in green
      build quest 14/17    a cut reply celebrated "built"        group turn 14/16  a cut reply was a completed turn, posted whole
      away briefing 13/15  a cut reply and a question nobody answered were briefed under Done as "ran"
-   The lane's tip before review r4 (fda0d39d9) failed 51 rows: the board chip, the floor crate, the Run Now button, the build quest,
-   the group turn and the away briefing as above; the unfireable card and the capability_denied post-mortem; the delegated cases
-   on channels, routines, notifications, Run Now, the CLI and the ROUTINES window (a worker's 429 failed the lead's routine; a
-   worker's end stood in for a lead that never ended); a held line recorded ok and pinged; an ACP policy block "failed inside StarNet". Before review r1 /v1 read 16/18 and the ROUTINES window
-   2/26; before review r2 Run Now 25/26, the ROUTINES window 38/39 and the SLAG post-mortem 3/4.
-   Review 4.1 (the tip ade70eb29) failed 6 rows: Run Now delivered a cut reply's and a held line's conveyor crate to the OUTBOX (its
-   settle fell back to the bare 'done' reason); the scheduled fire never settled its crate itself (index.js cronEmitNotify settled it
-   at the ENTRY run's end, with that same fallback, before a reviewer could hold the line — the driver now settles it in finishFire,
-   so the routines rows read "(never settled)" there); and ACP told an editor whose lead never ended "the run failed inside StarNet"
-   (noend), or nothing at all (delegatedNoEnd: the bridge took the worker's 'done' end as the lead's).
-   Review 4.3 (the tip e1af42735, a `git archive` of it run with this file) printed 4 problems, 422 ok: routines 48/50 and Run Now
-   48/50 — a stopped line's and a partial join's crate settled 'done' (cron-driver fireOutcome .crate, routing/line-fire.js lineDelivered).
-   Review 5.1 (the tip 1f800cf6a, a `git archive` of it run with this file) printed 4 problems, 454 ok: routines 64/66 and Run Now
-   64/66 — cron.result's reason and the record's lastReason read 'done' for a cut fire and a held line (finishFire handed on the run's
-   bare end word; it reads ROUTINE_REASON now, from the fire's outcome).
-   Review 5.2 (the tip 14a1fbdc6, a `git archive` of it run with this file) printed 4 problems, 459 ok: the ROUTINES window 48/50 and
-   the away briefing 15/17 — on both routine paths a held fire's RUN HISTORY line read "✓ ok" beside its card's "✕ held", and the
-   briefing listed it under Done as "ran" (handleCronHistory and the briefing read the ENTRY run's row, which ended clean; the
-   routine's last fire reads the outcome its record settled now).
-   Review 5.3 (the tip e335d4cf4, a `git archive` of it run with this file) printed 4 problems, 463 ok: the away briefing 17/21 — on both
-   routine paths a held fire's reviewer hop (a work-line stage on the fire's own stream, no cronJobId) was grouped as a routine of its own
-   and briefed under Done as "ran", and a stopped line's failed stage was briefed as a separate routine beside its fire's "ran" (a stage
-   reads as its fire's now).
-   Review 6.1 (the tip a76024c67, a `git archive` of it run with this file) printed 8 problems, 467 ok: the ROUTINES window 50/54 and
-   the away briefing 21/25 — on both routine paths, once a held fire's routine was config-blocked or marked unfireable, its RUN HISTORY
-   line read "✓ ok" and the briefing listed it under Done as "ran" (both marks clear lastOutcome beside the held fire's lastRunId; the
-   fire's receipt, cron-store lastFire, keeps its outcome bound to its runId now).
-   Review 6.2 (the tip ed24ba061, its sources run with this file) printed 4 problems, 475 ok: the ROUTINES window 54/56 and the away
-   briefing 25/27 — on both routine paths, once a held fire's routine fired again cleanly (its normal next event), the held fire's RUN
-   HISTORY line read "✓ ok" and the briefing read "“digest” ran 2×." with no failure (the receipt kept only the LAST fire; the record keeps
-   each unsucceeded fire's receipt now, cron-store fireReceipts / fireOf).
-   Review r7 (the STOP family: a stop is its own outcome, never a failure and never a success). The tip before it (0a09ce218, a `git archive`
-   of it run with this file) printed 42 problems, 479 ok: routines 68/95 and Run Now 67/74 — a stopped fire recorded 'error' and announced
-   'failed', cron.result carried no outcome code, a fire whose work line someone stopped (at a hop, or before its first hop) recorded ok /
-   succeeded, reset its streak and kept no stop on its finalization (its delivery was stage one's draft, as the whole result); a stop
-   after four failures auto-paused the routine; a pause mid-run was rewritten 'error' and its result delivered at once — notifications 16/18
-   (the stopped line pinged "ran on its own"), /v1 19/20 (finish_reason 'error' for a stop), the away briefing 26/28 (a stop briefed as a
-   failure, "(1 failed)" beside a clean fire) and the ROUTINES window 53/56 (a stop drawn as the red ✕).
-   Review 7.1 (the tip 571fe3601, a `git archive` of it run with this file) printed 6 problems, 529 ok: Run Now 81/87 — r7's hold on a
-   routine paused while its fire ran also caught a RUN NOW pressed on a routine that was ALREADY paused, so the result the Commander asked for
-   (a clean reply, a cut one or a failure notice) waited for a resume, and a transient failure (a 429, an unreachable provider) backed off to
-   a retry a paused routine never fires and settled nothing; the press's lease records pausedAtStart now, and only a fire paused mid-run waits.
+   The per-review measurements of this table stay with the lane's history on agent/typed-outcomes-1029, frozen at bb0a62df0.
    NOT CLOSED HERE: a Deny followed by a finished reply stays 'succeeded' on every surface (the 10-17 rule e2e.run-truth-1017
    locks). GitHub androoAGI/starnet-releases#9 (rel#9: a Deny should end the run 'denied' or 'stopped by user') is NOT closed by
    this lane: it is deferred to the follow-up lane denied-outcome, which waits on the per-surface semantics.
@@ -249,7 +208,7 @@ async function loopRun(kind) {
   else if (kind === 'budget') { opts.provider = says('never sent'); opts.budget = { check: () => ({ scope: 'run', usd: 3, cap: 3 }) }; }
   else if (kind === 'steps') {
     const reg = makeRegistry();
-    reg.register({ name: 'probe', description: 'probe', capability: 'compute', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => 'probed' });
+    reg.register({ name: 'probe', description: 'probe', capability: 'compute', scope: 'read', impact: 'none', schema: { type: 'object', properties: {} }, run: async () => 'probed' });
     opts.provider = scripted(async function* () { yield { type: 'tool_start', index: 0, id: 'c' + Math.floor(events.length), name: 'probe' }; yield { type: 'tool_args', index: 0, chunk: '{}' }; yield { type: 'done', finishReason: 'tool_calls' }; });
     opts.tools = reg.wireFormat(); opts.dispatch = (c, ctx) => reg.dispatch(c, ctx); opts.limits = { maxIters: 1, grace: false };
   } else if (kind === 'empty') opts.provider = scripted(async function* () { yield { type: 'done', finishReason: 'stop' }; });

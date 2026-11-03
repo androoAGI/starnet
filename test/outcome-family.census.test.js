@@ -7,10 +7,10 @@
    (finishReason 'length'), as does a run whose own error outranks its end, and a run that never reported an end defaulted to
    'done' in places. Review r4 found the copies outside the lane's ten surfaces: the build quest, the floor's product crate, the
    group-chat turn, the away briefing, the trust window, XP, the floor stats, the board chip, the crew's worker rows, line hand-offs,
-   triggers and shipments, the HUD deck, the desk screen, the terminal dashboard, the phone's live run, …
+   triggers and shipments, the HUD deck's view helper (HudMode.view, which no page mounts), the desk screen, the terminal dashboard, the phone's live run, …
 
    Review 4.1 found the copies the r4 census could not see, because they compare no reason with 'done': a REASON-KEYED word map
-   (the HUD's finished cards `FINISH[row.reason] || FINISH.done`, the LOGBOOK's RUNS row, a recipe's last run, the floor crate card's
+   (the HUD's finished cards `FINISH[row.reason] || FINISH.done`, the LOGBOOK's RUNS row, the recipe last-run helper (lastRunHTML, no caller), the floor crate card's
    DONE), a `|| 'done'` default for a run with no reason (the insights fold's "% success", the bay lamp, a line job's step record), a
    reason under another name (`why === 'done'`), a success rate keyed on the bare bucket, and copies whose reason was outcome-aware
    but whose INPUT dropped the outcome (XP's history catch-up, the sample route's step rows, a worker's live thread delivery), plus the
@@ -38,7 +38,7 @@
       hands its text down the line only when its run SUCCEEDED (a cut, limited, asking or endless entry bought every stage on its
       partial answer); the Telegram / dev-channel host delivers a crate only on the hub's proof (an unsettled message — no model, an
       E-STOP, a throw — rode to the OUTBOX); the trigger and SEND TO runners' run rows (index.js runsFor) and a hand-off's job record
-      keep each row's outcome; a recipe's last-run cache and the desk screen's idle view read the row's outcome; `starnet watch` prints
+      keep each row's outcome; the recipe run cache keeps the row's outcome for that helper, and the desk screen's idle view reads it; `starnet watch` prints
       the outcome-aware reason, and /api/observe carries the stamped outcome it reads.
       Since 4.3 (the REPORT copies, each driven with a cut and an error-outranked row): the MCP bridge's conversations_list /
       conversation_get carry the row's outcome and an outcome-aware reason; station.test_line labels each step by its run's outcome;
@@ -76,19 +76,8 @@
       routine fires again cleanly (the record keeps each unsucceeded fire's receipt: cron-store fireReceipts; RUN HISTORY and the away
       briefing are the table's). The decision census reads a reason PREDICATE (REVIEWABLE: `reviewableReason(result.reason)`): runOnceCore's
       _auxFail gate, the failure review's table and learning-eligibility's 'failed' kind — PARKED then, closed by the unpark below.
-   It FAILS on the lane's tip before review r4 (fda0d39d9): the census lists ~60 unlisted copies there, and every fold below
-   counts the cut reply as done. On the tip before review 4.1 (ade70eb29) it lists the keyed / default / alias copies above and the
-   4.1 folds fail; on the tip before review 4.2 (9cfeee702) the 4.2 folds fail (23 of them); on the tip before review 4.3
-   (e1af42735) the REPORT census lists 8 unlisted lines (exactly the ones 4.3 fixed) and 19 of the 4.3 folds fail; on the tip before
-   review 5.1 (1f800cf6a) the REPORT census lists 5 unlisted lines (exactly the ones 5.1 fixed) and 19 of the 5.1 folds fail; on the tip
-   before review 5.2 (14a1fbdc6) 5 of the 5.2 folds fail (the census itself is clean there); on the tip before review 5.3 (e335d4cf4) 8 of
-   the 5.3 folds fail and the decision census lists autosessions' old bare-'done' fallback (10 problems, 317 ok) — and there the widened
-   WRAP / REPORT_LABEL, without the REPORTED rows 5.3 adds, list 27 guarded lines (the on_session_end hook among them; each is listed below
-   with why). On the tip before review 6.1 (a76024c67) 2 of the 6.1 folds fail (333 ok), and there the widened WRAP without the REPORTED
-   rows 6.1 adds lists 5 lines (the skill review's input and evidence, runOnceCore's learning-eligibility input, and two reasons that are
-   no run's: a browser step-in's, the speech-to-text route's). On the tip before review 6.2 (ed24ba061) 5 of the 6.2 folds fail (340 ok),
-   and there REVIEWABLE without the rows 6.2 adds lists 3 lines (index.js's _auxFail gate, failreview.js's table, learning-eligibility's
-   'failed' kind). Sidecar source is read only through test/helpers/source.js.
+   Sidecar source is read only through test/helpers/source.js. The per-review measurements of this file stay with the lane's history on
+   agent/typed-outcomes-1029, frozen at bb0a62df0.
    THE UNPARK (r7, 2026-10-30: runOnceCore is no longer frozen after the rebase onto run-wire-resolver). Every consumer parked above
    reads the run's outcome now, and its PARKED row is gone from ALLOWED / REPORTED: the quest sweep, the Task Brief settle, the
    postconditions' cleanTerminal and its input, the on_session_end hook's payload (reason outcome-aware, plus outcome / failure_code),
@@ -99,7 +88,7 @@
    reaches the sink, and runStore.record consumes endedOutcomes before the aux decisions. The buffer gate stays listed (it holds
    the lead's own end, cut short or not, until those assessments: no success claim). runOnceCore's up-front refusals and the image
    task's late error name their own failureCode (FriendlyError.CODE_TO_KIND words each), so none reads the sink's run_failure.
-   Each is driven by test/outcome-unpark.test.js, which FAILS on the tip before the unpark (b167cb6c8).
+   Each is driven by test/outcome-unpark.test.js.
    THE STOP FAMILY and THE ERROR-FLAG FAMILY (review r7, 2026-10-30; the family law: a STOP is its own outcome — never reported or counted
    as a failure, and never as a success — and no surface takes a run's verdict from an error flag). The decision census reads three more
    shapes: ERROR_FLAG (a success word chosen by an error flag: the phone push titled every run "<agent> finished" unless evt.error was set),
@@ -111,21 +100,14 @@
    counters (insights, recipe drift, the habit detector), the away briefing's loops / builds / delegated work / line stages, the work line's
    stop (halted), the build quest card, a stopped recommendation, the trigger / hand-off / sample / step-test jobs, an away build's attempt,
    DELIVERABLES' pill, the terminal's chat, Run Now's verdict and the routine's status word; the routine record, cron.result, the delivery
-   headline, the auto-pause and a pause mid-run are the invariant table's r7 rows. On the tip before r7 (0a09ce218, a `git archive` of it run
-   with this file) it prints 34 problems, 347 ok: the decision census lists 17 unlisted lines (the phone push's error-flag title, the reply gates
-   of the goal / pitch / auto-job / onboarding / title / judge / work-line consumers, a stopped worker's verdict, the floor's red stop, the
-   briefing's delegated rule), the AGGREGATE census 2 (markRun's streak, the insights denominator), and every r7 fold fails.
+   headline, the auto-pause and a pause mid-run are the invariant table's r7 rows.
    Review 7.1 widened the reply gate to CHAT_RECEIVER (any name a file assigns a chat round trip's reply to: the page autopilot's cRes / dRes /
    qRes, the session starters' response) and drove the page autopilot (fold 22), the session starters (23), the night shift's review (24) and
-   the habit detector's ok rule (13). On the tip before it (571fe3601, a `git archive` of it run with this file) it prints 6 problems, 381 ok:
-   4 unlisted reply gates (autopilotstore.js x3, starterstore.js), a stopped run counted as a completed occasion and cited as takeover
-   evidence, a cut or stopped autopilot draft or review presented (and written as a file — a cut review's truncated revision "1. Fre"), a cut
-   starter generation parsed as ideas, and a cut or stopped night-shift review shipping its draft.
+   the habit detector's ok rule (13).
    Review 7.2 widened it again: the RELAY (a receiver handed on through `await Promise.race([name, …])` or `await until(name)` is a receiver)
    and the BARE GATE (`if (X.error || …`), for the page's wire preflight, which raced its Harness.chat from `call` into `res` and gated on
    `res.error || !text`: a cut, stopped, budget-ended or refused "OK" passed the wire, which its terminal twin (bin/lib/awaken.js) refuses.
-   Fold 25 drives it. On the tip before it (e5fba4897, a `git archive` of it run with this file) it prints 2 problems, 388 ok: the unlisted
-   wire gate (app.js) and fold 25 (a cut, stopped, budget-ended or refused "OK" each passed the wire, { ok: true }).
+   Fold 25 drives it.
    EACH OUTCOME ITS OWN WORD AND COLOUR, and THE MISSING OUTCOME (review r8, 2026-10-30; the family law: a stop is never a failure or a
    success, a question ('asked') never STOPPED and never failed, a failure never a stop, and a cut reply, a spend or step limit, an empty
    reply and a refusal each keep their own word; a reply or row with NO terminal outcome is never a success outside a documented
@@ -140,9 +122,7 @@
    covers every outcome distinctly, or is listed in OUTCOME_MAPS with why), the OUTCOME FOLD (a one-kind ternary onto a literal bucket reads
    RunOutcome.look, or is listed in OUTCOME_FOLDS) and the MISSING OUTCOME (MISSING_OK lists the documented fallbacks). RunOutcome carries
    the one look per outcome (look / LOOK) and the word reader (ofWord). The r8 OUTCOME TABLE (folds r8.1 – r8.23) drives each fixed surface
-   over the outcomes. On the tip before it (647eebc69, a `git archive` of it run with this file) it prints 69 problems, 406 ok: the decision
-   census lists the 8 lines whose false or folding ALLOWED rows r8 removed, the three r8 censuses list 1 map, 2 folds and 2 missing-outcome
-   lines, and every r8 fold fails.
+   over the outcomes.
    REVIEW 8.2 (2026-10-30) found three copies no shape above saw. COMMS' presence card swapped a task run's own end word for 'done' when its
    reply carried a TASK_QUESTION marker (`taskQuestion ? 'done' : endWord`), so a run that ended asking read "■ RUN COMPLETE" under its own
    question card while the board read ASKED (a spend cap with the marker read RUN COMPLETE too). The worker ledger's bus 'task' event took its
@@ -152,48 +132,40 @@
    there ('asked', 'out_of_budget', 'step_limit', 'blocked', 'refused') read the red failed "ended · asked". The decision census reads three
    more shapes: DONE_OVER (an end word swapped for 'done'), STATUS_DONE (a ledger status read as the verdict) and FAILED_LITERAL (a terminal
    'failed' handed on as a literal); folds r8.27 – r8.29 drive the call site, the real worker manager with the page's task listener and the
-   hook, and the delegated card. On the tip before it (0750f60fa: review 8.1's tip with the task contract, a `git archive` of it run with
-   this file) it prints 10 problems, 503 ok: the decision census lists 4 unlisted lines (exactly the ones 8.2 fixed), the outcome-map row 8.2
-   adds (publishTask's TASK_STATUS) is not there yet, r8.26's pin of the old call fails, and every 8.2 fold fails.
+   hook, and the delegated card.
    REVIEW 9 (2026-10-30; the 8.3 findings). COMMS' presence card, and the completed branch's else-if chain under it, read postconditionUnmet
    and the provider's cut BEFORE the run's outcome: a recipe run with acceptance rows read "■ VERIFICATION REQUIRED" when it asked, was
    stopped, hit a limit or was refused, a question whose reply was cut read "■ CUT SHORT", and a recipe run that asked toasted "finished but
    couldn't prove it worked"; the card gave every end but done the stop's 'stopped' class and gold, and an end-only failure 'stopped' after
    'err' (drawn gold). The card now reads ONE outcome table (chat.js PRESENCE_END: word, class, colour token) through presenceLook, the
    OUTCOME TABLES pin it (every outcome, each its own word, class and RunOutcome.look tone) and fold r9.1 drives the call site, the chain and
-   the three stylesheets' cascade. On the tip before it (de4a71043) the fix's source prints 6 problems, 508 ok with this file: the 2 lines
-   whose ALLOWED rows review 9 removed, the missing table, r8.26's pin, r8.27 (now reading every class and colour, law() with the stop's
-   tone: a question and a failure in the stop's gold) and r9.1's card and chain.
+   the three stylesheets' cascade.
    A worker a restart or the liveness check cut off (the ledger's 'stale') was a stop in the failure red on the delegated card (cls 'stopped' with
    no halt, "stopped when the station restarted", a red "1 stopped" batch), the HUD's red fault "Lost when the station restarted" / "Stopped: made
    no progress" (an interrupted run the stop's lamp), NEEDS YOU's "Work stopped" and the project home's bare "stale", while RunOutcome.ofWorker
    and the bus said interrupted; and the delegated card read a 0.14.x thread's lastRunOk true (written then for every completed stream) as done.
    Each says INTERRUPTED in its own words and lamp now, a stop is never red, the page files a succeeded run's word beside its true, and the
    MISSING OUTCOME census reads a verdict flag taken as a success with no word (the board's and WorkView's are the listed compatibility
-   fallback); law() reads an interruption too, and fold r9.2 drives the five surfaces. On the tip before it (the fix-1 commit, whose sources for
-   these surfaces are de4a71043's) it prints 12 problems, 525 ok: the delegated card's lastRunOk line, and r9.2's every law and check.
+   fallback); law() reads an interruption too, and fold r9.2 drives the five surfaces.
    The 8.3 review also ran variant lines through the 8.2 shapes and found respellings they missed (a reversed `!x ? endWord : 'done'`, `?? 'done'`,
    `(r.outcome ?? 'succeeded') === 'succeeded'`, a double-quoted "failed", `emit('task', { status: 'failed' })`, a negated `status !== 'done' ?
    'failed'` and a tone else-branch), and OUTCOME_MAPS allowed a map by a substring needle, so a fold added inside an allowlisted map passed.
    Each shape reads its respellings (no live line spells them today), and a map row is the map's exact head line plus its content digest.
    The review 9 sweep found WorkView saying a FAILED run as "Run stopped or failed" and a question, a stop and every run that did not finish as
-   one "Run outcome is unconfirmed"; fold r9.3 drives it over the board's verdict lines (on the tip before it: 2 problems, 540 ok).
+   one "Run outcome is unconfirmed"; fold r9.3 drives it over the board's verdict lines.
    REVIEW 9.2 (2026-10-30; the 9.1 findings). A failed run's stop line and toast said it "stopped on an error" (Friendly.stopLine and
    stop-reason.js stopSentence, in step), and fold r9.4 deleted the failed case before law(): it is under the law again. RunOutcome.reasonOf
    kept any reason but 'done' as it was, so an END-ONLY refusal (reason 'error', stamped 'refused') reached every reason-keyed reader as
-   'error' — the HUD deck's FAULT, the logbook's "✕ error", the desk screen's FAILED lamp, a recipe's "errored", `starnet watch`, the MCP
+   'error' — the HUD deck helper's FAULT, the logbook's "✕ error", the desk screen's FAILED lamp, the recipe helper's "errored", `starnet watch`, the MCP
    bridge, the bay docks, a routine's fire reason and runOnceCore's lead word (sidecar/lead-outcome.js); reasonOf reads the end's outcome
    now (a word the outcome contradicts reads the outcome's own end word), fold r9.6 drives the readers, r8.19 the desk screen and the
-   recipe fixture its last run. The HUD deck's END_WORDS was still allowlisted with the reason 9.1 struck from FINISH ("one alarm colour":
+   recipe fixture its last run. The HUD deck helper's END_WORDS was still allowlisted with the reason 9.1 struck from FINISH ("one alarm colour":
    five unfinished ends in the failure's tone, an interrupted or held run in the stop's): it covers every outcome now, the unfinished ones
-   warn, and fold r9.7 drives the deck. A recipe's last run chose its class from the bare reason (a refusal and a cut reply the failure's
+   warn, and fold r9.7 drives the helper (HudMode.view, which no page mounts). The recipe last-run helper (lastRunHTML, no caller yet) chose its class from the bare reason (a refusal and a cut reply the failure's
    red, a limit or an empty reply a success's plain look) under a word map no row allowed for colour: it says the row's outcome in its own
-   word and RunOutcome.look's tone now, and fold r9.8 drives it with marketplace.css's cascade. COMMS' in-band background toast ("ROOK hit
+   word and RunOutcome.look's tone now, and fold r9.8 drives the helper with marketplace.css's cascade. COMMS' in-band background toast ("ROOK hit
    a problem", chosen by the error branch, never its stamp) and the phone push ("<agent> hit a problem" for a failed and a refused run alike,
    an error flag over any stamp) said a refusal in the failure's words: a refusal did not finish, a stop stopped, and fold r9.9 drives both.
-   On the tip before review 9.2 (4d2f7721a, a `git archive` of its sources run with this file) it prints 18 problems, 541 ok: the two maps
-   whose OUTCOME_MAPS rows 9.2 removed, the recipe fixture's cut and end-only rows, r8.19's end-only row, r9.4's law over the failed case
-   and its check, and every check of r9.6 – r9.9.
    REVIEW 9.3 (2026-10-30; the 9.2 findings). routine.list invented a 'failed' stamp from a record's coarse lastStatus 'error', and since 9.2's
    reasonOf honours a stamp its reason contradicts, a PRE-LANE record's own end (a stop, a limit, a refusal, a question) listed as 'error'
    (B3-CD663-01): the status names the failure beside 'done' alone, and the routine.list block lists every pre-lane end word. The ROUTINES card
@@ -201,14 +173,12 @@
    (its stamp, else its own end word), fold r9.10. RunOutcome.PHRASE said a spend cap "stopped at a spending limit", the stop's word, on every
    RunOutcome.line surface: it hit one, and law() now fails an unfinished outcome worded or toned as the stop (and reads a hold against the
    failure). The bay lamp lit FAILED for a refusal and the two limits (UNFINISHED in its own word and the warn lamp now, counted apart: r9.11);
-   the floor ticker had two tones (each outcome's own now, its OUTCOME_FOLDS row gone: r9.12); the floor's two error beats said a refusal was a
+   the floor ticker tagged a run end with two tones (each run end carries its outcome's tone class now, its OUTCOME_FOLDS row gone: r9.12; `.cam-hud span`
+   outranks those classes, so the colour on the page is follow-up B3-E01-01); the floor's two error beats said a refusal was a
    RUN FAULT, from the error event alone (r9.13, and THE ERROR BEAT census reads such a listener); COMMS' work log put the stop's ⏹ on every
    end (its outcome's mark now, live and replayed: r9.14); and the phone painted every unfinished run the failure red off the relay's state
    (the station sends RunOutcome.look's tone: r9.15, and the census walk reads relay/app). STATUS_DONE reads a negated test with a failure
-   else branch again (B3-2C594-01). On the tip before review 9.3 (9ff69a260, a `git archive` of its sources run with this file) it prints 39
-   problems, 541 ok: 8 in the static census (the linewatch and ticker lines whose rows 9.3 moved or removed, the relay/app rows, the two error
-   beats) and 31 fold checks — the routine.list block's pre-lane row, the spend cap's pins and the eight surfaces law() now fails on its stop
-   word, the r7 ticker's stop tone, and every check of r9.10 – r9.15.
+   else branch again (B3-2C594-01).
    NOT CLOSED HERE: GitHub androoAGI/starnet-releases#9 (rel#9: a Deny should end the run 'denied' or 'stopped by user'). This lane
    adds no 'denied' outcome; rel#9 is deferred to the follow-up lane denied-outcome, which waits on the per-surface semantics
    (learning-eligibility.js's 'denied' kind moves with it; its base kind reads the outcome since the unpark). */
@@ -509,7 +479,9 @@ const REPORTED = {
     // (review 6.1 listed the skill review's prompt input and runOnceCore's learning-eligibility input here, PARKED; since the unpark both
     // carry the lead's outcome beside its outcome-aware reason, as do learningevidence.js and verdictreview.js — test/outcome-unpark.test.js)
   ],
-  'sidecar/loop.js': [["'blocked by your hook' + (pre.by", NR("a hook's block")]],
+  'sidecar/loop.js': [["'blocked by your hook' + (pre.by", NR("a hook's block")],
+    ["const refusalOf = r => (r && r.isError && typeof r.reason === 'string'", NR("a host tool refusal's reason, on the tool result")]],
+  'frontend/app/backup.js': [["lines.push('  ' + String(g.path) + ': ' + String(g.reason));", NR("why a backup left a file out")]],
   'sidecar/loopjob-driver.js': [["String(extra.reason || '')", NR("a loop job's skip reason (its dedupe key)")]],
   'sidecar/lsp-manager.js': [
     ["server: descriptor.id, reason: got.reason", NR('why an LSP server is unavailable')],
@@ -574,7 +546,9 @@ const REPORTED = {
   'sidecar/workspace-owner.js': [["start time could not be read (' + String(v.reason || 'unknown')", NR("why a process's start time could not be read")]],
   'frontend/app/chat.js': [
     ["retry: { attempt: p.attempt, maxAttempts: p.maxAttempts, reason: String(p.reason || '')", NR("a provider retry's classifier reason")],
-    ["recommended: q.recommended || '', reason: q.reason || ''", NR("a Task Brief question's suggested-answer reason")]
+    ["recommended: q.recommended || '', reason: q.reason || ''", NR("a Task Brief question's suggested-answer reason")],
+    ["resolveChip({ callId: e.callId, summary: e.summary, isError: e.isError, ms: e.ms, reason: e.reason }", NR("a host tool refusal's reason, on its chip")],
+    ["isError: ev.isError, ms: ev.ms, reason: ev.reason }); presenceToolResult(ws);", NR("a host tool refusal's reason, on its saved chip")]
   ],
   'frontend/app/app.js': [["{ ok: false, reason: (r.j && r.j.reason) || '", NR("the permissions route's refusal (grant / revoke / bypass)")]],
   'frontend/app/build.js': [["return { ok: false, reason: (res && res.reason) || 'rejected' };", NR("a build route's rejection")]],
@@ -1337,7 +1311,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       A.ok(v.lastOutcome && v.lastOutcome.ok === false && !emitted.some(e => e.nm === 'workitem.delivered'), 'a trigger job whose stage the provider cut is never recorded ok, nor its crate delivered (got ' + JSON.stringify({ lastOutcome: v.lastOutcome, lastError: v.lastError }) + ')');
     }
 
-    // a recipe's last-run row (marketplace.js): the run-log cache kept only the bare reason, so lastRunHTML's RunOutcome.reasonOf could
+    // the recipe last-run helper (marketplace.js lastRunHTML, no caller yet): the run-log cache kept only the bare reason, so its RunOutcome.reasonOf could
     // never see a cut or raised run (review 4.1's fix never took effect). The cache line and lastRunHTML are lifted from the page.
     {
       const mkt = fs.readFileSync(path.join(ROOT, 'frontend/app/marketplace.js'), 'utf8');
@@ -1438,7 +1412,15 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       A.eq(said.join(','), 'done,cut_short,error', 'station.layout: a cut bay\'s and an error-outranked bay\'s last run never read "done" (got ' + JSON.stringify(said) + ')');
       let one = {}; try { one = JSON.parse((await tools.layoutTool.run({ line: 'L1' }, {})).content); } catch (_) { one = {}; }
       const lr = (((one.line || {}).steps || [])[1] || {}).lastRun || {};
-      A.ok(lr.result === 'cut_short' && lr.failed === false, 'station.layout { line }: a cut bay\'s last run is result cut_short (got ' + JSON.stringify(lr) + ')');
+      A.ok(lr.result === 'cut_short' && lr.failed === false && lr.unfinished === undefined, 'station.layout { line }: a cut bay\'s last run is result cut_short, counted in neither line count (got ' + JSON.stringify(lr) + ')');
+      // the layout says what the line counted: its unfinished number, and a dead run that did not fail as unfinished
+      const counted = { lines: [{ lineId: 'L1', runs: 3, shipped: 0, failed: 1, unfinished: 2, tests: 0, usdToday: 0, capUsdPerDay: 5, medianMs: null, spendDay: 'utc' }],
+        docks: { 'b-ok': { runId: 'a', reason: 'budget', outcome: 'out_of_budget', failed: true }, 'b-cut': { runId: 'b', reason: 'refusal', failed: true }, 'b-raised': { runId: 'c', reason: 'error', outcome: 'failed', failed: true } } };
+      const countedTools = makeStationTools({ station, layoutFacts: { today: () => counted }, now: null });
+      let two = {}; try { two = JSON.parse((await countedTools.layoutTool.run({ line: 'L1' }, {})).content); } catch (_) { two = {}; }
+      const flags = (((two.line || {}).steps || [])).map(x => [(x.lastRun || {}).failed, (x.lastRun || {}).unfinished === true]);
+      A.eq(((two.line || {}).today || {}).unfinished, 2, 'station.layout: today carries the line\'s unfinished count');
+      A.eq(flags, [[false, true], [false, true], [true, false]], 'station.layout { line }: a spend cap and a refusal are unfinished, a failure failed, as line-stats counts them (got ' + JSON.stringify(flags) + ')');
       const LW = require('../frontend/app/linewatch.js');
       const w = LW.create({ entryDock: () => 'b-ok' });
       w.seedOutcomes(d);
@@ -3002,7 +2984,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         law('the routine session\'s marker and verdict', said);
         law('the routine session\'s marker LINE as COMMS draws it', lines);
         A.ok(lines.asked.tone === 'ask' && lines.cut_short.tone === 'warn' && lines.failed.tone === 'bad' && lines.failed.reason === 'error', 'review 8.1: a routine\'s question marker is drawn in the ask gold, an unfinished one in the warn tone, a failed one red (got ' + JSON.stringify(lines) + ')');
-        A.ok(/toolLine\(m\.content, !!m\.error, m\.tone\)/.test(read8('frontend/app/chat.js')) && /\.cmsg\.tool\.ask \.body \{ color: var\(--gold\); \}/.test(read8('frontend/css/app.css')),
+        A.ok(/sysLine\(m\.content, !!m\.error, m\.tone\)/.test(read8('frontend/app/chat.js')) && /\.cmsg\.system\.ask > \.body \{ color: var\(--gold\); \}/.test(read8('frontend/css/comms-convo.css')) && /\.cmsg\.system\.warn > \.body \{ color: var\(--warn\); \}/.test(read8('frontend/css/comms-convo.css')),
           'review 8.1: COMMS replays a marker\'s own tone (the ask gold, the warn tone), never the failure red for a question');
         A.ok(/asked a question/.test(said.asked.word) && said.failed.tone === 'bad' && /Routine failed — error/.test(said.failed.word),
           'review r8: a routine fire that asked or did not finish settles no failure, each in its own words; a failed one stays failed (got ' + JSON.stringify(said) + ')');
@@ -3761,7 +3743,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       A.ok(resolver.endOnly === 'refusal' && resolver.unstamped === 'refusal' && resolver.stampedFailed === 'error' && resolver.foreign === 'cut_short' && resolver.unknown === 'timeout'
         && words.refused === 'refusal' && words.failed === 'error' && words.succeeded === 'done' && words.cut_short === 'cut_short' && new Set(Object.values(words)).size === Object.keys(words).length,
         'review 9.2: RunOutcome.reasonOf says an end-only refusal (stamped, or carrying a refusal code) in the refusal\'s own end word, never \'error\'; every other end keeps its own word (got ' + JSON.stringify({ words, resolver }) + ')');
-      // the HUD deck's recent row (hudmode.js onRunEnd + view: a refusal's agent.run.error arrives first, then its end)
+      // the HUD deck helper's recent row (hudmode.js onRunEnd + view, which no page mounts: a refusal's agent.run.error arrives first, then its end)
       const H = require('../frontend/app/hudmode.js');
       const deck = end => { const f = H.createFeed(); H.onRunError(f, { runId: 'r', agentId: 'agent' }, 1); H.onRunEnd(f, Object.assign({ runId: 'r', agentId: 'agent' }, end), 2); return (H.view(f, () => null, 3).recent[0] || {}).text; };
       // the logbook's RUNS word (windows/logbook.js runRow: its LB_REASON and its two word lines, sliced)
@@ -3787,9 +3769,9 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       const got = { endOnly: at('endOnly', REFUSED_END), refused: at('refused', ENDS.refused), failed: at('failed', ENDS.failed) };
       const wrong = Object.keys(got.endOnly).filter(s => !got.endOnly[s] || got.endOnly[s] !== got.refused[s] || got.endOnly[s] === got.failed[s]);
       A.ok(!wrong.length && /■ refusal/.test(got.endOnly.watch) && got.endOnly.deck === 'REFUSED' && got.endOnly.bridge === 'refusal' && got.endOnly.dock === 'refusal',
-        'review 9.2: every reader of RunOutcome.reasonOf says an end-only refusal as the refused run, never as the failed one — the HUD deck, the logbook, `starnet watch`, the MCP bridge, the bay docks and the insights tally (wrong: ' + JSON.stringify(wrong) + '; got ' + JSON.stringify(got) + ')');
+        'review 9.2: every reader of RunOutcome.reasonOf says an end-only refusal as the refused run, never as the failed one — the HUD deck helper, the logbook, `starnet watch`, the MCP bridge, the bay docks and the insights tally (wrong: ' + JSON.stringify(wrong) + '; got ' + JSON.stringify(got) + ')');
     }
-    // r9.7 THE HUD DECK's RECENT ROW (frontend/app/hudmode.js onRunEnd + view, the real module; review 9.2 major): END_WORDS gave a spend cap, a turn
+    // r9.7 THE HUD DECK HELPER's RECENT ROW (frontend/app/hudmode.js onRunEnd + view, the real module; no page mounts view; review 9.2 major): END_WORDS gave a spend cap, a turn
     //      limit, a refusal, an empty and a cut reply the failure's 'bad' tone ("one alarm colour", allowlisted with the reason 9.1 struck from FINISH),
     //      and an interrupted or held run — and any word it had none for — fell to the stop's 'dim'
     {
@@ -3799,12 +3781,12 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       said.interrupted = row({ reason: 'interrupted', outcome: 'interrupted' });
       said.blocked = row({ reason: 'done', outcome: 'blocked' });
       const endOnly = row({ reason: 'error', outcome: 'refused', failureCode: 'content_policy_blocked' }), unknown = row({ reason: 'timeout' });
-      law('the HUD deck\'s recent row', said, { stopTone: 'dim' });
+      law('the HUD deck helper\'s recent row (HudMode.view, not mounted)', said, { stopTone: 'dim' });
       A.ok(said.failed.tone === 'bad' && said.stopped.tone === 'dim' && ['cut_short', 'out_of_budget', 'step_limit', 'empty', 'refused', 'interrupted', 'blocked'].every(k => said[k].tone === 'warn')
         && endOnly.word === said.refused.word && endOnly.tone === 'warn' && unknown.tone !== 'dim' && unknown.tone !== 'ok',
-        'review 9.2: the HUD deck says a run that did not finish in the warn tone, each in its own word — never the failure\'s \'bad\'; the stop\'s dim is a stop\'s alone, and an end word the deck has none for is never a stop (got ' + JSON.stringify({ said, endOnly, unknown }) + ')');
+        'review 9.2: the HUD deck helper (HudMode.view, not mounted) says a run that did not finish in the warn tone, each in its own word — never the failure\'s \'bad\'; the stop\'s dim is a stop\'s alone, and an end word the deck has none for is never a stop (got ' + JSON.stringify({ said, endOnly, unknown }) + ')');
     }
-    // r9.8 A RECIPE's LAST RUN (frontend/app/marketplace.js: the run cache line and lastRunHTML, sliced; marketplace.css's cascade; review 9.2 majors): the
+    // r9.8 THE RECIPE LAST-RUN HELPER (frontend/app/marketplace.js: the run cache line and lastRunHTML, sliced, no caller yet; marketplace.css's cascade; review 9.2 majors): the
     //      line's class came from the bare reason — a refusal and a cut reply the failure's red (.mkt-r-lastrun.bad), a spend cap, a step limit and an empty
     //      reply no class at all, the plain look of a success — and its word too (an end-only refusal "errored")
     {
@@ -3832,12 +3814,12 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       const said = {}, drawn = {};
       for (const k of Object.keys(ENDS).concat(['interrupted', 'blocked'])) { const l = line(k); said[k] = { word: l.word, tone: l.cls }; drawn[k] = { word: l.word, tone: l.colour }; }
       const endOnly = line('endOnly');
-      law('a recipe\'s last run', said, { stopTone: said.stopped.tone });
-      law('a recipe\'s last run as marketplace.css draws it', drawn, { failTone: drawn.failed.tone, stopTone: drawn.stopped.tone });
+      law('the recipe last-run helper (lastRunHTML, no caller)', said, { stopTone: said.stopped.tone });
+      law('the recipe last-run helper as marketplace.css draws it', drawn, { failTone: drawn.failed.tone, stopTone: drawn.stopped.tone });
       const offLook = Object.keys(said).filter(k => said[k].tone !== RunOutcome.look(k).tone);
       A.ok(!!lastRunHTML && !offLook.length && endOnly.word === said.refused.word && endOnly.cls === said.refused.tone
         && ['cut_short', 'out_of_budget', 'step_limit', 'empty', 'refused', 'interrupted', 'blocked'].every(k => drawn[k].tone !== drawn.failed.tone && drawn[k].tone !== drawn.succeeded.tone),
-        'review 9.2: a recipe\'s last run wears its outcome\'s own word and RunOutcome.look\'s tone — a cut reply or a refusal never the failure\'s red, a limit or an empty reply never a success\'s plain look, an end-only refusal "refused" (off the look: ' + JSON.stringify(offLook) + '; got ' + JSON.stringify({ said, drawn, endOnly }) + ')');
+        'review 9.2: the recipe last-run helper (lastRunHTML, no caller yet) wears its outcome\'s own word and RunOutcome.look\'s tone — a cut reply or a refusal never the failure\'s red, a limit or an empty reply never a success\'s plain look, an end-only refusal "refused" (off the look: ' + JSON.stringify(offLook) + '; got ' + JSON.stringify({ said, drawn, endOnly }) + ')');
     }
     // r9.9 AN IN-BAND REFUSAL's BACKGROUND TOAST AND ITS PHONE PUSH (frontend/app/chat.js send()'s in-band error branch, sliced; sidecar/index.js
     //      remoteNotify, sliced; review 9.2 major): both said a refused run in the failure's words — the toast "ROOK hit a problem: …" whatever the stamp
@@ -3890,7 +3872,7 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     //       stamped or pre-lane spend cap, refusal or question alike
     {
       const LEGACY = { stopped: 'cancelled', asked: 'clarifying', cut_short: 'cut_short', out_of_budget: 'budget', step_limit: 'max_iters', empty: 'empty',
-        refused: 'refusal', interrupted: 'interrupted', blocked: 'blocked', failed: 'done' };
+        refused: 'refusal', interrupted: 'interrupted', failed: 'done' };
       const rec = (id, o) => Object.assign({ id, name: id, agentId: 'agent', enabled: true, scheduleDisplay: 'every day', lastRunAt: '2023-11-14T22:14:20.000Z', lastStatus: 'error', lastError: 'run ended without completion [' + id + ']' }, o);
       const rt = read8('frontend/app/windows/routines.js');
       const fns = ['failedAs', 'endMark', 'recordOutcome', 'lastResult'].map(n => functionSourceIn(rt, n)).filter(Boolean);
@@ -3899,25 +3881,32 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       const card = r => { const h = lastResult ? lastResult(r) : ''; const mark = (/^<span[^>]*>[^<]*<\/span>/.exec(h) || [''])[0]; return { word: mark.replace(/<[^>]+>/g, ''), tone: toneOf(mark) }; };
       const said = {};
       for (const [k, w] of Object.entries(LEGACY)) said[k] = card(rec(k, { lastReason: w }));
+      // a reviewer's hold is always stamped. A bare 'blocked' is a security scan's refusal (cron-driver: status 'error', no outcome): a failure in its own word
+      said.blocked = card(rec('hold', { lastReason: 'blocked', lastOutcome: 'blocked' }));
+      const scanBlock = card(rec('scan', { lastReason: 'blocked', lastError: 'blocked by the security scan' }));
       const off = Object.keys(said).filter(k => said[k].tone !== RunOutcome.look(k).tone);
       const configBlock = card(rec('block', { lastReason: 'blocked_config', lastError: 'the agent has no model' }));
       if (lastResult) law('the ROUTINES card over a pre-lane record', said, { stopTone: 'stop' });
+      A.ok(scanBlock.tone === 'bad' && /^✕ blocked$/.test(scanBlock.word), 'a security scan\'s block keeps the failure red "✕ blocked" on the ROUTINES card, never a reviewer\'s hold (got ' + JSON.stringify(scanBlock) + ')');
       A.ok(!!lastResult && !off.length && !/done/.test(said.failed.word) && configBlock.tone === 'bad' && /blocked_config/.test(configBlock.word),
         'review 9.3: the ROUTINES card draws a pre-lane record\'s fire by the outcome its own end word names (RunOutcome.look\'s glyph and tone), never the failure\'s red ✕ for a stop, a limit, a refusal or a question; a done beside error reads failed, never "done", and a config block keeps its words in the failure\'s mark (off the look: ' + JSON.stringify(off) + '; got ' + JSON.stringify({ said, configBlock }) + ')');
       // /routine list (the channel's and COMMS' readout): the same records, and the stamped ones beside them
       const { makeSlashActions } = require('../sidecar/slash-actions.js');
       const recs = Object.entries(LEGACY).map(([k, w]) => rec('legacy-' + k, { lastReason: w }))
-        .concat(Object.keys(LEGACY).map(k => rec('stamped-' + k, { lastReason: RunOutcome.reasonOf({ reason: 'done', outcome: k }), lastOutcome: k, lastFailureCode: k === 'failed' ? 'rate_limit' : '' })));
+        .concat(Object.keys(LEGACY).concat('blocked').map(k => rec('stamped-' + k, { lastReason: RunOutcome.reasonOf({ reason: 'done', outcome: k }), lastOutcome: k, lastFailureCode: k === 'failed' ? 'rate_limit' : '' })))
+        .concat([rec('scan-block', { lastReason: 'blocked', lastError: 'blocked by the security scan' })]);
       const listed = await makeSlashActions({ cron: { jobs: () => recs, armed: () => true } }).run('routine', 'list', { agentId: 'agent' });
       const lineOf = id => ((listed && listed.lines) || []).find(l => l.indexOf('. ' + id + ' — ') > 0) || '';
       const tail = l => (/\]; (last .*)$/.exec(l) || [])[1] || '(none)';
       const toneOfLine = l => (/^last error\b/.test(l) ? 'failed' : /^last run stopped\b/.test(l) ? 'stop' : /^last run did not finish\b/.test(l) ? 'unfinished' : /^last run asked\b/.test(l) ? 'ask' : '?');
       const slash = {}, stamped = {};
       for (const k of Object.keys(LEGACY)) { const t = tail(lineOf('legacy-' + k)); slash[k] = { word: t, tone: toneOfLine(t) }; const s = tail(lineOf('stamped-' + k)); stamped[k] = { word: s, tone: toneOfLine(s) }; }
+      { const s = tail(lineOf('stamped-blocked')); stamped.blocked = { word: s, tone: toneOfLine(s) }; slash.blocked = stamped.blocked; }   // a hold is stamped, so its row is the stamped one
+      A.ok(/^last error \(/.test(tail(lineOf('scan-block'))), '/routine says a security scan\'s block as "last error (…)", never a reviewer\'s hold (got ' + tail(lineOf('scan-block')) + ')');
       law('/routine list over a pre-lane record', slash, { failTone: 'failed', stopTone: 'stop' });
       law('/routine list over a stamped record', stamped, { failTone: 'failed', stopTone: 'stop' });
       const posture = k => (k === 'failed' ? 'failed' : k === 'stopped' ? 'stop' : k === 'asked' ? 'ask' : 'unfinished');
-      const wrong = Object.keys(LEGACY).filter(k => slash[k].tone !== posture(k) || stamped[k].tone !== posture(k));
+      const wrong = Object.keys(LEGACY).concat('blocked').filter(k => slash[k].tone !== posture(k) || stamped[k].tone !== posture(k));
       A.ok(!wrong.length && /spending limit/.test(slash.out_of_budget.word) && /declined/.test(stamped.refused.word) && /rate_limit|run ended without completion/.test(stamped.failed.word),
         'review 9.3: /routine says a stop as stopped, a question as asked and every other unfinished fire as "did not finish" in its outcome\'s words — pre-lane or stamped — and only a failed fire "last error (…)" (wrong: ' + JSON.stringify(wrong) + '; got ' + JSON.stringify({ slash, stamped }) + ')');
     }
@@ -3972,10 +3961,11 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
         && /\.lw-card\[data-state="unfinished"\]\s*\{\s*--lw-accent:\s*var\(--warn/.test(lwCss),
         'review 9.3: the line counts a failed run FAILED and a refused or limited one UNFINISHED, and the crate card says a refusal or a limit did not finish in the warn accent, never "FAILED (refusal)" (got ' + JSON.stringify({ line: L1, plate, cards }) + ')');
     }
-    // r9.12 THE FLOOR TICKER's RUN END (frontend/app/world.js: the agent.run.end listener and paintTicker, sliced; style.css's .cam-ticker cascade; review
+    // r9.12 THE FLOOR TICKER's RUN-END TONE CLASS (frontend/app/world.js: the agent.run.end listener and paintTicker, sliced; style.css's .cam-ticker rules; review
     //       9.3 major): the ticker had two tones, so a refusal, a cut reply, every limit, an empty reply, an interruption and a hold painted the failure's
     //       red (.cam-ticker--bad), and a stop and a question painted the success's plain line — allowlisted as "the HUD ticker's tone only", the reason
-    //       9.1 struck from FINISH
+    //       9.1 struck from FINISH. This proves each run end carries its outcome's tone class and that class's own rule. It does not prove the colour on the
+    //       page: `.cam-hud span` outranks `.cam-ticker--*`, so those rules lose today (B3-E01-01, follow-up)
     {
       const worldSrc = read8('frontend/app/world.js'), css = read8('frontend/css/style.css').replace(/\/\*[\s\S]*?\*\//g, '');   // (rules only: a comment names colours too)
       const head = "U.bus.on('agent.run.end', p => {";
@@ -4009,12 +3999,12 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       const END = Object.assign({}, ENDS, { interrupted: { reason: 'interrupted', outcome: 'interrupted' }, blocked: { reason: 'done', outcome: 'blocked' } });
       const got = Object.fromEntries(Object.entries(END).map(([k, e]) => [k, tick(e)]));
       const said = Object.fromEntries(Object.entries(got).map(([k, g]) => [k, { word: g.word, tone: g.colour }]));
-      law('the floor ticker\'s run end as style.css draws it', said, { failTone: said.failed.tone, stopTone: said.stopped.tone });
+      law('the floor ticker\'s run-end tone class, by its own .cam-ticker rule', said, { failTone: said.failed.tone, stopTone: said.stopped.tone });
       const offLook = Object.keys(got).filter(k => got[k].cls !== RunOutcome.look(k).tone);
       const endOnly = tick({ reason: 'error', outcome: 'refused', failureCode: 'content_policy_blocked' });
       A.ok(!!on && !!paint && !offLook.length && said.succeeded.tone !== said.stopped.tone && said.asked.tone !== said.succeeded.tone && endOnly.colour === said.refused.tone
         && ['cut_short', 'out_of_budget', 'step_limit', 'empty', 'refused', 'interrupted', 'blocked'].every(k => said[k].tone !== said.failed.tone && said[k].tone !== said.stopped.tone && said[k].tone !== said.succeeded.tone),
-        'review 9.3: the floor ticker paints each run end in its outcome\'s own tone (RunOutcome.look) — a refusal, a cut reply or a limit never the failure\'s red, a stop and a question never the success\'s line (off the look: ' + JSON.stringify(offLook) + '; got ' + JSON.stringify({ got, endOnly }) + ')');
+        'review 9.3: each floor ticker run end carries its outcome\'s own tone class (RunOutcome.look) — a refusal, a cut reply or a limit never the failure\'s red, a stop and a question never the success\'s line (off the look: ' + JSON.stringify(offLook) + '; got ' + JSON.stringify({ got, endOnly }) + ')');
     }
     // r9.13 THE FLOOR's ERROR BEATS (frontend/app/world.js: the two agent.run.error listeners, sliced; review 9.3 major): keyed on the error event alone,
     //       never its code — a provider safety block (agent.run.error failureCode content_policy_blocked; the run ends refused) ticked "ROOK ▸ RUN FAULT · …"
@@ -4118,6 +4108,10 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       }
       const endOnly = said.endOnly; delete said.endOnly;
       law('the phone\'s finished work as app.css draws it', said, { failTone: said.failed.tone, stopTone: said.stopped.tone });
+      // a v0.14.x station sends no tone and no outcome: its state keeps the words the phone always read, in the old red for a failure
+      const older = st => (endLook ? endLook({ state: st, error: 'rate_limit' }) : {});
+      A.eq([older('failed').line, older('failed').tone, older('stopped').line, older('stopped').tone, older('done').line, older('done').tone],
+        ['Did not finish · rate_limit', 'bad', 'Stopped', 'stop', '', 'ok'], 'an older station\'s run keeps the phone\'s old words: "Did not finish" in red, "Stopped", and a finished run its result line');
       // the run.ended toast (its own line, sliced) over the station's run.ended: the tone host.js sends, an older station's outcome, none at all
       const tl = (phone.split(/\r?\n/).find(l => /^\s*if \(e\.error\) .*toast\(agentName\(e\.agentId\)/.test(l)) || '').trim();
       const toastOf = e => { let got = '(none)'; if (tl && endLook) new Function('e', 'toast', 'agentName', 'endLook', tl)(e, (m, bad) => { got = bad === 'warn' ? 'warn' : bad ? 'bad' : 'plain'; }, () => 'FORGE', endLook); return got; };
