@@ -497,6 +497,8 @@ A.ok(/const teeEmit = \(name, payload\) => \{/.test(RUN_NOW_SINK), 'fixture: Run
 A.ok(/\} finally \{/.test(RUN_NOW_SETTLE) && /cronDriver\.settleRun\(job\.id, runId, state, null\)/.test(RUN_NOW_SETTLE), 'fixture: Run Now\'s catch and finally are sliced, through the shared settlement');
 const cronDriverMod = require('../sidecar/cron-driver.js');
 const { foldLineIntoFire } = require('../sidecar/routing/line-fire.js');
+// Run Now's tee joins its reply the way every reply sink does (channel-delivery-ledger: sidecar/reply-assembler.js)
+const { makeReplyAssembler } = require('../sidecar/reply-assembler.js');
 async function viaRunNow(run, line) {
   const T0 = 1700000000000;
   // the same routine as the scheduled fire's, with an earlier ok run the button's record must replace
@@ -514,10 +516,10 @@ async function viaRunNow(run, line) {
   const runReplay = async emit => { replay(run, emit, runId, job.agentId); if (run.throws) throw new Error('boom'); };
   const crates = [];   // the reason Run Now's finally settles its crate with (settleCronWorkitem: 'done' = delivered to the OUTBOX)
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => line || null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+    new Map(), new Map(), (rid, reason) => crates.push(reason), () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler)();
   const settled = cronStore.getJob(store, 'j1');
   const result = events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null;
   return { status: settled && settled.lastStatus, cronOutcome: result && result.outcome, cronReason: result && result.reason, job: settled, crate: crates.length ? crates[0] : '(never settled)' };
@@ -571,23 +573,24 @@ async function viaPausedRunNow(run, pausedBefore) {
   catch (e) { return { job: cronStore.getJob(store, 'j1'), delivered, result: null, threw: String((e && e.message) || e) }; }
   const runReplay = async emit => { if (!pausedBefore) store = cronStore.pauseJob(store, 'j1'); replay(run, emit, runId, job.agentId); };
   const press = new Function('job', 'runId', 'ac', 'emit', 'cronDriver', 'cronDriverMod', 'chainRunner', 'foldLineIntoFire', 'router', 'assembledPrompt',
-    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome',
+    'runs', 'runsMeta', 'settleCronWorkitem', 'failNote', 'dropSteer', 'kaOff', 'lines', 'runReplay', 'StopReason', 'RunOutcome', 'makeReplyAssembler',
     'return async function () {\n' + RUN_NOW_SINK + '  try {\n    await runReplay(teeEmit);\n' + RUN_NOW_SETTLE + '};');
   await press(job, runId, ac, () => {}, cronDriver, cronDriverMod, { advance: async () => null }, foldLineIntoFire, {}, 'do it',
-    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined)();
+    new Map(), new Map(), () => {}, () => {}, () => {}, () => {}, { end() {} }, runReplay, StopReason, RunOutcome || undefined, makeReplyAssembler)();
   for (let i = 0; i < 20; i++) await new Promise(r => setImmediate(r));
   const settled = cronStore.getJob(store, 'j1');
   return { job: settled, delivered, result: events.filter(e => e.name === 'cron.result').map(e => e.payload).pop() || null };
 }
-// ---- review r7: the routine's DELIVERY headline (sidecar/index.js deliverCronResult, sliced) over the result its finalization hands on, to a
-//      routine that returns to its origin session (station.deliver) ----
-const DELIVER_SRC = sidecarTopLevelFunction('deliverCronResult');
+// ---- review r7: the routine's DELIVERY headline (deliverCronResult, sliced: sidecar/routine-delivery.js since channel-delivery-ledger S1
+//      moved it out of sidecar/index.js) over the result its finalization hands on, to a routine that returns to its origin session
+//      (station.deliver) ----
+const DELIVER_SRC = functionSourceIn(read('sidecar/routine-delivery.js'), 'deliverCronResult') || sidecarTopLevelFunction('deliverCronResult');
 A.ok(/station\.deliver/.test(DELIVER_SRC), 'fixture: deliverCronResult is sliced from the sidecar');
 async function viaDelivery(job, result) {
   let said = null;
-  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome',
+  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome', 'now',
     DELIVER_SRC + '\nreturn deliverCronResult;')(() => '', { reconstruct: () => [], append: () => {} }, () => {}, () => true,
-    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined);
+    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined, () => 1700000000000);
   await deliver(Object.assign({}, job, { name: 'digest', deliver: 'local', origin: { sessionId: 's1', streamId: 's1' } }), result);
   return said;
 }
