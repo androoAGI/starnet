@@ -46,6 +46,8 @@
                               entry another admission still holds.
      get(runId) / has(runId)  by the caller's run id (an anonymous entry has none)
      size()                   every live entry, anonymous ones included
+     groupBusy(agentId)        an unreleased admission explicitly marked blocksGroup:true belongs to this agent. This is
+                              per-admission lifetime, not a sticky entry flag: an unrelated join never keeps it alive.
      live()                   the rows a live view may list: every entry admitted with a caller run id, except an output-only
                               repair (the /v1 caller's own repair of its run, a second call under that call). internal (the
                               desk's self-talk) and delegated (a worker whose stop its manager owns) ride as flags for the
@@ -222,12 +224,18 @@ function makeRunTable(opts) {
         startedAt: Number.isFinite(m.startedAt) ? m.startedAt : now(), streamId: text(m.streamId),
         internal: !!m.internal, outputOnly: !!m.outputOnly, surface: text(m.surface), trigger: text(m.trigger),
         lineId: text(m.lineId), dockId: text(m.dockId), delegated: !!m.delegated, state: STATES.QUEUED, refs: 1,
-        stopper: null, joins: 0, owners: new Set() };   // joined core stop plus admission-owned host stops
+        stopper: null, joins: 0, owners: new Set(), groupRefs: 0 };   // joined core stop plus admission-owned host stops
       terminal(entry);
       entries.add(entry);
       if (runId) byRunId.set(runId, entry);
     }
     if (m.state === STATES.RUNNING) entry.state = STATES.RUNNING;
+    // Preserve the old host metadata admission set. API/hub/delegated runs do not implicitly block a group turn;
+    // only the former metadata owner opts in, and only its own release relinquishes that admission's fact.
+    // Close/abort keeps it through the owner's finally: physical unwind is still work, even though old close
+    // handlers deleted metadata immediately. This corrects that timing without broadening the admission set.
+    const blocksGroup = m.blocksGroup === true;
+    if (blocksGroup) entry.groupRefs++;
     const registration = owner && typeof owner.stop === 'function' ? { stop: owner.stop, signal: owner.signal || null } : null;
     if (registration) entry.owners.add(registration);
     let released = false, joined = false;
@@ -246,6 +254,7 @@ function makeRunTable(opts) {
       release() {
         if (released) { note('runtable.release-twice', new Error('run ' + (entry.runId || '(anonymous)') + ' was released twice')); return; }
         released = true;
+        if (blocksGroup) entry.groupRefs--;
         if (registration) entry.owners.delete(registration);
         if (joined && --entry.joins <= 0) { entry.joins = 0; entry.stopper = null; }   // the stop goes with the last run it reached
         entry.refs--;
@@ -259,6 +268,11 @@ function makeRunTable(opts) {
   function get(runId) { return byRunId.get(text(runId)) || null; }
   function has(runId) { return byRunId.has(text(runId)); }
   function size() { return entries.size; }
+  function groupBusy(agentId) {
+    const id = text(agentId);
+    for (const e of entries) if (e.agentId === id && e.groupRefs > 0) return true;
+    return false;
+  }
 
   function live() {
     const rows = [];
@@ -323,7 +337,7 @@ function makeRunTable(opts) {
     return fresh;
   }
 
-  return { admit, get, has, size, live, missing, owned, ownerLive, stoppable, stop, stopAll };
+  return { admit, get, has, size, groupBusy, live, missing, owned, ownerLive, stoppable, stop, stopAll };
 }
 
 module.exports = { makeRunTable, metaOf, refuseRun, thrownReceipt, STATES, NO_TERMINAL };

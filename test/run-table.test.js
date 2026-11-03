@@ -571,4 +571,57 @@ const count = (ev, name, runId) => ev.filter(([n, p]) => n === name && p && p.ru
   A.eq(t.size(), 0, 'faulting stops do not strand admissions');
 }
 
+// Group admission preserves the old metadata owner's lifetime, not every run known to the table.
+{
+  const t = fresh();
+  const unrelated = ['api', 'telegram', 'delegated', 'interactive', 'cron'].map((source, i) =>
+    t.admit({ runId: 'unrelated-' + i, agentId: 'forge', source, delegated: source === 'delegated' }));
+  A.eq(t.groupBusy('forge'), false, 'API, hub, delegated and even familiar source names do not imply group backpressure');
+  const truthy = t.admit({ runId: 'truthy', agentId: 'forge', blocksGroup: 'true' });
+  A.eq(t.groupBusy('forge'), false, 'only the explicit boolean admission fact blocks a group');
+  truthy.release();
+
+  const metadata = { runId: 'owned-group-busy', agentId: 'forge', source: 'cron', blocksGroup: true };
+  const owner = new AbortController();
+  const outer = t.admit(metadata, { signal: owner.signal, stop: () => owner.abort() });
+  const core = t.admit({ runId: metadata.runId, agentId: 'forge' });
+  A.ok(t.groupBusy('forge') && !t.groupBusy('mira'), 'a flagged admission blocks only its agent while its unflagged core joins');
+  metadata.blocksGroup = false;
+  core.release();
+  A.ok(t.groupBusy('forge'), 'unflagged core release and caller metadata mutation cannot steal the captured owner fact');
+  const tail = t.admit({ runId: metadata.runId, agentId: 'forge' });
+  t.stop(metadata.runId, 'cancel');
+  A.ok(!t.ownerLive(metadata.runId) && t.groupBusy('forge'), 'close/abort defers the group through physical unwind instead of the old immediate metadata deletion');
+  outer.entry.finish({ runId: metadata.runId, reason: 'cancelled' });
+  A.ok(t.groupBusy('forge'), 'terminal emission alone does not release the still-held admission');
+  outer.release();
+  A.ok(t.has(metadata.runId) && !t.groupBusy('forge'), 'an unflagged tail may keep the entry alive without keeping group backpressure');
+  tail.release();
+
+  const first = t.admit({ runId: 'shared-group-busy', agentId: 'forge', blocksGroup: true });
+  const second = t.admit({ runId: 'shared-group-busy', agentId: 'forge', blocksGroup: true });
+  const joined = t.admit({ runId: 'shared-group-busy', agentId: 'forge' });
+  first.release(); first.release();
+  A.ok(t.groupBusy('forge'), 'releasing one flagged admission twice cannot consume another flagged lease');
+  second.release();
+  A.ok(t.has('shared-group-busy') && !t.groupBusy('forge'), 'the final flagged release clears group backpressure before an unrelated joined tail');
+  joined.release();
+  const replacement = t.admit({ runId: 'shared-group-busy', agentId: 'forge', blocksGroup: true });
+  second.release();
+  A.ok(t.groupBusy('forge'), 'an old generation repeated release cannot clear a reused id admission');
+  replacement.release();
+
+  const late = t.admit({ runId: 'late-group-busy', agentId: 'forge' });
+  const lateFlag = t.admit({ runId: 'late-group-busy', agentId: 'forge', blocksGroup: true });
+  A.ok(t.groupBusy('forge'), 'a flagged join to an existing entry counts immediately');
+  late.release();
+  A.ok(t.groupBusy('forge'), 'the earlier unflagged admission cannot clear the later flagged join');
+  lateFlag.release();
+  const anon = t.admit({ agentId: 'forge', blocksGroup: true });
+  A.ok(t.groupBusy('forge'), 'an explicitly flagged anonymous admission still belongs to its agent');
+  anon.release();
+  for (const h of unrelated) h.release();
+  A.ok(!t.groupBusy('forge') && t.size() === 0, 'every flagged fact goes with its own admission and leaves no busy state');
+}
+
 A.report('run-table.test');
