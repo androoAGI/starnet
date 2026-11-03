@@ -83,7 +83,7 @@ function makeRemoteHost(d) {
   }
   const STATION_TURNS = 2000;
   function stationTurns(streamId, limit) {
-    try { return (d.transcript.history(streamId, { limit: limit || STATION_TURNS }) || []).filter(isProse); }
+    try { return (d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || []).filter(isProse); }
     catch (e) { note('remote.host.stationTurns', e); return []; }
   }
   /* ONE CONVERSATION, TWO COPIES: the desk's save (its own order, its status lines) and the station's transcript
@@ -121,7 +121,7 @@ function makeRemoteHost(d) {
   async function threads(o) {
     const out = [], seen = new Set();
     const names = new Map(agentsList().map(a => [a.agentId, String(a.name || '').toLowerCase()]));
-    const rows = d.transcript.streams({ limit: 500, previewChars: 140 }) || [];
+    const rows = d.transcript.view('display', null, { op: 'streams', limit: 500, previewChars: 140 }) || [];
     const stationHas = new Set(rows.filter(r => Number(r.turns) > 0).map(r => r.streamId));
     const workers = workerStreams();
     for (const w of deskSessions()) {
@@ -142,7 +142,7 @@ function makeRemoteHost(d) {
       }
       if (r.streamId === 'global' || /^(cron|nightshift|workshop)-/.test(r.streamId) || workers.has(r.streamId)) continue;   // background work has its own surfaces
       let agentId = r.agentId || '';
-      if (!agentId) { try { const h = d.transcript.history(r.streamId, { limit: 1 }); agentId = (h[0] && h[0].agentId) || ''; } catch (e) { note('remote.host.threadAgent', e); } }
+      if (!agentId) { try { const h = d.transcript.view('display', r.streamId, { limit: 1 }); agentId = (h[0] && h[0].agentId) || ''; } catch (e) { note('remote.host.threadAgent', e); } }
       if (o.agentId && agentId !== o.agentId) continue;
       out.push({ streamId: r.streamId, agentId, title: '', turns: r.turns, lastAt: r.lastAt, preview: r.preview || '', source: /^remote_/.test(r.streamId) ? 'phone' : 'station' });
     }
@@ -193,7 +193,10 @@ function makeRemoteHost(d) {
     remoteRuns.set(runId, rec);
 
     // the conversation so far: the desk's memory of this session plus anything the station recorded since
-    const messages = mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content })).concat([{ role: 'user', content: o.text }]);
+    const legacyReplay = () => mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
+    const replay = () => d.transcript.view('model-replay', streamId, { limit: 100, shape: 'prose', form: 'pre', forAgent: o.agentId });
+    const prior = d.turnDual ? d.turnDual.pick('replay', legacyReplay, replay) : replay();
+    const messages = prior.concat([{ role: 'user', content: o.text }]);
     let isTask = true;
     // the agent's last turn rides along, as on COMMS and the channels: "yes" to "want me to draft it?" is a TASK (tools),
     // not chat that can only promise (sweep 2026-10-02)

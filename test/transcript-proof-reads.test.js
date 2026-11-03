@@ -19,7 +19,7 @@ const path = require('path');
 const crypto = require('crypto');
 const A = require('./_assert.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
-const { makeSegmentedTranscriptIo } = require('../sidecar/transcript-history.js');
+const { makeSegmentedTranscriptIo, makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 const { makeSessionTombstones } = require('../sidecar/session-tombstones.js');
 const { makeRunStore } = require('../sidecar/runstore.js');
 const { finalizeDispatchDelivery, recoverPendingDeliveries } = require('../sidecar/dispatch-delivery.js');
@@ -43,7 +43,7 @@ function world(label, makeIo) {
 }
 
 (async () => {
-  for (const [label, makeIo] of [['ram', () => memIo()], ['segmented', dir => makeSegmentedTranscriptIo({ fs, path, root: path.join(dir, 'history'), segmentBytes: 700, recentPerStream: 4 })]]) {
+  for (const [label, makeIo] of [['ram', () => makeMemoryTranscriptIo()], ['segmented', dir => makeSegmentedTranscriptIo({ fs, path, root: path.join(dir, 'history'), segmentBytes: 700, recentPerStream: 4 })]]) {
     // ---------------- 1. a pending delegated delivery in a session the Commander deleted ----------------
     {
       const w = world('delivery-' + label, makeIo);
@@ -116,9 +116,9 @@ function world(label, makeIo) {
   {
     const idx = readSidecarSource();
     const tail = idx.slice(idx.indexOf('function transcriptRecoveryTail('), idx.indexOf('function transcriptRecoveryTail(') + 900);
-    A.ok(/transcriptStore\.history\(streamId, \{ sourceRunId: src, limit: 5000, proof: true \}\)/.test(tail), 'transcriptRecoveryTail reads its source rows with a proof read');
+    A.ok(/transcriptStore\.view\('proof', streamId, \{ sourceRunId: src, limit: 5000 \}\)/.test(tail), 'transcriptRecoveryTail reads its source rows with the explicit proof view');
     const dd = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'dispatch-delivery.js'), 'utf8');
-    A.eq((dd.match(/dispatchState: 'final', limit: 1, strict: true, proof: true,/g) || []).length, 2, 'finalize and boot recovery both read the accepted row with a proof read');
+    A.eq((dd.match(/transcriptStore\.view\('proof', streamId, \{ sourceRunId: (?:runId|source\.runId), dispatchState: 'final', limit: 1, strict: true,/g) || []).length, 2, 'finalize and boot recovery both read the accepted row with the explicit proof view');
   }
 
   A.report('transcript-proof-reads');

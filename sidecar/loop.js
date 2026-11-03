@@ -296,11 +296,10 @@
      exactly as before, so nothing durable changes and a recovered run evicts the same way. Once a capture falls
      out of the newest `keep` it stays out, so the request prefix is stable turn to turn (prompt caching holds).
      Returns `messages` ITSELF when nothing is evicted — byte-identical requests for every run without captures. */
-  const SCREEN_CAPTURE_LABEL = '[BEGIN EXTERNAL SCREEN CAPTURE';
   function isScreenCapture(m) {
     if (!m || m.role !== 'user' || !Array.isArray(m.content) || !m.content.length) return false;
     const first = m.content[0];
-    if (!first || typeof first.text !== 'string' || first.text.indexOf(SCREEN_CAPTURE_LABEL) !== 0) return false;
+    if (!first || typeof first.text !== 'string' || !TurnKinds || TurnKinds.classify({ role: 'user', content: first.text }).kind !== 'capture') return false;
     return m.content.some(p => p && p.type === 'image_url');
   }
   function screenshotPlaceholder(m, keep, meta) {

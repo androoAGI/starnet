@@ -64,6 +64,8 @@ test/e2e.attachments.test.js
 test/e2e.summon.test.js
 test/e2e.dispatch-session.test.js
 test/selftalk-transcript.http.test.js
+test/selftalk-replay.http.test.js
+test/dispatch-replay.http.test.js
 test/station-layout.e2e.test.mjs
 test/station-control.e2e.test.mjs
 test/station-show.e2e.test.mjs

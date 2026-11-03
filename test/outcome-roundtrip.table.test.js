@@ -335,7 +335,8 @@ async function viaComms(run) {
   const sb = {
     // (review 8.1: the branch settles the board by the run's OUTCOME — Harness.chat's stamp — never the error flag alone)
     runOutcome: res.outcome, RunOutcome: RunOutcome || undefined,
-    TurnMerge: require('../frontend/app/turnmerge.js'), liveRunTurns: new Map(), retryDirectiveTurn: null,
+    TurnMerge: require('../frontend/app/turnmerge.js'),
+    liveRunTurns: new Map([['w', { sourceRunId: run.runId, turnId: require('../frontend/app/turnkinds.js').runTurnId(run.runId) }]]), retryDirectiveTurn: null,
     error: res.error, errorCode: res.errorCode, ws: { id: 'w', agentId: 'agent', history: [] }, acc: '', thisRunId: run.runId, runRoot: null, retry: false,
     text: 'go', input: null, busyRefusal: '', Friendly: BrowserFriendly, persistPartial() {}, Workstreams: { noteRunEnd() {} },
     StationUI: { notify() {} }, isActiveWs: () => true, activeLiveRow: { error: m => shown.push(m) }, resolvePresence() {},
@@ -606,9 +607,9 @@ const DELIVER_SRC = functionSourceIn(read('sidecar/routine-delivery.js'), 'deliv
 A.ok(/station\.deliver/.test(DELIVER_SRC), 'fixture: deliverCronResult is sliced from the sidecar');
 async function viaDelivery(job, result) {
   let said = null;
-  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome', 'now',
-    DELIVER_SRC + '\nreturn deliverCronResult;')(() => '', { reconstruct: () => [], append: () => {} }, () => {}, () => true,
-    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined, () => 1700000000000);
+  const deliver = new Function('cronSupersededNote', 'transcriptStore', 'failNote', 'cronReturnsToSession', 'stationBridge', 'redact', 'RunOutcome', 'TurnKinds', 'now',
+    DELIVER_SRC + '\nreturn deliverCronResult;')(() => '', { view: () => [], append: () => {} }, () => {}, () => true,
+    { request: (name, p) => { said = p.text; return Promise.resolve({ ok: true }); } }, x => x, RunOutcome || undefined, require('../frontend/app/turnkinds.js'), () => 1700000000000);
   await deliver(Object.assign({}, job, { name: 'digest', deliver: 'local', origin: { sessionId: 's1', streamId: 's1' } }), result);
   return said;
 }

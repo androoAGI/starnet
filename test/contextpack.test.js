@@ -82,9 +82,9 @@ function baseInputs(over) {
   A.ok(landedSec && landedSec.lines.some(l => /Release checklist tool.*kept/.test(l)) && landedSec.lines.some(l => /rambling essay.*discarded/.test(l)), 'landed section marks kept vs discarded');
   const learnSec = pack.sections.find(s => s.label === 'What they tend to keep');
   A.ok(learnSec && /advance-goal/.test(learnSec.lines[0]) && /scout/.test(learnSec.lines[0]), 'learn line names up/down archetypes');
-  // the goal + landed lines are in the evidence pool (candidates may ground on them):
-  A.ok(pack.activityLines.some(l => /Launch to 100 users/.test(l)), 'goal line is in the evidence pool');
-  A.ok(pack.activityLines.some(l => /Release checklist tool/.test(l)), 'a landed line is in the evidence pool');
+  A.ok(pack.contextActivityLines.some(l => /Launch to 100 users/.test(l)), 'goal line remains explicitly general context');
+  A.ok(pack.contextActivityLines.some(l => /Release checklist tool/.test(l)), 'landed line remains explicitly general context');
+  A.ok(!pack.activityLines.some(l => /Launch to 100 users|Release checklist tool/.test(l)), 'unsourced context labels do not become owner activity');
   const briefSec = pack.sections.find(s => s.label === 'Completed task evidence');
   A.ok(briefSec && /evidence provenance and replay evaluation/.test(briefSec.lines[0]), 'completed briefs retain evidence beyond the first directive line');
   A.eq(pack.counts.briefs, 1, 'completed brief evidence is counted explicitly');
@@ -138,12 +138,12 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
 {
   const selfTalk = 'INTERNAL — GOAL DECOMPOSITION. Do not run any tools. Reason only, then reply in the exact format below.';
   const p = CP.assemble({
-    runs: [{ title: selfTalk.slice(0, 120), ts: ago(0), streamId: 'ws-main', internal: true }, { title: 'Draft the launch post', ts: ago(0), streamId: 'ws-main' }],
-    chats: [{ role: 'user', content: selfTalk + '\nYour Commander has this goal: …', ts: ago(0), streamId: 'ws-main' },
-            { role: 'user', content: 'Can you draft the launch post for Friday?', ts: ago(0), streamId: 'ws-main' }]
+    runs: [{ runId: 'internal', title: selfTalk.slice(0, 120), ts: ago(0), streamId: 'ws-main', internal: true }, { title: 'Draft the launch post', ts: ago(0), streamId: 'ws-main' }],
+    chats: [{ role: 'user', content: selfTalk + '\nYour Commander has this goal: …', ts: ago(0), streamId: 'ws-main', sourceRunId: 'internal', rowId: 1 },
+            { role: 'user', content: 'Can you draft the launch post for Friday?', ts: ago(0), streamId: 'ws-main', sourceRunId: 'owner', rowId: 2 }]
   }, { now: T });
   A.ok(!p.activityLines.some(l => /GOAL DECOMPOSITION/.test(l)), 'an internal call never reads as the Commander\'s recent work or asks');
-  A.ok(p.activityLines.some(l => /Draft the launch post/.test(l)) && p.activityLines.some(l => /launch post for Friday/.test(l)), 'the Commander\'s own runs and asks on the same stream are kept');
+  A.ok(p.contextActivityLines.some(l => /Draft the launch post/.test(l)) && p.activityLines.some(l => /launch post for Friday/.test(l)), 'general run context and proven owner asks on the same stream are kept');
 }
 // Exercise the real host projection, then the real pure pack: a source regex cannot prove that private
 // provenance survives filtering or that a completed brief actually belongs to a clean owner's directive.
@@ -154,7 +154,7 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
     'extract exactly the host context-pack function, not neighbouring code');
   // the one-snapshot-per-turn helper the pack reads the transcript + run history through (perf 10-19)
   const rowsFn = A.fnBody(src, 'function evidenceRows(ev)');
-  A.ok(rowsFn.startsWith('function evidenceRows(ev)') && rowsFn.length < 600, 'extract exactly the host evidence snapshot helper');
+  A.ok(rowsFn.startsWith('function evidenceRows(ev)') && rowsFn.length < 4000, 'extract exactly the host evidence snapshot and bounded disk-proof helper');
   // the recent-run projection is its own host function (shared with the readiness count): run the REAL one too
   const recentFn = A.fnBody(src, 'function nightshiftRecentRuns()');
   A.ok(recentFn.startsWith('function nightshiftRecentRuns()') && recentFn.length < 2000, 'extract exactly the host recent-run projection');
@@ -171,6 +171,10 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
     const originRuns = input.originRuns || (input.chats || []).filter(m => m && m.sourceRunId).map(m =>
       (input.runs || []).find(r => r && r.runId === m.sourceRunId) ||
       { runId: m.sourceRunId, agentId: m.agentId, streamId: m.streamId, internal: false, ownerDirective: true });
+    const io = require('../sidecar/transcript-history.js').makeMemoryTranscriptIo();
+    for (const row of input.chats || []) if (row) io.appendDurable(row);
+    const transcript = require('../sidecar/transcriptstore.js').makeTranscriptStore({ io, clock: { now: () => T },
+      runOf: id => originRuns.find(row => row.runId === id), quotedMaterial: TrustedLearning.quotedMaterial });
     const pack = vm.runInNewContext(recentFn + '\n' + rowsFn + '\n(' + fn + ')()', {
       Date: { now: () => T },
       personalizationStore: { read: () => ({ enabled: input.enabled !== false }) },
@@ -179,7 +183,8 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
         list: (agentId, opts) => { requested.runs = { agentId, opts }; return input.runs || []; },
         all: () => { requested.allRuns = (requested.allRuns || 0) + 1; return originRuns; }
       },
-      transcriptStore: { all: () => input.chats || [] },
+      transcriptStore: transcript,
+      failNote(tag, error) { throw error; },
       taskBriefStore: { list: opts => { requested.briefs = opts; return input.briefs || []; } },
       commanderGoals: { get: () => null },
       autonomyLedger: { list: () => [] },
@@ -193,7 +198,7 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
       sessionRunForgotten: input.forgotten || (() => false),
       contextpack: { assemble: (data, opts) => { projections.push(data); return CP.assemble(data, opts); } }
     });
-    return { pack, projected: projections[0], trustedProjected: projections[1], projectionCount: projections.length, requested };
+    return { pack, projected: projections[0], trustedProjected: projections[0], projectionCount: projections.length, requested };
   }
   const owner = (content, over) => Object.assign({
     agentId: 'owner-agent', streamId: 'ws-main', sourceRunId: 'owner-original', role: 'user', content, taintKnown: true, ts: T
@@ -258,9 +263,8 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
     'one tainted row does not suppress clean owner activity elsewhere in its stream');
   A.ok(!/sentinel|INTERNAL (?:GOAL DECOMPOSITION|TAINTED STATION|QUOTED STATION)/.test(surfaced), 'rejected and internal content never enters the prompt or evidence pool');
 
-  A.eq(result.projectionCount, 2, 'host separately assembles general activity and trusted learning activity');
-  A.ok(result.trustedProjected.runs.length === 3 && result.trustedProjected.runs.every(r => r.internal),
-    'trusted assembly retains internal runs only as negative markers for self-talk');
+  A.eq(result.projectionCount, 1, 'host assembles one shared provenance-bearing activity pool');
+  A.ok(result.pack.activity.every(entry => entry.src && entry.src.rowId > 0), 'trusted activity has proven durable source IDs');
   A.eq(result.trustedProjected.chats.map(m => m.content), result.projected.chats.map(m => m.content),
     'both projections receive the same proven owner chats');
   const trustedText = result.pack.trustedActivityLines.join('\n');

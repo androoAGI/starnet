@@ -28,6 +28,7 @@ class PageModel {
     const page = this;
     class Clock extends Date { static now() { return page.d.now(); } }
     this.context = vm.createContext({ Date: Clock, TextEncoder, setTimeout, clearTimeout, Promise, AbortController,
+      TurnMerge, stationModes: { window: 'legacy' },
       CtxGauge: require('../../frontend/app/ctxgauge.js'), Harness: deps.model || {},
       historyLoads: this.historyLoads, historyPinSeq: 1, Workstreams: { get: id => id === page.ws.id ? page.ws : null },
       noteContinuity: (_ws, e) => page.events.push(e), loadServerHistory: () => page.load() });
@@ -42,6 +43,8 @@ class PageModel {
     const read = { history: this.ws.history, retryable: false, promise: null };
     this.historyLoads.set(this.ws, read);
     read.promise = Promise.resolve().then(() => this.d.read(this.ws.id)).then(async response => {
+      this.context.stationModes = !this.legacyControl && response.identity && response.identity.v === 2 && response.identity.modes
+        ? response.identity.modes : { window: 'legacy' };
       // Exercise the exact frozen rollback owner through production reconciliation, including its redaction
       // pass. Only the old client identity behavior is selected; the station stays the real current fixture.
       if (this.legacyControl) response = Object.assign({}, response, { identity: Object.assign({}, response.identity, { v: 2,

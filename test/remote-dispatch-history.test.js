@@ -46,7 +46,7 @@ A.eq(collision.map(r => r.sourceRunId), ['ordinary', 'original'], 'ordinary cano
   let ran = null, priorAgentTurn = null;
   const host = makeRemoteHost({ now: () => 1000, newId: () => 'followup', broadcast: () => {}, roster: () => [{ agentId: 'forge' }], liveRuns: () => [],
     credentials: () => ({ ok: true }), classify: (_text, context) => { priorAgentTurn = context.priorAgentTurn; return true; },
-    runOnce: async options => { ran = options; }, transcript: { streams: () => [], history: () => canonical },
+    runOnce: async options => { ran = options; }, transcript: { view: (_name, _stream, options) => options.op === 'streams' ? [] : canonical },
     deskSessions: () => [{ id: 's', agentId: 'forge', history: local.slice(0, 4) }] });
   A.eq((await host.thread({ streamId: 's', limit: 60 })).map(r => r.content), ['Visible request', final.content], 'actual phone thread shows only accepted same-run answer');
   await host.send({ streamId: 's', agentId: 'forge', text: 'continue' });

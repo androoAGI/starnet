@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { makeSegmentedTranscriptIo } = require('../../sidecar/transcript-history.js');
-const { makeTranscriptStore, projectConversation } = require('../../sidecar/transcriptstore.js');
+const { makeTranscriptStore } = require('../../sidecar/transcriptstore.js');
 const { makeRunTranscript } = require('../../sidecar/transcript-run.js');
 const Directive = require('../../sidecar/turn-directive.js');
 const Kinds = require('../../frontend/app/turnkinds.js');
@@ -27,7 +27,7 @@ class TurnFixture {
     this.phone = makeRemoteHost({ now: clock, newId: () => this.newId(), roster: () => [{ agentId: 'agent' }],
       broadcast() {}, deskSessions: () => this.desk, liveRuns: () => [...this.live].map(runId => ({ runId })),
       credentials: () => ({ ok: true, model: 'test/model', provider: 'test', system: '' }), classify: () => false,
-      transcript: { history: (s, o) => this.display(s, o), streams: o => this.store.streams(o) },
+      transcript: { view: (...args) => this.store.view(...args) },
       turnDual: this.dual, turnProjection: (s, rows) => this.project(s, rows), redact,
       runOnce: request => { const p = this.run(request).then(result => { for (const event of result.events) request.emit(event.name, event.payload); return { text: result.reply, outcome: 'succeeded' }; }); this.pendingRuns.push(p); return p; },
       runRow: runId => this.records.get(runId) });
@@ -36,11 +36,12 @@ class TurnFixture {
   restart(options) {
     if (this.io) this.io.close();
     this.io = makeSegmentedTranscriptIo(Object.assign({ fs, path, root: path.join(this.root, 'history'), segmentBytes: 64 * 1024, onWarning: message => { this.warnings = (this.warnings || []).concat(message); }, schedule() {} }, options || {}));
-    this.store = makeTranscriptStore({ io: this.io, clock: { now: this.now }, redact });
+    this.store = makeTranscriptStore({ io: this.io, clock: { now: this.now }, redact, hash, runOf: id => this.records.get(id),
+      live: () => this.live, pick: this.dual.pick, quotedMaterial: require('../../sidecar/trusted-learning.js').quotedMaterial });
   }
   display(streamId, options) {
     const limit = options && options.limit || 200;
-    return projectConversation(this.store.history(streamId, { limit: limit + 500 }).filter(r => !this.live.has(r.sourceRunId)), id => this.records.get(id), hash).slice(-limit);
+    return this.store.view('display', streamId, { limit });
   }
   project(streamId, rows) { return this.dual.project(streamId, rows, { liveRunIds: this.live, isCollided: id => this.io.isCollided(id) }); }
   read(streamId, limit) { return this.project(streamId, this.display(streamId, { limit: limit || 200 })); }

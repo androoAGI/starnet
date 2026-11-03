@@ -36,7 +36,7 @@ const contents = rows => rows.map(r => r.content).sort();
 function dual(mode) { return make({ now: () => 1, hash: s => crypto.createHash('sha256').update(s).digest('hex'), read: () => ({ merge: mode }) }); }
 function hostFor(stream, local, identity, mode) {
   return makeRemoteHost({ now: () => 1, roster: () => [], liveRuns: () => [],
-    deskSessions: () => [{ id: stream, agentId: 'agent', history: local }], transcript: { history: () => [], streams: () => [] },
+    deskSessions: () => [{ id: stream, agentId: 'agent', history: local }], transcript: { view: () => [], history: () => [], streams: () => [] },
     turnDual: dual(mode), turnProjection: () => ({ identity }), redact: s => s });
 }
 (async () => {
