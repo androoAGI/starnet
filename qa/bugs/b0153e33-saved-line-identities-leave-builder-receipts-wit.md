@@ -4,10 +4,10 @@ slug: saved-line-identities-leave-builder-receipts-wit
 title: Saved line identities leave builder receipts without a usable line name
 surface: world
 severity: P2
-status: open
+status: fixed
 found: 2026-11-03
 lane: line-intake
-fix:
+fix: 948c614349ee36c0452b1ecfb5a73d74140d63f1
 origin: audit
 ---
 
@@ -29,4 +29,4 @@ The repair passes a real component member while retaining the saved line ID as j
 
 ## Verdict
 
-Source repair is prepared and focused verification passed. A source-fixed commit reference and independent review will close this record; combined gates and live acceptance remain separate.
+Source-fixed in948c614349ee36c0452b1ecfb5a73d74140d63f1. The original real model/build fixture and affected line operations/identity checks pass. Independent source review confirmed both callers resolve a real component member while retaining the saved line ID as durable authority. Combined gates and installed/live builder acceptance remain separate.

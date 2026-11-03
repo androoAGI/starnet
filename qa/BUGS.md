@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 438 total — 0 P0 · 1 P1 · 32 P2
+**32** open (open+claimed) of 438 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -375,7 +375,6 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | open | voice | [/api/tts asks only the first credentialed keyed provider: a station holding OpenRouter and Gemini keys drops to Edge's different voice when OpenRouter fails](bugs/243de8bd-api-tts-asks-only-the-first-credentialed-keyed-p.md) | sweep/voice | — |
 | P2 | open | voice | [Paired-device speech ends the rest of a reply on one failed later sentence, with no retry](bugs/19429523-paired-device-speech-ends-the-rest-of-a-reply-on.md) | sweep/voice | — |
 | P2 | open | world | [Kepler Relay preset: the fabrication room is walkable but not reachable from command](bugs/48b6ecac-kepler-relay-preset-the-fabrication-room-is-walk.md) | gate-seams | — |
-| P2 | open | world | [Saved line identities leave builder receipts without a usable line name](bugs/b0153e33-saved-line-identities-leave-builder-receipts-wit.md) | line-intake | — |
 | P2 | claimed | autonomy | [Delegated researcher reportedly lost its web tools](bugs/5fb93ff0-delegated-researcher-reportedly-lost-web-tools.md) | domain-task-advisory | — |
 | P2 | fixed | autonomy | [A clock that jumped ahead and was corrected back strands recurring routines for the length of the jump](bugs/7ae7e435-a-clock-that-jumped-ahead-and-was-corrected-back.md) | sweep/autonomy | 6102a1612 |
 | P2 | fixed | autonomy | [A cron advance anchored inside a fall-back repeated hour fires that day's ambiguous time a second time](bugs/10ecf010-a-cron-advance-anchored-inside-a-fall-back-repea.md) | sweep/autonomy | 822503be5 |
@@ -560,6 +559,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P2 | fixed | world | [Roaming agents jam nose to nose in narrow hallways](bugs/2b7a920c-roaming-agents-jam-nose-to-nose-in-narrow-hallwa.md) | hallway-awareness-0917 | 54105ec6c |
 | P2 | fixed | world | [Room fixture grids flood edges and corners](bugs/b8594ab9-room-fixture-grids-flood-edges-and-corners.md) | agent/room-lighting-strip | 1525663d0 |
 | P2 | fixed | world | [Room lighting loses colour and flickers across the floor](bugs/3365f5ba-room-lighting-loses-colour-and-flickers-across-t.md) | agent/room-lighting-strip | 011ba23a4 |
+| P2 | fixed | world | [Saved line identities leave builder receipts without a usable line name](bugs/b0153e33-saved-line-identities-leave-builder-receipts-wit.md) | line-intake | 948c614349ee36c0452b1ecfb5a73d74140d63f1 |
 | P2 | fixed | world | [SEND TO hand-offs waiting when the station quits vanish without a record](bugs/b0c913b9-send-to-hand-offs-waiting-when-the-station-quits.md) | conveyor-final-runtime | 9ccd2ba42 |
 | P2 | fixed | world | [Spamming a battle-pass CLAIM plays the level-up sting once per click](bugs/9aa25780-spamming-a-battle-pass-claim-plays-the-level-up.md) | sweep/battlepass | c1b4a6f59 |
 | P2 | fixed | world | [Standard text size leaves everyday controls and labels hard to read](bugs/96921b22-standard-text-size-leaves-everyday-controls-and.md) | agent/glass-demo-0909 | bb7df320ebad0f89338818730aba8503f5532091 |
@@ -584,7 +584,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | sessions | 1 |
 | skills | 0 |
 | onboarding | 3 |
-| world | 2 |
+| world | 1 |
 | voice | 2 |
 | release | 8 |
 
