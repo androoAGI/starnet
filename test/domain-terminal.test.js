@@ -1,6 +1,6 @@
 /* node test/domain-terminal.test.js — bounded one-host checks and host-enforced terminal evidence. */
 'use strict';
-const { readSidecarSource, sidecarTopLevelFunction, sidecarFunctionSource } = require('./helpers/source');
+const { readSidecarSource, sidecarTopLevelFunction, sidecarFunctionSource, sidecarSourceFiles } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -73,56 +73,57 @@ for (const [text, host, why] of [
   ['check about.me', 'about.me', 'a bare .me with no workspace file']
 ]) A.eq((DomainTask.classify(text) || {}).host || null, host, 'file names are not hosts: ' + why + ' (' + JSON.stringify(text) + ')');
 A.eq(DomainTask.classify("Hand this to COPY: summarize example.com. I'll check back later."), null, '"check back later" is not an inspect verb');
-/* THE WORKER BOUND IS FOR A PURE READ (starnet-releases#5). The host policy is the same either way; only a pure read
-   carries the 3-turn / 3-tool / 45s worker bound. Every row: [text, pureRead, why]. */
-for (const [text, pure, why] of [
-  ['Review the deployment script for starnet-demo.io, write a unit test for it, and run it.', false, "the reporter's brief"],
-  ['Review the deployment script for starnet-demo.io, write a unit test that covers it, then run the test and report the result.', false, 'review + write a test + run it'],
-  ['Inspect the nginx config for example.com and fix the redirect.', false, 'inspect + fix'],
-  ['Check example.com and save the summary into notes.md', false, 'check + save'],
-  ['Check example.com and build a landing page like it.', false, 'check + build'],
-  ['Review the auth flow for example.com and implement the missing token refresh.', false, 'review + implement'],
-  ['Can you check example.com and fix the broken header?', false, '"and fix" in a question'],
-  ['- review the starnet-demo.io deploy config\n- run the smoke tests', false, 'a bulleted run step'],
-  ["Read example.com's pricing page and write a summary into notes.md", false, 'a summary written into a file'],
+/* ONE EXACT HOST, NO BUDGET (starnet-releases#5). A brief that names one host is one exact host to the run's host policy
+   whether it reads or works, and the classifier carries no worker budget at all: only a lead's bounded:true bounds a
+   worker (orchestration.js boundOf; the class on every surface: test/domain-task.metamorphic.test.js). Every row:
+   [text, why]. */
+for (const [text, why] of [
+  ['Review the deployment script for starnet-demo.io, write a unit test for it, and run it.', "the reporter's brief"],
+  ['Review the deployment script for starnet-demo.io, write a unit test that covers it, then run the test and report the result.', 'review + write a test + run it'],
+  ['Inspect the nginx config for example.com and fix the redirect.', 'inspect + fix'],
+  ['Check example.com and save the summary into notes.md', 'check + save'],
+  ['Check example.com and build a landing page like it.', 'check + build'],
+  ['Review the auth flow for example.com and implement the missing token refresh.', 'review + implement'],
+  ['Can you check example.com and fix the broken header?', '"and fix" in a question'],
+  ['- review the starnet-demo.io deploy config\n- run the smoke tests', 'a bulleted run step'],
+  ["Read example.com's pricing page and write a summary into notes.md", 'a summary written into a file'],
   // F10 (review of 0.14.1): the file a summary goes into, in every form a Commander or a lead names it
-  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\proj\\notes.md', false, 'a Windows drive-letter path'],
-  ['Read the API docs at docs.example.com and write a short summary into C:/Users/me/proj/notes.md', false, 'a drive-letter path with forward slashes'],
-  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\My Project\\notes.md', false, 'an unquoted path with a space'],
-  ['Read the API docs at docs.example.com and write a short summary into "C:\\Users\\me\\My Project\\notes.md"', false, 'a double-quoted path with a space'],
-  ["Read the API docs at docs.example.com and write a short summary into 'C:\\Users\\me\\My Project\\notes.md'", false, 'a single-quoted path with a space'],
-  ['Read the API docs at docs.example.com and write a short summary into `C:\\Users\\me\\My Project\\notes.md`', false, 'a backticked path with a space'],
-  ['Read the API docs at docs.example.com and write a short summary into "C:\\Users\\me\\My Project\\notes"', false, 'a quoted path with no extension'],
-  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\proj\\NOTES', false, 'a drive-letter path with no extension'],
-  ['Read the API docs at docs.example.com and write a short summary to D:\\work\\summary.txt', false, '"to" a drive-letter path'],
-  ['Read the API docs at docs.example.com and write a short summary into \\\\server\\share\\notes.md', false, 'a UNC path'],
-  ['Read the API docs at docs.example.com and write a short summary into ~/proj/notes.md', false, 'a home path'],
-  ['Read the API docs at docs.example.com and write a short summary into /home/me/proj/notes.md', false, 'a POSIX absolute path'],
-  ['Read the API docs at docs.example.com and write a short summary into docs/notes.md', false, 'a relative path with a separator'],
-  ['Read the API docs at docs.example.com and write a short summary into the notes folder', false, '"the notes folder"'],
-  ['Read the docs at docs.example.com/v1/api and write a short summary', true, 'a URL path is not a file destination'],
-  ['Read https://docs.example.com/guide/intro and write a short summary', true, 'an explicit URL is not a file destination'],
-  ['Read the API docs at docs.example.com and write a short summary to the Commander', true, 'a summary "to the Commander" is the answer'],
-  ['Read the API docs at docs.example.com and write a short summary in plain English', true, 'a summary "in plain English" is the answer'],
-  ["Read example.com's pricing page", true, 'a pure read'],
-  ['read the pricing page on example.com', true, 'a pure read'],
-  ['Go ahead, check out starnessos.com and then read the docs.', true, 'a pure docs read'],
-  ['check claude.ai and write a summary', true, 'a summary is the answer, not an artifact'],
-  ["Read example.com's pricing page and write a short summary of the plans.", true, 'a short summary is the answer'],
-  ['check the latest build on ci.example.com', true, '"the latest build" is a noun'],
-  ['check if example.com is up and running', true, '"up and running" is not a run step'],
-  ['Read the docs at bun.sh on how to install it', true, '"how to install" is what the docs say']
+  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\proj\\notes.md', 'a Windows drive-letter path'],
+  ['Read the API docs at docs.example.com and write a short summary into C:/Users/me/proj/notes.md', 'a drive-letter path with forward slashes'],
+  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\My Project\\notes.md', 'an unquoted path with a space'],
+  ['Read the API docs at docs.example.com and write a short summary into "C:\\Users\\me\\My Project\\notes.md"', 'a double-quoted path with a space'],
+  ["Read the API docs at docs.example.com and write a short summary into 'C:\\Users\\me\\My Project\\notes.md'", 'a single-quoted path with a space'],
+  ['Read the API docs at docs.example.com and write a short summary into `C:\\Users\\me\\My Project\\notes.md`', 'a backticked path with a space'],
+  ['Read the API docs at docs.example.com and write a short summary into "C:\\Users\\me\\My Project\\notes"', 'a quoted path with no extension'],
+  ['Read the API docs at docs.example.com and write a short summary into C:\\Users\\me\\proj\\NOTES', 'a drive-letter path with no extension'],
+  ['Read the API docs at docs.example.com and write a short summary to D:\\work\\summary.txt', '"to" a drive-letter path'],
+  ['Read the API docs at docs.example.com and write a short summary into \\\\server\\share\\notes.md', 'a UNC path'],
+  ['Read the API docs at docs.example.com and write a short summary into ~/proj/notes.md', 'a home path'],
+  ['Read the API docs at docs.example.com and write a short summary into /home/me/proj/notes.md', 'a POSIX absolute path'],
+  ['Read the API docs at docs.example.com and write a short summary into docs/notes.md', 'a relative path with a separator'],
+  ['Read the API docs at docs.example.com and write a short summary into the notes folder', '"the notes folder"'],
+  ['Read the docs at docs.example.com/v1/api and write a short summary', 'a URL path is not a file destination'],
+  ['Read https://docs.example.com/guide/intro and write a short summary', 'an explicit URL is not a file destination'],
+  ['Read the API docs at docs.example.com and write a short summary to the Commander', 'a summary "to the Commander" is the answer'],
+  ['Read the API docs at docs.example.com and write a short summary in plain English', 'a summary "in plain English" is the answer'],
+  ["Read example.com's pricing page", 'a read'],
+  ['read the pricing page on example.com', 'a read'],
+  ['Go ahead, check out starnessos.com and then read the docs.', 'a docs read'],
+  ['check claude.ai and write a summary', 'a summary is the answer, not an artifact'],
+  ["Read example.com's pricing page and write a short summary of the plans.", 'a short summary is the answer'],
+  ['check the latest build on ci.example.com', '"the latest build" is a noun'],
+  ['check if example.com is up and running', '"up and running" is not a run step'],
+  ['Read the docs at bun.sh on how to install it', '"how to install" is what the docs say']
 ]) {
   const policy = DomainTask.classify(text);
   A.ok(!!policy && policy.kind === 'direct-domain', '#5 still one exact host: ' + why + ' (' + JSON.stringify(text) + ')');
-  A.eq(policy && policy.pureRead, pure, '#5 pure read: ' + why + ' (' + JSON.stringify(text) + ')');
-  A.eq(policy && policy.workerMaxTools, pure ? 3 : undefined, '#5 the worker bound rides only a pure read: ' + why);
+  A.eq(Object.keys(policy || {}).sort(), ['host', 'kind'], '#5 the classifier names the host and carries no worker budget: ' + why);
 }
 /* Review of the soak lane (10-15). Every row: [text, the host it must name or null, why].
    1. A DELEGATION IS NOT A ONE-SITE CHECK FOR THE LEAD. On base a site AND a file read as two "hosts", so the lead kept
       team.dispatch; once the file stopped counting, "Ask COPY to check example.com and save it into notes.md" withheld
-      team.* and the lead could not hand it over — the soak's own symptom. The worker the lead dispatches is still bounded
-      by orchestration.js (3 turns, 3 tools, 45s), so the bound stays on the run that fetches.
+      team.* and the lead could not hand it over — the soak's own symptom. The worker the lead dispatches is still checked
+      against that one host by its own run, so the host policy stays on the run that fetches.
    2. WEB EVIDENCE MUST GOVERN THE NAME. "docs"/"site"/"visit" anywhere in the sentence made intro.md, handler.rs or
       notes.md a website; it now counts only beside the name (visit X, the X website, X and read its docs).
    3. A MIXED SUFFIX (.ai .so .pt) IS A FILE ONLY ON FILE-TYPE EVIDENCE. Generic task words (errors, write, in X) are
@@ -283,8 +284,11 @@ A.ok(/directDomainWithheld[\s\S]{0,220}team\\\./.test(hostSrc), 'direct-domain h
 A.ok(/DomainTask\.stopControl\(directDomainTask\)/.test(hostSrc), 'exact fetch missing-domain result receives host stop control');
 A.ok(/const directDomainTask = isTask && !o\.toolsOptional \? DomainTask\.classify\(latestUserText\(messages\), \{ isFile: runFileExists\(agentId, o\.projectRoot\) \}\)/.test(hostSrc),
   'the run host tells the classifier which dotted names are files where this run reads (project, else workspace)');
-A.ok(/makeOrchestrationTools\(\{[\s\S]{0,6000}\bfileProbe: runFileExists\b/.test(hostSrc),
-  'the dispatcher classifies a worker brief with the same file probe the worker run uses (one brief, one answer)');
+{
+  const orchSrc = (sidecarSourceFiles().find(f => f.rel === 'sidecar/tools/builtin/orchestration.js') || { text: '' }).text;
+  A.ok(!!orchSrc && !/\bfileProbe\b/.test(hostSrc) && !/\.classify\(/.test(orchSrc),
+    'the dispatcher holds no classifier and no file probe: a worker\'s budget is its lead\'s bounded:true, never its brief (starnet-releases#5)');
+}
 A.ok(/Number\(o\.maxToolCalls\)/.test(hostSrc), 'run host enforces delegated task-specific tool budgets');
 
 function toolTurn() {
