@@ -16,6 +16,7 @@ const { makeKeyedMutex, readJsonResilient, writeJsonResilient, makeDurableJsonSt
 // takes its real fsync-before-rename branch. Tracks fsync calls so we can assert durability.
 function memFs() {
   const files = new Map();   // path -> string contents
+  const dirs = new Set();   // directory descriptors participate in the real durability protocol
   const fds = new Map();     // fd -> { path, buf }
   let nextFd = 10;
   const stats = { fsync: 0, rename: 0, open: 0 };
@@ -24,9 +25,21 @@ function memFs() {
     readFileSync(p) { if (!files.has(p)) { const e = new Error('ENOENT: ' + p); e.code = 'ENOENT'; throw e; } return files.get(p); },
     writeFileSync(p, data) { files.set(p, String(data)); },
     renameSync(a, b) { if (!files.has(a)) { const e = new Error('ENOENT: ' + a); e.code = 'ENOENT'; throw e; } files.set(b, files.get(a)); files.delete(a); stats.rename++; },
-    mkdirSync() {},
-    openSync(p, flags) { stats.open++; const fd = nextFd++; if (flags === 'r') { if (!files.has(p)) { const e = new Error('ENOENT: ' + p); e.code = 'ENOENT'; throw e; } fds.set(fd, { path: p, buf: files.get(p), read: true }); } else { fds.set(fd, { path: p, buf: '' }); files.set(p, ''); } return fd; },
-    writeSync(fd, data) { const h = fds.get(fd); h.buf += String(data); files.set(h.path, h.buf); },
+    mkdirSync(p) { dirs.add(pathMod.normalize(p)); },
+    openSync(p, flags) {
+      stats.open++;
+      if (flags === 'r' && !files.has(p) && !dirs.has(pathMod.normalize(p))) throw Object.assign(new Error('ENOENT: ' + p), { code: 'ENOENT' });
+      if (flags === 'wx' && files.has(p)) throw Object.assign(new Error('EEXIST: ' + p), { code: 'EEXIST' });
+      const fd = nextFd++;
+      fds.set(fd, { path: p, buf: flags === 'r' ? files.get(p) : '', read: flags === 'r' });
+      if (flags !== 'r') files.set(p, '');
+      return fd;
+    },
+    writeSync(fd, data, offset, length) {
+      const h = fds.get(fd), bytes = Buffer.isBuffer(data) ? data.subarray(offset || 0, length == null ? undefined : (offset || 0) + length) : Buffer.from(String(data));
+      h.buf += bytes.toString(); files.set(h.path, h.buf); return bytes.length;
+    },
+    unlinkSync(p) { if (!files.delete(p)) throw Object.assign(new Error('ENOENT: ' + p), { code: 'ENOENT' }); },
     fsyncSync() { stats.fsync++; },
     closeSync(fd) { fds.delete(fd); }
   };

@@ -308,6 +308,7 @@ try {
   {
     const idx = readSidecarSource();
     const sinceSrc = A.fnBody(idx, 'function transcriptRunSince(');
+    const projectionSrc = A.fnBody(idx, 'function transcriptProjection(');
     const serveSrc = A.fnBody(idx, 'function serveTranscript(');
     A.ok(serveSrc.length > 200 && serveSrc.length < 5000, 'serveTranscript sliced out of sidecar/index.js');
     const { fs: cfs, c } = countingFs();
@@ -327,12 +328,14 @@ try {
     let sent = null;
     const deps = {
       URL, crypto, runTable, runStore, transcriptStore, transcriptStoreModule, transcriptLiveRuns: new Set(),
+      turnDual: require('../sidecar/turn-dual.js').make({ now: () => 0, hash: text => crypto.createHash('sha256').update(text).digest('hex') }), transcriptIo: io,
+      sessionTombstones: { deletedAt: () => 0 },
       isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id)), failNote: () => {},
       respondJson: (res, code, obj) => { sent = { code, obj }; }, readRouteFailure: (n, e) => ({ error: String(e && e.message) }),
       conversationTranscript: () => []
     };
     const names = Object.keys(deps);
-    const serveTranscript = new Function(...names, "'use strict';\n" + sinceSrc + '\n' + serveSrc + '\nreturn serveTranscript;')(...names.map(n => deps[n]));
+    const serveTranscript = new Function(...names, "'use strict';\n" + sinceSrc + '\n' + projectionSrc + '\n' + serveSrc + '\nreturn serveTranscript;')(...names.map(n => deps[n]));
     for (const run of ['live1', 'done1']) {
       c.reset(); sent = null;
       serveTranscript({ url: '/api/transcript?agent=agent&stream=global&runId=' + run + '&limit=80' }, {});

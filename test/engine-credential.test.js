@@ -214,7 +214,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
       ENV: () => ''
     };
     installStore(scope);   // the credStore index.js's one-liners ask, over these same stubs
-    return vm.runInNewContext(code + '\n({ providerRuntimeKey, providerRuntimeKeyPool, providerRuntimeBaseUrl })', scope);
+    return vm.runInNewContext(code + '\n({ providerRuntimeKey, providerRuntimeKeyPool, providerRuntimeBaseUrl, credStore })', scope);
   }
   const KP = 'sk-page-key', KX = 'sk-other-page-key', KE = 'sk-operator-env-key';
   const UP = 'https://page-endpoint.example/v1', UE = 'https://operator-endpoint.example/v1', UL = 'http://127.0.0.1:1234/v1';
@@ -329,8 +329,9 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     // list, a run's fallback) says whose key that is, so the resolver can apply the rule
     const callers = (raw.match(/providerRuntimeBaseUrl\([^;]*/g) || []).filter(c => !/^providerRuntimeBaseUrl\([^,]+,\s*''(\s*,\s*[A-Za-z]+)?\)/.test(c) &&!/^providerRuntimeBaseUrl\(provider, explicitBaseUrl/.test(c));
     // (RCR-001) the boot auto-starts and channelFollowsReady resolve through stationHubRunConfig, no copy of their own, and
-    // (credential-store S8) the three hubs' per-message reads are one resolve: 11
-    A.ok(callers.length >= 11, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
+    // (credential-store S8) the three hubs' per-message reads are one resolve; provider-readiness also
+    // folds validate/probe into verifyProviderPair, leaving ten distinct per-run endpoint call sites.
+    A.ok(callers.length >= 10, 'fixture: the per-run endpoint call sites are found (' + callers.length + ')');
     A.eq(callers.filter(c => { let d = 0, args = 1; for (const ch of c.slice('providerRuntimeBaseUrl('.length)) { if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; } return args < 4; }), [],
       'every providerRuntimeBaseUrl call that passes a per-run endpoint also passes the caller\'s own key');
   }
@@ -351,12 +352,12 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     // lines, executed. The page copy's backups ride only a run on the page key that the station resolves or a caller hands
     // back; a key sent in this request takes only a pool sent with it; a pool sent with no key of its own rides nothing.
     const watch = (/\n  const runKeyWatch = [^\n]+;/.exec(core) || [])[0] || '';
-    const opens = core.indexOf('primaryProfile.credentialPool) {\n'), closes = core.indexOf('.filter(s => s && s !== runKey);\n', opens);
-    const poolLines = opens > 0 && closes > opens ? core.slice(core.indexOf('\n', opens), closes + '.filter(s => s && s !== runKey);'.length) : '';
+    const opens = core.indexOf('primaryProfile.credentialPool) {\n');
+    const poolLines = opens > 0 ? ((/\n    const pool = providerRuntimeKeyPool\([\s\S]*?;\n/.exec(core.slice(opens)) || [''])[0]) : '';
     A.ok(!!watch && /const pool = providerRuntimeKeyPool\(providerId, /.test(poolLines), "fixture: runOnceCore's watch and rotation pool lines are found");
     const rp = resolvers({ page: { custom: { key: KP, keyPool: ['spare-1'], baseUrl: UP, rev: 'a1' } } });
     const pool = (o, callerCredential) => new Function('o', 'key', 'providerId', 'callerCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerRuntimeKeyPool', 'credStore',
-      lines + watch + poolLines + '\nreturn pool;')(o, o.key, 'custom', callerCredential !== false, rp.providerRuntimeKey, rp.providerRuntimeBaseUrl, rp.providerRuntimeKeyPool, { holds: () => true, fromStation: () => true });
+      lines + watch + poolLines + '\nreturn pool;')(o, o.key, 'custom', callerCredential !== false, rp.providerRuntimeKey, rp.providerRuntimeBaseUrl, rp.providerRuntimeKeyPool, rp.credStore);
     A.eq([pool({}), pool({ key: KP })], [['spare-1'], ['spare-1']], 'S4: a run on the page copy\'s key, the station\'s own or handed back by a record or a gate, rotates on the copy\'s backups');
     A.eq(pool({ key: KP, baseUrl: UL }), ['spare-1'], '...a record naming another endpoint beside it too: the page key goes to its own endpoint (UP), with its own backups');
     A.eq(pool({ key: KP, keyInRequest: true }), [], 'S4: the page key sent in this request takes no station pool: only a pool sent with it');
