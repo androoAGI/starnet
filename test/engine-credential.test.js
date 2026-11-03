@@ -356,7 +356,7 @@ A.ok(NR.bindingPhrase('no-provider').indexOf(EC.UNATTENDED_REMEDY) >= 0, 'nightr
     A.ok(!!watch && /const pool = providerRuntimeKeyPool\(providerId, /.test(poolLines), "fixture: runOnceCore's watch and rotation pool lines are found");
     const rp = resolvers({ page: { custom: { key: KP, keyPool: ['spare-1'], baseUrl: UP, rev: 'a1' } } });
     const pool = (o, callerCredential) => new Function('o', 'key', 'providerId', 'callerCredential', 'providerRuntimeKey', 'providerRuntimeBaseUrl', 'providerRuntimeKeyPool', 'credStore',
-      lines + watch + poolLines + '\nreturn pool;')(o, o.key, 'custom', callerCredential !== false, rp.providerRuntimeKey, rp.providerRuntimeBaseUrl, rp.providerRuntimeKeyPool, { holds: () => true });
+      lines + watch + poolLines + '\nreturn pool;')(o, o.key, 'custom', callerCredential !== false, rp.providerRuntimeKey, rp.providerRuntimeBaseUrl, rp.providerRuntimeKeyPool, { holds: () => true, fromStation: () => true });
     A.eq([pool({}), pool({ key: KP })], [['spare-1'], ['spare-1']], 'S4: a run on the page copy\'s key, the station\'s own or handed back by a record or a gate, rotates on the copy\'s backups');
     A.eq(pool({ key: KP, baseUrl: UL }), ['spare-1'], '...a record naming another endpoint beside it too: the page key goes to its own endpoint (UP), with its own backups');
     A.eq(pool({ key: KP, keyInRequest: true }), [], 'S4: the page key sent in this request takes no station pool: only a pool sent with it');

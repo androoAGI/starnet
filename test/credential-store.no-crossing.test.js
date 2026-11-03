@@ -110,7 +110,8 @@ const runLines = new Function('o', 'key', 'providerId', 'normalizeProvider', 'pr
   "'use strict';" + callerLine + pairLines + watchLine + poolBlock + '\nreturn { callerCredential, runKey, baseUrl, pool };');
 const normalizeProvider = v => Reg.normalizeProviderId(v, 'openrouter');
 function run(api, p, o) {
-  const credStore = { holds: (id, k) => (typeof api.holds === 'function' ? api.holds(id, k) : false) };
+  const credStore = { holds: (id, k) => (typeof api.holds === 'function' ? api.holds(id, k) : false),
+    fromStation: (id, k) => (api.credStore && typeof api.credStore.fromStation === 'function' ? api.credStore.fromStation(id, k) : false) };
   return runLines(o, o.key, p, normalizeProvider, api.key, api.baseUrl, api.keyPool, credStore);
 }
 

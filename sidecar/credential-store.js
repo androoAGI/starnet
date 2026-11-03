@@ -103,6 +103,8 @@
                                       verify(envelope) -> whether both copies on disk hold exactly this, newBind() -> a fresh
                                       stamp, keepsKeys() -> false on the desktop (a key stays out of the file),
                                       follow(ids) -> bool proven: those records hold a station reference now }
+       deps.digest(text)              a one-way digest (optional; index.js: SHA-256 hex): how the store remembers a key a layer
+                                      let go of without keeping the key (S3, below). Without it, a pure 64-bit FNV-1a
      store.key(provider, explicitKey)                          the key a run goes out on        (providerRuntimeKey)
      store.baseUrl(provider, explicit, runKey, callerKey, inRequest)  the endpoint for that key (providerRuntimeBaseUrl)
      store.resolve(provider, ctx) -> { key, keyPool, baseUrl, source, endpointSource, rank, complete, missing }   a run's whole
@@ -135,6 +137,8 @@
      store.holds(provider, key)                                whether a station layer (keychain, env, page) holds exactly
                                                                this key for this provider, as its key OR in its pool while
                                                                it holds a key for that pool to ride (S3, S4)
+     store.fromStation(provider, key)                          a key the station resolved for a run: a layer holds it, or held it
+                                                               until a REMOVE or a rotation; never a channel's own key (S3)
      store.inFlight()                                          one run's watch over the keys its adapters send (S3, below):
                                                                { watch(adapter, provider, key, o) -> adapter,
                                                                  gone(adapter) -> provider id | '' }
@@ -308,6 +312,17 @@
   function poolEnvName(id) { return 'KEY_POOL_' + String(id).toUpperCase().replace(/[^A-Z0-9]+/g, '_'); }
   // at most 8 distinct keys, trimmed, in order: every pool this store holds or hands out
   function cleanPool(list) { return Array.from(new Set(list.map(k => String(k || '').trim()).filter(Boolean))).slice(0, 8); }
+  // the digest of a string when the host hands none (test sandboxes; index.js hands SHA-256): two FNV-1a lanes, 64 bits, pure
+  function fnv(text) {
+    const s = String(text);
+    let a = 0x811c9dc5, b = 0x050c5d1f;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      a = Math.imul(a ^ c, 0x01000193) >>> 0;
+      b = Math.imul(b ^ c, 0x01000197) >>> 0;
+    }
+    return ('0000000' + a.toString(16)).slice(-8) + ('0000000' + b.toString(16)).slice(-8);
+  }
 
   /* adoptSpawnCredentials(env, { desktopShell, profiles }) — the desktop shell's keys and key pools become the keychain
      layer's, and leave `env` (the header's ADOPTION). For each provider, the first keyEnv name whose two spellings hold one
@@ -604,6 +619,7 @@
       const id = normalizeId(provider);
       if (!id || !profileOf(id)) return null;
       patch = patch || {};
+      const before = heldKeys(id);   // what a REMOVE or a rotation takes out of a layer is remembered as let go (S3, below)
       if (own(patch, 'key')) {
         const k = String(patch.key || '').trim();
         if (k) keys[id] = k;
@@ -635,13 +651,16 @@
       }
       // the push's answer counts the pool the shell pushed, whether or not a keychain key is there for it to ride (S4)
       if (report) report.alternateCount = own(pools, id) ? pools[id].length : 0;
+      noteLetGo(id, before);
       if (own(patch, 'key') || own(patch, 'keyPool')) convertChannels(id);   // S8: a key the keychain now holds is the station's
       return id;
     }
 
     /* ---- the page's copy (POST /api/providers/engine-key) ---- */
     function putPage(provider, input, o) {
+      const id = normalizeId(provider), before = id ? heldKeys(id) : [];
       const r = page.put(provider, input, o);
+      if (id) noteLetGo(id, before);
       if (r && r.ok && r.changed) convertChannels(provider);   // S8: a key the page now holds is the station's
       return r;
     }
@@ -1064,24 +1083,49 @@
       if (!id || !v || id === 'starnet' || usesCodex(id) || (profile && profile.authType === 'oauth_device_code')) return false;
       return layersOf(id).some(l => l.keys.includes(v) || (l.keys.length > 0 && l.pool.includes(v)));
     }
+    /* KEYS A LAYER LET GO OF (review r1). handleRun on the desktop, the channel hubs, the workers and the scheduler resolve the
+       station's key themselves and hand it to a run, before runOnce's one-turn-at-a-time queue: a turn queued behind another waits
+       as long as that turn runs. A key removed or rotated away meanwhile was held by no layer when its run started, so the watch
+       below took it for a caller's own and every call of that run went out on the removed key. A push or a page save now
+       remembers each key it took out of a layer, as a digest only (deps.digest, index.js: SHA-256; the key itself leaves the store
+       at once, as before), and fromStation() still knows it as the station's. The env layer never lets a key go. */
+    const digestOf = typeof d.digest === 'function' ? d.digest : fnv;
+    const letGoKeys = new Set();          // digests of provider id + key
+    const fingerprint = (id, v) => String(digestOf(id + '\u0000' + v));
+    function heldKeys(id) { return layersOf(id).reduce((all, l) => all.concat(l.keys, l.pool), []); }
+    function noteLetGo(id, before) { for (const v of before) if (v && !holds(id, v)) letGoKeys.add(fingerprint(id, v)); }
+    // a bot's own key (an entry's, a pending version's, a record's whose move failed): the bot's account, never the station's
+    function channelOwns(provider, k) {
+      const id = normalizeId(provider), v = String(k || '').trim();
+      if (!id || !v) return false;
+      const mine = e => !!e && e.provider === id && e.key === v;
+      return Object.values(entries).some(e => mine(e) || mine(e.prev)) || Object.values(carried).some(mine);
+    }
+    /* fromStation(provider, key): a key the station resolved for a run — a layer holds it now, or held it until a REMOVE or a
+       rotation took it out — and not a channel's own key. What the in-flight watch takes; never a key a caller brought. */
+    function fromStation(provider, k) {
+      const id = normalizeId(provider), v = String(k || '').trim();
+      if (!id || !v || channelOwns(id, v)) return false;
+      return holds(id, v) || letGoKeys.has(fingerprint(id, v));
+    }
     /* A run resolves its keys as it starts and builds one provider adapter on each (its primary, every backup key it may
        rotate onto, every provider fallback); each later call goes out on those, so a key removed or replaced mid-run kept
        billing until the run ended. inFlight() is one run's watch over them:
-         watch(adapter, provider, key, o) -> adapter   the key `adapter` sends for `provider`. Watched only when a station
-                     layer held it as the run resolved it (o.held when the run resolved it before it built the adapter; else
-                     holds() now) and the run's caller did not send it in this request (o.sentByCaller: an /api/run body
-                     key or pool, a fallback's own body key). A key no layer here held — a channel's own key, a caller's —
-                     is the caller's, and a removal on this station is not about it.
+         watch(adapter, provider, key, o) -> adapter   the key `adapter` sends for `provider`. Watched when it is the station's
+                     (fromStation: o.held when the run judged it as it resolved it; else fromStation() now) and the run's caller
+                     did not send it in this request (o.sentByCaller: an /api/run body key or pool, a fallback's own body key).
+                     A key no layer here ever held — a caller's — and a channel's own key are the caller's, and a removal on this
+                     station is not about them. A key a layer let go of before the run reached its adapter is watched, and gone.
          gone(adapter) -> provider id | ''   that provider, once no layer holds the watched key any longer; else ''.
        So only a REMOVE or a rotation of that very key, in every layer that held it, stops a run, or, for a backup key, the
        removal of the last key its layer held for its pool to ride (S4): the loop asks before each call (loop.js
-       credentialGone), never mid-stream. */
+       credentialGone), never mid-stream, and runOnceCore asks once its primary adapter is built, before any request. */
     function inFlight() {
       const watched = new WeakMap();   // adapter -> [provider id, key]
       return {
         watch(adapter, provider, k, o) {
           const opts = o || {}, id = normalizeId(provider), v = String(k || '').trim();
-          const held = own(opts, 'held') ? opts.held === true : holds(id, v);
+          const held = own(opts, 'held') ? opts.held === true : fromStation(id, v);
           if (adapter && (typeof adapter === 'object' || typeof adapter === 'function') && id && v && held && opts.sentByCaller !== true) watched.set(adapter, [id, v]);
           return adapter;
         },
@@ -1144,7 +1188,7 @@
     return {
       key, operatorKey, keyPool, pageRidesWith, baseUrl, resolve,
       keepsEndpoint, endpointNotHandedOver, keptEndpoints, loadKeptEndpoints, saveKeptEndpoints,
-      push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, inFlight,
+      push, putPage, presence, stationHeld, endpointIsForeign, alias, keychainValues, holds, fromStation, inFlight,
       secretValues, urlSecretParts, maskedUrl,
       credentialFor, endpointFor, consumerDeps,
       channel, putChannel, dropChannel, settleChannels, reconcileChannels, carriedChannels

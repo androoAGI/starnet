@@ -338,8 +338,52 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       const { res } = await run(P, w);
       A.eq([heldThen, calls, res.reason, res.failureStage], [true, [], 'error', 'credential'], '11: removed between the run resolving its key and building its adapter: no call goes out');
       const w2 = store.inFlight(), calls2 = [];
-      const Q = w2.watch(twoTurns('Q', 'kc-ant', calls2), 'anthropic', 'kc-ant');
-      A.eq([(await run(Q, w2)).res.reason, calls2], ['done', ['Q', 'Q']], '11: (a key no layer holds when its adapter is built, and no earlier sighting, is a caller\'s own: never stopped)');
+      const Q = w2.watch(twoTurns('Q', 'stranger-ant', calls2), 'anthropic', 'stranger-ant');
+      A.eq([(await run(Q, w2)).res.reason, calls2], ['done', ['Q', 'Q']], '11: (a key no layer ever held is a caller\'s own: never stopped)');
+    }
+    /* review r1: a key a CALLER resolved from the station before a REMOVE, that reaches its run only after it. handleRun on the
+       desktop, the channel hubs and the workers resolve the station's key themselves and hand it in as o.key, before runOnce's
+       one-turn-at-a-time queue (and a queued turn waits as long as the turn ahead of it). runOnceCore then judged the key held or
+       not as IT started: removed meanwhile, no layer held it, so it was never watched, and every call of that run went out on the
+       removed key. The store remembers (by digest) the keys a REMOVE or a rotation took out of a layer, so such a key is still
+       known as the station's: the watch takes it, and the run stops before its first call. Red at 0c9c1583f. */
+    for (const [label, id, key, change] of [
+      ['a keychain REMOVE', 'anthropic', 'kc-ant', s => s.push('anthropic', { key: '' })],
+      ['a keychain rotation', 'anthropic', 'kc-ant', s => s.push('anthropic', { key: 'kc-ant-NEW' })],
+      ['a cleared keychain pool', 'anthropic', 'kc-pool', s => s.push('anthropic', { keyPool: [] })],
+      // the page's copy changes through the store (index.js's engine-key route: credStore.putPage), as in production
+      ['a page REMOVE', 'custom', 'pg-cu', s => s.putPage('custom', {}, {})],
+      ['a page REMOVE, for its backup key', 'custom', 'pg-cu-pool', s => s.putPage('custom', {}, {})],
+      ['a page rotation', 'mistral', 'pg-mis', s => s.putPage('mistral', { key: 'pg-mis-NEW' }, {})]
+    ]) {
+      const { store } = station();
+      A.ok(store.holds(id, key), 'fixture: ' + label + ': the caller resolves a key the station holds');
+      change(store);
+      const w = store.inFlight(), calls = [];
+      const P = w.watch(twoTurns('P', key, calls), id, key);   // the run reaches its adapter after the change: no `held` handed in
+      const { res, seq } = await run(P, w);
+      A.eq([calls, res.reason, res.failureStage, errors(seq)], [[], 'error', 'credential', [sentence(id)]], '11: ' + label + ' before the run reached its adapter (a queued turn): the first call never goes out');
+    }
+    // ...and the store's own readout: the station's key, now or before a REMOVE; never one it never held, nor another provider's
+    {
+      const { store } = station();
+      store.push('anthropic', { key: 'kc-ant-NEW' });
+      const from = (p, k) => (typeof store.fromStation === 'function' ? store.fromStation(p, k) : 'no fromStation');   // a tree before it reports, not crashes
+      A.eq([from('anthropic', 'kc-ant'), from('anthropic', 'kc-ant-NEW'), from('anthropic', 'en-ant'), from('anthropic', 'stranger-ant'), from('openai', 'kc-ant')],
+        [true, true, true, false, false], '11: fromStation: a key a layer holds or let go of, for that provider only; never one it never held');
+    }
+    // a channel's own key is the bot's, never the station's, even when a station pool happens to hold the same key (review r1,
+    // 6f87a3894): no REMOVE on the station ever stops its run, in flight or after
+    {
+      const { store, engineKeys } = station();
+      const put = store.putChannel('telegram', { provider: 'custom', key: 'pg-cu-pool' });
+      A.eq(put.credential.ref, 'channel', 'fixture: a bot is given the key the page keeps as a backup, as its own');
+      const w = store.inFlight(), calls = [];
+      const P = w.watch(twoTurns('P', 'pg-cu-pool', calls, () => store.putPage('custom', {}, {})), 'custom', 'pg-cu-pool');
+      A.eq([(await run(P, w)).res.reason, calls], ['done', ['P', 'P']], '11: a bot\'s own key: a page REMOVE mid-run never stops it');
+      const w2 = store.inFlight(), calls2 = [];
+      const Q = w2.watch(twoTurns('Q', 'pg-cu-pool', calls2), 'custom', 'pg-cu-pool');
+      A.eq([(await run(Q, w2)).res.reason, calls2], ['done', ['Q', 'Q']], '11: ...nor a run that starts after it');
     }
     // the adapter a rotation or a provider fallback would use is watched on ITS key, through the loop
     {
@@ -366,8 +410,13 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
     A.ok(keyed.length >= 4, 'C: the census sees runOnceCore\'s keyed adapters (the primary, the warm backup, each rotation entry, each provider fallback): ' + keyed.length);
     A.eq(keyed.filter(k => !k.watched).map(k => k.lit), [], 'C: EVERY adapter runOnceCore builds on a key is watched on that key (runWatch.watch)');
     const after = core.indexOf('const runKey = providerRuntimeKey(providerId, callerCredential ? key : \'\');');
-    A.ok(after > 0 && /const runKeyWatch = \{ held: credStore\.holds\(providerId, runKey\), sentByCaller: callerCredential && o\.keyInRequest === true \};/.test(core.slice(after, after + 1500)),
-      'C: the primary\'s key is judged held as the run resolves it (its adapter is built after the run\'s awaits), and a body key is the caller\'s');
+    A.ok(after > 0 && /const runKeyWatch = \{ held: credStore\.fromStation\(providerId, runKey\), sentByCaller: callerCredential && o\.keyInRequest === true \};/.test(core.slice(after, after + 1800)),
+      'C: the primary\'s key is judged the station\'s as the run resolves it, a key a layer let go of included (review r1: a turn queued before a REMOVE), and a body key is the caller\'s');
+    // ...and a key already gone when the primary adapter is built ends the run there, before its catalog read or its first call
+    const built = core.indexOf('provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);');
+    A.ok(built > 0 && /\n  \{ const gone = runKeyGone\(provider\); if \(gone\) \{ endUnstarted\(gone, false\); return; \} \}\n/.test(core.slice(built, built + 600)) &&
+      core.indexOf('catalogRunWindow(provider, model)') > built + 300,
+      'C: a run whose key is gone before its primary adapter is built ends there, ahead of its catalog read (review r1)');
     A.ok(/\n      credentialGone: runKeyGone,/.test(core), 'C: the loop is handed credentialGone');
     A.ok(/const runKeyGone = adapter => \{ const id = runWatch\.gone\(adapter\); return id \? engineCredentialError\(id, 'this run', true\) : ''; \};/.test(core), 'C: ...answering with the in-flight sentence');
     A.ok(/const keyGone = runKeyGone\(auxVisionProvider\); if \(keyGone\) throw new Error\(keyGone\);/.test(core), 'C: the aux vision call (image_analyze on the run\'s own adapter) asks too');

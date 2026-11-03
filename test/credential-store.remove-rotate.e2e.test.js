@@ -40,6 +40,10 @@
            sends the new key
         d. browser: the page's own /api/run sends its key in the body, and the page REMOVEs its copy mid-run: a key the
            caller sent is its own, so turn 2 goes out on it and the run ends done
+        e. desktop (review r1): a second turn on the same conversation, posted while the first is held, waits in runOnce's
+           one-turn-at-a-time queue with the key handleRun resolved for it; the shell's REMOVE lands while both wait. The first
+           stops at its next call, and the queued turn is stopped before its first call, catalog read included (RED at
+           0c9c1583f: no layer held its key when its run started, so it was never watched and ran to done on the removed key)
         No request after a change carries the removed or replaced key, and the stopped run sends no post-run pass on it. */
 'use strict';
 const A = require('./_assert.js');
@@ -72,7 +76,8 @@ const K = {
   ifKc: 'custom-INFLIGHT-keychain-0123456789abcdefghijk',
   ifOr: 'sk-or-v1-INFLIGHT-keychain-openrouter-0123456789abcd',
   ifOr2: 'sk-or-v1-INFLIGHT-ROTATED-openrouter-0123456789abcd',
-  ifBody: 'sk-or-v1-INFLIGHT-page-body-key-0123456789abcdef01'
+  ifBody: 'sk-or-v1-INFLIGHT-page-body-key-0123456789abcdef01',
+  ifQ: 'sk-or-v1-INFLIGHT-QUEUED-keychain-0123456789abcdef'
 };
 const sha = v => crypto.createHash('sha256').update(String(v).trim(), 'utf8').digest('hex');
 const MODELS = { anthropic: 'claude-test', openrouter: 'test/model', custom: 'local-model', mistral: 'mistral-test' };
@@ -452,6 +457,33 @@ async function waitFor(pred, label) {
       const fire = await s.scheduled('orr', 'SCHED-AFTER-INFLIGHT-ROTATE');
       A.ok(!!fire.sent && fire.sent.length > 0 && fire.sent.every(q => q.key === K.ifOr2), 'in flight, rotation: the next scheduled fire sends the new key: ' + JSON.stringify(fire.sent ? fire.sent.map(q => q.key === K.ifOr2) : fire));
       A.ok(!keysSince(up, rot.mark).includes(K.ifOr), 'in flight, rotation: no request after the rotation carries the old key');
+    }
+    {
+      // e. desktop: a turn queued behind another on the same conversation. handleRun resolved the keychain key when the turn was
+      // posted, before the REMOVE; the turn reaches its run only after the one ahead of it ends (runOnce's one-turn-at-a-time queue)
+      const s = station('inflight-queued', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('OPENROUTER_KEY', K.ifQ) });
+      stations.push(s);
+      await s.fx.start();
+      await s.setup({ orr: 'openrouter' });
+      const post = marker => s.fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: 'orr', provider: 'openrouter',
+        model: MODELS.openrouter, streamId: 'inflight-queued-stream', isTask: true, messages: [{ role: 'user', content: marker + ' look at your notes, then say done' }] }) })
+        .then(async res => ({ status: res.status, text: await res.text() }));
+      const open = up.hold('INFLIGHT-QUEUED-FIRST');
+      const first = post('INFLIGHT-QUEUED-FIRST');
+      await waitFor(() => turnsOf(up, 'INFLIGHT-QUEUED-FIRST').length >= 1, 'in flight, queued: the first turn reached the upstream');
+      const second = post('INFLIGHT-QUEUED-SECOND');
+      await sleep(1500);
+      A.eq(up.seen.filter(r => r.body.includes('INFLIGHT-QUEUED-SECOND')).length, 0, 'in flight, queued: the second turn waits behind the first');
+      const removed = await s.push({ provider: 'openrouter', key: '' });
+      A.eq(removed.body && removed.body.configured, false, 'in flight, queued: the shell\'s REMOVE lands while both wait');
+      const mark = up.seen.length;
+      open();
+      const [a, b] = await Promise.all([first, second]);
+      A.eq([endOf(a.text).reason, errorsOf(a.text)], ['error', [inFlightSentence('openrouter')]], 'in flight, queued: the first run stops at its next call, with the in-flight sentence');
+      A.eq([b.status, endOf(b.text).reason, errorsOf(b.text)], [200, 'error', [inFlightSentence('openrouter')]],
+        'in flight, queued: the turn posted before the REMOVE is stopped before its first call, with the same sentence (86ff765db: it ran to done on the removed key)');
+      A.eq(up.seen.slice(mark).filter(r => r.body.includes('INFLIGHT-QUEUED-SECOND')).length, 0, 'in flight, queued: it sends nothing');
+      A.ok(!keysSince(up, mark).includes(K.ifQ), 'in flight, queued: no request after the REMOVE carries the removed key, a catalog read included');
     }
   } catch (e) {
     A.ok(false, 'e2e threw: ' + ((e && e.stack) || e) + '\n' + stations.map(s => s.fx.output().slice(-2500)).join('\n----\n'));

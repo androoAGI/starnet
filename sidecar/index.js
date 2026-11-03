@@ -1190,6 +1190,7 @@ const credStore = credentialStore.makeCredentialStore({
   providerIds: () => PROVIDER_IDS,   // the providers whose env and page layers redaction reads (S5)
   shapes: SECRET_SHAPES,   // what redaction holds of an endpoint URL and of a key-optional provider's env key (S5)
   now: () => Date.now(),   // the environment layer's held values are read at most once a second (the store's REDACTION)
+  digest: (text) => crypto.createHash('sha256').update(String(text), 'utf8').digest('hex'),   // a key a layer let go of, remembered without the key (S3)
   keptEndpoints: {
     on: SHELL_PUSHES_PROVIDER_CONFIG,
     load: () => loadResilient(DESKTOP_ENDPOINTS_FILE, 'desktop-endpoints'),
@@ -21902,11 +21903,12 @@ async function runOnceCore(o) {
   model = chatModelId(providerId, model);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
-  // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when a
-  // station layer holds that key as the run resolves it and the caller did not send it in this request; the loop stops the
+  // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when that
+  // key is the station's (fromStation: a layer holds it, or held it until a REMOVE or a rotation, so a key a caller resolved
+  // before a queue it then waited in is still the station's) and the caller did not send it in this request; the loop stops the
   // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
   const runWatch = credStore.inFlight();
-  const runKeyWatch = { held: credStore.holds(providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
+  const runKeyWatch = { held: credStore.fromStation(providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
   const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
@@ -23287,6 +23289,12 @@ async function runOnceCore(o) {
   // an API key. A dead/missing token surfaces as a clean run.error so the UI can prompt a re-sign-in; everything
   // downstream of the provider seam (loop, cost, gauge) is identical to the OpenRouter path.
   let provider;
+  // a run that ends before its first call (a sign-in it cannot open, a key the station let go of): its start, why, and its end
+  const endUnstarted = (message, transient) => {
+    emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
+    emit('agent.run.error', { agentId, runId, transient, message });
+    emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
+  };
   // SUBSCRIPTION STACKING (ChatGPT / Grok / Kimi): the run opens on the first connected sign-in credPool is not
   // cooling. On the primary, the path below is unchanged; on an extra account, that account's own token keeper.
   const oauthAccounts = (usingCodex || usingDeviceOAuth) ? orderedAccountChain(providerId) : null;
@@ -23296,12 +23304,7 @@ async function runOnceCore(o) {
   } else if (usingCodex) {
     let codexToken;
     try { codexToken = await ensureCodexAccessToken(); }
-    catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: 'ChatGPT sign-in needed: ' + ((e && e.message) || e) });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
-      return;
-    }
+    catch (e) { endUnstarted('ChatGPT sign-in needed: ' + ((e && e.message) || e), !(e && e.reloginRequired)); return; }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: codexToken, renewToken: forceRefreshCodexAccessToken, baseUrl, reasoningEffort });
   } else if (usingDeviceOAuth) {
     // Grok / Kimi subscription: the OAuth access token authenticates the OpenAI-compatible endpoint (riding in
@@ -23309,16 +23312,13 @@ async function runOnceCore(o) {
     // ride via oauthInferenceHeaders. A grok allowlist 403 surfaces here as a transient (non-relogin) error.
     let oauthToken;
     try { oauthToken = await ensureOAuthAccessToken(providerId); }
-    catch (e) {
-      emit('agent.run.start', { agentId, runId, trigger: trigger, model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: !(e && e.reloginRequired), message: oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e) });
-      emit('agent.run.end', { agentId, runId, reason: 'error', turns: 0, usd: 0 });
-      return;
-    }
+    catch (e) { endUnstarted(oauthLabel(providerId) + ' sign-in needed: ' + ((e && e.message) || e), !(e && e.reloginRequired)); return; }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
   } else {
     provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);
   }
+  // S3: a station key let go of before this run reached its adapter (a turn queued behind another, a pre-run await) sends nothing
+  { const gone = runKeyGone(provider); if (gone) { endUnstarted(gone, false); return; } }
   let activeProviderId = providerId;
   auxVisionProvider = provider; studioModelProvider = provider;   // late-bind the aux vision route + the studio model's catalog to the run's real provider (see makeImageTools above)
   let cost = makeCostEngine({ priceOf: provider.priceOf });
