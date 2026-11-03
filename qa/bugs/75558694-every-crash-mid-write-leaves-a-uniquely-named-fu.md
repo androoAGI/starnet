@@ -7,7 +7,7 @@ severity: P2
 status: fixed
 found: 2026-10-20
 lane: sweep/sessions
-fix: 9d4f5ff13 b1b0be499 cb6ff28fa d05241c24
+fix: 9d4f5ff13 b1b0be499 cb6ff28fa d05241c24 95d71f8c5
 origin: audit
 family: save-lifecycle
 ---
@@ -77,16 +77,17 @@ Fixed by the persist-module lane: 9d4f5ff13 (sidecar/persist writeAtomic, and th
 b1b0be499 (the channel stores), cb6ff28fa (the station save) and d05241c24 (the run journal's repair, the
 workspace-recovery files, the deliverables library and the START FRESH marker). Every store the lane moved (everything
 that wrote through durable-write.js, the station save, the channel stores, the deliverables library, the run journal's
-repair, the workspace-recovery files and the marker) writes through `sidecar/persist/write.js` writeAtomic, with one
-temp grammar, `<file>.<pid>.<nonce>.tmp`.
+repair, the workspace-recovery files and the marker) shares one temp grammar, `<file>.<pid>.<nonce>.tmp`.
+Ordinary replacements use `sidecar/persist/write.js` writeAtomic; journal repair retains its own append/in-place
+protocol and uses persist's names, owned evidence copy and sweeper.
 
 - THE CLEANUP: any failure after the temp exists (a short write, a failed fsync, a refused rename) unlinks the temp
   before the error is rethrown. A temp that cannot be unlinked is noted (failNote persist.temp), never silent.
 - THE SWEEPER: after a successful write, once per file per process, the file's own temps are removed when an
-  own-grammar temp's pid is dead (process.kill(pid, 0); EPERM counts as alive), or when any own or legacy temp
+  own-grammar temp's pid is dead (process.kill(pid, 0); EPERM counts as alive), or when a legacy temp
   (`<file>.<n>.tmp`, `<file>.tmp-<pid>-<now>-<seq>`, `<file>.repair-<hex>`) is more than 10 minutes older than the file
   just written (the filesystem's clock). One readdir per folder per process. It never touches another file's temps, a
-  live writer's temp, a `.bak` or a forensic copy. A replace also sweeps its `.bak`'s own temps.
+  live writer's temp regardless of age, a `.bak` or a forensic copy. A replace also sweeps its `.bak`'s own temps.
 
 There is no boot-wide sweep (decision D5): a crash temp goes on its file's next successful write. Proof:
 `test/persist.conformance.test.js` INV-2 (a crash at every write point and every failed write, for every store) and
@@ -94,3 +95,9 @@ There is no boot-wide sweep (decision D5): a crash temp goes on its file's next 
 0b8441064 and GREEN at the lane tip. `test/persist.lint.test.js` keeps a new direct writer from appearing in the
 sidecar. The writers that are not on persist yet are its baseline rows and keep their own temp names: environment's
 `.tmp-<pid>` and procledger's `.<pid>.tmp` can still leave one temp per crashed process. They move in their own lanes.
+
+Review follow-up 95d71f8c5 resolves the earlier conflict between the age rule and live-owner preservation: a paused
+writer can still finish its old temp after another write sweeps. The exact 6ed58a52c source control fails that row;
+the repaired conformance suite passes 3846 assertions, including dead-owner cleanup and preserved legacy handling.
+PID reuse can conservatively keep an old own-grammar temp until that process exits. Combined landing gates remain
+separate from this focused source evidence.

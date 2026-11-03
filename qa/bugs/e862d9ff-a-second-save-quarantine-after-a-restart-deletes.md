@@ -7,7 +7,7 @@ severity: P1
 status: fixed
 found: 2026-10-20
 lane: sweep/sessions
-fix: dd8662b5c
+fix: dd8662b5c 9d4f5ff13 d05241c24 95d71f8c5
 origin: audit
 family: save-lifecycle
 ---
@@ -56,13 +56,13 @@ Fixed. The quarantine steps to the first free `.corrupt-<n>` name and never unli
 stores already avoided this (`index.js` quarantineCorrupt names copies `<file>.corrupt-<pid>-<seq>`); the save store
 did not. The name keeps the `.corrupt-<digits>` shape existing readers match.
 
-The family is closed for every store (lane persist-module, 2026-11-03). The sentence above about the general stores
+The family is repaired for the stores migrated by persist-module (2026-11-03). The sentence above about the general stores
 was too strong: index.js quarantineCorrupt renamed onto `<file>.corrupt-<pid>-<seq>` with a per-process counter, so a
 restart that reused a pid replaced an earlier copy; and the run journal (`<hash>.jsonl.corrupt`) and the deliverables
 journal (`deliverables.library.jsonl.corrupt`) used one fixed name, so their second incident always replaced the first.
 Every quarantine now goes through sidecar/persist's moveAside or preserve (`sidecar/persist/quarantine.js`): the first
-free `<file>.corrupt-<n>` by hard link (EEXIST steps to the next n; without hard links, an existence check plus a
-rename), never onto an existing name, and a move that cannot be made reports ok:false and leaves the bytes where they
+free `<file>.corrupt-<n>` by hard link (EEXIST steps to the next n; without hard links, an exclusively opened and
+flushed copy followed by unlink), never onto an existing name, and a move that cannot be made reports ok:false and leaves the bytes where they
 were. Legacy copies are kept, and the numbering steps over them. Fixed for the general and full-state stores in
 9d4f5ff13, and for the run journal and the deliverables library in d05241c24 (records c836f3f7 and 06a5fb9e). Proof:
 `test/persist.conformance.test.js` INV-3 (two incidents across a restart give `.corrupt-1` and `.corrupt-2`,
@@ -77,3 +77,13 @@ FAIL: S2: the first torn station.widgets.json is kept byte-exact as station.widg
 ```
 
 and GREEN at the lane tip.
+
+Review follow-up 95d71f8c5 also closes competing-name and failed-copy ownership gaps. A copy may fail before opening
+its destination, so that error never authorizes deleting the path. Persist and run-journal now share the same
+exclusive-FD-owned copy; only a destination this call opened is cleaned up. Unknown file or directory flush errors
+keep the original. Windows EPERM/EISDIR directory-flush capability limits retain the existing explicit fallback.
+
+The exact 6ed58a52c control is RED26/3800 for the added preservation cases (including the live-temp sibling).
+The pre-strict directory-flush control is RED7/3839, one case per link mode. Final conformance is GREEN3846.
+These use real scratch files with deterministic filesystem faults, not a claim of a newly observed customer race.
+General stores retain their one-sidecar-writer contract; combined landing gates and installed acceptance are separate.
