@@ -11,6 +11,7 @@ const { userWords } = require('./helpers/host-notes.js');   // the user's own wo
 const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 const Pipeline = require('../frontend/app/pipeline.js');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -54,6 +55,7 @@ test('a job that ships on LINE A rides on to LINE B by SEND TO', async () => {
     CUSTOM_OPENAI_KEY: 'direct-fixture', CUSTOM_OPENAI_BASE_URL: base + '/v1'
   } });
   try {
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const agents = [
       { agentId: 'alpha', name: 'Alpha', system: 'Line A', provider: 'custom', model: 'handoff-model' },
@@ -229,6 +231,7 @@ test('hand-offs waiting when the station quits are said, never lost', async () =
     CUSTOM_OPENAI_KEY: 'direct-fixture', CUSTOM_OPENAI_BASE_URL: base + '/v1'
   } });
   try {
+    seedActiveStation(fixture.workspace);
     await fixture.start();
     const agents = [
       { agentId: 'alpha', name: 'Alpha', system: 'Line A', provider: 'custom', model: 'handoff-model' },

@@ -14,7 +14,10 @@
    was onboarded since — then POSTs /api/save twice through the real route: a copy founded before the reset (refused on
    every reset shape) and a station founded after the boot (accepted on every shape; for the onboarded shape its own next
    save). GET /api/lineage must agree with test/station-marker-matrix.test.js, and the accepted save must have founded the
-   record. The torn shape restarts once more: the founded station keeps saving. */
+   record. The torn shape restarts once more: the founded station keeps saving.
+   THE CREW, in WAKE's order: a window from before the reset pushes its crew as its save is refused, and the station founded
+   now pushes its own before its first save lands (CloudSave debounces that save; pushRoster does not wait). Both are held,
+   never written, so no roster file reads as a station before one is founded; the founding save writes the founder's crew. */
 'use strict';
 const fs = require('node:fs');
 const os = require('node:os');
@@ -70,17 +73,33 @@ const SHAPES = [
       A.eq(lineage.onboardingAllowed, !shape.onboarded, n + ': the gate ' + (shape.onboarded ? 'sees the onboarded station' : 'lets the app onboard') + ' (as the fast matrix says)');
       A.eq(lineage.station && lineage.station.state, shape.station, n + ': GET /api/lineage reports the station record (' + JSON.stringify(lineage.station) + ')');
       const save = body => fixture.json('POST', '/api/save', body);
+      const rosterFile = path.join(fixture.workspace, 'agent.roster.json');
+      const crew = (name, rev, client) => fixture.json('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'You are ' + name + '.', name, model: '', provider: 'openrouter' }],
+        updatedAt: Date.now(), saveRevision: rev, saveClient: client, rosterBase: { known: [], changed: ['agent'] } });
       if (shape.reset) {
         // a browser copy of the station from BEFORE the reset (an older window, a stale WebView profile)
         const old = (await save(doc('FROM-BEFORE-THE-RESET', T_RESET - 60000, 23, T_RESET - 1000, 'old-window'))).body;
         if (shape.onboarded) A.ok(old.ok === false && old.predatesReset === true, n + ': a copy from before the erase is refused as erased work (' + JSON.stringify(old) + ')');
         else A.ok(old.ok === false && old.reset === true, n + ': a copy founded before the reset is refused (reset:true): ' + JSON.stringify(old));
+        if (!shape.onboarded) {
+          const pushed = (await crew('FROM-BEFORE-THE-RESET', 23, 'old-window')).body;
+          A.eq([pushed.ok, pushed.held], [true, true], n + ': that window\'s crew is held, not written (' + JSON.stringify(pushed) + ')');
+        }
+      }
+      if (!shape.onboarded) {
+        const wake = (await crew('FOUNDED-NOW', 0, 'new-window')).body;
+        A.eq([wake.ok, wake.held], [true, true], n + ': WAKE\'s crew, pushed before its first save lands, is held too (' + JSON.stringify(wake) + ')');
+        A.eq(fs.existsSync(rosterFile), false, n + ': no roster file before a station is founded');
       }
       // the station the Commander founds now (for the onboarded shape: its own next save)
       const founded = shape.onboarded ? doc('FOUNDED-AFTER-THE-ERASE', T_RESET + 1000, 5, Date.now(), 'onboarded-window')
         : doc('FOUNDED-NOW', bootedAt + 1, 0, bootedAt + 2, 'new-window');
       const first = (await save(founded)).body;
       A.ok(first.ok === true, n + ': a station founded after the reset saves (' + JSON.stringify(first) + ')');
+      if (!shape.onboarded) {
+        let landed = null; try { landed = JSON.parse(fs.readFileSync(rosterFile, 'utf8')); } catch (_) {}
+        A.eq(landed && landed.agents.map(a => a.name), ['FOUNDED-NOW'], n + ': the founding save writes the founder\'s crew');
+      }
       lineage = (await fixture.json('GET', '/api/lineage')).body.lineage;
       A.eq(lineage.station && lineage.station.state, 'active', n + ': the accepted save founded the generation in the record');
       let rec = null; try { rec = JSON.parse(fs.readFileSync(path.join(fixture.workspace, '.station.json'), 'utf8')); } catch (_) {}

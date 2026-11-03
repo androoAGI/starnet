@@ -10,10 +10,14 @@
    - an ARMED NIGHT SHIFT's first tick writes a decline row to autonomy.ledger.jsonl — that row alone trapped the install,
      and it turned the #123 gate back on, so the quest-refresh file came back by cascade;
    - the station-scoped routes WAKE calls before its first save (the permission, posture and journey lock-downs, the memory
-     wipe, the scout pushes, dossier and goals) each write a regex file, so a WAKE cut short trapped the next boot.
+     wipe, the scout pushes, dossier and goals) each write a regex file, so a WAKE cut short trapped the next boot;
+   - and WAKE pushes its crew (POST /api/roster, enterGame's pushRoster) at once, while CloudSave holds the first save for
+     its 1.2 s debounce. A roster file is hard proof to every reader, record or not, so that push alone trapped the next boot.
    Each was patched writer by writer; the next writer re-opened the trap. Now the station record decides
    (sidecar/station-record.js): a workspace holds a station once its record says one was founded — the station file's
-   first accepted save — or a save or roster file is on disk (P1). Soft bookkeeping, whoever writes it, never makes one.
+   first accepted save — or a save or roster file is on disk (P1). Soft bookkeeping, whoever writes it, never makes one, and
+   hard proof is never written before a founding: the roster's one write path holds the crew in RAM until the founding save
+   writes it (sidecar/index.js agentRosterHeld).
 
    And every unattended writer (the night shift, environment discovery, the quest refresh) now stands down until a station
    is founded (the live record's station()), so a station-less session leaves nothing ANY build reads as a station: an
@@ -34,12 +38,15 @@
       there is nothing to protect, so the installer gets its receipt (station none, no snapshot) and update-snapshots
       gets nothing — a bundle there read as a prior install to every build's gate.
    2. CLIENT-ROUTE ROW — before any station is founded, the routes WAKE calls before its first save, plus the scout,
-      dossier and goals pushes, then a restart: still onboards, station.state none.
+      dossier and goals pushes, and every route that writes the roster (WAKE's own push as the page sends it, the no-page
+      approval and personality controls, a roster reset), then a restart: no roster file was written, still onboards,
+      station.state none.
    3. PLANT ROW — after those boots (the record exists), the station-scoped bookkeeping files any future writer could
       leave are planted (never a save or roster: those are a station by P1), then a restart: still onboards.
    4. FOUNDING ROW — on that same session: past the boot looks and several ticks, soft evidence on disk has turned no
       unattended writer back on (the old gate read the regex it guarded, so one evidence file re-opened it: the cascade);
-      then the station file's first accepted write founds the station, and the next tick runs with no restart.
+      WAKE pushes its crew, which is held; then the station file's first accepted write founds the station and writes that
+      crew, and the next tick runs with no restart.
    NOT in test:fast (child-process boots). Run via `npm run test:http`. */
 'use strict';
 const A = require('./_assert.js');
@@ -225,7 +232,11 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
     // ---- the boot that used to strand the user on PRIOR STATION DATA FOUND ----
     s = await onboards('restart after an armed station-less session and a pre-onboarding update prepare');
 
-    // ---- 2. CLIENT-ROUTE ROW: WAKE's lock-downs before its first save (app.js wake), and the pushes a fresh page makes ----
+    // ---- 2. CLIENT-ROUTE ROW: WAKE's lock-downs before its first save (app.js wake), the pushes a fresh page makes, and every
+    // route that writes the roster, WAKE's own push first, exactly as pushRoster sends it before CloudSave's first save lands ----
+    const rosterFile = path.join(ws, 'agent.roster.json');
+    const crew = (name, stamp) => ({ agents: [{ agentId: 'agent', system: 'You are ' + name + '.', name, model: '', provider: 'openrouter', role: 'orchestrator', approvalMode: 'ask', executionProfile: 'station-gear', track: '', workshop: false, skills: [], reasoningEffort: 'medium' }],
+      updatedAt: stamp, saveRevision: 0, saveClient: 'census-window', rosterBase: { known: [], changed: ['agent'] } });
     const routes = [
       ['POST', '/api/permissions/revoke', { key: 'cabinet:write' }],                                                  // PermissionsStore.reset
       ['POST', '/api/autonomy/posture', { posture: { v: 1, initiative: 'wait', reach: 'sandbox', leashPerDay: 3 }, resumeHalt: false }],   // AutonomyStore.reset
@@ -234,12 +245,19 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
       ['POST', '/api/scout/context', { customClasses: [{ name: 'Census class' }] }],
       ['POST', '/api/scout/telemetry', { kind: 'recipe.launch', id: 'census-recipe', name: 'Census recipe' }],
       ['POST', '/api/dossier', { block: 'COMMANDER DOSSIER\n- census' }],
-      ['POST', '/api/goals', { goal: null }]
+      ['POST', '/api/goals', { goal: null }],
+      ['POST', '/api/roster', crew('CENSUS', Date.now())],                                                            // enterGame's pushRoster
+      ['POST', '/api/agent/approval', { agentId: 'agent', mode: 'full' }],                                           // the no-page controls
+      ['POST', '/api/agent/personality', { agentId: 'agent', personality: 'blunt', system: 'You are CENSUS, blunt.' }],
+      ['POST', '/api/config/reset', { section: 'roster' }]
     ];
     for (const [m, route, body] of routes) {
       const r = await s.j(m, route, body);
       A.ok(r.status < 500, m + ' ' + route + ' answers on a station-less workspace (' + r.status + ')');
+      if (route === '/api/roster') A.eq([r.body && r.body.ok, r.body && r.body.held], [true, true], 'WAKE\'s crew push is taken and held, not written (' + JSON.stringify(r.body) + ')');
+      if (route.startsWith('/api/agent/')) A.eq([r.status, r.body && r.body.via], [200, 'roster'], m + ' ' + route + ' reaches the roster\'s write path (' + JSON.stringify(r.body) + ')');
     }
+    A.eq(fs.existsSync(rosterFile), false, 'no roster file: before a founding nothing writes hard proof, whichever route asked');
     const routeFiles = ['scout.state.json', '_commander.autonomy.json', '_commander.dossier.json', '_commander.goals.json'].filter(n => fs.existsSync(path.join(ws, n)));
     A.eq(routeFiles.length, 4, 'fixture is real: the routes wrote their station-scoped files (' + routeFiles.join(', ') + ')');
     await stop(child); child = null;
@@ -259,12 +277,19 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
     if (Date.now() < pastLooks) await sleep(pastLooks - Date.now());
     A.eq(fs.readFileSync(ledgerFile, 'utf8'), plantedLedger, 'soft evidence on disk starts no night-shift tick: the ledger is as it was planted');
     standsDown('with every evidence file planted, past the boot looks and several ticks', 'autonomy.ledger.jsonl');
+    const wakeStamp = Date.now();
+    const waking = await s.j('POST', '/api/roster', crew('CENSUS', wakeStamp));
+    A.eq([waking.body && waking.body.held, fs.existsSync(rosterFile)], [true, false], 'WAKE\'s crew push is held until the founding (' + JSON.stringify(waking.body) + ')');
     const at = Date.now();
     const saved = await s.j('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: at, _saveRevision: 0, _saveDirty: true, _saveClient: 'census-window',
       agent: { id: 'agent', name: 'CENSUS', createdAt: at }, agents: [], workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     A.ok(saved.body && saved.body.ok === true, 'the station file\'s first accepted write lands (' + JSON.stringify(saved.body) + ')');
     const founded = await s.j('GET', '/api/lineage');
     A.eq(founded.body.lineage.station && founded.body.lineage.station.state, 'active', 'and founds the station');
+    let landed = null; try { landed = JSON.parse(fs.readFileSync(rosterFile, 'utf8')); } catch (_) {}
+    A.eq(landed && [landed.updatedAt, landed.agents.map(a => a.name)], [wakeStamp, ['CENSUS']], 'and the founding save writes the crew held for it, with its stamp');
+    const after = await s.j('POST', '/api/roster', crew('CENSUS', Date.now()));
+    A.eq([after.body && after.body.ok, after.body && after.body.held], [true, undefined], 'once a station is founded a push is written at once');
     const tickRan = () => fs.readFileSync(ledgerFile, 'utf8').split('\n').some(line => { try { return JSON.parse(line).source === 'nightshift'; } catch (_) { return false; } });
     const deadline = Date.now() + 8000;
     while (!tickRan() && Date.now() < deadline) await sleep(100);

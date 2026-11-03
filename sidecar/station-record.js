@@ -10,7 +10,8 @@
    fallback rule, and every reader asks it: the onboarding gate (workspace-lineage), automatic recovery
    (workspace-recovery), the save store's reset seed rule, the terminal (bin/starnet.js), every unattended writer (the
    night shift, discovery and the quest refresh stand down while !station(); test/stationless-boot-census.http.test.js
-   is their completeness ratchet) and update preparation (no recovery point only while !holdsStationData()).
+   is their completeness ratchet), the roster's one write path (held in RAM while !station(), so nothing but a founding ever
+   writes hard proof) and update preparation (no recovery point only while !holdsStationData()).
    test/station-record-readers.test.js keeps it that way: no other file may name the lifecycle files, the fallback, or
    probe a save or roster file for existence.
 

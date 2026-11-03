@@ -2303,6 +2303,14 @@ let agentRosterUpdatedAt = 0;
 // save-latch-kill: the newest station revision a page's roster push was built on (POST /api/roster saveRevision), in the
 // envelope too, so a restart still refuses a push built on an older station view (handleRoster's revision check)
 let agentRosterSaveRevision = 0;
+/* NO STATION, NO ROSTER FILE. A roster file IS a station to every reader (hard proof, station-record.js P1; an older build's gate
+   too), and a page pushes its crew before any save lands: WAKE's enterGame POSTs the roster at once while CloudSave debounces
+   the first save, and a window holding a copy from before a reset has that save refused and pushes anyway. So a WAKE cut short,
+   or an ERASE with such a window open, left a file that read as PRIOR STATION DATA FOUND. While no station is founded the crew
+   is HELD: the live roster takes it (runs and delegation read that, and the anti-clobber stamp moves as usual), nothing is
+   written, and the founding save writes it (saveStore's onFounded). saveAgentRoster is the roster file's one write path, so
+   this holds for every writer; POST /api/roster says so with held:true. */
+let agentRosterHeld = false;
 const AGENT_ROSTER_FILE = path.join(WORKSPACES, 'agent.roster.json');
 // CREW = every roster agent other than the one running — the same rows the [ORCHESTRATION] "YOUR TEAM" list renders.
 function crewCountFor(agentId) { let n = 0; for (const aid of agentRoster.keys()) if (aid !== agentId) n++; return n; }
@@ -2393,10 +2401,12 @@ function saveAgentRoster(updatedAt) {
     // clock so the envelope only ever moves forward. Legacy readers ignore the extra key harmlessly.
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
+    if (!stationLife.station()) { agentRosterHeld = true; agentRosterUpdatedAt = nextUpdatedAt; return true; }   // nothing to fail: see agentRosterHeld
     saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
+    agentRosterHeld = false;
     return true;
   } catch (e) { console.warn('[roster] persist failed:', (e && e.message) || e); return false; }
 }
@@ -3471,7 +3481,7 @@ function engineCredentialError(provider, what) {
 // notebook: a sibling of the fs jail. Holds NO secret (the key/tokens live elsewhere). The frontend keeps
 // localStorage as a fast cache and writes through here on every persist; on boot it pulls the newer of the two.
 const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() }, resetAt: () => stationLife.resetAt(),
-  onFounded: w => { if (w.agentId === 'agent') stationLife.found({ by: 'save' }); } });   // the station file's first accepted write founds the generation
+  onFounded: w => { if (w.agentId !== 'agent') return; stationLife.found({ by: 'save' }); if (agentRosterHeld) saveAgentRoster(agentRosterUpdatedAt); } });   // the station file's first accepted write founds the generation, and the crew held for it lands; a write that fails stays held for the next save
 
 /* observeDeletedSessions(save) — fold the station save's deleted-session lists into the session tombstone ledger
    (qa/bugs/3e926b6a). Only `forgetIds` — the Commander's Delete of a conversation — is forgotten; a row DELETE AGENT or a
@@ -19960,7 +19970,7 @@ async function handleRoster(req, res) {
     agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
-  json(200, { ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt });
+  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}));
 }
 
 // POST /api/agent/delete { agentId } — DOSSIER › DELETE AGENT. Removes a summoned agent from the SERVER roster

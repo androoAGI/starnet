@@ -13,7 +13,10 @@
         plus '.fresh-start.json' in src-tauri/src/fresh_start.rs, the one native writer of the legacy marker;
      2. no exists / existsSync / statSync / accessSync / lstatSync call names agent.save.json or agent.roster.json
         outside station-record.js: P1's hard proof is the module's, so no reader answers from a file probe of its own;
-     3. and the readers really ask the module (a reader that stopped asking would pass 1 and 2 vacuously).
+     3. and the readers really ask the module (a reader that stopped asking would pass 1 and 2 vacuously);
+     4. and nothing writes hard proof before a station is founded: the roster file has ONE write path, saveAgentRoster, and it
+        asks the live record before it writes (WAKE pushes its crew before its first save lands, so the roster was the one
+        hard-proof file a WAKE cut short, or a window from before a reset, could leave behind).
    Per-file BASELINE, failopen-ratchet style: counts may only go DOWN; every row equals the on-disk count (no slack to
    spend) and a row for a file that no longer has the name fails as stale. Comments count too: deleting a mention only
    lowers a count. A Rust assert! line is a test's claim about an outcome, not a reader, and is not a probe. */
@@ -21,7 +24,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
-const { sidecarSourceFiles } = require('./helpers/source.js');
+const { sidecarSourceFiles, sidecarFunctionSource } = require('./helpers/source.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const MODULE = 'sidecar/station-record.js';
@@ -120,5 +123,15 @@ for (const rel of ['sidecar/index.js', 'sidecar/workspace-lineage.js', 'sidecar/
 }
 // the terminal loads it on first use only: `starnet --version` runs on bin/ alone (test/cli-version.test.js)
 A.eq(/^const [^\n]*require\([^\n]*station-record/m.test(text('bin/starnet.js')), false, 'bin/starnet.js never loads the record module at require time');
+
+// ---- 4. nothing writes hard proof before a founding ----
+{
+  const writes = files.filter(f => f.rel.startsWith('sidecar/')).map(f => (f.text.match(/\bsaveResilient\(\s*AGENT_ROSTER_FILE\b/g) || []).length).reduce((a, b) => a + b, 0);
+  A.eq(writes, 1, 'the roster file has one write path in the sidecar');
+  const body = sidecarFunctionSource('saveAgentRoster') || '';
+  const gate = body.indexOf('if (!stationLife.station())'), write = body.indexOf('saveResilient(AGENT_ROSTER_FILE');
+  A.ok(gate > 0 && write > gate, 'and saveAgentRoster asks the live station record before it writes');
+  A.ok(/onFounded:[^\n]*stationLife\.found\([^\n]*agentRosterHeld[^\n]*saveAgentRoster\(/.test(text('sidecar/index.js')), 'the founding save writes the crew held for it');
+}
 
 A.report('station-record-readers.test');

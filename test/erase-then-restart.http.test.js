@@ -15,7 +15,9 @@
       (test/fixtures/station-record-cases.json nativeMarkers.erase, test/native-process-ownership/tests/station_contract.rs).
       Nothing in the station record is planted: the native door writes none, so the first boot must derive it.
    3. RESTART, TWICE: the real sidecar serves no save, its gate lets the app onboard, the record says erased and automatic
-      recovery says why it imported nothing. The second boot gives the same answers from the record the first one persisted.
+      recovery says why it imported nothing. Between the two boots a window that still holds a copy from before the erase (a
+      browser tab, an app window whose storage survived) saves and pushes its crew: the save is refused, the crew is held
+      and never written, so the second boot gives the same answers from the record the first one persisted.
    4. THE TERMINAL, AS A SHELL RUNS IT: the real bin/starnet.js with no --workspace, on the record those boots left. `-p` sets a
       new station up on the app's workspace and runs it, and `starnet init` names the same workspace. The old station is
       never booted, and its bytes never change.
@@ -177,8 +179,16 @@ function terminal(args, env) {
     await showsNoPriorStation('the first boot after ERASE', erasedAt);
     A.eq(read(markerFile), markerBytes, 'the first boot leaves the native marker byte-identical');
     const recordBytes = read(recordFile);
+    // a window from before the erase: resumeInto, enterGame's pushRoster and CloudSave's save, its revision its own
+    const stale = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: Save.CURRENT, updatedAt: 1500, _saveRevision: 23, _saveDirty: true, _saveClient: 'window-from-before',
+      agent: { id: 'agent', name: OLD, createdAt: 900 }, agents: [], workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
+    A.ok(stale.body && stale.body.ok === false && stale.body.reset === true, 'a window from before the erase has its save refused (' + JSON.stringify(stale.body) + ')');
+    const staleCrew = await fixture.json('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'x', name: OLD, model: '', provider: 'openrouter' }], updatedAt: Date.now(),
+      saveRevision: 23, saveClient: 'window-from-before', rosterBase: { known: [], changed: ['agent'] } });
+    A.eq([staleCrew.body && staleCrew.body.ok, staleCrew.body && staleCrew.body.held], [true, true], 'and its crew push is held, not written (' + JSON.stringify(staleCrew.body) + ')');
+    A.eq(fs.existsSync(path.join(desktop, 'agent.roster.json')), false, 'no roster file: nothing but a founding writes one');
     await fixture.restart();
-    await showsNoPriorStation('the next boot', erasedAt);
+    await showsNoPriorStation('the next boot, with that window still open', erasedAt);
     A.eq(read(recordFile), recordBytes, 'the next boot reads the record the first one persisted, and rewrites nothing');
     await fixture.stop();
 
