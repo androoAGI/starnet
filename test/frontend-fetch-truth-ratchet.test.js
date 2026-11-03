@@ -60,7 +60,7 @@ const FAMILIES = {
     // (NDJSON/SSE), audio and blobs cannot use a JSON client, and the rest migrate as their controls are touched
     baseline: {
       'app/app.js': 25, 'app/apps.js': 2, 'app/autonomystore.js': 1, 'app/autopilotstore.js': 2, 'app/autosessions.js': 4,
-      'app/backup.js': 1, 'app/briefing.js': 3, 'app/build.js': 2, 'app/chat.js': 28, 'app/cloudsave.js': 1,
+      'app/briefing.js': 3, 'app/build.js': 2, 'app/chat.js': 27, 'app/cloudsave.js': 1,
       'app/delegated.js': 1, 'app/deliverables.js': 1, 'app/diagnostics.js': 3, 'app/dossierstore.js': 2, 'app/firstvalue.js': 2,
       'app/goalstore.js': 1, 'app/group-chat.js': 4, 'app/hudmode.js': 1, 'app/journeystore.js': 1, 'app/marketplace.js': 5,
       'app/onboarding.js': 1, 'app/outputbrowser.js': 1, 'app/overseer.js': 1, 'app/pluginhost.js': 2,

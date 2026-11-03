@@ -6,7 +6,8 @@ const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 const Merge = require('../frontend/app/turnmerge.js');
 const Dual = require('../sidecar/turn-dual.js');
 const { makeRemoteHost } = require('../sidecar/remote/host.js');
-const source = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
+const { harnessApi } = require('./helpers/harness-api.js');
+const source = fs.readFileSync(process.env.TURN_RETRACT_CHAT_SOURCE || require.resolve('../frontend/app/chat.js'), 'utf8');
 const reconcile = A.fnBody(source, 'async function reconcileServerHistory(');
 A.ok(reconcile.length > 1000 && reconcile.length < 14000, 'fixture lifts the bounded actual desktop reconciliation function');
 const T = 'cached_undo_001', dual = Dual.make({ now: () => 10, hash: value => value });
@@ -19,7 +20,7 @@ function fixture() {
   store.retract({ streamId: 's', turnId: T, reason: 'undo' });
   return { store, io, local, first, last };
 }
-function page(f, deferProof) {
+function page(f, deferProof, proofReply) {
   const ws = { id: 's', history: f.local.slice() }, historyLoads = new WeakMap(), calls = [], notes = [];
   const read = { history: ws.history }, context = vm.createContext({ Date, AbortController, setTimeout, clearTimeout,
     Channels: { isBusy: () => false }, Workstreams: { get: () => ws }, historyLoads, activeWs: null, historyPinSeq: 1,
@@ -29,9 +30,11 @@ function page(f, deferProof) {
       calls.push(url);
       if (url.startsWith('/api/transcript?')) return { ok: true, json: async () => dual.project('s', f.store.view('display', 's', { limit: 200 })) };
       if (deferProof) await deferProof();
+      if (proofReply) return { ok: proofReply.status >= 200 && proofReply.status < 300, status: proofReply.status, json: async () => proofReply.body };
       const body = JSON.parse(options.body), proof = f.store.cacheRetractions(body.streamId, body.rowIds);
-      return { ok: proof.state === 'done', json: async () => ({ streamId: 's', retracted: proof.retracted }) };
+      return { ok: proof.state === 'done', status: proof.state === 'done' ? 200 : 503, json: async () => ({ streamId: 's', retracted: proof.retracted }) };
     } });
+  context.Harness = { api: harnessApi(context.fetch) };
   historyLoads.set(ws, read);
   vm.runInContext(reconcile + '\nthis.reconcile = reconcileServerHistory;', context);
   return { ws, read, historyLoads, calls, notes, run: () => context.reconcile(ws, 1, read) };
@@ -47,6 +50,12 @@ function page(f, deferProof) {
   A.eq(await p.run(), true, 'the actual page completes its bounded cache proof');
   A.eq(p.calls.filter(url => url === '/api/turn-identity/retractions').length, 1, 'one cache proof call serves the assembly');
   A.eq(p.ws.history.map(row => row.content), ['FOREIGN_COPY'], 'a stale desktop cache cannot resurrect undone rows; foreign copy is preserved');
+  for (const status of [200, 503]) {
+    const refused = page(f, null, { status, body: { ok: false, streamId: 's', retracted: [f.first.rowId, f.last.rowId] } });
+    A.eq(await refused.run(), false, 'HTTP ' + status + ' with an explicit refused body has no cache-removal authority');
+    A.eq(refused.ws.history, f.local, 'an explicit refusal preserves the exact local cache instead of claiming removal');
+    A.eq(refused.read.serverFailed, true, 'readiness sees the refused proof instead of a successful empty history');
+  }
   const host = makeRemoteHost({ now: () => 10, deskSessions: () => [{ id: 's', history: f.local }], transcript: f.store,
     turnDual: dual, turnProjection: (stream, turns) => dual.project(stream, turns), redact: value => value });
   A.eq((await host.thread({ streamId: 's', limit: 100 })).map(row => row.content), ['FOREIGN_COPY'], 'the actual phone uses the same affirmative cache authority');

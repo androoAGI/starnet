@@ -2109,9 +2109,9 @@ const Chat = (() => {
     if (reachable && provedIds.size) {
       const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), Math.max(1000, windowMs - (Date.now() - startedAt)));
       try {
-        const response = await fetch('/api/turn-identity/retractions', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ streamId: ws.id, rowIds: [...provedIds] }), cache: 'no-store', signal: controller.signal });
-        const proof = response.ok ? await response.json() : null;
+        const response = await Harness.api.post('/api/turn-identity/retractions',
+          { streamId: ws.id, rowIds: [...provedIds] }, { signal: controller.signal });
+        const proof = response.ok ? response.j : null;
         if (!proof || proof.streamId !== ws.id || !Array.isArray(proof.retracted) ||
             proof.retracted.some(id => !provedIds.has(id))) throw new Error('Cached transcript identity could not be proved');
         const retracted = new Set(proof.retracted);
@@ -10263,9 +10263,9 @@ const Chat = (() => {
       body.rowIds = selected.map(row => row.rowId);
     }
     try {
-      const response = await fetch('/api/turn-identity/retract', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const result = await response.json();
-      if (!response.ok || !result || result.ok !== true || !Array.isArray(result.targets)) throw new Error(result && result.error || 'The undo could not be confirmed.');
+      const response = await Harness.api.post('/api/turn-identity/retract', body);
+      const result = response.j;
+      if (!response.ok || !result || result.ok !== true || !Array.isArray(result.targets)) throw new Error(result && result.error || Harness.api.why(response) || 'The undo could not be confirmed.');
       if (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws) return;
       const targets = new Set(result.targets);
       ws.history = (ws.history || []).filter(row => !own(row) || !(targets.has(row.rowId) || (body.turnId && row.turnId === body.turnId)));
