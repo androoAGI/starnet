@@ -77,7 +77,7 @@ function lineStop(code, facts) {
 }
 
 // the codes a HOP can end with (line-runner.js hopVerdict): the rest are the walk's own
-const HOP_STOPS = new Set(['stage_incomplete', 'stage_failed', 'stage_empty', 'stopped', 'station_fault']);
+const HOP_STOPS = new Set(['day_limit', 'stage_incomplete', 'stage_failed', 'stage_empty', 'stopped', 'station_fault']);
 function hopStopCode(r) {
   const x = r && typeof r === 'object' ? r : {};
   const coded = HOP_STOPS.has(x.stopCode) ? x.stopCode : null;
@@ -85,6 +85,13 @@ function hopStopCode(r) {
   if (x.stopped) return 'stopped';
   if (coded && coded !== 'stopped') return coded;
   return x.error ? 'stage_failed' : 'stage_empty';
+}
+
+// A host admission stop carries its already-proved limit and words. Never infer it from provider text.
+function hopStop(r, facts) {
+  const code = hopStopCode(r);
+  if (!code) return null;
+  return r && r.stop && r.stop.code === code ? { code, why: String(r.stop.why || '') } : lineStop(code, facts);
 }
 
 function lineStopNote(res) {
@@ -142,4 +149,4 @@ function lineDelivered(line) {
   return !line || typeof line !== 'object' || (!line.stopped && !line.partial);
 }
 
-module.exports = { lineStop, hopStopCode, lineStopNote, lineFacts, foldLineIntoFire, hopError, lineDelivered };
+module.exports = { lineStop, hopStopCode, hopStop, lineStopNote, lineFacts, foldLineIntoFire, hopError, lineDelivered };

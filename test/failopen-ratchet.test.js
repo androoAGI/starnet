@@ -157,7 +157,7 @@ const SYNC_BASELINE = {
   'halt.js': 1,
   'harness-import.js': 1,
   'http-body.js': 2,
-  'index.js': 341,   // (three hop-sink telemetry catches left with the routine and Run Now hop runners for line-runner.js, which notes them: 2026-11-03)
+  'index.js': 339,   // retired routing-chain discovery removes two synchronous fallback catches (line-job-runner, 2026-11-03)
   'ledger.js': 1,
   'logbound.js': 2,
   'loop.js': 2,   // AUDITED — 2 left: aborted sleep() during retry backoff (x2)

@@ -7427,7 +7427,7 @@ function placeCronWorkitem(agentId, prompt, runId, dockId, opts) {
     const job = opts && opts.runsLine && cronLine ? lineRunner.open({ line: cronLine, entry: opts.entry || 'schedule',
       text: prompt, streamId: 'cron-' + runId, stopHandle: opts.stopHandle }) : null;
     if (job) lineRunner.track(job, runId);
-    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || router.dockOf(agentId) || null, lineId: cronLine, byFire: !!(opts && opts.byFire), job });
+    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || router.dockOf(agentId) || null, lineId: cronLine, byFire: !!(opts && opts.byFire), signal: opts && opts.signal, job });
   try {
     const depth = bumpQueue(agentId, +1);
     chanEmit('workitem.placed', { workitemId, queueId: agentId, agentId, kind: 'cron', lineId: cronLine || undefined, dockId: dk || undefined, preview, queueDepth: depth, ts: Date.now() });
@@ -7439,7 +7439,18 @@ function settleCronWorkitem(runId, reason, facts) {
   if (!it) return;                       // already settled, or not a tracked autonomous item
   // The record is authority, the floor events are telemetry. A failed finish keeps the item so the driver's settlement
   // lease can retry it; publishing a crate or deleting this handle first would silently lose that retry.
-  const result = it.job ? lineRunner.settle(it.job, Object.assign({ line: it.job.lastLine, agentId: it.agentId, dockId: it.dockId }, facts)) : null;
+  const jobFacts = Object.assign({ line: it.job && it.job.lastLine, agentId: it.agentId, dockId: it.dockId }, facts);
+  if (it.job && jobFacts.admissionStop && jobFacts.admissionStop.code === 'day_limit') {
+    lineRunner.track(it.job, runId, { lineStop: jobFacts.admissionStop });
+  }
+  // Re-read the owned signal at the strict finish boundary, including a retry after disk refusal.
+  // A later STOP/fault supersedes the earlier cap; existing durable run rows still remain evidence.
+  if (it.job && it.signal && it.signal.aborted) {
+    jobFacts.stopped = true;
+    delete jobFacts.error;   // the superseded cap is not the internal fault's cause
+    jobFacts.stopCause = processFaultQuiesced === true && cronHalted !== true ? 'fault' : 'user';
+  }
+  const result = it.job ? lineRunner.settle(it.job, jobFacts) : null;
   cronItems.delete(runId);
   try {
     const d = bumpQueue(it.agentId, -1);
@@ -7449,6 +7460,7 @@ function settleCronWorkitem(runId, reason, facts) {
     } else if (reason === 'done') chanEmit('workitem.delivered', { workitemId: it.workitemId, finalQueueId: 'outbox', agentId: it.agentId, box: '', ms: 0, ts: Date.now() });
     chanEmit('queue.status', { queueId: it.agentId, depth: d, maxCapacity: QUEUE_CAP, nextAdvanceAt: 0 });
   } catch (e) { failNote('cron.crate.settle', e); }
+  return result;   // durable LineJob authority, retained by the driver if its own record write needs retry
 }
 // the autonomous tick driver — pure orchestration with every ambient dep injected here
 // (timer/now/id/fs/provider credentials).
@@ -17703,7 +17715,7 @@ async function handleCronRun(req, res) {
   let runNowBrief = null;
   try { runNowBrief = router.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
   try {
-    placeCronWorkitem(job.agentId, job.prompt, runId, job.dockId, { byFire: true, runsLine: job.runsLine === true, entry: 'manual', stopHandle: () => ac.abort() });
+    placeCronWorkitem(job.agentId, job.prompt, runId, job.dockId, { byFire: true, runsLine: job.runsLine === true, entry: 'manual', signal: ac.signal, stopHandle: () => ac.abort() });
     pressed = await runOnce({
       key: key, model: model,
       stationEvidence: true, system: cronSystemFor(job.agentId)   // the persona's observed half rides the run context (dossierWithGoals)
@@ -17756,6 +17768,7 @@ async function handleCronRun(req, res) {
     // run is ok — a provider-cut reply or an unanswerable question fails in plain words (StopReason.incompleteRunMessage, which
     // knows whether tools ran), exactly as on schedule. It only gates the line below: settleRun reads the same rule from the same
     // state, and an incomplete-run sentence written back as state.errMsg read there as an error the run raised (a cut reply: failed)
+    state.lineStop = pressed && pressed.lineStop || null;
     const runNowOutcome = cronDriverMod.fireOutcome(state, null);
     /* RUN NOW MUST FIRE THE WHOLE LINE, exactly like the scheduled fire does. This route calls runOnce
        DIRECTLY (it streams to the watching browser), so it does not pass through the cron driver's
@@ -22113,10 +22126,12 @@ async function runOnceCore(o) {
       (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
     if (lim.maxUsdPerDay != null && lineSpend.spentToday(capLine) >= lim.maxUsdPerDay) {
       emit('agent.run.start', { agentId, runId, trigger, model: o.noAgent ? '' : model, ...runStartExtra });
-      emit('agent.run.error', { agentId, runId, transient: false,
-        message: 'The line reached its $' + lim.maxUsdPerDay.toFixed(2) + ' daily limit — raise its LINE BUDGET or try again tomorrow.' });
+      const message = 'The line reached its $' + lim.maxUsdPerDay.toFixed(2) + ' daily limit — raise its LINE BUDGET or try again tomorrow.';
+      emit('agent.run.error', { agentId, runId, transient: false, message });
       emit('agent.run.end', { agentId, runId, reason: 'budget', turns: 0, usd: 0 });
-      return;
+      // Private host result: admission bought no run and wrote no run row. Carry its typed cause to every line entry;
+      // an event's words or a missing durable row must not turn this known daily cap into a failed stage.
+      return { text: '', reason: 'budget', outcome: 'out_of_budget', usd: 0, lineStop: { code: 'day_limit', why: message } };
     }
   }
 

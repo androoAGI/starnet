@@ -101,6 +101,29 @@ function realisticRun(answer) {
       schedule: profiles.schedule(routine()), manual: profiles.manual(routine()),
       steptest: profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {} })
     });
+    // A known host admission cap is typed data, not provider prose or a missing terminal row.
+    const cap = { code: 'day_limit', why: 'The line reached its $1.00 daily limit - raise its LINE BUDGET or try again tomorrow.' };
+    for (const [kind, profile] of Object.entries(kinds())) {
+      const host = async o => {
+        o.emit('agent.run.error', { runId: o.runId, message: cap.why });
+        o.emit('agent.run.end', { runId: o.runId, reason: 'budget' });
+        return { text: '', reason: 'budget', outcome: 'out_of_budget', lineStop: cap };
+      };
+      const runner = makeLineRunner({ runOnce: host, newId: () => 'cap-run', now: () => 1, runRow: () => null });
+      const hop = await runner.hopRunner(profile)({ agentId: 'writer', text: 'work', lineId: 'L1' });
+      const stop = require('../sidecar/routing/line-fire.js').hopStop;
+      A.eq([hop.stopCode, hop.error], ['day_limit', cap.why], kind + ': hop keeps host admission cause despite error event');
+      A.eq(typeof stop === 'function' ? stop(hop, { agent: 'writer' }) : null, cap, kind + ': full cap survives chain/step wording');
+      const job = runner.open({ line: 'L1', entry: kind, streamId: kind });
+      runner.track(job, hop.runId, hop);
+      const result = runner.settle(job, { stop: cap });
+      A.eq([result.outcome, result.stop.code, result.runs.length], ['stopped_short', 'day_limit', 0], kind + ': known admission refusal invents no run row');
+      A.eq(runner.outcomeOf({ stop: cap, stopped: true }).stop.code, 'stopped', kind + ': later STOP wins over admission cap');
+      A.eq(runner.outcomeOf({ stop: cap, stopCause: 'fault' }).stop.code, 'station_fault', kind + ': later fault wins over admission cap');
+    }
+    A.eq(LR.hopVerdict({ reason: 'budget', outcome: 'out_of_budget', lineStop: cap }, { stopped: true, errMsg: cap.why }).stopCode, 'stopped', 'a cancelled cap hop keeps STOP precedence');
+    A.eq(LR.hopVerdict({ reason: 'done', outcome: 'succeeded', text: JSON.stringify({ lineStop: cap }) }, {}).ok, true, 'provider text cannot author a host admission stop');
+
     // B. the table: runOnce's RETURN x the hop's own END on its sink
     const DONE = { reason: 'done' };
     const rows = [

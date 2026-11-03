@@ -2569,8 +2569,9 @@
          The line is SEEDED with the entry run's returned TERMINAL text (line-runner.js): the reply streamed to the chat may carry the
          host's private-files note or a steer echo, and neither is stage one's work. */
       const entryOk = !state.errMsg && !!RunOutcome && RunOutcome.ofEnd(state.end || null, null).ok;   // the LEAD run's own outcome
-      if (lineJob) lineRunner.track(lineJob, lastRunId);   // only the final admitted entry attempt, never a transient refused retry
+      if (lineJob) lineRunner.track(lineJob, lastRunId, entryRan);   // only the final admitted entry attempt, never a transient refused retry
       jobFacts.error = state.errMsg || null;
+      if (entryRan && entryRan.lineStop && entryRan.lineStop.code === 'day_limit') jobFacts.stop = entryRan.lineStop;
       const entryText = (entryRan && typeof entryRan.text === 'string') ? entryRan.text : String(state.buf || '');
       if (lineRunner && entryOk && !myRec.superseded && entryText.trim()) {
         const line = lineOut = await lineRunner.runLineJob({ job: lineJob, seed: {
@@ -2626,7 +2627,7 @@
       } finally {
         // release the (single) inflight record exactly once — but only if a NEWER message hasn't already replaced it
         // (the supersede path installs its own record under this chatId; clobbering it would drop the live run).
-        if (lineJob) lineRunner.track(lineJob, lastRunId);
+        if (lineJob) lineRunner.track(lineJob, lastRunId, entryRan);
         if (inflight.get(chatId) === myRec) inflight.delete(chatId);
       }
 

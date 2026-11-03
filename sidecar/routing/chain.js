@@ -766,7 +766,7 @@ function makeChainRunner(o) {
           say('workitem.superseded', withDock({ workitemId, agentId: t.agentId, ts: now() }, t.dockId));
           // a branch SOMEONE STOPPED (r.stopped: its runner's own STOP / E-STOP) was stopped, never "failed" (review r7); one that did not
           // finish did not finish. The branch is named without its detail (the joiner's PARTIAL mark lists it)
-          const stop = LineFire.lineStop(code, { agent: t.agentId });
+          const stop = LineFire.hopStop(r, { agent: t.agentId });
           return { node: t, usd, stopped: code === 'stopped', stop, error: stop.why };
         }
         say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: now() - t0, ts: now() }, t.dockId));
@@ -984,7 +984,7 @@ function makeChainRunner(o) {
         say('workitem.superseded', withDock({ workitemId, agentId: target.agentId, ts: now() }, target.dockId));
         if (fan) {
           // A BRANCH FAILED: the job goes on without it. The next branch runs; if none is left, the joiner releases what came in.
-          fan.failed.push(LineFire.lineStop(hopCode, { agent: target.agentId }).why);
+          fan.failed.push(LineFire.hopStop(r, { agent: target.agentId }).why);
           if (pending.length) { forced = nextPending(); continue; }
           const rel = fan.joinKey ? barrier.release(fan.joinKey) : null;
           if (rel && rel.parts.length) {
@@ -1000,7 +1000,7 @@ function makeChainRunner(o) {
         // a hop SOMEONE STOPPED (r.stopped: its runner saw its own run end 'cancelled' by a STOP / E-STOP) stopped the line — said as a stop,
         // never "<agent> failed: stopped by you" (review r7), and the line is HALTED (RunOutcome.ofLine: its fire is 'stopped')
         if (branchMode) { out.text = entryOut.text; out.agentId = entryOut.agentId; if (entryOut.dockId) out.dockId = entryOut.dockId; }   // a dead branch never replaces the entry's answer
-        return stopAt(LineFire.lineStop(hopCode, { agent: target.agentId, error: hopCode === 'stopped' ? '' : r.error }), target);
+        return stopAt(LineFire.hopStop(r, { agent: target.agentId, error: hopCode === 'stopped' ? '' : r.error }), target);
       }
       say('workitem.delivered', withDock({ workitemId, finalQueueId: target.agentId, agentId: target.agentId, box: '', ms: now() - t0, ts: now() }, target.dockId));
       evidence.workitemIds.push(workitemId);

@@ -380,7 +380,7 @@ function makeStepTest(o) {
       } catch (e) { r = { error: (e && e.message) || String(e || 'run failed') }; }
       if (inflight.get(s.id) === rec) inflight.delete(s.id);
       r = r || {};
-      if (lineRunner) lineRunner.track(lineJobs.get(s.id), r.runId, { agentId: job.agentId, dockId: job.dockId });
+      if (lineRunner) lineRunner.track(lineJobs.get(s.id), r.runId, Object.assign({ agentId: job.agentId, dockId: job.dockId }, r));
       const usd = num(r.usd);
       s._spent = (s._spent || 0) + usd;
       if (daySpend && usd) { try { daySpend.note(s.lineId, usd); } catch (e) { failNote('steptest.dayLedger', e); } }
@@ -395,7 +395,8 @@ function makeStepTest(o) {
       /* THE STEP'S OWN STOP (header): a stop someone made, the fault containment, else what the step's run ended with — the hop
          executor's stopCode (a step that did not finish did not finish, never "failed"), said in the chain's one sentence */
       const stepCode = (rec.halted && rec.faulted) ? 'station_fault' : stoppedBy ? 'stopped' : LineFire.hopStopCode(r);
-      const stepStop = stepCode ? LineFire.lineStop(stepCode, { agent: who(job.agentId), error: stoppedBy ? '' : (r.error || '') }) : null;
+      const stepFacts = { agent: who(job.agentId), error: stoppedBy ? '' : (r.error || '') };
+      const stepStop = stepCode ? ((rec.halted || stoppedBy) ? LineFire.lineStop(stepCode, stepFacts) : LineFire.hopStop(r, stepFacts)) : null;
       const err = stoppedBy || (stepStop ? stepStop.why : null);
       s.hops.push({
         i: s.hops.length, agentId: job.agentId, dockId: job.dockId || null, agentLabel: call(label, job.agentId) || null, pass,

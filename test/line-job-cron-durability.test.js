@@ -13,7 +13,7 @@ const T0 = Date.parse('2026-01-01T00:00:00Z');
 const flush = () => new Promise(r => setImmediate(r));
 
 function rig() {
-  let time = T0, seq = 0, depth = 0, failStart = false, failFinish = false, writes = 0;
+  let time = T0, seq = 0, depth = 0, failStart = false, failFinish = false, failRoutineFinish = false, writes = 0, nextLine = null;
   let jobs = { jobs: [] };
   let routines = [cronStore.makeJob({ id: 'routine', agentId: 'researcher', prompt: 'research the moon', runsLine: true,
     schedule: cron.parseSchedule('every 1m', T0) }, { id: 'routine', now: T0 })];
@@ -24,23 +24,33 @@ function rig() {
       finish: (id, o) => { if (failFinish) throw new Error('job finish disk fault'); writes++; return save(J.finish(jobs, id, o)); } },
     runRow: id => rows.get(id), emit: (name, payload) => events.push({ name, payload }) });
   const host = { lineRunner, cronItems: new Map(), crypto: { randomUUID: () => 'crate-' + (++seq) },
-    router: { dockOf: () => 'bay', lineOfAgent: () => 'line' }, QUEUE_CAP: 64,
+    router: { dockOf: () => 'bay', lineOfAgent: () => 'line' }, QUEUE_CAP: 64, processFaultQuiesced: false, cronHalted: false,
     bumpQueue: (_a, d) => (depth += d), chanEmit: (name, payload) => events.push({ name, payload }), failNote: () => {} };
   vm.runInNewContext(sidecarTopLevelFunction('placeCronWorkitem') + '\n' + sidecarTopLevelFunction('settleCronWorkitem'), host);
-  const driver = makeCronDriver({ getJobs: () => routines, setJobs: v => { routines = v; return true; },
+  const driver = makeCronDriver({ getJobs: () => routines, setJobs: v => { if (failRoutineFinish && v.some(j => j.lastRunAt)) return false; routines = v; return true; },
     now: () => time, newId: () => 'run-' + (++seq), newAbort: () => new AbortController(),
     getKey: () => 'test-key', defaultModel: 'test-model', emit: (name, payload) => events.push({ name, payload }), warn: () => {},
     placeWorkitem: host.placeCronWorkitem, settleWorkitem: host.settleCronWorkitem,
     runOnce: o => new Promise(resolve => runs.push({ o, resolve })),
     advanceChain: async o => {
       const item = host.cronItems.get(o.runId);
-      const line = { agentId: 'researcher', outboxId: 'outbox', text: 'finished work', hops: [], stopped: null };
+      const line = nextLine || { agentId: 'researcher', outboxId: 'outbox', text: 'finished work', hops: [], stopped: null };
       if (item && item.job) item.job.lastLine = line;
       return line;
     } });
-  return { driver, host, events, runs, jobs: () => jobs, depth: () => depth, writes: () => writes,
-    startFault: v => { failStart = v; }, finishFault: v => { failFinish = v; },
+  return { driver, host, events, runs, rows, routines: () => routines, jobs: () => jobs, depth: () => depth, writes: () => writes,
+    line: value => { nextLine = value; },
+    startFault: v => { failStart = v; }, finishFault: v => { failFinish = v; }, routineFinishFault: v => { failRoutineFinish = v; },
     tick: at => { time = at; return driver.applyTick(time); },
+    async cap() {
+      const run = runs[0];
+      const lineStop = { code: 'day_limit', why: 'The line reached its $1.00 daily limit - raise its LINE BUDGET or try again tomorrow.' };
+      run.o.emit('agent.run.error', { runId: run.o.runId, message: lineStop.why });
+      run.o.emit('agent.run.end', { runId: run.o.runId, reason: 'budget', usd: 0 });
+      run.resolve({ text: '', reason: 'budget', outcome: 'out_of_budget', lineStop });
+      await flush(); await flush(); await flush();
+    },
+    halt(cause) { host.processFaultQuiesced = cause === 'fault'; host.cronHalted = cause === 'user'; driver.abortAllLeases(); },
     async complete() {
       const run = runs[0];
       if (!run) return;
@@ -76,6 +86,62 @@ async function main() {
     A.eq([r.writes(), r.host.cronItems.size, r.depth()], [1, 0, 0], 'one durable finish releases its host handle and queue slot');
     r.tick(T0 + 60002); await flush();
     A.eq(r.events.filter(e => e.name === 'workitem.delivered').length, 1, 'later ticks cannot duplicate publication');
+  }
+  // The actual driver and host finish boundary must preserve a cap, but a later owned STOP/fault wins,
+  // including after the first finish write failed. No repeated provider execution or publication on retry.
+  for (const when of ['before-completion', 'during-finish-refusal']) for (const cause of ['user', 'fault']) {
+    const r = rig(); r.tick(T0 + 60000);
+    if (when === 'before-completion') r.halt(cause);
+    else r.finishFault(true);
+    await r.cap();
+    if (when === 'during-finish-refusal') {
+      A.eq(r.jobs().jobs[0].status, 'running', cause + ': cap has no new durable outcome while finish is refused');
+      r.halt(cause); r.finishFault(false); r.tick(T0 + 60001); await flush(); await flush();
+    }
+    const row = r.jobs().jobs[0];
+    A.eq([row.outcome, row.stop && row.stop.code, row.runs.length], ['stopped', cause === 'fault' ? 'station_fault' : 'stopped', 0], when + ': host ' + cause + ' supersedes prior cap at durable settlement');
+    const routine = r.routines()[0], receipt = r.events.find(e => e.name === 'cron.result');
+    A.eq([routine.lastStatus, routine.lastOutcome, routine.lastReason], ['stopped', 'stopped', 'cancelled'], when + ': routine record matches its durable stopped job');
+    A.eq(routine.lastLine && routine.lastLine.stopCode, cause === 'fault' ? 'station_fault' : 'stopped', when + ': routine retains exact host stop cause');
+    A.eq(receipt && [receipt.payload.outcome, receipt.payload.runOutcome, receipt.payload.reason], ['stopped', 'stopped', 'cancelled'], when + ': cron.result agrees with both durable records');
+    A.ok(!/daily limit/.test(row.error + ' ' + routine.lastError), when + ': superseded cap is not a STOP/fault reason');
+    if (cause === 'fault') A.ok(/internal fault/.test(row.error) && /internal fault/.test(routine.lastError), when + ': real fault words survive both records');
+    A.eq(r.events.filter(e => e.name === 'workitem.delivered').length, 0, when + ': a capped and stopped fire never publishes a crate');
+    A.eq([r.runs.length, r.writes()], [1, 1], when + ': no rerun or duplicate durable finish');
+  }
+  for (const retainRow of [false, true]) {
+    const r = rig(); r.tick(T0 + 60000);
+    if (retainRow) r.rows.set(r.runs[0].o.runId, { runId: r.runs[0].o.runId, agentId: 'researcher', reason: 'done', outcome: 'succeeded', usd: 0.25 });
+    await r.cap();
+    const row = r.jobs().jobs[0];
+    A.eq([row.outcome, row.stop && row.stop.code, row.runs.length], ['stopped_short', 'day_limit', retainRow ? 1 : 0], 'cap retains every existing durable row and invents none');
+    A.eq(row.usd, retainRow ? 0.25 : 0, 'known preflight metadata never erases proved spend');
+    A.eq(r.events.filter(e => e.name === 'workitem.delivered').length, 0, 'cap never becomes a delivered crate');
+  }
+  for (const accepted of ['cap', 'fault']) {
+    const r = rig(); r.tick(T0 + 60000); r.routineFinishFault(true);
+    if (accepted === 'fault') r.halt('fault');
+    await r.cap();
+    const acceptedRow = JSON.stringify(r.jobs().jobs[0]);
+    A.eq(r.host.cronItems.size, 0, 'LineJob is durable before routine write refusal');
+    A.ok(r.driver.leases.get('routine').settlement, 'routine write refusal retains the accepted job decision');
+    A.eq(r.events.filter(e => e.name === 'cron.result').length, 0, 'no routine event before its own durable row');
+    r.halt('user'); r.routineFinishFault(false); r.tick(T0 + 60001); await flush(); await flush();
+    const routine = r.routines()[0], receipt = r.events.find(e => e.name === 'cron.result');
+    A.eq(JSON.stringify(r.jobs().jobs[0]), acceptedRow, 'later STOP cannot rewrite an already durable LineJob');
+    A.eq([routine.lastStatus, routine.lastLine && routine.lastLine.stopCode], accepted === 'fault' ? ['stopped', 'station_fault'] : ['error', 'day_limit'], 'routine retry preserves the accepted job cause');
+    A.eq(receipt && receipt.payload.outcome, accepted === 'fault' ? 'stopped' : 'failed', 'event retry preserves the accepted job outcome');
+    A.eq([r.runs.length, r.writes()], [1, 1], 'second-store recovery never reruns or rewrites LineJob');
+  }
+  {
+    const r = rig();
+    r.line({ agentId: 'researcher', text: 'reviewed draft', hops: [], stopped: 'reviewer held the draft', blocked: 'reviewer held the draft',
+      unapproved: 'approval is still pending', partial: 'one branch did not finish', stop: { code: 'blocked', why: 'reviewer held the draft' } });
+    r.tick(T0 + 60000); await r.complete();
+    const routine = r.routines()[0], job = r.jobs().jobs[0], receipt = r.events.find(e => e.name === 'cron.result');
+    A.eq([job.outcome, routine.lastStatus, routine.lastOutcome, receipt && receipt.payload.outcome, receipt && receipt.payload.runOutcome], ['blocked', 'error', 'blocked', 'failed', 'blocked'], 'accepted stop facts cannot erase a reviewer hold and turn its routine green');
+    A.eq([routine.lastLine.blocked, routine.lastLine.partial, routine.lastLine.unapproved], ['reviewer held the draft', 'one branch did not finish', 'approval is still pending'], 'accepted stop projection preserves previously folded line facts');
+    A.eq(r.events.filter(e => e.name === 'workitem.delivered').length, 0, 'blocked line still has no delivered crate');
   }
   const manual = sidecarTopLevelFunction('handleCronRun');
   A.ok(/try\s*\{\s*placeCronWorkitem\([\s\S]*?\);\s*pressed = await runOnce\(/.test(manual), 'Run Now places its authoritative job inside the same guarded block before its provider call');

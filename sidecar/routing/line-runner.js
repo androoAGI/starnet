@@ -123,8 +123,11 @@ function makeJobBook(d, now, newId) {
     const f = Object.assign({}, facts);
     if (!Array.isArray(f.runs) && job) f.runs = Array.from(job.runs, ([id, v]) => {
       const row = typeof d.runRow === 'function' ? d.runRow(id) : null;
-      return row || { runId: id, agentId: v && v.agentId, reason: 'error', failureCode: RunOutcome.NO_TERMINAL };
-    }).reverse();   // LineJobs/readers keep the final stage first, matching runStore's newest-first rows.
+      if (row) return row;
+      // The host's known preflight refusal bought no run; every other missing row still fails closed.
+      if (v && v.lineStop && v.lineStop.code === 'day_limit') return null;
+      return { runId: id, agentId: v && v.agentId, reason: 'error', failureCode: RunOutcome.NO_TERMINAL };
+    }).filter(Boolean).reverse();   // LineJobs/readers keep the final stage first, matching runStore's newest-first rows.
     return outcomeOf(f);
   }
   function settle(job, facts) {
@@ -181,9 +184,13 @@ function makeJobBook(d, now, newId) {
 
 function hopVerdict(ret, sinkFacts) {
   const s = sinkFacts || {};
+  const r = ret && typeof ret === 'object' ? ret : null;
+  if (r && r.lineStop && r.lineStop.code === 'day_limit') {
+    if (s.stopped) return { ok: false, text: '', error: null, stopCode: 'stopped' };
+    return { ok: false, text: '', error: String(r.lineStop.why || ''), stopCode: 'day_limit', stop: r.lineStop };
+  }
   if (s.errMsg) return { ok: false, text: '', error: String(s.errMsg), stopCode: 'stage_failed' };
   if (s.stopped) return { ok: false, text: '', error: null, stopCode: 'stopped' };
-  const r = ret && typeof ret === 'object' ? ret : null;
   if (!r) return { ok: false, text: '', error: hopError({ end: null }), stopCode: 'stage_incomplete' };
   let o = RunOutcome.isOutcome(r.outcome) ? { outcome: r.outcome, failureCode: String(r.failureCode || ''), ok: r.outcome === 'succeeded' }
     : RunOutcome.resolve({ reason: r.reason, failureCode: r.failureCode, finishReason: r.finishReason, clarifying: r.clarifying === true });
@@ -299,7 +306,7 @@ function makeLineRunner(deps) {
       if (crateId && typeof p.crate.settle === 'function') p.crate.settle(h, crateId, v.ok, { t0, now });
       if (history && v.ok) history.append(h, 'assistant', v.text);
       const product = await workProduct(Object.assign({}, ret || {}, { text: v.text, runId }), h);
-      return Object.assign(product, { usd: hs.usd, error, stopped, stopCode, workitemId: h.workitemId || crateId || null, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) });
+      return Object.assign(product, { usd: hs.usd, error, stopped, stopCode, stop: v.stop || null, lineStop: ret && ret.lineStop || null, workitemId: h.workitemId || crateId || null, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) });
     };
   }
 
