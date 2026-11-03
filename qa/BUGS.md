@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 433 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 434 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -175,6 +175,7 @@ User/owner reports: **119** · source fixed: **98** · installer verified: **6**
 | P1 | fixed | autonomy | [The away-workshop card counts down to its next shift while scheduling is OFF or E-STOPped](bugs/a8f9ad8b-the-away-workshop-card-counts-down-to-its-next-s.md) | sweep/autonomy | c6b725e8f |
 | P1 | fixed | autonomy | [Webhook terminal write failures abandon exact job cancellation owners](bugs/d53b4cdf-webhook-terminal-write-failures-abandon-exact-jo.md) | line-intake-next-1103 | 0bd76b7d4f1ba46dc0fda237bfff9ed2e2b6dffd |
 | P1 | fixed | autonomy | [Windows computer movement resolves to filesystem Move-Item](bugs/758185bc-windows-computer-movement-resolves-to-filesystem.md) | computer-move-proof-0911 | dd85573b9 |
+| P1 | fixed | autonomy | [Withdrawn trigger jobs can run after terminal persistence fails](bugs/e5a46952-withdrawn-trigger-jobs-can-run-after-terminal-pe.md) | line-intake-next-1103 | ebded142236c1bca7bcf8df5c56877a3f2177c67 |
 | P1 | fixed | channels | [A channel reconnect or sync that switches provider sends the old provider's saved key and endpoint to the new provider](bugs/61bb1c7d-a-channel-reconnect-that-switches-provider-sends.md) | release-0142-channel-key-guard | 4183a7415 dfd5bc165 |
 | P1 | fixed | channels | [A lost-race consent tap stamps "▸ ✅ Allow once" onto the message before resolveConsent is asked, so a DENIED request keeps a permanent "approved" record](bugs/64563ad9-a-lost-race-consent-tap-stamps-allow-once-onto-t.md) | sweep/channels | 96fe108d |
 | P1 | fixed | channels | [A routine's reply longer than Telegram's 4096 characters is sent as one message, refused 'message is too long' on every retry, and never reaches the chat](bugs/3a9d5e4a-a-routine-s-reply-longer-than-telegram-s-4096-ch.md) | sweep/channels | 9af08a5a0 |
