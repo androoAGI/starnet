@@ -230,8 +230,9 @@
     /* review 9.3: the outcome a routine RECORD names. A stamped record's is its lastOutcome. A record a PRE-LANE station settled kept none, only
        lastStatus 'error' beside the fire's own end word, and that word names the outcome (RunOutcome.ofWord): a stop's 'cancelled', a limit's
        'budget' and a question's 'clarifying' each drew the failure's red "✕ cancelled". A 'done' (or no word) beside 'error' is the failure the
-       status says ("✕ done" before). A word outside the end vocabulary (a config block's) names no outcome: it keeps its own words. Same rule as
-       sidecar/slash-actions.js recordOutcome. */
+       status says ("✕ done" before). A word outside the end vocabulary (a config block's) names no outcome: it keeps its own words. So does a bare
+       'blocked': that is a security scan's refusal (cron-driver), and a reviewer's hold is always stamped. Same rule as sidecar/slash-actions.js
+       recordOutcome. */
     function recordOutcome(j) {
       const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
       if (!RO) return null;
@@ -239,7 +240,7 @@
       const word = String(j.lastReason || '');
       if (!word || word === 'done') return j.lastStatus === 'error' ? 'failed' : null;
       const named = RO.ofWord(word).outcome;
-      return named === 'failed' || named === 'succeeded' ? null : named;
+      return named === 'failed' || named === 'succeeded' || named === 'blocked' ? null : named;
     }
     function lastResult(j) {
       if (!j.lastRunAt) return '<span class="dim">never run</span>';

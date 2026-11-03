@@ -21,13 +21,14 @@ const RESERVED_AWAY = ['on', 'off', 'list', 'status', 'now'];
 /* review 9.3: the outcome a routine RECORD names. A stamped record's is its lastOutcome. A record a PRE-LANE station settled kept none, only
    lastStatus 'error' beside the fire's own end word, and that word names the outcome (RunOutcome.ofWord): a stop's 'cancelled', a limit's
    'budget' and a question's 'clarifying' each read "last error (…)". A 'done' (or no word) beside 'error' is the failure the status says, and
-   a word outside the end vocabulary (a config block's) names no outcome. Same rule as the ROUTINES window (frontend/app/windows/routines.js). */
+   a word outside the end vocabulary (a config block's) names no outcome. Nor does a bare 'blocked': that is a security scan's refusal (cron-driver), and
+   a reviewer's hold is always stamped. Same rule as the ROUTINES window (frontend/app/windows/routines.js). */
 function recordOutcome(j) {
   if (RunOutcome.isOutcome(j.lastOutcome)) return j.lastOutcome;
   const word = String(j.lastReason || '');
   if (!word || word === 'done') return j.lastStatus === 'error' ? 'failed' : null;
   const named = RunOutcome.ofWord(word).outcome;
-  return named === 'failed' || named === 'succeeded' ? null : named;
+  return named === 'failed' || named === 'succeeded' || named === 'blocked' ? null : named;
 }
 
 function makeSlashActions(deps) {
