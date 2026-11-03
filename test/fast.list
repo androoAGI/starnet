@@ -1547,3 +1547,4 @@ test/test-ports.lint.test.js
 test/test-ports-imports.lint.test.js
 test/hosted-request-bytes.test.js
 test/endpoint-facts.test.js
+test/loop.wait-limit.test.js

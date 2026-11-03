@@ -1356,7 +1356,7 @@
     // One wait: `beatNow` emits a first heartbeat immediately (a retried attempt going out — see its call site).
     function startWaiting(phase, beatNow) {
       if (!waitTicker) return NO_WAIT;
-      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '', lastEventAt: null };
+      const st = { phase, since: waitClock(), live: true, paused: false, disarm: null, note: '', lastEventAt: null, limitMs: 0, limitKind: '' };
       const beat = () => {
         if (!st.live || st.paused || signal.aborted) return;
         // runs on the HOST's timer, outside the loop's own try blocks: a throwing emit must never escape into it
@@ -1370,6 +1370,10 @@
           const quiet = quietMs >= WAIT_QUIET_MS ? 'no stream event for ' + Math.floor(quietMs / 1000) + 's' : '';
           const note = [st.note, quiet].filter(Boolean).join(' · ');
           if (note) payload.note = note;
+          /* THE WAIT'S OWN LIMIT (local-runtime-profile lane, gap D): the ceiling the ADAPTER said it will wait (a local server's
+             connect ceiling, counted from the call going out: limitKind 'connect'; its idle ceiling, counted from the last
+             byte: 'silence'). Only what the adapter stated; a hosted wait states none and its beat is unchanged. */
+          if (st.limitMs > 0) { payload.limitMs = st.limitMs; payload.limitKind = st.limitKind; }
           emit('agent.waiting', payload);
         }
         catch (e) { failNote('loop.wait.emit', e); }
@@ -1378,14 +1382,20 @@
       catch (e) { failNote('loop.wait.ticker', e); }
       if (beatNow) beat();
       return {
-        phase(p) { st.phase = p; st.note = ''; },   // first_byte -> streaming keeps `since`: the wait began when the call went out
+        // first_byte -> streaming keeps `since`: the wait began when the call went out. A connect ceiling ends with the
+        // connect phase; an idle ('silence') ceiling holds for the whole stream.
+        phase(p) { st.phase = p; st.note = ''; if (st.limitKind === 'connect') { st.limitMs = 0; st.limitKind = ''; } },
         /* The ADAPTER's own facts about this wait (a { type:'waiting' } stream event — openai-compatible's Ollama probe: no
            headers yet, and where /api/ps says the model sits). Beats at once, so the line changes when the facts do, not
-           on the next tick; an empty note clears it. Never output: the wait is not over. */
-        note(p, text) {
+           on the next tick; an empty note clears it. Never output: the wait is not over. `ev.limitMs` / `ev.limitKind`: the
+           ceiling the adapter will wait (a local server: LOCAL SILENCE); an event without one clears it. */
+        note(p, text, ev) {
           if (!st.live) return;
           if (p === 'connect' || p === 'first_byte' || p === 'streaming') st.phase = p;
           st.note = String(text == null ? '' : text).replace(/\s+/g, ' ').trim().slice(0, 240);
+          const limit = ev ? Math.floor(Number(ev.limitMs) || 0) : 0;
+          st.limitMs = limit > 0 ? limit : 0;
+          st.limitKind = limit > 0 ? (ev.limitKind === 'silence' ? 'silence' : 'connect') : '';
           if (st.note) beat();
         },
         // Visible output silences the heartbeat WITHOUT disarming it: the same stream can go quiet again (a sentence,
@@ -2104,7 +2114,7 @@
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             waiting.mark();
-            if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note); continue; }   // the adapter's wait facts, not stream output (#99)
+            if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note, ev); continue; }   // the adapter's wait facts, not stream output (#99)
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
             if (ev.type === 'text') {

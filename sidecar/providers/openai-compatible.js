@@ -891,7 +891,9 @@
       let res;
       try { res = await pending; }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
-      if (noted) yield { type: 'waiting', phase: 'streaming', note: '' };
+      // A LOCAL /v1 stream says its idle ceiling once the headers are in (the wait line's "gives up after … of silence")
+      if (localCall && !(wire && wire.native)) yield { type: 'waiting', phase: 'streaming', note: '', limitMs: timeouts.idleMs(), limitKind: 'silence' };
+      else if (noted) yield { type: 'waiting', phase: 'streaming', note: '' };
       // Native NDJSON is translated into the chat-completions chunk shape, so everything below parses one format.
       const translate = (wire && wire.native) ? ollamaNative.makeChunkTranslator() : null;
       const reader = timeouts.idleGuardedReader(res.body.getReader(), { signal: req.signal, url: res.url || baseUrl });
