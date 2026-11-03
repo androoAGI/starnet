@@ -23,7 +23,7 @@ Open APP & BACKUP in a seeded real station, hold the actual Claude account-list 
 
 ## Evidence
 
-gen-trees/_logs/codex-overnight-1103/spend-s5-refresh-old2.log is the deterministic original failure: the provider refresh removes the saved form/receipt. spend-s5-refresh-current.log passes that same real-app check plus actual HTTP500 disk refusal, unchanged disk/live limit, confirmed readback on reopen, two actual payer groups and zero model calls. Screenshot/DOM/API evidence is in spend-s5-refresh-current/. Six affected files pass in spend-ui-followups-02.log. Earlier fixture errors and stale source expectations remain in the numbered logs; no product failure is attributed to those.
+gen-trees/_logs/codex-overnight-1103/spend-s5-refresh-old2.log is the deterministic original failure: the provider refresh removes the saved form/receipt. spend-s5-refresh-current.log passes that same real-app check plus actual HTTP500 disk refusal, unchanged disk/live limit, confirmed readback on reopen, two actual payer groups and zero model calls. Screenshot/DOM/API evidence is in spend-s5-refresh-current/. Six affected files pass in spend-ui-followups-02.log, including test/provider-connections-ui.test.js, test/settings-p1-ui.test.js, test/settings-save-failure.test.js and test/effective-limits.test.js. Earlier fixture errors and stale source expectations remain in the numbered logs; no product failure is attributed to those.
 
 ## Verdict
 
