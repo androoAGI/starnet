@@ -31,6 +31,7 @@
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
 const Continuation = require('./line-continuation.js');
+const Accounting = require('./line-accounting.js');
 const owns = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 const PRESERVED_SOURCE = Symbol('line-jobs original non-rewriteable rows');
 
@@ -146,6 +147,7 @@ function pendingContinuation(j) {
   return !c.ok || c.value.phase !== 'complete' || j.endedAt == null;
 }
 function writable(state) {
+  Accounting.demand(state, 'jobs');
   if (state && (owns(state, PRESERVED_SOURCE) || (state.continuationIssue && state.continuationIssue.readOnly === true))) {
     const e = new Error('line-jobs: continuation has an invalid or duplicate enclosing record; original store must be preserved');
     e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
@@ -174,7 +176,7 @@ function retain(jobs) {
 function normalizeAll(value) {
   if (value && owns(value, PRESERVED_SOURCE)) return value;
   const seen = new Map(), jobs = [];
-  let protectedRows = 0;
+  let protectedRows = Accounting.owns(value, Accounting.FIELD) && !Array.isArray(value.jobs) ? 1 : 0;
   const source = (value && Array.isArray(value.jobs)) ? value.jobs : [];
   for (const j of source) {
     const hasContinuation = j && typeof j === 'object' && owns(j, 'continuation');
@@ -191,12 +193,32 @@ function normalizeAll(value) {
     // Keep the source objects alive without placing malformed rows into normal readers.
     // They are not a second store: all writes/boot rewrites are refused, so the original
     // existing file remains the durable authority. The strict host writer must use writable.
-    const state = { jobs, continuationIssue: { readOnly: true, code: 'enclosing_record',
-      message: 'saved continuation has an invalid or duplicate enclosing job; original data is preserved', records: protectedRows } };
+    const state = Accounting.preserve(value, { jobs, continuationIssue: { readOnly: true, code: 'enclosing_record',
+      message: 'saved continuation has an invalid or duplicate enclosing job; original data is preserved', records: protectedRows } });
     Object.defineProperty(state, PRESERVED_SOURCE, { value: source });
     return state;
   }
-  return { jobs: retain(jobs) };
+  return Accounting.preserve(value, { jobs: retain(jobs) });
+}
+// Root enrollment outlives every completed job. All mutation helpers carry it,
+// including ordinary legacy operations that know nothing about continuations.
+const withJobs = (state, jobs) => Accounting.preserve(state, { jobs });
+function decodeEnvelope(envelope) {
+  return envelope && (envelope.version === undefined || envelope.version === 1) && Array.isArray(envelope.jobs)
+    ? Accounting.preserve(envelope, { jobs: envelope.jobs }) : undefined;
+}
+function encodeEnvelope(state) { writable(state); return withJobs(state, state.jobs); }
+function accounting(state) { return Accounting.demand(state, 'jobs'); }
+function observeAccounting(previous, state) { return Accounting.observe(previous, state, 'jobs'); }
+function enrollAccounting(state, ledgerId, phase) {
+  writable(state);
+  if (!Accounting.validId(ledgerId) || !['prepared', 'confirmed'].includes(phase)) throw new Error('line-jobs: invalid accounting enrollment');
+  const prior = accounting(state);
+  if (prior && prior.ledgerId !== ledgerId) throw new Error('line-jobs: accounting enrollment belongs to another ledger');
+  if (!prior && phase !== 'prepared') throw new Error('line-jobs: accounting confirmation requires its prepared receipt');
+  if (prior && (prior.state === 'confirmed' || prior.state === phase)) return { state, enrollment: prior, replayed: true };
+  const enrollment = { version: 1, ledgerId, state: phase };
+  return { state: Accounting.put(state, enrollment), enrollment, replayed: false };
 }
 const idx = (state, id) => (state && Array.isArray(state.jobs) ? state.jobs.findIndex(j => j.id === id) : -1);
 
@@ -208,7 +230,7 @@ function start(state, o) {
   const job = normJob({ id: o.id, line: o.line, name: o.name, text: o.text, streamId: o.streamId, status: 'running', outcome: 'running', startedAt: o.at, retryOf: o.retryOf, from: o.from, handedIn: o.handedIn, entry: o.entry, delivery: o.delivery, intakeId: o.intakeId });
   if (!job) return { state, job: null };
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).filter(j => j.id !== job.id).concat([job]);
-  return { state: { jobs: retain(jobs) }, job };
+  return { state: withJobs(state, retain(jobs)), job };
 }
 /* the job's own end: status delivered | problem (steps ran, not all clean) | stopped | failed (nothing durable ran) | interrupted, with
    (additive) its outcome and typed stop — line-runner.js settle decides all three, once. A finish with no stop keeps none. */
@@ -228,7 +250,7 @@ function finish(state, id, o) {
   const job = normJob(Object.assign({}, state.jobs[i], { status: o.status, endedAt: o.at, usd: o.usd, output: o.output, error: o.error, runs: o.runs, unapproved: o.unapproved,
     outcome: o.outcome, stop: o.stop || null }));
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs: retain(jobs) }, job };
+  return { state: withJobs(state, retain(jobs)), job };
 }
 // a step-through test paused on you (or carrying on): a live record moves between running and paused, its outcome with it
 function mark(state, id, status) {
@@ -238,7 +260,7 @@ function mark(state, id, status) {
     || owns(state.jobs[i], 'continuation')) return { state, job: null };
   const job = Object.assign({}, state.jobs[i], { status, outcome: status });
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job };
+  return { state: withJobs(state, jobs), job };
 }
 // SEND TO: this job's work went on to another line's job (set as the hand-off goes out; finish() keeps it)
 function link(state, id, sentTo) {
@@ -247,7 +269,7 @@ function link(state, id, sentTo) {
   if (i < 0 || !e) return { state, job: null };
   const job = Object.assign({}, state.jobs[i], { sentTo: e });
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job };
+  return { state: withJobs(state, jobs), job };
 }
 // a standing refusal again: the same record counts one more hand-off it refused (repeats), its end time moves to now
 function again(state, id, at) {
@@ -257,7 +279,7 @@ function again(state, id, at) {
   const cur = state.jobs[i];
   const job = normJob(Object.assign({}, cur, { repeats: Math.max(1, cur.repeats || 1) + 1, endedAt: num(at) || cur.endedAt }));
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job };
+  return { state: withJobs(state, jobs), job };
 }
 // the newest record on a line, or null (the handoff runner's standing-refusal check)
 function latest(state, line) {
@@ -281,7 +303,7 @@ function note(state, id, n) {
   const cur = state.jobs[i];
   const job = Object.assign({}, cur, { notes: cur.notes.concat([nn]).slice(-MAX_NOTES) });
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job };
+  return { state: withJobs(state, jobs), job };
 }
 /* the station (re)started: nothing is riding a line any more — a job left "running" is said as interrupted (outcome interrupted, code
    restart). A PAUSED record is a step-through test waiting on you: its session comes back paused, so its record stays as it is (the
@@ -299,7 +321,7 @@ function boot(state, at, ownedIds) {
     const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
     return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why });
   });
-  return { state: { jobs }, changed };
+  return { state: withJobs(state, jobs), changed };
 }
 // the window's list: newest first, the heavy output cut to a glance (the full record is one GET away)
 function summary(j) {
@@ -359,7 +381,7 @@ function checkpoint(state, id, expectedRevision, next) {
   // receipts must never reopen the job, and publication must not precede strict finish.
   const job = normJob(Object.assign({}, prior, projection, { continuation: c }));
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job };
+  return { state: withJobs(state, jobs), job };
 }
 function claimDecision(state, id, request) {
   writable(state);
@@ -371,8 +393,9 @@ function claimDecision(state, id, request) {
   if (r.replayed) return { state, job: prior, receipt: r.receipt, replayed: true };
   const job = normJob(Object.assign({}, prior, { continuation: r.continuation }));
   const jobs = state.jobs.slice(); jobs[i] = job;
-  return { state: { jobs }, job, receipt: r.receipt, replayed: false };
+  return { state: withJobs(state, jobs), job, receipt: r.receipt, replayed: false };
 }
 
 module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
+  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope,
   MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };
