@@ -219,8 +219,9 @@ function makeChannelHistory(d) {
     await ensureImported(ctx);
     const chat = readyChat(ctx);
     if (!chat.streamId) return legacyReplay(chat, ctx.agentId);
+    // ctx.forAgent: a line stage reading this chat replays its words, never the tool traffic of the agents before it (TurnKinds.foreignTools)
     const rows = d.view('model-replay', chat.streamId, { complete: true, rows: true, shape: 'pairs', form: 'pre',
-      line: ctx.line, excludeTurnId: ctx.excludeTurnId });
+      line: ctx.line, excludeTurnId: ctx.excludeTurnId, forAgent: ctx.forAgent });
     if (!Array.isArray(rows)) throw held('Canonical chat replay could not be proved');
     const outcomes = new Map(), unknown = new Set();
     const messages = View.messages(rows, (row, classification) => {

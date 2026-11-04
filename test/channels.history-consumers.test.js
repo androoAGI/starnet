@@ -159,6 +159,25 @@ function pair(f, extra) {
     } finally { f.close(); }
   }
   {
+    // A later stage inherits the chat's words, never the agent-before-it's tool traffic: replayed as the stage's own turns the provider
+    // would be told the stage made calls it never made. The entry agent, replaying its own chat, keeps its pairs.
+    const f = fixture();
+    try {
+      pair(f);   // the entry agent's earlier job in this chat: a question, a tool-call turn, its result and an answer (ordinary turns of 'writer')
+      const chain = makeChainRunner({ nextAgent: () => null, stepAgent: agentId => agentId === 'writer' ? { agentId: 'editor', dockId: 'editor_dock' } : null });
+      const h = f.hub({ chain, lineOriginFor: () => 'L1', resolveAgent: () => ({ agentId: 'writer', dockId: 'writer_dock' }),
+        resolveRunConfig: () => ({ key: 'k', model: 'm' }), classify: () => true });
+      await h.onInbound(f.msg('line task'));
+      const entry = f.calls.find(o => o.agentId === 'writer'), hop = f.calls.find(o => o.agentId === 'editor');
+      A.ok(!!entry && !!hop, 'actual hub routes its next stage through LineRunner');
+      A.eq(entry?.messages.map(m => m.role), ['user', 'assistant', 'tool', 'assistant', 'user'], 'the entry agent still replays its own tool pair');
+      A.eq(hop?.messages.map(m => m.role), ['user', 'assistant', 'user', 'assistant', 'user'], 'the next stage replays the chat\'s words, earlier jobs included, and no tool-call turn or result');
+      A.ok(hop?.messages.every(m => !m.tool_calls && m.role !== 'tool') && !JSON.stringify(hop?.messages).includes('historic tool result') && !JSON.stringify(hop?.messages).includes('seed_call'),
+        'no tool traffic of the entry agent reaches the next stage\'s request');
+      A.eq(hop?.messages.map(m => m.content).slice(0, 4), ['historic own words', 'historic answer', 'line task', 'writer terminal'], 'the prose of both jobs still does, in order');
+    } finally { f.close(); }
+  }
+  {
     let calls = 0, acquired = 0, released = 0; const crates = [];
     const runner = Runner.makeLineRunner({ runOnce: async () => { calls++; return { text: 'must not run', reason: 'done' }; },
       liveRuns: { add: () => { acquired++; return () => { released++; }; } }, newId: () => 'refused_hop', now: () => 10 });

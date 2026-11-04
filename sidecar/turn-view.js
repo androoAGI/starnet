@@ -65,7 +65,11 @@ function messages(rows, c, o, accept) {
       if (!o.legacy && o.form === 'pre' && classification.cell !== 'dispatch-prompt' && Array.isArray(row.attachments) && row.attachments.length) message.attachments = row.attachments.map(a => Object.assign({}, a));
     } else if (role === 'assistant') {
       message = { role, content: content || '' };
-      if (o.shape === 'pairs' && row.toolCalls && classification.cell !== 'dispatch-final') {
+      // A call that carried words (cell 'assistant') keeps only its words for a reader whose results are not its own (forAgent): the replay
+      // rule dropped those results and a call must never stay without them. Tool-only call turns were dropped whole, with their results.
+      // The legacy projection has no such rule: it keeps every result, so it keeps every call.
+      const resultsGone = !o.legacy && classification.cell === 'assistant' && Kinds.foreignTools(row, o, c);
+      if (o.shape === 'pairs' && row.toolCalls && classification.cell !== 'dispatch-final' && !resultsGone) {
         try { const calls = JSON.parse(row.toolCalls); if (Array.isArray(calls) && calls.length) message.tool_calls = calls; }
         catch (error) { if (typeof c.note === 'function') c.note('turn-view.tool-calls', error); }
       }
