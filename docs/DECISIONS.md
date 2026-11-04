@@ -324,9 +324,16 @@ many of these — they win on any wording conflict.
        it costs the model the ability to call the file by its name unless it recalls the row, and it
        changes the wording of the notes, the label and the title of a turn sent with no words. Andrew's call.
   - **Also not decayed:** a memory record a tainted run saved (its `taintedBy` stays and a recall of it
-    latches) and, for any later lane, a summary or ledger built from rows written while the bytes were in
-    view: a derived text keeps the attachment taint, because only the exact stamp on a row replayed AS A
-    ROW decays.
+    latches). A KEPT SUMMARY (`sidecar/summary-cover.js`, the context lane's ledger) follows the bytes the
+    same way a row does (A10, 2026-11-04). The ledger stores the stamp unwrapped, the source and not the
+    sentence a latch put it in. A fold whose folded messages held the attachment's BYTES (the expanded user
+    message: its file text or its picture) gets `BYTES_TAINT`, which is not the bare stamp, so it never
+    decays: the summary carries the file's words and every run that serves it is latched. A fold over the
+    model's replies only, written while the bytes were in front of it, gets the bare `user attachment`, and
+    serving it latches nothing (`served.taint !== ATTACHMENT_TAINT`), exactly like a replayed row, so a
+    fold on turn 2 or turn 4 leaves the chat clean from turn 3. Every other stamp latches unguarded, and a
+    run already tainted by the attachment that serves a web-tainted summary ends with both sources in its
+    taint and its journal.
   - **Proof.** `test/attachment-resend.test.js` (which bytes are sent),
     `test/taint-replay.attachment.test.js` (the decay rule, the run state, the journal),
     `test/attachment-rows.test.js` (the rows), `test/attachment-name.test.js` (every echo of a name),

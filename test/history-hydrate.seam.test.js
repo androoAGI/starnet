@@ -44,7 +44,7 @@ const SOURCE = readSidecarSource();
 const ROUTES = ['async function handleTranscriptRows(req, res)', 'function serveTranscript(req, res)', 'function transcriptProjection(stream, rows, extra)',
   'async function handleTurnIdentityRetractions(req, res)'].map(h => { const body = A.fnBody(SOURCE, h); A.ok(body.length > 200 && body.length < 6000, 'the route slice is bounded: ' + h); return body; }).join('\n');
 
-const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long'];
+const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long', 'files'];
 const MANY = Array.from({ length: 25 }, (_, i) => 'm' + String(i).padStart(2, '0'));   // 25 sessions: the idle pass reads 20, then 5
 const LOST_ID = 9999999;                                                                  // a row the page sealed once and the station no longer returns
 
@@ -53,12 +53,18 @@ function station(dir) {
   const open = () => History.makeSegmentedTranscriptIo({ fs, path, root: dir, segmentBytes: 700, schedule() {}, onWarning() {} });
   const put = (io, stream, role, content, extra) => io.appendDurable(Object.assign({ streamId: stream, agentId: 'agent', role, kind: 'turn', taintKnown: true, ts: ++ts, content },
     role === 'assistant' ? { sourceRunId: 'run-' + stream + '-' + ts } : null, extra || null));
-  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60 };
+  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60, files: 0 };   // (files is seeded by hand below: an attachment turn)
   for (const m of MANY) counts[m] = 2 + (Number(m.slice(1)) % 3);
   const seed = open();
   for (let round = 0; round < 70; round++) {            // interleaved, as a station writes them
     for (const s of Object.keys(counts)) if (round < counts[s]) put(seed, s, round % 2 ? 'assistant' : 'user', (round % 2 ? 'reply ' : 'ask ') + s + ' ' + round + ' needle-' + s + '-' + round + ' ' + 'x'.repeat(40));
   }
+  // AN ATTACHMENT TURN (attachment-rows-and-taint): the directive keeps the file's references, the file is a role-system 'attachment' row of its own
+  // (a name, a path, a size and a hash: provenance, no bytes) and the answer follows. The route hands the page the turns, never the attachment row.
+  const file = { id: 'att-files1', name: 'notes.txt', path: '.attachments/att-files1.txt', mediaType: 'text/plain', kind: 'file' }, turnId = 'tr' + 'a'.repeat(23);
+  put(seed, 'files', 'user', 'look at this file needle-files-0', { directive: true, turnId, attachments: [file] });
+  put(seed, 'files', 'system', '[attached: notes.txt]', { kind: 'attachment', turnId, taint: 'user attachment', attachment: Object.assign({ size: 12, sha256: 'ab'.repeat(32) }, file) });
+  put(seed, 'files', 'assistant', 'it is a notes file needle-files-1', { turnId, taint: 'user attachment' });
   seed.close();
   // the page reads each stream the way it reconciles (the display view, through the route's projection) and keeps that copy as the SEAL
   const io1 = open(), live = new Set(), deleted = new Map();
@@ -216,6 +222,21 @@ async function scenarios(root) {
       const order = W.pendingHydration();
       assert.equal(order[0], 'm24'); assert.equal(order[order.length - 1], 'open', 'the idle pass will read the most recently active first (' + order.slice(0, 3) + ' … ' + order.slice(-2) + ')');
       assert.equal(order.length, STREAMS.length + MANY.length);
+    });
+
+    // ================================================================================================================
+    await run('an ATTACHMENT TURN reads back: the directive keeps its references, no attachment row reaches the page, the page-only fields lie over it', async () => {
+      const p = page(env), W = p.W, ws = W.get('files');
+      assert.equal(W.needsHydration(ws), true, 'the attachment turn is packed in the save');
+      assert.deepEqual(env.st.sealed.get('files').map(r => [r.role, r.kind]), [['user', 'turn'], ['assistant', 'turn']], 'the station hands the page the turns of it, never the attachment row');
+      const got = await p.api.hydrateHistory(ws, { windowMs: 8000 });
+      assert.equal(got.complete, true, 'nothing is left packed');
+      deepEq(ws.history, env.original.files, 'the session holds exactly the rows the page held when it saved');
+      assert.deepEqual(ws.history[0].attachments.map(a => a.id), ['att-files1'], 'the directive row comes back with the file\'s references');
+      assert.equal(ws.history[1].typedText, 'typed files 1', 'and the page-only field over the answer');
+      assert.ok(!ws.history.some(r => r.kind === 'attachment' || r.attachment), 'no attachment row is among them');
+      assert.equal(env.tp.rowsCalls().length, 1, 'one request read them');
+      deepEq(W.serialize().workstreams.find(w => w.id === 'files').history, env.doc.workstreams.find(w => w.id === 'files').history, 'a persist now names the rows it has just read again');
     });
 
     // ================================================================================================================

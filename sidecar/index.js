@@ -25260,7 +25260,7 @@ async function runOnceCore(o) {
             msgs.splice(lead, 0, earlierMsg);
             const carried = EarlierConversation.taintOf(dropped);
             summaryRun.earlier = earlierMsg;
-            SummaryCover.tagNote(earlierMsg, { source: 'earlier', rows: cut, toRowId: rows[cut - 1].rowId, taint: carried || null, quoted: false });
+            SummaryCover.tagNote(earlierMsg, { source: 'earlier', rows: cut, toRowId: rows[cut - 1].rowId, taint: SummaryCover.stampOf(carried), quoted: false });
             if (carried) { latchRunTaint('earlier conversation carried content from ' + String(carried).slice(0, 120)); taintAtStart = execution.taintedBy(); }
             // a pasted document the window dropped is still in the note — bounded by the same learning tail, counted back
             // across the window: rows the window dropped are older than all of it, so they withhold learning only while a
@@ -25299,7 +25299,7 @@ async function runOnceCore(o) {
             const beforeTokens = ctxMgr.estimateMessages(msgs);
             const served = SummaryCover.serve({ msgs, window: summaryRun.window, drop: sub.drop, earlier: summaryRun.earlier, record });
             msgs = served.msgs;
-            if (served.taint) { latchRunTaint('kept summary carried content from ' + String(served.taint).slice(0, 120)); taintAtStart = execution.taintedBy(); }   // unconditional: a run already tainted by something else still records THIS source (a guard here hides it)
+            if (served.taint && served.taint !== taintPolicy.ATTACHMENT_TAINT) { latchRunTaint('kept summary carried content from ' + String(served.taint).slice(0, 120)); taintAtStart = execution.taintedBy(); }   // never guarded by the run's own taint: a run already tainted by something else still records THIS source (a guard here hides it). The ONE stamp that latches nothing is the bare attachment: a fold over replies only, whose bytes are not in the note (summary-cover.js)
             if (served.quoted) replayedQuoted = true;
             const afterTokens = ctxMgr.estimateMessages(msgs);
             // announced with the run's start (loopEmit), so the stream still opens on agent.run.start
@@ -25335,7 +25335,7 @@ async function runOnceCore(o) {
       const claimed = SummaryLedger.claimOf(rows, claim.end);
       if (!claimed) { failNote('summary.no-claim.ids', new Error('no kept summary: the covered rows carry no strictly rising durable ids')); return undefined; }
       const stamp = SummaryLedger.quoteUnion(covered);
-      const taint = SummaryCover.taintOfFold({ covered, prevCover, runTaint: execution.taintedBy() });
+      const taint = SummaryCover.taintOfFold({ covered, prevCover, runTaint: execution.rowTaint(), heldBytes: SummaryCover.heldBytes(fold.older) });
       const quoted = TrustedLearning.quotedInLearningTail(fold.older.concat(fold.tail));   // the same bounded-tail rule the run start applies to what it replays
       SummaryCover.tagNote(fold.note, { source: 'fold', rows: claim.end, toRowId: claimed.toRowId, taint, quoted });
       const wrote = await summaryLedger.put(Object.assign({ streamId, agentId }, claimed, {

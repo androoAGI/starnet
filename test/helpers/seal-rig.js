@@ -42,9 +42,10 @@ function tree(root) {
 function routes(o) {
   const live = o.live || new Set(), deleted = o.deleted || new Map();
   const dual = o.dual || Dual.make({ now: () => 1, hash: s => crypto.createHash('sha256').update(s).digest('hex') });
+  // forgetStreamSummaries is the host's hook the retract routes call (context-budget-and-fold: a retracted row drops the stream's kept summaries); the ledger is not under test here, so it is a no-op
   const sandbox = { transcriptStore: o.store, turnDual: dual, transcriptLiveRuns: live, transcriptIo: { isCollided: id => (o.isCollided ? o.isCollided(id) : false) },
     sessionTombstones: { deletedAt: sid => deleted.get(sid) || 0 }, readBody: async req => req.body, respondJson: (res, code, obj) => { res.code = code; res.body = obj; },
-    refuseBadAgentId: () => false, readRouteFailure: (name, e) => ({ error: String(e && e.message || e) }), failNote() {}, transcriptRunSince: () => 0, URL };
+    forgetStreamSummaries: () => {}, refuseBadAgentId: () => false, readRouteFailure: (name, e) => ({ error: String(e && e.message || e) }), failNote() {}, transcriptRunSince: () => 0, URL };
   vm.runInNewContext(ROUTES + '\nthis.routes = { handleTranscriptRows, serveTranscript, handleTurnIdentityRetractions, handleTurnIdentityRetract, transcriptProjection };', sandbox,
     { filename: 'sidecar/index.js (transcript routes)' });
   return Object.assign({ dual, live, deleted }, sandbox.routes);

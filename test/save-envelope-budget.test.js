@@ -204,10 +204,79 @@ async function scenario(root, heavy) {
   }
 }
 
+/* AN ATTACHMENT TURN (attachment-rows-and-taint, kinds round-trip). A turn that carried a file is three rows on the station: the directive
+   (typed words, the file's references), one role-system 'attachment' row per file (sidecar/turn-attachment.js: a name, a path, a size and a hash,
+   no bytes), and the answer. The page seals them like any row. This is the budget of a save of such sessions, and the round trip of every packed
+   row, 'attachment' kind included, with the page-only fields (the residue) laid back over what the station returns. */
+async function attachmentTurns(root) {
+  const T = Rig.tree(root), label = root + ' attachment turns';
+  const n = 300, turns = 3, rng = Rig.rng(23);
+  const io = indexedIo(), live = new Set(), store = Store.makeTranscriptStore({ io, live, deletedAt: () => 0 });
+  const ids = new Map();   // stream -> the row ids the station minted for it, in order
+  let ts = BASE_TS;
+  const add = (streamId, row) => { const r = io.appendDurable(Object.assign({ streamId, agentId: 'agent', ts: ++ts }, row)); ids.get(streamId).push(r.rowId); return r; };
+  for (let i = 0; i < n; i++) {
+    ids.set(sid(i), []);
+    for (let t = 0; t < turns; t++) {
+      const turnId = T.TM.newTurnId(rng), file = { id: 'att' + i + '_' + t, name: 'f' + t + '.txt', path: '.attachments/att' + i + '_' + t + '.txt', mediaType: 'text/plain', kind: 'file' };
+      add(sid(i), { role: 'user', kind: 'turn', taintKnown: true, turnId, directive: true, content: 'question ' + t + ' about ' + i + ' lorem ipsum', attachments: [file] });
+      add(sid(i), { role: 'system', kind: 'attachment', turnId, content: '[attached: ' + file.name + ']', taint: 'user attachment', attachment: Object.assign({ size: 40 + t, sha256: 'ab'.repeat(32) }, file) });
+      add(sid(i), { role: 'assistant', kind: 'turn', taintKnown: true, turnId, sourceRunId: 'run_' + i + '_' + t, taint: 'user attachment', content: 'answer ' + t + ' lorem ipsum dolor sit amet' });
+    }
+  }
+  const routes = Rig.routes({ store, live }), tp = Rig.transport(routes), per = turns * 3;
+  const read = new Map();
+  for (let i = 0; i < n; i++) {
+    const res = { code: 0, body: null };
+    await routes.handleTranscriptRows({ body: JSON.stringify({ streams: [{ streamId: sid(i), rowIds: ids.get(sid(i)) }] }) }, res);
+    assert.equal(res.code, 200, 'the fixture read answered');
+    read.set(sid(i), res.body.streams[0].turns);
+  }
+  const kinds = new Set(); let rows = 0;
+  for (const turnsOf of read.values()) for (const r of turnsOf) { kinds.add(r.kind); rows++; }
+  const held = Array.from(ids.keys()).reduce((c, id) => c + [...io.readByIds(ids.get(id)).values()].filter(r => r.kind === 'attachment').length, 0);
+  A.eq(held, n * turns, label + ': the station holds one attachment row per file (' + held + ')');
+  A.eq([...kinds], ['turn'], label + ': the rows route hands the page the turns only: an attachment row is provenance, never a surface of the page (' + rows + ' rows of ' + n * per + ')');
+  const withResidue = withTurns => Array.from({ length: n }, (_, i) => {
+    const history = withTurns ? read.get(sid(i)).map(t => Object.assign({}, t)) : [];
+    if (withTurns && i % 10 === 3) { history[0].typedText = 'typed ' + i; history[1].stopNote = 'note ' + i; history[2].projectRoot = '/work/' + i; history[0].attachments = history[0].attachments.concat([{ id: 'extra' + i, name: 'x.png' }]); }
+    return { id: sid(i), title: 'Session ' + i, agentId: 'agent', kind: 'chat', lane: 'active', history, runIds: ['run_' + i], createdAt: BASE_TS + i, lastActiveAt: BASE_TS + 100000 + i, lastReadAt: BASE_TS + 100000 + i };
+  });
+  const emptyBytes = bytes(envelope(T, (T.W.init(slice(withResidue(false))), T.W)));
+  const recs = withResidue(true);
+  const inlineBytes = bytes(envelope(T, (T.W.init(slice(recs)), T.W)));
+  const p = Rig.page({ tree: T, tp, init: slice(recs) });
+  let ticks = 0;
+  if (p.hasSweep) while (await p.sweep() && ticks++ < 5000);
+  const packedEnv = envelope(T, p.W), packedBytes = bytes(packedEnv), perSession = (packedBytes - emptyBytes) / (n + 1);
+  say(label + ' x ' + n + ' sessions of ' + turns + ' turns (' + rows + ' rows): empty ' + emptyBytes + ' B · all inline ' + inlineBytes + ' B · packed ' + packedBytes + ' B (' + perSession.toFixed(1) + ' B a session)');
+  A.ok(perSession <= 80, label + ': the envelope grows by at most 80 B a session for ' + per + ' sealed rows of 3 attachment turns, not by the rows (the old shape grew ' + Math.round((inlineBytes - emptyBytes) / n) + ' B)');
+  const doc = JSON.parse(JSON.stringify(packedEnv)), packed = doc.workstreams.filter(w => w.history.length && w.history.some(el => el && typeof el.$ref === 'string')).length;
+  A.ok(packed >= n * 0.9, label + ': the sessions are saved as references (' + packed + ' of ' + n + ')');
+  // the round trip: a fresh boot of that save reads every packed row back, the attachment kind included, with its residue laid over it
+  const boot = Rig.page({ tree: T, tp: Rig.transport(routes), init: doc });
+  ticks = 0;
+  while (await boot.tick() && ticks++ < 5000);
+  A.eq(T.W.pendingHydration().length, 0, label + ' boot: every session is read back by the idle pass');
+  let wrong = 0, doubled = 0, first = '', attachRows = 0, residue = 0;
+  for (const rec of recs) {
+    const ws = T.W.get(rec.id);
+    if (new Set(ws.history.map(x => x.rowId)).size !== ws.history.length) doubled++;
+    if (JSON.stringify(ws.history) !== JSON.stringify(rec.history)) { wrong++; if (!first) first = rec.id; }
+    attachRows += ws.history.filter(x => x.kind === 'attachment').length;
+    residue += ws.history.filter(x => x.typedText || x.stopNote || x.projectRoot || (x.attachments || []).some(a => a.id && a.id.startsWith('extra'))).length;
+    void per;
+  }
+  A.eq([wrong, doubled], [0, 0], label + ' boot: every session\'s rows equal what the page saved (count, order, content, residue), none doubled' + (first ? ' (first wrong: ' + first + ')' : ''));
+  A.eq(attachRows, 0, label + ' boot: no attachment row reaches the page, packed or not');
+  A.eq(T.W.get(sid(3)).history.filter(x => x.role === 'user').map(x => (x.attachments || []).length), [2, 1, 1], label + ' boot: a directive row comes back with its references, and the page-only extra over them');
+  A.ok(residue >= (n / 10) * 3, label + ' boot: the page-only fields came back over the station\'s rows (' + residue + ')');
+}
+
 (async () => {
   const t0 = Date.now();
   for (const [i, root] of ROOTS.entries()) {
-    try { await scenario(root, i === 0); } catch (e) { A.ok(false, root + ': the budget test threw — ' + String(e && e.stack || e).split('\n').slice(0, 6).join(' | ')); }
+    try { await scenario(root, i === 0); await attachmentTurns(root); } catch (e) { A.ok(false, root + ': the budget test threw — ' + String(e && e.stack || e).split('\n').slice(0, 6).join(' | ')); }
   }
   const ms = Date.now() - t0;
   say('whole test: ' + ms + ' ms (' + (ms >= 40000 ? 'slow.list' : 'fast.list') + ')');

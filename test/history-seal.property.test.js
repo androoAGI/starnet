@@ -29,11 +29,11 @@ const SEEDS = Math.max(1, Math.min(400, Number(process.env.HISTORY_SEAL_SEEDS) |
 const STEPS = Math.max(10, Math.min(300, Number(process.env.HISTORY_SEAL_STEPS) || 50));
 const FIRST_SEED = Number(process.env.HISTORY_SEAL_SEED) || 20261104;
 const SESSIONS = ['s1', 's2', 's3'];
-const OPS = ['send', 'send', 'send', 'send', 'runEnd', 'open', 'open', 'open', 'sealFire', 'idle', 'idle', 'retractOther', 'undo', 'clear', 'undoClear', 'annotate', 'annotate', 'edit', 'reload', 'reload', 'down', 'up', 'persist'];
+const OPS = ['send', 'send', 'send', 'send', 'attach', 'attach', 'runEnd', 'open', 'open', 'open', 'sealFire', 'idle', 'idle', 'retractOther', 'undo', 'clear', 'undoClear', 'annotate', 'annotate', 'edit', 'reload', 'reload', 'down', 'up', 'persist'];
 const clone = Rig.clone;
 const keyOf = (s, id) => s + ':' + id;
 const hasRef = h => Array.isArray(h) && h.some(el => el && typeof el.$ref === 'string');
-const totals = { seeds: 0, persists: 0, checked: 0, packedRows: 0, packedPersists: 0, opens: 0, reloads: 0, hydrations: 0, sealPasses: 0, sweeps: 0, undone: 0, cleared: 0 };
+const totals = { attachTurns: 0, attachRows: 0, attachResidue: 0, seeds: 0, persists: 0, checked: 0, packedRows: 0, packedPersists: 0, opens: 0, reloads: 0, hydrations: 0, sealPasses: 0, sweeps: 0, undone: 0, cleared: 0 };
 
 async function runSeed(root, seed) {
   const T = Rig.tree(root), { W, HR, TM } = T;
@@ -92,6 +92,7 @@ async function runSeed(root, seed) {
       // a row another window undid, which this page has not been told about yet, is gone from a packed run exactly as it is gone from a reload
       const expected = rec.rows.filter(r => !(Number.isSafeInteger(r.rowId) && gone.has(keyOf(rec.id, r.rowId)) && packedIds.has(r.rowId)));
       assert.deepEqual(out.rows, expected, rec.id + ': expanding the persisted history against the station gives exactly the page\'s history');
+      for (const r of out.rows) if (r.role === 'user' && Array.isArray(r.attachments) && r.attachments.length && packedIds.has(r.rowId)) totals.attachResidue++;
       for (const r of out.rows) assert.ok(!(r.rowId && gone.has(keyOf(rec.id, r.rowId)) && packedIds.has(r.rowId)), rec.id + ': an undone row is not brought back by a reference');
     }
   }
@@ -108,7 +109,9 @@ async function runSeed(root, seed) {
     if (pg.hasSeal) pg.api.sealSoon(ws);
   }
   const OPFN = {
-    async send() {
+    // withFile: an ATTACHMENT TURN (attachment-rows-and-taint): the page's row keeps the file's references as residue, and the station's run path
+    // writes the directive and one 'attachment' row per file (sidecar/turn-attachment.js), which the page reads back like any row
+    async send(withFile) {
       const ws = sessionOf();
       if (inflight.has(ws.id)) return;
       dirty.add(ws.id); cleared.delete(ws.id);
@@ -117,19 +120,23 @@ async function runSeed(root, seed) {
       const text = 'ask ' + counter + ' ' + pick(['alpha', 'beta', 'gamma', 'delta']) + ' ' + 'w'.repeat(Math.floor(rng() * 24));
       const reply = 'answer ' + counter + ' to ' + text.slice(0, 18);
       pg.busy.add(ws.id);
-      const pending = TM.pendingRow({ role: 'user', content: text, ts: clock() }, mintRng);
+      let files = null;
+      if (withFile) { const up = await fx.upload('f' + counter + '.txt', 'text/plain', 'file body ' + counter); files = [{ id: up.id, name: 'f' + counter + '.txt', path: up.path, mediaType: 'text/plain', kind: 'file' }]; }
+      const pending = TM.pendingRow(Object.assign({ role: 'user', content: text, ts: clock() }, files ? { attachments: files } : null), mintRng);
       ws.history.push(pending); pg.persist();
       const ids = TM.sendIds(ws.history, { retry: false, now: clock() });
       if (tp.down) {   // the station does not answer: the failure is a row of the page's own
         ws.history.push(TM.ofTurn({ role: 'assistant', content: 'The station did not answer.', error: true, ts: clock() }, ids));
         pg.busy.delete(ws.id); pg.persist(); return;
       }
-      const result = await fx.run(Object.assign({ streamId: ws.id, agentId: 'agent', messages: [{ role: 'user', content: text }] }, ids), { reply });
+      const result = await fx.run(Object.assign({ streamId: ws.id, agentId: 'agent', messages: [Object.assign({ role: 'user', content: text }, files ? { attachments: files } : null)] }, ids), { reply });
+      if (files) { totals.attachTurns++; totals.attachRows += fx.store.history(ws.id, { limit: 2000 }).filter(r => r.kind === 'attachment' && r.attachment && r.attachment.id === files[0].id).length; }
       TM.bindStart(ws.history, result.start, result.runId, ids); pg.persist();
       const ran = { result, ids, reply };
       if (rng() < 0.25) { inflight.set(ws.id, ran); return; }   // the run is still going on the page: other things happen before it ends
       await finishRun(ws, ran);
     },
+    async attach() { return OPFN.send(true); },
     async runEnd() {
       const open = [...inflight.keys()]; if (!open.length) return;
       const id = pick(open); await finishRun(W.get(id), inflight.get(id));
@@ -302,6 +309,8 @@ async function runSeed(root, seed) {
   console.log('  ' + JSON.stringify(totals));
   A.ok(totals.seeds >= SEEDS, 'every seed ran to its end (' + totals.seeds + ' of ' + SEEDS * ROOTS.length + ')');
   A.ok(totals.packedPersists > 0 && totals.packedRows > 0, 'the property is not vacuous: persists really carried packed runs (' + totals.packedPersists + ' persists, ' + totals.packedRows + ' packed rows checked)');
+  A.ok(totals.attachTurns > 0 && totals.attachRows === totals.attachTurns, 'attachment turns ran through the real run path, each leaving one attachment row on the station (' + totals.attachTurns + ' turns, ' + totals.attachRows + ' rows)');
+  A.ok(totals.attachResidue > 0, 'and packed attachment turns expanded back with their references as residue (' + totals.attachResidue + ')');
   A.ok(totals.opens > 0 && totals.reloads > 0 && totals.hydrations > 0 && totals.undone > 0 && totals.cleared > 0, 'the sequences covered opens, reloads, hydrations, undos and clears');
   A.report('history-seal.property (a persisted history always expands to the page\'s history; both shipped trees)');
 })().catch(e => { console.error(e); process.exit(1); });

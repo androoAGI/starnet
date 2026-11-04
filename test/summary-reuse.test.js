@@ -588,11 +588,35 @@ const R = rowsOf(10);
     A.eq(Cover.taintOfFold({ covered: [{ taint: null }], prevCover: { taint: 'prev' }, runTaint: 'run' }), 'prev', 'else the previous note\'s (a summary of a summary never launders it)');
     A.eq(Cover.taintOfFold({ covered: [], prevCover: null, runTaint: 'run' }), 'run', 'else the run\'s own, latched when the fold built the note');
     A.eq(Cover.taintOfFold({ covered: [], prevCover: null, runTaint: null }), null, 'and clean when nothing was read');
+    {
+      /* A10: THE STAMP A KEPT SUMMARY CARRIES. Stored unwrapped; bytes -> a stamp that never decays; replies under the bytes -> the bare source. */
+      const UA = 'user attachment', BYTES = Cover.BYTES_TAINT, FILE = 'look\n\n[Attached file: n.txt]\n```\nbody\n```';
+      const expansion = { role: 'user', taint: UA, content: FILE }, typedWords = { role: 'user', taint: UA, attachments: [{ id: 'a' }], content: FILE, typed: 'look' };   // the 0.14.2 shape (the expansion IS the content) and the 11-02 shape (the note shows the typed words)
+      A.ok(BYTES !== UA && BYTES.startsWith(UA), 'the bytes stamp is not the bare source (so it never decays) and still names it');
+      A.eq(Cover.taintOfFold({ covered: [{ role: 'assistant', taint: UA }], prevCover: null, runTaint: UA }), UA, 'a fold over replies written under the attachment, in a run that holds it: the bare source');
+      A.eq(Cover.taintOfFold({ covered: [{ role: 'assistant', taint: UA }], prevCover: { taint: UA }, runTaint: null }), UA, 'a summary of that summary stays the bare source');
+      A.eq(Cover.taintOfFold({ covered: [{ role: 'assistant', taint: UA }], prevCover: null, runTaint: null, heldBytes: true }), BYTES, 'a fold whose messages held the bytes: the bytes stamp');
+      A.eq(Cover.taintOfFold({ covered: [], prevCover: { taint: UA }, runTaint: UA, heldBytes: true }), BYTES, 'and it outranks the bare source a previous note carried');
+      A.eq(Cover.taintOfFold({ covered: [expansion], prevCover: null, runTaint: null }), BYTES, 'a covered row that stores the file text is the bytes stamp as well');
+      A.eq(Cover.taintOfFold({ covered: [typedWords], prevCover: null, runTaint: null }), null, 'and a row whose note shows the typed words instead puts no bytes in the summary');
+      A.eq(Cover.taintOfFold({ covered: [], prevCover: { taint: BYTES }, runTaint: null }), BYTES, 'once a summary holds the bytes it keeps the stamp through later folds');
+      A.eq(Cover.taintOfFold({ covered: [], prevCover: { taint: UA }, runTaint: 'web page example.com' }), 'web page example.com', 'a page the run read beats the bare source');
+      A.eq(Cover.taintOfFold({ covered: [], prevCover: null, runTaint: 'kept summary carried content from earlier conversation carried content from web page example.com' }), 'web page example.com', 'the ledger stores the source, never the sentence a latch wrapped it in');
+      A.eq([Cover.stampOf(UA), Cover.stampOf('earlier conversation carried content from web page a'), Cover.stampOf(null)], [BYTES, 'web page a', null], 'a note\'s own stamp: the bare source reaches a note only through a row that renders file text');
+      const text = t => ({ role: 'user', content: t }), parts = p => ({ role: 'user', content: p });
+      A.eq([Cover.heldBytes([text('plain words'), { role: 'assistant', content: 'a reply with [Attached file: x] in it' }]), Cover.heldBytes([text(FILE)]),
+        Cover.heldBytes([parts([{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }])]),
+        Cover.heldBytes([parts([{ type: 'text', text: FILE }])]), Cover.heldBytes(null)],
+        [false, true, true, true, false], 'heldBytes: only a USER message that carries a file\'s text or a picture part');
+    }
     await mustKill('serve: the earlier note gives way', "  if (i.earlier) gone.add(i.earlier);\n", '', async C => { const s = servedScene(C); return s.out.msgs.filter(m => m.role === 'system' && /^<conversation_summary>/.test(m.content)).length === 1; }, 'summary-cover.js');
     await mustKill('serve: the covered window messages give way', "const gone = new Set((Array.isArray(i.drop) ? i.drop : []).map(k => i.window[k]));", "const gone = new Set();", async C => { const s = servedScene(C); return s.out.msgs.length === s.msgs.length - s.sub.drop.length; }, 'summary-cover.js');
     await mustKill('serve: the taint latch', "taint: r.taint || null, quoted: r.quoted === true };", "taint: null, quoted: r.quoted === true };", async C => servedScene(C).out.taint === 'web page example.com', 'summary-cover.js');
     await mustKill('serve: the quoted latch', "taint: r.taint || null, quoted: r.quoted === true };", "taint: r.taint || null, quoted: false };", async C => servedScene(C).out.quoted === true, 'summary-cover.js');
-    await mustKill('fold taint: a summary of a summary never launders', "(i.prevCover && i.prevCover.taint) || ", '', async C => C.taintOfFold({ covered: [], prevCover: { taint: 'prev' }, runTaint: null }) === 'prev', 'summary-cover.js');
+    await mustKill('fold taint: a summary of a summary never launders', "unwrap(i.prevCover && i.prevCover.taint), ", '', async C => C.taintOfFold({ covered: [], prevCover: { taint: 'prev' }, runTaint: null }) === 'prev', 'summary-cover.js');
+    await mustKill('fold taint: a fold that held the bytes never decays', "  if (i.heldBytes === true) return BYTES_TAINT;\n", '', async C => C.taintOfFold({ covered: [], prevCover: null, runTaint: null, heldBytes: true }) === C.BYTES_TAINT, 'summary-cover.js');
+    await mustKill('fold taint: replies under the attachment stay the bare source', "return cands.length ? ATTACHMENT_TAINT : null;", "return null;", async C => C.taintOfFold({ covered: [], prevCover: { taint: 'user attachment' }, runTaint: null }) === 'user attachment', 'summary-cover.js');
+    await mustKill('fold taint: a latch sentence is not part of the stamp', "const WRAPPED = /^(?:(?:earlier conversation|kept summary) carried content from )+/;", "const WRAPPED = /^$/;", async C => C.taintOfFold({ covered: [], prevCover: null, runTaint: 'kept summary carried content from web page a' }) === 'web page a', 'summary-cover.js');
   }
   await mustKill('substitution: a window that opens after the claim', "  if (alignment.cut > end) return refuse('window-after');", '', async C => {
     const sc = scene(8, false, 5, false);
@@ -720,8 +744,9 @@ const R = rowsOf(10);
          from rows and tool results that may have read the web. A run that is ALREADY tainted (by a user attachment, by an earlier source) and
          then serves one must still record that source: a latch guarded by "the run is not tainted yet" is how an earlier source hides a later
          one, and everything the run writes then decays on the first source alone. The attachment lane removed every guard of this kind; this
-         is the one site this lane added, held here so a merge or a refactor cannot bring the guard back. (The observable proof - both sources
-         in the run's taint and journal - needs the attachment lane's multi-source latch, which is not in this tree: batch-4b owns it.) */
+         is the one site this lane added, held here so a merge or a refactor cannot bring the guard back. The one stamp that latches nothing
+         is the bare attachment source (a fold over replies only, A10): the guard may name it and nothing else. The observable proof - both
+         sources in the run's taint and its journal - is test/summary-taint.http.test.js. */
       const mark = "latchRunTaint('kept summary carried content from '";
       A.eq(count(index, mark), 1, 'the kept summary has ONE serve latch');
       const at = index.indexOf(mark);

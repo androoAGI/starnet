@@ -28,6 +28,7 @@
 'use strict';
 const TurnView = require('./turn-view.js');
 const EarlierConversation = require('./earlier-conversation.js');   // taintOf: the one rule for "these rows carry outside content"
+const { ATTACHMENT_TAINT, rowStoresAttachmentText } = require('./taint.js');   // the bare attachment stamp (the one that decays) and the test for "this message holds a file's text"
 
 const COVER = Symbol('starnet.summary.cover');
 
@@ -179,11 +180,43 @@ function serve(i) {
   return { msgs, note, taint: r.taint || null, quoted: r.quoted === true };
 }
 
-/* taintOfFold({ covered, prevCover, runTaint }) -> the first outside-content source a new record must keep, or null: a
-   covered row that carries one, else the one the previous note already carried (a summary of a summary never launders it),
-   else the one this run had latched when the fold built the note (its own tool results are summarized into it). */
+/* THE STAMP A KEPT SUMMARY CARRIES (A10, 2026-11-04). The ledger stores the stamp UNWRAPPED: the source itself, never the sentence a latch
+   put it in ('earlier conversation carried content from X', 'kept summary carried content from X'), so a summary of a summary does not
+   grow a prefix per fold and the bare attachment source stays recognizable. Three kinds:
+     - a fold whose messages held the attachment's BYTES (the expanded user message: its file text, or its picture) gets BYTES_TAINT. It is
+       not the bare source, so it never decays: the summary carries the file's words, and a run that serves it is latched for good;
+     - a fold over a model's own replies written while the bytes were in front of it gets the bare ATTACHMENT_TAINT. The bytes are not in
+       the summary, so serving it latches nothing (index.js: `served.taint !== ATTACHMENT_TAINT`), the same decay a transcript row has;
+     - any other source (a page, a connector, a tool result) is kept as it is and latches on every serve, whatever else the run holds. */
+const BYTES_TAINT = ATTACHMENT_TAINT + ' (file text kept in a summary)';
+const WRAPPED = /^(?:(?:earlier conversation|kept summary) carried content from )+/;
+const unwrap = t => (typeof t === 'string' && t ? t.replace(WRAPPED, '').trim() : '') || null;
+/* heldBytes(msgs) -> do these working messages hold an attachment's bytes? A user message whose file text rides in it (the "[Attached file: "
+   header attachments.js writes, as a string or in a text block) or that carries a picture part. Pure. */
+function heldBytes(msgs) {
+  for (const m of Array.isArray(msgs) ? msgs : []) {
+    if (!m || m.role !== 'user') continue;
+    if (typeof m.content === 'string') { if (rowStoresAttachmentText({ role: 'user', content: m.content })) return true; continue; }
+    if (Array.isArray(m.content) && m.content.some(b => b && (b.type === 'image_url' || (typeof b.text === 'string' && rowStoresAttachmentText({ role: 'user', content: b.text }))))) return true;
+  }
+  return false;
+}
+/* stampOf(taint) -> the stamp a note carries for a taint the host already holds: the bare source on a note means "its bytes are not in
+   it", so a taint that reached a note by way of a row that renders file text (earlier-conversation taintOf answers the bare source ONLY for
+   that row) is BYTES_TAINT. Anything else is unwrapped and kept. */
+const stampOf = t => t === ATTACHMENT_TAINT ? BYTES_TAINT : unwrap(t);
+
+/* taintOfFold({ covered, prevCover, runTaint, heldBytes }) -> the stamp a new record must keep, or null: the first source that is not the
+   bare attachment among a covered row that carries one, the one the previous note already carried (a summary of a summary never
+   launders it) and the one this run had latched when the fold built the note (its own tool results are summarized into it); else
+   BYTES_TAINT when the folded messages held the attachment's bytes; else the bare attachment when only a model's replies written under
+   it were folded; else null. runTaint is the run's ROW stamp (execution.rowTaint()): the first non-attachment source, not the first. */
 function taintOfFold(i) {
-  return EarlierConversation.taintOf(i.covered) || (i.prevCover && i.prevCover.taint) || i.runTaint || null;
+  const cands = [stampOf(EarlierConversation.taintOf(i.covered)), unwrap(i.prevCover && i.prevCover.taint), unwrap(i.runTaint)].filter(Boolean);
+  const other = cands.find(t => t !== ATTACHMENT_TAINT);
+  if (other) return other;
+  if (i.heldBytes === true) return BYTES_TAINT;
+  return cands.length ? ATTACHMENT_TAINT : null;
 }
 
-module.exports = { tagNote, coverOf, tagWindow, claimFold, substitution, serve, taintOfFold, COVER };
+module.exports = { tagNote, coverOf, tagWindow, claimFold, substitution, serve, taintOfFold, heldBytes, stampOf, BYTES_TAINT, COVER };
