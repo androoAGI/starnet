@@ -2562,7 +2562,7 @@
     }
 
     return {
-      onInbound, onCallback, onStatus, onMembership, close, chatAdmitted, countHistory,
+      onInbound, onCallback, onStatus, onMembership, close, chatAdmitted, countHistory, historyContext: chatContext,
       _internals: { agentIdFor, chunkText, endNote, deliver, inflight, handleCommand, currentBoundAgent, isSupersedeRaceRefusal, drain: delivery.drain, recoverInbox, activeInbox, inboxId, ledger: delivery.ledger, TASK_SUFFIX, DEFAULT_PERSONA, keyboardFor, btnLabel, sendConsentPrompt, buttonsOk, replyPreamble, MAX_REPLY_MEDIA, noteRoute, routeOpts, routes, MAX_ROUTES, editIsCurrent, startAck, ACK_EMOJI, observeTurn, startStream, streamOk, notModified }
     };
   }

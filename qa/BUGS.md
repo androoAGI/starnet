@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 453 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 454 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -196,6 +196,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | channels | [Every message sent while a channel task is running is processed twice: inbox recovery replays a follow-up that already finished while it waited](bugs/5ce67a6f-every-message-sent-while-a-channel-task-is-runni.md) | sweep/channels | 2899b4102 |
 | P1 | fixed | channels | [Invalid connector JSON null replaces encrypted recovery credentials at startup](bugs/0428b50d-invalid-connector-json-null-replaces-encrypted-r.md) | release-audit-0124-0920 | 42ad5937f |
 | P1 | fixed | channels | [/new on Telegram says 'I no longer remember what we discussed' while the next run replays up to 100 turns of the old chat, taint included](bugs/956fdecf-new-on-telegram-says-i-no-longer-remember-what-w.md) | sweep/channels | 5b934e4e2 |
+| P1 | fixed | channels | [Routine publication stalls when another target finishes during history persistence](bugs/b131cb72-routine-publication-stalls-when-another-target-f.md) | agent/turn-identity-1103 | 5fa8c331e4c8b48c77593d9666fe196589491a3e |
 | P1 | fixed | channels | [Strict channel history read blocks an active run's plain STOP](bugs/cad78f6a-strict-channel-history-read-blocks-an-active-run.md) | turn-identity-1103 | 8f6cb7928 |
 | P1 | fixed | channels | [Telegram-bound lead reports crew delegation unavailable](bugs/98454b83-telegram-lead-delegation-unavailable.md) | release-0120-prep-0915 | 887210a7b |
 | P1 | fixed | onboarding | [An armed night shift traps a fresh install in Recovery Mode after one station-less session](bugs/d2a917eb-an-armed-night-shift-traps-a-fresh-install-in-re.md) | agent/station-lifecycle-record-1031 | 7c30dd9e3 |

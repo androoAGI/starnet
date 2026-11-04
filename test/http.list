@@ -302,6 +302,7 @@ test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/routine-delivery.parts.e2e.test.js
+test/routine-history.publication.http.test.js
 test/channels.ledger-upgrade.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js
 test/cron.images-grant.e2e.test.js

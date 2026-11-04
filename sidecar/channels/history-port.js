@@ -196,6 +196,12 @@ function makeChannelHistory(d) {
     return serialized(chat, () => ensure(chat, ctx.agentId || ''));
   }
   async function importLegacy(ctx) { return (await ensureImported(ctx)).n; }
+  async function destination(ctx) {
+    await ensureImported(ctx);
+    const chat = readyChat(ctx);
+    if (!chat.streamId) throw held('The chat has no canonical delivery destination');
+    return chat.streamId;
+  }
   function readyChat(ctx) {
     const chat = chatOf(ctx);
     current(chat); // /new may have completed while this entry awaited its import owner.
@@ -284,7 +290,7 @@ function makeChannelHistory(d) {
     });
   }
   // Hub consumers are wired only after this owner and its real Store adapter are independently proved.
-  return { context, streamFor, ensureImported, importLegacy, replay, count, observe, deliver, rotate, legacyMirror };
+  return { context, streamFor, ensureImported, importLegacy, destination, replay, count, observe, deliver, rotate, legacyMirror };
 }
 // Compatibility for hand-built test hubs only. Production's factory requires the canonical port.
 // It deliberately identifies every replay as legacy; it never pretends to prove durable row identity.
