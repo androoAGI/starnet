@@ -223,6 +223,7 @@ test/growth-rating-upgrade.e2e.test.js
 test/feedbackmemory.http.test.js
 test/earlier-conversation.http.test.js
 test/fold-reuse.http.test.js
+test/fold-memory-provenance.http.test.js
 test/tasteref.http.test.js
 test/verdictpackets.http.test.js
 test/managed-image.e2e.test.js

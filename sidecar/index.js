@@ -23633,6 +23633,9 @@ async function runOnceCore(o) {
     // and retry at the next boundary / strict run end. Counted + warned, so a failing disk is never invisible.
     onFailure: (stage, e) => failNote('transcript.run.' + stage, e)
   });
+  /* WHAT THIS RUN'S FOLDS CAN BE KEPT FOR (summary-ledger.js; filled in below, where the window is placed). Declared here, beside
+     the summarizer that reads `alignment`, so no closure reads it before it exists. */
+  const summaryRun = { startedAt: Date.now(), alignment: null, rows: null, window: null, earlier: null, reusedEvent: null };
   const summarize = makeSummarizer({
     provider, model, cost, signal, emit, agentId, runId,
     auxModelFor: resolveAuxModel,
@@ -23642,6 +23645,16 @@ async function runOnceCore(o) {
     memoryBlockFor: (transcript) => {
       // on_pre_compress (MEMORY-CORTEX): rank durable memory against the slice being folded and PREPEND it.
       // '' when nothing to preserve. Fail-open: a memory hiccup must never block the summary.
+      /* A SUMMARY THE LEDGER KEEPS CARRIES NO NOTEBOOK TEXT (review 11-04, privacy and prompt authority). A fold in a run the ledger
+         serves (summaryRun.alignment) is written to disk and served byte for byte to later runs, as long as the CHAT's rows
+         still prove it true. Notebook text handed to the summarizer lands in that note with nothing recording which note it
+         was: a note a tainted run saved (taintedBy) is served to later runs as a clean system note (the record's taint is
+         computed from the covered ROWS), and a note the Commander then edits or forgets keeps reaching every prompt, its old
+         wording and all, because the ledger cannot see the memory change. Durable memory needs no copy in a kept summary: every
+         run recalls the notebook again at its start (ranked against its own request, taint latched there), so the memory the
+         chat needs rides that run's prompt, and a forgotten or edited note is gone from the next one. Only a fold nothing keeps
+         (a group, internal or recovery run; a window nothing places) still hands the summarizer the block, as before. */
+      if (summaryRun.alignment) return '';
       try {
         const recs = notebookStore.get('notebook:' + agentId);
         // standing priority stays the owner's here too (memory-learning-10): a withheld guest/group run's fold, or a paused
@@ -24822,8 +24835,7 @@ async function runOnceCore(o) {
      earlier fold. A window the transcript cannot place injects nothing (the old behavior).
      THE SAME PLACEMENT FEEDS THE KEPT SUMMARY (summary-ledger.js): every window message is tagged with the row it stands on
      and the user row that opens its exchange, so a fold can say exactly which rows its note stands for; a window nothing
-     places is never tagged and never claimed. */
-  const summaryRun = { startedAt: Date.now(), alignment: null, rows: null, window: null, earlier: null, reusedEvent: null };
+     places is never tagged and never claimed. (summaryRun is declared above, beside the summarizer that reads it.) */
   if (!internal && !o.recovery && !o.groupTools && streamId && Array.isArray(convo) && convo.length) {
     try {
       let at = convo.length - 1;
