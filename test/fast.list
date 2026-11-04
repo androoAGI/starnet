@@ -564,6 +564,7 @@ test/turn-carry.proof.test.js
 test/turn-run-order.lint.test.js
 test/recall.test.js
 test/session-tombstones.test.js
+test/forget-registry.test.js
 test/transcript-selftalk.test.js
 test/transcript-proof-reads.test.js
 test/fs.jail.test.js
