@@ -178,5 +178,73 @@ const path = require('node:path');
   assert.ok(/F\.expectedDraws\(pace, mode === 'still' \? \(row\.worldVsyncHz/.test(bench), "a still AB slice is expected from the world's own vsync");
   assert.ok(/checksSkipped: v\.skipped/.test(bench), 'a skipped check is reported on the row');
 
-  console.log('proc-footprint: tree walk from the app pid (no foreign webview, pid reuse refused), roles, EBWebView identity, GPU% per adapter+type, contention, phase labels, verdict, hermetic env, sampler/bench locks — OK');
+  // 14. THE IDLE BUDGET (the world-idle-renderer lane: "an idle station costs close to nothing, without lowering the visible frame
+  // rate"; done means the idle main thread is at most 15%). P7 judges itself with one pure verdict over its row: main thread, rAF
+  // callbacks per draw, draws a second, crew settled, still share. A contended, invalid or unmeasured window is 'unjudged', never a pass.
+  assert.ok(F.IDLE_BUDGET && ['idleBudgetVerdict', 'idleBudgetLine', 'pacerWindow'].every(n => typeof F[n] === 'function'), 'proc-footprint exports the P7 idle budget: IDLE_BUDGET, idleBudgetVerdict, idleBudgetLine and pacerWindow');
+  assert.deepEqual(JSON.parse(JSON.stringify(F.IDLE_BUDGET)), { mainBusyPct: 15, rafPerDraw: 1.25, drawsPerS: [28, 32], stillShare: 0.95 }, 'the budget is the plan\'s five numbers: loosening one is a decision, not drift');
+  const p7 = { phase: 'P7', valid: true, contended: false, mainBusyPct: 9.4, drawsPerS: 30.2, rafPerS: 36.8, rafPerDraw: 1.22, worldRafPerDraw: 1.0, skippedFrames: 0,
+    still: { share: 0.99, draws: 1812, why: { blink: 12 } }, obs: [{ crewSettled: 6 }, { crewSettled: 6 }] };
+  const p7Before = JSON.stringify(p7);
+  const good = F.idleBudgetVerdict(p7);
+  assert.equal(good.verdict, 'pass', 'a quiet, valid, uncontended window inside the budget passes');
+  assert.deepEqual(good.checks.map(c => [c.name, c.ok]), [['mainBusyPct', true], ['rafPerDraw', true], ['drawsPerS', true], ['crewSettled', true], ['stillShare', true]], 'five checks, each judged');
+  assert.deepEqual(good.reasons, [], 'a pass carries no reasons');
+  assert.equal(JSON.stringify(p7), p7Before, 'the verdict is pure: the row is not touched');
+  // each line, one at a time: only that check fails, and the reason names it and the number it wanted
+  const failsOn = (over, name, want) => {
+    const r = F.idleBudgetVerdict({ ...p7, ...over });
+    assert.equal(r.verdict, 'fail', name + ' ' + JSON.stringify(over) + ' fails the budget');
+    assert.deepEqual(r.checks.filter(c => c.ok === false).map(c => c.name), [name], 'only ' + name + ' fails');
+    assert.ok(r.reasons.length === 1 && r.reasons[0].includes(name) && r.reasons[0].includes(want), 'the reason names ' + name + ' and what it wanted (' + r.reasons + ')');
+  };
+  failsOn({ mainBusyPct: 15.01 }, 'mainBusyPct', '<= 15%');
+  failsOn({ worldRafPerDraw: 1.26 }, 'rafPerDraw', '<= 1.25');
+  failsOn({ drawsPerS: 27.99 }, 'drawsPerS', '28-32');
+  failsOn({ drawsPerS: 32.01 }, 'drawsPerS', '28-32');
+  failsOn({ obs: [{ crewSettled: 6 }, { crewSettled: 0 }] }, 'crewSettled', '> 0');
+  failsOn({ obs: [{ crewSettled: 0 }, { crewSettled: 6 }] }, 'crewSettled', '> 0');
+  failsOn({ still: { share: 0.949, draws: 1812, why: { body: 92 } } }, 'stillShare', '>= 95%');
+  // the lines themselves are inclusive, except "settled" which wants at least one body
+  for (const edge of [{ mainBusyPct: 15 }, { worldRafPerDraw: 1.25 }, { drawsPerS: 28 }, { drawsPerS: 32 }, { still: { share: 0.95, draws: 100, why: {} } }, { obs: [{ crewSettled: 1 }, { crewSettled: 1 }] }])
+    assert.equal(F.idleBudgetVerdict({ ...p7, ...edge }).verdict, 'pass', 'the line itself is inside the budget: ' + JSON.stringify(edge));
+  // the rAF line judges the WORLD's own callbacks when the tree counts them (the crew clock's rides are another module's), else the page's
+  const pageOnly = { ...p7, worldRafPerDraw: null, skippedFrames: null };
+  assert.equal(F.idleBudgetVerdict({ ...pageOnly, rafPerDraw: 1.9 }).verdict, 'fail', 'a tree that does not count its skipped callbacks is judged on the page-wide rAF per draw (the base spin reads 3)');
+  assert.equal(F.idleBudgetVerdict({ ...p7, rafPerDraw: 1.9, worldRafPerDraw: 1.0 }).verdict, 'pass', 'page-wide rAF the world does not own (crewcards.js rides) is not the world\'s spin');
+  assert.equal(F.idleBudgetVerdict(p7).checks[1].note, 'world', '...and the check says which reading it judged');
+  assert.equal(F.idleBudgetVerdict(pageOnly).checks[1].note, 'page');
+  // NEVER A PASS without evidence: contended, invalid, validity unknown, no row, or a line that was not measured
+  const unjudged = (row, re, why) => { const r = F.idleBudgetVerdict(row); assert.equal(r.verdict, 'unjudged', why); assert.ok(re.test(r.reasons.join(' | ')), why + ' (' + r.reasons + ')'); return r; };
+  unjudged({ ...p7, contended: true, contendedWhy: ['system CPU outside the measured tree 41% > 20%'] }, /contended.*41%/, 'a contended box gives no verdict');
+  unjudged({ ...p7, contended: true, mainBusyPct: 80 }, /contended/, 'a contended box is unjudged even when its numbers fail: a busy box\'s numbers are not evidence either way');
+  unjudged({ ...p7, valid: false, invalidWhy: ['cinecam rested is false, want true'] }, /not valid.*rested is false/, 'an invalid phase gives no verdict');
+  unjudged({ ...p7, valid: false, mainBusyPct: 80 }, /not valid/, 'an invalid phase is unjudged even when its numbers fail');
+  unjudged({ ...p7, valid: undefined }, /validity/, 'a row that never said it was valid is not judged');
+  unjudged({ ...p7, contended: undefined }, /contended/, 'a row that never said it was uncontended is not judged');
+  unjudged(null, /not valid|no row/, 'no row, no verdict');
+  unjudged({ ...p7, still: null }, /stillShare was not measured/, 'a window with no still readout cannot pass the still line');
+  unjudged({ ...p7, obs: [{ crewSettled: 6 }, { crewSettled: null }] }, /crewSettled was not measured/, 'a tree that does not report its settled crew cannot pass the settle line');
+  unjudged({ ...p7, mainBusyPct: null }, /mainBusyPct was not measured/, 'a missing reading is not a pass');
+  unjudged({ ...p7, worldRafPerDraw: null, rafPerDraw: null }, /rafPerDraw was not measured/, 'no rAF reading at all is not a pass');
+  assert.equal(F.idleBudgetVerdict({ ...p7, still: null, mainBusyPct: 16 }).verdict, 'fail', 'one line that is measured and over the budget is a fail, whatever else is missing');
+  // the row the bench builds: pacerWindow turns two page reads into the readouts the verdict wants
+  const sA = { draws: 1000, raf: { fired: 5000 }, pace: { skippedFrames: 7, dueDraws: 100, dueLate: 1 } };
+  const sB = { draws: 1900, raf: { fired: 6180 }, pace: { skippedFrames: 25, dueDraws: 600, dueLate: 4 } };
+  const pw = F.pacerWindow(sA, sB);
+  assert.deepEqual(pw, { draws: 900, rafFired: 1180, rafPerDraw: 1.31, skippedFrames: 18, worldRafPerDraw: 1.02, dueDraws: 500, dueLate: 3 }, '900 draws drew from 1180 page callbacks (1.31 a draw), 18 of them the world\'s own skips (1.02 a draw), 3 of 500 due changes late');
+  assert.equal(F.idleBudgetVerdict({ ...p7, rafPerDraw: pw.rafPerDraw, worldRafPerDraw: pw.worldRafPerDraw, skippedFrames: pw.skippedFrames }).verdict, 'pass', 'that window is inside the rAF line on the world\'s own count (the page-wide 1.31 alone would not be)');
+  const old = F.pacerWindow({ draws: 10, raf: { fired: 10 }, pace: {} }, { draws: 70, raf: { fired: 190 }, pace: {} });
+  assert.deepEqual(old, { draws: 60, rafFired: 180, rafPerDraw: 3, skippedFrames: null, worldRafPerDraw: null, dueDraws: null, dueLate: null }, 'a tree without the counters reports the page-wide figure only (the base spin: 3 a draw), the rest null');
+  assert.equal(F.pacerWindow(sB, sB), null, 'no draws in the window, no readout');
+  assert.equal(F.pacerWindow({ draws: 1 }, { draws: 9 }), null, 'a page state without the rAF probe reports nothing');
+  assert.equal(F.pacerWindow(null, sB), null);
+  // the one line the bench prints for P7: the verdict, then every reading with what it wanted when it failed
+  const line = (row, over) => F.idleBudgetLine(F.idleBudgetVerdict({ ...row, ...over }));
+  assert.match(line(p7), /^PASS :: mainBusyPct 9\.4, rafPerDraw 1, drawsPerS 30\.2, crewSettled 6, stillShare 0\.99$/, 'a pass prints its five readings');
+  assert.match(line(p7, { mainBusyPct: 16.2 }), /^FAIL :: mainBusyPct 16\.2 \(want <= 15%\), rafPerDraw 1,/, 'a fail names the reading and its line');
+  assert.match(line(p7, { contended: true, contendedWhy: ['forced: test gate'] }), /^UNJUDGED :: .* :: the box was contended: forced: test gate$/, 'an unjudged window says why');
+  assert.match(line(p7, { still: null }), /stillShare n\/a/, 'a reading that was not taken prints n/a, not undefined');
+
+  console.log('proc-footprint: tree walk from the app pid (no foreign webview, pid reuse refused), roles, EBWebView identity, GPU% per adapter+type, contention, phase labels, verdict, hermetic env, sampler/bench locks, the P7 idle-budget verdict — OK');
 })().catch(e => { console.error(e); process.exitCode = 1; });
