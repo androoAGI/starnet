@@ -396,7 +396,8 @@ async function readoutPlaced(root, scenario, sctx, opts) {
     ProjectTools: projectToolsMod,
     composeOffice: req(root, 'sidecar/capability/office.js').composeOffice,   // what the base readout composed itself
     router: { stationFor: () => o.station || null },
-    observe: { stationFor: () => o.station || null },   // the host asks the router through its observe seam (routing/saved-seams.js)
+    observe: { stationFor: () => o.station || null },   // the host asked the router through its observe seam (routing/saved-seams.js) ...
+    admit: { stationFor: () => o.station || null },     // ... and asks for a ROOM through admit, which throws on a hold (a room is never an observe)
     connectors: { ids: () => h.connectorIds.slice() },
     failNote: (tag, e) => failNotes.push(tag + ': ' + ((e && e.message) || e)),
     slash: { dispatch: () => ({ ok: true, directive: { type: 'server', action: 'tools', args: {} } }) },
