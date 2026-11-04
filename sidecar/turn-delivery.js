@@ -6,12 +6,26 @@ const SID = /^[A-Za-z0-9_-]{1,64}$/;
 const AGENT = /^[A-Za-z0-9_-]{1,40}$/;
 const positiveId = value => Number.isSafeInteger(value) && value > 0;
 function unavailable(message) { return Object.assign(new Error(message), { code: 'TRANSCRIPT_UNVOUCHED' }); }
+/* THE SESSIONS A RUN HAS READ, as the stamp for a row that carries its words elsewhere (turn identity commit 11). A routine's reply is delivered
+   into a session or a chat; if the routine run recalled or read another session, the delivered copy quotes it too, so a delete of that session
+   takes the delivery with it. The run's rows in the source stream (a routine's is 'cron-' + runId) each carry the latch as it stood when they
+   were drained, and a latch only grows (a saturation sticks), so the union of the run's stamps is its whole latch. write() reads them through
+   the complete proof view (a recent tail cannot prove the run read nothing); this folds them. {} when no row of the run quotes anything. */
+function quotesOfRun(proof, runId) {
+  const entries = [];
+  for (const row of proof) {
+    if (!row || row.sourceRunId !== runId || !Array.isArray(row.quotes)) continue;
+    row.quotes.forEach((id, i) => entries.push({ id, at: Array.isArray(row.quotesAt) && Number.isSafeInteger(row.quotesAt[i]) ? row.quotesAt[i] : 0 }));
+  }
+  return Kinds.quoteStamp(entries);
+}
 function write(store, input) {
   const o = input || {}, turnId = Kinds.runTurnId(o.runId), hasTaint = Object.prototype.hasOwnProperty.call(o, 'taint');
   if (!store || typeof store.view !== 'function' || typeof store.appendStrict !== 'function') throw unavailable('Delivery transcript owner is unavailable');
   if (typeof o.streamId !== 'string' || !SID.test(o.streamId) || typeof o.agentId !== 'string' || !AGENT.test(o.agentId) ||
       typeof o.runId !== 'string' || o.runId.length > 200 || !turnId || typeof o.text !== 'string' || o.text.length > Kinds.LEGACY_FINAL_CONTENT_MAX ||
       (hasTaint && o.taint !== null && typeof o.taint !== 'string') ||
+      (o.sourceStream !== undefined && (typeof o.sourceStream !== 'string' || !SID.test(o.sourceStream))) ||
       (o.existingOnly !== undefined && typeof o.existingOnly !== 'boolean')) {
     throw new Error('Invalid canonical delivery');
   }
@@ -39,8 +53,15 @@ function write(store, input) {
   // A released transport receipt or a prior session marker can only confirm its old
   // publication. Absence is unknown; it cannot authorize a new row in today's chat.
   if (o.existingOnly === true) throw unavailable('The prior delivery could not be confirmed');
+  // the delivered words are the routine run's: they quote whatever it read (none when sourceStream is not given or the run read nothing)
+  let stamp = {};
+  if (o.sourceStream !== undefined) {
+    const own = store.view('proof', o.sourceStream, { sourceRunId: o.runId, complete: true });
+    if (!Array.isArray(own)) throw unavailable('The routine run\'s own rows are unavailable');
+    stamp = quotesOfRun(own, o.runId);
+  }
   const row = store.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'assistant', kind: 'delivery',
-    content: o.text, sourceRunId: o.runId, turnId, ...(hasTaint ? { taint: taint } : {}) });
+    content: o.text, sourceRunId: o.runId, turnId, ...stamp, ...(hasTaint ? { taint: taint } : {}) });
   if (!row || !positiveId(row.rowId) || row.streamId !== o.streamId || row.sourceRunId !== o.runId || row.kind !== 'delivery' || row.turnId !== turnId) {
     throw unavailable('Delivery append has no durable identity');
   }
@@ -60,10 +81,12 @@ function write(store, input) {
    Strict and idempotent per exact (stream, run, path): the complete proof view is read first (a recent tail cannot prove a
    file was never written), an existing row is returned as it is (an undone one stays undone), and a proof or append failure
    throws, never a success. A throw after some rows landed carries them in error.rows; the retry writes only the rest.
-   input: { streamId, agentId, runId, turnId?, root?, artifacts, note?, taint? }: agentId is the writing agent, whose own folder
+   input: { streamId, agentId, runId, turnId?, root?, artifacts, note?, taint?, quotes? }: agentId is the writing agent, whose own folder
    the relative paths live in; root the run's blessed project folder or ''; note the run's deliverable_note { title, main } (it
    names only the file `main` proves; every other row is named by its basename); taint as in write() (absent = unverified,
-   an explicit null = proved clean). Returns { rows: [{ rowId, turnId, path, media, existed }], skipped: [{ path, why }] }. */
+   an explicit null = proved clean); quotes the run's latch, execution.quotes() ([{ id, at }]: the sessions it read), stamped on every
+   row it writes (a file named from a session's words leaves recall, display and replay with that session; none when the run read
+   nothing). Returns { rows: [{ rowId, turnId, path, media, existed }], skipped: [{ path, why }] }. */
 const FILE_ROWS_MAX = 50;      // artifacts.js MAX_ENTRIES
 const basenameOf = p => String(p).split(/[\\/]/).pop() || String(p);
 // the part of an absolute path below `root`, by whole path segments (no fs, no realpath), or null. A Windows root (drive letter)
@@ -102,10 +125,12 @@ function fileRows(store, input) {
   if (typeof o.streamId !== 'string' || !SID.test(o.streamId) || typeof o.agentId !== 'string' || !AGENT.test(o.agentId) ||
       typeof o.runId !== 'string' || !o.runId || o.runId.length > 200 || !turnId || !Array.isArray(o.artifacts) ||
       Kinds.deliverableRootProblem(root) || (hasTaint && o.taint !== null && typeof o.taint !== 'string') ||
+      (o.quotes !== undefined && !Array.isArray(o.quotes)) ||
       (o.note != null && typeof o.note !== 'object')) {
     throw new Error('Invalid canonical file rows');
   }
   const taint = hasTaint ? (o.taint === null ? null : o.taint.slice(0, 200) || null) : undefined;
+  const stamp = Kinds.quoteStamp(o.quotes);   // {} when the run read no other session
   const note = o.note || {}, main = typeof note.main === 'string' ? note.main : '', title = typeof note.title === 'string' ? note.title : '';
   const skipped = [], wanted = [], seen = new Set();
   for (const a of o.artifacts) {
@@ -156,7 +181,7 @@ function fileRows(store, input) {
       if (!field) { skipped.push({ path: c.path.slice(0, 300), why: 'unrepresentable' }); continue; }
       const row = store.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'system', kind: 'deliverable',
         content: (shown === 'file' ? 'saved ' : 'made ') + (field.name || 'file'), sourceRunId: o.runId, turnId,
-        deliverable: field, ...(hasTaint ? { taint: taint } : {}) });
+        deliverable: field, ...stamp, ...(hasTaint ? { taint: taint } : {}) });
       if (!row || !positiveId(row.rowId) || row.streamId !== o.streamId || row.sourceRunId !== o.runId || row.kind !== 'deliverable' ||
           row.turnId !== turnId || !row.deliverable || row.deliverable.path !== c.path) {
         throw unavailable('File-row append has no durable identity');

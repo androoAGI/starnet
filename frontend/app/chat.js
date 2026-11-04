@@ -10053,7 +10053,7 @@ const Chat = (() => {
         const sys = GoalLoop.judgeSystem();
         const usr = GoalLoop.judgeUser(s, reply, { now: new Date().toISOString() });
         // keepEffort: a verdict that ends the Commander's loop runs on their reasoning effort, never the cheap aux one
-        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, keepEffort: true });
+        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, keepEffort: true, quotesStream: ws.id });   // the verdict is composed from this session's reply: the station stamps it as a quote of the session
         raw = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? (res.text || '') : '';   // a succeeded verdict only (review r7)
       } catch (_) { raw = ''; }
       judged = GoalLoop.parseVerdict(raw);
@@ -11905,7 +11905,7 @@ const Chat = (() => {
     const before = Object.assign({}, Harness.totals());   // COPY (totals is a mutated singleton)
     let res;
     try {
-      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true });
+      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
     } catch (_) { return; }   // network/hiccup → keep the placeholder, no noise
     // fold the quiet call's REAL usage into the origin stream (same truthful-telemetry path as a normal turn)
     try { const a = Harness.totals(); Workstreams.addCost(ws.id, { tokens: a.tokens - before.tokens, usd: a.cost - before.cost, calls: a.calls - before.calls }); } catch (_) {}

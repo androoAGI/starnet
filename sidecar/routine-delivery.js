@@ -207,7 +207,7 @@ function makeRoutineDelivery(deps) {
     if (parts.some(p => Publication.owns(p, 'raw') && typeof p.raw !== 'string')) Publication.refuse('The completed routine text is ambiguous');
     const text = parts.map(p => typeof p.raw === 'string' ? p.raw : p.text).join('');
     const chat = historyContext(record.channel, record.chatId, destination.streamId);
-    const row = await d.history.deliver({ chat, agentId: record.agentId, runId: record.runId, text,
+    const row = await d.history.deliver({ chat, agentId: record.agentId, runId: record.runId, text, sourceStream: 'cron-' + record.runId,   // the routine run's own rows name the sessions it read: the delivered copy quotes them too
       existingOnly: !!record.sessionTurns || !!prior });
     if (prior && (!row || row.rowId !== prior.rowId || row.turnId !== prior.turnId)) Publication.refuse('The saved routine publication conflicts with its canonical row');
     const ack = ledger().noteSession(id, { streamId: destination.streamId, rowId: row && row.rowId, turnId: row && row.turnId });
@@ -325,7 +325,7 @@ function makeRoutineDelivery(deps) {
       let row = null;
       if (typeof writeDelivery === 'function') {   // (typeof: a harness that slices this function names only the dependencies it supplies)
         try {
-          row = writeDelivery({ streamId: job.origin.streamId || job.origin.sessionId, agentId: job.agentId, runId: result.runId, text: sent,
+          row = writeDelivery({ streamId: job.origin.streamId || job.origin.sessionId, agentId: job.agentId, runId: result.runId, text: sent, sourceStream: 'cron-' + result.runId,   // the routine run's own rows name the sessions it read: the delivered copy quotes them too
             ...(job.noAgent ? { taint: 'scheduled script output' } : {}) });   // a script's stdout is untrusted, and the host knows it; every other taint is not provable from the result
         } catch (e) {
           failNote('cron.session.write', e);

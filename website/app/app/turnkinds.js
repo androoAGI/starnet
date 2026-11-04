@@ -374,6 +374,7 @@
     } else if (kind === 'api') speaker = 'member';
     else if (kind === 'hop') speaker = 'agent';
     else if (kind === 'delivery' || kind === 'routine') speaker = 'routine';
+    else if (kind === 'briefing' && r.role === 'assistant') cell = 'assistant';   // the away briefing is an assistant message of its own session: naming its kind changes nothing about who reads it (replay, recall, display)
     return { kind, cell: MATRIX[cell] ? cell : 'local', speaker, legacy };
   }
   function replayable(row, opts) {

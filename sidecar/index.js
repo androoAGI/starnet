@@ -8188,6 +8188,17 @@ function autonomyLedgerAppend(entry) {
 
 // a reason-only internal run through runOnce: no tools (no `station`/extraObjects), surface:'autonomous', assemble
 // the reply from agent.token deltas (the SAME assembler cron-driver/hub use — there is no agent.message event).
+/* A NIGHT-SHIFT PROMPT IS COMPOSED FROM SESSIONS (turn identity commit 11): the context pack's activity lines each name the row they came from
+   (activity[].src), so the streams of those rows are what the propose, do, critique and act runs quote, read at the pack's assembly time. A
+   delete of one of them forgets what those runs wrote. Spread into a run's options: { quotes, quotesAt }, or nothing when no line has a source. */
+function packQuotes(pack) {
+  const ids = [];
+  for (const a of Array.isArray(pack && pack.activity) ? pack.activity : []) {
+    const id = a && a.src && a.src.streamId;
+    if (typeof id === 'string' && QUOTE_SID_RE.test(id) && !ids.includes(id)) ids.push(id);
+  }
+  return ids.length ? { quotes: ids, quotesAt: Number.isSafeInteger(pack.assembledAt) && pack.assembledAt >= 0 ? pack.assembledAt : 0 } : {};
+}
 async function nightshiftChat(o) {
   const agentId = String((o && o.agentId) || NIGHTSHIFT_AGENT);
   const ident = cronIdentityFor(agentId) || {};
@@ -8217,7 +8228,8 @@ async function nightshiftChat(o) {
       // every night directive is host-composed from stored text (focus, beliefs, activity, threads): scrubbed whole
       messages: (Array.isArray(o.messages) ? o.messages : []).map(m => (m && typeof m.content === 'string') ? Object.assign({}, m, { content: PromptScrub.scrubStored(m.content) }) : m),
       agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
-      runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast)
+      runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast),
+      quotes: o && o.quotes, quotesAt: o && o.quotesAt   // the sessions its prompt was composed from (packQuotes)
     });
   } catch (e) { return { error: (e && e.message) || 'run failed' }; }
   finally { thoughtRun.release(); }
@@ -9088,6 +9100,7 @@ function nightshiftContextPack(evidence) {
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
   pack.trustedActivityLines = pack.activityLines;
   pack.trustedActivity = pack.activity;
+  pack.assembledAt = now;   // when its lines were read: the read time of every session they quote (packQuotes)
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -9310,7 +9323,7 @@ async function runNightshiftBeat(opts) {
 
   // 1) PROPOSE — the directive LEADS with the focus, then the OPEN-THREADS + recent-activity blocks; the grounding
   //    veto's evidence pool = beliefs + activity + thread texts (a thread-tag citation is the preferred grounding).
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...packQuotes(pack), messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
   const offFocus = [];
   const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads, focus: foc.focus || null, onDrop: (c) => offFocus.push(c.title) }));
@@ -9322,6 +9335,9 @@ async function runNightshiftBeat(opts) {
   ledgerPriorWorkVeto(agentId, priorVeto);
   const sel = Autopilot.scoreAndSelect(priorVeto.candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
+  // the do and critique runs are composed from the selected idea, which was composed from the pack's sessions: they quote them too. Kept on the selection
+  // itself, out of its enumerable fields, so it never rides the idea into a ledger or a file (and the critique step reads only what it is handed)
+  Object.defineProperty(sel, 'quoted', { value: packQuotes(pack), enumerable: false });
   const draftRecId = 'nightshift-draft:' + String(opts.runId || crypto.randomUUID());
   recommendationLedger.record({ id: draftRecId, surface: 'nightshift', kind: sel.selected.archetype || 'draft', title: sel.selected.title,
     target: sel.selected.threadId || '', evidence: [{ id: sel.selected.threadId ? 'thread:' + sel.selected.threadId : 'nightshift-grounds', type: sel.selected.threadId ? 'thread' : 'context', quote: sel.selected.grounds || '' }],
@@ -9337,14 +9353,14 @@ async function runNightshiftBeat(opts) {
   let beatDelivered = false;
   try {
   // 3) DO — the do directive stays on the declared focus too.
-  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
+  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...sel.quoted, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
   if (dRes.error) return { delivered: false, reason: dRes.error };
   let deliverable = Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title });
   if (!deliverable) return { delivered: false, reason: 'no-deliverable' };
   // 3b) SELF-CRITIQUE
   const style = (beliefs.style || []).join('; ');
   const standingOrders = (beliefs.standing_orders || []).join('; ');
-  const qRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }] });
+  const qRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...sel.quoted, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }] });
   // a review whose run ENDED without succeeding (cut, a limit, a STOP or E-STOP mid-review: nightshiftChat's outcome beside its error) is no
   // verdict — the beat stands down, never 'ship' by default (review 7.1); a review whose run raised an error ships the finished draft unreviewed, as before
   if (qRes && qRes.error && qRes.outcome) return { delivered: false, reason: qRes.error };
@@ -9451,7 +9467,7 @@ async function runNightshiftActShift(opts) {
   const priorBuilds = PriorWork.promptLines(priorWork, Date.now());
   const { projectSnapshot, targetRoot } = await resolveProjectPatchTarget(foc);
 
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds, projectSnapshot, initiative: currentInitiative() }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...packQuotes(pack), messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds, projectSnapshot, initiative: currentInitiative() }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
   // NS-5b: the PROJECT SNAPSHOT lines (real git status / TODO markers the harness READ) join the grounding-veto
   // evidence pool, so a candidate that grounds itself in the actual repo state (e.g. a planted TODO) survives the
@@ -9514,6 +9530,7 @@ async function runNightshiftActShift(opts) {
       messages: [{ role: 'user', content: prompt }],
       agentId, isTask: true, emit: (typeof opts.emit === 'function' ? opts.emit : function () {}), signal: sig,
       runId, streamId: 'nightshift-act-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!opts.broadcast,
+      ...packQuotes(pack),   // the sessions its activity came from (commit 11)
       reflect: true,   // a night shift does real work; what it learns is durable memory, not scratch (see the reflect note on /api/run)
       station: router.stationFor(agentId) || undefined
     });
@@ -21191,6 +21208,7 @@ function openRunAnswer(res, sink, receipt) {
 }
 
 async function handleRun(req, res) {
+  const receivedAt = Date.now();   // when the request arrived: the read time of the session a page-composed internal prompt quotes (quotesStream)
   let body;
   try { body = JSON.parse(await readBody(req, 2 << 20, res)); }
   catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }   // over-limit already answered 413
@@ -21591,6 +21609,7 @@ async function handleRun(req, res) {
       retryUserRunId: body && body.retryUserRunId,
       windowTokens: body && Number.isFinite(body.windowTokens) ? body.windowTokens : undefined, windowFrom: body && body.windowFrom === 'station' ? 'station' : undefined, windowCaller: TurnWindow.callerOf(body),
       turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
+      ...(body && typeof body.quotesStream === 'string' && QUOTE_SID_RE.test(body.quotesStream) ? { quotes: [body.quotesStream], quotesAt: receivedAt } : {}),   // an internal call the page composed from a session's words (the retitle, the goal judge) quotes that session (commit 11; additive body field, a bad id dropped)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -25583,7 +25602,7 @@ async function runOnceCore(o) {
           }
         }
       }
-      try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), taint: execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
+      try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), quotes: execution.quotes(), taint: execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
       runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
@@ -25611,8 +25630,8 @@ async function runOnceCore(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState });
-        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState });
+        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState, ...TurnKinds.quoteStamp(execution.quotes()) });
+        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState, ...TurnKinds.quoteStamp(execution.quotes()) });   // rows written outside the run transcript carry the run's quotes too (commit 11)
       }
     } catch (e) { failNote('run.transcript-end', e); }
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now
@@ -26817,7 +26836,7 @@ async function handleAwayBriefingDeliver(req, res) {
       // provenance (memory-learning-07): the briefing quotes runs' own output, so a run in its window that read untrusted
       // content makes the briefing row untrusted too; otherwise it is the station's own report (clean)
       const quoted = (inputs.runs || []).find(r => r && r.taintedBy && (Number(r.endedAt) || Number(r.ts) || 0) > since);
-      transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', taint: quoted ? 'away briefing quoting ' + String(quoted.taintedBy).slice(0, 80) : null, content: b.text });
+      transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', taint: quoted ? 'away briefing quoting ' + String(quoted.taintedBy).slice(0, 80) : null, content: b.text, kind: 'briefing', ...TurnKinds.quoteStamp(TurnKinds.quoteEntriesOf(inputs.runs, now)) });   // the briefing quotes the streams of the runs it reports (commit 11): a delete of one takes the row with it
       const last = { at: now, since: b.since, items: b.items, counts: b.counts };
       // asksWaiting: open approvals/questions on the station right now. A waiting ask outranks the report — the page keeps
       // the Commander on the conversation that needs them instead of jumping to the briefing (a reloaded page may not

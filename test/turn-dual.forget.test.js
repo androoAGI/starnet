@@ -409,4 +409,124 @@ const ids = list => list.map(r => r.rowId);
     A.ok(/if \(meta && Array\.isArray\(meta\.quotedStreams\) && meta\.quotedStreams\.length\) return null;/.test(src) && /parkOutput\(r\.content, \{ tool: c\.name, reason: 'run-output-budget', quotedStreams: r\.quotedStreams \}\)/.test(src), 'a quoted read is never parked as a workspace file (both park sites)');
     A.ok(/quoteRoom: ids => execution\.quoteRoom\(ids\)/.test(src) && /overseerStation\(o\.streamId, runId, ids => execution\.quoteRoom\(ids\)\)/.test(src), 'recall, session.peek and the overseer answer are handed the run\'s room');
   }
+
+  // ---------------- 9. what a quoting run writes OUTSIDE its run transcript carries its quotes too (commit 10) ----------------
+  const Delivery = require('../sidecar/turn-delivery.js');
+  const { finalizeDispatchDelivery } = require('../sidecar/dispatch-delivery.js');
+  const { readSidecarSource } = require('./helpers/source.js');
+  const inView = (store, view, stream, rowId) => store.view(view, stream, { limit: 200 }).some(r => r.rowId === rowId);
+  const recalled = (store, stream, word, rowId) => store.view('recall', stream, { op: 'search', query: word, limit: 20, scope: 'all' }).some(r => r.rowId === rowId);
+  const replayHas = (store, stream, word) => ['prose', 'pairs'].some(shape => store.view('model-replay', stream, { limit: 200, shape, form: 'pre' }).some(m => String(m.content).includes(word)));
+
+  // -- 9a. a file named from a session's words (leg e): the file row quotes what its run read, and leaves with it
+  {
+    ledger = { deleted: {}, latest: 0 };
+    const store = makeStore({ runOf: () => null });
+    const files = (runId, quotes, path) => Delivery.fileRows(store, { streamId: 'T', agentId: 'a', runId, root: '', artifacts: [{ kind: 'file', path, bytes: 5 }], quotes });
+    const quoting = files('run_file_1', [{ id: 'S', at: 50 }], 'notes on quokka.md').rows[0];
+    const control = files('run_ctl_1', [], 'plain notes.md').rows[0];
+    const stored = store.view('proof', 'T', { limit: 50 }).find(r => r.rowId === quoting.rowId);
+    A.eq([stored.quotes, stored.quotesAt, stored.kind], [['S'], [50], 'deliverable'], 'fileRows stamps the row with the run\'s latch');
+    A.eq(store.view('proof', 'T', { limit: 50 }).find(r => r.rowId === control.rowId).quotes, undefined, 'a run that read nothing stamps nothing');
+    A.ok(inView(store, 'display', 'T', quoting.rowId) && recalled(store, 'T', 'quokka', quoting.rowId) && !replayHas(store, 'T', 'quokka'), 'before the delete the file row is in display and recall, and never in model-replay (a file row is not replayed)');
+    const again = files('run_file_1', [{ id: 'S', at: 50 }], 'notes on quokka.md');
+    A.eq([again.rows[0].existed, again.rows[0].rowId], [true, quoting.rowId], 'a retry finds the same row (idempotent; the stamp is not rewritten)');
+    A.throws(() => files('run_bad_1', 'S', 'x.md'), 'quotes that are not a list are refused, not ignored');
+    ledger = { deleted: { S: 60 }, latest: 60 };
+    A.ok(!inView(store, 'display', 'T', quoting.rowId) && !recalled(store, 'T', 'quokka', quoting.rowId) && !replayHas(store, 'T', 'quokka'), 'after the delete the file row is out of display, recall and model-replay');
+    A.ok(inView(store, 'display', 'T', control.rowId) && recalled(store, 'T', 'plain', control.rowId), '...the unstamped control stays');
+    A.ok(store.view('display', 'T', { limit: 50 })[View.FORGOTTEN].keys.some(k => k[1] === quoting.rowId), '...and the page is told to drop its copy (identity.forgotten)');
+  }
+
+  // -- 9b. a routine's delivered reply copies the routine run's latch from its own rows (leg e, session return and chat attach)
+  {
+    ledger = { deleted: {}, latest: 0 };
+    const store = makeStore({ runOf: () => null });
+    const run = (stream, runId, stamps) => stamps.forEach((s, i) => store.appendStrict(Object.assign({ streamId: stream, agentId: 'a', role: i === 0 ? 'user' : 'assistant', content: 'routine row ' + i + ' of ' + runId, taint: null, kind: 'routine', turnId: 'r' + runId, sourceRunId: runId }, s)));
+    run('cron-run_read_1', 'run_read_1', [{}, { quotes: ['S1'], quotesAt: [100] }, { quotes: ['S1', 'S2'], quotesAt: [100, 120] }]);
+    run('cron-run_none_1', 'run_none_1', [{}, {}]);
+    run('cron-run_sat_1', 'run_sat_1', [{}, { quotes: ['*'], quotesAt: [90] }]);
+    const deliver = (runId, extra) => Delivery.write(store, Object.assign({ streamId: 'U', agentId: 'a', runId, text: 'the routine said quokka words for ' + runId, sourceStream: 'cron-' + runId }, extra));
+    const read = deliver('run_read_1'), none = deliver('run_none_1'), sat = deliver('run_sat_1');
+    const row = id => store.view('proof', 'U', { limit: 50 }).find(r => r.rowId === id);
+    A.eq([row(read.rowId).quotes, row(read.rowId).quotesAt, row(read.rowId).kind], [['S1', 'S2'], [100, 120], 'delivery'], 'the delivery row carries the whole latch of the routine run (the union of its rows\' stamps, the earliest read per stream)');
+    A.eq(row(none.rowId).quotes, undefined, 'a routine that read no other session delivers an unstamped row');
+    A.eq([row(sat.rowId).quotes, row(sat.rowId).quotesAt], [['*'], [90]], 'a saturated routine run delivers a saturated row');
+    A.eq(deliver('run_read_1').rowId, read.rowId, 'a retry reuses the row (idempotent)');
+    A.eq(Delivery.write(store, { streamId: 'U', agentId: 'a', runId: 'run_read_1', text: '', existingOnly: true }).rowId, read.rowId, 'the confirm-only path finds it and writes nothing');
+    const noSource = Delivery.write(store, { streamId: 'U', agentId: 'a', runId: 'run_plain_1', text: 'no source stream given' });
+    A.eq(row(noSource.rowId).quotes, undefined, 'a caller that names no source stream gets no stamp (as before)');
+    A.throws(() => deliver('run_new_1', { sourceStream: 'not a stream!' }), 'a source stream that is not a stream id is refused');
+    const blind = Object.assign(Object.create(store), { view: (name, stream, opts) => (stream === 'cron-run_blind_1' ? null : store.view(name, stream, opts)) });
+    let refused = null;
+    try { Delivery.write(blind, { streamId: 'U', agentId: 'a', runId: 'run_blind_1', text: 'x', sourceStream: 'cron-run_blind_1' }); } catch (e) { refused = e; }
+    A.ok(refused && refused.code === 'TRANSCRIPT_UNVOUCHED' && !store.view('proof', 'U', { limit: 50 }).some(r => r.sourceRunId === 'run_blind_1'), 'a source run whose rows cannot be read refuses the delivery (nothing written): the stamp is never guessed');
+    ledger = { deleted: {}, latest: 0 };
+    A.ok(inView(store, 'display', 'U', read.rowId) && recalled(store, 'U', 'quokka', read.rowId) && replayHas(store, 'U', 'run_read_1'), 'before any delete the delivered reply is in display, recall and model-replay');
+    ledger = { deleted: { S2: 130 }, latest: 130 };
+    A.ok(!inView(store, 'display', 'U', read.rowId) && !recalled(store, 'U', 'quokka', read.rowId) && !replayHas(store, 'U', 'run_read_1'), 'a delete of a session the routine read takes its delivered reply out of display, recall and model-replay');
+    A.ok(inView(store, 'display', 'U', none.rowId) && recalled(store, 'U', 'quokka', none.rowId) && replayHas(store, 'U', 'run_none_1'), '...a routine that read nothing is not touched');
+    A.ok(!inView(store, 'display', 'U', sat.rowId) && !replayHas(store, 'U', 'run_sat_1'), '...a saturated one goes with any later delete');
+  }
+
+  // -- 9c. the accepted dispatch answer quotes what the worker (and its repair run) read
+  {
+    ledger = { deleted: {}, latest: 0 };
+    const store = makeStore({ runOf: () => null });
+    const crypto2 = require('node:crypto'), sha = s => crypto2.createHash('sha256').update(s).digest('hex');
+    const source = { runId: 'wrk', agentId: 'a', streamId: 'W', dispatchDelivery: { state: 'pending' }, deliveryPrompt: 'the brief', startedAt: 1, ts: 2, quotes: ['S'], quotesAt: [50] };
+    const finals = [];
+    const runStore = { deliverySource: id => (id === 'wrk' ? source : null), latest: id => (id === 'rep' ? { runId: 'rep', quotes: ['U'], quotesAt: [70] } : null),
+      finalizeDelivery: (id, v) => { finals.push(v); return v; } };
+    finalizeDispatchDelivery({ runStore, transcriptStore: store, redact: s => s, hash: sha }, 'wrk', { text: 'the worker says quokka', reason: 'done', repairRunId: 'rep' });
+    const finalRow = store.view('proof', 'W', { limit: 20 }).find(r => r.dispatchState === 'final');
+    A.eq([finalRow.quotes, finalRow.quotesAt], [['S', 'U'], [50, 70]], 'the final answer carries the worker\'s and its repair run\'s reads');
+    A.ok(replayHas(store, 'W', 'quokka'), 'before the delete the accepted answer replays');
+    ledger = { deleted: { U: 80 }, latest: 80 };
+    A.ok(!replayHas(store, 'W', 'quokka') && !inView(store, 'display', 'W', finalRow.rowId), 'after a delete of a session either run read, the accepted answer is out of display and model-replay');
+    ledger = { deleted: {}, latest: 0 };
+    const s2 = makeStore({ runOf: () => null });
+    finalizeDispatchDelivery({ runStore: { deliverySource: () => Object.assign({}, source, { quotes: undefined, quotesAt: undefined }), latest: () => null, finalizeDelivery: v => v }, transcriptStore: s2, redact: s => s, hash: sha }, 'wrk', { text: 'clean answer', reason: 'done', repairRunId: '' });
+    A.eq(s2.view('proof', 'W', { limit: 20 }).find(r => r.dispatchState === 'final').quotes, undefined, 'a worker that read nothing leaves the answer unstamped');
+  }
+
+  // -- 9d. the away briefing is an assistant message of its own session that quotes the sessions it reports
+  {
+    ledger = { deleted: {}, latest: 0 };
+    const store = makeStore({ runOf: () => null });
+    const stamp = Kinds.quoteStamp(Kinds.quoteEntriesOf([{ streamId: 'S', deliveryText: 'built the quokka report' }, { streamId: 'T', deliveryText: '' }], 500));
+    const plain = store.append({ streamId: 'briefing', agentId: 'away', role: 'assistant', content: 'a briefing with no kind', taint: null });
+    const brief = store.append(Object.assign({ streamId: 'briefing', agentId: 'away', role: 'assistant', content: 'While you were away: the quokka report', taint: null, kind: 'briefing' }, stamp));
+    A.eq([brief.kind, brief.quotes, brief.quotesAt], ['briefing', ['S'], [500]], 'the briefing row names its kind and quotes the streams of the runs it reports');
+    A.eq(Kinds.classify(brief, {}).cell, Kinds.classify(plain, {}).cell, 'naming the kind changes nothing about who reads the row (the same cell as an unkinded assistant message)');
+    A.ok(inView(store, 'display', 'briefing', brief.rowId) && inView(store, 'display', 'briefing', plain.rowId), 'both rows are in display before the delete');
+    A.ok(recalled(store, 'briefing', 'quokka', brief.rowId) && recalled(store, 'briefing', 'kind', plain.rowId), '...and in recall');
+    A.ok(replayHas(store, 'briefing', 'While you were away') && replayHas(store, 'briefing', 'a briefing with no kind'), '...and in model-replay (a reply in the briefing session continues from it)');
+    ledger = { deleted: { S: 600 }, latest: 600 };
+    A.ok(!inView(store, 'display', 'briefing', brief.rowId) && !recalled(store, 'briefing', 'quokka', brief.rowId) && !replayHas(store, 'briefing', 'quokka') && inView(store, 'display', 'briefing', plain.rowId) && recalled(store, 'briefing', 'kind', plain.rowId),
+      'a delete of a briefed session takes the briefing out of display, recall and model-replay; an unstamped one stays');
+  }
+
+  // -- 9e. the host's static quotes, by source: where each is stamped
+  {
+    const index = readSidecarIndex();
+    A.eq(index.split('...packQuotes(pack)').length - 1, 3, 'night shift: the V1 propose, the V2 propose and the act run each quote the sessions the pack drew on');
+    A.eq(index.split('...sel.quoted, messages:').length - 1, 2, '...and the V1 do and critique runs, composed from the selected idea, quote the same (kept on the selection, out of its enumerable fields)');
+    A.ok(/Object\.defineProperty\(sel, 'quoted', \{ value: packQuotes\(pack\), enumerable: false \}\);/.test(index), '...so it never rides the idea into a ledger or a file');
+    A.ok(/quotes: o && o\.quotes, quotesAt: o && o\.quotesAt/.test(index), '...and nightshiftChat hands them to its run');
+    const pq = new Function('QUOTE_SID_RE', require('./helpers/source.js').sidecarTopLevelFunction('packQuotes') + '\nreturn packQuotes;')(/^[A-Za-z0-9_-]{1,64}$/);
+    A.eq(pq({ activity: [{ line: 'a', src: { streamId: 'S' } }, { line: 'b', src: { streamId: 'S' } }, { line: 'c', src: null }, { line: 'd', src: { streamId: 'bad id' } }, { line: 'e', src: { streamId: 'T' } }], assembledAt: 700 }), { quotes: ['S', 'T'], quotesAt: 700 },
+      'packQuotes: the distinct streams of the lines that name a source, at the pack\'s assembly time');
+    A.eq([pq({ activity: [{ line: 'x', src: null }] }), pq(null), pq({})], [{}, {}, {}], '...nothing when no line names one');
+    A.ok(/\.\.\.\(body && typeof body\.quotesStream === 'string' && QUOTE_SID_RE\.test\(body\.quotesStream\) \? \{ quotes: \[body\.quotesStream\], quotesAt: receivedAt \} : \{\}\)/.test(index) && /const receivedAt = Date\.now\(\);/.test(index), '/api/run maps an additive quotesStream to a static quote read at the request\'s receipt');
+    const chat = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8'), harness = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'frontend', 'app', 'harness.js'), 'utf8');
+    A.eq(chat.split('quotesStream: ws.id').length - 1, 2, 'the page names the session in both internal calls it composes from one (the retitle and the goal judge)');
+    A.ok(/goalContinuation, quotesStream, retryUserRunId, voiceTurn,/.test(harness) && /if \(quotesStream\) reqBody\.quotesStream = String\(quotesStream\)\.slice\(0, 64\);/.test(harness), '...and Harness.chat sends it');
+    A.ok(/briefQuoteEntries\(o\)/.test(index) && /execution\.latchQuotes\(staticQuoteEntries\(o\)\.concat\(briefQuoteEntries\(o\)\)\);/.test(index), 'a delegated worker\'s brief quotes its lead\'s stream (seeded before any tool can run)');
+    const all = readSidecarSource();
+    A.ok(/kind: 'briefing', \.\.\.TurnKinds\.quoteStamp\(TurnKinds\.quoteEntriesOf\(inputs\.runs, now\)\)/.test(all), 'the away briefing row names its kind and quotes the runs it reports');
+    A.eq(all.split('...TurnKinds.quoteStamp(execution.quotes())').length - 1, 2, 'the run-end lines written outside the run transcript (the directive line and the new turns) carry the run\'s quotes');
+    A.ok(/note: deliverableNotes\.get\(runId\), quotes: execution\.quotes\(\), taint:/.test(all), 'the run-end file rows are given the run\'s quotes');
+    A.ok(/sourceStream: 'cron-' \+ result\.runId/.test(all) && /sourceStream: 'cron-' \+ record\.runId/.test(all), 'a routine\'s session return and its chat attach both name the routine run\'s own stream as the source of the stamp');
+  }
 })().then(() => A.report('turn-dual.forget'), e => { console.error(e && e.stack || e); process.exitCode = 1; });
