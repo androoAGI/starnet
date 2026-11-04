@@ -112,7 +112,7 @@ const { wireForgetRegistry } = require('../sidecar/forget-wiring.js');
     // this test wires only the interests state: it runs that entry (the full pass over every store is forget-stores and the e2e)
     const removedQuotes = await registry.entry('interests').forget(scope);
     A.eq(removedQuotes, 1, 'the interests entry removed the one quote the deleted session wrote');
-    A.ok(persisted.length === 1, 'and persisted the purged state');
+    A.ok(persisted.length === 2 && persisted[0] === persisted[1], 'and persisted the purged state twice (the store keeps the value it replaced as its .bak, so the second write makes the purged copy the .bak too)');
     const restarted = Interests.normalize(JSON.parse(persisted[persisted.length - 1]), T);
     A.eq(Interests.summary(restarted, { now: T, trustedOnly: true }).map(r => r.topic), ['platypus-launch'], '(b) the restarted state holds no topic from the deleted session');
     A.ok(!/quokka/i.test(JSON.stringify(restarted.trustedTopics)) && !/quokka/i.test(Interests.topicsBlock(restarted, { now: T, trustedOnly: true })), '...and its quote and label are in no trusted block');
