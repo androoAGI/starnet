@@ -2,10 +2,13 @@
    router where a floor exists (fake harness, no provider):
      1. two review LOOP gates in a row: the outer gate's re-run used to stop at "the line loops back to style" — the inner gate
         letting work out lowered the loop pass the outer gate still had open;
-     2. E-STOP / STOP while a JOINER waits: advance sat out the joiner's whole timeout (default 10 min) holding locks. */
+     2. E-STOP / STOP while a JOINER waits: advance sat out the joiner's whole timeout (default 10 min) holding locks.
+   LINE-HOLD S2 adds the two places a reviewer that says nothing usable meets these shapes (marked "S2"): the SECOND of two gates in a row, and
+   the reviewer on one branch of a COPY section. Both HOLD at their own gate now (they used to read as 'revise'). The subject is built through
+   test/helpers/line-hold-control.js: LINE_HOLD_CONTROL=original makes it the saved 5977d433c source and the S2 blocks must go RED there. */
 'use strict';
 const A = require('./_assert.js');
-const { makeChainRunner } = require('../sidecar/routing/chain.js');
+const { makeChainRunner } = require('./helpers/line-hold-control.js').pick().chain;
 const { makeRouter } = require('../sidecar/routing/router.js');
 const P = require('../frontend/app/pipeline.js');
 const belt = (x, y, dir) => ({ x, y, dir });
@@ -44,6 +47,18 @@ const belt = (x, y, dir) => ({ x, y, dir });
     A.eq(ran.join(' > '), 'factcheck > style > drafter > factcheck > style > publisher', 'the outer gate sends it round once, then on to the publisher');
     A.eq(out.stopped, null, 'the line runs to its end (' + out.stopped + ')');
     A.eq(out.agentId, 'publisher', 'the publisher has the last word');
+
+    // S2: the OUTER gate's reviewer lapses on its second turn. The first gate's passes and the outer gate's one pass back stand; the job HOLDS
+    // at the outer gate (its own id, the pass it was on) and never reaches the publisher — it no longer reads as 'revise' and goes round again
+    let styleM = 0; const ranM = [];
+    const out2 = await c.advance({ agentId: 'drafter', text: 'draft v1', originalText: 'write X', lineId: router.lineOfAgent('drafter'),
+      runAgent: async (h) => { ranM.push(h.agentId);
+        if (h.agentId === 'factcheck') return { text: 'facts ok\nVERDICT: approved' };
+        if (h.agentId === 'style') return { text: (++styleM === 1) ? 'tone off\nVERDICT: revise' : 'reads well to me' };
+        return { text: h.agentId + ' out' }; } });
+    A.eq(ranM.join(' > '), 'factcheck > style > drafter > factcheck > style', 'S2 two gates: the outer reviewer lapses — what was bought stands, nothing after');
+    A.ok(out2.hold && out2.hold.reason === 'missing_verdict' && out2.hold.gateId === '19,4' && out2.hold.pass === 1 && out2.stop && out2.stop.code === 'blocked', 'S2 two gates: held at the OUTER gate on its second pass: ' + JSON.stringify(out2.hold));
+    A.ok(!ranM.includes('publisher') && !out2.unapproved, 'S2 two gates: the publisher never ran, nothing is marked "went on"');
   }
 
   /* ---- 2. a stop while the joiner waits settles at once ---- */
@@ -144,6 +159,25 @@ const belt = (x, y, dir) => ({ x, y, dir });
     A.ok(/JOINED OUTPUT — 2 of 2 branches delivered/.test(out.text), 'both branches reach the joiner (3d)');
     A.ok(/leaving on DONE unapproved\]\nneeds more sources/.test(out.text) && !/THE WORK UNDER REVIEW/.test(out.text),
       'JOINER→OUTBOX: the delivered product keeps the reviewer\'s word, unchanged from before: ' + out.text.slice(0, 300));
+  }
+
+  // 3e. (S2) the same branch loop, the reviewer on the branch says nothing usable: the job HOLDS at that gate — no paid pass, the joiner is never
+  //     left to time out for a part that will not come, and nothing is joined or delivered
+  {
+    const s = WM.create(WM.starterDoc());
+    A.ok(LE.placeBlueprint(s, 'second_opinion', { x: 8, y: 5 }).ok, 'SECOND OPINION placed (3e)');
+    crew(s);
+    const b = s.props().filter(p => p.t === 'bay')[1];
+    A.ok(LE.run(s, b.id, 'addLoop', { around: b.id, max: 2 }, { near: { x: 8, y: 5 } }).ok, 'a review loop on one branch (3e)');
+    crew(s);
+    const plan = P.compileRoutingPlan(s.projectGeometry());
+    const router = makeRouter(); router.setPlan(plan);
+    const timers = [], ran = [];
+    const e = router.resolveDock({ tag: 'general' });
+    const out = await runnerFor(router, timers).advance({ agentId: e.agentId, dockId: e.dockId, text: 'entry out', lineId: router.lineOriginFor(e.agentId, e.dockId),
+      runAgent: async c => { ran.push(c.dockId); return { text: 'DRAFT by ' + c.dockId + (/REVIEWER/.test((s.propById(c.dockId) || {}).role || '') ? ' — reads fine' : '') }; } });
+    A.ok(out.hold && out.hold.reason === 'missing_verdict' && out.stop && out.stop.code === 'blocked' && out.stopped === out.blocked, 'S2 branch reviewer says nothing usable: the job holds at its gate: ' + JSON.stringify(out.hold));
+    A.ok(!out.loopExhausted && !out.unapproved && !/JOINED OUTPUT/.test(out.text) && timers.length === 0, 'S2 ...nothing joined or delivered, no pass back, no joiner left waiting');
   }
 
   // 3c. no COPY branch round a step a review loop sends work back to

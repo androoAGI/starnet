@@ -374,6 +374,15 @@
     const resolveEntryRunConfig = typeof o.resolveEntryRunConfig === 'function' ? o.resolveEntryRunConfig : null;
     const mentionControl = o.mentionControl !== false;
     const onLineOutcome = typeof o.onLineOutcome === 'function' ? o.onLineOutcome : null;
+    /* THE FACTS A SAVED HOLD NAMES OF HOW A JOB CAME IN (line-hold lane, S3). A work line that parks at a reviewer's gate keeps its origin
+       (line-hold.js originOf): this chat — channel, chat, sender, thread, bound agent — unless the door knows better (jobOrigin(): the trigger
+       hub knows its trigger and delivery, the SEND TO hub the job it came from). Facts only: the host decides whether they name an origin. */
+    const jobOrigin = typeof o.jobOrigin === 'function' ? o.jobOrigin : null;
+    function jobOriginFacts(chatId, msg, boundAgentId) {
+      if (jobOrigin) { try { const f = jobOrigin(); if (f && typeof f === 'object') return f; } catch (e) { failNote('channels.hub.jobOrigin', e); } }
+      return { instanceId: channel, chatId: String(chatId), senderId: msg && msg.userId != null ? String(msg.userId) : '', chatType: msg && msg.chatType === 'group' ? 'group' : 'dm',
+        threadId: msg && msg.threadId != null ? msg.threadId : null, boundAgentId: boundAgentId || null };
+    }
     // ENTRY TAINT (security review 2026-09-24): a hub whose every inbound message is EXTERNAL DATA rather than the
     // owner speaking — the line-trigger hub (a webhook payload / a watched folder's file contents) — names the taint
     // its FIRST hop starts under, so the entry run's sensitive tools are consent-gated exactly like any other run
@@ -1958,6 +1967,9 @@
       // message so the entry run and every hop of its line carry one verdict. A SEND TO hand-off's entryTaint is read through
       // the sending job's own verdict (entryUntrusted above): a Commander-typed job stays trusted on the next line.
       const lineEntryUntrusted = !!((entryTaint && entryVerdictUntrusted(msg)) || mediaIngest.attachments.length || carriesThirdPartyText(msg));
+      // the label the entry run starts tainted under (the entry run's own initialTaint below is this very expression; the restrictive taint
+      // a saved hold of this job keeps rides the line's seed: taints)
+      const lineEntryTaint =entryTaint || (mediaIngest.attachments.length ? 'channel attachment' : (carriesThirdPartyText(msg) ? 'forwarded message' : null));
       // …and the sending job's sender verdict (senderWithheld above): a non-owner's job stays withheld on every line it reaches
       const lineWithheld = senderVerdictWithheld(msg);
       const runChannelSender = lineWithheld ? true : tagSenderRuns;
@@ -2273,6 +2285,11 @@
              under the same ones; a seed without them (routines, Run Now, anything older) hands on as untrusted + withheld. */
           entryTrusted: lineEntryUntrusted ? undefined : true,
           hostPowerKept: (runChannelSender === true && runChannelSenderOwner !== true) ? undefined : true,   // run-origin.js hostPowerWithheldFor's own test
+          /* THE SAVED HOLD'S ADMISSION (line-hold lane): a walk that parks at a reviewer's gate keeps how this job came in. The door's own
+             facts (o.jobOrigin: the trigger and SEND TO hubs know theirs) else this chat's, and the entry's restrictive taint label. Facts
+             only: the host's originOf (index.js) decides whether they name an origin, and a hold that cannot be named ends as it did. */
+          origin: jobOriginFacts(chatId, msg, boundAgentId),
+          taints: lineEntryTaint ? [lineEntryTaint] : [],
           signal: myRec.abort ? myRec.abort.signal : null
         }, profile: lineRunner.profiles.channel({
           // a hop is a plain autonomous run of ANOTHER agent (line-runner.js): its OWN roster config and composed persona (never this

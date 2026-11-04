@@ -111,3 +111,7 @@ test/run-lifecycle.invariants.http.test.js
 # line-entry-parity.e2e: one real sidecar, the same job by all seven entries twice (the second pass saves a file before it answers) —
 # 44-67 s standalone on 2026-11-03 with other lanes building on the box, so it is listed by the >= 40 s rule.
 test/line-entry-parity.e2e.test.js
+# line-hold.e2e.http: one real sidecar booted three times (hold, restart, APPROVE, restart, then the SEND BACK and E-STOP legs), each with its
+# settle sleeps and job polls — 55.6 s standalone on 2026-11-04 with another gate running, so it is listed by the >= 40 s rule. (Its sibling
+# line-hold.restart.http is 33.9 s and stays off.)
+test/line-hold.e2e.http.test.js

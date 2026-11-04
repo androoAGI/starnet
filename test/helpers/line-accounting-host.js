@@ -64,10 +64,18 @@ function allocated(run, seed) {
       LINE_SPEND_DAY_MS: Spend.DAY_MS, Date: { now: () => f.now }, failNote: () => {}, console: { warn: () => {} },
       crypto: { randomBytes: n => Buffer.alloc(n, ++f.mints) } };
     context.LineEntryInvocation = require('../../sidecar/routing/line-entry-invocation.js');
+    context.LineEntryAdoption = owner('../../sidecar/routing/line-entry-adoption.js', 'LINE_ADOPTION_CONTROL');
+    context.chainRunner = require('../../sidecar/routing/chain.js').makeChainRunner({});
     const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, mutate:lineJobsSet, jobs:()=>lineJobs, ledger:lineSpend,'
+      + 'hold:typeof lineJobsHold === "function" ? lineJobsHold : null,'   // the durable hold writer (line-hold lane): absent on an older host
+      // the decision owner's store (line-hold lane, S4): the fresh read, the claim, the refusal and one checkpoint of a saved walk
+      + 'store:typeof lineJobsAdvance === "function" ? { read: lineJobsRead, claim: lineJobsClaimDecision, refuse: lineJobsRefuseDecision, advance: lineJobsAdvance } : null,'
       + 'enroll:typeof lineJobsEnrollAccounting === "function" ? lineJobsEnrollAccounting : null,'
       + 'prepare:typeof lineJobsPrepareEntry === "function" ? lineJobsPrepareEntry : null,'
-      + 'checkpoint:typeof lineJobsCheckpointEntry === "function" ? lineJobsCheckpointEntry : null};', Object.keys(context));
+      + 'checkpoint:typeof lineJobsCheckpointEntry === "function" ? lineJobsCheckpointEntry : null,'
+      + 'adoption:(authority,chain)=>LineEntryAdoption.makeEntryAdoption({read:lineJobsRefresh,write:lineJobsSet,'
+      + 'requireAccounting:lineJobsRequireAccounting,note:(line,usd,receipt)=>lineSpend.note(line,usd,receipt),'
+      + 'receiptProof:(line,usd,receipt,ledgerId)=>lineSpend.receiptProof(line,usd,receipt,ledgerId),authority,chain})};', Object.keys(context));
     return build(...Object.values(context));
   };
   const raw = file => JSON.parse(fs.readFileSync(file, 'utf8'));

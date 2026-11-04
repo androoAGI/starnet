@@ -108,6 +108,7 @@ async function main() {
   A.eq(host.lineJobs, previous, 'production host keeps its previous state when a strict write failed');
   A.eq(writeAttempts, 1, 'refusal reaches the actual writer boundary, not a missing lifted dependency');
   await entryIntegration();
+  await heldIntegration();
   A.report('line-jobs.invariant.test');
 }
 
@@ -208,5 +209,58 @@ async function entryIntegration() {
   const orphan = lineRunner.open({ line: lineId, entry: 'steptest', streamId: 'lost-session' }); lineRunner.mark(orphan, 'paused');
   lineRunner = book(); step = makeStep();
   A.eq(J.get(jobs, orphan.id).outcome, 'interrupted', 'paused job whose session is gone becomes interrupted at boot');
+}
+
+/* A JOB HELD AT A REVIEWER'S GATE (line-hold lane, S3; invariant no-held-row-reads-as-delivered). Every entry still has one job verdict and
+   one durable finish — and a job that PARKED for a person has neither a finish nor a delivery: settle says held and not delivered, finishes
+   nothing, lights no OUTBOX crate, and says the same on the second call. Through the real router, chain, LineRunner and (for the chat) the
+   real channel hub, with the station's own hold proofs compiled out of index.js (test/helpers/line-hold-rig.js). */
+async function heldIntegration() {
+  const { makeRig } = require('./helpers/line-hold-rig.js');
+  const { makeChannelHub } = require('../sidecar/channels/hub.js');
+  const crates = rig => rig.events.filter(e => e.n === 'workitem.delivered' && (e.p.finalQueueId === 'outbox' || e.p.box === 'line-output')).length;
+  // the six entries that can hold: one verdict, no finish, no crate — and the step-through test, which keeps its own pause, never does
+  for (const entry of ['channel', 'schedule', 'manual', 'trigger', 'sendto', 'sample']) {
+    const rig = makeRig(), ran = await rig.run({ entry, replies: ['no\nVERDICT: blocked'] });
+    const result = rig.settle(ran.job, ran.line);
+    A.eq([result.held, result.delivered, result.status, result.outcome, result.stop && result.stop.code], [true, false, 'held', 'blocked', 'blocked'], entry + ': a held job is a held result: not delivered');
+    A.eq([rig.counts.finish, crates(rig), rig.shipped.length, rig.record(ran.job.id).status], [0, 0, 0, 'held'], entry + ': no durable finish, no OUTBOX crate, no shipment; the record says held');
+    A.ok(rig.settle(ran.job, {}) === result && !rig.runner.deliverCrate(result, { workitemId: 'w' }) && rig.counts.finish === 0, entry + ': a second settle is the same result; no crate can be delivered from it');
+    rig.dispose();
+  }
+  // the real channel hub: the reply says the job is held and where to decide, the job is held, and the hub settles it not delivered
+  const rig = makeRig();
+  let time = 7000, seq = 7000;
+  const now = () => ++time, newId = () => String(++seq).padStart(12, '0');
+  const sent = [], settled = [], turns = new Map();
+  const runOnce = async o => {
+    const reviewer = o.agentId === 'reviewer';
+    rig.calls.push(o.agentId);
+    const row = { runId: o.runId, streamId: o.streamId, agentId: o.agentId, dockId: o.dockId, reason: 'done', outcome: 'succeeded', usd: 0.02, startedAt: now() };
+    rig.rows.set(o.runId, row); o.emit('agent.run.end', row);
+    return Object.assign({ text: reviewer ? 'not safe to publish\nVERDICT: blocked' : 'a first draft' }, row);
+  };
+  const { makeLineRunner } = require('../sidecar/routing/line-runner.js');
+  const lineRunner = makeLineRunner({ chain: rig.chain, runOnce, jobs: rig.jobs, runRow: id => rig.rows.get(id), emit: (name, payload) => rig.events.push({ n: name, p: payload }), now, newId,
+    hold: { originOf: rig.ports.holdOriginOf, planHash: rig.ports.holdPlanHash, receiptFor: rig.ports.holdFileReceipt, authority: rig.ports.holdAuthority } });
+  const hub = makeChannelHub({ channel: 'dev', ownerSurface: true, bindChats: false, textBatchWaitMs: 0, runOnce, lineRunner, now, newId, streamId: () => 'held-chat-stream',
+    store: { loadHistory: a => turns.get(a) || [], appendTurn: (a, role, content) => { const arr = turns.get(a) || []; arr.push({ role, content }); turns.set(a, arr); }, getChatRecord: () => null },
+    secrets: () => ({ key: 'k', model: 'm' }), resolveEntryRunConfig: () => ({ key: 'k', model: 'm' }), resolveRunConfig: () => ({ key: 'k', model: 'm' }),
+    resolveAgent: ctx => rig.router.resolveDock(ctx), lineOriginFor: (a, d) => rig.router.lineOriginFor(a, d), classify: () => true,
+    send: async (chatId, text) => { sent.push(text); return { ok: true }; } });
+  try {
+    await hub.onInbound({ chatId: 'held-chat', chatType: 'dm', userId: 'owner', text: 'write a post', messageId: 'held-1' }, { onSettled: s => settled.push(s) });
+    const s = settled[0], result = s && s.result, rec = result && rig.record(result.jobId);
+    A.ok(result && result.held === true && result.delivered === false && s.ok === false, 'the hub settles a held job as not delivered (its intake hears ok=false)');
+    A.eq([rec && rec.status, rec && rec.endedAt, rig.counts.finish, crates(rig), rig.shipped.length], ['held', null, 0, 0, 0], 'the hub: the job is held, never finished, nothing delivered');
+    A.ok(sent.length === 1 && /paused/.test(sent[0]) && /WORKFLOWS/.test(sent[0]) && sent[0].includes(result.jobId), 'the chat is told the job is held and where to decide: ' + String(sent[0]).slice(-200));
+    const c = rec && rec.continuation;
+    A.eq(c && c.origin, { kind: 'channel', instanceId: 'dev', chatId: 'held-chat', senderId: 'owner', chatType: 'dm', threadId: null, boundAgentId: null }, 'the hold names the chat it came from');
+    A.eq(c && [c.attempts.length === 2, Math.abs(c.accounting.entryUsd - 0.02) < 1e-9, c.accounting.dayReceipts.length, c.restriction.entryUntrusted, c.restriction.taints], [true, true, 0, false, []], 'the hub\'s entry run is the saved entry attempt; a trusted owner chat carries no taint');
+    // a FORWARDED message is a third party's words: the same walk is saved under the same taint the entry run started under
+    await hub.onInbound({ chatId: 'held-chat-2', chatType: 'dm', userId: 'owner', text: 'summarise this', messageId: 'held-2', forwarded: true }, { onSettled: x => settled.push(x) });
+    const f = settled[1] && settled[1].result, fc = f && rig.record(f.jobId).continuation;
+    A.eq(fc && [fc.restriction.entryUntrusted, fc.restriction.taints, fc.walk.product.taints], [true, ['forwarded message'], ['forwarded message']], 'a forwarded message is held under its entry taint, untrusted');
+  } finally { hub.close(); rig.dispose(); }
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });

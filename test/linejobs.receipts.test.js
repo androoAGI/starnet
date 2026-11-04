@@ -35,6 +35,7 @@ function allocated(run, setup) {
   const loadHost = () => {
     const context = { fs: proxy, path, WORKSPACES: dir, makeDomainStore, writeFileDurable: undefined, LineJobs: J, LineContinuation: C,
       LineEntryInvocation: require('../sidecar/routing/line-entry-invocation.js'),
+      LineEntryAdoption: require('../sidecar/routing/line-entry-adoption.js'), chainRunner: require('../sidecar/routing/chain.js').makeChainRunner({}),
       makeLineSpend: Spend.makeLineSpend, normalizeLineSpendLedger: Spend.normalizeLedger,
       decodeLineSpendEnvelope: Spend.decodeEnvelope, encodeLineSpendEnvelope: Spend.encodeEnvelope,
       crypto: { randomBytes: n => Buffer.alloc(n, 7) },

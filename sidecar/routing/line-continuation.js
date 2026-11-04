@@ -229,6 +229,10 @@ function demand(raw, job) {
   if (!r.ok) { const e = new Error(r.issue.message); e.code = 'ELINE_CONTINUATION_' + r.issue.code.toUpperCase(); throw e; }
   return r.value;
 }
+/* A refused decision keeps a receipt, but only the newest MAX_REFUSED stay: a person who is refused again and again (a UI or a script retrying
+   APPROVE with a new token) must never fill the receipt list, because a full list could not take the STOP that is never refused. */
+const MAX_REFUSED = 16;
+const droppedDecisions = (before, after) => before.decisions.filter(d => !after.decisions.some(x => x.token === d.token));
 function checkpoint(raw, job, expectedRevision, next, decisionWrite) {
   const before = raw === undefined ? null : demand(raw, job), after = demand(next, job);
   if (!uint(expectedRevision) || (before ? before.revision : 0) !== expectedRevision || after.revision !== expectedRevision + 1) throw new Error('line continuation revision conflict');
@@ -240,16 +244,17 @@ function checkpoint(raw, job, expectedRevision, next, decisionWrite) {
     for (const k of ['binding', 'origin', 'restriction']) if (!same(before[k], after[k])) throw new Error('line continuation admission cannot change');
     for (const k of ['maxHops', 'maxUsd', 'maxUsdPerDay']) if (before.accounting.limits[k] !== after.accounting.limits[k]) throw new Error('line continuation original spending ceilings cannot change');
     if (!same(before.walk.originalText, after.walk.originalText) || !same(before.walk.entryOutput, after.walk.entryOutput)) throw new Error('line continuation cannot replace its entry work');
-    if (after.attempts.length < before.attempts.length || after.decisions.length < before.decisions.length) throw new Error('line continuation cannot discard receipts');
+    if (after.attempts.length < before.attempts.length || droppedDecisions(before, after).some(d => d.state !== 'refused' || decisionWrite !== DECISION_WRITE)) throw new Error('line continuation cannot discard receipts');
     if (after.attempts.slice(before.attempts.length).some(a => a.state !== 'intent')) throw new Error('a new paid attempt needs its durable intent first');
-    if (after.decisions.length !== before.decisions.length && decisionWrite !== DECISION_WRITE) throw new Error('line decision receipts belong to claimDecision');
+    if (after.decisions.length !== before.decisions.length - droppedDecisions(before, after).length && decisionWrite !== DECISION_WRITE) throw new Error('line decision receipts belong to claimDecision');
     for (let i = 0; i < before.attempts.length; i++) {
       const a = before.attempts[i], b = after.attempts[i];
       if (a.state === 'observed' ? !same(a, b) : ['ordinal', 'runId', 'node', 'branchId', 'workitemId', 'inputDigest', 'at'].some(k => !same(a[k], b[k]))) throw new Error('line continuation cannot replace a paid attempt');
       if (a.usd !== null && (b.usd === null || b.usd < a.usd)) throw new Error('line continuation cannot erase an observed spend floor');
     }
-    for (let i = 0; i < before.decisions.length; i++) {
-      const a = before.decisions[i], b = after.decisions[i];
+    for (const a of before.decisions) {
+      const b = after.decisions.find(x => x.token === a.token);
+      if (!b) continue; // only a refused receipt may be compacted away (checked above)
       if (Object.keys(a).filter(k => k !== 'state').some(k => !same(a[k], b[k]))
         || (['complete', 'refused'].includes(a.state) && a.state !== b.state)
         || (a.state === 'adopted' && b.state === 'accepted')) throw new Error('line continuation cannot replace a decision receipt');
@@ -296,6 +301,15 @@ function claimDecision(raw, job, request) {
     hold: before.hold, workDigest: heldDigest(before) };
   const next = Object.assign({}, before, { revision: before.revision + 1, decisions: before.decisions.concat(receipt), activeDecision: r.token });
   return { continuation: checkpoint(before, job, before.revision, next, DECISION_WRITE), receipt, replayed: false };
+}
+/* Mark the claimed decision refused (the job stays held at the same gate) and drop all but the newest MAX_REFUSED refused receipts. */
+function refuseDecision(raw, job, token) {
+  const before = demand(raw, job);
+  const marked = before.decisions.map(x => x.token === token ? Object.assign({}, x, { state: 'refused' }) : x);
+  let extra = marked.filter(x => x.state === 'refused').length - MAX_REFUSED;
+  const decisions = marked.filter(x => !(x.state === 'refused' && x.token !== token && extra-- > 0));
+  const next = Object.assign({}, before, { revision: before.revision + 1, activeDecision: null, decisions });
+  return checkpoint(before, job, before.revision, next, DECISION_WRITE);
 }
 /* Private pre-entry receipts use the same bounded data vocabulary. They carry no
    execution permission: even a replayed intent must be reconciled by its eventual
@@ -369,5 +383,65 @@ function checkpointEntry(raw, job, expectedRevision, next) {
   if (!allowed[before.state].includes(after.state)) throw new Error('line entry state cannot advance that way');
   return { receipt: after, replayed: false };
 }
+function adoptableEntry(raw, job) {
+  const e = demandEntry(raw, job), o = e.observation;
+  if (e.state !== 'observed' || !o || o.usageMissing || o.outcome !== 'succeeded'
+    || e.files.length || o.files.length || o.product.files.length || !e.binding.entryNode.dockId) {
+    throw new Error('line entry adoption requires complete successful text-only evidence at its exact dock');
+  }
+  return e;
+}
+function entryAttempt(e) {
+  const o = e.observation;
+  return { ordinal: 1, runId: e.binding.entryRunId, node: e.binding.entryNode, branchId: null,
+    workitemId: e.binding.workitemId, state: 'observed', inputDigest: e.inputDigest,
+    outputDigest: o.outputDigest, usd: o.usd, usageMissing: false, outcome: o.outcome, at: e.at, endedAt: o.endedAt };
+}
+function inspectEntryPair(rawEntry, rawContinuation, job) {
+  const captured = capture({ entry: rawEntry, continuation: rawContinuation });
+  if (captured.readOnly) return { ok: false, readOnly: true, issue: captured.issue };
+  try {
+    const e = adoptableEntry(captured.value.entry, job), c = demand(captured.value.continuation, job), b = e.binding;
+    const expectedBinding = { jobId: b.jobId, lineId: b.lineId, intakeId: b.intakeId, streamId: b.streamId,
+      entryRunId: b.entryRunId, planHash: b.planHash, dockMode: true, entryNode: b.entryNode };
+    const receipt = { runId: b.entryRunId, day: Math.floor(e.observation.endedAt / 86400000), usd: e.observation.usd };
+    if (!sameEntryFact(c.binding, expectedBinding) || !sameEntryFact(c.origin, e.origin)
+      || !sameEntryFact(c.restriction, e.restriction) || !sameEntryFact(c.accounting.limits, e.limits)
+      || !sameEntryFact(c.attempts[0], entryAttempt(e)) || !sameEntryFact(c.walk.entryOutput, e.observation.product)
+      || c.walk.originalText !== e.input.text || c.accounting.entryUsd !== e.observation.usd
+      || !sameEntryFact(c.accounting.dayReceipts.find(r => r.runId === b.entryRunId), receipt)) {
+      throw new Error('line continuation no longer names its exact retained entry and original-day receipt');
+    }
+    return { ok: true, readOnly: false, entry: e, continuation: c, issue: null };
+  } catch (error) {
+    return { ok: false, readOnly: true, issue: problem('entry_pair', error.message) };
+  }
+}
+function demandEntryPair(entry, continuation, job) {
+  const p = inspectEntryPair(entry, continuation, job);
+  if (!p.ok) throw new Error(p.issue.message);
+  return p;
+}
+function seedEntryContinuation(raw, job, walk) {
+  const e = adoptableEntry(raw, job), b = e.binding, o = e.observation;
+  // The existing chain instance supplies this initial cursor. No caller-supplied
+  // resume cursor, branch flag, or bookkeeping bit is an execution permission.
+  if (!walk || !sameEntryFact(walk.current, b.entryNode) || !sameEntryFact(walk.product, o.product)
+    || !sameEntryFact(walk.entryOutput, o.product) || walk.originalText !== e.input.text
+    || walk.lastHanded !== o.product.draft || walk.producerVerdict !== o.product.verdict
+    || !sameEntryFact(walk.visited, [nodeId(b.entryNode)]) || walk.next !== null || walk.hop !== 0 || walk.loopHops !== 0
+    || !sameEntryFact(walk.gates, []) || !sameEntryFact(walk.openLoops, []) || walk.fromTile !== null || walk.via !== null
+    || walk.branchMode !== false || !sameEntryFact(walk.pending, []) || walk.forced !== null || walk.fan !== null
+    || walk.partial !== null || walk.unapproved !== null) throw new Error('line entry initializer is not the original straight-line cursor');
+  const c = { version: 1, revision: 1, phase: 'ready',
+    binding: { jobId: b.jobId, lineId: b.lineId, intakeId: b.intakeId, streamId: b.streamId,
+      entryRunId: b.entryRunId, planHash: b.planHash, dockMode: true, entryNode: b.entryNode },
+    origin: e.origin, restriction: e.restriction, walk, barriers: [],
+    accounting: { entryUsd: o.usd, hopUsd: 0, runIds: [b.entryRunId],
+      dayReceipts: [{ runId: b.entryRunId, day: Math.floor(o.endedAt / 86400000), usd: o.usd }], limits: e.limits },
+    attempts: [entryAttempt(e)], files: [], hold: null, decisions: [], activeDecision: null, terminal: null, publication: null };
+  return demandEntryPair(e, c, job).continuation;
+}
 module.exports = { inspect, demand, checkpoint, claimDecision, fileRef, inspectEntry, demandEntry, prepareEntry, checkpointEntry,
-  entryInputDigest, entryOutputDigest, MAX_BYTES, MAX_DEPTH, MAX_ATTEMPTS, MAX_PARTS, MAX_FILES };
+  adoptableEntry, inspectEntryPair, demandEntryPair, seedEntryContinuation,
+  refuseDecision, MAX_REFUSED, entryInputDigest, entryOutputDigest, MAX_BYTES, MAX_DEPTH, MAX_ATTEMPTS, MAX_PARTS, MAX_FILES };

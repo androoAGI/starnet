@@ -208,6 +208,9 @@ test/routing.handoff.e2e.test.js
 test/line-entry-parity.e2e.test.js
 test/line-postconditions.e2e.test.js
 test/line-entry.invocation.http.test.js
+test/line-hold.restart.http.test.js
+test/line-hold.e2e.http.test.js
+test/line-hold.wiring.http.test.js
 test/routing.saved-station-grants.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js

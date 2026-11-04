@@ -1787,7 +1787,7 @@ const Build = (() => {
   // latched, then Props, it painted every line outline and junction plate over the furnishing with no visible way off (wave 2, build-11)
   const altOn = () => altHeld || (altLatched && buildGroup === 'workflow');
   const placingProp = () => tool === 'prop' || !!hand;   // a piece is in hand — through the PROP tool or the hotbar
-  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide'];
+  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide', 'onSpent'];
   // an agent this station crews (a pipette or a copy may carry only these — an id from elsewhere is dropped)
   const agentHere = aid => !!aid && (((opts && typeof opts.agents === 'function' && opts.agents()) || []).some(a => a && a.id === aid));
   // what the pipette picks up: the type, its settings (passes, verdict, wait), its facing, and for a BAY its crew, role and brief
@@ -3840,7 +3840,7 @@ const Build = (() => {
   function loopRuleTxt(when, max) {
     const n = max || 5, passes = n + ' pass' + (n === 1 ? '' : 'es');
     if (when === 'approved' || when === 'revise') {
-      return 'goes round until the reviewer’s last line says VERDICT: ' + when + ' (the reviewer is told to end with one; no verdict = round again), or MAX PASSES (' + passes + ') — then leaves on DONE marked unapproved. VERDICT: blocked stops the job here.';
+      return 'goes round until the reviewer’s last line says VERDICT: ' + when + ' (the reviewer is told to end with one), or MAX PASSES (' + passes + ') — then leaves on DONE marked unapproved. VERDICT: blocked stops the job here, and so does a reply with no VERDICT line: the work is held for a person.';
     }
     if (when) return 'goes round again ONLY while the reviewer’s output reads as ' + when.toUpperCase() + ' work; anything else leaves on DONE. MAX PASSES (' + passes + ') ends it regardless.';
     return 'no verdict picked: every pass goes round until MAX PASSES (' + passes + ') is spent, then leaves on DONE.';

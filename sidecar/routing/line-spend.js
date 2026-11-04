@@ -224,10 +224,29 @@ function makeLineSpend(o) {
     }
     return spentToday(k);
   }
-  function noteReceipt(lineId, usd, observed) {
+  function observedReceipt(lineId, usd, observed) {
     if (!id(lineId) || !money(usd) || !plain(observed) || Object.keys(observed).length !== 3 || !['jobId', 'runId', 'endedAt'].every(k => owns(observed, k))
       || !jobId(observed.jobId) || !id(observed.runId) || !uint(observed.endedAt)) throw new Error('line-spend: invalid observed run receipt');
-    const receipt = { jobId: observed.jobId, runId: observed.runId, day: Math.floor(observed.endedAt / dayMs), usd };
+    return { jobId: observed.jobId, runId: observed.runId, day: Math.floor(observed.endedAt / dayMs), usd };
+  }
+  function receiptProof(lineId, usd, observed, ledgerId) {
+    const receipt = observedReceipt(lineId, usd, observed);
+    if (!envelope || !Accounting.validId(ledgerId) || pending) throw new Error('line-spend: exact receipt proof requires settled canonical enrollment');
+    // Read only: never flush/recreate a missing receipt that a saved job already
+    // vouched. A retained bucket amount cannot prove this particular payment.
+    const loaded = canonical(), enrollment = Accounting.demand(loaded.value, 'ledger');
+    if (loaded.status !== 'ok' || !enrollment || enrollment.state !== 'confirmed' || enrollment.ledgerId !== ledgerId) {
+      throw new Error('line-spend: exact receipt has no matching canonical primary enrollment');
+    }
+    for (const line of Object.keys(loaded.value.lines)) for (const prior of (loaded.value.lines[line].receipts || [])) {
+      if (prior.runId !== receipt.runId) continue;
+      if (line !== lineId || !same(prior, receipt)) throw new Error('line-spend: exact receipt conflicts with its original line, job, run, day or amount');
+      return { confirmed: true, receipt: Object.assign({}, prior) };
+    }
+    return { confirmed: false, status: 'missing', receipt: null };
+  }
+  function noteReceipt(lineId, usd, observed) {
+    const receipt = observedReceipt(lineId, usd, observed);
     let verified = false;
     try {
       if (pending) flush();
@@ -270,7 +289,7 @@ function makeLineSpend(o) {
     begin(table, Accounting.put(table, enrollment));
     return { enrollment: Accounting.demand(table, 'ledger'), replayed: false };
   }
-  return { spentToday, note, snapshot, clean, assertWritable, accountingProof, enrollAccounting,
+  return { spentToday, note, snapshot, clean, assertWritable, accountingProof, enrollAccounting, receiptProof,
     status: () => ({ confirmed: !pending && !issue, pending: !!pending, issue: issue || null }) };
 }
 

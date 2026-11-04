@@ -53,7 +53,8 @@ const stopChild = (child, graceful = false) => new Promise(resolve => {
 // given, then answers.
 // A refusal (no planId in the tool result) ends the run in words — the way a real model reads REFUSED.
 function startMock() {
-  const mock = { requests: [], results: [], planTool: 'station_plan', planArgs: {}, lookFirst: false, searched: [] };
+  // verdict: the VERDICT line a reviewer stage of the line under test ends its reply with (null: a reviewer that forgets it)
+  const mock = { requests: [], results: [], planTool: 'station_plan', planArgs: {}, lookFirst: false, searched: [], verdict: 'approved' };
   const server = http.createServer((req, res) => {
     if (req.url.indexOf('/models') >= 0) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -76,7 +77,7 @@ function startMock() {
         send({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 12, completion_tokens: 6, total_tokens: 18 } });
       };
       // a step of a line the lead is TESTING (station_test_line): the job, or the step before it, is in its user turn
-      if ((p.messages || []).some(m => m && m.role === 'user' && /TEST JOB:|LINE STEP DONE/.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))) { mock.lineSteps = (mock.lineSteps || 0) + 1; say('LINE STEP DONE: hello'); res.write('data: [DONE]\n\n'); return res.end(); }
+      if ((p.messages || []).some(m => m && m.role === 'user' && /TEST JOB:|LINE STEP DONE/.test(typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))) { mock.lineSteps = (mock.lineSteps || 0) + 1; say('LINE STEP DONE: hello' + (mock.verdict ? '\nVERDICT: ' + mock.verdict : '')); res.write('data: [DONE]\n\n'); return res.end(); }
       const pre = ['tool_search'].concat(mock.lookFirst ? ['station_map'] : []), seq = pre.length;   // tool calls before the plan
       if (offered && answered.length === 1) mock.searched.push({ result: answered[0], toolsAfter: null });
       if (offered && answered.length === 1 && mock.searched.length) mock.searched[mock.searched.length - 1].toolsAfter = (p.tools || []).map(t => t && t.function && t.function.name);
@@ -201,6 +202,29 @@ try {
   check('what the line delivered comes back fenced as data, not instructions', /\[BEGIN EXTERNAL WEB CONTENT — what the line SHIP IT delivered/.test(tl) && /LINE STEP DONE: hello/.test(tl), tl.slice(-240));
   const jobs = await fetch(base + '/api/line-jobs', { headers: { 'X-StarNet-Token': token, Origin: base } }).then(r => r.json()).catch(() => null);
   check('and the job is on record like any SEND A JOB', !!jobs && (jobs.jobs || []).some(j => j.name === 'SHIP IT' && j.status === 'delivered'), JSON.stringify(jobs || {}).slice(0, 240));
+
+  // 4b2. THE SAME LINE, A REVIEWER THAT FORGETS ITS VERDICT (line-hold lane): a verdict gate that gets no usable VERDICT line holds the work
+  // for a person at once, with nothing more bought, instead of looping its review tries and shipping the work unapproved. The lead's tool says
+  // so in words, the job is on record as HELD (not delivered, no end time), and a STOP is the person's answer.
+  mock.verdict = null;
+  const nRes2 = mock.results.length, steps1 = mock.lineSteps || 0;
+  const runH = await leadRun(base, token, 'test the SHIP IT line once more');
+  const th = mock.results[nRes2] || '';
+  let HJ = null; try { HJ = JSON.parse(th.split('\n')[0]); } catch (_) { HJ = null; }
+  check('a reviewer with no VERDICT line holds the work: station_test_line says it is held for a person, never delivered', runH.status === 200 && !!HJ && HJ.status !== 'delivered' && HJ.outcome === 'blocked' && /no usable VERDICT line/.test((HJ.stop && HJ.stop.why) || '') && /saved for a person to decide/.test(th), th.slice(0, 300));
+  check('and nothing was bought after the gate: the two stages ran once each, no review pass was repeated', (mock.lineSteps || 0) - steps1 === 2, String((mock.lineSteps || 0) - steps1));
+  const heldList = await fetch(base + '/api/line-jobs', { headers: { 'X-StarNet-Token': token, Origin: base } }).then(r => r.json()).catch(() => null);
+  const heldJob = ((heldList && heldList.jobs) || []).find(j => j.name === 'SHIP IT' && j.status === 'held');
+  check('and the job is on record as HELD: no end time, saved for a person to decide', !!heldJob && heldJob.endedAt == null, JSON.stringify(heldJob || heldList || {}).slice(0, 240));
+  const stopHeld = heldJob ? await fetch(base + '/api/line-jobs/' + heldJob.id, { method: 'DELETE', headers: { 'X-StarNet-Token': token, Origin: base } }).then(r => r.json()).catch(() => null) : null;
+  let afterStop = null;
+  for (let i = 0; heldJob && i < 30; i++) {
+    afterStop = await fetch(base + '/api/line-jobs/' + heldJob.id, { headers: { 'X-StarNet-Token': token, Origin: base } }).then(r => r.json()).catch(() => null);
+    if (afterStop && afterStop.job && afterStop.job.status === 'stopped') break;
+    await sleep(100);
+  }
+  check('a STOP is the person\'s answer: the held job ends stopped, and still nothing more was bought', !!stopHeld && stopHeld.stopRequested === true && !!afterStop && !!afterStop.job && afterStop.job.status === 'stopped' && (mock.lineSteps || 0) - steps1 === 2, JSON.stringify([stopHeld, afterStop && afterStop.job && afterStop.job.status]).slice(0, 300));
+  mock.verdict = 'approved';
 
   // 4c. WHAT STARTS A LINE (10-01): a schedule and a webhook through the panel's own cores, and a trigger turned off
   const api = (p, o) => fetch(base + p, Object.assign({ headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: base } }, o || {})).then(r => r.json()).catch(() => null);

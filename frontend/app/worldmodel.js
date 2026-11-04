@@ -147,6 +147,10 @@ const WorldModel = (() => {
     const done = cleanDir(src.done); if (done) dst.done = done;
     const esc = cleanDir(src.esc); if (esc) dst.esc = esc;   // LOOP escalation lane (2026-08-30)
     if (typeof src.when === 'string' && /^[A-Za-z0-9_.:-]{1,40}$/.test(src.when)) dst.when = src.when;
+    /* a LOOP gate's POLICY WHEN ITS PASSES RUN OUT (line-hold lane): 'hold' stops the job for a person, 'escalate' takes the escalation lane.
+       Only those two are ever stored — the default ('send': the work goes on marked unapproved) is the ABSENCE of the field, so a floor
+       that never said it saves, compiles and hashes exactly as it always did (pipeline.js reads `p.onSpent`) */
+    if (src.onSpent === 'hold' || src.onSpent === 'escalate') dst.onSpent = src.onSpent;
     if (src.divide === true) dst.divide = true;   // a SPLITTER that divides ONE job into parts (2026-10-10) — only ever true
     return dst;
   }
@@ -2315,7 +2319,7 @@ const WorldModel = (() => {
       const P = pipelineModule();
       if (!P || typeof P.deriveLinks !== 'function') return fail('NO_COMPILER', 'the line compiler is not loaded');
       const ov = (opts && typeof opts === 'object') ? opts : {};
-      const CFG = ['routes', 'def', 'bufferSize', 'timeoutMin', 'maxIter', 'done', 'esc', 'when', 'divide'];
+      const CFG = ['routes', 'def', 'bufferSize', 'timeoutMin', 'maxIter', 'done', 'esc', 'when', 'divide', 'onSpent'];
       const nodes = bp.props.map((sp, i) => {
         const n = { id: 'b' + i, t: sp.t, w: sp.w || 1, h: sp.h || 1 };
         if (sp.block === false) n.block = false;
@@ -3274,7 +3278,7 @@ const WorldModel = (() => {
        link's id), and a FILTER's EVERYTHING ELSE lane / a LOOP's DONE lane is the lane the belt already runs on, so the
        line keeps flowing exactly as before (a filter with no default lane is a finding). `o.cfg` = settings carried in
        hand (a pipette / a copy): passes, verdict, wait — never a compass lane from somewhere else. One undo. */
-    const HAND_CFG = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide'];   // (+divide: a SPLIT THE JOB splitter picked up keeps dividing — applyJunctionCfg writes it only when literally true)
+    const HAND_CFG = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide', 'onSpent'];   // (+divide: a SPLIT THE JOB splitter picked up keeps dividing — applyJunctionCfg writes it only when literally true)
     function junctionOnBelt(x, y, t, o) {
       if (!JUNCTION[t]) return fail('NOT_JUNCTION', 'only a 1×1 junction goes on a belt');
       const no = junctionOnBeltRefusal(x, y);
@@ -4267,7 +4271,7 @@ const WorldModel = (() => {
         if (p.t === 'intake' && validLineId(p.lineId)) lp.lineId = p.lineId;
         if (p.limits) lp.limits = p.limits;   // an INTAKE's LINE BUDGET -> the compiled plan (pipeline normalizes; chain executor reads)
         if (p.routes) lp.routes = p.routes; if (p.def) lp.def = p.def; if (p.bufferSize) lp.bufferSize = p.bufferSize;   // junction config -> the bake/pipeline
-        if (p.timeoutMin) lp.timeoutMin = p.timeoutMin; if (p.maxIter) lp.maxIter = p.maxIter; if (p.done) lp.done = p.done; if (p.when) lp.when = p.when;   // joiner / loop gate config
+        if (p.timeoutMin) lp.timeoutMin = p.timeoutMin; if (p.maxIter) lp.maxIter = p.maxIter; if (p.done) lp.done = p.done; if (p.when) lp.when = p.when; if (p.onSpent) lp.onSpent = p.onSpent;   // joiner / loop gate config (onSpent: the gate's policy when its passes run out)
         if (p.divide) lp.divide = true;   // a SPLITTER's SPLIT THE JOB mode -> the compiler (meaningful only with a JOINER downstream)
         if (p.door) lp.door = p.door;   // an AIRLOCK's seal state -> the prop sprite's status light / jam spark
         if (p.connectorId) lp.connectorId = p.connectorId;   // a CONNECTOR PORTAL's bound server -> live state + firing pulse on the sprite
@@ -4618,7 +4622,7 @@ const WorldModel = (() => {
       if (!p) return fail('NOT_FOUND', 'no such prop');
       const linkedNow = Array.isArray(currentLinks());
       snapshot();
-      delete p.routes; delete p.def; delete p.bufferSize; delete p.timeoutMin; delete p.maxIter; delete p.done; delete p.when;   // replace wholesale
+      delete p.routes; delete p.def; delete p.bufferSize; delete p.timeoutMin; delete p.maxIter; delete p.done; delete p.when; delete p.onSpent;   // replace wholesale (a save that wants the gate's policy names it: the panel and the station designer do)
       if (cfg) applyJunctionCfg(p, cfg);
       // a linked floor: the junction's out-links carry what the new config routes down their lanes (links are what the
       // compiler reads — a route set in the panel must land on the link it names)
@@ -4627,7 +4631,7 @@ const WorldModel = (() => {
         if (lanes.length) doc.links = doc.links.map(l => { const o = lanes.find(q => q.link === l); return o ? Object.assign({}, l, { from: junctionPort(p, o.dir) }) : l; });
       }
       emit([{ x1: p.x, y1: p.y, x2: p.x + (p.w || 1) - 1, y2: p.y + (p.h || 1) - 1 }], { staticBakeUnchanged: true });
-      return { ok: true, id: propId, routes: p.routes || null, def: p.def || null, bufferSize: p.bufferSize || null, timeoutMin: p.timeoutMin || null, maxIter: p.maxIter || null, done: p.done || null, when: p.when || null };
+      return { ok: true, id: propId, routes: p.routes || null, def: p.def || null, bufferSize: p.bufferSize || null, timeoutMin: p.timeoutMin || null, maxIter: p.maxIter || null, done: p.done || null, when: p.when || null, onSpent: p.onSpent || null };
     }
     // bind/clear the connectorId on a CONNECTOR PORTAL — WHICH MCP server this gateway grants (per-instance).
     // A blank id unbinds (the portal grants nothing until bound; bayObjects emits it only when bound). Mirrors

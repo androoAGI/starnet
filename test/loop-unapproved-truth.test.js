@@ -7,13 +7,18 @@
      SHIPPED   — the receipt refuses it: SHIPPED counts clean work only, and an unapproved job is not (it is still delivered);
      SEND TO   — still handed on (the LOOP sends it on), but the frame the next line reads and its job record say it came unapproved;
      RECORD    — the job record keeps `unapproved`; the route, hub, trigger and station.test_line carry it.
+   LINE-HOLD S2 draws the line between the two truths (marked "S2" below): work that WENT ON unapproved says so everywhere above, and now also
+   when a gate's escalation lane ends the crate at an OUTBOX (onSpent 'escalate'); work that did NOT go on — held for a reviewer's BLOCKED, for
+   no usable verdict, or by a gate set to hold when its passes run out — is not "unapproved", because nothing was delivered, SENT or counted.
+   The subject is built through test/helpers/line-hold-control.js: LINE_HOLD_CONTROL=original makes it the saved 5977d433c source and the S2
+   block must go RED there (a silent reviewer used to read as 'revise' and ship unapproved after five paid passes).
    Fake harness, fake clock — no provider. */
 'use strict';
 const { readSidecarSource } = require('./helpers/source');
 const fs = require('node:fs');
 const path = require('node:path');
 const A = require('./_assert.js');
-const { makeChainRunner, loopDecision } = require('../sidecar/routing/chain.js');
+const { makeChainRunner, loopDecision } = require('./helpers/line-hold-control.js').pick().chain;
 const { makeRouter } = require('../sidecar/routing/router.js');
 const { makeLineShipments } = require('../sidecar/routing/line-shipments.js');
 const { makeHandoffRunner } = require('../sidecar/routing/handoff-runner.js');
@@ -45,8 +50,8 @@ const NEVER = { drafter: { text: 'another draft', usd: 0.01 }, reviewer: { text:
 const APPROVES = { drafter: { text: 'another draft', usd: 0.01 }, reviewer: { text: 'good\nVERDICT: approved', usd: 0.01 }, publisher: { text: 'published', usd: 0.01 } };
 
 // dock mode, the partial-join test's rig: the OUTBOX the job lands in is known, so the line-output event can fire
-async function dockRun(script) {
-  const plan = P.compileRoutingPlan(loopFloor({ id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 })), router = makeRouter();
+async function dockRun(script, floorOverride) {
+  const plan = P.compileRoutingPlan(floorOverride || loopFloor({ id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 })), router = makeRouter();
   A.ok(router.setPlan(plan).ok, 'fixture: the loop-to-OUTBOX floor deploys');
   const lineId = router.lineOriginFor('drafter', 'p2');
   const events = [], shipped = [];
@@ -99,6 +104,32 @@ async function publisherRun(script) {
     A.eq(pub.res.text, 'published', 'with a publisher on the DONE lane the delivered text carries no LOOP note…');
     A.ok(/used all 2 passes/.test(pub.res.unapproved || ''), '…so the job’s own mark is what says it went on unapproved');
     A.ok(!!pub.res.unapproved && pub.shipped.length === 1 && pub.shipped[0].unapproved === pub.res.unapproved, '…and the shipment record carries it');
+  }
+
+  /* ---------- S2: what WENT ON is unapproved; what was HELD went nowhere ---------- */
+  {
+    const outboxFloor = gate => { const g = loopFloor({ id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 }); Object.assign(g.props.find(p => p.t === 'loop'), { esc: 'S' }, gate || {}); g.props.push({ id: 'p7', t: 'outbox', x: 11, y: 7, w: 2, h: 2 }); g.belts.push(belt(12, 5, 'S'), belt(12, 6, 'S')); return g; };
+    const nothingWentOn = (r, label) => {
+      A.ok(typeof r.res.stopped === 'string' && r.res.blocked === r.res.stopped && r.res.stop && r.res.stop.code === 'blocked', label + ': stopped as a hold');
+      A.ok(!r.res.unapproved && !r.res.loopExhausted && r.res.outboxId === undefined, label + ': not "unapproved" — it did not go on, there is no OUTBOX');
+      A.ok(r.outputs.length === 0 && r.shipped.length === 0, label + ': no line-output, no SEND TO, no SHIPPED');
+    };
+    // a reviewer with no usable verdict (it used to read as 'revise': two paid passes, then delivered "unapproved")
+    const silent = await dockRun({ drafter: NEVER.drafter, publisher: NEVER.publisher, reviewer: { text: 'seems fine to me', usd: 0.01 } });
+    nothingWentOn(silent, 'S2 silent reviewer');
+    A.ok(silent.res.hold && silent.res.hold.reason === 'missing_verdict' && silent.res.hops.length === 0, 'S2 silent reviewer: held with its reason, no pass bought');
+    // a gate set to hold when its passes run out: the two passes were bought, the work is held, not sent on "unapproved"
+    const spent = await dockRun(NEVER, outboxFloor({ onSpent: 'hold' }));
+    nothingWentOn(spent, 'S2 spent gate, hold');
+    A.ok(spent.res.hold && spent.res.hold.reason === 'spent' && spent.res.hops.length === 4, 'S2 spent gate, hold: held on reason spent after its two passes');
+    // BLOCKED, as it was
+    nothingWentOn(await dockRun({ drafter: NEVER.drafter, publisher: NEVER.publisher, reviewer: { text: 'no\nVERDICT: blocked', usd: 0.01 } }), 'S2 blocked reviewer');
+    // an escalated crate that ENDS at an OUTBOX went on, to a human lane: unapproved on every surface the done lane's exhausted crate is
+    const esc = await dockRun(NEVER, outboxFloor({ onSpent: 'escalate' }));
+    A.ok(esc.res.stopped === null && esc.res.outboxId === 'p7' && esc.res.loopExhausted === true && /escalation OUTBOX unapproved/.test(esc.res.unapproved), 'S2 escalated to an OUTBOX: ends there, marked unapproved in words (' + esc.res.unapproved + ')');
+    A.ok(esc.outputs.length === 1 && esc.outputs[0].p.outboxId === 'p7' && esc.outputs[0].p.unapproved === esc.res.unapproved, 'S2 escalated to an OUTBOX: the line-output event names that OUTBOX and says unapproved');
+    A.ok(esc.shipped.length === 1 && esc.shipped[0].outboxId === 'p7' && esc.shipped[0].unapproved === esc.res.unapproved && !esc.shipped[0].partial, 'S2 escalated to an OUTBOX: SEND TO hears of it from THAT OUTBOX as UNAPPROVED');
+    A.eq(esc.res.hops.map(h => h.agentId), ['drafter', 'reviewer', 'drafter', 'reviewer'], 'S2 escalated to an OUTBOX: no agent was invented to run it');
   }
 
   /* ---------- SHIPPED: the receipt counts clean work only ---------- */

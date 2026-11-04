@@ -61,6 +61,23 @@ for (const api of [server, page.LineVerdict]) {
   A.ok(!api.isVerdictWord('blocked') && api.BLOCKED === 'blocked', 'BLOCKED is not a new gate key');
   A.eq(api.parseVerdict(null), null, 'non-text is no verdict');
 }
+/* S2 (line-hold): the HOLD's three reasons, their one-sentence wording and the reviewer's brief are the shared module's, said the same by the
+   page and the sidecar. The sidecar side is built through test/helpers/line-hold-control.js: LINE_HOLD_CONTROL=original makes it the saved
+   5977d433c source (one sentence for every hold, a brief promising "treated as revise") and these assertions must go RED there. */
+const heldSubject = require('./helpers/line-hold-control.js').pick().Verdict;
+for (const api of [heldSubject, page.LineVerdict]) {
+  A.eq(api.HOLD_REASONS, ['blocked', 'missing_verdict', 'spent'], 'the three reasons a hold has (line-continuation.js holdRecord)');
+  for (const why of ['blocked', 'missing_verdict', 'spent']) for (const gate of ['12,4', 'g1']) {
+    A.eq(api.heldWhy(gate, why), page.LineVerdict.heldWhy(gate, why), 'page and sidecar say the ' + why + ' hold alike: ' + gate);
+  }
+  A.eq(api.heldWhy('g1'), 'the reviewer at the gate g1 answered VERDICT: blocked, so the work is held there — not sent on, not shipped', 'the BLOCKED sentence is what every census pins, byte for byte');
+  A.ok(/gave no usable VERDICT line/.test(api.heldWhy('g1', 'missing_verdict')) && /used all its passes/.test(api.heldWhy('g1', 'spent')), 'the other two reasons say their own thing');
+  for (const when of ['approved', 'revise']) for (const handsOn of [true, false]) {
+    const brief = api.verdictBrief(when, handsOn);
+    A.eq(brief, page.LineVerdict.verdictBrief(when, handsOn), 'the brief is one text: ' + when + ', ' + handsOn);
+    A.ok(brief.length <= 600 && /A reply with no VERDICT line holds the work for a person\./.test(brief) && !/treated as/.test(brief), 'and it says what silence means, inside the 600 characters handoffPrompt keeps: ' + brief.length);
+  }
+}
 for (const entry of ['frontend/index.html', 'frontend/agent-station-demo.html']) {
   const html = read(entry);
   const before = html.indexOf('<script src="app/line-verdict.js">');

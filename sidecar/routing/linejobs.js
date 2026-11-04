@@ -27,6 +27,11 @@
    FAIR RETENTION: the store still keeps MAX_JOBS records in all, but the one that goes is the OLDEST FINISHED record of the line
    holding the most records — never a running or paused one — so one busy chat line cannot push every other line's history out.
 
+   A JOB HELD FOR A PERSON (line-hold lane): a walk that stopped at a reviewer's gate is status 'held' with its saved walk (the version 1
+   continuation). checkpoint writes it; claimDecision records ONE person's word on it (exactly-once: token + revision); refuseDecision marks a
+   claimed decision refused when the station's authority changed while it waited, with the reason on the record (resumeRefused) and the job
+   still held; boot turns a stage that was written down as an intent and never recorded into an UNCERTAIN attempt, which nothing runs.
+   list() keeps every held row beside its limit (a hold is the one record nobody else finds: the window's page of the newest 100 used to lose it).
    Pure: state in, state out ({ jobs: [...] }, newest last). The sidecar persists it (makeDomainStore → line-jobs.json). */
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
@@ -39,6 +44,7 @@ const MAX_JOBS = 120;       // newest kept; an older record drops off (its runs 
 const MAX_TEXT = 2000;       // the job as sent (the route reads at most 2000 characters)
 const MAX_OUTPUT = 12000;    // what the line delivered
 const MAX_RUNS = 40;
+const MAX_HELD = 40;        // jobs waiting for a person at once: a held job carries its whole saved walk and is never trimmed, so the count is bounded
 const MAX_NOTES = 12;
 const MAX_NOTE = 2000;
 const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });
@@ -131,6 +137,20 @@ function normJob(j) {
       job.status = 'held'; job.outcome = 'blocked'; job.endedAt = null;
       job.stop = { code: 'blocked', why: c.value.hold.why };
       job.error = c.value.hold.why;
+      /* A PARKED job still shows what it cost and which stages ran (line-hold lane, S3): the spend and the stage list are read from the
+         saved continuation itself — derived, so a reload or a boot can never drift from it. It shows NO output: nothing was delivered, and
+         the draft under review is the continuation's to show (a list row never carries it: test/linejobs.continuation.test.js) */
+      const v = c.value;
+      job.usd = num(v.accounting.entryUsd + v.accounting.hopUsd);
+      job.runs = v.attempts.slice().reverse().map(a => normRun({ runId: a.runId, agentId: a.node.agentId, dockId: a.node.dockId,
+        reason: RunOutcome.reasonOf({ outcome: a.outcome }), usd: a.usd, outcome: a.outcome })).filter(Boolean).slice(0, MAX_RUNS);
+      job.output = '';
+      /* (line-hold lane, S4) the reason the station refused the person's LAST decision on this hold (authority changed while it waited):
+         kept only while that refused decision is still the last word on the hold, so a newer claim, an adoption or the end clears it */
+      const last = v.decisions[v.decisions.length - 1], rr = j.resumeRefused;
+      if (rr && typeof rr === 'object' && last && last.state === 'refused' && last.token === rr.token && v.activeDecision === null) {
+        job.resumeRefused = { token: last.token, action: last.action, why: str(rr.why, 400), at: num(rr.at) };
+      }
     } else if (job.status === 'held' || (!c.ok && job.status === 'running')) {
       job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
       job.error = c.ok ? 'saved human hold has no held checkpoint' : c.issue.message;
@@ -149,11 +169,19 @@ function normJob(j) {
       job.error = why; job.stop = { code: 'restart', why };
     }
   }
+  if (owns(j, 'entryAdmission') && owns(j, 'continuation')) {
+    const p = Continuation.inspectEntryPair(job.entryAdmission, job.continuation, job);
+    if (!p.ok) {
+      job.entryIssue = { code: p.issue.code, message: p.issue.message, readOnly: true };
+      job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
+      job.error = p.issue.message; job.stop = { code: 'restart', why: p.issue.message };
+    }
+  }
   return job;
 }
 function pendingContinuation(j) {
-  // Entry retirement/adoption is a later proved operation, never ordinary retention.
-  if (owns(j, 'entryAdmission')) return true;
+  if (owns(j, 'entryAdmission') && (!owns(j, 'continuation')
+    || !Continuation.inspectEntryPair(j.entryAdmission, j.continuation, j).ok)) return true;
   if (!owns(j, 'continuation')) return false;
   const c = Continuation.inspect(j.continuation, j);
   return !c.ok || c.value.phase !== 'complete' || j.endedAt == null;
@@ -165,7 +193,9 @@ function writable(state) {
     e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
   }
   for (const j of ((state && Array.isArray(state.jobs)) ? state.jobs : [])) {
-    if (owns(j, 'entryAdmission') && (owns(j, 'continuation') || Continuation.inspectEntry(j.entryAdmission, j).readOnly)) {
+    if (owns(j, 'entryAdmission') && (owns(j, 'continuation')
+      ? !Continuation.inspectEntryPair(j.entryAdmission, j.continuation, j).ok
+      : Continuation.inspectEntry(j.entryAdmission, j).readOnly)) {
       const e = new Error('line-jobs: entry authority cannot be rewritten or adopted by this operation; original store must be preserved');
       e.code = 'ELINE_ENTRY_READONLY'; throw e;
     }
@@ -254,7 +284,7 @@ function finish(state, id, o) {
   writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
-  if (owns(state.jobs[i], 'entryAdmission')) throw new Error('line entry must settle through its private receipt owner');
+  if (owns(state.jobs[i], 'entryAdmission') && !owns(state.jobs[i], 'continuation')) throw new Error('line entry must settle through its private receipt owner');
   if (owns(state.jobs[i], 'continuation')) {
     const c = Continuation.inspect(state.jobs[i].continuation, state.jobs[i]);
     if (!c.ok || !['terminal_pending', 'complete'].includes(c.value.phase)) throw new Error('line continuation must finish through its checkpoint owner');
@@ -334,7 +364,7 @@ function boot(state, at, ownedIds) {
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
     if (ownedIds && !ownedIds.has(j.id)) return j;
-    if (owns(j, 'entryAdmission')) {
+    if (owns(j, 'entryAdmission') && !owns(j, 'continuation')) {
       const e = Continuation.inspectEntry(j.entryAdmission, j);
       if (!e.ok || e.value.state === 'uncertain') return j;
       entryEnrollment(state, e.value);
@@ -354,7 +384,18 @@ function boot(state, at, ownedIds) {
     changed = true;
     const continued = owns(j, 'continuation');
     const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
-    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why });
+    /* (line-hold lane, S4) a resumed job's stage was written down as an INTENT before it was bought. If the station died before its result
+       was written, whether it was bought is not known: the saved attempt turns UNCERTAIN, the one phase nothing runs from (a person
+       reconciles it), so the same stage is never paid for twice. An invalid or any other saved walk is left exactly as it is. */
+    let carried = null;
+    if (continued) {
+      const c = Continuation.inspect(j.continuation, j);
+      if (c.ok && c.value.phase === 'intent') {
+        try { carried = Continuation.checkpoint(c.value, j, c.value.revision, Object.assign({}, c.value, { revision: c.value.revision + 1, phase: 'uncertain' })); }
+        catch (e) { carried = null; }
+      }
+    }
+    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why }, carried ? { continuation: carried } : null);
   });
   return { state: withJobs(state, jobs), changed };
 }
@@ -373,6 +414,14 @@ function summary(j) {
     const c = Continuation.inspect(j.continuation, j);
     s.continuation = c.ok ? { version: c.value.version, revision: c.value.revision, phase: c.value.phase }
       : { issue: c.issue.code, message: c.issue.message, readOnly: c.readOnly };
+    // (line-hold lane) a parked job tells the window why it is held, where, and what a person may decide — bounded, never the work itself
+    if (c.ok && c.value.phase === 'held') {
+      const h = c.value.hold;
+      s.hold = { reason: h.reason, why: h.why, gateId: h.gateId, pass: h.pass, allowed: h.allowed.slice(), revision: c.value.revision };
+      if (j.resumeRefused) s.hold.refused = { action: j.resumeRefused.action, why: j.resumeRefused.why, at: j.resumeRefused.at };
+      const live = c.value.decisions.find(d => d.token === c.value.activeDecision);
+      if (live) s.hold.deciding = { action: live.action, state: live.state };   // a decision was recorded and is not carried out yet
+    }
   }
   return s;
 }
@@ -385,11 +434,19 @@ function list(state, o) {
   const limit = Math.max(1, Math.min(100, Number(o.limit) || 30));
   const out = [];
   const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
-  for (let i = jobs.length - 1; i >= 0 && out.length < limit; i--) {
-    const j = jobs[i];
+  /* A JOB WAITING FOR A PERSON IS NEVER CUT FROM A PAGE (line-hold lane). A hold is kept until somebody decides it, and this list is the
+     only place a person finds it (the WORKFLOWS window reads GET /api/line-jobs?limit=100): the newest `limit` rows dropped it after that
+     many later jobs, and the work was stranded with nobody able to approve, send back or stop it. Held rows ride BESIDE the limit —
+     every one that matches the filters, newest first among the rest — and ordinary rows are bounded exactly as they were. The filters
+     still apply: an exact identity read (a stream, a run) never gains a hold that is not that identity. */
+  let ordinary = 0;
+  for (let i = jobs.length - 1; i >= 0; i--) {
+    const j = jobs[i], held = j.status === 'held';
+    if (!held && ordinary >= limit) continue;
     if (line && j.line !== line) continue;
     if (stream && j.streamId !== stream) continue;
     if (hasRun && !j.runs.some(r => r.runId === runId)) continue;
+    if (!held) ordinary++;
     out.push(summary(j));
   }
   return out;
@@ -404,10 +461,16 @@ function checkpoint(state, id, expectedRevision, next) {
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
   const prior = state.jobs[i];
-  if (owns(prior, 'entryAdmission')) throw new Error('entry-to-continuation adoption is not implemented; no cost or execution authority may be inferred');
+  if (owns(prior, 'entryAdmission') && !owns(prior, 'continuation')) throw new Error('entry adoption belongs to its private receipt owner');
   if (!owns(prior, 'continuation') && prior.status !== 'running') throw new Error('a settled or paused job cannot acquire a review continuation');
   const c = Continuation.checkpoint(owns(prior, 'continuation') ? prior.continuation : undefined, prior, expectedRevision, next);
+  if (owns(prior, 'entryAdmission')) Continuation.demandEntryPair(prior.entryAdmission, c, prior);
   if (prior.endedAt == null && (c.phase === 'complete' || (c.publication && c.publication.state === 'confirmed'))) throw new Error('line publication requires an accepted terminal job first');
+  // a job that parks for a person is kept until someone decides it (retain never trims it): past MAX_HELD the next one is refused here and
+  // its line ends the way it always did, the reason said — a flaky reviewer cannot grow the saved store without bound
+  if (!owns(prior, 'continuation') && c.phase === 'held' && state.jobs.filter(j => j.status === 'held').length >= MAX_HELD) {
+    throw new Error('line-jobs: ' + MAX_HELD + ' jobs are already waiting for a decision, so this one cannot be held');
+  }
   const uncertain = c.phase === 'uncertain';
   const why = uncertain ? 'a saved attempt has no confirmed terminal receipt; reconcile it before continuing' : '';
   const projection = prior.endedAt != null ? {} : { endedAt: null,
@@ -430,6 +493,25 @@ function claimDecision(state, id, request) {
   const job = normJob(Object.assign({}, prior, { continuation: r.continuation }));
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: withJobs(state, jobs), job, receipt: r.receipt, replayed: false };
+}
+/* The station REFUSED a person's decision after claiming it (line-hold lane, S4): the floor, E-STOP, a cap or a file the work carries
+   changed while the job waited. The claimed decision is marked refused (nothing was bought, the job stays HELD at the same gate) and the
+   reason rides on the record, so the window says why and a LATER, new decision is the only way on: clearing the cause never approves
+   anything. request: { token, why, at }. A refusal already recorded for that token is a replay and writes nothing. */
+function refuseDecision(state, id, request) {
+  writable(state);
+  const i = idx(state, id), r = request || {};
+  if (i < 0) return { state, job: null };
+  const prior = state.jobs[i];
+  if (!owns(prior, 'continuation')) throw new Error('job has no saved review checkpoint');
+  const before = Continuation.demand(prior.continuation, prior), d = before.decisions.find(x => x.token === r.token);
+  if (!d) throw new Error('no such line decision');
+  if (d.state === 'refused') return { state, job: prior, receipt: d, replayed: true };
+  if (before.phase !== 'held' || before.activeDecision !== d.token || d.state !== 'accepted') throw new Error('only the claimed decision on a held job can be refused');
+  const c = Continuation.refuseDecision(before, prior, d.token);
+  const job = normJob(Object.assign({}, prior, { continuation: c, resumeRefused: { token: d.token, action: d.action, why: str(r.why, 400), at: num(r.at) } }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: withJobs(state, jobs), job, receipt: c.decisions.find(x => x.token === d.token), replayed: false };
 }
 
 function entryEnrollment(state, receipt) {
@@ -462,12 +544,32 @@ function checkpointEntry(state, id, expectedRevision, next) {
     return Continuation.checkpointEntry(prior.entryAdmission, prior, expectedRevision, next);
   });
 }
+function adoptEntry(state, id, expectedRevision, continuation) {
+  writable(state);
+  const i = idx(state, id), prior = i < 0 ? null : state.jobs[i];
+  if (!prior || !owns(prior, 'entryAdmission')) throw new Error('line adoption has no existing entry receipt');
+  const entry = Continuation.adoptableEntry(prior.entryAdmission, prior);
+  entryEnrollment(state, entry);
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== entry.revision) throw new Error('line adoption entry revision conflict');
+  const c = Continuation.demandEntryPair(entry, continuation, prior).continuation;
+  const initial = Continuation.seedEntryContinuation(entry, prior, c.walk);
+  if (JSON.stringify(c) !== JSON.stringify(initial)) throw new Error('line adoption requires the exact original initial continuation');
+  if (owns(prior, 'continuation')) {
+    if (JSON.stringify(prior.continuation) !== JSON.stringify(c)) throw new Error('line adoption cannot replace its saved continuation');
+    return { state, job: prior, replayed: true };
+  }
+  if (prior.endedAt != null || !['running', 'interrupted'].includes(prior.status)
+    || c.revision !== 1 || c.phase !== 'ready') throw new Error('line adoption cannot reopen a settled job or invent a progressed cursor');
+  const job = normJob(Object.assign({}, prior, { continuation: c, status: 'running', outcome: 'running', endedAt: null, stop: null, error: '' }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: withJobs(state, jobs), job, replayed: false };
+}
 function entryBootPending(job) {
   if (!owns(job, 'entryAdmission')) return false;
   const e = Continuation.inspectEntry(job.entryAdmission, job);
   return e.ok && e.value.state === 'intent';
 }
 
-module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
-  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending,
-  MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };
+module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, refuseDecision, assertWritable: writable,
+  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending, adoptEntry,
+  MAX_JOBS, MAX_HELD, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

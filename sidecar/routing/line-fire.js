@@ -10,7 +10,8 @@
         code from RunOutcome.LINE_STOPS and says it in the ONE sentence made here — chain.js's walk (out.stop beside the legacy
         out.stopped words), the step-through test (session.stop), and the entries that settle a job. facts: { agent (who the stop is
         about, as the surface names it: an agent id on the chain, a display name in the step test), error (that stage's own words),
-        target, maxHops, maxUsd, maxUsdPerDay, join, loop (the gate a hold is at), barrier ('fanout' | 'join'), partial, handOn (the
+        target, maxHops, maxUsd, maxUsdPerDay, join, loop (the gate a hold is at) and reason (why it holds: blocked | missing_verdict |
+        spent), barrier ('fanout' | 'join'), partial, handOn (the
         pre-hop empty crate), unarmed (no line is armed any more), why (a refusal's own words: refused, and not_steppable at start) }.
         Each code keeps the words its stop always had, except one: a stage that did not finish (cut short, a spending or step limit, a
         question, interrupted, no end) reads '<agent> did not finish: <why>', never '<agent> failed' (a limit is not a failure).
@@ -63,7 +64,7 @@ const STOP_WORDS = Object.freeze({
   joiner_lost: f => 'the joiner at ' + String(f.join || 'the join') + ' lost its branches',
   stopped: f => (f.agent ? named(f) + ' was stopped' : 'stopped'),
   station_fault: f => (f.agent ? named(f) + ' failed: ' : '') + String(f.error || 'the station hit an internal fault and stopped this run'),
-  blocked: f => Verdict.heldWhy(f.loop),
+  blocked: f => Verdict.heldWhy(f.loop, f.reason),   // reason: 'blocked' (default) | 'missing_verdict' | 'spent' — the three a hold has
   // the step-through test carries one crate at a time (its own refusal at START says it in the compiled topology's words: f.why)
   not_steppable: f => (f.why ? String(f.why) : f.barrier === 'join'
     ? 'this line meets a joiner here — the step-through test carries one crate at a time, so it stops before the join (use SEND A REAL JOB to prove a joined line)'
@@ -97,6 +98,10 @@ function hopStop(r, facts) {
 function lineStopNote(res) {
   if (!res || !res.stopped) return '';
   const why = res.stop && typeof res.stop.why === 'string' ? res.stop.why : String(res.stopped);
+  /* A HELD JOB (line-hold lane, S3): the walk parked at a gate and its job is saved as held (line-runner.js sets res.held after the
+     verified write). It says so, and where the person decides: the job in WORKFLOWS. A hold that could not be saved says why in `why`
+     itself (res.stop.why, the terminal stop's own sentence) and reads as every other early stop. */
+  if (res.held && typeof res.held === 'object') return '\n\n⏸ the work line paused — ' + why + '. It is saved for a person to decide: open ' + (res.held.jobId ? 'job ' + String(res.held.jobId) + ' ' : 'the job ') + 'in WORKFLOWS.';
   // a line SOMEONE STOPPED (res.halted / code 'stopped', routing/chain.js) is said as a stop, never as a stage that failed (review r7)
   if (res.halted || (res.stop && res.stop.code === 'stopped')) return '\n\n■ the work line was stopped before it finished' + (why !== 'stopped' ? ' — ' + why : '') + '.';
   return '\n\n⚠ the work line stopped early — ' + why + '.';

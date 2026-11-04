@@ -33,6 +33,9 @@ const { note: failNote } = require('../failopen.js');   // tagged fail-open: a s
 const LineFire = require('./line-fire.js');   // the stop note's ONE wording (the routine paths fold a line the same way)
 const { withoutHostNotes } = require('../projectbless.js');   // #81: the host's note to the person is not a stage's work
 const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser + reviewer brief)
+const Continuation = require('./line-continuation.js');
+const RunOutcome = require('../../frontend/app/runoutcome.js');   // a hop's outcome word, for the per-hop evidence a hold saves
+const crypto = require('node:crypto');
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
 // normalizer's defaults (Pipeline.LINE_LIMIT_DEFAULTS) so the compiler and the executor can never disagree.
@@ -56,6 +59,19 @@ function nodeKey(x) {
 }
 // an event payload plus the additive dockId when the stage has one (never a key with an undefined value)
 function withDock(payload, dockId) { if (dockId) payload.dockId = dockId; return payload; }
+/* BRANCH IDS (line-hold lane, S5): the branches of one fan-out are named by the node each starts at (the dock; the agent when the walk is
+   agent-keyed). Two branches that start at the same node get a numbered second name, so a saved split can always tell them apart.
+   Every stage a branch runs is tied to its branch's id (attempts, parked parts), whatever node it runs at. */
+function branchIdsOf(nodes) {
+  const seen = new Set();
+  return nodes.map(n => { const base = nodeKey(n) || 'branch'; let id = base, i = 1; while (seen.has(id)) id = base + ':' + (++i); seen.add(id); return id; });
+}
+const VERDICT_SET = new Set(['approved', 'revise', 'blocked']);
+// what a barrier keeps of a part beyond its agent, text and crate id (barrier.deliver's meta): the branch it came from, the run that made it, the draft that run was handed, its verdict and files
+const PART_META = ['branchId', 'runId', 'draft', 'verdict', 'files'];
+// one digest of what a stage was handed / what it handed back (the evidence a hold saves; line-hold.js reads it, nothing recomputes it)
+const sha = v => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
+const uint = n => (typeof n === 'number' && isFinite(n) && n >= 0) ? Math.floor(n) : 0;
 
 /* effectiveLimits(seed, lineLimits(lineId), runnerDefaults) -> { maxHops, maxUsd, maxUsdPerDay, clamped[] }.
    PRECEDENCE (narrowest, most explicit first): seed.limits (a caller that already resolved the line's budget)
@@ -87,15 +103,20 @@ function effectiveLimits(raw, fallback, poolCap) {
    (routing/steptest.js) runs one dock at a time on the SAME decisions, never a second dialect of them.
    advance() calls each exactly where its inline code used to sit; behaviour is byte-for-byte unchanged. */
 
-/* loopDecision(step, ctx, n, visited, text) -> { again, target, text, exhausted, why? } — THE ONE LOOP RULE
+/* loopDecision(step, ctx, n, visited, text) -> { again, target, text, exhausted, why?, outboxId? } — THE ONE LOOP RULE
    (2026-08-22, matches the LOOP card word for word):
-     when = a VERDICT word   -> the crate goes BACK while the reviewer's verdict is NOT that word
-                                (no verdict line = not that word); leaves on DONE the moment it is;
-     when = a classifier tag -> goes back while the output still READS as that kind of work;
+     when = a VERDICT word   -> the crate goes BACK while the reviewer's verdict is NOT that word (a VERDICT: revise);
+                                leaves on DONE the moment it is. A reply the gate cannot read — VERDICT: blocked, or NO usable
+                                verdict (none, empty, a word the channel does not know) — HOLDS the job for a person instead:
+                                { held: true, reason: 'blocked' | 'missing_verdict' | 'spent', gateId, pass, why }, zero spend,
+                                never another paid pass, never the done lane, never the escalation lane (line-hold lane, S2);
+     when = a classifier tag -> goes back while the output still READS as that kind of work (a tag gate reads no verdict: unchanged);
      no when                 -> every pass goes back;
    and in every case MAX PASSES ends it on DONE. A `when` still unmet when the passes ran out marks the
    done-lane handoff EXHAUSTED so the downstream stage knows nobody approved it (and `why` says so in words for the job's own
-   out.unapproved — GitHub #122). `n` = passes already taken
+   out.unapproved — GitHub #122), unless the gate's compiled `onSpent` policy says otherwise: 'send' (the default, all of the
+   above), 'hold' (hold with reason 'spent') or 'escalate' (the escalation lane: a dock, or an OUTBOX the lane only reaches —
+   step.escOutbox, where the crate ENDS marked unapproved; with no lane to take, hold). `n` = passes already taken
    round this gate; `text` = the output about to be handed on (returned annotated). Pure: mutates nothing.
    `reviewed` (token-burn audit 2026-10-17) = what the reviewing stage was HANDED. The writer used to see its own draft on a
    loop-back only because the resume seed replayed the line's whole transcript into every hop; hops no longer take that
@@ -204,18 +225,40 @@ function heldStop(gateAfter, agentId, lineId, dockId, verdict) {
   if (verdict !== Verdict.BLOCKED || typeof gateAfter !== 'function') return null;
   try {
     const g = dockId ? gateAfter(agentId, lineId, dockId) : gateAfter(agentId, lineId);
-    return (g && Verdict.isVerdictWord(g.when)) ? LineFire.lineStop('blocked', { loop: g.loop }) : null;
+    // gateId rides beside the typed stop so the walk can say WHICH gate it held at (out.hold), exactly as a gate decision does;
+    // `gate` is what the saved hold needs to know of it (its pass ceiling, whether a back lane exists to send the work round, and
+    // whether that lane re-enters the dock that just ran: the work a person approves is then the reviewer's own reply)
+    return (g && Verdict.isVerdictWord(g.when)) ? Object.assign(LineFire.lineStop('blocked', { loop: g.loop }),
+      { gateId: String(g.loop), gate: { id: String(g.loop), max: g.max, backTo: !!g.backTo, self: selfGate(g, agentId, dockId) } }) : null;
   } catch (e) { failNote('chain.held-by-brief', e); return null; }
 }
-// heldStop(...) -> the hold as its typed stop { code: 'blocked', why } (line-job-runner); heldByBrief(...) -> its words alone
+/* selfGate(gate, target, targetDock) -> does the gate's back lane re-enter the dock that just ran (a SELF-LOOP: the reviewer is the writer)?
+   The one test the verdict brief (bareApprovalHandsOn) and the hold's saved draft (heldStop) share; advance() reads the same fact off the
+   gate step it holds (`step.backTo` against the dock it is at). */
+function selfGate(g, target, targetDock) {
+  return !!g && ((g.backDock != null && targetDock != null) ? String(g.backDock) === String(targetDock)
+    : (g.backTo != null && String(g.backTo) === String(target)));
+}
+// heldStop(...) -> the hold as its typed stop { code: 'blocked', why, gateId } (line-job-runner); heldByBrief(...) -> its words alone
 function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) { const h = heldStop(gateAfter, agentId, lineId, dockId, verdict); return h ? h.why : null; }
+/* heldDecision(step, reason, n, text, exhausted) -> loopDecision's answer for a job that STOPS at the gate for a person: held, with
+   the reason (line-continuation.js holdRecord's three), the gate and the pass it stopped on, and the one sentence that says why. */
+function heldDecision(step, reason, n, text, exhausted) {
+  return { again: false, target: null, text, exhausted: !!exhausted, held: true, reason, gateId: String(step.loop), pass: n,
+    why: Verdict.heldWhy(step.loop, reason) };
+}
 function loopDecision(step, ctx, n, visited, text, reviewed) {
   const byVerdict = Verdict.isVerdictWord(step.when);
-  /* A REVIEWER'S VERDICT: blocked HOLDS the work at a verdict-keyed gate (typed-outcomes, GitHub #122): never 'revise' (another
-     paid pass), never the done lane or the escalation lane (work nobody approved moving on). held: the walk stops here, says
-     why, and spends nothing more; the durable hold and its resume are the line-hold lane's. */
-  if (byVerdict && ctx && ctx.verdict === Verdict.BLOCKED) {
-    return { again: false, target: null, text, exhausted: false, held: true, why: Verdict.heldWhy(step.loop) };
+  /* A VERDICT-KEYED GATE HOLDS WHAT IT CANNOT READ (typed-outcomes GitHub #122; line-hold lane S2). A reviewer's VERDICT: blocked
+     is a stop ('blocked'); so is a reply with NO usable verdict — none, empty, or a word the channel does not know
+     ('missing_verdict'): it used to read as 'revise', five paid passes round the gate and then the work shipped on unapproved.
+     Either way: never 'revise' (another paid pass), never the done lane or the escalation lane (work nobody approved moving on).
+     held: the walk stops here, says why, and spends nothing more; the durable hold and its resume are the line-hold lane's.
+     A tag-keyed gate reads no verdict: it is not asked. */
+  if (byVerdict) {
+    const v = ctx ? ctx.verdict : null;
+    if (v === Verdict.BLOCKED) return heldDecision(step, 'blocked', n, text, false);
+    if (Verdict.VERDICT_WORDS.indexOf(v) < 0) return heldDecision(step, 'missing_verdict', n, text, false);
   }
   const wants = !step.when ? true : byVerdict ? (ctx.verdict !== String(step.when).toLowerCase()) : (ctx.tag === step.when);
   const again = step.backTo && n < step.max && wants;
@@ -253,6 +296,12 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
        the job record read it, so work nobody approved is never delivered downstream as if it were (the flow itself is unchanged) */
     why = 'the review loop used all ' + n + ' pass' + (n === 1 ? '' : 'es')
       + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when);
+    /* THE GATE'S POLICY WHEN ITS PASSES RUN OUT (onSpent, compiled from the LOOP prop — pipeline.js; absent = 'send', everything
+       below as it always was): 'hold' stops the job here for a person, zero further spend ('spent'); 'escalate' takes the
+       escalation lane and, when that lane has nowhere to take the work (no esc lane, its dock already ran), holds rather than
+       send work nobody approved down the done lane — an operator who asked for escalation did not ask for that. */
+    const policy = (step.onSpent === 'hold' || step.onSpent === 'escalate') ? step.onSpent : 'send';
+    if (policy === 'hold') return heldDecision(step, 'spent', n, text, true);
     /* THE ESCALATION LANE (2026-08-30): a gate with a third wired lane sends verdict-exhausted
        work THERE — a fresh dock (the fixer, the human-facing summarizer) instead of an apology
        stapled to the done lane. The escalated dock is a real stage: its output continues down
@@ -264,6 +313,17 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
       out = '[LOOP — escalated: ' + n + ' pass' + (n === 1 ? '' : 'es') + ' round the gate at ' + step.loop
         + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when)
         + ' — handed to the escalation lane]\n' + workBlock + text;   // the fixer needs the work, not only the notes on it
+    } else if (policy === 'escalate') {
+      /* AN ESCALATION LANE THAT ONLY REACHES AN OUTBOX (step.escOutbox, pipeline.js): the escalated crate ENDS there — marked
+         unapproved, no dock invented to run it, and like any crate that ships straight out it keeps the reviewer's word (the draft
+         the reviewer may have redacted is never put back). A lane to nowhere is a hold, not the done lane. */
+      if (!step.escOutbox) return heldDecision(step, 'spent', n, text, true);
+      const outboxId = String(step.escOutbox);
+      why += ', so the work went to the escalation OUTBOX unapproved';
+      out = '[LOOP — escalated: ' + n + ' pass' + (n === 1 ? '' : 'es') + ' round the gate at ' + step.loop
+        + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when)
+        + ' — sent to the escalation OUTBOX unapproved]\n' + text;
+      return { again: false, target: null, text: out, exhausted, why, outboxId };
     } else {
       why += ', so the work went on unapproved';
       // a downstream dock gets the unapproved work with the notes; a crate that ships straight out keeps the reviewer's word
@@ -332,9 +392,7 @@ function hopTurn(t) {
    the reply), and never when the gate does not say where its back lane goes (`backTo` absent). Same self-loop test as advance(). */
 function bareApprovalHandsOn(g, target, targetDock, handed) {
   if (!g || !('backTo' in g) || !String(handed == null ? '' : handed).trim()) return false;
-  const self = (g.backDock != null && targetDock != null) ? String(g.backDock) === String(targetDock)
-    : (g.backTo != null && String(g.backTo) === String(target));
-  return !self && reviewedWork(String(handed)).swap;
+  return !selfGate(g, target, targetDock) && reviewedWork(String(handed)).swap;
 }
 
 /* lineRefusalStop(lineOfAgent, dock, lineId, dockId) -> the honest stop (wrong_line) when the line GATE refused to advance
@@ -352,6 +410,74 @@ function lineRefusalStop(lineOfAgent, dock, lineId, dockId) {
 // lineRefusalStop(...) -> the refusal as its typed stop { code: 'wrong_line', why }; lineRefusalNote(...) -> its words alone
 function lineRefusalNote(lineOfAgent, dock, lineId, dockId) { const st = lineRefusalStop(lineOfAgent, dock, lineId, dockId); return st ? st.why : null; }
 
+// One initial cursor for the existing walk and the private saved-entry adapter.
+// This does not resolve a route, book spend, publish a crate or run an agent.
+function initialWalk(current, product, originalText) {
+  return { current, next: null, product, originalText, lastHanded: product.draft,
+    producerVerdict: product.verdict, hop: 0, loopHops: 0, visited: [nodeKey(current)],
+    gates: [], openLoops: [], fromTile: null, via: null, entryOutput: product,
+    branchMode: false, pending: [], forced: null, fan: null, partial: null, unapproved: null };
+}
+/* A HELD JOB RESUMES (line-hold lane, S4). seed.resume is a saved held continuation's own data (line-continuation.js v1), read by the resume
+   owner (line-resume.js) after a PERSON decided: { walk, files, accounting, dockMode, decision: { action, note } }. The walk restores its
+   locals from it (resumeLocals), applies the decision as the verdict of the stage that stopped at the gate, and goes on from that same
+   hop. It never notes the entry or any earlier spend again (the legacy day ledger already counted it) and runs under the SAVED ceilings,
+   whatever the floor says now. Nothing in the seed is an authority: the owner has already re-checked the floor, E-STOP, the caps and the files.
+   resumeLocals(resume) -> the restored walk in initialWalk's own shape (files as PATHS), plus the ledger facts the walk needs. Pure. */
+function resumeLocals(r) {
+  const w = r.walk, receipts = Array.isArray(r.files) ? r.files : [], attempts = Array.isArray(r.attempts) ? r.attempts : [];
+  const pathsOf = refs => (Array.isArray(refs) ? refs : []).map(ref => { const f = receipts.find(x => x.ref === ref); return f ? f.path : null; }).filter(Boolean);
+  const nodeOf = n => (n ? { agentId: n.agentId, dockId: n.dockId || null } : null);
+  const entry = w.entryOutput, product = w.product;
+  const entryProduct = productOf({ text: entry.text, draft: entry.draft, verdict: entry.verdict, files: pathsOf(entry.files), runId: entry.producer.runId }, {});
+  /* THE SPLIT THE WALK WAS INSIDE (S5). The queue of branches that had not started (each with the part of the job it was handed and the
+     run its work comes from), the fan-out's own record, and the barrier with every part parked in it — rebuilt in the shapes the walk
+     keeps them in. The branch the walk itself was in is the one id nothing else accounts for (not delivered, not failed, not queued);
+     a saved split that cannot say which it was is not guessed at: `broken` says so and the walk stops before it buys anything. */
+  const queue = (Array.isArray(w.pending) ? w.pending : []).map(b => ({ id: b.id, node: nodeOf(b.node), text: String(b.product.text == null ? '' : b.product.text), from: nodeOf(b.from),
+    part: b.part ? { text: b.part.text, i: b.part.i, k: b.part.k } : null, entry: !!b.entry, prod: b.product.producer && b.product.producer.kind === 'run' ? b.product.producer.runId : null }));
+  const f = w.fan;
+  const fan = f ? { width: f.width, failed: f.failed.map(x => x.why), failedIds: f.failed.map(x => x.branchId), ids: f.branchIds.slice(), joinKey: f.joinKey,
+    joinStep: f.joinStep ? { join: f.joinStep.join, expect: f.joinStep.expect, timeoutMin: f.joinStep.timeoutMin, next: nodeOf(f.joinStep.next) } : null, handed: String(f.handed == null ? '' : f.handed) } : null;
+  const parked = (Array.isArray(r.barriers) ? r.barriers : []).map(b => ({ joinId: b.joinId, ts: b.at, timeoutMin: Math.max(1, Math.round(b.timeoutMs / 60000)),
+    parts: b.parts.map(p => {
+      const a = attempts.find(x => x.runId === p.runId), n = a ? nodeOf(a.node) : null;
+      const part = { agentId: n ? n.agentId : null, text: String(p.product.text == null ? '' : p.product.text), workitemId: p.workitemId, branchId: p.branchId, runId: p.runId,
+        draft: String(p.product.draft == null ? '' : p.product.draft), verdict: p.product.verdict == null ? null : p.product.verdict, files: pathsOf(p.product.files) };
+      if (n && n.dockId) part.dockId = n.dockId;
+      return part;
+    }) }));
+  let branch = null, broken = null;
+  if (fan) {
+    const delivered = new Set(); for (const b of parked) for (const p of b.parts) delivered.add(p.branchId);
+    const left = fan.ids.filter(id => !delivered.has(id) && fan.failedIds.indexOf(id) < 0 && !queue.some(q => q.id === id));
+    if (left.length === 1) branch = left[0]; else broken = 'the saved split does not say which of its branches the walk was in';
+    if (parked.some(b => b.parts.some(p => !p.agentId))) broken = 'a part parked at the joiner has no recorded stage';
+  } else if (queue.length || parked.length || w.branchMode) broken = 'the saved walk has queued branches or a parked barrier but no split';
+  const made = product.producer || {};
+  return {
+    current: { agentId: w.current.agentId, dockId: w.current.dockId || null }, next: null,
+    product: entryProduct, originalText: w.originalText, lastHanded: w.lastHanded, producerVerdict: w.producerVerdict,
+    hop: w.hop, loopHops: w.loopHops, visited: w.visited.slice(), gates: w.gates.map(g => ({ id: g.id, count: g.count, max: g.max })), openLoops: w.openLoops.slice(),
+    fromTile: w.fromTile || null, via: w.via || null, entryOutput: entryProduct, branchMode: !!w.branchMode, pending: queue, forced: null, fan,
+    partial: w.partial, unapproved: w.unapproved, branch, broken, parked, entryNode: nodeOf(r.entryNode),
+    // what the saved walk had on the crate: its reviewer's reply, the work it carries and who made it (one run, or a JOINER's merge of several), every file the job carries
+    text: String(product.text == null ? '' : product.text), productFiles: pathsOf(product.files), productRunId: made.kind === 'run' ? made.runId : null,
+    joinedFrom: made.kind === 'join' ? { joinId: made.joinId, runIds: made.runIds.slice(), complete: true } : null,
+    carried: receipts.map(f => f.path), receipts, limits: r.accounting.limits, dockMode: r.dockMode !== false, decision: r.decision || null
+  };
+}
+/* A PERSON'S WORD AT THE GATE. APPROVE leaves on the done lane with the draft that was under review exactly as it was saved (a gate whose
+   back lane re-enters the reviewer itself has no draft apart from the reviewer's reply: that reply, without its VERDICT line, is the work).
+   SEND BACK is a revise: loopDecision frames it round the gate (pass + 1, never a reset) with the reviewer's own words and the person's note
+   as the review. Pure. */
+function approvedGate(step, draft) { return { again: false, target: step.next, text: draft, exhausted: false }; }
+// the work APPROVE carries on is ONE function, shared with the WORKFLOWS job box (line-verdict.js): what a person is shown is what is released
+const approvedWork = Verdict.approvedWork;
+function sentBackReview(reply, note) {
+  const said = String(Verdict.stripVerdict(String(reply == null ? '' : reply)) || '').trim(), n = String(note == null ? '' : note).trim();
+  return (said ? said + '\n\n' : '') + (n ? 'A PERSON SENT THIS BACK. Their note:\n' + n : 'A PERSON SENT THIS BACK for another pass.');
+}
 function makeChainRunner(o) {
   o = o || {};
   const nextAgent = typeof o.nextAgent === 'function' ? o.nextAgent : null;
@@ -417,6 +543,7 @@ function makeChainRunner(o) {
      answered right here and stops here" is the designed contract (Andrew's ruling, 2026-08-07) and the
      step editor says so on the floor — it is not a line that failed to run. */
   const lineOfAgent = typeof o.lineOfAgent === 'function' ? o.lineOfAgent : null;
+  const agentOfDock = typeof o.agentOfDock === 'function' ? o.agentOfDock : null;
   function refusalStop(node, lineId) { const n = asNode(node) || {}; return lineRefusalStop(lineOfAgent, n.agentId, lineId, n.dockId); }
 
   /* JOINER + LOOP seams (2026-08-21) — all optional, all injected like nextAgent:
@@ -477,7 +604,12 @@ function makeChainRunner(o) {
      chain is persisted anywhere today (the plan is; runs are not). A "durable" barrier that survived a restart
      would release into nobody. So the parked records alone are written through `barrierStore` (beside
      routing.plan.json in production), and at the next boot every leftover is reported — a console line plus
-     a workitem.superseded per parked branch, so the floor drops the crate it was drawing — and cleared. */
+     a workitem.superseded per parked branch, so the floor drops the crate it was drawing — and cleared.
+     THE ONE BARRIER THAT DOES SURVIVE (line-hold lane, S5): the barrier of a job HELD at a reviewer's gate. The walk that stops there
+     hands its barrier — every part parked, who owes the rest, the joiner's count and timeout — to the saved hold (holdState.barriers)
+     and takes it out of memory and out of the barrier file, so a restart reports nothing "lost": the job record owns it. The walk a
+     person's decision resumes puts it back (barrier.restore) from that record, once, with its parts and no waiter: the joiner's timer
+     starts only when a walk waits at the barrier, from the joiner's own timeout, and nothing in the restore delivers or releases anything. */
   const barriers = new Map();
   function persistBarriers() {
     if (!barrierStore) return;
@@ -486,12 +618,14 @@ function makeChainRunner(o) {
     try { barrierStore.save(snap); } catch (e) { failNote('chain.barrier.persist', e); }
   }
   const barrier = {
-    deliver(k, expect, agentId, text, timeoutMin, dockId) {
+    // meta (S5, optional): what a held job saves of the part — { branchId, runId, draft, verdict, files }: the branch it came from and the run that made it
+    deliver(k, expect, agentId, text, timeoutMin, dockId, meta) {
       let b = barriers.get(k);
       if (!b) { b = { expect: expect || 0, parts: [], waiters: [], ts: now(), timeoutMin: timeoutMin || 10 }; barriers.set(k, b); }
       else if (expect > 0 && expect < b.expect) b.expect = expect;   // fewer branches are coming than the joiner's lanes (see FAN below)
       const part = { agentId, text, workitemId: newId() };
       if (dockId) part.dockId = dockId;
+      if (meta && typeof meta === 'object') for (const m of PART_META) if (meta[m] !== undefined) part[m] = meta[m];
       b.parts.push(part);
       if (b.parts.length >= b.expect) {
         barriers.delete(k); persistBarriers();
@@ -531,6 +665,21 @@ function makeChainRunner(o) {
       for (const w of b.waiters.splice(0)) w(res);
       return res;
     },
+    /* A HELD JOB'S BARRIER, PUT BACK (S5). The walk a person's decision resumes brings the barrier its hold saved: the parts already parked
+       (each with its branch and run), how many are still expected, when it was opened and the joiner's timeout. A barrier already open
+       under that key is never opened a second time (false, nothing changed); the restore delivers nothing, releases nothing and has no
+       waiter — the joiner's timer is armed only when a walk waits here (wait above), from the joiner's own timeout. */
+    restore(k, d) {
+      if (barriers.has(k)) return false;
+      barriers.set(k, { expect: d.expect || 0, parts: d.parts.map(p => Object.assign({}, p)), waiters: [], ts: d.ts, timeoutMin: d.timeoutMin || 10 });
+      persistBarriers();
+      return true;
+    },
+    // what the barrier holds right now, as plain data (a copy): { expect, ts, timeoutMin, parts }, or null
+    view(k) {
+      const b = barriers.get(k);
+      return b ? { expect: b.expect, ts: b.ts, timeoutMin: b.timeoutMin, parts: b.parts.map(p => Object.assign({}, p)) } : null;
+    },
     size() { return barriers.size; }
   };
   // boot: a barrier left on disk is a line that died mid-join — say so, drop its crates, start clean
@@ -556,11 +705,31 @@ function makeChainRunner(o) {
        `agentId` who produced it, `stopped` a short honest reason when the line did not run to its end (null
        when it did), and `stop` the same stop TYPED (line-job-runner): { code (RunOutcome.LINE_STOPS), why (=== stopped:
        routing/line-fire.js lineStop's one sentence), agentId, dockId? (the stage the job stopped at) }, absent when it ran
-       to its end. Never throws: a chain is an enhancement to a reply the caller already holds. */
+       to its end. A job that stopped AT A GATE for a person (stop.code 'blocked', out.blocked set) also carries
+       `hold` = { reason ('blocked' | 'missing_verdict' | 'spent'), gateId (the LOOP junction), pass (passes taken round it), why }, and (not
+       enumerable, never serialized with the result) `holdState` = what line-hold.js saves of the walk at that gate: { walk, barriers,
+       attempts, files, gate, limits, entry, dockMode, open } assembled from the walk's live locals in the continuation's own shapes (see
+       snapshot() in advanceLine); the stages' per-hop evidence rides in `evidence.attempts`. A gate INSIDE a fan-out (S5) carries the split
+       with it: walk.pending (the branches that have not started, each with its part of the job), walk.fan (its branches, the ones that
+       failed, the joiner it meets) and barriers (every part parked, tied to its branch and run; the joiner's count and timeout); the
+       barrier leaves memory with the hold. `open.refuse` says in words when the walk's state cannot be saved exactly.
+       seed.resume (line-hold lane, S4) = a saved held walk a person decided, { walk, files, accounting, dockMode, decision, barriers,
+       attempts, entryNode } — see resumeLocals: the walk restores its locals from it (S5: the queued branches, the fan-out and the barrier
+       with its parts, put back once) and goes on from the gate it stopped at, under the saved ceilings, noting no earlier spend again.
+       Never throws: a chain is an enhancement to a reply the caller already holds. */
   async function advance(seed) {
-    const evidence = { workitemIds: [] };
+    // attempts: one record per stage this walk PAID for, in the order it paid (the continuation's own attempt shape, line-hold.js)
+    const evidence = { workitemIds: [], attempts: [] };
     const out = await advanceLine(seed, evidence);
     const s = seed || {};
+    /* (S5) a RESUMED walk that ends with the barrier it put back still open (it was stopped, or failed, before the join) leaves no part parked in
+       memory or in the barrier file for a join that cannot come: the job's own record owns what the walk did. Only the barriers THIS walk
+       restored are taken out; one released by the join is gone already, and one opened by someone else is never touched. */
+    if (Array.isArray(evidence.restored) && evidence.restored.length) {
+      let any = false;
+      for (const k of evidence.restored) if (barriers.delete(k)) any = true;
+      if (any) persistBarriers();
+    }
     let released = false;
     // Exact terminal authority for the floor: a barrier release alone may have more work after it.
     // The central runner holds this release until its job finish persists. Direct module callers retain their existing behavior.
@@ -607,6 +776,8 @@ function makeChainRunner(o) {
   }
   async function advanceLine(seed, evidence) {
     const s = seed || {};
+    // a held job a person has decided (header of resumeLocals): the walk starts from its saved cursor, not from the entry
+    const R = (s.resume && typeof s.resume === 'object' && s.resume.walk) ? resumeLocals(s.resume) : null;
     const startAgent = s.agentId, originalText = s.originalText != null ? s.originalText : s.text;
     // the line this work ENTERED on (null for a direct order — the gate then keeps every dock terminal)
     const lineId = (s.lineId != null && String(s.lineId)) || null;
@@ -620,21 +791,36 @@ function makeChainRunner(o) {
     let fromPlan = null;
     if (lineLimits && lineId) { try { fromPlan = lineLimits(lineId); } catch (_) { fromPlan = null; } }
     let pool = null; try { pool = poolCap(); } catch (_) { pool = null; }
-    const lim = effectiveLimits(s.limits || fromPlan, { maxHops, maxUsd }, pool);
+    /* A RESUMED WALK RUNS UNDER THE CEILINGS IT WAS ADMITTED WITH (line-continuation.js: they can never change), never the floor's current
+       ones: a wider budget set while the job waited buys it nothing. The station's own global pool can still only narrow them. */
+    const lim = R ? Object.assign({ clamped: [] }, R.limits) : effectiveLimits(s.limits || fromPlan, { maxHops, maxUsd }, pool);
+    if (R && pool != null) {
+      if (lim.maxUsd > pool) { lim.maxUsd = pool; lim.clamped.push('maxUsdPerMessage>pool:' + pool); }
+      if (lim.maxUsdPerDay != null && lim.maxUsdPerDay > pool) { lim.maxUsdPerDay = pool; lim.clamped.push('maxUsdPerDay>pool:' + pool); }
+    }
     const out = { text: s.text, agentId: startAgent, hops: [], usd: 0, stopped: null, limits: { maxHops: lim.maxHops, maxUsd: lim.maxUsd, maxUsdPerDay: lim.maxUsdPerDay, clamped: lim.clamped } };
-    const entryProduct = productOf(s.product || { text: s.text }, { draft: originalText, getVerdict });
-    let producerVerdict = entryProduct.verdict;
-    out.files = mergeFiles(s.handoffReads, entryProduct.files);
+    const entryProduct = R ? R.entryOutput : productOf(s.product || { text: s.text }, { draft: originalText, getVerdict });
+    let producerVerdict = R ? R.producerVerdict : entryProduct.verdict;
+    // the walk's current crate is a JOINER's merge, not one stage's own output: { joinId, runIds, complete } (a hold saves it as the merge of those runs)
+    let joinedFrom = R ? R.joinedFrom : null;
+    let branch = R ? R.branch : null;   // the id of the fan-out branch the walk is inside (null outside a fan-out): every stage it runs there is tied to it
+    let entryBranchId = null;           // the entry dock's own branch id, when the entry dock is branch one of an entry fan-out
+    let batchLive = 0;                  // branches a parallel batch has out right now (the walk can only hold between hops, where this is always 0)
+    const apart = [];                   // branches of the fan-out that ended at an OUTBOX of their own, never reaching the joiner (a hold cannot save that)
+    const entryRunId = (s.runId != null && String(s.runId)) || null;
+    out.files = R ? mergeFiles(R.carried) : mergeFiles(s.handoffReads, entryProduct.files);
+    if (R) { if (R.partial != null) out.partial = String(R.partial); if (R.unapproved != null) out.unapproved = String(R.unapproved); }
     /* THE PARTIAL JOB (runtime repair 2026-10-12): a JOINER that sends on without every branch — one failed, or never delivered
        before the timeout — marks the merged crate PARTIAL in its text (Pipeline.joinPayload) and the job on `out.partial` (why, in
        words). The job still runs to its end (law 1: the next stage gets the partial set, marked), but it never counts as a clean
        product: no line-output, no shipment receipt, no SEND TO, no 'delivered' verdict. The run rows alone cannot tell — a hop the
        host refused before it ran (no credential, the floor changed) writes none, and a branch still out at the timeout has none. */
-    const joined = (parts, missing, failed) => {
+    const joined = (parts, missing, failed, joinId) => {
       const why = (failed || []).concat((missing || []).map(m => m + ' never reached the joiner'));
       if (why.length) out.partial = (out.partial ? out.partial + '; ' : '') + why.join(', ');
       const text = Pipeline.joinPayload(parts, missing, failed);
       producerVerdict = getVerdict(text);   // the join produces one aggregate; later gates reuse its verdict
+      joinedFrom = { joinId: String(joinId), runIds: Array.from(new Set(parts.map(p => p.runId).filter(Boolean))), complete: parts.every(p => !!p.runId) };
       return text;
     };
     /* THE TYPED STOP (line-job-runner): every stop below ends the walk here — the stop as its code and ONE sentence
@@ -648,11 +834,31 @@ function makeChainRunner(o) {
       if (st.code === 'blocked') out.blocked = st.why;
       return out;
     };
+    /* A HOLD (line-hold lane): the walk stopped AT A GATE for a person. out.blocked / out.stop say it as every stop is said; out.hold
+       says what the durable hold needs beside them — why (reason), where (gateId, the LOOP junction) and on which pass (passes already
+       taken round it) — and `why` is the same sentence. A hold spends nothing: it is only ever decided BEFORE a hop is bought.
+       out.holdState (not enumerable) is the walk's saved shape at that gate (snapshot below), read once, here, from the live locals:
+       `at` = { hop (the walk's iteration at the gate), ctx (the step context the gate was read with), gate: { id, max, backTo } }. */
+    const holdAt = (st, node, reason, gateId, pass, at) => {
+      out.hold = { reason, gateId: String(gateId), pass, why: st.why };
+      const stopped = stopAt(st, node);
+      let state = null;
+      try {
+        state = snapshot(Object.assign({}, at, { node, gateId: String(gateId), pass }));
+        Object.defineProperty(out, 'holdState', { value: state, enumerable: false, configurable: true, writable: true });
+      } catch (e) { failNote('chain.holdState', e); }   // the hold still stops the walk; with no state to save, the saver falls back to the said terminal stop
+      /* THE HOLD TAKES THIS RUN'S JOIN BARRIER WITH IT (S5): its parts are in the saved state now, so none is left in memory (no parked
+         part for a join that cannot come) or in the barrier file (a restart reports nothing "lost"). A state this cannot save exactly
+         leaves the barrier as it was. */
+      if (state && !state.open.refuse) dropBarriers();
+      return stopped;
+    };
     if (!nextAgent || !runAgent || !startAgent) return out;
     // the entry run's spend lands in the line's DAY bucket here — the caller never sees this ledger
     // (out.usd stays HOP-ONLY; the ledger is the only place entry + hops are summed across messages).
     const dayLedger = (daySpend && lineId) ? daySpend : null;
-    if (dayLedger && entryUsd) { try { dayLedger.note(lineId, entryUsd); } catch (e) { failNote('chain.dayLedger.entry', e); } }
+    // (a resumed walk's entryUsd is everything the job already paid: the day ledger counted every cent of it when it was spent)
+    if (dayLedger && entryUsd && !R) { try { dayLedger.note(lineId, entryUsd); } catch (e) { failNote('chain.dayLedger.entry', e); } }
 
     /* THE DOCK KEY (multi-bay agents, 2026-09-22). A stage is a NODE { agentId, dockId } — the dock is what the
        walk, the visited set and the brief key on; the agent is who runs. DOCK MODE needs the dock seams
@@ -660,11 +866,13 @@ function makeChainRunner(o) {
        entry dock (entryDockOf). Without them every node carries dockId null and the runner is byte-for-byte
        the agent-keyed executor it always was. */
     let startDock = (s.dockId != null && String(s.dockId)) || null;
-    if (!startDock && stepDock && entryDockOf) { try { startDock = entryDockOf(startAgent) || null; } catch (_) { startDock = null; } }
-    const dockMode = !!(stepDock && startDock);
+    if (!startDock && stepDock && entryDockOf && !R) { try { startDock = entryDockOf(startAgent) || null; } catch (_) { startDock = null; } }
+    // a resumed walk keeps the keying it was admitted with: a job saved agent-keyed never turns into a dock-keyed one
+    const dockMode = !!(stepDock && startDock) && !(R && !R.dockMode);
     if (dockMode) out.dockId = startDock;
-    let cur = { agentId: startAgent, dockId: dockMode ? String(startDock) : null };
-    const visited = { [nodeKey(cur)]: true };
+    const initial = R || initialWalk({ agentId: startAgent, dockId: dockMode ? String(startDock) : null }, entryProduct, originalText);
+    let cur = initial.current;
+    const visited = Object.fromEntries(initial.visited.map(k => [k, true]));
     let spent = entryUsd;   // entry + hops — what the $ ceiling is actually measured against
     /* JOIN + LOOP state (2026-08-21) — per advance() call, never across calls:
        runId    keys the joiner barrier: one barrier per (joiner tile, run) — branches of the SAME run rejoin,
@@ -674,39 +882,192 @@ function makeChainRunner(o) {
                 sidecar, one loop; parallel runs would double the RAM and the floor draws one crate at a time).
        fromTile resume a walk from a junction the previous hop released (a joiner exit / a loop gate lane). */
     const runId = (s.runId != null && String(s.runId)) || (s.workitemId != null && String(s.workitemId)) || newId();
-    const iter = {}, pending = [];
+    const iter = {}, pending = initial.pending;
     /* THE FAN (2026-10-10). One record per fan-out this run is inside: how many branches really LAUNCHED (a branch whose bay
        has no agent never does — the compiled joiner still counts its lane, and the barrier sat out its whole timeout for a
        branch nobody ran), which of them FAILED, and the joiner they meet at. The joiner waits for launched minus failed. A
        failed branch no longer ends the job: the other branches still run, and the JOINER sends on what arrived, the failed
        ones named as missing (it used to return the first branch's answer and strand the rest at the barrier). */
-    let fan = null;
-    let fromTile = null, via = null, loopHops = 0;
-    let lastHanded = entryProduct.draft;   // the producer carries the draft it reviewed, independently of a later gate's frame
+    let fan = initial.fan;
+    let fromTile = initial.fromTile, via = initial.via, loopHops = initial.loopHops;
+    let lastHanded = initial.lastHanded;   // the producer carries the draft it reviewed, independently of a later gate's frame
     // inside a loop pass every hop is a re-visit by design (the body runs again); `looping` is raised at a
     // re-entry and lowered when the gate lets the crate out on its done lane
-    let looping = false;
+    let looping = initial.openLoops.length > 0;
     /* the gates whose pass is still open (2026-10-10 audit): two review loops in a row broke on the outer one's second pass —
        the INNER gate letting work out lowered `looping` while the outer gate's re-run was still under way, so its next
        (already visited) step read as a loop-back and the line stopped. A gate closes only its own pass. */
-    const openLoops = new Set();
+    const openLoops = new Set(initial.openLoops);
     // while a queued fan-out branch is running, the line's LAST GOOD answer is still the entry's own output
-    const entryOut = { text: s.text, agentId: startAgent, dockId: cur.dockId }; let branchMode = false;
+    // (a resumed walk keeps the entry's own output and node from the saved record, not the stage it stopped at)
+    const entryOut = R ? { text: String(R.entryOutput.text), agentId: (R.entryNode || cur).agentId, dockId: (R.entryNode || cur).dockId }
+      : { text: s.text, agentId: startAgent, dockId: cur.dockId };
+    let branchMode = initial.branchMode;
+    /* A HELD JOB'S BARRIER, PUT BACK (S5): before the walk goes on, the parts the hold parked are back at the barrier they were parked at,
+       once. A split the record cannot account for exactly, or a barrier already open under that key, stops the walk here — before it buys
+       anything and before it delivers any part anywhere. */
+    if (R && R.broken) return stopAt(LineFire.lineStop('station_fault', { agent: cur.agentId, error: 'the saved split could not be put back (' + R.broken + ')' }), cur);
+    if (R) {
+      evidence.restored = [];   // the barriers THIS walk put back (advance() takes them out again if the walk ends before the join)
+      for (const pb of R.parked) {
+        const key = pb.joinId + '|' + runId;
+        const restored = barrier.restore(key, { expect: fan ? Math.max(1, fan.width - fan.failed.length) : 0, ts: pb.ts, timeoutMin: pb.timeoutMin, parts: pb.parts });
+        if (!restored) return stopAt(LineFire.lineStop('station_fault', { agent: cur.agentId, error: 'the join barrier of this job is already open, so its saved parts were not put back a second time' }), cur);
+        evidence.restored.push(key);
+      }
+    }
     /* ENTRY FAN-OUT: resolveTarget named ONE dock for the inbound message and it has already run (`cur`). If
        that dock sits on a lane of a split that feeds a JOINER, the other lanes are parallel branches the drawn
        line promised; queue them from the ORIGINAL text so the barrier can fill. The entry's own output goes
        first, the siblings follow — deterministic, sorted by fanSiblings. */
-    if (lineId && ((dockMode && fanSiblingsDock) || fanSiblings)) {
+    if (!R && lineId && ((dockMode && fanSiblingsDock) || fanSiblings)) {
       let sib = [];
       try { sib = (dockMode && fanSiblingsDock) ? (fanSiblingsDock(cur.dockId, { lineId }) || []) : (fanSiblings(cur.agentId, { lineId }) || []); } catch (_) { sib = []; }
-      for (const a of sib) { const n = asNode(a); if (n) pending.push({ node: n, text: originalText, from: null, entry: true }); }
-      if (pending.length) fan = { width: 1 + pending.length, failed: [], joinKey: null, joinStep: null, handed: String(originalText || '') };
+      const sibs = []; for (const a of sib) { const n = asNode(a); if (n) sibs.push(n); }
+      if (sibs.length) {
+        // the branches are named by the node each starts at: the entry dock is branch one, its siblings follow (their work traces to the entry run)
+        const ids = branchIdsOf([cur].concat(sibs));
+        sibs.forEach((n, i) => pending.push({ id: ids[i + 1], node: n, text: originalText, from: null, entry: true, prod: entryRunId }));
+        fan = { width: 1 + sibs.length, failed: [], failedIds: [], ids, joinKey: null, joinStep: null, handed: String(originalText || '') };
+        branch = entryBranchId = ids[0];
+      }
     }
-    // a branch that ends (terminal / parked at the joiner) hands the loop to the next queued branch
-    const nextPending = () => { const b = pending.shift(); if (!b) return false; cur = b.from || cur; out.text = b.text; branchMode = true; return b; };
-    let forced = null;   // a queued branch's node, run on this hop in place of the walk's answer
+    // a branch that ends (terminal / parked at the joiner) hands the loop to the next queued branch; from then on the walk is inside THAT branch
+    const nextPending = () => { const b = pending.shift(); if (!b) return false; cur = b.from || cur; out.text = b.text; branchMode = true; branch = b.id || branch; return b; };
+    let forced = initial.forced;   // a queued branch's node, run on this hop in place of the walk's answer
     // the receiving dock's standing brief, for a divided branch's own hand-off (Pipeline.partHandoff)
     const briefOf = t => { if (!stageBrief || !t) return null; try { return t.dockId ? stageBrief(t.agentId, t.dockId) : stageBrief(t.agentId); } catch (_) { return null; } };
+    /* THE EVIDENCE OF ONE PAID STAGE (line-hold lane, S3). Every stage this walk runs leaves a record in evidence.attempts in the order
+       it was paid: the run, the node, the crate, the spend, the outcome, when it began and ended, a digest of what it was handed and of
+       what it handed back, and the files it listed. Digests, never texts: the walk keeps no second copy of its work. `endedAt` is stamped
+       by the walk's own existing clock reads (never a new one), so a fake clock sees the same ticks it always did. Never throws. */
+    function attemptOf(o) {
+      try {
+        const r = o.r || {}, product = o.ok ? productOf(r, { draft: o.draft, getVerdict }) : null, files = product ? product.files : [];
+        const runId = (r.runId != null && String(r.runId)) || null;
+        return { runId, node: { agentId: o.node.agentId, dockId: o.node.dockId || null }, branchId: o.branchId || null,
+          workitemId: String(o.workitemId || ''), state: 'observed', inputDigest: sha([String(o.text == null ? '' : o.text), o.reads || []]),
+          outputDigest: sha([String(r.text == null ? '' : r.text), String(o.draft == null ? '' : o.draft), product ? product.verdict : null, files, runId]),
+          usd: o.usd, usageMissing: false, outcome: RunOutcome.isOutcome(r.outcome) ? r.outcome : (o.ok ? 'succeeded' : 'failed'),
+          at: uint(o.t0), endedAt: null, files, projectRoot: typeof r.projectRoot === 'string' ? r.projectRoot : '' };
+      } catch (e) {
+        failNote('chain.attempt', e);
+        return { runId: null, node: asNode(o && o.node) || { agentId: null, dockId: null }, branchId: null, workitemId: '', state: 'observed', inputDigest: '',
+          outputDigest: '', usd: 0, usageMissing: false, outcome: null, at: 0, endedAt: null, files: [], projectRoot: '' };
+      }
+    }
+    const gateMax = {};   // gate id -> its MAX PASSES (the saved hold must say each gate's ceiling beside its pass count)
+    // a resumed walk carries the pass counts it was held with: SEND BACK adds one to the gate's count, never starts it over
+    if (R) for (const g of R.gates) { iter[g.id] = g.count; gateMax[g.id] = g.max; }
+    /* WHAT A STAGE LEAVES ON THE CRATE (line-hold lane, S5): the helpers a part parked at the barrier and a hold's snapshot read the same way. */
+    const lastAttempt = () => (evidence.attempts.length ? evidence.attempts[evidence.attempts.length - 1] : null);
+    // the run that made the crate the walk holds now: the latest stage this walk paid for, else the one the saved record names, else the entry's own run
+    const lastRunId = () => { const l = lastAttempt(); return l ? l.runId : (R ? R.productRunId : entryRunId); };
+    // the files the ENTRY run made (files handed in from another job are not its own: this job's runs did not produce them)
+    const ownEntryFiles = () => { const foreign = new Set(mergeFiles(s.handoffReads)); return mergeFiles(entryProduct.files).filter(f => !foreign.has(f)); };
+    const crateFiles = () => { const l = lastAttempt(); return (l ? l.files : (R ? R.productFiles : ownEntryFiles())).slice(); };
+    const verdictWord = t => { let v = null; try { v = getVerdict(String(t == null ? '' : t)); } catch (e) { failNote('chain.verdictWord', e); } return VERDICT_SET.has(v) ? v : null; };
+    // what a part leaves with when it parks at the barrier (barrier.deliver's meta): the branch it came from and the run that made it
+    const partMeta = () => ({ branchId: branch, runId: lastRunId(), draft: String(lastHanded == null ? '' : lastHanded), verdict: verdictWord(out.text), files: crateFiles() });
+    const barrierKeys = () => Array.from(barriers.keys()).filter(k => k.endsWith('|' + runId));
+    // a hold hands the barrier to the saved record: this run's barrier leaves memory and the barrier file (nothing is left to be reported "lost on restart")
+    const dropBarriers = () => { const keys = barrierKeys(); for (const k of keys) barriers.delete(k); if (keys.length) persistBarriers(); };
+    /* THE SPLIT AT THE HOLD (line-hold lane, S5). When the walk stops at a gate INSIDE a fan-out (or with branches still to run), the hold
+       must carry the split exactly: the branches that have not started (queued, each with the part of the job it was handed and the run its
+       work comes from), the fan-out's own record (its branches, the ones that failed, the joiner it meets), and the barrier with every part
+       already parked in it, each part tied to its branch and the run that made it. The branch the walk itself is in is the one id nothing
+       else accounts for. Anything this cannot account for exactly (a branch that ended at an OUTBOX of its own, a split inside a split, a
+       part with no recorded run, a parallel batch still out) is `refuse`d in words and the job ends the old way; nothing is half-saved.
+       Pure reads: it delivers nothing and releases nothing. */
+    function splitOf() {
+      const keys = barrierKeys();
+      if (!fan && !pending.length && !keys.length && !branchMode) return { pending: [], fan: null, barriers: [] };
+      const no = why => ({ pending: [], fan: null, barriers: [], refuse: why });
+      if (batchLive > 0) return no('a parallel batch of branches was still out when the walk reached the gate');
+      if (forced) return no('a queued branch was about to start when the walk reached the gate');
+      if (!fan) return no('the walk is marked as inside a split, but no split is there to save');
+      if (!Array.isArray(fan.ids) || fan.ids.length !== fan.width || new Set(fan.ids).size !== fan.ids.length) return no('the split does not name each of its branches');
+      if (keys.length > 1) return no('more than one join barrier is parked for this job');
+      const key = keys[0] || null, b = key ? barriers.get(key) : null;
+      if (key && fan.joinKey !== key) return no('the parked join barrier is not the one of the split the walk is in');
+      const parts = b ? b.parts : [];
+      if (parts.some(p => !p.branchId || !p.runId)) return no('a branch delivered to the joiner without a recorded stage, so its part cannot be saved');
+      const delivered = parts.map(p => p.branchId), failedIds = fan.failedIds.slice(), queued = pending.map(p => p.id);
+      const accounted = delivered.concat(failedIds, queued, branch ? [branch] : []);
+      if (apart.length || !branch || accounted.length !== fan.ids.length || new Set(accounted).size !== accounted.length || accounted.some(id => fan.ids.indexOf(id) < 0)) {
+        return no('a branch of the split ended apart from its joiner (or ran into another split), so the split cannot be rebuilt exactly');
+      }
+      if (pending.some(p => !p.id || !p.node || !p.prod)) return no('a queued branch does not say where its work came from');
+      const nodeOut = x => (x ? { agentId: x.agentId, dockId: x.dockId || null } : null);
+      const pendingOut = pending.map(p => ({ id: p.id, node: nodeOut(p.node), from: nodeOut(p.from), entry: !!p.entry, part: p.part ? { text: p.part.text, i: p.part.i, k: p.part.k } : null,
+        product: { text: String(p.text == null ? '' : p.text), draft: String(p.part ? p.part.text : p.entry ? originalText : p.text), verdict: null, files: [], producer: { kind: 'run', runId: p.prod } } }));
+      const js = fan.joinStep;
+      const fanOut = { branchIds: fan.ids.slice(), width: fan.width, failed: failedIds.map((id, i) => ({ branchId: id, why: String(fan.failed[i] == null ? '' : fan.failed[i]) })), joinKey: fan.joinKey,
+        joinStep: js ? { join: String(js.join), expect: js.expect, timeoutMin: js.timeoutMin, next: js.next ? nodeOut(asNode(js.next)) : null } : null, handed: String(fan.handed == null ? '' : fan.handed) };
+      // branches that have not delivered and did not fail: the one the walk is in and the queued ones (none of them is out in a batch: inFlight stays empty)
+      const owing = fan.ids.filter(id => delivered.indexOf(id) < 0 && failedIds.indexOf(id) < 0);
+      const barriersOut = b ? [{ joinId: key.slice(0, key.length - runId.length - 1), branchIds: fan.ids.slice(), failed: failedIds.slice(), pending: owing, inFlight: [], at: b.ts, timeoutMs: b.timeoutMin * 60000, expect: b.expect,
+        parts: parts.map(p => ({ branchId: p.branchId, runId: p.runId, workitemId: p.workitemId, product: { text: String(p.text == null ? '' : p.text), draft: String(p.draft == null ? '' : p.draft),
+          verdict: VERDICT_SET.has(p.verdict) ? p.verdict : null, files: Array.isArray(p.files) ? p.files.slice() : [], producer: { kind: 'run', runId: p.runId } } })) }] : [];
+      return { pending: pendingOut, fan: fanOut, barriers: barriersOut };
+    }
+    /* THE HOLD'S SNAPSHOT (line-hold lane, S3). When the walk stops AT A GATE for a person, this reads its LIVE locals into the shapes of
+       the saved continuation (line-continuation.js v1: walk, attempts, files), so nothing about the hold is reconstructed later from prose.
+       Pure reads: it buys nothing and notes nothing. Paths stay paths here — line-hold.js turns them into exact file receipts with the
+       host's reader. The split the walk is inside (S5: queued branches, the fan-out's record, the barrier and its parts) and a crate a
+       JOINER merged ride in it too; `open.refuse` says in words when that state cannot be saved exactly, so the saver refuses it instead
+       of saving half a walk. */
+    function snapshot(at) {
+      const g = at.gate || {}, ctx = at.ctx || {}, gateId = String(at.gateId), node = asNode(at.node) || cur;
+      const hops = evidence.attempts, first = hops[0] || null, last = lastAttempt();
+      const entryFiles = ownEntryFiles();
+      const entryAt = (typeof s.since === 'number' && isFinite(s.since) && s.since >= 0) ? Math.floor(s.since) : (first ? first.at : 0);
+      // (an entry dock that is branch one of an entry fan-out is that branch's first stage: its attempt belongs to the branch)
+      const entryAttempt = { ordinal: 1, runId: entryRunId, node: { agentId: initial.current.agentId, dockId: initial.current.dockId || null }, branchId: entryBranchId,
+        workitemId: (s.workitemId != null && String(s.workitemId)) || entryRunId || '', state: 'observed',
+        inputDigest: sha([String(originalText == null ? '' : originalText), []]),
+        outputDigest: sha([String(entryProduct.text), String(entryProduct.draft), entryProduct.verdict == null ? null : entryProduct.verdict, entryFiles, entryRunId]),
+        usd: entryUsd, usageMissing: false, outcome: 'succeeded', at: entryAt, endedAt: Math.max(entryAt, first ? first.at : entryAt), files: entryFiles,
+        projectRoot: (s.product && typeof s.product.projectRoot === 'string') ? s.product.projectRoot : '' };
+      const attempts = [entryAttempt].concat(hops.map((a, i) => Object.assign({}, a, { ordinal: i + 2, endedAt: Math.max(a.at, uint(a.endedAt == null ? a.at : a.endedAt)) })));
+      // who produced each file the walk carries: the FIRST stage that listed it (the order mergeFiles keeps). A file nobody here listed was
+      // HANDED IN (SEND TO: another job's work this job reads): the entry run was handed it, so its receipt rides on the entry attempt, which
+      // pins the exact bytes the resumed stages would be handed (a changed file refuses the resume) — it does not claim the entry made it
+      const owner = new Map();
+      // (a resumed walk: a file an EARLIER stage made keeps the run and root its saved receipt names)
+      if (R) for (const f of R.receipts) owner.set(f.path, { runId: f.producerRunId, projectRoot: f.projectRoot });
+      for (const a of attempts) for (const f of a.files) if (!owner.has(f)) owner.set(f, { runId: a.runId, projectRoot: a.projectRoot });
+      const files = out.files.map(path => { const o = owner.get(path); return { path, producerRunId: o ? o.runId : entryRunId, projectRoot: o ? o.projectRoot : '' }; });
+      /* WHAT A PERSON IS ASKED TO APPROVE is what APPROVE carries on (Verdict.approvedWork: the function the job box prints it by). A gate whose
+         back lane re-enters the dock that just ran (g.self) reviews no separate draft — `lastHanded` is only that dock's previous turn — so the
+         reviewer's own reply, without its VERDICT line, is saved as the draft. A crate a JOINER merged is its own merge (the saved product);
+         every other gate's draft is what the reviewing dock was handed. */
+      const draft = g.self === true ? String(Verdict.approvedWork(lastHanded, out.text, true)) : String(lastHanded == null ? '' : lastHanded);
+      // the crate under review is one stage's output (a run), or a JOINER's merge of the runs its branches delivered
+      const joinRefuse = joinedFrom && (!joinedFrom.complete || !joinedFrom.runIds.length) ? 'a part of the merged crate has no recorded stage, so the merge cannot be traced to its runs' : null;
+      const product = { text: String(out.text == null ? '' : out.text), draft, verdict: producerVerdict == null ? null : producerVerdict, files: crateFiles(),
+        producer: joinedFrom ? { kind: 'join', joinId: joinedFrom.joinId, runIds: joinedFrom.runIds.slice() } : { kind: 'run', runId: lastRunId() } };
+      const entryOutput = { text: String(entryProduct.text), draft: String(entryProduct.draft), verdict: entryProduct.verdict == null ? null : entryProduct.verdict,
+        files: entryFiles.slice(), producer: { kind: 'run', runId: entryRunId } };
+      const gates = Object.keys(iter).map(k => ({ id: k, count: iter[k], max: k === gateId && g.max != null ? g.max : gateMax[k] }));
+      if (!gates.some(x => x.id === gateId)) gates.push({ id: gateId, count: at.pass, max: g.max });
+      const sp = splitOf();
+      return {
+        walk: { current: { agentId: node.agentId, dockId: node.dockId || null },
+          next: { kind: 'gate', node: { agentId: node.agentId, dockId: node.dockId || null }, gateId, joinId: null, outboxId: null, fromTile: ctx.fromTile || null, via: ctx.via || null },
+          product, originalText: String(originalText == null ? '' : originalText), lastHanded: draft, producerVerdict: producerVerdict == null ? null : producerVerdict,
+          hop: at.hop, loopHops, visited: Object.keys(visited), gates, openLoops: Array.from(openLoops), fromTile: ctx.fromTile || null, via: ctx.via || null,
+          entryOutput, branchMode: !!branchMode, pending: sp.pending, forced: null, fan: sp.fan,
+          partial: out.partial != null ? String(out.partial) : null, unapproved: out.unapproved != null ? String(out.unapproved) : null },
+        barriers: sp.barriers, attempts, files,
+        // the restriction this walk ran under (the verdicts the seed carried, read where the chain already carries them): the saved hold only RECORDS it
+        restriction: { entryUntrusted: s.entryTrusted !== true, hostPowerWithheld: s.hostPowerKept !== true },
+        gate: { id: gateId, count: at.pass, max: g.max, backTo: !!g.backTo },
+        limits: { maxHops: lim.maxHops, maxUsd: lim.maxUsd, maxUsdPerDay: lim.maxUsdPerDay },
+        entry: { runId: entryRunId, node: { agentId: initial.current.agentId, dockId: initial.current.dockId || null }, dockMode },
+        open: { refuse: sp.refuse || joinRefuse || null }
+      };
+    }
     /* PARALLEL BRANCHES (2026-10-10 — "split the workload"). Branches that are each ONE step handing straight to the SAME
        JOINER never depended on each other, yet ran one after another: three agents on a split took three agents' time. Now
        they run AT ONCE. Only that shape (checked on the non-advancing peek, for every task type a FILTER could route by) —
@@ -741,7 +1102,9 @@ function makeChainRunner(o) {
       else for (const b of items) visited[nodeKey(b.node)] = true;
       const share = Math.max(0, lim.maxUsd - spent) / items.length;
       const handedFiles = out.files.slice();   // concurrent siblings receive the same upstream snapshot
-      const results = await Promise.all(items.map(async (b, i) => {
+      batchLive += items.length;   // (a hold is only ever read between hops, where nothing is out: line-hold lane S5)
+      let results;
+      try { results = await Promise.all(items.map(async (b, i) => {
         const t = b.node, from = b.entry ? null : (b.from || cur), workitemId = newId(), t0 = now();
         const placed = { workitemId, queueId: t.agentId, agentId: t.agentId, kind: 'chain', from: from ? from.agentId : undefined, lineId: lineId || undefined, preview: preview(b.text), ts: t0 };
         if (t.dockId) placed.dockId = t.dockId;
@@ -754,6 +1117,7 @@ function makeChainRunner(o) {
         // three branches on it queued behind each other (live 2026-10-10), and a queued turn is rebuilt from the whole thread
         const call = { agentId: t.agentId, text: withoutHostNotes(turn), hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
         call.handoffReads = handedFiles.slice();
+        if (b.id) call.branchId = b.id;   // the branch this stage belongs to (a resumed walk writes it on the stage's durable attempt)
         call.draft = b.entry ? String(originalText || '') : b.part ? String(b.part.text || '') : String(b.text || '');
         if (t.dockId) { call.dockId = t.dockId; call.fromDock = from ? from.dockId : null; }
         if (lineId) call.lineId = lineId;
@@ -762,17 +1126,19 @@ function makeChainRunner(o) {
         r = r || {};
         const usd = (typeof r.usd === 'number' && isFinite(r.usd) && r.usd > 0) ? r.usd : 0;
         const code = LineFire.hopStopCode(r);
+        const att = attemptOf({ r, node: t, workitemId, t0, text: call.text, reads: call.handoffReads, draft: call.draft, ok: !code, usd, branchId: b.id || nodeKey(t) });
         if (code) {
-          say('workitem.superseded', withDock({ workitemId, agentId: t.agentId, ts: now() }, t.dockId));
+          say('workitem.superseded', withDock({ workitemId, agentId: t.agentId, ts: (att.endedAt = now()) }, t.dockId));
           // a branch SOMEONE STOPPED (r.stopped: its runner's own STOP / E-STOP) was stopped, never "failed" (review r7); one that did not
           // finish did not finish. The branch is named without its detail (the joiner's PARTIAL mark lists it)
           const stop = LineFire.hopStop(r, { agent: t.agentId });
-          return { node: t, usd, stopped: code === 'stopped', stop, error: stop.why };
+          return { id: b.id || nodeKey(t), node: t, usd, stopped: code === 'stopped', stop, error: stop.why, att };
         }
-        say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: now() - t0, ts: now() }, t.dockId));
-        return { node: t, workitemId, usd, text: r.text, files: productOf(r, { draft: call.draft, getVerdict }).files, ms: now() - t0 };
-      }));
+        say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: (att.endedAt = now()) - t0, ts: now() }, t.dockId));
+        return { id: b.id || nodeKey(t), node: t, workitemId, usd, text: r.text, draft: call.draft, files: productOf(r, { draft: call.draft, getVerdict }).files, ms: now() - t0, att };
+      })); } finally { batchLive -= items.length; }
       for (const x of results) {
+        evidence.attempts.push(x.att);   // in item order, whichever branch finished first: the hold's accounting is deterministic
         out.files = mergeFiles(out.files, x.files);
         out.usd += x.usd; spent += x.usd;
         if (dayLedger && x.usd) { try { dayLedger.note(lineId, x.usd); } catch (e) { failNote('chain.dayLedger.batch', e); } }
@@ -784,47 +1150,72 @@ function makeChainRunner(o) {
     function batchToBarrier(results, bk, jstep) {
       let rel = null;
       for (const x of results) {
-        if (x.error) { if (fan) fan.failed.push(x.error); continue; }
+        if (x.error) { if (fan) { fan.failed.push(x.error); fan.failedIds.push(x.id); } continue; }
         const fw = fan ? Math.max(1, fan.width - fan.failed.length) : 0;
-        const d = barrier.deliver(bk, fw || jstep.expect, x.node.agentId, x.text, jstep.timeoutMin, x.node.dockId);
+        const d = barrier.deliver(bk, fw || jstep.expect, x.node.agentId, x.text, jstep.timeoutMin, x.node.dockId,
+          { branchId: x.id, runId: x.att.runId, draft: String(x.draft == null ? '' : x.draft), verdict: verdictWord(x.text), files: x.att.files.slice() });
         cur = { agentId: x.node.agentId, dockId: x.node.dockId || null };
         if (d.released) rel = d;
       }
       return rel || barrier.release(bk);
     }
-    for (let hop = 1; hop <= 400; hop++) {
+    let resumeDecision = R && R.decision && (R.decision.action === 'approve' || R.decision.action === 'send_back') ? R.decision : null;   // the person's word, applied ONCE, at the gate the walk stopped at
+    for (let hop = R ? R.hop : 1; hop <= 400; hop++) {
       // HALTED (review r7): the line was STOPPED between stages (E-STOP, the fire's own STOP) — a stop, never a failed stage and never a
       // finished job (RunOutcome.ofLine reads it: the fire is 'stopped')
       if (s.signal && s.signal.aborted) return stopAt(LineFire.lineStop('stopped', {}), cur);
       // the tag is derived from the OUTPUT of the stage that just ran — this is what makes a FILTER downstream
       // of a dock a real branch on the result rather than a re-read of the original message.
-      let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null;
+      let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null, escBox = null;
       // SEND TO (2026-10-11): the walk says which OUTBOX a job that ends here lands in (Pipeline.chainStepDock ctx.reach)
       const reach = {};
       if (forced) {
         target = forced.node; entryBranch = !!forced.entry; hopPart = forced.part || null; forced = null;
       } else {
+        /* THE PERSON'S WORD (a resumed walk's first pass only). The stage that stopped at the gate said BLOCKED, or nothing the gate
+           could read; a person has now said APPROVE or SEND BACK in its place, so the stage's verdict is theirs (not blocked: the hold
+           at the brief below must not fire on the reply it already held) and the crate they decided on is: for APPROVE, the work that was
+           under review exactly as it was saved; for SEND BACK, the review (the reviewer's words and the person's note). */
+        let decided = null;
+        const saidAtGate = out.text;
+        if (resumeDecision) { decided = resumeDecision; resumeDecision = null; producerVerdict = decided.action === 'approve' ? Verdict.VERDICT_WORDS[0] : Verdict.VERDICT_WORDS[1]; }
         const ctx = { tag: getTag(out.text), verdict: producerVerdict, lineId: lineId, fromTile: fromTile, via: via, reach };
         const briefHeld = heldStop(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
-        if (briefHeld) return stopAt(briefHeld, cur);
+        if (briefHeld) return holdAt(briefHeld, cur, 'blocked', briefHeld.gateId, iter[briefHeld.gateId] || 0, { hop, ctx, gate: briefHeld.gate });
         fromTile = null; via = null;
         try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; } catch (_) { step = null; }
-        let loopDone = false;
+        let loopDone = false, atGate = false;
         if (step && step.loop) {
+          atGate = true;   // (a gate that hands on to a JOINER replaces `step` with the join below: the person's word was already applied AT the gate)
           // THE ONE LOOP RULE — loopDecision (module level) holds it; the step-through test reads the same one
           const n = iter[step.loop] || 0;
+          gateMax[step.loop] = step.max;
           // a gate whose back lane re-enters the dock that just ran: lastHanded is that dock's previous loop turn, not a draft under review
           const selfLoop = !!step.backTo && nodeKey(asNode(step.backTo)) === nodeKey(cur);
-          const d = loopDecision(step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
-          // a BLOCKED verdict holds the job at this gate: the line ends here, nothing more is bought (out.blocked: line facts)
-          if (d.held) { out.text = d.text; return stopAt(LineFire.lineStop('blocked', { loop: step.loop }), cur); }
+          /* an escalation lane that only reaches an OUTBOX ends the crate THERE, which a branch of a fan-out cannot do (the joiner
+             would wait for a part that never comes): inside a fan, or a gate whose done lane meets a joiner, that lane is not offered */
+          const inFan = !!(fan || pending.length || step.afterJoin);
+          let d;
+          if (decided) {
+            // the person's word IS the verdict at this gate (the chain reads no verdict from a reply a person overruled)
+            const leave = String(step.when).toLowerCase(), back = leave === Verdict.VERDICT_WORDS[0] ? Verdict.VERDICT_WORDS[1] : Verdict.VERDICT_WORDS[0];
+            if (decided.action === 'approve') d = approvedGate(step, approvedWork(lastHanded, saidAtGate, selfLoop || !!joinedFrom));
+            else if (!(step.backTo && n < step.max)) return stopAt(LineFire.lineStop('stage_failed', { agent: cur.agentId, error: 'this gate cannot send the work back any more' }), cur);
+            else d = loopDecision(step, Object.assign({}, ctx, { verdict: back }), n, visited, sentBackReview(saidAtGate, decided.note), selfLoop ? '' : lastHanded);
+          } else d = loopDecision((inFan && step.escOutbox) ? Object.assign({}, step, { escOutbox: null }) : step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
+          /* a held verdict (BLOCKED, none, or a spent gate that holds) stops the job at this gate: the line ends here, nothing more is
+             bought (out.blocked: line facts; out.hold: why, where and on which pass) */
+          if (d.held) { out.text = d.text; return holdAt(LineFire.lineStop('blocked', { loop: step.loop, reason: d.reason }), cur, d.reason, d.gateId, d.pass, { hop, ctx, gate: { id: String(step.loop), max: step.max, backTo: !!step.backTo, self: selfLoop } }); }
           target = asNode(d.target); out.text = d.text;
+          if (d.outboxId) escBox = d.outboxId;   // escalated to an OUTBOX: the crate ends there (below)
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
           else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }
           // the gate let the work out onto a DONE lane that meets a JOINER: this branch parks there like any other
           if (!d.again && !target && step.afterJoin) step = step.afterJoin;
           else loopDone = true;
         }
+        // the stage that stopped sits behind something that is not the gate itself (a FILTER between them): the person's word still decides the crate
+        if (decided && !atGate) out.text = decided.action === 'approve' ? approvedWork(lastHanded, saidAtGate, !!joinedFrom) : sentBackReview(saidAtGate, decided.note);
         if (step && step.branches) {
           // a FAN-OUT split mid-line: every lane runs from this output; first lane now, the rest queued
           const br = step.branches.map(asNode).filter(Boolean);
@@ -838,10 +1229,11 @@ function makeChainRunner(o) {
             if (parts) { br.length = parts.length; texts = parts.map((p, i) => Pipeline.partTurn(out.text, p, i, parts.length)); partsInfo = parts.map((p, i) => ({ text: p, i, k: parts.length })); out.divided = parts.length; }
             else { const note = '(This job was meant to be split between ' + br.length + ' agents, but the step before the splitter gave no numbered parts — so every branch has the whole job.)\n\n'; texts = br.map(() => note + out.text); out.divided = 0; }
           }
-          if (br.length) fan = { width: br.length, failed: [], joinKey: null, joinStep: null, handed: String(out.text || '') };   // what the branches were handed (a gate past the joiner reviews it)
+          const ids = branchIdsOf(br), madeBy = lastRunId();   // (the branches are named by the node each starts at; their work comes from the run that wrote the plan)
+          if (br.length) fan = { width: br.length, failed: [], failedIds: [], ids, joinKey: null, joinStep: null, handed: String(out.text || '') };   // what the branches were handed (a gate past the joiner reviews it)
           const allAt = joinOfAll(br.map(n => ({ node: n })));
           if (allAt) {
-            const items = br.map((n, i) => ({ node: n, text: texts ? texts[i] : out.text, from: cur, part: partsInfo ? partsInfo[i] : null }));
+            const items = br.map((n, i) => ({ id: ids[i], node: n, text: texts ? texts[i] : out.text, from: cur, part: partsInfo ? partsInfo[i] : null }));
             const leadText = out.text, bk = allAt.join + '|' + runId;
             fan.joinKey = bk; fan.joinStep = allAt;
             const b = await runBatch(items, hop);
@@ -856,25 +1248,26 @@ function makeChainRunner(o) {
               return stopAt(x0 ? x0.stop : LineFire.lineStop('stage_failed', {}), x0 ? x0.node : cur);
             }
             const last = rel.parts[rel.parts.length - 1];
-            out.text = joined(rel.parts, [], fan.failed);
+            out.text = joined(rel.parts, [], fan.failed, allAt.join);
             out.agentId = last.agentId; if (last.dockId) out.dockId = last.dockId;
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: last.agentId, agentId: last.agentId, box: 'join:' + allAt.join, ms: 0, ts: now() }, last.dockId));
             /* the merged crate walks on from the joiner's exit — always, even when no dock is past it: the peek above never moves a
                splitter and only read the 'general' route, so its answer must not pick the OUTBOX (a TAKE TURNS splitter after the
                joiner stuck on one exit, a FILTER never read the merged job; runtime audit 2026-10-12). The next pass walks with the
                advancing pick and the merged job's tag, and a walk that ends at an OUTBOX names it there (!target below). */
-            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; fromTile = tileOf(allAt.join);
+            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; branch = null; fromTile = tileOf(allAt.join);
             continue;
           }
           if (texts) out.text = texts[0];
           target = br.shift() || null;
           hopPart = partsInfo ? partsInfo[0] : null;
-          br.forEach((n, i) => pending.push({ node: n, text: texts ? texts[i + 1] : out.text, from: cur, part: partsInfo ? partsInfo[i + 1] : null }));
+          if (target) branch = ids[0];   // the walk is inside the first branch now; the rest are queued
+          br.forEach((n, i) => pending.push({ id: ids[i + 1], node: n, text: texts ? texts[i + 1] : out.text, from: cur, part: partsInfo ? partsInfo[i + 1] : null, prod: madeBy }));
         } else if (step && step.join) {
           // THE BARRIER. Park this branch's output; release only when every in-lane has delivered for this run.
           const bk = step.join + '|' + runId;
           const fw = fan ? Math.max(1, fan.width - fan.failed.length) : 0;
-          const r = barrier.deliver(bk, fw || step.expect, cur.agentId, out.text, step.timeoutMin, cur.dockId);
+          const r = barrier.deliver(bk, fw || step.expect, cur.agentId, out.text, step.timeoutMin, cur.dockId, partMeta());
           if (fan) { fan.joinKey = bk; fan.joinStep = step; }
           const failedNames = fan ? fan.failed.slice() : [];
           if (!r.released && pending.length > 1 && joinOfAll(pending) && joinOfAll(pending).join === step.join) {
@@ -883,12 +1276,12 @@ function makeChainRunner(o) {
             if (b.refused) { barrier.release(bk); return stopAt(b.refused, cur); }
             hop += items.length - 1;
             const rel = batchToBarrier(b.results, bk, step);
-            out.text = joined(rel.parts, [], fan ? fan.failed : []);
+            out.text = joined(rel.parts, [], fan ? fan.failed : [], step.join);
             const last = rel.parts[rel.parts.length - 1];
             out.agentId = last.agentId; if (last.dockId) out.dockId = last.dockId;
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: last.agentId, agentId: last.agentId, box: 'join:' + step.join, ms: 0, ts: now() }, last.dockId));
             // the merged job walks on from the joiner's exit (see the release below), never where an arriving branch's walk ended
-            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; fromTile = tileOf(step.join);
+            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; branch = null; fromTile = tileOf(step.join);
             continue;
           }
           if (!r.released) {
@@ -896,13 +1289,13 @@ function makeChainRunner(o) {
             // nothing left to run in THIS call: wait for another deliverer (same run) or the joiner's timeout
             const w = await barrier.wait(step.join + '|' + runId, step.timeoutMin, s.signal);
             if (!w) return stopAt((s.signal && s.signal.aborted) ? LineFire.lineStop('stopped', {}) : LineFire.lineStop('joiner_lost', { join: step.join }), cur);
-            out.text = joined(w.parts, w.missing, failedNames);
+            out.text = joined(w.parts, w.missing, failedNames, step.join);
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: cur.agentId, agentId: cur.agentId, box: 'join:' + step.join, ms: 0, ts: now() }, cur.dockId));
           } else {
-            out.text = joined(r.parts, [], failedNames);
+            out.text = joined(r.parts, [], failedNames, step.join);
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: cur.agentId, agentId: cur.agentId, box: 'join:' + step.join, ms: 0, ts: now() }, cur.dockId));
           }
-          lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null;
+          lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; branch = null;
           /* the merged crate continues from the joiner's exit; the last deliverer is its producer. ALWAYS from the joiner — even
              with no dock past it (runtime repair 2026-10-12): the arriving branch's step only LOOKED past the joiner (step.next is a
              quiet look-ahead), so a TAKE TURNS splitter there turns once per merged job and a FILTER reads the merged job's tag; a
@@ -920,10 +1313,11 @@ function makeChainRunner(o) {
       // no target = EITHER a terminal stage (its reply IS the answer — silent, correct) OR the line gate
       // refusing this work. refusalStop tells the two apart, and only speaks when it can prove the second.
       if (!target) {
-        if (pending.length) { forced = nextPending(); hop--; continue; }
+        if (pending.length) { if (branch) apart.push(branch); forced = nextPending(); hop--; continue; }
         const refused = refusalStop(cur, lineId);
         if (refused) return stopAt(refused, cur);
-        if (reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
+        if (escBox) out.outboxId = escBox;   // an escalated crate ends at the OUTBOX the escalation lane reaches, not the done lane's
+        else if (reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
         return out;
       }
       const tKey = nodeKey(target);
@@ -969,6 +1363,7 @@ function makeChainRunner(o) {
       lastHanded = entryBranch ? String(originalText || '') : hopPart ? String(hopPart.text || '') : String(out.text || '');
       call.draft = lastHanded;
       call.handoffReads = out.files.slice();
+      if (branch) call.branchId = branch;   // the branch this stage belongs to (a resumed walk writes it on the stage's durable attempt)
       try { r = await runAgent(call); }
       catch (e) { r = { error: (e && e.message) || String(e || 'stage failed') }; }
       r = r || {};
@@ -980,20 +1375,23 @@ function makeChainRunner(o) {
       // the note says the line stopped short, so the floor and the channel tell the same story. A stage that did not
       // finish (its own outcome: cut short, a spending or step limit, a question, no end) hands on NOTHING of its partial text.
       const hopCode = LineFire.hopStopCode(r);
+      const att = attemptOf({ r, node: target, workitemId, t0, text: call.text, reads: call.handoffReads, draft: call.draft, ok: !hopCode, usd,
+        branchId: branch });
+      evidence.attempts.push(att);
       if (hopCode) {
-        say('workitem.superseded', withDock({ workitemId, agentId: target.agentId, ts: now() }, target.dockId));
+        say('workitem.superseded', withDock({ workitemId, agentId: target.agentId, ts: (att.endedAt = now()) }, target.dockId));
         if (fan) {
           // A BRANCH FAILED: the job goes on without it. The next branch runs; if none is left, the joiner releases what came in.
-          fan.failed.push(LineFire.hopStop(r, { agent: target.agentId }).why);
+          fan.failed.push(LineFire.hopStop(r, { agent: target.agentId }).why); fan.failedIds.push(branch);
           if (pending.length) { forced = nextPending(); continue; }
           const rel = fan.joinKey ? barrier.release(fan.joinKey) : null;
           if (rel && rel.parts.length) {
             const js = fan.joinStep, last = rel.parts[rel.parts.length - 1];
-            out.text = joined(rel.parts, [], fan.failed);
+            out.text = joined(rel.parts, [], fan.failed, js.join);
             say('workitem.delivered', withDock({ workitemId: newId(), finalQueueId: last.agentId, agentId: last.agentId, box: 'join:' + js.join, ms: 0, ts: now() }, last.dockId));
             cur = { agentId: last.agentId, dockId: dockMode ? (last.dockId || null) : null };
             out.agentId = last.agentId; if (last.dockId) out.dockId = last.dockId;
-            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; fromTile = tileOf(js.join);   // on from the joiner's exit, like every release
+            lastHanded = (fan && fan.handed) || ''; branchMode = false; fan = null; branch = null; fromTile = tileOf(js.join);   // on from the joiner's exit, like every release
             continue;
           }
         }
@@ -1002,14 +1400,14 @@ function makeChainRunner(o) {
         if (branchMode) { out.text = entryOut.text; out.agentId = entryOut.agentId; if (entryOut.dockId) out.dockId = entryOut.dockId; }   // a dead branch never replaces the entry's answer
         return stopAt(LineFire.hopStop(r, { agent: target.agentId, error: hopCode === 'stopped' ? '' : r.error }), target);
       }
-      say('workitem.delivered', withDock({ workitemId, finalQueueId: target.agentId, agentId: target.agentId, box: '', ms: now() - t0, ts: now() }, target.dockId));
+      say('workitem.delivered', withDock({ workitemId, finalQueueId: target.agentId, agentId: target.agentId, box: '', ms: (att.endedAt = now()) - t0, ts: now() }, target.dockId));
       evidence.workitemIds.push(workitemId);
       const hopRec = { agentId: target.agentId, usd, ms: now() - t0 };
       if (target.dockId) hopRec.dockId = target.dockId;
       out.hops.push(hopRec);
       out.text = r.text; out.agentId = target.agentId;
       const product = productOf(r, { draft: lastHanded, getVerdict });
-      lastHanded = product.draft; producerVerdict = product.verdict;
+      lastHanded = product.draft; producerVerdict = product.verdict; joinedFrom = null;
       out.files = mergeFiles(out.files, product.files);
       if (target.dockId) out.dockId = target.dockId;
       cur = target;
@@ -1021,7 +1419,19 @@ function makeChainRunner(o) {
   // ONE wording, shared with the routine paths (routing/line-fire.js folds a routine's line the same way).
   function stopNote(res) { return LineFire.lineStopNote(res); }
 
-  return { advance, stopNote, _limits: { maxHops, maxUsd }, _barrier: barrier };
+  function initializeEntry(raw) {
+    const e = Continuation.adoptableEntry(raw), n = e.binding.entryNode;
+    if (!stepDock || !fanSiblingsDock || !lineOfAgent || !agentOfDock || agentOfDock(n.dockId) !== n.agentId
+      || lineOfAgent(n.agentId, n.dockId) !== e.binding.lineId) {
+      throw new Error('line entry initialization has no exact current drawn dock membership');
+    }
+    // Unknown/throwing/missing membership is not proof of no sibling. Resolve
+    // through this chain's bound plan owner; a posted branch flag is never read.
+    const siblings = fanSiblingsDock(n.dockId, { lineId: e.binding.lineId });
+    if (!Array.isArray(siblings) || siblings.length) throw new Error('line entry initialization requires proved absence of drawn entry siblings');
+    return initialWalk(n, e.observation.product, e.input.text);
+  }
+  return { advance, stopNote, initializeEntry, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
 module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };

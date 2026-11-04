@@ -1541,6 +1541,7 @@ const WorkflowPanel = (() => {
         const v = +String((loopMax && loopMax.value) || '').trim(); if (isFinite(v) && v >= 1) cfg.maxIter = Math.min(loopMaxCeil, Math.floor(v));
         if (gate.done) cfg.done = gate.done;
         if (gate.when) cfg.when = gate.when;
+        if (p.onSpent) cfg.onSpent = p.onSpent;   // the gate's policy when its passes run out is not edited here, but a save replaces the settings wholesale: it names what the gate already says
       }
       const res = H.station().configureJunction(p.id, Object.keys(cfg).length ? cfg : null);
       if (!res || !res.ok) { H.sfx('bad'); return; }
