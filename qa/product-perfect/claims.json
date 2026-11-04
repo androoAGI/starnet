@@ -3374,26 +3374,51 @@
       "verdict": "SHIPPED",
       "disposition": "PROVEN",
       "ownerWave": "W2",
-      "qualification": "Both surfaces now resolve. web_fetch/web_request resolve every hop; browser.navigate resolves the requested URL, the post-redirect URL and browser.login's target through the same injectable best-effort guard, and hostOf strips the FQDN root label so a trailing dot can no longer walk past the localhost/.internal/.lan/single-label name rules.",
+      "qualification": "Both surfaces now resolve, through the one outbound boundary (sidecar/net/safe-egress.js: DNS asked once per resolution, every answer classified, resolution fails closed). web_fetch/web_request resolve every hop; browser.navigate resolves the requested URL, the post-redirect URL and browser.login's target through the same injectable resolver (deps.lookup; absent is this computer's DNS), and hostOf is the boundary's normalizeHost, which strips the FQDN root label so a trailing dot can no longer walk past the localhost/.internal/.lan/single-label name rules.",
       "authorityChecks": [
         {
           "kind": "contains",
           "path": "sidecar/tools/builtin/web.js",
-          "needle": "dns.promises.lookup"
+          "needle": "egress.resolveValidated(target, { policy: 'web', lookup: doLookup, origin })"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/tools/builtin/web.js",
+          "needle": "resolveHop(new URL(loc, base).href, 'redirect')"
         },
         {
           "kind": "contains",
           "path": "sidecar/tools/builtin/browser.js",
-          "needle": "dns.promises.lookup"
+          "needle": "Egress.resolveValidated(u, { policy: 'browser', lookup, origin })"
         },
         {
           "kind": "contains",
           "path": "sidecar/tools/builtin/browser.js",
-          "needle": "await assertResolvedSafe(u, doLookup)"
+          "needle": "if (!local) await resolveCallerUrl(u, doLookup);"
         },
         {
           "kind": "contains",
           "path": "sidecar/tools/builtin/browser.js",
+          "needle": "else await resolveVerified(finalUrl, doLookup, 'redirect');"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/tools/builtin/browser.js",
+          "needle": "const u = assertSafeUrl(url);\n      await resolveCallerUrl(u, doLookup);"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/net/safe-egress.js",
+          "needle": "require('node:dns').promises.lookup(name, options)"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/tools/builtin/browser.js",
+          "needle": "function hostOf(u) { return Egress.normalizeHost(u.hostname); }"
+        },
+        {
+          "kind": "contains",
+          "path": "sidecar/net/safe-egress.js",
           "needle": "h = h.replace(/\\.+$/, '')"
         }
       ],
