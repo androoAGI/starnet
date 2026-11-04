@@ -170,14 +170,17 @@ async function poll(fn, tries) { for (let i = 0; i < (tries || 40); i++) { const
     const row1 = await runRow(r1.runId);
     A.eq(row1 && row1.title, LABEL, 'PROOF e7dcb889: a captionless attachment turn is titled by its label (the base: the expanded text with the file\'s bytes)');
     A.ok(row1 && !/SCREEN CAPTURE|NOTES-BYTES-SENTINEL/.test(row1.title || ''), 'the title holds neither the capture marker nor the file\'s bytes: ' + JSON.stringify(row1 && row1.title));
+    A.eq([row1 && row1.wordless, row1 && row1.taintedBy], [true, 'user attachment'], 'the run record says its directive carried no words (the "worked recently" projection leaves such a run out), and the run still holds the attachment it sent');
     const rows1 = diskRows(S1).filter(x => x.sourceRunId === r1.runId);
     const dir1 = rows1.filter(x => x.role === 'user' && x.directive === true);
     A.eq(dir1.length, 1, 'one directive row');
     const d1 = dir1[0] || {};
-    // (attachment rows, S3) the directive row is the Commander's WORDS: the label of a captionless turn, never the expanded text whose file bytes
-    // are a third party's. The files ride as attachment rows beside it; the model's own copy of the turn is unchanged (checked above)
+    // (attachment rows, S3) the directive row holds the label of a captionless turn, never the expanded text whose file bytes are a third
+    // party's. The files ride as attachment rows beside it; the model's own copy of the turn is unchanged (checked above). The label is built
+    // from the files' NAMES, a third party's text, so with no typed words it is not the Commander's words and is never written clean (repair:
+    // a clean owner row feeds RECENT ACTIVITY, interests and briefs): it carries the attachment stamp.
     A.ok(!/NOTES-BYTES-SENTINEL|SCREEN CAPTURE/.test(String(d1.content || '')), 'the directive row\'s content holds neither the file\'s bytes nor the capture marker');
-    A.eq([d1.content, d1.typed, d1.turnId, d1.kind, (d1.attachments || []).map(a => a.id), d1.taint, d1.taintKnown], [LABEL, undefined, T1, 'turn', [PHOTO.id, NOTE.id], undefined, true], 'the directive row is the label (typed equals content, so it is not stored twice), its turn, kind turn, the attachment refs, and a clean stamp');
+    A.eq([d1.content, d1.typed, d1.turnId, d1.kind, (d1.attachments || []).map(a => a.id), d1.taint, d1.taintKnown], [LABEL, undefined, T1, 'turn', [PHOTO.id, NOTE.id], 'user attachment', true], 'the directive row is the label (typed equals content, so it is not stored twice), its turn, kind turn, the attachment refs, and the attachment stamp (no typed words: not the Commander\'s words, never a clean owner row)');
     const files1 = rows1.filter(x => x.kind === 'attachment');
     const sha = buf => crypto.createHash('sha256').update(buf).digest('hex');
     A.eq(files1.map(x => [x.role, x.turnId, x.taint, x.content, x.attachment && x.attachment.id, x.attachment && x.attachment.size, x.attachment && x.attachment.sha256]),
@@ -216,6 +219,7 @@ async function poll(fn, tries) { for (let i = 0; i < (tries || 40); i++) { const
     const r2 = await run({ isTask: true, streamId: S2, turnId: mint(), messages: [{ role: 'user', content: CAPTION, attachments: [PHOTO] }] });
     A.eq(r2.end.reason, 'done', 'fixture: the captioned run finished');
     A.eq(((await runRow(r2.runId)) || {}).title, CAPTION, 'control: a captioned photo is titled by its caption');
+    A.eq(((await runRow(r2.runId)) || {}).wordless, undefined, 'control: a captioned photo\'s run is not wordless');
     const d2 = diskRows(S2).find(x => x.sourceRunId === r2.runId && x.directive === true) || {};
     A.eq([d2.content, d2.typed, (d2.attachments || []).map(a => a.id)], [CAPTION, undefined, [PHOTO.id]], 'control: its directive row is the caption (typed equals content, so it is not stored twice)');
 

@@ -50,8 +50,8 @@
      directiveKind, line   the directive's default kind; 'lineId@dockId', passed through to every row
      quotes      an array, or a function read at EACH drain, of [{id, at}] (a bare string is {id, at: 0}): the streams
                  this run has read so far, stamped on each drained row as quotes + quotesAt (TurnKinds.quoteStamp)
-   setDirective({ text, typed, attachments, kind, attachmentRows }) writes text as the content and the rest on the directive
-   row; directiveRow() is { rowId, turnId, text } once the directive is proven durable.
+   setDirective({ text, typed, attachments, kind, attachmentRows, labelOnly }) writes text as the content and the rest on the directive
+   row (labelOnly decides its stamp, below); directiveRow() is { rowId, turnId, text } once the directive is proven durable.
 
    ATTACHMENT ROWS (attachment-rows-and-taint, S3; sidecar/turn-attachment.js). attachmentRows are the files the directive's turn
    carried, as turn-attachment items. The directive row holds the Commander's words only, so each file is recorded beside it as
@@ -62,7 +62,9 @@
    rows, so a retry (which retracts the old rows) writes each file once and a resend or a continuation writes none twice.
    The directive row's own taint is the run's NON-attachment taint: the bare attachment stamp is what the attachment rows carry,
    and the Commander's typed words are not bytes (a directive stamped only with the attachment source is written clean). A brief
-   another agent wrote (`from`) is that agent's text, produced while it held the bytes, and keeps the stamp.
+   another agent wrote (`from`) is that agent's text, produced while it held the bytes, and keeps the stamp. A directive that says
+   it is only the label of its files (setDirective's labelOnly: no typed words, so the row holds the files' NAMES, a third party's
+   text) is never written clean, even by a run that sent no bytes: it carries the run's source, else the bare attachment stamp.
 
    Pure: no clock, no randomness, no I/O of its own — every write is the injected store's. */
 'use strict';
@@ -117,6 +119,7 @@ function makeRunTranscript(opts) {
   // the run's row kind (TurnKinds.messageKind: the run-end appendNew stamps by the same rule)
   function kindOf(m) { return TurnKinds.messageKind(m, rowKind); }
   let directiveExtra = null;   // { typed, attachments, kind } from setDirective({ … })
+  let directiveLabelOnly = false;   // setDirective({ labelOnly }): the directive's words are only the label of its files (turn-directive.js labelOnly)
   let directiveStored = null;  // the row appendStrict proved for the directive
   let attachmentItems = [];    // the turn-attachment items still owed a row (setDirective's attachmentRows / setAttachments)
   let attachmentTurn = null;   // the turn a REUSED directive's files are recorded under (setAttachments); null = this run's own turn
@@ -148,10 +151,15 @@ function makeRunTranscript(opts) {
 
   // the directive's taint: the run's own source unless that is the bare attachment stamp, which belongs to the attachment rows —
   // the directive holds the Commander's typed words, not the file's bytes (see ATTACHMENT ROWS above). A directive another agent
-  // wrote (`from`: a lead's brief to its worker) is model-written text, produced while the lead held the bytes: it keeps the stamp
+  // wrote (`from`: a lead's brief to its worker) is model-written text, produced while the lead held the bytes: it keeps the stamp.
+  // A directive with NO typed words holds only the label of the files, built from their names, which are a third party's text and not
+  // the Commander's words at all: it is never written clean, whatever the run held (a file that sent no bytes leaves the run
+  // untainted), so it is never a clean owner row. The bare stamp is enough: it decays on replay as every attachment stamp does.
   function directiveTaint() {
     const t = taintNow();
-    return t === ATTACHMENT_TAINT && !from ? null : t;
+    if (from) return t;
+    if (directiveLabelOnly) return t || ATTACHMENT_TAINT;
+    return t === ATTACHMENT_TAINT ? null : t;
   }
   // the attachment rows still owed, written AFTER the directive: never throws (onFailure + retried at the next boundary)
   function writeAttachments() {
@@ -187,18 +195,20 @@ function makeRunTranscript(opts) {
 
   return {
     // the triggering user text, captured by the host before the loop can add user-role turns of its own; or
-    // { text, typed, attachments, kind, attachmentRows }: the content, plus the typed words, attachment refs and kind of its row,
-    // and the turn-attachment items to record beside it (see ATTACHMENT ROWS in the header)
+    // { text, typed, attachments, kind, attachmentRows, labelOnly }: the content, plus the typed words, attachment refs and kind of its row,
+    // the turn-attachment items to record beside it (see ATTACHMENT ROWS in the header), and whether the words are only the files' label
     setDirective(text) {
       if (text && typeof text === 'object') {
         directive = text.text == null ? '' : String(text.text);
         directiveExtra = { typed: text.typed, attachments: text.attachments, kind: text.kind };
+        directiveLabelOnly = text.labelOnly === true;
         attachmentItems = Array.isArray(text.attachmentRows) ? text.attachmentRows.slice() : [];
         attachmentTurn = null;
         return;
       }
       directive = text == null ? '' : String(text);
       directiveExtra = null;
+      directiveLabelOnly = false;
       attachmentItems = [];
       attachmentTurn = null;
     },

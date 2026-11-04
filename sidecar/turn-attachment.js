@@ -5,9 +5,11 @@
    document was then stored as the Commander's own words: the earlier-conversation note quoted it "verbatim, still holds",
    recall returned it as a Commander message, and the stamp it carried re-tainted every later run that replayed the row.
 
-   THE SHAPE NOW. The directive row holds the words (the typed text, else the label of what was attached) and keeps the
-   attachment REFERENCES it always kept, for the thumbnails and for the server's own re-expansion. The attachment itself is
-   recorded beside it, one row per file, written by this module right after the directive:
+   THE SHAPE NOW. The directive row holds the words (the typed text, else the label of what was attached, which is the files'
+   NAMES and carries the attachment stamp: it is not the Commander's words) and keeps the attachment REFERENCES it always kept,
+   for the thumbnails and for the server's own re-expansion. Every name this module writes or shows goes through the one rule
+   (attachment-name.js). The attachment itself is recorded beside it, one row per file, written by this module right after the
+   directive:
 
      { role: 'system', kind: 'attachment', content: '[attached: notes.txt]', turnId, sourceRunId, taint,
        attachment: { id, name, mime, path, size?, sha256? } }
@@ -33,6 +35,7 @@
 const Kinds = require('../frontend/app/turnkinds.js');
 const { ATTACHMENT_TAINT } = require('./taint.js');
 const { note: failNote } = require('./failopen.js');
+const { cleanName, cleanMime } = require('./attachment-name.js');
 
 const KIND = 'attachment';
 const ATTACH_MAX = 16;                                   // transcriptstore.attachmentRefs' capacity
@@ -41,8 +44,9 @@ const PATH_RE = /^\.attachments\/[^\u0000-\u001f\u007f\\]+$/;
 const NOTE_MAX = 8;                                      // names shown in a one-line note
 
 const str = v => (v == null ? '' : String(v));
-// a sender-chosen NAME goes into bracketed text a model reads: one line, no bracket that could end the marker early, bounded
-const clean = name => str(name).replace(/[\u0000-\u001f\u007f\[\]]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'file';
+// a sender-chosen NAME goes into bracketed text a model reads, and into the words a stored turn is read back as: the ONE rule
+// (attachment-name.js) that attachments.js applies to every note too: one line, no bracket or angle bracket, nothing hidden, 120 code points
+const clean = name => cleanName(name);
 
 /* fieldOf(a, redact) — the validated `attachment` object of an attachment row, or null when `a` names no saved attachment. The
    path must sit under .attachments/ (the folder attachments.js saves into) and may not climb out of it; every string is bounded;
@@ -61,7 +65,7 @@ function fieldOf(a, redact) {
     catch (e) { failNote('turn.attachment.redact', e); name = 'file'; }
   }
   out.name = name;
-  const mime = typeof a.mime === 'string' ? a.mime.slice(0, 100) : '';
+  const mime = cleanMime(a.mime);   // a plain type/subtype token or nothing: the sender's free text is never kept as the file's type
   if (mime) out.mime = mime;
   out.path = path;
   if (Number.isSafeInteger(a.size) && a.size >= 0) out.size = a.size;
@@ -145,14 +149,27 @@ function write(store, ctx) {
   return result;
 }
 
+/* THE LABEL OF A TURN SENT WITH NO WORDS. A turn that carries files and not a word is stored as '[file: name]' / '[image: name]' per
+   file, joined ', ' (at most LABEL_MAX): the one string TurnDirective.capture gives such a turn as its wording, built from the names
+   (a third party's text) through the one rule. It is not the Commander's words, and a reader that shows the files (noteOf) must not
+   show them a second time as if they had been said: wordsOf below knows the label by building it again from the row's own references. */
+const LABEL_MAX = 600;
+const labelWith = (refs, nameOf) => (Array.isArray(refs) ? refs : []).filter(a => a && typeof a === 'object')
+  .map(a => '[' + (a.kind === 'image' ? 'image' : 'file') + ': ' + nameOf(a.name) + ']').join(', ').slice(0, LABEL_MAX);
+const labelOf = refs => labelWith(refs, clean);
+// the label as builds before the one rule wrote it, the names raw: a row stored by one of them may still hold it as its words
+const rawLabelOf = refs => labelWith(refs, name => String(name || 'file'));
+
 /* THE READERS. A row that kept its attachment references stands for words plus files. wordsOf is the Commander's words of a
    user row: the typed words of a row whose content holds something else (the 11-02 shape stored the file's text in the content
-   and the words in `typed`), else the content. noteOf is one '[attached: name]' per reference of a user row, the form every
-   reader shows a file in; textOf joins them. A row that keeps no references reads exactly as its content (byte for byte). */
+   and the words in `typed`), else the content; NONE for a row whose words are only the label of its files (a turn sent with no
+   words has none to give). noteOf is one '[attached: name]' per reference of a user row, the form every reader shows a file in;
+   textOf joins them. A row that keeps no references reads exactly as its content (byte for byte). */
 function wordsOf(row) {
   if (!row || typeof row !== 'object') return '';
-  if (row.role === 'user' && typeof row.typed === 'string' && row.typed && Array.isArray(row.attachments) && row.attachments.length) return row.typed;
-  return str(row.content);
+  const withFiles = row.role === 'user' && Array.isArray(row.attachments) && row.attachments.length > 0;
+  const words = withFiles && typeof row.typed === 'string' && row.typed ? row.typed : str(row.content);
+  return withFiles && (words === labelOf(row.attachments) || words === rawLabelOf(row.attachments)) ? '' : words;
 }
 function noteOf(row) {
   if (!row || typeof row !== 'object' || row.role !== 'user' || !Array.isArray(row.attachments) || !row.attachments.length) return '';
@@ -167,4 +184,4 @@ function textOf(row) {
   return note ? (words ? words + ' ' : '') + note : words;
 }
 
-module.exports = { KIND, ATTACH_MAX, fieldOf, rowsFor, keyOf, marker, write, wordsOf, noteOf, textOf };
+module.exports = { KIND, ATTACH_MAX, LABEL_MAX, fieldOf, rowsFor, keyOf, marker, write, labelOf, wordsOf, noteOf, textOf };

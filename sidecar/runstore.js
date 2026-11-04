@@ -515,6 +515,9 @@
       // the bare attachment (run-execution-state rowTaint). Present only when it differs from taintedBy, so every other row stays byte-identical.
       const rowTaintedBy = str(e.rowTaintedBy).replace(/\s+/g, ' ').trim().slice(0, 200);
       if (rowTaintedBy && rowTaintedBy !== taintedBy) entry.rowTaintedBy = rowTaintedBy;
+      // WORDLESS (additive, same repair): the run's directive carried files and no typed words, so its title is the label of the files,
+      // a third party's names. Present only when true; the ambient "worked recently" projection (index.js nightshiftRecentRuns) leaves such a run out.
+      if (e.wordless === true) entry.wordless = true;
       const error = str(e.error).replace(/\s+/g, ' ').trim().slice(0, ERROR_MAX);
       if (error) entry.error = error;
       rows.push(entry);

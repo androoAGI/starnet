@@ -46,7 +46,7 @@ A.ok(pic && pic.captured === true, 'a {content: \'\', attachments: [png]} captur
 A.eq(pic && pic.label, '[image: photo.png]', 'it carries its label');
 A.eq([D.typedText(pic), D.wording(pic), D.title(pic, 'EXPANDED')], ['', '[image: photo.png]', '[image: photo.png]'], 'no typed words; the wording and the title are its label (never an older turn, never the expanded bytes)');
 A.eq(pic && pic.attachments, [{ id: PNG.id, name: PNG.name, path: PNG.path, mediaType: PNG.mediaType, kind: PNG.kind }], 'its attachments are bounded references (never bytes; the store\'s fields)');
-A.eq(D.row(pic, '', 'turn'), { text: '[image: photo.png]', typed: '[image: photo.png]', attachments: pic.attachments, kind: 'turn' }, 'a captionless turn writes a directive row (its content the label: the expanded text has none)');
+A.eq(D.row(pic, '', 'turn'), { text: '[image: photo.png]', typed: '[image: photo.png]', attachments: pic.attachments, kind: 'turn', labelOnly: true }, 'a captionless turn writes a directive row (its content the label: the expanded text has none), and says it is only a label (the run transcript stamps such a row; it is never the Commander\'s words)');
 const two = D.capture([{ role: 'user', content: '', attachments: [PNG, TXT, { name: 'no-path.bin' }] }]);
 A.eq(two.label, '[image: photo.png], [file: notes.txt], [file: no-path.bin]', 'one label per attachment, joined');
 A.eq(two.attachments.map(a => a.id), [PNG.id, TXT.id], 'a reference outside .attachments/ is labelled but not kept as a ref');

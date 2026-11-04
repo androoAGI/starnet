@@ -16,6 +16,7 @@ const { note: failNote } = require('./failopen.js');
 const { tagImageSource } = require('./providers/provider.js');
 const RunPaths = require('./run-paths.js');   // the run's one placement rule (placeJail) names a saved attachment
 const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (DIRECTIVE policy)
+const { cleanName, cleanMime } = require('./attachment-name.js');   // the ONE rule for a sender-chosen name and media type that a note echoes
 
 /* WHICH ATTACHMENTS' BYTES A RUN RE-SENDS (attachment-rows-and-taint, S1).
    The browser keeps every sent turn's references, so each run used to re-read and re-send every attachment of the whole
@@ -158,8 +159,9 @@ module.exports = function makeAttachments(deps) {
   }
 
   const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
-  // a sender-chosen NAME goes into bracketed host text: one line, no bracket that could end it early, bounded
-  const noteName = name => String(name == null ? '' : name).replace(/[\u0000-\u001f\u007f\[\]]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120) || 'file';
+  // a sender-chosen NAME goes into bracketed host text through the one rule (attachment-name.js): one line, no bracket or angle bracket,
+  // nothing hidden, 120 code points. Every echo below uses it: the markers, the header, the binary note and the tag the adapter's note reads
+  const noteName = cleanName;
   // only a real saved attachment is NAMED in a note: a reference outside .attachments/ (or climbing out of it) is never echoed
   const namable = rel => /^\.attachments\/[^\u0000-\u001f\u007f\[\]\\]+$/.test(rel) && !/(^|\/)\.\.(\/|$)/.test(rel);
   const entryOf = a => ({ id: String(a.id || ''), name: String(a.name || 'file'), mediaType: String(a.mediaType || '').toLowerCase(),
@@ -210,20 +212,23 @@ module.exports = function makeAttachments(deps) {
         entry.bytes = true;
         // tagged (off-wire) with its name + absolute saved path: should the model turn out not to see images, the
         // adapter's note (provider.withoutImageParts) can then say which file it was and where image_analyze reads it
-        return { block: tagImageSource({ type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + buf.toString('base64') } }, { name, path: absPath }), entry };
+        return { block: tagImageSource({ type: 'image_url', image_url: { url: 'data:' + mime + ';base64,' + buf.toString('base64') } }, { name: noteName(name), path: absPath }), entry };
       }
       if (looksTextual(name, mime)) {
         let t = buf.toString('utf8'); let note = '';
         if (t.length > TEXT_INLINE_MAX) { t = t.slice(0, TEXT_INLINE_MAX); note = '\n…[truncated]'; }
         entry.bytes = true;
-        return { block: { type: 'text', text: '\n\n[Attached file: ' + name + ']\n```\n' + t + note + '\n```\n[saved in your workspace at ' + place(rel) + ']' }, entry };
+        return { block: { type: 'text', text: '\n\n[Attached file: ' + noteName(name) + ']\n```\n' + t + note + '\n```\n' + (namable(rel) ? '[saved in your workspace at ' + place(rel) + ']' : '') }, entry };
       }
       // honest AND actionable: the bytes are real and jailed in the agent's workspace — name the path so the
       // agent can operate on the file with its tools instead of dead-ending on "can't read this".
       const what = /^video\//.test(mime) ? 'a video — you cannot watch it directly, but the file is real'
         : /^audio\//.test(mime) ? 'an audio file — you cannot listen to it directly, but the file is real'
         : 'a file type you cannot view directly';
-      return { block: { type: 'text', text: '\n[Attached file: ' + name + ' (' + (mime || 'binary') + ') — ' + what + '; it is saved in your workspace at ' + place(rel) + ' and your file/shell tools can operate on it]' }, entry };
+      // The NAME and the media type are the sender's words, not the host's: the name goes through the one rule, the type only as a plain
+      // token (else "binary"), the path only for a real saved attachment. A file that sends no bytes leaves the run clean, so this note is
+      // where its name meets a model that is not locked: it must hold the bound every other note holds.
+      return { block: { type: 'text', text: '\n[Attached file: ' + noteName(name) + ' (' + (cleanMime(mime) || 'binary') + ') — ' + what + (namable(rel) ? '; it is saved in your workspace at ' + place(rel) + ' and your file/shell tools can operate on it' : '') + ']' }, entry };
     }
 
     // 1. read and spend the budget NEWEST first

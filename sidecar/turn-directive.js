@@ -41,7 +41,8 @@
                                              { text, label, attachments, turnId, typedTitleSource, captured: true }, or
                                              null when there is no user message to read (an internal system-only run, an
                                              assistant-only body). text = the message's own words (UserText DIRECTIVE);
-                                             label = '[image: name]' / '[file: name]' per attachment, joined ', ' (<= 600);
+                                             label = '[image: name]' / '[file: name]' per attachment, joined ', ' (<= 600), each
+                                             name through the one rule (attachment-name.js; turn-attachment.js labelOf);
                                              attachments = bounded refs (the transcript store's own rule). A recovery
                                              continuation's directive is its SOURCE's title ({ recovered: true }); one
                                              with no title is null (the trunk path reads the recovered prompt)
@@ -52,7 +53,11 @@
                                              is written CLEAN: text is the captured wording (the typed words, else the
                                              label), never contentBytes, which holds the files' expanded text; the file
                                              rides as an attachment row beside it (sidecar/turn-attachment.js). A directive
-                                             without attachments keeps the trunk bytes exactly
+                                             without attachments keeps the trunk bytes exactly. When the wording is only the
+                                             label the row also says labelOnly: true, and the run transcript stamps it
+     labelOnly(d)                            a directive with no typed words whose whole wording is the label of its files
+                                             (the names, a third party's text): not the Commander's words, so its row is never
+                                             a clean owner row and its run is recorded wordless (index.js)
      install(runTranscript, d, contentBytes, kind, report, reused)
                                              the ONE decision of what a run writes for its directive: a new directive is
                                              row(...) plus the attachment rows of its references (report = attachments.resentOf,
@@ -183,7 +188,6 @@ function reuse(store, o) {
 }
 
 /* ---- the directive, captured once before expansion (commit 4) ---- */
-const LABEL_MAX = 600;
 const ATTACH_MAX = 16;
 const REF_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];   // transcriptstore attachmentRefs
 // the newest user message a run can read: its content flattens, or it carries attachments (latestUserText's walk)
@@ -196,10 +200,8 @@ function newestUser(messages) {
   }
   return null;
 }
-function labelOf(atts) {
-  const parts = atts.filter(a => a && typeof a === 'object').map(a => '[' + (a.kind === 'image' ? 'image' : 'file') + ': ' + String(a.name || 'file') + ']');
-  return parts.join(', ').slice(0, LABEL_MAX);
-}
+// the label of a turn sent with no words: '[file: name]' per attachment, the names through the one rule (turn-attachment.js labelOf)
+const labelOf = atts => TurnAttachment.labelOf(atts);
 function refsOf(atts) {
   const out = [];
   for (const a of atts) {
@@ -236,15 +238,21 @@ function wording(d) {
 }
 // the content a turn that carried files stores as its directive row (the wording, never the expanded text); '' for a turn without files or a null capture
 function attachedWording(d) { return d && Array.isArray(d.attachments) && d.attachments.length ? wording(d) : ''; }
+// A directive with no typed words whose whole wording is the label of its files: the Commander said nothing, and the names in the label are
+// a third party's text. Its row must never be taken for the Commander's words (owner evidence, ambient activity, interests, briefs), and
+// the run that answered it must not be either (the run record says so: wordless). false for a null capture, a recovery and any typed words.
+function labelOnly(d) { return !!d && !String(d.text || '').trim() && !!String(d.label || ''); }
 function row(d, contentBytes, kind) {
   if (!d) return contentBytes;
+  const only = labelOnly(d) ? { labelOnly: true } : null;
   // THE CLEAN DIRECTIVE: with attachments the row's content is the Commander's wording, never contentBytes (the expanded text,
   // whose file bytes are a third party's words). The files ride as attachment rows (install); the refs stay for the thumbnails.
-  if (Array.isArray(d.attachments) && d.attachments.length) return { text: wording(d), typed: wording(d), attachments: d.attachments, kind };
+  // With no typed words the wording is the label of the files: the row says so (labelOnly) and the run transcript stamps it.
+  if (Array.isArray(d.attachments) && d.attachments.length) return Object.assign({ text: wording(d), typed: wording(d), attachments: d.attachments, kind }, only);
   // a recovery continuation that must write the directive its source never wrote reads the SOURCE's expanded prompt: when that
   // holds a file's text the row keeps the source's title instead (the same fallback a missing directive takes at run end)
   const expanded = d.recovered === true && rowStoresAttachmentText({ role: 'user', content: contentBytes });
-  return { text: expanded ? wording(d) : (contentBytes || d.label), typed: wording(d), attachments: d.attachments, kind };
+  return Object.assign({ text: expanded ? wording(d) : (contentBytes || d.label), typed: wording(d), attachments: d.attachments, kind }, only);
 }
 // what the run writes for its directive and the files it carried (see the header): runTranscript is makeRunTranscript's;
 // reused is the directive ROW the run answers when it reuses one (its turn is the one the files are recorded under)
@@ -322,5 +330,5 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 
 module.exports = {
   turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
-  capture, typedText, wording, attachedWording, row, install, title, runTitle, interruptedTitle, packet
+  capture, typedText, wording, attachedWording, labelOnly, row, install, title, runTitle, interruptedTitle, packet
 };
