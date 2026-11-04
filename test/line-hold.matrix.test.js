@@ -30,12 +30,9 @@ const LineFire = require('../sidecar/routing/line-fire.js');
 const LineHold = require('../sidecar/routing/line-hold.js');
 const Verdict = require('../sidecar/routing/verdict.js');
 const P = require('../frontend/app/pipeline.js');
-const { makeRig, geometry, WIRINGS } = require('./helpers/line-hold-rig.js');
+const { makeRig, geometry, WIRINGS, FORMS, REVISE } = require('./helpers/line-hold-rig.js');   // (the reply forms are the rig's: the real-sidecar test reads the same table)
 
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
-const REVISE = 'not yet\nVERDICT: revise';
-const FORMS = [['plain', 'not safe to publish\nVERDICT: blocked'], ['UPPER', 'NOT SAFE TO PUBLISH\nVERDICT: BLOCKED'],
-  ['markdown', 'not safe to publish\n**VERDICT:** `blocked`'], ['trailing line', 'VERDICT: blocked\n\nThanks for your patience.'], ['quoted tail', '> VERDICT: blocked']];
 
 // what a held job must look like, wherever it stopped. Returns the saved continuation.
 function assertHeld(rig, ran, o, label) {

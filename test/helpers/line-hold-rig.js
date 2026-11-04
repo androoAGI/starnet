@@ -40,6 +40,11 @@ const belt = (x, y, dir) => ({ x, y, dir });
 // four ways (what the gate's escalation lane and done lane reach)
 const WIRINGS = ['esc unwired', 'esc to a dock', 'esc to an OUTBOX only', 'human OUTBOX beside a downstream dock'];
 const AFTER = 'a stage after the gate';   // not in WIRINGS: the policy matrix is about where the escalation lane goes; this floor is the resume tests'
+/* THE REVIEWER'S WORDS the line-hold tests script, in one table for the in-process matrix and the real-sidecar wiring test (gh#122): the
+   revise that sends the work round the gate, and BLOCKED in the five forms a reply can take. The verdict parser must hold every one. */
+const REVISE = 'not yet\nVERDICT: revise';
+const FORMS = [['plain', 'not safe to publish\nVERDICT: blocked'], ['UPPER', 'NOT SAFE TO PUBLISH\nVERDICT: BLOCKED'],
+  ['markdown', 'not safe to publish\n**VERDICT:** `blocked`'], ['trailing line', 'VERDICT: blocked\n\nThanks for your patience.'], ['quoted tail', '> VERDICT: blocked']];
 function geometry(gate, wiring) {
   wiring = wiring || 'esc unwired';
   const belts = [belt(1, 4, 'E'), belt(2, 4, 'E'), belt(5, 4, 'E'), belt(6, 4, 'E'), belt(7, 4, 'E'), belt(10, 4, 'E'), belt(11, 4, 'E'), belt(12, 4, 'E'),
@@ -192,4 +197,4 @@ function makeRig(o) {
   return rig;
 }
 
-module.exports = { makeRig, geometry, hostPorts, WIRINGS, AFTER };
+module.exports = { makeRig, geometry, hostPorts, WIRINGS, AFTER, FORMS, REVISE };
