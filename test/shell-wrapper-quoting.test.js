@@ -58,6 +58,36 @@ if (process.platform === 'win32') {
       A.ok(r.run && r.run.status === 0, 'positive executes normally: ' + command);
       A.eq(r.marker, false, 'plain data does not become a program: ' + command);
     }
+    // The tail of if, for and forfiles is a command (read off the real cmd.exe): each of these ran the inert GUI marker when the proof
+    // looked only at the first word of the head. The real System32 GUI programs are decided, never started.
+    for (const command of [
+      'if 1==1 probe.exe', 'if exist . probe', 'if not exist nosuch probe.exe', 'if 1==1 (probe.exe)', 'if 1==2 (echo no) else (probe.exe)',
+      'for %i in (1) do probe.exe', 'for %i in (1) do @probe', 'for /l %i in (1,1,1) do probe.exe', 'for /f %i in (\'probe.exe\') do @echo %i',
+      'forfiles /p . /m probe.exe /c "cmd /c probe.exe"'
+    ]) {
+      const r = rig.execute(command);
+      A.ok(r.risk, 'guard refuses the program in the body: ' + command);
+      A.eq(r.run, null, 'refused, never dispatched: ' + command);
+      A.eq(r.marker, false, 'no marker is produced by it: ' + command);
+    }
+    for (const command of ['if 1==1 winver', 'if exist . winver', 'for %i in (1) do winver', 'for %i in (1) do @charmap', 'forfiles /c "cmd /c winver"']) {
+      A.ok(rig.decide(command).risk, 'the real GUI program in a body is refused: ' + command);
+    }
+    for (const command of [
+      'if 1==1 echo plain', 'if exist . (echo plain)', 'if 1==2 (echo no) else (echo plain)', 'for %i in (1) do @echo plain', 'for /f "tokens=*" %i in (\'echo plain\') do @echo %i',
+      'forfiles /p . /m probe.exe /c "cmd /c echo plain"'
+    ]) {
+      const r = rig.execute(command);
+      A.eq(r.risk, null, 'plain builtin body positive: ' + command);
+      A.ok(r.run && r.run.status === 0, 'positive executes normally: ' + command);
+      A.eq(r.marker, false, 'plain data does not become a program: ' + command);
+    }
+    for (const command of ['if 1==1 .\\console-probe.exe', 'if exist . console-probe', 'for %i in (1) do @console-probe']) {
+      const r = rig.execute(command);
+      A.eq(r.risk, null, 'a console program typed first in a body is proven and allowed: ' + command);
+      A.ok(r.run && r.run.status === 0, 'and runs: ' + command);
+      A.eq(r.markerKind, 'console', 'and it is the console program that ran: ' + command);
+    }
   } finally { rig.dispose(); }
 } else {
   console.log('Windows native transport not run on this host; static reconstruction controls above only.');

@@ -256,7 +256,8 @@ A.ok(UNPROVEN.test(risk('powershell -ep Bypass -c "git.exe status"') || ''), 'th
 // (/^c) or preceded by junk. Whatever follows is then judged like any other nested command; a switch the guard cannot place
 // (built by %VAR% expansion) is refused, never read as absent.
 const wrapFs = memFs({
-  'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\powershell.exe': CONSOLE, 'C:\\bin\\paint.exe': GUI, 'C:\\proj\\probe.exe': GUI
+  'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\powershell.exe': CONSOLE, 'C:\\bin\\forfiles.exe': CONSOLE,
+  'C:\\bin\\paint.exe': GUI, 'C:\\proj\\probe.exe': GUI
 });
 {
   const wrapped = (c, o) => risk(c, Object.assign({ fs: wrapFs }, o));
@@ -282,6 +283,65 @@ const wrapFs = memFs({
   }
 }
 A.eq(wrapFs.openCount(), 0, 'every file read for the switch rows was closed');
+
+// ---- the tail of if, for and forfiles is a command, and is judged like one (GitHub #167/#163, review round 7) ----
+// The proof was chosen from the first word of each head, and if / for are cmd's own words, so `if 1==1 probe.exe` was a builtin and
+// its program never met the PE header. Read off the real cmd.exe with echo bodies: the body of an if is whatever follows its condition
+// (a block, with an else branch after it), the body of a for follows `do`, and `for /f` with a quoted command in its set runs that
+// command first. A body is judged as the command it is. Typed first and by itself it earns the same proof as any first command;
+// after another command, in a group, or in a wrapper it is unproven, as such a program always was. A header the guard cannot place
+// the body after (a comma, a semicolon or a space of odd width in it, a form it does not know) is refused, never read as empty.
+{
+  const bodies = (c, o) => risk(c, Object.assign({ fs: wrapFs }, o));
+  const bodiesSafety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, { fs: wrapFs }, o));
+  for (const c of [
+    'if 1==1 probe.exe', 'if exist . probe', 'if exist . probe.exe', 'if not exist nosuch probe', 'if /i A==a probe', 'if defined PATH probe.exe',
+    'if errorlevel 0 probe', 'if 1 equ 1 probe', 'if cmdextversion 2 probe.exe', 'if "a"=="a" probe.exe', 'if a == a probe.exe', 'if a== a probe.exe',
+    'if a ==a probe.exe', 'if 1==1 paint.exe', 'if 1==1 paint', 'if 1==1 @probe.exe', 'if 1==1 @(probe.exe)', 'if 1==1 if 2==2 probe.exe',
+    'if 1==1 (probe.exe)', 'if 1==2 (echo a) else (probe.exe)', 'if 1==2 (echo a) else probe.exe', 'if 1==1 (echo a & probe.exe)',
+    'if 1==1 (echo a & echo b) else (probe.exe)', 'if 1==2 (echo a & echo b) else (echo c & probe.exe)', 'if 1==1 cmd /d/c probe.exe',
+    'for %i in (1) do probe.exe', 'for %i in (1) do @probe', 'for %i in (1) do paint', 'for %i in (1)do probe.exe', 'for %i in (1) DO probe',
+    'for /l %i in (1,1,2) do probe.exe', 'for /d %i in (.) do probe', 'for /r %i in (*) do probe', 'for /r . %i in (*) do probe',
+    'for /f %i in (x.txt) do probe', 'for /f "tokens=*" %i in (x.txt) do probe', 'for %i in (1) do (probe.exe)', 'for %i in (1) do (echo a & probe.exe)',
+    'for %i in (1) do if 1==1 probe.exe', 'for %i in (1) do cmd /d/c probe.exe',
+    'for /f %i in (\'probe.exe\') do echo %i', 'for /f "usebackq" %i in (`probe.exe`) do echo %i', 'for /f %i in (\'probe\') do echo %i',
+    'for /f %i in (\'echo a ^& probe.exe\') do echo %i', 'for /f "tokens=*" %i in (\'dir /b ^| probe.exe\') do echo %i',
+    'forfiles /c "probe.exe"', 'forfiles /c probe.exe', 'forfiles /c "cmd /c probe.exe"', 'forfiles /m * /c "cmd /d/c probe.exe @file"',
+    'forfiles /c:"probe.exe"', 'forfiles /C "paint"', 'forfiles.exe /p . /s /m *.exe /c "cmd /c paint.exe @path"',
+    'echo a & if 1==1 git.exe status', 'echo a & for %i in (1) do git.exe status', 'cmd /c "if 1==1 git.exe status"', '(if 1==1 git.exe status)',
+    'if 1==1 git.exe status & probe.exe'
+  ]) A.ok(UNPROVEN.test(bodies(c) || '') || GUI_RE.test(bodies(c) || ''), 'the program in the body is judged, and refused: ' + c);
+  for (const c of [
+    'if', 'if x:', 'if 1,1==1,1 probe.exe', 'if 1==1,probe.exe', 'if exist .,probe.exe', 'if 1==1\u0085probe.exe', 'if 1==1᠎probe.exe',
+    'if not /i A==b probe.exe', 'for i in range(3):', 'for %i in (1) do,probe.exe', 'for %i in (1) do(probe.exe)', 'for %i in (a(b)) do probe.exe',
+    'for %ia in (1) do probe.exe', 'for %i in (1 do probe.exe', 'for /f %i in (\'probe.exe) do echo %i',
+    'forfiles /c "cmd /c echo 0x26 probe.exe"', 'forfiles /m * /c"cmd /c probe.exe"', 'forfiles /c', 'forfiles /m * /c cmd /c probe.exe',
+    'forfiles /c "cmd /c echo a" /c "cmd /c probe.exe"', 'forfiles /c "cmd /c echo a" /C:"probe.exe"',
+    'if 1==1 '.repeat(10) + 'probe.exe'
+  ]) A.ok(UNPROVEN.test(bodies(c) || ''), 'a statement whose body the guard cannot place is refused, never read as empty: ' + JSON.stringify(c));
+  // the same body behind the text floors
+  A.eq((bodiesSafety('if 1==1 shutdown /r /t 0') || {}).kind, 'machine-state', 'shutdown in an if body is a machine-state refusal');
+  A.eq((bodiesSafety('for %i in (1) do shutdown /r') || {}).kind, 'machine-state', 'and in a for body');
+  A.eq((bodiesSafety('if 1==2 (echo a) else (shutdown /r)') || {}).kind, 'machine-state', 'and in an else branch');
+  A.eq((bodiesSafety('forfiles /c "cmd /c shutdown /r"') || {}).kind, 'machine-state', 'and behind forfiles');
+  A.eq((bodiesSafety('if exist . start notepad') || {}).kind, 'visible-desktop', 'a window opened from an if body is a visible-desktop refusal');
+  // what stays allowed: builtins, and a console program that is the first command typed
+  for (const c of [
+    'if 1==1 echo hi', 'if exist . echo hi', 'if not exist nosuch echo hi', 'if "a"=="a" (echo hi) else (echo no)', 'if 1==1 echo hi & echo there',
+    'if 1==2 (echo a) else (echo b)', 'if /i "%OS%"=="Windows_NT" echo hi', 'if %ERRORLEVEL% neq 0 exit /b 1',
+    'if 1==1 git.exe status', 'if exist . git.exe status', 'if 1==2 (echo a) else git.exe status', 'if 1==1 @git.exe status', 'if 1==1 if 2==2 git.exe status',
+    'for %i in (1) do echo %i', 'for %i in (1 2) do @echo %i', 'for /l %i in (1,1,3) do echo %i', 'for /f "tokens=*" %i in (\'dir /b\') do echo %i',
+    'for /f "usebackq tokens=*" %i in (`dir /b`) do echo %i', 'for /f %i in (\'git.exe status\') do echo %i', 'for %i in (1)do echo %i', 'for %i in (1) do git.exe status',
+    'for %i in (1) do (echo %i)', 'for /r %i in (*.txt) do echo %i', 'for /d %i in (*) do @echo %i', 'if /?', 'for /?',
+    'forfiles', 'forfiles /p . /m * /c "cmd /c echo @file"', 'forfiles /s /m *.txt /d -30 /c "cmd /c echo @path"', 'forfiles /c:"cmd /c echo @file"'
+  ]) A.eq(bodies(c), null, 'control, still runs: ' + JSON.stringify(c));
+  // a block spread over lines is one statement, not a head per line: its closing parenthesis and else were heads of their own
+  A.eq(bodies('if 1==1 (\n echo a\n) else (\n echo b\n)'), null, 'a multi-line if / else block of builtins runs');
+  A.eq(bodies('for %i in (1) do (\n echo a\n echo b\n)'), null, 'a multi-line for block of builtins runs');
+  A.ok(UNPROVEN.test(bodies('if 1==1 (\n echo a\n) else (\n probe.exe\n)') || ''), 'and the program in its else branch is still judged');
+  A.ok(UNPROVEN.test(bodies('for %i in (1) do (\n echo a\n probe.exe\n)') || ''), 'and so is the one in a multi-line for block');
+}
+A.eq(wrapFs.openCount(), 0, 'every file read for the body rows was closed');
 
 // ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
 const safety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, o));
@@ -431,5 +491,12 @@ if (process.platform === 'win32') {
     A.ok(UNPROVEN.test(inputIsolationRisk(c, real) || ''), 'the real GUI program behind cmd is refused, however the switch is spelled: ' + c);
   }
   A.eq(inputIsolationRisk('cmd /d/c echo ok', real), null, 'control: the real cmd with a builtin body still runs');
+  // and behind if, for and forfiles: a real GUI program as the body is refused as one (typed first) or as unproven (grouped, nested)
+  for (const c of ['if 1==1 winver', 'if exist . winver', 'for %i in (1) do winver', 'for %i in (1) do @charmap.exe', 'if 1==1 (winver)',
+    'forfiles /c "cmd /c winver"', 'for /f %i in (\'winver\') do echo %i', 'if 1==2 (echo a) else winver']) {
+    const verdict = inputIsolationRisk(c, real) || '';
+    A.ok(GUI_RE.test(verdict) || UNPROVEN.test(verdict), 'the real GUI program in a builtin\'s body is refused: ' + c);
+  }
+  A.eq(inputIsolationRisk('if 1==1 hostname', real), null, 'control: a real console program typed first in an if body still runs');
 }
 A.report('shell-local-program.test');

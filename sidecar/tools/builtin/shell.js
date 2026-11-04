@@ -151,8 +151,9 @@
     const out = [];
     let start = 0, quote = null, groupDepth = 0, argumentParens = 0, redirectAt = -1;
     const emit = end => {
-      const part = c.slice(start, end).trim();
-      if (part) out.push({ text: part, grouped: groupDepth > 0 });
+      const raw = c.slice(start, end), part = raw.trim();
+      // from / to: where the part sits in the input, so a statement the splitter cut in two can be taken back whole
+      if (part) { const from = start + (raw.length - raw.trimStart().length); out.push({ text: part, grouped: groupDepth > 0, from: from, to: from + part.length }); }
     };
     for (let i = 0; i < c.length; i++) {
       const ch = c[i];
@@ -329,15 +330,21 @@
      /q/s/c, /e:on/c and /t:07/c fuse it with other switches, /cecho and /c"echo" with what follows it, and /r is /c under another
      name. A switch built by expansion (%VAR%, !VAR!) ahead of the first one cannot be placed; that is refused, never read as
      absent. With no switch at all cmd runs nothing of the line's, and there is nothing nested. */
-  function cmdWrapperBody(segment, tokens, outerDialect) {
-    const tail = String(segment).slice(tokens[0].end);
+  // The text as the shell that started cmd hands it on: an unquoted caret is removed and what it escaped stays. `at[n]` is where
+  // character n of the result sits in the text given.
+  function cmdCaretFree(text, shellIsCmd) {
     let seen = '', at = [], quoted = false;
-    for (let i = 0; i < tail.length; i++) {
-      const ch = tail[i];
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
       if (ch === '"') quoted = !quoted;
-      if (ch === '^' && !quoted && outerDialect === 'cmd' && i + 1 < tail.length) { i++; seen += tail[i]; at.push(i); continue; }
+      if (ch === '^' && !quoted && shellIsCmd && i + 1 < text.length) { i++; seen += text[i]; at.push(i); continue; }
       seen += ch; at.push(i);
     }
+    return { seen, at };
+  }
+  function cmdWrapperBody(segment, tokens, outerDialect) {
+    const tail = String(segment).slice(tokens[0].end);
+    const free = cmdCaretFree(tail, outerDialect === 'cmd'), seen = free.seen, at = free.at;
     const found = /\/[ckr]/i.exec(seen);
     if (/[%!]/.test(found ? seen.slice(0, found.index) : seen)) return { nested: '', opaqueBody: true };
     if (!found) return { nested: '' };
@@ -345,23 +352,219 @@
     return { nested: invocation.nested, opaqueWrapper: invocation.opaqueWrapper };
   }
 
-  function analyzeCommands(cmd, depth, dialect) {
+  /* ---- cmd statements whose tail is itself a command: if, for, forfiles ----
+     The proof was chosen from the first word of each head, and if and for are cmd's own words, so `if 1==1 probe.exe` was a builtin
+     and its program never met the PE header. Read off the real cmd.exe with echo bodies: cmd runs what follows the condition of an
+     if (a command or a block, and after a block perhaps an else branch), what follows `do` in a for, the quoted command in the set of
+     `for /f`, and the /c command of forfiles (which hands it to CreateProcess, and runs it with cmd.exe from its own folder when it
+     names cmd). Each is analysed as the command it is. A header the guard cannot place the body after is refused as unreadable, not
+     taken as empty: cmd ends a word at , ; = and at a space of any width, so `if 1==1,probe.exe` runs a body the guard would never
+     see. `first` marks a body that runs before anything else the statement does (both branches of an if, the set command of a for),
+     which is what lets a console program typed first and by itself keep the proof it always had. */
+  const CMD_BLOCK_RE = /^(?:if|for)(?=\s)/i;
+  const CMD_COMPARE_OPS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq']);
+  // net unclosed parentheses in cmd text: a double quote protects, a caret escapes the next character
+  function cmdParenBalance(text) {
+    let depth = 0, quote = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { i++; continue; }
+      if (ch === '(') depth++; else if (ch === ')') depth--;
+    }
+    return depth;
+  }
+  // the index of the ) that closes the ( at `open`, or -1
+  function cmdMatchingParen(text, open) {
+    let depth = 0, quote = false;
+    for (let i = open; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { i++; continue; }
+      if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (depth === 0) return i; }
+    }
+    return -1;
+  }
+  function unquotedIndex(raw, needle) {
+    let quote = false;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] === '"') { quote = !quote; continue; }
+      if (!quote && raw.startsWith(needle, i)) return i;
+    }
+    return -1;
+  }
+  // a header word whose end cmd and the guard agree on: outside quotes no comma, semicolon, caret or redirection, and no control
+  // character or odd-width space (the word would not end where the guard thinks)
+  function cleanHeaderWord(raw) {
+    let quote = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (/[,;^<>|&]/.test(ch) || /[\p{C}\p{Z}]/u.test(ch)) return false;
+    }
+    return !quote;
+  }
+  // what an if runs after its condition: a command, or a block and then what follows it (an else branch)
+  function cmdIfTail(rest) {
+    rest = String(rest).trim();
+    if (!rest) return [];
+    if (rest[0] !== '(') return [rest];
+    const close = cmdMatchingParen(rest, 0);
+    if (close < 0) return [rest];
+    const bodies = [rest.slice(0, close + 1)], after = rest.slice(close + 1), otherwise = /^\s*else(?=[\s(]|$)/i.exec(after);
+    const other = (otherwise ? after.slice(otherwise[0].length) : after).trim();
+    if (other) bodies.push(other);
+    return bodies;
+  }
+  function cmdIfBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    if (tokens.length === 2 && tokens[1].value === '/?') return { bodies: [] };
+    const lower = n => tokens[n] ? String(tokens[n].value).toLowerCase() : '';
+    let i = 1;
+    if (lower(i) === '/i') i++;
+    if (lower(i) === 'not') i++;
+    const from = i, kind = lower(i);
+    let last;
+    if (kind === 'exist' || kind === 'defined' || kind === 'errorlevel' || kind === 'cmdextversion') {
+      if (!tokens[i + 1]) return unread;
+      last = tokens[i + 1]; i += 2;
+    } else {
+      const a = tokens[i];
+      if (!a) return unread;
+      const eq = unquotedIndex(a.raw, '==');
+      if (eq > 0 && a.raw.slice(eq + 2) !== '') { last = a; i += 1; }
+      else if (eq > 0) { if (!tokens[i + 1]) return unread; last = tokens[i + 1]; i += 2; }
+      else if (eq < 0) {
+        const n = tokens[i + 1], m = tokens[i + 2];
+        if (n && n.raw === '==') { if (!m) return unread; last = m; i += 3; }
+        else if (n && n.raw.startsWith('==') && n.raw.length > 2) { last = n; i += 2; }
+        else if (n && CMD_COMPARE_OPS.has(String(n.value).toLowerCase())) { if (!m) return unread; last = m; i += 3; }
+        else return unread;
+      } else return unread;
+    }
+    for (let n = from; n < i; n++) if (!cleanHeaderWord(tokens[n].raw)) return unread;
+    return { bodies: cmdIfTail(String(segment).slice(last.end)).map(text => ({ text, first: true })) };
+  }
+  function cmdForBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    if (tokens.length === 2 && tokens[1].value === '/?') return { bodies: [] };
+    const lower = n => tokens[n] ? String(tokens[n].value).toLowerCase() : '';
+    const isVariable = t => !!t && /^%%?[^%\s]$/.test(String(t.value));
+    let i = 1, fForm = false;
+    while (tokens[i] && /^\/[dlfr]$/i.test(tokens[i].value)) {
+      const sw = lower(i); i++;
+      if (sw === '/f') fForm = true;
+      if ((sw === '/f' || sw === '/r') && tokens[i] && !isVariable(tokens[i]) && lower(i) !== 'in') i++;   // its options string or root folder
+    }
+    if (!isVariable(tokens[i]) || lower(i + 1) !== 'in') return unread;
+    for (let n = 1; n <= i + 1; n++) if (!cleanHeaderWord(tokens[n].raw)) return unread;
+    const afterIn = String(segment).slice(tokens[i + 1].end).replace(/^\s+/, '');
+    if (afterIn[0] !== '(') return unread;
+    let close = -1, quote = false;
+    for (let n = 1; n < afterIn.length; n++) {
+      const ch = afterIn[n];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { n++; continue; }
+      if (ch === '(') return unread;   // cmd rejects an unquoted parenthesis inside the set
+      if (ch === ')') { close = n; break; }
+    }
+    if (close < 0) return unread;
+    const set = afterIn.slice(1, close), after = afterIn.slice(close + 1), doWord = /^\s*do(?=\s|$)/i.exec(after);
+    if (!doWord) return unread;
+    const bodies = [];
+    let opaqueWrapper = false;
+    if (fForm) {
+      // a command in the set ('...' or `...`) is run first, by cmd /c, after the shell has removed its carets
+      let q = false;
+      for (let n = 0; n < set.length; n++) {
+        const ch = set[n];
+        if (ch === '"') { q = !q; continue; }
+        if (q) continue;
+        if (ch === '^') { n++; continue; }
+        if (ch === "'" || ch === '`') {
+          const end = set.indexOf(ch, n + 1);
+          if (end < 0) return unread;
+          const command = wrapperCommandArg(cmdCaretFree(set.slice(n + 1, end), true).seen, 'cmd', 'cmd');
+          if (command.opaqueWrapper) opaqueWrapper = true;
+          bodies.push({ text: command.nested, first: true });
+          n = end;
+        }
+      }
+      if (q) return unread;
+    }
+    const body = after.slice(doWord[0].length).trim();
+    if (body) bodies.push({ text: body, first: !bodies.length });
+    return { bodies, opaqueWrapper };
+  }
+  function forfilesBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    let command = null;
+    for (let i = 1; i < tokens.length; i++) {
+      const value = String(tokens[i].value), colon = /^\/c:([\s\S]*)$/i.exec(value);
+      if (/^\/c$/i.test(value) || colon) {
+        if (command !== null) return unread;           // /c once only: forfiles rejects a second, and so does the guard
+        if (colon) command = colon[1];
+        else { if (!tokens[i + 1]) return unread; command = String(tokens[i + 1].value); i++; }
+      } else if (/^\/c/i.test(value)) return unread;   // /c fused with its command: forfiles rejects it, and so does the guard
+    }
+    if (command === null) return { bodies: [] };      // the default command is `cmd /c echo @file`
+    if (/0x[0-9a-f]{2}/i.test(command)) return unread;   // forfiles turns 0xHH into that character, `&` among them
+    const words = shellTokens(command, 'cmd');
+    if (words.length && /^cmd(?:\.exe)?$/i.test(words[0].value)) {
+      // forfiles starts cmd from its own folder, so this one is the real cmd.exe; what it is told to run is what matters
+      const inner = cmdWrapperBody(command, words, 'posix');
+      return { bodies: inner.nested ? [{ text: inner.nested, first: false }] : [], opaque: !!inner.opaqueBody, opaqueWrapper: !!inner.opaqueWrapper };
+    }
+    return { bodies: [{ text: command, first: false }] };
+  }
+
+  /* `lead`: this text's first head is the first thing the command runs (the whole command's first head, or a body that runs first
+     in a statement that does). `inherited`: the text sits inside a group already. */
+  function analyzeCommands(cmd, depth, dialect, lead, inherited) {
     dialect = normalizeDialect(dialect);
     const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false, opaqueBody: false };
-    if ((depth || 0) > 8) return result;
-    for (const part of splitCommandSegments(cmd, dialect)) {
+    const text = String(cmd == null ? '' : cmd);
+    // nested deeper than this reads: refused, never left unjudged
+    if ((depth || 0) > 8) { if (text.trim()) result.opaqueBody = true; return result; }
+    const leadIn = lead === undefined ? !depth : lead === true;
+    const parts = splitCommandSegments(text, dialect);
+    const take = child => {
+      result.heads.push.apply(result.heads, child.heads);
+      if (child.opaquePowerShell) result.opaquePowerShell = true;
+      if (child.opaqueWrapper) result.opaqueWrapper = true;
+      if (child.opaqueBody) result.opaqueBody = true;
+    };
+    for (let k = 0; k < parts.length; k++) {
+      let part = parts[k];
+      const firstPart = k === 0;
+      // an if / for whose parenthesised body holds a separator reached the splitter in pieces: take the statement back whole
+      if (dialect === 'cmd' && CMD_BLOCK_RE.test(part.text.replace(/^(?:@\s*)+/, '')) && cmdParenBalance(part.text) > 0) {
+        let to = part.to;
+        while (k + 1 < parts.length && cmdParenBalance(text.slice(part.from, to)) > 0) { k++; to = parts[k].to; }
+        part = { text: text.slice(part.from, to), grouped: part.grouped, from: part.from, to: to };
+      }
       const segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
       const tokens = shellTokens(segment, dialect);
       if (!tokens.length) continue;
-      const own = { text: segment, dialect: dialect, grouped: part.grouped };
+      const own = { text: segment, dialect: dialect, grouped: part.grouped || inherited === true, lead: leadIn && firstPart };
       result.heads.push(own);
       const verb = exeName(tokens[0].value);
-      let nested = '', nestedDialect = dialect;
+      let nested = '', nestedDialect = dialect, bodies = [];
       if (verb === 'cmd' || verb === 'cmd.exe') {
         const invocation = cmdWrapperBody(segment, tokens, dialect);
         nestedDialect = 'cmd'; nested = invocation.nested;
         if (invocation.opaqueWrapper) result.opaqueWrapper = true;
         if (invocation.opaqueBody) result.opaqueBody = true;
+      } else if (dialect === 'cmd' && (verb === 'if' || verb === 'for' || verb === 'forfiles' || verb === 'forfiles.exe')) {
+        const parsed = verb === 'if' ? cmdIfBodies(segment, tokens) : verb === 'for' ? cmdForBodies(segment, tokens) : forfilesBodies(segment, tokens);
+        bodies = parsed.bodies;
+        if (parsed.opaque) result.opaqueBody = true;
+        if (parsed.opaqueWrapper) result.opaqueWrapper = true;
       } else if (verb === 'call') {
         nestedDialect = 'cmd'; nested = afterToken(segment, tokens[0]);
       } else if (verb === 'start-process' || verb === 'saps') {
@@ -376,13 +579,9 @@
         const i = tokens.findIndex((t, n) => n > 0 && t.value === '-c');
         if (i >= 0) { nestedDialect = 'posix'; nested = unwrapCommandArg(afterToken(segment, tokens[i]), nestedDialect); }
       }
-      if (nested) {
-        const child = analyzeCommands(nested, (depth || 0) + 1, nestedDialect);
-        result.heads.push.apply(result.heads, child.heads);
-        if (child.opaquePowerShell) result.opaquePowerShell = true;
-        if (child.opaqueWrapper) result.opaqueWrapper = true;
-        if (child.opaqueBody) result.opaqueBody = true;
-      }
+      if (nested) take(analyzeCommands(nested, (depth || 0) + 1, nestedDialect, false, own.grouped));
+      // a body that runs first in a statement that runs first is the first command, and a group makes nothing provable
+      for (const body of bodies) take(analyzeCommands(body.text, (depth || 0) + 1, 'cmd', own.lead && body.first, own.grouped));
     }
     return result;
   }
@@ -621,7 +820,7 @@
   /* A head reaches its proof only as the first command, typed directly. No wrapper vouches for one: `cmd /c x` and `powershell -c x`
      re-read their text, so what they run next cannot be proven from here. A program spelled as local stays refused there. */
   function nothingRunsFirst(heads, index) {
-    return index === 0 && !heads[index].grouped && !mayHideACommand(heads[index]);
+    return heads[index].lead === true && !heads[index].grouped && !mayHideACommand(heads[index]);
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
@@ -706,13 +905,13 @@
       // Preserve the established outer-dialect source scan: shell-like text
       // inside referenced code and comments still follows the same bounded
       // queue. The new resolved batch source does not change that contract.
-      for (const [headIndex, parsedHead] of commandHeads(text, dialect).entries()) {
+      for (const parsedHead of commandHeads(text, dialect)) {
         const head = (parsedHead && parsedHead.text != null ? parsedHead.text : String(parsedHead || '')).replace(/^\s*@/, '');
         // A bare developer shim is still a script. Resolve its actual first
         // file, then feed its bytes through the existing shell-source scans.
         const firstValue = String((headTokens(parsedHead)[0] || {}).value || '');
         const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
-        if (qi === 0 && headIndex === 0 && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
+        if (qi === 0 && parsedHead.lead === true && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
           && !parsedHead.grouped && isCmdSearchHead(parsedHead, firstValue)) {
           const resolved = cmdProgramFile(firstValue, opts);
           if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
