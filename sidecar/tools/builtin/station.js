@@ -364,7 +364,15 @@
         if (held === null) Object.assign(ro, { state: 'off', confirmed: false, note: 'Routing is OFF: the router holds no routing plan right now, so no line routes work (the page believed otherwise). Opening or editing the floor sends it again.' });
         // the saved floor cannot be proved right now (corrupt, unreadable, ...): nothing routes from a guess about it, and the reason is said
         else if (held.state === 'held') Object.assign(ro, { state: 'off', confirmed: false, note: 'Routing is OFF: ' + String(held.why || 'the saved floor cannot be read right now') + ' — so no line routes work, and nothing runs from a guess about the floor (the page believed otherwise).' });
-        else if (held.hash && ro.planHash && held.hash !== ro.planHash) Object.assign(ro, differs);
+        else if (held.hash && ro.planHash && held.hash !== ro.planHash) {
+          /* The router routes by the floor the station SAVED, and the page saves every edit at once while Build mode holds back the compile and
+             the send of it. So while edits are held back, the floor the page last sent is bound to lag the router's: that is not "another open
+             page", and the page's account of its newer edits (the only side that knows them) must survive the merge. */
+          const at = ro.pendingEdits === true ? String(ro.note || '').indexOf(' The floor has newer edits') : -1;
+          if (ro.pendingEdits !== true) Object.assign(ro, differs);
+          else Object.assign(ro, { state: 'unconfirmed', confirmed: false, note: 'The router is running a different version of the floor than the page last sent: it routes by the floor the station has saved, and that is not the one the page sent last.'
+            + (at >= 0 ? String(ro.note).slice(at) : ' The floor also has newer edits the page has not sent yet.') });
+        }
         else if (held.hash && held.hash === ro.planHash) ro.confirmed = true;
       }
       delete ro.planHash;
