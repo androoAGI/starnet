@@ -27,6 +27,8 @@ const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
 const { makeWorkshopStore } = require('../sidecar/workshop-store.js');
 const { makeQuestStore } = require('../sidecar/quest-store.js');
 const QuestRefresh = require('../sidecar/questrefresh.js');
+const { makeOverseer } = require('../sidecar/overseer.js');
+const { makeSubagentManager } = require('../sidecar/subagents.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -320,6 +322,72 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       A.eq(adopted.northStar.quotes, ['sGone'], 'confirming a proposal carries its stamp to the adopted star');
       hold.northStar = { get: () => adopted, set: s => { adopted = s; }, persist: () => {} };
       A.eq([await forget('north-star'), adopted.northStar], [1, null], 'an adopted inferred star that quotes the deleted session is dropped');
+    }
+
+    // ---------------- the away briefing's state ----------------
+    {
+      const bdir = temp('briefing');
+      try {
+        const store = makeDurableJsonStore({ fs, path, fileFor: () => path.join(bdir, '_away.briefing.json') });
+        const seed = last => store.set('briefing', { through: 4000, last });
+        hold.awayBriefing = () => store;
+        seed({ at: 4450, since: 4000, items: [{ kind: 'routine', name: 'quokka watcher', runId: 'r_gone', excerpt: 'counted quokkas' }], counts: { routines: 1 }, quotes: ['sGone'], quotesAt: [4450] });
+        A.eq(await forget('away-briefing'), 1, 'a briefing that summarised the deleted session\'s runs is dropped');
+        A.eq(store.get('briefing'), { through: 4000, last: null }, '...but the briefed-through time stays: the station does not brief the same runs again');
+        A.ok(!/quokka/.test(fs.readdirSync(bdir).map(f => fs.readFileSync(path.join(bdir, f), 'utf8')).join('\n')), 'neither the file nor its .bak holds the briefing');
+        seed({ at: 4450, since: 4000, items: [{ kind: 'routine', name: 'platypus watcher' }], counts: {}, quotes: ['sKeep'], quotesAt: [4450] });
+        A.eq(await forget('away-briefing'), 0, 'a briefing that summarised another session stays');
+        seed({ at: 4000, since: 3000, items: [{ kind: 'routine', name: 'old' }], counts: {} });
+        A.eq(await forget('away-briefing'), 1, 'a briefing with no stamp predates sources and goes');
+        seed({ at: 6000, since: 5000, items: [], counts: {} });
+        A.eq(await forget('away-briefing'), 0, 'one delivered after the delete stays');
+      } finally { remove(bdir); }
+    }
+
+    // ---------------- overseer threads and reports ----------------
+    {
+      const odir = temp('overseer');
+      try {
+        const save = { deletedIds: [], workstreams: [{ id: 'sGone', title: 'Gone chat', agentId: 'agent', history: [] }, { id: 'sKeep', title: 'Keep chat', agentId: 'agent', history: [] }] };
+        let n = 0;
+        const ov = makeOverseer({ fs, path, writeDurable: require('../sidecar/durable-write.js').writeFileDurable, file: path.join(odir, 'overseer.json'), now: () => 4000, newId: () => 'ws_w' + (++n),
+          sessions: () => save, hasAgent: () => true, isRunActive: () => false, forgotten: (id, ts) => ledger.forgotten(id, ts) });
+        // two delegated threads: one filed from the session that will be deleted, one from the session that stays
+        ov.create({ title: 'Quokka worker', parentStreamId: 'sGone', requestId: 'r_lead_gone:1:1', worker: true });
+        ov.create({ title: 'Platypus worker', parentStreamId: 'sKeep', requestId: 'r_lead_keep:1:1', worker: true });
+        hold.overseer = () => ov;
+        A.eq(ov.snapshot().threads.filter(w => w.worker).length, 2, 'two delegated threads are on file');
+        A.eq(await forget('overseer'), 1, 'the thread filed from the deleted session is gone');
+        const snap = JSON.stringify(ov.snapshot());
+        A.ok(!snap.includes('Quokka worker') && snap.includes('Platypus worker'), 'its title is gone from the snapshot, the other thread stays');
+        A.ok(!/Quokka worker/.test(fs.readdirSync(odir).map(f => fs.readFileSync(path.join(odir, f), 'utf8')).join('\n')), 'no overseer file or .bak holds it');
+        A.eq(await forget('overseer'), 0, 'idempotent');
+        // the sidecar ledger, not the page's 500-id list, decides what reads back as deleted: a thread whose own id the ledger says was deleted stays hidden
+        n = 99;
+        const reborn = makeOverseer({ fs, path, writeDurable: require('../sidecar/durable-write.js').writeFileDurable, file: path.join(odir, 'overseer2.json'), now: () => 4000, newId: () => 'sGone',
+          sessions: () => ({ deletedIds: [], workstreams: [{ id: 'sKeep', title: 'Keep chat', agentId: 'agent', history: [] }] }), hasAgent: () => true, isRunActive: () => false, forgotten: (id, ts) => ledger.forgotten(id, ts) });
+        reborn.create({ title: 'Filed under a deleted id', parentStreamId: 'sKeep', requestId: 'r_x:1:1', worker: true });
+        A.eq(reborn.threads().some(w => w.id === 'sGone'), false, 'a thread the ledger says was deleted never reads back as live, whatever the page\'s list holds');
+      } finally { remove(odir); }
+    }
+
+    // ---------------- subagent records ----------------
+    {
+      const sdir = temp('subagents');
+      try {
+        const sm = makeSubagentManager({ fs, pathMod: path, file: path.join(sdir, 'subagents.json'), clock: { now: () => 4200 }, emit: () => {}, newId: (() => { let n = 0; return () => 'id' + (++n); })() });
+        const records = sm._internals.records();
+        const rec = (id, status, parentStreamId, runId, word) => ({ id, leadId: 'agent', agentId: 'agent', runId, status, prompt: 'research ' + word, context: 'context about ' + word, result: word + ' result', events: [{ name: 'agent.token', payload: { delta: word } }], parentStreamId, streamId: 'w_' + id, parentRunId: 'lead_' + id, startedAt: 4100, updatedAt: 4100 });
+        records.push(rec('s_done', 'done', 'sGone', 'wr1', 'quokka'), rec('s_run', 'running', 'sGone', 'wr2', 'quokkarunning'), rec('s_keep', 'done', 'sKeep', 'wr3', 'platypus'), rec('s_reader', 'done', 'sKeep', 'r_reader', 'readerword'));
+        hold.subagents = () => sm;
+        A.eq(await forget('subagents'), 3, 'the settled record of the deleted session, the one still running and the reader run\'s record are all handled');
+        const left = sm._internals.records();
+        A.eq(left.map(r => r.id).sort(), ['s_keep', 's_run'], 'the settled ones are removed whole; the running one keeps its place');
+        const running = left.find(r => r.id === 's_run');
+        A.eq([running.prompt, running.context, running.result, running.events, running.status], ['', '', '', [], 'running'], '...without any of its words');
+        A.ok(!/quokka|readerword/.test(fs.readFileSync(path.join(sdir, 'subagents.json'), 'utf8')), 'the registry file holds none of the deleted words');
+        A.eq(await forget('subagents'), 0, 'idempotent');
+      } finally { remove(sdir); }
     }
 
     A.report('forget-stores');

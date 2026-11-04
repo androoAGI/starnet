@@ -243,6 +243,45 @@ function wireForgetRegistry(registry, deps) {
     }
   });
 
+  /* the away briefing's state: the last briefing delivered (its items name the runs and sessions it summarised, with an excerpt of each run's own
+     words) is read back by the page and rides the Commander's evidence into later runs. It carries the stamp of the sessions it summarised (the
+     briefing row in the 'briefing' stream carries the same one), and one with no stamp predates sources and goes with the first delete after it.
+     The 'briefed through' time stays: forgetting must not make the station brief the same runs again. */
+  entry({
+    name: 'away-briefing',
+    sourceOf: last => stampedSource(last),
+    forget: async scope => {
+      const latest = latestStamp(scope);
+      let removed = 0;
+      const mutate = raw => {
+        const st = raw && typeof raw === 'object' ? raw : {};
+        const last = st.last && typeof st.last === 'object' ? st.last : null;
+        if (!last || !(last.quotes ? inScope(stampedSource(last), scope) : num(last.at) <= latest)) return undefined;
+        removed = 1;
+        return Object.assign({}, st, { last: null });
+      };
+      await d.awayBriefing().update('briefing', mutate);
+      if (removed) await d.awayBriefing().update('briefing', raw => Object.assign({}, raw));   // written twice: the .bak holds the purged copy
+      return removed;
+    }
+  });
+
+  /* delegated threads and hand-off reports (overseer.json): a thread's title and a report's error line are words of the session the lead
+     delegated from. Source: the thread's own id and parent session, the lead run that filed it, a report's sessions and runs. */
+  entry({
+    name: 'overseer',
+    sourceOf: x => ({ streamIds: [x && x.id, x && x.parentStreamId], runIds: [String((x && x.requestId) || '').split(':')[0]], at: num(x && x.createdAt) }),
+    forget: scope => d.overseer().forget(src => inScope(src, scope))
+  });
+
+  /* worker records (subagents.json): the lead's brief, the worker's result and its event tail. A settled record goes; a worker still running
+     keeps its place and loses only those words. */
+  entry({
+    name: 'subagents',
+    sourceOf: r => ({ streamIds: [r && r.parentStreamId, r && r.streamId], runIds: [r && r.runId, r && r.parentRunId], at: num(r && (r.startedAt || r.updatedAt)) }),
+    forget: scope => d.subagents().forget(r => inScope({ streamIds: [r.parentStreamId, r.streamId], runIds: [r.runId, r.parentRunId], at: num(r.startedAt || r.updatedAt) }, scope))
+  });
+
   return registry;
 }
 

@@ -3692,6 +3692,7 @@ wireForgetRegistry(forgetRegistry, {
   study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => saveResilient(STUDY_STATE_FILE, { v: 1, byRun: Object.fromEntries(studyByRun), latest: Object.fromEntries(latestStudyRun), lastAt: Object.fromEntries(lastStudyAt), declined: Object.fromEntries(studyDeclinedByAgent) }) },
   quests: () => questStore,
   northStar: { get: () => questRefreshState, set: x => { questRefreshState = x; }, persist: () => saveResilient(QUESTREFRESH_FILE, { v: 1, state: questRefreshState }) },
+  awayBriefing: () => awayBriefingStore, overseer: () => overseer, subagents: () => subagents,
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
   nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
   workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()
@@ -6230,6 +6231,7 @@ const overseer = require('./overseer.js').makeOverseer({ fs, path, writeDurable:
   sessionsRead: () => { const r = saveStore.loadStamped('agent'); return { doc: r.doc || {}, stamp: r.stamp }; },
   sessionsStamp: () => saveStore.stamp('agent'),
   isRunActive: id => runTable.owned(id),
+  forgotten: (id, ts) => sessionTombstones.forgotten(id, ts),   // the sidecar's ledger of deletes, past the page's 500-id list (turn identity commit 12)
   // how long one hand-off's report waits on a straggler before NOVA reports the finished part (env OVERSEER_REPORT_CEILING_MS)
   reportCeilingMs: Math.max(30000, Number(process.env.OVERSEER_REPORT_CEILING_MS) || 600000) });
 
@@ -26957,7 +26959,7 @@ async function handleAwayBriefingDeliver(req, res) {
       // content makes the briefing row untrusted too; otherwise it is the station's own report (clean)
       const quoted = (inputs.runs || []).find(r => r && r.taintedBy && (Number(r.endedAt) || Number(r.ts) || 0) > since);
       transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', taint: quoted ? 'away briefing quoting ' + String(quoted.taintedBy).slice(0, 80) : null, content: b.text, kind: 'briefing', ...TurnKinds.quoteStamp(TurnKinds.quoteEntriesOf(inputs.runs, now)) });   // the briefing quotes the streams of the runs it reports (commit 11): a delete of one takes the row with it
-      const last = { at: now, since: b.since, items: b.items, counts: b.counts };
+      const last = { at: now, since: b.since, items: b.items, counts: b.counts, ...TurnKinds.quoteStamp(TurnKinds.quoteEntriesOf(inputs.runs, now)) };   // the sessions it summarised (the briefing row carries the same stamp)
       // asksWaiting: open approvals/questions on the station right now. A waiting ask outranks the report — the page keeps
       // the Commander on the conversation that needs them instead of jumping to the briefing (a reloaded page may not
       // have refiled a background worker's ask yet; the station's own list is the truth)
