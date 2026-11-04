@@ -341,3 +341,7 @@ test/effective-limits.fallback.http.test.js
 test/turn-window.http.test.js
 test/turn-window.phone.http.test.js
 test/turn-window.caller-shape.http.test.js
+test/forget.tool-quotes.http.test.js
+test/forget.tool-quotes.timing.http.test.js
+test/forget.tool-quotes.overflow.http.test.js
+test/forget.tool-quotes.relay.http.test.js

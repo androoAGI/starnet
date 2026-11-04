@@ -113,3 +113,7 @@ test/run-lifecycle.invariants.http.test.js
 test/line-entry-parity.e2e.test.js
 # deliverable-rows.e2e: a routine's Run Now, a worker run, a project run and a disk-fault run on one real sidecar, plus a restart — 53-69 s standalone on 2026-11-04 while other lanes were building, 27 s on a quiet box; listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
 test/deliverable-rows.e2e.test.js
+# forget.tool-quotes.timing: five legs on one real sidecar (an in-flight delete, a held drain, a kill with a restart, a page, a held observer hook), each with its own held model call and several restarts - 18 s on a quiet box, 42 s with other lanes building (2026-11-04); listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
+test/forget.tool-quotes.timing.http.test.js
+# forget.tool-quotes.relay: five lead and worker legs on one real sidecar (57 seeded sessions, team.dispatch, a background worker whose run record is removed while the station is stopped, restarts) - 27 s quiet, 52 s with other lanes building (2026-11-04); listed by the >= 40 s rule.
+test/forget.tool-quotes.relay.http.test.js
