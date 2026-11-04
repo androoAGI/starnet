@@ -8445,6 +8445,9 @@ const Chat = (() => {
       // TIMESTAMP TRUTH (P0): pass the turn's STORED real time (m.ts), or `false` when a legacy turn carries none —
       // never `true` here (that would re-stamp replayed history with the current clock, the fabrication we're killing).
       const stamp = (m && m.ts != null) ? m.ts : false;
+      // the station's own row for a note the run read (turn identity, commit 10; a reload, a wiped cache, another device): the same
+      // mid-run Commander row the live stream drew, from the row alone. Its text is the note; the wire marker is only ever a prefix.
+      if (m && m.role === 'system' && m.kind === 'steer') { if (String(m.content == null ? '' : m.content).trim()) steerRow(m.content, stamp); continue; }
       if (m.role === 'user') {
         const shownUser = m.typed != null ? m.typed : m.content;
         const step = m.from ? null : goalStepOf(shownUser);   // a goal-loop continuation replays as the station's line, not the Commander's
@@ -9085,15 +9088,27 @@ const Chat = (() => {
       const echo = '[steering] ' + n.text;
       if (shown.indexOf('\n' + echo + '\n') >= 0) continue;   // the saved reply shows it: renderHistory draws it from there
       if (h.some(m => m && m.steerEcho && String(m.sourceRunId || '') === String(runId) && String(m.content || '') === echo)) continue;
-      h.push({ role: 'system', sys: true, steerEcho: true, content: echo, sourceRunId: runId, ts: n.ts });
+      // n.noteId: the id of the SEND NOW line whose words this echo carried (onToken, sentNowIdFor); a note the page did not send (a channel,
+      // /steer or a wake) has none, and the merge binds its echo to the station's steer row by run and words instead (TurnMerge R5)
+      h.push({ role: 'system', sys: true, steerEcho: true, content: echo, sourceRunId: runId, ts: n.ts, ...(n.noteId ? { noteId: n.noteId } : null) });
       added++;
     }
     return added;
   }
+  // the id of the SEND NOW line of this run whose words are `text`, else ''. One line per echo: a second line with the same words
+  // takes the next id (taken = the notes already read from this run's stream)
+  function sentNowIdFor(wsId, runId, text, taken) {
+    const used = new Set((Array.isArray(taken) ? taken : []).map(n => n && n.noteId).filter(Boolean));
+    const hit = (sentNow.get(wsId) || []).find(n => n && n.runId === runId && n.wire === text && !used.has(n.id));
+    return hit ? hit.id : '';
+  }
   /* A NOTE SITS WHERE THE AGENT READ IT. A filed note lands at its run's end, ahead of the turns the station's transcript
      adds when the conversation is read back, so the merge leaves it after the agent's reply to it. Each note moves to just
      after the last row of its own run stamped no later than the note (the run's middle turns carry the station's time of
-     writing, the note the time it was read). A run with no stamped row before it leaves it where it is. Pure. */
+     writing, the note the time it was read). A run with no stamped row before it leaves it where it is. The station's own steer
+     row for a note (kind 'steer', turn identity commit 10) is never moved: it sits where the run wrote it, at its own row id
+     among the station's rows, and the merge has already replaced this page's echo of the same note with it (by the note's id,
+     else by the run's words); only an echo with no station row yet is placed here. Pure. */
   function placeSteerNotes(rows) {
     const list = Array.isArray(rows) ? rows.slice() : [];
     const tsOf = r => Number(r && r.ts) || 0;
@@ -9252,6 +9267,8 @@ const Chat = (() => {
     const ofRun = m => (strict ? m.sourceRunId === e.runId : (!m.sourceRunId || m.sourceRunId === e.runId));
     return (Array.isArray(history) ? history : []).some(m => m && ofRun(m) && (
       (m.steerEcho && String(m.content || '') === echo)
+      // the station's own row for this note (it carries the line's id, or the same words from the same run)
+      || (m.role === 'system' && m.kind === 'steer' && !m.sys && ((e.id && m.noteId === e.id) || String(m.content || '').replace(/^\[steering\] /, '') === e.wire))
       || (m.role === 'assistant' && !m.sys && ('\n' + String(m.content || '') + '\n').indexOf('\n' + echo + '\n') >= 0)));
   }
   // a line the run read, filed as ONE station row after that run's dialogue (before the station's own lines about it);
@@ -9269,7 +9286,9 @@ const Chat = (() => {
       if (at < 0) { at = h.findIndex(m => m && m.sys && String(m.sourceRunId || '') === e.runId); if (at < 0) at = h.length; }
       // after the lines of the same run filed before it: several read lines keep the order they were sent in
       while (at < h.length && h[at] && h[at].steerEcho && String(h[at].sourceRunId || '') === e.runId) at++;
-      h.splice(at, 0, { role: 'system', sys: true, steerEcho: true, content: '[steering] ' + e.wire, sourceRunId: e.runId, ts: Number(e.at) || Date.now() });
+      // the line's own id rides the echo (turn identity, commit 10): the station's steer row for this note carries the same id, so the
+      // merge replaces this echo with that row (TurnMerge R5) instead of drawing the note twice
+      h.splice(at, 0, { role: 'system', sys: true, steerEcho: true, content: '[steering] ' + e.wire, sourceRunId: e.runId, ts: Number(e.at) || Date.now(), ...(e.id ? { noteId: e.id } : null) });
       added++;
     }
     if (!added) return;
@@ -11414,7 +11433,7 @@ const Chat = (() => {
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
         onRunId: (id, start) => { thisTurnId = TurnMerge.bindStart(ws.history, start, id, turnIds).turnId; liveRunTurns.set(ws.id, { turnId: thisTurnId, sourceRunId: id }); retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
-        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now() }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
+        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now(), noteId: thisRunId ? sentNowIdFor(ws.id, thisRunId, t, runSteers) : '' }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is

@@ -24,7 +24,10 @@
      ofTurn(row, { turnId, sourceRunId })    a copy of a reply / partial / stopped / hop row naming its turn and run (a
                                              field the row already holds is kept)
      deliverableOf(row)                      the one adapter from a canonical file row to the page's deliverable record
-                                             { title, kind, runId, t, agentId, root, rowId }; null for anything else */
+                                             { title, kind, runId, t, agentId, root, rowId }; null for anything else
+     splitSteer(rows)                        a reply that embeds '[steering] ' lines (the trunk save shape) becomes, in place, its prose parts
+                                             as assistant messages and each note a user '[steering] <note>' message; windowRows applies it
+                                             everywhere but window:'legacy' (the rollback window keeps today's bytes) */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./turnkinds.js'), require('./apiticket.js').sha256Text);
@@ -586,15 +589,43 @@ function legacyMerge(local, turns) {
     return { title: d.path, kind: d.media, runId: row.sourceRunId, t: row.ts, agentId: d.workspace, root: d.root, rowId: row.rowId };
   }
 
+  /* A STEERED REPLY, SPLIT AT ITS NOTES (turn identity, commit 10; A2-REB-1). The trunk save shape of a reply a note steered is ONE
+     assistant row whose text holds the run's '\n[steering] <note>\n' echoes between its paragraphs (the token stream carried them).
+     Replayed as it is, the model would read the Commander's words as its own: so in a window each such row becomes, in place, its
+     non-blank prose parts as assistant messages with every note a user '[steering] <note>' message between them, exactly as the
+     station's own replay shapes a steer row. The split (chat.js renderHistory's regex) is the only thing done to the text: no part is
+     trimmed or reworded. A derived message is not a durable row, so it carries no rowId and no idFrom; the note rows are kind
+     'steer', so a retry still ends on the directive (HistoryFit.endOnUserTurn). Every other row is returned as it is. */
+  const STEER_LINES = /(?:^|\n)\[steering\] ([^\n]*)\n?/;
+  const STEER_START = /(?:^|\n)\[steering\] /;
+  function splitSteer(input) {
+    const rows = Array.isArray(input) ? input : [], out = [];
+    for (const row of rows) {
+      if (!objectRow(row) || row.role !== 'assistant' || row.sys || typeof row.content !== 'string' || !STEER_START.test(row.content)) { out.push(row); continue; }
+      const base = Object.assign({}, row); delete base.rowId; delete base.idFrom;
+      const parts = row.content.split(STEER_LINES);   // [prose, note, prose, note, …, prose]
+      for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 1) {
+          if (!parts[i].trim()) continue;
+          const note = { role: 'user', kind: 'steer', content: '[steering] ' + parts[i] };
+          for (const k of ['ts', 'sourceRunId', 'turnId', 'streamId']) if (row[k] !== undefined) note[k] = row[k];
+          out.push(note);
+        } else if (parts[i].trim()) out.push(Object.assign({}, base, { content: parts[i] }));
+      }
+    }
+    return out;
+  }
+
   function windowRows(input, options) {
     const rows = Array.isArray(input) ? input : [], o = options || {};
     // a canonical system-kind row (a file row, from commit 10) is display only: the rollback window never carries one either
     if (o.window === 'legacy') return rows.filter(row => !(row && (row.truncated || row.sys || row.error || (row.role === 'system' && TurnKinds.SYSTEM_KINDS.indexOf(row.kind) >= 0))));
     const ctx = { finalRuns: new Set(rows.filter(row => TurnKinds.isFinalDeliveryRow(row)).map(row => String(row.sourceRunId || ''))) };
-    return rows.filter(row => row && TurnKinds.replayable(row, { shape: 'prose', forAgent: o.forAgent, line: o.line, streamId: o.streamId, ctx }))
+    // outside the rollback window a reply that embeds its steering notes is split at them (M3: window:legacy keeps today's bytes)
+    return splitSteer(rows.filter(row => row && TurnKinds.replayable(row, { shape: 'prose', forAgent: o.forAgent, line: o.line, streamId: o.streamId, ctx }))
       .map(row => TurnKinds.classify(row, ctx).kind === 'steer'
-        ? Object.assign({}, row, { role: 'user', content: String(row.content || '').startsWith('[steering] ') ? row.content : '[steering] ' + String(row.content || '') }) : row);
+        ? Object.assign({}, row, { role: 'user', content: String(row.content || '').startsWith('[steering] ') ? row.content : '[steering] ' + String(row.content || '') }) : row));
   }
 
-  return { pendingRow, newTurnId, sendIds, bindStart, ofTurn, legacyMerge, legacyWithIdentity, merge, reconcile, stationRow, idsOf, localKind, sameTurn, compare, windowRows, deliverableOf };
+  return { pendingRow, newTurnId, sendIds, bindStart, ofTurn, legacyMerge, legacyWithIdentity, merge, reconcile, stationRow, idsOf, localKind, sameTurn, compare, windowRows, splitSteer, deliverableOf };
 });

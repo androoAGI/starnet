@@ -2284,7 +2284,7 @@ function formatRunHolderAge(ageMs) {
 // once the run ends the entry is dropped, so a stale steer can never reach a later run.
 const STEER_MAX_PENDING = 8;      // bound the buffer so a spammed steer can't grow unbounded between iterations
 const steerBufs = makeSteerBuffers({ maxPending: STEER_MAX_PENDING, maxNoteChars: 2000 });
-function drainSteer(runId) { return steerBufs.drain(runId); }
+function drainSteer(runId) { return steerBufs.drainNotes(runId); }   // [{ text, noteId }]: the loop tags the row a folded note becomes with its id (a worker's generation-bound o.steer still returns strings)
 // A Telegram/Discord/… follow-up that lands while that chat's run is working JOINS the run (channels/hub.js LIVE STEER)
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {

@@ -965,6 +965,7 @@ test/steer-idle-honesty.test.js
 test/queued-send-now.test.js
 test/steer-history-merge.test.js
 test/steer-note-ledger.test.js
+test/steer-rows.test.js
 test/model-ack-honesty.test.js
 test/toolprops.test.js
 test/worldmodel.test.js

@@ -88,7 +88,7 @@ function boot(history, ledger) {
 }
 {
   // a malformed row, a row of another kind and a row with no field draw nothing and never throw
-  const bad = [fileRow(2, '../escape.md', 'file'), fileRow(3, 'ok.md', 'file', { deliverable: null }), { role: 'system', kind: 'steer', content: '[steering] x', rowId: 4 }, { role: 'system', kind: 'deliverable', content: 'saved nothing', rowId: 5 }];
+  const bad = [fileRow(2, '../escape.md', 'file'), fileRow(3, 'ok.md', 'file', { deliverable: null }), { role: 'system', kind: 'retract', content: '', rowId: 4, targets: [2] }, { role: 'system', kind: 'deliverable', content: 'saved nothing', rowId: 5 }];   // (a steer row is drawn since commit 10b: test/steer-rows.test.js)
   const { c, events } = boot(bad, []);
   c.renderHistory();
   A.eq(events, [], 'nothing is drawn for a row that is not a well-formed file row (and nothing is repaired)');

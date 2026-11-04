@@ -1075,16 +1075,22 @@
     let steerExtUsed = 0;
     // fold drained notes into the working set: ONE <steering_note> system message each + the '[steering]' token the
     // Commander watches land. Shared by the top-of-loop drain and the finish-line extension so the two can't drift.
+    // a drained note is its text, or { text, noteId } when the host kept the page's id for it (index.js drainSteer)
+    const steerNoteText = (note) => String(note && typeof note === 'object' ? (note.text == null ? '' : note.text) : (note == null ? '' : note));
     function foldSteerNotes(notes) {
       let n = 0;
       if (!Array.isArray(notes)) return 0;
       for (const note of notes) {
-        const t = String(note == null ? '' : note).trim();
+        const t = steerNoteText(note).trim();
         if (!t) continue;
         // surface the note in the live transcript as an agent.token delta (a registered event) so the
         // Commander SEES their steer land, then inject it as a system message for the next model call.
         emit('agent.token', { agentId, runId, delta: '\n[steering] ' + t + '\n' });
-        messages.push({ role: 'system', content: '<steering_note>' + t + '</steering_note>' });
+        const folded = { role: 'system', content: '<steering_note>' + t + '</steering_note>' };
+        // the folded note is a row of its own in the transcript (turn identity, commit 10): tagged off-wire (a non-enumerable Symbol, so
+        // the wire and the journal are byte-identical), it is written where it sits, after the tool results it follows, with its id
+        if (TurnKinds) TurnKinds.tag(folded, 'steer', note && typeof note === 'object' && note.noteId ? { noteId: note.noteId } : undefined);
+        messages.push(folded);
         n++;
       }
       return n;
@@ -2856,7 +2862,7 @@
             && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && (turns < maxIters || graceEnabled)) {
           let late = null;
           try { late = steer(); } catch (e) { failNote('loop.steer.finalDrain', e); late = null; }
-          if (Array.isArray(late) && late.some(n => String(n == null ? '' : n).trim())) {
+          if (Array.isArray(late) && late.some(n => steerNoteText(n).trim())) {
             steerExtUsed++;
             if (continuationParts.length) {   // settle a length-continued answer into ONE turn before the note follows it
               collapseContinuation(assistant);

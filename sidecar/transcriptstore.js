@@ -629,6 +629,16 @@
       const t = TurnKinds.tagOf(m);
       return t && TurnKinds.SYSTEM_KINDS.indexOf(t.kind) >= 0 ? t : null;
     }
+    /* A STEER ROW HOLDS THE NOTE, NOT THE LOOP'S WRAPPER. The loop hands the model a folded note as '<steering_note>…</steering_note>'
+       (loop.js foldSteerNotes) and tags that message steer; its row is the Commander's words alone, so a replay says
+       '[steering] <words>' once and the page's echo of the note (the same words) binds to it. Any other content is kept as it is. */
+    const STEER_WIRE = /^<steering_note>([\s\S]*)<\/steering_note>$/;
+    function rowContent(m, sysTag) {
+      const text = flattenContent(m.content);
+      if (!sysTag || sysTag.kind !== 'steer') return text;
+      const wrapped = STEER_WIRE.exec(text);
+      return wrapped ? wrapped[1] : text;
+    }
     function turnStamps(m, opts, sysTag) {
       if (!opts) return {};
       const out = {};
@@ -652,7 +662,7 @@
         markPersisted([m]);                                    // mark BEFORE the role filter so fences aren't re-checked
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) continue;
-        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
+        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
         n++;
       }
       return n;
@@ -669,7 +679,7 @@
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) { markPersisted([m]); continue; }
-        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
+        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
         markPersisted([m]);
         n++;
       }
