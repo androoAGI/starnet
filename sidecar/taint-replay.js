@@ -31,9 +31,12 @@
        attachment and then read a page, a connector or the saved file stamps its rows with that, which persists, and the
        run journal records it so a recovery continuation restores it instead of the bare attachment;
      - the bytes themselves always latch: re-sent ones, a tool re-read of .attachments/ (fs.read, fs.search,
-       image_analyze), a recalled row, a recovery continuation;
-     - a row that STORES the expansion (references kept, content other than the typed words: written before the
-       directive row was kept clean) still taints when the replay is that very row, because replaying it replays the text.
+       image_analyze, and a shell command or script that names the folder: a PDF reaches the model that way), a recalled
+       row, a recovery continuation;
+     - a row that STORES the expansion still taints when the replay is that very row, because replaying it replays the
+       text. Two shapes (taint.js rowStoresAttachmentText): references kept with a content other than the typed words
+       (11-02 up to this change), and, in 0.14.2 and every release before it, no references and no typed field at all, the
+       "[Attached file: " header attachments.js writes sitting in the content. A row whose content is the typed words decays.
    What decays is only the model's own replies, written while the bytes were in front of it, once the bytes are gone. That
    residual (hostile file text steering turns 1-2, carried into turn 3 by the model's own earlier replies) is the price
    of a conversation that is clean again from the third turn; docs/DECISIONS.md records it.

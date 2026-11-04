@@ -210,10 +210,14 @@ many of these — they win on any wording conflict.
   because the bytes it stood for are either re-sent, and latched again by the run that re-sends them,
   or gone. **What does not:** any other stamp (a near miss, `replayed history (tainted by user
   attachment)`, `worker output (...)`, `resumed run (...)`); a tool read of the saved file (`fs.read`,
-  `fs.search`, `image_analyze` of `.attachments/`); a recalled row or memory record; a recovery
-  continuation (its checkpoint holds the bytes); and a user row that STORES the expansion (references
-  kept, `content` other than the typed words, as older builds wrote it) when the replay is that very
-  row. **No laundering:** the stamp a run's rows carry is `execution.rowTaint()`, the first source that
+  `fs.search`, `image_analyze` of `.attachments/`, and a shell command, terminal line or script that
+  NAMES the folder: a PDF is re-sent as a note only, and a command is how its text reaches the model);
+  a recalled row or memory record; a recovery continuation (its checkpoint holds the bytes); and a user
+  row that STORES the expansion when the replay is that very row, in either shape on disk (11-02: the
+  references kept and `content` other than the typed words; 0.14.2 and every release before it: no
+  references and no `typed` field, the `[Attached file: ` header in `content`; the server replays it
+  whenever it seeds a history from its own rows, as the phone host and a single-message `/api/run`
+  do). **No laundering:** the stamp a run's rows carry is `execution.rowTaint()`, the first source that
   is not the bare attachment, so a page, connector or file read after the attachment stamps every later
   row with it and it persists; `run-journal` `analyze` reports it over the attachment, so a recovery
   continuation restores the page, not the attachment; the "not tainted yet" guards on the tool-result,
@@ -223,13 +227,18 @@ many of these — they win on any wording conflict.
   it into turn 3 through its own earlier replies, because their stamp decays; that is the price of a
   conversation that is clean again from the third turn. The stricter alternative, keeping those rows
   tainted for N more turns, fails that goal. Until he answers, the branch ships the decay. A second
-  residual becomes reachable from turn 3: a shell command that `cat`s the saved file puts its bytes
-  back in front of an untainted run, because shell output is not a taint source (the v1 boundary in
-  `taint.js`); the blanket reference taint used to hide that for attachments. Also not
+  residual stays open: the blanket reference taint used to hide every route to the saved file, and the
+  path rules above catch only a route that names the folder. A command that reaches the file without
+  naming it (a glob such as `cat .attach*/*`, or a script file written earlier) puts its bytes back in
+  front of an untainted run, because shell output is not a taint source (the v1 boundary in
+  `taint.js`). Also not
   decayed: a memory record a tainted run saved (its `taintedBy` stays and a recall of it latches), and,
   for any later lane, a summary or ledger built from rows written while the bytes were in view: a
   derived text keeps the attachment taint, because only the exact stamp on a row replayed AS A ROW
-  decays. Proof: test/taint-replay.attachment.test.js, test/attachment-taint-decay.http.test.js.
+  decays. One over-taint stays too, the safe way round: a lead that delegates to a worker while it holds
+  the attachment latches the worker's relayed `worker output (tainted by user attachment)`, which is not
+  the bare stamp, so that lead's later rows keep tainting its replays. Proof:
+  test/taint-replay.attachment.test.js, test/attachment-taint-decay.http.test.js.
 
 
 ## Build mode / conveyors (Andrew, 2026-10-10/11)

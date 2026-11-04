@@ -736,8 +736,9 @@
        was written while the run held an attachment's bytes, and those bytes are accounted for by the run that re-sends
        them, so the stamp alone taints nothing. Any other stamp counts, including one a run wrote after it ALSO read a page
        (index.js rowTaint keeps the first non-attachment source). The one exception is the identity proof for a row that
-       STORES the expansion itself (a user row with attachment references whose content differs from the words the
-       Commander typed: written before the directive row was kept clean): replaying that very row replays the file text. */
+       STORES the expansion itself (taint.js rowStoresAttachmentText: a user row whose content holds the file text, in the
+       11-02 shape with references and typed words, or the 0.14.2 shape with the "[Attached file: " header and neither
+       field): replaying that very row replays the file text. */
     function taintOf(streamId, messages, o) {
       o = o || {};
       const prior = (Array.isArray(messages) ? messages : []).filter(m => m && typeof m === 'object' && ROLES.has(m.role) && m.role !== 'system');

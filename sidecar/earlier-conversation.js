@@ -183,8 +183,9 @@ function render(dropped, opts) {
 /* The rows the window dropped carry outside content when any of them was written by a run that read it. A row stamped with
    EXACTLY the bare attachment source was written while the run held an attachment's bytes, which are accounted for by the
    run that re-sends them: that stamp alone no longer taints (taint-replay.js ATTACHMENT DECAY). Any other stamp does, and so
-   does the stamp on a row that STORES the file text (the note renders a row's content verbatim, so for that row the stamp
-   still means "bytes are in the note"; once such a row is rendered by its typed words instead, the exception can go). */
+   does the stamp on a row that STORES the file text (taint.js rowStoresAttachmentText: the note renders a row's content
+   verbatim, so for that row the stamp still means "bytes are in the note"; a row of the 0.14.2 shape has no typed words to
+   render instead, so its exception stays for good). */
 function taintOf(rows) {
   for (const r of (Array.isArray(rows) ? rows : [])) if (r && typeof r.taint === 'string' && r.taint && (r.taint !== ATTACHMENT_TAINT || rowStoresAttachmentText(r))) return r.taint;
   return null;

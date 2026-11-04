@@ -6,7 +6,7 @@
    it), every provider request carried the picture and the file text, and the whole conversation stayed locked for good: no
    unattended grants, no learning, the replay of its own rows re-tainting every later turn.
    Now a run is tainted exactly while the attachment's BYTES are in front of it (the attaching turn and one follow-up), and
-   what that run wrote stops tainting once the bytes are gone. Four flows, four streams:
+   what that run wrote stops tainting once the bytes are gone. Five flows, five streams:
 
      A  taint-follows-bytes      turn 1 file + picture, then six text turns (turns 2 and 3 are typed preferences: the learning
                                  receipts). Runs 1-2 are tainted and send the bytes; runs 3-7 are untainted, send no image_url
@@ -20,6 +20,9 @@
      C  a legacy stream          every row stamped 'user attachment', the file text in the directive row's content: the
                                  browser's typed-words history decays the same way; a single-message follow-up that makes
                                  the server replay the stored file text itself is still tainted
+     C2 the shipped shape        the same for the rows EVERY shipped build wrote (0.14.2 and before: no typed words, no
+                                 references, the expansion IS the content): decays for the browser's history, tainted when
+                                 the server replays the stored text (it seeds from its own rows, as the phone host does)
 
    The learning half reads the host's own receipts (GET /api/learning-status), the memory-learning-boundary pattern.
    One sidecar boot, one provider mock. */
@@ -113,6 +116,11 @@ function startMock() {
       row('assistant', 'LEGACY_REPLY_ONE it is a notes file', { sourceRunId: 'old-run-1' });
       row('user', 'LEGACY_TURN_TWO what next?', { sourceRunId: 'old-run-2' });
       row('assistant', 'LEGACY_REPLY_TWO nothing', { sourceRunId: 'old-run-2' });
+      // ...and the shape EVERY SHIPPED build (0.14.2 and before) wrote: neither typed words nor references, the expansion IS the content
+      row('user', 'look at these\n\n[Attached file: notes.txt]\n```\n' + FILE_TEXT + '\n```\n[saved in your workspace at ' + fileRef.path + ']', { streamId: 'shipped', sourceRunId: 'ship-run-1' });
+      row('assistant', 'SHIPPED_REPLY_ONE it is a notes file', { streamId: 'shipped', sourceRunId: 'ship-run-1' });
+      row('user', 'SHIPPED_TURN_TWO what next?', { streamId: 'shipped', sourceRunId: 'ship-run-2' });
+      row('assistant', 'SHIPPED_REPLY_TWO nothing', { streamId: 'shipped', sourceRunId: 'ship-run-2' });
     };
 
     seedLegacy(LEGACY_FILE, LEGACY_IMG);
@@ -273,7 +281,23 @@ function startMock() {
       // a single-message follow-up: the server seeds the conversation from its own stored rows, the directive row's file text included
       const c4 = await run(S, [{ role: 'user', content: 'LEGACY_TURN_FOUR hello again' }], 'LEGACY_TURN_FOUR');
       A.eq(c4.reason, 'done', 'the single-message follow-up finished');
-      A.eq(c4.taintedBy, 'replayed history (tainted by user attachment)', 'but when the server itself replays the stored file text, the run starts tainted: the stored text is bytes in front of the model');
+      A.eq([c4.taintedBy, c4.fileText], ['replayed history (tainted by user attachment)', true], 'but when the server itself replays the stored file text, the run starts tainted: the stored text is bytes in front of the model');
+    }
+
+    // =========================== FLOW C2: the shape every shipped build wrote ===========================
+    {
+      const S = 'shipped';
+      const rowsBefore = await transcript(S);
+      A.ok(rowsBefore.length >= 4 && rowsBefore.every(r => r.taint === UA) && rowsBefore.some(r => String(r.content).indexOf('FILE_BODY_SENTINEL') >= 0), 'the shipped-shape stream is there: every row stamped with the attachment, the file text in the user row (' + rowsBefore.length + ' rows)');
+      // the browser holds the typed words: nothing of the stored file text is replayed, so the stamp decays
+      const hist = [{ role: 'user', content: 'look at these' }, { role: 'assistant', content: 'SHIPPED_REPLY_ONE it is a notes file' },
+        { role: 'user', content: 'SHIPPED_TURN_TWO what next?' }, { role: 'assistant', content: 'SHIPPED_REPLY_TWO nothing' }, { role: 'user', content: 'SHIPPED_TURN_THREE and now?' }];
+      const s3 = await run(S, hist, 'SHIPPED_TURN_THREE');
+      A.eq([s3.reason, s3.taintedBy, s3.images, s3.fileText], ['done', null, 0, false], 'the browser\'s typed-words history of a shipped-shape stream decays: untainted, no bytes on the wire');
+      // a single-message follow-up: the server seeds the history from its stored rows (the phone host builds its prior the same way), the file text in the first of them
+      const s4 = await run(S, [{ role: 'user', content: 'SHIPPED_TURN_FOUR hello again' }], 'SHIPPED_TURN_FOUR');
+      A.eq(s4.reason, 'done', 'the single-message follow-up finished');
+      A.eq([s4.taintedBy, s4.fileText], ['replayed history (tainted by user attachment)', true], 'the server replays the stored file text, so the run starts tainted, although the stamp on the row is the bare attachment');
     }
   } catch (e) {
     console.error(e && e.stack || e);
