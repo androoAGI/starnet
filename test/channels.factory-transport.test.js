@@ -8,6 +8,7 @@ const fs = require('fs'), os = require('os'), path = require('path'), vm = requi
 const crypto = require('crypto');
 const A = require('./_assert.js');
 const Bags = require('./helpers/channel-hub-bags.js');
+const History = require('./helpers/channel-history.js');
 const Factory = require('../sidecar/channels/factory.js');
 const Hub = require('../sidecar/channels/hub.js');
 const Registry = require('../sidecar/channels/registry.js');
@@ -115,7 +116,7 @@ function station(kind, root) {
     },
     wireChannel: (descriptor, deps) => Registry.wireChannel(descriptor, { ...deps, makeHub: context.makeChannelHub }),
     unwireChannel: Registry.unwireChannel,
-    channelStore, lineRunner, runOnce: recordRun, agentRoster: roster, RunWire,
+    channelStore, channelHistory: History.make(channelStore).history, botScopedStores: new Map(), lineRunner, runOnce: recordRun, agentRoster: roster, RunWire,
     channelSecrets: { telegramBots: { bot: { token: 'fixture', ownerId: 'owner', username: 'fixture_bot', agentId: 'writer', provider: 'custom', model: 'stale-model', key: 'fixture-bot-own-key' } } },
     channelTokenRuntime: {}, telegram: null, telegramStatus: {}, discord: null, discordStatus: {},
     genericChannels: {}, genericStatus: {}, telegramBots: new Map(), stationBotUsername: '', stationBotName: '', stationBotSeesAll: null,

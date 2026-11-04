@@ -50,7 +50,8 @@
      forgetThread(chat, thread)  that topic is gone: the chat's durable route (and the hub's) stops aiming at it
      release(id)               a 'caller' record leaves once its caller has recorded the outcome (pruned after 7 days)
      withdraw(id)              a queued record nothing of which has gone leaves: its caller replaced it
-     noteSession(id)           a caller's one-time side effect for this record (a routine's session turns) is marked done
+     noteSession(id, proof?)   legacy side-effect marker, or verified canonical row acknowledgement after publication
+     publication(id)           fresh durable proof of one fully done history-bound delivery; never a RAM-only claim
      openAsk(ask)              a consent keyboard landed with its ask still open
      stamp(delivery)           the keyboard's stamp enters its chat's lane and the open ask leaves, in the SAME write
 
@@ -95,6 +96,7 @@
 'use strict';
 
 const { note: failNote, swallow } = require('../failopen.js');
+const Publication = require('./history-publication.js');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULTS = Object.freeze({
@@ -157,7 +159,12 @@ function cleanReceipt(r) {
   if (!r || typeof r.id !== 'string' || !r.id || typeof r.channel !== 'string' || !r.message || typeof r.message !== 'object') return null;
   const chatId = String(r.chatId != null ? r.chatId : r.message.chatId);
   if (!chatId || chatId === 'undefined') return null;
-  return { id: r.id, channel: r.channel, chatId: chatId, message: r.message, ts: Number(r.ts) || 0, attempt: cleanAttempt(r.attempt), deferred: r.deferred === true };
+  const out = { id: r.id, channel: r.channel, chatId: chatId, message: r.message, ts: Number(r.ts) || 0, attempt: cleanAttempt(r.attempt), deferred: r.deferred === true };
+  const a = r.editAdmission;
+  if (r.message.edited === true && a && a.v === 1 && (a.state === 'superseded' || (a.state === 'accepted' && !out.deferred))) {
+    out.editAdmission = { v: 1, state: a.state };
+  }
+  return out;
 }
 // a part that is not words (S4): a file read again when it is sent, or the note naming the files that did not come
 function filePart(p, n) {
@@ -228,6 +235,9 @@ function cleanAsk(a) {
     runId: str(a.runId, 200), promptId: str(a.promptId, 200), text: typeof a.text === 'string' ? a.text : '', boot: str(a.boot, 200), at: Number(a.at) || 0 };
 }
 function cleanDelivery(d) {
+  // Validate publication authority before ordinary legacy normalization can truncate
+  // an identity or drop a malformed part. Unknown metadata holds the original file.
+  if (Publication.hasMetadata(d)) Publication.record(d);
   if (!d || typeof d.id !== 'string' || !d.id || typeof d.channel !== 'string' || d.chatId == null) return null;
   const parts = [];
   for (let i = 0; i < arr(d.parts).length; i++) { const p = cleanPart(d.parts[i], i); if (p) parts.push(p); }
@@ -244,14 +254,21 @@ function cleanDelivery(d) {
   if (typeof d.text === 'string') out.text = d.text;            // a migrated v1 reply: cut at its first send
   if (d.headerSent === true) out.headerSent = true;
   if (d.state === 'done') out.doneAt = Number(d.doneAt) || 0;
+  if (Publication.owns(d, 'historyDestination')) out.historyDestination = Publication.destination(d.historyDestination);
   return out;
 }
 function normalizeDoc(raw) {
   const doc = emptyDoc();
   if (!raw || typeof raw !== 'object') return doc;
   const seenR = new Set(), seenD = new Set();
+  const publicationIds = new Set();
+  if (arr(raw.deliveries).some(Publication.hasMetadata) && raw.version !== 1) Publication.refuse('The delivery publication document version is unknown');
   for (const r of arr(raw.receipts)) { const x = cleanReceipt(r); if (x && !seenR.has(x.id)) { seenR.add(x.id); doc.receipts.push(x); } }
-  for (const d of arr(raw.deliveries)) { const x = cleanDelivery(d); if (x && !seenD.has(x.id)) { seenD.add(x.id); doc.deliveries.push(x); } }
+  for (const d of arr(raw.deliveries)) {
+    const x = cleanDelivery(d);
+    if (x && seenD.has(x.id) && (publicationIds.has(x.id) || Publication.hasMetadata(d))) Publication.refuse('The saved delivery publication identity is duplicated');
+    if (x && !seenD.has(x.id)) { seenD.add(x.id); doc.deliveries.push(x); if (Publication.hasMetadata(d)) publicationIds.add(x.id); }
+  }
   for (const t of arr(raw.tombstones)) {
     if (!t || typeof t.id !== 'string' || typeof t.chat !== 'string') continue;
     const x = { id: t.id, chat: t.chat, runId: str(t.runId, 200), reason: str(t.reason, 60), error: str(t.error, 240), at: Number(t.at) || 0 };
@@ -278,7 +295,8 @@ function normalizeDoc(raw) {
    is its durability) and a hub built over a test store with no ledger of its own use it. */
 function memoryIo() {
   let saved = null;
-  return { read: () => (saved == null ? undefined : JSON.parse(saved)), write: (doc) => { saved = JSON.stringify(doc); } };
+  const read = () => (saved == null ? undefined : JSON.parse(saved));
+  return { read, readConfirmed: read, write: (doc) => { saved = JSON.stringify(doc); } };
 }
 
 function makeDeliveryLedger(deps) {
@@ -341,8 +359,8 @@ function makeDeliveryLedger(deps) {
   function load() {
     if (loaded) return true;
     if (closed) return false;
-    let raw;
-    try { raw = io.read(); }
+    let disk;
+    try { disk = normalizeDoc(io.read()); }
     catch (e) {
       loadError = e;
       failNote('channels.ledger.read', e);
@@ -353,7 +371,6 @@ function makeDeliveryLedger(deps) {
       healthChanged();
       return false;
     }
-    const disk = normalizeDoc(raw);
     // what was decided while the file could not be read (deliveries enqueued, chats marked) joins what it holds
     const ids = new Set(disk.deliveries.map(x => x.id));
     for (const d of doc.deliveries) if (!ids.has(d.id)) disk.deliveries.push(d);
@@ -418,7 +435,7 @@ function makeDeliveryLedger(deps) {
       }
       if (kept.length !== doc.tombstones.length) doc.tombstones = kept.reverse();
     }
-    if (t) doc.deliveries = doc.deliveries.filter(d => !(d.state === 'done' && d.doneAt && t - d.doneAt > limits.doneTtlMs));
+    if (t) doc.deliveries = doc.deliveries.filter(d => !(d.state === 'done' && !Publication.hasMetadata(d) && d.doneAt && t - d.doneAt > limits.doneTtlMs));
     if (t && doc.openAsks.length) doc.openAsks = doc.openAsks.filter(a => a.boot === bootId || !a.at || t - a.at <= limits.doneTtlMs);
   }
   function ready() { return loaded || load(); }
@@ -492,6 +509,12 @@ function makeDeliveryLedger(deps) {
       nextAt: 0, lastError: '', ts: Number(x.ts) || now(), edit: cleanEdit(x.edit), sessionTurns: null
     };
     if (!parts.length && typeof x.text === 'string') rec.text = x.text;
+    if (Publication.owns(x, 'historyDestination')) {
+      // Raw binding fields must already be valid; String()/slice above grants no authority.
+      Publication.binding(x);
+      rec.historyDestination = Publication.destination(x.historyDestination);
+      Publication.record(rec);
+    }
     return rec;
   }
   const deliveryText = (d) => (typeof d.text === 'string' && !d.parts.length) ? d.text : d.parts.map(p => (p.kind === 'file' ? '\u0000file:' + p.path : (p.kind === 'note' ? '' : p.text))).join('');
@@ -499,12 +522,33 @@ function makeDeliveryLedger(deps) {
   function placeDelivery(rec) {
     const existing = deliveryById(rec.id);
     if (existing) {
+      if (Publication.hasMetadata(existing) || Publication.hasMetadata(rec)) {
+        Publication.record(existing); Publication.record(rec);
+        if (['id', 'channel', 'chatId', 'runId', 'agentId'].some(k => existing[k] !== rec[k]) ||
+            !Publication.same(existing.historyDestination, rec.historyDestination) || deliveryText(existing) !== deliveryText(rec)) {
+          Publication.refuse('The existing delivery has a different saved destination or result');
+        }
+        return existing;
+      }
       if (existing.chat === rec.chat && deliveryText(existing) === deliveryText(rec)) return existing;
       failNote('channels.ledger.idCollision', new Error('delivery id ' + rec.id + ' already names another reply'));
       rec.id = rec.id + '~' + bootId + ':' + (++seq);
     }
     doc.deliveries.push(rec);
     return rec;
+  }
+  function readPublication(d, allowMarkerChange) {
+    if (typeof io.readConfirmed !== 'function') Publication.refuse('The delivery publication reader is unavailable');
+    const raw = io.readConfirmed();
+    const saved = raw && raw.version === 1 && Array.isArray(raw.deliveries) ? raw.deliveries.filter(row => row && row.id === d.id) : [];
+    const expected = saved.length === 1 && allowMarkerChange ? Object.assign({}, d, { sessionTurns: saved[0].sessionTurns }) : d;
+    if (saved.length !== 1 || !Publication.same(saved[0], expected)) Publication.refuse('The saved delivery publication could not be read back');
+    Publication.record(saved[0]);
+    return saved[0];
+  }
+  function confirmedPublication(d) {
+    const saved = readPublication(d);
+    return Publication.acknowledgement(saved.sessionTurns, saved);
   }
   function removeReceipts(ids) {
     const want = new Set(arr(ids));
@@ -848,6 +892,18 @@ function makeDeliveryLedger(deps) {
   }
 
   // ---- the ledger ---------------------------------------------------------------------------------------------------
+  // Admission belongs to the receipt, not its adapter-supplied message. A later admitted edit
+  // invalidates earlier pending edits of that exact message in the same durable transaction.
+  function acceptEdit(record) {
+    const previous = [];
+    for (const row of doc.receipts) {
+      if (!row.message || row.message.edited !== true || row.channel !== record.channel || row.chatId !== record.chatId ||
+          String(row.message.messageId || '') !== String(record.message.messageId || '')) continue;
+      previous.push([row, row.editAdmission]);
+      row.editAdmission = { v: 1, state: row === record ? 'accepted' : 'superseded' };
+    }
+    return () => { for (const [row, prior] of previous) { if (prior === undefined) delete row.editAdmission; else row.editAdmission = prior; } };
+  }
   const ledger = {
     bootId: bootId,
     limits: limits,
@@ -888,11 +944,13 @@ function makeDeliveryLedger(deps) {
         c.dead = null;   // the chat speaking is proof it takes our messages again
       }
       doc.receipts.push(r);
+      const undoEdit = !deferred && message.edited === true && e.editCurrent === true ? acceptEdit(r) : null;
       const wasDirty = dirty;
       prune();
       // A RECEIPT THAT CANNOT BE WRITTEN RECORDS NOTHING: it is undone and thrown, so the adapter does not acknowledge
       try { io.write(serialize()); }
       catch (err) {
+        if (undoEdit) undoEdit();
         removeReceipts([id]);
         if (before === undefined) delete doc.chats[chat]; else doc.chats[chat] = before;
         failNote('channels.ledger.write.receipt', err);
@@ -901,6 +959,18 @@ function makeDeliveryLedger(deps) {
       dirty = false; writeError = null; persistDelay = 0;
       if (wasDirty) { if (persistTimer) { clearTimer(persistTimer); persistTimer = null; } healthChanged(); kickAll(); }
       return r;
+    },
+    admitEdit(id) {
+      if (!ready() || dirty) return false;
+      const row = receiptById(String(id));
+      if (!row || row.deferred || !row.message || row.message.edited !== true) return false;
+      const state = row.editAdmission;
+      if (state && state.v === 1 && state.state === 'superseded') return false;
+      if (state && state.v === 1 && state.state === 'accepted') return true;
+      const undo = acceptEdit(row);
+      if (commit('editAdmission')) return true;
+      undo(); // a failed write cannot invalidate an older accepted edit in memory either
+      return false;
     },
     markAttempt(ids, patch, opts) {
       const p = patch || {};
@@ -937,7 +1007,8 @@ function makeDeliveryLedger(deps) {
       return rec;
     },
     enqueue(delivery) {
-      ready();
+      const readable = ready();
+      if (Publication.hasMetadata(delivery) && !readable) Publication.refuse('The saved delivery ledger is unavailable');
       const rec = newDelivery(delivery);
       const placed = placeDelivery(rec);
       if (placed === rec) commit('enqueue');
@@ -966,11 +1037,44 @@ function makeDeliveryLedger(deps) {
       return Object.assign({ ids: ids }, ledger.settle(ids, { notice: o.notice }));
     },
     delivery(id) { return deliveryById(String(id)); },
+    publication(id) {
+      if (!ready() || dirty) Publication.refuse('The delivery completion has not been saved');
+      const d = deliveryById(String(id));
+      if (!d || d.state !== 'done') Publication.refuse('The delivery is not complete');
+      return clone(readPublication(d));
+    },
     deliveries(chat) { return doc.deliveries.filter(d => !chat || d.chat === String(chat)).slice(); },
     tombstones(channel) { return doc.tombstones.filter(t => !channel || t.chat.slice(0, t.chat.lastIndexOf('|')) === String(channel)).slice(); },
-    release(id) {
+    release(id, publication) {
+      if (publication !== undefined && (!ready() || dirty)) Publication.refuse('The publication release cannot be confirmed');
       const d = deliveryById(String(id));
+      if (!d && publication !== undefined) {
+        const proof = Publication.receipt(publication);
+        if (proof.deliveryId !== id || typeof io.readConfirmed !== 'function') Publication.refuse('The released delivery identity is unproven');
+        const saved = io.readConfirmed();
+        if (!saved || saved.version !== 1 || !Array.isArray(saved.deliveries) || !Array.isArray(saved.tombstones) ||
+            saved.deliveries.some(row => !row || row.id === id) || saved.tombstones.some(row => !row || row.id === id)) {
+          Publication.refuse('The saved delivery release could not be confirmed');
+        }
+        normalizeDoc(saved); // reject unknown publication schemas even in otherwise well-shaped documents
+        return true; // the caller already re-proved the persisted cron receipt's exact canonical row
+      }
       if (!d || d.state !== 'done') return false;
+      if (Publication.hasMetadata(d)) {
+        if (dirty) Publication.refuse('The publication acknowledgement is not confirmed');
+        const destination = Publication.record(d);
+        const receipt = Publication.receipt(publication, { jobId: destination.jobId, targets: [destination.target], runId: d.runId, agentId: d.agentId });
+        const ack = Publication.acknowledgement(d.sessionTurns, d);
+        if (receipt.deliveryId !== d.id || ['channel', 'chatId', 'runId', 'agentId'].some(k => receipt[k] !== d[k]) ||
+            ['streamId', 'rowId', 'turnId'].some(k => receipt[k] !== ack[k])) Publication.refuse('The recorded routine result does not cover this publication');
+        confirmedPublication(d);
+        // Its caller has already confirmed the cron receipt. A failed removal cannot
+        // silently erase the only retryable record from the running process.
+        const before = doc.deliveries;
+        removeDelivery(d.id);
+        if (!commit('release-publication')) { doc.deliveries = before; Publication.refuse('The published delivery release could not be saved'); }
+        return true;
+      }
       removeDelivery(d.id);
       commit('release');
       return true;
@@ -1006,10 +1110,29 @@ function makeDeliveryLedger(deps) {
     },
     // the asks a process that is gone left open on this channel (its keyboards are still live on the platform)
     asksLeftOpen(channel) { return ready() ? doc.openAsks.filter(a => a.channel === String(channel) && a.boot !== bootId).map(a => Object.assign({}, a)) : []; },
-    // A caller's one-time side effect for this record (a routine's session turns: routine-delivery.js) is marked before it
-    // is done, in one write: true the first time only, so the effect happens at most once whatever asks again.
-    noteSession(id) {
+    // The legacy overload marks its one-time side effect before execution. The v2 overload
+    // accepts only a canonical identity already returned by the writer, then confirms its
+    // acknowledgement through the primary file before the caller may record/release it.
+    noteSession(id, proof) {
+      if (proof !== undefined && !ready()) Publication.refuse('The saved delivery ledger is unavailable');
       const d = deliveryById(String(id));
+      if (proof !== undefined) {
+        if (!d || d.state !== 'done' || typeof io.readConfirmed !== 'function') Publication.refuse('The completed delivery could not be confirmed');
+        Publication.record(d);
+        if (!proof || Object.keys(proof).sort().join(',') !== 'rowId,streamId,turnId') Publication.refuse('The canonical publication proof is malformed');
+        const prior = d.sessionTurns && Publication.owns(d.sessionTurns, 'v') ? Publication.acknowledgement(d.sessionTurns, d) : null;
+        const ack = Publication.acknowledgement({ v: 2, at: prior ? prior.at : now(), streamId: proof.streamId, rowId: proof.rowId, turnId: proof.turnId }, d);
+        if (prior && !Publication.same(prior, ack)) Publication.refuse('The canonical publication identity changed');
+        const saved = readPublication(d, true);
+        if (saved.sessionTurns && Publication.owns(saved.sessionTurns, 'v') &&
+            !Publication.same(Publication.acknowledgement(saved.sessionTurns, saved), ack)) Publication.refuse('The saved canonical publication identity changed');
+        d.sessionTurns = ack;
+        if (!commit('session-publication')) Publication.refuse('The publication acknowledgement could not be saved');
+        // Never confirm from the in-memory marker, stat cache, or a recovered backup.
+        // A landed write with a lost acknowledgement is re-proved on the next call.
+        return confirmedPublication(d);
+      }
+      if (d && Publication.hasMetadata(d)) Publication.refuse('A canonical publication proof is required before acknowledgement');
       if (!d || d.sessionTurns) return false;
       d.sessionTurns = { at: now() };
       commit('session');

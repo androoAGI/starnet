@@ -1108,7 +1108,7 @@ const Tutorial = (() => {
      SYSTEM dock → stationui window → this chapter renderer. Equipment labels come from
      WorldModel; examples are instructions to try, never badges claiming completed work. */
 
-  const fmEsc = v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+  const fmEsc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   /* THE NAMES THE LINES CHAPTER USES COME FROM BUILD MODE ITSELF (Build.refitNames — tab, tool, button labels and
      live counts), so a renamed tab or a new machine cannot leave the manual describing a UI that is gone
      (2026-09-23 playtest). The fallback is only for a context where build.js is not loaded (headless tests). */

@@ -115,7 +115,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // panelBright (−100…100, default 0) is the tube's BRIGHTNESS knob: above 0 it lifts the panel glass's black
   // level toward the phosphor colour (never toward white); below 0 it takes the panels DOWN toward true black
   // (Andrew 10-01: "it doesnt get dark enough"). 0 = the shipped look, untouched.
-  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 0, textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
+  function defaults() { return { theme: 'amber', themeHue: 35, themeSat: 100, themeGlow: 100, panelBright: 0, roomLighting: 0, textScale: 0, flicker: true, crtGlass: 'full', staticLevel: 100, sound: true, soundHum: true, soundHeartbeat: true, hints: true, backdrop: 'void', sessionRow: 'compact', keepComputerAwake: false, notifyPrefs: notifyDefaults() }; }
   // ROOM LIGHT is a 0–100 slider (Andrew 10-10: "maybe we should have adjustable lighting setting?").
   // 0 is the approved station, untouched, and the default. Ambient alone barely moved the screen (the old
   // HIGH chip measured +3% over LOW, 10-10 player report: "high lighting but still too dark"): WorldLight's
@@ -478,7 +478,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // HINTS off: hint.js shows no glossary bubble (it reads this class); clear one already on screen
     document.body.classList.toggle('no-hints', !s.hints);
     if (!s.hints && typeof Hint === 'object' && Hint.hide) Hint.hide();
-    if (typeof SFX === 'object') SFX.on = !!s.sound;
+    if (typeof SFX === 'object') {
+      SFX.on = !!s.sound;
+      if (SFX.setAmbience) SFX.setAmbience(s.soundHum, s.soundHeartbeat);
+    }
     syncKeepAwake(!!s.keepComputerAwake);
   }
 
@@ -3471,7 +3474,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const id = b.closest('.ws-bl-row').getAttribute('data-blid');
         b.disabled = true;   // re-queueing the SAME id un-parks it server-side (clears the failed-attempt count)
         Harness.api.post('/api/workshop/queue', { agentId: aid, id: id, title: b.getAttribute('data-title') || '' })
-          .then(() => loadWsLive())
+          .then(r => { if (!r.ok) notify('could not re-queue that: ' + Harness.api.why(r), 'bad'); loadWsLive(); })   // a refusal is an answer: say it
           .catch(() => { notify('could not reach the station', 'bad'); loadWsLive(); });
       }));
       wsLive.querySelectorAll('.ws-bl-review').forEach(b => b.addEventListener('click', () => {
@@ -4942,18 +4945,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (act === 'export') {
         btn.classList.add('busy'); const r = await Harness.skillExchangeExport({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.envelope) {
-          const url = URL.createObjectURL(new Blob([r.envelope], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = r.filename || (skill.id + '.starnet-skill.json'); a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000); notify('Exported sealed package ' + String(r.digest || '').slice(0, 12), 'good');
+          const receipt = await U.saveFile({ name: r.filename || (skill.id + '.starnet-skill.json'), ext: 'json', text: r.envelope });
+          notify(receipt.line, receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Export was refused.', 'warn');
         return;
       }
       if (act === 'publish') {
         btn.classList.add('busy'); const r = await Harness.skillExchangePublishHandoff({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.handoff) {
-          const text = JSON.stringify(r.handoff, null, 2) + '\n'; const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = skill.id + '.publish-handoff.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-          notify('Prepared local publish handoff; nothing was uploaded.', 'good');
+          const receipt = await U.saveFile({ name: skill.id + '.publish-handoff.json', ext: 'json', text: JSON.stringify(r.handoff, null, 2) + '\n' });
+          notify(receipt.line + (receipt.ok ? ' — nothing was uploaded.' : ''), receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Publish handoff was refused.', 'warn');
         return;
       }
@@ -5075,16 +5076,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!fields.agree) { result.textContent = 'Turn on the agreement to share it: it is the license others use it under.'; $f('agree').focus(); return; }
       send.disabled = true; send.textContent = 'Sending…'; result.textContent = '';
       try { localStorage.setItem(SHARE_CREDIT_KEY, fields.credit); } catch (_) {}
-      let r = null;
-      try { r = await (await Harness.apiFetch('/api/skill-market/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })).json(); } catch (_) { r = null; }
+      // the station's answer, read once (Harness.api): a refusal the gate wrote in plain text is an answer, not "not answering"
+      let res = null;
+      // the station's own market call waits up to 60 s and then answers 504 'unknown': let that answer arrive
+      try { res = await Harness.api.post('/api/skill-market/share', fields, { timeoutMs: 90000 }); } catch (_) { res = null; }
+      const r = res && res.j;
       send.disabled = false; send.textContent = 'Send for review';
-      if (r && r.ok && r.submission) {
+      if (res && res.ok && r.submission) {
         result.textContent = 'Sent for review as "' + (r.submission.title || fields.title) + '". A person reads it next; your Skills tab on account.starnetos.com shows where it stands.'
           + (r.referencesLeftOut ? ' ' + r.referencesLeftOut + (r.referencesLeftOut === 1 ? ' support file was' : ' support files were') + ' left out: the market takes up to five plain-text references.' : '');
         send.remove(); cancel.textContent = 'Done'; cancel.focus(); sfx('click');
         return;
       }
-      if (!r) { result.textContent = 'The station is not answering right now. This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
+      if (!res || (!r && res.status >= 500)) { result.textContent = (res ? 'The station hit an error (HTTP ' + res.status + ').' : 'The station is not answering right now.') + ' This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
+      // a refusal without the route's own body (the gate's, before the share ran): its sentence, and nothing left the station
+      if (!r) { const why = Harness.api.why(res); result.textContent = why.charAt(0).toUpperCase() + why.slice(1) + '. Nothing was shared.'; return; }
       if (r.outcome === 'unknown') { result.textContent = (r.error ? r.error + ' ' : '') + 'This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
       if (r.linked === false) { result.textContent = 'Link this station to your StarNet account first (STORE › LINK STATION). A free account works. Nothing was shared.'; return; }
       result.textContent = r.code === 'token_rejected' ? r.error : (r.error || 'The market refused it.') + ' Nothing was shared.';
@@ -6402,8 +6408,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         }
         if (act === 'codex-logout') {
           if (typeof CodexSignIn !== 'undefined') CodexSignIn.cancel(); delete oauthCardFlow.codex;   // the cancelled flow's code leaves every box
-          const drop = (typeof CodexSignIn !== 'undefined') ? CodexSignIn.logout() : Harness.api.post('/api/auth/codex/logout').catch(() => {});
-          Promise.resolve(drop).then(() => {
+          const drop = (typeof CodexSignIn !== 'undefined') ? CodexSignIn.logout() : Harness.api.post('/api/auth/codex/logout').catch(() => null);
+          Promise.resolve(drop).then(res => {
+            // DISCONNECTED ONLY ON THE STATION'S YES: a logout it refused (or never answered) left the sign-in in force
+            if (!res || !res.ok) { notify('could NOT disconnect ChatGPT — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); rerender('settings'); return; }
             codexStatusKnown = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
             if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured('codex', false);
             notify('disconnected ChatGPT — sign in again anytime from PROVIDERS', 'warn');
@@ -6423,8 +6431,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (oauthAct[2] === 'resign') { if (engine) startCardSignin(pid, '⏼ RE-SIGN-IN'); return; }   // the ONE card flow
           // logout
           if (engine) engine.cancel(); delete oauthCardFlow[pid];
-          const drop = engine ? engine.logout() : Harness.api.post('/api/auth/' + pid + '/logout').catch(() => {});
-          Promise.resolve(drop).then(() => {
+          const drop = engine ? engine.logout() : Harness.api.post('/api/auth/' + pid + '/logout').catch(() => null);
+          Promise.resolve(drop).then(res => {
+            if (!res || !res.ok) { notify('could NOT disconnect ' + provName(pid) + ' — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); rerender('settings'); return; }
             oauthStatus[pid] = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
             if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, false);
             notify('disconnected ' + provName(pid) + ' — sign in again anytime from PROVIDERS', 'warn');
@@ -7218,7 +7227,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // Same failure facts as the genesis LINK (app.js startStarnetLink): a dead local engine is never "the link service".
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j, why: r ? Harness.api.why(r) : '' }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
       .catch(e => {
@@ -8022,7 +8031,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         sessionRow: store.settings.sessionRow,
         flicker: store.settings.flicker, crtGlass: store.settings.crtGlass,
         staticLevel: store.settings.staticLevel,
-        sound: store.settings.sound, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
+        sound: store.settings.sound, soundHum: store.settings.soundHum, soundHeartbeat: store.settings.soundHeartbeat, hints: store.settings.hints, keepComputerAwake: store.settings.keepComputerAwake
       }, notifyPrefs: Object.assign({}, store.settings.notifyPrefs || notifyDefaults()) };
       try { if (typeof AutonomyStore !== 'undefined' && AutonomyStore.exportState) out.autonomy = AutonomyStore.exportState(); } catch (_) {}
       return out;
@@ -8464,7 +8473,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       '<label class="set-row"><input type="checkbox" id="set-flicker" ' + (s.flicker ? 'checked' : '') + '> SCREEN FLICKER</label>' +
       // TERMINAL AUDIO is a sound control, not a display one — its own header (it also gates notification chimes).
       '<h4 class="ms-h">SOUND</h4>' +
-      '<label class="set-row"><input type="checkbox" id="set-sound" ' + (s.sound ? 'checked' : '') + '> TERMINAL AUDIO <span class="dim">— UI &amp; notification sounds</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound" ' + (s.sound ? 'checked' : '') + '> TERMINAL AUDIO <span class="dim">— all terminal sounds, including clicks &amp; completion chimes</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound-hum" ' + (s.soundHum ? 'checked' : '') + '> BACKGROUND HUM <span class="dim">— awakening ambience (needs TERMINAL AUDIO on)</span></label>' +
+      '<label class="set-row"><input type="checkbox" id="set-sound-heartbeat" ' + (s.soundHeartbeat ? 'checked' : '') + '> HEARTBEAT <span class="dim">— awakening pulse (needs TERMINAL AUDIO on)</span></label>' +
+      '<div class="dim">Turn off the hum and heartbeat to keep just the clicks and chimes.</div>' +
       '<span class="msg" id="appearance-msg" aria-live="polite"></span>';
     const secNotifs =
       // NOTIFICATIONS — per-category on/off + a notification sound toggle (P1-8). Each is HONORED at emit time in
@@ -8783,7 +8795,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     wireSlider(brightIn, v => { s.panelBright = clampN(v, -100, 100, 0); sliderVal('#set-bright-val', s.panelBright + '%'); });
     wireSlider(host.querySelector('#set-static'), v => { s.staticLevel = clampN(v, 0, 200, 100); sliderVal('#set-static-val', s.staticLevel + '%'); });
     const bind = (id, key) => host.querySelector(id).addEventListener('change', ev => { s[key] = ev.target.checked; applySettings(); save(); flashSaved(appMsg()); });
-    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-hints', 'hints');
+    bind('#set-flicker', 'flicker'); bind('#set-sound', 'sound'); bind('#set-sound-hum', 'soundHum'); bind('#set-sound-heartbeat', 'soundHeartbeat'); bind('#set-hints', 'hints');
     const roomLightIn = host.querySelector('#set-room-light');
     if (roomLightIn) {
       roomLightIn.addEventListener('input', ev => { s.roomLighting = resolveRoomLighting(ev.target.value); applyRoomLighting(s.roomLighting, true); sliderVal('#set-room-light-val', s.roomLighting + '%'); });
@@ -9720,7 +9732,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const payload = { agentId: box.getAttribute('data-exec-agent'), host: (box.querySelector('[data-ssh-host]') || {}).value || '', user: (box.querySelector('[data-ssh-user]') || {}).value || '', port: Number((box.querySelector('[data-ssh-port]') || {}).value || 22), remoteRoot: (box.querySelector('[data-ssh-root]') || {}).value || '/workspace' };
           Harness.api.post('/api/execution/ssh', payload).then(r => {
             const j = r.j, ready = r.ok && j && j.ok === true && j.ready === true;
-            notify(ready ? 'SSH target saved and ready' : (r.ok && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
+            // a 200 {ok:false, saved:true} is the station's "saved, but the probe failed" (r.ok folds j.ok, so the 2xx is read by status)
+            notify(ready ? 'SSH target saved and ready' : (r.status >= 200 && r.status < 300 && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save SSH target', 'bad'); refreshExecutionProfiles(); });
         }));
@@ -10571,7 +10584,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         banner.style.cssText = 'position:fixed;top:8px;left:10%;right:10%;z-index:100000;padding:16px;background:#281e12;color:#fff;border:2px solid #e8b35c';
         const label = document.createElement('p'); label.textContent = d.title;
         const exportButton = document.createElement('button'); exportButton.className = 'bb'; exportButton.textContent = 'Download this window’s save';
-        exportButton.onclick = () => { const blob = new Blob([JSON.stringify(CloudSave.localSnapshot() || {})], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'starnet-conflicting-save.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+        exportButton.onclick = async () => { const receipt = await U.saveFile({ name: 'starnet-conflicting-save.json', ext: 'json', text: JSON.stringify(CloudSave.localSnapshot() || {}) }); notify(receipt.line, receipt.ok ? '' : 'warn'); };
         const reload = document.createElement('button'); reload.className = 'bb'; reload.textContent = reset ? 'Open the fresh station' : 'Reload current station'; reload.onclick = async () => { try { await CloudSave.reloadCurrent(); } catch (e) { label.textContent = e.message; } };
         // the preserved copy's sessions go INTO the station (added, never removing any), then this window reloads onto it
         // never after a RESET, and never for erased work: the station was erased on purpose, and this copy is from before it
@@ -10845,10 +10858,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     foot.appendChild(flows);
     if (block) {
       const copy = mkEl('button', 'consent-btn cd-brief-copy'); copy.textContent = 'copy briefing';
+      // "copied ✓" only when the copy happened (it used to print it whether or not the clipboard took the briefing)
       copy.onclick = () => {
-        try { navigator.clipboard.writeText(block); } catch (_) {}
-        copy.textContent = 'copied ✓'; sfx('click');
-        setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        U.copyText(block).then(ok => {
+          copy.textContent = ok ? 'copied ✓' : 'copy failed — select the briefing above'; sfx(ok ? 'click' : 'bad');
+          setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        });
       };
       foot.appendChild(copy);
     }
@@ -12222,10 +12237,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       current.querySelectorAll('input,textarea').forEach(el => { el.dataset.dirty = el.value ? '1' : '0'; });
       current.querySelector('.q-new-success').focus(); current.scrollIntoView({ block: 'nearest' });
     }));
-    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', () => {
-      const url = URL.createObjectURL(new Blob([GoalStore.exportJourney()], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = 'starnet-journey.json'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', async () => {
+      const receipt = await U.saveFile({ name: 'starnet-journey.json', ext: 'json', text: GoalStore.exportJourney() });
+      notify(receipt.line, receipt.ok ? '' : 'warn');
     }));
     body.querySelectorAll('.q-goal-focus').forEach(b => b.addEventListener('click', () => { if (GoalStore.focusGoal(b.dataset.gid)) rerender('quests', false); }));
     body.querySelectorAll('.q-goal-create').forEach(b => b.addEventListener('click', async () => {
@@ -12878,12 +12892,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const bds = typeof SpaceBG === 'undefined' ? [] : [].concat(SpaceBG.list()).concat(typeof Terrain === 'undefined' || !Terrain.list ? [] : Terrain.list());
     return { theme: THEMES.map(([n]) => n).concat('custom'), themeHue: '0-359', themeSat: '0-100', themeGlow: '0-150', panelBright: '-100-100',
       roomLighting: '0-100', textScale: TEXT_SCALES.map(([v, n]) => v + ' (' + n + ')'), flicker: 'true|false',
-      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
+      crtGlass: GLASS_STEPS.map(([id]) => id), staticLevel: '0-200', soundHum: 'true|false', soundHeartbeat: 'true|false', sound: 'true|false', hints: 'true|false', backdrop: bds.map(b => b.id), sessionRow: ROW_STEPS.map(([id]) => id),
       notifyPrefs: Object.keys(notifyDefaults()).join('|') + ': true|false' };
   }
   function lookNow() {
     const s = store.settings, out = {};
-    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
+    ['theme', 'themeHue', 'themeSat', 'themeGlow', 'panelBright', 'roomLighting', 'textScale', 'flicker', 'crtGlass', 'staticLevel', 'soundHum', 'soundHeartbeat', 'sound', 'hints', 'backdrop', 'sessionRow'].forEach(k => { out[k] = s[k]; });
     out.notifyPrefs = Object.assign({}, s.notifyPrefs);
     return out;
   }
@@ -12907,6 +12921,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       else if (k === 'backdrop') pick(k, opts.backdrop);
       else if (k === 'textScale') { const v = Number(patch[k]); if (!TEXT_SCALES.some(([n]) => n === v)) throw new Error('textScale must be one of: ' + TEXT_SCALES.map(([n, l]) => n + ' (' + l + ')').join(', ')); next[k] = v; }
       else if (k === 'flicker' || k === 'sound' || k === 'hints') bool(k);
+      else if (k === 'soundHum' || k === 'soundHeartbeat') bool(k);
       else if (k === 'notifyPrefs') {
         const np = patch[k]; if (!np || typeof np !== 'object') throw new Error('notifyPrefs takes { runComplete, needsApproval, cronDigest, sound } as true/false');
         const d = notifyDefaults(); next[k] = Object.assign({}, store.settings.notifyPrefs);

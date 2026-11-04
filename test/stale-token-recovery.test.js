@@ -10,7 +10,7 @@
    narrowness that makes it safe: it never swallows a real 403, never replays without proof of a rotation, never
    loops, and shares one page read across concurrent 403s. Source locks cover the wiring and the honest surfaces. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, sidecarFunctionSource } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -36,8 +36,20 @@ A.ok(sidecar.includes("'window.__STARNET_API_TOKEN__=' + JSON.stringify(API_TOKE
   'serveStatic still injects window.__STARNET_API_TOKEN__=<json>; into the page');
 A.ok(sidecar.includes("(scriptNonce ? '<script nonce=\"' + scriptNonce + '\">' : '<script>')"),
   'serveStatic opens the boot script with its per-response nonce');
-A.ok(/res\.writeHead\(403\); res\.end\('forbidden token'\); return true;/.test(sidecar),
-  "rejectBadApiToken still answers the stale-token case with the exact body 'forbidden token'");
+// The gate's token refusal keeps the exact body this recovery reads, and now names which refusal it was: the real
+// refuseAtGate and its no-key rule (sidecar/index.js), run on a fake response with the real key and ticket readers.
+{
+  const refuseAtGate = new Function('apiauth', 'apitickets', 'noteApiRefusal', sidecarFunctionSource('carriesNoKey') + '\n' +
+    sidecarFunctionSource('refuseAtGate') + '\nreturn refuseAtGate;')(require('../sidecar/apiauth.js'), require('../sidecar/apitickets.js'), () => {});
+  const answer = headers => {
+    const res = { writeHead(status, head) { this.status = status; this.head = head; }, end(body) { this.body = body; } };
+    refuseAtGate({ method: 'GET', url: '/api/state', headers }, res, 'forbidden token');
+    return [res.status, res.body, res.head['X-StarNet-Code']];
+  };
+  A.eq(answer({ 'x-starnet-token': 'old-launch-key' }), [403, 'forbidden token', 'token_stale'], "a stale key still gets the exact body 'forbidden token', named token_stale");
+  A.eq(answer({}), [403, 'forbidden token', 'token_missing'], 'a page that carried no key gets the same body, named token_missing');
+  A.ok(sidecar.includes("return refuseAtGate(req, res, 'forbidden token');"), 'the token gate answers through refuseAtGate');
+}
 const pageWith = tok => '<html><head><script>window.__STARNET_API_TOKEN__=' + JSON.stringify(tok) + ';</script>\n</head><body></body></html>';
 
 function rig(opts) {
@@ -323,8 +335,10 @@ const forbiddenToken = () => new Response('forbidden token', { status: 403 });
   // the START FRESH + recover polls: a 403 is not "not ready yet".
   const gate = A.fnBody(app, 'function showPriorStateGate(');
   A.ok(gate.length > 0 && gate.length < app.length, 'lifted showPriorStateGate');
-  const polls = gate.match(/if \(probe\.status === 403\) \{ clearInterval\(timer\); location\.reload\(\); return; \}/g) || [];
-  A.eq(polls.length, 2, 'both restart polls (START FRESH, RECOVER) stop and reload once on a 403 instead of greying out forever');
+  const polls = gate.match(/if \(gateRefusedPage\(probe\)\) \{ clearInterval\(timer\); location\.reload\(\); return; \}/g) || [];
+  A.eq(polls.length, 2, 'both restart polls (START FRESH, RECOVER) stop and reload once when the gate refuses this page\'s key, instead of greying out forever');
+  A.ok(/function gateRefusedPage\(reply\) \{\s*const f = Harness\.classifyApiFailure \? Harness\.classifyApiFailure\(reply\) : null;\s*return !!\(f && \(f\.staleSession \|\| f\.tokenWithheld\)\);/.test(app),
+    'the polls read the refusal through the ONE reader (the gate\'s own code), never a bare 403 (test/station-refusal-readers.test.js drives it)');
   A.ok(/const next = body && body\.lineage;[\s\S]{0,400}checked again — still nothing recoverable here/.test(gate),
     'RETRY with nothing recoverable re-asks the sidecar and SAYS so instead of a no-op reload');
   A.ok(/throw new Error\(refusedPageLine\(\) \|\| 'report unavailable'\)/.test(gate),

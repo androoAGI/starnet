@@ -21,7 +21,7 @@
   let routinesOn = true;
   let loadError = false;    // the last load failed: the window says so instead of "no apps yet"
   const refreshing = new Set();   // app ids with a REFRESH run in flight (started from this page)
-  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const UI = () => (typeof StationUI !== 'undefined' ? StationUI : null);
   const host = () => (typeof PluginHost !== 'undefined' ? PluginHost : null);
   const notify = (msg, cls) => { const ui = UI(); if (ui && ui.notify) ui.notify(msg, cls || 'good', 'general', { transient: true }); };

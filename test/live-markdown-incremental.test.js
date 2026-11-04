@@ -22,10 +22,10 @@ function extract(name) {
   return m ? m[1] : '';
 }
 // eslint-disable-next-line no-new-func
-const renderMarkdown = new Function(
-  /const HTML_ESC = \{[^}]*\};/.exec(chat)[0] + '\n' + /  const REL_PATH = [^\n]*;/.exec(chat)[0] + '\n' +
+const renderMarkdown = new Function('U',
+  /  const REL_PATH = [^\n]*;/.exec(chat)[0] + '\n' +
   ['escapeHtml', 'linkify', 'mdInline', 'hostOf', 'linkHostNote', 'appFileRef', 'fileRefLink', 'fileRefImage', 'reportInline', 'renderFence', 'renderMarkdown'].map(extract).join('\n') +
-  '\nreturn renderMarkdown;')();
+  '\nreturn renderMarkdown;')(require('../frontend/js/util.js'));
 
 let seed = 7;
 const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;

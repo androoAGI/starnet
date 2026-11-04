@@ -283,6 +283,9 @@ test/shell-visible-window.test.js
 test/shell-input-isolation.test.js
 test/shell.source-scan.test.js
 test/shell-machine-state.test.js
+test/shell-local-program.test.js
+test/shell-wrapper-quoting.test.js
+test/shell-command-resolution.test.js
 test/procledger.test.js
 test/inputguard.test.js
 test/timeout.test.js
@@ -449,6 +452,9 @@ test/save.test.js
 test/saveversion.test.js
 test/backup-secrets.test.js
 test/station-export-location.test.js
+test/export-file-ownership.test.js
+test/download-helper.ratchet.test.js
+test/escape-parity.census.test.js
 test/schema-stamp.test.js
 test/rename-migrate.test.js
 test/update-state-parity.test.js
@@ -963,6 +969,8 @@ test/path-smoothing.test.js
 test/path-oracle.test.js
 test/run-truth.test.js
 test/station-authority.test.js
+test/station-saved-projection.test.js
+test/routing.saved-projection.test.js
 test/zones.test.js
 test/idle-life-regressions.test.js
 test/social-border.test.js
@@ -1124,6 +1132,16 @@ test/channels.history-adapters.test.js
 test/channels.history-import.test.js
 test/channels.history-port.test.js
 test/channels.history-review.test.js
+test/channels.history-consumers.test.js
+test/channels.history-handoff.test.js
+test/channels.history-ownership.test.js
+test/channels.history-preparation.test.js
+test/channels.history-publication.test.js
+test/channels.history-publication.binding.test.js
+test/routine-history.publication.test.js
+test/cron-history.release.test.js
+test/cron-history.primary.test.js
+test/channels.edit-admission.test.js
 test/delivery-ledger.test.js
 test/channels.ledger-migration.test.js
 test/channels.ledger-write-failure.test.js
@@ -1424,6 +1442,9 @@ test/station-autosave.test.js
 test/durable-store-faults.test.js
 test/permissions-authority.test.js
 test/api-json-lifecycle.test.js
+test/harness-api.contract.test.js
+test/station-refusal-readers.test.js
+test/clipboard-ack.census.test.js
 test/routine-acknowledgement.test.js
 test/routine-preview-race.test.js
 test/marketplace-authority.test.js
@@ -1694,3 +1715,5 @@ test/line-job-publication.test.js
 test/channels.factory.test.js
 test/channels.factory-transport.test.js
 test/channels.live-status.test.js
+
+test/sound-controls.test.js

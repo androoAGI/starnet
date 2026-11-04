@@ -15,8 +15,9 @@ function steps(full) {
 }
 function failure(error, seed, trace, windowMode) {
   // Keep the assertion site, not random run ids or wall-clock values, as the replay failure identity.
-  const site = String(error.stack || '').split('\n').find(line => /(?:turn-oracle|turn-identity\.property|turn-http-fixture|page-model)\.?(?:http\.)?(?:test\.)?js:\d+/.test(line)) || '';
-  return { seed, windowMode, trace: trace.slice(), op: trace[trace.length - 1] || 'setup', name: error.name, code: error.code || '', site: site.trim(), message: error.message };
+  const site = String(error.stack || '').split('\n').find(line => /(?:turn-oracle|turn-identity\.property|turn-http-property-campaign|turn-http-fixture|page-model)\.?(?:http\.)?(?:test\.)?js:\d+/.test(line)) || '';
+  return { seed, windowMode, trace: trace.slice(), op: trace[trace.length - 1] || 'setup', name: error.name, code: error.code || '', site: site.trim(), message: error.message,
+    ...(error.recoveryEvidence ? { recoveryEvidence: error.recoveryEvidence } : {}) };
 }
 function reportFailure(error, seed, trace, file, windowMode) {
   const original = failure(error, seed, trace, windowMode);

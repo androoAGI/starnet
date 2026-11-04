@@ -252,7 +252,13 @@
     const deliveryFile = () => pathMod.join(root, 'delivery.json');
     const timers = (d.timers && typeof d.timers.setTimeout === 'function') ? d.timers : null;
     const ledger = Ledger ? Ledger.makeDeliveryLedger({
-      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc) },
+      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc),
+        readConfirmed: () => {
+          const file = deliveryFile(), result = persist.readOne(fs, file);
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          if (result.kind !== 'ok') throw Object.assign(new Error('The delivery publication primary could not be confirmed'), { code: 'ECHANNEL_PUBLICATION_UNPROVEN' });
+          return result.value;
+        } },
       clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth,
       beforeDrive: () => { if (!migration.done) migrateV1(); }   // an unfinished migration retries before any lane sends
     }) : null;

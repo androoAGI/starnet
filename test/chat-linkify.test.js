@@ -21,11 +21,10 @@ function extract(name) {
   A.ok(m, 'chat.js still defines ' + name + '()');
   return m[1];
 }
-const escSrc = /const HTML_ESC = \{[^}]*\};/.exec(src);
-A.ok(escSrc, 'chat.js still defines HTML_ESC');
+const escapeOwner = require('../frontend/js/util.js');
+A.ok(typeof escapeOwner.esc === 'function', 'the production escape owner is loaded');
 // eslint-disable-next-line no-new-func
-const linkify = new Function(escSrc[0] + '\n' + extract('escapeHtml') + '\n' + extract('linkify') + '\nreturn linkify;')();
-
+const linkify = new Function('U', extract('escapeHtml') + '\n' + extract('linkify') + '\nreturn linkify;')(escapeOwner);
 function hrefOf(html) { const m = /href="([^"]*)"/.exec(html); return m && m[1]; }
 
 // the observed live failure: bold-wrapped URL — the trailing ** must NOT ride into the href

@@ -77,7 +77,7 @@
         const hostWide = shell.unrestrictedHost(ctx);
         const deny = hostWide ? null : escapesWorkspace(cmd);
         if (deny) throw new Error('refused: ' + deny);
-        const safetyDeny = hostWide ? null : commandSafetyRisk(cmd, { cwd: hostCwd, fs: fs, pathMod: P,
+        const safetyDeny = hostWide ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P,
           dialect: environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix'), isWin: isWin });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this check ' + safetyDeny.reason + '. verify.run cannot change the user\'s screen, session, processes, input, or network exposure; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }

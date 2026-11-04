@@ -7,6 +7,22 @@ const SID = /^[A-Za-z0-9_-]{1,64}$/;
 const KEY = /^[A-Za-z0-9_-]{1,40}$/;
 const SHA = /^[a-f0-9]{64}$/;
 function held(message) { return Object.assign(new Error(message), { code: 'CHANNEL_HISTORY_UNAVAILABLE' }); }
+function keyFor(chatId, prefix) {
+  const head = String(prefix || '');
+  const tail = String(chatId).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40 - head.length);
+  return head + (tail || '0');
+}
+function resolveStream(channel, chatId, record, options, note) {
+  const o = options || {};
+  let explicit = '';
+  try { if (typeof o.streamIdFor === 'function') explicit = String(o.streamIdFor(chatId) || ''); }
+  catch (error) { if (note) note('channels.history.stream', error); }
+  if (SID.test(explicit)) return { streamId: explicit, explicit: true };
+  if (o.bindChats === false) return { streamId: null, explicit: false };
+  const bound = record && typeof record.streamId === 'string' ? record.streamId : '';
+  if (SID.test(bound)) return { streamId: bound, explicit: false };
+  return { streamId: ('channel_' + channel + '_' + String(chatId)).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64), explicit: false };
+}
 function makeChannelHistory(d) {
   if (!d || typeof d.view !== 'function' || typeof d.append !== 'function' || typeof d.hash !== 'function' || typeof d.now !== 'function') {
     throw new Error('Channel history needs its Store, hash and clock owners');
@@ -14,15 +30,7 @@ function makeChannelHistory(d) {
   const contexts = new WeakSet(), queues = new WeakMap();
   const note = (tag, error) => { if (typeof d.failNote === 'function') d.failNote(tag, error); };
   function resolve(channel, chatId, record, options) {
-    const o = options || {};
-    let explicit = '';
-    try { if (typeof o.streamIdFor === 'function') explicit = String(o.streamIdFor(chatId) || ''); }
-    catch (error) { note('channels.history.stream', error); }
-    if (SID.test(explicit)) return { streamId: explicit, explicit: true };
-    if (o.bindChats === false) return { streamId: null, explicit: false };
-    const bound = record && typeof record.streamId === 'string' ? record.streamId : '';
-    if (SID.test(bound)) return { streamId: bound, explicit: false };
-    return { streamId: ('channel_' + channel + '_' + String(chatId)).replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 64), explicit: false };
+    return resolveStream(channel, chatId, record, options, note);
   }
   function streamFor(channel, chatId, record, options) { return resolve(channel, chatId, record, options).streamId; }
   function context(host) {
@@ -188,6 +196,12 @@ function makeChannelHistory(d) {
     return serialized(chat, () => ensure(chat, ctx.agentId || ''));
   }
   async function importLegacy(ctx) { return (await ensureImported(ctx)).n; }
+  async function destination(ctx) {
+    await ensureImported(ctx);
+    const chat = readyChat(ctx);
+    if (!chat.streamId) throw held('The chat has no canonical delivery destination');
+    return chat.streamId;
+  }
   function readyChat(ctx) {
     const chat = chatOf(ctx);
     current(chat); // /new may have completed while this entry awaited its import owner.
@@ -276,6 +290,43 @@ function makeChannelHistory(d) {
     });
   }
   // Hub consumers are wired only after this owner and its real Store adapter are independently proved.
-  return { context, streamFor, ensureImported, importLegacy, replay, count, observe, deliver, rotate, legacyMirror };
+  return { context, streamFor, ensureImported, importLegacy, destination, replay, count, observe, deliver, rotate, legacyMirror };
 }
-module.exports = { make: makeChannelHistory, makeChannelHistory };
+// Compatibility for hand-built test hubs only. Production's factory requires the canonical port.
+// It deliberately identifies every replay as legacy; it never pretends to prove durable row identity.
+function legacyPort(store, options) {
+  const o = options || {}, contexts = new WeakSet();
+  const note = typeof o.failNote === 'function' ? o.failNote : function () {};
+  function streamFor(channel, chatId, record, opts) { return resolveStream(channel, chatId, record, opts, note).streamId; }
+  function context(host) {
+    const h = host || {}, s = h.store || store;
+    const record = typeof s.getChatRecord === 'function' ? s.getChatRecord(h.chatId) : null;
+    const chat = Object.freeze(Object.assign({}, h, { store: s, streamId: streamFor(h.channel, h.chatId, record, h) }));
+    contexts.add(chat); return chat;
+  }
+  function chatOf(ctx) {
+    const chat = ctx && ctx.chat;
+    if (!chat || !contexts.has(chat)) throw held('A legacy test chat context is required');
+    return chat;
+  }
+  async function replay(ctx) {
+    if (!ctx || ctx.shape !== 'pairs') throw new Error('Channel history replay requires the literal pairs shape');
+    const chat = chatOf(ctx);
+    note('channels.hub.legacy-history', new Error('A hand-built hub replayed the legacy test store'));
+    const rows = chat.store.loadHistory(ctx.legacyKey || ctx.agentId);
+    if (!Array.isArray(rows)) throw held('Legacy test history is unavailable');
+    return rows.map(row => Object.assign({}, row));
+  }
+  function legacyMirror(agentId, role, text, ctx) { return chatOf(ctx).store.appendTurn(agentId, role, text); }
+  async function count(ctx) { return (await replay(Object.assign({}, ctx, { shape: 'pairs' }))).length; }
+  async function observe(ctx) { legacyMirror(ctx.agentId, 'user', ctx.text, ctx); return { rowId: null, legacy: true }; }
+  async function rotate(ctx) {
+    const chat = chatOf(ctx), s = chat.store;
+    let dropped = s.clearHistory(ctx.agentId) || 0;
+    const record = typeof s.getChatRecord === 'function' ? s.getChatRecord(chat.chatId) : null;
+    for (const key of record && Array.isArray(record.hopKeys) ? record.hopKeys : []) if (KEY.test(key)) dropped += s.clearHistory(key) || 0;
+    return { dropped, newStreamId: chat.streamId };
+  }
+  return { legacy: true, context, streamFor, replay, count, observe, rotate, legacyMirror };
+}
+module.exports = { make: makeChannelHistory, makeChannelHistory, legacyPort, keyFor };

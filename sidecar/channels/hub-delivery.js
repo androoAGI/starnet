@@ -261,7 +261,8 @@ function makeHubDelivery(ctx) {
     const route = msg.tap ? undefined : (threadId ? { threadId: threadId } : null);
     // durable BEFORE this returns (the adapter acknowledges only then); it throws synchronously -> no acknowledgement. A
     // message that starts no run is never held back (deferrable: false); one that may is, when its chat owes too much
-    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: route, deferrable: deferrable(msg) });
+    const editCurrent = msg.edited === true && typeof c.editIsCurrent === 'function' && c.editIsCurrent(msg) === true;
+    const receipt = ledger.receive({ id: id, channel: channel, chatId: String(msg.chatId), message: msg, route: route, deferrable: deferrable(msg), editCurrent });
     accepted(intake, { id, durable: true });
     // OVERFLOW: this chat already holds its whole share of kept messages while its replies cannot get out. The message was
     // not kept, and the chat is told so once, behind the replies it is owed (delivery-ledger.js receive).
@@ -274,7 +275,9 @@ function makeHubDelivery(ctx) {
     const routed = Object.assign(withInbox(intake, [id], attemptOf(receipt)), Number.isSafeInteger(receipt && receipt.ts) ? { inboxAt: receipt.ts } : {});   // the durable receipt's original station time survives recovery
     let go = null;
     const gate = new Promise((resolve) => { go = resolve; });
-    const running = gate.then(() => routeInbound(msg, routed)).then((value) => {
+    // A redelivery cannot replace the payload whose receipt was accepted. In particular an
+    // equal-id/text edit must not swap its media, quote, provenance or admission-only flags.
+    const running = gate.then(() => routeInbound(receipt.message, routed)).then((value) => {
       // SETTLE ON RESOLVE: a message that ended with no durable reply (a steer ack, a command, an observed line, an edit
       // of an older message, a stop) leaves here; one that was answered already left in its answer's write
       ledger.settle([id]);
@@ -313,6 +316,26 @@ function makeHubDelivery(ctx) {
   }
   function inboxIdsOf(intake) {
     return (intake && Array.isArray(intake.inboxIds)) ? intake.inboxIds.filter(x => typeof x === 'string' && x) : [];
+  }
+  function editReceipt(msg, intake) {
+    const ids = inboxIdsOf(intake);
+    if (ownLedger || !msg || msg.edited !== true || ids.length !== 1) return null;
+    const row = ledger.receipt(ids[0]), saved = row && row.message;
+    if (!row || row.channel !== channel || row.chatId !== String(msg.chatId) || !saved || saved.edited !== true ||
+        inboxId(saved) !== inboxId(msg) || JSON.stringify(saved) !== JSON.stringify(msg)) return null;
+    return row;
+  }
+  function editState(msg, intake) {
+    const row = editReceipt(msg, intake), a = row && row.editAdmission;
+    return a && a.v === 1 && (a.state === 'superseded' || (a.state === 'accepted' && !row.deferred)) ? a.state : null;
+  }
+  function admitEdit(msg, intake) {
+    if (ownLedger || !inboxIdsOf(intake).length) return true;
+    const row = editReceipt(msg, intake);
+    return !!row && ledger.admitEdit(row.id) === true;
+  }
+  function editReady(msg, intake) {
+    return ownLedger || !inboxIdsOf(intake).length || editState(msg, intake) === 'accepted';
   }
   /* THE MARKS ARE WRITE-AHEAD (review round 1). A mark that never reached the disk protects nothing across a crash: the next
      boot read the receipt's older attempt, replayed the message and ran its tool step again. So markAttempt answers true
@@ -416,7 +439,7 @@ function makeHubDelivery(ctx) {
   }
 
   return { deliver, onInbound, receive, inboxId, withInbox, inboxIdsOf, recoverInbox, activeInbox, markAttempt, held, settleNow, writable, settleWithNotice,
-    stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger };
+    stamp, askOpened, dropBacklog, chatBack, up, drain, close, notModified, ledger, editState, admitEdit, editReady };
 }
 
 module.exports = { makeHubDelivery, EPHEMERAL, RESTARTED_STAMP };

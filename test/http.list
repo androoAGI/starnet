@@ -211,6 +211,7 @@ test/line-entry.invocation.http.test.js
 test/routing.saved-station-grants.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js
+test/route-contract.test.js
 test/effective-toolsets.e2e.test.js
 test/discovery-documents.http.test.js
 test/workflow-takeover.http.test.js
@@ -301,6 +302,7 @@ test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/routine-delivery.parts.e2e.test.js
+test/routine-history.publication.http.test.js
 test/channels.ledger-upgrade.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js
 test/cron.images-grant.e2e.test.js
@@ -322,6 +324,14 @@ test/retract.http.test.js
 test/turn-id.recovery.http.test.js
 test/directive-capture.e2e.test.js
 test/turn-identity.property.http.test.js
+test/turn-identity.property.shadow-18426.http.test.js
+test/turn-identity.property.shadow-19423.http.test.js
+test/turn-identity.property.shadow-20420.http.test.js
+test/turn-identity.property.id-17429.http.test.js
+test/turn-identity.property.id-18426.http.test.js
+test/turn-identity.property.id-19423.http.test.js
+test/turn-identity.property.id-20420.http.test.js
+test/turn-http-interruption-ownership.http.test.js
 
 test/ledger.generation-id.http.test.js
 test/spend.compaction-accounting.http.test.js

@@ -65,9 +65,9 @@ A.ok(/\bresolveAll\b/.test(rstore.slice(rstore.lastIndexOf('return {'))), 'Retur
 /* ---- CHAT: files the agent names render as files, not raw markdown (Andrew's screenshot, 2026-10-10) ---- */
 const chat = read('frontend/app/chat.js');
 const ex = name => { const m = new RegExp('(  function ' + name + '\\([\\s\\S]*?\\n  \\})').exec(chat); A.ok(m, 'chat.js defines ' + name); return m ? m[1] : ''; };
-const esc = /const HTML_ESC = \{[^}]*\};/.exec(chat)[0], rel = /  const REL_PATH = [^\n]*;/.exec(chat)[0];
+const rel = /  const REL_PATH = [^\n]*;/.exec(chat)[0];
 // eslint-disable-next-line no-new-func
-const inline = new Function(esc + '\n' + rel + '\n' + ex('escapeHtml') + ex('linkify') + ex('hostOf') + ex('linkHostNote') + ex('appFileRef') + ex('fileRefLink') + ex('fileRefImage') + ex('reportInline') + '\nreturn reportInline;')();
+const inline = new Function('U', rel + '\n' + ex('escapeHtml') + ex('linkify') + ex('hostOf') + ex('linkHostNote') + ex('appFileRef') + ex('fileRefLink') + ex('fileRefImage') + ex('reportInline') + '\nreturn reportInline;')(require('../frontend/js/util.js'));
 let o = inline('[Review the original](review/coffee-break-cat-new/index.html)');
 A.ok(/<a class="md-file" href="#" data-md-path="review\/coffee-break-cat-new\/index\.html">Review the original<\/a>/.test(o), 'a relative [link](path) is a file link');
 o = inline('![New candidate](review/coffee-break-cat-new/final-preview.jpg)');

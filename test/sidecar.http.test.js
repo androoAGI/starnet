@@ -158,7 +158,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes need the token too now
     const r = await fetch(B + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
-    return { status: r.status, body: v };
+    return { status: r.status, body: v, code: r.headers.get('x-starnet-code') };
   };
 
   try {
@@ -1035,7 +1035,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(decl.status, 200, 'GET /api/memory/declined (with token) -> 200');
     A.ok(Array.isArray(decl.body.declined), 'declined is an array (empty for a fresh agent)');
     const declBadAgent = await j('GET', '/api/memory/declined?agent=' + encodeURIComponent('../evil'));
-    A.eq(declBadAgent.status, 403, 'a path-traversal agent id on the declined route -> 403');
+    A.eq([declBadAgent.status, declBadAgent.code, declBadAgent.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'a malformed declined agent id has the typed input refusal');
 
     const restoreNoTok = await fetch(B + '/api/memory/declined/restore', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: B }, body: JSON.stringify({ agent: 'agent', text: 'x' }) });
     A.eq(restoreNoTok.status, 403, 'POST /api/memory/declined/restore WITHOUT a token -> 403');
@@ -1094,7 +1094,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(pend.body.agentId, 'agent', 'the pending deck is reported per agent');
     A.eq(pend.body.pending, [], 'a station with nothing awaiting a verdict reports an empty deck');
     const pendBad = await j('GET', '/api/memory/pending?agent=..%2Fetc');
-    A.eq(pendBad.status, 403, 'a bad agent id is refused, not path-joined');
+    A.eq([pendBad.status, pendBad.code, pendBad.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'a malformed pending agent id is refused before path resolution');
 
     // ---- FORGET = NEVER AGAIN (2026-07-16 resurrect audit): Memory Core's Forget must be as durable as a
     //      veto/discard — the removed belief's text joins the SAME permanent declined denylist, or reflection
@@ -1115,7 +1115,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const resetNoTok = await fetch(B + '/api/memory/reset', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: B }, body: JSON.stringify({ agent: 'agent' }) });
     A.eq(resetNoTok.status, 403, 'POST /api/memory/reset WITHOUT a token -> 403');
     const resetBad = await j('POST', '/api/memory/reset', { agent: '../evil' });
-    A.eq(resetBad.status, 403, 'reset with a path-traversal agent id -> 403');
+    A.eq([resetBad.status, resetBad.code, resetBad.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'reset with a malformed agent id has the typed input refusal');
     const reset = await j('POST', '/api/memory/reset', { agent: 'agent' });
     A.eq(reset.status, 200, 'POST /api/memory/reset (with token) -> 200');
     A.eq(reset.body.ok, true, 'reset reports ok');

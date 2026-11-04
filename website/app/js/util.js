@@ -130,7 +130,7 @@ const U = {
   },
 
   esc(s) {
-    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
 
   // seeded-ish per-instance phase
@@ -146,6 +146,114 @@ const U = {
     if (f >= 0) { r += (255 - r) * f; g += (255 - g) * f; b += (255 - b) * f; }
     else { r *= (1 + f); g *= (1 + f); b *= (1 + f); }
     return '#' + ((1 << 24) | (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b)).toString(16).slice(1);
+  },
+
+  /* THE ONE CLIPBOARD (truthful acks, 2026-11-03). copyText(text) -> Promise<boolean>, true ONLY when a write happened, so a copy
+     control says COPIED from this boolean and from nothing else (the briefing's copy key printed "copied ✓" whether or not
+     anything was copied; chat.js and diagnostics.js each carried a copy of this helper). The write STARTS synchronously, in
+     the click that asked for it: WebKit (macOS WKWebView, Linux WebKitGTK) lets a page write the clipboard only during the
+     click's transient activation, so a caller never awaits anything before this call. The async Clipboard API first; when
+     it is missing or refuses, the legacy copy command on a hidden textarea, whose own answer is the boolean. Empty text is no copy.
+     Never throws. Text that is still being fetched goes through copyDeferred. bootguard.js keeps its own copy, because it
+     must work before this file loads. */
+  copyText(text) {
+    const s = text == null ? '' : String(text);
+    if (!s) return Promise.resolve(false);
+    try {
+      const c = typeof navigator !== 'undefined' && navigator ? navigator.clipboard : null;
+      if (c && typeof c.writeText === 'function') return Promise.resolve(c.writeText(s)).then(() => true, () => U.selectCopy(s));
+    } catch (_) {}
+    return Promise.resolve(U.selectCopy(s));
+  },
+  // the legacy path: a hidden textarea, selected and copied. true only when the browser says the copy ran.
+  selectCopy(s) {
+    try {
+      const ta = document.createElement('textarea'); ta.value = s;
+      ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      let ok = false;
+      try { ok = document.execCommand('copy') === true; } catch (_) { ok = false; }
+      ta.remove(); return ok;
+    } catch (_) { return false; }
+  },
+  /* GESTURE-SAFE copy of text that is still being fetched (Diag.copyDeferred; moved here so there is one clipboard). An awaited
+     fetch uses up the click's activation on WebKit, so a fetch-then-copy fails there EVERY time (WebView2 tolerates it). The
+     write is REGISTERED synchronously inside the click with a ClipboardItem whose content is a promise; the clipboard fills
+     when the text arrives. MUST be called in the same tick as the click (no await before it). If ClipboardItem is missing or
+     the write is refused, falls back to copyText once the text is in. An empty text rejects the item (never a hanging write)
+     and resolves false. Never throws. */
+  copyDeferred(textP) {
+    const text = Promise.resolve(textP).then(t => (typeof t === 'string' ? t : ''), () => '');
+    let wrote = null;
+    try {
+      const c = typeof navigator !== 'undefined' && navigator ? navigator.clipboard : null;
+      if (typeof ClipboardItem === 'function' && c && typeof c.write === 'function') {
+        const blob = text.then(t => { if (!t) throw new Error('empty text'); return new Blob([t], { type: 'text/plain' }); });
+        blob.catch(() => {});   // the rejection is consumed by write(); this only keeps it from surfacing as unhandled
+        wrote = Promise.resolve(c.write([new ClipboardItem({ 'text/plain': blob })])).then(() => true, () => false);
+      }
+    } catch (_) { wrote = null; }
+    const plain = () => text.then(t => (t ? U.copyText(t) : false)).then(ok => ok === true, () => false);
+    if (!wrote) return plain();
+    return wrote.then(ok => ok ? true : plain());
+  },
+
+  /* One export receipt. Only a desktop host can prove a local file; a browser
+     handoff never claims where the browser ultimately saved it. The station
+     backup supplies its existing host-save callback and lazy redacted envelope,
+     preserving its sidecar-owned snapshot rather than accepting page authority. */
+  async saveFile(opts) {
+    const o = opts || {};
+    const name = String(o.name || 'starnet-export').replace(/[\x00-\x1f\x7f<>:"/\\|?*]/g, '-');
+    const ext = String(o.ext || (name.match(/\.([a-z0-9]+)$/i) || [])[1] || 'txt').toLowerCase();
+    if (!/^[a-z0-9]{1,10}$/.test(ext)) return { ok: false, where: 'none', file: name, line: 'export failed — the file extension is invalid' };
+    const file = name.toLowerCase().endsWith('.' + ext) ? name : name + '.' + ext;
+    const harness = typeof Harness !== 'undefined' ? Harness : null;
+    const desktop = typeof o.desktop === 'boolean' ? o.desktop : !!(harness && harness.isDesktop && harness.isDesktop());
+    let textPromise;
+    const text = () => textPromise || (textPromise = Promise.resolve().then(() => typeof o.text === 'function' ? o.text() : o.text).then(value => {
+      if (typeof value !== 'string') throw new Error('the export text was not confirmed');
+      return value;
+    }));
+    let refused = '';
+    if (desktop) {
+      try {
+        const r = typeof o.save === 'function' ? await o.save() : await harness.api.post('/api/export/save', { name, ext, text: await text() });
+        const j = r && r.j;
+        // One validated host receipt for generic text and the existing station envelope.
+        const p = j && typeof j.path === 'string' ? j.path : '';
+        const f = j && typeof j.file === 'string' ? j.file : '';
+        const d = j && typeof j.dir === 'string' ? j.dir : '';
+        const absolute = /^(?:[A-Za-z]:[\\/]|[\\/]{2}[^\\/]+[\\/]|\/)/.test(p);
+        const join = d.replace(/[\\/]$/, '') + (p.includes('\\') ? '\\' : '/') + f;
+        if (r && r.ok && r.status >= 200 && r.status < 300 && j && j.ok === true && absolute && f
+          && !/[\\/\x00-\x1f\x7f]/.test(f) && d && join === p && Number.isSafeInteger(j.bytes) && j.bytes >= 0) {
+          return { ok: true, where: 'disk', path: p, file: f, line: 'saved to ' + p };
+        }
+        refused = r && !r.ok && harness && harness.api && harness.api.why ? harness.api.why(r)
+          : j && j.error ? String(j.error) : 'the station did not confirm a saved file';
+      } catch (error) { refused = String(error && error.message || 'the station did not answer'); }
+    }
+    let value;
+    try { value = await text(); }
+    catch (error) { return { ok: false, where: 'none', file, line: 'export failed — ' + String(error && error.message || error) + (refused ? ' (saving also failed: ' + refused + ')' : '') }; }
+    let handed = false, url = '', anchor = null;
+    try {
+      if (typeof o.download === 'function') handed = await o.download(file, value, o.mime) === true;
+      else {
+        url = URL.createObjectURL(new Blob([value], { type: o.mime || ({ json: 'application/json', md: 'text/markdown', txt: 'text/plain' }[ext]) || 'text/plain' }));
+        anchor = document.createElement('a'); anchor.href = url; anchor.download = file;
+        document.body.appendChild(anchor); anchor.click(); handed = true;
+      }
+    } catch (_) { handed = false; }
+    finally {
+      if (anchor) { try { anchor.remove(); } catch (_) {} }
+      if (url) setTimeout(() => { try { URL.revokeObjectURL(url); } catch (_) {} }, 1000);
+    }
+    if (!handed) return { ok: false, where: 'none', file, line: 'export failed — the file could not be handed to the ' + (desktop ? 'app' : 'browser') + (refused ? ' (host save: ' + refused + ')' : '') };
+    return { ok: true, where: 'browser', file, line: desktop
+      ? 'could not save it (' + refused + ') — download requested as ' + file + '; check the app\'s downloads'
+      : 'download requested as ' + file + ' — check your browser\'s downloads' };
   },
 
   // tiny pub/sub
@@ -187,6 +295,25 @@ const U = {
    ========================================================================== */
 const SFX = {
   ctx: null, master: null, fx: null, on: true, vol: 0.35, _noise: null, _lastAt: {},
+
+  // Awakening ambience has separate buses so muting a sustained pad silences its existing tail.
+  _ambience: { hum: true, heartbeat: true }, _ambienceBuses: {},
+  setAmbience(hum, heartbeat) {
+    SFX._ambience = { hum: hum !== false, heartbeat: heartbeat !== false };
+    for (const [name, bus] of Object.entries(SFX._ambienceBuses)) {
+      bus.gain.cancelScheduledValues(SFX.ctx.currentTime);
+      bus.gain.setTargetAtTime(SFX.on && SFX._ambience[name] ? 1 : 0, SFX.ctx.currentTime, 0.015);
+    }
+  },
+  _ambienceOut(name) {
+    if (!SFX._ambienceBuses[name]) {
+      const bus = SFX.ctx.createGain();
+      bus.gain.value = SFX.on && SFX._ambience[name] ? 1 : 0;
+      bus.connect(SFX.master || SFX.ctx.destination);
+      SFX._ambienceBuses[name] = bus;
+    }
+    return SFX._ambienceBuses[name];
+  },
 
   // per-sound gate: repeats inside the window are dropped; the FIRST one always sounds.
   // _lastAny lets the delegated UI layer (audio.js) yield to explicit cues that just played.
@@ -496,8 +623,9 @@ const SFX = {
      master bus so they pass the limiter; self-terminating so nothing leaks. ---- */
   env(freq, o) {
     o = o || {};
-    if (!SFX.on || !SFX.ctx) return;
-    const c = SFX.ctx, t0 = c.currentTime + (o.when || 0), out = SFX.master || c.destination;
+    if (!SFX.on || !SFX.ctx || (o.channel && SFX._ambience[o.channel] === false)) return;
+    const c = SFX.ctx, t0 = c.currentTime + (o.when || 0);
+    const out = o.channel ? SFX._ambienceOut(o.channel) : SFX.master || c.destination;
     const osc = c.createOscillator(), g = c.createGain();
     osc.type = o.type || 'sine'; osc.frequency.value = freq;
     const a = o.attack || 0.01, h = o.hold || 0.05, r = o.release || 0.2, v = (o.vol || 0.1) * SFX.vol;
@@ -571,3 +699,6 @@ const SFX = {
     sub.connect(sg); sg.connect(out); sub.start(t0); sub.stop(t0 + 4.6);
   }
 };
+
+// node (a test that requires a page module, e.g. diagnostics.js) reaches the production helpers here; the page uses the U global
+if (typeof module !== 'undefined' && module.exports) module.exports = U;

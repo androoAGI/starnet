@@ -8,6 +8,7 @@ status: fixed
 found: 2026-07-28
 lane: sweep/world
 fix: 3f0d1205
+family: truthful-ack
 ---
 
 # ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message
@@ -35,3 +36,5 @@ _Found by the `sweep/world` lane, 2026-07-28. Finder confidence: high. Severity 
 ## Verdict
 
 Confirmed and fixed in `3f0d1205`. REVOKE ACCESS checks the HTTP status before changing the row or emitting success; non-2xx responses retain the grant display and surface an error. The routines source regression is green alongside the real route/store suites.
+
+Truthful-ack family invariants: INV-3 fetch-truth ratchet, INV-5 proven-ack client, and INV-6 refusal-code readers. Shared regression anchors: `test/frontend-fetch-truth-ratchet.test.js`, `test/harness-api.contract.test.js`, and `test/station-refusal-readers.test.js`. Historical fix attribution above is unchanged; family registration is not new installed or recovery evidence.

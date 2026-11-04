@@ -264,6 +264,12 @@ const CloudSave = (() => {
   // save" when the harness proved no such thing (the July-19 incident: a 403'd pull rendered genesis over an
   // intact 200KB save). Distinct object, never a real save envelope.
   function unknownSentinel(reason) { return { __saveUnknown: true, reason: String(reason || 'unreachable') }; }
+  // the station's own name for a failure it answered (X-StarNet-Code, sidecar/respond.js: a lower-case code); '' from an older station
+  function stationCodeOf(r) {
+    let c = '';
+    try { c = String((r && r.headers && typeof r.headers.get === 'function' && r.headers.get('X-StarNet-Code')) || '').trim(); } catch (_) { c = ''; }
+    return /^[a-z][a-z0-9_]{0,63}$/.test(c) ? c : '';
+  }
 
   // NOTE: no `keepalive` here — browsers cap a keepalive body at 64KB, and a save with workstreams + station
   // can exceed that. The normal debounced flush is a plain fetch; the unload path uses sendBeacon instead.
@@ -349,7 +355,8 @@ const CloudSave = (() => {
     const viaMerge = merging && !armed && !!base && !!(Core && Core.mergeDelta);
     // WHY this attempt failed, by name, from what the station answered (null until it fails; no answer at all = 'offline')
     let cause = null;
-    const causeOf = (status, body) => Core && Core.causeOf ? Core.causeOf({ answered: true, status, body }) : 'refused';
+    // (r: the station's answer — its status, and its own name for a failure, X-StarNet-Code)
+    const causeOf = (r, body) => Core && Core.causeOf ? Core.causeOf({ answered: true, status: r && r.status, body, code: stationCodeOf(r) }) : 'refused';
     let wire;
     try { wire = viaMerge ? mergeWire(doc) : (armed ? Object.assign({}, doc, { _saveRestore: true }) : doc); }
     catch (_) { wire = null; }
@@ -372,7 +379,7 @@ const CloudSave = (() => {
       if (kind === 'permanent') { merging = false; mergeRefused = true; }   // the plain save from here: its refusal stands, as before
       else if (kind === 'absent') merging = false;                          // no station file: the plain save puts this one there
       if (body && body.degraded === true) degraded = true;
-      return { ok: false, kind, cause: (r && r.ok === false) || (body && body.ok === false) ? causeOf(r && r.status, body) : 'refused', error: (body && body.error) || kind };
+      return { ok: false, kind, cause: (r && r.ok === false) || (body && body.ok === false) ? causeOf(r, body) : 'refused', error: (body && body.error) || kind };
     };
     const attempt = postNow(wire)
       .then(({ response: r, body }) => {
@@ -385,7 +392,7 @@ const CloudSave = (() => {
         // a non-ok HTTP status (e.g. 409 stale, 500) is a FAILURE, not a success — fetch only rejects on
         // network error, so we must inspect r.ok ourselves or we'd stamp health OK on a rejected write.
         // The body still names it: a 413 is "too large", an errno write failure carries its code (sidecar/save-wire.js).
-        if (r && r.ok === false) { cause = causeOf(r.status, body); throw new Error('save HTTP ' + r.status); }
+        if (r && r.ok === false) { cause = causeOf(r, body); throw new Error('save HTTP ' + r.status); }
         // EL-11 FIX 1 ("the worst lie class"): the sidecar answers REFUSALS as HTTP 200 { ok:false, ... }
         // (degraded workspace / stale stamp / unreadable prior) — the status line alone is NEVER proof the
         // write landed. Parse the body: ok:false is a FAILED push, and degraded:true latches its own state.
@@ -435,7 +442,7 @@ const CloudSave = (() => {
           // the station FOLDED ratings this save lacked into it (sidecar/growth-fold.js): the save landed; this page's own view
           // of growth catches up in the background (a failed catch-up retries on its own; the next save is folded again)
           if (body.ok === true && body.growthFolded != null) { try { requestRatingCatchUp(); } catch (_) {} }
-          if (body.ok === false) { cause = causeOf(r && r.status, body); throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown'))); }
+          if (body.ok === false) { cause = causeOf(r, body); throw new Error('save refused: ' + (body.error || (body.unreadable ? 'existing record unreadable' : body.stale ? 'stale write' : 'unknown'))); }
         }
         if (!body || body.ok !== true) { cause = 'refused'; throw new Error('save acknowledgement missing'); }
         markOk();
@@ -631,8 +638,12 @@ const CloudSave = (() => {
     return fetch(ENDPOINT + '?agent=' + encodeURIComponent(AGENT_ID), { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
       .then(async r => {
         if (!r.ok) {
-          // an auth refusal is its own truth — the sidecar is ALIVE but rejected us (lost/stale launch token).
-          lastPullOutcome = (r.status === 401 || r.status === 403) ? 'forbidden' : 'unreachable';
+          // an auth refusal is its own truth — the sidecar is ALIVE but rejected us (lost/stale launch token). Its GATE says so by
+          // code (token_stale / token_missing: CloudSaveCore.causeOf's one rule); a route's own refusal is not that. A station
+          // that names no refusal (an older one) is read by its status, as before.
+          const gateRefused = Core && Core.causeOf ? Core.causeOf({ answered: true, status: r.status, body: null, code: stationCodeOf(r) }) === 'forbidden'
+            : (r.status === 401 || r.status === 403);
+          lastPullOutcome = gateRefused ? 'forbidden' : 'unreachable';
           if (r.status === 503) {
             try { if ((await r.json()).unreadable === true) lastPullOutcome = 'unreadable'; } catch (_) {}
           }

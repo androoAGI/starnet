@@ -41,6 +41,7 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     ReturnStore: { foldRow: row => { folded.push(row); return true; }, pendingRows: () => [] },
     fetch: (url, init) => { fetches.push({ url, init }); return Promise.resolve(replyFor(url, init)).then(r => ({ status: r.__status || 200, json: () => Promise.resolve(r) })); },
   });
+  require('./helpers/frontend-esc.js').installEsc(ctx);
   vm.runInContext(src, ctx, { filename: 'workflows.js' });
   const WW = ctx.module.exports, S = WW._state;
   A.ok(registered.workflows && registered.workflows.t === 'WORKFLOWS' && registered.workflows.o.className === 'wfw-win', 'it is a station window: StationUI.registerWindow(\'workflows\', \'WORKFLOWS\', …) — the dock raises it from the bottom like every other');

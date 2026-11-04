@@ -3,6 +3,7 @@
 const A = require('./_assert.js');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), vm = require('node:vm'), Module = require('node:module');
 const { createHash } = require('node:crypto');
+const { harnessApi } = require('./helpers/harness-api.js');
 const History = require('../sidecar/transcript-history.js'), Merge = require('../frontend/app/turnmerge.js');
 let Store = require('../sidecar/transcriptstore.js');
 if (process.env.TURN_RETRACT_REVIEW_CONTROL) {
@@ -29,7 +30,8 @@ function page(rows, response) {
   const context = vm.createContext({ activeWs: ws, TurnMerge: Merge, Workstreams: { get: () => context.current },
     isBusy: () => false, localLine: note => notes.push(note), App: { persist: () => effects.push('persist') },
     load: () => effects.push('load'), refreshWorkflowViews: () => effects.push('refresh'),
-    fetch: async (url, options) => { const body = JSON.parse(options.body); calls.push({ url, body }); return response(body); } });
+    fetch: async (url, options) => { const body = JSON.parse(options.body); calls.push({ url, body }); const r = await response(body); return Object.assign({ status: r.ok ? 200 : 500 }, r); } });
+  context.Harness = { api: harnessApi(context.fetch) };
   context.current = ws;
   vm.runInContext(undo + '\nthis.undo = undoCommand;', context);
   return { ws, context, calls, notes, effects, run: () => context.undo() };

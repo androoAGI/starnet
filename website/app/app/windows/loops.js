@@ -74,7 +74,8 @@
     function wire() {
     const listEl = body.querySelector('#lp-list'), gateEl = body.querySelector('#lp-gate');
     const shapesEl = body.querySelector('#lp-shapes'), formEl = body.querySelector('#lp-form'), msgEl = body.querySelector('#lp-msg');
-    const post = (path, payload, signal) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal });
+    // EVERY JSON EXCHANGE HERE IS Harness.api.post (truthful acks, 2026-11-03): a refusal is the station's answer, worded by
+    // Harness.api.why, and a success word appears only on r.ok. START used to say "loop started" over a 409 {ok:false}.
 
     /* ---------- the live stepper: which stage of its cycle a loop is in RIGHT NOW ----------
        Derived only from server state. `running` means an iteration is genuinely in flight; a pending candidate
@@ -306,7 +307,7 @@
             ub.disabled = true; sfx('click');
             // The E-STOP lift is a SAFETY claim: a refused request left the durable halt engaged while the station
             // said "loops resumed". Only a 2xx proves the stand-down was lifted (refresh() re-reads it either way).
-            try { const r = await post('/api/loops/control', { action: 'unhalt' }); notify(r.ok ? 'loops resumed' : 'could NOT resume — the emergency stop is still engaged', r.ok ? 'good' : 'warn'); }
+            try { const r = await Harness.api.post('/api/loops/control', { action: 'unhalt' }); notify(r.ok ? 'loops resumed' : 'could NOT resume: ' + Harness.api.why(r) + ' — the emergency stop is still engaged', r.ok ? 'good' : 'warn'); }
             catch (_) { notify('could not reach the station — loops are still stopped', 'warn'); }
             refresh();
           });
@@ -408,9 +409,9 @@
         card.querySelectorAll('button[data-vact]').forEach(el => { el.disabled = true; }); sfx('click');
         ++refreshGeneration;
         try {
-          const response = await post('/api/loops/verdict', { id, n, verdict, note });
-          const r = await response.json();
-          if (!response.ok || !r || !r.ok) { notify((r && r.error) || 'could not record this review', 'warn'); sfx('bad'); }
+          const response = await Harness.api.post('/api/loops/verdict', { id, n, verdict, note });
+          const r = response.j;
+          if (!response.ok) { notify('could not record this review: ' + Harness.api.why(response), 'warn'); sfx('bad'); }
           else {
             const cas = (r && r.cascaded && r.cascaded.length) || 0;
             /* SAY WHAT HAPPENED TO THE CODE, not just to the row. A rejection now really reverts the
@@ -442,10 +443,10 @@
       const act = btn.dataset.act;
       if (act === 'remove') {
         if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = '✕ CONFIRM'; sfx('bad'); setTimeout(() => { if (btn.isConnected) { delete btn.dataset.armed; btn.textContent = '✕ DELETE'; } }, 5000); return; }
-        // ⛔ FETCH RESOLVES ON 4xx/5xx — `await post(...)` only rejects on a network failure, so this toast used to
+        // ⛔ A REFUSAL RESOLVES — Harness.api.post rejects only when no answer came, so this toast reads r.ok. It used to
         // announce a delete the sidecar refused, with the still-present row re-drawn underneath it by refresh().
         sfx('bad');
-        try { const r = await post('/api/loops/remove', { id }); notify(r.ok ? 'loop deleted' : 'could not delete this loop', r.ok ? 'good' : 'warn'); }
+        try { const r = await Harness.api.post('/api/loops/remove', { id }); notify(r.ok ? 'loop deleted' : 'could not delete this loop: ' + Harness.api.why(r), r.ok ? 'good' : 'warn'); }
         catch (_) { notify('could not reach the station — the loop was not deleted', 'warn'); }
         refresh(); return;
       }
@@ -459,9 +460,8 @@
         try {
           await Promise.race([
             (async () => {
-              const response = await post('/api/loops/control', { id, action: act }, controller.signal);
-              const result = await response.json();
-              if (!response.ok || !result || !result.ok) throw new Error((result && result.error) || 'Could not ' + act + ' this loop');
+              const response = await Harness.api.post('/api/loops/control', { id, action: act }, { signal: controller.signal });
+              if (!response.ok) throw new Error('Could not ' + act + ' this loop: ' + Harness.api.why(response));
             })(),
             new Promise((_, reject) => { deadline = setTimeout(() => { reject(new Error('No acknowledgement received. Refresh the loop state before retrying.')); controller.abort(); }, 15000); })
           ]);
@@ -567,8 +567,9 @@
           } else if (checkEl && rowEl) {
             rowEl.className = 'lp-checkline dim'; rowEl.textContent = 'reading the project…';
             try {
-              const r = await (await post('/api/loops/detect', { path: val })).json();
-              if (r && r.ok && r.cmd) {
+              const res = await Harness.api.post('/api/loops/detect', { path: val });
+              const r = res.j;
+              if (res.ok && r.cmd) {
                 checkEl.value = r.cmd;
                 rowEl.className = 'lp-checkline';
                 rowEl.innerHTML = 'After each pass the station will run <code>' + esc(r.cmd) + '</code> ' +
@@ -577,9 +578,10 @@
                 const ed = rowEl.querySelector('#lp-checkedit');
                 if (ed) ed.addEventListener('click', () => { sfx('click'); askForCheck(r.cmd); });
               } else {
-                askForCheck('', (r && r.why) || '');
+                // nothing recognisable is the station's answer (ok, no cmd); a refusal says why it could not read the project
+                askForCheck('', res.ok ? (r.why || '') : 'the station could not read the project: ' + Harness.api.why(res));
               }
-            } catch (_) { askForCheck(''); }
+            } catch (_) { askForCheck('', 'the station did not answer, so the project was not read'); }
           }
           gate();
         };
@@ -599,9 +601,12 @@
         const pick = formEl.querySelector('#lp-pick');
         if (pick) pick.addEventListener('click', async () => {
           sfx('click');
+          // the station's native chooser (POST /api/projects/pickfolder; this used to post to /api/folderpick, a route that never
+          // existed). A cancel ({ok:true, cancelled:true}) says nothing; a refusal says why.
           try {
-            const r = await (await post('/api/folderpick', {})).json();
-            if (r && r.path) { pickedDir = r.path; dirEl.value = r.path; dirEl.dispatchEvent(new Event('change')); }
+            const res = await Harness.api.post('/api/projects/pickfolder', {}, { timeoutMs: 6 * 60 * 1000 });   // a human is browsing (5 min)
+            if (res.ok && res.j.path) { pickedDir = res.j.path; dirEl.value = res.j.path; dirEl.dispatchEvent(new Event('change')); }
+            else if (!res.ok) notify('could not open the folder picker: ' + Harness.api.why(res) + ' — type the path instead', 'warn');
           } catch (_) { notify('could not open the folder picker — type the path instead', 'warn'); }
         });
       }
@@ -669,8 +674,8 @@
       msgEl.textContent = 'starting…';
       if (extra.workdir) {
         try {
-          const b = await (await post('/api/projects/bless', { path: extra.workdir, surface: 'interactive' })).json();
-          if (!b || !b.ok) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc((b && b.reason) || 'that folder could not be approved') + '</span>'; sfx('bad'); releaseStart(); return; }
+          const b = await Harness.api.post('/api/projects/bless', { path: extra.workdir, surface: 'interactive' });
+          if (!b.ok) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ that folder could not be approved: ' + esc(Harness.api.why(b)) + '</span>'; sfx('bad'); releaseStart(); return; }
         } catch (_) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ could not reach the station</span>'; sfx('bad'); releaseStart(); return; }
       }
 
@@ -685,11 +690,12 @@
       const cmdNow = (values.check || '').trim();
       if (cmdNow && extra.workdir && !preflightOk) {
         try {
-          const r = await (await post('/api/loops/testcheck', { path: extra.workdir, cmd: cmdNow })).json();
-          const warn = (r && r.alreadyGreen)
-            ? 'that check ALREADY passes — this loop would finish immediately with nothing to do'
-            : (r && r.couldNotRun) ? 'that command could not run — ' + String(r.summary || '').slice(0, 90)
-            : (r && r.error) ? r.error : null;
+          // the station runs the project's check for up to 120 s: wait for its verdict, never the page's own deadline
+          const res = await Harness.api.post('/api/loops/testcheck', { path: extra.workdir, cmd: cmdNow }, { timeoutMs: 150000 });
+          const r = res.j || {};
+          const warn = !res.ok ? 'the check could not be tried: ' + Harness.api.why(res)
+            : r.alreadyGreen ? 'that check ALREADY passes — this loop would finish immediately with nothing to do'
+            : r.couldNotRun ? 'that command could not run — ' + String(r.summary || '').slice(0, 90) : null;
           if (warn) {
             preflightOk = true;   // armed: the next click goes ahead regardless
             msgEl.innerHTML = '<span style="color:var(--gold)">⚠ ' + esc(warn) + '</span>' +
@@ -703,8 +709,9 @@
 
       const spec = tpl.buildSpec(t, values, Object.assign({}, extra, { workdir: extra.workdir || undefined }));
       try {
-        const r = await (await post('/api/loops', spec)).json();
-        if (r && r.error) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(r.error) + '</span>'; sfx('bad'); releaseStart(); return; }
+        // "loop started" only on the station's yes: a 409 {ok:false, code} without an error key used to read as started
+        const res = await Harness.api.post('/api/loops', spec);
+        if (!res.ok) { msgEl.innerHTML = '<span style="color:var(--bad)">✕ ' + esc(Harness.api.why(res)) + '</span>'; sfx('bad'); releaseStart(); return; }
         msgEl.textContent = '';
         notify('loop started — it runs until ' + (t.rigor === 'hard' ? 'your check passes' : 'it stops finding things'), 'good');
         sfx('click');

@@ -61,6 +61,6 @@ const windowRefresh = cut('    let refreshGeneration = 0;', '    // ---------- r
   // the verdict and DELETE paths both end in that refresh()
   const handler = src.slice(src.indexOf("    listEl.addEventListener('click', async ev => {"), src.indexOf('    // ---------- START A LOOP:'));
   A.ok(/pendingVerdicts\.delete\(verdictKey\)[\s\S]{0,600}\n        refresh\(\); return;/.test(handler), 'APPROVE / REJECT end in the window refresh (which now feeds NEEDS YOU)');
-  A.ok(/post\('\/api\/loops\/remove', \{ id \}\)[\s\S]{0,200}\n        refresh\(\); return;/.test(handler), 'DELETE ends in it too');
+  A.ok(/post\('\/api\/loops\/remove', \{ id \}\)[\s\S]{0,300}\n        refresh\(\); return;/.test(handler), 'DELETE ends in it too');
   A.report('loop-review-needs-you.test');
 })().catch(e => { console.error(e); process.exit(1); });

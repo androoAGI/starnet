@@ -150,7 +150,7 @@ const AgentPortraits = (() => {
     return url;
   }
   const SIL = '<svg class="agt-sil" viewBox="0 0 16 20" aria-hidden="true"><path d="M8 2.2a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM3.2 19v-4.6c0-2.4 2-4.3 4.8-4.3s4.8 1.9 4.8 4.3V19z"/></svg>';
-  const escA = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const escA = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   function inner(url, w, h) { return url ? '<img src="' + url + '" width="' + w + '" height="' + h + '" alt="" draggable="false">' : SIL; }
   function thumbHTML(a, w, h, cls) {
     w = Math.max(8, Math.round(+w || 34)); h = Math.max(8, Math.round(+h || 42));

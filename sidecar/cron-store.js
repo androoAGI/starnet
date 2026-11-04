@@ -61,6 +61,45 @@
   const iso = cron._internals.iso;            // ms(arg) -> ISO; deterministic (no zero-arg new Date)
   // a fire's work-line stop facts, bounded (routing/line-fire.js lineFacts — the one shape the routine paths record)
   const lineFactsOf = (typeof require === 'function') ? require('./routing/line-fire.js').lineFacts : function () { return null; };
+  const historyPublication = typeof require === 'function' ? require('./channels/history-publication.js') : null;
+  function publicationError(message, cause) {
+    return Object.assign(new Error(message), { code: 'CRON_PUBLICATION_UNPROVEN', ...(cause ? { cause } : {}) });
+  }
+  const owns = (o, key) => !!o && Object.prototype.hasOwnProperty.call(o, key);
+  const publicationMetadata = f => owns(f, 'historyPublications') || owns(f, 'historyReleased');
+  function hasPublicationMetadata(raw) {
+    return !!raw && Array.isArray(raw.jobs) && raw.jobs.some(j => j && (publicationMetadata(j.finalization) ||
+      publicationMetadata(j.deliveryBacklog) || (Array.isArray(j.deliveryBacklog) && j.deliveryBacklog.some(publicationMetadata))));
+  }
+  function assertPublicationEnvelope(raw) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return;
+    if (owns(raw, 'version') && raw.version !== ENVELOPE_VERSION) throw publicationError('The saved routine store version is unknown');
+    if (!Array.isArray(raw.jobs)) return; // preserve the unrelated legacy envelope policy
+    try {
+      for (const job of raw.jobs) {
+        if (!job || typeof job !== 'object') continue;
+        if (publicationMetadata(job.deliveryBacklog)) throw new Error('The saved publication backlog is malformed');
+        const all = (Array.isArray(job.deliveryBacklog) ? job.deliveryBacklog : []).concat(job.finalization ? [job.finalization] : []);
+        for (const f of all) {
+          if (!publicationMetadata(f)) continue;
+          if (!isValidId(job.id) || !owns(f, 'historyPublications') || (owns(f, 'historyReleased') && typeof f.historyReleased !== 'boolean')) {
+            throw new Error('The saved publication owner or release marker is malformed');
+          }
+          const rows = publicationReceipts(job, f, f.historyPublications);
+          const targetList = value => Array.isArray(value) && value.length <= 16 && value.every(t => typeof t === 'string' && t.length > 0 && t.length <= 200) && new Set(value).size === value.length;
+          if (publicationTargets(f).length > 16 || (owns(f, 'deliveredTargets') && !targetList(f.deliveredTargets)) ||
+              (owns(f, 'givenUpTargets') && !targetList(f.givenUpTargets)) || (f.historyReleased === true && (f.state !== 'delivered' || !rows.length))) {
+            throw new Error('The saved publication completion metadata is malformed');
+          }
+          if (rows.length && (!['pending', 'delivered'].includes(f.state) || (f.deliveryContext || job).attachToSession !== true ||
+              !Array.isArray(f.deliveredTargets) || rows.some(r => !f.deliveredTargets.includes(r.target)) ||
+              (Array.isArray(f.givenUpTargets) && rows.some(r => f.givenUpTargets.includes(r.target))))) {
+            throw new Error('The saved publication contradicts its routine transport receipt');
+          }
+        }
+      }
+    } catch (error) { throw publicationError('The saved routine publication metadata could not be confirmed: ' + error.message, error); }
+  }
 
   // fields a user may edit via updateJob. `id`, timestamps, run-state and counters are NOT editable here.
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
@@ -400,12 +439,52 @@
       .concat(job && job.finalization ? [job.finalization] : [])
       .filter(f => f && f.state === 'pending');
   }
+  function publicationReleasePending(f) {
+    // Malformed/future proof remains held, not silently dropped during a later settlement.
+    if (!f || !Object.prototype.hasOwnProperty.call(f, 'historyPublications')) return false;
+    if (!historyPublication) return true;
+    historyPublication.receipts(f.historyPublications); // malformed proof blocks mutation; its bytes remain held
+    return f.historyPublications.length > 0 && f.historyReleased !== true;
+  }
+  function publicationReleases(job) {
+    const all = (Array.isArray(job && job.deliveryBacklog) ? job.deliveryBacklog : []).concat(job && job.finalization ? [job.finalization] : []);
+    for (const f of all) if (f && Object.prototype.hasOwnProperty.call(f, 'historyPublications')) publicationReceipts(job, f, f.historyPublications);
+    return all.filter(f => f && f.state === 'delivered' && publicationReleasePending(f));
+  }
+  function publicationTargets(f) {
+    const mode = String(f.deliver || 'local'), origin = f.origin || {};
+    if (mode === 'origin') return origin.target ? [String(origin.target)] : origin.channel && origin.chatId ? ['@origin'] : [];
+    return mode.startsWith('targets:') ? [...new Set(mode.slice(8).split(',').map(t => t.trim()).filter(Boolean))] : [];
+  }
+  function publicationReceipts(job, f, raw) {
+    if (!historyPublication) throw new Error('The routine publication owner is unavailable');
+    return historyPublication.receipts(raw, { jobId: job.id, runId: f.runId,
+      agentId: (f.deliveryContext || job).agentId, targets: publicationTargets(f) });
+  }
+  function markPublicationReleased(jobs, id, result) {
+    return mapJob(jobs, id, job => {
+      const matches = f => f && f.runId === result.runId;
+      const update = f => {
+        const current = publicationReceipts(job, f, f.historyPublications);
+        const proof = publicationReceipts(job, f, result.historyPublications);
+        if (f.state !== 'delivered' || !current.length) throw new Error('Only completed routine publications can be released');
+        if (!historyPublication.same(current, proof)) throw new Error('The released publication receipt changed');
+        return Object.assign({}, f, { historyReleased: true });
+      };
+      const next = Object.assign({}, job);
+      if (matches(job.finalization)) next.finalization = update(job.finalization);
+      if (Array.isArray(job.deliveryBacklog)) next.deliveryBacklog = job.deliveryBacklog.map(f => matches(f) ? update(f) : f)
+        .filter(f => f.state === 'pending' || publicationReleasePending(f));
+      return next;
+    });
+  }
 
   function markDelivery(jobs, id, result, ctx) {
     result = result || {}; ctx = ctx || {};
     const now = ctx.now || 0;
     const ok = result.ok === true;
     return mapJob(jobs, id, (job) => {
+      publicationReleases(job); // validate prior proof before changing any result or status
       const error = ok ? null : String(result.error != null ? result.error : 'delivery failed') +
         (result.channel ? ' [' + String(result.channel) + ']' : '');
       const next = Object.assign({}, job, { lastDeliveryAt: iso(now), lastDeliveryOk: ok, lastDeliveryError: error });
@@ -414,6 +493,26 @@
       const matches = f => f && result.runId && String(result.runId) === String(f.runId);
       const update = f => {
         const attempts = (f.attempts || 0) + 1;
+        const hasPrior = Object.prototype.hasOwnProperty.call(f, 'historyPublications');
+        const hasNext = Object.prototype.hasOwnProperty.call(result, 'historyPublications');
+        const attached = (f.deliveryContext || job).attachToSession === true;
+        let publication = {};
+        if (hasPrior || hasNext || (attached && f.outcome !== 'silent' && publicationTargets(f).length)) {
+          const old = publicationReceipts(job, f, hasPrior ? f.historyPublications : []);
+          const added = publicationReceipts(job, f, hasNext ? result.historyPublications : []);
+          const byTarget = new Map(old.map(p => [p.target, p]));
+          for (const proof of added) {
+            if (byTarget.has(proof.target) && !historyPublication.same(byTarget.get(proof.target), proof)) throw new Error('The routine publication receipt conflicts with its saved identity');
+            byTarget.set(proof.target, proof);
+          }
+          const all = publicationReceipts(job, f, [...byTarget.values()]);
+          const givenUp = Array.isArray(result.givenUpTargets) ? result.givenUpTargets : f.givenUpTargets || [];
+          const delivered = Array.isArray(result.deliveredTargets) ? result.deliveredTargets.slice(0, 16) : f.deliveredTargets || [];
+          if (all.some(p => !delivered.includes(p.target))) throw new Error('The routine publication has no completed transport receipt');
+          if (all.some(p => givenUp.includes(p.target))) throw new Error('A refused target cannot claim routine publication');
+          if (ok && attached && f.outcome !== 'silent' && publicationTargets(f).some(t => !byTarget.has(t))) throw new Error('The routine publication is incomplete');
+          publication = { historyPublications: all, historyReleased: f.historyReleased === true && historyPublication.same(old, all) };
+        }
         return Object.assign({}, f, {
           state: ok ? 'delivered' : 'pending', attempts: attempts,
           deliveredAt: ok ? iso(now) : null, lastError: error,
@@ -422,11 +521,11 @@
           // to them again once the host's own bounded record of that refusal is gone
           givenUpTargets: Array.isArray(result.givenUpTargets) ? result.givenUpTargets.slice(0, 16) : (f.givenUpTargets || []),
           nextAttemptAt: ok ? null : iso(now + Math.min(900000, 60000 * Math.pow(2, Math.min(attempts - 1, 4))))
-        });
+        }, publication);
       };
       if (matches(job.finalization)) next.finalization = update(job.finalization);
       if (Array.isArray(job.deliveryBacklog)) next.deliveryBacklog = job.deliveryBacklog
-        .map(f => matches(f) ? update(f) : f).filter(f => f.state === 'pending');
+        .map(f => matches(f) ? update(f) : f).filter(f => f.state === 'pending' || publicationReleasePending(f));
       return next;
     });
   }
@@ -452,10 +551,11 @@
   function supersedeDeliveries(jobs, id, ctx) {
     ctx = ctx || {};
     const job = getJob(jobs, id);
+    publicationReleases(job);
     const pending = pendingDeliveries(job).filter(f => f.outcome !== 'silent');
     if (pending.length < 2) return jobs;
     const busy = (Array.isArray(ctx.busy) ? ctx.busy : []).map(String);
-    const isBusy = f => busy.indexOf(String(f.runId)) >= 0;
+    const isBusy = f => busy.indexOf(String(f.runId)) >= 0 || (Array.isArray(f.historyPublications) && f.historyPublications.length > 0);
     const byDest = new Map();   // destination -> its receipts, oldest first (pendingDeliveries is oldest-first)
     for (const f of pending) {
       const d = deliveryDestination(f);
@@ -485,7 +585,7 @@
     return mapJob(jobs, id, (j) => {
       const next = Object.assign({}, j);
       if (j.finalization) next.finalization = mark(j.finalization);
-      if (Array.isArray(j.deliveryBacklog)) next.deliveryBacklog = j.deliveryBacklog.map(mark).filter(f => f && f.state === 'pending');
+      if (Array.isArray(j.deliveryBacklog)) next.deliveryBacklog = j.deliveryBacklog.map(mark).filter(f => f && (f.state === 'pending' || publicationReleasePending(f)));
       return next;
     });
   }
@@ -502,7 +602,7 @@
      refuses every message (bot blocked, chat deleted) keeps ONE receipt after the collapse, and counting receipts alone
      let such a routine fire (and spend) forever. Once a result lands, its count is spent and the routine runs again. */
   function undeliveredCount(job) {
-    return pendingDeliveries(job).reduce((n, f) => n + 1 + Math.max(0, Number(f.superseded) || 0), 0);
+    return pendingDeliveries(job).reduce((n, f) => n + 1 + Math.max(0, Number(f.superseded) || 0), 0) + publicationReleases(job).length;
   }
 
   function markBlockedConfig(jobs, id, info, ctx) {
@@ -717,7 +817,9 @@
       }
 
       // terminal: finalize this occurrence.
-      const pending = pendingDeliveries(job).filter(f => f.runId !== String(next.lastRunId || ''));
+      const releases = publicationReleases(job);
+      if (releases.some(f => f.runId === String(next.lastRunId || ''))) throw new Error('The prior routine publication is still awaiting release');
+      const pending = pendingDeliveries(job).concat(releases).filter(f => f.runId !== String(next.lastRunId || ''));
       if (pending.length >= MAX_PENDING_DELIVERIES) throw new Error('routine delivery backlog is full; reconnect the destination');
       next.deliveryBacklog = pending;
       next.lastUsd = Number.isFinite(Number(result.usd)) ? Number(result.usd) : 0;
@@ -780,6 +882,7 @@
   function loadEnvelope(raw) {
     let obj = raw;
     if (typeof raw === 'string') { try { obj = JSON.parse(raw); } catch (e) { obj = null; } }
+    assertPublicationEnvelope(obj);
     if (!obj || typeof obj !== 'object' || !Array.isArray(obj.jobs)) return { version: ENVELOPE_VERSION, jobs: [] };
     const jobs = obj.jobs.filter(j => j && typeof j === 'object' && isValidId(j.id));
     return { version: ENVELOPE_VERSION, jobs: jobs };
@@ -817,6 +920,11 @@
     renewOnceHeartbeat: renewOnceHeartbeat,
     markRun: markRun,
     markDelivery: markDelivery,
+    publicationReleases: publicationReleases,
+    markPublicationReleased: markPublicationReleased,
+    assertPublicationEnvelope: assertPublicationEnvelope,
+    hasPublicationMetadata: hasPublicationMetadata,
+    publicationError: publicationError,
     pendingDeliveries: pendingDeliveries,
     supersedeDeliveries: supersedeDeliveries,
     deliveriesHeld: deliveriesHeld,

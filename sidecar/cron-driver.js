@@ -256,6 +256,15 @@
 
     const deliveries = new Map(); // job/run -> one in-flight send across boot, ticks and completion
     const deliveryReceipts = new Map(); // send finished but its acknowledgement has not reached disk
+    let publicationReleaseCursor = 0; // fairness only; every attempt still reads the current durable receipt
+    async function releasePublication(job, f) {
+      if (!deliveryRecorded) return false;
+      const out = { ok: true, deliveredTargets: f.deliveredTargets || [], givenUpTargets: f.givenUpTargets || [], historyPublications: f.historyPublications };
+      try {
+        if (await deliveryRecorded(job.id, f.runId, out) !== true) return false;
+        return setJobs(cronStore.markPublicationReleased(getJobs(), job.id, { runId: f.runId, historyPublications: f.historyPublications })) !== false;
+      } catch (e) { failNote('cron.delivery.publication-release', e); return false; }
+    }
     /* collapseBacklog — the routine's older idle results for a destination are superseded by its newest one
        (cron-store supersedeDeliveries: one current result per chat, never a burst of stale ones). `own` is the run
        id the caller is about to send — it is in `deliveries` already but is not "busy" for this decision, unless the
@@ -307,21 +316,39 @@
           // The committed routing/context snapshot wins over subsequent edits to the routine.
           const deliveryJob = Object.assign({}, job, f.deliveryContext || {}, { deliver: f.deliver, origin: f.origin });
           // givenUpTargets: the targets an earlier ask found refused for good (the host never sends to those again)
-          try { out = deliverResult ? await deliverResult(deliveryJob, { runId: f.runId, outcome: f.outcome, runOutcome: f.runOutcome || null, text: f.result || '', error: f.error || null, deliveredTargets: live.deliveredTargets || f.deliveredTargets || [], givenUpTargets: live.givenUpTargets || f.givenUpTargets || [], superseded: Number(live.superseded) || 0 }) : { ok: true }; }
+          try { out = deliverResult ? await deliverResult(deliveryJob, { runId: f.runId, outcome: f.outcome, runOutcome: f.runOutcome || null, text: f.result || '', error: f.error || null, deliveredTargets: live.deliveredTargets || f.deliveredTargets || [], givenUpTargets: live.givenUpTargets || f.givenUpTargets || [],
+            ...(Object.prototype.hasOwnProperty.call(live, 'historyPublications') ? { historyPublications: live.historyPublications } : {}), superseded: Number(live.superseded) || 0 }) : { ok: true }; }
           catch (e) { out = { ok: false, error: (e && e.message) || String(e) }; }
-          out = { ok: !out || out.ok !== false, error: out && out.error, deliveredTargets: out && out.deliveredTargets, givenUpTargets: out && out.givenUpTargets };
+          out = { ok: !out || out.ok !== false, error: out && out.error, deliveredTargets: out && out.deliveredTargets, givenUpTargets: out && out.givenUpTargets,
+            ...(out && Object.prototype.hasOwnProperty.call(out, 'historyPublications') ? { historyPublications: out.historyPublications } : {}) };
           deliveryReceipts.set(key, out);
         }
         if (setJobs(cronStore.markDelivery(getJobs(), job.id, Object.assign({ runId: f.runId }, out), { now: now() })) === false) return false;
         deliveryReceipts.delete(key);
         // the outcome is on disk: what the host's delivery kept so a re-ask would send nothing may go now
-        if (deliveryRecorded) { try { deliveryRecorded(job.id, f.runId, out); } catch (e) { failNote('cron.delivery.recorded', e); } }
+        const saved = cronStore.getJob(getJobs(), job.id);
+        const publication = cronStore.publicationReleases(saved).find(p => p.runId === f.runId);
+        if (publication) await releasePublication(saved, publication);
+        else if (deliveryRecorded) { try { await deliveryRecorded(job.id, f.runId, out); } catch (e) { failNote('cron.delivery.recorded', e); } }
         return out.ok;
       } finally { deliveries.delete(key); }
     }
 
     async function recoverFinalizations() {
       let count = 0;
+      // Completed publication receipts are maintenance, not a new send. They survive
+      // later results and retry even while the routine is paused, at the existing four-item bound.
+      const releases = getJobs().slice().flatMap(job => cronStore.publicationReleases(job).map(f => ({ job, f })));
+      const start = releases.length ? publicationReleaseCursor % releases.length : 0;
+      let visited = 0;
+      for (; visited < Math.min(4, releases.length); visited++) {
+        const { job, f } = releases[(start + visited) % releases.length];
+        const key = job.id + '/' + f.runId;
+        if (deliveries.has(key)) continue;
+        deliveries.set(key, true);
+        try { await releasePublication(job, f); } finally { deliveries.delete(key); }
+      }
+      publicationReleaseCursor = releases.length ? (start + visited) % releases.length : 0;
       // Bound each pass; an unreachable destination must not flood transports on every tick.
       const work = [];
       for (const listed of getJobs().slice()) {

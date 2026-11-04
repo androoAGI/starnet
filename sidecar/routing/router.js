@@ -31,9 +31,95 @@ function makeRouter(o) {
      or null. When the host passes it (the sidecar always does), a bay's room objects are bounded by THAT floor, never
      widened by the plan a page posted: the plan picks the dock a run is at and may only narrow its room. See savedStationFor. */
   const savedStation = typeof o.savedStation === 'function' ? o.savedStation : null;
+  // PRIVATE/UNWIRED. The host must supply the existing strict saved-floor owner;
+  // a malformed supplied seam cannot silently select the legacy posted mode.
+  if ('savedProjection' in o && typeof o.savedProjection !== 'function') throw new Error('savedProjection must be the saved-floor reader');
+  const savedProjection = o.savedProjection || null;
+  let currentFloor = null, savedTopology = null;
+  function savedFailure(status) {
+    const error = new Error('Saved routing authority is held: ' + status);
+    error.code = 'EROUTING_SAVED_' + String(status).toUpperCase().replace(/[^A-Z0-9]/g, '_');
+    error.status = status;
+    return error;
+  }
+  function capabilityPlan() { return savedProjection ? currentFloor.plan : stationPlan || plan || capsPlan; }
+  function readOnlyAuthority() { if (savedProjection) throw savedFailure('read-only'); }
+  function requireAgent(agentId, dockId) {
+    const p = capabilityPlan();
+    if (typeof agentId !== 'string' || !agentId || !Pipeline.docksOf(p, agentId).length) throw savedFailure('unknown-agent');
+    if (dockId != null && (typeof dockId !== 'string' || !dockId || Pipeline.agentOfDock(p, dockId) !== agentId)) throw savedFailure('unknown-dock');
+  }
+  function requireDock(dockId) {
+    if (typeof dockId !== 'string' || !dockId || !Pipeline.agentOfDock(capabilityPlan(), dockId)) throw savedFailure('unknown-dock');
+  }
+  function requireLine(lineId) {
+    if (typeof lineId !== 'string' || !lineId || !(capabilityPlan().lines || []).some(line => line.lineId === lineId)) throw savedFailure('unknown-line');
+  }
+  function requireNodeLine(agentId, dockId, lineId) {
+    if (lineId == null) return;
+    requireLine(lineId);
+    const p = capabilityPlan(), dock = dockId || Pipeline.entryDockOf(p, agentId);
+    if (Pipeline.lineOfDock(p, dock) !== lineId) throw savedFailure('line-mismatch');
+  }
+  function guardSavedCall(name, args) {
+    const [a, b, c] = args;
+    if (['dockOf', 'lineOfAgent', 'lineOriginFor', 'stationFor', 'stageBrief', 'chainShipsToOutbox'].includes(name)) requireAgent(a, b);
+    if (['entryDockOf', 'docksOf'].includes(name)) requireAgent(a);
+    if (['chainNext', 'chainStep', 'chainPeek', 'fanSiblings'].includes(name)) {
+      requireAgent(a, b && b.dockId);
+      if (b) requireNodeLine(a, b.dockId, b.lineId);
+    }
+    if (['agentOfDock', 'lineOfDock', 'chainNextDock', 'chainStepDock', 'chainPeekDock', 'fanSiblingsDock'].includes(name)) {
+      requireDock(a);
+      if (b) requireNodeLine(Pipeline.agentOfDock(capabilityPlan(), a), a, b.lineId);
+    }
+    if (name === 'loopGateAfter') { requireAgent(a, c); requireNodeLine(a, c, b); }
+    if (name === 'lineLimits') requireLine(a);
+    if (name === 'dockRef') {
+      if (typeof a !== 'string' || !a || (!Pipeline.agentOfDock(capabilityPlan(), a) && !Pipeline.docksOf(capabilityPlan(), a).length)) throw savedFailure('unknown-dock');
+      if (b != null) requireLine(b);
+    }
+    if (name === 'resolveDock' || name === 'resolveTarget') {
+      if (a && a.boundAgentId != null) requireAgent(a.boundAgentId, a.dockId);
+      else if (a && a.dockId != null) requireDock(a.dockId);
+      if (a && a.lineId != null) requireLine(a.lineId);
+      if (a && a.boundAgentId != null) requireNodeLine(a.boundAgentId, a.dockId, a.lineId);
+    }
+    if (name === 'intakeReceiptFor') {
+      if (a && a.agentId != null) requireAgent(a.agentId, a.dockId);
+      if (a && a.lineId != null) requireLine(a.lineId);
+    }
+  }
+  function withSavedFloor(name, fn) {
+    return function (...args) {
+      let source;
+      try { source = savedProjection(); } catch (_) { savedTopology = null; rr = {}; throw savedFailure('unreadable'); }
+      if (!source || source.version !== 1 || source.status !== 'ok' || !source.plan || !source.stationDoc
+          || typeof source.routingOk !== 'boolean' || !Number.isSafeInteger(source.revision) || source.revision < 1
+          || typeof source.stamp !== 'string' || !source.stamp || !/^saved-plan-v1:[a-f0-9]{64}$/.test(source.identity || '')) {
+        savedTopology = null; rr = {};
+        throw savedFailure(source && source.status && source.status !== 'ok' ? source.status : 'invalid');
+      }
+      const runtimePlan = Object.assign({}, source.plan);
+      Object.defineProperty(runtimePlan, 'links', { value: source.compilerLinks, enumerable: false });
+      Object.freeze(runtimePlan);
+      if (!source.topologyHash || source.topologyHash !== savedTopology) rr = {};
+      savedTopology = source.topologyHash || null;
+      currentFloor = { source, plan: runtimePlan };
+      try {
+        guardSavedCall(name, args);
+        const result = fn(...args);
+        if (result == null && ['dockRef', 'intakeReceiptFor'].includes(name)) throw savedFailure('unresolved-identity');
+        if (name === 'dockRef' && args[1] != null && Pipeline.lineOfDock(currentFloor.plan, result.dockId) !== args[1]) throw savedFailure('unresolved-identity');
+        return result;
+      }
+      finally { currentFloor = null; }
+    };
+  }
 
   // store a posted plan. null/empty clears it (no routing floor). A plan with BLOCKING errors is refused.
   function setPlan(p) {
+    readOnlyAuthority();
     if (!p || typeof p !== 'object') { plan = null; capsPlan = null; return { ok: true, cleared: true }; }
     if (!Array.isArray(p.errors)) { plan = null; capsPlan = null; return { ok: false, error: 'malformed plan' }; }
     /* SELF-HEAL A PRE-LINE-IDENTITY PLAN (2026-08-07). chainNext reads a missing line map as "every dock is
@@ -64,11 +150,18 @@ function makeRouter(o) {
     plan = p; if (!same) rr = {};
     return { ok: true, hash: p.hash || null, bays: (p.bays || []).length };
   }
-  function clearPlan() { plan = null; capsPlan = null; rr = {}; }
-  function activePlan() { return stationPlan || plan; }
+  function clearPlan() { readOnlyAuthority(); plan = null; capsPlan = null; rr = {}; }
+  function activePlan() {
+    if (savedProjection) {
+      if (!currentFloor.source.routingOk) throw savedFailure('unroutable');
+      return currentFloor.plan;
+    }
+    return stationPlan || plan;
+  }
   function getPlan() { return activePlan(); }
   function hasPlan() { return !!activePlan(); }
   function setStation(stationDoc) {
+    readOnlyAuthority();
     const v = stationStore.validateStationDoc(stationDoc);
     if (!v.ok) return { ok: false, error: v.error };
     // a non-deployable station (cycle/orphan/dead bay) is refused UNCONDITIONALLY. The old guard
@@ -88,14 +181,24 @@ function makeRouter(o) {
     rr = {};
     return r;
   }
-  function clearStation() { stationPlan = null; return stationStore.clearStation(); }
-  function getStation() { return stationStore.getStation(); }
+  function clearStation() { readOnlyAuthority(); stationPlan = null; return stationStore.clearStation(); }
+  function getStation() { return savedProjection ? currentFloor.source.stationDoc : stationStore.getStation(); }
   // the agentId a work-item routes to, or null (caller falls back to its default resolution — never stalls).
   // The picker advances a per-splitter-tile counter, so successive work-items spread across the splitter's lanes
   // (a FILTER stays deterministic by tag and ignores it) — dispatch load-balances instead of always lane 0.
   function resolveTarget(ctx) {
     const r = resolveDock(ctx);
     return r ? r.agentId : null;
+  }
+  function savedResolution(result, ctx) {
+    if (!savedProjection) return result;
+    if (!result) throw savedFailure('unresolved-target');
+    // Pipeline's legacy bound-agent resolution always picks its entry dock.
+    // An explicit saved identity must never be silently redirected by that rule.
+    if ((ctx.boundAgentId != null && result.agentId !== ctx.boundAgentId)
+        || (ctx.dockId != null && result.dockId !== ctx.dockId)) throw savedFailure('target-mismatch');
+    if (ctx.lineId != null && Pipeline.lineOfDock(currentFloor.plan, result.dockId) !== ctx.lineId) throw savedFailure('line-mismatch');
+    return result;
   }
   /* resolveDock(ctx) -> { agentId, dockId } | null — THE entry dispatcher (multi-bay agents, 2026-09-22). The
      same walk, the same round-robin counters and the same line scope as resolveTarget (which is now its agent
@@ -119,11 +222,13 @@ function makeRouter(o) {
       const want = String(ctx.lineId);
       const lop = p.lineOfProp || {};
       const srcs = (p.sources || []).filter(s => s && s.propId != null && String(lop[String(s.propId)] || '') === want);
-      if (!srcs.length) return null;
+      if (!srcs.length) { if (savedProjection) throw savedFailure('unresolved-target'); return null; }
       // the narrowed view shares the plan's own dock layer (no re-derivation on a sources-only clone)
-      return Pipeline.resolveDock(Object.assign({}, p, { sources: srcs }, Pipeline.dockLayer(p)), ctx, pick);
+      const resolved = Pipeline.resolveDock(Object.assign({}, p, { sources: srcs }, Pipeline.dockLayer(p)), ctx, pick);
+      return savedResolution(resolved, ctx);
     }
-    return Pipeline.resolveDock(p, ctx, pick);
+    const resolved = Pipeline.resolveDock(p, ctx, pick);
+    return savedResolution(resolved, ctx);
   }
 
   /* ---------- THE DOCK KEY (multi-bay agents, 2026-09-22) ----------
@@ -133,12 +238,12 @@ function makeRouter(o) {
      dock is simply THE dock, so every pre-dock caller answers exactly as before. A dockId the plan does
      not know (a stale id after a floor edit) falls back to the entry dock rather than to nothing. */
   function dockOf(agentId, dockId) {
-    const p = stationPlan || plan || capsPlan;
+    const p = capabilityPlan();
     return p ? Pipeline.dockOf(p, agentId, dockId) : null;
   }
   function entryDockOf(agentId) { const p = activePlan(); return p ? Pipeline.entryDockOf(p, agentId) : null; }
-  function docksOf(agentId) { const p = stationPlan || plan || capsPlan; return p ? Pipeline.docksOf(p, agentId) : []; }
-  function agentOfDock(dockId) { const p = stationPlan || plan || capsPlan; return p ? Pipeline.agentOfDock(p, dockId) : null; }
+  function docksOf(agentId) { const p = capabilityPlan(); return p ? Pipeline.docksOf(p, agentId) : []; }
+  function agentOfDock(dockId) { const p = capabilityPlan(); return p ? Pipeline.agentOfDock(p, dockId) : null; }
   function lineOfDock(dockId) { const p = activePlan(); return p ? Pipeline.lineOfDock(p, dockId) : null; }
   /* dockRef(ref, lineId?) -> { agentId, dockId } | null. `ref` is a dockId OR an agentId (the step-through test's
      startAt, a routine's FIRES AT). An agentId reads its entry dock — or, when a line is named and the entry dock
@@ -217,9 +322,9 @@ function makeRouter(o) {
   function stationFor(agentId, dockId) {
     // the CAPABILITY view: an authoritative station wins, else the last well-formed posted plan — deployable
     // or not (a broken belt graph must not widen an agent's reach; see the setPlan note).
-    const p = stationPlan || plan || capsPlan;
+    const p = capabilityPlan();
     if (!agentId) return null;
-    if (savedStation && !stationStore.hasStation()) return savedStationFor(agentId, dockId, p);
+    if (!savedProjection && savedStation && !stationStore.hasStation()) return savedStationFor(agentId, dockId, p);
     if (!p) return null;
     // a bay isolates its agent whether or not a belt is hooked to it: `bays` = belt-hooked dispatch targets,
     // `dockBays` = EVERY bound bay (a lone dock is a complete build — 2026-07-05 sense pass). Older plans
@@ -231,7 +336,7 @@ function makeRouter(o) {
        ruling). The first matching record is only the fallback for a plan that predates the dock key. */
     const bay = planBayOf(p, agentId, dockId);
     if (!bay) return null;
-    const authoritative = stationStore.hasStation() ? stationStore.bayObjects(agentId, bay.propId) : null;
+    const authoritative = !savedProjection && stationStore.hasStation() ? stationStore.bayObjects(agentId, bay.propId) : null;
     const objs = Array.isArray(authoritative) ? authoritative : (Array.isArray(bay.objects) ? bay.objects : []);
     return roomStation(agentId, bay.propId, objs);
   }
@@ -309,14 +414,16 @@ function makeRouter(o) {
      or hand-off, the same way its brief rides — to end its reply with a numbered list of exactly n parts. Prompt text only;
      n (the splitter's crewed branches) is read off the deployable plan, the same one the chain runner divides by. */
   function stageBrief(agentId, dockId) {
-    const base = standingBrief(agentId, dockId), p = activePlan(), d = (p && agentId) ? dockOf(agentId, dockId) : null;
+    const base = standingBrief(agentId, dockId);
+    if (savedProjection && !currentFloor.source.routingOk) return base;
+    const p = activePlan(), d = (p && agentId) ? dockOf(agentId, dockId) : null;
     const n = d ? Pipeline.divideAfterDock(p, d) : 0;
     if (!n) return base;
     const add = Pipeline.divideBrief(n);
     return base ? base + '\n\n' + add : add;
   }
   function standingBrief(agentId, dockId) {
-    const p = stationPlan || plan || capsPlan;
+    const p = capabilityPlan();
     if (!p || !agentId) return null;
     // PER DOCK (multi-bay): the brief of the bay THIS run is at — writer@C is told bay C's job, never bay A's
     const want = dockOf(agentId, dockId);
@@ -339,7 +446,7 @@ function makeRouter(o) {
      brief: a limit is a fact about the PLACED floor, true whether or not the belts compile. Policy only —
      it bounds how far/how much a line runs, never which agent runs (chainNext alone decides that). */
   function lineLimits(lineId) {
-    const p = stationPlan || plan || capsPlan;
+    const p = capabilityPlan();
     return p ? Pipeline.lineLimitsOf(p, lineId) : null;
   }
 
@@ -432,9 +539,11 @@ function makeRouter(o) {
     return !!(rec && rec.outbox && !rec.deadEnd);
   }
 
-  return { setPlan, clearPlan, getPlan, hasPlan, setStation, clearStation, getStation, resolveTarget, lineOfAgent, lineOriginFor, intakeReceiptFor, lineLimits, chainNext, chainStep, chainPeek, fanSiblings, loopGateAfter, chainShipsToOutbox, stationFor, stageBrief,
+  const api = { setPlan, clearPlan, getPlan, hasPlan, setStation, clearStation, getStation, resolveTarget, lineOfAgent, lineOriginFor, intakeReceiptFor, lineLimits, chainNext, chainStep, chainPeek, fanSiblings, loopGateAfter, chainShipsToOutbox, stationFor, stageBrief,
     // the DOCK key (multi-bay agents, 2026-09-22)
     resolveDock, dockOf, dockRef, entryDockOf, docksOf, agentOfDock, lineOfDock, chainNextDock, chainStepDock, chainPeekDock, fanSiblingsDock };
+  if (savedProjection) for (const name of Object.keys(api)) api[name] = withSavedFloor(name, api[name]);
+  return api;
 }
 
 module.exports = { makeRouter };

@@ -1,0 +1,64 @@
+// Separate awakening ambience from useful interaction and completion cues.
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const util = fs.readFileSync(require.resolve('../frontend/js/util.js'), 'utf8');
+const start = util.indexOf('const SFX = {');
+const ctx = vm.createContext({ Date, console });
+vm.runInContext(util.slice(start, util.indexOf('\n};', start) + 3) + '\nthis.SFX = SFX;', ctx);
+const { SFX } = ctx;
+const sources = [];
+function param() { return { value: 0, setValueAtTime(v) { this.value = v; }, linearRampToValueAtTime(v) { this.value = v; }, exponentialRampToValueAtTime(v) { this.value = v; }, cancelScheduledValues() {}, setTargetAtTime(v) { this.value = v; } }; }
+function node() { return { gain: param(), frequency: param(), playbackRate: param(), connect(to) { this.output = to; }, start() { sources.push(this); }, stop() {} }; }
+SFX.ctx = { currentTime: 1, createGain: node, createOscillator: node, createBufferSource: node };
+SFX.master = node();
+SFX.env(110, { channel: 'hum' });
+SFX.env(55, { channel: 'heartbeat' });
+assert.equal(sources.length, 2);
+const hum = sources[0].output.output, heart = sources[1].output.output;
+assert.notEqual(hum, heart);
+SFX.setAmbience(false, true);
+assert.equal(hum.gain.value, 0, 'already-playing hum fades out');
+assert.equal(heart.gain.value, 1, 'heartbeat is independent');
+SFX.env(110, { channel: 'hum' });
+assert.equal(sources.length, 2, 'disabled hum schedules no oscillator');
+SFX.env(55, { channel: 'heartbeat' });
+assert.equal(sources.length, 3);
+SFX.setAmbience(false, false);
+assert.equal(heart.gain.value, 0, 'already-playing heartbeat fades out');
+SFX._samples = { click: { duration: .1 }, ship: { duration: .3 }, chime: { duration: .3 }, open: { duration: .1 } };
+for (const cue of ['click', 'ship', 'chime', 'press']) SFX[cue]();
+assert.equal(sources.length, 7, 'clicks, completion, attention and COMMS still sound');
+SFX.on = false; SFX.setAmbience(true, true);
+assert.equal(hum.gain.value, 0); assert.equal(heart.gain.value, 0);
+SFX.env(55, { channel: 'heartbeat' }); SFX._sample('ship');
+assert.equal(sources.length, 7, 'legacy terminal master mute still silences everything');
+SFX.on = true; SFX.setAmbience(false, true);
+assert.equal(hum.gain.value, 0); assert.equal(heart.gain.value, 1);
+// Execute the actual awakening scheduler with the real SFX envelope: repeated pads cannot bypass mute.
+const onboarding = fs.readFileSync(require.resolve('../frontend/app/onboarding.js'), 'utf8');
+const auStart = onboarding.indexOf('  const AU = (() => {');
+const auEnd = onboarding.indexOf('\n  function seg', auStart);
+const timers = new Map(); let next = 0;
+const wake = vm.createContext({ SFX, Math, setTimeout(fn) { timers.set(++next, fn); return next; }, clearTimeout(id) { timers.delete(id); } });
+vm.runInContext(onboarding.slice(auStart, auEnd) + '\nthis.AU = AU;', wake);
+SFX.setAmbience(false, false);
+wake.AU.start();
+assert.equal(sources.length, 7, 'muted awakening produces neither hum nor heartbeat');
+assert.equal(timers.size, 2);
+wake.AU.stop(); assert.equal(timers.size, 0);
+SFX.setAmbience(true, false); wake.AU.start();
+assert.equal(sources.length, 9, 'hum alone schedules the two pad notes');
+assert.equal(sources.at(-1).output.output, hum); wake.AU.stop();
+SFX.setAmbience(false, true); wake.AU.start();
+assert.equal(sources.length, 12, 'heartbeat alone schedules lub, harmonic and dub');
+assert.equal(sources.at(-1).output.output, heart); wake.AU.stop();
+// Backup uses the production collector, preserving each independent choice.
+const ui = fs.readFileSync(require.resolve('../frontend/app/stationui.js'), 'utf8');
+const collectStart = ui.indexOf('    const browserSections = () => {');
+const collectEnd = ui.indexOf('    if (exportBtn)', collectStart);
+const settings = { sound: true, soundHum: false, soundHeartbeat: false };
+const collect = new Function('store', 'notifyDefaults', 'resolveRoomLighting', ui.slice(collectStart, collectEnd) + '\nreturn browserSections;')({ settings }, () => ({}), v => v);
+for (const key of Object.keys(settings)) assert.equal(collect().settings[key], settings[key], 'backup preserves ' + key);
+console.log('sound controls: active-tail mute, independent channels, click/chime completion, master mute, awakening scheduling and backup PASS');

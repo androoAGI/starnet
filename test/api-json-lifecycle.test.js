@@ -24,8 +24,10 @@ let checks=0,failed=0;const check=(f)=>{checks++;try{f();}catch(e){failed++;cons
   const ctx=vm.createContext({AbortController,setTimeout:fn=>{const id={};timers.set(id,fn);return id;},clearTimeout:id=>timers.delete(id),fetch:()=>{if(mode==='sync-throw')throw new Error('offline');return Promise.resolve({ok:mode!=='http-error',status:mode==='http-error'?503:200,json:async()=>{if(mode==='bad-json')throw new Error('invalid JSON');return {ok:mode!=='http-error'};}});}});
   vm.runInContext(code,ctx);let result,error;
   try{result=await ctx.api[method]('/api/example');}catch(e){error=e;}
-  check(()=>assert.equal(!!error,mode==='bad-json'||mode==='sync-throw'||(method==='get'&&mode==='http-error')));
+  // an answer is never a rejection for a mutation (truthful acks): a 2xx whose body is not JSON resolves ok:false, named bad_body
+  check(()=>assert.equal(!!error,mode==='sync-throw'||(method==='get'&&(mode==='bad-json'||mode==='http-error'))));
   if(result)check(()=>assert.equal(result.ok,mode==='success'));
+  if(result&&method!=='get'&&mode==='bad-json')check(()=>assert.equal(result.code,'bad_body'));
   check(()=>assert.equal(timers.size,0,'settled '+method+' clears its deadline'));
  }
  console.log(`JSON API lifecycle: ${checks-failed}/${checks} checks passed`);process.exitCode=failed?1:0;

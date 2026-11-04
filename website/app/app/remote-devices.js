@@ -11,7 +11,7 @@
    ArmConfirm. The QR is drawn by app/qr.js; the pairing link carries its one-time code in the URL FRAGMENT. */
 'use strict';
 (function (root) {
-  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const ago = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); if (s < 60) return s + 's ago'; const m = Math.round(s / 60); if (m < 60) return m + 'm ago'; const h = Math.round(m / 60); return h < 48 ? h + 'h ago' : Math.round(h / 24) + 'd ago'; };
 
   async function api(path, body) {
@@ -125,9 +125,9 @@
         '</div>';
       box.hidden = false;
       $('rmt-cancel').onclick = closePairing;
-      $('rmt-copy').onclick = async () => {
-        try { await navigator.clipboard.writeText(p.pairUrl); say('Link copied. Open it on the phone you want to pair. It works once.'); }
-        catch (_) { say('Could not copy. Scan the code instead.', true); }
+      // the one clipboard: the success line only when the copy happened
+      $('rmt-copy').onclick = () => {
+        U.copyText(p.pairUrl).then(ok => say(ok ? 'Link copied. Open it on the phone you want to pair. It works once.' : 'Could not copy. Scan the code instead.', !ok));
       };
       const tick = () => {
         const left = p.expiresAt - Date.now();
