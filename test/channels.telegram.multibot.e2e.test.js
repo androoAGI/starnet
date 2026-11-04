@@ -276,13 +276,23 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
     A.eq(tg.perToken[TOK_B].sends.length, botBSendsBeforeA, 'bot B sent NOTHING for bot A\'s chat (no cross-talk)');
     A.eq(tg.perToken[STATION].sends.length, stationSendsBeforeA, 'the station bot sent NOTHING for bot A\'s chat');
     // hard-lock: the durable CHANNEL history landed under the BOUND agent, not a tg_<chatId> fallback.
-    // (read the channel store straight from disk — /api/transcript serves per-STREAM history, not per-agent.)
-    const chanHist = (agentId) => {
-      try { return (JSON.parse(fs.readFileSync(path.join(ws, 'channels', agentId + '.history.json'), 'utf8')).messages || []); }
-      catch (_) { return []; }
+    // A bound chat's turns live in the canonical transcript, in the stream its chat record names (one per bot + chat),
+    // and every row carries the agent that owns it. channels/<agentId>.history.json is only the unbound-hub legacy file.
+    const chanRows = async (botId, wanted) => {
+      let out = { rec: {}, rows: [] };
+      await waitUntil(async () => {
+        let rec = {};
+        try { rec = (JSON.parse(fs.readFileSync(path.join(ws, 'channels', 'chatmap.json'), 'utf8')).chats || {})[botId + '|900'] || {}; } catch (_) {}
+        const tr = rec.streamId ? await api('GET', '/api/transcript?agent=' + encodeURIComponent(rec.agentId || 'agent') + '&stream=' + encodeURIComponent(rec.streamId) + '&limit=50') : null;
+        out = { rec, rows: (tr && tr.j && tr.j.turns) || [] };
+        return out.rows.some(t => t.role === 'user' && String(t.content || '').indexOf(wanted) >= 0);
+      }, 5000, 'bot ' + botId + ' turn in its canonical stream');
+      return out;
     };
-    A.ok(chanHist('agent').some(t => t.role === 'user' && String(t.content || '').indexOf('do a thing') >= 0), 'bot A turn persisted under the BOUND agent (hard-lock)');
-    A.eq(chanHist('tg_900').length, 0, 'no tg_<chatId> fallback agent was created for bot A\'s chat');
+    const chatA = await chanRows('111', 'do a thing');
+    A.ok(chatA.rows.some(t => t.role === 'user' && t.agentId === 'agent' && String(t.content || '').indexOf('do a thing') >= 0), 'bot A turn persisted under the BOUND agent (hard-lock)');
+    A.ok(chatA.rows.length > 0 && chatA.rows.every(t => t.agentId === 'agent'), 'no tg_<chatId> fallback agent owns any row of bot A\'s chat');
+    A.ok(!fs.existsSync(path.join(ws, 'channels', 'tg_900.history.json')), 'no tg_<chatId> legacy history file was created for bot A\'s chat');
 
     // ---- 5. DM bot B — SAME chatId (Telegram private chatId == userId, identical across bots): isolated ----
     tg.pushText(TOK_B, 900, 77, 'scout task here');
@@ -290,8 +300,10 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
     const botBReply = tg.perToken[TOK_B].sends.find(s => String(s.chat_id) === '900' && String(s.text || '').indexOf('Bound answer') >= 0);
     A.eq(String(botBReply.chat_id), '900', 'bot B replied in its own chat');
     A.ok(tg.perToken[TOK_B].actions.some(a => a.action === 'typing'), 'bot B typing indicator fired too');
-    A.ok(chanHist('scout_1').some(t => t.role === 'user' && String(t.content || '').indexOf('scout task here') >= 0), 'bot B turn persisted under ITS bound agent');
-    A.ok(!chanHist('scout_1').some(t => String(t.content || '').indexOf('do a thing') >= 0), 'bot A\'s chat never bled into bot B\'s agent');
+    const chatB = await chanRows('222', 'scout task here');
+    A.ok(chatB.rows.some(t => t.role === 'user' && t.agentId === 'scout_1' && String(t.content || '').indexOf('scout task here') >= 0), 'bot B turn persisted under ITS bound agent');
+    A.ok(chatB.rec.streamId && chatB.rec.streamId !== chatA.rec.streamId, 'the same chatId on bot B has its own stream, not bot A\'s');
+    A.ok(!chatB.rows.some(t => String(t.content || '').indexOf('do a thing') >= 0) && chatB.rows.every(t => t.agentId === 'scout_1'), 'bot A\'s chat never bled into bot B\'s agent');
 
     // ---- 6. per-bot owner claim: user 77 claimed bot A above; a STRANGER's DM is refused before any run ----
     const aSendsBefore = tg.perToken[TOK_A].sends.length;
