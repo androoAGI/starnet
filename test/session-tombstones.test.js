@@ -491,11 +491,11 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
       'the purge runs only over unpurged deletes (an adopted one never is) and announces every removed record as memory.forget');
     A.ok(/if \(fresh\.length\) forgetDeletedSessionMemory\(\)/.test(src) && /if \(sessionTombstones\.unpurged\(\)\.length\) forgetDeletedSessionMemory\(\)/.test(src), 'a fresh delete purges memory, and an unfinished purge is retried at boot');
     const recent = src.slice(src.indexOf('function nightshiftRecentRuns()'), src.indexOf('function nightshiftContextPack('));
-    A.ok(/!sessionRunForgotten\(r\)/.test(recent), 'RECENT ACTIVITY skips a deleted session\'s runs');
+    A.ok(/runView\('nightshift', r\)/.test(recent), 'RECENT ACTIVITY skips a deleted session\'s runs (through runView, the one run-title filter)');
     const away = src.slice(src.indexOf('async function awayBriefingInputs('), src.indexOf('function tzOffsetOf('));
-    A.ok(/filter\(r => !sessionRunForgotten\(r\)\)/.test(away), 'the away briefing never reports a deleted session\'s runs');
+    A.ok(/filter\(r => runView\('briefing', r\)\)/.test(away), 'the away briefing never reports a deleted session\'s runs (through runView)');
     const focus = src.slice(src.indexOf('function nightFocusInputs()'), src.indexOf('function nightFocusInputs()') + 2000);
-    A.ok(/!sessionRunForgotten\(r\)/.test(focus), 'the night focus never counts a deleted session\'s titles');
+    A.ok(/runView\('nightfocus', r\)/.test(focus), 'the night focus never counts a deleted session\'s titles (through runView)');
   }
 
   A.report('session-tombstones');

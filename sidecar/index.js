@@ -446,6 +446,7 @@ const GoalAdvance = require('./goal-advance.js'); // USER-STUDY LOOP: pure — a
 const QuestRefresh = require('./questrefresh.js'); // QUEST V3: the standing 24h + caught-up quest-refresh engine (pure gates/directive/parse) // QUEST V2 §A: pure seam-matchers for the mechanical contract sweeps (run-bind / prop-live / fact-learned / artifact-exists)
 const { makeThreadsStore } = require('./threads-store.js');   // NS-6: durable THREAD LEDGER (ideas raised but never acted on)
 const SessionTombstones = require('./session-tombstones.js');   // the sidecar's own record of deleted sessions (qa/bugs/3e926b6a)
+const ForgetRegistry = require('./forget-registry.js');   // what a deleted session leaves behind: the run-title filter, write-time admit, the purge registry (turn identity commits 11 and 12)
 const Recommendation = require('./recommendation-ledger.js');
 const RecommendationEval = require('./recommendation-eval.js');
 const { makeRecommendationLedger } = Recommendation; // one cross-surface recommendation/verdict lifecycle + shared utility ranker
@@ -1949,6 +1950,22 @@ const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptR
 const handlePromptScrub = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => PromptScrub.scrubStored(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
+/* RUN TITLES THROUGH ONE VIEW (turn identity commit 11, A2-REB-14). A run record carries a title, an error line and a delivery
+   preview - words of the session it ran in - and the records quote their sessions the way rows do (runStore noteIdentity:
+   quotes + quotesAt, quotesSaturatedAt). runView(name, r) is the ONE filter every reader that hands a run's words to a model or a
+   response goes through: the SAME record when it is visible, null when its session was deleted at or after it was filed, when it
+   quotes a session deleted at or after the read began, or when it is saturated and a non-adopted delete is stamped at or after its
+   saturation (ForgetRegistry.viewRun). It never copies or drops a field, so a run's outcome, failureCode and clarifying reach
+   every reader as filed. `name` is a string literal naming the site: test/run-view.lint.test.js requires every
+   runStore list/all/latest call to be tagged with one or to say why it reads ids and state only, and the count of what each site
+   hid is kept (runViewHidden) for diagnosis. */
+const runViewCtx = { deletedAt: id => sessionTombstones.deletedAt(id), latestDeleteAt: () => sessionTombstones.latestAt() };
+const runViewHidden = Object.create(null);
+function runView(name, r) {
+  const v = ForgetRegistry.viewRun(r, runViewCtx);
+  if (r && !v) runViewHidden[name] = (runViewHidden[name] || 0) + 1;
+  return v;
+}
 /* A RUN THAT QUOTED A DELETED SESSION (turn identity commit 11): the run's own quote stamp - what its record carries (runStore
    noteIdentity: quotes + quotesAt, and quotesSaturatedAt once saturated) - against the same ledger the store reads, by the ONE rule
    (TurnKinds.quotesForgotten). The posted-window forget floor asks it for an id-less reply a page still holds (turn-window.js). */
@@ -7940,7 +7957,7 @@ function nightFocusInputs() {
     const meta = {}; for (const p of (projectsStore.snapshot().projects || [])) meta[p.root] = p;
     // recent user run titles → a cheap per-root "mention" frequency (which project the Commander names lately).
     let runTitles = [];
-    try { runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && !sessionRunForgotten(r)).map(r => String(r.title || '').toLowerCase()); } catch (_) { runTitles = []; }
+    try { runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && runView('nightfocus', r)).map(r => String(r.title || '').toLowerCase()); } catch (_) { runTitles = []; }
     projects = blessedRoots().map(root => {
       const m = meta[root] || {};
       const base = nightfocus.baseName(m.displayPath || root).toLowerCase();
@@ -9032,7 +9049,7 @@ function nightshiftBeliefMap() {
 // initially clean directive cannot reappear as owner chat. The pure pack never renders an internal run title.
 // Shared by the context pack and the readiness count, so both always read the SAME projection.
 function nightshiftRecentRuns() {
-  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && !sessionRunForgotten(r) && (r.internal || (!r.taintedBy && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
+  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && runView('nightshift', r) && (r.internal || (!r.taintedBy && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
 }
 
 /* NS-2: the CONTEXT-PACK io — the ambient half of contextpack.js. Gathers REAL recent activity from the durable
@@ -9136,7 +9153,7 @@ function stationTrackRecord() {
        the memo is cleared by nothing and needs to be: it re-folds on its own within the window. */
     const now = Date.now();
     if (_trackRecordMemo.rec && (now - _trackRecordMemo.at) < 30000) return _trackRecordMemo.rec;
-    const rec = Outcomes.fold(runStore.list(null, { limit: 400 }), { now: now, verdicts: ratingVerdictMap() });
+    const rec = Outcomes.fold(runStore.list(null, { limit: 400 }).filter(r => runView('outcomes', r)), { now: now, verdicts: ratingVerdictMap() });
     _trackRecordMemo = { at: now, rec: rec };
     return rec;
   } catch (_) { return null; }
@@ -9162,7 +9179,7 @@ function commanderEvidenceContext(existingSystem, extra, evidence) {
 /* One lazy owner-evidence assembly: RAM supplies recency, recorded directive IDs require the bounded disk proof,
    and legacy briefs may add at most sixty original-run reads. Never replace an unproven ID with matching text. */
 function evidenceRows(ev) {
-  if (!ev.runs) ev.runs = runStore.all();
+  if (!ev.runs) ev.runs = runStore.all().filter(r => runView('evidence', r));
   if (!ev.transcript) {
     ev.ownerRecent = transcriptStore.view('owner-evidence', null, { limit: 400 });
     const briefs = taskBriefStore.list({ limit: 500 }), ids = new Set(briefs.map(b => b.directiveRowId).filter(id => Number.isSafeInteger(id) && id > 0));
@@ -12532,7 +12549,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   spriteSet: (skin) => remotePortraits.setFor(skin),
   sprites: (key) => remotePortraits.framesFor(key),
   // the run history the desk's activity feed reads (newest first)
-  runHistory: (n) => runStore.list(null, { limit: n }),
+  runHistory: (n) => (runStore.list(null, { limit: n }) || []).filter(r => runView('remote', r)),
   // the desk's own sessions (title, agent, history) live in the station save the page mirrors here
   deskSessions: () => { const save = saveStore.load('agent') || {}; return Array.isArray(save.workstreams) ? save.workstreams : []; },
   workerThreadIds: () => { try { return overseer.threads().filter(t => t.worker === true).map(t => t.id); } catch (e) { failNote('remote.worker-threads', e); return []; } },
@@ -14952,7 +14969,7 @@ function budgetUnsettledRuns() {
   return ledger.unsettledRuns().map(r => {
     const item = items.get(String(r.runId)) || {};
     let title = '';
-    try { const row = runStore.latest(r.runId); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
+    try { const row = runView('budget', runStore.latest(r.runId)); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
     // a skill evaluation is never in run history: name it by its receipt's runId (which survives a restart), so the
     // panel does not call a finished evaluation an interrupted run of the agent
     const evaluation = item.kind === 'evaluation';
@@ -18779,7 +18796,8 @@ async function deliverableRows() {
     jobRows.push(row);
     for (const r of (job.runs || [])) if (r && r.runId) jobOfRun.set(r.runId, row);
   }
-  for (const run of runStore.list(null, { limit: 1000 })) {
+  // typeof: test/outcome-family.census slices this function and runs it with only the names it hands in (no runView); here runView always exists
+  for (const run of runStore.list(null, { limit: 1000 }).filter(r => typeof runView !== 'function' || runView('deliverables', r))) {
     if (/^workshop-/.test(String(run.streamId || ''))) continue;
     const arts = run.artifacts || [];
     const jobRow = jobOfRun.get(run.runId);
@@ -22863,7 +22881,7 @@ async function runOnceCore(o) {
       : runOnce,
     roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
     finalizeDispatchDelivery: (id, envelope) => dispatchDeliveryStore.finalizeDispatchDelivery(dispatchDeliveryDeps, id, envelope),
-    runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
+    runRecord: (id) => runView('orchestration', runStore.latest(id)),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
     // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them.
     // Each name resolves against the WORKER run's one base (where.projectRoot: its run row's root, which orchestration
     // looks up; '' = its private workspace), never by probing the private workspace and then the lead's project
@@ -26751,7 +26769,7 @@ function openAskCount() {
 }
 async function awayBriefingInputs(since, now, tzOffsetMin) {
   // a deleted session's runs are not reported back (qa/bugs/3e926b6a)
-  let runs = []; try { runs = (runStore.list(null, { limit: 500, since: Math.max(0, since - 1) }) || []).filter(r => !sessionRunForgotten(r)); } catch (_) { runs = []; }
+  let runs = []; try { runs = (runStore.list(null, { limit: 500, since: Math.max(0, since - 1) }) || []).filter(r => runView('briefing', r)); } catch (_) { runs = []; }
   // the run row keeps deliveryText only for session-scoped runs; a routine/loop's own words live in its durable
   // transcript — read the LAST assistant turn of each briefed stream (bounded) so the excerpt is the run's real output.
   // Read ONCE per stream: every iteration of a loop shares its loop- stream, so 50 overnight iterations were 50 reads
@@ -29356,7 +29374,7 @@ async function handleGrowthRatings(req, res) {
   const saved = (() => { try { return saveStore.load('agent') || null; } catch (_) { return null; } })();
   const epoch = Math.max(1, Math.floor(Number(saved && saved.agent && saved.agent.createdAt) || 1));
   if (Math.max(1, Math.floor(Number(body.epoch) || 1)) !== epoch) return json(409, { ok: false, error: 'station generation changed; reload before rating' });
-  const allRows = runStore.all();
+  const allRows = runStore.all().filter(r => runView('rating', r));
   const lead = allRows.find(r => r && r.runId === runId);
   if (!lead) return json(404, { ok: false, error: 'rateable run not found' });
   if (lead.internal) return json(409, { ok: false, error: 'internal run cannot be rated' });
@@ -29437,7 +29455,7 @@ async function handleGrowthRatingCorrection(req, res) {
     const saved = (() => { try { return saveStore.load('agent') || null; } catch (_) { return null; } })();
     const epoch = Math.max(1, Math.floor(Number(saved && saved.agent && saved.agent.createdAt) || 1));
     const rating = growthRatings.get(runId, epoch);
-    const lead = rating ? runStore.all().find(row => row && row.runId === runId) : null;
+    const lead = rating ? runView('feedback', runStore.all().find(row => row && row.runId === runId)) : null;
     // the chat posts the NEXT typed message (within 10 min of a short rating) as the correction; only words that read
     // as feedback on the work become permanent taste ("now summarize my inbox" is a new task, not a dislike). A chip
     // or a rating-body correction is explicit and always counts. The held review still gets the words either way.
@@ -29462,7 +29480,7 @@ async function handleTasteKeepStyle(req, res) {
   catch (_) { return json(400, { ok: false, error: 'bad json' }); }
   const runId = String(body.runId || '').trim();
   if (!runId) return json(400, { ok: false, error: 'runId required' });
-  const lead = runStore.all().find(r => r && r.runId === runId);
+  const lead = runView('keepStyle', runStore.all().find(r => r && r.runId === runId));
   if (!lead) return json(404, { ok: false, error: 'run not found' });
   if (lead.internal) return json(409, { ok: false, error: 'internal run cannot be kept' });
   // { undo: true } — PUT IT BACK / the panel's UNDO: the approval goes too (always allowed, even while learning is paused)
@@ -29532,7 +29550,7 @@ function serveRuns(req, res) {
     if (agent !== '*' && refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('runId') || '';
     if (runId) {
-      const allRows = runStore.all();
+      const allRows = runStore.all().filter(r => runView('runs', r));
       const rows = allRows.filter(r => r.runId === runId).filter(r => agent === '*' || r.agentId === agent);
       return json(200, { runs: rows.map(r => withRunChildren(r, allRows)) });
     }
@@ -29548,14 +29566,14 @@ function serveRuns(req, res) {
     // carries it, and each worker row carried up to 24 KB twice on every reconcile). The page sees textLength differ
     // from the missing text and reads the verified delivery projection. Old envelopes without textLength keep their
     // text, and ?runId= (withRunChildren) is unchanged.
-    const rows = page.slice(0, limit).map(r => {
+    const rows = page.slice(0, limit).filter(r => runView('runs', r)).map(r => {
       const out = withRunTruth(r), d = out.dispatchDelivery;
       if (d && d.state === 'final' && Number.isSafeInteger(d.textLength) && d.textLength > 0 && 'text' in d) {
         out.dispatchDelivery = Object.assign({}, d); delete out.dispatchDelivery.text;
       }
       return out;
     });
-    const nextCursor = page.length > limit && rows.length ? rows[rows.length - 1].runId : '';
+    const nextCursor = page.length > limit ? page[limit - 1].runId : '';   // the page's own last row, not the last one shown: a hidden row must not end the paging
     json(200, { runs: rows, nextCursor, snapshotAt });
   } catch (e) {
     // HONESTY (GROUND_UP_AUDIT P2): a store read that THROWS is a real failure, not "no history" — a
@@ -30046,7 +30064,7 @@ function serveInsights(req, res) {
        Commander's own run history (none of it is pause-gated), so the record stays visible while personalization
        is paused even though the prompts stop citing it. What a prompt may cite ≠ what the Commander may see. */
     let trackRecord = null;
-    try { const rec = Outcomes.fold(rows, { now: Date.now(), verdicts: ratingVerdictMap() }); trackRecord = { decided: rec.decided, windowMs: rec.windowMs, patterns: Outcomes.summary(rec), lines: Outcomes.lines(rec) }; } catch (_) { trackRecord = null; }
+    try { const rec = Outcomes.fold(rows.filter(r => runView('insights', r)), { now: Date.now(), verdicts: ratingVerdictMap() }); trackRecord = { decided: rec.decided, windowMs: rec.windowMs, patterns: Outcomes.summary(rec), lines: Outcomes.lines(rec) }; } catch (_) { trackRecord = null; }
     json(200, Object.assign(foldInsights(rows, { nowMs: Date.now(), bucketMs: 3600000, buckets: 24 }), { trackRecord }));
   } catch (e) { json(500, readRouteFailure('insights', e)); }   // a zeroed fold would read as "0 runs, $0" — a fabricated telemetry claim
 }

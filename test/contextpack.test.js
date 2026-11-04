@@ -194,8 +194,8 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
       stationTrackRecordLines: () => [],
       threadsStore: { openThreads: () => [] },
       redact,
-      // the host's deleted-session test (session-tombstones.js via index.js sessionRunForgotten): nothing deleted by default
-      sessionRunForgotten: input.forgotten || (() => false),
+      // the host's run-title filter (index.js runView over ForgetRegistry.viewRun, which asks the session ledger): the fixture's deleted-session test decides, nothing deleted by default
+      runView: (name, r) => ((input.forgotten || (() => false))(r) ? null : r),
       contextpack: { assemble: (data, opts) => { projections.push(data); return CP.assemble(data, opts); } }
     });
     return { pack, projected: projections[0], trustedProjected: projections[0], projectionCount: projections.length, requested };
@@ -380,7 +380,7 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
     const count = vm.runInNewContext(recentFn + '\n' + countFn + '\nnightshiftUserRunCount()', {
       Date: { now: () => T },
       TrustedLearning, redact, contextpack: CP,
-      sessionRunForgotten: () => false,
+      runView: (name, r) => r,
       runStore: { list: () => { reads.list++; return input.runs || []; }, all: refuse('runStore.all') },
       transcriptStore: { all: refuse('transcriptStore.all') },
       taskBriefStore: { list: refuse('taskBriefStore.list') },

@@ -42,7 +42,7 @@ try {
   A.eq(owned.map(item => item.rowId), [11], 'RAM owner authority rejects collided and explicitly demoted user AND steer rows');
   A.eq([...store.ownerProof([7, 8, 9, 10, 11]).keys()], [11], 'strict owner proof also rejects explicit demotion');
   A.eq(store.view('display', 's').length, 7, 'owner authority repair does not remove ordinary display evidence');
-  const sandbox = { Map, Set, Date: { now: () => now }, transcriptStore: store, runStore: { all: () => records }, taskBriefStore: { list: () => [] },
+  const sandbox = { Map, Set, Date: { now: () => now }, transcriptStore: store, runView: (name, r) => r, runStore: { all: () => records }, taskBriefStore: { list: () => [] },
     TrustedLearning: Learning, contextpack, nightshiftRecentRuns: () => records, commanderGoals: { get: () => null },
     autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}), Recommendation: { preferenceTallies: () => ({}) },
     nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [], threadsStore: { openThreads: () => [] },
