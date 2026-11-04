@@ -1046,7 +1046,19 @@ function makeDeliveryLedger(deps) {
     deliveries(chat) { return doc.deliveries.filter(d => !chat || d.chat === String(chat)).slice(); },
     tombstones(channel) { return doc.tombstones.filter(t => !channel || t.chat.slice(0, t.chat.lastIndexOf('|')) === String(channel)).slice(); },
     release(id, publication) {
+      if (publication !== undefined && (!ready() || dirty)) Publication.refuse('The publication release cannot be confirmed');
       const d = deliveryById(String(id));
+      if (!d && publication !== undefined) {
+        const proof = Publication.receipt(publication);
+        if (proof.deliveryId !== id || typeof io.readConfirmed !== 'function') Publication.refuse('The released delivery identity is unproven');
+        const saved = io.readConfirmed();
+        if (!saved || saved.version !== 1 || !Array.isArray(saved.deliveries) || !Array.isArray(saved.tombstones) ||
+            saved.deliveries.some(row => !row || row.id === id) || saved.tombstones.some(row => !row || row.id === id)) {
+          Publication.refuse('The saved delivery release could not be confirmed');
+        }
+        normalizeDoc(saved); // reject unknown publication schemas even in otherwise well-shaped documents
+        return true; // the caller already re-proved the persisted cron receipt's exact canonical row
+      }
       if (!d || d.state !== 'done') return false;
       if (Publication.hasMetadata(d)) {
         if (dirty) Publication.refuse('The publication acknowledgement is not confirmed');

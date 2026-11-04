@@ -45,7 +45,18 @@ const { makeChannelReach } = require('../sidecar/channels/reach.js');
 const cron = require('../sidecar/cron.js');
 const cronStore = require('../sidecar/cron-store.js');
 const { makeCronDriver } = require('../sidecar/cron-driver.js');
-const { makeRoutineDelivery } = require('../sidecar/routine-delivery.js');
+const Routine = require('../sidecar/routine-delivery.js');
+function routineOwner() {
+  if (!process.env.C9_ROUTINE_DELIVERY_SOURCE) return Routine;
+  const Module = require('node:module'), crypto = require('node:crypto');
+  const filename = require.resolve('../sidecar/routine-delivery.js');
+  const code = fs.readFileSync(process.env.C9_ROUTINE_DELIVERY_SOURCE, 'utf8');
+  console.log('CONTROL_SOURCE routine-delivery SHA256=' + crypto.createHash('sha256').update(code).digest('hex'));
+  const loaded = new Module(filename, module); loaded.filename = filename; loaded.paths = Module._nodeModulePaths(path.dirname(filename));
+  loaded._compile(code, filename); return loaded.exports;
+}
+const { makeRoutineDelivery } = routineOwner();
+const CanonicalHistory = require('./helpers/channel-history.js');
 const { readSidecarIndex, callRegion, liftValues } = require('./helpers/source.js');
 /* THE HOOKS ARE INDEX.JS'S OWN. The driver's four delivery seams are lifted out of index.js's makeCronDriver call (its own
    structure is the subject, so the exact file) and evaluated over this world's routine delivery: a hook index.js stops
@@ -132,10 +143,20 @@ function makeWorld(jobIds, overrides) {
     const gen = w.gen;
     for (const t of w.timers.slice()) if (t.gen !== gen) clearT(t);
     const store = makeChannelStore({ fs: fsFor(gen), pathMod: path.posix, root: ROOT, clock: { now: () => w.now }, bootId: 'boot-' + gen, timers: { setTimeout: setT, clearTimeout: clearT } });
+    const canonical = CanonicalHistory.make(store, { io: w.transcriptIo, now: () => w.now });
+    w.transcriptIo = canonical.io;
+    const history = Object.assign({}, canonical.history, { async deliver(ctx) {
+      if (w.publicationGate) {
+        const held = w.publicationGate; w.publicationGate = null;
+        w.publicationWaiting = { runId: ctx.runId, streamId: ctx.chat.streamId };
+        try { await held; } finally { w.publicationWaiting = null; }
+      }
+      return canonical.history.deliver(ctx);
+    } });
     const adapter = platform(gen);
     const emit = (name, payload) => { if (name === 'channel.delivery' && gen === w.gen) w.events.push(Object.assign({ gen: gen }, payload)); };
     const hub = makeChannelHub({
-      channel: 'telegram', store: store, send: (c, t, o) => adapter.send(c, t, o), emit: emit, runOnce: async () => {},
+      channel: 'telegram', store: store, history, send: (c, t, o) => adapter.send(c, t, o), emit: emit, runOnce: async () => {},
       secrets: () => ({ key: 'k', model: 'm', configured: true }), classify: () => true, newId: () => 'hubrun-' + (++w.ids), now: () => w.now,
       setTimeout: setT, clearTimeout: clearT, maxMessageLength: LIMIT
     });
@@ -146,13 +167,13 @@ function makeWorld(jobIds, overrides) {
     const outbound = (Outbound && store.ledger) ? Outbound.makeChannelOutbound({ ledger: store.ledger, registry: registry, reach: channelReach,
       chatRecord: (k) => store.getChatRecord(k), liveChannelFor: liveFor, scrub: (t) => t, redact: (t) => t, emit: emit }) : null;
     const read = async (agentId, rel) => {
-      if (w.readGate) { const held = w.readGate; w.readGate = null; await held; }   // one read held open (case g)
       return w.media[rel] ? { ok: true, buffer: Buffer.from(w.media[rel]), name: rel.split('/').pop(), mime: 'image/png' } : { ok: false, notFound: true, error: 'not found' };
     };
     const rd = makeRoutineDelivery({
       channelStore: store, channelOutbound: outbound, channelReach: channelReach, channelRegistry: registry, scrubOutbound: (t) => t, redact: (t) => t,
+      history, historyContext: (channel, chatId) => channel === 'telegram' ? hub.historyContext(chatId) : null,
       runStore: { list: () => [] }, egressReader: { fireReader: () => read, shownName: (paths, p) => String(p), pathsFor: () => ({}) }, readChannelUpload: read,
-      transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) }, now: () => w.now, setTimeout: setT
+      transcriptStore: canonical.transcript, stationBridge: { request: async () => ({ ok: true }) }, now: () => w.now, setTimeout: setT
     });
     let jobs = w.loadJobs();
     const hooks = cronHooks(rd);
@@ -170,7 +191,7 @@ function makeWorld(jobIds, overrides) {
       deliverResult: hooks.deliverResult, deliveryStarted: hooks.deliveryStarted, deliveryWithdrawn: hooks.deliveryWithdrawn, deliveryRecorded: hooks.deliveryRecorded
     });
     hub.onStatus({ state: 'up' });
-    w.proc = { gen: gen, store: store, hub: hub, driver: driver, jobs: () => jobs, edit: (fn) => { jobs = fn(jobs); w.files.set(JOBS, JSON.stringify({ version: 1, jobs: jobs })); } };
+    w.proc = { gen: gen, store: store, hub: hub, transcript: canonical.transcript, driver: driver, jobs: () => jobs, edit: (fn) => { jobs = fn(jobs); w.files.set(JOBS, JSON.stringify({ version: 1, jobs: jobs })); } };
     // index.js: pending receipts are asked again at boot, then on every tick
     const tick = () => { if (gen !== w.gen) return; Promise.resolve(driver.recoverFinalizations()).catch(() => {}); setT(tick, 5000); };
     setT(tick, 5000);
@@ -359,22 +380,26 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     const w = makeWorld(['daily'], { daily: { deliver: 'targets:4242,5151', origin: null, attachToSession: true } });
     w.media['charts/today.png'] = 'PNG-BYTES';
     await w.boot();
-    for (const id of ['4242', '5151']) w.proc.store.saveChatRecord(id, { agentId: 'agent', channel: 'telegram', chatId: id });
+    for (const id of ['4242', '5151']) w.proc.store.saveChatRecord(id, { agentId: 'agent', channel: 'telegram', chatId: id, streamId: 'stream_' + id });
     w.rule((c) => c.op === 'send' && c.chatId === '4242', 1, 'fail');     // 4242 has one failed send
     w.rule((c) => c.op === 'send' && c.chatId === '5151', 9999, 'fail');  // 5151 keeps failing
-    await w.fire('daily', 'run-1', digest('R1') + '\nATTACH: charts/today.png');
+    await w.fire('daily', 'run-publication-1', digest('R1') + '\nATTACH: charts/today.png');
     await w.advance(6000);
     const to = (chatId) => [1, 2, 3].map(i => w.wire.filter(c => c.op === 'send' && c.chatId === chatId && c.text.indexOf('R1-P' + i + ' ') >= 0).length);
     A.eq(to('4242'), [1, 1, 1], '(g) one target landed on its lane\'s retry');
-    // the cron's next ask reaches the session turns (it reads the fire's files again) and is held there...
+    // The cron's next ask reaches actual canonical publication and is held there. C9 publishes
+    // the durable queued parts, so it no longer reads the fire's files a second time here.
     let open;
-    w.readGate = new Promise((r) => { open = r; });
+    w.publicationGate = new Promise((r) => { open = r; });
     await w.advance(60000);
+    A.eq(w.publicationWaiting, { runId: 'run-publication-1', streamId: 'stream_4242' }, '(g) the exact first target is parked at actual canonical publication');
     A.eq(to('5151'), [0, 0, 0], '(g) the other has not landed yet');
     // ...while the other target's lane lands it whole
     w.rules.length = 0;
     await w.advance(61000);
     A.eq(to('5151'), [1, 1, 1], '(g) now it has, while the cron is still asking');
+    A.eq(JSON.parse(w.files.get(path.posix.join(ROOT, 'delivery.json'))).deliveries.filter(row => row.runId === 'run-publication-1').map(row => [row.chatId, row.state]).sort(), [['4242', 'done'], ['5151', 'done']], '(g) both done records remain on durable disk while canonical publication is parked');
+    A.eq(w.receipt('daily', 'run-publication-1').state, 'pending', '(g) the cron cannot claim completion before the parked publication');
     open();
     await settle(40);
     await w.advance(200000);
@@ -382,6 +407,7 @@ const recId = (jobId, runId) => 'routine:' + jobId + ':' + runId + ':@origin';
     const daily = cronStore.getJob(w.proc.jobs(), 'daily');
     A.eq([cronStore.pendingDeliveries(daily).length, daily.lastDeliveryOk], [0, true], '(g) both are recorded as landed');
     A.eq(w.proc.store.ledger ? w.proc.store.ledger.deliveries().length : 0, 0, '(g) and both records are released');
+    A.eq(['4242', '5151'].map(id => w.proc.transcript.view('proof', 'stream_' + id, { complete: true }).filter(row => row.kind === 'delivery').length), [1, 1], '(g) both exact destination streams contain one canonical publication');
   }
 
   // ---- (h) a chat that refuses from the first part: a result nothing of which landed is still superseded ----
