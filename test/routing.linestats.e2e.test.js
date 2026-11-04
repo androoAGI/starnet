@@ -23,6 +23,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -101,18 +102,15 @@ function stopChild(child) {
   });
 }
 
-function twoStagePlan() {
+function twoStageFloor() {
   const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
+  return floorOf({
     props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1, limits: { maxUsdPerDay: 5 } },
             { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
             { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' },
             { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
   });
-  A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-  return plan;
 }
 
 (async () => {
@@ -150,8 +148,8 @@ function twoStagePlan() {
     A.eq(empty.j.spendDay, 'utc', 'the $ ledger day is named');
 
     /* ---- 2. an armed two-dock line with a $5/day budget: zeros ---- */
-    const plan = twoStagePlan();
-    A.eq((await call('POST', '/api/routing', plan)).status, 200, 'the two-stage floor deploys');
+    const { plan } = await publishFloor(fetchApi(B, headers), twoStageFloor(), { label: 'the two-stage floor' });
+    A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
     const lineId = Pipeline.lineOf(plan, 'research-agent');
     let st = await call('GET', '/api/routing/lines/stats?since=' + t0);
     let L = (st.j.lines || []).find(l => l.lineId === lineId);

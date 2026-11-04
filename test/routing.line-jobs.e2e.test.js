@@ -10,6 +10,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 test('a line job is one durable record; SET IT UP FOR ME drafts only an offered line', async () => {
   const calls = [];
@@ -47,9 +48,7 @@ test('a line job is one durable record; SET IT UP FOR ME drafts only an offered 
       { id: 'w', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'agent', role: 'WRITER', brief: 'Write two short facts.' },
       { id: 'o', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }
     ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) };
-    const plan = Pipeline.compileRoutingPlan(geo);
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    await publishFloor(fixture, floorOf(geo));   // saved with the real save owner, then published as the page does
     const line = (Pipeline.lineComponents(geo) || [])[0].key;   // the key the WORKFLOWS window sends: the line's oldest machine
 
     // a job goes down the line: its record is the route's own verdict

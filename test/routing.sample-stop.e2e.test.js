@@ -23,6 +23,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken, sseQuery } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -147,12 +148,6 @@ const GEO = {
           { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
   belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
 };
-function twoStagePlan() {
-  const plan = Pipeline.compileRoutingPlan(GEO);
-  A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer', 'workbench'];
-  return plan;
-}
 
 (async () => {
   const mock = await startMockOpenRouter([
@@ -189,8 +184,8 @@ function twoStagePlan() {
     A.ok(idle.j && idle.j.ok === false && /nothing to stop/.test(String(idle.j.error || '')), 'the refusal says why: ' + JSON.stringify(idle.j));
 
     /* ---- 3. a job whose model call hangs is stopped mid-run ---- */
-    const posted = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(twoStagePlan()) });
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
+    const floor = await publishFloor(fetchApi(B, headers), floorOf(GEO, { equip: ['computer', 'workbench'] }), { label: 'the two-stage floor' });
+    A.ok(Pipeline.ok(floor.plan), 'the saved two-stage floor is deployable and the station says it routes');
     sse = await startSseCollector(B + '/api/channels/events?' + sseQuery(token));
     const t0 = Date.now();
     const line = (Pipeline.lineComponents(GEO) || [])[0].key;   // sent with its line, as the WORKFLOWS window does: the job keeps a record

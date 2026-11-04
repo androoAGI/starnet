@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, hintFor, planOf, publishFloor } = require('./helpers/saved-floor.js');
 
 async function startSseCollector(url) {
   const ac = new AbortController(), events = [];
@@ -63,9 +64,8 @@ async function startSseCollector(url) {
     { id: 'b1', t: 'bay', x: 3, y: 4, w: 1, h: 1, agentId: 'writer' },
     { id: 'oB', t: 'outbox', x: 6, y: 4, w: 1, h: 1 }
   ], belts: [0, 4].flatMap(y => [1, 2, 4, 5].map(x => ({ x, y, dir: 'E' }))) };
-  const plan = Pipeline.compileRoutingPlan(geometry);
+  const floor = floorOf(geometry), plan = planOf(hintFor(floor));
   assert.equal(Pipeline.ok(plan), true);
-  for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
   const lineA = plan.lineOfProp.iA, lineB = plan.lineOfProp.iB;
   const day = Math.floor(Date.now() / 86400000);
   const ledger = path.join(fixture.workspace, 'line-spend.json');
@@ -119,7 +119,7 @@ async function startSseCollector(url) {
   try {
     await fixture.start();
     await fixture.json('POST', '/api/roster', { agents: [{ agentId: 'writer', name: 'Writer', provider: 'openrouter', model: 'test/model' }], updatedAt: Date.now() });
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    await publishFloor(fixture, floor);   // saved, then published as the page does
     await openFeed();
     await cappedSample('sample entry');
     noDelivery('sample entry');
