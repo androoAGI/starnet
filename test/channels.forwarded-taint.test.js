@@ -76,7 +76,11 @@ const dm = (text, extra) => Object.assign({ channel: 'telegram', chatId: String(
       ownerUserId: String(OWNER), onInbound: (im) => { h.hub.onInbound(im); }
     });
     ad._internals.dispatch(update({ forward_origin: { type: 'hidden_user', sender_user_name: 'x', date: 1 }, forward_date: 1 }));
+    // One chat is one conversation: a message that lands while an earlier one is still preparing its run withdraws it
+    // (hub.js inflight owner; pinned by channels.history-preparation), so the owner's own words go in once the forward has run.
+    for (let n = 0; n < 100 && h.runs.length < 1; n++) await new Promise(r => setImmediate(r));
     ad._internals.dispatch(update({ message_id: 8, text: 'what is the weather' }));
+    for (let n = 0; n < 100 && h.runs.length < 2; n++) await new Promise(r => setImmediate(r));
     await new Promise(r => setTimeout(r, 20));
     A.eq(h.runs.length, 2, 'both piped messages reached a run');
     A.eq(h.runs[0].initialTaint, 'forwarded message', 'a REAL forward through the adapter begins the run tainted');
