@@ -27,6 +27,10 @@
    FAIR RETENTION: the store still keeps MAX_JOBS records in all, but the one that goes is the OLDEST FINISHED record of the line
    holding the most records — never a running or paused one — so one busy chat line cannot push every other line's history out.
 
+   A JOB HELD FOR A PERSON (line-hold lane): a walk that stopped at a reviewer's gate is status 'held' with its saved walk (the version 1
+   continuation). checkpoint writes it; claimDecision records ONE person's word on it (exactly-once: token + revision); refuseDecision marks a
+   claimed decision refused when the station's authority changed while it waited, with the reason on the record (resumeRefused) and the job
+   still held; boot turns a stage that was written down as an intent and never recorded into an UNCERTAIN attempt, which nothing runs.
    Pure: state in, state out ({ jobs: [...] }, newest last). The sidecar persists it (makeDomainStore → line-jobs.json). */
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
@@ -140,6 +144,12 @@ function normJob(j) {
       job.runs = v.attempts.slice().reverse().map(a => normRun({ runId: a.runId, agentId: a.node.agentId, dockId: a.node.dockId,
         reason: RunOutcome.reasonOf({ outcome: a.outcome }), usd: a.usd, outcome: a.outcome })).filter(Boolean).slice(0, MAX_RUNS);
       job.output = '';
+      /* (line-hold lane, S4) the reason the station refused the person's LAST decision on this hold (authority changed while it waited):
+         kept only while that refused decision is still the last word on the hold, so a newer claim, an adoption or the end clears it */
+      const last = v.decisions[v.decisions.length - 1], rr = j.resumeRefused;
+      if (rr && typeof rr === 'object' && last && last.state === 'refused' && last.token === rr.token && v.activeDecision === null) {
+        job.resumeRefused = { token: last.token, action: last.action, why: str(rr.why, 400), at: num(rr.at) };
+      }
     } else if (job.status === 'held' || (!c.ok && job.status === 'running')) {
       job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
       job.error = c.ok ? 'saved human hold has no held checkpoint' : c.issue.message;
@@ -373,7 +383,18 @@ function boot(state, at, ownedIds) {
     changed = true;
     const continued = owns(j, 'continuation');
     const why = continued ? 'the station stopped during this saved walk; its exact run receipts must be reconciled before continuing' : BOOT_WHY;
-    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why });
+    /* (line-hold lane, S4) a resumed job's stage was written down as an INTENT before it was bought. If the station died before its result
+       was written, whether it was bought is not known: the saved attempt turns UNCERTAIN, the one phase nothing runs from (a person
+       reconciles it), so the same stage is never paid for twice. An invalid or any other saved walk is left exactly as it is. */
+    let carried = null;
+    if (continued) {
+      const c = Continuation.inspect(j.continuation, j);
+      if (c.ok && c.value.phase === 'intent') {
+        try { carried = Continuation.checkpoint(c.value, j, c.value.revision, Object.assign({}, c.value, { revision: c.value.revision + 1, phase: 'uncertain' })); }
+        catch (e) { carried = null; }
+      }
+    }
+    return Object.assign({}, j, { status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why }, endedAt: continued ? null : num(at) || j.startedAt, error: why }, carried ? { continuation: carried } : null);
   });
   return { state: withJobs(state, jobs), changed };
 }
@@ -396,6 +417,9 @@ function summary(j) {
     if (c.ok && c.value.phase === 'held') {
       const h = c.value.hold;
       s.hold = { reason: h.reason, why: h.why, gateId: h.gateId, pass: h.pass, allowed: h.allowed.slice(), revision: c.value.revision };
+      if (j.resumeRefused) s.hold.refused = { action: j.resumeRefused.action, why: j.resumeRefused.why, at: j.resumeRefused.at };
+      const live = c.value.decisions.find(d => d.token === c.value.activeDecision);
+      if (live) s.hold.deciding = { action: live.action, state: live.state };   // a decision was recorded and is not carried out yet
     }
   }
   return s;
@@ -461,6 +485,27 @@ function claimDecision(state, id, request) {
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: withJobs(state, jobs), job, receipt: r.receipt, replayed: false };
 }
+/* The station REFUSED a person's decision after claiming it (line-hold lane, S4): the floor, E-STOP, a cap or a file the work carries
+   changed while the job waited. The claimed decision is marked refused (nothing was bought, the job stays HELD at the same gate) and the
+   reason rides on the record, so the window says why and a LATER, new decision is the only way on: clearing the cause never approves
+   anything. request: { token, why, at }. A refusal already recorded for that token is a replay and writes nothing. */
+function refuseDecision(state, id, request) {
+  writable(state);
+  const i = idx(state, id), r = request || {};
+  if (i < 0) return { state, job: null };
+  const prior = state.jobs[i];
+  if (!owns(prior, 'continuation')) throw new Error('job has no saved review checkpoint');
+  const before = Continuation.demand(prior.continuation, prior), d = before.decisions.find(x => x.token === r.token);
+  if (!d) throw new Error('no such line decision');
+  if (d.state === 'refused') return { state, job: prior, receipt: d, replayed: true };
+  if (before.phase !== 'held' || before.activeDecision !== d.token || d.state !== 'accepted') throw new Error('only the claimed decision on a held job can be refused');
+  const next = Object.assign({}, before, { revision: before.revision + 1, activeDecision: null,
+    decisions: before.decisions.map(x => x.token === d.token ? Object.assign({}, x, { state: 'refused' }) : x) });
+  const c = Continuation.checkpoint(before, prior, before.revision, next);
+  const job = normJob(Object.assign({}, prior, { continuation: c, resumeRefused: { token: d.token, action: d.action, why: str(r.why, 400), at: num(r.at) } }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: withJobs(state, jobs), job, receipt: c.decisions.find(x => x.token === d.token), replayed: false };
+}
 
 function entryEnrollment(state, receipt) {
   const enrolled = Accounting.demand(state, 'jobs');
@@ -518,6 +563,6 @@ function entryBootPending(job) {
   return e.ok && e.value.state === 'intent';
 }
 
-module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
+module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, refuseDecision, assertWritable: writable,
   accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending, adoptEntry,
   MAX_JOBS, MAX_HELD, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

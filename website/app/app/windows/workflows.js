@@ -56,6 +56,9 @@ const WorkflowsWindow = (() => {
     drafting: null,     // NEW: { state: 'asking'|'error', error } while the station sets a line up from a description
     made: null,         // NEW: { error, needs } when placing a line failed
     watching: null,     // the running job (not sent from here) the window is following, to show its result when it settles
+    tokens: {},         // a HELD job's decision tokens, by 'job:revision:action' — a second click on a button is the same decision, never a second one
+    deciding: null,     // { jobId, action } while a decision is out to the station
+    heldMsg: null,      // { jobId, text, bad } — the station's answer to the last decision on a held job
   };
   let body = null, liveTimer = 0, pollTimer = 0, unsub = null, paintQueued = false;
 
@@ -653,7 +656,8 @@ const WorkflowsWindow = (() => {
     // (an older record held the hand-off frame as its text: read the job back out of it)
     const jobOf = j => { const h = j.from && !j.handedIn && P() && P().parseHandoffInput ? P().parseHandoffInput(j.text) : null; return h && h.original ? h.original : String(j.text || ''); };
     const said = j => (j.from ? 'FROM ' + lineWord(j.from) + ' · ' : '') + jobOf(j).replace(/\s+/g, ' ');
-    const markOf = j => j.repeats > 1 ? mark(jobOutcome(j)).replace('</span>', ' ×' + esc(j.repeats) + '</span>') : mark(jobOutcome(j));
+    // a job HELD at a reviewer's gate waits for a person (line-hold lane): not a problem and not delivered — the chip says whose move it is
+    const markOf = j => j.status === 'held' ? '<span class="wfw-st warn">⏸ WAITING FOR YOU</span>' : j.repeats > 1 ? mark(jobOutcome(j)).replace('</span>', ' ×' + esc(j.repeats) + '</span>') : mark(jobOutcome(j));
     return '<div class="wfw-jobs">' + rows.map(j => '<button type="button" class="wfw-jobrow" data-job="' + esc(j.id) + '">' + markOf(j) + '<span class="wfw-jtext">' + esc(said(j).slice(0, 120) || '(no text)') + '</span><span class="wfw-jmeta">' + esc(ago(j.startedAt) + (j.usd ? ' · ' + usd(j.usd) : '')) + '</span></button>').join('') + '</div>';
   }
   function composeHTML(l) {
@@ -746,11 +750,12 @@ const WorkflowsWindow = (() => {
     const stepWarn = r => { const o = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r) : { ok: r.reason === 'done', outcome: r.reason === 'cancelled' ? 'stopped' : '' }; return !o.ok && o.outcome !== 'stopped'; };
     // (typed-outcomes) a step's end in words: a 'done' row that did not SUCCEED names its outcome ("ended: the reply was cut short")
     const endOf = r => (r.reason !== 'done' ? (END[r.reason] || String(r.reason || 'did not finish').replace(/_/g, ' ')) : (typeof RunOutcome !== 'undefined' ? 'ended: ' + RunOutcome.line(RunOutcome.ofRow(r)) : 'did not finish'));
-    const head = outcome === 'paused' ? '<b>PAUSED</b>' : outcome === 'running' ? '<b>RUNNING</b>' : outcome === 'blocked' ? '<b class="warn">BLOCKED</b>'
+    const held = job.status === 'held' && job.continuation && job.continuation.phase === 'held' && job.continuation.hold;   // waiting for a person (line-hold lane)
+    const head = held ? '<b class="warn">⏸ WAITING FOR YOU</b>' : outcome === 'paused' ? '<b>PAUSED</b>' : outcome === 'running' ? '<b>RUNNING</b>' : outcome === 'blocked' ? '<b class="warn">BLOCKED</b>'
       : ok ? '<b class="ok">✓ DELIVERED</b>' : outcome === 'stopped' ? '<b>■ STOPPED</b>' : outcome === 'interrupted' ? '<b class="warn">⚠ INTERRUPTED</b>' : outcome === 'failed' ? '<b class="warn">✕ IT DIDN’T RUN</b>' : '<b class="warn">⚠ FINISHED WITH A PROBLEM</b>';
     const meta = [runs.length + ' step' + (runs.length === 1 ? '' : 's'), usd(job.usd), took].filter(Boolean).join(' · ');
     // a step goes by its NAME first, then its role — the map's word for it (conveyor-ui-15)
-    const why = ok ? '' : outcome === 'paused' ? 'The step-through test is waiting for you to continue.' : outcome === 'running' ? 'This job is still running.'
+    const why = ok || held ? '' : outcome === 'paused' ? 'The step-through test is waiting for you to continue.' : outcome === 'running' ? 'This job is still running.'
       : job.stop && job.stop.why ? sentence(job.stop.why, '') : job.status === 'problem' && bad ? (() => { const p = bad.dockId && st ? st.propById(bad.dockId) : null, nm = p && (p.label || p.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + NAME(bad.agentId) + ') ' + endOf(bad) + ', so this job did not finish cleanly. Sending it again often works.'; })()
       // (a stopped record says WHO stopped it — "you stopped this job", E-STOP, or the station's own fault — never "You stopped" for all)
       : job.status === 'stopped' ? sentence(job.error, 'You stopped this job.') + ' What already ran is counted.' : job.status === 'interrupted' ? 'The station stopped while this job was out. Send it again.'
@@ -786,6 +791,7 @@ const WorkflowsWindow = (() => {
     let h = '<section class="wfw-sec wfw-result"><div class="wfw-rhead">' + head + '<span class="wfw-rmeta">' + esc(meta) + '</span></div>'
       + prov
       + (why ? '<p class="wfw-why">' + esc(why) + '</p>' : '')
+      + (held ? heldHTML(job) : '')
       + work.notes.map(t => '<p class="wfw-why">⚠ ' + esc(t) + '</p>').join('')
       // (GitHub #122) delivered, but its review loop used all its passes without an approval — the record's own mark, in the loop note's
       // line, when the result itself carries no loop note (a step after the loop wrote it)
@@ -800,7 +806,7 @@ const WorkflowsWindow = (() => {
       + (ok ? (kept ? '<button type="button" class="bb" data-act="unkeep" data-tip="The last step stops copying this result’s format, length and tone, and the crew forgets its style.">★ STYLE KEPT · PUT IT BACK</button>'
         : '<button type="button" class="bb" data-act="keep" data-tip="The step that wrote this result will match its format, length and tone every time, and the whole crew matches its style in similar work.">★ KEEP THIS STYLE</button>') : '')
       // a handed-on job is never re-sent from here: its input is what the sending line delivered, and only that line sends it on
-      + (job.from ? '' : '<button type="button" class="bb refit-primary" data-act="again"' + (runningJob() ? ' disabled' : '') + '>↻ SEND IT AGAIN</button>')
+      + (job.from ? '' : '<button type="button" class="bb refit-primary" data-act="again"' + (runningJob() || held ? ' disabled' : '') + '>↻ SEND IT AGAIN</button>')
       + '<button type="button" class="bb" data-act="newjob">+ NEW JOB</button>'
       + (job.from ? '<span class="wfw-note">To run it again, send ' + esc(lineWord(job.from)) + '’s job again — it hands its result on to this line.</span>' : '') + '</div>'
       + (waits ? '<div class="wfw-rate" data-rate-for="' + esc(waitRow.runId) + '"></div>' : '')
@@ -823,6 +829,65 @@ const WorkflowsWindow = (() => {
       b.addEventListener('click', ev => { ev.stopPropagation(); clear(); });
       host.appendChild(b);
     }
+  }
+  /* A JOB HELD FOR YOU (line-hold lane, S4). The work line stopped at a reviewer's gate and saved its walk on this job: the window shows why,
+     the work that was under review and what the reviewer said, and the three things a person can do — APPROVE (the work goes on exactly as
+     it is), SEND BACK (the note goes round the gate once more), STOP (nothing more is spent). Each press posts ONE decision with a token of
+     its own for this checkpoint, so a second press is the same decision (the station answers the saved receipt) and never a second one. A
+     decision the station refused after claiming it (the floor changed, E-STOP, a limit, a file) shows its reason here and the job stays held. */
+  const WORD = { approve: 'APPROVE', send_back: 'SEND BACK', stop: 'STOP' };
+  const sentenceOf = t => { t = String(t == null ? '' : t).trim().replace(/[.\s]+$/, ''); return t ? t.charAt(0).toUpperCase() + t.slice(1) + '.' : ''; };
+  const tokenFor = (job, action) => {
+    const k = job.id + ':' + (job.continuation && job.continuation.revision) + ':' + action;
+    return S.tokens[k] || (S.tokens[k] = 'ui-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
+  };
+  function heldHTML(job) {
+    const c = job.continuation, h = c.hold, w = c.walk, allowed = h.allowed || [], busy = !!(S.deciding && S.deciding.jobId === job.id);
+    const live = c.decisions.find(d => d.token === c.activeDecision) || null;   // a decision the station recorded and has not carried out
+    const refused = job.resumeRefused, msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
+    const draft = String(w.lastHanded || ''), said = String(w.product && w.product.text || '');
+    const btn = (act, label, primary, tip) => '<button type="button" class="bb' + (primary ? ' refit-primary' : '') + '" data-act="decide" data-decision="' + act + '"' + (busy ? ' disabled' : '') + ' data-tip="' + esc(tip) + '">' + label + '</button>';
+    return '<div class="wfw-fix wfw-held" data-held="' + esc(job.id) + '">'
+      + '<div class="wfw-k">Waiting for your decision</div><p class="wfw-why">' + esc(sentenceOf(h.why)) + '</p>'
+      + (refused ? '<p class="wfw-bad">✕ Your ' + esc(WORD[refused.action] || 'decision') + ' was not carried out: ' + esc(sentenceOf(refused.why)) + ' Nothing was spent; the job is still waiting.</p>' : '')
+      + '<div class="wfw-k">The work under review</div><div class="wf-io out wfw-out wfw-draft" data-md data-md-src="' + esc(draft || '(nothing)') + '">' + esc(draft || '(nothing)') + '</div>'
+      + (said ? '<details class="wf-more"><summary>What the reviewer said</summary><div class="wf-io" data-md data-md-src="' + esc(said) + '">' + esc(said) + '</div></details>' : '')
+      + (live
+        ? '<p class="wfw-why warn">Your ' + esc(WORD[live.action]) + ' was recorded but not carried out yet.</p><div class="wf-row"><button type="button" class="bb refit-primary" data-act="decide-apply"' + (busy ? ' disabled' : '') + '>' + (busy ? 'WORKING…' : '↻ CARRY IT OUT') + '</button>'
+          + '<span class="wfw-note">It is carried out once, however many times you press this.</span></div>'
+        : '<div class="wfw-k">Your note <span class="wfw-note">(goes with SEND BACK)</span></div>'
+          + '<textarea id="wfw-decide-note" class="wfw-field" rows="2" maxlength="2000" aria-label="Your note for the review loop" placeholder="e.g. cut the second paragraph, and give the number">' + esc(S.draft['decide:' + job.id] || '') + '</textarea>'
+          + '<div class="wf-row">' + (allowed.indexOf('approve') >= 0 ? btn('approve', busy && S.deciding.action === 'approve' ? 'WORKING…' : '✓ APPROVE', true, 'The work goes on exactly as it is shown here, past the gate.') : '')
+          + (allowed.indexOf('send_back') >= 0 ? btn('send_back', busy && S.deciding.action === 'send_back' ? 'WORKING…' : '↩ SEND BACK', false, 'Round the gate once more, with your note. It counts as another pass of the gate.') : '')
+          + (allowed.indexOf('stop') >= 0 ? btn('stop', busy && S.deciding.action === 'stop' ? 'STOPPING…' : '■ STOP', false, 'Nothing more is spent and nothing is delivered.') : '')
+          + '</div>' + (allowed.indexOf('send_back') < 0 ? '<span class="wfw-note">This gate has used all its passes, so it cannot send the work back again.</span>' : ''))
+      + (msg ? '<p class="' + (msg.bad ? 'wfw-bad' : 'wfw-okline') + '">' + (msg.bad ? '✕ ' : '') + esc(msg.text) + '</p>' : '')
+      + '</div>';
+  }
+  function decide(job, action, stored) {
+    if (!job || !job.id || !job.continuation || S.deciding) return;
+    const c = job.continuation;
+    const d = stored || { action, token: tokenFor(job, action), revision: c.revision, note: action === 'send_back' ? String(S.draft['decide:' + job.id] || '').trim().slice(0, 2000) : '' };
+    S.deciding = { jobId: job.id, action: d.action }; S.heldMsg = null; sfx('click'); schedule();
+    return postJSON('/api/line-jobs/' + encodeURIComponent(job.id) + '/decision', { action: d.action, token: d.token, revision: d.revision, note: d.note || '' }).then(({ status, j }) => {
+      S.deciding = null;
+      if (j && j.job && S.job && S.job.id === job.id) S.job = j.job;
+      if (status === 200 || status === 202) { sfx('chime'); S.heldMsg = null; if (j && j.job && j.job.status === 'running') follow(job.id); }
+      else { sfx('bad'); S.heldMsg = { jobId: job.id, bad: true, text: (j && j.error) || ('the station refused (HTTP ' + status + ')') }; }
+      loadJobs(); schedule();
+    }, () => { S.deciding = null; S.heldMsg = { jobId: job.id, bad: true, text: 'the station could not be reached, so nothing was decided — press it again' }; schedule(); });
+  }
+  // a decided job runs on in the background: its record is re-read until it leaves 'running' (the result card then shows where it landed)
+  function follow(id) {
+    const tick = () => {
+      if (!alive()) return;
+      loadJob(id).then(job => {
+        if (!job) return;
+        if (S.job && S.job.id === id) { S.job = job; schedule(); }
+        if (job.status === 'running') setTimeout(tick, 2500); else loadJobs();
+      }, () => {});
+    };
+    setTimeout(tick, 1500);
   }
   function fixHTML(job, l) {
     const fx = S.fix, asking = fx.state === 'asking';
@@ -866,8 +931,8 @@ const WorkflowsWindow = (() => {
     const on = (q, fn) => body.querySelectorAll(q).forEach(n => { n.onclick = ev => { ev.stopPropagation(); fn(n, ev); }; });
     const line = () => lineOf(floor(), S.line);
     // drafts: whatever is typed is kept, so a repaint never loses it
-    body.querySelectorAll('#wfw-job,#wfw-fix-in,#wfw-describe,#wfw-name').forEach(n => n.addEventListener('input', () => {
-      const k = n.id === 'wfw-job' ? 'job:' + S.line : n.id === 'wfw-fix-in' ? 'fix:' + (S.job && S.job.id) : n.id === 'wfw-describe' ? 'describe' : 'name';
+    body.querySelectorAll('#wfw-job,#wfw-fix-in,#wfw-describe,#wfw-name,#wfw-decide-note').forEach(n => n.addEventListener('input', () => {
+      const k = n.id === 'wfw-job' ? 'job:' + S.line : n.id === 'wfw-fix-in' ? 'fix:' + (S.job && S.job.id) : n.id === 'wfw-decide-note' ? 'decide:' + (S.job && S.job.id) : n.id === 'wfw-describe' ? 'describe' : 'name';
       S.draft[k] = n.value;
     }));
     const job = body.querySelector('#wfw-job');
@@ -903,6 +968,11 @@ const WorkflowsWindow = (() => {
     });
     on('[data-act="stop"]', () => stop());
     on('[data-job]', n => { sfx('click'); showJob(n.dataset.job); });
+    on('[data-act="decide"]', n => { if (S.job) decide(S.job, n.dataset.decision); });
+    on('[data-act="decide-apply"]', () => {
+      const c = S.job && S.job.continuation, d = c && c.decisions.find(x => x.token === c.activeDecision);
+      if (d) decide(S.job, d.action, { action: d.action, token: d.token, revision: d.revision, note: d.note });
+    });
     on('[data-act="newjob"]', () => { sfx('click'); S.job = null; S.fix = null; S.msg = null; paint(); focusIn('#wfw-job'); });
     on('[data-act="again"]', () => { const l = line(); if (!l || !S.job || S.job.from) return; S.draft['job:' + l.key] = S.job.text; send(l, S.job.text, S.job.id); });
     on('[data-act="rerun"]', () => { const l = line(); if (!l || !S.job || S.job.from) return; send(l, S.job.text, S.job.id); });
@@ -1046,6 +1116,6 @@ const WorkflowsWindow = (() => {
     schedule();
   };
   return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openJob, openOutbox, showJob, startLines,
-    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
+    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _decide: decide, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorkflowsWindow;
