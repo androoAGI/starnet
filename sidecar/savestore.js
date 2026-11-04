@@ -309,6 +309,21 @@
         const w = r.wrapper;
         return { status: 'ok', wrapper: w, head: vouchedHead(r, w, num(w && w.doc && w.doc._saveRevision)) };
       },
+      /* IS ANY COPY OF THIS SAVE KEPT BESIDE THE PRIMARY? (the saved routing authority's one extra question). A primary that
+         is absent with nothing beside it is a brand-new install: there was never a floor. A primary that is absent beside a
+         copy is a floor whose bytes went missing: <file>.bak (the previous committed main), or any forensic copy persist
+         keeps (<file>.corrupt-<n>, the legacy .corrupt and .corrupt-<pid>-<seq>, <file>.unseen-<n>, <file>.bak.corrupt-<n>).
+         A listing is one readdir of the root and reads no save. Doubt answers true: only a clean listing that shows none
+         says false, because false is the answer that stops the host from refusing work. */
+      hasRecoveryCopy(agentId) {
+        saveFile(agentId);   // validates the id (throws on traversal) before any listing
+        if (typeof fs.readdirSync !== 'function') return true;
+        const base = String(agentId) + '.save.json';
+        let list;
+        try { list = fs.readdirSync(rootDir); }
+        catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+        return list.some(n => typeof n === 'string' && (n === base + '.bak' || (n.indexOf(base + '.') === 0 && persist.names.isForensic(n))));
+      },
       // HTTP callers must distinguish a missing station from temporarily inaccessible bytes.
       // Keep load()'s legacy optional-document shape for internal best-effort readers.
       // head (when provable): which window wrote the current doc and its request's updatedAt (see vouchedHead), so a

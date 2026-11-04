@@ -159,28 +159,33 @@ function makeSavedFloorProjection(read) {
 // PRIVATE/UNWIRED: a posted plan is only a comparison hint. JSON omits the
 // compiler's non-enumerable links, so callers must send that companion explicitly.
 // No posted field can install a plan or supply the saved identity in the reply.
+// This compares against a projection the caller already holds: routing/saved-authority.js memoizes the projection by
+// the save's stamp, so a hint costs no compile there. makeSavedFloorHint below takes a fresh projection per call.
+function compareHintToSaved(saved, rawHint) {
+  const held = (status, reason) => Object.freeze({ version: 1, status, matched: false, routingOk: false,
+    sourceStatus: saved.status, reason, identity: null, revision: null, stamp: null });
+  if (saved.status !== 'ok') return held('unavailable', 'saved-floor-unavailable');
+  let hint, expected;
+  try {
+    hint = floorSnapshot(rawHint);
+    const h = hint.data;
+    if (!h || Array.isArray(h) || typeof h !== 'object' || Object.keys(h).length !== 3
+      || h.version !== 1 || !Object.prototype.hasOwnProperty.call(h, 'plan')
+      || !Object.prototype.hasOwnProperty.call(h, 'compilerLinks')
+      || !h.plan || typeof h.plan !== 'object' || Array.isArray(h.plan)) return held('pending', 'invalid-hint');
+    expected = floorSnapshot({ version: 1, plan: saved.plan, compilerLinks: saved.compilerLinks });
+  } catch (_) { return held('pending', 'invalid-hint'); }
+  if (hint.encoded !== expected.encoded) return held('pending', 'hint-mismatch');
+  return Object.freeze({ version: 1, status: saved.routingOk ? 'ok' : 'unroutable',
+    matched: saved.routingOk, routingOk: saved.routingOk, sourceStatus: 'ok',
+    reason: saved.routingOk ? null : 'saved-floor-unroutable', identity: saved.identity,
+    revision: saved.revision, stamp: saved.stamp });
+}
+
 function makeSavedFloorHint(read) {
   const project = makeSavedFloorProjection(read);
   return function compareSavedFloorHint(rawHint) {
-    const saved = project(); // exactly one fresh primary-owner projection per comparison
-    const held = (status, reason) => Object.freeze({ version: 1, status, matched: false, routingOk: false,
-      sourceStatus: saved.status, reason, identity: null, revision: null, stamp: null });
-    if (saved.status !== 'ok') return held('unavailable', 'saved-floor-unavailable');
-    let hint, expected;
-    try {
-      hint = floorSnapshot(rawHint);
-      const h = hint.data;
-      if (!h || Array.isArray(h) || typeof h !== 'object' || Object.keys(h).length !== 3
-        || h.version !== 1 || !Object.prototype.hasOwnProperty.call(h, 'plan')
-        || !Object.prototype.hasOwnProperty.call(h, 'compilerLinks')
-        || !h.plan || typeof h.plan !== 'object' || Array.isArray(h.plan)) return held('pending', 'invalid-hint');
-      expected = floorSnapshot({ version: 1, plan: saved.plan, compilerLinks: saved.compilerLinks });
-    } catch (_) { return held('pending', 'invalid-hint'); }
-    if (hint.encoded !== expected.encoded) return held('pending', 'hint-mismatch');
-    return Object.freeze({ version: 1, status: saved.routingOk ? 'ok' : 'unroutable',
-      matched: saved.routingOk, routingOk: saved.routingOk, sourceStatus: 'ok',
-      reason: saved.routingOk ? null : 'saved-floor-unroutable', identity: saved.identity,
-      revision: saved.revision, stamp: saved.stamp });
+    return compareHintToSaved(project(), rawHint); // exactly one fresh primary-owner projection per comparison
   };
 }
 
@@ -230,4 +235,4 @@ function makeStationStore(o) {
   return { validateStationDoc, setStation, setSaveDoc, clearStation, hasStation, getStation, getRoutingPlan, bayObjects };
 }
 
-module.exports = { makeStationStore, makeSavedFloorProjection, makeSavedFloorHint };
+module.exports = { makeStationStore, makeSavedFloorProjection, makeSavedFloorHint, compareHintToSaved };
