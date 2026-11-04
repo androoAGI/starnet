@@ -14,8 +14,13 @@
      5. a path that drifts through a junction out of the jail is still refused by the existing open owner;
      6. the rows are display only: model replay holds the reply and no file row, recall finds a file by its display prose
         and never by its folders, and the run's artifact ledger and recap card are unchanged;
-     7. the agent's deliverable_note names the one file it proves ('main') and no other.
-   RED at 4152883a1: no deliverable rows exist, so GET holds no file rows. On http.list. */
+     7. the agent's deliverable_note names the one file it proves ('main') and no other;
+     8. a path the tools may legally write but a row may not publish (an absolute path outside every root) gets no row and a
+        counted diagnostic that names the reason and never the path;
+     9. a file row the disk refuses skips nothing below it: the run still records (and takes its note), drains its reply and
+        ends without an error, the refusal is counted under turn.files, and the file still opens through the existing owner.
+   RED at 4152883a1: no deliverable rows exist, so GET holds no file rows. On http.list (and slow.list: 27 s on a quiet box, 53-69 s
+   on a shared one). */
 const A = require('./_assert.js');
 const fs = require('node:fs'), os = require('node:os'), path = require('node:path'), http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
@@ -27,6 +32,8 @@ const HOST = '127.0.0.1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const REPORT = 'report · v2.md', IMAGE = 'a · b.png', AUDIO = 'clip.mp3', VIDEO = 'clip.mp4', DRIFT = 'drift/x.md';
 const BYTES = { [REPORT]: '# Report v2\nbytes-of-the-report · exact', [IMAGE]: 'PNG-a-b-bytes', [AUDIO]: 'MP3-bytes', [VIDEO]: 'MP4-bytes', [DRIFT]: 'inside-the-jail' };
+const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-file-rows-'));
+const ABSOLUTE = path.join(scratch, 'outside', 'absolute-note.md');   // a legal write the tools may make, but not a path a row may publish
 const WORKER_FILE = 'worker-note.md', WORKER_BYTES = 'the worker wrote this', PROJECT_FILE = 'src/project-note.md', PROJECT_BYTES = 'inside the project';
 
 // the scripted model: one tool call per turn, chosen by the run's own marker word and by how many results it has seen
@@ -37,10 +44,11 @@ const PLANS = [
   scripted('FILES_RUN', [
     ['fs_write', { path: REPORT, content: BYTES[REPORT] }], ['fs_write', { path: IMAGE, content: BYTES[IMAGE] }], ['fs_write', { path: AUDIO, content: BYTES[AUDIO] }],
     ['fs_write', { path: VIDEO, content: BYTES[VIDEO] }], ['fs_write', { path: '../escape.md', content: 'refused by the jail' }],
-    ['fs_write', { path: DRIFT, content: BYTES[DRIFT] }],
+    ['fs_write', { path: DRIFT, content: BYTES[DRIFT] }], ['fs_write', { path: ABSOLUTE, content: 'outside every root' }],
     ['deliverable_note', { title: 'The v2 report', summary: 'Four files and a note.', kind: 'files', main: REPORT }]]),
   scripted('WORKER_RUN', [['fs_write', { path: WORKER_FILE, content: WORKER_BYTES }]]),
-  scripted('PROJECT_RUN', [['fs_write', { path: PROJECT_FILE, content: PROJECT_BYTES }]])
+  scripted('PROJECT_RUN', [['fs_write', { path: PROJECT_FILE, content: PROJECT_BYTES }]]),
+  scripted('FAULT_RUN', [['fs_write', { path: 'fault-note.md', content: 'written while the file-row disk write fails' }], ['deliverable_note', { title: 'The fault note', summary: 'Named, then lost to the disk.', kind: 'doc', main: 'fault-note.md' }]])
 ];
 
 function startModel(requests) {
@@ -88,7 +96,6 @@ const fileRowsOf = body => rowsOf(body).filter(row => row.kind === 'deliverable'
   const requests = [];
   const model = await startModel(requests);
   const base = 'http://' + HOST + ':' + model.address().port + '/api/v1';
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-file-rows-'));
   fs.mkdirSync(path.join(scratch, 'project'), { recursive: true });
   const project = fs.realpathSync(path.join(scratch, 'project'));
   const outside = path.join(scratch, 'outside');
@@ -96,7 +103,8 @@ const fileRowsOf = body => rowsOf(body).filter(row => row.kind === 'deliverable'
   const fixture = SidecarFixture.create({ prefix: 'starnet-file-rows-', timeoutMs: 40000, env: {
     SKYNET_OPENROUTER_BASE: base, STARNET_OPENROUTER_BASE: base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-file-rows-fixture', STARNET_OPENROUTER_KEY: 'sk-or-v1-file-rows-fixture',
     SKYNET_DEFAULT_MODEL: 'test/model', STARNET_DEFAULT_MODEL: 'test/model', SKYNET_CRON_TICK_MS: '5000', STARNET_CRON_TICK_MS: '5000',
-    SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', SKYNET_REFLECT: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_EDGE_TTS: '0', SKYNET_QUEST_REFRESH_MS: '0', SKYNET_SCOUT: '0', SKYNET_THREAD_MINE: '0'
+    SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', SKYNET_REFLECT: '0', SKYNET_SKILL_REVIEW: '0', SKYNET_EDGE_TTS: '0', SKYNET_QUEST_REFRESH_MS: '0', SKYNET_SCOUT: '0', SKYNET_THREAD_MINE: '0',
+    NODE_OPTIONS: '--require ' + JSON.stringify(path.join(__dirname, 'fixtures', 'deliverable-rows-fault.cjs'))   // inert until the arm file exists (leg 7)
   } });
   const grants = path.join(fixture.workspace, 'permissions.allow.json');
   const jail = agent => path.join(fixture.workspace, agent);
@@ -131,6 +139,13 @@ const fileRowsOf = body => rowsOf(body).filter(row => row.kind === 'deliverable'
     A.ok(files.every(r => r.role === 'system' && r.deliverable.workspace === 'agent' && r.deliverable.root === '' && r.sourceRunId === runId && r.turnId === Kinds.runTurnId(runId) && Number.isSafeInteger(r.rowId) && r.rowId > 0), 'each names the writing agent, no root, the run and its turn');
     A.ok(files.every(r => r.deliverable.path.length <= 260 && !/^[\\/]|^[A-Za-z]:|\.\./.test(r.deliverable.path)), 'and no path is shortened, absolute or climbing');
     A.ok(!files.some(r => /escape/.test(r.deliverable.path)), 'the write the jail refused has no row');
+    const wroteAbsolute = fs.existsSync(ABSOLUTE);
+    A.ok(!files.some(r => r.deliverable.path.includes('absolute-note') || path.isAbsolute(r.deliverable.path)), 'an absolute path outside every root is never published, whatever the tool wrote');
+    const skipLines = fixture.output().split(/\r?\n/).filter(line => line.includes('[failopen] turn.files.skipped'));
+    if (wroteAbsolute) {
+      A.ok(skipLines.length >= 1, 'the tool did write the absolute file, and its skip is a counted diagnostic: ' + skipLines.length);
+      A.ok(skipLines.every(line => !line.includes('absolute-note')), 'which names the reason only, never the path');
+    } else console.log('NOTE: this host refused the absolute write, so the skip diagnostic leg did not run');
     A.eq(files.find(r => r.deliverable.path === REPORT).deliverable.name, 'The v2 report', 'the note names the one file it proved (main)');
     A.eq(files.filter(r => r.deliverable.path !== REPORT).map(r => r.deliverable.name), [IMAGE, AUDIO, VIDEO, 'x.md'], 'and every other row is named by its basename');
     const reply = rowsOf(body).find(r => r.role === 'assistant' && /FILES_RUN_DONE/.test(r.content || ''));
@@ -142,7 +157,7 @@ const fileRowsOf = body => rowsOf(body).filter(row => row.kind === 'deliverable'
     A.ok(replay.status === 200 && !rowsOf(replay.body).some(r => r.kind === 'deliverable' || (r.deliverable != null)), 'model replay carries no file row');
     const runs = (await fixture.json('GET', '/api/runs?agent=agent&runId=' + runId)).body.runs || [];
     const record = runs.find(r => r.runId === runId) || {};
-    A.eq((record.artifacts || []).map(a => a.path), WRITTEN, 'the run\'s artifact ledger (the recap card\'s source) is unchanged and still lists every written file');
+    A.eq((record.artifacts || []).map(a => a.path), WRITTEN.concat(wroteAbsolute ? [ABSOLUTE] : []), 'the run\'s artifact ledger (the recap card\'s source) is unchanged: it still lists every written file, the absolute one included');
     A.ok(!(record.artifacts || []).some(a => 'cut' in a), 'and carries no new field');
     A.eq(record.deliverable && record.deliverable.title, 'The v2 report', 'the run record keeps its note');
 
@@ -199,9 +214,28 @@ const fileRowsOf = body => rowsOf(body).filter(row => row.kind === 'deliverable'
       A.ok(!(await drifted.text()).includes('OUTSIDE'), 'and the outside bytes are never served');
     } else console.log('NOTE: junction creation is not permitted here; the drift leg was skipped');
 
-    /* 6. the stream's display holds the chips, model replay never; a rerun of the page's merge finds the same address */
+    /* 6. the stream's display holds the chips, model replay never */
     const display = rowsOf(await read());
     A.eq(display.filter(r => r.kind === 'deliverable').length, WRITTEN.length, 'display still holds each chip once after all of this');
+
+    /* 7. a file row the disk refuses skips nothing below it: the run still records (and takes its note), drains and answers */
+    const arm = path.join(fixture.workspace, 'deliverable-fault.arm'), seen = path.join(fixture.workspace, 'deliverable-fault-observed.jsonl');
+    fs.writeFileSync(arm, 'refuse kind:deliverable writes');
+    const faulted = await fixture.json('POST', '/api/run', { model: 'test/model', provider: 'openrouter', agentId: 'agent', isTask: true, streamId: 'fault-stream', messages: [{ role: 'user', content: 'FAULT_RUN: write one file and name it.' }] });
+    fs.unlinkSync(arm);
+    A.eq(faulted.status, 200, 'the run streams while the disk refuses its file row');
+    const fevents = ndjson(faulted.text), fstart = fevents.find(e => e.name === 'agent.run.start' && e.payload && !e.payload.parentRunId), fend = fevents.find(e => e.name === 'agent.run.end');
+    A.ok(!!fstart && !!fend && !fevents.some(e => e.name === 'agent.run.error'), 'it ends without an error: the refused row is nobody\'s failure but the diagnostics\'');
+    A.eq(fs.readFileSync(path.join(jail('agent'), 'fault-note.md'), 'utf8'), 'written while the file-row disk write fails', 'fixture: the tool wrote the file');
+    A.ok(fs.existsSync(seen) && fs.readFileSync(seen, 'utf8').includes('"kind":"deliverable"'), 'fixture: the fault hit the file row\'s disk write');
+    const frows = rowsOf((await fixture.json('GET', '/api/transcript?stream=fault-stream&limit=100')).body);
+    A.eq(frows.filter(r => r.kind === 'deliverable').length, 0, 'no file row landed');
+    A.ok(frows.some(r => r.role === 'user' && /FAULT_RUN/.test(r.content || '')) && frows.some(r => r.role === 'assistant' && /FAULT_RUN_DONE/.test(r.content || '')), 'but the run\'s directive and its final reply are in the transcript (the final drain ran)');
+    const frecord = (((await fixture.json('GET', '/api/runs?agent=agent&runId=' + fstart.payload.runId)).body || {}).runs || []).find(r => r.runId === fstart.payload.runId) || {};
+    A.eq([(frecord.artifacts || []).map(a => a.path), frecord.deliverable && frecord.deliverable.title], [['fault-note.md'], 'The fault note'], 'and the run record (runStore.record) holds its artifact ledger and its taken note, so the recap card still names the file');
+    A.ok(/\[failopen\] turn\.files \(x\d+\)/.test(fixture.output()), 'the refusal is counted under turn.files');
+    const faultOpen = await fixture.request('/api/file?agent=agent&path=fault-note.md');
+    A.eq([faultOpen.status, await faultOpen.text()], [200, 'written while the file-row disk write fails'], 'and the file still opens through the existing owner');
   } catch (error) {
     A.ok(false, 'threw: ' + ((error && error.stack) || error) + '\n' + fixture.output().slice(-3000));
   } finally {

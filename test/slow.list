@@ -111,5 +111,5 @@ test/run-lifecycle.invariants.http.test.js
 # line-entry-parity.e2e: one real sidecar, the same job by all seven entries twice (the second pass saves a file before it answers) —
 # 44-67 s standalone on 2026-11-03 with other lanes building on the box, so it is listed by the >= 40 s rule.
 test/line-entry-parity.e2e.test.js
-# deliverable-rows.e2e: a routine's Run Now, a worker run and a project run on one real sidecar, plus a restart — 53 s standalone on 2026-11-04 (box shared with other lanes), so it is listed by the >= 40 s rule.
+# deliverable-rows.e2e: a routine's Run Now, a worker run, a project run and a disk-fault run on one real sidecar, plus a restart — 53-69 s standalone on 2026-11-04 while other lanes were building, 27 s on a quiet box; listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
 test/deliverable-rows.e2e.test.js
