@@ -929,9 +929,9 @@
     return /Commander (?:explicitly )?(?:declined|denied|cancelled)|user-control denied|user denied|Do NOT retry|approval denied/i.test(text);
   }
 
-  /* THE REBUILT PROMPT STILL OPENS ON A USER TURN (context-budget-and-fold, 2026-11-04). The head pin used to guarantee
-     it (the pinned first message was a user turn), and the wire layers repair an assistant-first request only with a
-     synthetic "<host_turn>" user turn (provider.js boundaryTurns), which a fold should not need. With no stale pin a
+  /* THE REBUILT PROMPT OPENS ON A USER TURN WHEN A LIGHT ONE IS AT HAND (context-budget-and-fold, 2026-11-04). The head pin
+     used to guarantee it (the pinned first message was a user turn), and the wire layers repair an assistant-first request
+     only with a synthetic "<host_turn>" user turn (provider.js boundaryTurns), which a fold should not need. With no stale pin a
      fold that REMOVES messages rebuilds system prefix + summary note + tail, so when the tail's first non-system
      message is an assistant turn (the cut fell between a question and its reply, or inside a long exchange's tool
      pairs) one user turn is pinned at the head, the shape a single directive already has (system prefix + user turn +
@@ -940,20 +940,30 @@
        - otherwise the LAST user message of the slice: the question the tail's first reply answers. It is the chat's
          first message only when the cut falls inside the first exchange.
      `keep` names it; the slice that is folded no longer holds it, so its words are not carried twice.
+     A PIN IS A WEIGHT THE FOLD CANNOT REMOVE (review 11-04): it rides every post-fold prompt whole, and the old pin held
+     the chat's FIRST message only, so a big turn in the middle of a chat was always folded and its words went through the
+     clipped verbatim section. Pinned whatever its size, the question the cut falls behind decided how much a fold could
+     free: a 7k-token paste in an 8k window left the fold nothing to take and added a note on top (6848 -> 6909 tokens),
+     and a provider that refused the prompt could not be answered at all (every run ended context_overflow where the old
+     pin finished). So a turn is pinned only when it fits: `fits(m)` (maybeCompact's pinFits: a turn the verbatim section
+     would carry whole anyway, the run's request up to a quarter of the window). One that does not fit is FOLDED like any
+     older turn, its words ride the verbatim section clipped to its share, and the wire's own boundary turn
+     (providers/provider.js boundaryTurns) opens the request on a user turn.
      THE CUT NEVER MOVES. Moving it back to a user message looks like the same guarantee for free and is not (probe
      11-04): a cut inside an earlier exchange with several tool pairs, or after a giant paste, would pull that whole
      exchange into the verbatim tail so the fold shrinks little, and when the chat's first message is the slice's only
      user turn it empties the slice and nothing folds at all, where the old pin folded the tool pairs. A slice that
      holds no user message has nothing to open on: the plan stands. A tail that already opens on a user turn (or has no
      non-system message) is returned as it came. Pure; returns the SAME object when nothing changes. */
-  function openOnUser(plan, request) {
+  function openOnUser(plan, request, fits) {
     if (!plan || !Array.isArray(plan.older) || !plan.older.length || !Array.isArray(plan.tail)) return plan;
     const head = plan.tail.find(m => m && m.role !== 'system');
     if (!head || head.role === 'user') return plan;
     let keep = request && plan.older.indexOf(request) >= 0 ? request : null;
     for (let k = plan.older.length - 1; !keep && k >= 0; k--) { const m = plan.older[k]; if (m && m.role === 'user' && !isScreenCapture(m)) keep = m; }
-    return keep ? { older: plan.older.filter(m => m !== keep), tail: plan.tail, keep } : plan;
+    return keep && typeof fits === 'function' && fits(keep) ? { older: plan.older.filter(m => m !== keep), tail: plan.tail, keep } : plan;
   }
+  const PIN_REQUEST_SHARE = 0.25;   // the most of the window the run's own request may weigh as a pin (openOnUser)
 
   async function runAgentLoop(o) {
     const messages = o.messages;
@@ -1902,12 +1912,24 @@
           }
         }
       }
-      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt must still open on a user turn, so a tail
+      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt should still open on a user turn, so a tail
          that would open on an assistant turn gets one user turn pinned at the head (openOnUser; the cut stays the
-         planner's). The micro tier above removes none, so it needed no such care. */
+         planner's) when that turn is light enough to carry whole; a heavier one folds and the wire opens the request on
+         its own boundary turn. The micro tier above removes none, so it needed no such care. */
       let keptTurn = null;   // the user turn pinned at the head instead of folded (onFold: a stored claim must stop before it)
       if (!headPinned) {
-        const opened = openOnUser(plan, runRequest);
+        /* WHAT A PINNED TURN MAY WEIGH (openOnUser): it rides every post-fold prompt, so by the same local ruler as the rest
+           of the fold a turn is pinned only when the verbatim section would have carried it whole anyway (the cap one carried
+           message gets, compaction-fidelity PER_MESSAGE_MAX_CHARS). The run's own request may weigh more, never less than
+           that: up to PIN_REQUEST_SHARE of the window. Anything heavier folds; an unreadable weight is no pin. */
+        const pinFits = (m) => {
+          try {
+            let cap = context.estimateMessages([{ role: 'user', content: 'x'.repeat(fidelity.PER_MESSAGE_MAX_CHARS) }]);
+            if (m === runRequest) { const w = windowTokens(); cap = w > 0 ? Math.max(cap, Math.floor(w * PIN_REQUEST_SHARE)) : Infinity; }
+            return context.estimateMessages([m]) <= cap;
+          } catch (e) { failNote('loop.compaction.pinFits', e); return false; }
+        };
+        const opened = openOnUser(plan, runRequest, pinFits);
         if (opened !== plan) {
           plan = { older: opened.older, tail: opened.tail };
           keptTurn = opened.keep;

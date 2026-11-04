@@ -16,7 +16,14 @@
        first message was the slice's only user turn nothing folded at all, where the old pin folded the tool pairs. Every
        fold the old pin made is still made, over the same planned slice (the pinned turn aside), with the planner's tail
        untouched;
-     - the free micro tier removes nothing, so it still sees the whole slice.
+     - the free micro tier removes nothing, so it still sees the whole slice;
+     - A PIN IS A WEIGHT THE FOLD CANNOT REMOVE (review 11-04, legs 5-7): the old pin held the chat's first message only, so a
+       big turn in the middle of a chat was always folded. The first cut of the rule pinned whatever turn the cut fell behind,
+       however large: a 7k-token paste in an 8k window left the fold nothing to take (6848 -> 6909 tokens, a paid call that
+       made the prompt bigger), and a provider that refused the prompt could not be answered at all. Now a turn is pinned only
+       when it weighs no more than the verbatim section would carry of it (compaction-fidelity PER_MESSAGE_MAX_CHARS), the
+       run's own request no more than that or a quarter of the window; a heavier one folds, its words ride the clipped
+       verbatim section as before the lane, and the wire's boundary turn opens the request on a user turn.
 
    CLASS SWEEP over the real runAgentLoop + makeContext: chats of 1, 2 and 20 earlier turns; plain, with a tool pair in
    every second exchange, and with three bulky tool pairs in the FIRST exchange; the run's request last or followed by
@@ -27,8 +34,10 @@
 'use strict';
 const A = require('./_assert.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
-const { makeContext } = require('../sidecar/context.js');
+const { makeContext, RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
 const { makeCostEngine } = require('../sidecar/cost.js');
+const fidelity = require('../sidecar/compaction-fidelity.js');
+const { projectRoles } = require('../sidecar/providers/provider.js');
 
 const STALE = 'STALE-FIRST-7f3a';
 const ASK = 'LATEST-ASK-91bc';
@@ -72,18 +81,19 @@ function expectedCut(ctx, history, request) {
   return { older: raw.older, tail: raw.tail, keep: null };
 }
 
-async function oneFold(seed, keepTail) {
-  const ctx = makeContext({ contextLimit: WINDOW, compactAt: 0.65, keepTail });
+async function oneFold(seed, keepTail, win) {
+  win = win || WINDOW;
+  const ctx = makeContext({ contextLimit: win, compactAt: 0.65, keepTail });
   const requests = [], folded = [], events = [];
   const messages = seed.slice();
-  const provider = { priceOf: () => null, contextLimit: () => WINDOW, stream: async function* (req) {
+  const provider = { priceOf: () => null, contextLimit: () => win, stream: async function* (req) {
     requests.push(req.messages.slice());
     yield { type: 'text', delta: 'done' }; yield { type: 'done', finishReason: 'stop' };
   } };
   const res = await runAgentLoop({ messages, provider, cost: makeCostEngine({ priceOf: () => null }), context: ctx,
     emit: (n, p) => { if (n === 'agent.compact') events.push(p); },
     summarize: async (older) => { folded.push(older); return { summary: 'S', usd: 0, tokens: 0 }; },
-    microCompaction: false, model: 'm', agentId: 'a', runId: 'r', limits: { maxIters: 4 }, contextLimit: WINDOW });
+    microCompaction: false, model: 'm', agentId: 'a', runId: 'r', limits: { maxIters: 4 }, contextLimit: win });
   return { res, requests, folded, events };
 }
 
@@ -282,6 +292,142 @@ async function oneFold(seed, keepTail) {
     A.eq(sent.length, seed.length, 'micro tier: it removed no message');
     A.ok(sent.slice(0, 4).every((m, i) => m === seed[i]), 'micro tier: and moved none (the chat, the request, in order)');
     A.ok(sent.filter(m => m.role === 'tool' && /^\[tool result elided/.test(String(m.content))).length >= 2, 'micro tier: older tool results of the run itself were elided');
+  }
+
+  // ---- 5. A BULKY USER TURN IS FOLDED, NOT PINNED: the class (review 11-04) ----
+  // The question the cut falls behind used to be pinned whatever its size. Every shape below puts the cut right behind a paste
+  // (the tail opens on the paste's reply), from one line under the verbatim cap to a turn that is most of the window. The
+  // invariants hold on the code before the lane (the old pin held only the chat's first message) and must hold after it:
+  // a heavy turn is not a message of the prompt, the summarizer received it, its words ride the verbatim section once, a fold
+  // never grows the prompt, the prompt is no larger than the old head pin's own plus one light turn, and the request the wire
+  // builds opens on a user turn. A turn at or under the cap is still pinned (the lane's rule, legs 1-3).
+  const PASTE = 'GIANT-PASTE-3c9e';
+  const capTokens = ctx => ctx.estimateMessages([{ role: 'user', content: 'x'.repeat(fidelity.PER_MESSAGE_MAX_CHARS) }]);   // what the verbatim section carries of one message
+  const isPaste = m => !!m && m.role === 'user' && String(m.content).startsWith(PASTE);
+  // six small exchanges with bulky replies, the paste turn (`chars` long, with a tool pair when `tools`) and its reply, `after`
+  // small exchanges, then the run's request
+  function bulky(chars, after, tools) {
+    const m = [{ role: 'system', content: 'You are a station agent.' }];
+    const exchange = (user, reply) => { m.push({ role: 'user', content: user }); m.push({ role: 'assistant', content: reply }); };
+    for (let k = 1; k <= 6; k++) exchange('Request ' + k + ': question number ' + k, 'Reply ' + k + ' ' + 'r'.repeat(1500));
+    m.push({ role: 'user', content: (PASTE + ' ' + 'lorem ipsum dolor '.repeat(Math.ceil(chars / 18))).slice(0, chars) });
+    if (tools) { m.push(call('p1')); m.push({ role: 'tool', tool_call_id: 'p1', content: 'what the paste says' }); }
+    m.push({ role: 'assistant', content: 'Reply to the paste: I read it.' });
+    for (let k = 1; k <= after; k++) exchange('Request ' + (6 + k) + ': follow-up ' + k, 'Reply ' + (6 + k) + ' ' + 'r'.repeat(300));
+    m.push({ role: 'user', content: 'Now: ' + ASK });
+    return m;
+  }
+  {
+    let heavy = 0, light = 0;
+    for (const chars of [3900, 4000, 4001, 4100, 12000]) for (const after of [0, 1, 3]) for (const tools of [false, true]) {
+      const tag = 'paste of ' + chars + ' chars, ' + after + ' exchange(s) after' + (tools ? ', tool pair' : '');
+      const seed = bulky(chars, after, tools);
+      const keepTail = (tools ? 3 : 1) + 2 * after + 1;                       // from the paste's reply (or its tool call) to the request
+      const probe = makeContext({ contextLimit: WINDOW, compactAt: 0.65, keepTail });
+      const paste = seed.find(isPaste), request = seed[seed.length - 1];
+      const before = probe.estimateMessages(seed);
+      A.ok(before > 0.65 * WINDOW, tag + ': the fixture is over the fold line (' + before + ')');
+      const raw = probe.planCompaction(seed.slice(1), {});
+      const head = raw.tail.find(m => m.role !== 'system');
+      A.ok(raw.older[raw.older.length - 1] === paste && head && head.role === 'assistant', tag + ': fixture: the cut falls right behind the paste, the tail opens on an assistant turn');
+      const { res, requests, folded } = await oneFold(seed, keepTail);
+      A.eq(res.reason, 'done', tag + ': the run completes');
+      A.eq(folded.length, 1, tag + ': one fold');
+      const sent = requests[0], note = sent.find(isNote);
+      const fits = probe.estimateMessages([paste]) <= capTokens(probe);
+      A.eq(fits, chars <= fidelity.PER_MESSAGE_MAX_CHARS, tag + ': the weight line is the verbatim cap (PER_MESSAGE_MAX_CHARS ' + fidelity.PER_MESSAGE_MAX_CHARS + ' characters)');
+      if (fits) {
+        light++;
+        A.ok(sent[1] === paste && !folded[0].includes(paste), tag + ': a turn the verbatim section would carry whole is pinned at the head');
+      } else {
+        heavy++;
+        A.ok(!sent.includes(paste), tag + ': a heavy turn is not a message of the prompt');
+        A.ok(folded[0].includes(paste), tag + ': the summarizer received it');
+        A.eq(count(JSON.stringify(sent), PASTE), 1, tag + ': its words ride the request exactly once');
+        A.ok(note && new RegExp('\\[user message: first \\d+ of \\d+ chars\\]\\n' + PASTE).test(note.content), tag + ': in the verbatim section, clipped to its share and saying so');
+      }
+      const afterTokens = probe.estimateMessages(sent);
+      A.ok(afterTokens < before, tag + ': a fold never grows the prompt (' + before + ' > ' + afterTokens + ')');
+      // the old head pin's post-fold prompt for the same chat: its first message pinned, the planner over everything after it
+      const old = probe.planCompaction(seed.slice(2), {});
+      const oldNote = { role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary('S', fidelity.renderUserSection(fidelity.mergeUserMessages(null, fidelity.collectUserMessages(old.older, { pinned: request }), fidelity.userBudgetChars(WINDOW)))) + '\n</conversation_summary>' };
+      const oldTokens = probe.estimateMessages([seed[0], seed[1], oldNote].concat(old.tail));
+      A.ok(afterTokens <= oldTokens + capTokens(probe), tag + ': and is no larger than the old head pin\'s plus one light turn (' + afterTokens + ' vs ' + oldTokens + ' + ' + capTokens(probe) + ')');
+      for (const policy of ['chat', 'native']) {
+        const first = projectRoles(sent, policy).find(m => m.role !== 'system');
+        A.eq(first && first.role, 'user', tag + ': the request the wire builds opens on a user turn (' + policy + ' roles)');
+      }
+    }
+    A.ok(heavy >= 18 && light >= 12, 'the sweep folds heavy turns (' + heavy + ') and still pins light ones (' + light + ')');
+  }
+
+  // ---- 6. A PROVIDER THAT REFUSES THE PROMPT IS ANSWERED BY THE FOLD, whatever the question the cut falls behind weighs ----
+  // The provider has a hard window below what the fold line allows (every real one counts more than the local ruler): a chat
+  // whose newest big turn is a paste. Before the lane the paste was folded and the run finished; with the paste pinned the
+  // forced fold had nothing left to take and every run ended context_overflow. Production context policy (RUN_CONTEXT_DEFAULTS).
+  {
+    const run = async (WIN, HARD, chars) => {
+      const ctx = makeContext(Object.assign({ contextLimit: WIN }, RUN_CONTEXT_DEFAULTS));
+      const seed = [{ role: 'system', content: 'You are a station agent.' }];
+      for (let k = 1; k <= 3; k++) seed.push({ role: 'user', content: 'Request ' + k + ': small question ' + k }, { role: 'assistant', content: 'Reply ' + k + ' short' });
+      seed.push({ role: 'user', content: (PASTE + ' ' + 'lorem ipsum dolor '.repeat(Math.ceil(chars / 18))).slice(0, chars) }, { role: 'assistant', content: 'Reply to the paste: I read it.' }, { role: 'user', content: 'Now: ' + ASK });
+      const posts = [], start = ctx.estimateMessages(seed), line = ctx.thresholdTokens();   // read before the run: a refusal that names its window lowers the line
+      const provider = { priceOf: () => null, contextLimit: () => WIN, stream: async function* (req) {
+        const est = ctx.estimateMessages(req.messages);
+        posts.push(est);
+        if (est > HARD) { const e = new Error('prompt is too long: ' + est + ' tokens > ' + HARD + ' maximum'); e.status = 400; throw e; }
+        yield { type: 'text', delta: 'done' }; yield { type: 'done', finishReason: 'stop' };
+      } };
+      let summarizerCalls = 0;
+      const res = await runAgentLoop({ messages: seed.slice(), provider, cost: makeCostEngine({ priceOf: () => null }), context: ctx, emit: () => {},
+        summarize: async () => { summarizerCalls++; return { summary: 'S', usd: 0, tokens: 0 }; }, microCompaction: false, model: 'm', agentId: 'a', runId: 'r', limits: { maxIters: 4 }, contextLimit: WIN });
+      return { res, posts, summarizerCalls, start, line };
+    };
+    const shapes = [
+      // [window, the provider's hard limit (0 = it takes anything that fits the window), paste chars, whether the fold line is crossed before the first post]
+      [8000, 7000, 29700, true], [8000, 7000, 31050, true], [8000, 7000, 32400, true],      // the proactive fold lands above what the provider takes
+      [8000, 4000, 18000, false],                                                           // under the fold line, but over what the provider takes: the overflow recovery
+      [32000, 0, 91800, true], [32000, 0, 102600, true]                                     // a big window: the fold has to land under the line, or the next post folds again
+    ];
+    for (const [WIN, HARD, chars, proactive] of shapes) {
+      const tag = WIN + ' window, ' + (HARD ? 'provider takes ' + HARD : 'no hard limit') + ', paste of ' + chars + ' chars';
+      const { res, posts, summarizerCalls, start, line } = await run(WIN, HARD || WIN, chars);
+      A.eq(start > line, proactive, tag + ': the fixture is ' + (proactive ? 'over' : 'under') + ' the fold line (' + start + ' vs ' + line + ')');
+      A.ok(start > (HARD || line), tag + ': and over what the provider takes (' + start + ')');
+      A.eq(res.reason, 'done', tag + ': the run finishes (not context_overflow)');
+      A.ok(posts[posts.length - 1] <= (HARD || WIN), tag + ': the request the provider took was under its limit (' + posts.join(', ') + ')');
+      A.ok(proactive ? posts[0] < line : posts.length === 2, tag + ': ' + (proactive ? 'the fold landed under the fold line, not just under the limit (' + posts[0] + ' vs ' + line + ')' : 'one refusal, then the request that fits'));
+      A.ok(posts.length <= 2 && summarizerCalls === 1, tag + ': one fold, at most one refusal (posts ' + posts.length + ', summarizer calls ' + summarizerCalls + ')');
+    }
+  }
+
+  // ---- 7. THE RUN'S OWN REQUEST: pinned whole while it weighs no more than the verbatim cap or a quarter of the window, folded past that ----
+  // A run already working in a long chat (its tool pairs pushed the request into the slice): a request heavier than a quarter of
+  // the window would be a weight no fold can remove, the same trap as a pasted turn. Folded, it rides the verbatim section as the
+  // 'current task' at the cap one message gets, exactly as before the lane.
+  {
+    const WIN = 8000;     // threshold 5200, a quarter of the window 2000 tokens, the verbatim cap 1004
+    for (const [chars, pinned] of [[1200, true], [6000, true], [7900, true], [8200, false], [12000, false]]) {
+      const tag = 'request of ' + chars + ' chars';
+      const request = { role: 'user', content: 'Now: ' + ASK + ' ' + 'q'.repeat(chars) };
+      const seed = [{ role: 'system', content: 'You are a station agent.' }];
+      for (let k = 1; k <= 4; k++) seed.push({ role: 'user', content: 'Request ' + k + ': question number ' + k }, { role: 'assistant', content: 'Reply ' + k + ' ' + 'r'.repeat(1200) });
+      seed.push(request);
+      for (let k = 1; k <= 4; k++) { seed.push(call('w' + k)); seed.push({ role: 'tool', tool_call_id: 'w' + k, content: 'run result ' + k + ' ' + 'T'.repeat(4000) }); }
+      const probe = makeContext({ contextLimit: WIN, compactAt: 0.65, keepTail: 2 });
+      A.ok(probe.estimateMessages(seed) > 0.65 * WIN, tag + ': the fixture is over the fold line (' + probe.estimateMessages(seed) + ')');
+      const { res, requests, folded } = await oneFold(seed, 2, WIN);
+      A.eq(res.reason, 'done', tag + ': the run completes');
+      A.ok(folded.length >= 1 && (folded[0].includes(request)) === !pinned, tag + ': the summarizer ' + (pinned ? 'never receives' : 'receives') + ' the request');
+      const sent = requests[0];
+      if (pinned) A.ok(sent[1] === request && isNote(sent[2]), tag + ': the request is pinned right before the note');
+      else {
+        A.ok(!sent.includes(request), tag + ': the request is not a message of the prompt');
+        A.ok(/\[current task: first \d+ of \d+ chars\]/.test(String((sent.find(isNote) || {}).content)), tag + ': it rides the verbatim section as the current task, clipped and saying so');
+      }
+      A.eq(count(JSON.stringify(sent), ASK), 1, tag + ': its words ride the request exactly once');
+      A.ok(probe.estimateMessages(sent) < probe.estimateMessages(seed), tag + ': and the fold shrank the prompt');
+    }
   }
 
   A.report('fold-head-pin.test');
