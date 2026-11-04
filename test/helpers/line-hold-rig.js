@@ -34,6 +34,7 @@ const belt = (x, y, dir) => ({ x, y, dir });
 // INBOX -> drafter -> reviewer (the entry dock) -> LOOP gate (done E to the OUTBOX, back N to the drafter): the S2 policy test's floor, wired
 // four ways (what the gate's escalation lane and done lane reach)
 const WIRINGS = ['esc unwired', 'esc to a dock', 'esc to an OUTBOX only', 'human OUTBOX beside a downstream dock'];
+const AFTER = 'a stage after the gate';   // not in WIRINGS: the policy matrix is about where the escalation lane goes; this floor is the resume tests'
 function geometry(gate, wiring) {
   wiring = wiring || 'esc unwired';
   const belts = [belt(1, 4, 'E'), belt(2, 4, 'E'), belt(5, 4, 'E'), belt(6, 4, 'E'), belt(7, 4, 'E'), belt(10, 4, 'E'), belt(11, 4, 'E'), belt(12, 4, 'E'),
@@ -43,8 +44,10 @@ function geometry(gate, wiring) {
   const props = [{ id: 'p1', t: 'intake', x: 0, y: 4, w: 1, h: 1 }, { id: 'p2', t: 'bay', x: 3, y: 3, w: 2, h: 2, agentId: 'drafter' },
     { id: 'p3', t: 'bay', x: 8, y: 3, w: 2, h: 2, agentId: 'reviewer' },
     Object.assign({ id: 'p5', t: 'loop', x: 12, y: 4, w: 1, h: 1, done: 'E', when: 'approved', maxIter: 6 }, gate || {}),
-    wiring === 'human OUTBOX beside a downstream dock' ? { id: 'p6', t: 'bay', x: 15, y: 3, w: 2, h: 2, agentId: 'publisher' } : { id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 }];
-  if (wiring !== 'esc unwired') props.find(p => p.t === 'loop').esc = 'S';
+    (wiring === 'human OUTBOX beside a downstream dock' || wiring === AFTER) ? { id: 'p6', t: 'bay', x: 15, y: 3, w: 2, h: 2, agentId: 'publisher' } : { id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 }];
+  // AFTER (S4's floor): the done lane runs a PUBLISHER stage and then reaches the OUTBOX, so an APPROVE has a paid stage to run from the saved cursor
+  if (wiring === AFTER) { belts.push(belt(17, 4, 'E'), belt(18, 4, 'E')); props.push({ id: 'p8', t: 'outbox', x: 19, y: 3, w: 2, h: 2 }); }
+  if (wiring !== 'esc unwired' && wiring !== AFTER) props.find(p => p.t === 'loop').esc = 'S';
   if (wiring === 'esc to a dock') { props.push({ id: 'p9', t: 'bay', x: 14, y: 6, w: 2, h: 2, agentId: 'fixer' }); belts.push(belt(12, 5, 'S'), belt(12, 6, 'E'), belt(13, 6, 'E')); }
   if (wiring === 'esc to an OUTBOX only' || wiring === 'human OUTBOX beside a downstream dock') { props.push({ id: 'p7', t: 'outbox', x: 11, y: 7, w: 2, h: 2 }); belts.push(belt(12, 5, 'S'), belt(12, 6, 'S')); }
   return { props, belts };
@@ -57,7 +60,9 @@ function hostPorts(scope) {
   const a = index.indexOf("/* ---- THE HOLD'S HOST PROOFS (line-hold lane, S3)"), b = index.indexOf('/* RESTART TRUTH (2026-07-06 audit)', a);
   if (a < 0 || b <= a) throw new Error('rig: the hold host-proofs block is missing from sidecar/index.js');
   const names = ['holdOriginOf', 'holdPlanHash', 'holdFileReceipt', 'holdAuthority', 'routinePolicyDigest'];
-  const s = Object.assign({ LineHold, crypto, fs, path, WORKSPACES: os.tmpdir(), failNote: () => {}, nightshiftState: {} }, scope);
+  const s = Object.assign({ LineHold, crypto, fs, path, WORKSPACES: os.tmpdir(), failNote: () => {}, nightshiftState: {},
+    // what a RESUME's authority reads beside a hold's (line-hold lane, S4): the crew, the halts, the day ledger
+    sampleRunConfigFor: () => ({ ok: true, configured: true }), cronHalted: false, processFaultQuiesced: false, lineSpend: { spentToday: () => 0 } }, scope);
   return vm.compileFunction(index.slice(a, b) + '\nreturn {' + names.join(',') + '};', Object.keys(s))(...Object.values(s));
 }
 
@@ -76,18 +81,25 @@ function makeRig(o) {
     finish: (id, x) => { counts.finish++; return put(J.finish(state, id, x)); }, mark: (id, s) => put(J.mark(state, id, s)), all: () => state.jobs };
   if (o.hold !== false) rig.jobs.hold = (id, rev, c) => { counts.hold++; return put(J.checkpoint(state, id, rev, c)); };
   rig.day = { spent: () => 0, note: (l, usd) => notes.push(usd) };   // the day ledger the chain notes every paid stage into (a test may swap in the real one)
-  rig.ports = hostPorts({ router, nightshift: { isHalted: () => rig.halted } });
+  rig.roster = new Map(['drafter', 'reviewer', 'publisher', 'fixer'].map(a => [a, { agentId: a }]));   // the crew the station knows (a resume refuses a deleted agent)
+  // the run config a stage would resolve (index.js sampleRunConfigFor): an agent the station's crew no longer holds cannot run
+  const configFor = a => rig.roster.has(a) ? { ok: true, configured: true } : { ok: false, error: 'target agent ' + a + ' is not in the live roster' };
+  rig.ports = hostPorts({ router, nightshift: { isHalted: () => rig.halted }, sampleRunConfigFor: configFor, lineSpend: { spentToday: l => rig.day.spent(l) } });
   rig.chain = makeChainRunner({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), entryDockOf: a => router.entryDockOf(a),
     fanSiblingsDock: d => router.fanSiblingsDock(d), lineOfAgent: (a, d) => router.lineOfAgent(a, d), agentOfDock: d => router.agentOfDock(d),
     lastStage: (a, d) => router.chainShipsToOutbox(a, d), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d), onShipped: r => shipped.push(r),
     daySpend: { spentToday: l => rig.day.spent(l), note: (l, usd) => rig.day.note(l, usd) }, emit: (n, p) => events.push({ n, p }), now, newId, getTag: () => 'general', setTimer: () => 0 });
   const fileOf = job => path.join(rig.dir, job.id + '.md');
   rig.fileOf = fileOf;
+  rig.seen = [];   // every provider call as it was made: what the stage was handed and under which verdicts it ran
   const runOnce = async x => {
     calls.push(x.agentId);
+    const msgs = Array.isArray(x.messages) ? x.messages : [], lastUser = msgs.length ? msgs[msgs.length - 1] : null;
+    rig.seen.push({ agentId: x.agentId, dockId: x.dockId, runId: x.runId, prompt: lastUser ? String(lastUser.content) : '', ownerTrusted: x.ownerTrusted, untrustedEntry: x.untrustedEntry,
+      channelSender: x.channelSender, channelSenderOwner: x.channelSenderOwner, ceilingUsd: x.ceilingUsd, unattendedGrants: x.unattendedGrants, surface: x.surface });
     if (rig.beforeCall) rig.beforeCall(x, calls.length);   // a test's hand on the world while the job is out (a floor edit, an E-STOP)
     const reviewer = x.agentId === 'reviewer';
-    const text = reviewer ? replies[Math.min(said++, replies.length - 1)] : 'another draft';
+    const text = reviewer ? replies[Math.min(said++, replies.length - 1)] : (typeof rig.reply === 'function' ? rig.reply(x) : 'another draft');
     const row = { runId: x.runId, streamId: x.streamId, agentId: x.agentId, dockId: x.dockId, reason: 'done', outcome: 'succeeded', startedAt: now(), usd: hopUsd, projectRoot: rig.dir };
     if (!reviewer && o.files) { fs.writeFileSync(path.join(rig.dir, 'draft-' + x.runId + '.md'), 'the file ' + x.runId); row.artifacts = [{ kind: 'file', path: 'draft-' + x.runId + '.md' }]; }
     rows.set(x.runId, row); x.emit('agent.run.end', row);
@@ -123,6 +135,27 @@ function makeRig(o) {
     return { job, line, runId, streamId };
   };
   rig.settle = (job, line, facts) => rig.runner.settle(job, Object.assign({ line, output: String(line.text || '') + rig.runner.stopNote(line) }, facts));
+  /* WIRED TO THE REAL HOST: the runner's job port and the day ledger are the production ones (index.js lineJobsSet and the real spend ledger),
+     exactly as the lineRunner `jobs:` block wires them. */
+  rig.wire = host => {
+    Object.assign(rig.jobs, {
+      start: x => host.mutate(st => J.start(st, x)),
+      finish: (id, x) => { counts.finish++; return host.mutate(st => J.finish(st, id, x)); },
+      get: id => J.get(host.jobs(), id), mark: (id, st) => host.mutate(x => J.mark(x, id, st)), all: () => host.jobs().jobs,
+      hold: (id, rev, c) => { counts.hold++; return host.hold(id, rev, c); }
+    });
+    rig.day = { spent: l => host.ledger.spentToday(l), note: (l, usd) => { notes.push(usd); host.ledger.note(l, usd); } };
+    return rig;
+  };
+  /* THE RESUME OWNER over the real host's store, the rig's runner and the station's own authority (line-resume.js); `over` swaps one dep */
+  rig.owner = (host, over) => {
+    const Resume = require('../../sidecar/routing/line-resume.js'), inflight = new Map();
+    const profileFor = (job, c, rec) => rig.runner.profiles.channel({ channel: 'rig', chatId: job.id, streamId: job.streamId, config: () => ({ ok: true, model: 'rig-model', key: 'k', configured: true }),
+      persona: () => 'a resumed stage', station: () => null, ownerTrusted: false, untrustedEntry: true, channelSender: true, channelSenderOwner: false, history: null,
+      onRun: runId => { rec.runId = runId; } });
+    return Resume.makeLineResume(Object.assign({ store: host.store, authority: q => rig.ports.holdAuthority(q), runner: rig.runner, profileFor, hold: { receiptFor: rig.ports.holdFileReceipt },
+      halted: () => rig.halted, inflight, runRow: id => rows.get(id), now }, over));
+  };
   rig.record = id => J.get(state, id);
   rig.state = () => state;
   rig.reload = () => { state = J.normalizeAll(JSON.parse(JSON.stringify(state))); return state; };
@@ -133,4 +166,4 @@ function makeRig(o) {
   return rig;
 }
 
-module.exports = { makeRig, geometry, hostPorts, WIRINGS };
+module.exports = { makeRig, geometry, hostPorts, WIRINGS, AFTER };
