@@ -43,7 +43,7 @@ const isSummarizer = body => Array.isArray(body.messages) && body.messages.some(
 const mock = http.createServer((req, res) => {
   if (req.url.includes('/models')) {
     res.setHeader('Content-Type', 'application/json');
-    return res.end(JSON.stringify({ data: ['test/model', 'test/model-b'].map(id => ({ id, context_length: WINDOW, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] })) }));
+    return res.end(JSON.stringify({ data: ['test/model', 'test/model-b', 'test/model-small'].map(id => ({ id, context_length: id === 'test/model-small' ? 16000 : WINDOW, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] })) }));
   }
   let raw = ''; req.on('data', d => { raw += d; }); req.on('end', async () => {
     let body = null; try { body = JSON.parse(raw); } catch (_) { body = null; }
@@ -168,11 +168,30 @@ const noteSha = notes => notes.map(sha).join(',');
       A.eq(recordOnDisk().noteBody, s61.notes[0], 'the stored summary stays for a window that does reach it');
     }
 
+    // ---- a TRIMMED window on a small-window model: the free earlier note stands for the part the page did not send, a fold
+    //      merges onto it, and the kept summary then covers that earlier part too (its claim starts at the chat's first row) ----
+    {
+      const small = { model: 'test/model-small' };
+      const firstRow = (await (await fetch(base + '/api/transcript?stream=' + STREAM + '&limit=500', { headers })).json()).turns[0];
+      const t1 = entry(next++, 1100);
+      const w1 = await send(history.slice(-32), t1, small); turn(t1, w1);
+      A.eq([w1.calls, folded(w1).length], [1, 1], 'a trimmed window over the fold line of a 16,000-token model folds once');
+      A.eq(w1.notes.length, 1, 'into one summary note: the fold merged onto the free earlier note, it did not stack a second');
+      A.ok(folded(w1)[0].reused === 0 && folded(w1)[0].new > 0, 'rows the free earlier note carried are new work for a paid fold (new ' + folded(w1)[0].new + ', reused ' + folded(w1)[0].reused + ')');
+      const rec = recordOnDisk();
+      A.eq([rec.modelKey, rec.windowTokens, rec.fromRowId], ['openrouter/test/model-small', 16000, firstRow.rowId], 'its record belongs to that route and window and starts at the chat\'s FIRST row, though the page sent only its newest slice');
+      A.ok(rec.rows > 100 && rec.noteBody === w1.notes[0], 'and spans the rows the page did not send as well as the ones it did (' + rec.rows + ' rows; the page sent 32 messages)');
+      const t2 = entry(next++, 1100);
+      const w2 = await send(history.slice(-32), t2, small); turn(t2, w2);
+      A.eq([w2.calls, folded(w2).length, reusedEvent(w2)], [0, 0, 1], 'the next trimmed send reuses it: the stored note replaces the free earlier note AND the window messages it covers, no call');
+      A.eq(noteSha(w2.notes), noteSha(w1.notes), 'byte for byte');
+    }
+
     // ---- another model: the summary was sized for the first one, so it is summarized once more, then reused ----
     {
       const b1 = await sendNext({ model: 'test/model-b' });
       A.eq([b1.calls, folded(b1).length, reusedEvent(b1)], [1, 1, 0], 'model B: one fold, no reuse of the other model\'s summary');
-      A.ok(b1.notes[0].includes('SUMMARY-2'), 'its note is the new summary');
+      A.ok(b1.notes[0].includes('SUMMARY-' + summaries.length), 'its note is the new summary (SUMMARY-' + summaries.length + ')');
       A.eq(recordOnDisk().modelKey, 'openrouter/test/model-b', 'and the record now belongs to model B');
       const b2 = await sendNext({ model: 'test/model-b' });
       A.eq([b2.calls, folded(b2).length, reusedEvent(b2)], [0, 0, 1], 'model B again: no call, the summary is reused');
