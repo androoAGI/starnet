@@ -447,6 +447,7 @@ const QuestRefresh = require('./questrefresh.js'); // QUEST V3: the standing 24h
 const { makeThreadsStore } = require('./threads-store.js');   // NS-6: durable THREAD LEDGER (ideas raised but never acted on)
 const SessionTombstones = require('./session-tombstones.js');   // the sidecar's own record of deleted sessions (qa/bugs/3e926b6a)
 const ForgetRegistry = require('./forget-registry.js');   // what a deleted session leaves behind: the run-title filter, write-time admit, the purge registry (turn identity commits 11 and 12)
+const { wireForgetRegistry } = require('./forget-wiring.js');   // which stores forget, and how
 const Recommendation = require('./recommendation-ledger.js');
 const RecommendationEval = require('./recommendation-eval.js');
 const { makeRecommendationLedger } = Recommendation; // one cross-surface recommendation/verdict lifecycle + shared utility ranker
@@ -3622,36 +3623,65 @@ function memoryAgentIds() {
   } catch (e) { failNote('session-tombstones.agents', e); }
   return Array.from(ids);
 }
-/* forgetDeletedSessionMemory() — remove what deleted sessions wrote into memory: the notebook records and pending memory
+/* THE FORGET REGISTRY (turn identity commits 11 and 12, sidecar/forget-registry.js): the one list of every durable store that holds words
+   derived from a session, each with the source it records and the forget that removes it; sidecar/forget-wiring.js registers them, the
+   block below hands it the stores. A pass over it runs once per delete stamp (and once per registry VERSION for the deletes made before an
+   upgrade, the ledger's repurge). admit(src) is the write-time gate every derived write asks first, forgotten(src) the read-time belt. */
+function runIsForgotten(runId) {
+  const id = String(runId || '');
+  if (!id) return false;
+  if (quoteForgottenRun(id)) return true;
+  const rec = runStore.latest(id);
+  return !!rec && ForgetRegistry.viewRun(rec, runViewCtx) === null;
+}
+const forgetRegistry = ForgetRegistry.make({
+  deletedAt: id => sessionTombstones.deletedAt(id), freshDeletedAt: id => sessionTombstones.freshAt(id), latestDeleteAt: () => sessionTombstones.latestAt(),
+  rowVerdict: (streamId, rowId) => { const v = transcriptStore.forgetVerdicts(streamId, [rowId]); return v.has(rowId) ? v.get(rowId) : null; },
+  runForgotten: runIsForgotten, stopLive: stopQuotingRuns, note: failNote
+});
+/* forgetDeletedSessionMemory() - remove what deleted sessions wrote into every registered store: the notebook records and pending memory
    proposals created there (by their runs, or filed under their stream), the versions their runs wrote into records
    created elsewhere (rolled back), the session quotes on a rating verdict (the verdict and the Commander's words stay),
-   and the open threads mined from them (session-tombstones.js forgetSessionMemory). Each removed record is announced as
+   the open threads mined from them (session-tombstones.js forgetSessionMemory), and everything the registry's other entries derive from
+   them (forget-wiring.js). Each removed notebook record is announced as
    memory.forget (reason 'session-deleted'): the station HUD says "memory forgotten" and an open Memory Core refreshes.
    One pass at a time; a delete that lands mid-pass runs another. A pass that fails records nothing, so the next boot
-   retries it. */
+   retries it. A pass asked for before the stores are wired (a delete found in the save at boot) waits for them: the post-init callback below runs it. */
 let sessionMemoryPurge = null;
 let sessionMemoryPurgeAgain = false;
+let forgetDeferred = false;
 function forgetDeletedSessionMemory() {
-  stopQuotingRuns(sessionTombstones.unpurged());   // FIRST and synchronous (before the early return below): a live run that read a session now deleted stops before it makes another call
+  forgetRegistry.stopLive(sessionTombstones.unpurged());   // FIRST and synchronous (before the early return below): a live run that read a session now deleted stops before it makes another call
+  if (!forgetRegistry.ready()) { forgetDeferred = true; return Promise.resolve(); }
   if (sessionMemoryPurge) { sessionMemoryPurgeAgain = true; return sessionMemoryPurge; }
   sessionMemoryPurge = (async () => {
     do {
       sessionMemoryPurgeAgain = false;
       const todo = sessionTombstones.unpurged();
       if (!todo.length) break;
-      const counts = await SessionTombstones.forgetSessionMemory({ store: notebookStore, threads: threadsStore,
-        agentIds: memoryAgentIds(), deleted: todo, runs: runStore.all() });
+      const out = await forgetRegistry.forgetAll(SessionTombstones.deletedScope(todo, runStore.all()));
       sessionTombstones.markPurged(todo);
+      const counts = (out.results['notebook-memory'] || {}).counts || { notes: 0, revisions: 0, restored: 0, verdicts: 0, pending: 0, threads: 0, forgot: [] };
       for (const f of counts.forgot.slice(0, 50)) chanEmit('memory.forget', { agentId: f.agentId, id: f.id, reason: 'session-deleted' });   // the rest are in the log line
       if (counts.notes || counts.revisions || counts.verdicts || counts.pending || counts.threads) {
         console.log('[session-tombstones] deleted sessions: forgot ' + counts.notes + ' memory record(s), ' + counts.revisions
           + ' version(s) they wrote (' + counts.restored + ' record(s) rolled back to an earlier version), the session quotes on '
           + counts.verdicts + ' rating verdict(s) (verdicts and words kept), ' + counts.pending + ' pending proposal(s), ' + counts.threads + ' thread(s)');
       }
+      const others = Object.keys(out.removed).filter(k => k !== 'notebook-memory' && out.removed[k] > 0).map(k => out.removed[k] + ' ' + k);
+      if (others.length) console.log('[session-tombstones] deleted sessions: also forgot ' + others.join(', '));
     } while (sessionMemoryPurgeAgain);
   })().catch(swallow('session-tombstones.memory')).then(() => { sessionMemoryPurge = null; });
   return sessionMemoryPurge;
 }
+// the stores the registry purges, as closures: most are built later in this file than the registry, and are read only when a pass runs
+wireForgetRegistry(forgetRegistry, {
+  now: () => Date.now(),
+  notebookStore: () => notebookStore, threadsStore: () => threadsStore, memoryAgentIds: () => memoryAgentIds(),
+  personalization: () => personalizationStore
+});
+// once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
+setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
 // BOOT: the save on disk is the newest list the page wrote (none at all = a new station: an empty list). The first list
 // the ledger ever reads is ADOPTED: those deletes were made while Delete only hid the rail row, so their transcript and
 // recall are forgotten from now on but the memories they wrote are kept (never a retroactive wipe at the first boot of
@@ -3663,6 +3693,9 @@ function forgetDeletedSessionMemory() {
   observeDeletedSessions(bootLists);
   const adopted = firstList && sessionTombstones.since() > 0 ? sessionTombstones.adopted().length : 0;
   if (adopted) console.log('[session-tombstones] ' + adopted + ' session(s) deleted before this build: forgotten from history and recall; the memories they wrote are kept');
+  // a delete purged before the registry covered its stores is purged again, once per registry version (an adopted stamp never is)
+  try { const again = sessionTombstones.repurge(ForgetRegistry.VERSION); if (again) console.log('[session-tombstones] ' + again + ' earlier delete(s) will be purged again from the stores the forget registry now covers'); }
+  catch (e) { failNote('session-tombstones.repurge', e); }
   if (sessionTombstones.unpurged().length) forgetDeletedSessionMemory();
 }
 // the saved floor as a validated station model for the capability note's room scope (cap-scope.js): re-validated

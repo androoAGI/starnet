@@ -405,7 +405,8 @@ const ids = list => list.map(r => r.rowId);
     const latchFn = src.slice(src.indexOf('const latchRunQuotes = (ids, epoch) => {'), src.indexOf('const liveQuote = {'));
     A.ok(latchFn.length > 100 && !/await\s/.test(latchFn), 'latchRunQuotes holds no await: it is one synchronous block');
     const forget = sidecarTopLevelFunction('forgetDeletedSessionMemory');
-    A.ok(/^function forgetDeletedSessionMemory\(\) \{\s*\n\s*stopQuotingRuns\(sessionTombstones\.unpurged\(\)\);/.test(forget), 'forgetDeletedSessionMemory stops the live runs that read a deleted session as its FIRST synchronous statement');
+    A.ok(/^function forgetDeletedSessionMemory\(\) \{\s*\n\s*forgetRegistry\.stopLive\(sessionTombstones\.unpurged\(\)\);/.test(forget), 'forgetDeletedSessionMemory stops the live runs that read a deleted session as its FIRST synchronous statement (through the registry, whose stopLive is stopQuotingRuns)');
+    A.ok(/stopLive: stopQuotingRuns/.test(src), '...and the registry\'s stopLive IS the host\'s stopQuotingRuns');
     A.ok(/if \(meta && Array\.isArray\(meta\.quotedStreams\) && meta\.quotedStreams\.length\) return null;/.test(src) && /parkOutput\(r\.content, \{ tool: c\.name, reason: 'run-output-budget', quotedStreams: r\.quotedStreams \}\)/.test(src), 'a quoted read is never parked as a workspace file (both park sites)');
     A.ok(/quoteRoom: ids => execution\.quoteRoom\(ids\)/.test(src) && /overseerStation\(o\.streamId, runId, ids => execution\.quoteRoom\(ids\)\)/.test(src), 'recall, session.peek and the overseer answer are handed the run\'s room');
   }
