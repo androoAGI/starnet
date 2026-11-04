@@ -380,6 +380,9 @@ function startRun(ctx, runId, o) {
   A.ok(/if \(carried\) \{ latchRunTaint\('earlier conversation carried content from '/.test(idx) && /if \(taintedNote\) \{ latchRunTaint\('recalled memory saved by a run that read '/.test(idx), 'carried-note and recalled-memory latches are not guarded by an earlier taint either');
   A.ok(/const attachReport = attachments\.resentOf\(messages\);/.test(idx) && /const attachTaint = attachReport\.some\(e => e && e\.bytes === true\) \? taintPolicy\.ATTACHMENT_TAINT : null;/.test(idx), 'runOnceCore taints from the bytes actually re-sent (the report off the expansion itself)');
   A.ok(!/hasUserAttachments/.test(idx.replace(/\/\/[^\n]*/g, '')), 'handleRun no longer derives taint from the presence of references');
+  // ...and the run RECORD, from which a row written for the run AFTER it ended is stamped (a dispatched worker's accepted answer), holds the
+  // row stamp beside the first source: test/dispatch-delivery.taint.test.js runs the behaviour and scans every writer in every module
+  A.ok(/taintedBy: execution\.taintedBy\(\) \|\| '', rowTaintedBy: execution\.rowTaint\(\) \|\| '' \}\);/.test(idx), 'the run record holds the row stamp beside the first source');
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'run-journal.js'), 'utf8');
   A.ok(/const \{ ATTACHMENT_TAINT \} = require\('\.\/taint\.js'\)/.test(src), 'the journal reads the one constant');
 }

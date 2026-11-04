@@ -635,6 +635,7 @@ test/attachments.test.js
 test/attachment-resend.test.js
 test/taint-replay.attachment.test.js
 test/attachment-rows.test.js
+test/dispatch-delivery.taint.test.js
 test/spotify.pkce.test.js
 test/spotify.store.test.js
 test/spotify.tools.test.js

@@ -31,10 +31,13 @@ function finalizeDispatchDelivery(deps, runId, value) {
   }
   if (!prior) {
     const repair = final.repairRunId && runStore.latest(final.repairRunId);
+    // THE ROW STAMP, not the first source: a worker that inherited its lead's bare attachment latch and then read a page or the saved
+    // file has taintedBy = the attachment (which decays on replay) and rowTaintedBy = what it read (which does not). This row is the
+    // only replayable row of the run, so it must carry the read. A record from before rowTaintedBy existed falls back to taintedBy.
     const written = transcriptStore.appendStrict({ streamId, agentId: source.agentId,
       role: 'assistant', sourceRunId: runId, content: text, dispatchState: 'final',
       dispatchPrompt: source.deliveryPrompt, dispatchReason: final.reason, dispatchRepairRunId: final.repairRunId,
-      textLength: final.textLength, textSha256: final.textSha256, taint: source.taintedBy || (repair && repair.taintedBy) || undefined });
+      textLength: final.textLength, textSha256: final.textSha256, taint: source.rowTaintedBy || source.taintedBy || (repair && (repair.rowTaintedBy || repair.taintedBy)) || undefined });
     if (!written || written.content !== text || written.textLength !== text.length || written.textSha256 !== final.textSha256
         || written.sourceRunId !== runId || written.streamId !== streamId) {
       throw new Error('The full accepted dispatch answer was not durably preserved.');

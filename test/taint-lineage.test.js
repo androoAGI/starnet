@@ -307,7 +307,7 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
   A.ok(/catch \(e\) \{ failNote\('taint\.replay', e\); execution\.latchTaint\('replayed context \(taint check failed\)'\); \}/.test(src), 'a replay check that throws starts the run tainted (fail closed), still noted for diagnostics');
   A.ok(src.indexOf("initialTaint: execution.rowTaint() || ''") > 0, 'the journal begin meta records the start taint');
   A.ok(/runJournal\.taint\(runId, \{ source: now \}\)/.test(src), 'a mid-run latch is journaled');
-  A.ok(/taintedBy: execution\.taintedBy\(\) \|\| '' \}\);/.test(src), 'the run row records its taint');
+  A.ok(/taintedBy: execution\.taintedBy\(\) \|\| '', rowTaintedBy: execution\.rowTaint\(\) \|\| '' \}\);/.test(src), 'the run row records its taint: the FIRST source (the relay, the refusal wording) and the row stamp beside it (what a durable row written for the run after it ended carries)');
   const hub = fs.readFileSync(path.join(root, 'sidecar', 'channels', 'hub.js'), 'utf8');
   A.ok(hub.indexOf('store.loadHistory(h.agentId)') < 0 && hub.indexOf("store.appendTurn(h.agentId,") < 0, 'no hop reads or writes the agent-keyed shared history any more');
 }
