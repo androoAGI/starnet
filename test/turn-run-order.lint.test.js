@@ -4,9 +4,9 @@
 
      1. ORDER — every anchor of test/helpers/run-order.js (up to this commit) appears exactly once in runOnceCore, in order.
      2. LEXICAL DEPENDENCY — for every identifier read EAGERLY in the argument list of reuseByTurn, capture, apply,
-        TurnKinds.ofRun, makeRunTranscript and setDirective(TurnDirective.row( (an arrow or function body in the list is
+        TurnKinds.ofRun, makeRunTranscript and TurnDirective.install( (an arrow or function body in the list is
         skipped: it runs later), a top-level const/let of that name in runOnceCore must come before the call. So #9b's
-        `const kinds` follows `internal` and `trigger` and precedes makeRunTranscript and setDirective, both ways. The
+        `const kinds` follows `internal` and `trigger` and precedes makeRunTranscript and the directive install, both ways. The
         check's own negative fixtures (runOnceCore with #9b moved below makeRunTranscript; with `const trigger` moved
         below #9b) must fail it: a check that passes them guards nothing (the pinned design checked three calls only).
      3. ONE WORDING — the §4.4 consumers read TurnDirective.wording( / typedText( / packet( of the one capture, and no
@@ -110,7 +110,7 @@ function topLevelDecls(src) {
   }
   return out;
 }
-const CALLS = ['TurnDirective.reuseByTurn(', 'TurnDirective.capture(', 'turnWindow.apply(', 'TurnKinds.ofRun(', 'makeRunTranscript(', 'runTranscript.setDirective(TurnDirective.row('];
+const CALLS = ['TurnDirective.reuseByTurn(', 'TurnDirective.capture(', 'turnWindow.apply(', 'TurnKinds.ofRun(', 'makeRunTranscript(', 'TurnDirective.install('];
 function depProblems(src) {
   const decls = topLevelDecls(src);
   const out = [];

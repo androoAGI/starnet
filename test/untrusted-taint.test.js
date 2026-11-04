@@ -140,7 +140,7 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   A.ok(attachmentEntry.indexOf('hasUserAttachments') < 0 && initialTaint && initialTaint[1] === 'null', 'the entry derives no taint from the presence of attachment references');
   {
     const run = sidecarTopLevelFunction('runOnceCore');
-    A.ok(/const attachTaint = attachments\.resentOf\(messages\)\.some\(e => e && e\.bytes === true\) \? taintPolicy\.ATTACHMENT_TAINT : null;/.test(run), 'runOnceCore taints from the bytes expandForRun actually re-sent');
+    A.ok(/const attachReport = attachments\.resentOf\(messages\);/.test(run) && /const attachTaint = attachReport\.some\(e => e && e\.bytes === true\) \? taintPolicy\.ATTACHMENT_TAINT : null;/.test(run), 'runOnceCore taints from the bytes expandForRun actually re-sent');
     A.ok(run.indexOf('messages = await attachments.expandForRun(messages, agentId') < run.indexOf('const attachTaint =') && run.indexOf('const attachTaint =') < run.indexOf('const execution = makeRunExecutionState({'), 'and reads that report right after the expansion, before the run state exists');
     A.ok(/initialTaint: o\.initialTaint \? String\(o\.initialTaint === true \? 'scheduled upstream context' : o\.initialTaint\) : attachTaint,/.test(run), 'a caller\'s own initial taint wins; the attachment source is only the fallback');
   }

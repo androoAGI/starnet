@@ -234,6 +234,8 @@ function wording(d) {
   const t = String(d.text || '');
   return t.trim() ? t : String(d.label || '');
 }
+// the content a turn that carried files stores as its directive row (the wording, never the expanded text); '' for a turn without files or a null capture
+function attachedWording(d) { return d && Array.isArray(d.attachments) && d.attachments.length ? wording(d) : ''; }
 function row(d, contentBytes, kind) {
   if (!d) return contentBytes;
   // THE CLEAN DIRECTIVE: with attachments the row's content is the Commander's wording, never contentBytes (the expanded text,
@@ -318,5 +320,5 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 
 module.exports = {
   turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
-  capture, typedText, wording, row, install, title, runTitle, interruptedTitle, packet
+  capture, typedText, wording, attachedWording, row, install, title, runTitle, interruptedTitle, packet
 };

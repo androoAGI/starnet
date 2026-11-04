@@ -23,6 +23,12 @@
      C2 the shipped shape        the same for the rows EVERY shipped build wrote (0.14.2 and before: no typed words, no
                                  references, the expansion IS the content): decays for the browser's history, tainted when
                                  the server replays the stored text (it seeds from its own rows, as the phone host does)
+     D  file-text-never-         (attachment rows, S3) turn 1 file + picture, then the page sends only its newest slice: the
+        commander-words          earlier-conversation note and recall_conversation read the typed words and '[attached: name]',
+                                 never the file; every directive row is clean, each file is an attachment row on disk with the
+                                 size and sha256 of the bytes read, and no stored row holds the file text
+     E  a legacy note            the 11-02 shape (file text in the content, the words in typed) reads the same way in the note,
+                                 and a note without bytes taints nothing
 
    The learning half reads the host's own receipts (GET /api/learning-status), the memory-learning-boundary pattern.
    One sidecar boot, one provider mock. */
@@ -31,6 +37,7 @@ const A = require('./_assert.js');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeSegmentedTranscriptIo } = require('../sidecar/transcript-history.js');
@@ -44,6 +51,8 @@ const PREF_A = 'From now on, use concise bullet summaries.';
 const PREF_B = 'From now on, use indigo headings in progress summaries.';
 const AGENT = 'dec';
 
+const PNG_1_BYTES = Buffer.from(PNG_1, 'base64');
+const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
 const flat = (c) => typeof c === 'string' ? c : Array.isArray(c) ? c.map(p => (p && typeof p.text === 'string') ? p.text : '').join('\n') : '';
 const imageParts = (msgs) => (JSON.stringify(msgs).match(/"type":"image_url"/g) || []).length;
 
@@ -79,10 +88,16 @@ function startMock() {
         // a typed READ_SAVED_FILE@<tag> <path> asks for ONE scripted read. The host quotes a run's title in later runs' context
         // (RECENT ACTIVITY), so the trigger is one-shot per tag: once it has been served, a later run that merely quotes it just answers.
         const read = /READ_SAVED_FILE@(\w+) (\S+)/.exec(text);
+        // ...and a typed RECALL_CONV@<tag> <query> asks for ONE recall_conversation search of this chat (the same one-shot rule)
+        const recall = /RECALL_CONV@(\w+) ([^\r\n]+)/.exec(text);
         if (read && !served.has(read[1]) && tools.includes('fs_read')) {
           if (tools.includes('brief_proceed') && !called('brief_proceed')) call('b_' + requests.length, 'brief_proceed', { objective: 'read the saved file and report what it says' });
           else if (!called('fs_read')) call('r_' + requests.length, 'fs_read', { path: read[2] });
           else { served.add(read[1]); say('It says hello. (reply ' + requests.length + ')'); }
+        } else if (recall && !served.has(recall[1]) && tools.includes('recall_conversation')) {
+          if (tools.includes('brief_proceed') && !called('brief_proceed')) call('b_' + requests.length, 'brief_proceed', { objective: 'search this chat for what was attached' });
+          else if (!called('recall_conversation')) call('c_' + requests.length, 'recall_conversation', { query: recall[2].trim(), scope: 'stream' });
+          else { served.add(recall[1]); say('Recalled. (reply ' + requests.length + ')'); }
         } else say('Done. (reply ' + requests.length + ')');
         res.write('data: [DONE]\n\n');
         res.end();
@@ -121,6 +136,14 @@ function startMock() {
       row('assistant', 'SHIPPED_REPLY_ONE it is a notes file', { streamId: 'shipped', sourceRunId: 'ship-run-1' });
       row('user', 'SHIPPED_TURN_TWO what next?', { streamId: 'shipped', sourceRunId: 'ship-run-2' });
       row('assistant', 'SHIPPED_REPLY_TWO nothing', { streamId: 'shipped', sourceRunId: 'ship-run-2' });
+      // ...and a longer stream of the 11-02 shape, for the earlier-conversation note: three turns, the file text in the first one's content
+      const l2 = (role, content, extra) => row(role, content, Object.assign({ streamId: 'legacy2' }, extra || {}));
+      l2('user', 'look at these\n\n[Attached file: notes.txt]\n```\n' + FILE_TEXT + '\n```\n[saved in your workspace at ' + fileRef.path + ']', { typed: 'look at these', attachments: [fileRef, imgRef], sourceRunId: 'l2-run-1' });
+      l2('assistant', 'L2_REPLY_ONE it is a notes file', { sourceRunId: 'l2-run-1' });
+      l2('user', 'L2_TURN_TWO what next?', { sourceRunId: 'l2-run-2' });
+      l2('assistant', 'L2_REPLY_TWO nothing', { sourceRunId: 'l2-run-2' });
+      l2('user', 'L2_TURN_THREE and then?', { sourceRunId: 'l2-run-3' });
+      l2('assistant', 'L2_REPLY_THREE ok', { sourceRunId: 'l2-run-3' });
     };
 
     seedLegacy(LEGACY_FILE, LEGACY_IMG);
@@ -158,7 +181,11 @@ function startMock() {
       const out = {
         runId, reason: end && end.payload && end.payload.reason, taintedBy: rec.taintedBy || null, calls: mine.length,
         images: mine.reduce((n, r) => Math.max(n, imageParts(r.msgs)), 0),
-        fileText: mine.some(r => userText(r).indexOf('FILE_BODY_SENTINEL') >= 0)
+        fileText: mine.some(r => userText(r).indexOf('FILE_BODY_SENTINEL') >= 0),
+        // what the model was handed: the user turns of its first conversation call (the earlier-conversation note rides there), and
+        // the tool results of its last one (a recall_conversation answer)
+        wire: mine.length ? userText(mine[0]) : '',
+        toolResults: JSON.stringify(Array.from(new Set(mine.flatMap(r => r.msgs.filter(m => m && m.role === 'tool').map(m => flat(m.content))))))
       };
       results.push(Object.assign({ streamId, needle: needle.slice(0, 24) }, out));
       return out;
@@ -173,6 +200,15 @@ function startMock() {
       return null;
     };
     const transcript = async (streamId) => ((await get('/api/transcript?stream=' + streamId + '&agent=' + AGENT + '&limit=200')).turns) || [];
+    // every row of a stream as the disk holds it (system rows included), the page-facing views aside
+    const diskRows = (streamId) => {
+      const root = path.join(fixture.workspace, 'transcript-history-v2'), out = [];
+      for (const f of fs.readdirSync(root).filter(n => /^segment-\d{6}\.jsonl$/.test(n)).sort()) for (const line of fs.readFileSync(path.join(root, f), 'utf8').split('\n')) {
+        if (!line.trim()) continue;
+        try { const r = JSON.parse(line); if (r && r.streamId === streamId) out.push(r); } catch (_) { /* a torn line is not a row */ }
+      }
+      return out;
+    };
 
     // one conversation as the browser holds it: every turn posts the whole history, with every earlier turn's attachment REFERENCES
     const conversation = (S) => {
@@ -213,11 +249,22 @@ function startMock() {
       const base = { reason: 'done', outcome: 'succeeded', reflect: true, task: true, internal: false };
       const clean = LE.passes(LE.runOutcome(Object.assign({ tainted: false }, base))), locked = LE.passes(LE.runOutcome(Object.assign({ tainted: true }, base)));
       A.ok(clean.reflection && clean.study && clean.threadmine && !locked.reflection && !locked.study && !locked.threadmine, 'an untainted finished task run is a candidate for reflection, study and thread mining again; a tainted one is not');
-      // the rows themselves: stamped with the attachment while the bytes were there, unstamped after
+      // the rows themselves (attachment rows, S3). The Commander's rows hold the Commander's words and are written clean, whatever the run
+      // held; the stamp is on the MODEL's rows, written while the bytes were in front of it: stamped on turns 1-2, unstamped after
       const rows = await transcript(S);
-      const stamps = (needle) => rows.filter(r => String(r.content).indexOf(needle) >= 0).map(r => r.taint || null);
-      A.ok(stamps('TURN1').includes(UA) && stamps(PREF_A).includes(UA) && stamps(PREF_B).every(t => t === null), 'the rows say the same: stamped with the attachment on turns 1-2, unstamped on turn 3 (' + rows.length + ' rows)');
-      A.ok(!rows.some(r => (r.taint || null) === UA && /TURN[4-7]/.test(String(r.content))), 'turns 4 to 7 wrote no row stamped with the attachment');
+      const stampsOf = (role) => rows.filter(r => r.role === role).map(r => r.taint || null);
+      A.eq(stampsOf('user'), [null, null, null, null, null, null, null], 'every directive row is clean: it holds the words the Commander typed (' + rows.length + ' rows)');
+      A.eq(stampsOf('assistant'), [UA, UA, null, null, null, null, null], 'the answers say the same: stamped with the attachment on turns 1-2, unstamped from turn 3');
+      // ...and the file's text is nobody's words: not in a row of the stream, not on disk. The turn-1 directive is the typed words with its references
+      A.ok(!rows.some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0) && !diskRows(S).some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0), 'no stored row of the stream holds the file text');
+      const d1 = rows.find(r => r.role === 'user') || {};
+      A.eq([d1.content, d1.typed, (d1.attachments || []).map(a => a.id)], ['TURN1 please look at these', undefined, [file1.id, img1.id]], 'the first directive is the typed words, with its references');
+      A.ok(!rows.some(r => r.kind === 'attachment'), 'the page\'s transcript shows no attachment row (no new surface)');
+      // each file is a row of its own, written by turn 1 alone (the later directives carry no reference), with the size and sha256 of the bytes read
+      const files = diskRows(S).filter(r => r.kind === 'attachment');
+      A.eq(files.map(r => [r.role, r.taint, r.sourceRunId, r.turnId === (d1.turnId || ''), r.content, r.attachment && r.attachment.id, r.attachment && r.attachment.size, r.attachment && r.attachment.sha256]),
+        [['system', UA, t1.runId, true, '[attached: notes.txt]', file1.id, Buffer.byteLength(FILE_TEXT), sha(Buffer.from(FILE_TEXT))], ['system', UA, t1.runId, true, '[attached: pixel.png]', img1.id, PNG_1_BYTES.length, sha(PNG_1_BYTES)]],
+        'on disk: one attachment row per file, of turn 1 alone, stamped with the attachment source');
     }
 
     // =========================== FLOW A2: a fresh picture re-taints, a tool read of the saved file latches ===========================
@@ -298,6 +345,57 @@ function startMock() {
       const s4 = await run(S, [{ role: 'user', content: 'SHIPPED_TURN_FOUR hello again' }], 'SHIPPED_TURN_FOUR');
       A.eq(s4.reason, 'done', 'the single-message follow-up finished');
       A.eq([s4.taintedBy, s4.fileText], ['replayed history (tainted by user attachment)', true], 'the server replays the stored file text, so the run starts tainted, although the stamp on the row is the bare attachment');
+    }
+
+    // =========================== FLOW D: file-text-never-commander-words (attachment rows, S3) ===========================
+    // The file's text is the file's, not the Commander's. Turn 1 attaches the text file and the picture; the page later sends only its
+    // newest slice, so the dropped turns come back as the earlier-conversation note, and the model searches the chat with
+    // recall_conversation. Neither shows the file: the note and the recall read the typed words and '[attached: name]'.
+    {
+      const S = 'decay-d', full = [];
+      const send = async (content, attachments, needle, slice) => {
+        full.push(attachments ? { role: 'user', content, attachments } : { role: 'user', content });
+        const r = await run(S, slice ? full.slice(slice) : full, needle);
+        full.push({ role: 'assistant', content: 'Done. (reply ' + mock.requests.length + ')' });
+        return r;
+      };
+      const t1 = await send('TURN1 please look at these', [fileRef, imgRef], 'TURN1 please');
+      const t2 = await send('TURN2 and then?', null, 'TURN2');
+      const t3 = await send('TURN3 thanks', null, 'TURN3');
+      const t4 = await send('TURN4 one more thing', null, 'TURN4');
+      A.ok([t1, t2, t3, t4].every(r => r.reason === 'done' && r.calls >= 1), 'the four turns of flow D finished');
+      A.eq([t1.fileText, t3.fileText, t4.fileText], [true, false, false], 'control: the model got the file text on turn 1 and not on turns 3-4 (this step changes what is STORED)');
+      // the page now sends turns 3 and 4 only: turns 1 and 2 fall off the front of its window
+      const t5 = await send('TURN5 earlier note', null, 'TURN5 earlier note', -5);
+      A.eq([t5.reason, t5.taintedBy, t5.images, t5.fileText], ['done', null, 0, false], 'the windowed turn is clean and carries no bytes');
+      A.ok(t5.wire.indexOf('<conversation_summary>') >= 0 && t5.wire.indexOf('TURN2 and then?') >= 0, 'the dropped turns come back as the earlier-conversation note');
+      A.ok(t5.wire.indexOf('TURN1 please look at these [attached: notes.txt] [attached: pixel.png]') >= 0, 'the note shows the typed words of the turn that carried the files, then one \'[attached: name]\' per file');
+      A.ok(t5.wire.indexOf('FILE_BODY_SENTINEL') < 0 && t5.wire.indexOf('evil.example') < 0, 'and none of the file: the note presents these as the Commander\'s own words');
+      // recall_conversation: the model searches the chat for the typed words, then for the file
+      const r1 = await send('TURN6 RECALL_CONV@d1 TURN1 please', null, 'TURN6');
+      A.eq([r1.reason, r1.taintedBy], ['done', null], 'recalling the typed words of the turn taints nothing (its row is clean)');
+      A.ok(r1.toolResults.indexOf('TURN1 please look at these [attached: notes.txt] [attached: pixel.png]') >= 0, 'recall_conversation returns the typed words and \'[attached: name]\': ' + r1.toolResults.slice(0, 300));
+      A.ok(r1.toolResults.indexOf('FILE_BODY_SENTINEL') < 0 && r1.toolResults.indexOf('evil.example') < 0, 'and never the file text');
+      const r2 = await send('TURN7 RECALL_CONV@d2 notes.txt', null, 'TURN7');
+      A.ok(r2.toolResults.indexOf('[attached: notes.txt]') >= 0 && r2.toolResults.indexOf('FILE_BODY_SENTINEL') < 0, 'a search for the file name finds its attachment row: ' + r2.toolResults.slice(0, 300));
+      A.eq(r2.taintedBy, 'worker output (tainted by user attachment)', 'and, conservatively, the recalled row\'s stamp latches (a recalled row\'s taint always does); the row holds a name, no bytes');
+      // the page's transcript and the disk agree: no row holds the file text
+      A.ok(!(await transcript(S)).some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0) && !diskRows(S).some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0), 'no stored row of the stream holds the file text');
+      const replayView = (await get('/api/transcript?stream=' + S + '&agent=' + AGENT + '&limit=200&view=model-replay')).turns || [];
+      A.ok(replayView.length > 0 && !replayView.some(r => r.kind === 'attachment' || JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0), 'and the model-replay view holds neither the file text nor an attachment row');
+    }
+
+    // =========================== FLOW E: a stream of the 11-02 shape reads the same way ===========================
+    // Its first row stores the file text in the content and the words in `typed`. The note is built from the words and the markers, so
+    // it holds none of the file, and a note without bytes taints nothing: the row's bare stamp decays with them.
+    {
+      const S = 'legacy2';
+      const rowsBefore = await transcript(S);
+      A.ok(rowsBefore.length === 6 && rowsBefore.every(r => r.taint === UA) && String(rowsBefore[0].content).indexOf('FILE_BODY_SENTINEL') >= 0 && rowsBefore[0].typed === 'look at these', 'fixture: the legacy stream is there, the file text in the first row\'s content and the words in typed');
+      const l = await run(S, [{ role: 'user', content: 'L2_TURN_THREE and then?' }, { role: 'assistant', content: 'L2_REPLY_THREE ok' }, { role: 'user', content: 'L2_TURN_FOUR hello again' }], 'L2_TURN_FOUR');
+      A.eq([l.reason, l.taintedBy, l.images, l.fileText], ['done', null, 0, false], 'the windowed follow-up is clean, with no bytes on the wire');
+      A.ok(l.wire.indexOf('<conversation_summary>') >= 0 && l.wire.indexOf('look at these [attached: notes.txt] [attached: pixel.png]') >= 0 && l.wire.indexOf('L2_TURN_TWO what next?') >= 0, 'the note reads the legacy row as its typed words and its markers');
+      A.ok(l.wire.indexOf('FILE_BODY_SENTINEL') < 0 && l.wire.indexOf('evil.example') < 0, 'and holds none of its file text');
     }
   } catch (e) {
     console.error(e && e.stack || e);

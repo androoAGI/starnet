@@ -24754,7 +24754,7 @@ async function runOnceCore(o) {
   if (!TurnKinds.isTurnId(o.turnId) && !TurnKinds.isTurnId(o.retryOf) && !turnReuse && !retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.view('display', streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
-      && (latest.content === redact(latestUserText(messages)) || (directive && directive.attachments.length && latest.content === redact(TurnDirective.wording(directive))))) retryDirective = latest;   // a turn that carried files stores its captured wording, not the expanded text
+      && (latest.content === redact(latestUserText(messages)) || (TurnDirective.attachedWording(directive) !== '' && latest.content === redact(TurnDirective.attachedWording(directive))))) retryDirective = latest;   // a turn that carried files stores its captured wording, not the expanded text
   }
   let convo = messages;
   try {
