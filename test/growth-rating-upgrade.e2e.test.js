@@ -83,7 +83,7 @@ async function run(agentId,extra={}){
     const history=await api('/api/growth/ratings?epoch=1');A.eq(history.body.ratings.length,5,'legacy ratings survive a sidecar restart');
     // The new station saves as a page does: with its window's id and its floor. The saved floor is the routing authority, so a save with
     // neither could not be proved and the scheduled entry below (Run Now) would be refused instead of run.
-    const fresh={...legacy,_saveRevision:(await api('/api/save?agent=agent')).body.save._saveRevision,_saveClient:'growth-rating-upgrade',station:emptyFloor(),updatedAt:Date.now()+3600000,agent:{...legacy.agent,createdAt:1234567}};
+    const fresh={...legacy,version:require('../frontend/app/save.js').CURRENT,_saveRevision:(await api('/api/save?agent=agent')).body.save._saveRevision,_saveClient:'growth-rating-upgrade',station:emptyFloor(),updatedAt:Date.now()+3600000,agent:{...legacy.agent,createdAt:1234567}};
     A.ok((await api('/api/save',fresh)).body.ok,'new station saves its explicit generation');
     A.eq(resume(fresh).hero.createdAt,1234567,'resume preserves a real creation timestamp');
     A.eq((await api('/api/growth/ratings',{runId:runIds[0],verdict:'great',epoch:1})).status,409,'stale station cannot rate into a new generation');
