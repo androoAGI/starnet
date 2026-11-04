@@ -18,6 +18,8 @@ recovery: unconfirmed
 
 # A reviewer's BLOCKED ends the job with nothing held, and a reply with no verdict buys five paid passes and ships unapproved (GitHub #122)
 
+CUSTOMER ESCAPE: the reporter is afowler103, an external customer, and the issue is still open on GitHub (nothing has been posted or changed there). The record is origin: customer, so the register counts it in the user-report census until a release carries the fix and the reporter's build is seen to hold it.
+
 ## Symptom
 
 On a work line with a review step (INBOX > drafter > reviewer > LOOP until approved), a reviewer that answered `VERDICT: blocked` stopped the line but not for a person: the job was recorded as a finished `problem` with no saved walk, so there was nothing to approve, send back or stop, and after a station restart it was the same dead record. A reviewer that forgot its VERDICT line was read as `revise`: the work went round the gate for every pass the gate allowed (twelve paid hops on a six-pass gate) and then left on the done lane marked unapproved, to the OUTBOX and through SEND TO. This is GitHub #122, a customer report (reporter afowler103, still open on GitHub), filed here with the line-hold lane that closes it. The report also asks that a review that runs out of passes still saying revise end at a person instead of leaving on DONE marked unapproved; see Verdict for what that is today.
@@ -70,7 +72,7 @@ Line-hold family invariant: a held job spends nothing and is never delivered unt
   "entrypoints": [
     {"target":"decision route and the STOP route","state":"covered","test":"test/line-hold.e2e.http.test.js","scenario":"APPROVE delivers once, a duplicate POST buys nothing, DELETE is STOP, SEND BACK twice under one cap, E-STOP refuses the decision","gate":"http"},
     {"target":"the resume owner","state":"covered","test":"test/line-hold.resume.test.js","scenario":"APPROVE from the saved cursor, SEND BACK, STOP, a stage whose intent cannot be saved is never bought","gate":"fast"},
-    {"target":"exhausted revise (a gate's passes run out)","state":"blocked","reason":"By default it still goes on marked unapproved (Andrew's ruling C2, 2026-11-04); hold and escalate are per gate in the saved floor (carried by test/floor.onspent.seam.test.js) and no control in the app sets them yet."}
+    {"target":"exhausted revise (a gate's passes run out)","state":"blocked","reason":"By default it still goes on marked unapproved (Andrew's ruling C2, 2026-11-04); hold and escalate are per gate in the saved floor (carried by test/floor.onspent.seam.test.js on the posted-plan path, and by test/routing.saved-onspent.test.js on the path that ships: a saved world document through makeSavedFloorProjection to the saved router's loopGateAfter) and no control in the app sets them yet."}
   ],
   "displays": [
     {"target":"WORKFLOWS job box and list","state":"covered","test":"test/line-hold.ui.test.js","scenario":"waiting-for-you chip, why, the keys, a hold older than the newest page, a hold whose workflow is gone, the stuck-walk STOP","gate":"fast"},
