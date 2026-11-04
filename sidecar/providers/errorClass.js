@@ -660,5 +660,5 @@
   }
 
   return { classifyApiError, REASONS, transportDetail, annotateTransport, isImageInputRefusal, isTemplateRefusal, hostScope,
-    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, unreachableNote, unreachableIsLocal, hostScope, templateRefusalText } };
+    _internals: { extractStatus, extractCode, extractMessage, classify400, pickReason, extractRetryAfter, transportCode, parseOutputCap, isTlsFailure, isLocalError, overRatio, NAMED_CAUSE_RE, OVERFLOW_RE, unreachableNote, unreachableIsLocal, hostScope, templateRefusalText } };
 });
