@@ -24,9 +24,13 @@
 const ForgetRegistry = require('./forget-registry.js');
 const SessionTombstones = require('./session-tombstones.js');
 const Interests = require('./interests.js');
+const Scout = require('./scout.js');
 
 const { inScope } = ForgetRegistry;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+// the source of a record composed from sessions' lines: its quote stamp (the streams it quoted, read when; draftStamp in index.js)
+const stampSource = r => ({ quotes: r && r.quotes, quotesAt: r && r.quotesAt, quotesSaturatedAt: r && r.quotesSaturatedAt });
+const latestStamp = scope => { let l = 0; for (const w of (scope.streams || scope.at || new Map()).values()) if (w > l) l = w; return l; };
 
 function wireForgetRegistry(registry, deps) {
   const d = deps || {};
@@ -65,6 +69,28 @@ function wireForgetRegistry(registry, deps) {
       if (out.removed) { d.interests.set(out.state); d.interests.persist(); }
       return out.removed;
     }
+  });
+
+  /* the scout's staged drafts and attempt notes quote the activity lines and interests the cycle's prompt held (quote stamp, draftStamp in
+     index.js). A staged draft with NO stamp predates sources and may quote any session: it goes with the first delete after it (it is
+     re-minted from what is still there), because staged drafts ride later prompts as the names a new draft must not repeat. */
+  entry({
+    name: 'scout',
+    sourceOf: it => stampSource(it),
+    forget: scope => {
+      const latest = latestStamp(scope);
+      const out = Scout.drop(d.scout.get(), it => (it.quotes ? inScope(stampSource(it), scope) : !!it.draft && num(it.at) <= latest));
+      if (out.removed) { d.scout.set(out.state); d.scout.persist(); }
+      return out.removed;
+    }
+  });
+
+  /* the cross-surface recommendation ledger: an entry composed from sessions carries the quote stamp too. One the Commander DECLINED keeps
+     its decision (the reject list and the preference sample) and loses its evidence quotes; any other goes whole. */
+  entry({
+    name: 'recommendations',
+    sourceOf: e => stampSource(e),
+    forget: scope => d.recommendations().forget(e => inScope(stampSource(e), scope))
   });
 
   return registry;

@@ -64,13 +64,34 @@ function viewRun(r, ctx) {
   return r;
 }
 
-/* inScope(src, scope) - does a record's source lie in a delete scope? src = { streamIds | streamId, runIds | runId, rowIds | rowId, at }.
+/* stampOf(raw) - a record's quote stamp in its one canonical form: { quotes, quotesAt } (up to 32 stream ids with the time each was read, or
+   the saturated ['*']), {} when it quotes nothing. A stored record is read back through it, so a hand-edited or old file cannot carry a
+   shape the rule would misread. */
+function stampOf(raw) {
+  if (!raw || typeof raw !== 'object') return {};
+  const quotes = Array.isArray(raw.quotes) ? raw.quotes : [], times = Array.isArray(raw.quotesAt) ? raw.quotesAt : [];
+  const entries = [];
+  quotes.forEach((id, i) => { if (typeof id === 'string' && id) entries.push({ id, at: Number.isSafeInteger(times[i]) && times[i] >= 0 ? times[i] : 0 }); });
+  const stamp = TurnKinds.quoteStamp(entries);
+  if (Number.isSafeInteger(raw.quotesSaturatedAt) && raw.quotesSaturatedAt >= 0) stamp.quotesSaturatedAt = raw.quotesSaturatedAt;
+  return stamp;
+}
+
+/* inScope(src, scope) - does a record's source lie in a delete scope? src = { streamIds | streamId, runIds | runId, rowIds | rowId, at,
+   quotes, quotesAt, quotesSaturatedAt }.
    A stream source counts when the stream was deleted at or after the record was written (a record written after the delete, from
-   a re-opened session, is not the deleted session's); a run or row source counts when the scope names it. */
+   a re-opened session, is not the deleted session's); a run or row source counts when the scope names it; a QUOTE stamp counts by the
+   one quote rule (TurnKinds.quotesForgotten): a quoted stream deleted at or after the read began, or a saturated stamp and any delete
+   at or after it. */
 function inScope(src, scope) {
   if (!src || typeof src !== 'object' || !scope || typeof scope !== 'object') return false;
   const streams = scope.streams instanceof Map ? scope.streams : (scope.at instanceof Map ? scope.at : null);
   const at = num(src.at);
+  if (streams && ((Array.isArray(src.quotes) && src.quotes.length) || num(src.quotesSaturatedAt) > 0)) {
+    let latest = 0;
+    for (const w of streams.values()) if (w > latest) latest = w;
+    if (TurnKinds.quotesForgotten(src, id => streams.get(String(id)) || 0, () => latest)) return true;
+  }
   if (streams) {
     for (const id of toList(src.streamIds, src.streamId)) {
       const when = streams.get(String(id));
@@ -192,4 +213,4 @@ function make(deps) {
   };
 }
 
-module.exports = { VERSION, SID_RE, make, viewRun, inScope };
+module.exports = { VERSION, SID_RE, make, viewRun, inScope, stampOf };

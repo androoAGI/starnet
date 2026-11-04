@@ -3679,7 +3679,9 @@ wireForgetRegistry(forgetRegistry, {
   now: () => Date.now(),
   notebookStore: () => notebookStore, threadsStore: () => threadsStore, memoryAgentIds: () => memoryAgentIds(),
   personalization: () => personalizationStore,
-  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() }
+  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() },
+  scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => persistScout() },
+  recommendations: () => recommendationLedger
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
@@ -8250,6 +8252,18 @@ function packQuotes(pack) {
   }
   return ids.length ? { quotes: ids, quotesAt: Number.isSafeInteger(pack.assembledAt) && pack.assembledAt >= 0 ? pack.assembledAt : 0 } : {};
 }
+/* THE SESSIONS A RECORD WAS COMPOSED FROM (turn identity commit 12): a staged scout draft, a recommendation, a night-shift draft, a quest or a
+   north star is written from the pack's activity lines and the trusted interests, so it carries the quote stamp rows carry - the streams of
+   those lines read at the pack's assembly time, and of the interests' evidence at 0 (any delete of one forgets it). The registry purges by it
+   and its write-time gate (admit) refuses a write whose stamp names a session deleted since the read. {} when nothing was quoted. */
+function draftStamp(pack) {
+  const entries = [];
+  const at = Number.isSafeInteger(pack && pack.assembledAt) && pack.assembledAt >= 0 ? pack.assembledAt : 0;
+  for (const a of Array.isArray(pack && pack.trustedActivity) ? pack.trustedActivity : []) if (a && a.src && a.src.streamId) entries.push({ id: a.src.streamId, at });
+  try { for (const t of Object.values(Interests.normalize(interestsState, Date.now()).trustedTopics || {})) for (const e of t.ev) if (e.src) entries.push({ id: e.src.streamId, at: 0 }); }
+  catch (e) { failNote('forget.draft-stamp', e); }
+  return TurnKinds.quoteStamp(entries);
+}
 async function nightshiftChat(o) {
   const agentId = String((o && o.agentId) || NIGHTSHIFT_AGENT);
   const ident = cronIdentityFor(agentId) || {};
@@ -8467,6 +8481,8 @@ async function runScoutCycle(o) {
   };
   try {
     const pack = nightshiftContextPack();
+    const cycleStamp = draftStamp(pack), admitted = () => forgetRegistry.admit(cycleStamp);   // what this cycle's prompts quote: its notes and drafts carry it, and a delete since refuses them
+    const note = e => scoutNote(Object.assign({}, e, cycleStamp));
     const activity = pack.trustedActivityLines || [];   // legacy run titles may ground weak activity, never mint trusted topic history
 
     // 1) INTEREST EXTRACTION — earns itself on its own cadence (interests.shouldExtract), reads only REAL activity.
@@ -8478,14 +8494,14 @@ async function runScoutCycle(o) {
         Interests.buildDirective({ activityLines: activity, knownTopics: known })
       );
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
-      if (!learningUnchangedSince(pz)) return;
+      if (!learningUnchangedSince(pz) || !admitted()) return;
       const cands = Interests.parse(reply, { activityLines: activity, requireExactEvidence: true });
       // each trusted quote takes the source row of the activity line it came from (pack.trustedActivity, parallel to the lines); a source whose
       // session was deleted while the pass ran is refused by the registry's write-time gate
       interestsState = Interests.fold(interestsState, cands, { now: Date.now(), trustedActivity: true, activity: pack.trustedActivity,
         admit: src => forgetRegistry.admit({ streamId: src.streamId, rowId: src.rowId }) });
       persistInterests();
-      scoutNote({ kind: 'interests', outcome: cands.length ? 'folded' : 'none', reason: cands.length ? cands.map(c => c.label).join(', ') : 'no specific recurring topics' });
+      note({ kind: 'interests', outcome: cands.length ? 'folded' : 'none', reason: cands.length ? cands.map(c => c.label).join(', ') : 'no specific recurring topics' });
     }
 
     // 2) MINT ATTEMPT — at most one per cycle; the pure gates decide if and which kind. A non-firing gate is
@@ -8499,7 +8515,7 @@ async function runScoutCycle(o) {
     scoutSweep();   // age out stale drafts first — an undecided-draft backlog must not wedge the gate at 'full'
     const d = Scout.decide(scoutState, { now: Date.now(), warm: warm, dossierWarm: dossierWarm });
     if (!d.fire) return;
-    if (d.coldStart) scoutNote({ kind: 'cycle', outcome: 'coldstart', reason: 'day-one mint unlocked by the commander dossier (interests not warm yet)' });
+    if (d.coldStart) note({ kind: 'cycle', outcome: 'coldstart', reason: 'day-one mint unlocked by the commander dossier (interests not warm yet)' });
     // CROSS-WIRE: the shared declined index — a recipe/class shape the Commander declined in ANOTHER surface is
     // suppressed here too (in addition to the scout's own fingerprint denylist), with an honest ledger note.
     const declinedIdx = buildDeclinedIndex(agentId);
@@ -8519,21 +8535,21 @@ async function runScoutCycle(o) {
         launchedOften: Scout.launchHints(scoutState, 5)   // lane B: names annotated "(rated well)" when the Commander's own verdicts earn it
       });
       const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive);
-      if (!learningUnchangedSince(pz)) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget
+      if (!learningUnchangedSince(pz) || !admitted()) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget or a delete of a session the prompt quoted
       // grounding = the same evidence the directive showed the model — the WHY must cite it (parseRecipe guard). The
       // direction block is part of that evidence, so a WHY that cites an open quest / the north star is grounded —
       // and so is the DOSSIER (it rides the directive at dossierBlock; excluding it here silently killed any WHY
       // that honestly cited the Commander's own stated pain/ambition — the exact grounding a cold-start mint has).
       const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, dossierBlock].filter(Boolean).join('\n') });
       scoutState = Scout.stampAttempt(scoutState, 'recipe', { now: Date.now(), coldStart: !!d.coldStart });
-      if (parsed && parsed.none) scoutNote({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
-      else if (!parsed) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
-      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
+      if (parsed && parsed.none) note({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
+      else if (!parsed) note({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
+      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) note({ kind: 'recipe', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
       else {
         const recId = crypto.randomUUID();
-        scoutState = Scout.stage(scoutState, { id: recId, kind: 'recipe', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint }, { now: Date.now() });
-        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'recipe', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-        scoutNote({ kind: 'recipe', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
+        scoutState = Scout.stage(scoutState, { id: recId, kind: 'recipe', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint, ...cycleStamp }, { now: Date.now() });
+        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'recipe', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+        note({ kind: 'recipe', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
       }
     } else if (d.kind === 'prospect') {
       // ARCHETYPE MATCH FIRST (recuration 2026-07-14): when the learned interests point at a dormant curated
@@ -8545,15 +8561,16 @@ async function runScoutCycle(o) {
         denylist: scoutState.denylist
       });
       if (archMatch) {
+        if (!admitted()) return;
         const draft = Scout.archetypeDraft(archMatch.archetype);
         if (declinedIdx.has(draft.name) || declinedIdx.has(draft.name + ' ' + draft.tagline)) {
           scoutState = Scout.stampAttempt(scoutState, 'prospect', { now: Date.now() });
-          scoutNote({ kind: 'prospect', outcome: 'rejected', reason: 'archetype match declined elsewhere', title: draft.name });
+          note({ kind: 'prospect', outcome: 'rejected', reason: 'archetype match declined elsewhere', title: draft.name });
         } else {
           const recId = crypto.randomUUID();
-          scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: draft, why: archMatch.why, fingerprint: archMatch.fingerprint }, { now: Date.now() });
-          recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: draft.name, target: draft.id || '', evidence: [{ id: 'learned-topic', type: 'topic', quote: archMatch.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-          scoutNote({ kind: 'prospect', outcome: 'staged', reason: archMatch.why, title: draft.name });
+          scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: draft, why: archMatch.why, fingerprint: archMatch.fingerprint, ...cycleStamp }, { now: Date.now() });
+          recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: draft.name, target: draft.id || '', evidence: [{ id: 'learned-topic', type: 'topic', quote: archMatch.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+          note({ kind: 'prospect', outcome: 'staged', reason: archMatch.why, title: draft.name });
         }
         return;
       }
@@ -8573,19 +8590,19 @@ async function runScoutCycle(o) {
         topRecommendation: cx.topRecommendation || ''
       });
       const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive);
-      if (!learningUnchangedSince(pz)) return;
+      if (!learningUnchangedSince(pz) || !admitted()) return;
       const parsed = ProspectGen.parse(reply, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs, existingClasses: existing });
       scoutState = Scout.stampAttempt(scoutState, 'prospect', { now: Date.now() });
       // ProspectGen.parse has no denylist arm — enforce the dismissed-shape memory here (same 0.6 overlap rule).
       const denied = parsed && parsed.draft && scoutState.denylist.some(fp => Scout.overlap(parsed.fingerprint, fp) >= 0.6);
-      if (parsed && parsed.none) scoutNote({ kind: 'prospect', outcome: 'none', reason: 'model judged an existing class already serves the gap' });
-      else if (!parsed || denied) scoutNote({ kind: 'prospect', outcome: 'rejected', reason: denied ? 'dismissed-shape denylist' : 'draft failed hard validation (bad kit/skills, near-duplicate, or malformed)' });
-      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) scoutNote({ kind: 'prospect', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
+      if (parsed && parsed.none) note({ kind: 'prospect', outcome: 'none', reason: 'model judged an existing class already serves the gap' });
+      else if (!parsed || denied) note({ kind: 'prospect', outcome: 'rejected', reason: denied ? 'dismissed-shape denylist' : 'draft failed hard validation (bad kit/skills, near-duplicate, or malformed)' });
+      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) note({ kind: 'prospect', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
       else {
         const recId = crypto.randomUUID();
-        scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint }, { now: Date.now() });
-        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-        scoutNote({ kind: 'prospect', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
+        scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint, ...cycleStamp }, { now: Date.now() });
+        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+        note({ kind: 'prospect', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
       }
     }
   } catch (e) {

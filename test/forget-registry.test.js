@@ -154,6 +154,13 @@ const deepFreeze = x => { if (x && typeof x === 'object' && !Object.isFrozen(x))
     A.ok(ForgetRegistry.inScope({ streamIds: ['S'], at: 40 }, scope), 'a record written in the deleted session before the delete is in scope');
     A.ok(!ForgetRegistry.inScope({ streamIds: ['S'], at: 60 }, scope), '...one written after it is not');
     A.ok(ForgetRegistry.inScope({ runIds: ['readsS'] }, scope) && !ForgetRegistry.inScope({ runId: 'plain' }, scope), 'a record sourced from a scoped run is in scope, from another run is not');
+    // a quote stamp is in scope by the one quote rule
+    A.ok(ForgetRegistry.inScope({ quotes: ['S'], quotesAt: [30] }, scope), 'a record that quotes a session deleted after the read began is in scope');
+    A.ok(!ForgetRegistry.inScope({ quotes: ['S'], quotesAt: [55] }, scope), '...one whose read began after the delete is not');
+    A.ok(ForgetRegistry.inScope({ quotes: ['*'], quotesAt: [20] }, scope) && !ForgetRegistry.inScope({ quotes: ['*'], quotesAt: [80] }, scope), 'a saturated stamp is in scope once a delete is stamped at or after it');
+    A.eq(ForgetRegistry.stampOf({ quotes: ['S', 'S', 3, 'T'], quotesAt: [9, 4, 1, 'x'] }), { quotes: ['S', 'T'], quotesAt: [4, 0] }, 'stampOf reads a stored stamp back in its canonical form (earliest read per stream, bad entries dropped)');
+    A.eq(ForgetRegistry.stampOf({}), {}, '...and an empty record quotes nothing');
+    A.eq(ForgetRegistry.stampOf({ quotes: Array.from({ length: 40 }, (_, i) => 's' + i), quotesAt: [5] }), { quotes: ['*'], quotesAt: [0] }, '...more than the room saturates');
     scope.rowIds.add(77);
     A.ok(ForgetRegistry.inScope({ rowId: 77 }, scope) && !ForgetRegistry.inScope({ rowId: 78 }, scope), 'a named row is in scope');
     A.ok(!ForgetRegistry.inScope({}, scope) && !ForgetRegistry.inScope(null, scope) && !ForgetRegistry.inScope({ runId: 'inS' }, null), 'an empty source or scope is in no scope');
