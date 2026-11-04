@@ -310,4 +310,103 @@ const ids = list => list.map(r => r.rowId);
   A.ok(refusal.isError === true && refusal.hostAuthored === true && !/quokka|Wallaby/.test(JSON.stringify(refusal)) && refusal.quotedStreams === undefined, 'quoteRefusal: a host-authored error that holds none of the read and quotes nothing');
 }
 
-A.report('turn-dual.forget');
+// ---------------- 8. the tools that read another session name it, and the host latches it (commit 9) ----------------
+(async () => {
+  const { makeRecallTool } = require('../sidecar/tools/builtin/recall.js');
+  const { makeStationTools } = require('../sidecar/tools/builtin/station.js');
+  const { makeRegistry } = require('../sidecar/tools/registry.js');
+  const { makeRunExecutionState } = require('../sidecar/run-execution-state.js');
+  const { readSidecarIndex, sidecarTopLevelFunction } = require('./helpers/source.js');
+  const openCtx = extra => Object.assign({ canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office', timeoutMs: 5000 }, extra || {});
+
+  // -- 8a. the registry shapes quotedStreams where it shapes taintedBy: valid ids, distinct, bounded; and a park carries it
+  {
+    const reg = makeRegistry();
+    reg.register({ impact: 'none', name: 'read.other', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} },
+      run: async () => ({ content: 'words of another session', quotedStreams: ['S', 'S', 'bad id!', 7, null, 'T', 'x'.repeat(65)] }) });
+    reg.register({ impact: 'none', name: 'read.big', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} },
+      run: async () => ({ content: 'HEAD ' + 'y'.repeat(9000) + ' TAIL', quotedStreams: ['S'] }) });
+    reg.register({ impact: 'none', name: 'read.none', capability: 'memory', scope: 'read', schema: { type: 'object', properties: {} }, run: async () => ({ content: 'nothing quoted', quotedStreams: 'S' }) });
+    const r = await reg.dispatch({ id: 'q1', name: 'read.other', args: {} }, openCtx());
+    A.eq(r.quotedStreams, ['S', 'T'], 'the registry keeps the valid, distinct stream ids of quotedStreams');
+    A.eq((await reg.dispatch({ id: 'q2', name: 'read.none', args: {} }, openCtx())).quotedStreams, undefined, 'a malformed quotedStreams is no quote (and never throws)');
+    const parked = [];
+    const big = await reg.dispatch({ id: 'q3', name: 'read.big', args: {} }, openCtx({ outputMax: 8000, parkOutput: async (content, meta) => { parked.push(meta); return null; } }));
+    A.eq(parked.length, 1, 'an over-budget read goes to the host\'s parker');
+    A.eq(parked[0] && parked[0].quotedStreams, ['S'], '...with its quoted streams in the park meta, so the host can refuse to save another session\'s words as a file');
+    A.eq(big.quotedStreams, ['S'], '...and the result the host latches still names them');
+  }
+
+  // -- 8b. recall_conversation: the sessions it draws on are named, and a session the run has no room for is left out BEFORE the content exists
+  {
+    ledger = { deleted: {}, latest: 0 };
+    const store = makeStore({ runOf: () => null });
+    const post = (stream, role, content, extra) => store.appendStrict(Object.assign({ streamId: stream, agentId: 'a', role, content, taint: null, kind: 'turn', turnId: 'turn-' + stream + '-' + role[0] + '-0001' }, extra));
+    post('T', 'user', 'my own zebra note about the harbor');
+    const others = [];
+    for (let i = 1; i <= 8; i++) { const id = 'o' + String(i).padStart(2, '0'); others.push(id); post(id, 'user', 'zebra word tok' + id + ' from session ' + id); }
+    const run = (quoteRoom, args) => makeRecallTool({ transcriptStore: store, ownStreamOnly: () => false, quoteRoom }).recallTool.run(args, { streamId: 'T' });
+    const free = await run(undefined, { query: 'zebra', scope: 'all', limit: 20 });
+    A.eq(free.quotedStreams.slice().sort(), others, 'search: quotedStreams is exactly the other sessions whose words are in the content (the run\'s own stream is never one)');
+    A.ok(others.every(id => free.content.includes('tok' + id)) && free.content.includes('my own zebra note'), 'no room limit (a host that passes no quoteRoom): every hit is composed, as before');
+    const exe = makeRunExecutionState({ startedAt: 1 });
+    for (let i = 0; i < 30; i++) exe.latchQuotes([{ id: 'held' + i, at: 5 }]);   // 30 sessions already read: room for two more
+    const capped = await run(ids => exe.quoteRoom(ids), { query: 'zebra', scope: 'all', limit: 20 });
+    const shown = others.filter(id => capped.content.includes('tok' + id));
+    A.eq(shown.length, 2, 'search: with room for two more sessions only two are composed');
+    A.eq(capped.quotedStreams.slice().sort(), shown, '...and quotedStreams names exactly those two');
+    const gone = others.filter(id => !shown.includes(id));
+    A.ok(gone.every(id => !capped.content.includes(id) && !capped.content.includes('tok' + id)), 'the left-out sessions\' words AND ids are nowhere in the content');
+    A.ok(/\[6 results from 6 other sessions withheld: one run may read at most 32 sessions; continue in a new run\.\]/.test(capped.content), '...one host line says so with counts only');
+    A.ok(capped.content.includes('my own zebra note'), 'the run\'s own stream is never limited');
+    const noRoom = await run(() => [], { query: 'zebra', scope: 'all', limit: 20 });
+    A.ok(!others.some(id => noRoom.content.includes('tok' + id)) && noRoom.content.includes('my own zebra note') && noRoom.quotedStreams === undefined, 'a room that allows no session leaves only the run\'s own stream, and quotes nothing');
+    const throwing = await run(() => { throw new Error('the room broke'); }, { query: 'zebra', scope: 'all', limit: 20 });
+    A.ok(!others.some(id => throwing.content.includes('tok' + id)), 'a room that cannot be asked allows nothing (fail closed)');
+    // around: another session's window is refused before it is read when the room has none left
+    const row = store.search('o03', 'zebra', { limit: 1 })[0];
+    const anchor = 'tx-' + row.rowId;
+    const seen = await run(ids => ids, { anchor, stream: 'o03' });
+    A.ok(seen.content.includes('toko03') && seen.quotedStreams && seen.quotedStreams.join() === 'o03', 'around: a window of another session is composed and names that session');
+    const refused = await run(() => [], { anchor, stream: 'o03' });
+    A.ok(!refused.content.includes('toko03') && refused.quotedStreams === undefined && /cannot be read in this run/.test(refused.content), 'around: a session the run has no room for is refused before it is read');
+    const own = await run(() => [], { around: row.ts, stream: 'T' });
+    A.ok(own.quotedStreams === undefined, 'around: the run\'s own stream is no quote');
+    // browse: a preview is another session's words
+    const browse = await run(ids => ids.slice(0, 3), {});
+    A.eq(browse.quotedStreams.length, 3, 'browse: only the previews the room allows are composed and named');
+    A.eq(others.filter(id => browse.content.includes('tok' + id)).sort(), browse.quotedStreams.slice().sort(), 'browse: exactly the named sessions carry words');
+    A.ok(/withheld/.test(browse.content), '...and the rest are listed without one, with the counts-only line');
+  }
+
+  // -- 8c. session.peek: the session read is named; the run's own is not; a session the room refuses is never composed
+  {
+    const turns = [{ speaker: 'researcher', text: 'the quokka codeword is Wallaby-Seven' }];
+    const bridge = id => ({ request: async verb => (verb === 'station.read_session' ? { ok: true, result: { id, title: 'research', busy: false, turns } } : { ok: false, error: 'unknown' }) });
+    const peek = (id, quoteRoom, ctx) => makeStationTools({ station: bridge(id), quoteRoom }).peekTool.run({ session: 'research' }, ctx || { streamId: 'T' });
+    const read = await peek('S', undefined);
+    A.eq(read.quotedStreams, ['S'], 'session.peek names the session it read');
+    A.eq((await peek('T', undefined)).quotedStreams, undefined, '...never the run\'s own');
+    A.eq((await peek('S', ids => ids)).quotedStreams, ['S'], '...a room that allows it keeps it');
+    const refused = await peek('S', () => []);
+    A.ok(!/quokka|Wallaby/.test(refused.content) && refused.quotedStreams === undefined && /REFUSED/.test(refused.content), 'a session the room refuses is never composed, and nothing is quoted');
+    A.ok(!/quokka/.test((await peek('S', () => { throw new Error('x'); })).content), 'a room that cannot be asked allows nothing');
+    const empty = await makeStationTools({ station: { request: async () => ({ ok: true, result: { id: 'S', title: 'research', turns: [] } }) } }).peekTool.run({ session: 'research' }, { streamId: 'T' });
+    A.eq(empty.quotedStreams, undefined, 'a session with nothing to read quotes nothing');
+  }
+
+  // -- 8d. the host's wiring, by order: the epoch is read before the dispatch, the latch before the journal's result record
+  {
+    const src = readSidecarIndex();   // index.js itself: this pins its own structure (the dispatch closure and the forget function live there)
+    const at = s => { const i = src.indexOf(s); A.ok(i >= 0, 'index.js holds: ' + s.slice(0, 60)); return i; };
+    const epoch = at('const quoteEpoch = Date.now();'), dispatch = at('r = await registry.dispatch(c, dctx);'), latch = at('latchRunQuotes(r.quotedStreams, quoteEpoch)'), journalResult = at('runJournal.toolResult(runId, {');
+    A.ok(epoch < dispatch && dispatch < latch && latch < journalResult, 'the read epoch precedes the dispatch, and the latch precedes the tool_result journal record');
+    A.ok(src.slice(epoch, dispatch).split('\n').length <= 3, '...the epoch is read immediately before the dispatch (no await between)');
+    const latchFn = src.slice(src.indexOf('const latchRunQuotes = (ids, epoch) => {'), src.indexOf('const liveQuote = {'));
+    A.ok(latchFn.length > 100 && !/await\s/.test(latchFn), 'latchRunQuotes holds no await: it is one synchronous block');
+    const forget = sidecarTopLevelFunction('forgetDeletedSessionMemory');
+    A.ok(/^function forgetDeletedSessionMemory\(\) \{\s*\n\s*stopQuotingRuns\(sessionTombstones\.unpurged\(\)\);/.test(forget), 'forgetDeletedSessionMemory stops the live runs that read a deleted session as its FIRST synchronous statement');
+    A.ok(/if \(meta && Array\.isArray\(meta\.quotedStreams\) && meta\.quotedStreams\.length\) return null;/.test(src) && /parkOutput\(r\.content, \{ tool: c\.name, reason: 'run-output-budget', quotedStreams: r\.quotedStreams \}\)/.test(src), 'a quoted read is never parked as a workspace file (both park sites)');
+    A.ok(/quoteRoom: ids => execution\.quoteRoom\(ids\)/.test(src) && /overseerStation\(o\.streamId, runId, ids => execution\.quoteRoom\(ids\)\)/.test(src), 'recall, session.peek and the overseer answer are handed the run\'s room');
+  }
+})().then(() => A.report('turn-dual.forget'), e => { console.error(e && e.stack || e); process.exitCode = 1; });

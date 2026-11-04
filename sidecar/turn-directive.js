@@ -295,11 +295,14 @@ function journalQuoteIdentity(state) {
    deleted session's words never enter the run. Counted by the caller (failNote turn.quotes.<reason>). */
 const QUOTE_REFUSALS = {
   deleted: 'This read drew on a session that was deleted while the read was in flight, so none of it was kept. Read again: a deleted session no longer appears.',
-  overflow: 'One run may read at most 32 sessions, and this read would pass that, so none of it was kept. Continue in a new run, or narrow the read.'
+  overflow: 'One run may read at most 32 sessions, and this read would pass that, so none of it was kept. Continue in a new run, or narrow the read.',
+  journal: 'This read could not be recorded durably, so none of it was kept. Try again.'
 };
+// the words a reader gives for a session it will not read because the run has read as many as one run may
+const QUOTE_ROOM_NOTE = 'One run may read at most 32 sessions, and this run has read that many. Continue in a new run.';
 function quoteRefusal(result, cause) {
   const text = QUOTE_REFUSALS[cause] || QUOTE_REFUSALS.overflow;
-  return { ok: false, isError: true, hostAuthored: true, summary: cause === 'deleted' ? 'read refused: session deleted' : 'read refused: too many sessions', content: text };
+  return { ok: false, isError: true, hostAuthored: true, summary: cause === 'deleted' ? 'read refused: session deleted' : cause === 'journal' ? 'read refused: not recorded' : 'read refused: too many sessions', content: text };
 }
 function interruptedIdentity(meta, store, state) {   // state: the journal inspection (its quotes join the record)
   const m = meta || {};
@@ -315,6 +318,6 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 }
 
 module.exports = {
-  turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity, quoteIdentityOf, journalQuoteIdentity, quoteRefusal,
+  turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity, quoteIdentityOf, journalQuoteIdentity, quoteRefusal, QUOTE_ROOM_NOTE,
   capture, typedText, wording, row, title, runTitle, interruptedTitle, packet
 };

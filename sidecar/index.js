@@ -138,7 +138,7 @@ const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
 const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
-const { makeRunJournal, DISPATCH_BOUNDARY_MODEL } = require('./run-journal.js');
+const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, quotesForgotten: journalQuotesForgotten } = require('./run-journal.js');
 const { makeAffinityIndex } = require('./agent-affinity.js');   // idle-life social graph: which agents the run log proves work together
 const RunRecovery = require('./run-recovery.js');
 const { makeSegmentedTranscriptIo } = require('./transcript-history.js');
@@ -1956,8 +1956,10 @@ function quoteForgottenRun(runId) {
   const id = String(runId || '');
   if (!id) return false;
   try {
+    const live = liveQuoteRuns.get(id), judge = stamp => TurnKinds.quotesForgotten(stamp, sid => sessionTombstones.deletedAt(sid), () => sessionTombstones.latestAt());
+    if (live && judge(TurnKinds.quoteStamp(live.latched()))) return true;
     const rec = runStore.latest(id);
-    return !!rec && TurnKinds.quotesForgotten(rec, sid => sessionTombstones.deletedAt(sid), () => sessionTombstones.latestAt());
+    return !!rec && judge(rec);
   } catch (e) { failNote('turn.quotes.run', e); return false; }
 }
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
@@ -2272,6 +2274,72 @@ const accountAuthPending = new Map();
 // every exit; from admission the entry owns the run's stop. The reconnect snapshot, the phone, STOP and steer by id, E-STOP, the process-fault
 // quiesce and the update drain read it. Host owners admit at their own lifetime boundary; the table also owns every host stop.
 const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
+/* LIVE QUOTE LATCHES (turn identity commit 11, A2-FP-01/02): runId -> what a live run lets the host do with the sessions it has read -
+   { parentRunId, latched() -> [{ id, at }] (the marker '*' once saturated), absorb(entries, depth) (a worker below read these: latch them
+   here, journal them, pass them up), abort() }. runOnceCore registers a run for exactly its own lifetime (a finally drops it), so the map
+   holds only runs that are running now. It is how a worker's reads reach the live runs above it (the o.parentRunId chain every team tool
+   sets - tools/builtin/orchestration.js is not touched) and how a delete finds the runs that must stop (stopQuotingRuns). */
+const liveQuoteRuns = new Map();
+const QUOTE_SID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+// a run's static quotes (o.quotes: stream ids, or { id, at }; o.quotesAt the read time of a bare id, default 0) as latch entries
+function staticQuoteEntries(o) {
+  const list = Array.isArray(o && o.quotes) ? o.quotes : [];
+  const bare = Number.isSafeInteger(o && o.quotesAt) && o.quotesAt >= 0 ? o.quotesAt : 0;
+  const out = [];
+  for (const q of list) {
+    const id = typeof q === 'string' ? q : (q && typeof q === 'object' && typeof q.id === 'string' ? q.id : '');
+    if (!QUOTE_SID_RE.test(id) && id !== TurnKinds.SATURATED) continue;
+    out.push({ id, at: q && typeof q === 'object' && Number.isSafeInteger(q.at) && q.at >= 0 ? q.at : bare });
+  }
+  return out;
+}
+// A DELEGATED WORKER'S BRIEF is composed from its lead's conversation, so the lead's stream is a quote of every row the worker writes (at 0:
+// any delete of it forgets them). Only a lead that is running now is known here, which is every lead that can dispatch a worker.
+function briefQuoteEntries(o) {
+  const lead = o && o.parentRunId ? liveQuoteRuns.get(String(o.parentRunId)) : null;
+  const id = lead && lead.streamId;
+  return id && QUOTE_SID_RE.test(id) && id !== (o.streamId || 'global') ? [{ id, at: 0 }] : [];
+}
+/* WHAT A WORKER READ, from its record (turn identity commit 11): [{ id, at }] from the live latch while it runs, else from its run record
+   (runStore noteIdentity: quotes + quotesAt; a saturated record is the marker). [] = a recorded run that read nothing; null = nothing
+   records it (the record is gone), so what it read is unknown. */
+function workerQuoteEntries(workerRunId) {
+  const live = liveQuoteRuns.get(String(workerRunId));
+  if (live) return live.latched();
+  const rec = runStore.latest(String(workerRunId));
+  if (!rec) return null;
+  const ids = Array.isArray(rec.quotes) ? rec.quotes : [], at = Array.isArray(rec.quotesAt) ? rec.quotesAt : [];
+  return ids.map((id, i) => ({ id, at: Number.isSafeInteger(at[i]) ? at[i] : 0 }));
+}
+// the tools that hand a lead the text of another run (orchestration.js: team.dispatch / spawn / subagents / resume)
+const RELAY_TOOL_RE = /^team[._](?:dispatch|spawn|subagents|resume)$/;
+// STOP a run that has read a session now deleted: the existing STOP path (the run table's joined stop, so the run ends cancelled with the
+// stopped line it always shows), and for a delegated worker the subagent manager that owns its stop. Never throws.
+function stopQuotingRun(runId) {
+  try { if (runTable.stop(runId, 'forget')) return true; } catch (e) { failNote('turn.quotes.stop', e); }
+  try {
+    const rec = subagents.list({ status: 'running' }).find(r => r && r.runId === runId);
+    if (rec) return !!(subagents.interrupt(rec.id) || {}).ok;
+  } catch (e) { failNote('turn.quotes.stop', e); }
+  return false;
+}
+/* stopLive(stamps): stamps are the deletes whose purge is not done, [{ id, at }] (session-tombstones unpurged(): adopted stamps never in
+   it). A live run is stopped when its latch holds a stamped stream read at or before the stamp (at <= stamp: the delete came after the
+   read began), or when it is saturated and any stamp is at or after its saturation time. Runs whose latch is clean keep going. */
+function stopQuotingRuns(stamps) {
+  const list = (Array.isArray(stamps) ? stamps : []).filter(s => s && typeof s.id === 'string' && Number(s.at) > 0);
+  if (!list.length || !liveQuoteRuns.size) return 0;
+  let stopped = 0;
+  for (const [runId, live] of Array.from(liveQuoteRuns)) {
+    let latched = [];
+    try { latched = live.latched(); } catch (e) { failNote('turn.quotes.stop', e); continue; }
+    const hit = latched.some(q => q.id === TurnKinds.SATURATED ? list.some(s => q.at <= s.at) : list.some(s => s.id === q.id && q.at <= s.at));
+    if (!hit) continue;
+    try { if (live.abort()) stopped++; } catch (e) { failNote('turn.quotes.stop', e); }
+  }
+  if (stopped) console.warn('[session-tombstones] stopped ' + stopped + ' live run(s) that had read a session now deleted');
+  return stopped;
+}
 // A STOP or a direction BY ID reaches a run its table entry holds a stop for (every run runOnce drives, a turn still queued behind its
 // conversation included; never a delegated worker, whose manager owns its stop and its steering) including a host owner still before its core call
 function runReachable(runId) { const id = String(runId || ''); return !!id && runTable.stoppable(id); }
@@ -3547,6 +3615,7 @@ function memoryAgentIds() {
 let sessionMemoryPurge = null;
 let sessionMemoryPurgeAgain = false;
 function forgetDeletedSessionMemory() {
+  stopQuotingRuns(sessionTombstones.unpurged());   // FIRST and synchronous (before the early return below): a live run that read a session now deleted stops before it makes another call
   if (sessionMemoryPurge) { sessionMemoryPurgeAgain = true; return sessionMemoryPurge; }
   sessionMemoryPurge = (async () => {
     do {
@@ -6094,7 +6163,7 @@ const overseer = require('./overseer.js').makeOverseer({ fs, path, writeDurable:
 
 // Data operations work without a renderer. Focus and other visual actions still
 // require a page acknowledgement. Legacy session IDs are read from the save store.
-function overseerStation(parentStreamId, parentRunId) {
+function overseerStation(parentStreamId, parentRunId, quoteRoom) {
   return { request: async (verb, args) => {
     try {
       if (verb === 'station.sessions') {
@@ -6111,6 +6180,8 @@ function overseerStation(parentStreamId, parentRunId) {
       }
       if (verb === 'station.read_session') {
         const w = overseer.resolve(args.session);
+        // one run reads at most QUOTES_MAX other sessions (commit 11): refused BEFORE the rows are read, so none of its words are composed
+        if (typeof quoteRoom === 'function' && w.id !== parentStreamId && !quoteRoom([w.id]).includes(w.id)) return { ok: false, error: TurnDirective.QUOTE_ROOM_NOTE };
         // a goal-loop step reads as the station's 'Goal step: <goal>', never the Commander's words (overseer.js readSessionTurns)
         const rows = transcriptStore.view('recall', w.id, { limit: Math.max(1, Math.min(30, Number(args.limit) || 12)) });
         if (!Array.isArray(rows)) throw new Error('Session transcript projection unavailable');
@@ -22005,8 +22076,21 @@ async function runOnceCore(o) {
     initialTaint: o.initialTaint ? String(o.initialTaint === true ? 'scheduled upstream context' : o.initialTaint) : null,
     artifacts: makeArtifactCollector(),
     completion: makeCompletionEvidence({ authority: completionAuthority }),
-    now: () => Date.now()
+    now: () => Date.now(),
+    startedAt: runStartedAt   // a saturated run is never saturated later than it began (run-execution-state saturate)
   });
+  /* QUOTES, SEEDED BEFORE ANY TOOL CAN RUN (turn identity commit 11). The run's static quotes (a prompt composed from other sessions:
+     night shift, a worker's brief, an internal call a session asked for) and, for a recovery continuation, everything its SOURCE journal
+     says the source read, share the one latch with the reads this run makes: one capacity, and a seed past it saturates rather than
+     truncating. A source journal that cannot be read is unprovable, so the continuation starts saturated (fail closed). */
+  execution.latchQuotes(staticQuoteEntries(o).concat(briefQuoteEntries(o)));
+  if (o.recovery && o.recovery.sourceRunId) {
+    try {
+      const source = runJournal.inspect(String(o.recovery.sourceRunId));
+      execution.latchQuotes(source.quotes);
+      if (Number.isSafeInteger(source.quotesSaturatedAt)) execution.saturate(source.quotesSaturatedAt);
+    } catch (e) { failNote('turn.quotes.recovery', e); execution.saturate(runStartedAt); }
+  }
   /* DURABLE TAINT (sec-taint 09-25). A latch made after the run journal began is journaled too, so a recovery
      continuation of this run (which replays its checkpointed context, untrusted bytes included) restores the taint
      from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead. */
@@ -22018,6 +22102,74 @@ async function runOnceCore(o) {
     }
     return after;
   };
+  /* THE SESSIONS THIS RUN HAS READ (turn identity commit 11, A2-FP-01/02/R01). A tool that returns another session's words names those
+     sessions in result.quotedStreams (recall_conversation, session.peek); the dispatch closure asks latchRunQuotes(ids, epoch) for them
+     AFTER the tool ran and BEFORE the result is journaled, bounded, parked or handed to the model. epoch is read just before the
+     dispatch began, so every await between the read and this latch (the registry's park, the post_tool_call observer, a recovery
+     re-dispatch) lies after it. ONE synchronous block, no await: (1) a session deleted at or after the epoch refuses the read
+     ('deleted': it was in flight when the delete landed), (2) more sessions than the run has room for refuses it ('overflow'), else
+     (3) the streams are latched at the epoch, (4) the run record notes them, (5) the journal records them (a read's 'quotes' record
+     therefore precedes the 'tool_result' record it covers) and (6) every LIVE ancestor (the o.parentRunId chain) latches the same
+     entries, so a lead's rows from that moment carry what its worker read. A delete stamped before the block is caught by (1); one
+     stamped after finds this run in liveQuoteRuns (stopQuotingRuns). Over-forgetting is the accepted cost; a read of the run's own
+     stream is never a quote (its tombstone already covers it). A journal that cannot record the read refuses it ('journal'). */
+  const noteRunQuotes = () => {
+    try { runStore.noteIdentity(runId, TurnDirective.quoteIdentityOf(execution.quotes())); } catch (e) { failNote('turn.quotes.note', e); }
+  };
+  if (execution.quotes().length) noteRunQuotes();   // the seeded quotes ride the run record whether or not the run journals (an internal run, a retitle, has no journal)
+  const journalRunQuotes = (changed) => {
+    if (!changed.length || !execution.journalStarted() || execution.journalFailed()) return true;   // a latch before the journal starts is flushed right after begin
+    const streams = changed.filter(e => e.id !== TurnKinds.SATURATED), marker = changed.find(e => e.id === TurnKinds.SATURATED);
+    try { runJournal.quotes(runId, Object.assign({}, streams.length ? { streams } : null, marker ? { saturatedAt: marker.at } : null)); return true; }
+    catch (e) { failNote('run-journal.quotes', e); return false; }
+  };
+  const parentQuoteRun = () => (o.parentRunId ? liveQuoteRuns.get(String(o.parentRunId)) : null);
+  // entries a worker BELOW this run read (or its saturation): latched here, noted, journaled, and passed on up; room that runs out saturates this run
+  const chainWorkers = new Set();   // runIds of workers that handed their reads to this run through the live chain (every read of theirs, as it happened): relaying their answer adds nothing
+  const absorbRunQuotes = (entries, depth, fromRunId) => {
+    if (fromRunId) chainWorkers.add(String(fromRunId));
+    const changed = execution.latchQuotes(entries);
+    if (!changed.length) return;
+    noteRunQuotes(); journalRunQuotes(changed);
+    const up = parentQuoteRun();
+    if (up && (depth || 0) < 8) up.absorb(changed, (depth || 0) + 1, runId);
+  };
+  /* RELAYED ANSWERS (A2-FP-02, Q25): a worker's answer is a quote of everything the worker read. While the worker ran, its reads reached
+     this run through the live chain (absorbRunQuotes, above). An answer collected AFTER that (a background worker read back by
+     team.subagents, a resume, a worker another run started) is read from the worker's record - and a worker nothing records is a worker
+     that may have read anything, so this run SATURATES: every row it writes from then on is forgotten after ANY non-adopted delete
+     stamped at or after the time it started. Only a worker row that carries an answer counts; a list of idle workers relays nothing. */
+  const relayRunQuotes = (result) => {
+    let rows = [];
+    try { const parsed = JSON.parse(String(result && result.content)); rows = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []); }
+    catch (_) { return; }
+    const workers = new Set();
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
+      const answered = (typeof row.result === 'string' && row.result.trim()) || (row.structuredResult && typeof row.structuredResult === 'object');
+      if (!answered) continue;
+      for (const k of ['runId', 'repairRunId']) if (typeof row[k] === 'string' && row[k] && row[k] !== runId) workers.add(row[k]);
+    }
+    for (const worker of workers) {
+      if (chainWorkers.has(worker)) continue;
+      absorbRunQuotes(workerQuoteEntries(worker) || [{ id: TurnKinds.SATURATED, at: runStartedAt }], 0);   // read again at each relay: latching what is already held changes nothing
+    }
+  };
+  const latchRunQuotes = (ids, epoch) => {
+    const want = Array.from(new Set((Array.isArray(ids) ? ids : []).map(String).filter(id => QUOTE_SID_RE.test(id) && id !== (o.streamId || 'global'))));
+    if (!want.length) return true;
+    for (const id of want) { const at = sessionTombstones.deletedAt(id); if (at > 0 && at >= epoch) return 'deleted'; }
+    if (execution.quoteRoom(want).length < want.length) return 'overflow';
+    const changed = execution.latchQuotes(want.map(id => ({ id, at: epoch })));
+    if (changed.length) {
+      noteRunQuotes();
+      if (!journalRunQuotes(changed)) return 'journal';
+      const up = parentQuoteRun();
+      if (up) up.absorb(changed, 1, runId);
+    }
+    return true;
+  };
+  const liveQuote = { parentRunId: o.parentRunId ? String(o.parentRunId) : '', streamId: o.streamId ? String(o.streamId) : '', latched: () => execution.quotes(), absorb: absorbRunQuotes, abort: () => stopQuotingRun(runId) };
   // The taint this run was HANDED (caller's initialTaint: a delegated worker inherits its lead's latch) and the one
   // it STARTED with (set once the replay proof below has run): a refusal under either must not claim this run read anything.
   const taintHandedIn = execution.taintedBy();
@@ -22222,6 +22374,7 @@ async function runOnceCore(o) {
   // Everything below is wrapped so the admission slot is ALWAYS released (early-return refusals above run
   // before tryEnter; every exit below — return, throw, or the normal finish — passes through leave()).
   try {
+  if (runId) liveQuoteRuns.set(String(runId), liveQuote);   // a live run a delete must be able to find (stopQuotingRuns) and a worker's reads must be able to reach (absorb)
 
   // ---- managed-credit admission (config-gated; INERT unless STARNET_CREDITS_URL is set) ----
   // A metered run (BYOK-shaped, real $ cost) reserves its per-run cap against the managed account BEFORE the
@@ -22609,7 +22762,7 @@ async function runOnceCore(o) {
   makeFsTools({ fsp, pathMod: path, root: WORKSPACES, environment: executionEnvironment, limits: { writeBytes: 1 << 20, readReturn: 24000 }, redact, pathTrust: runPathTrust, docExtract, imageWire, editDiagnostics: lspManager, spawn: childSpawn }).register(registry);   // redact: scrub secrets out of surfaced fs.search lines (§5.6); baseline-before-edit LSP feedback; spawn: lets fs.search use `rg` when the machine has it
   makeNotebookTools({ store: notebookStore, clock: { now: () => Date.now() }, redact, rank, nextTrust: memcore.nextTrust, findSimilar: memcore.findSimilar, similarity: memcore.tokenJaccard, onSaved: recordRunReceipt, sharedStanding: () => (tasteWithheld || !personalizationStore.read().enabled) ? [] : FeedbackMemory.stationStanding(notebookStore.get('notebook:' + agentId), otherAgentNotebooks(agentId)).filter(r => r.foreign) }).register(registry);   // §5.6: scrub secrets at the write boundary; rank: explicit read shares auto-recall's relevance order; nextTrust: notebook.feedback rating fold; findSimilar: near-dupe guard so the same belief can't accumulate in N phrasings; similarity: the same-subject listing; onSaved: this run's COMMS receipt
   widgetTools.register(registry);   // WIDGET RAILS Phase 2: widget.set — agent-fed rail readouts (memory capability: sandboxed local write, no consent, no network)
-  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld }).register(registry);   // H1.3: recall_conversation — agent searches its own past dialogue (transcriptstore); joins the NOTEBOOK (memory) capability · a non-owner/group run (and its workers) never reads the Commander's other workstreams
+  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld, quoteRoom: ids => execution.quoteRoom(ids) }).register(registry);   // H1.3: recall_conversation — agent searches its own past dialogue (transcriptstore); joins the NOTEBOOK (memory) capability · a non-owner/group run (and its workers) never reads the Commander's other workstreams
   makeSkillTools({
     store: skillStore,
     gate: skillGate,   // guard verdict enforcement: a withheld skill lists as withheld and refuses to load its body
@@ -22769,7 +22922,8 @@ async function runOnceCore(o) {
   // uses. Same 'orchestrator' capability gate as team.* — conferred on the lead run only, so a delegated
   // worker can never open or steal the Commander's sessions. Only visual actions require a live page.
   makeStationTools({ station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
-    ? overseerStation(o.streamId, runId) : stationBridge, scanText: t => cronGuard.scanRoutinePrompt(t), now: () => Date.now(),
+    ? overseerStation(o.streamId, runId, ids => execution.quoteRoom(ids)) : stationBridge, scanText: t => cronGuard.scanRoutinePrompt(t), now: () => Date.now(),
+    quoteRoom: ids => execution.quoteRoom(ids),   // session.peek: one run reads at most QUOTES_MAX sessions (commit 11)
     // THE LENT BUILDER: a delegated run's planner refuses binds and recruits, and its builds carry its own name
     agentId, delegatedBy: o.delegatedBy || '',
     agentName: String((agentRoster.get(agentId) || {}).name || agentId),
@@ -23318,6 +23472,7 @@ async function runOnceCore(o) {
     // design: a parker that fails degrades to the plain clamp rather than failing the tool call.
     parkOutput: async (content, meta) => {
       try {
+        if (meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length) return null;   // quoted words never become a workspace file (commit 11): the plain clamp stands
         const safeTool = String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40);
         /* PROVENANCE IN THE NAME (sec-taint 09-25): bytes from an untrusted source (web / connector result), a
            tainted worker's relayed text, or anything this run parks after it was tainted are saved as
@@ -23618,6 +23773,7 @@ async function runOnceCore(o) {
     store: runTranscriptStore, hold: keySaveOffered ? () => !keySavedThisRun : null, streamId: o.streamId, agentId, runId, from: o.delegatedBy || '', dispatchState: transcriptState,
     turnId: () => runStartExtra.turnId,   // read at each write: the directive and every row of this run carry the run's turn
     stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,   // every row names its kind
+    quotes: () => execution.quotes(),   // read at each drain: a row drained after a read carries the sessions read so far (commit 11)
     // rows written after untrusted content entered this run carry its taint source (sec-taint 09-25)
     taint: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),
     // mid-run write failures never kill the run or reorder dialogue: the rows stay pending (and in the run journal)
@@ -24063,6 +24219,7 @@ async function runOnceCore(o) {
       // Keep the first dispatch explicit at this security boundary: the taint gate above is visibly and
       // mechanically before execution. Recovery can only repeat this call after the pure policy proves it is a
       // host-defined read with a transient failure; registry.dispatch re-runs every authority/gate/hook on retry.
+      const quoteEpoch = Date.now();   // read epoch: at or before any session this dispatch reads (commit 11); every await below lies after it
       r = await registry.dispatch(c, dctx);
       r = await recoverToolResult({
         result: r,
@@ -24079,6 +24236,12 @@ async function runOnceCore(o) {
         }
       }
       r = DomainTask.afterCall(c, r, hostScope, directDomainTask);   // NXDOMAIN on the exact host: a scope stops tools, advice only says so
+      // THE SESSIONS THIS READ DREW ON are latched (or the read refused) before the result is journaled, parked or handed to the loop
+      if (r && Array.isArray(r.quotedStreams) && r.quotedStreams.length) {
+        const verdict = latchRunQuotes(r.quotedStreams, quoteEpoch);
+        if (verdict !== true) { failNote('turn.quotes.' + verdict, new Error('a read was refused: ' + verdict)); r = TurnDirective.quoteRefusal(r, verdict); }
+      }
+      if (r && typeof r.content === 'string' && RELAY_TOOL_RE.test(realName)) relayRunQuotes(r);   // a worker's answer is its reads
       // Persist the full model-visible result before the loop advances to another call/turn. Once dispatch is
       // durable, any exception before this result boundary means the side effect is unknown and must end the run.
       if (execution.journalStarted() && !execution.journalFailed()) runJournal.toolResult(runId, {
@@ -24155,7 +24318,7 @@ async function runOnceCore(o) {
     const rereadsParked = realName === 'fs.read' && isParkedOutputPath(c.args && c.args.path);
     if (!nestedCompose) {
       if (!rereadsParked && execution.willBoundToolResult(r, runToolBytesCap()) && r && typeof r.content === 'string' && !r.parkedPath) {
-        const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget' });
+        const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget', quotedStreams: r.quotedStreams });
         if (parked && parked.path) r = Object.assign({}, r, { parkedPath: parked.path, outputChars: r.content.length });
       }
       // Bound the TOTAL model-visible tool output across a run so a few big fetches/reads cannot blow context.
@@ -24968,6 +25131,7 @@ async function runOnceCore(o) {
       });
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
+      if (execution.quotes().length && !journalRunQuotes(execution.quotes())) throw new Error('the sessions this run read could not be journaled');   // static quotes and a continuation's source journal, flushed once
     } catch (e) {
       refuse({ message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e), failureCode: 'checkpoint_failed' });
       return;
@@ -25756,6 +25920,7 @@ async function runOnceCore(o) {
   return result;
 
   } finally {
+    if (runId && liveQuoteRuns.get(String(runId)) === liveQuote) liveQuoteRuns.delete(String(runId));   // first, so a throw below can never leave a finished run to be "stopped"
     // ANSWER HOLD still armed = this run ended (an early refusal return, a throw, a turn-0 provider error) before the
     // model read the Commander's answer: give the question back so the re-sent answer resumes the ORIGINAL task.
     // The store refuses if anything moved since (a newer brief, a proceed/ask/complete) — never a hijack.
@@ -29534,12 +29699,16 @@ function scanInterruptedRuns(files) {
   };
   setImmediate(step);
 }
+// An interrupted run's journal says which sessions it read; one deleted at or after its read (or any non-adopted delete since a saturated
+// run began) forgets the run (commit 11): its recovery is neither offered, prepared nor consumed - a continuation would replay the tool
+// results that came from the deleted session.
+function runRecoveryForgotten(r) { return journalQuotesForgotten(r, id => sessionTombstones.deletedAt(id), () => sessionTombstones.latestAt()); }
 function canContinueRunRecovery(r) {
-  if (!r || r.status !== 'resolved' || (r.continuation && r.continuation.state !== 'ready')) return false;
+  if (!r || r.status !== 'resolved' || (r.continuation && r.continuation.state !== 'ready') || runRecoveryForgotten(r)) return false;
   try { RunRecovery.continuationPlan(r); return true; } catch (_) { return false; }
 }
 function canAutoContinueRunRecovery(r) {
-  if (!r || r.status !== 'resumable' || (r.continuation && r.continuation.state !== 'ready')) return false;
+  if (!r || r.status !== 'resumable' || (r.continuation && r.continuation.state !== 'ready') || runRecoveryForgotten(r)) return false;
   try { RunRecovery.automaticContinuationPlan(r); return true; } catch (_) { return false; }
 }
 function runRecoveryOperationalState(r) {
@@ -29730,6 +29899,7 @@ async function handleRunRecoveryContinue(req, res) {
   if (!constantTimeTextEqual(body.recoveryToken, runRecoveryToken(current))) {
     return json(409, { error: 'recovery changed; reload before continuing' });
   }
+  if (runRecoveryForgotten(current)) return json(409, { error: 'This run read a session that has since been deleted, so it cannot be continued.' });
   let plan;
   try { plan = automatic ? RunRecovery.automaticContinuationPlan(current) : RunRecovery.continuationPlan(current); }
   catch (e) { return json(409, { error: String((e && e.message) || e) }); }
@@ -29770,6 +29940,12 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   const c = current.continuation;
   if (!c || c.state !== 'ready' || c.continuationId !== continuationId) return { ok: false, code: 409, error: 'continuation is not ready or was already consumed' };
   if (!constantTimeTextEqual(body.continuationToken, runContinuationToken(current))) return { ok: false, code: 409, error: 'continuation token is stale' };
+  // A CONTINUATION REPLAYS THE SOURCE'S CONTEXT, TOOL RESULTS INCLUDED (turn identity commit 11): when the journal says the source read a session
+  // that was deleted at or after the read (or is saturated and any non-adopted delete is stamped since), nothing of it may be handed to a model
+  // again. Refused before the plan or the journal is touched, so nothing is spent and the interrupted run stays as it is.
+  if (runRecoveryForgotten(current)) {
+    return { ok: false, code: 409, error: 'This run read a session that has since been deleted, so it cannot be continued.' };
+  }
   let plan;
   try {
     plan = c.mode === 'automatic'

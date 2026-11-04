@@ -338,7 +338,7 @@ let clk = 1000; const clock = { now: () => clk };
     const idx = readSidecarSource();
     A.ok(/connectorAuthority: \{[\s\S]{0,2500}?withholdTaste: tasteWithheld,/.test(idx),
       'the host mints withholdTaste (non-owner, group, their workers) onto the run ctx the recall tool reads');
-    A.ok(/makeRecallTool\(\{ transcriptStore, ownStreamOnly: \(\) => tasteWithheld \}\)/.test(idx),
+    A.ok(/makeRecallTool\(\{ transcriptStore, ownStreamOnly: \(\) => tasteWithheld(?:, quoteRoom: ids => execution\.quoteRoom\(ids\))? \}\)/.test(idx),
       'the host pins recall to the run\'s own chat exactly when it withholds the Commander\'s taste (non-owner, group, their workers)');
     A.ok(/role: 'assistant', taint: 'scheduled script output'/.test(idx), 'a script-only routine\'s stdout is stamped untrusted, as its run is');
   }
