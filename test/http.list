@@ -319,6 +319,7 @@ test/provider-cli-admission.http.test.js
 test/scheduler-state-consumers.http.test.js
 test/local-runtime-silence.test.js
 test/turn-id.run-start.http.test.js
+test/deliverable-rows.e2e.test.js
 test/retry-by-turn.http.test.js
 test/retract.http.test.js
 test/turn-id.recovery.http.test.js
