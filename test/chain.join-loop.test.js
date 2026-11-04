@@ -569,5 +569,74 @@ function rig(floor, script, opts) {
       A.ok(!PROMISE.test(turnFor(crate)) && /your reply is what moves on past the gate/.test(turnFor(crate)), 'the reviewer of a joined crate with ' + name + ' branch is never promised a bare approval passes it on');
   }
 
+  /* ---- S5 (line-hold lane): THE BARRIER OF A HELD JOB. A job that stops at a reviewer's gate inside a split takes its barrier with it (the
+          parts parked, who owes the rest, the joiner's count and timeout), and the walk a person's decision resumes puts it back — once, with no
+          waiter, never delivering or releasing anything by itself. The whole chain of it (restart, decisions, the saved record) is
+          test/line-hold.split.test.js; this is the barrier module and the chain's own state. ---- */
+  {
+    const K = '9,4|runS5';
+    const mk = (extra) => { const t = { timers: [], saves: [], events: [] };
+      t.c = makeChainRunner(Object.assign({ nextAgent: () => null, now: clock, newId: (() => { let i = 0; return () => 'bp' + (++i); })(), emit: (n, p) => t.events.push(n),
+        setTimer: (fn, ms) => { t.timers.push({ fn, ms }); return 0; }, barrierStore: { load: () => null, save: v => t.saves.push(JSON.stringify(v)) } }, extra));
+      return t; };
+    // S5 a part leaves with the branch it came from and the run that made it; the barrier file keeps its old three keys
+    const one = mk();
+    const meta = { branchId: 'p3', runId: 'r-A', draft: 'the ask', verdict: 'revise', files: ['/work/a.md'], text: 'tampered' };
+    const first = one.c._barrier.deliver(K, 3, 'A', 'alpha', 7, 'p3', meta);
+    const part = first.parts[0];
+    A.ok(!first.released && part.text === 'alpha' && part.branchId === 'p3' && part.runId === 'r-A' && part.draft === 'the ask' && part.verdict === 'revise' && part.files[0] === '/work/a.md' && part.dockId === 'p3' && part.workitemId === 'bp1',
+      'S5 a part parked at the barrier carries its branch and run (and the meta cannot overwrite its text): ' + JSON.stringify(part));
+    A.eq(Object.keys(JSON.parse(one.saves[one.saves.length - 1])[K].parts[0]).sort(), ['agentId', 'dockId', 'workitemId'], 'S5 the barrier FILE is unchanged: agent, dock and crate id only');
+    const view = one.c._barrier.view(K);
+    A.eq([view.expect, view.timeoutMin, view.parts.length, one.c._barrier.view('9,9|nobody')], [3, 7, 1, null], 'S5 view: the expected count, the joiner\'s timeout and the parts parked (nothing for a barrier that is not there)');
+    view.parts[0].text = 'changed by a reader';
+    A.eq(one.c._barrier.view(K).parts[0].text, 'alpha', 'S5 view is a copy: reading the barrier cannot change it');
+    // S5 restore puts a saved barrier back ONCE; delivers nothing, releases nothing, has no waiter, arms no timer
+    const two = mk(), saved = { expect: 3, ts: 111, timeoutMin: 7, parts: [{ agentId: 'A', dockId: 'p3', text: 'alpha', workitemId: 'w1', branchId: 'p3', runId: 'r-A', draft: 'd', verdict: null, files: [] }] };
+    A.eq([two.c._barrier.restore(K, saved), two.c._barrier.size(), two.timers.length, two.events.length], [true, 1, 0, 0], 'S5 restore: the barrier is back, no timer was armed, nothing was delivered or released');
+    A.eq([two.c._barrier.restore(K, saved), two.c._barrier.view(K).parts.length], [false, 1], 'S5 a barrier already open under that key is never opened a second time, and the first is left as it was');
+    A.ok(JSON.parse(two.saves[two.saves.length - 1])[K].parts.length === 1, 'S5 the restored parts are in the barrier file again (a crash from here is reported as ever)');
+    const arrive = (agentId, text) => two.c._barrier.deliver(K, 3, agentId, text, 7, null, { branchId: agentId, runId: 'r-' + agentId });
+    const second = arrive('B', 'beta');
+    A.ok(!second.released, 'S5 a restored barrier still waits for the rest');
+    const third = arrive('C', 'gamma');
+    A.eq([third.released, third.parts.map(p => p.text), two.c._barrier.size()], [true, ['alpha', 'beta', 'gamma'], 0], 'S5 the last arrival releases it: the saved part first, once, then the others');
+    // S5 the joiner's timer is armed only when a walk WAITS at the barrier, from the saved timeout; its expiry sends the join on PARTIAL (never approves anything)
+    const three = mk();
+    three.c._barrier.restore(K, saved);
+    A.eq(three.timers.length, 0, 'S5 a restored barrier arms nothing by itself');
+    const waiting = three.c._barrier.wait(K);
+    A.eq(three.timers.map(t => t.ms), [7 * 60 * 1000], 'S5 a walk that waits at it arms the joiner\'s timer from the saved 7 minutes');
+    three.timers[0].fn();
+    const timedOut = await waiting;
+    A.eq([timedOut.timedOut, timedOut.parts.length, timedOut.missing, three.c._barrier.size()], [true, 1, ['lane 2', 'lane 3'], 0], 'S5 its expiry releases what is there and names the lanes that never came (a PARTIAL join)');
+
+    // S5 a REAL floor: the gate inside branch B holds the job with A parked at the joiner. The hold takes the barrier with it — out of memory and
+    // out of the barrier file, so a restart reports nothing "lost" — and says all of it.
+    const floor = joinFloor();
+    floor.props = floor.props.filter(p => p.id !== 'p6');
+    floor.props.push({ id: 'p7', t: 'loop', x: 6, y: 5, w: 1, h: 1, done: 'E', when: 'approved', maxIter: 2 });
+    floor.belts.push(dockBelt(6, 6, 'W'), dockBelt(5, 6, 'W'), dockBelt(4, 6, 'W'), dockBelt(3, 6, 'W'));
+    const plan = P.compileRoutingPlan(floor), router = makeRouter();
+    A.ok(router.setPlan(plan).ok, 'S5 fixture: the floor with a gate inside B deploys');
+    const disk = [], store = { load: () => (disk.length ? JSON.parse(disk[disk.length - 1]) : null), save: v => disk.push(JSON.stringify(v)) };
+    const chain = makeChainRunner({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), peekDock: (d, x) => router.chainPeekDock(d, x),
+      entryDockOf: a => router.entryDockOf(a), fanSiblingsDock: d => router.fanSiblingsDock(d), lineOfAgent: (a, d) => router.lineOfAgent(a, d),
+      lastStage: (a, d) => router.chainShipsToOutbox(a, d), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d), getTag: () => 'general', now: clock, setTimer: () => 0, barrierStore: store });
+    const e = router.resolveDock({ tag: 'general' });
+    const res = await chain.advance({ agentId: e.agentId, dockId: e.dockId, text: 'A out', originalText: 'job', lineId: router.lineOriginFor(e.agentId, e.dockId), runId: 'jS5',
+      runAgent: async h => ({ text: h.agentId + ' says nothing usable', usd: 0.01, runId: 'r-' + h.agentId + '-' + h.hop }) });
+    A.ok(res.hold && res.hold.reason === 'missing_verdict' && res.hold.gateId === '6,5' && res.holdState && !res.holdState.open.refuse, 'S5 B\'s gate holds the job with the split saved: ' + JSON.stringify(res.hold));
+    const hb = res.holdState.barriers[0];
+    A.eq([res.holdState.barriers.length, hb.joinId, hb.branchIds, hb.failed, hb.pending, hb.inFlight, hb.expect, hb.timeoutMs, hb.parts.map(p => [p.branchId, p.runId, p.product.text])],
+      [1, '9,4', ['p3', 'p4'], [], ['p4'], [], 2, 600000, [['p3', 'jS5', 'A out']]], 'S5 the hold exposes the barrier: its part (branch, run, text), who still owes one, no batch out, the expected count and the timeout');
+    A.eq([res.holdState.walk.fan.joinKey, res.holdState.walk.pending.length, res.holdState.walk.forced, res.holdState.walk.branchMode], ['9,4|jS5', 0, null, true], 'S5 the split\'s own state rides with it');
+    A.eq([chain._barrier.size(), disk[disk.length - 1]], [0, '{}'], 'S5 the barrier left memory AND the barrier file with the hold');
+    const warns = []; const ow = console.warn; console.warn = m => warns.push(String(m));
+    makeChainRunner({ nextAgent: () => null, barrierStore: store });
+    console.warn = ow;
+    A.eq(warns.filter(w => /lost on restart/.test(w)), [], 'S5 a restart after the hold reports no barrier "lost on restart": the job record owns it');
+  }
+
   A.report('chain.join-loop');
 })();

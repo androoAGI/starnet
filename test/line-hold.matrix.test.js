@@ -15,7 +15,9 @@
         step-through test, end the OLD way with the reason said;
      4. the other two reasons (missing_verdict, spent), file receipts (exact digest and size), a file handed in from another job;
      5. everything that cannot be saved exactly ends the old way, never half-saved: no hold port, an oversized crate, an unreadable file,
-        a floor edited while the job was out, E-STOP, and a full queue of jobs waiting for a decision;
+        a floor edited while the job was out, E-STOP, and a full queue of jobs waiting for a decision. (A gate INSIDE a split or right
+        after a join is not one of them any more: it is saved with its split, S5 — checked here through the real chain, and with a
+        restart and the decisions in test/line-hold.split.test.js);
      6. retention and boot keep a held job; the store's readers never see it as delivered.
    Run against the S2 tip's chain.js / line-runner.js / linejobs.js / line-fire.js this goes RED at section 1: the job ends 'problem', with
    no continuation, and is still 'problem' after the restart. */
@@ -238,8 +240,10 @@ function assertHeld(rig, ran, o, label) {
     A.eq([rig.record(ran.job.id).status, rig.counts.hold, rig.counts.finish], ['problem', 0, 1], 'an oversized crate: nothing was written to the job, it finished the old way once');
     rig.dispose();
   }
-  {   /* a hold INSIDE a running split, and a hold AFTER a join, through the real chain: the walk's own snapshot says so (open.fan / open.joined)
-         and the saver refuses in words. Until a hold can keep its branches and barrier (a later step of the lane) the job ends the old way. */
+  {   /* a hold INSIDE a running split, and a hold AFTER a join, through the real chain. They USED to end the old way (the saver refused them in
+         words: a hold could not keep its branches and barrier); since the split step of the lane (S5) they are SAVED with the split — the
+         full cases, a restart and the decisions are test/line-hold.split.test.js. Here: they are held, nothing is finished, nothing is
+         delivered, and the saved record carries the split. */
     const belt = (x, y, dir) => ({ x, y, dir });
     const joinFloor = () => ({ props: [{ id: 'p1', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'p2', t: 'splitter', x: 3, y: 0, w: 1, h: 1 }, { id: 'p3', t: 'bay', x: 6, y: 0, w: 2, h: 2, agentId: 'A' },
       { id: 'p4', t: 'bay', x: 2, y: 4, w: 2, h: 2, agentId: 'B' }, { id: 'p5', t: 'joiner', x: 9, y: 4, w: 1, h: 1 }, { id: 'p6', t: 'bay', x: 12, y: 4, w: 2, h: 2, agentId: 'D' }],
@@ -281,11 +285,15 @@ function assertHeld(rig, ran, o, label) {
       return { line, res, rec: J.get(state, job.id), finishes, held };
     };
     const inside = await splitWalk(branchGate(), { A: 'A out', B: 'B out' });
-    A.ok(inside.line.hold && inside.line.hold.reason === 'missing_verdict' && !inside.line.held && /inside a split/.test(inside.line.holdFailed || ''), 'a gate inside a running split: refused in words, not half-saved: ' + inside.line.holdFailed);
-    A.eq([inside.rec.status, inside.rec.continuation === undefined, inside.finishes.length, inside.held, inside.res.delivered], ['problem', true, 1, 0, false], 'a gate inside a running split: the job ends the old terminal blocked stop, nothing written');
+    A.ok(inside.line.hold && inside.line.hold.reason === 'missing_verdict' && inside.line.held && !inside.line.holdFailed, 'a gate inside a running split: saved with its split, not refused: ' + inside.line.holdFailed);
+    const ic = inside.rec.continuation;
+    A.eq([inside.rec.status, inside.rec.endedAt, inside.finishes.length, inside.held, inside.res.delivered, ic && ic.walk.pending.map(b => b.id), ic && ic.walk.fan.branchIds, ic && ic.barriers.length],
+      ['held', null, 0, 1, false, ['p4'], ['p3', 'p4'], 0], 'a gate inside a running split: HELD, nothing finished, one write; the sibling that had not started is queued in the saved split');
     const joined = await splitWalk(joinGate(), { A: 'A out', B: 'B out' });
-    A.ok(joined.line.hold && !joined.line.held && /joiner merged/.test(joined.line.holdFailed || ''), 'a gate after a join: refused in words: ' + joined.line.holdFailed);
-    A.eq([joined.rec.status, joined.rec.continuation === undefined, joined.held], ['problem', true, 0], 'a gate after a join: the old stop, nothing written');
+    A.ok(joined.line.hold && joined.line.held && !joined.line.holdFailed, 'a gate after a join: saved, not refused: ' + joined.line.holdFailed);
+    const jc = joined.rec.continuation;
+    A.eq([joined.rec.status, joined.finishes.length, joined.held, jc && jc.walk.product.producer.kind, jc && jc.walk.product.producer.runIds.length, jc && jc.walk.fan, jc && jc.barriers.length],
+      ['held', 0, 1, 'join', 2, null, 0], 'a gate after a join: HELD, the crate under review is the join\'s merge of two runs, no split is left to save');
     const clean = await splitWalk(joinGate(), { A: 'A out', B: 'B out\nVERDICT: approved' });
     A.eq([clean.res.delivered, clean.line.hold, clean.line.holdFailed], [true, undefined, undefined], 'control: the same joined line with an approving tail is delivered, no hold attempted');
   }
@@ -298,8 +306,10 @@ function assertHeld(rig, ran, o, label) {
     const build = (mut, o) => { const l = Object.assign({}, line, { holdState: JSON.parse(JSON.stringify(st)) }); Object.defineProperty(l, 'hold', { value: line.hold }); mut(l.holdState); return LineHold.buildHeld(seed, l, o === undefined ? rec : o, origin, host); };
     const again = LineHold.buildHeld(seed, line, rec, origin, host);
     A.ok(!!st && again.ok === true && JSON.stringify(again.continuation) === JSON.stringify(rec.continuation), 'the pure builder is deterministic: the same walk builds the very continuation that was saved');
-    for (const [label, mut, why] of [['a gate inside a running split', s => { s.open.fan = true; }, /inside a split/], ['a queued branch', s => { s.open.pending = 1; }, /inside a split/],
-      ['a parked barrier', s => { s.open.barriers = 1; }, /inside a split/], ['after a join', s => { s.open.joined = true; }, /joiner merged/], ['no attempts', s => { s.attempts = []; }, /no run receipt/],
+    for (const [label, mut, why] of [['a split the walk cannot account for', s => { s.open.refuse = 'a branch of the split ended apart from its joiner, so the split cannot be rebuilt exactly'; }, /ended apart from its joiner/],
+      ['a parallel batch still out', s => { s.barriers = [{ inFlight: ['p4'] }]; }, /still out/],
+      ['queued branches with no split', s => { s.walk.pending = [{ id: 'p4', node: { agentId: 'x', dockId: null }, product: { text: 't', draft: 'd', verdict: null, files: [], producer: { kind: 'run', runId: 'r' } } }]; }, /no split to account for/],
+      ['no attempts', s => { s.attempts = []; }, /no run receipt/],
       ['an attempt with no run id', s => { s.attempts[1].runId = null; }, /no run receipt/], ['no state at all', s => { delete s.walk; }, /left no state/]]) {
       const r = build(mut);
       A.ok(r.ok === false && why.test(r.reason), label + ': refused in words: ' + r.reason);

@@ -13,6 +13,11 @@
      o.hold     false = a host with no hold port at all (the runner of before this lane)
      o.entryUsd / o.hopUsd   what the entry run and every hop cost (default 0.02 / 0.01)
      o.files    true = the drafter's runs write a real file (rig.fileOf(job) names it)
+   o.floor    (S5) a whole floor { props, belts } in place of the gate floor above; o.entry { agentId, dockId } is the dock the entry run
+              is at (default the gate floor's reviewer), o.agents the crew the station knows, o.peek lets the chain run single-step
+              branches at once, o.barrierStore the chain's barrier file. rig.reply(x) answers every stage then (no 'reviewer' agent),
+              rig.timers records every joiner timeout the chain armed. o.idBase / o.clockBase start the ids and the clock of a RESTARTED station
+              past the first one's (a real restart mints new ones: a collision would be a fixture lie).
    rig.run({ entry, replies, origin, seed, files }) -> { job, line }     one job down the line, exactly as an entry door runs it:
         open -> runLineJob -> (the caller settles). `replies` are the REVIEWER's answers in order: replies[0] arrives with the job (the
         reviewer is the line's entry dock), each later reviewer turn answers the next one, the last repeats. Every other dock answers
@@ -69,26 +74,31 @@ function hostPorts(scope) {
 function makeRig(o) {
   o = o || {};
   const entryUsd = o.entryUsd == null ? 0.02 : o.entryUsd, hopUsd = o.hopUsd == null ? 0.01 : o.hopUsd;
-  const plan = P.compileRoutingPlan(geometry(o.gate, o.wiring)), router = makeRouter();
+  const plan = P.compileRoutingPlan(o.floor || geometry(o.gate, o.wiring)), router = makeRouter();
   if (!router.setPlan(plan).ok) throw new Error('rig: the floor does not deploy: ' + JSON.stringify(plan.errors));
-  const lineId = router.lineOriginFor('drafter', 'p2');
-  let state = { jobs: [] }, seq = 0, clock = 1000, said = 0, runN = 0, replies = [];
-  const rows = new Map(), events = [], calls = [], notes = [], shipped = [], counts = { finish: 0, hold: 0, start: 0 };
+  const entryDock = o.entry || { agentId: 'reviewer', dockId: 'p3' };
+  const lineId = o.floor ? router.lineOriginFor(entryDock.agentId, entryDock.dockId) : router.lineOriginFor('drafter', 'p2');
+  let state = { jobs: [] }, seq = o.idBase || 0, clock = o.clockBase || 1000, said = 0, runN = 0, replies = [];   // (a RESTARTED station mints ids and reads a clock that are not the first one's: o.idBase, o.clockBase)
+  const rows = new Map(), events = [], calls = [], notes = [], shipped = [], counts = { finish: 0, hold: 0, start: 0 }, timers = [];
   const now = () => ++clock, newId = () => (++seq).toString(16).padStart(12, '0');
-  const rig = { router, plan, lineId, rows, events, calls, notes, shipped, counts, halted: false, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'line-hold-rig-')) };
+  const rig = { router, plan, lineId, rows, events, calls, notes, shipped, counts, timers, halted: false, dir: fs.mkdtempSync(path.join(os.tmpdir(), 'line-hold-rig-')) };
   const put = r => { state = J.normalizeAll(JSON.parse(JSON.stringify(r.state))); return r.job ? J.get(state, r.job.id) : null; };   // saved, then read back
   rig.jobs = { start: x => { counts.start++; return put(J.start(state, x)); }, get: id => J.get(state, id),
     finish: (id, x) => { counts.finish++; return put(J.finish(state, id, x)); }, mark: (id, s) => put(J.mark(state, id, s)), all: () => state.jobs };
   if (o.hold !== false) rig.jobs.hold = (id, rev, c) => { counts.hold++; return put(J.checkpoint(state, id, rev, c)); };
   rig.day = { spent: () => 0, note: (l, usd) => notes.push(usd) };   // the day ledger the chain notes every paid stage into (a test may swap in the real one)
-  rig.roster = new Map(['drafter', 'reviewer', 'publisher', 'fixer'].map(a => [a, { agentId: a }]));   // the crew the station knows (a resume refuses a deleted agent)
+  rig.roster = new Map((o.agents || ['drafter', 'reviewer', 'publisher', 'fixer']).map(a => [a, { agentId: a }]));   // the crew the station knows (a resume refuses a deleted agent)
   // the run config a stage would resolve (index.js sampleRunConfigFor): an agent the station's crew no longer holds cannot run
   const configFor = a => rig.roster.has(a) ? { ok: true, configured: true } : { ok: false, error: 'target agent ' + a + ' is not in the live roster' };
   rig.ports = hostPorts({ router, nightshift: { isHalted: () => rig.halted }, sampleRunConfigFor: configFor, lineSpend: { spentToday: l => rig.day.spent(l) } });
-  rig.chain = makeChainRunner({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), entryDockOf: a => router.entryDockOf(a),
+  // (the chain is built by a function: a RESTARTED station is a new chain with no barrier in memory — rig.restartChain())
+  const buildChain = () => makeChainRunner(Object.assign({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), entryDockOf: a => router.entryDockOf(a),
     fanSiblingsDock: d => router.fanSiblingsDock(d), lineOfAgent: (a, d) => router.lineOfAgent(a, d), agentOfDock: d => router.agentOfDock(d),
     lastStage: (a, d) => router.chainShipsToOutbox(a, d), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d), onShipped: r => shipped.push(r),
-    daySpend: { spentToday: l => rig.day.spent(l), note: (l, usd) => rig.day.note(l, usd) }, emit: (n, p) => events.push({ n, p }), now, newId, getTag: () => 'general', setTimer: () => 0 });
+    daySpend: { spentToday: l => rig.day.spent(l), note: (l, usd) => rig.day.note(l, usd) }, emit: (n, p) => events.push({ n, p }), now, newId, getTag: () => 'general',
+    setTimer: (fn, ms) => { timers.push(ms); return 0; } },
+  o.peek ? { peekDock: (d, x) => router.chainPeekDock(d, x) } : null, o.barrierStore ? { barrierStore: o.barrierStore } : null));
+  rig.chain = buildChain();
   const fileOf = job => path.join(rig.dir, job.id + '.md');
   rig.fileOf = fileOf;
   rig.seen = [];   // every provider call as it was made: what the stage was handed and under which verdicts it ran
@@ -98,7 +108,7 @@ function makeRig(o) {
     rig.seen.push({ agentId: x.agentId, dockId: x.dockId, runId: x.runId, prompt: lastUser ? String(lastUser.content) : '', ownerTrusted: x.ownerTrusted, untrustedEntry: x.untrustedEntry,
       channelSender: x.channelSender, channelSenderOwner: x.channelSenderOwner, ceilingUsd: x.ceilingUsd, unattendedGrants: x.unattendedGrants, surface: x.surface });
     if (rig.beforeCall) rig.beforeCall(x, calls.length);   // a test's hand on the world while the job is out (a floor edit, an E-STOP)
-    const reviewer = x.agentId === 'reviewer';
+    const reviewer = !o.floor && x.agentId === 'reviewer';   // (a custom floor has no reviewer: rig.reply answers every stage)
     const text = reviewer ? replies[Math.min(said++, replies.length - 1)] : (typeof rig.reply === 'function' ? rig.reply(x) : 'another draft');
     const row = { runId: x.runId, streamId: x.streamId, agentId: x.agentId, dockId: x.dockId, reason: 'done', outcome: 'succeeded', startedAt: now(), usd: hopUsd, projectRoot: rig.dir };
     if (!reviewer && o.files) { fs.writeFileSync(path.join(rig.dir, 'draft-' + x.runId + '.md'), 'the file ' + x.runId); row.artifacts = [{ kind: 'file', path: 'draft-' + x.runId + '.md' }]; }
@@ -126,10 +136,10 @@ function makeRig(o) {
     const entry = opts.entry || 'channel', n = ++runN, runId = 'run-entry-' + n, streamId = 'rig-stream-' + n;
     replies = (opts.replies || ['not safe to publish\nVERDICT: blocked']).slice(); said = 0;
     const first = replies[said++];
-    rows.set(runId, { runId, streamId, agentId: 'reviewer', dockId: 'p3', reason: 'done', outcome: 'succeeded', startedAt: now(), usd: entryUsd, projectRoot: rig.dir });
+    rows.set(runId, { runId, streamId, agentId: entryDock.agentId, dockId: entryDock.dockId, reason: 'done', outcome: 'succeeded', startedAt: now(), usd: entryUsd, projectRoot: rig.dir });
     const job = rig.runner.open({ line: lineId, entry, text: 'write a post', streamId, delivery: opts.delivery });
     const facts = opts.origin !== undefined ? opts.origin : (typeof rig.facts[entry] === 'function' ? rig.facts[entry](runId) : rig.facts[entry]);
-    const seed = Object.assign({ agentId: 'reviewer', dockId: 'p3', lineId, runId, streamId, since: rows.get(runId).startedAt, text: first, originalText: 'write a post',
+    const seed = Object.assign({ agentId: entryDock.agentId, dockId: entryDock.dockId, lineId, runId, streamId, since: rows.get(runId).startedAt, text: first, originalText: 'write a post',
       entryUsd, entryTrusted: true, hostPowerKept: true, origin: facts, taints: [] }, opts.seed);
     const line = await rig.runner.runLineJob({ job, seed, profile: rig.runner.profiles.channel({}) });
     return { job, line, runId, streamId };
@@ -160,6 +170,8 @@ function makeRig(o) {
   rig.state = () => state;
   rig.reload = () => { state = J.normalizeAll(JSON.parse(JSON.stringify(state))); return state; };
   rig.boot = () => { state = J.normalizeAll(JSON.parse(JSON.stringify(J.boot(state, now()).state))); rig.runner = build(); return state; };
+  // a RESTARTED station: the chain and the runner are new objects with nothing in memory (no join barrier, no live handle); the saved jobs are what the disk says
+  rig.restartChain = () => { rig.chain = buildChain(); rig.runner = build(); return rig; };
   rig.world = () => JSON.stringify({ calls: calls.length, notes: notes.slice(), rows: rows.size, crates: events.filter(e => e.n === 'workitem.delivered' && e.p.finalQueueId === 'outbox').length,
     lineOutputs: events.filter(e => e.n === 'workitem.delivered' && e.p.box === 'line-output').length, shipped: shipped.length, finish: counts.finish });
   rig.dispose = () => { try { fs.rmSync(rig.dir, { recursive: true, force: true }); } catch (_) { /* a temp dir */ } };
