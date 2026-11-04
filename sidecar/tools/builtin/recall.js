@@ -38,7 +38,7 @@
   // what a recalled row SAYS: the Commander's typed words and one '[attached: name]' per file it carried, never a file's text
   // (turn-attachment.js textOf); a row that carried no file reads as its content, byte for byte. An attachment row says
   // '[attached: name]' itself.
-  const rowText = (r) => (turnAttachment && typeof turnAttachment.textOf === 'function') ? turnAttachment.textOf(r) : String(r && r.content == null ? '' : r && r.content);
+  const rowText = (r) => (turnAttachment && typeof turnAttachment.textOf === 'function') ? turnAttachment.textOf(r) : String(r && r.content != null ? r.content : '');
 
   const { note: failNote } = (typeof require === 'function') ? require('../../failopen.js') : { note: function (tag, code) { console.warn('[failopen] ' + tag + ':', code); } };
 

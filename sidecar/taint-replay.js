@@ -40,6 +40,12 @@
    What decays is only the model's own replies, written while the bytes were in front of it, once the bytes are gone. That
    residual (hostile file text steering turns 1-2, carried into turn 3 by the model's own earlier replies) is the price
    of a conversation that is clean again from the third turn; docs/DECISIONS.md records it.
+   THE ROWS OF A TURN WITH FILES (S3, sidecar/turn-attachment.js). The Commander's directive row holds the typed words and is
+   written clean, so the 11-02 shape above is no longer written, and each file is a role-system 'attachment' row beside it
+   stamped with the bare source (a name, a path, a size and a hash: no bytes, nothing to replay, recallable by name). Readers
+   show a row that kept files as its typed words plus '[attached: name]' (earlier-conversation, recall_conversation), so the
+   file text of an 11-02 row reaches the model neither through the earlier-conversation note nor through a recall; only a
+   server seed that replays the stored text of the 11-02 or 0.14.2 shape itself still carries bytes, and still taints.
 
    UNPROVABLE = TAINTED. A source journal that cannot be read answers "taint unverifiable" (the same narrowing
    index.js recoverySourceEntryUntrusted applies to the same read); the transcript proof still runs, so a concrete

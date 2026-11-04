@@ -49,14 +49,15 @@ const latestUserText = list => UserText.latest(list, UserText.DIRECTIVE);
 const BASE = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-attachment-rows-'));
 const worlds = [];
 
-/* A station in a temp dir: a real jail the attachments save into, and the real transcript store on the segmented disk io. */
-function world() {
+/* A station in a temp dir: a real jail the attachments save into, and the real transcript store on the segmented disk io.
+   tombstones (optional) is the host's deleted-session ledger: stream -> ms of its delete. */
+function world(tombstones) {
   const root = path.join(BASE, 'w' + (worlds.length + 1));
   const WS = path.join(root, 'workspaces'), HIST = path.join(root, 'transcript-history-v2');
   fs.mkdirSync(WS, { recursive: true });
   let clock = 1000;
   const io = makeSegmentedTranscriptIo({ fs, path, root: HIST, legacyFiles: [] });
-  const store = makeTranscriptStore({ io, clock: { now: () => ++clock }, redact });
+  const store = makeTranscriptStore({ io, clock: { now: () => ++clock }, redact, deletedAt: tombstones ? (sid => tombstones[sid] || 0) : undefined });
   const resolveInside = async (agentId, rel) => {
     const base = path.join(WS, agentId), abs = path.resolve(base, rel);
     if (abs.indexOf(base + path.sep) !== 0) throw new Error('outside the jail');
@@ -444,6 +445,38 @@ const liveAtt = (w, turnId) => (w.store.findTurn('S', turnId, {}).rows || []).fi
       A.eq(Object.keys(byContent['[attache']), base.concat(['kind']), 'an attachment row\'s hit also says its kind (the matrix recalls it by that)');
       A.eq(Object.keys(byContent['zebra st']), base.concat(['typed', 'attachments']), 'and a row that carried files says its typed words and its references');
       A.eq(byContent['zebra st'].attachments, [ref], 'the references are the row\'s own');
+    }
+
+    // ======================= 10. FORGOTTEN WITH THE TURN: an undo and a deleted session leave no file row to find =======================
+    // The file rows are part of the turn (same stream, same turnId, after the directive), so whatever hides the turn hides them: the
+    // undo of a turn retracts them with its directive, and a deleted session tombstones them by time. The name of a file the
+    // Commander deleted is a fact about their conversation; recall must not return it.
+    {
+      const tombstones = {};
+      const w = world(tombstones);
+      const recall = makeRecallTool({ transcriptStore: w.store }).recallTool;
+      const notes = await w.save('notes.txt', 'text/plain', Buffer.from(FILE_TEXT));
+      const pic = await w.save('pixel.png', 'image/png', PNG);
+      const history = [{ role: 'user', content: TYPED, attachments: [notes, pic] }];
+      const T = turnIdOf(70);
+      finish(await turn(w, { runId: 'run-0070', turnId: T, history }), 'first answer');
+      const keep = turnIdOf(71);
+      finish(await turn(w, { runId: 'run-0071', turnId: keep, history: [{ role: 'user', content: 'KEPT_TURN with its own file', attachments: [await w.save('kept.txt', 'text/plain', Buffer.from('kept body'))] }] }), 'kept answer');
+      const found = async query => (await recall.run({ query, scope: 'stream' }, { streamId: 'S' })).content;
+      A.ok((await found('notes')).includes('[attached: notes.txt]') && (await found('kept')).includes('[attached: kept.txt]'), 'fixture: both turns\' files are findable');
+      const undone = w.store.retract({ streamId: 'S', turnId: T, reason: 'undo', runId: 'undo-run' });
+      A.eq(undone.state, 'done', 'fixture: the undo of the first turn was proven and written');
+      A.eq(attRows(w.rows()).filter(r => undone.targets.includes(r.rowId)).length, 2, 'the undo retracts the turn\'s two file rows with its directive and its answer');
+      const afterUndo = await found('notes');
+      A.ok(afterUndo.indexOf('[attached: notes.txt]') < 0 && afterUndo.indexOf('pixel.png') < 0, 'after the undo recall cannot return the file\'s name: ' + afterUndo.slice(0, 120));
+      A.ok((await found('kept')).includes('[attached: kept.txt]'), 'and the other turn\'s file is still there');
+      A.eq(w.view('recall', { op: 'search', query: 'pixel', scope: 'stream' }).length, 0, 'no view of the store holds the retracted file rows (the append-only proof view keeps them, as it keeps every row)');
+      A.eq(w.view('proof').filter(r => r.kind === 'attachment' && r.turnId === T).length, 2, 'proof: the rows are still on disk, hidden, never rewritten');
+
+      // a deleted session: everything stamped at or before the delete is forgotten, the file rows included
+      tombstones.S = 10 * 1000 * 1000;
+      A.ok((await found('kept')).indexOf('[attached: kept.txt]') < 0, 'after the session is deleted recall cannot return any file row');
+      A.eq(w.view('recall', { op: 'search', query: 'kept', scope: 'all' }).length, 0, 'in any scope');
     }
   } finally {
     for (const w of worlds) { try { w.io.close(); } catch (e) { console.warn('close', e.message); } }
