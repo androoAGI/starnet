@@ -29,6 +29,9 @@ const { makeQuestStore } = require('../sidecar/quest-store.js');
 const QuestRefresh = require('../sidecar/questrefresh.js');
 const { makeOverseer } = require('../sidecar/overseer.js');
 const { makeSubagentManager } = require('../sidecar/subagents.js');
+const makeAttachments = require('../sidecar/attachments.js');
+const Store = require('../sidecar/transcriptstore.js');
+const History = require('../sidecar/transcript-history.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -388,6 +391,34 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.ok(!/quokka|readerword/.test(fs.readFileSync(path.join(sdir, 'subagents.json'), 'utf8')), 'the registry file holds none of the deleted words');
         A.eq(await forget('subagents'), 0, 'idempotent');
       } finally { remove(sdir); }
+    }
+
+    // ---------------- attachment files ----------------
+    {
+      const adir = temp('attach');
+      try {
+        const fsp = fs.promises;
+        const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const png = 'data:image/png;base64,' + Buffer.from('quokka-image-bytes').toString('base64');
+        const text = name => 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64');
+        const onlyGone = await att.saveAttachment('agent', 'quokka.png', png);
+        const shared = await att.saveAttachment('agent', 'shared.txt', text('shared'));
+        const onlyKeep = await att.saveAttachment('agent', 'platypus.txt', text('platypus'));
+        const exists = ref => fs.existsSync(path.join(adir, 'agent', ref.path));
+        A.ok([onlyGone, shared, onlyKeep].every(r => r && r.path && exists(r)), 'three attachment files are on disk');
+        const io = History.makeMemoryTranscriptIo();
+        const store = Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        const say = (streamId, words, atts) => store.appendStrict({ sourceRunId: 'run_' + streamId, streamId, agentId: 'agent', role: 'user', content: words, ts: 4000, taint: null, directive: true, kind: 'turn', attachments: atts });
+        say('sGone', 'look at these quokka files', [onlyGone, shared]);
+        say('sKeep', 'the shared file again, re-sent', [shared]);
+        say('sKeep', 'and the platypus file', [onlyKeep]);
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        A.eq(await forget('attachment-files'), 1, 'the file only the deleted session\'s message named is removed');
+        A.ok(!exists(onlyGone) && exists(shared) && exists(onlyKeep), 'a file a live session also names (a re-send) stays, and so does another session\'s file');
+        A.eq(await forget('attachment-files'), 0, 'idempotent');
+        A.ok(!fs.existsSync(path.join(adir, 'agent', '.attachments')) || !fs.readdirSync(path.join(adir, 'agent', '.attachments')).some(f => f === path.basename(onlyGone.path)), 'the agent\'s file tools can no longer list the deleted session\'s attachment');
+      } finally { remove(adir); }
     }
 
     A.report('forget-stores');

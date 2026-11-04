@@ -282,6 +282,34 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.subagents().forget(r => inScope({ streamIds: [r.parentStreamId, r.streamId], runIds: [r.runId, r.parentRunId], at: num(r.startedAt || r.updatedAt) }, scope))
   });
 
+  /* attachment files: the bytes the agent's file tools can read under its workspace's .attachments/. A deleted session's directive rows name
+     them (attachments[].path, read through the PROOF view, which still sees forgotten rows). Each ref no row of a live stream also names is
+     removed through the attachments module's own removeAttachment; a file a branch copy or a re-send shares with a live session stays. Refs on
+     pre-upgrade rows exist only in the page's own save - the page's delete posts those (commit 16). */
+  entry({
+    name: 'attachment-files',
+    sourceOf: ref => ({ streamIds: [ref && ref.streamId], at: num(ref && ref.ts) }),
+    forget: async scope => {
+      const store = d.transcriptStore();
+      const live = new Set();
+      for (const r of store.all()) for (const a of Array.isArray(r.attachments) ? r.attachments : []) if (a && a.path) live.add(a.path);   // all() is the store's NON-forgotten rows
+      const doomed = new Map();   // path -> agentId
+      for (const [streamId, stamp] of (scope.streams || scope.at || new Map())) {
+        for (const r of store.view('proof', streamId, { complete: true })) {
+          if (num(r.ts) > stamp) continue;
+          for (const a of Array.isArray(r.attachments) ? r.attachments : []) if (a && typeof a.path === 'string' && !live.has(a.path)) doomed.set(a.path, r.agentId || 'agent');
+        }
+      }
+      let removed = 0;
+      for (const [rel, agentId] of doomed) {
+        if (!(await d.attachments().hasAttachment(agentId, rel))) continue;   // already gone: a second pass reports nothing
+        const out = await d.attachments().removeAttachment(agentId, rel);
+        if (out && out.ok) removed++;
+      }
+      return removed;
+    }
+  });
+
   return registry;
 }
 
