@@ -2,8 +2,10 @@
 'use strict';
 const Kinds = require('../frontend/app/turnkinds.js');
 const ROW_IDS = Symbol('starnet.transcript.row-ids');
-// non-enumerable side channel on a display result: { keys: [[streamId, rowId]...], runIds: [...] } of the rows the quote rule hid
-const FORGOTTEN = Symbol('starnet.transcript.forgotten');
+// non-enumerable side channel on a display result: { keys: [[streamId, rowId]...], runIds: [...] } of the rows the quote rule hid.
+// A REGISTERED symbol (Symbol.for): index.js's transcriptProjection reads it by the registry key, so that function needs no TurnView in scope
+// (test/transcript-perf-paths evaluates it on its own with a fixed dependency list).
+const FORGOTTEN = Symbol.for('starnet.transcript.forgotten');
 const FORGOTTEN_KEYS_MAX = 2000, FORGOTTEN_RUNS_MAX = 200;
 const hasId = row => row && Number.isSafeInteger(row.rowId) && row.rowId > 0;
 const text = row => typeof row.content === 'string' ? row.content : '';
