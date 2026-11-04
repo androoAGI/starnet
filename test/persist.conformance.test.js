@@ -1004,7 +1004,8 @@ function same(got, want, label) {
         makeDeliverableStore: {
           fs: 'every deliverables row (the fault facade)', path: 'every deliverables row', workspaces: 'every deliverables row',
           writeDurable: 'the update-frozen writer (row "update freeze"; the crash rows pass a dead writer pid through it; the journal cut)',
-          onRecover: 'the recovered rows', onCorrupt: 'the host quarantine (the corrupt rows)'
+          onRecover: 'the recovered rows', onCorrupt: 'the host quarantine (the corrupt rows)',
+          admit: 'the forget registry write-time gate on a lifecycle row: it decides whether a row is written, never how the file is written, read or kept (forget-registry.test.js holds the gate)'
         },
         makeRunJournal: {
           dir: 'every run-journal row', fs: 'every run-journal row (the fault facade)', path: 'every run-journal row',
