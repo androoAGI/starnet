@@ -25,6 +25,15 @@
         and never once the network is healthy.
    SEEDS: SAVE_INTERLEAVE_SEEDS (default 500). A failing seed prints its number: SAVE_INTERLEAVE_ONLY=<seed> replays it.
 
+   THE PACKED PASS (save-history-by-reference, step S3). The same worlds, the same seeds, the same interleavings — with every window
+   saving save v7: the rows a window has proven against the station's transcript (a seal, as the page keeps them) are saved as packed
+   elements { $ref, res } naming runs of rows, each window packing a different subset (a row packed in one window is inline in the
+   other); a window that opens or reloads reads its packed history back from the transcript. Which rows a window has proven comes from
+   a random stream of its own, so the schedule is the unpacked run's and any difference is packing's. I1, I3 and I4 count ROWS (an
+   element is read as the rows it names), and I6 holds the station file to the rule the merge engines exist for: no row is NAMED
+   twice in a saved history (counted on the names in the file, not on what an expand would make of them), no exploded stub is ever
+   saved, and every row an element names is in the transcript.
+
    Plus NAMED cases (the done-means and review 10-27's repros): a desktop window + a browser tab — the one behind merges and
    is never reloaded or bannered; two tabs of one browser (27bae3d6); a station that REFUSES the merge (the conflict stands as
    before); a behind window's non-session changes land; a session another window deleted is reported, never dropped
@@ -35,6 +44,8 @@
 const A = require('./_assert.js');
 const path = require('node:path');
 const K = require('./_save-restore-kit.js');
+const HistoryRef = require('../frontend/app/historyref.js');
+const { makeInflate } = require('../sidecar/save-inflate.js');
 
 const SEEDS = Math.max(1, Number(process.env.SAVE_INTERLEAVE_SEEDS) || 500);
 const ONLY = process.env.SAVE_INTERLEAVE_ONLY ? Number(process.env.SAVE_INTERLEAVE_ONLY) : null;
@@ -93,23 +104,58 @@ function memfs() {
   };
 }
 
-// every turn text in a save (or [] for none)
-function turnsOf(doc) {
+// every turn text in a save (or [] for none). lookup(sessionId, rowId) -> the text of a row the transcript holds: with it a packed element
+// counts as the rows it names (the PACKED pass); a row the transcript does not hold counts for nothing, so a dangling element is a loss
+function turnsOf(doc, lookup) {
   const out = new Set();
-  for (const w of (doc && Array.isArray(doc.workstreams) ? doc.workstreams : [])) for (const t of (Array.isArray(w.history) ? w.history : [])) if (t && typeof t.content === 'string') out.add(t.content);
+  for (const w of (doc && Array.isArray(doc.workstreams) ? doc.workstreams : [])) for (const t of (Array.isArray(w.history) ? w.history : [])) {
+    if (t && typeof t.content === 'string') out.add(t.content);
+    else if (lookup && HistoryRef.isRef(t)) for (const id of HistoryRef.decode(t.$ref) || []) { const c = lookup(w.id, id); if (c != null) out.add(c); }
+  }
   return out;
+}
+// I6, the rule the merge engines exist for, on the names in the file itself
+function packedProblems(doc, lookup) {
+  const bad = [];
+  for (const w of (doc && Array.isArray(doc.workstreams) ? doc.workstreams : [])) {
+    const named = new Map();
+    for (const el of (Array.isArray(w.history) ? w.history : [])) {
+      if (HistoryRef.isStub(el)) bad.push('an exploded stub was saved in ' + w.id);
+      else if (HistoryRef.isRef(el)) {
+        const ids = HistoryRef.decode(el.$ref);
+        if (!ids) { bad.push('an element that cannot be read was saved in ' + w.id); continue; }
+        for (const id of ids) { named.set(id, (named.get(id) || 0) + 1); if (lookup(w.id, id) == null) bad.push('a packed element in ' + w.id + ' names row ' + id + ', which the transcript does not hold'); }
+      } else if (el && Number.isSafeInteger(el.rowId) && el.rowId > 0 && el.idFrom !== 'collision' && (!el.streamId || el.streamId === w.id)) named.set(el.rowId, (named.get(el.rowId) || 0) + 1);
+    }
+    for (const [id, n] of named) if (n > 1) bad.push('row ' + w.id + ':' + id + ' is named ' + n + ' times in one saved history');
+  }
+  return bad;
 }
 
 // ---- one world: a station (sidecar) + browsers + windows, all on one clock and one seeded network ----
 function world(seed, opts) {
   opts = opts || {};
   const rand = rng(seed);
+  // PACKED: which rows a window has proven comes from a stream of its own, so the schedule is the unpacked run's (rand is not touched)
+  const prand = rng((seed * 2654435761 + 0x5bd1e995) >>> 0);
+  const packed = !!opts.packed;
+  const transcript = new Map();   // session id -> Map(row id -> the station's turn): what the station's transcript holds
+  const rowLookup = (sid, id) => { const m = transcript.get(sid); const t = m && m.get(id); return t ? t.content : null; };
+  const lookupOf = packed ? rowLookup : null;
+  const seen = { writes: 0, rows: 0, mixed: 0 };   // sessions of a station write that held packed runs / the rows they named / of those, ones that also held inline keyed rows
+  // the station's rows-by-id read, as the page (expand) and the restore (inflate) both reach it
+  const readRows = (sid, ids) => {
+    const m = transcript.get(sid) || new Map();
+    return { turns: ids.filter(id => m.has(id)).map(id => clone(m.get(id))), missing: ids.filter(id => !m.has(id)), retracted: [], forgotten: [] };
+  };
+  const fetchRows = async (sid, ids) => readRows(sid, ids);
   const pick = list => list[Math.floor(rand() * list.length)];
   const clock = makeClock(1_800_000_000_000 + seed * 1000);
   const VDate = vDate(clock);
   const disk = memfs();
   const root = path.join(path.sep === '\\' ? 'C:\\' : '/', 'mem-station-' + seed);
-  const host = K.sidecar(root, { fs: disk, clock: { now: () => clock.now() }, Date: VDate, noMerge: !!opts.noMerge });
+  const host = K.sidecar(root, { fs: disk, clock: { now: () => clock.now() }, Date: VDate, noMerge: !!opts.noMerge,
+    inflate: packed ? makeInflate({ readRows }) : undefined });
   const problems = [];
   const fail = m => { problems.push(m); };
   // SAVE_INTERLEAVE_TRACE=1 with SAVE_INTERLEAVE_ONLY=<seed>: print what happened, in order
@@ -137,7 +183,15 @@ function world(seed, opts) {
     const doc = host.saveStore.load('agent');
     if (!doc) return;
     const rev = Number(doc._saveRevision) || 0;
-    const turns = turnsOf(doc);
+    const turns = turnsOf(doc, lookupOf);
+    if (packed) {
+      for (const m of packedProblems(doc, rowLookup)) fail('I6: ' + m + ' (' + label + ')');
+      // coverage: the pass is only worth anything if the station file really holds packed runs beside inline rows
+      for (const w of doc.workstreams || []) {
+        const h = Array.isArray(w.history) ? w.history : [];
+        if (h.some(HistoryRef.isRef)) { seen.writes++; seen.rows += HistoryRef.idsOf(h).length; if (h.some(el => !HistoryRef.isRef(el) && el && el.rowId)) seen.mixed++; }
+      }
+    }
     if (rev !== lastRev) {
       if (rev < lastRev) fail('I1: the station revision went back ' + lastRev + ' -> ' + rev + ' (' + label + ')');
       for (const t of lastTurns) if (!turns.has(t) && !deletedTurns.has(t)) fail('I1: the station lost turn "' + t + '" at revision ' + rev + ' (' + label + ')');
@@ -202,9 +256,11 @@ function world(seed, opts) {
     };
   }
   // save.js's key()/useKey()/load() over the browser cache: the page's own journal (cloudsave openJournal picks it)
-  function saveOf(ls) {
+  function saveOf(ls, current) {
     let key = 'starnet.save';
-    return { CURRENT: 6, key: () => key, useKey: k => { key = String(k); return key; }, load: () => { try { return JSON.parse(ls.getItem(key) || 'null'); } catch (_) { return null; } } };
+    // load() migrates as Save.loadStatus() does: an older cache (the founder's v6 save) reads as the current version, nothing moved
+    return { CURRENT: current || 6, key: () => key, useKey: k => { key = String(k); return key; },
+      load: () => { try { const d = JSON.parse(ls.getItem(key) || 'null'); if (d && typeof d === 'object' && Number(d.version) < (current || 6)) d.version = current || 6; return d; } catch (_) { return null; } } };
   }
   // opts.separate: every window in a browser of its own (no shared browser cache)
   const browsers = [browser('chrome'), browser('desktop'), browser('other')];
@@ -212,12 +268,37 @@ function world(seed, opts) {
     { name: 'tabA', browser: browsers[0] },
     { name: 'tabB', browser: opts.separate ? browsers[2] : browsers[0] },
     { name: 'desk', browser: browsers[1] }
-  ].slice(0, opts.windows || 3).map(w => Object.assign(w, { gen: 0, status: 'dead', page: null, state: null, mine: new Set(), own: new Set(), session: new Map(), wantReload: false, boot: null, reloads: 0, saveReloads: 0 }));
+  ].slice(0, opts.windows || 3).map(w => Object.assign(w, { sealed: new Map(), gen: 0, status: 'dead', page: null, state: null, mine: new Set(), own: new Set(), session: new Map(), wantReload: false, boot: null, reloads: 0, saveReloads: 0 }));
 
+  // PACKED: the rows this window has proven are saved as elements; the rest stay inline, in place
+  function packedHistory(w, s) { return HistoryRef.pack(s.history, { streamId: s.id, seal: k => w.sealed.get(k) || null }); }
   function docOf(w) {
-    return { schema: 'starnet.save', version: 6, agent: { id: 'agent', name: w.state.hero, createdAt: 5000 }, agents: clone(w.state.crew), generalId: 'general', activeId: 'general',
-      deletedIds: clone(w.state.deleted), workstreams: clone(w.state.ws) };
+    const ws = clone(w.state.ws);
+    if (packed) for (const s of ws) s.history = packedHistory(w, s);
+    return { schema: 'starnet.save', version: packed ? 7 : 6, agent: { id: 'agent', name: w.state.hero, createdAt: 5000 }, agents: clone(w.state.crew), generalId: 'general', activeId: 'general',
+      deletedIds: clone(w.state.deleted), workstreams: ws };
   }
+  // the window proves a row by reading it from the transcript (a reconcile, a run end): it may now save it by reference
+  function seal(w, sid, row, chance) {
+    const t = row && Number.isSafeInteger(row.rowId) && transcript.get(sid) && transcript.get(sid).get(row.rowId);
+    if (t && !w.sealed.has(sid + ':' + row.rowId) && prand() < chance) w.sealed.set(sid + ':' + row.rowId, clone(t));
+  }
+  // a turn the station's transcript now holds, as the window has it (some carry page-only fields, which ride as residue)
+  function stationRow(sid, text) {
+    if (!transcript.has(sid)) transcript.set(sid, new Map());
+    const m = transcript.get(sid), id = m.size + 1;
+    const t = { streamId: sid, agentId: 'agent', role: 'user', kind: 'turn', taintKnown: true, ts: clock.now(), content: text, rowId: id, turnId: 'turn-' + seed.toString(36) + '-' + id.toString(36) };
+    m.set(id, t);
+    const row = clone(t);
+    if (prand() < 0.3) row.typedText = 'typed ' + text;
+    return row;
+  }
+  const newRow = (w, sid, text) => {
+    if (!packed) return { role: 'user', content: text };
+    const row = stationRow(sid, text);
+    seal(w, sid, row, 0.6);
+    return row;
+  };
   // the key this window's page writes its save under (its journal; the single legacy key with opts.noJournal)
   function cacheKey(w) { return (opts.noJournal || !w.page.journalKey) ? 'starnet.save' : w.page.journalKey(); }
   // a window's non-session changes the station has not taken when it dies (or reopens on a boot merge) are the boot merge's
@@ -236,9 +317,9 @@ function world(seed, opts) {
   function boot(w) {
     w.gen++;
     const gen = w.gen, owner = w.name + '#' + gen;
-    w.status = 'booting'; w.wantReload = false; w.state = null;
+    w.status = 'booting'; w.wantReload = false; w.state = null; w.sealed = new Map();
     const sessionStorage = { getItem: k => (w.session.has(k) ? w.session.get(k) : null), setItem: (k, v) => w.session.set(k, String(v)), removeItem: k => w.session.delete(k) };
-    const localStorage = localStorageOf(w.browser), Save = saveOf(localStorage);
+    const localStorage = localStorageOf(w.browser), Save = saveOf(localStorage, packed ? 7 : 6);
     const extra = {
       console: quiet, Date: VDate, setTimeout: (fn, ms) => clock.set(fn, ms, owner), clearTimeout: id => clock.clear(id),
       crypto: { randomUUID: uuid }, sessionStorage, localStorage, Save, BroadcastChannel: channelFor(w.browser, w, gen),
@@ -270,15 +351,26 @@ function world(seed, opts) {
       const local = Save.load();
       trace('boot', w.name + '#' + gen, 'journal', cacheKey(w), 'keys', JSON.stringify([...w.browser.cache.keys()]), 'local', JSON.stringify(brief(local)));
       return w.page.reconcile(local);
-    }).then(doc => {
+    }).then(async doc => {
       trace('booted', w.name + '#' + gen, JSON.stringify(brief(doc)), 'merge', JSON.stringify(w.page.mergeNotice()));
       if (w.gen !== gen) return;
       if (!doc || doc.__saveUnknown || doc.__futureSave || !Array.isArray(doc.workstreams)) { w.status = 'gated'; return; }
-      w.state = { ws: clone(doc.workstreams), hero: doc.agent && doc.agent.name, crew: clone(doc.agents || []), deleted: clone(doc.deletedIds || []) };
+      const ws = clone(doc.workstreams);
+      if (packed) {
+        // the page reads its packed history back from the transcript, and proves every row it reads
+        for (const s of ws) {
+          const out = await HistoryRef.expand(s.history, { streamId: s.id, fetchRows });
+          if (!out.complete || out.error) fail('a packed history of ' + s.id + ' could not be read back (' + (out.error || out.unproven.length + ' rows unproven') + ')');
+          s.history = out.rows;
+          for (const row of s.history) seal(w, s.id, row, 0.8);
+        }
+        if (w.gen !== gen) return;
+      }
+      w.state = { ws, hero: doc.agent && doc.agent.name, crew: clone(doc.agents || []), deleted: clone(doc.deletedIds || []) };
       w.status = 'live';
       // I4: never a view without the turns this window persisted into its own sessions (a turn in General, which other windows
       // write too, may come back only after the merge: I3 holds it to that)
-      const view = turnsOf(doc);
+      const view = turnsOf(doc, lookupOf);
       for (const t of w.mine) if (!view.has(t) && !deletedTurns.has(t)) { fail('I4: ' + w.name + ' booted a view without its own turn "' + t + '"'); break; }
     }, e => { fail(w.name + ' boot threw: ' + (e && e.stack || e)); w.status = 'gated'; });
   }
@@ -290,6 +382,7 @@ function world(seed, opts) {
   }
   function persist(w) {
     const cs = w.page;
+    if (packed) for (const s of w.state.ws) for (const row of s.history) seal(w, s.id, row, 0.3);
     const d = Object.assign(docOf(w), { _saveDirty: true, _saveRevision: cs.revision(), _saveClient: cs.writerId(), updatedAt: clock.now() });
     const raw = JSON.stringify(d);
     w.browser.cache.set(cacheKey(w), raw);
@@ -303,14 +396,14 @@ function world(seed, opts) {
     const r = kind === 'own' ? 0 : kind === 'general' ? 0.9 : rand();
     if (kind !== 'general' && (r < 0.35 || !own.length)) {
       const id = w.name + '-s' + turnSeq;
-      w.state.ws.push({ id, title: 'S ' + id, history: [{ role: 'user', content: text }] });
+      w.state.ws.push({ id, title: 'S ' + id, history: [newRow(w, id, text)] });
       w.own.add(id); ownerOf.set(id, w.name); committedOwn.add(text);
     } else if (kind !== 'general' && r < 0.8) {
-      pick(own).history.push({ role: 'user', content: text }); committedOwn.add(text);
+      const target = pick(own); target.history.push(newRow(w, target.id, text)); committedOwn.add(text);
     } else {
       let g = w.state.ws.find(s => s.id === 'general');
       if (!g) { g = { id: 'general', title: null, history: [] }; w.state.ws.unshift(g); }
-      g.history.push({ role: 'user', content: text }); committedShared.add(text);
+      g.history.push(newRow(w, 'general', text)); committedShared.add(text);
     }
     if (!committedShared.has(text)) w.mine.add(text);
     trace('edit', w.name + '#' + w.gen, text, committedShared.has(text) ? 'GENERAL' : 'own', 'rev', w.page.revision());
@@ -395,7 +488,7 @@ function world(seed, opts) {
     }
     return false;
   }
-  return { seed, rand, clock, host, disk, root, windows, browsers, problems, fail, committedOwn, committedShared, deletedTurns, ownTitles, crewModel, deletedSessions, heroNames,
+  return { seed, rand, clock, host, disk, root, windows, seen, turnsOf: doc => turnsOf(doc, lookupOf), packedProblems: doc => (packed ? packedProblems(doc, rowLookup) : []), browsers, problems, fail, committedOwn, committedShared, deletedTurns, ownTitles, crewModel, deletedSessions, heroNames,
     boot, kill, edit, change, persist, step, drain, serve, queue, watchStation, setHealthy: v => { healthyPhase = !!v; }, setIntercept: fn => { intercept = fn; } };
 }
 
@@ -420,11 +513,12 @@ async function runSeed(seed, opts) {
     if (!await W.drain()) W.fail('I2: ' + w.name + '\'s last change never went quiet');
     const h = w.page.health();
     if (h.conflict) W.fail('I2: ' + w.name + ' holds a conflict that will not clear (' + JSON.stringify({ reset: h.conflict.reset, reseeded: h.conflict.reseeded, ownSeed: h.conflict.ownSeed }) + ')');
-    if (!turnsOf(W.host.saveStore.load('agent')).has(text)) W.fail('I2: ' + w.name + '\'s change "' + text + '" never reached the station file');
+    if (!W.turnsOf(W.host.saveStore.load('agent')).has(text)) W.fail('I2: ' + w.name + '\'s change "' + text + '" never reached the station file');
   }
   // I3: no loss — every persisted turn is IN THE STATION FILE, a turn in a session two windows both wrote (General) too
   const doc = W.host.saveStore.load('agent');
-  const station = turnsOf(doc);
+  const station = W.turnsOf(doc);
+  for (const m of W.packedProblems(doc)) W.fail('I6: ' + m + ' (the station file at the end)');
   for (const t of W.committedOwn) if (!station.has(t)) { W.fail('I3: turn "' + t + '" (a window\'s own session) is not in the station file'); break; }
   for (const t of W.committedShared) if (!station.has(t)) { W.fail('I3: turn "' + t + '" (General, which other windows write too) is not in the station file'); break; }
   // I3: no silent revert — every non-session change a window made is in the station file (unless the boot merge holds it)
@@ -706,22 +800,32 @@ const conflictFileNames = W => [...W.disk.files.keys()].map(k => path.basename(k
      SAVE_INTERLEAVE_SEEDS raises every pass but the last. With no Web Locks, and beside a lockless tab that shows on no list, nothing can
      tell a late answer from a dead window: see KNOWN_NO_LOCK and KNOWN_LOCKLESS above. */
   const passes = [
+    // THE PACKED PASS: the same seeds and interleavings with every window saving save v7 (see the header); a seed that fails here and
+    // not above is packing's. The two known failures are the unpacked run's (the schedule is the same), pinned the same way
+    { name: 'PACKED histories, no page lock', known: KNOWN_NO_LOCK, opts: { packed: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([1900, 2390]))) },
+    { name: 'PACKED histories, the page lock', known: KNOWN_LOCK, opts: { packed: true, locks: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921, 1035]))) },
     { name: 'the page lock', known: KNOWN_LOCK, opts: { locks: true }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921, 1035]))) },
     { name: 'a lockless live tab', known: KNOWN_LOCKLESS, opts: { locks: true, lockless: 'tabB' }, seeds: Array.from(new Set(Array.from({ length: SEEDS }, (_, i) => i + 1).concat([921]))) },
     { name: 'path check: the late ping beside a page from before the claim', pathOnly: true, opts: { locks: true, lockless: 'tabB', preClaim: 'tabB' }, seeds: Array.from({ length: Math.min(SEEDS, 100) }, (_, i) => i + 1) },
   ];
   for (const pass of passes) {
     let bad = 0, first = '', moves = 0;
+    const coverage = { writes: 0, rows: 0, mixed: 0 };
     for (const seed of (ONLY != null ? [ONLY] : pass.seeds)) {
       let W;
       try { W = await runSeed(seed, Object.assign({}, pass.opts, SEEDED_OPTS)); }
       catch (e) { bad++; first = first || ('seed ' + seed + ' threw: ' + (e && e.stack || e)); continue; }
       for (const w of W.windows) moves += (w.lateMoves || 0) + (w.page && w.page._lateMoves ? w.page._lateMoves() : 0);
+      if (pass.opts.packed) { coverage.writes += W.seen.writes; coverage.rows += W.seen.rows; coverage.mixed += W.seen.mixed; }
       if (pass.known && pinnedKnown(seed, pass.known, W, pass.name + ':')) continue;
       if (W.problems.length && !pass.pathOnly) { bad++; first = first || ('seed ' + seed + ': ' + W.problems.slice(0, 3).join(' | ')); }
     }
-    A.eq(bad, 0, pass.name + ': ' + (ONLY != null ? 1 : pass.seeds.length) + (pass.pathOnly ? ' seeded interleavings run without a throw' : ' seeded interleavings keep I1-I5') + (first ? ' — first: ' + first : ''));
+    A.eq(bad, 0, pass.name + ': ' + (ONLY != null ? 1 : pass.seeds.length) + (pass.pathOnly ? ' seeded interleavings run without a throw' : pass.opts.packed ? ' seeded interleavings keep I1-I6' : ' seeded interleavings keep I1-I5') + (first ? ' — first: ' + first : ''));
     console.log('save-interleave pass [' + pass.name + ']: ' + (ONLY != null ? 1 : pass.seeds.length) + ' seeds, late moves ' + moves);
+    if (pass.opts.packed) {
+      console.log('save-interleave pass [' + pass.name + ']: the station file held ' + coverage.writes + ' packed sessions naming ' + coverage.rows + ' rows, ' + coverage.mixed + ' of them beside inline rows');
+      if (ONLY == null) A.ok(coverage.writes > 0 && coverage.mixed > 0, pass.name + ': the pass really packed (packed runs, and packed beside inline rows, were in the station file)');
+    }
     if (pass.opts.preClaim && ONLY == null) A.ok(moves > 0, 'the late ping moved a page off the journal of a page from before the claim (' + moves + ')');
   }
   console.log('save-interleave: ' + seeds.length + ' seeds in ' + ((Date.now() - started) / 1000).toFixed(1) + ' s; windows merging at the end: ' + merged + '; save-path reloads (no base to merge on): ' + reloads);

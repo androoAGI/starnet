@@ -998,7 +998,8 @@ function same(got, want, label) {
           fs: 'every savestore row (the fault facade)', pathMod: 'every savestore row', root: 'every savestore row',
           clock: 'CLOCK (savedAt is part of the bytes compared)',
           resetAt: 'actual station-record reset projection through each fault facade',
-          onFounded: 'every save write checks accepted-only notification; real durable founding is checked by station-record and start-fresh-generation HTTP'
+          onFounded: 'every save write checks accepted-only notification; real durable founding is checked by station-record and start-fresh-generation HTTP',
+          inflate: 'the host transcript read for a restored copy (save-restore.js is handed it): it opens no store file, so there is no persist row; the engines test holds it to HistoryRef.expand'
         },
         makeDeliverableStore: {
           fs: 'every deliverables row (the fault facade)', path: 'every deliverables row', workspaces: 'every deliverables row',

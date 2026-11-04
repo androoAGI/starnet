@@ -451,6 +451,15 @@ test/voice-start-ownership.test.js
 test/voice-speech-integration.test.js
 test/save.test.js
 test/saveversion.test.js
+test/save-version-downgrade.test.js
+test/save-premigrate-backup.test.js
+test/history-migration.lossless.test.js
+test/history-hydrate.seam.test.js
+test/packed-history.writers.test.js
+test/history-seal.property.test.js
+test/history-seal.sweep.test.js
+test/save-envelope-budget.test.js
+test/backup-packed-export.test.js
 test/backup-secrets.test.js
 test/station-export-location.test.js
 test/export-file-ownership.test.js
@@ -539,6 +548,7 @@ test/turn-view.matrix.test.js
 test/turn-owner-proof.test.js
 test/transcript-view.test.js
 test/transcript-view.bounds.test.js
+test/transcript-cursor-read.test.js
 test/owner-proof-disk.test.js
 test/owner-evidence.collision.test.js
 test/proof-view.boot.test.js
@@ -1428,6 +1438,7 @@ test/save-conflicts-route.test.js
 test/save-restore-hardening.test.js
 test/save-adopt-merge.test.js
 test/save-interleave.seeded.test.js
+test/save-history-ref.engines.test.js
 test/save-journal.test.js
 test/save-journal-page-lock.test.js
 test/growth-fold.test.js

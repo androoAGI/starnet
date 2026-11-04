@@ -1959,7 +1959,7 @@ const Chat = (() => {
   function continuityDiagnostics() { return continuityEvents.map(e => ({ ...e })); }
   function loadServerHistory(ws, loadToken, timeoutMs) {
     if (!ws || !ws.id) return Promise.resolve(false);
-    const read = { history: ws.history, promise: null, timeoutMs: timeoutMs > 0 ? timeoutMs : 0, retryable: false, serverFailed: false };   // 0 = the open-time 8 s window
+    const read = { history: ws.history, ref: ws.historyRef || null, promise: null, timeoutMs: timeoutMs > 0 ? timeoutMs : 0, retryable: false, serverFailed: false };   // 0 = the open-time 8 s window; ref: the packed form this read starts from (a clear or an undo changes it)
     historyLoads.set(ws, read);
     noteContinuity(ws, 'history-loading');
     read.promise = reconcileServerHistory(ws, loadToken, read);
@@ -2071,10 +2071,71 @@ const Chat = (() => {
     } catch (_) { return false; } finally { clearTimeout(timeout); }
   }
 
+  /* A PACKED HISTORY IS READ BACK THROUGH THE STATION (save v7, history by reference). A session saved with runs it names by row id
+     boots holding only the rows the page keeps itself (Workstreams: ws.historyRef is the saved history, ws.history its inline rows).
+     hydrateHistory asks the station for the named rows (POST /api/transcript/rows: the display view a GET shows, undo and forget
+     applied), lays them out in place with the page-only fields back on them (HistoryRef.expand), and hands that to
+     Workstreams.hydrate, which keeps every row the page added meanwhile after them and refuses a read the Commander has since
+     cleared, undone or replaced. A run the station can neither return nor prove undone or forgotten stays PACKED: a row is never
+     guessed and never dropped, and the caller reports the existing 'history-unavailable' note (a send is then held by
+     ensureHistoryReady, as it is for any history it cannot read). One read per session at a time; a second caller shares it.
+       -> { complete, stale, silent, refused, ids }, never throws.  complete: nothing of the history is left packed · stale: the session
+          changed under the read and nothing was put back · silent: the station did not answer an ask (asking again may help) ·
+          refused: it answered 4xx (asking again cannot change it) · ids: the row ids this read put back, so the proof of cached rows in
+          reconcileServerHistory does not ask the station about rows it has just read. */
+  const hydrations = new WeakMap();
+  function hydrateHistory(ws, opts) {
+    const settled = o => Promise.resolve(Object.assign({ complete: true, stale: false, silent: false, refused: false, ids: new Set() }, o));
+    if (!ws || !ws.id || typeof Workstreams === 'undefined' || !Workstreams.needsHydration || !Workstreams.needsHydration(ws)) return settled();
+    const ref = ws.historyRef, flying = hydrations.get(ws);
+    if (flying && flying.ref === ref) return flying.promise;
+    const startedAt = Date.now(), windowMs = opts && opts.windowMs > 0 ? opts.windowMs : 8000, saw = { silent: false, refused: false };
+    const fetchRows = async (streamId, rowIds) => {
+      const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), Math.max(1000, windowMs - (Date.now() - startedAt)));
+      let response;
+      try { response = await Harness.api.post('/api/transcript/rows', { agent: ws.agentId || 'agent', streams: [{ streamId, rowIds }] }, { signal: controller.signal }); }
+      catch (e) { saw.silent = true; throw e; }   // no answer inside the window: unanswered, not refused
+      finally { clearTimeout(timeout); }
+      const one = response.ok && response.j && Array.isArray(response.j.streams) ? response.j.streams[0] : null;
+      if (one && one.streamId === streamId && Array.isArray(one.turns)) {
+        if (typeof Workstreams !== 'undefined' && Workstreams.sealTurns) Workstreams.sealTurns(streamId, one.turns);   // the station just returned these rows: the page can name them again in its next save
+        return one;
+      }
+      if (response.status >= 400 && response.status < 500) saw.refused = true;
+      throw new Error('The saved rows could not be read');
+    };
+    const promise = (async () => {
+      let out;
+      try { out = await HistoryRef.expand(ref, { streamId: ws.id, fetchRows }); }
+      catch (_) { return { complete: false, stale: false, silent: true, refused: false, ids: new Set() }; }
+      if (Workstreams.unseal) Workstreams.unseal(ws.id, out.retracted.concat(out.forgotten));   // a turn the station says is gone is no longer kept as proven, whatever became of the session meanwhile
+      if (Workstreams.get(ws.id) !== ws || !Workstreams.hydrate(ws, out.rows, { ref })) return { complete: false, stale: true, silent: false, refused: false, ids: new Set() };   // (hydrate refuses a read of a packed form the session no longer holds: cleared, undone, replaced)
+      const left = new Set(out.unproven.concat(out.retracted, out.forgotten));
+      return { complete: !ws.historyRef, stale: false, silent: saw.silent, refused: saw.refused, ids: new Set(HistoryRef.idsOf(ref).filter(id => !left.has(id))) };
+    })();
+    hydrations.set(ws, { ref, promise });
+    const release = () => { const now = hydrations.get(ws); if (now && now.promise === promise) hydrations.delete(ws); };
+    promise.then(release, release);
+    return promise;
+  }
+
   async function reconcileServerHistory(ws, loadToken, read) {
     if (!ws || !ws.id) return;
     const cronSession = String(ws.id).indexOf('cron-') === 0;
     const startedAt = Date.now(), windowMs = read.timeoutMs > 0 ? read.timeoutMs : 8000;   // a send's read may wait longer (ensureHistoryReady)
+    /* A PACKED HISTORY COMES BACK FIRST (hydrateHistory): the rows the save names are read before anything is merged into them, so the
+       merge below sees the conversation the page held when it saved. A run the station could not return leaves the history unrestored
+       (the existing note, a send held), whatever else it could read; a session the Commander cleared meanwhile is left cleared. */
+    let readBack = null;
+    if (ws.historyRef) {
+      readBack = await hydrateHistory(ws, { windowMs });
+      if (readBack.stale || historyLoads.get(ws) !== read || Workstreams.get(ws.id) !== ws) { noteContinuity(ws, 'history-stale-discarded'); return false; }
+      if (!readBack.complete) {
+        read.retryable = readBack.silent; read.serverFailed = !readBack.silent && !readBack.refused;
+        noteContinuity(ws, 'history-unavailable'); return false;
+      }
+      read.history = ws.history; read.ref = null;   // the rows are back: a clear or an undo is judged from these
+    }
     let busy = false;
     try { busy = typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id); } catch (_) {}
     const waits = cronSession && !busy ? [120, 400] : [];
@@ -2101,30 +2162,47 @@ const Chat = (() => {
     read.serverFailed = !reachable && failed;              // answered 5xx — a send asks once more, then refuses (ensureHistoryReady)
     // A superseded read, removed session or deliberate clear cannot write back.
     const stale = () => historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
-      || (read.history.length && !ws.history.length);
+      || (read.history.length && !ws.history.length)
+      || (ws.historyRef || null) !== (read.ref || null);   // an undo put a packed history back, or the rows this read started from were cleared
     if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     const cacheIds = rows => [...new Set(rows.filter(row => row && row.idFrom !== 'collision' &&
       (!row.streamId || row.streamId === ws.id) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
     const provedIds = new Set(cacheIds(ws.history || []));
-    if (reachable && provedIds.size) {
+    // rows hydrateHistory has just read from the station are proved by that very read: only the page's own cached rows are asked about
+    const askIds = readBack ? [...provedIds].filter(id => !readBack.ids.has(id)) : [...provedIds];
+    if (reachable && askIds.length) {
       const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), Math.max(1000, windowMs - (Date.now() - startedAt)));
       try {
         const response = await Harness.api.post('/api/turn-identity/retractions',
-          { streamId: ws.id, rowIds: [...provedIds] }, { signal: controller.signal });
+          { streamId: ws.id, rowIds: askIds }, { signal: controller.signal });
         const proof = response.ok ? response.j : null;
         if (!proof || proof.streamId !== ws.id || !Array.isArray(proof.retracted) ||
             proof.retracted.some(id => !provedIds.has(id))) throw new Error('Cached transcript identity could not be proved');
         const retracted = new Set(proof.retracted);
         turns = turns.filter(row => !retracted.has(row.rowId));
         identity = Object.assign({ streamId: ws.id }, identity, { retracted: proof.retracted });
+        if (typeof Workstreams !== 'undefined' && Workstreams.unseal) Workstreams.unseal(ws.id, proof.retracted);   // a turn the station says is undone is no longer kept as proven
       } catch (_) {
         read.serverFailed = true; read.retryable = false;
         noteContinuity(ws, 'history-unavailable'); return false;
       } finally { clearTimeout(timeout); }
       if (stale()) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     }
+    // the open conversation draws what its history now holds
+    const paint = () => {
+      if (!activeWs || activeWs.id !== ws.id || historyPinSeq !== loadToken || Channels.isBusy(ws.id)) return;
+      if (log) log.innerHTML = '';
+      renderHistory(); replayChannel(); syncStatus(); maybeEmptyState();
+      read.repaint = false;
+      if (typeof Briefing !== 'undefined' && Briefing.presentFor) { try { Briefing.presentFor(ws.id).catch(() => {}); } catch (_) {} }   // the repaint wiped the chips
+      if (typeof Delegated !== 'undefined' && Delegated.presentFor) { try { Delegated.presentFor(ws.id).catch(() => {}); } catch (_) {} }   // …and the delegated cards
+      // An explicit reveal made before this repaint (NEEDS YOU Open, a search hit) keeps its place: the repaint rebuilt
+      // every row, so find the same one again rather than leave the reader at the top of the conversation.
+      if (revealKey && !stick && log) { const again = log.querySelector(revealKey); if (again) revealHistory(again); }
+      pinLoadedHistoryAfterLayout(loadToken);
+    };
     noteContinuity(ws, reachable ? 'history-loaded' : 'history-unavailable');
-    if (!reachable && !cronSession) return false;
+    if (!reachable && !cronSession) { if (readBack) { read.repaint = true; paint(); } return false; }   // the station did not answer the read, but the rows it named are back: show them
     if (reachable) { stationModes = identity && identity.v === 2 && identity.modes ? identity.modes : { window: 'legacy' }; stationCaps = HistoryFit.capsOf(identity); }
     const out = await TurnMerge.reconcile(ws.history, { stream: ws.id, turns, identity }, {
       getLocal: () => ws.history,
@@ -2134,6 +2212,13 @@ const Chat = (() => {
     if (stale() || cacheIds(ws.history || []).some(id => !provedIds.has(id))) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     const merged = out.rows;
     const next = placeSteerNotes(merged);
+    // SEAL what the page now holds of this read (save v7): the station returned these turns, so its next save may name the rows it
+    // still has exactly as returned instead of repeating them (Workstreams.serialize packs against the seals). Only rows the merged
+    // history holds are kept; a row the cap dropped needs none. Before the early return and the persist below, so that save packs.
+    if (reachable && typeof Workstreams !== 'undefined' && Workstreams.sealTurns) {
+      const held = new Set(next.filter(m => m && Number.isSafeInteger(m.rowId) && m.rowId > 0).map(m => m.rowId));
+      Workstreams.sealTurns(ws.id, turns.filter(t => t && held.has(t.rowId)));
+    }
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())
@@ -2144,20 +2229,11 @@ const Chat = (() => {
         ? '⚠ output has not arrived yet — StarNet will retry automatically when this session opens'
         : '⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens'
     });
-    if (JSON.stringify(next) === JSON.stringify(ws.history || [])) return reachable;
+    if (!readBack && JSON.stringify(next) === JSON.stringify(ws.history || [])) return reachable;   // (rows read back are not on screen yet: they repaint even when the merge adds nothing)
     ws.history = next;
     read.repaint = true;
     try { if (typeof App !== 'undefined' && App.persist) App.persist(); } catch (_) {}
-    if (!activeWs || activeWs.id !== ws.id || historyPinSeq !== loadToken || Channels.isBusy(ws.id)) return reachable;
-    if (log) log.innerHTML = '';
-    renderHistory(); replayChannel(); syncStatus(); maybeEmptyState();
-    read.repaint = false;
-    if (typeof Briefing !== 'undefined' && Briefing.presentFor) { try { Briefing.presentFor(ws.id).catch(() => {}); } catch (_) {} }   // the repaint wiped the chips
-    if (typeof Delegated !== 'undefined' && Delegated.presentFor) { try { Delegated.presentFor(ws.id).catch(() => {}); } catch (_) {} }   // …and the delegated cards
-    // An explicit reveal made before this repaint (NEEDS YOU Open, a search hit) keeps its place: the repaint rebuilt
-    // every row, so find the same one again rather than leave the reader at the top of the conversation.
-    if (revealKey && !stick && log) { const again = log.querySelector(revealKey); if (again) revealHistory(again); }
-    pinLoadedHistoryAfterLayout(loadToken);
+    paint();
     return reachable;
   }
 
@@ -2218,6 +2294,7 @@ const Chat = (() => {
     if (activeWs?.id !== nextWs?.id) focusVersion++;
     activeWs = nextWs;
     paintTitle();
+    if (prevWs && nextWs && prevWs.id !== nextWs.id && typeof sealLeft === 'function') sealLeft(prevWs);   // it just left the screen: if a run's rows are unread, the seal pass reads them now
     // ANOTHER CONVERSATION IS ON SCREEN (gh#158): an offer panel over COMMS (the first-task hand-off included) steps aside,
     // unanswered, so COMMS shows the conversation now open and its message box. A re-sync of the same one never does.
     if (prevWs && nextWs && prevWs.id !== nextWs.id) stepOfferAside('session');
@@ -2283,6 +2360,64 @@ const Chat = (() => {
     if (activeWs) { const w = activeWs; setTimeout(() => { if (isActiveWs(w)) recoverSafeRun(w, true); }, 0); }
   }
 
+  /* THE SEAL PASS (save v7, history by reference). A save names a row instead of repeating it only for rows this page has PROVED the
+     station holds (Workstreams.sealTurns), and the page proves them by reading: the open-time reconcile does, at open. A run that
+     ends leaves its own rows — the Commander's directive and the reply — unproven until the conversation is opened again, so a save
+     carries them in full for as long as it stays closed. This reads them as soon as the run is over: the open-time read itself (the
+     same GET, the same merge, the same retraction proof, the same save at its end), minus the repaint. It waits SEAL_PASS_MS after the
+     run ends (a burst of runs is one read), never reads a conversation a run is live in, and never one the Commander is looking at:
+     a repaint under their eyes is worse than a longer save, so that one is read when they leave it (load). A read that fails leaves
+     the rows inline and the mark standing. */
+  const SEAL_PASS_MS = 2000;
+  const sealMarked = new WeakSet();    // sessions whose last run's rows have not been read back yet
+  const sealTimers = new Map();        // session id -> the debounce timer
+  function sealSoon(ws, ms) {
+    if (!ws || !ws.id || ws.conversationMode === 'group' || typeof Workstreams === 'undefined' || !Workstreams.sealTurns) return false;   // (a group chat's history is the backend's own copy: no transcript read ever merges into it)
+    sealMarked.add(ws);
+    clearTimeout(sealTimers.get(ws.id));
+    sealTimers.set(ws.id, setTimeout(() => { sealTimers.delete(ws.id); sealPass(ws); }, ms > 0 ? ms : SEAL_PASS_MS));
+    return true;
+  }
+  function sealLeft(ws) { if (sealMarked.has(ws)) sealSoon(ws); }
+  function sealPass(ws) {
+    if (!ws || !sealMarked.has(ws) || ws.conversationMode === 'group' || typeof Workstreams === 'undefined' || Workstreams.get(ws.id) !== ws) return false;
+    if (isActiveWs(ws) || (Workstreams.needsHydration && Workstreams.needsHydration(ws)) || (typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id))) return false;   // on screen, still packed, or running: later
+    sealMarked.delete(ws);
+    const again = () => sealMarked.add(ws);
+    try { Promise.resolve(loadServerHistory(ws, -1)).then(ok => { if (!ok) again(); }, again); } catch (_) { again(); }   // (-1: no open session carries that pin, so nothing repaints)
+    return true;
+  }
+  /* THE SEAL SWEEP'S READ (app.js drives it when the page is idle). Ask the station for the rows a batch of sessions hold inline without
+     a seal (POST /api/transcript/rows: <= 1000 ids across <= 50 sessions) and keep what it returns as seals. It changes no conversation:
+     a row that no longer equals what the station holds simply stays inline in the next save. An id the station did not answer is asked
+     again a few times (a request reads a bounded number of segments), then left alone. -> { asked, sealed, silent, refused }, never throws */
+  async function sealRows(batch) {
+    const out = { asked: 0, sealed: 0, silent: false, refused: false };
+    const asks = (Array.isArray(batch) ? batch : []).filter(b => b && b.streamId && Array.isArray(b.rowIds) && b.rowIds.length);
+    if (!asks.length || typeof Workstreams === 'undefined' || !Workstreams.sealTurns || typeof Harness === 'undefined') return out;
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
+    let response;
+    try { response = await Harness.api.post('/api/transcript/rows', { streams: asks.map(b => ({ streamId: b.streamId, rowIds: b.rowIds })) }, { signal: controller.signal }); }
+    catch (_) { out.silent = true; return out; }   // no answer: nothing is learned, nothing is marked
+    finally { clearTimeout(timeout); }
+    const streams = response.ok && response.j && Array.isArray(response.j.streams) ? response.j.streams : null;
+    if (!streams || streams.length !== asks.length) {   // the station answered, but not with the rows: counted as an unanswered ask, so a request it keeps refusing is not repeated for ever
+      out.refused = response.status >= 400 && response.status < 500;
+      for (const b of asks) Workstreams.noteSealRead(b.streamId, b.rowIds, []);
+      return out;
+    }
+    asks.forEach((b, i) => {
+      const one = streams[i];
+      if (!one || one.streamId !== b.streamId || !Array.isArray(one.turns)) return;
+      out.sealed += Workstreams.sealTurns(b.streamId, one.turns);
+      if (Workstreams.unseal) Workstreams.unseal(b.streamId, [].concat(Array.isArray(one.retracted) ? one.retracted : [], Array.isArray(one.forgotten) ? one.forgotten : []));   // what the station says is gone is no longer kept as proven
+      const answered = one.turns.map(t => t && t.rowId).concat(Array.isArray(one.retracted) ? one.retracted : [], Array.isArray(one.forgotten) ? one.forgotten : []);
+      Workstreams.noteSealRead(b.streamId, b.rowIds, answered);
+      out.asked += b.rowIds.length;
+    });
+    return out;
+  }
+
   async function restoreTaskQuestion(ws) {
     if (!ws || !ws.id) return;
     const id = String(ws.id), key = 'stream:' + id;
@@ -2321,6 +2456,7 @@ const Chat = (() => {
   const HISTORY_WIRE_MAX_BYTES = HistoryFit.HISTORY_WIRE_MAX_BYTES;
   function capHistory(ws) {
     if (!ws || !Array.isArray(ws.history)) return;
+    if (ws.historyRef) return;   // part of the history is still packed (not read back): a cap counted over the rows held here would trim, and mark, the wrong ones
     // count only real dialogue turns (skip a prior truncation marker) so the marker never inflates the count
     const real = ws.history.filter(m => !(m && m.truncated));
     if (real.length <= HISTORY_CAP) { if (real.length !== ws.history.length) ws.history = real; return; }
@@ -2542,7 +2678,7 @@ const Chat = (() => {
   // Whose ideas a shown generation is: personalization on or paused, and the agent. Drift keeps them; a change here rebuilds.
   function starterOwner(ctx) { return (ctx && ctx.enabled === false ? 'paused' : 'on') + ':' + String((ctx && ctx.agentId) || 'agent'); }
   function refreshStarters() {
-    if (!log || !activeWs || activeWs.history.length || isBusy() || interview || (input && input.value.trim())) return;
+    if (!log || !activeWs || activeWs.history.length || activeWs.historyRef || isBusy() || interview || (input && input.value.trim())) return;   // (a packed history is rows the page has not read back, not an empty one)
     const d = log.querySelector('.cmsg-empty');
     if (!d) { maybeEmptyState(); return; }
     const ctxNow = starterContext();
@@ -2639,7 +2775,7 @@ const Chat = (() => {
     d.starterKey = JSON.stringify([ctx, options]);
     const origin = activeWs && activeWs.id, key = JSON.stringify([ctx, options]);
     StarterStore.request(ctx, { ...options, force: !!force }).then(result => {
-      if (!d.isConnected || !activeWs || activeWs.id !== origin || activeWs.history.length || isBusy()) return;
+      if (!d.isConnected || !activeWs || activeWs.id !== origin || activeWs.history.length || activeWs.historyRef || isBusy()) return;
       // a paid generation of personalized ideas that finished after the context drifted is still shown, for the same owner
       // (its ideas re-validate on click); anything else re-evaluates against the new context, as before
       const now = starterContext();
@@ -2650,7 +2786,7 @@ const Chat = (() => {
   }
   function maybeEmptyState() {
     if (!log || interview || log.querySelector('.cmsg-empty')) return;
-    if (activeWs && activeWs.history && activeWs.history.length) return;
+    if (activeWs && ((activeWs.history && activeWs.history.length) || activeWs.historyRef)) return;   // a conversation whose rows are packed is not empty
     if (busyPeerFor(activeWs)) return;   // the ALSO RUNNING IN row owns an empty busy-peer session — starter chips would fight it for attention
     if (isBusy() || log.querySelector('.cmsg')) return;
     const s = (typeof Channels !== 'undefined' && activeWs) ? Channels.snapshot(activeWs.id) : null;
@@ -9343,6 +9479,18 @@ const Chat = (() => {
     const tone = word && typeof RunOutcome !== 'undefined' ? RunOutcome.look(RunOutcome.ofWord(word)).tone : 'stop';
     toolLine((tone === 'bad' ? '✕ ' : tone === 'stop' ? '⏹ ' : tone === 'ask' ? '▲ ' : '⚠ ') + text, tone === 'bad', tone);
   }
+  /* A COMMAND THAT READS OR REWRITES THE OPEN CONVERSATION WAITS FOR ALL OF ITS ROWS (save v7). A session whose history is still packed holds
+     only the rows the page keeps itself, so "the last reply", "the last turn" or "a copy of the thread" read from it would name an OLDER row
+     or miss rows. This reads the packed rows back first (hydrateHistory) and then runs the command; when they cannot be read it says so, in
+     the words a held send already uses, and does nothing. Returns true when it took the call over, false when there is nothing to wait for. */
+  function afterHydration(ws, run) {
+    if (!(ws && typeof Workstreams !== 'undefined' && Workstreams.needsHydration && Workstreams.needsHydration(ws))) return false;
+    hydrateHistory(ws).then(read => {
+      if (activeWs !== ws || read.stale) return;
+      if (read.complete) run(); else localLine('Conversation history could not be restored.');
+    });
+    return true;
+  }
   // RETRY — re-run the last turn after an outage / connection drop / in-band error. Discard the trailing failed
   // reply, re-render the thread (dropping the ⚠ row), then resend the last user message WITHOUT echoing it again.
   function retryLast() {
@@ -9350,6 +9498,7 @@ const Chat = (() => {
     // (Both guards below are reachable from the /retry command AND the error-recovery "try again" chip.)
     if (!activeWs) return localLine('No active workstream to retry in.');
     if (isBusy()) return localLine('This stream is still running — stop it first, then /retry.');
+    if (afterHydration(activeWs, retryLast)) return;   // the last user turn is read from the whole history, never from the rows held before it was read back
     const h = activeWs.history;
     /* A retry re-runs the LAST user turn, so every row after it is the attempt being replaced — drop all of them,
        not just the ⚠ row. A failed run that streamed several replies ("The tool needs the required objective
@@ -9793,6 +9942,7 @@ const Chat = (() => {
   function isSlashOpen() { const p = el('chat-slash'); return !!(p && !p.hidden); }
   function copyLastReply() {
     if (!activeWs) return;
+    if (afterHydration(activeWs, copyLastReply)) return;
     const h = activeWs.history;
     for (let i = h.length - 1; i >= 0; i--) {
       if (h[i].role === 'assistant' && !h[i].error && (h[i].content || '').trim()) {
@@ -9829,7 +9979,7 @@ const Chat = (() => {
     const bits = list.slice(0, 8).map((w, i) => {
       const busy = (typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(w.id)) ? '*' : '';
       const here = activeWs && w.id === activeWs.id ? '>' : '';
-      const turns = (w.history && w.history.length) || 0;
+      const turns = typeof Workstreams !== 'undefined' && Workstreams.turnCount ? Workstreams.turnCount(w) : ((w.history && w.history.length) || 0);   // packed rows count
       return here + (i + 1) + '. ' + streamLabel(w) + busy + ' (' + turns + ')';
     });
     return 'Workstreams: ' + bits.join(' | ') + (list.length > 8 ? ' | +' + (list.length - 8) + ' more' : '') + '. Use /resume <number|title>.';
@@ -10063,6 +10213,7 @@ const Chat = (() => {
   }
   function branchWorkstreamCommand(args) {
     if (!activeWs || typeof Workstreams === 'undefined' || !Workstreams.create) return localLine('No active workstream to branch.');
+    if (afterHydration(activeWs, () => branchWorkstreamCommand(args))) return;   // a branch copies the whole thread, not the rows held before it was read back
     const src = activeWs;
     const title = String(args || '').trim() || (Workstreams.titleOf(src) + ' branch');
     const ws = Workstreams.create(title, { agentId: src.agentId || 'agent', kind: src.kind === 'task' ? 'task' : 'chat' });   // a branch inherits the SOURCE stream's kind
@@ -10076,7 +10227,7 @@ const Chat = (() => {
     const model = (typeof Harness !== 'undefined' && Harness.getModel) ? Harness.getModel() : '';
     const provider = (typeof Harness !== 'undefined' && Harness.getProv) ? Harness.getProv() : '';
     const state = isBusy() ? 'working' : 'idle';
-    const turns = activeWs && activeWs.history ? activeWs.history.length : 0;
+    const turns = activeWs ? (typeof Workstreams !== 'undefined' && Workstreams.turnCount ? Workstreams.turnCount(activeWs) : (activeWs.history ? activeWs.history.length : 0)) : 0;   // packed rows count
     const g = (typeof GoalLoop !== 'undefined') ? goalOf(activeWs) : null;
     localLine('Status: ' + state + ' on ' + streamLabel(activeWs) + ' (' + turns + ' turn' + (turns === 1 ? '' : 's') + ', ' + q.length + ' queued)'
       + (model ? '; model ' + model + (provider ? ' via ' + provider : '') : '') + '.'
@@ -10256,6 +10407,12 @@ const Chat = (() => {
   }
   async function undoCommand() {
     if (!activeWs) return localLine('No active workstream.');
+    // the last turn is read from the whole history: a packed one is read back first (an older inline row must never be undone in its place)
+    if (typeof Workstreams !== 'undefined' && Workstreams.needsHydration && Workstreams.needsHydration(activeWs)) {
+      const asked = activeWs, read = await hydrateHistory(asked);
+      if (activeWs !== asked || read.stale) return;
+      if (!read.complete) return localLine('Conversation history could not be restored.');
+    }
     if (isBusy()) return localLine('Stop the running turn before undoing history.');
     const ws = activeWs, h = ws.history || [];
     if (!h.length) return localLine('Nothing to undo.');
@@ -10279,6 +10436,7 @@ const Chat = (() => {
       if (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws) return;
       const targets = new Set(result.targets);
       ws.history = (ws.history || []).filter(row => !own(row) || !(targets.has(row.rowId) || (body.turnId && row.turnId === body.turnId)));
+      if (typeof Workstreams !== 'undefined' && Workstreams.unseal) Workstreams.unseal(ws.id, result.targets);   // an undone turn's text is not kept as proven either
       if (typeof App !== 'undefined' && App.persist) App.persist();
       if (activeWs === ws) { load(ws); refreshWorkflowViews(); localLine('Undid the turn.'); }
     } catch (error) {
@@ -10319,6 +10477,7 @@ const Chat = (() => {
   // truncated. Read-only; never mutates history or touches any run.
   function historyCommand(args) {
     if (!activeWs) return localLine('No active workstream.');
+    if (afterHydration(activeWs, () => historyCommand(args))) return;
     const h = (activeWs.history || []).filter(m => m && (m.role === 'user' || m.role === 'assistant') && (m.content || '').trim());
     if (!h.length) return localLine('No conversation history in this workstream yet.');
     let n = parseInt(String(args || '').trim(), 10);
@@ -10895,7 +11054,7 @@ const Chat = (() => {
       if (name === 'blueprint' && typeof Recipes !== 'undefined' && Recipes.list)
         return Recipes.list().map(r => ({ value: r.id, hint: r.name || '' }));
       if (name === 'resume' && typeof Workstreams !== 'undefined' && Workstreams.list)
-        return Workstreams.list().map(w => ({ value: w.title || w.id, hint: ((w.history || []).length) + ' turns' }));
+        return Workstreams.list().map(w => ({ value: w.title || w.id, hint: (Workstreams.turnCount ? Workstreams.turnCount(w) : (w.history || []).length) + ' turns' }));
       if (name === 'model') { warmModelValues(); return (slashModelIds || []).map(id => ({ value: id, hint: '' })); }
     } catch (_) {}
     return [];
@@ -11184,7 +11343,7 @@ const Chat = (() => {
     // title with a model-written summary. General is excluded — it stays the untitled chat home.
     if (pending) pendingTaskQuestion = null;
     const firstTurn = (typeof Workstreams !== 'undefined') && ws.id !== Workstreams.generalId()
-      && !ws.history.some(m => m && m.role === 'user');
+      && !ws.historyRef && !ws.history.some(m => m && m.role === 'user');   // (a packed history holds earlier turns: this is not the first)
     Channels.begin(ws.id, Date.now());   // stamp the run start so the COMMS elapsed timer counts real wall-clock
     const wiAid = ws.agentId || 'agent';
     const wiId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : ('wi-' + Date.now() + '-' + (++wiSeq));
@@ -11820,6 +11979,7 @@ const Chat = (() => {
       App.refreshUsage();
       if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail();
       capHistory(ws);   // E3: bound the stored thread AFTER this turn's assistant reply landed, before it persists
+      if (typeof sealSoon === 'function') sealSoon(ws);     // save v7: this run's rows are read back (and named, not repeated, in the save) a moment after it ends
       if (onTurn) onTurn();
       // TITLE UPGRADE: replace the instant first-sentence placeholder with a model-written summary. Quiet
       // (internal call, off the floor/telemetry) and fire-and-forget so it never delays this turn's teardown.
@@ -12097,7 +12257,9 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
+  // the store asks for a conversation's packed rows through the same reader (Workstreams.sourceIdsOf: a purge must see every run a session holds)
+  if (typeof Workstreams !== 'undefined' && Workstreams.setHydrator) Workstreams.setHydrator(ws => hydrateHistory(ws, { windowMs: 20000 }));
+  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
     // the COMMS '▤ saved' row's folder / copy-path keys and their path resolver, shared with MY WORK › DELIVERABLES' FILES rows (org pass 10-14, P24)
     folderButton, copyPathButton, fullSavedPath: absoluteArtifactPath };
 })();

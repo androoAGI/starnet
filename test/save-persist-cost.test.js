@@ -90,6 +90,79 @@ try {
   A.ok(r.ok, 'a torn main recovers from .bak and the next persist lands');
   A.eq(store.load('agent').agent.name, 'after-tear', 'with the new content');
   JSON.stringify = realStringify;
+
+  // ---- (6) the first v7 save keeps the last older file, ONCE: one extra durable write, and every save after it costs what it always did ----
+  {
+    const root2 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-save-cost7-'));
+    try {
+      const file2 = path.join(root2, 'agent.save.json'), kept = path.join(root2, 'agent.save.pre-history-ref.json');
+      const c2 = { reads: 0, fsyncs: 0, bigStringify: 0 }, fdPath2 = new Map();
+      const cfs2 = new Proxy(fs, { get(t, p) {
+        if (p === 'readFileSync') return function (f) { if (String(f) === file2) c2.reads++; return t.readFileSync.apply(t, arguments); };
+        if (p === 'openSync') return function (f) { const fd = t.openSync.apply(t, arguments); fdPath2.set(fd, String(f)); return fd; };
+        if (p === 'closeSync') return function (fd) { fdPath2.delete(fd); return t.closeSync(fd); };
+        if (p === 'fsyncSync') return function (fd) { if (/\.tmp$/.test(fdPath2.get(fd) || '')) c2.fsyncs++; return t.fsyncSync(fd); };
+        const v = t[p]; return typeof v === 'function' ? v.bind(t) : v;
+      } });
+      JSON.stringify = function (v) { const out = realStringify.apply(JSON, arguments); if (typeof out === 'string' && out.length > 100000) c2.bigStringify++; return out; };
+      let T2 = 1000;
+      const store2 = makeSaveStore({ fs: cfs2, pathMod: path, root: root2, clock: { now: () => ++T2 } });
+      const envelope2 = (version, rev, tag) => ({ schema: 'starnet.save', version, updatedAt: 100 + rev, _saveRevision: rev, _saveClient: 'tab1', agent: { id: 'agent', name: tag }, workstreams });
+      let r2 = store2.save('agent', envelope2(6, 0, 'v6-0'), { compareRevision: true });
+      let rev2 = r2.revision;
+      for (let i = 1; i <= 2; i++) { c2.reads = 0; c2.fsyncs = 0; c2.bigStringify = 0; r2 = store2.save('agent', envelope2(6, rev2, 'v6-' + i), { compareRevision: true }); rev2 = r2.revision; }
+      A.eq([c2.reads, c2.fsyncs, c2.bigStringify, fs.existsSync(kept)], [0, 1, 1, false], 'a v6 save costs what it always did and keeps nothing');
+      c2.reads = 0; c2.fsyncs = 0; c2.bigStringify = 0;
+      r2 = store2.save('agent', envelope2(7, rev2, 'v7-first'), { compareRevision: true }); rev2 = r2.revision;
+      A.ok(r2.ok && fs.existsSync(kept), 'the first v7 save lands and keeps the older station file');
+      A.eq(c2.fsyncs, 2, 'the first v7 save makes ONE extra durable write (the kept copy), then the main as always');
+      A.ok(c2.reads <= 1 && c2.bigStringify <= 2, 'and reads the main at most once (to copy it) and stringifies at most twice (' + c2.reads + ' reads, ' + c2.bigStringify + ' stringifies)');
+      A.eq(JSON.parse(fs.readFileSync(kept, 'utf8')).doc.agent.name, 'v6-2', 'the kept copy is the v6 file it replaced');
+      const keptBytes = fs.readFileSync(kept, 'utf8');
+      for (let i = 1; i <= 4; i++) {
+        c2.reads = 0; c2.fsyncs = 0; c2.bigStringify = 0;
+        r2 = store2.save('agent', envelope2(7, rev2, 'v7-' + i), { compareRevision: true }); rev2 = r2.revision;
+        A.ok(r2.ok, 'v7 persist ' + i + ' accepted');
+        A.eq([c2.reads, c2.fsyncs, c2.bigStringify], [0, 1, 1], 'v7 persist ' + i + ' costs what a persist always did: no read of the main, one stringify, one durable write');
+      }
+      A.eq(fs.readFileSync(kept, 'utf8'), keptBytes, 'and the kept copy was written once');
+    } finally { JSON.stringify = realStringify; try { fs.rmSync(root2, { recursive: true, force: true }); } catch (_) {} }
+  }
+
+  // ---- (7) a save that names its rows (save v7, step S5) costs what a save that repeats them costs: no read of the main, one stringify, one durable write ----
+  {
+    const HR = require('../frontend/app/historyref.js');
+    const root3 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-save-cost-packed-'));
+    try {
+      const file3 = path.join(root3, 'agent.save.json');
+      const c3 = { reads: 0, fsyncs: 0, bigStringify: 0 }, fdPath3 = new Map();
+      const cfs3 = new Proxy(fs, { get(t, p) {
+        if (p === 'readFileSync') return function (f) { if (String(f) === file3) c3.reads++; return t.readFileSync.apply(t, arguments); };
+        if (p === 'openSync') return function (f) { const fd = t.openSync.apply(t, arguments); fdPath3.set(fd, String(f)); return fd; };
+        if (p === 'closeSync') return function (fd) { fdPath3.delete(fd); return t.closeSync(fd); };
+        if (p === 'fsyncSync') return function (fd) { if (/\.tmp$/.test(fdPath3.get(fd) || '')) c3.fsyncs++; return t.fsyncSync(fd); };
+        const v = t[p]; return typeof v === 'function' ? v.bind(t) : v;
+      } });
+      JSON.stringify = function (v) { const out = realStringify.apply(JSON, arguments); if (typeof out === 'string' && out.length > 100000) c3.bigStringify++; return out; };
+      let T3 = 1000;
+      const store3 = makeSaveStore({ fs: cfs3, pathMod: path, root: root3, clock: { now: () => ++T3 } });
+      // 120 sessions whose records are big enough to count (a long title each) and whose histories are one reference each
+      const rowsOf = i => Array.from({ length: 6 }, (_, j) => ({ rowId: i * 10 + j + 1, streamId: 'p' + i, role: j % 2 ? 'assistant' : 'user', kind: 'turn', ts: 1000 + j, content: 'line ' + i + '.' + j }));
+      const packedSessions = Array.from({ length: 120 }, (_, i) => ({ id: 'p' + i, title: 'session ' + i + ' ' + 'z'.repeat(1000),
+        history: HR.pack(rowsOf(i), { streamId: 'p' + i, seal: k => { const id = Number(k.split(':')[1]); return rowsOf(i).find(r => r.rowId === id) || null; } }) }));
+      A.ok(packedSessions.every(w => w.history.length === 1 && typeof w.history[0].$ref === 'string'), '(fixture) every history is one reference');
+      const envelope3 = (rev, tag) => ({ schema: 'starnet.save', version: 7, updatedAt: 100 + rev, _saveRevision: rev, _saveClient: 'tab1', agent: { id: 'agent', name: tag }, workstreams: packedSessions });
+      let r3 = store3.save('agent', envelope3(0, 'p0'), { compareRevision: true });
+      let rev3 = r3.revision;
+      for (let i = 1; i <= 4; i++) {
+        c3.reads = 0; c3.fsyncs = 0; c3.bigStringify = 0;
+        r3 = store3.save('agent', envelope3(rev3, 'p' + i), { compareRevision: true }); rev3 = r3.revision;
+        A.ok(r3.ok, 'packed persist ' + i + ' accepted');
+        A.eq([c3.reads, c3.fsyncs, c3.bigStringify], [0, 1, 1], 'packed persist ' + i + ' costs what a persist always did: no read of the main, one stringify, one durable write');
+      }
+      A.eq(store3.load('agent').workstreams[7].history[0].$ref, packedSessions[7].history[0].$ref, 'the station file keeps the references as bytes (it reads nothing of them)');
+    } finally { JSON.stringify = realStringify; try { fs.rmSync(root3, { recursive: true, force: true }); } catch (_) {} }
+  }
 } finally {
   try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
 }

@@ -128,7 +128,24 @@ const CloudSaveCore = (() => {
      answer was lost, then a delete of the session it added, came back). */
   const MERGE_OWN = ['_saveRevision', '_saveClient', '_saveDirty', '_saveMerge', '_saveRestore', '_saveAdoptBy', 'updatedAt', 'workstreams'];
   function sessions(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => w && typeof w === 'object' && typeof w.id === 'string' && w.id) : []; }
-  function turns(w) { return Array.isArray(w && w.history) ? w.history : []; }
+  /* A HISTORY THAT NAMES ROWS BY REFERENCE (save v7, historyref.js): a session's turns here are its ROWS. A packed run is one element
+     for a hundred rows, and `bLen` (how many of the base's turns this window kept) is the count the station slices the window's
+     history by — in rows, exploded the same way on both sides (sidecar/save-merge.js), so a run that only grew is a window that only
+     added, whether or not either save packs it. historyref.js is loaded before this file by the page and required by node; a page
+     that has neither (the demo) reads every history as it always did. */
+  let HR;
+  function historyRef() {
+    if (HR !== undefined) return HR;
+    HR = null;
+    if (typeof HistoryRef !== 'undefined' && HistoryRef && typeof HistoryRef.explode === 'function') HR = HistoryRef;
+    else if (typeof module !== 'undefined' && module.exports && typeof require === 'function') { try { HR = require('./historyref.js'); } catch (e) { HR = null; } }
+    return HR;
+  }
+  function turns(w) {
+    const h = Array.isArray(w && w.history) ? w.history : [];
+    const H = historyRef();
+    return H && h.some(H.isRef) ? H.explode(h, { streamId: String(w.id) }) : h;
+  }
   function mergeDelta(base, mine, unsure) {
     const top = [], rows = [], gone = [];
     const b = base && typeof base === 'object' ? base : {}, m = mine && typeof mine === 'object' ? mine : {};

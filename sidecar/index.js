@@ -3531,7 +3531,15 @@ function engineCredentialError(provider, what, inFlight) {
 // the sidecar's own disk (the app-data dir that survives a browser cache wipe). Same containment as the
 // notebook: a sibling of the fs jail. Holds NO secret (the key/tokens live elsewhere). The frontend keeps
 // localStorage as a fast cache and writes through here on every persist; on boot it pulls the newer of the two.
-const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() }, resetAt: () => stationLife.resetAt(),
+/* A RESTORED COPY CARRIES ITS ROWS BY VALUE (save-history-by-reference, step S3). save-restore.js is pure; when a preserved window's
+   session has to be added under another id than the stream its packed runs name (a restored copy is a new stream), it is handed this to
+   read those rows out of the transcript, the same turns a GET returns (sidecar/save-inflate.js). The restore handlers reach it through the
+   store: saveStore.inflate. A row the transcript cannot return (and cannot prove gone) leaves the session unplaced, never an empty copy. */
+const saveInflate = require('./save-inflate.js').makeInflate({ readRows: (streamId, rowIds) => {
+  const one = transcriptStore.rowsByIdsBatch([{ streamId, rowIds }])[0];
+  return { turns: transcriptProjection(streamId, one.rows).turns, missing: one.missing, retracted: one.retracted, forgotten: one.forgotten };
+} });
+const saveStore = makeSaveStore({ fs, pathMod: path, root: WORKSPACES, clock: { now: () => Date.now() }, resetAt: () => stationLife.resetAt(), inflate: saveInflate,
   onFounded: w => { if (w.agentId !== 'agent') return; stationLife.found({ by: 'save' }); if (agentRosterHeld) saveAgentRoster(agentRosterUpdatedAt); } });   // the station file's first accepted write founds the generation, and the crew held for it lands; a write that fails stays held for the next save
 
 /* observeDeletedSessions(save) — fold the station save's deleted-session lists into the session tombstone ledger
@@ -3576,6 +3584,7 @@ function forgetDeletedSessionMemory() {
       if (!todo.length) break;
       const counts = await SessionTombstones.forgetSessionMemory({ store: notebookStore, threads: threadsStore,
         agentIds: memoryAgentIds(), deleted: todo, runs: runStore.all() });
+      saveStore.scrubKept(todo.map(t => t.id));   // save-pre-history-ref: the older station file kept at the v7 upgrade follows deletes (a failure retries at boot)
       sessionTombstones.markPurged(todo);
       for (const f of counts.forgot.slice(0, 50)) chanEmit('memory.forget', { agentId: f.agentId, id: f.id, reason: 'session-deleted' });   // the rest are in the log line
       if (counts.notes || counts.revisions || counts.verdicts || counts.pending || counts.threads) {
@@ -3600,6 +3609,13 @@ function forgetDeletedSessionMemory() {
   if (adopted) console.log('[session-tombstones] ' + adopted + ' session(s) deleted before this build: forgotten from history and recall; the memories they wrote are kept');
   if (sessionTombstones.unpurged().length) forgetDeletedSessionSummaries();   // an unfinished purge (a crash between the stamp and the sweep) is retried here too
   if (sessionTombstones.unpurged().length) forgetDeletedSessionMemory();
+}
+// the older station file kept at the v7 upgrade (savestore.js THE LAST FILE AN OLDER BUILD CAN READ) goes 30 days after the new format has read back
+{
+  const expireKept = () => { try { saveStore.expireAllKept(); } catch (e) { failNote('save.kept.expire', e); } };
+  expireKept();
+  const keptSweep = setInterval(expireKept, 12 * 60 * 60 * 1000);
+  if (keptSweep.unref) keptSweep.unref();
 }
 // the saved floor as a validated station model for the capability note's room scope (cap-scope.js): re-validated
 // (~11 ms on a 152-prop save) only when the save file's stamp moved, and only asked when a floor object is missing
@@ -13318,6 +13334,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/turn-identity/soak', h: handleTurnIdentitySoak },
   { m: 'POST', exact: '/api/turn-identity/retract', h: handleTurnIdentityRetract },
   { m: 'POST', exact: '/api/turn-identity/retractions', h: handleTurnIdentityRetractions },
+  { m: 'POST', exact: '/api/transcript/rows', h: handleTranscriptRows },   // the rows a page names by id (a saved history that holds them by reference)
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
@@ -29440,7 +29457,7 @@ function serveSaveConflicts(req, res) {
       if (!doc) { if (state.doc) settle.push(f); continue; }   // gone, or does not parse: nothing it could offer
       // a copy from before a station RESET, while the station is from after it, is erased work: listed, never offered back
       const predatesReset = saveStore.predatesReset(doc, state.doc);
-      const n = state.doc && !predatesReset ? restore.restorable(state.doc, doc, { forgotten }) : 0;
+      const n = state.doc && !predatesReset ? restore.restorable(state.doc, doc, { forgotten, inflate: saveStore.inflate }) : 0;
       conflicts.push({ file: f.name, savedAt: f.mtimeMs, sessions: Array.isArray(doc.workstreams) ? doc.workstreams.length : 0,
         restorable: n, ...(predatesReset ? { predatesReset: true } : {}) });
       if (n > 0) break;
@@ -29470,7 +29487,7 @@ async function handleSaveConflictRestore(req, res) {
     if (saveStore.predatesReset(preserved, state.doc)) return json(200, { ok: false, error: 'that copy is from before this computer’s station was reset', predatesReset: true });
     // a session the Commander deleted stays deleted: the sidecar's own uncapped ledger (time-scoped), not only the save's list
     const tombs = (typeof sessionTombstones !== 'undefined' && sessionTombstones && typeof sessionTombstones.forgotten === 'function') ? sessionTombstones : null;
-    const r = require('./save-restore.js').plan(state.doc, preserved, { forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null });
+    const r = require('./save-restore.js').plan(state.doc, preserved, { forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null, inflate: saveStore.inflate });
     const settle = () => { try { if (row) saveStore.settleConflicts('agent', [row]); } catch (e) { failNote('save.restore.settle', e); } };
     if (!r.added.length && !r.extended.length && !r.copied.length) { settle(); return json(200, { ok: true, added: 0, extended: 0, copied: 0, revision: Number(state.doc._saveRevision) || 0 }); }
     const at = Date.now();
@@ -29480,7 +29497,7 @@ async function handleSaveConflictRestore(req, res) {
     if (!result || result.ok !== true) return json(200, { ok: false, error: result && result.conflict ? 'the station changed during the restore; try again' : 'the station refused the restore', backup });
     try { seedSaveMemos('agent', doc); } catch (e) { failNote('save.restore.seed-memos', e); }
     settle();
-    json(200, { ok: true, added: r.added.length, extended: r.extended.length, copied: r.copied.length, revision: result.revision, backup });
+    json(200, { ok: true, added: r.added.length, extended: r.extended.length, copied: r.copied.length, revision: result.revision, backup, ...(r.unplaced.length ? { unplaced: r.unplaced.length } : {}) });
   } catch (e) { json(200, { ok: false, error: (e && e.message) || 'restore failed' }); }
 }
 /* POST /api/save/adopt { ...envelope, _saveAdoptBy } — a reopening window's unsent save that cannot land as it is (support
@@ -29545,7 +29562,8 @@ async function handleSaveAdopt(req, res) {
     const windowBase = head ? (!!writer && writer === head.client && Number(body.updatedAt) > Number(head.at)) : Number(body.updatedAt) > Number(station.updatedAt);
     const base = windowBase ? Object.assign({}, body) : station, other = windowBase ? station : body;
     const tombs = (typeof sessionTombstones !== 'undefined' && sessionTombstones && typeof sessionTombstones.forgotten === 'function') ? sessionTombstones : null;
-    const r = require('./save-restore.js').plan(base, other, { forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null });
+    const r = require('./save-restore.js').plan(base, other, { forgotten: tombs ? ((id, ts) => tombs.forgotten(id, ts)) : null, inflate: saveStore.inflate });
+    if (windowBase && r.unplaced.length) return json(200, { ok: false, error: 'a conversation cannot be carried over yet', unplaced: r.unplaced.length });   // never drop one
     const doc = r.doc;
     if (windowBase) { keepStationGrowth(doc, station); keepTerminalApprovals(doc, station); }
     const at = Date.now();
@@ -30374,9 +30392,9 @@ function transcriptRunSince(runId) {
   const at = [row && row.startedAt, row && row.ts].map(Number).filter(v => Number.isFinite(v) && v > 0);
   return at.length ? Math.min.apply(null, at) : 0;
 }
-function transcriptProjection(stream, rows) {
-  return turnDual.project(stream, rows, { liveRunIds: transcriptLiveRuns,
-    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
+function transcriptProjection(stream, rows, extra) {
+  return turnDual.project(stream, rows, Object.assign({ liveRunIds: transcriptLiveRuns,
+    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) }, extra));
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
 async function handleTurnIdentitySoak(req, res) {
@@ -30418,6 +30436,28 @@ async function handleTurnIdentityRetractions(req, res) {
   if (result.retracted && (Array.isArray(result.retracted) ? result.retracted.length : result.retracted)) forgetStreamSummaries(body.streamId);
   return respondJson(res, 200, { streamId: body.streamId, retracted: result.retracted });
 }
+/* POST /api/transcript/rows { agent?, streams: [{ streamId, rowIds }] } -> { streams: [{ streamId, turns, missing,
+   retracted, forgotten }] }: the rows a page names, by id, as the display view shows them (the same turn objects a GET
+   returns), in the order asked. At most 50 streams and 1000 ids in all. Every id lands in turns, forgotten (a deleted
+   session's row), retracted (undone) or missing (cannot be returned and cannot be proved gone: ask again with only those
+   ids). A proof the station cannot complete answers 503 TRANSCRIPT_UNVOUCHED, never every id as missing. */
+async function handleTranscriptRows(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 65536, res)) || {}; }
+  catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  if (refuseBadAgentId(res, body.agent || 'agent')) return;   // the GET's rule: no agent means the hero, a malformed one is refused
+  const asks = Array.isArray(body.streams) ? body.streams : null;
+  if (!asks || !asks.length) return respondJson(res, 400, { error: 'streams must list the streams to read' });
+  try {
+    const found = transcriptStore.rowsByIdsBatch(asks.map(ask => ({ streamId: ask && ask.streamId, rowIds: ask && ask.rowIds })));
+    return respondJson(res, 200, { streams: found.map((one, i) => ({ streamId: asks[i].streamId, turns: transcriptProjection(asks[i].streamId, one.rows).turns,
+      missing: one.missing, retracted: one.retracted, forgotten: one.forgotten })) });
+  } catch (error) {
+    if (error && error.code === 'TRANSCRIPT_BAD_REQUEST') return respondJson(res, 400, { error: error.message });
+    if (error && error.code === 'TRANSCRIPT_UNVOUCHED') return respondJson(res, 503, { error: 'The station could not prove these rows.', code: 'TRANSCRIPT_UNVOUCHED' });
+    return respondJson(res, 500, readRouteFailure('transcript.rows', error));
+  }
+}
 function serveTranscript(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   try {
@@ -30427,6 +30467,14 @@ function serveTranscript(req, res) {
     const stream = u.searchParams.get('stream') || 'global';
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
     const sourceRunId = u.searchParams.get('runId') || '';
+    // ?after=<rowId>: the next `limit` durable rows after that row, oldest first, with where it stopped (cursor { last, count,
+    // more }): read on from cursor.last until more is false. Any other query is answered as it always was.
+    if (u.searchParams.has('after')) {
+      const after = u.searchParams.get('after');
+      if (!/^\d{1,15}$/.test(after) || sourceRunId || u.searchParams.has('delivery') || u.searchParams.has('view')) return json(400, { error: 'after is a row id, and reads the whole stream: not with runId, delivery or view' });
+      const page = transcriptStore.pageAfter(stream, Number(after), limit);
+      return json(200, transcriptProjection(stream, page.rows, { cursor: { last: page.last, count: page.rows.length, more: page.more } }));
+    }
     // H2: a run still writing per turn stays out of the stream view until it ends (see transcriptLiveRuns).
     // Every surface uses the same visibility owner; explicit delivery reads narrow to verified finals.
     const finalDelivery = sourceRunId && u.searchParams.get('delivery') === '1';

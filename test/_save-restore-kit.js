@@ -47,7 +47,8 @@ function countingFs(reads) {
   } });
 }
 
-// the sidecar side (one process): the real handlers over a real savestore. o.tombstones: the deleted-session ledger;
+// the sidecar side (one process): the real handlers over a real savestore. o.inflate: the host's read of a history's packed runs
+// (index.js builds it from the transcript; the store carries it to the restore handlers: store.inflate); o.tombstones: the deleted-session ledger;
 // o.fs: an fs facade; o.Date: the handlers' clock; o.clock: the store's clock ({ now }); o.realBody: requests arrive as a
 // byte stream read by the REAL bounded reader (sidecar/http-body.js: its 16 MiB cap, its tooLarge error); o.noMerge: the station
 // REFUSES every merge, for good (POST /api/save/adopt answers ok:false, and a merging window's save — POST /api/save with
@@ -55,7 +56,7 @@ function countingFs(reads) {
 // save-latch-kill a window another window saved past merges its saves, so only a refused merge leaves one standing
 function sidecar(root, o) {
   o = o || {};
-  const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: o.clock || { now: () => Date.now() } });
+  const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: o.clock || { now: () => Date.now() }, inflate: o.inflate });
   let latestRatingAt = 0;
   const realRead = o.realBody ? require('../sidecar/http-body.js').readBody : null;
   const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: realRead ? ((req, max) => realRead(req, max)) : (async req => req.body), failNote: () => {},
@@ -94,7 +95,7 @@ function page(host, cache, extra) {
   const context = Object.assign({ console, module: { exports: {} }, require: () => require('../frontend/app/cloudsavecore.js'), setTimeout, clearTimeout, AbortController,
     location: { reload() { reloads.push(1); } },
     localStorage: { getItem: k => (cache.has(k) ? cache.get(k) : null), setItem: (k, v) => cache.set(k, v), removeItem: k => cache.delete(k) },
-    Save: { CURRENT: 6, load: () => JSON.parse(cache.get('starnet.save') || 'null') },
+    Save: { CURRENT: 7, load: () => JSON.parse(cache.get('starnet.save') || 'null') },   // the real Save.CURRENT (save v7: history by reference)
     fetch: (url, opts) => host.fetch(url, opts) }, extra || {});
   vm.runInNewContext(cloudsaveSrc, context);
   const cs = context.module.exports; cs._reloads = reloads;

@@ -109,15 +109,83 @@ const Backup = (() => {
     } catch (_) { return null; }
   }
 
+  /* A PACKED SAVE IS NOT A PORTABLE ONE (save v7, history by reference). A saved conversation may NAME a run of rows the station's
+     transcript holds instead of repeating them (historyref.js), which only means something beside that transcript. This file leaves
+     the station — for another browser, another machine — so the save in it carries its rows BY VALUE: every conversation that names
+     rows is read back from the station (POST /api/transcript/rows, the reader the page hydrates with) and written out whole, the
+     page-only fields back on its rows; a turn the Commander undid or forgot is not brought back. A conversation the station cannot
+     return in full (it does not answer, it cannot find a row and cannot prove it undone) stops the export — a file that kept the
+     reference would lose those turns on the machine that opens it — and exportAll says so. A save that names nothing is the very text
+     it was (nothing is parsed, nothing is asked). The one-step undo of a CLEARED conversation (sessionUndo) goes the same way; one the
+     station cannot return is left out, since a cleared conversation is not one anybody exports on purpose. */
+  const ROWS_ASK_MS = 20000;
+  const historyRefModule = () => typeof HistoryRef !== 'undefined' ? HistoryRef : (typeof require === 'function' ? require('./historyref.js') : null);
+  async function readRows(agentId, streamId, rowIds) {
+    if (typeof Harness === 'undefined' || !Harness.api || typeof Harness.api.post !== 'function') throw new Error('the station is not connected');
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), ROWS_ASK_MS) : null;
+    try {
+      const r = await Harness.api.post('/api/transcript/rows', { agent: agentId || 'agent', streams: [{ streamId, rowIds }] }, controller ? { signal: controller.signal } : undefined);
+      const one = r && r.ok && r.j && Array.isArray(r.j.streams) ? r.j.streams[0] : null;
+      if (!one || one.streamId !== streamId || !Array.isArray(one.turns)) throw new Error('the station did not return the rows');
+      return one;
+    } finally { if (timer) clearTimeout(timer); }
+  }
+  // -> { raw, inflated, short }: the save text with every packed history read back (raw itself when none is packed), and the ids of the
+  // conversations the station could not return in full (then raw is left as it was)
+  async function portableSave(raw) {
+    const out = { raw, inflated: 0, short: [] };
+    let changed = false;
+    if (typeof raw !== 'string' || raw.indexOf('"$ref"') < 0) return out;
+    let doc;
+    try { doc = JSON.parse(raw); } catch (_) { return out; }   // not a save this can judge: carried as it is, as before
+    if (!doc || typeof doc !== 'object') return out;
+    const HR = historyRefModule();
+    const packed = h => Array.isArray(h) && h.some(el => el && typeof el === 'object' && typeof el.$ref === 'string');
+    const inflate = async (id, agentId, history) => {
+      if (!HR || typeof id !== 'string' || !id) return null;
+      let r;
+      try { r = await HR.expand(history, { streamId: id, fetchRows: (streamId, rowIds) => readRows(agentId, streamId, rowIds) }); } catch (_) { return null; }
+      return r && r.complete && !r.error && !r.malformed ? r.rows : null;
+    };
+    for (const w of Array.isArray(doc.workstreams) ? doc.workstreams : []) {
+      if (!w || !packed(w.history)) continue;
+      const rows = await inflate(w.id, w.agentId, w.history);
+      if (rows) { w.history = rows; out.inflated++; changed = true; } else out.short.push(String(w.id));
+    }
+    const undo = doc.sessionUndo;
+    if (undo && Array.isArray(undo.rows) && undo.rows.some(row => row && packed(row.history))) {
+      let whole = true;
+      for (const row of undo.rows) {
+        if (!row || !packed(row.history)) continue;
+        const rows = await inflate(row.id, 'agent', row.history);
+        if (rows) { row.history = rows; out.inflated++; } else { whole = false; break; }
+      }
+      if (!whole) doc.sessionUndo = null;
+      changed = true;
+    }
+    if (!out.short.length && changed) out.raw = JSON.stringify(doc);
+    return out;
+  }
+  const packedExportError = short => Object.assign(new Error('Export stopped: ' + short.length + ' saved conversation' + (short.length === 1 ? '' : 's')
+    + ' could not be read back from the station in full, and a file that names rows only the station holds would lose them anywhere else. Nothing was written. Try again when the station answers.'),
+    { code: 'EXPORT_PACKED_UNREADABLE', sessions: short.slice() });
+
   async function build() {
     const saveRaw = memorySaveRaw();   // read once: the file name and the store describe the same save
+    const store = collectStore(saveRaw);
+    if (typeof store[SAVE_KEY] === 'string') {
+      const made = await portableSave(store[SAVE_KEY]);
+      if (made.short.length) throw packedExportError(made.short);
+      store[SAVE_KEY] = made.raw;
+    }
     return {
       schema: SCHEMA, version: VERSION, app: 'starnet',
       exportedAt: Date.now(),
       agentName: agentName(saveRaw),
       secretsIncluded: false,
       secretPolicy: SECRET_POLICY,
-      store: collectStore(saveRaw),
+      store,
       notebook: await snapshotNotebook()
     };
   }
@@ -125,7 +193,9 @@ const Backup = (() => {
   function utilities() { return typeof U !== 'undefined' ? U : require('../js/util.js'); }
 
   async function exportAll() {
-    const bundle = await build();
+    let bundle;
+    try { bundle = await build(); }
+    catch (e) { if (e && e.code === 'EXPORT_PACKED_UNREADABLE') return { ok: false, line: e.message, sessions: e.sessions, records: 0, keys: 0 }; throw e; }
     const file = 'starnet-' + slug(bundle.agentName) + '-' + stamp(new Date()) + '.json';
     const receipt = await utilities().saveFile({ name: file, ext: 'json', text: JSON.stringify(bundle, null, 2) });
     const records = Object.keys(bundle.store).length;

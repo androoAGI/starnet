@@ -25,6 +25,9 @@ test/website-app-sync.test.js
 test/ledger-reconcile.test.js
 # browser: the browser automation contract suite — 42.6 s.
 test/browser.test.js
+# save-interleave.seeded: 502 seeds of the save-merge interleavings, then the same seeds again with each window's history packed
+# (save-history-by-reference) — 24.0 s standalone before the packed pass (88 assertions), 42.3 s and 46.8 s with it (94), on a quiet box, 2026-11-04.
+test/save-interleave.seeded.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # browser-upload-chooser.e2e: real Chromium, 12 fixture pages, and browser-upload.e2e's teardown: after driver.close's 8 s

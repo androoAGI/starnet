@@ -15,13 +15,32 @@
      that mint the lifetime total (chat.js feeds addCost a copy-snapshotted Harness.totals()
      diff) — never an invented number.
    - HYBRID-HONEST LANES: appendRun auto-advances todo->active the instant a real run fires;
-     'shipped' is only ever set by a deliberate human turn-in via setLane. A lane can't lie. */
+     'shipped' is only ever set by a deliberate human turn-in via setLane. A lane can't lie.
+
+   PACKED HISTORIES (save v7, save-history-by-reference). A saved session's `history` may name a run of rows the station's
+   transcript holds as one element { "$ref": "…" } (historyref.js) instead of repeating them. The page cannot draw that
+   element, so init keeps such a history whole as w.historyRef (the PACKED form, verbatim) and w.history holds only the rows
+   the page keeps itself: every inline element, in order, the very same objects, and whatever is pushed after boot.
+   Until the named rows are read back (hydrate(), driven by chat.js) the session is PARTIAL and says so:
+     · isUntouched / hasHistory / turnCount / hasUserTurn count the named rows; latestVisibleMessage names a message only when
+       the packed form proves it is the newest (the digest); titleBasis / needsModelTitle / exportConversation / the
+       archive-empty test refuse to judge from the inline rows alone;
+     · serialize() hands out the packed form (historyRef) followed by the rows pushed since, so a session nobody opened is
+       never rewritten and nothing is dropped;
+     · writers that insert, replace or remove rows hydrate first (chat.js hydrateHistory) or use setHistory().
+   Both properties are NOT enumerable: a record can never be stringified (or copied) carrying a second copy of its history.
+
+   PACKING (save v7). serialize() also PACKS: a session whose rows are all here has its history passed through
+   HistoryRef.pack with the page's SEALS — the turns the station returned in a successful read (sealTurns, called by chat.js after the
+   open-time reconcile, a seal pass, a hydration and app.js's idle seal sweep; held in page memory only, never saved). A row the station provably holds and the
+   page still holds field for field becomes part of one { "$ref": … } element; every other row stays inline where it is. */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof module !== 'undefined' && module.exports ? require('./turnkinds.js') : root.TurnKinds);
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  const node = typeof module !== 'undefined' && module.exports;
+  const api = factory(node ? require('./turnkinds.js') : root.TurnKinds, node ? require('./historyref.js') : root.HistoryRef);
+  if (node) module.exports = api;
   else { root.Workstreams = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds, HistoryRef) {
   'use strict';
 
   const LANES = ['todo', 'active', 'shipped'];
@@ -54,6 +73,158 @@
   function zeroCost() { return { tokens: 0, usd: 0, calls: 0 }; }
   function find(id) { for (const w of ws) if (w.id === id) return w; return null; }
 
+  // ---------- packed histories (see the header) ----------
+  // a packed element (HistoryRef: a $ref run, or the stub an engine left in one). Without HistoryRef (a bare sandbox) the $ref shape is still recognised.
+  const isPacked = el => HistoryRef && HistoryRef.isRef
+    ? (HistoryRef.isRef(el) || (HistoryRef.isStub && HistoryRef.isStub(el)))
+    : (!!el && typeof el === 'object' && !Array.isArray(el) && typeof el.$ref === 'string');
+  const countPacked = h => HistoryRef && HistoryRef.countOf ? HistoryRef.countOf(h) : h.length;
+  const packedInfo = new WeakMap();   // a packed array (never mutated once held) -> the rows it holds inline, as a list and a set
+  function infoOf(ref) {
+    let info = packedInfo.get(ref);
+    if (!info) { const rows = ref.filter(el => !isPacked(el)); info = { rows, set: new Set(rows) }; packedInfo.set(ref, info); }
+    return info;
+  }
+  // WHAT THE PACKED FORM PROVES ABOUT A SESSION'S ENDS, and no more: the first user message only when no packed run comes before it, the
+  // newest visible one only when no packed run comes after it (a run could hold anything newer), and the exact count of rows. Taken of the
+  // packed form itself, because nothing else is there after a boot; a digest of full rows (HistoryRef.digestOf) would name the newest
+  // INLINE row even when a packed run is newer than it.
+  function digestOfPacked(ref) {
+    let firstUser = null, latest = null;
+    for (const el of ref) { if (isPacked(el)) break; if (el && el.role === 'user' && isVisibleMessage(el) && el.content.trim()) { firstUser = el; break; } }
+    for (let i = ref.length - 1; i >= 0; i--) { const el = ref[i]; if (isPacked(el)) break; if (isVisibleMessage(el) && el.content.trim()) { latest = el; break; } }
+    return { v: 1, count: countPacked(ref), firstUser, latest };
+  }
+  // keep `ref` (a history holding at least one packed element) as the session's packed form; w.history is left to the caller
+  function setPacked(w, ref) {
+    Object.defineProperty(w, 'historyRef', { value: ref, writable: true, configurable: true, enumerable: false });
+    Object.defineProperty(w, 'historyDigest', { value: digestOfPacked(ref), writable: true, configurable: true, enumerable: false });
+  }
+  function clearPacked(w) { if (w && Object.prototype.hasOwnProperty.call(w, 'historyRef')) { w.historyRef = null; w.historyDigest = null; } }
+  // a whole history put into a record: rows with a packed element in them keep those runs packed, anything else clears the packed form
+  function installHistory(w, rows) {
+    clearPacked(w);
+    if (rows.some(isPacked)) { w.history = rows.filter(el => !isPacked(el)); setPacked(w, rows.slice()); }
+    else w.history = rows;
+  }
+  /* The history the save carries for `w`: its packed form followed by the rows pushed since. A row the page dropped from the rows it holds
+     (a filter, a cap, a pop) stays dropped, and a row it added lands after the packed form, where an append puts it. */
+  function composedHistory(w) {
+    const h = Array.isArray(w.history) ? w.history : [];
+    if (!w.historyRef) return h;
+    const ref = w.historyRef, info = infoOf(ref);
+    if (h.length === info.rows.length && info.rows.every((r, i) => h[i] === r)) return ref;   // nothing added or taken: the packed form IS the history
+    const kept = new Set(h), out = [];
+    for (const el of ref) if (isPacked(el) || kept.has(el)) out.push(el);
+    for (const r of h) if (!info.set.has(r)) out.push(r);
+    return out;
+  }
+
+  /* SEALS: WHAT THIS PAGE HAS PROVED THE STATION HOLDS. A seal is a turn exactly as the station returned it in a successful read — a
+     private deep copy (HistoryRef.snapshotOf: plain JSON, strings shared), kept in page memory under HistoryRef.keyOf(stream, rowId),
+     never mutated and never saved. serialize() hands HistoryRef.pack the seals, and pack names a row instead of repeating it ONLY when
+     the page's row still equals its seal field for field (whatever it holds beyond the seal rides as residue); every other row stays
+     inline where it is. So an unproven row makes the save bigger, never lossier — and a page that has read nothing (a fresh boot, a
+     station that does not answer) packs nothing: init() and reset() start from no seals. A later read replaces a seal with the
+     station's newer copy; a row the page changed since falls off its seal and is saved inline again. */
+  const seals = new Map();
+  const sealAsks = new Map();   // seal key -> how many sweep reads asked for it without an answer (SEAL_ASKS_MAX = never again this page lifetime)
+  const SEAL_ASKS_MAX = 3;
+  const STREAM_ID = /^[A-Za-z0-9_-]{1,64}$/;   // the stream ids POST /api/transcript/rows takes
+  const sealOf = key => seals.get(key) || null;
+  // keep the turns of one stream a successful read returned as seals; returns how many were kept. A stream the rows route cannot name (an id
+  // outside its grammar, such as a restored copy's "<id>~restored") is never sealed: the station's ordinary read answers such an id with the
+  // GLOBAL stream, so what it returned proves nothing about this session, and a reference the page could never read back would strand the rows
+  function sealTurns(streamId, turns) {
+    streamId = String(streamId == null ? '' : streamId);
+    if (!HistoryRef || !HistoryRef.snapshotOf || !STREAM_ID.test(streamId) || !Array.isArray(turns)) return 0;
+    let n = 0;
+    for (const t of turns) {
+      if (!t || typeof t !== 'object' || t.idFrom === 'collision' || (t.streamId && t.streamId !== streamId)) continue;   // a collided id proves nothing; another stream's row is not this stream's seal
+      const snap = HistoryRef.snapshotOf(t);
+      if (!snap) continue;
+      seals.set(HistoryRef.keyOf(streamId, snap.rowId), snap); n++;
+    }
+    return n;
+  }
+  function sealed(streamId, rowId) { return seals.get(HistoryRef.keyOf(String(streamId), rowId)) || null; }
+  // The station says these rows of a stream were undone or forgotten: the copy of them the page kept as proof goes too (a deleted turn's text
+  // is held nowhere a later read has to clean up). The row, if the page still holds it, is saved inline until the station says otherwise.
+  function unseal(streamId, rowIds) {
+    if (!HistoryRef || !Array.isArray(rowIds)) return 0;
+    let n = 0;
+    for (const id of rowIds) if (seals.delete(HistoryRef.keyOf(String(streamId), id))) n++;
+    return n;
+  }
+  // a deleted session's seals go with it (the key is "<stream>:<digits>", so a stream whose own id has a colon is never confused with another)
+  function dropSeals(streamId) {
+    const prefix = String(streamId) + ':';
+    for (const k of seals.keys()) if (k.startsWith(prefix) && /^\d+$/.test(k.slice(prefix.length))) seals.delete(k);
+    for (const k of sealAsks.keys()) if (k.startsWith(prefix) && /^\d+$/.test(k.slice(prefix.length))) sealAsks.delete(k);
+  }
+  /* The rows the idle seal sweep still has to ask the station about: for every session whose rows are all here (newest first), the
+     ids of its inline rows that could be packed (a rowId, a kind the transcript owns) and carry no seal yet, in batches the rows route
+     takes (<= maxIds ids across <= maxStreams sessions). Rows with no rowId are never here: nothing is matched by content. Nothing is
+     stored; asking again after a pause gives the rest. opts.any: only whether there is anything left (the first one found, unordered).
+     -> [{ streamId, agentId, rowIds }] */
+  function sealCandidates(opts) {
+    const o = opts || {};
+    const maxIds = Math.max(1, Math.min(1000, Math.floor(Number(o.maxIds)) || 1000)), maxStreams = Math.max(1, Math.min(50, Math.floor(Number(o.maxStreams)) || 50));
+    if (!HistoryRef || !HistoryRef.sealable) return [];
+    const found = [];
+    for (const w of ws) {
+      if (w.historyRef || w.conversationMode === 'group' || !Array.isArray(w.history) || !w.history.length || !STREAM_ID.test(w.id)) continue;   // (the rows route refuses a whole request for one id it does not take)
+      const want = [], seen = new Set();
+      for (const r of w.history) {
+        if (!HistoryRef.sealable(r, w.id) || seen.has(r.rowId)) continue;
+        const k = HistoryRef.keyOf(w.id, r.rowId);
+        if (seals.has(k) || (sealAsks.get(k) || 0) >= SEAL_ASKS_MAX) continue;
+        seen.add(r.rowId); want.push(r.rowId);
+        if (o.any) return [{ streamId: w.id, agentId: w.agentId || 'agent', rowIds: want }];   // "is there anything left?" needs no ordering and no more than one
+      }
+      if (want.length) found.push({ streamId: w.id, agentId: w.agentId || 'agent', rowIds: want, at: +w.lastActiveAt || 0 });
+    }
+    found.sort((a, b) => b.at - a.at);
+    const out = [];
+    let left = maxIds;
+    for (const f of found) {
+      if (out.length >= maxStreams || left <= 0) break;
+      out.push({ streamId: f.streamId, agentId: f.agentId, rowIds: f.rowIds.slice(0, left) });
+      left -= out[out.length - 1].rowIds.length;
+    }
+    return out;
+  }
+  // a sweep read asked for `asked` ids of a stream and the station answered for `answered` of them (a turn, or the proof that it was undone
+  // or forgotten): the rest stay candidates for a few more reads — a request reads a bounded number of segments — and then are left alone
+  function noteSealRead(streamId, asked, answered) {
+    if (!HistoryRef || !Array.isArray(asked)) return;
+    const done = new Set(Array.isArray(answered) ? answered : []);
+    for (const id of asked) {
+      const k = HistoryRef.keyOf(String(streamId), id);
+      sealAsks.set(k, done.has(id) ? SEAL_ASKS_MAX : Math.min(SEAL_ASKS_MAX, (sealAsks.get(k) || 0) + 1));
+    }
+  }
+
+  // The history one record is saved with. A session whose rows are not all here: its packed form, verbatim, followed by the rows pushed
+  // since. A session whose rows are all here: HistoryRef.pack over the seals (the very record when nothing packs, so a page that has read
+  // nothing saves exactly the live records). A group chat's rows are the backend's own copy and carry no transcript row ids: never packed.
+  function persistedRecord(w) {
+    if (w.historyRef) return Object.assign({}, w, { history: composedHistory(w) });
+    const h = w.history;
+    if (!seals.size || !HistoryRef || !HistoryRef.pack || w.conversationMode === 'group' || !Array.isArray(h) || !h.length) return w;   // (and a stream the rows route cannot name has no seal: sealTurns)
+    const packed = HistoryRef.pack(h, { streamId: w.id, seal: sealOf });
+    return packed.length === h.length && packed.every((el, i) => el === h[i]) ? w : Object.assign({}, w, { history: packed });
+  }
+  function persistedList() {
+    let out = null;
+    for (let i = 0; i < ws.length; i++) {
+      const rec = persistedRecord(ws[i]);
+      if (rec !== ws[i] && !out) out = ws.slice(0, i);   // the first record that differs: the list is a copy from here on
+      if (out) out.push(rec);
+    }
+    return out || ws;
+  }
+
   // The one canonical Workstream shape. Idempotent on an already-formed record (ids/timestamps
   // are preserved), so init() can re-normalize a saved slice without reshaping it.
   function make(opts) {
@@ -61,7 +232,8 @@
     const t = opts.t || opts.createdAt || now();
     const c = opts.cost || {};
     const lane = LANES.indexOf(opts.lane) >= 0 ? opts.lane : 'todo';
-    return {
+    const packed = Array.isArray(opts.history) && opts.history.some(isPacked);   // a saved history that names rows the station holds (see the header)
+    const w = {
       id: opts.id || uid(),
       title: opts.title != null ? clamp(opts.title, 80) : null,    // null = the General default stream
       agentId: opts.agentId || 'agent',
@@ -91,7 +263,7 @@
       // SESSIONS; a session the agent opened with session.create (it records its parent too) keeps its own row.
       worker: opts.worker === true,
       projectHome: opts.projectHome === true,
-      history: Array.isArray(opts.history) ? opts.history.slice() : [],
+      history: Array.isArray(opts.history) ? (packed ? opts.history.filter(el => !isPacked(el)) : opts.history.slice()) : [],
       runIds: Array.isArray(opts.runIds) ? opts.runIds.slice() : [],
       connectorHandoff: normalizeConnectorHandoff(opts.connectorHandoff),
       // outcome of the stream's MOST RECENT run: true = it completed (in-band stream finished, even via a
@@ -137,6 +309,8 @@
       // existed defaults to its lastActiveAt so an upgrade never floods the rail with false unreads.
       lastReadAt: opts.lastReadAt != null ? opts.lastReadAt : (opts.lastActiveAt || t)
     };
+    if (packed) setPacked(w, opts.history.slice());   // the saved history, verbatim: w.history above holds only its inline rows
+    return w;
   }
 
   function normalizeConnectorHandoff(value) {
@@ -175,6 +349,7 @@
   function init(slice) {
     slice = slice || {};
     ws = Array.isArray(slice.workstreams) ? slice.workstreams.map(make) : [];
+    seals.clear(); sealAsks.clear();   // a page that has just read a save has proved nothing yet: its seals are what the next reads give it
     delegatedAgents = null;
     tombs = Array.isArray(slice.deletedIds) ? slice.deletedIds.filter(x => typeof x === 'string' && x).slice(-MAX_TOMBS) : [];
     forgets = Array.isArray(slice.forgetIds) ? slice.forgetIds.filter(x => typeof x === 'string' && x).slice(-MAX_TOMBS) : [];
@@ -189,10 +364,11 @@
   }
 
   // wipe to a single fresh General (NEW AGENT clears everything).
-  function reset() { ws = []; delegatedAgents = null; activeId = generalId = null; undoCheckpoint = null; tombs = []; forgets = []; const g = ensureGeneral(); activeId = g.id; return active(); }
+  function reset() { ws = []; seals.clear(); sealAsks.clear(); delegatedAgents = null; activeId = generalId = null; undoCheckpoint = null; tombs = []; forgets = []; const g = ensureGeneral(); activeId = g.id; return active(); }
 
-  // the persisted slice — App.persist() serializes this alongside { agent, usage }.
-  function serialize() { return { workstreams: ws, activeId, generalId, sessionUndo: undoCheckpoint, deletedIds: tombs, forgetIds: forgets }; }
+  // the persisted slice — App.persist() serializes this alongside { agent, usage }. The live records, except a session whose rows are not all here
+  // (see the header): that one is handed out as a copy carrying its packed form, so a session nobody opened is written back as it was read.
+  function serialize() { return { workstreams: persistedList(), activeId, generalId, sessionUndo: undoCheckpoint, deletedIds: tombs, forgetIds: forgets }; }
   function all() { return ws; }
 
   // ---------- selection ----------
@@ -283,7 +459,7 @@
     const c = (w && w.cost) || {};
     return !!w && w.conversationMode !== 'group' && !w.archived && w.kind === 'chat' && w.title == null
       && w.titleAuto !== false && !w.pinned && w.roomId == null && !w.goalLoop
-      && (!w.history || w.history.length === 0)
+      && (!w.history || w.history.length === 0) && !w.historyRef   // rows named by a packed history are messages the page has not read yet, not a blank
       && (!w.runIds || w.runIds.length === 0)
       && (!w.deliverables || w.deliverables.length === 0)
       && !(+c.tokens || +c.usd || +c.calls);
@@ -375,6 +551,7 @@
     const i = ws.findIndex(w => w.id === id);
     if (i < 0) return false;
     ws.splice(i, 1);
+    dropSeals(id);   // what the page proved about a deleted conversation's rows goes with it
     delegatedAgents = null;
     if (tombs.indexOf(id) < 0) { tombs.push(id); if (tombs.length > MAX_TOMBS) tombs = tombs.slice(-MAX_TOMBS); }
     if (opts && opts.forget === true && forgets.indexOf(id) < 0) { forgets.push(id); if (forgets.length > MAX_TOMBS) forgets = forgets.slice(-MAX_TOMBS); }
@@ -437,6 +614,7 @@
   // stays (an honest "hey" beats a minted "Casual Greeting Exchange" that locks in forever).
   function titleBasis(id, fallbackText) {
     const w = find(id);
+    if (w && w.historyRef) return null;   // part of the conversation is packed and not read yet: a title is never made of half of it
     // a goal step counts as its GOAL (never the station's continuation prompt): a /goal session is titled from what it is for
     const msgs = w ? (w.history || []).filter(m => m && m.role === 'user' && typeof m.content === 'string').map(userWordsOf) : [];
     let subs = msgs.filter(t => !isLowSignal(t));
@@ -466,6 +644,7 @@
     const w = find(id);
     if (!w || w.id === generalId || w.titleAuto === false || w.title == null) return false;
     if (w.titleStrong) return false;   // already model-titled from real content — the ladder's terminal rung
+    if (w.historyRef) return false;    // its first message may be in a packed run not read yet: the title waits for the whole conversation
     const first = (w.history || []).find(m => m && m.role === 'user' && typeof m.content === 'string');
     if (!first) return false;
     if (w.title === deriveTitle(userWordsOf(first))) return true;   // a goal step's placeholder was derived from its goal
@@ -579,9 +758,79 @@
   // heartbeat costs a few rows per session instead of a copy of every session's whole history (2026-10-07)
   function latestVisibleMessage(w) {
     const h = (w && Array.isArray(w.history)) ? w.history : [];
+    if (w && w.historyRef) {
+      // a session whose rows are not all read: only a row pushed since boot (after every packed row) or the packed form's own proof
+      // of its newest message can be named; an older inline row would be a stale line, so it is never taken for the latest
+      const inline = infoOf(w.historyRef).set;
+      for (let i = h.length - 1; i >= 0 && !inline.has(h[i]); i--) if (isVisibleMessage(h[i]) && h[i].content.trim()) return h[i];
+      const proven = w.historyDigest && w.historyDigest.latest;
+      return proven && h.includes(proven) ? proven : null;   // (a row the page has since dropped is not a line to show)
+    }
     for (let i = h.length - 1; i >= 0; i--) if (isVisibleMessage(h[i]) && h[i].content.trim()) return h[i];
     return null;
   }
+
+  // ---------- packed histories: what a session holds before its named rows are read back, and the hydrate seam ----------
+  const idOrRecord = x => (x && typeof x === 'object') ? x : find(x);
+  // does the session hold any row at all — one the page keeps, or one a packed run names? (the empty-state / blank-session tests)
+  function hasHistory(w) { w = idOrRecord(w); return !!w && (!!w.historyRef || (Array.isArray(w.history) && w.history.length > 0)); }
+  // how many rows the session holds, packed ones included
+  function turnCount(w) { w = idOrRecord(w); return !w ? 0 : (w.historyRef ? countPacked(composedHistory(w)) : (Array.isArray(w.history) ? w.history.length : 0)); }
+  // has the Commander said anything here? A packed run is user and assistant rows, so a session holding one has started
+  function hasUserTurn(w) { w = idOrRecord(w); return !!w && (!!w.historyRef || (Array.isArray(w.history) && w.history.some(m => m && m.role === 'user'))); }
+  // is part of the session's history still packed, i.e. named by row id and not read back?
+  function needsHydration(w) { w = idOrRecord(w); return !!(w && w.historyRef); }
+  // the ids of the sessions that still need it, the most recently active first (the idle pass reads them in this order)
+  function pendingHydration() {
+    return ws.filter(w => w.historyRef).sort((a, b) => (+b.lastActiveAt || 0) - (+a.lastActiveAt || 0)).map(w => w.id);
+  }
+  /* Put the rows read back for a session's packed runs into it. `expanded` is HistoryRef.expand(historyRef).rows: the packed history
+     with every run the station returned laid out as rows, in place, and every run it could not left as its element (so it stays packed
+     and is saved as it was). opts.ref is the packed form the caller expanded: when the session no longer holds that very one (it was
+     cleared, undone or replaced while the rows were out) nothing is put back — a read can never bring back what the Commander removed.
+     The rows the page holds that the packed form did not name (pushed since boot) follow the expanded ones; an inline row the page
+     dropped meanwhile stays dropped. Returns false when nothing could be put back (no such session, not packed, or a stale read). */
+  function hydrate(id, expanded, opts) {
+    const w = idOrRecord(id);
+    if (!w || !w.historyRef || !Array.isArray(expanded)) return false;
+    const ref = w.historyRef;
+    if (opts && opts.ref && opts.ref !== ref) return false;
+    const info = infoOf(ref), h = Array.isArray(w.history) ? w.history : [], kept = new Set(h);
+    const next = expanded.filter(el => !info.set.has(el) || kept.has(el));
+    // the station returned nothing: every run is still the element it was (expand makes a new, equal one for a run it left packed)
+    if (next.length === ref.length && next.every((el, i) => el === ref[i] || (isPacked(el) && isPacked(ref[i]) && JSON.stringify(el) === JSON.stringify(ref[i])))) return true;
+    const added = h.filter(r => !info.set.has(r));
+    w.history = next.filter(el => !isPacked(el)).concat(added);
+    if (next.some(isPacked)) setPacked(w, next); else clearPacked(w);
+    return true;
+  }
+  // Replace a session's whole history (a transcript fold, a group chat's server copy): the rows it named are replaced with it, never kept beside it
+  function setHistory(id, rows) {
+    const w = idOrRecord(id);
+    if (!w || !Array.isArray(rows)) return false;
+    installHistory(w, rows);
+    return true;
+  }
+  // The one reader of a packed history chat.js registers (hydrateHistory), so a module that needs the whole conversation can ask for it.
+  let hydrator = null;
+  function setHydrator(fn) { hydrator = typeof fn === 'function' ? fn : null; }
+  /* Everything that names a session's rows and runs, for a purge ("forgotten everywhere"): hydrates first, because an unhydrated
+     session's packed runs hold run ids the page does not have. -> Promise<{ streamId, runIds, rowIds, complete }>; `complete` is false
+     when part of the history could not be read (its row ids are still named, its run ids are not known). */
+  async function sourceIdsOf(id) {
+    const w = idOrRecord(id);
+    if (!w) return { streamId: '', runIds: [], rowIds: [], complete: true };
+    if (w.historyRef && hydrator) { try { await hydrator(w); } catch (_) { /* the ids below say what is still packed */ } }
+    const runIds = new Set((w.runIds || []).map(String)), rowIds = new Set();
+    for (const r of Array.isArray(w.history) ? w.history : []) {
+      if (!r) continue;
+      if (r.sourceRunId) runIds.add(String(r.sourceRunId));
+      if (Number.isSafeInteger(r.rowId) && r.rowId > 0) rowIds.add(r.rowId);
+    }
+    if (w.historyRef && HistoryRef && HistoryRef.idsOf) for (const rid of HistoryRef.idsOf(w.historyRef)) rowIds.add(rid);
+    return { streamId: w.id, runIds: [...runIds], rowIds: [...rowIds].sort((a, b) => a - b), complete: !w.historyRef };
+  }
+
   const SECRET_RES = [
     /\bsk-[A-Za-z0-9_-]{16,}\b/g,
     /\b(?:xox[baprs]-|ghp_|gho_|github_pat_)[A-Za-z0-9_-]{10,}\b/g,
@@ -599,6 +848,7 @@
 
   function exportConversation(id, format, opts) {
     const w = find(id); if (!w) return null;
+    if (w.historyRef) return null;   // never a file made of the rows the page happens to hold: the caller reads the rest back first (chat.js hydrateHistory)
     opts = opts || {};
     const title = safeTitle(w);
     // a goal step keeps its record (role + the prompt the model received) and is NAMED as one: the readable export writes it
@@ -636,10 +886,12 @@
     return { kind: c.kind, at: +c.at || 0, rows: clone(c.rows), activeId: c.activeId || null, count: c.rows.length };
   }
   function clearConversation(id, opts) {
-    const w = find(id); if (!w || !w.history.length) return null;
+    const w = find(id); if (!w || !hasHistory(w)) return null;
     opts = opts || {};
-    undoCheckpoint = normalizeCheckpoint({ kind: 'clear', at: opts.at != null ? opts.at : now(), activeId, rows: [{ id, history: clone(w.history) }] });
+    // the checkpoint keeps the history as the save carries it (a packed run stays one element), so an undo puts back exactly what was cleared
+    undoCheckpoint = normalizeCheckpoint({ kind: 'clear', at: opts.at != null ? opts.at : now(), activeId, rows: [{ id, history: clone(composedHistory(w)) }] });
     w.history = [];
+    clearPacked(w);   // the rows it named are cleared with it: a read that was out for them must find nothing to put back
     w.lastActiveAt = opts.at != null ? opts.at : now();
     if (id === activeId) w.lastReadAt = w.lastActiveAt;
     return clone(undoCheckpoint);
@@ -659,7 +911,7 @@
     const stamp = opts.now != null ? +opts.now : now();
     const ids = ws.filter(w => {
       if (w.id === generalId || w.archived || (!criteria.includePinned && w.pinned)) return false;
-      const empty = criteria.empty && visibleMessages(w).length === 0 && w.runIds.length === 0 && w.deliverables.length === 0;
+      const empty = criteria.empty && !w.historyRef && visibleMessages(w).length === 0 && w.runIds.length === 0 && w.deliverables.length === 0;   // a packed run is messages, not a blank
       const complete = criteria.completed && w.lane === 'shipped';
       const old = criteria.olderThanMs > 0 && (+w.lastActiveAt || 0) <= stamp - criteria.olderThanMs;
       return empty || complete || old;
@@ -680,7 +932,7 @@
   function undoLast() {
     const cp = undoCheckpoint; if (!cp) return false;
     if (cp.kind === 'clear') {
-      for (const row of cp.rows) { const w = find(row.id); if (w && Array.isArray(row.history)) w.history = clone(row.history); }
+      for (const row of cp.rows) { const w = find(row.id); if (w && Array.isArray(row.history)) installHistory(w, clone(row.history)); }
     } else {
       for (const row of cp.rows) { const w = find(row.id); if (w) w.archived = !!row.archived; }
     }
@@ -831,6 +1083,9 @@
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and
     // export already trust, so the count and the preview can never surface machine chatter.
     visibleMessages, latestVisibleMessage, hasAgent,
+    // PACKED HISTORIES (see the header): what a session holds before its named rows are read back, and the seam that reads them
+    hasHistory, turnCount, hasUserTurn, needsHydration, pendingHydration, hydrate, setHistory, setHydrator, sourceIdsOf,
+    sealTurns, sealed, unseal, sealCandidates, noteSealRead,
     migrateV1, importTasks,
     LANES
   };

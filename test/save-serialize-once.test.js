@@ -32,12 +32,12 @@ A.ok(PERSIST.length > 500 && PERSIST.length < 8000 && /Save\.write\(envelope\)/.
 
 /* one station: the real save.js + cloudsave.js + App.persist, with persist's own collaborators stubbed (an agent, a roster of
    one, the harness totals) and Workstreams.serialize() serving the conversations under test */
-function station({ keepPosted = true } = {}) {
+function station({ keepPosted = true, big = BIG, workstreams = null } = {}) {
   let bigStringify = 0, bigParse = 0, ack = { ok: true, revision: 7, updatedAt: 1760000000123 }, posted = null, convs = null;
   const cache = new Map();
   const counting = {
-    stringify: (...a) => { const out = JSON.stringify(...a); if (out && out.length > BIG) bigStringify++; return out; },
-    parse: (s, ...r) => { if (typeof s === 'string' && s.length > BIG) bigParse++; return JSON.parse(s, ...r); }
+    stringify: (...a) => { const out = JSON.stringify(...a); if (out && out.length > big) bigStringify++; return out; },
+    parse: (s, ...r) => { if (typeof s === 'string' && s.length > big) bigParse++; return JSON.parse(s, ...r); }
   };
   const ctx = vm.createContext({
     JSON: counting, console: { warn() {}, info() {}, log() {}, debug() {} }, Math, Date, Number, Object, Array, String, Promise, Error, Map, Set, WeakMap,
@@ -46,7 +46,7 @@ function station({ keepPosted = true } = {}) {
     localStorage: { getItem: k => (cache.has(k) ? cache.get(k) : null), setItem: (k, v) => cache.set(k, String(v)), removeItem: k => cache.delete(k) },
     fetch: async (url, opts) => { if (keepPosted) posted = opts && opts.body; return { ok: true, status: 200, json: async () => Object.assign({}, ack) }; },
     Harness: { totals: () => ({ tokens: 1, cost: 0, calls: 1 }), getProv: () => 'openrouter', getReasoningEffort: () => undefined },
-    Workstreams: { serialize: () => convs },
+    Workstreams: workstreams || { serialize: () => convs },   // (workstreams: the REAL store, whose serialize() packs what the page has proved)
     StationUI: { flashSave() {}, notify() {}, refreshSave() {} }
   });
   vm.runInContext(read('frontend/app/save.js'), ctx, { filename: 'save.js' });
@@ -175,6 +175,48 @@ function oldAck(cachedRaw, sentDoc, revision, body) {
     A.eq(s.cache.get('starnet.save'), JSON.stringify(doc), 'Save.write caches JSON.stringify(doc), as before');
     A.eq(s.Save.takeWriteRaw(), s.cache.get('starnet.save'), 'takeWriteRaw is that same string');
     A.eq(s.Save.takeWriteRaw(), null, '…handed over once');
+  }
+
+  /* PACKING THE HISTORY IS NOT WHOLE-SAVE WORK (save v7, history by reference). Workstreams.serialize() now packs every session whose rows
+     the page has proved (HistoryRef.pack over its seals) before Save.write stringifies the save once. Over the REAL Workstreams with 60
+     sessions of 24 sealed rows:
+       · serialize() itself does no JSON work at all — no stringify, no parse, however many rows it names (the equality with a seal is a
+         walk over the row's fields, never a serialization of it);
+       · the real App.persist + flush + ACK on the packed save is still 3 stringifies and 1 parse of the whole save (the bound above), and
+         what it posts and caches is the packed save: every history a reference, a fraction of the inline save's bytes;
+       · a row the page changed in place since it was proved is saved inline again on the very next persist (no cached answer keeps the old
+         one): the packing is recomputed from the rows themselves, which is what keeps it from ever losing a change. */
+  {
+    const W = require('../frontend/app/workstreams.js');
+    const rowsOf = (i, n) => Array.from({ length: n }, (_, j) => ({ rowId: i * 1000 + j + 1, streamId: 'ws' + i, agentId: 'agent', role: j % 2 ? 'assistant' : 'user', kind: 'turn', ts: 1000 + j, content: ('message ' + i + '.' + j + ' ').repeat(40) }));
+    const slice = { workstreams: Array.from({ length: 60 }, (_, i) => ({ id: 'ws' + i, title: 'Session ' + i + ' ' + 'x'.repeat(300), agentId: 'agent', kind: 'chat', lane: 'active', history: rowsOf(i, 24) })), activeId: 'ws0', generalId: 'ws0' };
+    W.init(JSON.parse(JSON.stringify(slice)));
+    const inlineBytes = JSON.stringify(W.serialize()).length;
+    for (let i = 0; i < 60; i++) W.sealTurns('ws' + i, rowsOf(i, 24));
+    const sj = JSON.stringify, pj = JSON.parse;
+    let stringify = 0, parse = 0;
+    JSON.stringify = function () { stringify++; return sj.apply(this, arguments); };
+    JSON.parse = function () { parse++; return pj.apply(this, arguments); };
+    let packed;
+    try { for (let k = 0; k < 5; k++) packed = W.serialize(); } finally { JSON.stringify = sj; JSON.parse = pj; }
+    A.eq([stringify, parse], [0, 0], 'Workstreams.serialize() of sixty sessions of sealed rows does no JSON work (5 calls)');
+    const packedBytes = JSON.stringify(packed).length;
+    A.ok(packedBytes < inlineBytes / 4 && packed.workstreams.every(w => w.history.length === 1 && typeof w.history[0].$ref === 'string'), 'every history is one reference: ' + Math.round(inlineBytes / 1024) + ' KB inline -> ' + Math.round(packedBytes / 1024) + ' KB');
+    const s = station({ big: 20 * 1024, workstreams: W });
+    s.reset();
+    const raw = s.persist(null);
+    A.ok(raw && raw.length > 20 * 1024 && /"\$ref"/.test(raw) && !/message 3\.5/.test(raw), 'App.persist over the real store wrote the packed save (' + Math.round(((raw && raw.length) || 0) / 1024) + ' KB)');
+    A.eq(await s.CloudSave.flush({ force: true }), true, 'the station acknowledges the packed write');
+    const c = s.counts();
+    A.ok(c.stringify <= 3 && c.parse <= 1, 'one persist of the packed save is at most 3 whole-save stringifies and 1 parse, as before: ' + c.stringify + ' / ' + c.parse);
+    A.ok(!/message 3\.5/.test(s.posted()) && /"\$ref"/.test(s.posted()), 'and what is POSTed is the packed save too');
+    // a sealed row changed in place: the next persist saves it inline (nothing remembers the old answer)
+    const changed = W.get('ws3').history[5];
+    changed.content = 'changed after it was proved';
+    const after = JSON.parse(s.persist(null));
+    const ws3 = after.workstreams.find(w => w.id === 'ws3');
+    A.ok(JSON.stringify(ws3.history).includes('changed after it was proved'), 'a row changed in place since it was proved is saved inline on the very next persist');
+    A.ok(after.workstreams.find(w => w.id === 'ws4').history.length === 1, '…and the sessions nobody touched stay one reference');
   }
 
   /* THE STRING IS NOT KEPT AFTER ITS ACK. Same App.persist + flush + ACK twice on a two-byte save (~6 MB as a string): once

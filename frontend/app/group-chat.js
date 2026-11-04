@@ -207,7 +207,8 @@ const GroupChat = (() => {
     if (ws) {
       ws.conversationMode = 'group'; ws.agentId = g.leadId; ws.title = g.title;
       if (g.messages) {
-        ws.history = g.messages.map(m => ({ role: m.author === 'user' ? 'user' : 'assistant', agentId: m.author === 'user' ? undefined : m.author, content: m.content, ts: m.at, ...(m.artifactIds?.length ? { artifactIds: m.artifactIds.slice() } : {}) }));
+        const rows = g.messages.map(m => ({ role: m.author === 'user' ? 'user' : 'assistant', agentId: m.author === 'user' ? undefined : m.author, content: m.content, ts: m.at, ...(m.artifactIds?.length ? { artifactIds: m.artifactIds.slice() } : {}) }));
+        if (Workstreams.setHistory) Workstreams.setHistory(ws, rows); else ws.history = rows;   // the backend's copy IS this chat's history: rows a saved history named are replaced with it, never kept beside it
         ws.runIds = g.turns.filter(t => t.runId).map(t => t.runId);
         ws.lastActiveAt = g.updatedAt;
       }
@@ -962,6 +963,11 @@ const GroupChat = (() => {
     // THE chat being converted must be idle (not merely the one on screen): a reply still running there would be lost to the
     // group, its approval cards hidden and its STOP retargeted. group.add waits for that reply instead (drainAfterRun).
     if (!general && typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(origin.id)) throw new Error(name(lead) + ' is still working in this chat. Let the run finish (or stop it), then add agents.');
+    // the group is made of this chat's WHOLE dialogue: a history still packed (save v7) is read back first, and one that cannot be read stops the
+    // conversion rather than make a group that is missing its earlier turns
+    if (typeof Workstreams !== 'undefined' && Workstreams.needsHydration && Workstreams.needsHydration(origin) && typeof Chat !== 'undefined' && Chat.hydrateHistory) {
+      if (!(await Chat.hydrateHistory(origin)).complete) throw new Error('Conversation history could not be restored.');
+    }
     if (typeof App !== 'undefined' && App.pushRoster) await App.pushRoster();   // the backend must know every agent it seats
     const id = general ? 'ws_' + uid().replace(/-/g, '').slice(0, 20) : origin.id;
     const title = general ? members.map(name).join(' + ') : (origin.title || 'Group chat');

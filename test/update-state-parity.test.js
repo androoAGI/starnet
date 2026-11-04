@@ -227,7 +227,7 @@ function loadSaveModule() {
 
 {
   const { Save, migrateViaLoad } = loadSaveModule();
-  A.eq(Save.CURRENT, 6, 'migration: CURRENT schema version is 6 (update the fixtures if this bumps)');
+  A.eq(Save.CURRENT, 7, 'migration: CURRENT schema version is 7 (update the fixtures if this bumps)');
 
   // --- v1 doc: the oldest schema (single flat history). Every top-level field must survive or be folded. ---
   const V1 = {
@@ -238,21 +238,21 @@ function loadSaveModule() {
     updatedAt: 1700000000000
   };
   const m1 = migrateViaLoad(V1);
-  A.eq(m1.version, 6, 'v1->v6: version stamped to CURRENT');
+  A.eq(m1.version, 7, 'v1->v7: version stamped to CURRENT');
   // losslessness: the identity + lifetime usage carried to the root untouched.
-  A.eq(m1.agent.name, 'ULTRON', 'v1->v6: agent identity preserved');
-  A.eq(m1.agent.purpose, 'serve', 'v1->v6: agent custom field preserved (no silent drop)');
-  A.eq(m1.usage, V1.usage, 'v1->v6: lifetime usage preserved verbatim at the root');
+  A.eq(m1.agent.name, 'ULTRON', 'v1->v7: agent identity preserved');
+  A.eq(m1.agent.purpose, 'serve', 'v1->v7: agent custom field preserved (no silent drop)');
+  A.eq(m1.usage, V1.usage, 'v1->v7: lifetime usage preserved verbatim at the root');
   // the v1 flat history is FOLDED (documented) into a General workstream — not dropped.
-  A.ok(Array.isArray(m1.workstreams) && m1.workstreams.length === 1, 'v1->v6: history folded into exactly one General workstream (not dropped)');
-  A.eq(m1.workstreams[0].history, V1.history, 'v1->v6: the v1 history rides into General verbatim (lossless fold)');
-  A.eq(m1.workstreams[0].cost, { tokens: 1200, usd: 0.0345, calls: 3 }, 'v1->v6: General cost SEEDED from lifetime usage (nothing invented, nothing lost)');
-  A.eq(m1.activeId, 'ws_general', 'v1->v6: activeId set to General');
+  A.ok(Array.isArray(m1.workstreams) && m1.workstreams.length === 1, 'v1->v7: history folded into exactly one General workstream (not dropped)');
+  A.eq(m1.workstreams[0].history, V1.history, 'v1->v7: the v1 history rides into General verbatim (lossless fold)');
+  A.eq(m1.workstreams[0].cost, { tokens: 1200, usd: 0.0345, calls: 3 }, 'v1->v7: General cost SEEDED from lifetime usage (nothing invented, nothing lost)');
+  A.eq(m1.activeId, 'ws_general', 'v1->v7: activeId set to General');
   // each later migration seeds its slice (stats/profile/dossier) — present + valid, never null.
-  A.ok(m1.agent.stats && typeof m1.agent.stats === 'object', 'v1->v6: agent growth stats seeded (v2)');
-  A.ok(m1.profile && m1.profile.v === 1, 'v1->v6: personalization profile seeded (v3)');
-  A.ok(m1.dossier && m1.dossier.v === 1, 'v1->v6: commander dossier seeded (v4)');
-  A.eq(m1.workstreams[0].titleStrong, false, 'v1->v6: title provenance is explicitly weak unless proved strong (v5->v6)');
+  A.ok(m1.agent.stats && typeof m1.agent.stats === 'object', 'v1->v7: agent growth stats seeded (v2)');
+  A.ok(m1.profile && m1.profile.v === 1, 'v1->v7: personalization profile seeded (v3)');
+  A.ok(m1.dossier && m1.dossier.v === 1, 'v1->v7: commander dossier seeded (v4)');
+  A.eq(m1.workstreams[0].titleStrong, false, 'v1->v7: title provenance is explicitly weak unless proved strong (v5->v6)');
   // NO v1 USER-STATE field was silently dropped. Every original key is accounted for as exactly one of:
   //   - survived verbatim (agent, usage)
   //   - documented FOLD into a new home (history -> workstreams)
@@ -264,19 +264,28 @@ function loadSaveModule() {
   const envelopeStamps = new Set(['schema', 'updatedAt']);   // re-stamped by Save.write() on every persist
   for (const k of Object.keys(V1)) {
     if (foldedFromV1.has(k) || envelopeStamps.has(k)) continue;
-    A.ok(k in m1, 'v1->v6: user-state field "' + k + '" survived migration (no silent drop)');
+    A.ok(k in m1, 'v1->v7: user-state field "' + k + '" survived migration (no silent drop)');
   }
   // prove the envelope stamps are reconstructed by a write (they are NOT lost — the writer owns them).
   const rewritten = Save.write(m1);
-  A.eq(rewritten.schema, 'starnet.save', 'v1->v6: Save.write() re-stamps the schema tag (envelope field, not lost)');
-  A.eq(rewritten.version, 6, 'v1->v6: Save.write() stamps the current version');
-  A.ok(typeof rewritten.updatedAt === 'number' && rewritten.updatedAt > 0, 'v1->v6: Save.write() re-stamps updatedAt (envelope field, not lost)');
+  A.eq(rewritten.schema, 'starnet.save', 'v1->v7: Save.write() re-stamps the schema tag (envelope field, not lost)');
+  A.eq(rewritten.version, 7, 'v1->v7: Save.write() stamps the current version');
+  A.ok(typeof rewritten.updatedAt === 'number' && rewritten.updatedAt > 0, 'v1->v7: Save.write() re-stamps updatedAt (envelope field, not lost)');
+
+  // --- v6 doc (every install before history-by-reference): the migration is the identity but for the stamp. An inline history IS a valid
+  // v7 history, so nothing is moved, folded or re-keyed; packing happens later, as rows are sealed (frontend/app/historyref.js). ---
+  const V6 = JSON.parse(JSON.stringify(SAVE_DOC));
+  A.eq(V6.version, 6, 'fixture: the seeded save is a v6 one');
+  const m6 = migrateViaLoad(JSON.parse(JSON.stringify(V6)));
+  A.eq(m6.version, 7, 'v6->v7: version stamped to CURRENT');
+  A.eq(m6, Object.assign(JSON.parse(JSON.stringify(V6)), { version: 7 }), 'v6->v7: a v6 doc migrates losslessly (every field and every history row exactly as saved, only the stamp moves)');
 
   // --- current-version doc: migration must be an IDEMPOTENT no-op (byte-identical), never re-stamp/re-fold. ---
   const CUR = JSON.parse(JSON.stringify(SAVE_DOC));
+  CUR.version = 7;
   const mCur = migrateViaLoad(CUR);
-  A.eq(mCur.version, 6, 'v6->v6: version stays CURRENT');
-  A.eq(mCur, CUR, 'v6->v6: a current-version doc migrates losslessly (byte-identical, no field churn)');
+  A.eq(mCur.version, 7, 'v7->v7: version stays CURRENT');
+  A.eq(mCur, CUR, 'v7->v7: a current-version doc migrates losslessly (byte-identical, no field churn)');
 }
 
 // --- (4) MANUAL-FALLBACK ENDPOINT PARITY. updates.js bakes RELEASES_PAGE (the human releases
