@@ -189,6 +189,12 @@ const liveAtt = (w, turnId) => (w.store.findTurn('S', turnId, {}).rows || []).fi
       const t3 = await turn(w, { runId: 'run-0005', turnId: turnIdOf(5), taint: 'forwarded message', history: [{ role: 'user', content: 'from a channel' }] });
       finish(t3, 'ok');
       A.eq(w.rows().filter(r => r.sourceRunId === 'run-0005').map(r => r.taint || null), ['forwarded message', 'forwarded message'], 'a run handed another source stamps its directive with it, as before');
+      // a brief another agent wrote (a lead's brief to its worker) is that agent's text, produced while it held the bytes: it keeps the stamp
+      const brief = makeRunTranscript({ store: w.store, streamId: 'S', agentId: 'worker', runId: 'run-0006', from: 'lead', turnId: turnIdOf(6), stamp: true, taint: () => UA });
+      brief.setDirective('summarise what the file said');
+      brief.start([]);
+      const briefRow = w.rows().find(r => r.sourceRunId === 'run-0006');
+      A.eq([briefRow.from, briefRow.taint], ['lead', UA], 'a delegated brief written while the lead held the attachment keeps the attachment stamp (it is the lead\'s text, not the Commander\'s)');
     }
 
     // ======================= 3. A FAILED ATTACHMENT APPEND IS RETRIED AT THE NEXT BOUNDARY AND NEVER BLOCKS THE RUN =======================
@@ -387,8 +393,12 @@ const liveAtt = (w, turnId) => (w.store.findTurn('S', turnId, {}).rows || []).fi
       TurnDirective.install(stub, cap, expandedText, 'turn', report, { rowId: 7, turnId: T });
       A.eq(calls, [['att', ['notes.txt'], T]], 'a reused directive writes none of its own and hands the run its files, under the reused turn');
       calls.length = 0;
+      TurnDirective.install(stub, cap, expandedText, 'turn', report, { rowId: 7 });
+      A.eq(calls, [], 'a reused row that names no turn (a legacy row found by run id) gets no file rows: they would hang on this run\'s own turn, which has no directive');
       TurnDirective.install(stub, null, 'raw', 'turn', [], null);
       A.eq(calls, [['set', 'raw']], 'a null capture keeps the trunk string path');
+      A.eq([TurnDirective.attachedWording(cap), TurnDirective.attachedWording(TurnDirective.capture([{ role: 'user', content: 'plain words' }], {})), TurnDirective.attachedWording(null)], [TYPED, '', ''],
+        'attachedWording: the captured wording of a turn that carried files, else nothing');
     }
 
     // ======================= 8. LEGACY ROWS READ THE SAME WAY (the 11-02 shape: the file text in the content, the words in typed) =======================
@@ -417,6 +427,23 @@ const liveAtt = (w, turnId) => (w.store.findTurn('S', turnId, {}).rows || []).fi
       const legacyAround = await recall.run({ anchor: 'tx-' + w.rows().find(r => r.typed === TYPED).rowId, limit: 2 }, { streamId: 'S' });
       A.ok(legacyAround.content.includes('[attached: notes.txt]') && legacyAround.content.indexOf('FILE_BODY_SENTINEL') < 0, 'and so does a scroll around it');
       A.eq(hit.taintedBy, UA, 'a legacy row still taints the recalling run with its stamp (conservative: a recalled row\'s taint latches)');
+    }
+
+    // ======================= 9. THE SEGMENTED IO'S SEARCH HIT: ADDITIVE, AND ONLY FOR WHAT RECALL NEEDS TO SHOW A FILE =======================
+    {
+      const w = world();
+      const ref = { id: 'hit00001', name: 'zebra.txt', path: '.attachments/hit00001.txt', mediaType: 'text/plain', kind: 'file' };
+      w.store.appendStrict({ streamId: 'S', agentId: 'agent', role: 'user', content: 'zebra plain words', taint: null, kind: 'turn', turnId: turnIdOf(60), directive: true });
+      w.store.appendStrict({ streamId: 'S', agentId: 'agent', role: 'system', content: '[steering] zebra', taint: null, kind: 'steer', noteId: 'n1' });
+      w.store.appendStrict({ streamId: 'S', agentId: 'agent', role: 'system', content: '[attached: zebra.txt]', taint: UA, kind: 'attachment', turnId: turnIdOf(61), attachment: { id: ref.id, path: ref.path } });
+      w.store.appendStrict({ streamId: 'S', agentId: 'agent', role: 'user', content: 'zebra stored words plus ' + FILE_TEXT, typed: 'zebra stored words', attachments: [ref], taint: UA });
+      const byContent = Object.fromEntries(w.io.search('S', 'zebra', { scope: 'stream', limit: 10 }).map(h => [h.content.slice(0, 8), h]));
+      const base = ['rowId', 'streamId', 'role', 'content', 'ts', 'score', 'taint', 'taintKnown'];
+      A.eq(Object.keys(byContent['zebra pl']), base, 'a plain row\'s hit has exactly the keys it always had');
+      A.eq(Object.keys(byContent['[steerin']), base, 'so does a steer note\'s (its kind is not added: it stays as findable as before)');
+      A.eq(Object.keys(byContent['[attache']), base.concat(['kind']), 'an attachment row\'s hit also says its kind (the matrix recalls it by that)');
+      A.eq(Object.keys(byContent['zebra st']), base.concat(['typed', 'attachments']), 'and a row that carried files says its typed words and its references');
+      A.eq(byContent['zebra st'].attachments, [ref], 'the references are the row\'s own');
     }
   } finally {
     for (const w of worlds) { try { w.io.close(); } catch (e) { console.warn('close', e.message); } }

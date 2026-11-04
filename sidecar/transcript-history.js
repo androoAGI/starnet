@@ -111,14 +111,16 @@ function indexName(n) { return 'segment-' + String(n).padStart(6, '0') + '.index
 function clone(v) { return Object.assign({}, v); }
 function publicRow(v) { const out = clone(v); delete out.legacyKey; return out; }
 function indexHash(index) { return crypto.createHash('sha256').update(JSON.stringify(index)).digest('hex'); }
-/* What a search hit says about the row beside its words, ONLY when the row has it (a hit of any other row is unchanged): its
-   kind (the visibility matrix classifies a system row by it: an attachment row is recallable, a steer note is not a user turn),
-   the words typed beside a content that holds something else (a row of the 11-02 shape stores a file's text in the content), and
-   the references of the files it carried. A reader that shows the hit (recall_conversation) renders the Commander's words and
-   '[attached: name]' from these, never a file's text (sidecar/turn-attachment.js textOf). */
+/* What a search hit says about the row beside its words, ONLY when the row has it (a hit of any other row is unchanged): the
+   words typed beside a content that holds something else (a row of the 11-02 shape stores a file's text in the content), the
+   references of the files it carried, and, for an ATTACHMENT row alone, its kind. A reader that shows the hit
+   (recall_conversation) renders the Commander's words and '[attached: name]' from these, never a file's text
+   (sidecar/turn-attachment.js textOf); the visibility matrix classifies a system row by its kind, and without it an attachment
+   row would read as a local line and never be recalled. Other kinds stay as they were (a steer note or a deliverable row is no
+   more findable by search than before; widening that is not this step's call). */
 function hitExtras(row) {
   const out = {};
-  if (typeof row.kind === 'string') out.kind = row.kind;
+  if (row.kind === 'attachment') out.kind = row.kind;
   if (typeof row.typed === 'string') out.typed = row.typed;
   if (Array.isArray(row.attachments)) out.attachments = row.attachments.slice();
   return out;

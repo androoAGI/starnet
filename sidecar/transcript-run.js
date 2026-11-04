@@ -61,7 +61,8 @@
    handed the files of a directive it reuses, setAttachments) writes them, and every append is checked against the turn's LIVE
    rows, so a retry (which retracts the old rows) writes each file once and a resend or a continuation writes none twice.
    The directive row's own taint is the run's NON-attachment taint: the bare attachment stamp is what the attachment rows carry,
-   and the Commander's typed words are not bytes (a directive stamped only with the attachment source is written clean).
+   and the Commander's typed words are not bytes (a directive stamped only with the attachment source is written clean). A brief
+   another agent wrote (`from`) is that agent's text, produced while it held the bytes, and keeps the stamp.
 
    Pure: no clock, no randomness, no I/O of its own — every write is the injected store's. */
 'use strict';
@@ -146,10 +147,11 @@ function makeRunTranscript(opts) {
   }
 
   // the directive's taint: the run's own source unless that is the bare attachment stamp, which belongs to the attachment rows —
-  // the directive holds the Commander's typed words, not the file's bytes (see ATTACHMENT ROWS above)
+  // the directive holds the Commander's typed words, not the file's bytes (see ATTACHMENT ROWS above). A directive another agent
+  // wrote (`from`: a lead's brief to its worker) is model-written text, produced while the lead held the bytes: it keeps the stamp
   function directiveTaint() {
     const t = taintNow();
-    return t === ATTACHMENT_TAINT ? null : t;
+    return t === ATTACHMENT_TAINT && !from ? null : t;
   }
   // the attachment rows still owed, written AFTER the directive: never throws (onFailure + retried at the next boundary)
   function writeAttachments() {

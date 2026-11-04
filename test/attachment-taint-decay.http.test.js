@@ -38,6 +38,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const TurnKinds = require('../frontend/app/turnkinds.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeSegmentedTranscriptIo } = require('../sidecar/transcript-history.js');
@@ -396,6 +397,36 @@ function startMock() {
       A.eq([l.reason, l.taintedBy, l.images, l.fileText], ['done', null, 0, false], 'the windowed follow-up is clean, with no bytes on the wire');
       A.ok(l.wire.indexOf('<conversation_summary>') >= 0 && l.wire.indexOf('look at these [attached: notes.txt] [attached: pixel.png]') >= 0 && l.wire.indexOf('L2_TURN_TWO what next?') >= 0, 'the note reads the legacy row as its typed words and its markers');
       A.ok(l.wire.indexOf('FILE_BODY_SENTINEL') < 0 && l.wire.indexOf('evil.example') < 0, 'and holds none of its file text');
+    }
+
+    // =========================== FLOW F: a resend and a retry of a turn that carried files ===========================
+    // The clean directive holds the words and the request, expanded, holds the file text: the station must still find the directive again
+    // (a resend, a retry by turn id, a retry by run id alone) and write each file's row once. A retry retracts the rows after the directive,
+    // the file rows included, so the retrying run writes them again; every other answer to the same turn finds them live.
+    {
+      const S = 'decay-f', T = TurnKinds.mintTurnId(() => crypto.randomInt(0, 0x100000000) / 0x100000000);
+      const t0 = Date.now(), hist = [{ role: 'user', content: 'TURNF1 please look at these', attachments: [fileRef, imgRef] }];
+      const ids = (extra) => Object.assign({ turnId: T, turnAt: t0, clientNow: Date.now() }, extra || {});
+      const state = () => {
+        const rows = diskRows(S), targets = new Set(rows.filter(r => r.kind === 'retract').flatMap(r => r.targets || []));
+        const files = rows.filter(r => r.kind === 'attachment');
+        return { directives: rows.filter(r => r.directive === true).length, files: files.length, live: files.filter(r => !targets.has(r.rowId)).map(r => [r.attachment.name, r.sourceRunId]), retracts: rows.filter(r => r.kind === 'retract').length };
+      };
+      const first = await run(S, hist, 'TURNF1', ids());
+      A.eq([first.reason, first.taintedBy], ['done', UA], 'the first send finished, holding the bytes');
+      A.eq(state(), { directives: 1, files: 2, live: [['notes.txt', first.runId], ['pixel.png', first.runId]], retracts: 0 }, 'one directive, one live row per file');
+      const resend = await run(S, hist, 'TURNF1', ids());
+      A.eq(resend.reason, 'done', 'the resend finished');
+      A.eq(state(), { directives: 1, files: 2, live: [['notes.txt', first.runId], ['pixel.png', first.runId]], retracts: 0 }, 'a resend of the turn reuses the directive and writes no second file row (the request is compared on its words, not on the expansion)');
+      const retry = await run(S, hist, 'TURNF1', ids({ retryOf: T }));
+      A.eq(retry.reason, 'done', 'the retry finished');
+      const afterRetry = state();
+      A.eq([afterRetry.directives, afterRetry.files, afterRetry.live, afterRetry.retracts >= 1], [1, 4, [['notes.txt', retry.runId], ['pixel.png', retry.runId]], true], 'a retry retracts the old file rows and the retrying run writes each file once more: still one directive, exactly one live row per file');
+      const byRunId = await run(S, hist, 'TURNF1', { retryUserRunId: first.runId });
+      A.eq(byRunId.reason, 'done', 'a retry by run id alone (no turn id) finished');
+      A.eq(state().directives, 1, 'and it found the directive by its words: no second directive row');
+      A.eq(state().live.length, 2, 'with the files still one live row each');
+      A.ok(!diskRows(S).some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0), 'no stored row holds the file text');
     }
   } catch (e) {
     console.error(e && e.stack || e);

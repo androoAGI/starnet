@@ -252,7 +252,9 @@ function install(runTranscript, d, contentBytes, kind, report, reused) {
   if (!runTranscript || typeof runTranscript.setDirective !== 'function') return;
   const refs = d && Array.isArray(d.attachments) ? d.attachments : [];
   if (reused) {
-    const items = TurnAttachment.rowsFor(refs, report);
+    // the files are recorded under the REUSED directive's turn; a reused row that names none (a legacy row of an older build, found
+    // by run id) has no turn to hang them on, and writing them under this run's own turn would orphan them
+    const items = TurnKinds.isTurnId(reused.turnId) ? TurnAttachment.rowsFor(refs, report) : [];
     if (items.length && typeof runTranscript.setAttachments === 'function') runTranscript.setAttachments(items, reused.turnId);
     return;
   }
