@@ -99,6 +99,25 @@ const outputs = rig => JSON.parse(rig.world()).lineOutputs;
     rig.dispose();
   });
 
+  /* ---- 4b. a lost acknowledgement on the ADOPTION: it landed, the walk never started; the same decision starts it, once ---- */
+  await allocated(async env => {
+    const { rig, id, owner, c } = await held(env);
+    const writes = env.f.writes.filter(w => w.file === env.jobFile).length;
+    env.f.after = env.jobFile; env.f.atWrite = writes + 2;   // the claim lands (write 1); the adoption lands (write 2) and cannot be read back
+    const lost = owner.resume(id, say(id, c, 'approve', 'tok-1'));
+    A.eq([lost.code, rig.calls.length], [503, 2], 'the adoption could not be confirmed: 503, nothing was bought');
+    const on = env.raw(env.jobFile).jobs.find(j => j.id === id).continuation;
+    A.eq([on.phase, on.decisions[0].state], ['ready', 'adopted'], 'but it did land: adopted, the walk never started');
+    env.f.readsBlocked.clear(); env.f.after = ''; env.f.atWrite = 0;
+    const retry = owner.resume(id, say(id, c, 'approve', 'tok-1'));
+    A.eq([retry.code, retry.running], [202, true], 'the same decision again starts the walk it never started');
+    await retry.done;
+    A.eq([get(env, id).status, rig.calls.filter(x => x === 'publisher').length, outputs(rig)], ['delivered', 1, 1], 'once: one stage, one delivery');
+    const late = owner.resume(id, say(id, c, 'approve', 'tok-1'));
+    A.eq([late.code, late.replayed, rig.calls.length], [200, true, 3], 'and after that it is only the saved receipt');
+    rig.dispose();
+  });
+
   /* ---- 5. a restart between the claim and the rest ---- */
   await allocated(async env => {
     const { rig, id, c } = await held(env);
@@ -116,6 +135,29 @@ const outputs = rig => JSON.parse(rig.world()).lineOutputs;
     await mine.done;
     const job = J.get(again.jobs(), id);
     A.eq([job.status, rig.calls.filter(x => x === 'publisher').length, outputs(rig), job.continuation.decisions.map(d => [d.token, d.state])], ['delivered', 1, 1, [['tok-1', 'complete']]], 'exactly one continuation: one stage, one delivery');
+    rig.dispose();
+  });
+
+  /* ---- 5b. a restart between the adoption and the first stage: the job is interrupted, the same decision starts it, once ---- */
+  await allocated(async env => {
+    const { rig, id, c } = await held(env);
+    const Resume = require('../sidecar/routing/line-resume.js');
+    env.host.store.claim(id, Object.assign(say(id, c, 'approve', 'tok-1'), { at: 5 }));
+    env.host.store.advance(id, x => Resume.adopted(x, 'tok-1'), () => false);   // adopted; the station dies before any stage is written down
+    const again = env.loadHost(), job = J.get(again.jobs(), id);
+    A.eq([job.status, job.continuation.phase, job.continuation.decisions[0].state, rig.calls.length], ['interrupted', 'ready', 'adopted', 2], 'after the restart: interrupted, nothing bought since the adoption');
+    rig.wire(again);
+    const owner = rig.owner(again), other = owner.resume(id, { action: 'approve', token: 'tok-2', revision: job.continuation.revision, note: '' });
+    A.eq([other.code, rig.calls.length], [409, 2], 'a different decision cannot take it');
+    rig.halted = true;
+    const refused = owner.resume(id, say(id, c, 'approve', 'tok-1'));
+    A.eq([refused.code, refused.refused, /E-STOP/.test(refused.error), J.get(again.jobs(), id).status, rig.calls.length], [409, true, true, 'interrupted', 2], 'E-STOP refuses it and leaves it as it was, to be asked for again');
+    rig.halted = false;
+    const mine = owner.resume(id, say(id, c, 'approve', 'tok-1'));
+    A.eq([mine.code, mine.running], [202, true], 'the same decision starts the walk it never started');
+    await mine.done;
+    const done = J.get(again.jobs(), id);
+    A.eq([done.status, rig.calls.filter(x => x === 'publisher').length, outputs(rig), done.continuation.decisions.map(d => d.state)], ['delivered', 1, 1, ['complete']], 'once: one stage, one delivery');
     rig.dispose();
   });
 

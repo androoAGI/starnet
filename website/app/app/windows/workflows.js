@@ -791,7 +791,7 @@ const WorkflowsWindow = (() => {
     let h = '<section class="wfw-sec wfw-result"><div class="wfw-rhead">' + head + '<span class="wfw-rmeta">' + esc(meta) + '</span></div>'
       + prov
       + (why ? '<p class="wfw-why">' + esc(why) + '</p>' : '')
-      + (held ? heldHTML(job) : '')
+      + (held ? heldHTML(job) : job.continuation ? unstartedHTML(job) : '')
       + work.notes.map(t => '<p class="wfw-why">⚠ ' + esc(t) + '</p>').join('')
       // (GitHub #122) delivered, but its review loop used all its passes without an approval — the record's own mark, in the loop note's
       // line, when the result itself carries no loop note (a step after the loop wrote it)
@@ -863,6 +863,18 @@ const WorkflowsWindow = (() => {
           + '</div>' + (allowed.indexOf('send_back') < 0 ? '<span class="wfw-note">This gate has used all its passes, so it cannot send the work back again.</span>' : ''))
       + (msg ? '<p class="' + (msg.bad ? 'wfw-bad' : 'wfw-okline') + '">' + (msg.bad ? '✕ ' : '') + esc(msg.text) + '</p>' : '')
       + '</div>';
+  }
+  // a decision the station adopted whose walk never started (an acknowledgement was lost, or the station stopped first): nothing was bought since,
+  // and pressing this carries the very same decision out, once
+  function unstartedHTML(job) {
+    const c = job.continuation, d = c && c.phase === 'ready' && c.activeDecision && (job.status === 'interrupted' || job.status === 'running')
+      ? c.decisions.find(x => x.token === c.activeDecision && x.state === 'adopted') : null;
+    if (!d) return '';
+    const busy = !!(S.deciding && S.deciding.jobId === job.id), msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
+    return '<div class="wfw-fix wfw-held" data-held="' + esc(job.id) + '"><p class="wfw-why warn">Your ' + esc(WORD[d.action]) + ' was recorded, but the job never started (the station stopped first). Nothing was spent for it.</p>'
+      + '<div class="wf-row"><button type="button" class="bb refit-primary" data-act="decide-apply"' + (busy ? ' disabled' : '') + '>' + (busy ? 'WORKING…' : '↻ CARRY IT OUT') + '</button>'
+      + '<span class="wfw-note">It starts once, however many times you press this.</span></div>'
+      + (msg ? '<p class="' + (msg.bad ? 'wfw-bad' : 'wfw-okline') + '">' + (msg.bad ? '✕ ' : '') + esc(msg.text) + '</p>' : '') + '</div>';
   }
   function decide(job, action, stored) {
     if (!job || !job.id || !job.continuation || S.deciding) return;

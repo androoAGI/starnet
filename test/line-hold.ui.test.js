@@ -142,6 +142,15 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     A.eq(posted(), [{ action: 'send_back', token: 'ui-live', revision: 1, note: 'make it shorter' }], 'CARRY IT OUT posts that very decision: its token, its revision, its note');
   }
 
+  /* ---- 4b. adopted, never started: the station stopped before the first stage ---- */
+  {
+    const stuck = heldJob({ status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why: 'the station stopped' } }, { phase: 'ready', hold: null, revision: 3, activeDecision: 'ui-adopted',
+      decisions: [{ token: 'ui-adopted', revision: 1, fingerprint: 'f', action: 'approve', note: '', at: 5, state: 'adopted' }] });
+    const h = WW._resultHTML(line, stuck);
+    A.ok(/Your APPROVE was recorded, but the job never started/.test(text(h)) && /Nothing was spent for it/.test(text(h)) && h.includes('data-act="decide-apply"') && !h.includes('data-decision="approve"'), 'an adopted decision whose walk never started offers CARRY IT OUT, and no new decision');
+    A.ok(!WW._resultHTML(line, Object.assign({}, stuck, { continuation: Object.assign({}, stuck.continuation, { activeDecision: null, decisions: [Object.assign({}, stuck.continuation.decisions[0], { state: 'complete' })] }) })).includes('decide-apply'), 'a decision that was carried out offers nothing');
+  }
+
   /* ---- 5. the list, and nothing new ---- */
   A.ok(/j\.status === 'held' \? '<span class="wfw-st warn">⏸ WAITING FOR YOU<\/span>'/.test(src), 'the list row says WAITING FOR YOU for a held job (not BLOCKED)');
   A.ok(!/registerWindow\('(held|decisions)/.test(src) && (src.match(/registerWindow\(/g) || []).length === 1, 'no new window: the decision lives in the existing job box');

@@ -178,12 +178,18 @@ function makeLineResume(deps) {
     };
   }
 
-  /* ---- APPROVE / SEND BACK: adopt, then walk on from the saved cursor ---- */
-  function carryOn(job, receipt) {
+  /* ---- APPROVE / SEND BACK: adopt, then walk on from the saved cursor ----
+     `unstarted`: the decision was adopted and nothing has been bought since (an acknowledgement was lost, or the station restarted before the
+     first stage was written down): the same decision again starts the walk it never started — the saved record is 'ready' with every
+     stage recorded, so there is nothing to pay for twice. The job is reopened by a checkpoint of the same cursor, then walks on as below. */
+  function carryOn(job, receipt, unstarted) {
     const id = job.id;
     let ready;
-    try { ready = store.advance(id, x => adopted(x, receipt.token), j => !!(j.continuation && j.continuation.phase === 'ready' && j.continuation.activeDecision === receipt.token)); }
-    catch (e) { const f = classify(e); return answer(f.code, { error: f.error, job: store.read(id) }); }
+    try {
+      ready = !unstarted ? store.advance(id, x => adopted(x, receipt.token), j => !!(j.continuation && j.continuation.phase === 'ready' && j.continuation.activeDecision === receipt.token))
+        : job.status === 'running' ? job
+        : store.advance(id, x => Object.assign({}, x, { revision: x.revision + 1 }), j => j.status === 'running' && !!j.continuation && j.continuation.phase === 'ready');
+    } catch (e) { const f = classify(e); return answer(f.code, { error: f.error, job: safeRead(id) }); }
     const c = ready.continuation, w = c.walk, b = c.binding, a = c.accounting;
     const rec = { runId: '', abort: new AbortController(), endReason: null, agentId: w.current.agentId, startedAt: now() };
     let handle;
@@ -262,11 +268,15 @@ function makeLineResume(deps) {
     catch (e) { const f = classify(e); if (f.code === 503) failNote('line-resume.claim', e); return answer(f.code, { error: f.error, job: safeRead(id) }); }
     if (!claimed || !claimed.receipt) return answer(409, { error: 'this job is no longer waiting on that checkpoint. Read the job again.', job: safeRead(id) });
     const receipt = claimed.receipt, current = claimed.job || safeRead(id);
+    let unstarted = false;
     if (claimed.replayed) {
       const c = current && current.continuation;
       // only a claim that landed and was never carried out is carried on (the lost acknowledgement, the restart between claim and adopt)
       const pending = receipt.state === 'accepted' && current && current.status === 'held' && c && c.activeDecision === receipt.token;
-      if (!pending) {
+      // …or one adopted whose walk never started: no live walk, the saved record 'ready' with this decision still active (no stage was written down since)
+      unstarted = !pending && receipt.state === 'adopted' && !!c && c.phase === 'ready' && c.activeDecision === receipt.token && !runner.get(id) && !inflight.has(id)
+        && (current.status === 'running' || current.status === 'interrupted');
+      if (!pending && !unstarted) {
         if (receipt.state === 'refused') {
           const why = (current && current.resumeRefused && current.resumeRefused.token === receipt.token && current.resumeRefused.why) || 'the station refused this decision';
           return answer(409, { error: why, refused: true, replayed: true, receipt, job: current });
@@ -278,16 +288,19 @@ function makeLineResume(deps) {
     if (receipt.action === 'stop') {
       try { stopHeld(current, receipt); }
       catch (e) { const f = classify(e); failNote('line-resume.stopHeld', e); return answer(f.code === 503 ? 503 : f.code, { error: f.error, job: safeRead(id) }); }
-      return answer(200, { stopped: true, replayed: !!claimed.replayed, receipt: { ...receipt, state: 'complete' }, job: safeRead(id) });
+      const ended = safeRead(id), done = ended && ended.continuation && ended.continuation.decisions.find(x => x.token === receipt.token);
+      return answer(200, { stopped: true, replayed: !!claimed.replayed, receipt: done || receipt, job: ended });
     }
     const verdict = authorityOf(current, current.continuation);
+    // (an adopted decision whose walk never started is no held checkpoint any more: a refusal leaves it as it is, to be asked for again)
+    if (verdict !== true && unstarted) return answer(409, { error: verdict, refused: true, replayed: true, receipt, job: current });
     if (verdict !== true) {
       let kept;
       try { kept = store.refuse(id, receipt.token, verdict, now()); }
       catch (e) { const f = classify(e); failNote('line-resume.refuse', e); return answer(f.code, { error: f.error + ' (' + verdict + ')', job: safeRead(id) }); }
       return answer(409, { error: verdict, refused: true, receipt: kept && kept.continuation ? kept.continuation.decisions.find(x => x.token === receipt.token) : receipt, job: kept });
     }
-    return carryOn(current, receipt);
+    return carryOn(current, receipt, unstarted);
   }
   function safeRead(id) { try { return store.read(id); } catch (e) { failNote('line-resume.reread', e); return null; } }
 
