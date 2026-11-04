@@ -39,7 +39,7 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     console, setTimeout, clearTimeout, setInterval, clearInterval, Promise, JSON, Math, Date, Set, Map, encodeURIComponent,
     U: { bus: { on() {} } }, module: { exports: {} }, window: {}, document: { activeElement: null, querySelector: () => null },
     StationUI: { registerWindow: (k, t, fn, o) => { registered[k] = { t, fn, o }; }, openTerm() {}, h: { present: [{ id: 'nova', name: 'NOVA' }], sfx() {}, notify() {}, navigateWork() {} } },
-    App: { station: () => st }, Pipeline: P, WorkflowLine: WL, LineEdit: LE, WorldModel: WM, RunOutcome,
+    App: { station: () => st }, Pipeline: P, WorkflowLine: WL, LineEdit: LE, WorldModel: WM, RunOutcome, LineVerdict: require('../frontend/app/line-verdict.js'),
     Build: { nagWhy: c => 'nag:' + c, lineSchematic: () => null, machineStill: () => '',
       lineWords: () => ({ plain: { research_line: 'Research + write' }, purpose: { research_line: 'one agent digs up sources, the next writes the answer' } }) },
     World: { syncPlan: () => Promise.resolve({ errors: [] }), bayLive: () => null },

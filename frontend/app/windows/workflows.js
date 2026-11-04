@@ -864,12 +864,26 @@ const WorkflowsWindow = (() => {
     const c = job.continuation, h = c.hold, w = c.walk, allowed = (h.allowed || []).filter(a => !only || only.indexOf(a) >= 0), busy = !!(S.deciding && S.deciding.jobId === job.id);
     const live = c.decisions.find(d => d.token === c.activeDecision) || null;   // a decision the station recorded and has not carried out
     const refused = job.resumeRefused, msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
-    const draft = String(w.lastHanded || ''), said = String(w.product && w.product.text || '');
+    const said = String(w.product && w.product.text || '');
+    /* THE WORK UNDER REVIEW IS EXACTLY WHAT APPROVE CARRIES ON: the one function the station itself releases it by (LineVerdict.approvedWork,
+       chain.js). The draft the reviewer was handed — or, for a gate whose back lane re-enters the reviewing dock (the walk saved the
+       reviewer's reply as the draft) and for a crate a JOINER merged, the reviewer's reply without its VERDICT line. Beside it, the rest of
+       what goes on with it: the files the work carries, and the parts of sibling branches parked at the join that APPROVE merges in. */
+    const merged = !!(w.product && w.product.producer && w.product.producer.kind === 'join');
+    const draft = typeof LineVerdict !== 'undefined' && LineVerdict.approvedWork ? String(LineVerdict.approvedWork(w.lastHanded, said, merged)) : String(w.lastHanded || '');
+    const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B';
+    const files = (c.files || []).map(f => '<li>' + esc(String(f.path || '').split(/[\\/]/).pop() + ' · ' + kb(+f.size || 0)) + '</li>').join('');
+    const parts = [].concat(...(c.barriers || []).map(b => b.parts || [])).map(p => {
+      const a = (c.attempts || []).find(x => x.runId === p.runId), t = String(p.product && p.product.text || '');
+      return '<div class="wfw-k">' + esc(a && a.node ? NAME(a.node.agentId) : 'Another branch') + '</div><div class="wf-io" data-md data-md-src="' + esc(t || '(nothing)') + '">' + esc(t || '(nothing)') + '</div>';
+    }).join('');
     const btn = (act, label, primary, tip) => '<button type="button" class="bb' + (primary ? ' refit-primary' : '') + '" data-act="decide" data-decision="' + act + '"' + (busy ? ' disabled' : '') + ' data-tip="' + esc(tip) + '">' + label + '</button>';
     return '<div class="wfw-fix wfw-held" data-held="' + esc(job.id) + '">'
       + '<div class="wfw-k">Waiting for your decision</div><p class="wfw-why">' + esc(sentenceOf(h.why)) + '</p>'
       + (refused ? '<p class="wfw-bad">✕ Your ' + esc(WORD[refused.action] || 'decision') + ' was not carried out: ' + esc(sentenceOf(refused.why)) + ' Nothing was spent; the job is still waiting.</p>' : '')
       + '<div class="wfw-k">The work under review</div><div class="wf-io out wfw-out wfw-draft" data-md data-md-src="' + esc(draft || '(nothing)') + '">' + esc(draft || '(nothing)') + '</div>'
+      + (files ? '<details class="wf-more wfw-held-files"><summary>Files that go on with it</summary><ul class="wfw-changes">' + files + '</ul></details>' : '')
+      + (parts ? '<details class="wf-more wfw-held-parts"><summary>Parts of the other branches waiting at the join — they go on with it</summary>' + parts + '</details>' : '')
       + (said ? '<details class="wf-more"><summary>What the reviewer said</summary><div class="wf-io" data-md data-md-src="' + esc(said) + '">' + esc(said) + '</div></details>' : '')
       + (live
         ? '<p class="wfw-why warn">Your ' + esc(WORD[live.action]) + ' was recorded but not carried out yet.</p><div class="wf-row"><button type="button" class="bb refit-primary" data-act="decide-apply"' + (busy ? ' disabled' : '') + '>' + (busy ? 'WORKING…' : '↻ CARRY IT OUT') + '</button>'

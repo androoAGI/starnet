@@ -226,10 +226,18 @@ function heldStop(gateAfter, agentId, lineId, dockId, verdict) {
   try {
     const g = dockId ? gateAfter(agentId, lineId, dockId) : gateAfter(agentId, lineId);
     // gateId rides beside the typed stop so the walk can say WHICH gate it held at (out.hold), exactly as a gate decision does;
-    // `gate` is what the saved hold needs to know of it (its pass ceiling, and whether a back lane exists to send the work round)
+    // `gate` is what the saved hold needs to know of it (its pass ceiling, whether a back lane exists to send the work round, and
+    // whether that lane re-enters the dock that just ran: the work a person approves is then the reviewer's own reply)
     return (g && Verdict.isVerdictWord(g.when)) ? Object.assign(LineFire.lineStop('blocked', { loop: g.loop }),
-      { gateId: String(g.loop), gate: { id: String(g.loop), max: g.max, backTo: !!g.backTo } }) : null;
+      { gateId: String(g.loop), gate: { id: String(g.loop), max: g.max, backTo: !!g.backTo, self: selfGate(g, agentId, dockId) } }) : null;
   } catch (e) { failNote('chain.held-by-brief', e); return null; }
+}
+/* selfGate(gate, target, targetDock) -> does the gate's back lane re-enter the dock that just ran (a SELF-LOOP: the reviewer is the writer)?
+   The one test the verdict brief (bareApprovalHandsOn) and the hold's saved draft (heldStop) share; advance() reads the same fact off the
+   gate step it holds (`step.backTo` against the dock it is at). */
+function selfGate(g, target, targetDock) {
+  return !!g && ((g.backDock != null && targetDock != null) ? String(g.backDock) === String(targetDock)
+    : (g.backTo != null && String(g.backTo) === String(target)));
 }
 // heldStop(...) -> the hold as its typed stop { code: 'blocked', why, gateId } (line-job-runner); heldByBrief(...) -> its words alone
 function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) { const h = heldStop(gateAfter, agentId, lineId, dockId, verdict); return h ? h.why : null; }
@@ -384,9 +392,7 @@ function hopTurn(t) {
    the reply), and never when the gate does not say where its back lane goes (`backTo` absent). Same self-loop test as advance(). */
 function bareApprovalHandsOn(g, target, targetDock, handed) {
   if (!g || !('backTo' in g) || !String(handed == null ? '' : handed).trim()) return false;
-  const self = (g.backDock != null && targetDock != null) ? String(g.backDock) === String(targetDock)
-    : (g.backTo != null && String(g.backTo) === String(target));
-  return !self && reviewedWork(String(handed)).swap;
+  return !selfGate(g, target, targetDock) && reviewedWork(String(handed)).swap;
 }
 
 /* lineRefusalStop(lineOfAgent, dock, lineId, dockId) -> the honest stop (wrong_line) when the line GATE refused to advance
@@ -466,10 +472,8 @@ function resumeLocals(r) {
    SEND BACK is a revise: loopDecision frames it round the gate (pass + 1, never a reset) with the reviewer's own words and the person's note
    as the review. Pure. */
 function approvedGate(step, draft) { return { again: false, target: step.next, text: draft, exhausted: false }; }
-function approvedWork(lastHanded, reply, selfLoop) {
-  const draft = String(lastHanded == null ? '' : lastHanded), said = String(reply == null ? '' : reply), bare = String(Verdict.stripVerdict(said) || '');
-  return (!selfLoop && draft.trim()) ? draft : (bare.trim() ? bare : said);
-}
+// the work APPROVE carries on is ONE function, shared with the WORKFLOWS job box (line-verdict.js): what a person is shown is what is released
+const approvedWork = Verdict.approvedWork;
 function sentBackReview(reply, note) {
   const said = String(Verdict.stripVerdict(String(reply == null ? '' : reply)) || '').trim(), n = String(note == null ? '' : note).trim();
   return (said ? said + '\n\n' : '') + (n ? 'A PERSON SENT THIS BACK. Their note:\n' + n : 'A PERSON SENT THIS BACK for another pass.');
@@ -1034,7 +1038,11 @@ function makeChainRunner(o) {
       if (R) for (const f of R.receipts) owner.set(f.path, { runId: f.producerRunId, projectRoot: f.projectRoot });
       for (const a of attempts) for (const f of a.files) if (!owner.has(f)) owner.set(f, { runId: a.runId, projectRoot: a.projectRoot });
       const files = out.files.map(path => { const o = owner.get(path); return { path, producerRunId: o ? o.runId : entryRunId, projectRoot: o ? o.projectRoot : '' }; });
-      const draft = String(lastHanded == null ? '' : lastHanded);
+      /* WHAT A PERSON IS ASKED TO APPROVE is what APPROVE carries on (Verdict.approvedWork: the function the job box prints it by). A gate whose
+         back lane re-enters the dock that just ran (g.self) reviews no separate draft — `lastHanded` is only that dock's previous turn — so the
+         reviewer's own reply, without its VERDICT line, is saved as the draft. A crate a JOINER merged is its own merge (the saved product);
+         every other gate's draft is what the reviewing dock was handed. */
+      const draft = g.self === true ? String(Verdict.approvedWork(lastHanded, out.text, true)) : String(lastHanded == null ? '' : lastHanded);
       // the crate under review is one stage's output (a run), or a JOINER's merge of the runs its branches delivered
       const joinRefuse = joinedFrom && (!joinedFrom.complete || !joinedFrom.runIds.length) ? 'a part of the merged crate has no recorded stage, so the merge cannot be traced to its runs' : null;
       const product = { text: String(out.text == null ? '' : out.text), draft, verdict: producerVerdict == null ? null : producerVerdict, files: crateFiles(),
@@ -1197,7 +1205,7 @@ function makeChainRunner(o) {
           } else d = loopDecision((inFan && step.escOutbox) ? Object.assign({}, step, { escOutbox: null }) : step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
           /* a held verdict (BLOCKED, none, or a spent gate that holds) stops the job at this gate: the line ends here, nothing more is
              bought (out.blocked: line facts; out.hold: why, where and on which pass) */
-          if (d.held) { out.text = d.text; return holdAt(LineFire.lineStop('blocked', { loop: step.loop, reason: d.reason }), cur, d.reason, d.gateId, d.pass, { hop, ctx, gate: { id: String(step.loop), max: step.max, backTo: !!step.backTo } }); }
+          if (d.held) { out.text = d.text; return holdAt(LineFire.lineStop('blocked', { loop: step.loop, reason: d.reason }), cur, d.reason, d.gateId, d.pass, { hop, ctx, gate: { id: String(step.loop), max: step.max, backTo: !!step.backTo, self: selfLoop } }); }
           target = asNode(d.target); out.text = d.text;
           if (d.outboxId) escBox = d.outboxId;   // escalated to an OUTBOX: the crate ends there (below)
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }

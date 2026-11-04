@@ -73,6 +73,17 @@ function stripVerdict(text) {
   return lines.join('\n').replace(/\s+$/, '');
 }
 
+/* approvedWork(lastHanded, reply, own) -> the work a PERSON'S APPROVE of a held gate carries on (line-hold lane). The ONE function: chain.js
+   releases the work by it when the walk resumes, and the WORKFLOWS job box prints its result under "The work under review", so what a person
+   approves is what goes on. `lastHanded` = the draft the reviewing dock was handed, `reply` = what the reviewer said (its VERDICT line still
+   on it). The draft goes on exactly as it is — unless there is no separate draft to approve: `own` is true for a gate whose back lane re-enters
+   the dock that just ran (the reviewer IS the writer) and for a crate a JOINER merged, and an empty draft has nothing to go on. Then the
+   reviewer's reply is the work, without its VERDICT line (the gate's control signal never ships as work), else the reply as it is. Pure. */
+function approvedWork(lastHanded, reply, own) {
+  const draft = String(lastHanded == null ? '' : lastHanded), said = String(reply == null ? '' : reply), bare = String(stripVerdict(said) || '');
+  return (!own && draft.trim()) ? draft : (bare.trim() ? bare : said);
+}
+
 /* verdictBrief(when, handsOn) -> the instruction a reviewer dock receives when its lane meets a LOOP gate keyed on a
    verdict word; '' when the gate is not verdict-keyed. Prompt text only; pipeline.js handoffPrompt keeps its first 600
    characters. `handsOn` === true only when the caller KNOWS a bare approval at that gate hands on the work the reviewer was
@@ -93,6 +104,6 @@ function verdictBrief(when, handsOn) {
         + 'applied), and keep review notes short.');
 }
 
-return { parseVerdict, stripVerdict, isVerdictWord, verdictBrief, heldWhy, VERDICT_WORDS, BLOCKED, HOLD_REASONS };
+return { parseVerdict, stripVerdict, approvedWork, isVerdictWord, verdictBrief, heldWhy, VERDICT_WORDS, BLOCKED, HOLD_REASONS };
 
 });
