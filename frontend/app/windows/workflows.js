@@ -114,6 +114,10 @@ const WorkflowsWindow = (() => {
     }, () => { S.jobsErr = true; schedule(); });
   }
   const jobsOf = key => (S.jobs || []).filter(j => j.line === key);
+  const isHeld = j => !!j && j.status === 'held';   // waiting for a person (line-hold lane): the one record nobody else finds
+  /* the holds of a workflow that is no longer on the floor (line-hold lane): the station keeps them until somebody decides, and the floor
+     can no longer vouch for the walk, so a person can only STOP them — they are listed under the workflows, never lost with the line */
+  const heldStrays = f => { const known = new Set(((f && f.lines) || []).map(l => l.key)); return (S.jobs || []).filter(j => isHeld(j) && !known.has(j.line)); };
   // the start facts (org P15): World's feed poll — the STARTS line repaints once the server has answered
   /* a poll that ENDED with nothing answered (the station down or restarting, a page with no feed API) never leaves STARTS on 'checking…'
      (org wire AUTO-P15-2): S.startsPolled marks that a read was tried, so startsText says what could not be read */
@@ -516,9 +520,7 @@ const WorkflowsWindow = (() => {
     paintFloor = f;   // (lent for this render only — a render that throws still hands it back)
     try {
       if (!f) { html = '<div class="wfw-empty">The station floor is still loading…</div>'; setTimeout(() => { if (alive() && !floor()) schedule(); else if (alive()) { attachFloor(); schedule(); } }, 1000); }
-      else if (S.view === 'new' || (!f.lines.length && S.view !== 'line')) html = newHTML(f);
-      else if (S.view === 'line' && lineOf(f, S.line)) html = lineHTML(f, lineOf(f, S.line));
-      else { S.view = 'list'; html = listHTML(f); }
+      else html = pageHTML(f);
     } finally { paintFloor = null; }
     body.innerHTML = '<div class="wfw">' + html + '</div>';
     wire(f);
@@ -530,22 +532,34 @@ const WorkflowsWindow = (() => {
     if (S.out || runningJob()) { startLive(); tickLive(); }
   }
 
+  // which page the window shows: a new workflow, one workflow's line view, the page of a hold whose workflow is gone, or the list
+  function pageHTML(f) {
+    const strays = heldStrays(f);
+    if (S.view === 'new' || (!f.lines.length && S.view !== 'line' && !strays.length)) return newHTML(f);
+    if (S.view === 'line' && lineOf(f, S.line)) return lineHTML(f, lineOf(f, S.line));
+    if (S.view === 'line' && S.job && isHeld(S.job) && S.job.line === S.line) return strayHTML(S.job);
+    S.view = 'list';
+    return listHTML(f);
+  }
+
   /* THE LIST: every workflow, one row each — who works it (their bodies), its name, a short stat, its honest status and ONE key */
   function listHTML(f) {
+    const strays = heldStrays(f);
     const rows = f.lines.map(l => {
-      const r = l.ready, last = jobsOf(l.key)[0];
+      const r = l.ready, last = jobsOf(l.key)[0], waiting = jobsOf(l.key).filter(isHeld).length;
       const crew = [...new Set(l.steps.map(s => s.agentId).filter(Boolean))];
       const stat = l.steps.length + ' step' + (l.steps.length === 1 ? '' : 's') + (last ? ' · last job ' + ago(last.startedAt) + (last.status === 'delivered' ? ' ✓' : last.status === 'running' ? ' · running' : '') : '');
       return '<div class="wfw-row" data-line="' + esc(l.key) + '" role="button" tabindex="0" data-tip="' + esc(routeTip(l)) + '">'
         + '<span class="wfw-crew">' + (crew.length ? crew.slice(0, 3).map(a => thumb(a, 30, 38, 'wfw-av')).join('') : '<span class="wfw-av none">?</span>') + '</span>'
-        + '<span class="wfw-rt"><b class="wfw-rname">' + esc(l.name) + '</b><span class="wfw-rstat">' + esc(stat) + '</span></span>'
+        + '<span class="wfw-rt"><b class="wfw-rname">' + esc(l.name) + '</b><span class="wfw-rstat">' + esc(stat) + (waiting ? ' · <b class="warn">⏸ ' + waiting + ' waiting for you</b>' : '') + '</span></span>'
         + '<span class="wf-pill' + (r.ready ? ' ok' : '') + '">' + esc(r.ready ? 'READY TO RUN' : 'NEEDS SETUP') + '</span>'
         + (r.ready ? '<button type="button" class="bb refit-primary" data-run="' + esc(l.key) + '">▶ SEND A JOB</button>'
           : '<button type="button" class="bb" data-setup="' + esc(l.key) + '">FINISH SETUP</button>')
         + '</div>';
     }).join('');
     return '<header class="wfw-head"><h2 class="wfw-title">Your workflows</h2><span class="wfw-grow"></span><button type="button" class="bb refit-primary" data-act="new">+ NEW WORKFLOW</button></header>'
-      + '<div class="wfw-list">' + rows + '</div>';
+      + '<div class="wfw-list">' + rows + '</div>'
+      + (strays.length ? '<section class="wfw-sec"><h3>Waiting for you</h3><p class="wfw-note">From a workflow that is no longer on your floor — a job like this can only be stopped.</p>' + jobTable(strays) + '</section>' : '');
   }
 
   /* NEW WORKFLOW: describe it, or pick a starter — then who does each step, a name, CREATE */
@@ -646,9 +660,13 @@ const WorkflowsWindow = (() => {
       + items.join('') + '</section>';
   }
   function jobRows(l) {
-    const rows = jobsOf(l.key).slice(0, 8);
+    // a job waiting for you is pinned above the newest eight (line-hold lane): however many jobs followed it, it is one press from APPROVE / SEND BACK / STOP
+    const all = jobsOf(l.key), rows = all.filter(isHeld).concat(all.filter(j => !isHeld(j)).slice(0, 8));
     if (S.jobsErr && !rows.length) return '<p class="wfw-note">The job history could not be read — is the station running?</p>';
     if (!rows.length) return '<p class="wfw-note">No recorded jobs on this line yet.</p>';
+    return jobTable(rows);
+  }
+  function jobTable(rows) {
     const mark = s => ({ delivered: '<span class="wfw-st ok">✓ DELIVERED</span>', running: '<span class="wfw-st run">RUNNING</span>', stopped: '<span class="wfw-st">STOPPED</span>',
       paused: '<span class="wfw-st">PAUSED</span>', blocked: '<span class="wfw-st warn">BLOCKED</span>', stopped_short: '<span class="wfw-st warn">⚠ PROBLEM</span>',
       problem: '<span class="wfw-st warn">⚠ PROBLEM</span>', failed: '<span class="wfw-st warn">DIDN’T RUN</span>', interrupted: '<span class="wfw-st warn">INTERRUPTED</span>' })[s] || '';
@@ -841,8 +859,9 @@ const WorkflowsWindow = (() => {
     const k = job.id + ':' + (job.continuation && job.continuation.revision) + ':' + action;
     return S.tokens[k] || (S.tokens[k] = 'ui-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10));
   };
-  function heldHTML(job) {
-    const c = job.continuation, h = c.hold, w = c.walk, allowed = h.allowed || [], busy = !!(S.deciding && S.deciding.jobId === job.id);
+  /* `only` (a hold whose workflow is gone from the floor): the keys it is offered, STOP alone — the floor it was bound to can no longer vouch for the walk */
+  function heldHTML(job, only) {
+    const c = job.continuation, h = c.hold, w = c.walk, allowed = (h.allowed || []).filter(a => !only || only.indexOf(a) >= 0), busy = !!(S.deciding && S.deciding.jobId === job.id);
     const live = c.decisions.find(d => d.token === c.activeDecision) || null;   // a decision the station recorded and has not carried out
     const refused = job.resumeRefused, msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
     const draft = String(w.lastHanded || ''), said = String(w.product && w.product.text || '');
@@ -855,14 +874,23 @@ const WorkflowsWindow = (() => {
       + (live
         ? '<p class="wfw-why warn">Your ' + esc(WORD[live.action]) + ' was recorded but not carried out yet.</p><div class="wf-row"><button type="button" class="bb refit-primary" data-act="decide-apply"' + (busy ? ' disabled' : '') + '>' + (busy ? 'WORKING…' : '↻ CARRY IT OUT') + '</button>'
           + '<span class="wfw-note">It is carried out once, however many times you press this.</span></div>'
-        : '<div class="wfw-k">Your note <span class="wfw-note">(goes with SEND BACK)</span></div>'
-          + '<textarea id="wfw-decide-note" class="wfw-field" rows="2" maxlength="2000" aria-label="Your note for the review loop" placeholder="e.g. cut the second paragraph, and give the number">' + esc(S.draft['decide:' + job.id] || '') + '</textarea>'
+        : (allowed.indexOf('send_back') >= 0 ? '<div class="wfw-k">Your note <span class="wfw-note">(goes with SEND BACK)</span></div>'
+          + '<textarea id="wfw-decide-note" class="wfw-field" rows="2" maxlength="2000" aria-label="Your note for the review loop" placeholder="e.g. cut the second paragraph, and give the number">' + esc(S.draft['decide:' + job.id] || '') + '</textarea>' : '')
           + '<div class="wf-row">' + (allowed.indexOf('approve') >= 0 ? btn('approve', busy && S.deciding.action === 'approve' ? 'WORKING…' : '✓ APPROVE', true, 'The work goes on exactly as it is shown here, past the gate.') : '')
           + (allowed.indexOf('send_back') >= 0 ? btn('send_back', busy && S.deciding.action === 'send_back' ? 'WORKING…' : '↩ SEND BACK', false, 'Round the gate once more, with your note. It counts as another pass of the gate.') : '')
           + (allowed.indexOf('stop') >= 0 ? btn('stop', busy && S.deciding.action === 'stop' ? 'STOPPING…' : '■ STOP', false, 'Nothing more is spent and nothing is delivered.') : '')
-          + '</div>' + (allowed.indexOf('send_back') < 0 ? '<span class="wfw-note">This gate has used all its passes, so it cannot send the work back again.</span>' : ''))
+          + '</div>' + (!only && allowed.indexOf('send_back') < 0 ? '<span class="wfw-note">This gate has used all its passes, so it cannot send the work back again.</span>' : ''))
       + (msg ? '<p class="' + (msg.bad ? 'wfw-bad' : 'wfw-okline') + '">' + (msg.bad ? '✕ ' : '') + esc(msg.text) + '</p>' : '')
       + '</div>';
+  }
+  /* A HOLD WHOSE WORKFLOW IS GONE (line-hold lane): the station keeps it until somebody decides, but the line it was bound to is no longer on the
+     floor, so the walk can no longer be vouched for — the card offers STOP alone, on a page of its own with a way back to the list */
+  function strayHTML(job) {
+    return '<header class="wfw-head"><button type="button" class="bb sm" data-act="back">‹ ALL WORKFLOWS</button><h2 class="wfw-title">' + esc(job.name || 'A workflow that is gone') + '</h2></header>'
+      + '<section class="wfw-sec wfw-result"><div class="wfw-rhead"><b class="warn">⏸ WAITING FOR YOU</b></div>'
+      + '<p class="wfw-why">This workflow is no longer on your floor, so its job can only be stopped.</p>'
+      + heldHTML(job, ['stop'])
+      + '<div class="wfw-you"><span class="wfw-k">You asked</span><div class="wfw-quote">' + esc(job.text) + '</div></div></section>';
   }
   // a decision the station adopted whose walk never started (an acknowledgement was lost, or the station stopped first): nothing was bought since,
   // and pressing this carries the very same decision out, once
@@ -1149,6 +1177,6 @@ const WorkflowsWindow = (() => {
     schedule();
   };
   return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openJob, openOutbox, showJob, startLines,
-    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _decide: decide, _stopWalk: stopWalk, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
+    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _jobRows: jobRows, _listHTML: listHTML, _pageHTML: pageHTML, _decide: decide, _stopWalk: stopWalk, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorkflowsWindow;

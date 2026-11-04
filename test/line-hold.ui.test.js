@@ -14,7 +14,10 @@
         its record), the keys come back, and nothing is faked as done;
      4. a decision the station recorded but never carried out (a restart between the two) offers CARRY IT OUT, which posts that very
         decision (its token, its revision, its note);
-     5. the window's list says WAITING FOR YOU, not BLOCKED; nothing here posts anywhere else. */
+     5. the window's list says WAITING FOR YOU, not BLOCKED; nothing here posts anywhere else;
+     6. a job waiting for you is never lost from the window: the line view pins it above the newest eight however many jobs followed it, the
+        list row counts it, and a hold whose workflow is no longer on the floor is a row of the list with a page that offers STOP only
+        (invariant held-job-stays-reachable; the station half is test/line-jobs.held-visible.test.js). */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -169,5 +172,34 @@ const tick = () => new Promise(r => setTimeout(r, 15));
   A.ok(/j\.status === 'held' \? '<span class="wfw-st warn">⏸ WAITING FOR YOU<\/span>'/.test(src), 'the list row says WAITING FOR YOU for a held job (not BLOCKED)');
   A.ok(!/registerWindow\('(held|decisions)/.test(src) && (src.match(/registerWindow\(/g) || []).length === 1, 'no new window: the decision lives in the existing job box');
   A.ok((src.match(/\/decision'/g) || []).length === 1, 'one route posts a decision');
+
+  /* ---- 6. a job waiting for you is never lost from the window ---- */
+  {
+    const row = (id, status, at, over) => Object.assign({ id, line: line.key, name: line.name, text: 'job ' + id, status, outcome: status === 'held' ? 'blocked' : status,
+      startedAt: at, endedAt: status === 'held' ? null : at + 1, usd: 0.01 }, over);
+    const oldest = row('job-0123456789ab', 'held', 1), fresh = [];
+    for (let i = 0; i < 12; i++) fresh.push(row('job-99999999991' + String.fromCharCode(97 + i), 'delivered', 100 + i));
+    S.view = 'list'; S.job = null; S.jobs = fresh.slice().reverse().concat([oldest]);   // newest first, the way the station lists them
+    const rows = WW._jobRows(line);
+    A.ok(rows.includes('data-job="job-0123456789ab"') && /WAITING FOR YOU/.test(rows), 'the line view lists a hold older than twelve newer jobs, and says it waits for you');
+    A.ok(rows.indexOf('job-0123456789ab') < rows.indexOf('job-99999999991l'), 'a job waiting for you is above the newest');
+    A.eq((rows.match(/data-job="/g) || []).length, 9, 'the page is the hold and the newest eight, not every job');
+    A.ok(/1 waiting for you/i.test(text(WW._listHTML(WW._floor()))), 'the list row counts the job that waits for you');
+    S.jobs = fresh.slice().reverse();
+    A.ok(!/waiting for you/i.test(text(WW._listHTML(WW._floor()))) && !/WAITING FOR YOU/.test(WW._jobRows(line)), 'control: with nothing held neither the list row nor the line view says it');
+    A.eq((WW._jobRows(line).match(/data-job="/g) || []).length, 8, 'control: an ordinary line view is still the newest eight');
+    // a hold whose workflow was taken off the floor: a row of the list, and a page that can only stop it
+    const stray = heldJob({ id: 'job-aaaaaaaaaaaa', line: 'gone-line-key', name: 'Old workflow' });
+    S.jobs = [stray];
+    const list = WW._listHTML(WW._floor());
+    A.ok(list.includes('data-job="job-aaaaaaaaaaaa"') && /no longer on your floor/i.test(text(list)) && /WAITING FOR YOU/.test(list), 'a hold of a workflow that is gone is a row of the list, said to be waiting for you');
+    S.view = 'line'; S.line = 'gone-line-key'; S.job = stray;
+    const page = WW._pageHTML(WW._floor());
+    A.ok(page.includes('data-decision="stop"') && !page.includes('data-decision="approve"') && !page.includes('data-decision="send_back"') && /ALL WORKFLOWS/.test(page), 'its page offers STOP and a way back, not APPROVE or SEND BACK: the floor it was bound to is gone');
+    A.ok(text(page).includes('The work under review'), 'and still shows the work under review');
+    S.view = 'list'; S.job = null;
+    A.ok(/Waiting for you/i.test(text(WW._pageHTML({ lines: [] }))), 'with every workflow gone the stray is still listed (not hidden behind the new-workflow page)');
+    S.view = 'list'; S.job = null; S.jobs = []; S.line = line.key;
+  }
   A.report('line-hold.ui');
 })().catch(e => { console.error(e && e.stack || e); A.ok(false, 'threw: ' + (e && e.message)); A.report('line-hold.ui'); });

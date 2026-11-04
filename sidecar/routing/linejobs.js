@@ -31,6 +31,7 @@
    continuation). checkpoint writes it; claimDecision records ONE person's word on it (exactly-once: token + revision); refuseDecision marks a
    claimed decision refused when the station's authority changed while it waited, with the reason on the record (resumeRefused) and the job
    still held; boot turns a stage that was written down as an intent and never recorded into an UNCERTAIN attempt, which nothing runs.
+   list() keeps every held row beside its limit (a hold is the one record nobody else finds: the window's page of the newest 100 used to lose it).
    Pure: state in, state out ({ jobs: [...] }, newest last). The sidecar persists it (makeDomainStore → line-jobs.json). */
 'use strict';
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // the line's stop codes and outcomes (LINE_STOPS / LINE_OUTCOMES)
@@ -433,11 +434,19 @@ function list(state, o) {
   const limit = Math.max(1, Math.min(100, Number(o.limit) || 30));
   const out = [];
   const jobs = (state && Array.isArray(state.jobs)) ? state.jobs : [];
-  for (let i = jobs.length - 1; i >= 0 && out.length < limit; i--) {
-    const j = jobs[i];
+  /* A JOB WAITING FOR A PERSON IS NEVER CUT FROM A PAGE (line-hold lane). A hold is kept until somebody decides it, and this list is the
+     only place a person finds it (the WORKFLOWS window reads GET /api/line-jobs?limit=100): the newest `limit` rows dropped it after that
+     many later jobs, and the work was stranded with nobody able to approve, send back or stop it. Held rows ride BESIDE the limit —
+     every one that matches the filters, newest first among the rest — and ordinary rows are bounded exactly as they were. The filters
+     still apply: an exact identity read (a stream, a run) never gains a hold that is not that identity. */
+  let ordinary = 0;
+  for (let i = jobs.length - 1; i >= 0; i--) {
+    const j = jobs[i], held = j.status === 'held';
+    if (!held && ordinary >= limit) continue;
     if (line && j.line !== line) continue;
     if (stream && j.streamId !== stream) continue;
     if (hasRun && !j.runs.some(r => r.runId === runId)) continue;
+    if (!held) ordinary++;
     out.push(summary(j));
   }
   return out;

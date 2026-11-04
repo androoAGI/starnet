@@ -1337,6 +1337,7 @@ test/line-hold.decision.test.js
 test/line-hold.authority.test.js
 test/line-hold.split.test.js
 test/line-hold.ui.test.js
+test/line-jobs.held-visible.test.js
 test/line-continuation.test.js
 test/line-continuation.transitions.test.js
 test/line-entry.test.js

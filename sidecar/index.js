@@ -14004,7 +14004,8 @@ function lineJobsAdvance(id, make, landed) {
   }
 }
 /* GET /api/line-jobs?line=&stream=&runId=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
-   cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
+   cost, a glance at what came out; a job HELD for a person is on every page that matches the filters, beside the limit, however many
+   later jobs there are: LineJobs.list); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
    'example', dockId, role, field, text, was, why} — what the Commander changed because of it. An unknown id is 404 {ok:false}.
    POST /api/line-jobs/<id>/decision {action:'approve'|'send_back'|'stop', token, revision, note?} — a PERSON's word on a job a work line
    HELD at a reviewer's gate (routing/line-resume.js; DELETE on a held job, or POST …/stop, is the STOP decision; on a running job it stops
