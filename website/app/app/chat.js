@@ -2097,7 +2097,10 @@ const Chat = (() => {
       catch (e) { saw.silent = true; throw e; }   // no answer inside the window: unanswered, not refused
       finally { clearTimeout(timeout); }
       const one = response.ok && response.j && Array.isArray(response.j.streams) ? response.j.streams[0] : null;
-      if (one && one.streamId === streamId && Array.isArray(one.turns)) return one;
+      if (one && one.streamId === streamId && Array.isArray(one.turns)) {
+        if (typeof Workstreams !== 'undefined' && Workstreams.sealTurns) Workstreams.sealTurns(streamId, one.turns);   // the station just returned these rows: the page can name them again in its next save
+        return one;
+      }
       if (response.status >= 400 && response.status < 500) saw.refused = true;
       throw new Error('The saved rows could not be read');
     };
@@ -2105,6 +2108,7 @@ const Chat = (() => {
       let out;
       try { out = await HistoryRef.expand(ref, { streamId: ws.id, fetchRows }); }
       catch (_) { return { complete: false, stale: false, silent: true, refused: false, ids: new Set() }; }
+      if (Workstreams.unseal) Workstreams.unseal(ws.id, out.retracted.concat(out.forgotten));   // a turn the station says is gone is no longer kept as proven, whatever became of the session meanwhile
       if (Workstreams.get(ws.id) !== ws || !Workstreams.hydrate(ws, out.rows, { ref })) return { complete: false, stale: true, silent: false, refused: false, ids: new Set() };   // (hydrate refuses a read of a packed form the session no longer holds: cleared, undone, replaced)
       const left = new Set(out.unproven.concat(out.retracted, out.forgotten));
       return { complete: !ws.historyRef, stale: false, silent: saw.silent, refused: saw.refused, ids: new Set(HistoryRef.idsOf(ref).filter(id => !left.has(id))) };
@@ -2177,6 +2181,7 @@ const Chat = (() => {
         const retracted = new Set(proof.retracted);
         turns = turns.filter(row => !retracted.has(row.rowId));
         identity = Object.assign({ streamId: ws.id }, identity, { retracted: proof.retracted });
+        if (typeof Workstreams !== 'undefined' && Workstreams.unseal) Workstreams.unseal(ws.id, proof.retracted);   // a turn the station says is undone is no longer kept as proven
       } catch (_) {
         read.serverFailed = true; read.retryable = false;
         noteContinuity(ws, 'history-unavailable'); return false;
@@ -2207,6 +2212,13 @@ const Chat = (() => {
     if (stale() || cacheIds(ws.history || []).some(id => !provedIds.has(id))) { noteContinuity(ws, 'history-stale-discarded'); return false; }
     const merged = out.rows;
     const next = placeSteerNotes(merged);
+    // SEAL what the page now holds of this read (save v7): the station returned these turns, so its next save may name the rows it
+    // still has exactly as returned instead of repeating them (Workstreams.serialize packs against the seals). Only rows the merged
+    // history holds are kept; a row the cap dropped needs none. Before the early return and the persist below, so that save packs.
+    if (reachable && typeof Workstreams !== 'undefined' && Workstreams.sealTurns) {
+      const held = new Set(next.filter(m => m && Number.isSafeInteger(m.rowId) && m.rowId > 0).map(m => m.rowId));
+      Workstreams.sealTurns(ws.id, turns.filter(t => t && held.has(t.rowId)));
+    }
     const readable = next.some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
       (m.sys && !m.transcriptPending && String(m.content == null ? '' : m.content).trim())
@@ -2282,6 +2294,7 @@ const Chat = (() => {
     if (activeWs?.id !== nextWs?.id) focusVersion++;
     activeWs = nextWs;
     paintTitle();
+    if (prevWs && nextWs && prevWs.id !== nextWs.id && typeof sealLeft === 'function') sealLeft(prevWs);   // it just left the screen: if a run's rows are unread, the seal pass reads them now
     // ANOTHER CONVERSATION IS ON SCREEN (gh#158): an offer panel over COMMS (the first-task hand-off included) steps aside,
     // unanswered, so COMMS shows the conversation now open and its message box. A re-sync of the same one never does.
     if (prevWs && nextWs && prevWs.id !== nextWs.id) stepOfferAside('session');
@@ -2345,6 +2358,64 @@ const Chat = (() => {
     // Reconcile a run that died while this page was closed or the sidecar restarted. Only the server's durable
     // safe verdict can start work; uncertain mutations remain paused and visible.
     if (activeWs) { const w = activeWs; setTimeout(() => { if (isActiveWs(w)) recoverSafeRun(w, true); }, 0); }
+  }
+
+  /* THE SEAL PASS (save v7, history by reference). A save names a row instead of repeating it only for rows this page has PROVED the
+     station holds (Workstreams.sealTurns), and the page proves them by reading: the open-time reconcile does, at open. A run that
+     ends leaves its own rows — the Commander's directive and the reply — unproven until the conversation is opened again, so a save
+     carries them in full for as long as it stays closed. This reads them as soon as the run is over: the open-time read itself (the
+     same GET, the same merge, the same retraction proof, the same save at its end), minus the repaint. It waits SEAL_PASS_MS after the
+     run ends (a burst of runs is one read), never reads a conversation a run is live in, and never one the Commander is looking at:
+     a repaint under their eyes is worse than a longer save, so that one is read when they leave it (load). A read that fails leaves
+     the rows inline and the mark standing. */
+  const SEAL_PASS_MS = 2000;
+  const sealMarked = new WeakSet();    // sessions whose last run's rows have not been read back yet
+  const sealTimers = new Map();        // session id -> the debounce timer
+  function sealSoon(ws, ms) {
+    if (!ws || !ws.id || ws.conversationMode === 'group' || typeof Workstreams === 'undefined' || !Workstreams.sealTurns) return false;   // (a group chat's history is the backend's own copy: no transcript read ever merges into it)
+    sealMarked.add(ws);
+    clearTimeout(sealTimers.get(ws.id));
+    sealTimers.set(ws.id, setTimeout(() => { sealTimers.delete(ws.id); sealPass(ws); }, ms > 0 ? ms : SEAL_PASS_MS));
+    return true;
+  }
+  function sealLeft(ws) { if (sealMarked.has(ws)) sealSoon(ws); }
+  function sealPass(ws) {
+    if (!ws || !sealMarked.has(ws) || ws.conversationMode === 'group' || typeof Workstreams === 'undefined' || Workstreams.get(ws.id) !== ws) return false;
+    if (isActiveWs(ws) || (Workstreams.needsHydration && Workstreams.needsHydration(ws)) || (typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id))) return false;   // on screen, still packed, or running: later
+    sealMarked.delete(ws);
+    const again = () => sealMarked.add(ws);
+    try { Promise.resolve(loadServerHistory(ws, -1)).then(ok => { if (!ok) again(); }, again); } catch (_) { again(); }   // (-1: no open session carries that pin, so nothing repaints)
+    return true;
+  }
+  /* THE SEAL SWEEP'S READ (app.js drives it when the page is idle). Ask the station for the rows a batch of sessions hold inline without
+     a seal (POST /api/transcript/rows: <= 1000 ids across <= 50 sessions) and keep what it returns as seals. It changes no conversation:
+     a row that no longer equals what the station holds simply stays inline in the next save. An id the station did not answer is asked
+     again a few times (a request reads a bounded number of segments), then left alone. -> { asked, sealed, silent, refused }, never throws */
+  async function sealRows(batch) {
+    const out = { asked: 0, sealed: 0, silent: false, refused: false };
+    const asks = (Array.isArray(batch) ? batch : []).filter(b => b && b.streamId && Array.isArray(b.rowIds) && b.rowIds.length);
+    if (!asks.length || typeof Workstreams === 'undefined' || !Workstreams.sealTurns || typeof Harness === 'undefined') return out;
+    const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 20000);
+    let response;
+    try { response = await Harness.api.post('/api/transcript/rows', { streams: asks.map(b => ({ streamId: b.streamId, rowIds: b.rowIds })) }, { signal: controller.signal }); }
+    catch (_) { out.silent = true; return out; }   // no answer: nothing is learned, nothing is marked
+    finally { clearTimeout(timeout); }
+    const streams = response.ok && response.j && Array.isArray(response.j.streams) ? response.j.streams : null;
+    if (!streams || streams.length !== asks.length) {   // the station answered, but not with the rows: counted as an unanswered ask, so a request it keeps refusing is not repeated for ever
+      out.refused = response.status >= 400 && response.status < 500;
+      for (const b of asks) Workstreams.noteSealRead(b.streamId, b.rowIds, []);
+      return out;
+    }
+    asks.forEach((b, i) => {
+      const one = streams[i];
+      if (!one || one.streamId !== b.streamId || !Array.isArray(one.turns)) return;
+      out.sealed += Workstreams.sealTurns(b.streamId, one.turns);
+      if (Workstreams.unseal) Workstreams.unseal(b.streamId, [].concat(Array.isArray(one.retracted) ? one.retracted : [], Array.isArray(one.forgotten) ? one.forgotten : []));   // what the station says is gone is no longer kept as proven
+      const answered = one.turns.map(t => t && t.rowId).concat(Array.isArray(one.retracted) ? one.retracted : [], Array.isArray(one.forgotten) ? one.forgotten : []);
+      Workstreams.noteSealRead(b.streamId, b.rowIds, answered);
+      out.asked += b.rowIds.length;
+    });
+    return out;
   }
 
   async function restoreTaskQuestion(ws) {
@@ -10355,6 +10426,7 @@ const Chat = (() => {
       if (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws) return;
       const targets = new Set(result.targets);
       ws.history = (ws.history || []).filter(row => !own(row) || !(targets.has(row.rowId) || (body.turnId && row.turnId === body.turnId)));
+      if (typeof Workstreams !== 'undefined' && Workstreams.unseal) Workstreams.unseal(ws.id, result.targets);   // an undone turn's text is not kept as proven either
       if (typeof App !== 'undefined' && App.persist) App.persist();
       if (activeWs === ws) { load(ws); refreshWorkflowViews(); localLine('Undid the turn.'); }
     } catch (error) {
@@ -11897,6 +11969,7 @@ const Chat = (() => {
       App.refreshUsage();
       if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail();
       capHistory(ws);   // E3: bound the stored thread AFTER this turn's assistant reply landed, before it persists
+      if (typeof sealSoon === 'function') sealSoon(ws);     // save v7: this run's rows are read back (and named, not repeated, in the save) a moment after it ends
       if (onTurn) onTurn();
       // TITLE UPGRADE: replace the instant first-sentence placeholder with a model-written summary. Quiet
       // (internal call, off the floor/telemetry) and fire-and-forget so it never delays this turn's teardown.
@@ -12176,7 +12249,7 @@ const Chat = (() => {
 
   // the store asks for a conversation's packed rows through the same reader (Workstreams.sourceIdsOf: a purge must see every run a session holds)
   if (typeof Workstreams !== 'undefined' && Workstreams.setHydrator) Workstreams.setHydrator(ws => hydrateHistory(ws, { windowMs: 20000 }));
-  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
+  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
     // the COMMS '▤ saved' row's folder / copy-path keys and their path resolver, shared with MY WORK › DELIVERABLES' FILES rows (org pass 10-14, P24)
     folderButton, copyPathButton, fullSavedPath: absoluteArtifactPath };
 })();

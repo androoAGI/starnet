@@ -628,4 +628,107 @@ A.eq([W.get(recoveredOrder.id).lastRunOk, W.get(recoveredOrder.id).lastRunReason
   A.eq([W.needsHydration('odd'), W.get('odd').history, W.serialize().workstreams.find(w => w.id === 'odd').history], [true, [ask], [{ $ref: 'not a run' }, ask]], 'an unreadable element stays in the saved history as it was');
   W.reset();
 }
+
+/* ---------- SEALS AND PACKING AT THE SERIALIZE SEAM (save v7, history by reference, step S5) ----------
+   A seal is the turn exactly as a successful station read returned it (Workstreams.sealTurns); serialize() packs a hydrated session's rows
+   against the seals: a row the page still holds field for field becomes part of one reference, every other row stays inline where it is. */
+{
+  const HR = require('../frontend/app/historyref.js');
+  const turn = (stream, rowId, role, extra) => Object.assign({ streamId: stream, agentId: 'agent', role, kind: 'turn', taintKnown: true, ts: 1000 + rowId, content: role + ' ' + rowId, rowId }, extra || null);
+  const rowsOf = (stream, from, n) => Array.from({ length: n }, (_, i) => turn(stream, from + i, (from + i) % 2 ? 'user' : 'assistant'));
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const rec = (id, history, extra) => Object.assign({ id, title: 'T ' + id, agentId: 'agent', kind: 'chat', lane: 'active', history, runIds: [], createdAt: 1, lastActiveAt: 10, lastReadAt: 10 }, extra || null);
+  const saved = id => W.serialize().workstreams.find(w => w.id === id);
+  const refsOf = h => h.filter(el => el && typeof el.$ref === 'string');
+
+  W.init({ workstreams: [rec('a', clone(rowsOf('a', 1, 6))), rec('b', clone(rowsOf('b', 7, 4))), rec('g', clone(rowsOf('g', 20, 2)), { conversationMode: 'group' })], activeId: 'a', generalId: 'a' });
+  const live = W.get('a');
+  A.eq(W.serialize().workstreams.includes(live), true, 'a page that has proved nothing saves the live records (nothing is packed without a seal)');
+  A.eq(W.sealTurns('a', rowsOf('a', 1, 6)), 6, 'sealTurns keeps the six turns of a read');
+  A.eq(W.sealed('a', 3), turn('a', 3, 'user'), 'a seal is the turn as it came back');
+  A.ok(W.sealed('a', 3) !== rowsOf('a', 1, 6)[2] && W.sealed('a', 3) !== W.get('a').history[2], 'and a private copy: not the turn the read returned, not the row the page holds');
+  const packed = saved('a');
+  A.eq(refsOf(packed.history).length, 1, 'six sealed rows are one reference');
+  A.eq(packed.history.length, 1, '...and nothing else');
+  A.ok(packed !== live && W.serialize().workstreams.includes(W.get('b')), 'a session with sealed rows is saved as a copy; one with none is the live record');
+  A.eq(live.history.length, 6, 'packing never touches the live rows');
+  A.eq(HR.idsOf(packed.history), [1, 2, 3, 4, 5, 6], 'the reference names the six row ids');
+
+  // what the page holds beyond a seal rides as residue; what it changed in a seal's own fields makes the row inline again, on the very next save
+  live.history[1].stopNote = 'a note the page wrote';
+  A.ok(JSON.stringify(saved('a').history).includes('a note the page wrote') && refsOf(saved('a').history).length === 1, 'a page-only field on a sealed row rides in the reference (residue)');
+  live.history[3].content = 'changed after it was proved';
+  const drifted = saved('a').history;
+  A.ok(drifted.some(el => el && el.rowId === 4 && el.content === 'changed after it was proved'), 'a row changed in a field of its seal is saved inline, as it now is');
+  A.eq(HR.idsOf(drifted), [1, 2, 3, 5, 6], '...and the others stay named (the run is cut around it)');
+  live.history[3].content = 'assistant 4';
+  A.eq(saved('a').history.length, 1, 'put back, it is named again (nothing is remembered about the old answer)');
+
+  // a seal does not alias the page: a nested value changed in place is a change
+  W.init({ workstreams: [rec('n', clone([turn('n', 1, 'user', { attachments: [{ id: 'x', name: 'one.png' }] })]))], activeId: 'n', generalId: 'n' });
+  W.sealTurns('n', [turn('n', 1, 'user', { attachments: [{ id: 'x', name: 'one.png' }] })]);
+  A.eq(saved('n').history.length, 1, '(control) a row equal to its seal, nested value included, is named');
+  W.get('n').history[0].attachments[0].name = 'two.png';
+  A.ok(saved('n').history[0].rowId === 1 && saved('n').history[0].attachments[0].name === 'two.png', 'a nested value changed in place makes the row inline again');
+
+  // nor does a seal alias what the caller handed it: the read's own objects may be changed after they were kept
+  W.init({ workstreams: [rec('al', clone([turn('al', 1, 'user', { attachments: [{ id: 'x', name: 'one.png' }] })]))], activeId: 'al', generalId: 'al' });
+  const handed = [turn('al', 1, 'user', { attachments: [{ id: 'x', name: 'one.png' }] })];
+  W.sealTurns('al', handed);
+  handed[0].content = 'the read changed after it was kept'; handed[0].attachments[0].name = 'two.png';
+  A.ok(typeof saved('al').history[0].$ref === 'string', 'what the caller does to a turn after handing it over does not reach its seal (a copy, nested values too): the row is still named');
+
+  // not packed: a collided id, another stream's row, a note, a row with no id, a group chat
+  W.init({ workstreams: [rec('c', clone([turn('c', 1, 'user'), { role: 'system', sys: true, content: 'a note', ts: 5 }, { role: 'user', content: 'no id', ts: 6 }, turn('c', 2, 'assistant', { streamId: 'other' }), turn('c', 3, 'user')])), rec('g', clone(rowsOf('g', 20, 2)), { conversationMode: 'group' })], activeId: 'c', generalId: 'c' });
+  A.eq(W.sealTurns('c', [turn('c', 1, 'user'), turn('c', 2, 'assistant', { streamId: 'other' }), turn('c', 3, 'user', { idFrom: 'collision' }), { role: 'user', content: 'x' }, null, 'x']), 1, 'only a turn of this stream with a row id, not a collided one, is kept');
+  W.sealTurns('g', rowsOf('g', 20, 2));
+  const mixed = saved('c').history;
+  A.eq([mixed.length, HR.idsOf([mixed[0]]), mixed[1].sys, mixed[2].content], [5, [1], true, 'no id'], 'the one sealed row is a reference of its own; the note, the row with no id, the other stream row and the collided one stay as they are, in place');
+  A.eq(saved('g').history, W.get('g').history, 'a group chat has the backend copy of its rows: never packed');
+
+  // what the station says is gone is not kept as proven: unseal drops those rows' seals and only those, and the row (if the page still holds it) is saved inline
+  W.init({ workstreams: [rec('un', clone(rowsOf('un', 1, 5)))], activeId: 'un', generalId: 'un' });
+  W.sealTurns('un', rowsOf('un', 1, 5));
+  A.eq([W.unseal('un', [3, 99]), W.sealed('un', 3), W.sealed('un', 4) !== null, W.unseal('nobody', [1]), W.unseal('un', 'x')], [1, null, true, 0, 0], 'unseal drops the seals of the rows named, of that stream, and nothing else');
+  A.eq(HR.idsOf(saved('un').history), [1, 2, 4, 5], '...so the row is saved inline where it is and the run is cut around it');
+
+  // a stream the rows route cannot name keeps no seal: the station's ordinary read answers such an id with the GLOBAL stream (a restored copy's
+  // "<id>~restored"), so what came back proves nothing about this session, and a reference the page could never read back would strand its rows
+  W.init({ workstreams: [rec('copy~restored', clone(rowsOf('copy~restored', 1, 3))), rec('ok_id-1', clone(rowsOf('ok_id-1', 4, 2)))], activeId: 'ok_id-1', generalId: 'ok_id-1' });
+  A.eq([W.sealTurns('copy~restored', rowsOf('copy~restored', 1, 3)), W.sealTurns('a'.repeat(65), rowsOf('x', 1, 1)), W.sealTurns('', rowsOf('x', 1, 1)), W.sealTurns('ok_id-1', rowsOf('ok_id-1', 4, 2))], [0, 0, 0, 2],
+    'only a stream id the rows route takes ([A-Za-z0-9_-], 1-64) keeps seals');
+  A.eq([saved('copy~restored').history.length, saved('ok_id-1').history.length], [3, 1], '...so the session it cannot name is saved whole, and its neighbour is named');
+
+  // seals belong to this page's reading of the station: a re-init, a reset and a delete drop them
+  W.init({ workstreams: [rec('a', clone(rowsOf('a', 1, 6))), rec('b', clone(rowsOf('b', 7, 4)))], activeId: 'a', generalId: 'a' });
+  W.sealTurns('a', rowsOf('a', 1, 6)); W.sealTurns('b', rowsOf('b', 7, 4));
+  A.eq([saved('a').history.length, saved('b').history.length], [1, 1], '(setup) two sealed sessions');
+  W.del('b');
+  A.eq([W.sealed('b', 7), W.sealed('a', 1) !== null], [null, true], 'deleting a session drops its seals and only its own');
+  W.init({ workstreams: [rec('a', clone(rowsOf('a', 1, 6)))], activeId: 'a', generalId: 'a' });
+  A.eq([W.sealed('a', 1), saved('a').history.length], [null, 6], 'a re-init starts from no seals: the rows are saved inline until they are read again');
+  W.sealTurns('a', rowsOf('a', 1, 6)); W.reset();
+  A.eq(W.sealed('a', 1), null, 'and so does a reset');
+
+  // a session whose rows are not all here is saved as it was read, never packed again
+  const run = HR.pack(clone(rowsOf('u', 1, 3)), { streamId: 'u', seal: k => { const id = Number(k.split(':')[1]); return turn('u', id, id % 2 ? 'user' : 'assistant'); } });
+  W.init({ workstreams: [rec('u', run.concat([{ role: 'user', content: 'inline tail', ts: 99 }]))], activeId: 'u', generalId: 'u' });
+  W.sealTurns('u', rowsOf('u', 1, 3));
+  A.eq(saved('u').history, run.concat([{ role: 'user', content: 'inline tail', ts: 99 }]), 'an unhydrated session is saved verbatim even when its ids are sealed');
+
+  // the sweep's list: inline keyed rows with no seal, newest session first, within the request bounds
+  W.init({ workstreams: [rec('old', clone(rowsOf('old', 1, 3)), { lastActiveAt: 10 }), rec('new', clone(rowsOf('new', 4, 3)), { lastActiveAt: 90 }), rec('none', clone([{ role: 'user', content: 'legacy', ts: 1 }]), { lastActiveAt: 95 }),
+    rec('packed', run.slice(), { lastActiveAt: 99 }), rec('mixed', run.concat([turn('mixed', 50, 'user')]), { lastActiveAt: 96 }), rec('grp', clone(rowsOf('grp', 30, 2)), { conversationMode: 'group', lastActiveAt: 98 })], activeId: 'new', generalId: 'new' });
+  A.eq(W.sealCandidates().map(c => [c.streamId, c.rowIds]), [['new', [4, 5, 6]], ['old', [1, 2, 3]]], 'candidates: newest session first; none for a row with no id, a session that still names rows (its inline rows included) or a group chat');
+  A.eq(W.sealCandidates({ maxIds: 4 }).map(c => [c.streamId, c.rowIds.length]), [['new', 3], ['old', 1]], 'the batch holds at most maxIds ids');
+  A.eq(W.sealCandidates({ maxStreams: 1 }).map(c => c.streamId), ['new'], 'and at most maxStreams sessions');
+  A.eq(W.sealCandidates({ any: true }).length, 1, 'any: just whether there is something left');
+  W.sealTurns('new', rowsOf('new', 4, 3));
+  A.eq(W.sealCandidates().map(c => c.streamId), ['old'], 'a sealed row is no longer a candidate');
+  for (let k = 0; k < 2; k++) W.noteSealRead('old', [1, 2, 3], [1]);
+  A.eq(W.sealCandidates().map(c => [c.streamId, c.rowIds]), [['old', [2, 3]]], 'an id the station answered is done; one it did not answer is asked again');
+  W.noteSealRead('old', [2, 3], []);
+  A.eq(W.sealCandidates(), [], 'and after three reads that did not answer it, left alone: nothing is left to ask');
+  W.reset();
+}
 A.report('workstreams.test');

@@ -28,7 +28,12 @@
      · serialize() hands out the packed form (historyRef) followed by the rows pushed since, so a session nobody opened is
        never rewritten and nothing is dropped;
      · writers that insert, replace or remove rows hydrate first (chat.js hydrateHistory) or use setHistory().
-   Both properties are NOT enumerable: a record can never be stringified (or copied) carrying a second copy of its history. */
+   Both properties are NOT enumerable: a record can never be stringified (or copied) carrying a second copy of its history.
+
+   PACKING (save v7). serialize() also PACKS: a session whose rows are all here has its history passed through
+   HistoryRef.pack with the page's SEALS — the turns the station returned in a successful read (sealTurns, called by chat.js after the
+   open-time reconcile, a seal pass, a hydration and app.js's idle seal sweep; held in page memory only, never saved). A row the station provably holds and the
+   page still holds field for field becomes part of one { "$ref": … } element; every other row stays inline where it is. */
 'use strict';
 (function (root, factory) {
   const node = typeof module !== 'undefined' && module.exports;
@@ -114,10 +119,110 @@
     for (const r of h) if (!info.set.has(r)) out.push(r);
     return out;
   }
+
+  /* SEALS: WHAT THIS PAGE HAS PROVED THE STATION HOLDS. A seal is a turn exactly as the station returned it in a successful read — a
+     private deep copy (HistoryRef.snapshotOf: plain JSON, strings shared), kept in page memory under HistoryRef.keyOf(stream, rowId),
+     never mutated and never saved. serialize() hands HistoryRef.pack the seals, and pack names a row instead of repeating it ONLY when
+     the page's row still equals its seal field for field (whatever it holds beyond the seal rides as residue); every other row stays
+     inline where it is. So an unproven row makes the save bigger, never lossier — and a page that has read nothing (a fresh boot, a
+     station that does not answer) packs nothing: init() and reset() start from no seals. A later read replaces a seal with the
+     station's newer copy; a row the page changed since falls off its seal and is saved inline again. */
+  const seals = new Map();
+  const sealAsks = new Map();   // seal key -> how many sweep reads asked for it without an answer (SEAL_ASKS_MAX = never again this page lifetime)
+  const SEAL_ASKS_MAX = 3;
+  const STREAM_ID = /^[A-Za-z0-9_-]{1,64}$/;   // the stream ids POST /api/transcript/rows takes
+  const sealOf = key => seals.get(key) || null;
+  // keep the turns of one stream a successful read returned as seals; returns how many were kept. A stream the rows route cannot name (an id
+  // outside its grammar, such as a restored copy's "<id>~restored") is never sealed: the station's ordinary read answers such an id with the
+  // GLOBAL stream, so what it returned proves nothing about this session, and a reference the page could never read back would strand the rows
+  function sealTurns(streamId, turns) {
+    streamId = String(streamId == null ? '' : streamId);
+    if (!HistoryRef || !HistoryRef.snapshotOf || !STREAM_ID.test(streamId) || !Array.isArray(turns)) return 0;
+    let n = 0;
+    for (const t of turns) {
+      if (!t || typeof t !== 'object' || t.idFrom === 'collision' || (t.streamId && t.streamId !== streamId)) continue;   // a collided id proves nothing; another stream's row is not this stream's seal
+      const snap = HistoryRef.snapshotOf(t);
+      if (!snap) continue;
+      seals.set(HistoryRef.keyOf(streamId, snap.rowId), snap); n++;
+    }
+    return n;
+  }
+  function sealed(streamId, rowId) { return seals.get(HistoryRef.keyOf(String(streamId), rowId)) || null; }
+  // The station says these rows of a stream were undone or forgotten: the copy of them the page kept as proof goes too (a deleted turn's text
+  // is held nowhere a later read has to clean up). The row, if the page still holds it, is saved inline until the station says otherwise.
+  function unseal(streamId, rowIds) {
+    if (!HistoryRef || !Array.isArray(rowIds)) return 0;
+    let n = 0;
+    for (const id of rowIds) if (seals.delete(HistoryRef.keyOf(String(streamId), id))) n++;
+    return n;
+  }
+  // a deleted session's seals go with it (the key is "<stream>:<digits>", so a stream whose own id has a colon is never confused with another)
+  function dropSeals(streamId) {
+    const prefix = String(streamId) + ':';
+    for (const k of seals.keys()) if (k.startsWith(prefix) && /^\d+$/.test(k.slice(prefix.length))) seals.delete(k);
+    for (const k of sealAsks.keys()) if (k.startsWith(prefix) && /^\d+$/.test(k.slice(prefix.length))) sealAsks.delete(k);
+  }
+  /* The rows the idle seal sweep still has to ask the station about: for every session whose rows are all here (newest first), the
+     ids of its inline rows that could be packed (a rowId, a kind the transcript owns) and carry no seal yet, in batches the rows route
+     takes (<= maxIds ids across <= maxStreams sessions). Rows with no rowId are never here: nothing is matched by content. Nothing is
+     stored; asking again after a pause gives the rest. opts.any: only whether there is anything left (the first one found, unordered).
+     -> [{ streamId, agentId, rowIds }] */
+  function sealCandidates(opts) {
+    const o = opts || {};
+    const maxIds = Math.max(1, Math.min(1000, Math.floor(Number(o.maxIds)) || 1000)), maxStreams = Math.max(1, Math.min(50, Math.floor(Number(o.maxStreams)) || 50));
+    if (!HistoryRef || !HistoryRef.sealable) return [];
+    const found = [];
+    for (const w of ws) {
+      if (w.historyRef || w.conversationMode === 'group' || !Array.isArray(w.history) || !w.history.length || !STREAM_ID.test(w.id)) continue;   // (the rows route refuses a whole request for one id it does not take)
+      const want = [], seen = new Set();
+      for (const r of w.history) {
+        if (!HistoryRef.sealable(r, w.id) || seen.has(r.rowId)) continue;
+        const k = HistoryRef.keyOf(w.id, r.rowId);
+        if (seals.has(k) || (sealAsks.get(k) || 0) >= SEAL_ASKS_MAX) continue;
+        seen.add(r.rowId); want.push(r.rowId);
+        if (o.any) return [{ streamId: w.id, agentId: w.agentId || 'agent', rowIds: want }];   // "is there anything left?" needs no ordering and no more than one
+      }
+      if (want.length) found.push({ streamId: w.id, agentId: w.agentId || 'agent', rowIds: want, at: +w.lastActiveAt || 0 });
+    }
+    found.sort((a, b) => b.at - a.at);
+    const out = [];
+    let left = maxIds;
+    for (const f of found) {
+      if (out.length >= maxStreams || left <= 0) break;
+      out.push({ streamId: f.streamId, agentId: f.agentId, rowIds: f.rowIds.slice(0, left) });
+      left -= out[out.length - 1].rowIds.length;
+    }
+    return out;
+  }
+  // a sweep read asked for `asked` ids of a stream and the station answered for `answered` of them (a turn, or the proof that it was undone
+  // or forgotten): the rest stay candidates for a few more reads — a request reads a bounded number of segments — and then are left alone
+  function noteSealRead(streamId, asked, answered) {
+    if (!HistoryRef || !Array.isArray(asked)) return;
+    const done = new Set(Array.isArray(answered) ? answered : []);
+    for (const id of asked) {
+      const k = HistoryRef.keyOf(String(streamId), id);
+      sealAsks.set(k, done.has(id) ? SEAL_ASKS_MAX : Math.min(SEAL_ASKS_MAX, (sealAsks.get(k) || 0) + 1));
+    }
+  }
+
+  // The history one record is saved with. A session whose rows are not all here: its packed form, verbatim, followed by the rows pushed
+  // since. A session whose rows are all here: HistoryRef.pack over the seals (the very record when nothing packs, so a page that has read
+  // nothing saves exactly the live records). A group chat's rows are the backend's own copy and carry no transcript row ids: never packed.
+  function persistedRecord(w) {
+    if (w.historyRef) return Object.assign({}, w, { history: composedHistory(w) });
+    const h = w.history;
+    if (!seals.size || !HistoryRef || !HistoryRef.pack || w.conversationMode === 'group' || !Array.isArray(h) || !h.length) return w;   // (and a stream the rows route cannot name has no seal: sealTurns)
+    const packed = HistoryRef.pack(h, { streamId: w.id, seal: sealOf });
+    return packed.length === h.length && packed.every((el, i) => el === h[i]) ? w : Object.assign({}, w, { history: packed });
+  }
   function persistedList() {
-    let any = false;
-    for (const w of ws) if (w.historyRef) { any = true; break; }
-    return any ? ws.map(w => w.historyRef ? Object.assign({}, w, { history: composedHistory(w) }) : w) : ws;   // a copy only for a session whose rows are not all here
+    let out = null;
+    for (let i = 0; i < ws.length; i++) {
+      const rec = persistedRecord(ws[i]);
+      if (rec !== ws[i] && !out) out = ws.slice(0, i);   // the first record that differs: the list is a copy from here on
+      if (out) out.push(rec);
+    }
+    return out || ws;
   }
 
   // The one canonical Workstream shape. Idempotent on an already-formed record (ids/timestamps
@@ -244,6 +349,7 @@
   function init(slice) {
     slice = slice || {};
     ws = Array.isArray(slice.workstreams) ? slice.workstreams.map(make) : [];
+    seals.clear(); sealAsks.clear();   // a page that has just read a save has proved nothing yet: its seals are what the next reads give it
     delegatedAgents = null;
     tombs = Array.isArray(slice.deletedIds) ? slice.deletedIds.filter(x => typeof x === 'string' && x).slice(-MAX_TOMBS) : [];
     forgets = Array.isArray(slice.forgetIds) ? slice.forgetIds.filter(x => typeof x === 'string' && x).slice(-MAX_TOMBS) : [];
@@ -258,7 +364,7 @@
   }
 
   // wipe to a single fresh General (NEW AGENT clears everything).
-  function reset() { ws = []; delegatedAgents = null; activeId = generalId = null; undoCheckpoint = null; tombs = []; forgets = []; const g = ensureGeneral(); activeId = g.id; return active(); }
+  function reset() { ws = []; seals.clear(); sealAsks.clear(); delegatedAgents = null; activeId = generalId = null; undoCheckpoint = null; tombs = []; forgets = []; const g = ensureGeneral(); activeId = g.id; return active(); }
 
   // the persisted slice — App.persist() serializes this alongside { agent, usage }. The live records, except a session whose rows are not all here
   // (see the header): that one is handed out as a copy carrying its packed form, so a session nobody opened is written back as it was read.
@@ -445,6 +551,7 @@
     const i = ws.findIndex(w => w.id === id);
     if (i < 0) return false;
     ws.splice(i, 1);
+    dropSeals(id);   // what the page proved about a deleted conversation's rows goes with it
     delegatedAgents = null;
     if (tombs.indexOf(id) < 0) { tombs.push(id); if (tombs.length > MAX_TOMBS) tombs = tombs.slice(-MAX_TOMBS); }
     if (opts && opts.forget === true && forgets.indexOf(id) < 0) { forgets.push(id); if (forgets.length > MAX_TOMBS) forgets = forgets.slice(-MAX_TOMBS); }
@@ -978,6 +1085,7 @@
     visibleMessages, latestVisibleMessage, hasAgent,
     // PACKED HISTORIES (see the header): what a session holds before its named rows are read back, and the seam that reads them
     hasHistory, turnCount, hasUserTurn, needsHydration, pendingHydration, hydrate, setHistory, setHydrator, sourceIdsOf,
+    sealTurns, sealed, unseal, sealCandidates, noteSealRead,
     migrateV1, importTasks,
     LANES
   };

@@ -1659,6 +1659,7 @@ const App = (() => {
     return read > 0;
   }
   function armHistoryHydration() {
+    armSealSweep();   // the other idle pass: a page that has just read a save proves nothing until it asks (below)
     if (hydrationLoop || typeof Workstreams === 'undefined' || !Workstreams.pendingHydration || !Workstreams.pendingHydration().length) return false;
     const beat = async () => {
       hydrationWorked = await hydrateTick();
@@ -1667,6 +1668,42 @@ const App = (() => {
     const ms = () => hydrationWorked ? 1500 : 10000;
     if (typeof PollGate !== 'undefined' && PollGate.every) hydrationLoop = PollGate.every(beat, { ms, gap: true, immediate: false });
     else { let timer = setInterval(beat, 5000); hydrationLoop = { stop: () => clearInterval(timer) }; }
+    return true;
+  }
+
+  /* THE SEAL SWEEP (save v7, history by reference). A save names a row instead of repeating it only for a row this page has PROVED the
+     station holds, and a page that has just read a save has proved nothing: its seals are page memory. The rows a session saved inline
+     (every row of a v6 save, a last run's rows) are proved the way a hydration reads packed ones — by asking the station for them
+     (POST /api/transcript/rows) — SWEEP_IDS ids across at most SWEEP_STREAMS sessions a tick, the most recently active first. It runs only
+     while the page is idle (nothing while ANY run is live), keeps no cursor (every tick asks the page what is still unproven, so a reload
+     resumes where the page left off and nothing is stored), changes no conversation (a row that no longer equals what the station holds
+     simply stays inline) and saves once it has proved something, so the shorter save lands. A row with no row id is never asked about:
+     nothing is matched by content. It stops itself when nothing is left to ask. */
+  const SWEEP_IDS = 1000, SWEEP_STREAMS = 50, SWEEP_PAUSE_MS = 30000, SWEEP_SAVE_MS = 10000;
+  let sweepLoop = null, sweepWorked = true, sweepPausedUntil = 0, sweepTicking = false, sweepSavedAt = 0;
+  const sweepLeft = () => typeof Workstreams !== 'undefined' && !!Workstreams.sealCandidates && Workstreams.sealCandidates({ any: true }).length > 0;
+  async function sealSweepTick() {
+    if (sweepTicking || typeof Workstreams === 'undefined' || !Workstreams.sealCandidates || typeof Chat === 'undefined' || !Chat.sealRows) return false;
+    const live = () => typeof Channels !== 'undefined' && Channels.anyBusy && Channels.anyBusy();
+    if (live() || Date.now() < sweepPausedUntil) return false;
+    const batch = Workstreams.sealCandidates({ maxIds: SWEEP_IDS, maxStreams: SWEEP_STREAMS });
+    if (!batch.length) return false;
+    sweepTicking = true;
+    let got;
+    try { got = await Chat.sealRows(batch); } finally { sweepTicking = false; }
+    if (got.silent) sweepPausedUntil = Date.now() + SWEEP_PAUSE_MS;   // the station is not answering: ask nothing more for a while
+    if (got.sealed && typeof persist === 'function' && (Date.now() - sweepSavedAt >= SWEEP_SAVE_MS || !sweepLeft())) { sweepSavedAt = Date.now(); persist(); }
+    return got.asked > 0;
+  }
+  function armSealSweep() {
+    if (sweepLoop || !sweepLeft()) return false;
+    const beat = async () => {
+      sweepWorked = await sealSweepTick();
+      if (!sweepLeft() && sweepLoop) { sweepLoop.stop(); sweepLoop = null; }
+    };
+    const ms = () => sweepWorked ? 1500 : 10000;
+    if (typeof PollGate !== 'undefined' && PollGate.every) sweepLoop = PollGate.every(beat, { ms, gap: true, immediate: false });
+    else { let timer = setInterval(beat, 5000); sweepLoop = { stop: () => clearInterval(timer) }; }
     return true;
   }
 

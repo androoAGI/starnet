@@ -17,8 +17,9 @@
    `res`. expand(element) is the station's current copy with the residue laid over it, which is the original row. A row that
    drifted, lacks a field of its seal, or has no seal stays inline: the save gets bigger, never lossier.
 
-   NOTHING HERE IS LIVE YET. Nothing calls pack(), so a v7 envelope is still all inline history; this module and the version bump
-   land first so the one-way door (an older page refuses a v7 save) is taken before any packing exists.
+   WHO PACKS. Workstreams.serialize() hands pack() every hydrated session's history with the seals the page holds (workstreams.js:
+   filled by chat.js after every successful station read and by app.js's idle seal sweep). The version bump landed first so the one-way
+   door (an older page refuses a v7 save) was taken before any packing existed.
 
    Pure, UMD (the page, its website mirror and the tests load the SAME module, as turnmerge.js): no DOM, no clock, no randomness,
    no network — the reader is injected.
@@ -26,6 +27,7 @@
      encode(ids) -> "2t,1,1" | null          the run codec: first id, then signed deltas, base 36. decode(str) -> ids | null reads
                                              only the canonical form encode writes (a malformed string is null, never a guess)
      keyOf(streamId, rowId)                  the key a seal is held under: "<streamId>:<rowId>"
+     snapshotOf(turn) -> {…} | null          the copy of a station turn the page keeps as its seal (plain JSON, strings shared), null if it names no row
      isRef(el) / isStub(row) / hasRef(h)     a packed element / an exploded stub / does a history hold a packed element
      sealable(row, streamId)                 the SHAPE half of eligibility: a rowId, no collision, this stream's or none, not a kind the
                                              transcript does not own. Whether a seal matches is residueOf's
@@ -162,6 +164,14 @@
     }
     for (const k of Object.keys(b)) if (b[k] !== undefined) n--;
     return n === 0;
+  }
+
+  // The copy of a station turn the page keeps as its SEAL: a deep copy of plain JSON values (the rule a residue field follows), strings
+  // shared with the original (they never change), null for anything else or a turn that names no row. The page never mutates it.
+  function snapshotOf(turn) {
+    if (!isPlain(turn) || !isRowId(turn.rowId)) return null;
+    const copy = cloneJson(turn, 0);
+    return copy === NOT_JSON ? null : copy;
   }
 
   // ---- eligibility ------------------------------------------------------------------------------------------------------------
@@ -405,5 +415,5 @@
     return { v: 1, count: countOf(list), visible, latest, firstUser };
   }
 
-  return { SINCE_VERSION, MAX_RUN, MAX_IDS, encode, decode, keyOf, isRef, isStub, hasRef, sealable, residueOf, pack, explode, expand, idsOf, countOf, digestOf };
+  return { SINCE_VERSION, MAX_RUN, MAX_IDS, encode, decode, keyOf, isRef, isStub, hasRef, sealable, snapshotOf, residueOf, pack, explode, expand, idsOf, countOf, digestOf };
 });

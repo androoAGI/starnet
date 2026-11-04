@@ -128,6 +128,41 @@ try {
       A.eq(fs.readFileSync(kept, 'utf8'), keptBytes, 'and the kept copy was written once');
     } finally { JSON.stringify = realStringify; try { fs.rmSync(root2, { recursive: true, force: true }); } catch (_) {} }
   }
+
+  // ---- (7) a save that names its rows (save v7, step S5) costs what a save that repeats them costs: no read of the main, one stringify, one durable write ----
+  {
+    const HR = require('../frontend/app/historyref.js');
+    const root3 = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-save-cost-packed-'));
+    try {
+      const file3 = path.join(root3, 'agent.save.json');
+      const c3 = { reads: 0, fsyncs: 0, bigStringify: 0 }, fdPath3 = new Map();
+      const cfs3 = new Proxy(fs, { get(t, p) {
+        if (p === 'readFileSync') return function (f) { if (String(f) === file3) c3.reads++; return t.readFileSync.apply(t, arguments); };
+        if (p === 'openSync') return function (f) { const fd = t.openSync.apply(t, arguments); fdPath3.set(fd, String(f)); return fd; };
+        if (p === 'closeSync') return function (fd) { fdPath3.delete(fd); return t.closeSync(fd); };
+        if (p === 'fsyncSync') return function (fd) { if (/\.tmp$/.test(fdPath3.get(fd) || '')) c3.fsyncs++; return t.fsyncSync(fd); };
+        const v = t[p]; return typeof v === 'function' ? v.bind(t) : v;
+      } });
+      JSON.stringify = function (v) { const out = realStringify.apply(JSON, arguments); if (typeof out === 'string' && out.length > 100000) c3.bigStringify++; return out; };
+      let T3 = 1000;
+      const store3 = makeSaveStore({ fs: cfs3, pathMod: path, root: root3, clock: { now: () => ++T3 } });
+      // 120 sessions whose records are big enough to count (a long title each) and whose histories are one reference each
+      const rowsOf = i => Array.from({ length: 6 }, (_, j) => ({ rowId: i * 10 + j + 1, streamId: 'p' + i, role: j % 2 ? 'assistant' : 'user', kind: 'turn', ts: 1000 + j, content: 'line ' + i + '.' + j }));
+      const packedSessions = Array.from({ length: 120 }, (_, i) => ({ id: 'p' + i, title: 'session ' + i + ' ' + 'z'.repeat(1000),
+        history: HR.pack(rowsOf(i), { streamId: 'p' + i, seal: k => { const id = Number(k.split(':')[1]); return rowsOf(i).find(r => r.rowId === id) || null; } }) }));
+      A.ok(packedSessions.every(w => w.history.length === 1 && typeof w.history[0].$ref === 'string'), '(fixture) every history is one reference');
+      const envelope3 = (rev, tag) => ({ schema: 'starnet.save', version: 7, updatedAt: 100 + rev, _saveRevision: rev, _saveClient: 'tab1', agent: { id: 'agent', name: tag }, workstreams: packedSessions });
+      let r3 = store3.save('agent', envelope3(0, 'p0'), { compareRevision: true });
+      let rev3 = r3.revision;
+      for (let i = 1; i <= 4; i++) {
+        c3.reads = 0; c3.fsyncs = 0; c3.bigStringify = 0;
+        r3 = store3.save('agent', envelope3(rev3, 'p' + i), { compareRevision: true }); rev3 = r3.revision;
+        A.ok(r3.ok, 'packed persist ' + i + ' accepted');
+        A.eq([c3.reads, c3.fsyncs, c3.bigStringify], [0, 1, 1], 'packed persist ' + i + ' costs what a persist always did: no read of the main, one stringify, one durable write');
+      }
+      A.eq(store3.load('agent').workstreams[7].history[0].$ref, packedSessions[7].history[0].$ref, 'the station file keeps the references as bytes (it reads nothing of them)');
+    } finally { JSON.stringify = realStringify; try { fs.rmSync(root3, { recursive: true, force: true }); } catch (_) {} }
+  }
 } finally {
   try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}
 }

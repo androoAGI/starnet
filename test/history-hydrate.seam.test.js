@@ -252,7 +252,7 @@ async function scenarios(root) {
       const asked = env.tp.rowsCalls()[0].body;
       assert.deepEqual(Object.keys(asked.streams[0]).sort(), ['rowIds', 'streamId']); assert.equal(asked.streams[0].streamId, 'open');
       assert.equal(asked.streams[0].rowIds.length, env.original.open.length, 'it named the ids the save held, nothing else');
-      deepEq(W.serialize().workstreams.find(w => w.id === 'open').history, env.original.open, 'a persist now writes the rows inline (this step packs nothing)');
+      deepEq(W.serialize().workstreams.find(w => w.id === 'open').history, env.doc.workstreams.find(w => w.id === 'open').history, 'a persist now names the rows it has just read again: the very references (and page-only fields) the save it came from held (step S5 packs what the page has proved)');
       assert.equal((await p.api.hydrateHistory(ws)).complete, true); assert.equal(env.tp.rowsCalls().length, 1, 'a second read of a whole history asks nothing');
     });
 
