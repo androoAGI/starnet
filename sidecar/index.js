@@ -1928,7 +1928,7 @@ const transcriptIo = makeSegmentedTranscriptIo({
 const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, file: path.join(WORKSPACES, 'session-tombstones.json'),
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
-const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id),
+const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id), latestDeleteAt: () => sessionTombstones.latestAt(),
   runOf: id => runStore.latest(id), hash: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
   quotedMaterial: TrustedLearning.quotedMaterial, live: () => transcriptLiveRuns, pick: (...args) => turnDual.pick(...args) });
 const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
@@ -1937,7 +1937,7 @@ const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.create
   save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote,
   soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
 const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf,
-  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields) });
+  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields), runForgotten: runId => quoteForgottenRun(runId) });
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 /* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
@@ -1949,6 +1949,17 @@ const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptR
 const handlePromptScrub = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => PromptScrub.scrubStored(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
+/* A RUN THAT QUOTED A DELETED SESSION (turn identity commit 11): the run's own quote stamp - what its record carries (runStore
+   noteIdentity: quotes + quotesAt, and quotesSaturatedAt once saturated) - against the same ledger the store reads, by the ONE rule
+   (TurnKinds.quotesForgotten). The posted-window forget floor asks it for an id-less reply a page still holds (turn-window.js). */
+function quoteForgottenRun(runId) {
+  const id = String(runId || '');
+  if (!id) return false;
+  try {
+    const rec = runStore.latest(id);
+    return !!rec && TurnKinds.quotesForgotten(rec, sid => sessionTombstones.deletedAt(sid), () => sessionTombstones.latestAt());
+  } catch (e) { failNote('turn.quotes.run', e); return false; }
+}
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
 const dispatchDeliveryDeps = { runStore, transcriptStore, redact,
   hash: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
@@ -29869,8 +29880,10 @@ function transcriptRunSince(runId) {
   return at.length ? Math.min.apply(null, at) : 0;
 }
 function transcriptProjection(stream, rows) {
+  // forgotten: the rows of this read window the QUOTE rule hid (and the runs they came from) - the page's affirmative drop proof (TurnMerge R2/R4)
   return turnDual.project(stream, rows, { liveRunIds: transcriptLiveRuns,
-    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
+    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream),
+    forgotten: rows && rows[TurnView.FORGOTTEN] || undefined });
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
 async function handleTurnIdentitySoak(req, res) {

@@ -2,6 +2,9 @@
 'use strict';
 const Kinds = require('../frontend/app/turnkinds.js');
 const ROW_IDS = Symbol('starnet.transcript.row-ids');
+// non-enumerable side channel on a display result: { keys: [[streamId, rowId]...], runIds: [...] } of the rows the quote rule hid
+const FORGOTTEN = Symbol('starnet.transcript.forgotten');
+const FORGOTTEN_KEYS_MAX = 2000, FORGOTTEN_RUNS_MAX = 200;
 const hasId = row => row && Number.isSafeInteger(row.rowId) && row.rowId > 0;
 const text = row => typeof row.content === 'string' ? row.content : '';
 
@@ -80,6 +83,16 @@ function messages(rows, c, o, accept) {
   Object.defineProperty(out, ROW_IDS, { value: ids, enumerable: false });
   return out;
 }
+// the identity block's forgotten list from the rows the quote rule hid: keys (stream + rowId) and the runs those rows came from
+function forgottenOf(hidden) {
+  const keys = [], runIds = [], seenRuns = new Set();
+  for (const row of hidden) {
+    if (keys.length < FORGOTTEN_KEYS_MAX && hasId(row)) keys.push([row.streamId, row.rowId]);
+    const run = row.sourceRunId ? String(row.sourceRunId) : '';
+    if (run && runIds.length < FORGOTTEN_RUNS_MAX && !seenRuns.has(run)) { seenRuns.add(run); runIds.push(run); }
+  }
+  return { keys, runIds };
+}
 function project(name, input, ctx, opts) {
   if (!Kinds.VIEWS.includes(name)) throw new Error('unknown transcript view: ' + name);
   const o = opts || {}, raw = (Array.isArray(input) ? input : []).filter(hasId);
@@ -88,7 +101,14 @@ function project(name, input, ctx, opts) {
   if (name === 'proof') return raw.map(row => Object.assign({}, row));
   const c = context(raw, ctx || {});
   const targets = retractions(raw, c.retractions);
-  let rows = raw.filter(row => !(typeof c.forgotten === 'function' && c.forgotten(row)) && row.kind !== 'retract' &&
+  // the rows the QUOTE rule hid (a row that quotes a session deleted since): the page's affirmative drop proof (identity.forgotten)
+  const hiddenByQuote = [];
+  const forgottenRow = row => {
+    if (typeof c.forgotten !== 'function' || !c.forgotten(row)) return false;
+    if (typeof c.quoteForgotten === 'function' && c.quoteForgotten(row)) hiddenByQuote.push(row);
+    return true;
+  };
+  let rows = raw.filter(row => !forgottenRow(row) && row.kind !== 'retract' &&
     (!targets.has(row.rowId) || (name === 'display' && targets.get(row.rowId) === 'retry' && o.hideRetry !== true)) &&
     !(o.excludeTurnId && row.turnId === o.excludeTurnId) &&
     !(Number.isSafeInteger(o.beforeRowId) && row.rowId >= o.beforeRowId) &&
@@ -108,6 +128,7 @@ function project(name, input, ctx, opts) {
   if (name === 'model-replay' && o.rows !== true) return messages(rows, c, o);
   const out = rows.map(row => Object.assign({}, row));
   if (name === 'model-replay') Object.defineProperty(out, PROJECTED_ROWS, { value: { context: c, options: o } });
+  if (name === 'display') Object.defineProperty(out, FORGOTTEN, { value: forgottenOf(hiddenByQuote), enumerable: false });
   return out;
 }
 // Channel hop admission filters one already-visible assembly. Keep its classifier context (accepted
@@ -128,4 +149,4 @@ function concat(...arrays) {
     value: arrays.flatMap(array => Array.isArray(array[ROW_IDS]) ? array[ROW_IDS] : array.map(() => null)), enumerable: false });
   return out;
 }
-module.exports = { ROW_IDS, project, ownerRow, slice, concat, messages: projectedMessages };
+module.exports = { ROW_IDS, FORGOTTEN, project, ownerRow, slice, concat, messages: projectedMessages };

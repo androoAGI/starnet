@@ -17,7 +17,7 @@
    agent's own fs.* tools can neither read nor corrupt the record of its own conversations. Legacy
    transcript.jsonl(.1) inputs remain in place after import. It holds no key (those are stored separately).
 
-     makeTranscriptStore({ io, clock, redact?, limit?, deletedAt? }) -> {   // deletedAt: the deleted-session ledger (see below)
+     makeTranscriptStore({ io, clock, redact?, limit?, deletedAt?, latestDeleteAt? }) -> {   // deletedAt, latestDeleteAt: the deleted-session ledger (see below)
        append({ streamId, agentId, role, content }) -> entry,   // stamps ts, redacts content, appends, returns it
        history(streamId, { limit }?) -> entry[],   // CHRONOLOGICAL (oldest-first) for replay; last `limit` of that stream
        all() -> entry[],   count() -> int
@@ -245,18 +245,49 @@
        returns only a taint source, never a word of dialogue, and a copy of the history held elsewhere still carries
        whatever taint its rows had. */
     const deletedAt = typeof opts.deletedAt === 'function' ? opts.deletedAt : null;
+    /* QUOTE PROVENANCE (turn identity commit 11). opts.latestDeleteAt() -> ms is the ledger's newest NON-ADOPTED delete (0 = none):
+       the only thing the saturated stamp ['*'] reads. A row is also forgotten when it QUOTES a session deleted at or after the
+       read that put the words in it (TurnKinds.quotesForgotten: the row's quotes + quotesAt against the ledger). That rule never
+       reads row.ts, so a row drained after the delete (a held write, a text-only answer deferred to run end) is forgotten like
+       one written before it. ONE predicate: every legacy reader below, TurnView's ctx.forgotten and isForgotten are this function. */
+    const latestDeleteAt = typeof opts.latestDeleteAt === 'function' ? opts.latestDeleteAt : null;
+    function quoteForgotten(r) {
+      return !!deletedAt && !!r && Array.isArray(r.quotes) && r.quotes.length > 0 && TurnKinds.quotesForgotten(r, deletedAt, latestDeleteAt);
+    }
     function forgotten(r) {
       if (!deletedAt || !r) return false;
       const at = num(deletedAt(r.streamId));
-      return at > 0 && num(r.ts) <= at;
+      if (at > 0 && num(r.ts) <= at) return true;
+      return quoteForgotten(r);
     }
     function keep(list) { return deletedAt ? list.filter(r => !forgotten(r)) : list; }
     function viewContext() {
-      return { forgotten, runOf: opts.runOf, hash: opts.hash, projectConversation,
+      return { forgotten, quoteForgotten, runOf: opts.runOf, hash: opts.hash, projectConversation,
         isCollided: rowId => typeof io.isCollided === 'function' && io.isCollided(rowId),
         isFinalDeliveryRow: row => isFinalDeliveryRow(row, opts.hash, ((typeof opts.runOf === 'function' && opts.runOf(row.sourceRunId)) || {}).dispatchDelivery),
         rowTaint, quotedMaterial: opts.quotedMaterial, live: typeof opts.live === 'function' ? opts.live() : opts.live,
         selfTalkRuns, note: failNote };
+    }
+    /* THE POSTED WINDOW'S FORGET FLOOR (commit 11). A page or phone that posts its own copy of the history cannot be trusted to
+       have heard of a delete yet, so the host drops a posted row only on THIS store's proof: which of one stream's rowIds does
+       the predicate above forget? Each is looked up in the RAM mirror, else read by id from disk (a proof read: forgotten rows
+       included). Answers a Map(rowId -> true | false | null): true = the stored row is forgotten (tombstone or quote rule),
+       false = it is not, null = the row cannot be read at all. Never returns a row's text. */
+    function forgetVerdicts(streamId, rowIds) {
+      const out = new Map(), want = new Set(), sid = str(streamId);
+      for (const id of Array.isArray(rowIds) ? rowIds : []) if (Number.isSafeInteger(id) && id > 0) want.add(id);
+      if (!want.size || !SID_RE.test(sid)) return out;
+      const held = new Map();
+      for (const r of rows) if (r.streamId === sid && want.has(r.rowId)) held.set(r.rowId, r);
+      const missing = [...want].filter(id => !held.has(id));
+      if (missing.length && typeof io.readByIds === 'function') {
+        try {
+          const found = io.readByIds(missing);
+          if (found instanceof Map) for (const [id, row] of found) if (row && row.streamId === sid) held.set(Number(id), row);
+        } catch (error) { failNote('transcript.forget-floor', error); }
+      }
+      for (const id of want) out.set(id, held.has(id) ? forgotten(held.get(id)) : null);
+      return out;
     }
     function ownerProof(rowIds) {
       if (!TurnView || typeof io.readByIds !== 'function') return new Map();
@@ -1186,7 +1217,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten,
+      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten, isQuoteForgotten: quoteForgotten, forgetVerdicts,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

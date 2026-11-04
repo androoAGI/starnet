@@ -135,6 +135,18 @@ function makeSessionTombstones(deps) {
     const at = deletedAt(streamId);
     return at > 0 && num(ts) <= at;
   }
+  /* latestAt() -> ms: the newest stamp of a delete the Commander MADE after this ledger first read the save (0 = none). An adopted
+     stamp (the first read's) is skipped: it records when the ledger learned of an old delete, not when a delete happened, so it
+     must not read as "a delete since" to a run whose rows say they may have read any session (the saturated quote stamp, commit
+     11: latestDeleteAt() >= the run's saturation time). unpurged() skips adopted stamps for the same reason (they are born purged). */
+  function latestAt() {
+    let latest = 0;
+    for (const id of Object.keys(state.streams)) {
+      const e = state.streams[id];
+      if (e.adopted !== true && e.at > latest) latest = e.at;
+    }
+    return latest;
+  }
   // the deletions whose derived memory has not been purged for their current stamp: [{ id, at }], oldest first
   function unpurged() {
     return Object.keys(state.streams).map(id => ({ id, at: state.streams[id].at, purged: state.streams[id].purged }))
@@ -155,7 +167,7 @@ function makeSessionTombstones(deps) {
   function list() {
     return Object.keys(state.streams).map(id => Object.assign({ id }, state.streams[id]));
   }
-  return { observe, observeSave, deletedAt, forgotten, unpurged, markPurged, adopted, list, since: () => state.since, status: () => status, file: store.file };
+  return { observe, observeSave, deletedAt, forgotten, latestAt, unpurged, markPurged, adopted, list, since: () => state.since, status: () => status, file: store.file };
 }
 
 /* ---- what a deleted session left in memory ---- */

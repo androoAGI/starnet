@@ -33,6 +33,7 @@ const RunOutcome = require('../../frontend/app/runoutcome.js');
 const TurnKinds = require('../../frontend/app/turnkinds.js');
 const TurnMerge = require('../../frontend/app/turnmerge.js');
 const TurnWindow = require('../turn-window.js');
+const TurnView = require('../turn-view.js');   // the display view's forgotten side channel rides to the identity block (commit 11)
 
 const TEXT_FLUSH_MS = 250;
 
@@ -97,7 +98,13 @@ function makeRemoteHost(d) {
   }
   const STATION_TURNS = 2000;
   function stationTurns(streamId, limit, more) {
-    try { return (d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || []).filter(keeps(more)); }
+    try {
+      const rows = d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || [];
+      const kept = rows.filter(keeps(more));
+      // the rows the quote rule hid ride along (non-enumerable), so the merge below drops this phone's cached copies of them (TurnMerge R2/R4)
+      if (rows[TurnView.FORGOTTEN]) Object.defineProperty(kept, TurnView.FORGOTTEN, { value: rows[TurnView.FORGOTTEN], enumerable: false });
+      return kept;
+    }
     catch (e) { note('remote.host.stationTurns', e); return []; }
   }
   /* ONE CONVERSATION, TWO COPIES: the desk's save (its own order, its status lines) and the station's transcript

@@ -14,6 +14,10 @@
      quoteStamp(entries)              [{id, at}] (a bare string is {id, at: 0}) -> { quotes, quotesAt }: up to 32
                                       distinct ids with their read times aligned; more, or any '*', is the
                                       saturated stamp { quotes: ['*'], quotesAt: [min at] }; {} for none
+     quotesForgotten(stamp, deletedAt, latestDeleteAt)   the ONE forget rule of a quote stamp (a row's or a run record's quotes + quotesAt):
+                                      true once any quoted stream was deleted at or after its read time, or, for the saturated ['*'],
+                                      once any non-adopted delete is stamped at or after its time; never reads a row's ts (commit 11)
+     quoteEntriesOf(runs, now)        the quote entries [{id, at: now}] of a composed text: the distinct stream of every run with delivery text
      stationTime(clientTs, clientNow, now)   the station time of a client instant, from the client's own elapsed
                                       time (now - (clientNow - clientTs)), so a client clock's offset cancels
      clientTurnTime(body, now)        { turnAt, clientClock: { clientNow, at } } for a body carrying a usable
@@ -110,6 +114,47 @@
     if (!saturated && !ids.length) return {};
     if (saturated || ids.length > QUOTES_MAX) return { quotes: [SATURATED], quotesAt: [minAt] };
     return { quotes: ids, quotesAt: ids.map(id => firstAt.get(id)) };
+  }
+
+  /* QUOTE PROVENANCE, THE ONE RULE (commit 11). A quote stamp (a row's or a run record's quotes + quotesAt) names the sessions
+     whose words the writer had read when it wrote. It is forgotten once ANY of them was deleted at or after the read began
+     (deletedAt(id) >= its quotesAt: the read epoch of the first dispatch that read it, so a delete that lands while a read is in
+     flight counts), whatever the row's own time says: the rule never looks at row.ts, and a row drained after the delete is
+     forgotten like one drained before it. The saturated stamp ['*'] ("this writer may have read sessions it never recorded")
+     reads no list: it is forgotten as soon as ANY non-adopted delete is stamped at or after its time, latestDeleteAt() >= satAt.
+     A stamp with no times counts every time as 0, so any delete of a named stream forgets it. deletedAt(id) is 0 for a stream
+     never deleted; latestDeleteAt() is 0 when no non-adopted delete exists. stamp.quotesSaturatedAt (a run record's own field)
+     is the same saturated rule. Pure: the ledger is the caller's. */
+  function quotesForgotten(stamp, deletedAt, latestDeleteAt) {
+    if (!stamp || typeof stamp !== 'object') return false;
+    const quotes = Array.isArray(stamp.quotes) ? stamp.quotes : [];
+    const times = Array.isArray(stamp.quotesAt) ? stamp.quotesAt : [];
+    const when = i => (isSafeNonNeg(times[i]) ? times[i] : 0);
+    const latest = () => { try { return typeof latestDeleteAt === 'function' ? Number(latestDeleteAt()) || 0 : 0; } catch (_) { return 0; } };
+    if (isSafeNonNeg(stamp.quotesSaturatedAt)) { const l = latest(); if (l > 0 && l >= stamp.quotesSaturatedAt) return true; }
+    if (!quotes.length) return false;
+    const marker = quotes.indexOf(SATURATED);
+    if (marker >= 0) { const l = latest(); if (l > 0 && l >= when(marker)) return true; }
+    if (typeof deletedAt !== 'function') return false;
+    for (let i = 0; i < quotes.length; i++) {
+      if (i === marker || typeof quotes[i] !== 'string') continue;
+      let d = 0;
+      try { d = Number(deletedAt(quotes[i])) || 0; } catch (_) { d = 0; }
+      if (d > 0 && d >= when(i)) return true;
+    }
+    return false;
+  }
+  // The streams a composed text drew on, as quote entries: the distinct stream of every run in `runs` that has delivery text
+  // (the away briefing quotes each briefed run's session), each read at `now`. Conservative: a run with words is a quote.
+  function quoteEntriesOf(runs, now) {
+    const at = isSafeNonNeg(now) ? now : 0, seen = new Set(), out = [];
+    for (const r of Array.isArray(runs) ? runs : []) {
+      const id = r && typeof r.streamId === 'string' ? r.streamId : '';
+      if (!id || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || seen.has(id)) continue;
+      if (typeof r.deliveryText !== 'string' || !r.deliveryText.trim()) continue;
+      seen.add(id); out.push({ id, at });
+    }
+    return out;
   }
 
   // a client instant in station time: the client's own elapsed time since it (clientNow - clientTs), subtracted from
@@ -344,7 +389,7 @@
 
   return {
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
-    QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
+    QUOTES_MAX, SATURATED, quoteStamp, quotesForgotten, quoteEntriesOf, stationTime, clientTurnTime,
     KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind,
     mediaKindOf, DELIVERABLE_MEDIA, DELIVERABLE_PATH_MAX, DELIVERABLE_ROOT_MAX, deliverablePathProblem, deliverableRootProblem, deliverableFields, artifactIdOf, sameDeliverable,
     VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
