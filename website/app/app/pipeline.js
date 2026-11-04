@@ -682,6 +682,10 @@
           if (cEsc && ll.esc === cEsc) escExplicit[key(t.x, t.y)] = true;   // configured: never re-guessed
           // optional verdict tag: re-enter ONLY when the output's tag matches (else every pass loops until max)
           if (typeof p.when === 'string' && /^[A-Za-z0-9_.:-]{1,40}$/.test(p.when)) cfg.when = p.when;
+          /* onSpent (line-hold lane): what the gate does when its passes run out with the work still unapproved — 'hold' stops the
+             job for a person, 'escalate' sends it down the escalation lane. Absent (the default, 'send') is how a gate always ran:
+             the work goes on marked unapproved, so a floor that never set it compiles to the very same plan and hash. */
+          if (p.onSpent === 'hold' || p.onSpent === 'escalate') cfg.onSpent = p.onSpent;
           // LOOP_NO_DONE (rule fixed 2026-08-22): an UNSET `done` takes the compiler's own default — the first
           // exit in E,S,W,N order — and that is a working gate, not a finding (every user-drawn loop used to
           // nag). Warn only when NO exit qualifies, or when a configured `done` names a lane that is not an
@@ -873,15 +877,20 @@
       if (!jc.backTo && !r.uncrewed) errors.push({ code: 'LOOP_NO_BACK', tile: { x: jx, y: jy }, warn: true });
     }
     /* LOOP escTo (2026-08-30) — the first dock the ESCALATION lane reaches, resolved exactly like backTo
-       so the runner escalates by name instead of walking at run time. An esc lane to an OUTBOX resolves
-       null: exhausted work then ships out on the esc lane (still honest — the crate leaves marked). */
+       so the runner escalates by name instead of walking at run time. An esc lane that reaches NO dock but ships out into an
+       OUTBOX resolves escTo null and escOutbox = that OUTBOX's id (line-hold lane, S2; gateDocks only, outside the hash): a
+       gate set to onSpent 'escalate' ends the crate THERE, marked unapproved, with no agent invented to run it. (This comment used
+       to say exhausted work "ships out on the esc lane"; the runner never did — it left on the done lane.) */
+    const outAt = outAtOf(outs);
     for (const jk in junctions) {
       const jc = junctions[jk];
       if (jc.kind !== 'loop' || !jc.esc) continue;
       const p0 = jk.split(','), jx = +p0[0], jy = +p0[1];
       const r = laneFirstDock(map, junctions, bayTileToDock, jx, jy, jc.esc, null);
       jc.escTo = r.dock ? agentOfDock[r.dock] : null;
-      (gateDocks[jk] = gateDocks[jk] || { backTo: null, escTo: null }).escTo = r.dock;
+      const gd = (gateDocks[jk] = gateDocks[jk] || { backTo: null, escTo: null });
+      gd.escTo = r.dock;
+      if (!r.dock) { const ob = laneOutbox(map, junctions, bayTileToDock, outAt, jx, jy, jc.esc); if (ob) gd.escOutbox = ob; }
     }
     const cyc = detectCycle(map, junctions);
     if (cyc) errors.push({ code: 'CYCLE', tile: cyc });
@@ -1137,7 +1146,7 @@
     plan.agentOfDock = agentOfDock;   // dockId -> the agent crewing it (every bound bay, beltless included)
     plan.docksOfAgent = docksOfAgent; // agentId -> [dockId…] oldest first (propIdCmp)
     plan.reachDock = reachDock;       // dockId -> an INBOX reaches it
-    plan.gateDocks = gateDocks;       // loop junction key -> { backTo: dockId|null, escTo: dockId|null }
+    plan.gateDocks = gateDocks;       // loop junction key -> { backTo: dockId|null, escTo: dockId|null, escOutbox?: outboxId } (escOutbox only when the esc lane ships into an OUTBOX and no dock)
     plan.lineOfDock = lineOfDock;     // dockId -> lineId
     plan.entryDock = entryDock;       // agentId -> the dock work ADDRESSED to the agent enters at
     for (const d of dockBays) { const l = lineOfProp[d.propId]; if (l) d.lineId = l; }
@@ -1326,6 +1335,29 @@
     return { dock: null, uncrewed: false };
   }
 
+  // OUTBOX mouth tile -> that OUTBOX's id (as a string), from plan.outs: the first prop to claim a tile owns it (chainStepDock's own reading)
+  function outAtOf(outs) {
+    const m = {};
+    for (const o of (outs || [])) if (o && o.tile && o.propId != null && !m[key(o.tile.x, o.tile.y)]) m[key(o.tile.x, o.tile.y)] = String(o.propId);
+    return m;
+  }
+  /* laneOutbox(map, junctions, dockAt, outAt, jx, jy, dir) -> the id of the OUTBOX a lane SHIPS INTO when it reaches no dock, else
+     null (line-hold lane S2). The same walk laneFirstDock takes (first lane at each junction), remembering the last OUTBOX mouth it
+     passed; the belt running out is the crate shipping out into it — exactly how chainStepDock's walk names the OUTBOX a job landed in
+     (ended()). A dock reached first (that lane is a dock, not an OUTBOX), a lane that never ends (a CYCLE, already an error) or one
+     that passes no OUTBOX answers null. */
+  function laneOutbox(map, junctions, dockAt, outAt, jx, jy, dir) {
+    const v = DIRV[dir]; if (!v) return null;
+    let t = { x: jx + v[0], y: jy + v[1] }, guard = 0, last = null; const seen = {};
+    while (t && map[key(t.x, t.y)] && guard++ < 4096 && !seen[key(t.x, t.y)]) {
+      const k2 = key(t.x, t.y); seen[k2] = true;
+      if (dockAt[k2]) return null;
+      if (outAt[k2]) last = outAt[k2];
+      const nts = nextTiles(map, junctions, t); t = nts[0] || null;
+    }
+    return t ? null : last;
+  }
+
   // dockId -> does an INBOX reach it? BFS from every feed mouth; a dock CONSUMES the box (no expansion past it).
   function dockReachOf(plan, cyclic) {
     const out = {}, dockAt = plan.bayTileToDock || {}, map = plan.belts || {}, junctions = plan.junctions || {};
@@ -1360,13 +1392,15 @@
     const base = Object.assign({}, p, { bayTileToDock });
     const cyclic = (p.errors || []).some(e => e && e.code === 'CYCLE');
     const reachDock = dockReachOf(base, cyclic);
-    const gateDocks = {};
+    const gateDocks = {}, outAt = outAtOf(p.outs);
     for (const jk in junctions) {
       const jc = junctions[jk];
       if (!jc || jc.kind !== 'loop') continue;
       const q = jk.split(','), jx = +q[0], jy = +q[1];
       gateDocks[jk] = { backTo: jc.back ? laneFirstDock(map, junctions, bayTileToDock, jx, jy, jc.back, null).dock : null,
                         escTo: jc.esc ? laneFirstDock(map, junctions, bayTileToDock, jx, jy, jc.esc, null).dock : null };
+      // an esc lane that reaches no dock but an OUTBOX (the compile's own reading, S2)
+      if (jc.esc && !gateDocks[jk].escTo) { const ob = laneOutbox(map, junctions, bayTileToDock, outAt, jx, jy, jc.esc); if (ob) gateDocks[jk].escOutbox = ob; }
     }
     const dockChains = compileDockChains(base, agentOfDock);
     const docksOfAgent = docksOfAgentOf(agentOfDock);
@@ -1532,7 +1566,7 @@
        so the hand-off goes from the OUTBOX the job really landed in, never from another one on the same line. */
     const reach = (ctx && ctx.reach && typeof ctx.reach === 'object') ? ctx.reach : null;
     let outAt = null;
-    if (reach) { outAt = {}; for (const o of (plan.outs || [])) if (o && o.tile && o.propId != null && !outAt[key(o.tile.x, o.tile.y)]) outAt[key(o.tile.x, o.tile.y)] = String(o.propId); }
+    if (reach) outAt = outAtOf(plan.outs);
     const walkNode = r => (r && r.dockId) ? { dockId: r.dockId, agentId: r.agentId } : null;
     const gateNode = d => d ? nodeOf(L, d) : null;
     // a lane with no static next dock is still a step when a LOOP/JOIN gate sits on it (rec.gated) — the
@@ -1576,6 +1610,10 @@
           // as `afterJoin` — walkNode alone dropped it, so the reviewed work never reached the barrier and the joiner timed out
           const after = (nt && map[key(nt.x, nt.y)]) ? walk(nt, null, quiet) : null;
           const ls = { loop: k, max: j.max || LOOP_MAX_DEFAULT, backTo: gateNode(g.backTo), when: j.when || null, esc: gateNode(g.escTo), next: walkNode(after) };
+          // (line-hold lane S2, both only when set, so every older floor's step is byte for byte what it was) escOutbox: an esc lane
+          // that reaches no dock ships into this OUTBOX; onSpent: the gate's policy when its passes run out ('hold' | 'escalate')
+          if (g.escOutbox) ls.escOutbox = g.escOutbox;
+          if (j.onSpent) ls.onSpent = j.onSpent;
           if (after && after.join) ls.afterJoin = after;
           return ls;
         } else if (j && j.kind === 'split' && j.fanout) {
@@ -1621,7 +1659,7 @@
     if (s.dockId) return { agentId: s.agentId };
     if (s.branches) { const out = []; for (const b of s.branches) { const x = a(b); if (x && out.indexOf(x) < 0) out.push(x); } return s.divide ? { branches: out, split: s.split, divide: true } : { branches: out, split: s.split }; }
     if (s.join) return { join: s.join, expect: s.expect, timeoutMin: s.timeoutMin, next: a(s.next) };
-    if (s.loop) { const o = { loop: s.loop, max: s.max, backTo: a(s.backTo), when: s.when, esc: a(s.esc), next: a(s.next) }; if (s.afterJoin) o.afterJoin = { join: s.afterJoin.join, expect: s.afterJoin.expect, timeoutMin: s.afterJoin.timeoutMin, next: a(s.afterJoin.next) }; return o; }
+    if (s.loop) { const o = { loop: s.loop, max: s.max, backTo: a(s.backTo), when: s.when, esc: a(s.esc), next: a(s.next) }; if (s.escOutbox) o.escOutbox = s.escOutbox; if (s.onSpent) o.onSpent = s.onSpent; if (s.afterJoin) o.afterJoin = { join: s.afterJoin.join, expect: s.afterJoin.expect, timeoutMin: s.afterJoin.timeoutMin, next: a(s.afterJoin.next) }; return o; }
     return s;
   }
   function chainStep(plan, agentId, ctx, pick) {

@@ -88,15 +88,20 @@ function effectiveLimits(raw, fallback, poolCap) {
    (routing/steptest.js) runs one dock at a time on the SAME decisions, never a second dialect of them.
    advance() calls each exactly where its inline code used to sit; behaviour is byte-for-byte unchanged. */
 
-/* loopDecision(step, ctx, n, visited, text) -> { again, target, text, exhausted, why? } — THE ONE LOOP RULE
+/* loopDecision(step, ctx, n, visited, text) -> { again, target, text, exhausted, why?, outboxId? } — THE ONE LOOP RULE
    (2026-08-22, matches the LOOP card word for word):
-     when = a VERDICT word   -> the crate goes BACK while the reviewer's verdict is NOT that word
-                                (no verdict line = not that word); leaves on DONE the moment it is;
-     when = a classifier tag -> goes back while the output still READS as that kind of work;
+     when = a VERDICT word   -> the crate goes BACK while the reviewer's verdict is NOT that word (a VERDICT: revise);
+                                leaves on DONE the moment it is. A reply the gate cannot read — VERDICT: blocked, or NO usable
+                                verdict (none, empty, a word the channel does not know) — HOLDS the job for a person instead:
+                                { held: true, reason: 'blocked' | 'missing_verdict' | 'spent', gateId, pass, why }, zero spend,
+                                never another paid pass, never the done lane, never the escalation lane (line-hold lane, S2);
+     when = a classifier tag -> goes back while the output still READS as that kind of work (a tag gate reads no verdict: unchanged);
      no when                 -> every pass goes back;
    and in every case MAX PASSES ends it on DONE. A `when` still unmet when the passes ran out marks the
    done-lane handoff EXHAUSTED so the downstream stage knows nobody approved it (and `why` says so in words for the job's own
-   out.unapproved — GitHub #122). `n` = passes already taken
+   out.unapproved — GitHub #122), unless the gate's compiled `onSpent` policy says otherwise: 'send' (the default, all of the
+   above), 'hold' (hold with reason 'spent') or 'escalate' (the escalation lane: a dock, or an OUTBOX the lane only reaches —
+   step.escOutbox, where the crate ENDS marked unapproved; with no lane to take, hold). `n` = passes already taken
    round this gate; `text` = the output about to be handed on (returned annotated). Pure: mutates nothing.
    `reviewed` (token-burn audit 2026-10-17) = what the reviewing stage was HANDED. The writer used to see its own draft on a
    loop-back only because the resume seed replayed the line's whole transcript into every hop; hops no longer take that
@@ -205,18 +210,30 @@ function heldStop(gateAfter, agentId, lineId, dockId, verdict) {
   if (verdict !== Verdict.BLOCKED || typeof gateAfter !== 'function') return null;
   try {
     const g = dockId ? gateAfter(agentId, lineId, dockId) : gateAfter(agentId, lineId);
-    return (g && Verdict.isVerdictWord(g.when)) ? LineFire.lineStop('blocked', { loop: g.loop }) : null;
+    // gateId rides beside the typed stop so the walk can say WHICH gate it held at (out.hold), exactly as a gate decision does
+    return (g && Verdict.isVerdictWord(g.when)) ? Object.assign(LineFire.lineStop('blocked', { loop: g.loop }), { gateId: String(g.loop) }) : null;
   } catch (e) { failNote('chain.held-by-brief', e); return null; }
 }
-// heldStop(...) -> the hold as its typed stop { code: 'blocked', why } (line-job-runner); heldByBrief(...) -> its words alone
+// heldStop(...) -> the hold as its typed stop { code: 'blocked', why, gateId } (line-job-runner); heldByBrief(...) -> its words alone
 function heldByBrief(gateAfter, agentId, lineId, dockId, verdict) { const h = heldStop(gateAfter, agentId, lineId, dockId, verdict); return h ? h.why : null; }
+/* heldDecision(step, reason, n, text, exhausted) -> loopDecision's answer for a job that STOPS at the gate for a person: held, with
+   the reason (line-continuation.js holdRecord's three), the gate and the pass it stopped on, and the one sentence that says why. */
+function heldDecision(step, reason, n, text, exhausted) {
+  return { again: false, target: null, text, exhausted: !!exhausted, held: true, reason, gateId: String(step.loop), pass: n,
+    why: Verdict.heldWhy(step.loop, reason) };
+}
 function loopDecision(step, ctx, n, visited, text, reviewed) {
   const byVerdict = Verdict.isVerdictWord(step.when);
-  /* A REVIEWER'S VERDICT: blocked HOLDS the work at a verdict-keyed gate (typed-outcomes, GitHub #122): never 'revise' (another
-     paid pass), never the done lane or the escalation lane (work nobody approved moving on). held: the walk stops here, says
-     why, and spends nothing more; the durable hold and its resume are the line-hold lane's. */
-  if (byVerdict && ctx && ctx.verdict === Verdict.BLOCKED) {
-    return { again: false, target: null, text, exhausted: false, held: true, why: Verdict.heldWhy(step.loop) };
+  /* A VERDICT-KEYED GATE HOLDS WHAT IT CANNOT READ (typed-outcomes GitHub #122; line-hold lane S2). A reviewer's VERDICT: blocked
+     is a stop ('blocked'); so is a reply with NO usable verdict — none, empty, or a word the channel does not know
+     ('missing_verdict'): it used to read as 'revise', five paid passes round the gate and then the work shipped on unapproved.
+     Either way: never 'revise' (another paid pass), never the done lane or the escalation lane (work nobody approved moving on).
+     held: the walk stops here, says why, and spends nothing more; the durable hold and its resume are the line-hold lane's.
+     A tag-keyed gate reads no verdict: it is not asked. */
+  if (byVerdict) {
+    const v = ctx ? ctx.verdict : null;
+    if (v === Verdict.BLOCKED) return heldDecision(step, 'blocked', n, text, false);
+    if (Verdict.VERDICT_WORDS.indexOf(v) < 0) return heldDecision(step, 'missing_verdict', n, text, false);
   }
   const wants = !step.when ? true : byVerdict ? (ctx.verdict !== String(step.when).toLowerCase()) : (ctx.tag === step.when);
   const again = step.backTo && n < step.max && wants;
@@ -254,6 +271,12 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
        the job record read it, so work nobody approved is never delivered downstream as if it were (the flow itself is unchanged) */
     why = 'the review loop used all ' + n + ' pass' + (n === 1 ? '' : 'es')
       + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when);
+    /* THE GATE'S POLICY WHEN ITS PASSES RUN OUT (onSpent, compiled from the LOOP prop — pipeline.js; absent = 'send', everything
+       below as it always was): 'hold' stops the job here for a person, zero further spend ('spent'); 'escalate' takes the
+       escalation lane and, when that lane has nowhere to take the work (no esc lane, its dock already ran), holds rather than
+       send work nobody approved down the done lane — an operator who asked for escalation did not ask for that. */
+    const policy = (step.onSpent === 'hold' || step.onSpent === 'escalate') ? step.onSpent : 'send';
+    if (policy === 'hold') return heldDecision(step, 'spent', n, text, true);
     /* THE ESCALATION LANE (2026-08-30): a gate with a third wired lane sends verdict-exhausted
        work THERE — a fresh dock (the fixer, the human-facing summarizer) instead of an apology
        stapled to the done lane. The escalated dock is a real stage: its output continues down
@@ -265,6 +288,17 @@ function loopDecision(step, ctx, n, visited, text, reviewed) {
       out = '[LOOP — escalated: ' + n + ' pass' + (n === 1 ? '' : 'es') + ' round the gate at ' + step.loop
         + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when)
         + ' — handed to the escalation lane]\n' + workBlock + text;   // the fixer needs the work, not only the notes on it
+    } else if (policy === 'escalate') {
+      /* AN ESCALATION LANE THAT ONLY REACHES AN OUTBOX (step.escOutbox, pipeline.js): the escalated crate ENDS there — marked
+         unapproved, no dock invented to run it, and like any crate that ships straight out it keeps the reviewer's word (the draft
+         the reviewer may have redacted is never put back). A lane to nowhere is a hold, not the done lane. */
+      if (!step.escOutbox) return heldDecision(step, 'spent', n, text, true);
+      const outboxId = String(step.escOutbox);
+      why += ', so the work went to the escalation OUTBOX unapproved';
+      out = '[LOOP — escalated: ' + n + ' pass' + (n === 1 ? '' : 'es') + ' round the gate at ' + step.loop
+        + (byVerdict ? ' without VERDICT: ' + String(step.when).toLowerCase() : ' while the output still read as ' + step.when)
+        + ' — sent to the escalation OUTBOX unapproved]\n' + text;
+      return { again: false, target: null, text: out, exhausted, why, outboxId };
     } else {
       why += ', so the work went on unapproved';
       // a downstream dock gets the unapproved work with the notes; a crate that ships straight out keeps the reviewer's word
@@ -566,7 +600,9 @@ function makeChainRunner(o) {
        `agentId` who produced it, `stopped` a short honest reason when the line did not run to its end (null
        when it did), and `stop` the same stop TYPED (line-job-runner): { code (RunOutcome.LINE_STOPS), why (=== stopped:
        routing/line-fire.js lineStop's one sentence), agentId, dockId? (the stage the job stopped at) }, absent when it ran
-       to its end. Never throws: a chain is an enhancement to a reply the caller already holds. */
+       to its end. A job that stopped AT A GATE for a person (stop.code 'blocked', out.blocked set) also carries
+       `hold` = { reason ('blocked' | 'missing_verdict' | 'spent'), gateId (the LOOP junction), pass (passes taken round it), why }.
+       Never throws: a chain is an enhancement to a reply the caller already holds. */
   async function advance(seed) {
     const evidence = { workitemIds: [] };
     const out = await advanceLine(seed, evidence);
@@ -657,6 +693,13 @@ function makeChainRunner(o) {
       if (st.code === 'stopped') out.halted = true;
       if (st.code === 'blocked') out.blocked = st.why;
       return out;
+    };
+    /* A HOLD (line-hold lane): the walk stopped AT A GATE for a person. out.blocked / out.stop say it as every stop is said; out.hold
+       says what the durable hold needs beside them — why (reason), where (gateId, the LOOP junction) and on which pass (passes already
+       taken round it) — and `why` is the same sentence. A hold spends nothing: it is only ever decided BEFORE a hop is bought. */
+    const holdAt = (st, node, reason, gateId, pass) => {
+      out.hold = { reason, gateId: String(gateId), pass, why: st.why };
+      return stopAt(st, node);
     };
     if (!nextAgent || !runAgent || !startAgent) return out;
     // the entry run's spend lands in the line's DAY bucket here — the caller never sees this ledger
@@ -809,7 +852,7 @@ function makeChainRunner(o) {
       if (s.signal && s.signal.aborted) return stopAt(LineFire.lineStop('stopped', {}), cur);
       // the tag is derived from the OUTPUT of the stage that just ran — this is what makes a FILTER downstream
       // of a dock a real branch on the result rather than a re-read of the original message.
-      let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null;
+      let target = null, step = null, loopHop = false, entryBranch = false, hopPart = null, escBox = null;
       // SEND TO (2026-10-11): the walk says which OUTBOX a job that ends here lands in (Pipeline.chainStepDock ctx.reach)
       const reach = {};
       if (forced) {
@@ -817,7 +860,7 @@ function makeChainRunner(o) {
       } else {
         const ctx = { tag: getTag(out.text), verdict: producerVerdict, lineId: lineId, fromTile: fromTile, via: via, reach };
         const briefHeld = heldStop(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
-        if (briefHeld) return stopAt(briefHeld, cur);
+        if (briefHeld) return holdAt(briefHeld, cur, 'blocked', briefHeld.gateId, iter[briefHeld.gateId] || 0);
         fromTile = null; via = null;
         try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; } catch (_) { step = null; }
         let loopDone = false;
@@ -826,10 +869,15 @@ function makeChainRunner(o) {
           const n = iter[step.loop] || 0;
           // a gate whose back lane re-enters the dock that just ran: lastHanded is that dock's previous loop turn, not a draft under review
           const selfLoop = !!step.backTo && nodeKey(asNode(step.backTo)) === nodeKey(cur);
-          const d = loopDecision(step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
-          // a BLOCKED verdict holds the job at this gate: the line ends here, nothing more is bought (out.blocked: line facts)
-          if (d.held) { out.text = d.text; return stopAt(LineFire.lineStop('blocked', { loop: step.loop }), cur); }
+          /* an escalation lane that only reaches an OUTBOX ends the crate THERE, which a branch of a fan-out cannot do (the joiner
+             would wait for a part that never comes): inside a fan, or a gate whose done lane meets a joiner, that lane is not offered */
+          const inFan = !!(fan || pending.length || step.afterJoin);
+          const d = loopDecision((inFan && step.escOutbox) ? Object.assign({}, step, { escOutbox: null }) : step, ctx, n, visited, out.text, selfLoop ? '' : lastHanded);
+          /* a held verdict (BLOCKED, none, or a spent gate that holds) stops the job at this gate: the line ends here, nothing more is
+             bought (out.blocked: line facts; out.hold: why, where and on which pass) */
+          if (d.held) { out.text = d.text; return holdAt(LineFire.lineStop('blocked', { loop: step.loop, reason: d.reason }), cur, d.reason, d.gateId, d.pass); }
           target = asNode(d.target); out.text = d.text;
+          if (d.outboxId) escBox = d.outboxId;   // escalated to an OUTBOX: the crate ends there (below)
           if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
           else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }
           // the gate let the work out onto a DONE lane that meets a JOINER: this branch parks there like any other
@@ -934,7 +982,8 @@ function makeChainRunner(o) {
         if (pending.length) { forced = nextPending(); hop--; continue; }
         const refused = refusalStop(cur, lineId);
         if (refused) return stopAt(refused, cur);
-        if (reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
+        if (escBox) out.outboxId = escBox;   // an escalated crate ends at the OUTBOX the escalation lane reaches, not the done lane's
+        else if (reach.outboxId) out.outboxId = reach.outboxId;   // the OUTBOX this job landed in (SEND TO)
         return out;
       }
       const tKey = nodeKey(target);

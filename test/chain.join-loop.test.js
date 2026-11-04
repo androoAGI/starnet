@@ -1,9 +1,15 @@
 /* test/chain.join-loop.test.js — the chain runner's JOINER barrier + bounded LOOP (sidecar/routing/chain.js,
    2026-08-21), driven through the REAL compiler + REAL router so the floor drawn and the runs bought are one
-   decision. Fake harness, fake clock, fake timer — no provider, no wall-clock. */
+   decision. Fake harness, fake clock, fake timer — no provider, no wall-clock.
+
+   LINE-HOLD S2 (marked "S2" below): a verdict-keyed gate HOLDS a reply it cannot read — including the AGGREGATE verdict of a JOINED crate
+   (the gate reads the merged text's tail) — and a gate set to escalate to an OUTBOX-only lane cannot end a branch of a fan-out there. The
+   subject is built through test/helpers/line-hold-control.js: LINE_HOLD_CONTROL=original makes it the saved 5977d433c source and the S2
+   blocks must go RED (test/line-hold.policy.test.js runs that control in-process too). */
 'use strict';
 const A = require('./_assert.js');
-const { makeChainRunner } = require('../sidecar/routing/chain.js');
+const subject = require('./helpers/line-hold-control.js').pick();
+const { makeChainRunner } = subject.chain;
 const { makeRouter } = require('../sidecar/routing/router.js');
 const P = require('../frontend/app/pipeline.js');
 
@@ -366,6 +372,60 @@ function rig(floor, script, opts) {
     }
   }
 
+  /* ---- S2: THE AGGREGATE VERDICT AFTER A JOIN, and a gate INSIDE a branch ---- */
+  const dockBelt = (x, y, dir) => ({ x, y, dir });
+  // INBOX -> SPLIT -> (A | B) -> JOINER -> LOOP gate (done E, no back lane) -> OUTBOX
+  function joinGateFloor() {
+    const g = joinFloor();
+    g.props = g.props.filter(p => p.id !== 'p6');
+    g.props.push({ id: 'p7', t: 'loop', x: 12, y: 4, w: 1, h: 1, done: 'E', when: 'approved', maxIter: 2 }, { id: 'p8', t: 'outbox', x: 15, y: 3, w: 2, h: 2 });
+    g.belts.push(dockBelt(12, 4, 'E'), dockBelt(13, 4, 'E'), dockBelt(14, 4, 'E'));
+    return g;
+  }
+  // the gate INSIDE branch A: A -> LOOP at 8,2 (done S -> the joiner, back W -> A, esc E -> a second OUTBOX)
+  function branchGateFloor(gate) {
+    const g = joinFloor();
+    g.props = g.props.filter(p => p.id !== 'p6');
+    g.belts = g.belts.filter(b => !(b.x === 8 && b.y === 2));
+    g.props.push(Object.assign({ id: 'p7', t: 'loop', x: 8, y: 2, w: 1, h: 1, done: 'S', esc: 'E', when: 'approved', maxIter: 1 }, gate || {}), { id: 'p9', t: 'outbox', x: 11, y: 1, w: 2, h: 2 });
+    g.belts.push(dockBelt(8, 2, 'S'), dockBelt(7, 2, 'W'), dockBelt(9, 2, 'E'), dockBelt(10, 2, 'E'));
+    return g;
+  }
+  async function dockWalk(floor, script) {
+    const plan = P.compileRoutingPlan(floor), router = makeRouter();
+    A.ok(router.setPlan(plan).ok, 'fixture: the join-and-gate floor deploys: ' + JSON.stringify(plan.errors.filter(e => !e.warn)));
+    const hops = [], events = [], timers = [];
+    const c = makeChainRunner({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), peekDock: (d, x) => router.chainPeekDock(d, x),
+      entryDockOf: a => router.entryDockOf(a), fanSiblingsDock: d => router.fanSiblingsDock(d), lineOfAgent: (a, d) => router.lineOfAgent(a, d),
+      lastStage: (a, d) => router.chainShipsToOutbox(a, d), loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d),
+      emit: (n, p) => events.push({ n, p }), now: clock, getTag: () => 'general', setTimer: (fn, ms) => { timers.push(ms); return 0; } });
+    const e = router.resolveDock({ tag: 'general' });
+    const res = await c.advance({ agentId: e.agentId, dockId: e.dockId, text: script[e.agentId], originalText: 'job', lineId: router.lineOriginFor(e.agentId, e.dockId), runId: 'j' + (T += 10),
+      runAgent: async h => { hops.push(h.agentId); return { text: script[h.agentId], usd: 0.01 }; } });
+    await new Promise(r => setImmediate(r));
+    return { res, hops, timers, outputs: events.filter(x => x.n === 'workitem.delivered' && x.p.box === 'line-output') };
+  }
+  {
+    // the merged crate is the gate's input: its tail is the aggregate verdict. No verdict anywhere in it = a hold, after the join, zero hops
+    const silent = await dockWalk(joinGateFloor(), { A: 'A out', B: 'B out' });
+    A.eq(silent.hops, ['B'], 'S2 join then gate, no verdict in the merged crate: the sibling ran (it is the join), nothing after the gate');
+    A.ok(silent.res.hold && silent.res.hold.reason === 'missing_verdict' && silent.res.hold.gateId === '12,4' && silent.res.hold.pass === 0 && silent.outputs.length === 0 && !silent.res.partial,
+      'S2 join then gate: held at the gate for lack of a verdict, nothing delivered: ' + JSON.stringify(silent.res.hold));
+    A.eq(silent.timers, [], 'S2 join then gate: no joiner waits out a timeout');
+    const tail = await dockWalk(joinGateFloor(), { A: 'A out', B: 'B out\nVERDICT: approved' });
+    A.ok(tail.res.stopped === null && tail.res.outboxId === 'p8' && tail.outputs.length === 1 && !tail.res.hold, 'S2 join then gate: the merged crate\'s tail says approved, and it ships — the aggregate verdict is read');
+  }
+  {
+    // a gate that escalates to an OUTBOX-only lane cannot end ONE BRANCH there (the joiner would wait on a part that never comes): not offered, held
+    const inFan = await dockWalk(branchGateFloor({ onSpent: 'escalate' }), { A: 'a\nVERDICT: revise', B: 'b' });
+    A.ok(inFan.res.hold && inFan.res.hold.reason === 'spent' && inFan.res.hold.gateId === '8,2' && inFan.res.outboxId === undefined && inFan.outputs.length === 0, 'S2 escalate to an OUTBOX-only lane inside a fan-out: held, never a branch ended at an OUTBOX: ' + JSON.stringify(inFan.res.hold));
+    A.eq(inFan.timers, [], 'S2 ...and no joiner is left waiting');
+    const sent = await dockWalk(branchGateFloor({}), { A: 'a\nVERDICT: revise', B: 'b' });
+    A.ok(sent.res.stopped === null && /used all 1 pass without VERDICT: approved/.test(sent.res.unapproved) && !sent.res.hold, 'S2 the same floor on the default policy: the reviewed branch reaches the joiner unapproved, as it always did');
+    const mute = await dockWalk(branchGateFloor({}), { A: 'a', B: 'b' });
+    A.ok(mute.res.hold && mute.res.hold.reason === 'missing_verdict' && mute.res.hold.gateId === '8,2' && mute.hops.length === 0, 'S2 the reviewed branch says nothing usable: held at its gate, no pass, no sibling run');
+  }
+
   /* ---- SEND TO carries the routine's own directive (token-burn audit 2026-10-17): a contextFrom routine hands its line the
           ASSEMBLED prompt (untrusted context + directive) as originalText so stages can read it, and the plain directive as
           `ask`; the shipped record (what SEND TO hands the next line, cut at 4k downstream) must be the ask. ---- */
@@ -386,7 +446,7 @@ function rig(floor, script, opts) {
 
   /* ---- loopDecision's WORK UNDER REVIEW block, at the seam the runner and the step test share (token-burn audit 2026-10-17) ---- */
   {
-    const { loopDecision } = require('../sidecar/routing/chain.js');
+    const { loopDecision } = subject.chain;
     const gate = (o) => Object.assign({ loop: '12,4', backTo: 'drafter', max: 2, when: 'approved', next: 'publisher' }, o || {});
     const ctxRevise = { verdict: 'revise' };
     const back = loopDecision(gate(), ctxRevise, 0, {}, 'notes\nVERDICT: revise', 'DRAFT-1');

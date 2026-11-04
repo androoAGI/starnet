@@ -1,10 +1,17 @@
 /* test/loop-verdict.test.js — "loop until APPROVED" (2026-08-22): the pure VERDICT parser (sidecar/routing/verdict.js)
    and the chain runner's verdict-keyed LOOP gate, driven through the REAL compiler + REAL router (same rig as
-   test/chain.join-loop.test.js). Fake harness, fake clock — no provider. */
+   test/chain.join-loop.test.js). Fake harness, fake clock — no provider.
+
+   LINE-HOLD S2: a reply with NO usable VERDICT line used to read as 'revise' ("silence = round again"); it now HOLDS the job at the gate for
+   a person (chain.js loopDecision, reason 'missing_verdict'), and the reviewer's brief says so. The two places that pinned the old reading
+   are rewritten below. The subject is built through test/helpers/line-hold-control.js: LINE_HOLD_CONTROL=original makes it the saved
+   5977d433c source (test/fixtures/line-hold-5977d433c) and those expectations must go RED there (test/line-hold.policy.test.js runs
+   that control in-process too). */
 'use strict';
 const A = require('./_assert.js');
-const V = require('../sidecar/routing/verdict.js');
-const { makeChainRunner } = require('../sidecar/routing/chain.js');
+const subject = require('./helpers/line-hold-control.js').pick();
+const V = subject.Verdict;
+const { makeChainRunner } = subject.chain;
 const { makeRouter } = require('../sidecar/routing/router.js');
 const P = require('../frontend/app/pipeline.js');
 
@@ -19,7 +26,7 @@ A.eq(V.parseVerdict('no verdict here'), null, 'no line = null');
 A.eq(V.parseVerdict('VERDICT: maybe'), null, 'an unknown word is not a verdict');
 A.eq(V.parseVerdict(''), null); A.eq(V.parseVerdict(null), null);
 A.ok(V.isVerdictWord('approved') && V.isVerdictWord('REVISE') && !V.isVerdictWord('code') && !V.isVerdictWord(null), 'isVerdictWord: the two words, any case; never a classifier tag');
-A.ok(/"VERDICT: approved"/.test(V.verdictBrief('approved')) && /"VERDICT: revise"/.test(V.verdictBrief('approved')) && /no VERDICT line is treated as "revise"/.test(V.verdictBrief('approved')), 'the reviewer brief names both words and what silence means');
+A.ok(/"VERDICT: approved"/.test(V.verdictBrief('approved')) && /"VERDICT: revise"/.test(V.verdictBrief('approved')) && /A reply with no VERDICT line holds the work for a person\./.test(V.verdictBrief('approved')) && !/treated as/.test(V.verdictBrief('approved')), 'the reviewer brief names both words and what silence means: a hold');
 A.eq(V.verdictBrief('code'), '', 'a classifier-tag gate gets no verdict brief');
 // R1 (2026-09-27 audit): the VERDICT line is the gate's control signal — it is stripped from the work that leaves an approved gate
 const NL = String.fromCharCode(10);
@@ -122,16 +129,27 @@ const handedText = (entry) => (entry.text.split('produced:\n')[1] || '').split('
     A.ok(res.loopExhausted === true, 'out.loopExhausted is set');
     A.ok(/^\[LOOP — exhausted: 2 passes round the gate at [\d,]+ without VERDICT: approved — leaving on DONE unapproved\]/.test(handedText(R.log[5])), 'the downstream handoff is marked EXHAUSTED (' + handedText(R.log[5]) + ')');
   }
-  /* a reviewer that emits NO verdict line is treated as not-approved (goes round), and the DONE lane can be an OUTBOX */
+  /* a reviewer that emits NO verdict line HOLDS the job at the gate for a person (S2: it used to read as "revise" and go round again) */
+  {
+    const R = rig(loopFloor({ maxIter: 3, when: 'approved' }, { id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 }), {
+      writer: { text: 'draft', usd: 0.01 },
+      reviewer: () => ({ text: 'no verdict at all', usd: 0.01 })
+    });
+    const res = await R.c.advance({ agentId: 'writer', text: 'draft', originalText: 'go', lineId: R.lineId, runId: 'v3a' });
+    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer', 'silence = held: the reviewer ran once, no writer pass, nothing after');
+    A.ok(res.hold && res.hold.reason === 'missing_verdict' && res.hold.pass === 0 && res.stop && res.stop.code === 'blocked' && res.blocked === res.stopped, 'held at the gate with its reason: ' + JSON.stringify(res.hold));
+    A.ok(!res.loopExhausted && !res.unapproved && res.outboxId === undefined, 'nothing went on, nothing is marked unapproved');
+  }
+  /* ...and a reviewer that revises, then approves, takes the passes it asked for; the DONE lane can be an OUTBOX */
   {
     let k = 0;
     const R = rig(loopFloor({ maxIter: 3, when: 'approved' }, { id: 'p6', t: 'outbox', x: 15, y: 3, w: 2, h: 2 }), {
       writer: { text: 'draft', usd: 0.01 },
-      reviewer: () => ({ text: (++k < 2) ? 'no verdict at all' : 'fine\nverdict: APPROVED', usd: 0.01 })
+      reviewer: () => ({ text: (++k < 2) ? 'needs work\nVERDICT: revise' : 'fine\nverdict: APPROVED', usd: 0.01 })
     });
     const res = await R.c.advance({ agentId: 'writer', text: 'draft', originalText: 'go', lineId: R.lineId, runId: 'v3' });
     A.eq(res.stopped, null, 'ran to its end (' + res.stopped + ')');
-    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer', 'silence = round again; approval = out');
+    A.eq(res.hops.map(h => h.agentId).join(','), 'reviewer,writer,reviewer', 'revise = round again; approval = out');
     // R1 (2026-09-27 audit): what ships never carries the VERDICT line — the line is the gate's control signal. And (2026-10-18) an
     // approval that did not restate the work ("fine") ships THE WORK IT APPROVED: the OUTBOX product is what the channel, the
     // routine and SEND TO deliver, and a bare "fine" there was the line's whole result.

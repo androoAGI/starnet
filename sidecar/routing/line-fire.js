@@ -10,7 +10,8 @@
         code from RunOutcome.LINE_STOPS and says it in the ONE sentence made here — chain.js's walk (out.stop beside the legacy
         out.stopped words), the step-through test (session.stop), and the entries that settle a job. facts: { agent (who the stop is
         about, as the surface names it: an agent id on the chain, a display name in the step test), error (that stage's own words),
-        target, maxHops, maxUsd, maxUsdPerDay, join, loop (the gate a hold is at), barrier ('fanout' | 'join'), partial, handOn (the
+        target, maxHops, maxUsd, maxUsdPerDay, join, loop (the gate a hold is at) and reason (why it holds: blocked | missing_verdict |
+        spent), barrier ('fanout' | 'join'), partial, handOn (the
         pre-hop empty crate), unarmed (no line is armed any more), why (a refusal's own words: refused, and not_steppable at start) }.
         Each code keeps the words its stop always had, except one: a stage that did not finish (cut short, a spending or step limit, a
         question, interrupted, no end) reads '<agent> did not finish: <why>', never '<agent> failed' (a limit is not a failure).
@@ -63,7 +64,7 @@ const STOP_WORDS = Object.freeze({
   joiner_lost: f => 'the joiner at ' + String(f.join || 'the join') + ' lost its branches',
   stopped: f => (f.agent ? named(f) + ' was stopped' : 'stopped'),
   station_fault: f => (f.agent ? named(f) + ' failed: ' : '') + String(f.error || 'the station hit an internal fault and stopped this run'),
-  blocked: f => Verdict.heldWhy(f.loop),
+  blocked: f => Verdict.heldWhy(f.loop, f.reason),   // reason: 'blocked' (default) | 'missing_verdict' | 'spent' — the three a hold has
   // the step-through test carries one crate at a time (its own refusal at START says it in the compiled topology's words: f.why)
   not_steppable: f => (f.why ? String(f.why) : f.barrier === 'join'
     ? 'this line meets a joiner here — the step-through test carries one crate at a time, so it stops before the join (use SEND A REAL JOB to prove a joined line)'

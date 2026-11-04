@@ -512,6 +512,11 @@ const REPORTED = {
   'sidecar/process-identity.js': [["return { verdict: 'unknown', reason: String(p.reason || 'unknown') };", NR("why a process's identity could not be read")]],
   'sidecar/remote/relay-client.js': [["(ev.reason ? ' ' + ev.reason : '')", NR("a websocket close's reason")]],
   'sidecar/remote/voice.js': [["'the station could not speak that (' + first.reason", NR('why speech synthesis failed')]],
+  // (line-hold S2) a verdict gate's HOLD reason — blocked | missing_verdict | spent: why the walk stopped AT A GATE for a person, said by
+  // line-fire.js lineStop('blocked') and routing/verdict.js heldWhy. The stop's code stays 'blocked' (a LINE_STOPS member, the run outcome's name
+  // only by coincidence); no run ended here — the reviewer's reply was read, and nothing after it was bought
+  'sidecar/routing/chain.js': [["lineStop('blocked', { loop: step.loop, reason: d.reason })", NR("a gate HOLD's reason (blocked | missing_verdict | spent): why the walk stopped at a gate for a person, never a run's end")]],
+  'sidecar/routing/steptest.js': [["lineStop('blocked', { loop: step.loop, reason: d.reason })", NR("the same gate HOLD's reason, said in the step-through session's stop")]],
   'sidecar/routing/linejobs.js': [["reason: str(r.reason, 40) || 'error', usd: num(r.usd)", "a line job's step record: it keeps the row's outcome and (since review 4.3) failureCode on the lines below — the WORKFLOWS window reads RunOutcome.ofRow (FOLD below)"]],
   'sidecar/run-execution-state.js': [["reason: String(row.reason || '').slice(0, 80), attempt:", NR("a recovery attempt's classifier reason")]],
   'sidecar/run-journal.js': [["reason: String(payload.reason || 'unknown'),", "the continuation_finish record: the host hands it the continuation's reason, settled from its outcome at the source (handleRun)"]],
@@ -865,7 +870,7 @@ const OUTCOME_MAPS = {
   'sidecar/outcomes.js': [["const FAILURE = { error: 1, max_iters: 1, budget: 1, refusal: 1, empty: 1 };", '885ad0ff5c9b', "a SET (the track record's FAILURE reasons), re-decided by RunOutcome.ofRow below it — no word or colour map"]],
   'sidecar/routing/linejobs.js': [["const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });", 'f2ebff2adb06', "a SET of LINE JOB lifecycle statuses, never one run's outcome; held requires a validated continuation, while paused and terminal blocked keep their existing meanings"]],
   // (line-job-runner) a work line's typed stop: keyed by RunOutcome.LINE_STOPS, two of whose codes share a run outcome's name
-  'sidecar/routing/line-fire.js': [["const STOP_WORDS = Object.freeze({", 'ce0d45009db9', "the ONE sentence per LINE STOP code (RunOutcome.LINE_STOPS: where a work line's walk stopped, never one run's outcome) — 'stopped' and 'blocked' are line stop codes that share an outcome's name, and a hop's run outcome reaches these words only through line-runner.js hopVerdict's stopCode (stage_incomplete / stage_failed / stage_empty / stopped / station_fault)"]],
+  'sidecar/routing/line-fire.js': [["const STOP_WORDS = Object.freeze({", '52cbd8f3a64d', "the ONE sentence per LINE STOP code (RunOutcome.LINE_STOPS: where a work line's walk stopped, never one run's outcome) — 'stopped' and 'blocked' are line stop codes that share an outcome's name, and a hop's run outcome reaches these words only through line-runner.js hopVerdict's stopCode (stage_incomplete / stage_failed / stage_empty / stopped / station_fault)"]],
   // (review 8.2: publishTask published the bare ledger status — 'failed' for a stop, a question and a limit; FOLD r8.28 drives it)
   'sidecar/subagents.js': [["const TASK_STATUS = { succeeded: 'done', failed: 'failed', stopped: 'stopped', asked: 'asked' };", '9026e429bd1b', "the bus 'task' STATUS (publishTask): the v7 event's coarse lifecycle (queued · running · done · failed · stopped · asked · unfinished, shared/events.js) — a success, a failure, a stop and a question each their own, every other end that did not finish 'unfinished' with its outcome and failureCode riding beside it"]],
   'frontend/app/delegated.js': [

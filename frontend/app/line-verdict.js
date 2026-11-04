@@ -15,7 +15,9 @@ const VERDICT_WORDS = ['approved', 'revise'];
    VERDICT: BLOCKED is saying the work must NOT move on. It is never a gate KEY (VERDICT_WORDS stays approved | revise: a gate
    waits on one of those), so parseVerdict returning null for it made every verdict-keyed gate read it as "not approved" —
    'revise' — and, passes later, ship the work DONE unapproved (GitHub #122). A verdict-keyed gate now HOLDS it
-   (chain.js loopDecision): the line stops at that gate with zero further spend and says why. */
+   (chain.js loopDecision): the line stops at that gate with zero further spend and says why. The same hold takes a reply with
+   NO usable verdict (none, empty, or a word the channel does not know): that used to read as 'revise' too, five paid passes
+   and then work nobody approved shipped on (line-hold lane, S2). The old reading survives only in a control file. */
 const BLOCKED = 'blocked';
 // synonyms the model may reach for; each maps to the ONE canonical word the gate compares against
 const SYN = { approved: 'approved', approve: 'approved', accepted: 'approved', pass: 'approved', lgtm: 'approved',
@@ -44,8 +46,17 @@ function parseVerdict(text) {
   return null;
 }
 
-/* heldWhy(gate) -> the sentence for a job held at a gate, the one wording every surface says it in. */
-function heldWhy(gate) { return 'the reviewer at the gate ' + gate + ' answered VERDICT: blocked, so the work is held there — not sent on, not shipped'; }
+/* heldWhy(gate, reason) -> the sentence for a job held at a gate, the one wording every surface says it in. `reason` is why the
+   walk stopped there (the three line-continuation.js knows): 'blocked' (the default: a reviewer's VERDICT: blocked, the sentence
+   every saved record and census already carries, byte for byte), 'missing_verdict' (a verdict-keyed gate got no usable VERDICT
+   line: none, empty, or a word the channel does not know) and 'spent' (the gate's onSpent: 'hold' policy, its passes ran out). */
+const HOLD_REASONS = ['blocked', 'missing_verdict', 'spent'];
+function heldWhy(gate, reason) {
+  const held = ', so the work is held there — not sent on, not shipped';
+  if (reason === 'missing_verdict') return 'the reviewer at the gate ' + gate + ' gave no usable VERDICT line' + held;
+  if (reason === 'spent') return 'the review loop at the gate ' + gate + ' used all its passes and the work never cleared it' + held;
+  return 'the reviewer at the gate ' + gate + ' answered VERDICT: blocked' + held;
+}
 
 /* stripVerdict(text) -> the text without its VERDICT line (the one parseVerdict reads, within the tail), for the work that
    LEAVES an approved gate: the line is the gate's control signal, not part of the work (2026-09-27 audit R1). A text with no
@@ -71,9 +82,9 @@ function stripVerdict(text) {
 function verdictBrief(when, handsOn) {
   if (!isVerdictWord(when)) return '';
   const other = when.toLowerCase() === 'approved' ? 'revise' : 'approved';
-  return 'YOUR VERDICT DECIDES THE LOOP GATE AFTER YOU: end your reply with one final line, exactly '
+  return 'YOUR VERDICT DECIDES THE LOOP GATE AFTER YOU: end your reply with a final line, exactly '
     + '"VERDICT: ' + when.toLowerCase() + '" when the work should leave the loop, "VERDICT: ' + other + '" when it should go '
-    + 'back round, or "VERDICT: blocked" when it must stop for a person. Nothing after that line. A reply with no VERDICT line is treated as "' + other + '". '
+    + 'back round, or "VERDICT: blocked" when it must stop for a person. Nothing after that line. A reply with no VERDICT line holds the work for a person. '
     + (handsOn === true
       ? 'When the work passes, a reply of only the VERDICT line, or a bare approval such as "Looks good.", passes it on exactly as '
         + 'you were handed it. Any other reply is what moves on past the gate: lead with the finished work itself (with any fixes '
@@ -82,6 +93,6 @@ function verdictBrief(when, handsOn) {
         + 'applied), and keep review notes short.');
 }
 
-return { parseVerdict, stripVerdict, isVerdictWord, verdictBrief, heldWhy, VERDICT_WORDS, BLOCKED };
+return { parseVerdict, stripVerdict, isVerdictWord, verdictBrief, heldWhy, VERDICT_WORDS, BLOCKED, HOLD_REASONS };
 
 });

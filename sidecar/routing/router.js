@@ -500,7 +500,7 @@ function makeRouter(o) {
     const peek = (k, n) => (rr[k] || 0) % n; peek.peek = peek;
     return Pipeline.chainStep(p, agentId, ctx || {}, peek);
   }
-  /* loopGateAfter(agentId, lineId) -> { when, max, backTo, backDock } when this dock's own lane meets a LOOP gate before any other
+  /* loopGateAfter(agentId, lineId) -> { loop, when, max, backTo, backDock, onSpent? } when this dock's own lane meets a LOOP gate before any other
      dock (2026-08-22), else null. A PURE read of the same walk chainStep takes, on a no-op pick so the splitter
      round-robin never moves: the chain runner asks it BEFORE a hop, to tell a reviewer dock to end with the
      VERDICT line the gate will read. Prompt-shaping only — never a routing decision. `backTo` / `backDock` (2026-10-21):
@@ -517,7 +517,9 @@ function makeRouter(o) {
     // the same walk read at the DOCK (Pipeline.chainStep is stepToAgents of it), so the back lane's bay is known too
     const sd = Pipeline.chainStepDock ? Pipeline.chainStepDock(p, Pipeline.dockOf(p, agentId, ctx.dockId), ctx, () => 0) : null;
     const back = (sd && sd.loop) ? sd.backTo : null;
-    return { loop: st.loop, when: st.when || null, max: st.max, backTo: st.backTo || null, backDock: (back && back.dockId != null) ? String(back.dockId) : null };
+    const gate = { loop: st.loop, when: st.when || null, max: st.max, backTo: st.backTo || null, backDock: (back && back.dockId != null) ? String(back.dockId) : null };
+    if (st.onSpent) gate.onSpent = st.onSpent;   // (line-hold lane S2, only when the gate sets one) what it does when its passes run out: 'hold' | 'escalate'
+    return gate;
   }
   function fanSiblings(agentId, ctx) {
     const p = activePlan();
