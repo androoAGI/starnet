@@ -1787,7 +1787,7 @@ const Build = (() => {
   // latched, then Props, it painted every line outline and junction plate over the furnishing with no visible way off (wave 2, build-11)
   const altOn = () => altHeld || (altLatched && buildGroup === 'workflow');
   const placingProp = () => tool === 'prop' || !!hand;   // a piece is in hand — through the PROP tool or the hotbar
-  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide'];
+  const HAND_CFG_KEYS = ['maxIter', 'when', 'timeoutMin', 'bufferSize', 'divide', 'onSpent'];
   // an agent this station crews (a pipette or a copy may carry only these — an id from elsewhere is dropped)
   const agentHere = aid => !!aid && (((opts && typeof opts.agents === 'function' && opts.agents()) || []).some(a => a && a.id === aid));
   // what the pipette picks up: the type, its settings (passes, verdict, wait), its facing, and for a BAY its crew, role and brief

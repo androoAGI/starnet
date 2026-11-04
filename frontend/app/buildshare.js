@@ -25,7 +25,7 @@ const BuildShare = (() => {
   const TYPE_RE = /^[a-z][a-z0-9_]{0,47}$/;
   const STYLE_RE = /^[a-z][a-z0-9_-]{0,31}$/;
   // per-prop LAYOUT fields copied as-is; worldmodel.migrate re-validates every one (cleanRot/cleanDoor/applyJunctionCfg)
-  const PROP_LAYOUT = ['r', 'm', 'door', 'routes', 'def', 'bufferSize', 'timeoutMin', 'maxIter', 'done', 'esc', 'when'];
+  const PROP_LAYOUT = ['r', 'm', 'door', 'routes', 'def', 'bufferSize', 'timeoutMin', 'maxIter', 'done', 'esc', 'when', 'onSpent'];
   // per-prop WORK fields — never shared (counted so the UI can say what stayed home)
   const PROP_WORK = ['agentId', 'role', 'brief', 'hands', 'label', 'projectRoot', 'limits', 'connectorId', 'pluginId'];
 
