@@ -85,7 +85,7 @@ const base = { workspaceDir: WS, pathMod: path };
   // ---- host wiring, source-locked (runOnceCore cannot run here)
   const idx = require('./helpers/source').readSidecarSource();
   A.ok(/const capLine = \(o\.cronJobId && o\.runsLine !== true\) \? null : workflowLine;/.test(idx), 'a terminal routine is not line work');
-  A.ok(/const stageTeam = lineStageTeam\(router, \{ lineId: capLine, agentId, dockId: o\.dockId \}\);/.test(idx), 'runOnce asks about capLine, so a terminal routine keeps its team');
+  A.ok(/const stageTeam = lineStageTeam\(observe, \{ lineId: capLine, agentId, dockId: o\.dockId \}\);/.test(idx), 'runOnce asks about capLine, so a terminal routine keeps its team');
   A.ok(/teamNote \+= stageTeam\.note;/.test(idx) && /if \(aid === agentId \|\| stageTeam\.leaves\(aid\)\) continue;/.test(idx), 'and uses both answers');
   A.ok(/teamNote \+= \(stageTeam\.note && !lines\.length\) \? '[^']*no one else to delegate to[^']*' : summonLine;/.test(idx), 'an empty stage team is not told to summon and dispatch');
   const chainSource = require('node:fs').readFileSync(path.join(__dirname, '..', 'sidecar', 'routing', 'chain.js'), 'utf8');

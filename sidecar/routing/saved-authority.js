@@ -4,8 +4,9 @@
    what should say which agent runs a piece of work, not the last plan a page happened to post. This module is the one reader
    of that floor for a host to build on. It wraps the strict private projection (station-store.js makeSavedFloorProjection:
    the primary file only, never the .bak, never a quarantine, never a last-good value) and adds what a host needs around it,
-   and nothing else. It owns no file, clock or route: the caller injects the reads. UNWIRED at this commit: the host still
-   builds its router from the posted plan.
+   and nothing else. It owns no file, clock or route: the caller injects the reads. The sidecar builds its router and its
+   POST /api/routing receipt on it when SKYNET_ROUTING_AUTHORITY=saved (index.js); the line-hold lane adopts bindingOf and
+   checkBinding.
 
      makeSavedAuthority({ read: { agentId, stamp, loadPrimaryState, hasRecoveryCopy } }) -> {
        status()             -> frozen { version:1, state, status, routingOk, identity, revision, stamp, topologyHash }
@@ -56,6 +57,7 @@
    that resumes work asks both, and 'current' is only ever said for a floor that routes. */
 'use strict';
 const { makeSavedFloorProjection, compareHintToSaved } = require('../station-store.js');
+const { heldWhy } = require('./saved-hold.js');
 
 // a save that keeps landing mid-read is read again this many times, then held 'changed'
 const CHANGED_RETRIES = 2;
@@ -75,6 +77,8 @@ class RoutingHeld extends Error {
     this.code = codeOf(status);
     this.status = status;
     this.state = state || 'held';
+    // held: a floor that cannot be proved (saved-hold.js words it); unroutable and unfloored are not holds
+    if (this.state === 'held') { this.held = true; this.why = heldWhy(status); }
   }
 }
 

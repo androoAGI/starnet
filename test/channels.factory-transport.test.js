@@ -137,6 +137,9 @@ function station(kind, root) {
     resolveReasoningEffort: (_provider, effort) => effort || 'default', chatModelId: (_provider, model) => model,
     codexTokens: null, CODEX_DEFAULT_MODEL: 'unused', registryProviderUsesCodex: () => false, ENV: () => '',
     router: { resolveDock: () => ({ agentId: routed }), lineOriginFor: () => chained ? 'fixture-line' : null, stationFor: () => null, stageBrief: () => null },
+    // the host asks the router through its admit (dispatch) and observe (read) seams, routing/saved-seams.js
+    admit: { resolveDock: () => ({ agentId: routed }), lineOriginFor: () => chained ? 'fixture-line' : null, stationFor: () => null, stageBrief: () => null },
+    observe: { intakeReceiptFor: () => null },
     rosterWireRows: () => [...roster].map(([agentId, row]) => ({ agentId, ...row })),
     setAgentModelFromChannel: (agentId, model) => { roster.get(agentId).model = model; return { ok: true, model }; },
     maybeRewarmModelCatalog() {}, orModelCatalogIds: null,

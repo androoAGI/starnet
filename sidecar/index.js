@@ -322,6 +322,9 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // relayWebhook (the signed-ingress verifier) is composed AFTER the WORKSPACES stores below —
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
+const { makeSavedAuthority } = require('./routing/saved-authority.js');   // the saved floor as the one routing authority (SKYNET_ROUTING_AUTHORITY=saved)
+const { makeRouterSeams } = require('./routing/saved-seams.js');          // admit / observe: how every caller asks the router
+const { heldWhy, holdOf } = require('./routing/saved-hold.js');           // the one sentence for a saved floor that is held, and the test for an error that says so
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const LineRunner = require('./routing/line-runner.js');   // THE ONE HOP EXECUTOR: every entry's later stages run through it (line-job-runner)
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
@@ -6287,7 +6290,26 @@ function bumpQueue(agentId, d) { const n = Math.max(0, (queueDepth.get(agentId) 
 // runs this work-item?"; a non-deployable plan (cycle/orphan/dead-bay) is refused so routing can't loop.
 // What a bay's runs may use is bounded by the SAVED floor (savedFloor: the save file, re-validated when it changes) and
 // the default office — the plan says where work goes and may narrow what it gets there, never widen it.
-const router = makeRouter({ savedStation: () => savedFloor() });
+/* THE ROUTING AUTHORITY (lane saved-floor-routing-authority). With SKYNET_ROUTING_AUTHORITY=saved the floor the user SAVED is the only
+   routing authority: the router is built on the saved-floor reader (one stat per question, re-read when a save lands, never a last-good
+   value), POST /api/routing is only a receipt that a page's floor is that floor, routing.plan.json is ignored, and a floor that cannot
+   be proved right now HOLDS: dispatch refuses visibly (admit), reads degrade (observe). A short-lived switch while the posted-plan
+   path below is still the default; it is deleted with that path. Every caller asks through admit.* or observe.* (never router.*). */
+const ROUTING_SAVED = ENV('ROUTING_AUTHORITY') === 'saved';
+const savedAuthority = ROUTING_SAVED ? makeSavedAuthority({ read: {
+  agentId: 'agent',
+  stamp: () => saveStore.stamp('agent'),
+  loadPrimaryState: () => saveStore.loadPrimaryState('agent'),
+  hasRecoveryCopy: () => saveStore.hasRecoveryCopy('agent')
+} }) : null;
+const router = makeRouter(ROUTING_SAVED ? { savedProjection: savedAuthority.projection, savedHost: true } : { savedStation: () => savedFloor() });
+const routingHoldSaid = new Set();
+const { admit, observe, hold: routingHold } = makeRouterSeams({ router, authority: savedAuthority,
+  onHold: (held, reader) => {   // said once per reason: a read seam answered as if no floor were saved
+    if (routingHoldSaid.has(held.status)) return;
+    routingHoldSaid.add(held.status);
+    console.warn('[routing] ' + held.why + ' (' + reader + ' answers as if no floor were saved)');
+  } });
 /* THE WORK LINE (agentic graphs, 2026-07-27). resolveTarget names the dock that runs a message; `chainRunner`
    runs everything the Commander drew DOWNSTREAM of that dock — bay -> bay, until the line ships out. One
    instance, bound to the floor's edge function; each caller hands it its own way to execute a hop. Emits its
@@ -6336,31 +6358,31 @@ const lineShipments = makeLineShipments({
    nothing on rather than throwing. */
 let handoffRunner = null;
 const chainRunner = makeChainRunner({
-  nextAgent: (agentId, ctx) => router.chainNext(agentId, ctx),
+  nextAgent: (agentId, ctx) => admit.chainNext(agentId, ctx),
   // LINE BUDGET (2026-08-21): the line's own ceilings off the compiled plan, clamped to the station's global
   // $ pool (0/absent = ungoverned), and the durable per-line day ledger the $-per-day cap is measured against.
-  lineLimits: (lineId) => router.lineLimits(lineId),
+  lineLimits: (lineId) => observe.lineLimits(lineId),
   poolCap: () => (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null,
   daySpend: lineSpend,
-  stageBrief: (agentId, dockId) => router.stageBrief(agentId, dockId),   // the RECEIVING dock's standing brief rides each handoff turn (prompt text only)
+  stageBrief: (agentId, dockId) => admit.stageBrief(agentId, dockId),   // the RECEIVING dock's standing brief rides each handoff turn (prompt text only)
   // the line a dock belongs to, so the runner can tell "this dock is terminal by design" from "this line
   // REFUSED this work" and say so honestly. Without it chain.js stays silent rather than guess (never a
   // false note) — which is exactly why the refusal was invisible before.
-  lineOfAgent: (agentId, dockId) => router.lineOfAgent(agentId, dockId),
+  lineOfAgent: (agentId, dockId) => admit.lineOfAgent(agentId, dockId),
   // JOINER + LOOP (2026-08-21): the richer step reading (barriers, fan-out, bounded loops) and the fan-out
   // siblings of an entry dock. Parked join barriers are written beside the plan so a restart can REPORT a
   // line that died mid-join (fail-loud; see chain.js — nothing in-flight is durable, so nothing resumes).
-  stepAgent: (agentId, ctx) => router.chainStep(agentId, ctx),
-  fanSiblings: (agentId) => router.fanSiblings(agentId),
+  stepAgent: (agentId, ctx) => admit.chainStep(agentId, ctx),
+  fanSiblings: (agentId) => admit.fanSiblings(agentId),
   // THE DOCK KEY (multi-bay agents, 2026-09-22): the runner walks DOCKS — writer@A → editor@B → writer@C is three
   // stages — so a seed's dock (or the agent's entry dock) is where the walk starts and every hop names its bay.
-  stepDock: (dockId, ctx) => router.chainStepDock(dockId, ctx),
-  peekDock: (dockId, ctx) => router.chainPeekDock(dockId, ctx),   // the same step, no splitter moves: branches that all hand straight to one JOINER run at once (2026-10-10)
-  fanSiblingsDock: (dockId) => router.fanSiblingsDock(dockId),
-  entryDockOf: (agentId) => router.entryDockOf(agentId),
+  stepDock: (dockId, ctx) => admit.chainStepDock(dockId, ctx),
+  peekDock: (dockId, ctx) => admit.chainPeekDock(dockId, ctx),   // the same step, no splitter moves: branches that all hand straight to one JOINER run at once (2026-10-10)
+  fanSiblingsDock: (dockId) => admit.fanSiblingsDock(dockId),
+  entryDockOf: (agentId) => admit.entryDockOf(agentId),
   // LOOP VERDICTS (2026-08-22): a dock whose lane meets a verdict-keyed LOOP gate is told to end with the VERDICT line
-  loopGateAfter: (agentId, lineId, dockId) => router.loopGateAfter(agentId, lineId, dockId),
-  lastStage: (agentId, dockId) => router.chainShipsToOutbox(agentId, dockId),   // the stage whose reply leaves the line is told it IS the result
+  loopGateAfter: (agentId, lineId, dockId) => admit.loopGateAfter(agentId, lineId, dockId),
+  lastStage: (agentId, dockId) => admit.chainShipsToOutbox(agentId, dockId),   // the stage whose reply leaves the line is told it IS the result
   // SEND TO: a job that left its line clean at the OUTBOX — the handoff runner decides whether it goes on (never awaited)
   onShipped: (rec) => {
     lineShipments.record(rec);
@@ -6386,7 +6408,7 @@ async function lineHandoffFiles(agentId, list, where) {
   return RunPaths.locateProduced({ fsp, pathMod: path, list, limit: 64, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(agentId)) });
 }
 const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
-  intakeReceiptFor: facts => router.intakeReceiptFor(facts),
+  intakeReceiptFor: facts => observe.intakeReceiptFor(facts),
   label: stepTestLabel,
   handoffFiles: lineHandoffFiles,
   liveRuns: { add: (runId, rec) => {
@@ -6405,6 +6427,10 @@ const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now:
    stale or corrupt file is refused and simply leaves routing unarmed — never worse than the old behavior. */
 const ROUTING_FILE = path.join(WORKSPACES, 'routing.plan.json');
 (function restoreRoutingPlan() {
+  if (ROUTING_SAVED) {   // the saved floor is the authority: a routing.plan.json an older version left is ignored, said once, never deleted
+    if (fs.existsSync(ROUTING_FILE)) console.log('  · routing.plan.json is ignored: the saved floor is the routing authority');
+    return;
+  }
   try {
     const plan = loadResilient(ROUTING_FILE, 'routing');
     if (plan && typeof plan === 'object') {
@@ -7218,9 +7244,9 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   // envelope to cron.jobs.json.bak before replacing main, so a torn/corrupt main never boots as amnesiac.
   const intended = cronStore.toEnvelope(cronJobs, job => {
     if (job.noAgent === true) return null;
-    const dockId = router.dockOf(job.agentId, job.dockId) || undefined;   // same stale-dock fallback as the actual fire
-    return router.intakeReceiptFor({ agentId: job.agentId, dockId,
-      lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, dockId) : null });
+    const dockId = observe.dockOf(job.agentId, job.dockId) || undefined;   // same stale-dock fallback as the actual fire
+    return observe.intakeReceiptFor({ agentId: job.agentId, dockId,
+      lineId: job.runsLine === true ? observe.lineOfAgent(job.agentId, dockId) : null });
   });
   // DEGRADED GUARD: never persist an EMPTY envelope over a quarantined store without an explicit override —
   // that write is exactly how a recoverable corruption became a permanent, silent wipe.
@@ -7548,8 +7574,8 @@ function placeCronWorkitem(agentId, prompt, runId, dockId, opts) {
     // the armed plan (server-side, never from a request body — a caller must not be able to NAME a line and so
     // unlock downstream spend). No dock / no armed plan -> absent -> terminal, exactly like a direct order.
     // dockId (additive, multi-bay): a routine FIRES AT one bay; its crate lands there, and its line is that bay's
-    const dk = dockId ? router.dockOf(agentId, dockId) : null;
-    const cronLine = router.lineOfAgent(agentId, dk || undefined) || null;
+    const dk = dockId ? admit.dockOf(agentId, dockId) : null;
+    const cronLine = admit.lineOfAgent(agentId, dk || undefined) || null;
     // LINE WATCH: remember the bay + line this crate named, so the run's row records where it worked (the fire
     // wrapper and Run Now read it back by runId). No bay named -> the agent's entry dock (the router's own read).
     // opts.byFire (the cron driver, typed-outcomes): the FIRE settles this crate once its line has run (finishFire -> settleWorkitem),
@@ -7557,7 +7583,7 @@ function placeCronWorkitem(agentId, prompt, runId, dockId, opts) {
     const job = opts && opts.runsLine && cronLine ? lineRunner.open({ line: cronLine, entry: opts.entry || 'schedule',
       text: prompt, streamId: 'cron-' + runId, stopHandle: opts.stopHandle }) : null;
     if (job) lineRunner.track(job, runId);
-    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || router.dockOf(agentId) || null, lineId: cronLine, byFire: !!(opts && opts.byFire), signal: opts && opts.signal, job });
+    if (runId) cronItems.set(runId, { agentId, workitemId, dockId: dk || admit.dockOf(agentId) || null, lineId: cronLine, byFire: !!(opts && opts.byFire), signal: opts && opts.signal, job });
   try {
     const depth = bumpQueue(agentId, +1);
     chanEmit('workitem.placed', { workitemId, queueId: agentId, agentId, kind: 'cron', lineId: cronLine || undefined, dockId: dk || undefined, preview, queueDepth: depth, ts: Date.now() });
@@ -7709,10 +7735,10 @@ const cronDriver = makeCronDriver({
   // B5 parity (2026-07-06 audit): routines were the ONE dispatch path that never passed a station — a
   // bay-docked agent's cron ran with the default office instead of its bay room's objects. Same resolver
   // the telegram/discord hubs use; null -> the default office, exactly like an unrouted chat.
-  resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
+  resolveStation: (agentId, dockId) => admit.stationFor(agentId, dockId),
   // the dock's standing brief rides a scheduled entry run's system context exactly like a hub-routed
   // message's (inbox-trigger, 2026-08-05) — same router.stageBrief seam, prompt text only, never grants/tools.
-  stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),
+  stageBriefFor: (agentId, dockId) => admit.stageBrief(agentId, dockId),
   // a fired routine rides its instruction onto the CONVEYOR as a CRON box bound for its agent — the SAME
   // workitem.placed plumbing a Telegram message uses (-> SSE -> the floor), so a scheduled fire is VISIBLE: a
   // crate arrives at the agent's bay and (with the run-lifecycle binding in world.js) the agent goes to work.
@@ -7720,7 +7746,12 @@ const cronDriver = makeCronDriver({
   placeWorkitem: placeCronWorkitem,
   settleWorkitem: settleCronWorkitem,   // the FIRE settles its crate: 'done' only for a fire that SUCCEEDED, its line included (finishFire)
   contextFor: cronContextFor,
-  preflightConfig: cronPreflightConfig,
+  /* a saved floor that cannot be proved right now blocks the fire BEFORE any spend: the routine's own blocked row says why, and clears
+     itself when the floor is readable again (it would otherwise pick a bay, a brief and a line off a guess) */
+  preflightConfig: (job, ctx) => {
+    const held = routingHold();
+    return held ? { ok: false, code: 'routing-held', reason: held.why } : cronPreflightConfig(job, ctx);
+  },
   hashText: (text) => crypto.createHash('sha256').update(String(text == null ? '' : text), 'utf8').digest('hex'),
   deliverResult: deliverCronResult,
   // a result something of which went out is busy for the supersede and finishes while paused; one superseded before that
@@ -7736,7 +7767,7 @@ const cronDriver = makeCronDriver({
      same caps, same per-hop crates as a channel message — only the way a hop is executed differs (a routine has
      no chat transcript; its hops ride the routine's own stream so the session shows the whole line). */
   advanceChain: (o) => lineRunner.runLineJob({ job: (cronItems.get(o.runId) || {}).job, seed: {
-    agentId: o.agentId, dockId: o.dockId ? (router.dockOf(o.agentId, o.dockId) || undefined) : undefined, text: o.text, originalText: o.originalText, ask: o.ask, signal: o.signal,
+    agentId: o.agentId, dockId: o.dockId ? (admit.dockOf(o.agentId, o.dockId) || undefined) : undefined, text: o.text, originalText: o.originalText, ask: o.ask, signal: o.signal,
     runId: o.runId, streamId: o.streamId || undefined,   // the fire's own stream ('cron-<runId>'): a SEND TO hand-off reads back exactly this fire's runs
     // the entry run's reconciled spend: MAX_CHAIN_USD bounds the WHOLE chain, and stage one is part of the
     // chain (2026-08-10 audit — the entry run rode outside its own line's $ ceiling on every path).
@@ -7750,13 +7781,13 @@ const cronDriver = makeCronDriver({
        or was made somewhere else, and it stays TERMINAL — one run, its own answer, no downstream spend. The
        LINE ITSELF is still looked up live from the compiled plan, never stored: a routine whose agent crews
        no dock resolves null here and is terminal too, and a floor edit can only ever narrow this. */
-    lineId: o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : null
+    lineId: o.runsLine === true ? admit.lineOfAgent(o.agentId, o.dockId ? admit.dockOf(o.agentId, o.dockId) : undefined) : null
   }, profile: LineRunner.profiles.schedule({
     /* A HOP RUNS AS THE TARGET AGENT ON THE TARGET'S OWN ROSTER CONFIG (2026-08-10 audit #3), on the routine's skills, workdir and
        toolsets, its events teed to the HUD like the entry run's, renewing the fire's lease (onHop). Its stop is worded by hopStoppedSaid. */
     streamId: o.streamId, config: (agentId) => cronHopConfigFor(agentId, o), routine: o, beforeHop: o.onHop,
     tee: (name, p) => { const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); },
-    system: cronSystemFor, station: (agentId, dockId) => router.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
+    system: cronSystemFor, station: (agentId, dockId) => admit.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
   }) })
 });
 // A crash can land after markRun durably commits the result/cost/route receipt but before the destination send.
@@ -9432,7 +9463,7 @@ async function runNightshiftActShift(opts) {
       agentId, isTask: true, emit: (typeof opts.emit === 'function' ? opts.emit : function () {}), signal: sig,
       runId, streamId: 'nightshift-act-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!opts.broadcast,
       reflect: true,   // a night shift does real work; what it learns is durable memory, not scratch (see the reflect note on /api/run)
-      station: router.stationFor(agentId) || undefined
+      station: admit.stationFor(agentId) || undefined
     });
   } catch (e) { threw = e; }
   finally {
@@ -10095,7 +10126,7 @@ const loopDriver = makeLoopDriver({
   providerForLoop: (loop) => cronProviderFor(loop),
   hasCredential: (provider, key) => cronHasCredential(provider, key),
   identityForAgent: (agentId) => cronIdentityFor(agentId),
-  stationFor: (agentId, dockId) => router.stationFor(agentId, dockId),
+  stationFor: (agentId, dockId) => admit.stationFor(agentId, dockId),
   persona: () => cronSystemFor('agent'),
   defaultModel: CRON_DEFAULT_MODEL,
   maxParallel: LOOP_MAX_PARALLEL,
@@ -11125,13 +11156,13 @@ function makeHubDeps(kind, overrides) {
     groundedFor: (q) => taskBriefStore.groundedFor(q),
     newId: () => crypto.randomUUID(),
     now: () => Date.now(),
-    resolveAgent: (ctx) => router.resolveDock(ctx),
+    resolveAgent: (ctx) => admit.resolveDock(ctx),
     lineRunner: lineRunner,
-    intakeReceiptFor: facts => router.intakeReceiptFor(facts),
-    lineOriginFor: (agentId, dockId) => router.lineOriginFor(agentId, dockId),
+    intakeReceiptFor: facts => observe.intakeReceiptFor(facts),
+    lineOriginFor: (agentId, dockId) => admit.lineOriginFor(agentId, dockId),
     getTag: (text) => (Classify.getTag ? Classify.getTag(text) : undefined),
-    resolveStation: (agentId, dockId) => router.stationFor(agentId, dockId),
-    stageBriefFor: (agentId, dockId) => router.stageBrief(agentId, dockId),
+    resolveStation: (agentId, dockId) => admit.stationFor(agentId, dockId),
+    stageBriefFor: (agentId, dockId) => admit.stageBrief(agentId, dockId),
     roster: () => rosterWireRows(true),
     setModel: (agentId, model) => setAgentModelFromChannel(agentId, model),
     modelCatalog: () => { maybeRewarmModelCatalog(); return orModelCatalogIds; },
@@ -11706,8 +11737,8 @@ async function handleDevInbound(req, res) {
   const inMsg = { chatId, userId: String(body.userId || 'dev'), text, chatType: 'dm' };
   if (media.length) inMsg.media = media;
   if (body.mediaGroupId != null && String(body.mediaGroupId)) inMsg.mediaGroupId = String(body.mediaGroupId).slice(0, 64);   // album-part marker (hub debounce-merge)
-  let replyOk = null, jobResult = null;
-  const settled = Promise.resolve(hub.onInbound(inMsg, { onSettled: (s) => { replyOk = !!(s && s.ok); jobResult = s && s.result; } }))
+  let replyOk = null, jobResult = null, heldRouting = null;
+  const settled = Promise.resolve(hub.onInbound(inMsg, { onSettled: (s) => { replyOk = !!(s && s.ok); jobResult = s && s.result; heldRouting = (s && s.held) || null; } }))
     .catch(e => { console.warn('[dev-inbound] error:', (e && e.message) || e); return { error: (e && e.message) || String(e) }; });
   let agentId = '', workitemId = '', isTask = false;
   try {
@@ -11738,7 +11769,9 @@ async function handleDevInbound(req, res) {
     chanEmit('queue.status', { queueId: agentId, depth: d, maxCapacity: QUEUE_CAP, nextAdvanceAt: 0 });
   }
   return json(200, { ok: true, chatId, agentId: agentId || null, isTask, workitemId: workitemId || null, replies: (devReplies.get(chatId) || []).map(r => r.text),
-    jobId: jobResult ? jobResult.jobId : null, outcome: jobResult ? jobResult.outcome : null, stop: jobResult ? jobResult.stop : null });
+    jobId: jobResult ? jobResult.jobId : null, outcome: jobResult ? jobResult.outcome : null, stop: jobResult ? jobResult.stop : null,
+    // a saved floor that cannot be proved right now refused this message and ran nothing (additive): the reply says it in words, this says it typed
+    ...(heldRouting ? { held: true, status: heldRouting.status, why: heldRouting.why } : null) });
 }
 
 /* ---- generic channels (slack / matrix / signal) — ONE start/stop path per registry row. Each is the exact
@@ -12165,6 +12198,10 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
   execute: async ({ g, t, ctx, runId, signal, emit, tools, prompt, askCommander }) => {
     const ident = agentRoster.get(t.agentId);
     if (!ident) throw new Error('Participant is no longer available');
+    /* a participant runs in its bay's room (admit.stationFor below). A saved floor that cannot be proved right now cannot say which room that is,
+       and "no room" would hand a bay-bound agent the WHOLE default office, so the turn fails in the hold's words instead (the group row shows them) */
+    const heldFloor = routingHold();
+    if (heldFloor) throw new Error(heldFloor.why);
     // a participant runs the pair it runs everywhere else (run-wire.js): an unpinned one follows the station default, never
     // the env model on a stale stamped provider
     const wire = runWireFor(t.agentId);
@@ -12183,7 +12220,7 @@ const groupSessions = require('./group-sessions.js').makeGroupSessions({
         // station tools and drove StarNet's own window by computer use for 21 minutes. The lead now holds the station kit
         // (layout, builder, settings, routines, group.add to bring more crew in); every other participant stays a worker.
         surface: 'interactive', lead: t.agentId === g.leadId, groupTools: tools, askCommander,
-        station: router.stationFor(t.agentId) || undefined,
+        station: admit.stationFor(t.agentId) || undefined,
         // the agent's own room gear (its dish = web, its cabinet = files …), exactly as its one-on-one chat gets it from
         // the durable floor (/api/run, savedPlacement): in a group a researcher could not search (2026-10-13 gap review)
         extraObjects: require('./capability/saved-placement.js').savedPlacement(saveStore.load('agent'), t.agentId),
@@ -13606,6 +13643,7 @@ function handleRouting(req, res) {
   readBody(req, 1 << 20).then(raw => {
     let plan = null;
     if (raw && raw.trim()) { try { plan = JSON.parse(raw); } catch (_) { res.writeHead(400); return res.end('bad json'); } }
+    if (ROUTING_SAVED) return answerRoutingHint(res, plan);   // the saved floor routes: this body is only asked about, never installed or kept
     const r = router.setPlan(plan);
     // persist every ACCEPTED plan (incl. an accepted clear) so routing survives a sidecar restart (2026-07-06).
     // A REFUSED post persists the REFUSED PLAN ITSELF, never the previously-accepted file (2026-08-04): stale
@@ -13618,6 +13656,23 @@ function handleRouting(req, res) {
     res.writeHead(r.ok ? 200 : 422, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(r));
   }).catch(() => { try { res.writeHead(400); res.end(); } catch (_) {} });
+}
+
+/* POST /api/routing when the saved floor is the routing authority (SKYNET_ROUTING_AUTHORITY=saved). The page posts {version:1, plan,
+   compilerLinks} only to ask "is this exactly the floor that is saved?". It installs nothing, persists nothing and echoes nothing it
+   sent: the identity and revision in the answer come from the saved floor alone (routing/saved-authority.js compareHint).
+     200 {ok,matched,identity,revision}   it is the saved floor, and the saved floor routes
+     409 {ok:false,pending,reason}        it is not (yet) the saved floor, or is not a hint at all: a bare plan body is this too
+     422 {ok:false,unroutable,...}        it is exactly the saved floor, and the compiler refuses it: nothing routes from it
+     503 {ok:false,held,status,why}       the saved floor cannot be proved right now: routing is held until it is readable */
+function answerRoutingHint(res, hint) {
+  const r = savedAuthority.compareHint(hint);
+  const body = r.httpStatus === 200 ? { ok: true, matched: true, identity: r.identity, revision: r.revision }
+    : r.httpStatus === 422 ? { ok: false, unroutable: true, identity: r.identity, revision: r.revision, reason: r.reason }
+    : r.httpStatus === 409 ? { ok: false, pending: true, reason: r.reason }
+    : { ok: false, held: true, status: r.sourceStatus, why: heldWhy(r.sourceStatus) };
+  res.writeHead(r.httpStatus, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+  res.end(JSON.stringify(body));
 }
 
 /* ---- GET /api/routing/sample — inert feature discovery for the Build Mode finish-the-line card. ---- */
@@ -13921,7 +13976,7 @@ function getSampleHub() {
     resolveEntryRunConfig: sampleRunConfigFor,
     resolveRunConfig: sampleRunConfigFor,
     persona: SAMPLE_PERSONA,
-    resolveAgent: (ctx) => router.resolveDock(sampleLineScope ? Object.assign({}, ctx, { lineId: sampleLineScope }) : ctx),
+    resolveAgent: (ctx) => admit.resolveDock(sampleLineScope ? Object.assign({}, ctx, { lineId: sampleLineScope }) : ctx),
     jobId: () => sampleInFlight && sampleInFlight.jobId,
     jobEntry: 'sample',
     onJobSettled: result => { if (sampleInFlight) sampleInFlight.result = result; },
@@ -13960,7 +14015,13 @@ async function runSampleJob(readArgs) {
     const jobName = String(body.name == null ? '' : body.name).replace(/\s+/g, ' ').trim().slice(0, 60);
     const retryOf = LineJobs.isId(body.retryOf) ? String(body.retryOf) : null;
     // the armed plan is the precondition — a sample with no line to ride is a lie, not a fallback run.
-    const plan = router.getPlan();
+    let plan = null;
+    try { plan = admit.getPlan(); }
+    catch (e) {   // the saved floor cannot be proved right now: said in its words, the same 409, nothing started
+      const held = holdOf(e);
+      if (!held) throw e;
+      return json(409, { ok: false, error: held.why, held: true, status: held.status });
+    }
     if (!plan) {
       return json(409, { ok: false, error: 'no work line is armed — draw a complete line (INBOX → belts → a crewed dock) and it arms itself.' });
     }
@@ -14191,7 +14252,7 @@ const triggerWatcher = makeFolderWatcher({ fsp, pathMod: path, settleMs: trigger
 /* every armed line's working folder (its trusted project, where its stages write — runOnceCore's workdir), as spelled
    and as realpath: a watched folder inside one would feed that line its own output */
 function triggerLineRoots() {
-  const plan = router.getPlan();
+  const plan = observe.getPlan();
   const out = [];
   for (const l of ((plan && Array.isArray(plan.lines)) ? plan.lines : [])) {
     const r = l && typeof l.projectRoot === 'string' ? l.projectRoot.trim() : '';
@@ -14227,7 +14288,7 @@ function makeTriggerHub(hooks) {
     resolveRunConfig: sampleRunConfigFor,
     persona: hooks.persona || TRIGGER_PERSONA,
     classify: () => true,
-    resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? router.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
+    resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? admit.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
     jobId: hooks.jobId,
     jobEntry: hooks.jobEntry || 'trigger',
     onJobSettled: hooks.onJobSettled,
@@ -14242,14 +14303,15 @@ function makeTriggerHub(hooks) {
 }
 const triggerRunner = makeTriggerRunner({
   lineRunner,
-  intakeReceiptFor: facts => router.intakeReceiptFor(facts),
+  intakeReceiptFor: facts => observe.intakeReceiptFor(facts),
   load: () => triggerStore.load().value,
   save: (value) => { triggerStore.save(value); },
   seen: { load: () => triggerSeenStore.load().value, save: (value) => { triggerSeenStore.save(value); } },
   makeHub: makeTriggerHub,
-  plan: () => router.getPlan(),
+  plan: () => admit.getPlan(),
+  held: () => { const held = routingHold(); return held ? held.why : null; },   // a held saved floor fires nothing; the trigger's lastError says why
   dayCap: (lineId) => {
-    const lim = chainEffectiveLimits(router.lineLimits(lineId), {}, (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
+    const lim = chainEffectiveLimits(observe.lineLimits(lineId), {}, (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
     return { cap: lim.maxUsdPerDay, spent: lineSpend.spentToday(lineId) };
   },
   // the durable automation E-STOP, OR a process fault that quiesced this torn process (no new fire may start)
@@ -14277,9 +14339,10 @@ handoffRunner = makeHandoffRunner({
   handoffFiles: lineHandoffFiles,
   lineRunner,
   makeHub: (hooks) => makeTriggerHub(Object.assign({}, hooks, { persona: HANDOFF_PERSONA, entryTaint: 'upstream line output' })),
-  plan: () => router.getPlan(),
+  plan: () => admit.getPlan(),
+  held: () => { const held = routingHold(); return held ? held.why : null; },   // nothing is handed on from a floor that cannot be proved
   dayCap: (lineId) => {
-    const lim = chainEffectiveLimits(router.lineLimits(lineId), {}, (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
+    const lim = chainEffectiveLimits(observe.lineLimits(lineId), {}, (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
     return { cap: lim.maxUsdPerDay, spent: lineSpend.spentToday(lineId) };
   },
   halted: () => cronHalted === true || processFaultQuiesced === true,
@@ -14316,7 +14379,9 @@ function mintTriggerSecret() { const secret = LineTriggers.mintSecret(crypto.ran
    model: the Commander takes a new one from the line's Workflow panel. */
 async function startLineFor(spec) {
   const s = spec || {}, lineId = String(s.lineId || ''), job = String(s.job || '').trim(), name = String(s.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
-  const plan = router.getPlan();
+  let plan = null;
+  try { plan = admit.getPlan(); }
+  catch (e) { const held = holdOf(e); if (!held) throw e; return { ok: false, error: held.why }; }   // the saved floor is held: said, nothing created
   if (!plan || !(Array.isArray(plan.lines) ? plan.lines : []).some(l => l && String(l.lineId) === lineId))
     return { ok: false, error: 'the line ' + (name || lineId) + ' is not armed yet (the station page compiles it as it is built): keep the page open and try again in a moment' };
   if (s.kind === 'off') {
@@ -14628,8 +14693,8 @@ async function stepTestRunDock(h) {
   // every step, its entry included, runs through the ONE hop executor (line-runner.js, the steptest profile): no unattended grant (the
   // chain-grants law), what is left of the LINE BUDGET as its $ cap, its own crate, stamped as a TEST step on its run row
   return lineRunner.hopRunner(LineRunner.profiles.steptest({
-    config: sampleRunConfigFor, persona: STEPTEST_PERSONA, brief: (agentId, dockId) => router.stageBrief(agentId, dockId), dockSystem,
-    station: (agentId, dockId) => router.stationFor(agentId, dockId), emit: chanEmit, redact, stoppedByYou: hopStoppedByYou
+    config: sampleRunConfigFor, persona: STEPTEST_PERSONA, brief: (agentId, dockId) => admit.stageBrief(agentId, dockId), dockSystem,
+    station: (agentId, dockId) => admit.stationFor(agentId, dockId), emit: chanEmit, redact, stoppedByYou: hopStoppedByYou
   }))(h);
 }
 function getStepTest() {
@@ -14638,25 +14703,25 @@ function getStepTest() {
     lineRunner,
     runDock: stepTestRunDock,
     plan: {
-      get: () => router.getPlan(),
-      step: (a, ctx) => router.chainStep(a, ctx),      // CONTINUE: the executor's own counter-advancing read
-      peek: (a, ctx) => router.chainPeek(a, ctx),      // PREVIEW: the same read, no splitter moves
+      get: () => admit.getPlan(),
+      step: (a, ctx) => admit.chainStep(a, ctx),      // CONTINUE: the executor's own counter-advancing read
+      peek: (a, ctx) => admit.chainPeek(a, ctx),      // PREVIEW: the same read, no splitter moves
       // the DOCK readings (multi-bay agents, 2026-09-22): the walk keys on bays, startAt may name one
-      stepDock: (d, ctx) => router.chainStepDock(d, ctx),
-      peekDock: (d, ctx) => router.chainPeekDock(d, ctx),
-      dockRef: (ref, line) => router.dockRef(ref, line),
+      stepDock: (d, ctx) => admit.chainStepDock(d, ctx),
+      peekDock: (d, ctx) => admit.chainPeekDock(d, ctx),
+      dockRef: (ref, line) => admit.dockRef(ref, line),
       // the entry dock: the SAME line-scoped unaddressed dispatch the sample route takes (one-resolver law), and
       // only a dock the line's own INBOX feeds counts as having ridden in through its door
       entryDock: (line, text) => {
-        const r = router.resolveDock({ tag: Classify.getTag ? Classify.getTag(text) : undefined, text, lineId: line });
-        return (r && router.lineOriginFor(r.agentId, r.dockId) === line) ? r : null;
+        const r = admit.resolveDock({ tag: Classify.getTag ? Classify.getTag(text) : undefined, text, lineId: line });
+        return (r && admit.lineOriginFor(r.agentId, r.dockId) === line) ? r : null;
       },
-      lineOf: (a, d) => router.lineOfAgent(a, d),
-      stageBrief: (a, d) => router.stageBrief(a, d),
-      loopGateAfter: (a, l, d) => router.loopGateAfter(a, l, d),
-      lastStage: (a, d) => router.chainShipsToOutbox(a, d),
-      lineLimits: (l) => router.lineLimits(l),
-      shipsToOutbox: (a, d) => router.chainShipsToOutbox(a, d)
+      lineOf: (a, d) => admit.lineOfAgent(a, d),
+      stageBrief: (a, d) => admit.stageBrief(a, d),
+      loopGateAfter: (a, l, d) => admit.loopGateAfter(a, l, d),
+      lastStage: (a, d) => admit.chainShipsToOutbox(a, d),
+      lineLimits: (l) => observe.lineLimits(l),
+      shipsToOutbox: (a, d) => admit.chainShipsToOutbox(a, d)
     },
     preflight: (agentId) => {
       const c = sampleRunConfigFor(agentId);
@@ -14698,7 +14763,7 @@ const linePoolCap = () => (typeof effectiveCaps.global === 'number' && effective
 /* LINE STATS since `since` (epoch ms): the per-line numbers + each dock's last outcome, folded from the durable run rows
    over the lines the ROUTER holds. ONE composition for GET /api/routing/lines/stats and the lead's station.layout. */
 function lineStatsSnapshot(since) {
-  const plan = router.getPlan();
+  const plan = observe.getPlan();
   const lines = (plan && Array.isArray(plan.lines)) ? plan.lines : [];
   const pool = linePoolCap();
   /* an unreadable / invalid shipment history makes SHIPPED unknown on every line (null + why) — it no longer takes the whole
@@ -14707,13 +14772,17 @@ function lineStatsSnapshot(since) {
   let shipments = null, shippedUnknown = null;
   try { shipments = lineShipments.snapshot(); }
   catch (e) { failNote('line-stats.shipments', e); shippedUnknown = 'shipment history unreadable: ' + String((e && e.message) || e).slice(0, 160); }
-  return foldLineStats({
+  const folded = foldLineStats({
     rows: runStore.list(null, { limit: 1000 }) || [], lines, since,
     spentToday: id => lineSpend.spentToday(id),
-    capOf: id => chainEffectiveLimits(router.lineLimits(id), {}, pool).maxUsdPerDay,
+    capOf: id => chainEffectiveLimits(observe.lineLimits(id), {}, pool).maxUsdPerDay,
     shipments, shippedUnknown,
     shipmentsMissedAt: lineShipments.missedAt()   // a job that shipped past the hold while the history was unreadable: SHIPPED at least
   });
+  /* a saved floor that cannot be proved right now has NO lines to count (never a guess): the answer says why it is empty, in the
+     existing answer (additive routing.held), so a page or the lead never reads a held floor as an empty one */
+  const held = routingHold();
+  return held ? Object.assign(folded, { routing: { state: 'held', status: held.status, why: held.why } }) : folded;
 }
 /* GET /api/routing/lines/stats?since=<ms> — LINE WATCH. `since` is the caller's local midnight (the same window the
    SHIPPED counter reads /api/runs with); absent/invalid -> the start of the current UTC day. Every number is a fold of
@@ -14737,6 +14806,8 @@ function handleLineStats(req, res) {
 function handleStepTestLatest(_req, res) { stepTestJson(res, getStepTest().get(null)); }
 async function handleStepTestStart(req, res) {
   const body = await stepTestBody(req, res); if (!body) return;
+  const held = routingHold();   // the saved floor cannot be proved right now: no step starts from a guess about it
+  if (held) return stepTestJson(res, { ok: false, error: held.why });
   stepTestJson(res, getStepTest().start(body));
 }
 async function handleStepTestId(req, res, gm) {
@@ -14745,6 +14816,8 @@ async function handleStepTestId(req, res, gm) {
   if (req.method === 'GET') return stepTestJson(res, verb ? { ok: false, error: 'use POST for ' + verb } : st.get(id));
   if (!verb) return stepTestJson(res, { ok: false, error: 'POST needs a verb: continue, rerun, rewind, stop or pause' });
   const body = await stepTestBody(req, res); if (!body) return;
+  const held = (verb === 'continue' || verb === 'rerun') ? routingHold() : null;   // a stage runs only off a floor that can be proved
+  if (held) return stepTestJson(res, { ok: false, error: held.why });
   const r = verb === 'continue' ? st.continue(id, body) : verb === 'rerun' ? st.rerun(id)
     : verb === 'rewind' ? st.rewind(id, body) : verb === 'stop' ? st.stop(id) : st.pause(id, body);
   stepTestJson(res, r);
@@ -17670,6 +17743,12 @@ async function handleCronRun(req, res) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     return res.end(JSON.stringify({ error: (!model ? (runWire.unknownProvider ? runWire.error : 'choose a model for this routine agent first') : cronCredentialError(provider)) }));
   }
+  // a saved floor that cannot be proved right now: this press would pick a bay, a brief and a line off a guess. Refused like every Run Now
+  // refusal (409 and its words), before anything is spent or started
+  {
+    const held = routingHold();
+    if (held) { res.writeHead(409, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: held.why, held: true, status: held.status })); }
+  }
   // ONE STREAM PER PAGE (run-streams.js): a page that names its run stream gets this POST answered at once and the run's
   // lines on that stream — a routine started from NEEDS YOU or an app no longer holds a connection for its whole run
   const sink = pageRunSink(body, res);
@@ -17748,7 +17827,7 @@ async function handleCronRun(req, res) {
   // match the scheduled fire's posture exactly, brief included — same router.stageBrief seam, same section
   // header as the hub's entry runs. Prompt text only; a brief never changes grants/tools/routing.
   let runNowBrief = null;
-  try { runNowBrief = router.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
+  try { runNowBrief = admit.stageBrief(job.agentId, job.dockId); } catch (_) { runNowBrief = null; }
   try {
     placeCronWorkitem(job.agentId, job.prompt, runId, job.dockId, { byFire: true, runsLine: job.runsLine === true, entry: 'manual', signal: ac.signal, stopHandle: () => ac.abort() });
     pressed = await runOnce({
@@ -17777,7 +17856,7 @@ async function handleCronRun(req, res) {
       lineId: (cronItems.get(runId) || {}).lineId || undefined, dockId: (cronItems.get(runId) || {}).dockId || undefined,
       // per-bay capability isolation (B5): Run Now runs in the SAME bay room the scheduled fire gets (cron-driver.js
       // resolveStation) — never the broad autonomous default office, which handed Run Now a dish/cabinet the bay lacks.
-      station: (job.dockId ? router.stationFor(job.agentId, job.dockId) : router.stationFor(job.agentId)) || undefined,
+      station: (job.dockId ? admit.stationFor(job.agentId, job.dockId) : admit.stationFor(job.agentId)) || undefined,
       reflect: true,   // Run Now must match the scheduled fire's posture exactly, memory included (see the reflect note on /api/run)
       // Run Now must exercise the REAL unattended posture, grant included — otherwise "test it now" would
       // prove a capability set the scheduled fire does not get (the whole point of this route).
@@ -17816,7 +17895,7 @@ async function handleCronRun(req, res) {
     if (!runNowOutcome.errMsg && pressedText.trim()) {   // errMsg: the run's own error, or why it did not succeed
       try {
         const line = await lineRunner.runLineJob({ job: (cronItems.get(runId) || {}).job, seed: {
-          agentId: job.agentId, dockId: job.dockId ? (router.dockOf(job.agentId, job.dockId) || undefined) : undefined,
+          agentId: job.agentId, dockId: job.dockId ? (admit.dockOf(job.agentId, job.dockId) || undefined) : undefined,
           text: pressedText, originalText: assembledPrompt, ask: String(job.prompt || ''), signal: ac.signal,   // contextFrom + directive, as the scheduled fire hands it (hops no longer replay the stream)
           // the fire's own stream, exactly as the scheduled fire passes it: a SEND TO hand-off reads back THIS run's rows (the
           // every-step-ended-done check and the files it made) — without it Run Now handed on half-finished work the schedule refuses
@@ -17828,13 +17907,13 @@ async function handleCronRun(req, res) {
           // routine that belongs to the line (the durable `runsLine` opt-in, read off the same job record the
           // driver reads). The two paths must not drift — a routine that runs four stages on schedule must run
           // four from the button, and a terminal routine must buy exactly one run from either.
-          lineId: job.runsLine === true ? router.lineOfAgent(job.agentId, job.dockId ? router.dockOf(job.agentId, job.dockId) : undefined) : null
+          lineId: job.runsLine === true ? admit.lineOfAgent(job.agentId, job.dockId ? admit.dockOf(job.agentId, job.dockId) : undefined) : null
         }, profile: LineRunner.profiles.manual({
           // the scheduled seam's hop exactly (line-runner.js): the TARGET's own roster config, the routine's skills, workdir and toolsets,
           // trigger 'manual', its events streamed into the SAME response and per-run stream so the session shows the whole line
           streamId: 'cron-' + runId, config: (agentId) => cronHopConfigFor(agentId, { key: key, model: model, provider: provider }), emit: emit,
           routine: { preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null, enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null },
-          system: cronSystemFor, station: (agentId, dockId) => router.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
+          system: cronSystemFor, station: (agentId, dockId) => admit.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
         }) });
         // THE LINE'S ANSWER, STOP NOTE, SPEND AND STOP FACTS — folded exactly as the scheduled fire folds them (routing/line-fire.js):
         // out.usd is hop-only, so it is added to the entry run's reconciled spend (2026-08-22); a line that stopped short says so
@@ -18048,7 +18127,7 @@ async function runWorkshopShift(agentId, opts) {
       reflect: true,   // a workshop shift builds real things; its lessons outlive the shift (see the reflect note on /api/run)
       // B5 parity (2026-07-06 audit): a bay-docked agent's workshop shift runs with ITS bay room's objects,
       // never the default office — the same station contract as routed channel messages and cron fires.
-      station: router.stationFor(id) || undefined
+      station: admit.stationFor(id) || undefined
     });
   } catch (e) { threw = e; }
   finally {
@@ -18276,7 +18355,7 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
       agentId: id, isTask: true, emit: (typeof o.emit === 'function' ? o.emit : function () {}), signal: signal,
       runId: runId, streamId: 'workshop-' + runId, surface: 'autonomous', trigger: 'directive', broadcast: !!o.broadcast,
       reflect: true,
-      station: router.stationFor(id) || undefined
+      station: admit.stationFor(id) || undefined
     });
   } catch (e) { threw = e; }
   finally {
@@ -20470,7 +20549,7 @@ async function runSlashForChannel(input, ctx) {
     const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: hostPowerWithheld ? 'ask' : rec.approvalMode,
       backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
     const floor = ProjectTools.projectStation({ id: agentId },
-      { surface: 'autonomous', floorless: true, ownerTrusted: !!ctx.ownerTrusted, station: router.stationFor(agentId) || undefined },
+      { surface: 'autonomous', floorless: true, ownerTrusted: !!ctx.ownerTrusted, station: admit.stationFor(agentId) || undefined },   // a hold throws into the catch below: no placed objects, never the whole default office
       { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, executionProfile }).station;
     const room = floor.rooms && floor.agents && floor.agents[agentId] && floor.rooms[floor.agents[agentId].room];
     placed = Array.from(new Set(placedTypesFrom((room && room.objects) || [])));
@@ -21833,12 +21912,12 @@ async function runOnceCore(o) {
   }
   // Only host-routed workflow runs carry this origin; /api/run never accepts it.
   // (multi-bay) the entry routine names its dock: an agent crewing two lines answers for the bay it fires at
-  const workflowLine = o.runsLine === true ? router.lineOfAgent(o.agentId, o.dockId ? router.dockOf(o.agentId, o.dockId) : undefined) : o.lineId;
+  const workflowLine = o.runsLine === true ? admit.lineOfAgent(o.agentId, o.dockId ? admit.dockOf(o.agentId, o.dockId) : undefined) : o.lineId;
   if (workflowLine) {
-    const plan = router.getPlan();
+    const plan = admit.getPlan();
     const line = plan && (plan.lines || []).find(l => l.lineId === workflowLine);
     // line.agents lists an agent under its FIRST line only, so a multi-bay agent also counts if any of its docks sits on this line
-    const crews = !!line && ((line.agents || []).includes(o.agentId) || router.docksOf(String(o.agentId)).some(d => router.lineOfDock(d) === workflowLine));
+    const crews = !!line && ((line.agents || []).includes(o.agentId) || admit.docksOf(String(o.agentId)).some(d => admit.lineOfDock(d) === workflowLine));
     if (!crews) throw new Error('The workflow changed before this stage could run.');
     if (line.projectRoot) {
       const root = cronCanonicalWorkdir(line.projectRoot);
@@ -22119,7 +22198,7 @@ async function runOnceCore(o) {
   // Now); hub entries, samples, line triggers, hops and step tests carry none and keep the cap.
   const capLine = (o.cronJobId && o.runsLine !== true) ? null : workflowLine;
   if (capLine) {
-    const lim = chainEffectiveLimits(router.lineLimits(capLine), {},
+    const lim = chainEffectiveLimits(admit.lineLimits(capLine), {},
       (typeof effectiveCaps.global === 'number' && effectiveCaps.global > 0) ? effectiveCaps.global : null);
     if (lim.maxUsdPerDay != null && lineSpend.spentToday(capLine) >= lim.maxUsdPerDay) {
       const message = 'The line reached its $' + lim.maxUsdPerDay.toFixed(2) + ' daily limit — raise its LINE BUDGET or try again tomorrow.';
@@ -22781,8 +22860,17 @@ async function runOnceCore(o) {
     // station.layout's HARNESS facts (audit 2026-09-28): the plan the router actually holds, each line's effective
     // budget (the runner's own effectiveLimits), and today's numbers since local midnight (the line plate's window)
     layoutFacts: {
-      routed: () => { const p = router.getPlan(); return p ? { hash: p.hash || null } : null; },
-      budget: lineId => { const lim = chainEffectiveLimits(router.lineLimits(lineId), {}, linePoolCap());
+      /* what the router routes by: the posted plan's hash, or (saved floor) the saved floor's own topology hash AND identity, so the lead
+         can tell "the page shows another version of the floor" from "the same belts with another brief". A saved floor that cannot be
+         proved right now is HELD with its reason; one the compiler refuses, or none saved yet, routes nothing (null, like no plan). */
+      routed: () => {
+        if (!savedAuthority) { const p = observe.getPlan(); return p ? { hash: p.hash || null } : null; }
+        const s = savedAuthority.status();
+        if (s.state === 'ok') return { state: 'ok', hash: s.topologyHash || null, identity: s.identity };
+        if (s.state === 'held') return { state: 'held', status: s.status, why: heldWhy(s.status) };
+        return null;
+      },
+      budget: lineId => { const lim = chainEffectiveLimits(observe.lineLimits(lineId), {}, linePoolCap());
         return { maxHops: lim.maxHops, maxUsdPerMessage: lim.maxUsd, maxUsdPerDay: lim.maxUsdPerDay, clamped: lim.clamped }; },
       today: () => { const d = new Date(); d.setHours(0, 0, 0, 0); return lineStatsSnapshot(d.getTime()); }
     } }).register(registry);
@@ -24400,7 +24488,7 @@ async function runOnceCore(o) {
     // coarse — see frontend/app/xp.js credential()). It INFORMS the pick, it never gates it: an agent that has
     // proved nothing simply has no track clause, exactly as before, and nothing here forbids delegating to it.
     let anyTrack = false;
-    const stageTeam = lineStageTeam(router, { lineId: capLine, agentId, dockId: o.dockId });   // #28: capLine, not workflowLine: a terminal routine is not line work
+    const stageTeam = lineStageTeam(observe, { lineId: capLine, agentId, dockId: o.dockId });   // #28: capLine, not workflowLine: a terminal routine is not line work
     teamNote += stageTeam.note;
     for (const [aid, ident] of agentRoster) {
       if (aid === agentId || stageTeam.leaves(aid)) continue;
@@ -24687,7 +24775,7 @@ async function runOnceCore(o) {
           mediaRoute: !!(studioRoute && studioRoute.ok),
           // ROOM SCOPE: lazy (called only when a floor object is missing); the room it names is stable per agent, so the cached prefix holds.
           // hasBay first: an agent crewing no dock on the router's plan (the bayless hero) never reads or validates the saved floor
-          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => router.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock;
+          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => observe.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock;
   /* CACHE-STABLE PREFIX (lean-prompt, 2026-10-12). Everything below that changes per MESSAGE — the run's skill index
      (ranked by this message), a /skill preload, the Task Brief (its id is the run's), the away briefing, a one-host
      check, the crew call, [RUNTIME] (run id, today) and the open quests — used to close the system prompt, so the

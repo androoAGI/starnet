@@ -477,6 +477,11 @@ const REPORTED = {
     ["reason: String(r.continuation.reason || '')", "the continuation's reason, settled from its OUTCOME at the source (handleRun: a cut continuation is 'cut_short')"],
     ["' reason=' + status.reason + ' saved='", NR("the learning status's own reason (owner_preference_saved …)")],
     ["reason: String(body.reason || 'user')", NR('why a memory was forgotten')],
+    // the saved floor is the routing authority (routing/saved-authority.js): POST /api/routing answers whether the floor a page holds is the saved one
+    ["unroutable: true, identity: r.identity, revision: r.revision, reason: r.reason", NR('why the saved floor routes nothing (the compiler refused it)')],
+    ["pending: true, reason: r.reason", NR('why the floor a page posted is not the saved floor (yet)')],
+    // (red at 4152883a1 + S2 before this lane touched it: the routine store's read-only publication note came in with the routine-history merge)
+    ["readOnly: true, reason: cronDegraded.reason", NR('why the routine store publishes read-only, from its own degraded record')],
     // the run-wire-resolver lane (this lane's base since the rebase): a wire resolution's reason is why a pair was chosen or passed over
     ["now: { provider: r.provider, model: r.model }, reason: r.reason", NR("why pairCronJobWires re-paired a routine's stored pair on load (its wireMigration note)")],
     ["') stored half a pair ') + JSON.stringify(note.was)", NR("the same re-pairing note, logged once")],
@@ -1229,7 +1234,8 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
     for (const [where, slice] of [['the Telegram intake', idxSrc.slice(idxSrc.indexOf('const recordResolved = (info) => {'), idxSrc.indexOf('const recordResolved = (info) => {') + 3200)],
       ['the dev channel', idxSrc.slice(idxSrc.indexOf('const inMsg = { chatId, userId:'), idxSrc.indexOf('const inMsg = { chatId, userId:') + 3200)]]) {
       const rule = /if \(jobResult\) lineRunner\.deliverCrate[^\n]*\n\s*else if \(replyOk === true\) chanEmit[^\n]*/.exec(slice);
-      A.ok(/onSettled: \(s\) => \{ replyOk = !!\(s && s\.ok\); jobResult = s && s\.result; \}/.test(slice) && !!rule, 'fixture: ' + where + '\'s shared-result and non-line delivery branches are sliced');
+      // the dev channel also reads a refusal for a held saved floor off the settlement (additive: heldRouting, saved-hold.js); the two delivery reads stay as pinned
+      A.ok(/onSettled: \(s\) => \{ replyOk = !!\(s && s\.ok\); jobResult = s && s\.result;[^}]*\}/.test(slice) && !!rule, 'fixture: ' + where + '\'s shared-result and non-line delivery branches are sliced');
       const delivers = (replyOk, jobResult) => {
         const events = [], emit = (name, payload) => events.push({ name, payload });
         const book = require('../sidecar/routing/line-runner.js').makeLineRunner({ emit, runOnce: async () => { throw new Error('crate test must not start a run'); } });

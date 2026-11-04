@@ -973,6 +973,8 @@ test/station-saved-projection.test.js
 test/station-saved-hint.test.js
 test/routing.saved-projection.test.js
 test/routing.saved-authority.test.js
+test/routing.saved-seams.test.js
+test/saved-floor-callers.census.test.js
 test/zones.test.js
 test/idle-life-regressions.test.js
 test/social-border.test.js

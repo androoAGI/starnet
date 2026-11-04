@@ -360,8 +360,11 @@
       const ro = r.routing || (r.routing = { state: 'unknown', note: 'The page could not say whether the router holds this floor.' });
       const held = call(lf.routed);
       if (held !== undefined && (ro.state === 'live' || ro.state === 'unconfirmed') && (r.lines || []).length) {
+        const differs = { state: 'unconfirmed', confirmed: false, note: 'The router is running a different version of the floor than the page shows (another open page, or a floor that was not saved), so what runs may differ from this answer.' };
         if (held === null) Object.assign(ro, { state: 'off', confirmed: false, note: 'Routing is OFF: the router holds no routing plan right now, so no line routes work (the page believed otherwise). Opening or editing the floor sends it again.' });
-        else if (held.hash && ro.planHash && held.hash !== ro.planHash) Object.assign(ro, { state: 'unconfirmed', confirmed: false, note: 'The router is running a different version of the floor than the page shows (another open page, or a floor that was not saved), so what runs may differ from this answer.' });
+        // the saved floor cannot be proved right now (corrupt, unreadable, ...): nothing routes from a guess about it, and the reason is said
+        else if (held.state === 'held') Object.assign(ro, { state: 'off', confirmed: false, note: 'Routing is OFF: ' + String(held.why || 'the saved floor cannot be read right now') + ' — so no line routes work, and nothing runs from a guess about the floor (the page believed otherwise).' });
+        else if (held.hash && ro.planHash && held.hash !== ro.planHash) Object.assign(ro, differs);
         else if (held.hash && held.hash === ro.planHash) ro.confirmed = true;
       }
       delete ro.planHash;

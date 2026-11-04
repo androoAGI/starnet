@@ -46,7 +46,7 @@ async function check(mode, suppliedSignal) {
       return {};
     },
     workshopPrompt: () => { if (mode === 'prompt-fault') throw new Error('prompt boundary fault'); return 'build'; },
-    placeCronWorkitem() {}, cronSystemFor: () => '', router: { stationFor: () => null },
+    placeCronWorkitem() {}, cronSystemFor: () => '', router: { stationFor: () => null }, admit: { stationFor: () => null },
     runOnce: async o => { calls++; if (mode === 'core-fault') throw new Error('core boundary fault'); return { reason: o.signal.aborted ? 'cancelled' : 'done' }; },
     dropSteer: id => drops.push(id), settleCronWorkitem: (id, reason) => settles.push(reason),
     validateWorkshopManifest: async () => null, swallow: () => () => {}

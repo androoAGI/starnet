@@ -238,7 +238,11 @@ const { makeStationControlTools, cardFor, ACTIONS } = require('../sidecar/tools/
   A.ok(/const stoppedHere = interrupted\.has\(ws\.id\);[^\n]*\n\s*interrupted\.delete\(ws\.id\);/.test(chatSrc), 'the stop flag is read before the teardown consumes it');
   // a group turn keeps the agent's own room gear (its dish = web search), as its one-on-one chat does (gap review G2)
   const idx = readSidecarSource();
-  A.ok(/lead: t\.agentId === g\.leadId, groupTools: tools, askCommander,\s*\n\s*station: router\.stationFor\(t\.agentId\) \|\| undefined,[\s\S]{0,400}extraObjects: require\('\.\/capability\/saved-placement\.js'\)\.savedPlacement\(saveStore\.load\('agent'\), t\.agentId\),/.test(idx),
+  A.ok(/lead: t\.agentId === g\.leadId, groupTools: tools, askCommander,\s*\n\s*station: admit\.stationFor\(t\.agentId\) \|\| undefined,[\s\S]{0,400}extraObjects: require\('\.\/capability\/saved-placement\.js'\)\.savedPlacement\(saveStore\.load\('agent'\), t\.agentId\),/.test(idx),
     'a group participant\'s run carries its saved room gear (a researcher can search in a group)');
+  // ...and a saved floor that cannot be proved right now fails the turn in the hold's words, before the run is admitted: a bay-bound
+  // participant is never handed the WHOLE default office for want of a room (routing/saved-seams.js, saved-floor-callers.census)
+  A.ok(/if \(!ident\) throw new Error\('Participant is no longer available'\);\s*\n(?:\s*\/\*[\s\S]*?\*\/\s*\n)?\s*const heldFloor = routingHold\(\);\s*\n\s*if \(heldFloor\) throw new Error\(heldFloor\.why\);/.test(idx),
+    'a group turn on a held saved floor fails with the hold\'s words before it is admitted');
   A.report('group-add.test');
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -263,6 +263,15 @@ const detail = async (o, line) => (await layout(o, { line: line || 'draft & revi
     A.ok(none.state === 'off' && none.confirmed === false && /holds no routing plan/.test(none.note), 'the router holds nothing: OFF, whatever the page believed');
     const other = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ hash: 'someone-else' }) }));
     A.ok(other.state === 'unconfirmed' && /different version of the floor/.test(other.note), 'the router holds another floor: unconfirmed');
+    // the SAVED floor is the router's authority (SKYNET_ROUTING_AUTHORITY=saved): a floor it cannot prove right now is HELD, in its words
+    const heldFloor = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'held', status: 'corrupt', why: 'the saved floor is corrupt; routing is held until it is readable' }) }));
+    A.ok(heldFloor.state === 'off' && heldFloor.confirmed === false && /the saved floor is corrupt; routing is held until it is readable/.test(heldFloor.note) && /no line routes work/.test(heldFloor.note),
+      'a held saved floor: OFF, with the reason, whatever the page believed — ' + heldFloor.note);
+    // the saved floor routes by its topology hash AND an identity (saved-plan-v1:...): the page only knows the hash, so that is what is compared
+    const sameBelts = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'ok', hash: 'h1', identity: 'saved-plan-v1:' + 'a'.repeat(64) }) }));
+    A.ok(sameBelts.state === 'live' && sameBelts.confirmed === true && !('planHash' in sameBelts), 'the saved floor holds the same belts the page shows: live and confirmed');
+    const otherBelts = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'ok', hash: 'someone-else', identity: 'saved-plan-v1:' + 'b'.repeat(64) }) }));
+    A.ok(otherBelts.state === 'unconfirmed' && /different version of the floor/.test(otherBelts.note), 'the saved floor under other belts than the page shows: unconfirmed');
   }
 
   /* ---- 10. one blocking finding ANYWHERE: every line is not ready, and the pill says why ---- */

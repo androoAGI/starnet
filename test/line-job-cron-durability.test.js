@@ -25,7 +25,7 @@ function rig(options) {
       finish: (id, o) => { if (failFinish) throw new Error('job finish disk fault'); writes++; return save(J.finish(jobs, id, o)); } },
     runRow: id => rows.get(id), emit: (name, payload) => events.push({ name, payload }) });
   const host = { lineRunner, cronItems: new Map(), crypto: { randomUUID: () => 'crate-' + (++seq) },
-    router: { dockOf: () => 'bay', lineOfAgent: () => 'line' }, QUEUE_CAP: 64, processFaultQuiesced: false, cronHalted: false,
+    admit: { dockOf: () => 'bay', lineOfAgent: () => 'line' }, QUEUE_CAP: 64, processFaultQuiesced: false, cronHalted: false,
     bumpQueue: (_a, d) => (depth += d), chanEmit: (name, payload) => events.push({ name, payload }), failNote: () => {} };
   vm.runInNewContext(sidecarTopLevelFunction('placeCronWorkitem') + '\n' + sidecarTopLevelFunction('settleCronWorkitem'), host);
   const driver = makeCronDriver({ getJobs: () => routines, setJobs: v => { if (failRoutineFinish && v.some(j => j.lastRunAt)) return false; routines = v; return true; },
