@@ -33,6 +33,10 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     const env = JSON.parse(fs.readFileSync(first.body.path, 'utf8'));
     A.eq(env.starnetExport, 1, 'the saved file is the station export envelope');
     A.eq(env.sections.settings, { theme: 'blue' }, 'the browser-owned slices ride into the saved file');
+    // save v7 (history by reference): a saved history may name rows only the station's transcript holds, so a file that leaves the station must
+    // never carry one. The station export is configuration, not conversations: no session, no history, and so no reference that would dangle.
+    const exported = fs.readFileSync(first.body.path, 'utf8');
+    A.ok(!/"\$ref"/.test(exported) && !/"workstreams"/.test(exported) && !/"history"/.test(exported), 'the export holds no conversation and no reference to one (a packed history is only meaningful beside its own transcript)');
 
     const second = await fixture.json('POST', '/api/config/export/save', { sections: {} });
     A.eq(second.status, 200, 'a second save the same day succeeds');
