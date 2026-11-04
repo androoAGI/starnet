@@ -650,6 +650,7 @@ test/recruiter.test.js
 test/topicmatch.test.js
 test/prospect.test.js
 test/interests.test.js
+test/interests.provenance.test.js
 test/scout.test.js
 test/dossier.test.js
 test/understanding.test.js

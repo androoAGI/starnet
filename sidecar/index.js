@@ -3678,7 +3678,8 @@ function forgetDeletedSessionMemory() {
 wireForgetRegistry(forgetRegistry, {
   now: () => Date.now(),
   notebookStore: () => notebookStore, threadsStore: () => threadsStore, memoryAgentIds: () => memoryAgentIds(),
-  personalization: () => personalizationStore
+  personalization: () => personalizationStore,
+  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() }
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
@@ -8353,6 +8354,23 @@ const SCOUT_FILE = path.join(WORKSPACES, 'scout.state.json');
 let interestsState = (() => { try { const o = loadResilient(INTERESTS_FILE, 'scout-interests'); return Interests.normalize(o && o.state, Date.now()); } catch (_) { return Interests.fresh(Date.now()); } })();
 let scoutState = (() => { try { const o = loadResilient(SCOUT_FILE, 'scout'); return Scout.normalize(o && o.state, Date.now()); } catch (_) { return Scout.fresh(Date.now()); } })();
 function persistInterests() { try { saveResilient(INTERESTS_FILE, { v: 1, state: interestsState }); } catch (e) { console.warn('[scout] interests persist failed:', (e && e.message) || e); } }
+/* THE ONE-TIME PROOF of trusted interest evidence recorded before it carried a source (turn identity commit 12, Interests.reprove): each quote
+   is looked up in the owner-evidence rows; one that a row contains takes that row as its source, one that no row contains is QUARANTINED
+   (kept on disk, read by nobody, restorable) - never deleted. Runs when an unsourced trusted quote exists, so on a station whose evidence
+   already carries sources it reads nothing. */
+function reproveTrustedInterests() {
+  const st = Interests.normalize(interestsState, Date.now());
+  const unproven = Object.values(st.trustedTopics || {}).some(t => t.ev.some(e => !e.src));
+  if (!unproven) return 0;
+  const flat = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+  const rows = transcriptStore.view('owner-evidence', null, { limit: 20000 }).map(r => ({ text: flat(r.content), src: { streamId: r.streamId, runId: r.sourceRunId, rowId: r.rowId } }));
+  const next = Interests.reprove(st, q => { const k = flat(q); const hit = k ? rows.find(r => r.text.includes(k)) : null; return hit ? hit.src : null; }, { now: Date.now() });
+  const held = Object.keys(next.quarantined || {}).length;
+  interestsState = next; persistInterests();
+  console.log('[scout] trusted interest evidence re-proved against the owner rows' + (held ? ': ' + held + ' topic(s) quarantined (kept, not read)' : ''));
+  return held;
+}
+setImmediate(() => { try { reproveTrustedInterests(); } catch (e) { failNote('interests.reprove', e); } });
 function persistScout() { try { saveResilient(SCOUT_FILE, { v: 1, state: scoutState }); } catch (e) { console.warn('[scout] state persist failed:', (e && e.message) || e); } }
 function scoutNote(entry) { scoutState = Scout.note(scoutState, entry, { now: Date.now() }); persistScout(); }
 // sweep aged-out undecided drafts (DRAFT_TTL_MS) before any decide()/status read, so stale drafts never
@@ -8462,7 +8480,10 @@ async function runScoutCycle(o) {
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
       if (!learningUnchangedSince(pz)) return;
       const cands = Interests.parse(reply, { activityLines: activity, requireExactEvidence: true });
-      interestsState = Interests.fold(interestsState, cands, { now: Date.now(), trustedActivity: true });
+      // each trusted quote takes the source row of the activity line it came from (pack.trustedActivity, parallel to the lines); a source whose
+      // session was deleted while the pass ran is refused by the registry's write-time gate
+      interestsState = Interests.fold(interestsState, cands, { now: Date.now(), trustedActivity: true, activity: pack.trustedActivity,
+        admit: src => forgetRegistry.admit({ streamId: src.streamId, rowId: src.rowId }) });
       persistInterests();
       scoutNote({ kind: 'interests', outcome: cands.length ? 'folded' : 'none', reason: cands.length ? cands.map(c => c.label).join(', ') : 'no specific recurring topics' });
     }

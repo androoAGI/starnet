@@ -26,6 +26,13 @@
    proven clean activity. Old topics remain inspectable; their counts and evidence never become trusted
    merely because a matching topic is observed again. Each histogram has its own eviction budget.
 
+   SOURCES (turn identity commit 12, qa/bugs/31042fab): a TRUSTED evidence quote records the transcript row it was quoted from,
+   ev: [{ q, at, src: { streamId, runId, rowId } }], read off the context pack's parallel activity[].src array (the pack's
+   activityLines strings are unchanged). The registry (sidecar/forget-registry.js) purges by that source when a session is deleted,
+   admits a fold only for a source that is not forgotten, and a trusted read can ask for the sources still alive (opts.live). Trusted
+   evidence recorded before sources existed is re-proved once against the owner-evidence rows (reprove): a quote no owner row
+   contains is QUARANTINED, never deleted, and comes back with unquarantine().
+
    UMD: (root.SK).interests in a browser-ish global, module.exports under node. */
 'use strict';
 (function (root, factory) {
@@ -39,6 +46,7 @@
   const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
 
   const STATE_VERSION = 1;
+  const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;
   const DECAY_HALF_LIFE_MS = 14 * 86400000;  // 14-day half-life — same horizon as the profile engine
   const MAX_TOPICS = 24;                     // histogram ceiling; the weakest decayed topic is evicted first
   const EVIDENCE_CAP = 3;                    // quotes kept per topic (newest first) — the "why" a card may cite
@@ -58,6 +66,18 @@
     'productivity', 'ai', 'help', 'questions', 'chat', 'misc', 'various', 'stuff']);
 
   const str = (v) => (v == null ? '' : String(v));
+  const quoteKeyOf = (value) => str(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  // a source is exactly { streamId, runId, rowId }: anything else is no source (an unproven quote)
+  function cleanSrc(s) {
+    if (!s || typeof s !== 'object') return null;
+    const streamId = str(s.streamId), runId = str(s.runId), rowId = s.rowId;
+    if (!SID_RE.test(streamId) || !runId || runId.length > 100 || !Number.isSafeInteger(rowId) || rowId <= 0) return null;
+    return { streamId, runId, rowId };
+  }
+  function cleanEv(e) {
+    const src = cleanSrc(e.src);
+    return Object.assign({ q: str(e.q).slice(0, EVIDENCE_MAX), at: Number.isFinite(e.at) ? Math.floor(e.at) : 0 }, src ? { src } : {});
+  }
 
   // a stable topic slug: lowercase alphanumeric tokens joined by '-' ("Stock research " -> 'stock-research').
   function slugOf(label) {
@@ -86,7 +106,7 @@
             ev: Array.isArray(t.ev)
               ? t.ev.filter(e => e && typeof e === 'object' && str(e.q))
                   .slice(0, EVIDENCE_CAP)
-                  .map(e => ({ q: str(e.q).slice(0, EVIDENCE_MAX), at: Number.isFinite(e.at) ? Math.floor(e.at) : 0 }))
+                  .map(cleanEv)
               : []
           };
         }
@@ -97,6 +117,12 @@
       // input contains only topics, so it cannot recurse through arbitrary persisted trusted fields.
       s.trustedTopics = normalize({ topics: raw.trustedTopics }, now).topics;
     }
+    // quarantined trusted evidence (reprove): kept on disk, read by nobody, restored by unquarantine
+    if (raw && raw.quarantined && typeof raw.quarantined === 'object' && !Array.isArray(raw.quarantined)) {
+      const held = normalize({ topics: raw.quarantined }, now).topics;
+      if (Object.keys(held).length) s.quarantined = held;
+    }
+    if (raw && Number.isFinite(raw.reprovedAt) && raw.reprovedAt > 0) s.reprovedAt = Math.floor(raw.reprovedAt);
     return s;
   }
 
@@ -212,7 +238,7 @@
       const cur = topics[slug];
       const decayed = cur ? decayedWeight(cur, now) : 0;
       const ev = cur ? cur.ev.slice() : [];
-      if (c.evidence) ev.unshift({ q: str(c.evidence).slice(0, EVIDENCE_MAX), at: now });
+      if (c.evidence) { const src = cleanSrc(c.src); ev.unshift(Object.assign({ q: str(c.evidence).slice(0, EVIDENCE_MAX), at: now }, src ? { src } : {})); }
       topics[slug] = {
         label: str(c.label || (cur && cur.label) || slug).slice(0, LABEL_MAX),
         w: decayed + 1,
@@ -229,13 +255,98 @@
     }
     const out = { v: STATE_VERSION, topics: topics, lastPassAt: now, runsSincePass: 0 };
     if (s.trustedTopics) out.trustedTopics = s.trustedTopics;
+    if (s.quarantined) out.quarantined = s.quarantined;
+    if (s.reprovedAt) out.reprovedAt = s.reprovedAt;
     if (opts && opts.trustedActivity === true) {
       // This option is host-only, never read from candidate/model fields. The host calls it only after
       // exact-evidence parsing against proven clean activity. The isolated fold starts from ONLY
       // prior trusted observations: legacy labels, weights, counts and evidence cannot leak across,
       // and a saturated old histogram cannot evict a fresh trusted observation.
-      out.trustedTopics = fold({ topics: s.trustedTopics || {} }, candidates, { now: now }).topics;
+      // opts.activity = the pack's parallel [{ line, src }]: each candidate's quote is found in the line it came from and takes that
+      // line's source; a quote no source line carries is not trusted history, and opts.admit(src) (the registry's write-time gate)
+      // refuses a source whose session was deleted while the pass ran. Without opts.activity the fold is the older sourceless one.
+      let trustedCandidates = candidates;
+      if (Array.isArray(opts.activity)) {
+        trustedCandidates = [];
+        for (const c of (Array.isArray(candidates) ? candidates : [])) {
+          const src = c && sourceOfQuote(opts.activity, c.evidence);
+          if (!src || (typeof opts.admit === 'function' && !opts.admit(src))) continue;
+          trustedCandidates.push(Object.assign({}, c, { src }));
+        }
+      }
+      out.trustedTopics = fold({ topics: s.trustedTopics || {} }, trustedCandidates, { now: now }).topics;
     }
+    return out;
+  }
+  // the source of a quote: the first activity line (carrying a proven source) that contains the whole quote
+  function sourceOfQuote(activity, evidence) {
+    const quote = quoteKeyOf(evidence);
+    if (!quote) return null;
+    for (const a of activity) {
+      const src = a && cleanSrc(a.src);
+      if (src && quoteKeyOf(a.line).includes(quote)) return src;
+    }
+    return null;
+  }
+
+  /* purge(state, match) -> { state, removed }: take every quote whose source `match(src, ev)` names out of the TRUSTED histogram, and
+     the whole topic with it. A topic's label is the model's own summary of the lines it read, so it cannot be split from a deleted
+     session's words: a topic with ANY matching quote is dropped, not trimmed (it is learned again from what is still there). Quotes
+     with no source are not touched here (they are unproven: reprove decides them). The legacy histogram holds no source and is
+     never read as grounding, so it is left as it is. */
+  function purge(state, match) {
+    const s = normalize(state, 0);
+    let removed = 0;
+    const strip = topics => {
+      const out = {};
+      for (const slug of Object.keys(topics || {})) {
+        const t = topics[slug];
+        const hit = t.ev.filter(e => e.src && match(e.src, e)).length;
+        if (hit) removed += hit; else out[slug] = t;
+      }
+      return out;
+    };
+    const next = Object.assign({}, s);
+    if (s.trustedTopics) next.trustedTopics = strip(s.trustedTopics);
+    if (s.quarantined) { const held = strip(s.quarantined); if (Object.keys(held).length) next.quarantined = held; else delete next.quarantined; }
+    return { state: next, removed };
+  }
+
+  /* reprove(state, prove, opts) - the ONE-TIME proof of trusted evidence recorded before sources existed. prove(q) -> src | null looks
+     the quote up in the owner-evidence rows. A quote that is found takes its source; one that is not is QUARANTINED (kept on disk
+     under state.quarantined, read by no summary, warm or topicsBlock) and a topic with nothing proven left moves there whole.
+     Nothing is deleted: unquarantine(state, slug) puts a topic back. Stamps state.reprovedAt so the pass runs once. */
+  function reprove(state, prove, opts) {
+    const now = Number(opts && opts.now) || 0;
+    const s = normalize(state, now);
+    const out = Object.assign({}, s, { reprovedAt: Math.max(1, now) });
+    if (!s.trustedTopics) return out;
+    const kept = {}, held = Object.assign({}, s.quarantined || {});
+    for (const slug of Object.keys(s.trustedTopics)) {
+      const t = s.trustedTopics[slug];
+      const proven = [], unproven = [];
+      for (const e of t.ev) {
+        if (e.src) { proven.push(e); continue; }
+        let src = null;
+        try { src = cleanSrc(prove(e.q)); } catch (_) { src = null; }
+        if (src) proven.push(Object.assign({}, e, { src })); else unproven.push(e);
+      }
+      if (proven.length) kept[slug] = Object.assign({}, t, { ev: proven });
+      if (unproven.length) held[slug] = Object.assign({}, t, { ev: unproven.concat(held[slug] ? held[slug].ev : []).slice(0, EVIDENCE_CAP) });
+    }
+    out.trustedTopics = kept;
+    if (Object.keys(held).length) out.quarantined = held; else delete out.quarantined;
+    return out;
+  }
+  // bring a quarantined topic back into the trusted histogram (its quotes still unsourced: reprove decides them again)
+  function unquarantine(state, slug) {
+    const s = normalize(state, 0);
+    const key = slugOf(slug);
+    if (!s.quarantined || !s.quarantined[key]) return s;
+    const out = Object.assign({}, s, { trustedTopics: Object.assign({}, s.trustedTopics || {}, { [key]: s.quarantined[key] }) });
+    const rest = Object.assign({}, s.quarantined); delete rest[key];
+    if (Object.keys(rest).length) out.quarantined = rest; else delete out.quarantined;
+    delete out.reprovedAt;
     return out;
   }
 
@@ -248,19 +359,30 @@
     const limit = Number(opts && opts.limit) || 8;
     const s = normalize(state, now);
     const topics = opts && opts.trustedOnly === true ? (s.trustedTopics || {}) : s.topics;
+    const live = opts && typeof opts.live === 'function' ? opts.live : null;
     const rows = Object.keys(topics).map(slug => {
       const t = topics[slug];
-      return { topic: slug, label: t.label, weight: Math.round(decayedWeight(t, now) * 100) / 100, count: t.n, lastAt: t.lastAt, evidence: t.ev.map(e => scrub(e.q)) };
-    }).filter(r => r.weight > 0.05);
+      const ev = live ? t.ev.filter(e => isLive(live, e)) : t.ev;
+      return { topic: slug, label: t.label, weight: Math.round(decayedWeight(t, now) * 100) / 100, count: t.n, lastAt: t.lastAt, evidence: ev.map(e => scrub(e.q)), live: ev.length };
+    }).filter(r => r.weight > 0.05 && (!live || r.live > 0)).map(r => { delete r.live; return r; });
     rows.sort((a, b) => (b.weight - a.weight) || (b.lastAt - a.lastAt));
     return rows.slice(0, Math.max(1, limit));
   }
 
+  // opts.live(src) -> bool: the host's read-time proof that a quote's source row is still there and not forgotten. A quote with no source
+  // is asked as live(null) and a host that wants proof answers false; a throw is no proof.
+  function isLive(live, e) {
+    try { return !!live(e.src || null, e); } catch (_) { return false; }
+  }
   // warm — does the station KNOW at least one real interest yet? (the scout's warm floor reads this).
   function warm(state, now, opts) {
     const s = normalize(state, now);
     const topics = opts && opts.trustedOnly === true ? (s.trustedTopics || {}) : s.topics;
-    for (const slug of Object.keys(topics)) if (decayedWeight(topics[slug], now) >= WARM_WEIGHT) return true;
+    const live = opts && typeof opts.live === 'function' ? opts.live : null;
+    for (const slug of Object.keys(topics)) {
+      if (live && !topics[slug].ev.some(e => isLive(live, e))) continue;
+      if (decayedWeight(topics[slug], now) >= WARM_WEIGHT) return true;
+    }
     return false;
   }
 
@@ -273,7 +395,7 @@
 
   return {
     fresh, normalize, noteRun, shouldExtract, buildDirective, parse, fold, summary, warm, topicsBlock,
-    slugOf, decayedWeight,
+    purge, reprove, unquarantine, cleanSrc, slugOf, decayedWeight,
     PASS_EVERY_RUNS, PASS_MIN_GAP_MS, PASS_STALE_MS, MAX_TOPICS, EVIDENCE_CAP, WARM_WEIGHT, DECAY_HALF_LIFE_MS
   };
 });

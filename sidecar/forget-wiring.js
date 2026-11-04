@@ -23,6 +23,7 @@
 
 const ForgetRegistry = require('./forget-registry.js');
 const SessionTombstones = require('./session-tombstones.js');
+const Interests = require('./interests.js');
 
 const { inScope } = ForgetRegistry;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -49,6 +50,21 @@ function wireForgetRegistry(registry, deps) {
     name: 'personalization-revision',
     sourceOf: () => ({}),
     forget: async () => { await d.personalization().markForgotten(d.now()); return 0; }
+  });
+
+  /* trusted interest evidence: every quote records the owner row it was quoted from (src { streamId, runId, rowId }, off the context pack's
+     parallel activity[].src). A topic with ANY quote from a deleted session is dropped whole (its label is the model's summary of those
+     lines); quarantined evidence is unproven, so a purge does not read it as a source. The match is by stream and row, not by run: an
+     interest drawn from a directive the Commander typed stays when that run later read a deleted session. */
+  const interestSource = (src, ev) => ({ streamIds: [src.streamId], rowIds: [src.rowId], at: num(ev && ev.at) });
+  entry({
+    name: 'interests',
+    sourceOf: ev => interestSource(ev.src || {}, ev),
+    forget: scope => {
+      const out = Interests.purge(d.interests.get(), (src, ev) => inScope(interestSource(src, ev), scope));
+      if (out.removed) { d.interests.set(out.state); d.interests.persist(); }
+      return out.removed;
+    }
   });
 
   return registry;

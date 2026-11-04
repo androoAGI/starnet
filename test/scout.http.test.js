@@ -40,7 +40,8 @@ const { hostText } = require('./helpers/host-notes.js');
       v: 1,
       topics: { 'stock-research': { label: 'stock research', w: 3.2, n: 4, lastAt: now - 3600000, ev: [{ q: 'NVDA earnings and the market reaction', at: now - 3600000 }] } },
       // Explicit post-repair trusted fixture. Legacy-only state is tested separately below.
-      trustedTopics: { 'stock-research': { label: 'stock research', w: 3.2, n: 4, lastAt: now - 3600000, ev: [{ q: 'NVDA earnings and the market reaction', at: now - 3600000 }] } },
+      // (a trusted quote names the owner row it came from, turn identity commit 12: a station quarantines sourceless trusted evidence at boot)
+      trustedTopics: { 'stock-research': { label: 'stock research', w: 3.2, n: 4, lastAt: now - 3600000, ev: [{ q: 'NVDA earnings and the market reaction', at: now - 3600000, src: { streamId: 'seed-stream', runId: 'seed-run', rowId: 1 } }] } },
       lastPassAt: now - 3600000, runsSincePass: 1
     }
   }));
@@ -158,7 +159,8 @@ async function trustedCacheRestart() {
   const cleanCandidates = Interests.parse('TOPIC: ' + CLEAN + ' | EVIDENCE: ' + EVIDENCE,
     { activityLines: [EVIDENCE + ' each morning.'], requireExactEvidence: true });
   A.eq(cleanCandidates.length, 1, 'trusted positive uses exact evidence from a clean activity line');
-  const mixed = Interests.fold(legacy, cleanCandidates, { now, trustedActivity: true });
+  // a trusted quote names the owner row it came from (turn identity commit 12): a station quarantines sourceless trusted evidence at boot
+  const mixed = Interests.fold(legacy, cleanCandidates, { now, trustedActivity: true, activity: [{ line: EVIDENCE + ' each morning.', src: { streamId: 'seed-stream', runId: 'seed-run', rowId: 1 } }] });
   const save = state => fs.writeFileSync(file, JSON.stringify({ v: 1, state }));
   let probe = 0;
   async function prompt(label, expectedTopic) {
