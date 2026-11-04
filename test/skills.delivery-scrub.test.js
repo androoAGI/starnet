@@ -244,7 +244,7 @@ async function dispatch(store, name, args, deps) {
         skillApprovals: { 'a\x00s': { digest: 'd0', action: 'allow', at: 100 }, 'a\x00s\x00d1': { digest: 'd1', action: 'allow', at: 100, restampedFrom: 'd0' } },
         readBody: async () => JSON.stringify({ agentId: 'a', candidateId: 'c1', candidateDigest: 'cd', receiptId: 'r1' }),
         learningJson: (res, code, value) => { res.code = code; res.body = value; },
-        isAgentId: () => true,
+        isAgentId: () => true, refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
         skillStore: { candidate: () => cand, promotionBlocker: () => '', view: () => ({ id: 's', body: 'old' }), approveCandidate: () => ({ ok: true, skill: { id: 's', name: 'S' } }) },
         skillGate: { verify: () => ({ action: 'allow' }), digestOf: () => 'cand' },
         verifySkillPromotion: () => ({ ok: true, receiptId: 'r1' }),

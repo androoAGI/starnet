@@ -646,7 +646,9 @@
     /* hopLineage(chatId, lineId) -> a REAL chat's canonical replay for ONE job. Ordinary chat turns remain visible;
        only hop rows require this dock's line tag. Read once on first arrival so a loop-back never replays this job's
        later same-dock hop output (token-burn 10-17: "the hub loop-back sends the draft twice"). The ordinary entry
-       pair already finished before first arrival and stays visible. A one-job hub (bindChats:false) gets none. */
+       pair already finished before first arrival and stays visible. The stage replays the chat's WORDS, never the tool
+       traffic of the agent before it (forAgent): the provider is not told the stage made a call only that agent made.
+       A one-job hub (bindChats:false) gets none. */
     function hopLineage(chatId, lineId, chat) {
       const read = new Map();
       const keyOf = h => hopHistoryKey(chatId, lineId, h.dockId || h.agentId);
@@ -656,7 +658,7 @@
           if (!read.has(key)) {
             const line = TurnKinds.ofRun({ lineHop: true, lineId, dockId: h.dockId }).line;
             if (!line && !history.legacy) throw new Error('The line history has no canonical line/dock identity');
-            read.set(key, history.replay({ chat, streamId: chat.streamId, agentId: h.agentId, line, shape: 'pairs', legacyKey: key }));
+            read.set(key, history.replay({ chat, streamId: chat.streamId, agentId: h.agentId, forAgent: h.agentId, line, shape: 'pairs', legacyKey: key }));
           }
           return read.get(key);
         },

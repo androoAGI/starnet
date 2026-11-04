@@ -189,19 +189,42 @@ const reaperBlock = (async () => {
   // a process table that shows no owned descendants: the kill below can be CONFIRMED (h2 F3)
   const bg = makeShellBg({ spawn, clock, maxPerAgent: 5, isWin: true, processTable: async () => [{ pid: 1, ppid: 0, created: 1 }] });
   const fs = { mkdirSync: function () {}, existsSync: function () { return true; } };
-  const tools = makeShellTool({ spawn, fs, pathMod: path, root: path.join('root'), clock, bg, platform: 'win32' });
   const ctx = { agentId: 'a' };
 
-  const r = await tools.execTool.run({ cmd: 'npm run dev', background: true }, ctx);
-  A.ok(/Started background process bg_/.test(r.content), 'shell.exec background:true starts a bg process via the manager');
-  A.eq(bg.count('a'), 1, 'the manager tracks the backgrounded process');
+  /* A background start is screened like a foreground one, and on Windows a bare program is proven before anything starts (a21bc3e84,
+     the bare-name proof): `npm` is searched for the way cmd searches, from an absolute known folder, and must be a readable batch shim
+     or a console program. This fixture's relative root and stub file system (no stat, no read) can prove nothing, so `npm run dev`
+     there is refused at shell.exec, before the manager is asked, and that is the behaviour pinned here. It is not the refusal of text
+     typed into a running process (shell.bg.write, terminal.write), which has its own tests. */
+  {
+    const unprovable = makeShellTool({ spawn, fs, pathMod: path, root: path.join('root'), clock, bg, platform: 'win32' });
+    let refusal = '';
+    try { await unprovable.execTool.run({ cmd: 'npm run dev', background: true }, ctx); } catch (e) { refusal = String((e && e.message) || e); }
+    A.ok(/refused \[user-control\]/.test(refusal) && /could not confirm/.test(refusal), 'a bare program the fixture cannot prove is refused at shell.exec, background or not');
+    A.eq(bg.count('a'), 0, 'and it never reached the background manager');
+    A.eq(spawn.children.length, 0, 'nor any spawn');
+  }
 
-  const st = await tools.bgStatusTool.run({}, ctx);
-  A.ok(/RUNNING/.test(st.content) && /bg_1/.test(st.content), 'shell.bg.status lists it running');
+  // A real workspace gives the guard what it asks for: an absolute folder, a file system it can read, and the program on PATH.
+  const nodeFs = require('fs'), os = require('os');
+  const ws = nodeFs.mkdtempSync(path.join(os.tmpdir(), 'starnet-shell-bg-'));
+  try {
+    const bin = path.join(ws, 'bin');
+    nodeFs.mkdirSync(bin);
+    nodeFs.writeFileSync(path.join(bin, 'npm.cmd'), '@echo dev server\r\n');
+    const tools = makeShellTool({ spawn, fs: nodeFs, pathMod: path, root: path.join(ws, 'agents'), clock, bg, platform: 'win32', env: { PATH: bin, PATHEXT: '.cmd;.exe' } });
 
-  const k = await tools.bgKillTool.run({ id: 'bg_1' }, ctx);
-  A.ok(/Killed/.test(k.content), 'shell.bg.kill stops it');
-  A.eq(bg.count('a'), 0, 'the slot is freed after kill');
+    const r = await tools.execTool.run({ cmd: 'npm run dev', background: true }, ctx);
+    A.ok(/Started background process bg_/.test(r.content), 'shell.exec background:true starts a bg process via the manager');
+    A.eq(bg.count('a'), 1, 'the manager tracks the backgrounded process');
+
+    const st = await tools.bgStatusTool.run({}, ctx);
+    A.ok(/RUNNING/.test(st.content) && /bg_1/.test(st.content), 'shell.bg.status lists it running');
+
+    const k = await tools.bgKillTool.run({ id: 'bg_1' }, ctx);
+    A.ok(/Killed/.test(k.content), 'shell.bg.kill stops it');
+    A.eq(bg.count('a'), 0, 'the slot is freed after kill');
+  } finally { nodeFs.rmSync(ws, { recursive: true, force: true }); }
 
   const asyncEnvironment = {
     backendId: 'docker',

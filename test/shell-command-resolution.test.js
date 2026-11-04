@@ -97,7 +97,104 @@ A.ok(network.touched.every(f => !/^[\\/]{2}/.test(f)), 'no stat/open/read reache
 const unknownScript = at({ 'C:\\bin\\script.cmd': Buffer.from('@echo safe\n') });
 unknownScript.memory.readFileSync = () => { throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); };
 A.ok(unknownScript.risk('script'), 'an unreadable batch source is not accepted as a developer shim');
+
+// ---- the folder cmd searches first is not always the working folder ----
+// Read off the real cmd.exe by the Windows block below: with NoDefaultCurrentDirectoryInExePath defined, whatever its value
+// (even none) and however its name is cased, a bare program name is looked for along PATH only. The guard reads the variable
+// from the environment the command will run with, so a console copy in the working folder cannot vouch for the GUI program
+// PATH runs, and a GUI copy cmd never reads cannot refuse the console program it does.
+const NO_CWD = { NoDefaultCurrentDirectoryInExePath: '1' };
+const safeShim = Buffer.from('@echo safe\n'), unsafeShim = Buffer.from('@echo off\nnotepad forbidden.txt\n');
+A.ok(at({ 'C:\\work\\same.exe': consolePE, 'C:\\bin\\same.exe': guiPE }, NO_CWD).risk('same'), 'variable defined: a console copy in the working folder cannot vouch for the GUI program PATH runs');
+A.eq(at({ 'C:\\work\\same.exe': guiPE, 'C:\\bin\\same.exe': consolePE }, NO_CWD).risk('same'), null, 'variable defined: the working-folder GUI copy is never run, PATH\'s console copy is');
+A.eq(at({ 'C:\\work\\same.exe': guiPE }, NO_CWD).risk('same'), null, 'variable defined and nothing on PATH: cmd reports it is not recognized and runs nothing');
+for (const spelling of [{ NoDefaultCurrentDirectoryInExePath: '' }, { nodefaultcurrentdirectoryinexepath: '1' }, { NODEFAULTCURRENTDIRECTORYINEXEPATH: '0' }]) {
+  A.eq(at({ 'C:\\work\\same.exe': guiPE, 'C:\\bin\\same.exe': consolePE }, spelling).risk('same'), null, 'defined is defined, whatever the value or the case of the name: ' + JSON.stringify(spelling));
+}
+A.eq(at({ 'C:\\work\\pair.exe': guiPE, 'C:\\bin\\pair.exe': consolePE }, NO_CWD).risk('pair.exe'), null, 'variable defined: a program spelled with its .exe is searched the same way');
+A.ok(at({ 'C:\\work\\shim.cmd': safeShim, 'C:\\bin\\shim.cmd': unsafeShim }, NO_CWD).risk('shim'), 'variable defined: the batch shim that runs is the PATH one, and its source is the one scanned');
+A.eq(at({ 'C:\\work\\shim.cmd': unsafeShim, 'C:\\bin\\shim.cmd': safeShim }, NO_CWD).risk('shim'), null, 'variable defined: a working-folder shim cmd never reads is not scanned');
+A.ok(at({}, { PATH: ';C:\\bin', NoDefaultCurrentDirectoryInExePath: '1' }).risk('same'), 'variable defined: an empty PATH entry is not read as the working folder, so it is unproven');
+A.ok(at({ 'C:\\work\\same.exe': guiPE, 'C:\\bin\\same.exe': consolePE }).risk('same'), 'control, variable undefined: the working folder answers first and its GUI copy is refused');
+
+// ---- where cmd ends a program name ----
+// Read off the real cmd.exe (Windows block below): the name stops at , ; = ( and at a space of any width, so `probe,x` runs
+// probe.exe with the argument ,x. A name that holds one is not the file the guard would look up under that spelling.
+for (const cmd of ['probe,x', 'probe=x', 'probe(x', 'probe.exe,x', 'probe.exe=x', 'probe\u0085x', 'probe\u180ex', 'console-probe,x', 'console-probe=x']) {
+  A.ok(base.risk(cmd), 'a name cmd would cut short is not looked up as spelled: ' + JSON.stringify(cmd));
+}
 A.eq(base.handles.size, 0, 'all PE file handles close');
+
+// ---- the tools give the guard the environment the command will run with ----
+// shell.exec and verify.run ask the execution environment what its commands begin from (commandEnv; a rig may hand the tool its own
+// env), and terminal.start reads the env its PTY is given (envFor). The same folder holds a console copy and PATH a GUI one: only
+// the environment says which of them runs.
+const plumbing = (async () => {
+  const { makeVerifyTool } = require('../sidecar/tools/builtin/verify.js');
+  const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
+  const ws = 'C:\\ws', mine = 'C:\\ws\\ag';
+  const files = { 'C:\\ws\\ag\\same.exe': consolePE, 'C:\\bin\\same.exe': guiPE };
+  const searched = { PATH: 'C:\\bin', PATHEXT: '.COM;.EXE' }, defined = Object.assign({ NoDefaultCurrentDirectoryInExePath: '1' }, searched);
+  const ctx = { agentId: 'ag', surface: 'interactive' };
+  const attempt = async run => { try { await run(); return null; } catch (e) { return String((e && e.message) || e); } };
+  const quietSpawn = log => function (cmd, o) {
+    log.push({ cmd, env: o && o.env });
+    const on = {};
+    setImmediate(() => on.close && on.close(0));
+    return { pid: 4242, stdout: { on() {} }, stderr: { on() {} }, on(ev, fn) { on[ev] = fn; }, kill() {} };
+  };
+  const fakeEnvironment = (answer, seen, ran) => ({
+    backendId: 'local', ensureWorkspace: () => mine, getCwd: () => mine, workspaceRoot: () => mine, rememberCwd() {},
+    commandEnv: o => { seen.push(o); return answer(); },
+    execute: o => { ran.push(o.cmd); return Promise.resolve({ exitCode: 0, out: '', fullOut: '', ms: 1, truncated: false, timedOut: false, aborted: false }); }
+  });
+  const memory = () => fixture(files).memory;
+
+  // shell.exec: the execution environment's own answer
+  {
+    let answer = defined; const seen = [], ran = [];
+    const tool = api.makeShellTool({ environment: fakeEnvironment(() => answer, seen, ran), fs: memory(), pathMod: path.win32, root: ws, platform: 'win32' }).execTool;
+    A.ok(/refused \[user-control\]/.test(await attempt(() => tool.run({ cmd: 'same' }, ctx)) || ''), 'shell.exec, variable defined in the environment the command begins from: the PATH GUI copy that runs is refused');
+    A.eq(ran.length, 0, 'and nothing was dispatched');
+    A.eq(seen[0] && seen[0].agentId, 'ag', 'the execution environment is asked about this agent');
+    A.eq(seen[0] && seen[0].surface, 'interactive', 'and this run\'s surface');
+    answer = searched;
+    A.eq(await attempt(() => tool.run({ cmd: 'same' }, ctx)), null, 'shell.exec, variable not defined there: the working-folder console copy answers first and runs');
+    A.eq(ran.length, 1, 'and it was dispatched');
+  }
+  // shell.exec: no execution environment, the tool's own
+  {
+    const log = [];
+    const withEnv = env => api.makeShellTool({ spawn: quietSpawn(log), fs: memory(), pathMod: path.win32, root: ws, platform: 'win32', env }).execTool;
+    A.ok(/refused \[user-control\]/.test(await attempt(() => withEnv(defined).run({ cmd: 'same' }, ctx)) || ''), 'shell.exec given its own env with the variable defined: refused');
+    A.eq(log.length, 0, 'and not spawned');
+    A.eq(await attempt(() => withEnv(searched).run({ cmd: 'same' }, ctx)), null, 'shell.exec given its own env without it: runs');
+    A.eq(log.length, 1, 'and was spawned');
+    A.eq(log[0] && log[0].env, searched, 'with exactly the environment the guard searched in');
+  }
+  // verify.run
+  {
+    let answer = defined; const seen = [], ran = [];
+    const tool = makeVerifyTool({ environment: fakeEnvironment(() => answer, seen, ran), fs: memory(), pathMod: path.win32, root: ws, platform: 'win32' }).verifyTool;
+    A.ok(/refused \[user-control\]/.test(await attempt(() => tool.run({ cmd: 'same' }, ctx)) || ''), 'verify.run, variable defined in the environment the check begins from: refused');
+    A.eq(ran.length, 0, 'and not dispatched');
+    answer = searched;
+    A.eq(await attempt(() => tool.run({ cmd: 'same' }, ctx)), null, 'verify.run, variable not defined there: runs');
+    A.eq(ran.length, 1, 'and was dispatched');
+  }
+  // terminal.start: the PTY's own environment
+  {
+    let current = defined; const started = [];
+    const manager = { start: o => { started.push(o); return { ok: true, persisted: true, session: { name: 't', sessionId: 's1', state: 'running', cols: 80, rows: 24 } }; } };
+    const start = makeTerminalTools({ manager, environment: fakeEnvironment(() => null, [], []), fs: memory(), pathMod: path.win32, root: ws, platform: 'win32', envFor: () => current }).tools.find(t => t.name === 'terminal.start');
+    A.ok(/refused \[user-control\]/.test(await attempt(() => start.run({ name: 't', command: 'same' }, ctx)) || ''), 'terminal.start, variable defined in the PTY environment: refused');
+    A.eq(started.length, 0, 'and no PTY was opened');
+    current = searched;
+    A.eq(await attempt(() => start.run({ name: 't', command: 'same' }, ctx)), null, 'terminal.start, variable not defined there: starts');
+    A.eq(started.length, 1, 'and the PTY was opened');
+    A.eq(started[0] && started[0].env, searched, 'in the environment the guard searched in');
+  }
+})();
 
 if (process.platform === 'win32') {
   const rig = windowsRig(api);
@@ -159,21 +256,42 @@ if (process.platform === 'win32') {
     const even = rig.execute('echo harmless ^^>&1', true);
     A.eq(even.risk, null, 'even-carets descriptor form is not a numeric executable');
     A.eq(even.marker, false, 'actual even-carets command does not execute numeric GUI marker');
+    // cmd ends a program name at a comma or an equals sign: each spelling really runs probe.exe (forced, inert marker), and the
+    // guard refuses both before anything is dispatched.
+    for (const cmd of ['probe,x', 'probe=x']) {
+      const observed = rig.execute(cmd, true);
+      A.eq(observed.markerKind, 'gui', 'actual cmd cuts the name short and runs probe.exe: ' + cmd);
+      const guarded = rig.execute(cmd);
+      A.ok(guarded.risk, 'a name cmd would cut short is refused: ' + cmd);
+      A.eq(guarded.run, null, 'refused, never dispatched: ' + cmd);
+      A.eq(guarded.marker, false, 'no marker from it: ' + cmd);
+    }
     // Native cmd reports a handle-duplication error for this form on this host.
     // Only absence of a second executable is claimed; successful stream routing
     // is proven above by the ordinary 2>&1 / 1>&2 and ordered file cases.
+    //
+    // Which file a bare name reaches, in the two search contexts real cmd has: the working folder first and then PATH, and, with
+    // NoDefaultCurrentDirectoryInExePath defined, PATH alone (here cwd/bin;cwd/later). `actual` and `noCwd` name the kind of
+    // file cmd runs in each, null when it finds nothing. Every row is read off a real run when the working folder is searched;
+    // `watch` rows are read off one when the variable is defined too, and the other cells are held to the same verdict without a
+    // process. `only` marks a spelling the guard reads on purpose in more places than cmd (it keeps a copy beside the command
+    // from vouching for one on PATH) and so compares only where the two agree.
     const lookups = [
-      { id: 'raw-console-exe-gui', cmd: 'pick', files: { pick: 'console', 'pick.exe': 'gui' }, actual: 'gui' },
-      { id: 'raw-gui-exe-console', cmd: 'pick', files: { pick: 'gui', 'pick.exe': 'console' }, actual: 'console' },
-      { id: 'raw-console-com-gui', cmd: 'pick', files: { pick: 'console', 'pick.com': 'gui' }, actual: 'gui' },
-      { id: 'raw-gui-com-console', cmd: 'pick', files: { pick: 'gui', 'pick.com': 'console' }, actual: 'console' },
-      { id: 'dotted-console-appended-gui', cmd: 'pick.tag', files: { 'pick.tag': 'console', 'pick.tag.exe': 'gui' }, actual: 'console' },
-      { id: 'dotted-gui-appended-console', cmd: 'pick.tag', files: { 'pick.tag': 'gui', 'pick.tag.exe': 'console' }, actual: 'gui' },
-      { id: 'cwd-batch-path-console', cmd: 'pick', files: { 'pick.cmd': 'batch', 'bin/pick.exe': 'console' }, actual: 'batch' },
-      { id: 'cwd-console-path-gui', cmd: 'pick', files: { 'pick.exe': 'console', 'bin/pick.com': 'gui' }, actual: 'console' },
-      { id: 'first-path-batch-later-gui', cmd: 'pick', files: { 'bin/pick.cmd': 'batch', 'later/pick.exe': 'gui' }, actual: 'batch' },
-      { id: 'custom-pathext', cmd: 'pick', files: { 'pick.com': 'gui', 'pick.exe': 'console' }, actual: 'console', pathext: '.EXE;.COM;.CMD;.BAT' }
+      { id: 'raw-console-exe-gui', cmd: 'pick', files: { pick: 'console', 'pick.exe': 'gui' }, actual: 'gui', noCwd: null, watch: true },
+      { id: 'raw-gui-exe-console', cmd: 'pick', files: { pick: 'gui', 'pick.exe': 'console' }, actual: 'console', noCwd: null },
+      { id: 'raw-console-com-gui', cmd: 'pick', files: { pick: 'console', 'pick.com': 'gui' }, actual: 'gui', noCwd: null },
+      { id: 'raw-gui-com-console', cmd: 'pick', files: { pick: 'gui', 'pick.com': 'console' }, actual: 'console', noCwd: null },
+      { id: 'dotted-console-appended-gui', cmd: 'pick.tag', files: { 'pick.tag': 'console', 'pick.tag.exe': 'gui' }, actual: 'console', noCwd: null },
+      { id: 'dotted-gui-appended-console', cmd: 'pick.tag', files: { 'pick.tag': 'gui', 'pick.tag.exe': 'console' }, actual: 'gui', noCwd: null },
+      { id: 'cwd-batch-path-console', cmd: 'pick', files: { 'pick.cmd': 'batch', 'bin/pick.exe': 'console' }, actual: 'batch', noCwd: 'console', watch: true },
+      { id: 'cwd-console-path-gui', cmd: 'pick', files: { 'pick.exe': 'console', 'bin/pick.com': 'gui' }, actual: 'console', noCwd: 'gui', watch: true },
+      { id: 'first-path-batch-later-gui', cmd: 'pick', files: { 'bin/pick.cmd': 'batch', 'later/pick.exe': 'gui' }, actual: 'batch', noCwd: 'batch' },
+      { id: 'custom-pathext', cmd: 'pick', files: { 'pick.com': 'gui', 'pick.exe': 'console' }, actual: 'console', noCwd: null, pathext: '.EXE;.COM;.CMD;.BAT' },
+      { id: 'cwd-gui-path-console', cmd: 'pick', files: { 'pick.exe': 'gui', 'bin/pick.exe': 'console' }, actual: 'gui', noCwd: 'console', watch: true },
+      { id: 'exe-cwd-console-path-gui', cmd: 'pick.exe', files: { 'pick.exe': 'console', 'bin/pick.exe': 'gui' }, actual: 'console', noCwd: 'gui', watch: true, only: 'defined' },
+      { id: 'exe-cwd-gui-path-console', cmd: 'pick.exe', files: { 'pick.exe': 'gui', 'bin/pick.exe': 'console' }, actual: 'gui', noCwd: 'console', only: 'defined' }
     ];
+    const withoutVariable = env => { for (const k of Object.keys(env)) if (k.toLowerCase() === 'nodefaultcurrentdirectoryinexepath') delete env[k]; return env; };
     for (const row of lookups) {
       const cwd = path.join(rig.root, row.id); fs.mkdirSync(cwd);
       for (const [name, kind] of Object.entries(row.files)) {
@@ -181,22 +299,35 @@ if (process.platform === 'win32') {
         if (kind === 'batch') fs.writeFileSync(target, '@echo batch>"%STARNET_SHELL_MARKER%"\r\n');
         else fs.copyFileSync(path.join(rig.root, kind === 'gui' ? 'probe.exe' : 'console-probe.exe'), target);
       }
-      const env = Object.assign({}, rig.env, { PATH: [path.join(cwd, 'bin'), path.join(cwd, 'later')].join(';'), PATHEXT: row.pathext || rig.env.PATHEXT });
-      // First establish actual native ownership, deliberately executing ONLY
-      // our marker images/scripts. Then separately prove guarded dispatch.
-      const observed = rig.execute(row.cmd, true, { cwd, env });
-      A.eq(observed.run.status, 0, 'native lookup completed: ' + row.id);
-      A.eq(observed.markerKind, row.actual, 'actual cmd owns this candidate: ' + row.id);
-      const guarded = rig.execute(row.cmd, false, { cwd, env });
-      if (row.actual === 'gui') {
-        A.ok(guarded.risk, 'the actual GUI candidate is refused: ' + row.id);
-        A.eq(guarded.marker, false, 'guard prevents that actual GUI marker');
-      } else {
-        A.eq(guarded.risk, null, 'actual console/batch candidate stays allowed: ' + row.id);
-        A.ok(guarded.run && guarded.run.status === 0, 'allowed actual candidate executes');
-        A.eq(guarded.markerKind, row.actual, 'guard does not substitute a different candidate');
+      const searched = withoutVariable(Object.assign({}, rig.env, { PATH: [path.join(cwd, 'bin'), path.join(cwd, 'later')].join(';'), PATHEXT: row.pathext || rig.env.PATHEXT }));
+      const defined = Object.assign({}, searched, { NoDefaultCurrentDirectoryInExePath: '1' });
+      for (const cell of [
+        { mode: 'working folder searched', env: searched, expected: row.actual, observe: true, skip: row.only === 'defined' },
+        { mode: 'variable defined', env: defined, expected: row.noCwd, observe: row.watch === true }
+      ]) {
+        if (cell.skip) continue;
+        const where = row.id + ' (' + cell.mode + ')', launch = { cwd, env: cell.env };
+        if (cell.expected === 'gui') {
+          if (cell.observe) {
+            // The one place a GUI marker is started on purpose: its inert image only, to read which file cmd really runs.
+            const seen = rig.execute(row.cmd, true, launch);
+            A.eq(seen.run.status, 0, 'native lookup completed: ' + where);
+            A.eq(seen.markerKind, 'gui', 'actual cmd owns this candidate: ' + where);
+          }
+          const refused = rig.execute(row.cmd, false, launch);
+          A.ok(refused.risk, 'the actual GUI candidate is refused: ' + where);
+          A.eq(refused.marker, false, 'guard prevents that actual GUI marker: ' + where);
+        } else if (cell.observe) {
+          // Allowed, so the guard dispatches it itself and the marker shows which candidate cmd ran.
+          const ran = rig.execute(row.cmd, false, launch);
+          A.eq(ran.risk, null, 'actual console/batch/absent candidate stays allowed: ' + where);
+          A.ok(ran.run && ran.run.status === 0, 'native lookup completed: ' + where);
+          A.eq(ran.markerKind, cell.expected, 'actual cmd owns this candidate and the guard substitutes no other: ' + where);
+        } else {
+          A.eq(rig.decide(row.cmd, launch).risk, null, 'actual console/batch/absent candidate stays allowed: ' + where);
+        }
       }
     }
   } finally { rig.dispose(); }
 } else console.log('Windows native transport not run on this host; resolver fixtures above remain cross-platform.');
-A.report('shell-command-resolution.test');
+plumbing.then(() => A.report('shell-command-resolution.test'), e => { console.error(e); process.exit(1); });

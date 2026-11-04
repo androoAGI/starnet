@@ -96,4 +96,47 @@ A.eq(project('display', [pendingPrompt], {}, absentCtx).map(r => r.content), ['d
 for (const extra of [{ taintKnown: undefined }, { taint: 'external input' }, { from: 'delegate' }, { content: '> quoted owner words' }])
   A.eq(project('owner-evidence', [make(extra)]), [], 'owner evidence rejects missing/tainted/quoted/delegated proof ' + JSON.stringify(extra));
 A.eq(project('owner-evidence', [base], {}, { runOf: () => null }), [], 'missing original run cannot supply owner proof');
+// A stage that reads a stream ANOTHER agent also wrote (opts.forAgent, turn-identity DESIGN 5.2) is not the author of that agent's tool
+// traffic: replayed as the stage's own assistant turns it tells the provider the stage made calls it never made. Prose still replays; a
+// tool-call turn and its result leave together, so 'pairs' stays provider-valid; a chat's own agent (no forAgent) keeps every pair.
+{
+  const callsOf = id => JSON.stringify([{ id, type: 'function', function: { name: 'fs_write', arguments: '{"path":"notes.md"}' } }]);
+  const turn = (rowId, agentId, extra) => make(Object.assign({ rowId, agentId, role: 'assistant', directive: undefined, content: '' }, extra));
+  const stream = [
+    make({ rowId: 1, agentId: 'writer', content: 'JOB' }),
+    turn(2, 'writer', { toolCalls: callsOf('w1') }), turn(3, 'writer', { role: 'tool', toolCallId: 'w1', content: 'wrote notes.md' }),
+    turn(4, 'writer', { content: 'saving the notes', toolCalls: callsOf('w2') }), turn(5, 'writer', { role: 'tool', toolCallId: 'w2', content: 'wrote it again' }),
+    turn(6, 'writer', { content: 'S1' }),
+    turn(7, 'editor', { toolCalls: callsOf('e1') }), turn(8, 'editor', { role: 'tool', toolCallId: 'e1', content: 'read notes.md' }),
+    turn(9, 'editor', { content: 'S2' })
+  ];
+  const replay = (extraOpts, rows, extraCtx) => project('model-replay', rows || stream, Object.assign({ shape: 'pairs', rows: false, form: 'pre' }, extraOpts), extraCtx);
+  const brief = ms => ms.map(m => m.role + ':' + (m.content || '') + (m.tool_calls ? '+' + m.tool_calls.map(c => c.id).join(',') : '') + (m.tool_call_id ? '@' + m.tool_call_id : ''));
+  // provider-valid: every tool-call turn is followed at once by one result per call, in order, and no result stands alone
+  const paired = ms => { let open = []; for (const m of ms) { if (m.role === 'tool') { if (open[0] !== m.tool_call_id) return false; open.shift(); } else { if (open.length) return false; if (m.tool_calls) open = m.tool_calls.map(c => c.id); } } return !open.length; };
+  const everyone = ['user:JOB', 'assistant:+w1', 'tool:wrote notes.md@w1', 'assistant:saving the notes+w2', 'tool:wrote it again@w2', 'assistant:S1',
+    'assistant:+e1', 'tool:read notes.md@e1', 'assistant:S2'];
+  A.eq(brief(replay({})), everyone, 'a chat\'s own agent (no forAgent) replays every pair, exactly as before');
+  A.eq(brief(replay({ forAgent: 'editor' })), ['user:JOB', 'assistant:saving the notes', 'assistant:S1', 'assistant:+e1', 'tool:read notes.md@e1', 'assistant:S2'],
+    'the editor stage replays the writer\'s prose (a tool-call turn that carried words keeps only its words) and its own pair, but no writer tool-call turn or result');
+  A.eq(brief(replay({ forAgent: 'writer' })), ['user:JOB', 'assistant:+w1', 'tool:wrote notes.md@w1', 'assistant:saving the notes+w2', 'tool:wrote it again@w2', 'assistant:S1', 'assistant:S2'],
+    'the writer keeps its own pairs and loses the editor\'s');
+  A.ok([{}, { forAgent: 'editor' }, { forAgent: 'writer' }, { forAgent: 'nobody' }].every(o => paired(replay(o))), 'every forAgent leaves provider-valid pairs: no orphan call, no orphan result');
+  A.eq(brief(replay({ forAgent: 'nobody' })), ['user:JOB', 'assistant:saving the notes', 'assistant:S1', 'assistant:S2'], 'a stage that wrote none of the traffic replays none of it, only the prose');
+  A.eq(brief(replay({ forAgent: 'editor', shape: 'prose' })).filter(s => /^tool:|\+/.test(s)), [], 'prose shape never carried tool traffic, for anyone');
+  A.eq(brief(replay({ forAgent: 'editor', legacy: true })), everyone, 'the legacy rollback projection has no author rule: every call keeps its result');
+  A.eq(project('model-replay', stream, { shape: 'pairs', forAgent: 'editor', rows: true }).map(r => r.rowId), [1, 4, 6, 7, 8, 9],
+    'the rows view agrees with the message view: the writer\'s four pair rows are gone, its two prose rows stay');
+  // whose traffic a row is: its own agent, else its run's agent; an unproven author is not the stage
+  const viaRun = stream.map(r => Object.assign({}, r, { agentId: '', sourceRunId: r.agentId + '-run' }));
+  const runs = { runOf: id => /^(writer|editor)-run$/.test(id) ? { runId: id, agentId: id.slice(0, -4) } : runOf(id) };
+  A.eq(brief(replay({ forAgent: 'editor' }, viaRun, runs)), brief(replay({ forAgent: 'editor' })), 'a row with no agent of its own takes its run\'s agent');
+  A.eq(brief(replay({ forAgent: 'editor' }, viaRun)).filter(s => /^tool:|\+/.test(s)), [], 'a row whose author cannot be proved is not replayed to a stage as its own tool traffic');
+  A.eq(brief(replay({}, viaRun)), everyone, 'with no forAgent an unproven author changes nothing');
+  // the shared rule itself
+  const result = turn(3, 'writer', { role: 'tool', toolCallId: 'w1', content: 'wrote notes.md' });
+  A.eq([undefined, '', 'writer', 'editor'].map(forAgent => K.replayable(result, { shape: 'pairs', forAgent })), [true, true, true, false], 'replayable: a tool result is its author\'s to replay');
+  A.eq(['prose', 'pairs'].map(shape => K.replayable(turn(2, 'writer', { toolCalls: callsOf('w1') }), { shape, forAgent: 'editor' })), [false, false], 'replayable: a tool-call turn is not another agent\'s to replay');
+  A.eq(K.replayable(turn(6, 'writer', { content: 'S1' }), { shape: 'pairs', forAgent: 'editor' }), true, 'replayable: prose replays to every reader');
+}
 A.report('turn-view.matrix');

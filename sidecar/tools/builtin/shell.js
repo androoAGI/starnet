@@ -151,8 +151,9 @@
     const out = [];
     let start = 0, quote = null, groupDepth = 0, argumentParens = 0, redirectAt = -1;
     const emit = end => {
-      const part = c.slice(start, end).trim();
-      if (part) out.push({ text: part, grouped: groupDepth > 0 });
+      const raw = c.slice(start, end), part = raw.trim();
+      // from / to: where the part sits in the input, so a statement the splitter cut in two can be taken back whole
+      if (part) { const from = start + (raw.length - raw.trimStart().length); out.push({ text: part, grouped: groupDepth > 0, from: from, to: from + part.length }); }
     };
     for (let i = 0; i < c.length; i++) {
       const ch = c[i];
@@ -162,6 +163,9 @@
         continue;
       }
       if (isDialectEscape(ch, dialect, null, c[i + 1]) && i + 1 < c.length) { i++; continue; }
+      // PowerShell comments (# to the end of the line, <# ... #>) hold no statements, and an apostrophe in one opens no quote
+      if (dialect === 'powershell' && ch === '#' && (i === 0 || /\s/.test(c[i - 1]))) { while (i + 1 < c.length && c[i + 1] !== '\n' && c[i + 1] !== '\r') i++; continue; }
+      if (dialect === 'powershell' && ch === '<' && c[i + 1] === '#') { const end = c.indexOf('#>', i + 2); i = end < 0 ? c.length : end + 1; continue; }
       if (isDialectQuote(ch, dialect)) { quote = ch; continue; }
       if (dialect === 'cmd' && (ch === '<' || ch === '>')) redirectAt = i;
       // Echo suppression precedes cmd group parsing: @(x) is still a group.
@@ -180,6 +184,8 @@
       // consumed; a subsequent `& program` still creates a real head.
       if (dialect === 'cmd' && ch === '&' && redirectAt === i - 1
         && /^[0-9](?=\s|$|[&|<>;)])/.test(c.slice(i + 1))) continue;
+      // PowerShell's call operator: an & with nothing before it in its statement is part of the statement it runs, not a separator
+      if (dialect === 'powershell' && ch === '&' && c[i + 1] !== '&' && !c.slice(start, i).trim()) continue;
       if (ch === '&' || ch === '|' || ch === ';' || ch === '\r' || ch === '\n') {
         emit(i);
         while (i + 1 < c.length && /[&|;\r\n]/.test(c[i + 1])) i++;
@@ -323,26 +329,355 @@
     return { nested: '', opaque: false };
   }
 
-  function analyzeCommands(cmd, depth, dialect) {
+  // The text as the shell that started cmd hands it on: an unquoted caret is removed and what it escaped stays. `at[n]` is where
+  // character n of the result sits in the text given.
+  function cmdCaretFree(text, shellIsCmd) {
+    let seen = '', at = [], quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') quoted = !quoted;
+      if (ch === '^' && !quoted && shellIsCmd && i + 1 < text.length) { i++; seen += text[i]; at.push(i); continue; }
+      seen += ch; at.push(i);
+    }
+    return { seen, at };
+  }
+  /* cmd READS ITS OWN SWITCHES (read off the real cmd.exe on Windows 11, harmless echo bodies). From the text after its name it takes
+     the first "/" followed by c, k or r in any case, through quotes, through junk before it, and with a caret in it written as the
+     shell that started it removes it; everything after that letter is the command. So the switch is not a token of its own: /d/c,
+     /q/s/c, /e:on/c and /t:07/c fuse it with other switches, /cecho and /c"echo" with what follows it, and /r is /c under another
+     name. A switch built by expansion (%VAR%, !VAR!) ahead of the first one cannot be placed; that is refused, never read as
+     absent. With no switch at all cmd runs nothing of the line's, and there is nothing nested. */
+  function cmdWrapperBody(segment, tokens, outerDialect) {
+    const tail = String(segment).slice(tokens[0].end);
+    const free = cmdCaretFree(tail, outerDialect === 'cmd'), seen = free.seen, at = free.at;
+    const found = /\/[ckr]/i.exec(seen);
+    if (/[%!]/.test(found ? seen.slice(0, found.index) : seen)) return { nested: '', opaqueBody: true };
+    if (!found) return { nested: '' };
+    const invocation = wrapperCommandArg(tail.slice(at[found.index + 1] + 1), outerDialect, 'cmd');
+    return { nested: invocation.nested, opaqueWrapper: invocation.opaqueWrapper };
+  }
+
+  /* ---- cmd statements whose tail is itself a command: if, for, forfiles ----
+     The proof was chosen from the first word of each head, and if and for are cmd's own words, so `if 1==1 probe.exe` was a builtin
+     and its program never met the PE header. Read off the real cmd.exe with echo bodies: cmd runs what follows the condition of an
+     if (a command or a block, and after a block perhaps an else branch), what follows `do` in a for, the quoted command in the set of
+     `for /f`, and the /c command of forfiles (which hands it to CreateProcess, and runs it with cmd.exe from its own folder when it
+     names cmd). Each is analysed as the command it is. A header the guard cannot place the body after is refused as unreadable, not
+     taken as empty: cmd ends a word at , ; = and at a space of any width, so `if 1==1,probe.exe` runs a body the guard would never
+     see. `first` marks a body that runs before anything else the statement does (both branches of an if, the set command of a for),
+     which is what lets a console program typed first and by itself keep the proof it always had. */
+  const CMD_BLOCK_RE = /^(?:if|for)(?=\s)/i;
+  const CMD_COMPARE_OPS = new Set(['equ', 'neq', 'lss', 'leq', 'gtr', 'geq']);
+  // net unclosed parentheses in cmd text: a double quote protects, a caret escapes the next character
+  function cmdParenBalance(text) {
+    let depth = 0, quote = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { i++; continue; }
+      if (ch === '(') depth++; else if (ch === ')') depth--;
+    }
+    return depth;
+  }
+  // the index of the ) that closes the ( at `open`, or -1
+  function cmdMatchingParen(text, open) {
+    let depth = 0, quote = false;
+    for (let i = open; i < text.length; i++) {
+      const ch = text[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { i++; continue; }
+      if (ch === '(') depth++;
+      else if (ch === ')') { depth--; if (depth === 0) return i; }
+    }
+    return -1;
+  }
+  function unquotedIndex(raw, needle) {
+    let quote = false;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i] === '"') { quote = !quote; continue; }
+      if (!quote && raw.startsWith(needle, i)) return i;
+    }
+    return -1;
+  }
+  // a header word whose end cmd and the guard agree on: outside quotes no comma, semicolon, caret or redirection, and no control
+  // character or odd-width space (the word would not end where the guard thinks)
+  function cleanHeaderWord(raw) {
+    let quote = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (/[,;^<>|&]/.test(ch) || /[\p{C}\p{Z}]/u.test(ch)) return false;
+    }
+    return !quote;
+  }
+  // what an if runs after its condition: a command, or a block and then what follows it (an else branch)
+  function cmdIfTail(rest) {
+    rest = String(rest).trim();
+    if (!rest) return [];
+    if (rest[0] !== '(') return [rest];
+    const close = cmdMatchingParen(rest, 0);
+    if (close < 0) return [rest];
+    const bodies = [rest.slice(0, close + 1)], after = rest.slice(close + 1), otherwise = /^\s*else(?=[\s(]|$)/i.exec(after);
+    const other = (otherwise ? after.slice(otherwise[0].length) : after).trim();
+    if (other) bodies.push(other);
+    return bodies;
+  }
+  function cmdIfBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    if (tokens.length === 2 && tokens[1].value === '/?') return { bodies: [] };
+    const lower = n => tokens[n] ? String(tokens[n].value).toLowerCase() : '';
+    let i = 1;
+    if (lower(i) === '/i') i++;
+    if (lower(i) === 'not') i++;
+    const from = i, kind = lower(i);
+    let last;
+    if (kind === 'exist' || kind === 'defined' || kind === 'errorlevel' || kind === 'cmdextversion') {
+      if (!tokens[i + 1]) return unread;
+      last = tokens[i + 1]; i += 2;
+    } else {
+      const a = tokens[i];
+      if (!a) return unread;
+      const eq = unquotedIndex(a.raw, '==');
+      if (eq > 0 && a.raw.slice(eq + 2) !== '') { last = a; i += 1; }
+      else if (eq > 0) { if (!tokens[i + 1]) return unread; last = tokens[i + 1]; i += 2; }
+      else if (eq < 0) {
+        const n = tokens[i + 1], m = tokens[i + 2];
+        if (n && n.raw === '==') { if (!m) return unread; last = m; i += 3; }
+        else if (n && n.raw.startsWith('==') && n.raw.length > 2) { last = n; i += 2; }
+        else if (n && CMD_COMPARE_OPS.has(String(n.value).toLowerCase())) { if (!m) return unread; last = m; i += 3; }
+        else return unread;
+      } else return unread;
+    }
+    for (let n = from; n < i; n++) if (!cleanHeaderWord(tokens[n].raw)) return unread;
+    return { bodies: cmdIfTail(String(segment).slice(last.end)).map(text => ({ text, first: true })) };
+  }
+  function cmdForBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    if (tokens.length === 2 && tokens[1].value === '/?') return { bodies: [] };
+    const lower = n => tokens[n] ? String(tokens[n].value).toLowerCase() : '';
+    const isVariable = t => !!t && /^%%?[^%\s]$/.test(String(t.value));
+    let i = 1, fForm = false;
+    while (tokens[i] && /^\/[dlfr]$/i.test(tokens[i].value)) {
+      const sw = lower(i); i++;
+      if (sw === '/f') fForm = true;
+      if ((sw === '/f' || sw === '/r') && tokens[i] && !isVariable(tokens[i]) && lower(i) !== 'in') i++;   // its options string or root folder
+    }
+    if (!isVariable(tokens[i]) || lower(i + 1) !== 'in') return unread;
+    for (let n = 1; n <= i + 1; n++) if (!cleanHeaderWord(tokens[n].raw)) return unread;
+    const afterIn = String(segment).slice(tokens[i + 1].end).replace(/^\s+/, '');
+    if (afterIn[0] !== '(') return unread;
+    let close = -1, quote = false;
+    for (let n = 1; n < afterIn.length; n++) {
+      const ch = afterIn[n];
+      if (ch === '"') { quote = !quote; continue; }
+      if (quote) continue;
+      if (ch === '^') { n++; continue; }
+      if (ch === '(') return unread;   // cmd rejects an unquoted parenthesis inside the set
+      if (ch === ')') { close = n; break; }
+    }
+    if (close < 0) return unread;
+    const set = afterIn.slice(1, close), after = afterIn.slice(close + 1), doWord = /^\s*do(?=\s|$)/i.exec(after);
+    if (!doWord) return unread;
+    const bodies = [];
+    let opaqueWrapper = false;
+    if (fForm) {
+      // a command in the set ('...' or `...`) is run first, by cmd /c, after the shell has removed its carets
+      let q = false;
+      for (let n = 0; n < set.length; n++) {
+        const ch = set[n];
+        if (ch === '"') { q = !q; continue; }
+        if (q) continue;
+        if (ch === '^') { n++; continue; }
+        if (ch === "'" || ch === '`') {
+          const end = set.indexOf(ch, n + 1);
+          if (end < 0) return unread;
+          const command = wrapperCommandArg(cmdCaretFree(set.slice(n + 1, end), true).seen, 'cmd', 'cmd');
+          if (command.opaqueWrapper) opaqueWrapper = true;
+          bodies.push({ text: command.nested, first: true });
+          n = end;
+        }
+      }
+      if (q) return unread;
+    }
+    const body = after.slice(doWord[0].length).trim();
+    if (body) bodies.push({ text: body, first: !bodies.length });
+    return { bodies, opaqueWrapper };
+  }
+  function forfilesBodies(segment, tokens) {
+    const unread = { bodies: [], opaque: true };
+    let command = null;
+    for (let i = 1; i < tokens.length; i++) {
+      const value = String(tokens[i].value), colon = /^\/c:([\s\S]*)$/i.exec(value);
+      if (/^\/c$/i.test(value) || colon) {
+        if (command !== null) return unread;           // /c once only: forfiles rejects a second, and so does the guard
+        if (colon) command = colon[1];
+        else { if (!tokens[i + 1]) return unread; command = String(tokens[i + 1].value); i++; }
+      } else if (/^\/c/i.test(value)) return unread;   // /c fused with its command: forfiles rejects it, and so does the guard
+    }
+    if (command === null) return { bodies: [] };      // the default command is `cmd /c echo @file`
+    if (/0x[0-9a-f]{2}/i.test(command)) return unread;   // forfiles turns 0xHH into that character, `&` among them
+    const words = shellTokens(command, 'cmd');
+    if (words.length && /^cmd(?:\.exe)?$/i.test(words[0].value)) {
+      // forfiles starts cmd from its own folder, so this one is the real cmd.exe; what it is told to run is what matters
+      const inner = cmdWrapperBody(command, words, 'posix');
+      return { bodies: inner.nested ? [{ text: inner.nested, first: false }] : [], opaque: !!inner.opaqueBody, opaqueWrapper: !!inner.opaqueWrapper };
+    }
+    return { bodies: [{ text: command, first: false }] };
+  }
+
+  /* ---- PowerShell and sh: what a statement's first word is, and what runs inside it ----
+     Read off the real PowerShell 5.1 with hostname.exe only. The command name is the first word with its quotes and backticks
+     resolved (`host'name'` is hostname), ending at the first unquoted ( or { (each starts an argument or a block); an & or a . and a
+     space in front of it say "run this". A word on its own that starts like a string, a variable or an expression is output, not a
+     command; behind & or . it names a program only the running shell knows, and that is refused. The statements inside {...},
+     (...), $(...) and @(...) run, so they are read as statements of their own. Start-Process, saps, start, Invoke-Item and ii open
+     or launch whatever they are given (a file, a folder, a URL, an app registered under App Paths), which no search of PATH bounds. */
+  const PS_WORD_RE = /^[\p{L}\p{N}_][\p{L}\p{N}_.\-+]*$/u;
+  const PS_LAUNCHERS = new Set(['start-process', 'saps', 'start', 'invoke-item', 'ii']);
+  function psCommandWord(raw) {
+    let name = '', quote = null, expands = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (quote === '"') {
+        if (ch === '`') { expands = true; i++; continue; }   // an escape inside double quotes may be a control character
+        if (ch === '$') expands = true;
+        if (ch === '"') { if (raw[i + 1] === '"') { name += '"'; i++; } else quote = null; continue; }
+        name += ch; continue;
+      }
+      if (quote === "'") {
+        if (ch === "'") { if (raw[i + 1] === "'") { name += "'"; i++; } else quote = null; continue; }
+        name += ch; continue;
+      }
+      if (ch === '`' && i + 1 < raw.length) { name += raw[++i]; continue; }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === '$') expands = true;
+      if (ch === '(' || ch === '{') break;
+      name += ch;
+    }
+    return { name, expands };
+  }
+  // -> { kind: 'word' (a name PATH may hold) | 'path' (a path, unproven) | 'none' (not a program), name, dynamic }
+  function foreignCommandKind(token, dialect, callOp) {
+    if (dialect === 'powershell') {
+      const raw = String(token.raw), first = raw[0];
+      if (first === '{') return { kind: 'none' };                                      // a script block: its statements are read on their own
+      if ('$([@'.includes(first)) return { kind: 'none', dynamic: callOp };           // a variable or an expression
+      if ((first === '"' || first === "'") && !callOp) return { kind: 'none' };         // a string on its own is output
+      const word = psCommandWord(raw);
+      if (word.expands) return { kind: 'none', dynamic: callOp };
+      const name = word.name;
+      if (/[\\/]/.test(name)) return /^[\w.]+\\[A-Za-z]+-[A-Za-z]+$/.test(name) ? { kind: 'none' } : { kind: 'path', name };   // Module\Verb-Noun is a cmdlet
+      if (/^[A-Za-z]:/.test(name) || name[0] === '~') return { kind: 'path', name };
+      return PS_WORD_RE.test(name) ? { kind: 'word', name } : { kind: 'none' };
+    }
+    const value = String(token.value);
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(value)) return { kind: 'none' };               // sh: an assignment
+    if (/[\\/]/.test(value)) return { kind: 'path', name: value };
+    return PS_WORD_RE.test(value) ? { kind: 'word', name: value } : { kind: 'none' };
+  }
+  // the statements inside the top-level {...}, (...), $(...) and @(...) of PowerShell text; ${name} holds none, a hashtable's values may
+  function psInnerStatements(text) {
+    const out = [];
+    const closeOf = (s, open) => {
+      const o = s[open], c = o === '{' ? '}' : ')';
+      let depth = 0, quote = null;
+      for (let i = open; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+          if (quote === '"' && ch === '`') { i++; continue; }
+          if (ch === quote) { if (s[i + 1] === quote) { i++; continue; } quote = null; }
+          continue;
+        }
+        if (ch === '`') { i++; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === o) depth++;
+        else if (ch === c) { depth--; if (depth === 0) return i; }
+      }
+      return -1;
+    };
+    const scan = s => {
+      let quote = null;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+          if (quote === '"' && ch === '`') { i++; continue; }
+          if (ch === quote) { if (s[i + 1] === quote) { i++; continue; } quote = null; }
+          continue;
+        }
+        if (ch === '`') { i++; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === '(' || ch === '{') {
+          const close = closeOf(s, i), inner = s.slice(i + 1, close < 0 ? s.length : close);
+          if (ch === '{' && s[i - 1] === '$') { /* ${variable name} */ }
+          else if (ch === '{' && s[i - 1] === '@') scan(inner);
+          else out.push(inner);
+          if (close < 0) return;
+          i = close;
+        }
+      }
+    };
+    scan(String(text));
+    return out;
+  }
+
+  /* `lead`: this text's first head is the first thing the command runs (the whole command's first head, or a body that runs first
+     in a statement that does). `inherited`: the text sits inside a group already. */
+  function analyzeCommands(cmd, depth, dialect, lead, inherited) {
     dialect = normalizeDialect(dialect);
-    const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false };
-    if ((depth || 0) > 8) return result;
-    for (const part of splitCommandSegments(cmd, dialect)) {
-      const segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
+    const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false, opaqueBody: false };
+    const text = String(cmd == null ? '' : cmd);
+    // nested deeper than this reads: refused, never left unjudged
+    if ((depth || 0) > 8) { if (text.trim()) result.opaqueBody = true; return result; }
+    const leadIn = lead === undefined ? !depth : lead === true;
+    const parts = splitCommandSegments(text, dialect);
+    const take = child => {
+      result.heads.push.apply(result.heads, child.heads);
+      if (child.opaquePowerShell) result.opaquePowerShell = true;
+      if (child.opaqueWrapper) result.opaqueWrapper = true;
+      if (child.opaqueBody) result.opaqueBody = true;
+    };
+    for (let k = 0; k < parts.length; k++) {
+      let part = parts[k];
+      const firstPart = k === 0;
+      // an if / for whose parenthesised body holds a separator reached the splitter in pieces: take the statement back whole
+      if (dialect === 'cmd' && CMD_BLOCK_RE.test(part.text.replace(/^(?:@\s*)+/, '')) && cmdParenBalance(part.text) > 0) {
+        let to = part.to;
+        while (k + 1 < parts.length && cmdParenBalance(text.slice(part.from, to)) > 0) { k++; to = parts[k].to; }
+        part = { text: text.slice(part.from, to), grouped: part.grouped, from: part.from, to: to };
+      }
+      let segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
+      // PowerShell: an & or a . and a space in front of a statement say "run what follows"; the head is what follows
+      let callOp = false;
+      if (dialect === 'powershell') {
+        const call = /^(?:&|\.(?=\s))\s*/.exec(segment);
+        if (call) { callOp = true; segment = segment.slice(call[0].length); }
+      }
       const tokens = shellTokens(segment, dialect);
       if (!tokens.length) continue;
-      const own = { text: segment, dialect: dialect, grouped: part.grouped };
+      const own = { text: segment, dialect: dialect, grouped: part.grouped || inherited === true, lead: leadIn && firstPart };
       result.heads.push(own);
+      if (dialect === 'powershell' || dialect === 'posix') {
+        // what kind of word starts the statement, for the PATH proof; a target only the running shell knows is refused
+        const kind = foreignCommandKind(tokens[0], dialect, callOp);
+        own.psKind = kind.kind; own.psName = kind.name;
+        if (kind.dynamic) result.opaqueBody = true;
+      }
       const verb = exeName(tokens[0].value);
-      let nested = '', nestedDialect = dialect;
+      if (dialect === 'powershell' && PS_LAUNCHERS.has(verb)) own.launcher = true;
+      let nested = '', nestedDialect = dialect, bodies = [];
       if (verb === 'cmd' || verb === 'cmd.exe') {
-        const i = tokens.findIndex((t, n) => n > 0 && /^\/[ck]$/i.test(t.value));
-        if (i >= 0) {
-          nestedDialect = 'cmd';
-          const invocation = wrapperCommandArg(afterToken(segment, tokens[i]), dialect, nestedDialect);
-          nested = invocation.nested;
-          if (invocation.opaqueWrapper) result.opaqueWrapper = true;
-        }
+        const invocation = cmdWrapperBody(segment, tokens, dialect);
+        nestedDialect = 'cmd'; nested = invocation.nested;
+        if (invocation.opaqueWrapper) result.opaqueWrapper = true;
+        if (invocation.opaqueBody) result.opaqueBody = true;
+      } else if (dialect === 'cmd' && (verb === 'if' || verb === 'for' || verb === 'forfiles' || verb === 'forfiles.exe')) {
+        const parsed = verb === 'if' ? cmdIfBodies(segment, tokens) : verb === 'for' ? cmdForBodies(segment, tokens) : forfilesBodies(segment, tokens);
+        bodies = parsed.bodies;
+        if (parsed.opaque) result.opaqueBody = true;
+        if (parsed.opaqueWrapper) result.opaqueWrapper = true;
       } else if (verb === 'call') {
         nestedDialect = 'cmd'; nested = afterToken(segment, tokens[0]);
       } else if (verb === 'start-process' || verb === 'saps') {
@@ -354,15 +689,14 @@
         if (invocation.opaque) result.opaquePowerShell = true;
         if (invocation.opaqueWrapper) result.opaqueWrapper = true;
       } else if (/^(?:sh|bash|zsh|dash|ksh)(?:\.exe)?$/.test(verb)) {
-        const i = tokens.findIndex((t, n) => n > 0 && t.value === '-c');
+        // -c wherever it sits among the options, alone or in a cluster (-lc, -ec): the next word is the command string
+        const i = tokens.findIndex((t, n) => n > 0 && /^-[A-Za-z]*c[A-Za-z]*$/.test(t.value));
         if (i >= 0) { nestedDialect = 'posix'; nested = unwrapCommandArg(afterToken(segment, tokens[i]), nestedDialect); }
       }
-      if (nested) {
-        const child = analyzeCommands(nested, (depth || 0) + 1, nestedDialect);
-        result.heads.push.apply(result.heads, child.heads);
-        if (child.opaquePowerShell) result.opaquePowerShell = true;
-        if (child.opaqueWrapper) result.opaqueWrapper = true;
-      }
+      if (nested) take(analyzeCommands(nested, (depth || 0) + 1, nestedDialect, false, own.grouped));
+      if (dialect === 'powershell') for (const inner of psInnerStatements(segment)) take(analyzeCommands(inner, (depth || 0) + 1, 'powershell', false, own.grouped));
+      // a body that runs first in a statement that runs first is the first command, and a group makes nothing provable
+      for (const body of bodies) take(analyzeCommands(body.text, (depth || 0) + 1, 'cmd', own.lead && body.first, own.grouped));
     }
     return result;
   }
@@ -410,7 +744,9 @@
   const BROWSER_AUTOMATION_RE = /\b(?:puppeteer(?:-core)?|playwright|selenium|webdriver|chromedriver|geckodriver|chrome-remote-interface)\b|webSocketDebuggerUrl|Input\.dispatch(?:Mouse|Key)|--remote-debugging-port\b/i;
   const NATIVE_INPUT_RE = /\b(?:SetCursorPos|mouse_event|SendInput|keybd_event|ClipCursor|BlockInput|SetCapture|SetWindowsHookEx|RegisterHotKey|RegisterRawInputDevices|SetForegroundWindow|SwitchToThisWindow|AttachThreadInput|SetWindowPos|SetSystemCursor|SendKeys(?:\.SendWait)?|pyautogui|pynput|robotjs|nut\.js|xdotool|ydotool|xte|evemu|uinput|CGEventPost|CGWarpMouseCursorPosition|XTestFake|XGrabPointer|XGrabKeyboard|XWarpPointer)\b|\/dev\/uinput/i;
   const USER_SESSION_RE = /\b(?:LockWorkStation|ExitWindowsEx|InitiateSystemShutdown|SetSuspendState|ChangeDisplaySettings|SetDisplayConfig|SetMonitorBrightness|WmiMonitorBrightnessMethods|SystemParametersInfo|SetClipboardData|OpenClipboard|Set-Clipboard|pbcopy|xclip|xsel|DisplaySwitch|xrandr|xinput|xset|chvt|loginctl|ddcutil|pactl|amixer|osascript)\b/i;
-  const OPAQUE_LAUNCH_RE = /\b(?:Invoke-Expression|iex|Invoke-Command|DownloadString|FromBase64String|Reflection\.Assembly|ShellExecute|os\.startfile|Process\.Start)\b/i;
+  // Process.Start is how C# and Python reach a launcher; PowerShell spells it [Diagnostics.Process]::Start(...), and reaches the same
+  // launchers through COM (WScript.Shell, Shell.Application) and WMI (Win32_Process.Create).
+  const OPAQUE_LAUNCH_RE = /\b(?:Invoke-Expression|iex|Invoke-Command|DownloadString|FromBase64String|Reflection\.Assembly|ShellExecute|os\.startfile|Process(?:\]::|\.)Start|WScript\.Shell|Shell\.Application|Invoke-WmiMethod|Invoke-CimMethod|iwmi)\b/i;
   // GUI/native runtimes are judged as PROGRAMS, never as words (issue #50: a `// ...before each write` comment and
   // `process.stdout.write()` both used to refuse a plain Node script). `write`/`calc` are also ordinary English and
   // identifiers, so they count only as a command head or an explicit launch; the distinctive names count anywhere a
@@ -487,6 +823,19 @@
     } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (e) { shellFailNote('shell.pe-close', e); } } }
   }
   const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
+  /* WHICH ENVIRONMENT, AND HOW IT IS READ. A search is only as true as the environment it reads, so the caller says which one the
+     command will run with (opts.env: the local backend's own snapshot, a terminal's PTY env, an injected one) and process.env is
+     the answer only when it says nothing. Windows names its variables without regard to case; a copied environment is a plain
+     object that does not, so a name is found whatever its case. */
+  function envEntry(env, name) {
+    if (!env) return undefined;
+    if (env[name] != null) return env[name];
+    const want = name.toLowerCase();
+    for (const k of Object.keys(env)) if (k.toLowerCase() === want && env[k] != null) return env[k];
+    return undefined;
+  }
+  // Read off the real cmd.exe: defined (a value of any length, even none) takes the working folder out of the search for a bare name.
+  function cmdSkipsCwd(env) { return envEntry(env, 'NoDefaultCurrentDirectoryInExePath') !== undefined; }
   // These names are cmd's internal commands, not an executable-policy allowlist.
   // In particular, a cwd echo.exe cannot replace cmd's own `echo` command.
   const CMD_BUILTINS = new Set(('assoc break call cd chdir cls color copy date del dir echo endlocal erase exit for ftype goto if md mkdir mklink move path pause popd prompt pushd rd rem ren rename rmdir set setlocal shift start time title type ver verify vol').split(' '));
@@ -500,19 +849,30 @@
     try { return fs.statSync(file).isFile() ? 'file' : 'absent'; }
     catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unknown'; }
   }
-  // Resolve the FIRST executable candidate, in cwd then PATH and PATHEXT order.
+  // Resolve the FIRST executable candidate, in cmd's own order: the working folder, then PATH (the working folder is out of the
+  // search when the command's environment defines NoDefaultCurrentDirectoryInExePath), each folder in PATHEXT order.
   // An unreadable earlier candidate (or network path) cannot be vouched for by
   // a later console copy. Never stat a network path while deciding consent.
   function cmdProgramFile(value, opts) {
-    const fs = opts.fs, P = opts.pathMod, env = opts.env || process.env;
+    const P = opts.pathMod, env = opts.env || process.env;
     // Explicit .exe paths keep their existing proof. Other paths or dynamic
-    // names cannot silently become an uninspected bare invocation.
-    if (/[\\/:%!"<>|?*\u0000-\u001f]/.test(value) || /[. ]$/.test(value)) return { status: 'unknown' };
-    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
-    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    // names cannot silently become an uninspected bare invocation. cmd ends a program name at , ; = ( and at a space of any
+    // width or a control character (`probe,x` runs probe.exe with the argument ,x), so a name holding one is not a file whose
+    // name can be looked up as it is spelled.
+    if (/[\\/:%!"<>|?*,;=(\u0000-\u001f\u007f-\u009f]/.test(value) || /[. ]$/.test(value) || /[\p{Z}\p{Cf}]/u.test(value.replace(/ /g, ''))) return { status: 'unknown' };
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
     if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e))) return { status: 'unknown' };
-    for (const entry of [opts.cwd].concat(rawPath.split(P.delimiter))) {
-      const dir = String(entry || opts.cwd || '').trim();
+    const noCwd = cmdSkipsCwd(env);
+    // an empty PATH entry reads as the working folder; whether cmd still does with the folder switched off is not known
+    return searchFolders(value, opts, (noCwd ? [] : [opts.cwd]).concat(rawPath.split(P.delimiter)), noCwd ? '' : opts.cwd, exts);
+  }
+  // The walk both searches share: each folder in turn, the name tried exactly when it has an extension and then with each extension.
+  // `blank` is what an empty entry stands for ('' = unknown).
+  function searchFolders(value, opts, entries, blank, exts) {
+    const fs = opts.fs, P = opts.pathMod;
+    for (const entry of entries) {
+      const dir = String(entry || blank || '').trim();
       if (!dir) return { status: 'unknown' };
       const folder = P.resolve(opts.cwd, dir);
       if (/^[\\/]{2}/.test(folder)) return { status: 'unknown' };
@@ -532,6 +892,18 @@
     }
     return { status: 'absent' };
   }
+  /* PowerShell (and an sh started from a cmd line) look for a bare command name along PATH only, never in the working folder (read
+     off the real PowerShell 5.1: a copy beside the command is "not recognized"). Each folder is tried in PATHEXT order, and a .ps1
+     script of that name ahead of them; a relative entry such as `.` is read from the folder the command runs in. The name has been
+     read as a plain word already (psKind); an empty PATH holds nothing, an empty entry among others is not known. */
+  function pathProgramFile(value, opts, scripts) {
+    const env = opts.env || process.env, P = opts.pathMod;
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e)) || /[. ]$/.test(value)) return { status: 'unknown' };
+    if (!rawPath.trim()) return { status: 'absent' };
+    return searchFolders(value, opts, rawPath.split(P.delimiter), '', (scripts ? ['.ps1'] : []).concat(exts));
+  }
   function commandScript(file, fs) {
     try {
       const st = fs.statSync(file);
@@ -540,11 +912,13 @@
     } catch (_) { return null; }
   }
   /* Every file this head could run, or null when that cannot be proven. A bare `git.exe` is cmd's current folder first
-     and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. */
+     and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. cmd leaves the
+     working folder out when the command's environment defines NoDefaultCurrentDirectoryInExePath, and PowerShell never
+     searches it for a bare name, so there only PATH is read. */
   function localProgramFiles(value, opts) {
     const fs = opts.fs, P = opts.pathMod, cwd = opts.cwd, env = opts.env || process.env;
     if (value.includes('/') && opts.dialect !== 'powershell') return null;
-    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
     const look = file => {
       if (/^[\\/]{2}/.test(file)) return 'unknown';
       const direct = probeFile(file, fs);
@@ -553,15 +927,17 @@
       return direct;
     };
     if (/[\\/:]/.test(value)) { const f = P.resolve(cwd || '.', value); return look(f) === 'file' ? [f] : null; }
-    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
     if (rawPath.includes('"')) return null;
-    const out = [];
-    for (const [i, entry] of [cwd].concat(rawPath.split(P.delimiter)).entries()) {
+    const out = [], onPath = rawPath.split(P.delimiter);
+    const lead = opts.dialect === 'powershell' || cmdSkipsCwd(env) ? 0 : 1;   // 1 when the working folder is searched first
+    for (const [i, entry] of (lead ? [cwd] : []).concat(onPath).entries()) {
       const dir = String(entry || '').trim();
       if (!dir) continue;
-      const f = P.join(dir, value), seen = look(f);
+      // a relative PATH entry is read from the folder the command runs in
+      const f = P.join(P.resolve(cwd || '.', dir), value), seen = look(f);
       if (seen === 'unknown') return null;
-      if (seen === 'file') { out.push(f); if (i > 0) break; }
+      if (seen === 'file') { out.push(f); if (i >= lead) break; }
     }
     return out.length ? out : null;
   }
@@ -579,16 +955,38 @@
   /* A head reaches its proof only as the first command, typed directly. No wrapper vouches for one: `cmd /c x` and `powershell -c x`
      re-read their text, so what they run next cannot be proven from here. A program spelled as local stays refused there. */
   function nothingRunsFirst(heads, index) {
-    return index === 0 && !heads[index].grouped && !mayHideACommand(heads[index]);
+    return heads[index].lead === true && !heads[index].grouped && !mayHideACommand(heads[index]);
+  }
+  /* A bare word PowerShell (or an sh started from a cmd line) runs is found along PATH, wherever in the line it stands: no earlier
+     statement of the same line is read to change PATH, and the working folder is not on it. Its file answers for it: a console
+     program runs, a GUI one is refused, a batch shim must be readable (and its source is scanned), a .ps1 script, a file that is
+     neither, and anything the search cannot establish are unproven. A word PATH does not hold is a cmdlet, an alias or an error:
+     nothing runs from a file. */
+  function namedProgramRefusal(head, opts) {
+    if (!opts.fs || !opts.pathMod || !opts.cwd || !opts.pathMod.isAbsolute(opts.cwd)) return UNPROVEN_PROGRAM_REFUSAL;
+    const resolved = pathProgramFile(head.psName, opts, head.dialect === 'powershell');
+    if (resolved.status === 'absent') return null;
+    if (resolved.status !== 'file') return UNPROVEN_PROGRAM_REFUSAL;
+    if (/\.(?:cmd|bat)$/i.test(resolved.file)) return commandScript(resolved.file, opts.fs) ? null : UNPROVEN_PROGRAM_REFUSAL;
+    const kind = peSubsystem(resolved.file, opts.fs);
+    if (kind === PE_SUBSYSTEM_GUI) return GUI_RUNTIME_REFUSAL;
+    return kind === PE_SUBSYSTEM_CONSOLE ? null : UNPROVEN_PROGRAM_REFUSAL;
   }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
+    // Start-Process, saps, start, Invoke-Item and ii launch what they are given: a file, a folder, a URL, an app registered under
+    // App Paths. No search of PATH bounds that, so whatever they are given is unproven.
+    if (head && head.launcher === true) return UNPROVEN_PROGRAM_REFUSAL;
     const text = head && head.text != null ? head.text : String(head || '');
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
     const first = headTokens(head)[0] || {};
     const value = String(first.value || '');
     const explicit = LOCAL_PROGRAM_RE.test(text) || /\.exe$/i.test(value);
     const searched = isWin && isCmdSearchHead(head, value);
+    // PowerShell, and an sh started from a cmd line, on a Windows host (a whole line in sh is another host's affair)
+    const foreign = isWin && !explicit && (head.dialect === 'powershell' || head.dialect === 'posix') && normalizeDialect(opts.dialect) !== 'posix';
+    if (foreign && head.psKind === 'path') return UNPROVEN_PROGRAM_REFUSAL;
+    if (foreign && head.psKind === 'word') return namedProgramRefusal(head, opts);
     if (!explicit && !searched) return null;
     // counts every head, siblings too: a stand-in for the nesting analyzeCommands reads (depth 8), past which a head goes unjudged
     if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || !opts.cwd || !opts.pathMod.isAbsolute(opts.cwd) || heads.length > 8
@@ -664,15 +1062,24 @@
       // Preserve the established outer-dialect source scan: shell-like text
       // inside referenced code and comments still follows the same bounded
       // queue. The new resolved batch source does not change that contract.
-      for (const [headIndex, parsedHead] of commandHeads(text, dialect).entries()) {
+      for (const parsedHead of commandHeads(text, dialect)) {
         const head = (parsedHead && parsedHead.text != null ? parsedHead.text : String(parsedHead || '')).replace(/^\s*@/, '');
         // A bare developer shim is still a script. Resolve its actual first
         // file, then feed its bytes through the existing shell-source scans.
         const firstValue = String((headTokens(parsedHead)[0] || {}).value || '');
         const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
-        if (qi === 0 && headIndex === 0 && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
+        if (qi === 0 && parsedHead.lead === true && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
           && !parsedHead.grouped && isCmdSearchHead(parsedHead, firstValue)) {
           const resolved = cmdProgramFile(firstValue, opts);
+          if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
+            const script = commandScript(resolved.file, fs);
+            if (script) enqueue(script.text, baseDir, 'shell', 'cmd');
+          }
+        }
+        // the same for a bare word PowerShell or sh finds along PATH, wherever in the line it stands
+        if (qi === 0 && parsedHead.psKind === 'word' && !parsedHead.launcher && !opts.floorsOnly && isWin && fs && P && cwd && P.isAbsolute(cwd)
+          && (parsedHead.dialect === 'powershell' || parsedHead.dialect === 'posix') && normalizeDialect(dialect) !== 'posix') {
+          const resolved = pathProgramFile(parsedHead.psName, opts, parsedHead.dialect === 'powershell');
           if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
             const script = commandScript(resolved.file, fs);
             if (script) enqueue(script.text, baseDir, 'shell', 'cmd');
@@ -748,7 +1155,7 @@
     opts = opts || {};
     const c = String(cmd == null ? '' : cmd), dialect = opts.dialect;
     const analysis = analyzeCommands(c, 0, dialect);
-    if (analysis.opaqueWrapper) return UNPROVEN_PROGRAM_REFUSAL;
+    if (analysis.opaqueWrapper || analysis.opaqueBody) return UNPROVEN_PROGRAM_REFUSAL;
     const heads = analysis.heads;
     if (heads.some(h => BROWSER_NAMES.has(exeName((headTokens(h)[0] || {}).value)))) {
       return 'launches a browser outside StarNet\'s synthetic-input CDP sandbox — use browser.test_navigate/browser.test_input';
@@ -823,6 +1230,7 @@
     const c = String(cmd == null ? '' : cmd);
     const analysis = analyzeCommands(c, 0, dialect);
     if (analysis.opaqueWrapper) return 'uses native shell-wrapper quoting StarNet could not confirm as command text; use one plainly quoted command string or a script file';
+    if (analysis.opaqueBody) return 'runs command text StarNet cannot read with certainty (a cmd switch built by expansion, or a body or target it cannot place), so what it starts cannot be inspected; write the command out plainly or use a script file';
     if (analysis.opaquePowerShell) return 'runs a base64-encoded PowerShell command, or one with an option StarNet does not recognize, so it cannot be inspected — write the script to a file and run it plainly';
     if (analysis.heads.some(h => {
       const first = (headTokens(h)[0] || {}).value || '';
@@ -1151,9 +1559,20 @@
     if (!environment || typeof environment.refusalFor !== 'function') return null;
     try { return environment.refusalFor(aid) || null; } catch (_) { return null; }
   }
+  /* THE ENVIRONMENT THE COMMAND WILL RUN WITH, for the guard to search in. The local backend answers with the snapshot every
+     command it starts begins from (environment.commandEnv); a rig that gives the tool its own (deps.env) is believed; if
+     neither speaks the answer is undefined and the guard falls back to the process's own. */
+  function commandEnvOf(environment, ownEnv, aid, surface) {
+    if (environment && typeof environment.commandEnv === 'function') {
+      try { const e = environment.commandEnv({ agentId: aid, surface: surface }); if (e && typeof e === 'object') return e; }
+      catch (e) { shellFailNote('shell.commandenv', e); }
+    }
+    return ownEnv && typeof ownEnv === 'object' ? ownEnv : undefined;
+  }
   function makeShellTool(deps) {
     deps = deps || {};
     const environment = deps.environment || null;
+    const ownEnv = deps.env && typeof deps.env === 'object' ? deps.env : null;   // the environment a direct (no environment manager) command runs with
     const spawn = deps.spawn, fs = deps.fs || null, P = deps.pathMod || (typeof require === 'function' ? require('node:path') : null), ROOT = deps.root || '';
     const bg = deps.bg || null;   // H2.2: the singleton background-process manager (shellbg.js); null -> bg disabled
     // the marker's per-call nonce (S1): random by default; a deterministic rig may inject its own
@@ -1248,7 +1667,7 @@
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
-        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin });
+        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
         const checkpoint = typeof ctx.checkpointMutation === 'function'
@@ -1288,7 +1707,7 @@
         const run = checkpoint.then(function () {
           return environment && typeof environment.execute === 'function'
             ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })
-            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
+            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '', env: ownEnv || undefined });
         });
         return run.then(function (res) {
           // recover the final cwd + the REAL exit code from THIS call's marker; keep the cwd only inside the allowed envelope.
@@ -1581,5 +2000,5 @@
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
 });

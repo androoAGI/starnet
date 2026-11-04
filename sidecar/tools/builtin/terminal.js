@@ -70,7 +70,8 @@ function makeTerminalTools(deps) {
     if (remoteOwner(ctx)) return null;
     const escaped = Shell.escapesWorkspace(command);
     if (escaped) return { kind: 'workspace', reason: escaped };
-    return Shell.commandSafetyRisk(command, { cwd, exactCwd: exactCwd === true, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin });
+    // a new terminal's program is searched for in the environment its PTY is given (manager.start gets envFor); text typed later proves nothing
+    return Shell.commandSafetyRisk(command, { cwd, exactCwd: exactCwd === true, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin, env: exactCwd === true ? envFor(ctx && ctx.surface) : undefined });
   }
   function sessionRef(args) { return String((args && args.session) || '').trim(); }
   function fail(r) { if (!r || !r.ok) throw new Error((r && r.error) || 'terminal operation failed'); return r; }

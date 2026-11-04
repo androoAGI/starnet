@@ -54,6 +54,7 @@ function launch(store, opts) {
     clearTimeout: id => timers.delete(id),
     Date: VmDate, JSON, Promise, Math, String, Number, Object, Array, RegExp, Error
   };
+  require('./helpers/frontend-esc.js').installEsc(context);
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'updates.js' });
   const updates = context.__Updates;

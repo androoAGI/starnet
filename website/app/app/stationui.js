@@ -6414,13 +6414,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const drop = (typeof CodexSignIn !== 'undefined') ? CodexSignIn.logout() : Harness.api.post('/api/auth/codex/logout').catch(() => null);
           Promise.resolve(drop).then(res => {
             // DISCONNECTED ONLY ON THE STATION'S YES: a logout it refused (or never answered) left the sign-in in force
-            if (!res || !res.ok) { notify('could NOT disconnect ChatGPT — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); rerender('settings'); return; }
-            codexStatusKnown = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
-            if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured('codex', false);
-            notify('disconnected ChatGPT — sign in again anytime from PROVIDERS', 'warn');
-            sfx('bad');
-            if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
-            if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            if (!res || !res.ok) { notify('could NOT disconnect ChatGPT — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); }
+            else {
+              codexStatusKnown = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
+              if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured('codex', false);
+              notify('disconnected ChatGPT — sign in again anytime from PROVIDERS', 'warn');
+              sfx('bad');
+              if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+              if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            }
             rerender('settings');
           });
           return;
@@ -6436,13 +6438,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (engine) engine.cancel(); delete oauthCardFlow[pid];
           const drop = engine ? engine.logout() : Harness.api.post('/api/auth/' + pid + '/logout').catch(() => null);
           Promise.resolve(drop).then(res => {
-            if (!res || !res.ok) { notify('could NOT disconnect ' + provName(pid) + ' — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); rerender('settings'); return; }
-            oauthStatus[pid] = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
-            if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, false);
-            notify('disconnected ' + provName(pid) + ' — sign in again anytime from PROVIDERS', 'warn');
-            sfx('bad');
-            if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
-            if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            if (!res || !res.ok) { notify('could NOT disconnect ' + provName(pid) + ' — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); }
+            else {
+              oauthStatus[pid] = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
+              if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, false);
+              notify('disconnected ' + provName(pid) + ' — sign in again anytime from PROVIDERS', 'warn');
+              sfx('bad');
+              if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+              if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            }
             rerender('settings');
           });
           return;

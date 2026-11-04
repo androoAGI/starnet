@@ -39,6 +39,14 @@ const fullPowerRouter = makeExecutionRouter({
   forceLocalForAgent: () => fullPower
 });
 
+// what a command begins from (the shell guard searches PATH in it): only a backend that can say answers, the others give null
+{
+  const asking = Object.assign(fake('local'), { commandEnv: o => ({ PATH: 'C:\\bin', agentId: o.agentId, surface: o.surface }) });
+  const sayer = makeExecutionRouter({ environments: { local: asking, docker, ssh }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear' });
+  A.eq(sayer.commandEnv({ agentId: 'trusted', surface: 'interactive' }), { PATH: 'C:\\bin', agentId: 'trusted', surface: 'interactive' }, 'the local backend answers for its own agent, with the run\'s surface');
+  A.eq(sayer.commandEnv({ agentId: 'safe' }), null, 'a Docker agent\'s backend cannot say what its commands begin from');
+  A.eq(router.commandEnv({ agentId: 'trusted' }), null, 'a local backend that does not say gives null, not a guess');
+}
 A.eq(router.backendId, 'local', 'legacy backendId remains the station default for old callers');
 A.eq(router.backendIdFor('legacy'), 'local', 'compatibility profile follows the station default');
 A.eq(router.backendIdFor('safe'), 'docker', 'Safe Cell routes to Docker immediately');

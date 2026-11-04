@@ -487,6 +487,7 @@ const REPORTED = {
     ["') stored half a pair ') + JSON.stringify(note.was)", NR("the same re-pairing note, logged once")],
     ["(RunWire.SOURCE_LABELS[x.source] || x.source) + ': ' + x.reason", NR("why the Live Doctor's run-wire resolution passed a provider over")],
     ["ignored: (doctorWire.ignored || []).map(x => ({ source: x.source, provider: x.provider, reason: x.reason }))", NR("the same passed-over providers, in the Live Doctor report's wire block")],
+    ["readOnly: true, reason: cronDegraded.reason", NR("why the routine store is held read-only: its saved publication metadata could not be confirmed (the degraded block of GET /api/cron), never a run's end")],
     // review 5.3 (the guarded shape `(x && x.reason) || …`, which WRAP / REPORT_LABEL did not see before):
     ["did not land (' + ((chained && chained.reason) || '?')", NR("an implement build's chain result ('built' / 'no-manifest' / 'run-failed' …: runImplementBuild), said in the shift's log")],
     ["autoBuildFailed: (chained && chained.reason) || 'unknown'", NR("the same implement build's chain result")],

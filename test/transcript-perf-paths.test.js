@@ -338,7 +338,7 @@ try {
       URL, crypto, runTable, runStore, transcriptStore, transcriptStoreModule, transcriptLiveRuns: new Set(),
       turnDual: require('../sidecar/turn-dual.js').make({ now: () => 0, hash: text => crypto.createHash('sha256').update(text).digest('hex') }), transcriptIo: io,
       sessionTombstones: { deletedAt: () => 0 },
-      isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id)), failNote: () => {},
+      isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(String(id)), failNote: () => {}, refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
       respondJson: (res, code, obj) => { sent = { code, obj }; }, readRouteFailure: (n, e) => ({ error: String(e && e.message) }),
       conversationTranscript: () => []
     };

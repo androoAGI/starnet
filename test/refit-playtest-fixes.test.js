@@ -74,6 +74,7 @@ const tutorialSrc = read('tutorial.js');
       window: { addEventListener() {} }, localStorage: { getItem() { return null; }, setItem() {} }, globalThis: null };
     if (Build) ctx.Build = Build;
     ctx.globalThis = ctx;
+    require('./helpers/frontend-esc.js').installEsc(ctx);
     vm.runInNewContext(tutorialSrc + '\n;globalThis.__tutorial = Tutorial;', ctx);
     ctx.__tutorial.fillFieldManual(body);
     const btn = body.buttons.find(b => b.dataset.t === 'LINES');

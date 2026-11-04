@@ -4,7 +4,9 @@
    step-limit-with-partial-text, no-OUTBOX and terse-review-approval jobs. Assert the durable record, typed
    outcome/stop, exact OUTBOX count, one line-output receipt per delivered chain, and composer bytes at stage 2.
    The file pass reads the producer's actual private fs_write output at stage 2 and at a SEND TO target's entry.
-   A second job carries no previous handoff except the channel's deliberate own-chat history, once each.
+   A second job carries no previous handoff except the channel's canonical own-chat replay: a real (bound) chat's stage remembers the
+   chat, so EDITOR replays the finished entry job, the earlier job and its hand-off, once each and in order, but never the entry agent's
+   tool traffic (the provider is not told EDITOR made a write only WRITER made). The six per-job doors replay nothing.
    The step test emits its final crate directly; it does not execute a chain or mint a chain authority receipt. */
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -28,6 +30,10 @@ const VERBATIM = ['channel', 'schedule', 'manual', 'sample', 'steptest'];
 const ENTRIES = ['channel', 'schedule', 'manual', 'trigger', 'sample', 'steptest', 'sendto'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (typeof p === 'string' ? p : ((p && p.text) || ''))).join('') : '');
+// what a stage's first request replayed, in order: the own words of each user turn, each assistant turn's words (and the tools it called), each tool result
+const replayOf = call => call.request.messages.filter(m => m && m.role !== 'system').map(m => m.role === 'user' ? 'user: ' + userWords(m)
+  : m.role === 'tool' ? 'tool: ' + text(m.content)
+  : 'assistant: ' + text(m.content) + (Array.isArray(m.tool_calls) && m.tool_calls.length ? ' [calls ' + m.tool_calls.map(t => (t.function && t.function.name) || '?').join(',') + ']' : ''));
 
 async function startSseCollector(url) {
   const ac = new AbortController(), events = [];
@@ -314,7 +320,15 @@ async function startSseCollector(url) {
     const JOB1 = 'Write two short facts about the moon.';
     const one = await pass(1, JOB1);
     parity(1, JOB1, one, S1);
-    for (const e of ENTRIES) assert.equal(one[e].hop.users.length, 1, 'pass 1 ' + e + ': EDITOR\'s first job replays nothing');
+    // the six per-job doors (a one-job hub, no bound chat) replay nothing: EDITOR is handed the hand-off alone
+    for (const e of ENTRIES.filter(x => x !== 'channel')) {
+      assert.equal(one[e].hop.users.length, 1, 'pass 1 ' + e + ': EDITOR\'s first job replays nothing');
+      assert.deepEqual(replayOf(one[e].hop), ['user: ' + one[e].turn], 'pass 1 ' + e + ': EDITOR\'s request is the hand-off and nothing else');
+    }
+    // a real chat's stage remembers the chat (turn-identity C9): this job's finished entry job is in front of the hand-off, in order
+    assert.deepEqual(replayOf(one.channel.hop), ['user: ' + JOB1, 'assistant: ' + S1, 'user: ' + one.channel.turn],
+      'pass 1 channel: EDITOR replays the chat\'s finished entry job (the ask, WRITER\'s answer) once, then the hand-off');
+    assert.deepEqual([one.channel.hop.tools, one.channel.hop.results], [[], []], 'pass 1 channel: no tool call or result rides the replay');
 
     // THE HOST-NOTE SCENARIO: stage 1 saves notes.md first; what EDITOR is handed is still the composer's over S1, its terminal text
     hostNote = true;
@@ -322,12 +336,18 @@ async function startSseCollector(url) {
     const two = await pass(2, JOB2);
     for (const e of ENTRIES) assert.ok(two[e].turn.indexOf('[StarNet] Saved in this agent') < 0, 'pass 2 ' + e + ': the host\'s private-files note never rides the hand-off');
     parity(2, JOB2, two, S1);
-    // (d) a second job carries no earlier hand-off; a real chat keeps its own earlier jobs (the channel profile's history), once each
+    // (d) a second job carries no earlier hand-off; a real chat keeps its own earlier jobs (the channel profile's canonical replay), once each
     for (const e of ENTRIES.filter(x => x !== 'channel')) {
       assert.deepEqual(two[e].hop.users, [two[e].turn], 'pass 2 ' + e + ': EDITOR is handed this job alone, never an earlier hand-off');
+      assert.deepEqual(replayOf(two[e].hop), ['user: ' + two[e].turn], 'pass 2 ' + e + ': EDITOR\'s request is the hand-off and nothing else');
     }
-    assert.deepEqual(two.channel.hop.users, [one.channel.turn, two.channel.turn], 'the chat\'s EDITOR keeps the chat\'s earlier job once, then this job');
-    assert.deepEqual(two.channel.hop.assistants, [S2], '…with what EDITOR answered it');
+    // WRITER really called tools on the second job (brief_proceed, fs_write: its private notes.md was saved, asserted by the pass) and the chat
+    // holds them; they are WRITER's, not EDITOR's, so no tool-call turn and no tool result of WRITER's reaches EDITOR (EDITOR's own first
+    // request precedes any call of its own)
+    assert.deepEqual([two.channel.hop.tools, two.channel.hop.results], [[], []], 'EDITOR is not told it called WRITER\'s brief_proceed or fs_write, nor handed their receipts');
+    assert.ok(!two.channel.hop.request.messages.some(m => m && (m.role === 'tool' || (Array.isArray(m.tool_calls) && m.tool_calls.length))), 'no WRITER tool-call turn or tool-result pair is in EDITOR\'s request');
+    assert.deepEqual(replayOf(two.channel.hop), ['user: ' + JOB1, 'assistant: ' + S1, 'user: ' + one.channel.turn, 'assistant: ' + S2, 'user: ' + JOB2, 'assistant: ' + S1, 'user: ' + two.channel.turn],
+      'the chat\'s EDITOR keeps the chat in order: the earlier job, WRITER\'s answer to it, its hand-off and EDITOR\'s answer once, then this job, WRITER\'s answer to it, and this job\'s hand-off');
     hostNote = false;
     for (const [n, mode] of [[3, 'stage_incomplete'], [4, 'no_outbox'], [5, 'terse_approval']]) {
       scenario = mode;
