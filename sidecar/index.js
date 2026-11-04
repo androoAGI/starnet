@@ -2726,7 +2726,8 @@ const workshopStore = makeWorkshopStore({
 const deliverableStore = makeDeliverableStore({
   fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
   onRecover: (key, file) => console.warn('[deliverables] recovered ' + file + ' from .bak last-known-good.'),
-  onCorrupt: (key, file) => quarantineCorrupt(file, 'deliverables')
+  onCorrupt: (key, file) => quarantineCorrupt(file, 'deliverables'),
+  admit: row => forgetRegistry.admit({ runId: row.runId, at: Date.now() })   // the forget registry's write-time gate: no lifecycle row for a forgotten run
 });
 // IDEMPOTENCY LEDGER (SOP lane, 2026-08-21): every successful custom-connector WRITE is recorded under
 // (work-item scope, tool, canonical args); a byte-identical repeat inside the same scope is answered from the
@@ -3686,6 +3687,7 @@ wireForgetRegistry(forgetRegistry, {
   recommendations: () => recommendationLedger,
   verdictReview: () => verdictReview,
   taskBriefs: () => taskBriefStore,
+  deliverables: () => deliverableStore,
   goldens: { get: () => goldensByKey, persist: next => persistGoldens(next) },
   study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => persistStudyState() }
 });

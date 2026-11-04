@@ -23,6 +23,7 @@ const { makeRecommendationLedger } = require('../sidecar/recommendation-ledger.j
 const { makeDurableJsonStore } = require('../sidecar/durable-store.js');
 const { makeVerdictReview } = require('../sidecar/verdictreview.js');
 const { makeTaskBriefStore } = require('../sidecar/taskbrief-store.js');
+const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -192,6 +193,41 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       A.eq(Array.from(latest.entries()), [['agent2', 'r_keep']], 'the pointer to a removed entry goes with it');
       A.eq(persists, 2, 'persisted twice');
       A.eq(await forget('study-proposals'), 0, 'idempotent');
+    }
+
+    // ---------------- deliverables library ----------------
+    {
+      const ddir = temp('deliverables');
+      try {
+        let gateOn = false;   // the rows are filed BEFORE the delete: the gate is only asked afterwards
+        const make = () => makeDeliverableStore({ fs, path, workspaces: ddir, admit: row => !gateOn || registry.admit({ runId: row.runId, at: 6000 }) });
+        let store = make();
+        const row = (id, runId, word) => ({ id, agentId: 'agent', runId, title: word + ' report', source: 'workshop', status: 'kept', kind: 'files', summary: 'all about ' + word, files: [{ path: word + '.md', bytes: 10 }] });
+        await store.record(row('d_gone', 'r_gone', 'quokka'), 4100);
+        await store.record(row('d_reader', 'r_reader', 'readerword'), 4600);
+        await store.record(row('d_keep', 'r_keep', 'platypus'), 4100);
+        await store.record(row('d_gone2', 'r_gone', 'quokkaTwo'), 4101);
+        const preview = store.previewCleanup({ statuses: ['kept'] });
+        await store.applyCleanup(preview, 'undo-1', 4200);   // every kept row moves into an undo batch: copies the purge must reach too
+        A.eq(store.list().length, 0, 'the cleanup moved the rows into an undo batch');
+        await store.undoCleanup('undo-1', 4300);
+        await store.record(row('d_gone3', 'r_gone', 'quokkaThree'), 4400);
+        const hot = store.previewCleanup({ statuses: ['kept'] });
+        await store.applyCleanup(hot, 'undo-2', 4450);   // d_* again sit in an undo batch while the delete lands
+        hold.deliverables = () => store;
+        const removed = await forget('deliverables');
+        A.eq(removed, 4, 'three rows of the deleted session\'s run and the reader run\'s row go (counted once each, library or undo batch)');
+        const journal = path.join(ddir, 'deliverables.library.jsonl');
+        const disk = [path.join(ddir, 'deliverables.library.json'), path.join(ddir, 'deliverables.library.json.bak'), journal].filter(f => fs.existsSync(f)).map(f => fs.readFileSync(f, 'utf8')).join('\n');
+        A.ok(!/quokka|readerword/.test(disk), 'no snapshot, .bak or journal line holds a forgotten row\'s words');
+        store = make();   // a restart replays the snapshot and journal
+        await store.undoCleanup('undo-2', 4500);
+        A.eq(store.list().map(r => r.id), ['d_keep'], 'after a restart and an undo only the other session\'s row comes back: the undo batch held no copy of the forgotten ones');
+        A.eq(await forget('deliverables'), 0, 'idempotent');
+        gateOn = true;
+        A.eq(await store.record(row('d_late', 'r_gone', 'late'), 4600), null, 'a lifecycle row for a forgotten run is refused by the gate (null, nothing written)');
+        A.ok((await store.record(row('d_new', 'r_after', 'fresh'), 4600)).id === 'd_new', '...and a live run\'s row is written');
+      } finally { remove(ddir); }
     }
 
     A.report('forget-stores');

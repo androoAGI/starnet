@@ -104,6 +104,11 @@ function makeDeliverableStore(deps) {
     } else if (op.op === 'unclear') {
       const i = s.clearUndo.findIndex(b => b.token === op.token);
       if (i >= 0) { const back = new Set(s.clearUndo[i].ids); s.clearUndo.splice(i, 1); s.cleared = s.cleared.filter(id => !back.has(id)); }
+    } else if (op.op === 'forget') {
+      // the forget registry's purge: the rows it names leave the library AND the undo batches that hold their copies
+      const ids = new Set(Array.isArray(op.ids) ? op.ids.map(id => text(id)) : []);
+      s.rows = s.rows.filter(r => !ids.has(r.id));
+      s.undo = s.undo.map(b => Object.assign({}, b, { rows: b.rows.filter(r => !ids.has(r.id)) })).filter(b => b.rows.length);
     } else if (op.op === 'undo') {
       const i = s.undo.findIndex(b => b.token === op.token);
       if (i >= 0) {
@@ -211,6 +216,8 @@ function makeDeliverableStore(deps) {
   function record(row, now) {
     const clean = rowOf(row, now);
     if (!clean) return Promise.reject(new Error('deliverable id required'));
+    // the forget registry's write-time gate (deps.admit): a lifecycle row for a run whose session was deleted is not written
+    if (typeof deps.admit === 'function' && !deps.admit(clean)) return Promise.resolve(null);
     return durable.mutex.run(KEY, async () => { commit({ op: 'upsert', row: clean }); return clean; });
   }
   function previewCleanup(opts) {
@@ -249,6 +256,23 @@ function makeDeliverableStore(deps) {
       return out;
     });
   }
+  /* forget(match) -> Promise<number>: the forget registry's purge. Every library row `match(row)` names, and its copy in a cleanup undo
+     batch, is removed. The journal still holds those rows' earlier upsert lines and the snapshot's .bak the old rows, so the state is folded
+     into the snapshot now (twice: the second write makes the .bak the purged copy too) and the journal is emptied - the same sequence the
+     size-triggered compaction runs, applied at once. */
+  function forget(match) {
+    return durable.mutex.run(KEY, async () => {
+      const s = load();
+      const ids = new Set();
+      for (const r of s.rows) if (match(r)) ids.add(r.id);
+      for (const b of s.undo) for (const r of b.rows) if (match(r)) ids.add(r.id);
+      if (!ids.size) return 0;
+      commit({ op: 'forget', ids: Array.from(ids) });
+      durable.set(KEY, s); durable.set(KEY, s);
+      if (canAppend) { durableWrite({ fs, path: pathMod }, journalFile, ''); journalOps = 0; }
+      return ids.size;
+    });
+  }
   function clearedIds() { return new Set(load().cleared); }
   // clear(ids) hides library rows; the caller (the route) decides WHICH ids are eligible against the live library.
   function clear(ids, token, now) {
@@ -271,7 +295,7 @@ function makeDeliverableStore(deps) {
       return { ok: true, restored: b.ids.length };
     });
   }
-  return { read, list, record, previewCleanup, applyCleanup, undoCleanup, clear, unclear, clearedIds, _durable: durable };
+  return { read, list, record, forget, previewCleanup, applyCleanup, undoCleanup, clear, unclear, clearedIds, _durable: durable };
 }
 
 module.exports = { makeDeliverableStore, normalize };

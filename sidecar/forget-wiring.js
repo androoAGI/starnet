@@ -161,6 +161,16 @@ function wireForgetRegistry(registry, deps) {
     }
   });
 
+  /* the deliverables library: the lifecycle rows (kept, discarded, failed, implemented) of what a run built, with the title, summary and file
+     names, and the cleanup undo batches that hold copies of removed rows. Source: the run. The files themselves are delivered workspace files
+     and stay (Q4); the store holds metadata only. */
+  const deliverableSource = r => ({ runIds: [r && r.runId], at: num(r && r.createdAt) });
+  entry({
+    name: 'deliverables',
+    sourceOf: deliverableSource,
+    forget: scope => d.deliverables().forget(r => inScope(deliverableSource(r), scope))
+  });
+
   return registry;
 }
 
