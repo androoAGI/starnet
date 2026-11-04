@@ -343,6 +343,88 @@ A.eq(wrapFs.openCount(), 0, 'every file read for the switch rows was closed');
 }
 A.eq(wrapFs.openCount(), 0, 'every file read for the body rows was closed');
 
+// ---- PowerShell and sh find a bare name along PATH, and the guard asks the same question (GitHub #167/#163, review round 7) ----
+// Read off the real PowerShell 5.1 with harmless programs: a bare command name is never looked for in the working folder, only
+// along PATH (a relative PATH entry is read from the working folder), each folder in PATHEXT order with a .ps1 script ahead of them;
+// & and . and quotes put no program of their own before the name; the statements inside {...}, (...) and $(...) run; and Start-Process,
+// saps, start, Invoke-Item and ii open or launch whatever they are given (a file, a folder, a URL, an app registered under App
+// Paths), which a search of PATH cannot bound. The nested program was judged only when it was spelled .exe or .\, so
+// `powershell -c winver` ran the real GUI app that `winver` on its own is refused for. A name PATH does not hold is a cmdlet, an
+// alias or an error: nothing runs from a file, so it is left alone; a target held in a variable or an expression is refused.
+const scriptShim = Buffer.from('@echo off\nnotepad forbidden.txt\n');
+const psFs = memFs({
+  'C:\\bin\\winver.exe': GUI, 'C:\\bin\\hostname.exe': CONSOLE, 'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\powershell.exe': CONSOLE, 'C:\\bin\\pwsh.exe': CONSOLE,
+  'C:\\bin\\sh.exe': CONSOLE, 'C:\\bin\\bash.exe': CONSOLE, 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\npm.cmd': Buffer.from('@echo package shim\n'),
+  'C:\\bin\\unsafe.cmd': scriptShim, 'C:\\bin\\pick.ps1': Buffer.from('Write-Output hi\n'), 'C:\\bin\\pick.exe': CONSOLE,
+  'C:\\bin\\twin.cmd': scriptShim, 'C:\\bin\\twin.exe': CONSOLE, 'C:\\proj\\probe.exe': GUI, 'C:\\later\\alias.exe': CONSOLE
+}, { 'c:\\store\\alias.exe': 'EACCES' });
+{
+  const ps = (c, o) => risk(c, Object.assign({ fs: psFs }, o));
+  const psSafety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, { fs: psFs }, o));
+  const refusedAs = v => GUI_RE.test(v || '') || UNPROVEN.test(v || '');
+  for (const c of [
+    'powershell -c winver', 'powershell -c "Write-Output ok; winver"', 'powershell -c "Start-Process winver"', 'powershell -c "& winver"', 'powershell -c "& { winver }"',
+    'pwsh -c winver', 'sh -c winver', 'powershell -c "Invoke-Item .\\probe.exe"', 'powershell -c "ii probe.exe"',
+    'powershell -NoProfile -c winver', 'powershell.exe -Command winver', 'powershell winver', 'powershell -c "&winver"', 'powershell -c "& \'winver\'"', 'powershell -c ". winver"',
+    'powershell -c "winver | Out-Null"', 'powershell -c "Get-Date; winver"', 'powershell -c "winver; Write-Output ok"', 'powershell -c "if ($true) { winver }"',
+    'powershell -c "if($true){winver}"', 'powershell -c "foreach ($i in 1) { winver }"', 'powershell -c "1 | ForEach-Object { winver }"',
+    'powershell -c "Write-Output (winver)"', 'powershell -c "Start-Process -FilePath winver"', 'powershell -c "saps winver"', 'powershell -c "start winver"',
+    'powershell -c "Start-Process -NoNewWindow hostname"', 'powershell -c "Start-Process https://example.com"', 'powershell -c "Invoke-Item ."', 'powershell -c "ii ."',
+    'powershell -c "Start-Job { winver }"', 'powershell -c "icm { winver }"', 'powershell -c "& { Write-Output ok; winver }"', 'powershell -c "& { & winver }"',
+    'powershell -c "cmd /c winver"', 'powershell -c "powershell -c winver"', 'powershell -c "pwsh -c winver"', 'powershell -c "sh -c winver"',
+    'powershell -c "$x=1; & { if ($x) { winver } }"',
+    'sh -c "echo a; winver"', 'bash -c winver', 'bash -lc winver', 'sh -ec winver', 'bash --noprofile -c winver', 'sh -c "winver &"',
+    'powershell -c "sub\\tool"', 'powershell -c "sub/tool"', 'powershell -c "C:\\Windows\\System32\\winver"',
+    'powershell -c unsafe', 'powershell -c pick', 'powershell -c "Get-Date; unsafe"', 'powershell -c "& winv\'er\'"', 'powershell -c "&\'winver\'"'
+  ]) A.ok(refusedAs(ps(c)), 'the program PowerShell or sh would run is judged, and refused: ' + c);
+  for (const c of [
+    'powershell -c "$x=\'winver\'; & $x"', 'powershell -c "& (Get-Command winver)"', 'powershell -c "& (\'win\'+\'ver\')"', 'powershell -c "& $env:windir\\system32\\winver.exe"',
+    'powershell -c ". $x"', 'powershell -c "& $args[0]"'
+  ]) A.ok(UNPROVEN.test(ps(c) || ''), 'a target held in a variable or an expression cannot be placed, so it is refused: ' + c);
+  // typed straight into PowerShell (no cmd quoting in the way), an interpolated string is an expression too
+  for (const c of ['& "$env:windir\\system32\\winver.exe"', '& "win$x"', '. "$x"', '$h = \'winver\'; & $h']) {
+    A.ok(UNPROVEN.test(ps(c, { dialect: 'powershell' }) || ''), 'in PowerShell itself, a target built at run time is refused: ' + c);
+  }
+  for (const c of ['"winver"', "'winver'", '$h = \'winver\'; $h', '& \'hostname\'', 'hostname']) {
+    A.eq(ps(c, { dialect: 'powershell' }), null, 'in PowerShell itself, control: ' + c);
+  }
+  A.ok(refusedAs(ps('winver', { dialect: 'powershell' })), 'in PowerShell itself, a bare name is looked up along PATH too');
+  A.ok(refusedAs(ps('& winver', { dialect: 'powershell' })), 'and behind the call operator');
+  A.eq(ps('probe', { dialect: 'powershell' }), null, 'and the working folder is not on that path');
+  A.ok(refusedAs(ps('powershell -c alias', { env: { PATH: 'C:\\store;C:\\later' } })), 'a store alias first on PATH (EACCES) is not skipped so a later copy can vouch');
+  A.ok(refusedAs(ps('powershell -c winver', { env: { PATH: '\\\\192.0.2.1\\tools;C:\\bin' } })), 'a network PATH entry is not walked');
+  A.ok(!psFs.touched.some(f => /192\.0\.2\.1/.test(f)), 'and nothing reaches the network for it');
+  A.ok(refusedAs(ps('powershell -c probe', { env: { PATH: 'C:\\bin;.' } })), 'a relative PATH entry is read from the folder the command runs in, where probe.exe is');
+  A.ok(refusedAs(ps('powershell -c twin', { env: { PATH: 'C:\\bin', PATHEXT: '.CMD;.EXE' } })), 'PATHEXT order picks the batch file, whose source is scanned');
+  // the text floors read the same statements
+  A.eq((psSafety('powershell -c "& { shutdown /r /t 0 }"') || {}).kind, 'machine-state', 'shutdown in a script block is a machine-state refusal');
+  A.eq((psSafety('powershell -c "Start-Job { Stop-Computer }"') || {}).kind, 'machine-state', 'and behind Start-Job');
+  A.eq((psSafety('powershell -c "icm { shutdown /r }"') || {}).kind, 'machine-state', 'and behind icm');
+  A.eq((psSafety('powershell -c "if ($true) { Restart-Computer }"') || {}).kind, 'machine-state', 'and in an if block');
+  A.eq((psSafety('powershell -c "& { start notepad }"') || {}).kind, 'visible-desktop', 'a window opened from a script block is a visible-desktop refusal');
+  // the other ways PowerShell reaches a launcher (.NET, COM, WMI) are as refused as Start-Process
+  for (const c of ['powershell -c "[Diagnostics.Process]::Start(\'winver\')"', 'powershell -c "[System.Diagnostics.Process]::Start(\'winver\')"',
+    'powershell -c "(New-Object -ComObject WScript.Shell).Run(\'winver\')"', 'powershell -c "(New-Object -ComObject Shell.Application).Open(\'winver\')"',
+    'powershell -c "Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{CommandLine=\'winver\'}"',
+    'powershell -c "Invoke-WmiMethod -Class Win32_Process -Name Create -ArgumentList winver"']) {
+    A.ok(psSafety(c), 'a launcher PowerShell reaches another way is refused: ' + c);
+  }
+  // what stays allowed: cmdlets, console programs by bare name wherever they stand, and names PATH does not hold
+  for (const c of [
+    'powershell -c hostname', 'powershell -c "Write-Output ok"', 'powershell -c Get-ChildItem', 'powershell -c "Get-ChildItem | Sort-Object Name"',
+    'powershell -c "Get-Process | Where-Object { $_.CPU -gt 1 } | Select-Object -First 3"', 'powershell -c "Get-ChildItem | % { $_.Name }"',
+    'powershell -c "Get-ChildItem | ? { $_.Length -gt 1 }"', 'powershell -c "$x = 1; Write-Output $x"', 'powershell -c "if ($true) { Write-Output ok } else { Write-Output no }"',
+    'powershell -c "foreach ($i in 1..3) { Write-Output $i }"', 'powershell -c "Write-Output (Get-Date)"', 'powershell -c "(Get-Date).Year"',
+    'powershell -c "Set-Location sub; Get-ChildItem"', 'powershell -c "git status"', 'powershell -c "Get-Date; hostname"', 'powershell -c "hostname; Get-Date"',
+    'powershell -c npm', 'powershell -c "cmd /c echo ok"', 'powershell -c "Write-Output winver"', 'powershell -c "echo winver"', 'powershell -c "Get-Content probe.exe"',
+    'powershell -c "Write-Output \'Start-Process winver\'"', 'powershell -c "& hostname"', 'powershell -c "& { hostname }"', 'powershell -c "Start-Sleep 1"',
+    'powershell -c probe', 'powershell -c "& \'win\'+\'ver\'"', 'powershell -c "win*"', 'powershell -c "\'winver\'"', 'sh -c hostname', 'sh -c "echo a; hostname"', 'bash -lc hostname', 'sh -c "git status"',
+    'powershell -File a.ps1'
+  ]) A.eq(ps(c), null, 'control, still runs: ' + c);
+  A.eq(ps('powershell -c twin', { env: { PATH: 'C:\\bin', PATHEXT: '.EXE;.CMD' } }), null, 'control: PATHEXT order picks the console program, and it runs');
+}
+A.eq(psFs.openCount(), 0, 'every file read for the PowerShell rows was closed');
+
 // ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
 const safety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, o));
 for (const c of [
@@ -498,5 +580,14 @@ if (process.platform === 'win32') {
     A.ok(GUI_RE.test(verdict) || UNPROVEN.test(verdict), 'the real GUI program in a builtin\'s body is refused: ' + c);
   }
   A.eq(inputIsolationRisk('if 1==1 hostname', real), null, 'control: a real console program typed first in an if body still runs');
+  // and behind PowerShell and sh: a bare name is looked up along the real PATH, where winver and charmap live
+  for (const c of ['powershell -c winver', 'powershell -c "Write-Output ok; winver"', 'powershell -c "Start-Process winver"', 'powershell -c "& winver"', 'powershell -c "& { winver }"',
+    'pwsh -c winver', 'sh -c winver', 'powershell -c charmap', 'powershell -c "Invoke-Item ."', 'powershell -c "ii winver.exe"', 'powershell -c "1 | ForEach-Object { charmap }"']) {
+    const verdict = inputIsolationRisk(c, real) || '';
+    A.ok(GUI_RE.test(verdict) || UNPROVEN.test(verdict), 'the real GUI program behind PowerShell or sh is refused: ' + c);
+  }
+  for (const c of ['powershell -c hostname', 'powershell -c "Write-Output ok"', 'powershell -c Get-ChildItem', 'powershell -c "Get-Date; hostname"']) {
+    A.eq(inputIsolationRisk(c, real), null, 'control: still runs behind the real PowerShell: ' + c);
+  }
 }
 A.report('shell-local-program.test');

@@ -163,6 +163,9 @@
         continue;
       }
       if (isDialectEscape(ch, dialect, null, c[i + 1]) && i + 1 < c.length) { i++; continue; }
+      // PowerShell comments (# to the end of the line, <# ... #>) hold no statements, and an apostrophe in one opens no quote
+      if (dialect === 'powershell' && ch === '#' && (i === 0 || /\s/.test(c[i - 1]))) { while (i + 1 < c.length && c[i + 1] !== '\n' && c[i + 1] !== '\r') i++; continue; }
+      if (dialect === 'powershell' && ch === '<' && c[i + 1] === '#') { const end = c.indexOf('#>', i + 2); i = end < 0 ? c.length : end + 1; continue; }
       if (isDialectQuote(ch, dialect)) { quote = ch; continue; }
       if (dialect === 'cmd' && (ch === '<' || ch === '>')) redirectAt = i;
       // Echo suppression precedes cmd group parsing: @(x) is still a group.
@@ -181,6 +184,8 @@
       // consumed; a subsequent `& program` still creates a real head.
       if (dialect === 'cmd' && ch === '&' && redirectAt === i - 1
         && /^[0-9](?=\s|$|[&|<>;)])/.test(c.slice(i + 1))) continue;
+      // PowerShell's call operator: an & with nothing before it in its statement is part of the statement it runs, not a separator
+      if (dialect === 'powershell' && ch === '&' && c[i + 1] !== '&' && !c.slice(start, i).trim()) continue;
       if (ch === '&' || ch === '|' || ch === ';' || ch === '\r' || ch === '\n') {
         emit(i);
         while (i + 1 < c.length && /[&|;\r\n]/.test(c[i + 1])) i++;
@@ -324,12 +329,6 @@
     return { nested: '', opaque: false };
   }
 
-  /* cmd READS ITS OWN SWITCHES (read off the real cmd.exe on Windows 11, harmless echo bodies). From the text after its name it takes
-     the first "/" followed by c, k or r in any case, through quotes, through junk before it, and with a caret in it written as the
-     shell that started it removes it; everything after that letter is the command. So the switch is not a token of its own: /d/c,
-     /q/s/c, /e:on/c and /t:07/c fuse it with other switches, /cecho and /c"echo" with what follows it, and /r is /c under another
-     name. A switch built by expansion (%VAR%, !VAR!) ahead of the first one cannot be placed; that is refused, never read as
-     absent. With no switch at all cmd runs nothing of the line's, and there is nothing nested. */
   // The text as the shell that started cmd hands it on: an unquoted caret is removed and what it escaped stays. `at[n]` is where
   // character n of the result sits in the text given.
   function cmdCaretFree(text, shellIsCmd) {
@@ -342,6 +341,12 @@
     }
     return { seen, at };
   }
+  /* cmd READS ITS OWN SWITCHES (read off the real cmd.exe on Windows 11, harmless echo bodies). From the text after its name it takes
+     the first "/" followed by c, k or r in any case, through quotes, through junk before it, and with a caret in it written as the
+     shell that started it removes it; everything after that letter is the command. So the switch is not a token of its own: /d/c,
+     /q/s/c, /e:on/c and /t:07/c fuse it with other switches, /cecho and /c"echo" with what follows it, and /r is /c under another
+     name. A switch built by expansion (%VAR%, !VAR!) ahead of the first one cannot be placed; that is refused, never read as
+     absent. With no switch at all cmd runs nothing of the line's, and there is nothing nested. */
   function cmdWrapperBody(segment, tokens, outerDialect) {
     const tail = String(segment).slice(tokens[0].end);
     const free = cmdCaretFree(tail, outerDialect === 'cmd'), seen = free.seen, at = free.at;
@@ -523,6 +528,101 @@
     return { bodies: [{ text: command, first: false }] };
   }
 
+  /* ---- PowerShell and sh: what a statement's first word is, and what runs inside it ----
+     Read off the real PowerShell 5.1 with hostname.exe only. The command name is the first word with its quotes and backticks
+     resolved (`host'name'` is hostname), ending at the first unquoted ( or { (each starts an argument or a block); an & or a . and a
+     space in front of it say "run this". A word on its own that starts like a string, a variable or an expression is output, not a
+     command; behind & or . it names a program only the running shell knows, and that is refused. The statements inside {...},
+     (...), $(...) and @(...) run, so they are read as statements of their own. Start-Process, saps, start, Invoke-Item and ii open
+     or launch whatever they are given (a file, a folder, a URL, an app registered under App Paths), which no search of PATH bounds. */
+  const PS_WORD_RE = /^[\p{L}\p{N}_][\p{L}\p{N}_.\-+]*$/u;
+  const PS_LAUNCHERS = new Set(['start-process', 'saps', 'start', 'invoke-item', 'ii']);
+  function psCommandWord(raw) {
+    let name = '', quote = null, expands = false;
+    for (let i = 0; i < raw.length; i++) {
+      const ch = raw[i];
+      if (quote === '"') {
+        if (ch === '`') { expands = true; i++; continue; }   // an escape inside double quotes may be a control character
+        if (ch === '$') expands = true;
+        if (ch === '"') { if (raw[i + 1] === '"') { name += '"'; i++; } else quote = null; continue; }
+        name += ch; continue;
+      }
+      if (quote === "'") {
+        if (ch === "'") { if (raw[i + 1] === "'") { name += "'"; i++; } else quote = null; continue; }
+        name += ch; continue;
+      }
+      if (ch === '`' && i + 1 < raw.length) { name += raw[++i]; continue; }
+      if (ch === '"' || ch === "'") { quote = ch; continue; }
+      if (ch === '$') expands = true;
+      if (ch === '(' || ch === '{') break;
+      name += ch;
+    }
+    return { name, expands };
+  }
+  // -> { kind: 'word' (a name PATH may hold) | 'path' (a path, unproven) | 'none' (not a program), name, dynamic }
+  function foreignCommandKind(token, dialect, callOp) {
+    if (dialect === 'powershell') {
+      const raw = String(token.raw), first = raw[0];
+      if (first === '{') return { kind: 'none' };                                      // a script block: its statements are read on their own
+      if ('$([@'.includes(first)) return { kind: 'none', dynamic: callOp };           // a variable or an expression
+      if ((first === '"' || first === "'") && !callOp) return { kind: 'none' };         // a string on its own is output
+      const word = psCommandWord(raw);
+      if (word.expands) return { kind: 'none', dynamic: callOp };
+      const name = word.name;
+      if (/[\\/]/.test(name)) return /^[\w.]+\\[A-Za-z]+-[A-Za-z]+$/.test(name) ? { kind: 'none' } : { kind: 'path', name };   // Module\Verb-Noun is a cmdlet
+      if (/^[A-Za-z]:/.test(name) || name[0] === '~') return { kind: 'path', name };
+      return PS_WORD_RE.test(name) ? { kind: 'word', name } : { kind: 'none' };
+    }
+    const value = String(token.value);
+    if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(value)) return { kind: 'none' };               // sh: an assignment
+    if (/[\\/]/.test(value)) return { kind: 'path', name: value };
+    return PS_WORD_RE.test(value) ? { kind: 'word', name: value } : { kind: 'none' };
+  }
+  // the statements inside the top-level {...}, (...), $(...) and @(...) of PowerShell text; ${name} holds none, a hashtable's values may
+  function psInnerStatements(text) {
+    const out = [];
+    const closeOf = (s, open) => {
+      const o = s[open], c = o === '{' ? '}' : ')';
+      let depth = 0, quote = null;
+      for (let i = open; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+          if (quote === '"' && ch === '`') { i++; continue; }
+          if (ch === quote) { if (s[i + 1] === quote) { i++; continue; } quote = null; }
+          continue;
+        }
+        if (ch === '`') { i++; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === o) depth++;
+        else if (ch === c) { depth--; if (depth === 0) return i; }
+      }
+      return -1;
+    };
+    const scan = s => {
+      let quote = null;
+      for (let i = 0; i < s.length; i++) {
+        const ch = s[i];
+        if (quote) {
+          if (quote === '"' && ch === '`') { i++; continue; }
+          if (ch === quote) { if (s[i + 1] === quote) { i++; continue; } quote = null; }
+          continue;
+        }
+        if (ch === '`') { i++; continue; }
+        if (ch === '"' || ch === "'") { quote = ch; continue; }
+        if (ch === '(' || ch === '{') {
+          const close = closeOf(s, i), inner = s.slice(i + 1, close < 0 ? s.length : close);
+          if (ch === '{' && s[i - 1] === '$') { /* ${variable name} */ }
+          else if (ch === '{' && s[i - 1] === '@') scan(inner);
+          else out.push(inner);
+          if (close < 0) return;
+          i = close;
+        }
+      }
+    };
+    scan(String(text));
+    return out;
+  }
+
   /* `lead`: this text's first head is the first thing the command runs (the whole command's first head, or a body that runs first
      in a statement that does). `inherited`: the text sits inside a group already. */
   function analyzeCommands(cmd, depth, dialect, lead, inherited) {
@@ -548,12 +648,25 @@
         while (k + 1 < parts.length && cmdParenBalance(text.slice(part.from, to)) > 0) { k++; to = parts[k].to; }
         part = { text: text.slice(part.from, to), grouped: part.grouped, from: part.from, to: to };
       }
-      const segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
+      let segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
+      // PowerShell: an & or a . and a space in front of a statement say "run what follows"; the head is what follows
+      let callOp = false;
+      if (dialect === 'powershell') {
+        const call = /^(?:&|\.(?=\s))\s*/.exec(segment);
+        if (call) { callOp = true; segment = segment.slice(call[0].length); }
+      }
       const tokens = shellTokens(segment, dialect);
       if (!tokens.length) continue;
       const own = { text: segment, dialect: dialect, grouped: part.grouped || inherited === true, lead: leadIn && firstPart };
       result.heads.push(own);
+      if (dialect === 'powershell' || dialect === 'posix') {
+        // what kind of word starts the statement, for the PATH proof; a target only the running shell knows is refused
+        const kind = foreignCommandKind(tokens[0], dialect, callOp);
+        own.psKind = kind.kind; own.psName = kind.name;
+        if (kind.dynamic) result.opaqueBody = true;
+      }
       const verb = exeName(tokens[0].value);
+      if (dialect === 'powershell' && PS_LAUNCHERS.has(verb)) own.launcher = true;
       let nested = '', nestedDialect = dialect, bodies = [];
       if (verb === 'cmd' || verb === 'cmd.exe') {
         const invocation = cmdWrapperBody(segment, tokens, dialect);
@@ -576,10 +689,12 @@
         if (invocation.opaque) result.opaquePowerShell = true;
         if (invocation.opaqueWrapper) result.opaqueWrapper = true;
       } else if (/^(?:sh|bash|zsh|dash|ksh)(?:\.exe)?$/.test(verb)) {
-        const i = tokens.findIndex((t, n) => n > 0 && t.value === '-c');
+        // -c wherever it sits among the options, alone or in a cluster (-lc, -ec): the next word is the command string
+        const i = tokens.findIndex((t, n) => n > 0 && /^-[A-Za-z]*c[A-Za-z]*$/.test(t.value));
         if (i >= 0) { nestedDialect = 'posix'; nested = unwrapCommandArg(afterToken(segment, tokens[i]), nestedDialect); }
       }
       if (nested) take(analyzeCommands(nested, (depth || 0) + 1, nestedDialect, false, own.grouped));
+      if (dialect === 'powershell') for (const inner of psInnerStatements(segment)) take(analyzeCommands(inner, (depth || 0) + 1, 'powershell', false, own.grouped));
       // a body that runs first in a statement that runs first is the first command, and a group makes nothing provable
       for (const body of bodies) take(analyzeCommands(body.text, (depth || 0) + 1, 'cmd', own.lead && body.first, own.grouped));
     }
@@ -629,7 +744,9 @@
   const BROWSER_AUTOMATION_RE = /\b(?:puppeteer(?:-core)?|playwright|selenium|webdriver|chromedriver|geckodriver|chrome-remote-interface)\b|webSocketDebuggerUrl|Input\.dispatch(?:Mouse|Key)|--remote-debugging-port\b/i;
   const NATIVE_INPUT_RE = /\b(?:SetCursorPos|mouse_event|SendInput|keybd_event|ClipCursor|BlockInput|SetCapture|SetWindowsHookEx|RegisterHotKey|RegisterRawInputDevices|SetForegroundWindow|SwitchToThisWindow|AttachThreadInput|SetWindowPos|SetSystemCursor|SendKeys(?:\.SendWait)?|pyautogui|pynput|robotjs|nut\.js|xdotool|ydotool|xte|evemu|uinput|CGEventPost|CGWarpMouseCursorPosition|XTestFake|XGrabPointer|XGrabKeyboard|XWarpPointer)\b|\/dev\/uinput/i;
   const USER_SESSION_RE = /\b(?:LockWorkStation|ExitWindowsEx|InitiateSystemShutdown|SetSuspendState|ChangeDisplaySettings|SetDisplayConfig|SetMonitorBrightness|WmiMonitorBrightnessMethods|SystemParametersInfo|SetClipboardData|OpenClipboard|Set-Clipboard|pbcopy|xclip|xsel|DisplaySwitch|xrandr|xinput|xset|chvt|loginctl|ddcutil|pactl|amixer|osascript)\b/i;
-  const OPAQUE_LAUNCH_RE = /\b(?:Invoke-Expression|iex|Invoke-Command|DownloadString|FromBase64String|Reflection\.Assembly|ShellExecute|os\.startfile|Process\.Start)\b/i;
+  // Process.Start is how C# and Python reach a launcher; PowerShell spells it [Diagnostics.Process]::Start(...), and reaches the same
+  // launchers through COM (WScript.Shell, Shell.Application) and WMI (Win32_Process.Create).
+  const OPAQUE_LAUNCH_RE = /\b(?:Invoke-Expression|iex|Invoke-Command|DownloadString|FromBase64String|Reflection\.Assembly|ShellExecute|os\.startfile|Process(?:\]::|\.)Start|WScript\.Shell|Shell\.Application|Invoke-WmiMethod|Invoke-CimMethod|iwmi)\b/i;
   // GUI/native runtimes are judged as PROGRAMS, never as words (issue #50: a `// ...before each write` comment and
   // `process.stdout.write()` both used to refuse a plain Node script). `write`/`calc` are also ordinary English and
   // identifiers, so they count only as a command head or an explicit launch; the distinctive names count anywhere a
@@ -737,7 +854,7 @@
   // An unreadable earlier candidate (or network path) cannot be vouched for by
   // a later console copy. Never stat a network path while deciding consent.
   function cmdProgramFile(value, opts) {
-    const fs = opts.fs, P = opts.pathMod, env = opts.env || process.env;
+    const P = opts.pathMod, env = opts.env || process.env;
     // Explicit .exe paths keep their existing proof. Other paths or dynamic
     // names cannot silently become an uninspected bare invocation. cmd ends a program name at , ; = ( and at a space of any
     // width or a control character (`probe,x` runs probe.exe with the argument ,x), so a name holding one is not a file whose
@@ -748,8 +865,14 @@
     if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e))) return { status: 'unknown' };
     const noCwd = cmdSkipsCwd(env);
     // an empty PATH entry reads as the working folder; whether cmd still does with the folder switched off is not known
-    for (const entry of (noCwd ? [] : [opts.cwd]).concat(rawPath.split(P.delimiter))) {
-      const dir = String(entry || (noCwd ? '' : opts.cwd) || '').trim();
+    return searchFolders(value, opts, (noCwd ? [] : [opts.cwd]).concat(rawPath.split(P.delimiter)), noCwd ? '' : opts.cwd, exts);
+  }
+  // The walk both searches share: each folder in turn, the name tried exactly when it has an extension and then with each extension.
+  // `blank` is what an empty entry stands for ('' = unknown).
+  function searchFolders(value, opts, entries, blank, exts) {
+    const fs = opts.fs, P = opts.pathMod;
+    for (const entry of entries) {
+      const dir = String(entry || blank || '').trim();
       if (!dir) return { status: 'unknown' };
       const folder = P.resolve(opts.cwd, dir);
       if (/^[\\/]{2}/.test(folder)) return { status: 'unknown' };
@@ -768,6 +891,18 @@
       if (!hasExtension && probeFile(file, fs) !== 'absent') return { status: 'unknown' };
     }
     return { status: 'absent' };
+  }
+  /* PowerShell (and an sh started from a cmd line) look for a bare command name along PATH only, never in the working folder (read
+     off the real PowerShell 5.1: a copy beside the command is "not recognized"). Each folder is tried in PATHEXT order, and a .ps1
+     script of that name ahead of them; a relative entry such as `.` is read from the folder the command runs in. The name has been
+     read as a plain word already (psKind); an empty PATH holds nothing, an empty entry among others is not known. */
+  function pathProgramFile(value, opts, scripts) {
+    const env = opts.env || process.env, P = opts.pathMod;
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e)) || /[. ]$/.test(value)) return { status: 'unknown' };
+    if (!rawPath.trim()) return { status: 'absent' };
+    return searchFolders(value, opts, rawPath.split(P.delimiter), '', (scripts ? ['.ps1'] : []).concat(exts));
   }
   function commandScript(file, fs) {
     try {
@@ -822,14 +957,36 @@
   function nothingRunsFirst(heads, index) {
     return heads[index].lead === true && !heads[index].grouped && !mayHideACommand(heads[index]);
   }
+  /* A bare word PowerShell (or an sh started from a cmd line) runs is found along PATH, wherever in the line it stands: no earlier
+     statement of the same line is read to change PATH, and the working folder is not on it. Its file answers for it: a console
+     program runs, a GUI one is refused, a batch shim must be readable (and its source is scanned), a .ps1 script, a file that is
+     neither, and anything the search cannot establish are unproven. A word PATH does not hold is a cmdlet, an alias or an error:
+     nothing runs from a file. */
+  function namedProgramRefusal(head, opts) {
+    if (!opts.fs || !opts.pathMod || !opts.cwd || !opts.pathMod.isAbsolute(opts.cwd)) return UNPROVEN_PROGRAM_REFUSAL;
+    const resolved = pathProgramFile(head.psName, opts, head.dialect === 'powershell');
+    if (resolved.status === 'absent') return null;
+    if (resolved.status !== 'file') return UNPROVEN_PROGRAM_REFUSAL;
+    if (/\.(?:cmd|bat)$/i.test(resolved.file)) return commandScript(resolved.file, opts.fs) ? null : UNPROVEN_PROGRAM_REFUSAL;
+    const kind = peSubsystem(resolved.file, opts.fs);
+    if (kind === PE_SUBSYSTEM_GUI) return GUI_RUNTIME_REFUSAL;
+    return kind === PE_SUBSYSTEM_CONSOLE ? null : UNPROVEN_PROGRAM_REFUSAL;
+  }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
+    // Start-Process, saps, start, Invoke-Item and ii launch what they are given: a file, a folder, a URL, an app registered under
+    // App Paths. No search of PATH bounds that, so whatever they are given is unproven.
+    if (head && head.launcher === true) return UNPROVEN_PROGRAM_REFUSAL;
     const text = head && head.text != null ? head.text : String(head || '');
     const isWin = opts.isWin !== undefined ? opts.isWin : process.platform === 'win32';
     const first = headTokens(head)[0] || {};
     const value = String(first.value || '');
     const explicit = LOCAL_PROGRAM_RE.test(text) || /\.exe$/i.test(value);
     const searched = isWin && isCmdSearchHead(head, value);
+    // PowerShell, and an sh started from a cmd line, on a Windows host (a whole line in sh is another host's affair)
+    const foreign = isWin && !explicit && (head.dialect === 'powershell' || head.dialect === 'posix') && normalizeDialect(opts.dialect) !== 'posix';
+    if (foreign && head.psKind === 'path') return UNPROVEN_PROGRAM_REFUSAL;
+    if (foreign && head.psKind === 'word') return namedProgramRefusal(head, opts);
     if (!explicit && !searched) return null;
     // counts every head, siblings too: a stand-in for the nesting analyzeCommands reads (depth 8), past which a head goes unjudged
     if (!isWin || opts.exactCwd !== true || opts.dialect === 'posix' || !opts.fs || !opts.pathMod || !opts.cwd || !opts.pathMod.isAbsolute(opts.cwd) || heads.length > 8
@@ -914,6 +1071,15 @@
         if (qi === 0 && parsedHead.lead === true && !opts.floorsOnly && isWin && opts.exactCwd === true && fs && P && cwd && P.isAbsolute(cwd)
           && !parsedHead.grouped && isCmdSearchHead(parsedHead, firstValue)) {
           const resolved = cmdProgramFile(firstValue, opts);
+          if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
+            const script = commandScript(resolved.file, fs);
+            if (script) enqueue(script.text, baseDir, 'shell', 'cmd');
+          }
+        }
+        // the same for a bare word PowerShell or sh finds along PATH, wherever in the line it stands
+        if (qi === 0 && parsedHead.psKind === 'word' && !parsedHead.launcher && !opts.floorsOnly && isWin && fs && P && cwd && P.isAbsolute(cwd)
+          && (parsedHead.dialect === 'powershell' || parsedHead.dialect === 'posix') && normalizeDialect(dialect) !== 'posix') {
+          const resolved = pathProgramFile(parsedHead.psName, opts, parsedHead.dialect === 'powershell');
           if (resolved.status === 'file' && /\.(?:cmd|bat)$/i.test(resolved.file)) {
             const script = commandScript(resolved.file, fs);
             if (script) enqueue(script.text, baseDir, 'shell', 'cmd');

@@ -88,6 +88,33 @@ if (process.platform === 'win32') {
       A.ok(r.run && r.run.status === 0, 'and runs: ' + command);
       A.eq(r.markerKind, 'console', 'and it is the console program that ran: ' + command);
     }
+    // PowerShell finds a bare name along PATH (read off the real PowerShell 5.1), and the rig's PATH starts with the folder that
+    // holds the inert GUI marker, so each of these ran it while only .exe and .\ spellings were judged. The real System32 GUI
+    // programs, and the shells this machine may not have, are decided and never started.
+    for (const command of [
+      'powershell -NoProfile -c probe', 'powershell -NoProfile -c "Write-Output ok; probe"', 'powershell -NoProfile -c "Start-Process probe"',
+      'powershell -NoProfile -c "& probe"', 'powershell -NoProfile -c "& { probe }"', 'powershell -NoProfile -c "ii probe.exe"',
+      'powershell -NoProfile -c "1 | ForEach-Object { probe }"', 'powershell -NoProfile -c "Write-Output (probe)"'
+    ]) {
+      const r = rig.execute(command);
+      A.ok(r.risk, 'guard refuses the program PowerShell would run: ' + command);
+      A.eq(r.run, null, 'refused, never dispatched: ' + command);
+      A.eq(r.marker, false, 'no marker is produced by it: ' + command);
+    }
+    for (const command of ['powershell -c winver', 'powershell -NoProfile -c "Start-Process winver"', 'powershell -c "& { charmap }"', 'powershell -c "ii ."',
+      'pwsh -c probe', 'sh -c probe', 'bash -lc probe', 'powershell -c "cmd /c probe"']) {
+      A.ok(rig.decide(command).risk, 'a GUI program behind PowerShell or sh is refused: ' + command);
+    }
+    for (const command of ['powershell -NoProfile -c hostname', 'powershell -NoProfile -c "Write-Output plain"', 'powershell -NoProfile -c "Get-ChildItem | Select-Object -First 1"',
+      'powershell -NoProfile -c "& { Write-Output plain }"']) {
+      const r = rig.execute(command);
+      A.eq(r.risk, null, 'a cmdlet or a console program by bare name still runs: ' + command);
+      A.ok(r.run && r.run.status === 0, 'positive executes normally: ' + command);
+      A.eq(r.marker, false, 'plain data does not become a program: ' + command);
+    }
+    const byName = rig.execute('powershell -NoProfile -c console-probe');
+    A.eq(byName.risk, null, 'a console program by bare name inside PowerShell is proven and allowed');
+    A.eq(byName.markerKind, 'console', 'and it is the console program that ran');
   } finally { rig.dispose(); }
 } else {
   console.log('Windows native transport not run on this host; static reconstruction controls above only.');
