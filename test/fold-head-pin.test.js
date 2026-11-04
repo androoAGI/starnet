@@ -4,19 +4,25 @@
    In a long chat that message is turn 1 of the conversation, not this run's task: it rode every post-fold prompt
    forever, byte for byte, while the summarizer never saw it ("Request 1 www..." in a 21-turn chat). The pin existed so
    the rebuilt prompt always opens on a user turn; the run's OWN request (loop.js runRequest, carried whole as the
-   'current task' by compaction-fidelity) is the only message that earns a pin. Now:
-     - the first non-system message is pinned only when it IS the run's request (a single-directive agentic run);
+   'current task' by compaction-fidelity) is the only message that earns a pin by being the request. Now:
+     - the first non-system message is pinned when it IS the run's request (a single-directive agentic run);
      - otherwise it folds like any older turn: the summarizer sees it and its words ride the verbatim user section once;
-     - the user-start rule replaces the old guarantee. For a fold that REMOVES messages, when the tail would open on an
-       assistant turn: the run's request, if it sits inside the folded slice, is pinned at the head (a run already
-       working in a long chat); otherwise the cut moves back to the last user message of the slice, which rides the tail.
-       A cut that leaves nothing to fold is "nothing foldable", exactly as before (no paid call);
+     - the user-start rule replaces the old guarantee WITHOUT moving the cut. For a fold that REMOVES messages, when the
+       tail would open on an assistant turn: the run's request, if it sits inside the folded slice, is pinned at the head
+       (a run already working in a long chat); otherwise the last user message of the slice, the question the tail's
+       first reply answers. That turn is the chat's first message only when the cut falls inside the first exchange;
+     - THE CUT NEVER MOVES (probe 11-04: the first cut of this rule moved it back to a user message). A cut inside an
+       earlier exchange with several tool pairs would then pull that whole exchange into the tail, and when the chat's
+       first message was the slice's only user turn nothing folded at all, where the old pin folded the tool pairs. Every
+       fold the old pin made is still made, over the same planned slice (the pinned turn aside), with the planner's tail
+       untouched;
      - the free micro tier removes nothing, so it still sees the whole slice.
 
-   CLASS SWEEP over the real runAgentLoop + makeContext: chats of 1, 2 and 20 earlier turns, with and without tool pairs,
-   with the run's request last or followed by two tool pairs (a run already working), every tail size from 1 to 5
-   messages (so the tail starts on a user turn in some and on an assistant turn in others). The expected cut is computed
-   from the context's own planCompaction plus the documented rule, and each fold is compared with it.
+   CLASS SWEEP over the real runAgentLoop + makeContext: chats of 1, 2 and 20 earlier turns; plain, with a tool pair in
+   every second exchange, and with three bulky tool pairs in the FIRST exchange; the run's request last or followed by
+   two tool pairs (a run already working); every tail size from 1 to 5 messages (so the tail starts on a user turn in
+   some and on an assistant turn in others). The expected cut is computed from the context's own planCompaction plus the
+   documented rule and each fold is compared with it; the old pin's own plan is computed beside it as the floor.
    Deterministic, no network. */
 'use strict';
 const A = require('./_assert.js');
@@ -34,14 +40,17 @@ const firstNonSystem = msgs => nonSystem(msgs)[0];
 const READ_TOOL = [{ type: 'function', function: { name: 'read', parameters: { type: 'object', properties: {} } } }];
 const call = id => ({ role: 'assistant', content: '', tool_calls: [{ id, type: 'function', function: { name: 'read', arguments: '{}' } }] });
 
-// n earlier exchanges (each: a short user turn, optionally a tool pair, a long reply), the run's request, then
-// `runPairs` tool pairs the run itself has already made
-function chat(n, withTools, runPairs) {
-  const bulk = 'w'.repeat(Math.ceil(13000 / n));
+// n earlier exchanges (each: a short user turn, tool pairs by `shape`, a reply), the run's request, then `runPairs` tool
+// pairs the run itself has already made. shape: 'plain' = no tools, long replies; 'even' = a small tool pair in every
+// second exchange, long replies; 'first' = three BULKY tool pairs in the first exchange, short replies (for a small tail
+// the cut then falls inside that exchange: the old pin folded those tool pairs, so must the new rule)
+function chat(n, shape, runPairs) {
+  const bulk = shape === 'first' ? 'w'.repeat(40) : 'w'.repeat(Math.ceil(13000 / n));
   const msgs = [{ role: 'system', content: 'You are a station agent.' }];
   for (let k = 1; k <= n; k++) {
     msgs.push({ role: 'user', content: k === 1 ? 'Request 1: ' + STALE : 'Request ' + k + ': question number ' + k });
-    if (withTools && k % 2 === 0) { msgs.push(call('c' + k)); msgs.push({ role: 'tool', tool_call_id: 'c' + k, content: 'result ' + k }); }
+    if (shape === 'even' && k % 2 === 0) { msgs.push(call('c' + k)); msgs.push({ role: 'tool', tool_call_id: 'c' + k, content: 'result ' + k }); }
+    if (shape === 'first' && k === 1) for (let t = 1; t <= 3; t++) { msgs.push(call('f' + t)); msgs.push({ role: 'tool', tool_call_id: 'f' + t, content: 'first result ' + t + ' ' + 'T'.repeat(4000) }); }
     msgs.push({ role: 'assistant', content: 'Reply ' + k + ' ' + bulk });
   }
   msgs.push({ role: 'user', content: 'Now: ' + ASK });
@@ -49,18 +58,18 @@ function chat(n, withTools, runPairs) {
   return msgs;
 }
 
-// the documented cut: the context's own plan, then the user-start rule (restated independently of loop.js)
+// the documented cut: the context's own plan, then the user-start rule (restated independently of loop.js). The cut is the
+// planner's, always; only a pinned user turn leaves the folded slice
 function expectedCut(ctx, history, request) {
   const raw = ctx.planCompaction(history, {});
-  if (!raw.older.length) return { older: [], tail: raw.tail, keep: null, snapped: false };
+  if (!raw.older.length) return { older: [], tail: raw.tail, keep: null };
   const head = raw.tail.find(m => m.role !== 'system');
   if (head && head.role !== 'user') {
-    if (raw.older.indexOf(request) >= 0) return { older: raw.older.filter(m => m !== request), tail: raw.tail, keep: request, snapped: false };
-    let k = raw.older.length - 1;
-    while (k >= 0 && raw.older[k].role !== 'user') k--;
-    if (k >= 0) return { older: raw.older.slice(0, k), tail: raw.older.slice(k).concat(raw.tail), keep: null, snapped: true };
+    let keep = raw.older.indexOf(request) >= 0 ? request : null;
+    for (let k = raw.older.length - 1; !keep && k >= 0; k--) if (raw.older[k].role === 'user') keep = raw.older[k];
+    if (keep) return { older: raw.older.filter(m => m !== keep), tail: raw.tail, keep };
   }
-  return { older: raw.older, tail: raw.tail, keep: null, snapped: false };
+  return { older: raw.older, tail: raw.tail, keep: null };
 }
 
 async function oneFold(seed, keepTail) {
@@ -80,47 +89,65 @@ async function oneFold(seed, keepTail) {
 
 (async () => {
   // ---- 1. THE CLASS: every chat shape x every tail size, the run's request last or already working ----
-  let folds = 0, snapped = 0, kept = 0, nothing = 0;
-  for (const n of [1, 2, 20]) for (const withTools of [false, true]) for (const runPairs of [0, 2]) for (let keepTail = 1; keepTail <= 5; keepTail++) {
-    const tag = 'n=' + n + (withTools ? '+tools' : '') + (runPairs ? '+run' : '') + ' tail=' + keepTail;
-    const seed = chat(n, withTools, runPairs);
+  let folds = 0, requestPinned = 0, splitPinned = 0, firstPinned = 0, firstFolded = 0, nothing = 0, floorChecked = 0;
+  for (const n of [1, 2, 20]) for (const shape of ['plain', 'even', 'first']) for (const runPairs of [0, 2]) for (let keepTail = 1; keepTail <= 5; keepTail++) {
+    const tag = 'n=' + n + ' ' + shape + (runPairs ? '+run' : '') + ' tail=' + keepTail;
+    const seed = chat(n, shape, runPairs);
     const request = seed.find(m => m.role === 'user' && String(m.content).indexOf(ASK) >= 0);
     const probe = makeContext({ contextLimit: WINDOW, compactAt: 0.65, keepTail });
     A.ok(probe.estimateMessages(seed) > 0.65 * WINDOW, tag + ': the fixture is over the fold line (' + probe.estimateMessages(seed) + ')');
     const want = expectedCut(probe, seed.slice(1), request);
+    // the slice the OLD head pin folded: the first message pinned, the planner over everything after it
+    const old = probe.planCompaction(seed.slice(2), {});
     const { res, requests, folded } = await oneFold(seed, keepTail);
     A.eq(res.reason, 'done', tag + ': the run completes');
     const sent = requests[0];
+    // THE FLOOR: a fold the old pin made is still made (the first cut of the user-start rule moved the cut and lost them)
+    if (old.older.length) { floorChecked++; A.eq(folded.length, 1, tag + ': a fold the old head pin made (' + old.older.length + ' messages) is still made'); }
     if (!want.older.length) {
       nothing++;
+      A.eq(old.older.length, 0, tag + ': nothing foldable only where the old pin folded nothing either');
       A.eq(folded.length, 0, tag + ': nothing foldable -> no paid summarizer call');
       A.ok(sent.length === seed.length && sent.every((m, i) => m === seed[i]), tag + ': and the prompt goes out untouched');
       continue;
     }
-    folds++; if (want.snapped) snapped++; if (want.keep) kept++;
+    folds++;
+    if (want.keep === request) requestPinned++; else if (want.keep) splitPinned++;
     A.eq(folded.length, 1, tag + ': one fold');
-    A.ok(folded[0].length === want.older.length && folded[0].every((m, i) => m === want.older[i]), tag + ': the summarizer received exactly the planned slice (' + folded[0].length + ' of ' + want.older.length + ')');
-    A.ok(folded[0][0] === seed[1], tag + ': the summarizer\'s slice STARTS with the first chat message (it was not pinned away)');
-    A.ok(!folded[0].some(m => m === request) || !want.keep, tag + ': a pinned request is never summarized');
+    A.ok(folded[0].length === want.older.length && folded[0].every((m, i) => m === want.older[i]), tag + ': the summarizer received exactly the planned slice, the pinned turn aside (' + folded[0].length + ' of ' + want.older.length + ')');
+    A.ok(!want.keep || !folded[0].some(m => m === want.keep), tag + ': a pinned turn is never summarized');
     const wire = JSON.stringify(sent);
-    A.eq(count(wire, STALE), 1, tag + ': the first message\'s words ride the request exactly once (the verbatim user section)');
-    A.ok(!sent.some(m => m.role !== 'system' && String(m.content).indexOf(STALE) >= 0), tag + ': and not as a pinned message of its own');
+    const head = firstNonSystem(sent);
+    if (want.keep === seed[1]) {
+      // the cut falls inside the FIRST exchange: its question is the turn the tail's first reply answers, so it is the pin
+      firstPinned++;
+      A.ok(head === seed[1], tag + ': the cut splits the first exchange: its question is the pinned turn');
+    } else {
+      firstFolded++;
+      A.ok(folded[0][0] === seed[1], tag + ': the summarizer\'s slice STARTS with the first chat message (it was not pinned away)');
+      A.ok(!sent.some(m => m.role !== 'system' && String(m.content).indexOf(STALE) >= 0), tag + ': the stale first message is not a message of the prompt');
+    }
+    A.eq(count(wire, STALE), 1, tag + ': the first message\'s words ride the request exactly once (pinned or in the verbatim user section)');
     A.eq(count(wire, ASK), 1, tag + ': the run\'s latest message is present exactly once');
     A.eq(sent.filter(isNote).length, 1, tag + ': exactly one summary note');
-    const head = firstNonSystem(sent);
     A.eq(head && head.role, 'user', tag + ': the rebuilt prompt opens on a user turn');
     if (want.keep) {
-      A.ok(head === request, tag + ': the run\'s request, folded out of the slice, is pinned at the head');
-      A.eq(sent.indexOf(request) + 1, sent.findIndex(isNote), tag + ': and the note sits right after it (the pinned-directive shape)');
+      A.ok(head === want.keep, tag + ': ' + (want.keep === request ? 'the run\'s request, folded out of the slice,' : 'the turn the cut splits') + ' is pinned at the head');
+      A.eq(sent.indexOf(want.keep) + 1, sent.findIndex(isNote), tag + ': and the note sits right after it (the pinned-directive shape)');
     } else {
       A.eq(sent[sent.length - runPairs * 2 - 1].content, 'Now: ' + ASK, tag + ': the request rides the tail');
     }
-    A.eq(nonSystem(sent).length, (want.keep ? 1 : 0) + nonSystem(want.tail).length, tag + ': the verbatim tail is the planned tail');
+    // THE CUT NEVER MOVES: what follows the pinned turn is the planner's tail, the same objects in the same order
+    const out = nonSystem(sent), tail = nonSystem(want.tail);
+    A.ok(out.length === (want.keep ? 1 : 0) + tail.length && out.slice(out.length - tail.length).every((m, i) => m === tail[i]), tag + ': the planner\'s tail goes out untouched');
   }
-  A.ok(folds >= 30, 'the sweep really folds (' + folds + ' folds, ' + nothing + ' nothing-foldable cuts)');
-  A.ok(snapped >= 8, 'the sweep includes tails that start on an assistant turn and need the cut moved back (' + snapped + ')');
-  A.ok(kept >= 8, 'the sweep includes runs already working, whose request is pinned at the head (' + kept + ')');
-  A.ok(nothing >= 4, 'the sweep includes cuts the move empties (nothing foldable)');
+  A.ok(folds >= 60, 'the sweep really folds (' + folds + ' folds, ' + nothing + ' nothing-foldable cuts)');
+  A.ok(splitPinned >= 10, 'the sweep includes tails that start on an assistant turn whose question (not the request) is pinned (' + splitPinned + ')');
+  A.ok(requestPinned >= 8, 'the sweep includes runs already working, whose request is pinned at the head (' + requestPinned + ')');
+  A.ok(firstPinned >= 3, 'the sweep includes cuts inside the first exchange, where its tool pairs still fold (' + firstPinned + ')');
+  A.ok(firstFolded >= 30, 'the sweep includes chats whose stale first message folds into the verbatim section (' + firstFolded + ')');
+  A.ok(nothing >= 4, 'the sweep includes slices the pinned turn leaves empty (nothing foldable, as the old pin left them)');
+  A.ok(floorChecked >= 40, 'the floor was checked against the old pin\'s plan on ' + floorChecked + ' shapes');
 
   // ---- 2. A SINGLE DIRECTIVE IS STILL PINNED, BYTE FOR BYTE (the first message IS the run's request) ----
   {

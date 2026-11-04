@@ -930,27 +930,29 @@
   }
 
   /* THE REBUILT PROMPT STILL OPENS ON A USER TURN (context-budget-and-fold, 2026-11-04). The head pin used to guarantee
-     it (the pinned first message was a user turn), and Anthropic-style wires refuse a conversation that opens on an
-     assistant turn. With no stale pin a fold that REMOVES messages rebuilds system prefix + summary note + tail, so
-     the tail has to open on a user turn. When its first non-system message is an assistant turn (the cut fell between a
-     user message and its reply, or in the middle of a run's tool pairs):
-       - the run's own request sits inside the folded slice -> it is pinned at the head, exactly as a single-directive
-         run's is (system prefix + request + note + tail: the same stable-prefix shape, and a second fold finds it pinned
-         by identity). `keep` names it; the slice that is folded no longer holds it, so its words are not carried twice;
-       - otherwise, and the slice holds a user message -> the cut moves back to the last of them and it rides the tail
-         (moving back only enlarges the tail, so the floor planCompaction guarantees still holds).
-     A slice the move empties is "nothing foldable" (no paid call), the same answer as an empty plan; no user message
-     anywhere in the slice = nothing to open on, the plan stands. A tail that already opens on a user turn (or has no
+     it (the pinned first message was a user turn), and the wire layers repair an assistant-first request only with a
+     synthetic "<host_turn>" user turn (provider.js boundaryTurns), which a fold should not need. With no stale pin a
+     fold that REMOVES messages rebuilds system prefix + summary note + tail, so when the tail's first non-system
+     message is an assistant turn (the cut fell between a question and its reply, or inside a long exchange's tool
+     pairs) one user turn is pinned at the head, the shape a single directive already has (system prefix + user turn +
+     note + tail; a second fold finds it again and re-picks):
+       - the run's own request when it sits inside the folded slice (a run already working in a long chat);
+       - otherwise the LAST user message of the slice: the question the tail's first reply answers. It is the chat's
+         first message only when the cut falls inside the first exchange.
+     `keep` names it; the slice that is folded no longer holds it, so its words are not carried twice.
+     THE CUT NEVER MOVES. Moving it back to a user message looks like the same guarantee for free and is not (probe
+     11-04): a cut inside an earlier exchange with several tool pairs, or after a giant paste, would pull that whole
+     exchange into the verbatim tail so the fold shrinks little, and when the chat's first message is the slice's only
+     user turn it empties the slice and nothing folds at all, where the old pin folded the tool pairs. A slice that
+     holds no user message has nothing to open on: the plan stands. A tail that already opens on a user turn (or has no
      non-system message) is returned as it came. Pure; returns the SAME object when nothing changes. */
   function openOnUser(plan, request) {
     if (!plan || !Array.isArray(plan.older) || !plan.older.length || !Array.isArray(plan.tail)) return plan;
     const head = plan.tail.find(m => m && m.role !== 'system');
     if (!head || head.role === 'user') return plan;
-    if (request && plan.older.indexOf(request) >= 0) return { older: plan.older.filter(m => m !== request), tail: plan.tail, keep: request };
-    let k = plan.older.length - 1;
-    while (k >= 0 && !(plan.older[k] && plan.older[k].role === 'user')) k--;
-    if (k < 0) return plan;
-    return { older: plan.older.slice(0, k), tail: plan.older.slice(k).concat(plan.tail) };
+    let keep = request && plan.older.indexOf(request) >= 0 ? request : null;
+    for (let k = plan.older.length - 1; !keep && k >= 0; k--) { const m = plan.older[k]; if (m && m.role === 'user' && !isScreenCapture(m)) keep = m; }
+    return keep ? { older: plan.older.filter(m => m !== keep), tail: plan.tail, keep } : plan;
   }
 
   async function runAgentLoop(o) {
@@ -1899,9 +1901,9 @@
         const opened = openOnUser(plan, runRequest);
         if (opened !== plan) {
           plan = { older: opened.older, tail: opened.tail };
-          if (opened.keep) prefix = prefix.concat([opened.keep]);
+          prefix = prefix.concat([opened.keep]);
           carryContext();
-          if (!foldOlder.length) return false;                            // the move left nothing to fold (no paid call)
+          if (!foldOlder.length) return false;                            // the pinned turn was all the slice held (no paid call)
         }
       }
       // ---- summarizer unavailable (breaker tripped): micro-elide + deterministic note, no LLM, never end the run ----
