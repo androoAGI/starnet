@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 454 total — 0 P0 · 1 P1 · 31 P2
+**32** open (open+claimed) of 456 total — 0 P0 · 1 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -351,11 +351,13 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | P1 | fixed | world | [Approved agent sprites remain behind preview switch in normal desktop](bugs/84e26970-approved-agent-sprites-remain-behind-preview-swi.md) | agent/release-0120-prep-0915 | df4d1ba25 |
 | P1 | fixed | world | [Battle pass tells a goal saved offline that it has no success condition](bugs/125e197f-battle-pass-tells-a-goal-saved-offline-that-it-h.md) | sweep/battlepass | c1b4a6f59 |
 | P1 | fixed | world | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | release-0110 | 86560bea9 |
+| P1 | fixed | world | [A reviewer's BLOCKED ends the job with nothing held, and a reply with no verdict buys five paid passes and ships unapproved (GitHub #122)](bugs/6e3e7166-gh122-blocked-reviewer-ends-the-job-unheld.md) | line-hold-finish-1104 | a5a3797a4dbaaea17c1440889dc23e7a0731fe2f |
 | P1 | fixed | world | [GPU loss replaces authored props with legacy art and disables floor recovery](bugs/0db3e69c-gpu-loss-replaces-authored-props-with-legacy-art.md) | release-0135-prep | 5c73343b9 |
 | P1 | fixed | world | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | agent/backdrop-performance-0910 | 2c041bbe69124eda1f60a6eb5a11cc44676028cb |
 | P1 | fixed | world | [Refit entry freezes the installed remastered station for roughly ten seconds](bugs/bf3be27e-refit-entry-freezes-the-installed-remastered-sta.md) | release-0120-prep-0915 | 15ac83ceb |
 | P1 | fixed | world | [Render refresh publishes unfinished edits while Build remains open](bugs/b5c41b7c-render-refresh-publishes-held-build-edits.md) | agent/session-handoff-1011 | f90409837a5a69faf32ca3bf2e918bed8c508d4a |
 | P1 | fixed | world | [ROUTINES › REVOKE ACCESS toasts "access revoked" (green) on a 4xx/5xx — bare `fetch` resolves, so the unattended grant survives its own success message](bugs/fd0f7223-routines-revoke-access-toasts-access-revoked.md) | sweep/world | 3f0d1205 |
+| P1 | fixed | world | [A job held or restarted inside a split loses its sibling branches' work: the join barrier lives in memory and the line will not resume](bugs/4214684b-splitter-not-fixed-1010-barrier-lost-on-restart.md) | line-hold-finish-1104 | a5a3797a4dbaaea17c1440889dc23e7a0731fe2f |
 | P1 | fixed | world | [Station design edits disappear when Build is interrupted](bugs/996e399b-station-design-edits-disappear-when-build-is-int.md) | agent/station-save-0919 | fb02b1e7d |
 | P1 | fixed | world | [A terse approval at a LOOP gate hands on only the approval, never the work it approved](bugs/f97ea4b3-terse-approval-at-a-loop-gate-hands-on-only-the.md) | lines/terse-approval | 6471f0ade |
 | P1 | fixed | world | [Customer viewport becomes blank after ten to twenty minutes](bugs/9256a771-viewport-black-after-idle.md) | reliability-followup | 57112a690f8174f3ba3f3ac33fe786d07fa51c5d |
