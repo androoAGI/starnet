@@ -715,6 +715,21 @@ const R = rowsOf(10);
     A.eq(count(index, 'if (sessionTombstones.unpurged().length) forgetDeletedSessionSummaries();'), 1, 'an unfinished purge is retried at boot, with the memory purge trigger');
     A.ok(Real.DIR_NAME.startsWith('.') && /const SUMMARIES_DIR = path\.join\(WORKSPACES, SummaryLedger\.DIR_NAME\)/.test(index), '(e) the directory is dot-prefixed, under the workspaces root');
     A.eq(count(index, 'onFold: persistFold'), 1, 'the one loop call of a run hands the fold hook over');
+    {
+      /* THE SERVE LATCH IS UNCONDITIONAL (contract section 9 A5 iii; the orchestrator's known bug). A kept summary is model-written text made
+         from rows and tool results that may have read the web. A run that is ALREADY tainted (by a user attachment, by an earlier source) and
+         then serves one must still record that source: a latch guarded by "the run is not tainted yet" is how an earlier source hides a later
+         one, and everything the run writes then decays on the first source alone. The attachment lane removed every guard of this kind; this
+         is the one site this lane added, held here so a merge or a refactor cannot bring the guard back. (The observable proof - both sources
+         in the run's taint and journal - needs the attachment lane's multi-source latch, which is not in this tree: batch-4b owns it.) */
+      const mark = "latchRunTaint('kept summary carried content from '";
+      A.eq(count(index, mark), 1, 'the kept summary has ONE serve latch');
+      const at = index.indexOf(mark);
+      const lead = index.slice(Math.max(0, at - 300), at);
+      const guard = (lead.match(/if \(([^{}\n]*)\)\s*\{\s*$/) || [])[1];
+      A.ok(typeof guard === 'string' && /served\.taint/.test(guard), 'the serve latch sits directly under an "if (served.taint ...)" (found: ' + JSON.stringify(guard) + ')');
+      A.ok(typeof guard === 'string' && !/tainted|taintedBy|execution\./i.test(guard.replace(/served\.taint/g, '')), 'and that guard asks only whether the summary carries a source, never whether the run is already tainted (found: ' + JSON.stringify(guard) + ')');
+    }
     const ledger = makeLedger(Real).ledger;
     A.eq([typeof ledger.sourceOf, typeof ledger.forget, ledger.name], ['function', 'function', 'conversation-summary'], '(d) the ledger is registry-shaped: name, sourceOf, forget');
   }

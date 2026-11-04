@@ -24892,7 +24892,7 @@ async function runOnceCore(o) {
             const beforeTokens = ctxMgr.estimateMessages(msgs);
             const served = SummaryCover.serve({ msgs, window: summaryRun.window, drop: sub.drop, earlier: summaryRun.earlier, record });
             msgs = served.msgs;
-            if (served.taint && !execution.taintedBy()) { latchRunTaint('kept summary carried content from ' + String(served.taint).slice(0, 120)); taintAtStart = execution.taintedBy(); }
+            if (served.taint) { latchRunTaint('kept summary carried content from ' + String(served.taint).slice(0, 120)); taintAtStart = execution.taintedBy(); }   // unconditional: a run already tainted by something else still records THIS source (a guard here hides it)
             if (served.quoted) replayedQuoted = true;
             const afterTokens = ctxMgr.estimateMessages(msgs);
             // announced with the run's start (loopEmit), so the stream still opens on agent.run.start
