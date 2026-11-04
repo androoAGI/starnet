@@ -553,6 +553,7 @@ test/turn-retract.disk.test.js
 test/turn-retract.review.test.js
 test/turn-retract.phone-refusal.test.js
 test/historyfit.gate.test.js
+test/context-budget.authority.test.js
 test/turn-dual.soak.test.js
 test/turn-soak.qa.test.js
 test/turn-window.test.js

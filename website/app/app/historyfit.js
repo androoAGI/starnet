@@ -1,4 +1,6 @@
-/* One shared history fit for the page and station. The five original fitting bodies are preserved verbatim. */
+/* One shared history fit for the page and station. The five original fitting bodies are preserved (test/fixtures/historyfit-3d581b9dd.js
+   holds them frozen); what moved is the line a token fit may fill: the server's fold line when the model row publishes it (ONE
+   BUDGET AUTHORITY, below), the former share of the model's window when it does not. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./ctxgauge.js'), require('./turnmerge.js'));
   else root.HistoryFit = factory(root.CtxGauge, root.TurnMerge);
@@ -66,8 +68,27 @@
     const capped = real.length > HISTORY_CAP ? real.slice(-HISTORY_CAP) : real;
     return fitHistoryBytes(capped, HISTORY_WIRE_MAX_BYTES);
   }
-  function uncalibratedBudget(limit) {
-    return Math.max(1, Math.floor(limit * 0.85) - Math.min(16000, Math.floor(limit / 2)));
+  /* ONE BUDGET AUTHORITY (context-budget-and-fold). The server folds a run once its prompt passes compactAt of the window the run
+     works in, and publishes both on every model row (/api/models: runWindow, compactAt; context.js RUN_CONTEXT_DEFAULTS is the one
+     place the share lives). A fit to that same line means a fitted send is never already past the fold, so a long chat stops paying
+     for a fold on every send: the dialogue the line leaves out is carried by the persisted summary or the free earlier note.
+     A row that publishes no compactAt (an older sidecar) keeps the former fit, LEGACY_FIT_SHARE of the model's own window: that
+     is the fallback for a missing fact, not a second fold line, and test/historyfit.gate.test.js holds it against the frozen
+     3d581b9dd bodies. */
+  const LEGACY_FIT_SHARE = 0.85;
+  function foldShare(compactAt) {
+    const share = Number(compactAt);
+    return share > 0 && share <= 1 ? share : 0;   // a share of the window: anything else is no published fold line
+  }
+  // the window a RUN works in: a row's runWindow (the model's window stopped at a long-context price tier) can only lower the model's own
+  function runWindowOf(m, limit) {
+    const run = Number(m && m.runWindow);
+    return run > 0 && run < limit ? run : limit;
+  }
+  // `limit` is the window the share applies to: the run's window when compactAt is given (the sidecar's own limitOf already stops at
+  // the tier), the model's own window for the former fit. The reserve stands for the system prompt and tool schemas of an unmeasured chat.
+  function uncalibratedBudget(limit, compactAt) {
+    return Math.max(1, Math.floor(limit * (foldShare(compactAt) || LEGACY_FIT_SHARE)) - Math.min(16000, Math.floor(limit / 2)));
   }
   // state is measured against the preliminary fit, exactly as the former page owner did.
   // Reading that state stays in the page; this module receives only the observed model data.
@@ -75,12 +96,15 @@
     const m = model || {}, base = windowRows(history, { window: m.window || 'legacy' });
     let limit = Number(m.limit) || 0;
     if (!(limit > 0)) return { messages: base, budget: null };
-    let budget = uncalibratedBudget(limit), fitted = fitHistoryTokens(base, budget);
+    const share = foldShare(m.compactAt), windowFor = size => share ? runWindowOf(m, size) : size;
+    let budget = uncalibratedBudget(windowFor(limit), share), fitted = fitHistoryTokens(base, budget);
     const state = m.state;
     if (state && (!state.model || state.model === m.selected) && state.limit) limit = state.limit;
     if (state && (!state.model || state.model === m.selected) && state.used > 0 && (state.measured || state.projected)) {
+      // the measured overhead already holds the system prompt and tool schemas (state.used minus the dialogue it carried): it is
+      // the only thing taken off the line, never the unmeasured reserve besides
       const dialogue = contextEstimateMessages(fitted), overhead = Math.max(0, state.used - dialogue);
-      budget = Math.max(1, Math.floor(limit * 0.85) - overhead);
+      budget = Math.max(1, Math.floor(windowFor(limit) * (share || LEGACY_FIT_SHARE)) - overhead);
       fitted = fitHistoryTokens(base, budget);
     }
     return { messages: fitted, budget };

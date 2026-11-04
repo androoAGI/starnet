@@ -1,7 +1,8 @@
 /* sidecar/earlier-conversation.js — THE TURNS THE WINDOW DROPPED STILL COUNT (consistency audit 2026-10-11).
 
-   COMMS sends a bounded window of the conversation: the newest 120 messages, cut further to fit ~85% of the
-   model's window (frontend/app/chat.js historyWindowFrom / modelFitHistory). Everything older was simply left out
+   COMMS sends a bounded window of the conversation: the newest 120 messages, cut further to fit the line the server
+   folds a run at, compactAt of the run's window (frontend/app/historyfit.js fitModel; 85% of the model's window
+   from a sidecar that publishes no compactAt). Everything older was simply left out
    of the request — no summary, no marker — so an instruction the Commander gave on turn 3 of a long chat stopped
    existing for the model, and the server's compaction never saw it either (it only folds what it is sent). User
    report 10-11: "the longer I went back and forth the worse it got." The server still holds every turn in the

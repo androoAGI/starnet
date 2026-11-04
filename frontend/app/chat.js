@@ -2343,6 +2343,10 @@ const Chat = (() => {
     try {
       if (Harness.getModel) model.selected = Harness.getModel() || '';
       if (Harness.contextLimitOf) model.limit = Harness.contextLimitOf(model.selected);
+      // the line the server folds on: compactAt of the window a RUN works in, both from the sidecar's model row (the run window
+      // falls back to the model's own; an older sidecar publishes no compactAt, which keeps the former fit - historyfit.js)
+      model.runWindow = (Harness.runWindowOf && Harness.runWindowOf(model.selected)) || model.limit;
+      if (Harness.compactAtOf) model.compactAt = Harness.compactAtOf(model.selected);
     } catch (_) {}
     if (!model.limit) return model;
     try {

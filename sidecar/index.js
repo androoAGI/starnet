@@ -1938,7 +1938,7 @@ const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.create
   env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
   save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote,
   soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
-const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf,
+const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf, compactAt: RUN_CONTEXT_DEFAULTS.compactAt,
   noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields) });
 /* A PAID FOLD'S SUMMARY IS KEPT (context-budget-and-fold, summary-ledger.js). A fold lives only in the run's message array, so
    every send of a long chat past the fold line summarized the same range again (14 paid calls and 14 different notes in 14

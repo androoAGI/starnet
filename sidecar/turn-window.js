@@ -113,8 +113,11 @@ function make(d) {
       const carried = mode === 'id' && !foreign ? carry(src.slice(0, newestAt), o, ctx) : [];
       const combined = View.concat(carried, rows, [newest]);
       const limit = Number.isFinite(o.windowTokens) ? 0 : typeof d.limitOf === 'function' ? d.limitOf(o) : 0;
+      // The page's own budget wins. Without one the fallback fits to the same line the page does: limitOf is already the run's window
+      // (index.js turnWindowLimitOf stops it at the price tier) and d.compactAt is the share the server folds at (RUN_CONTEXT_DEFAULTS,
+      // injected by index.js; a caller that injects none keeps the former share).
       const budget = Number.isFinite(o.windowTokens) ? Math.max(1, o.windowTokens)
-        : Number.isFinite(limit) && limit > 0 ? Fit.uncalibratedBudget(limit) : null;
+        : Number.isFinite(limit) && limit > 0 ? Fit.uncalibratedBudget(limit, d.compactAt) : null;
       let fitted = Fit.fitHistoryBytes(combined.slice(-Fit.HISTORY_CAP), Fit.HISTORY_WIRE_MAX_BYTES);
       if (budget !== null) fitted = Fit.fitHistoryTokens(fitted, budget);
       const window = View.slice(combined, combined.length - fitted.length);
