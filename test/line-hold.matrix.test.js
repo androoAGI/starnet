@@ -131,6 +131,28 @@ function assertHeld(rig, ran, o, label) {
     rig.dispose();
   }
 
+  {   /* the facts each door REALLY hands over. The expressions the cron seams, the trigger runner and the SEND TO runner pass as `origin` are lifted
+         out of sidecar source (test/helpers/source.js) and evaluated, and the station's own mapping must name an origin from them — a typo in a
+         door (a missing routine id) would otherwise turn every hold at that door into the old stop, silently. */
+    const Source = require('./helpers/source.js'), index = Source.readSidecarIndex(), rig = makeRig(), hex = c => c.repeat(64);
+    const lift = (region, label) => { const expr = Source.liftProp(region, 'origin'); A.ok(expr.length > 20, label + ': the door passes its origin facts'); return expr; };
+    const run = (expr, scope) => new Function(...Object.keys(scope), 'return (' + expr + ');')(...Object.values(scope));
+    const scheduled = lift(Source.callRegion(index, 'advanceChain: (o) => lineRunner.runLineJob({', 'profile: LineRunner.profiles.schedule({'), 'the scheduled fire');
+    const pressed = lift(Source.callRegion(index, 'const line = await lineRunner.runLineJob({ job: (cronItems.get(runId) || {}).job, seed: {', 'profile: LineRunner.profiles.manual({'), 'Run Now');
+    const a = rig.ports.holdOriginOf({ id: 'job-x', entry: 'schedule' }, run(scheduled, { o: { jobId: 'cron_demo', runId: 'run-1', preloadSkills: ['skill-a'], requiredPreloads: true, workdir: null, enabledToolsets: null } }));
+    const b = rig.ports.holdOriginOf({ id: 'job-x', entry: 'manual' }, run(pressed, { job: { id: 'cron_demo', skills: ['skill-a'], workdir: null, enabledToolsets: null }, runId: 'run-1' }));
+    A.ok(a && b && a.kind === 'schedule' && b.kind === 'manual' && a.routineId === 'cron_demo' && a.fireRunId === 'run-1' && b.fireRunId === 'run-1' && /^[a-f0-9]{64}$/.test(a.policyDigest) && a.policyDigest === b.policyDigest,
+      'the scheduled fire and Run Now name the same routine, fire and configuration digest: ' + JSON.stringify([a, b]));
+    const trigger = lift(Source.sidecarFunctionSource('makeTriggerRunner'), 'the trigger runner');
+    const hook = rig.ports.holdOriginOf({ id: 'job-x', entry: 'trigger' }, run(trigger, { t: { id: 'trg_demo12345', kind: 'webhook' }, item: { text: 'payload', delivery: { reservationId: hex('c'), fingerprint: hex('d') } } }));
+    const folder = rig.ports.holdOriginOf({ id: 'job-x', entry: 'trigger' }, run(trigger, { t: { id: 'trg_demo12345', kind: 'folder' }, item: { text: 'a new file landed' } }));
+    A.eq([hook && hook.triggerKind, hook && hook.reservationId, folder && folder.triggerKind, folder && folder.sourceDigest], ['webhook', hex('c'), 'folder', sha('a new file landed')], 'the trigger runner names a webhook by its delivery receipt and a folder file by its digest');
+    const handoff = lift(Source.sidecarFunctionSource('makeHandoffRunner'), 'the SEND TO runner');
+    const sent = rig.ports.holdOriginOf({ id: 'job-x', entry: 'sendto' }, run(handoff, { item: { fromJobId: 'job-aaaaaaaaaaaa', fromLine: 'L1', fromOutbox: 'o1', toIntake: 'i1', lines: ['L1'], toLine: 'L2', depth: 1 } }));
+    A.eq(sent && [sent.sourceJobId, sent.sourceLineId, sent.sourceOutboxId, sent.targetIntakeId, sent.lineage, sent.depth], ['job-aaaaaaaaaaaa', 'L1', 'o1', 'i1', ['L1', 'L2'], 1], 'the SEND TO runner names the job it came from, its outbox, the target inbox and the lineage');
+    rig.dispose();
+  }
+
   /* ---- 4. the other reasons, file receipts, a file handed in ---- */
   {
     const rig = makeRig(), ran = await rig.run({ replies: ['looks fine to me, ship it'] });
