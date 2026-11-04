@@ -109,13 +109,14 @@ const { wireForgetRegistry } = require('../sidecar/forget-wiring.js');
     ledgerClock = 300000;
     A.eq(ledger.observe(['sA']), ['sA'], 'the Commander deletes the session');
     const scope = SessionTombstones.deletedScope(ledger.unpurged(), runRows);
-    const out = await registry.forgetAll(scope);
-    A.eq(out.removed.interests, 1, 'the interests entry removed the one quote the deleted session wrote');
+    // this test wires only the interests state: it runs that entry (the full pass over every store is forget-stores and the e2e)
+    const removedQuotes = await registry.entry('interests').forget(scope);
+    A.eq(removedQuotes, 1, 'the interests entry removed the one quote the deleted session wrote');
     A.ok(persisted.length === 1, 'and persisted the purged state');
     const restarted = Interests.normalize(JSON.parse(persisted[persisted.length - 1]), T);
     A.eq(Interests.summary(restarted, { now: T, trustedOnly: true }).map(r => r.topic), ['platypus-launch'], '(b) the restarted state holds no topic from the deleted session');
     A.ok(!/quokka/i.test(JSON.stringify(restarted.trustedTopics)) && !/quokka/i.test(Interests.topicsBlock(restarted, { now: T, trustedOnly: true })), '...and its quote and label are in no trusted block');
-    A.eq((await registry.forgetAll(scope)).removed.interests, 0, 'the purge is idempotent');
+    A.eq(await registry.entry('interests').forget(scope), 0, 'the purge is idempotent');
     A.ok(/platypus/.test(JSON.stringify(restarted.trustedTopics)), 'the other session\'s topic is untouched');
 
     // ---- (e) the write-time gate: a pass that started before the delete folds nothing from it ----
