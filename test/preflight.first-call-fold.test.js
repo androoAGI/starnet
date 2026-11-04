@@ -56,7 +56,7 @@ function seeded() {
     A.ok(sent[0].messages.some(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content))), 'the first request carries the summary note');
     A.eq(sent[0].messages[sent[0].messages.length - 1].content, 'new question: what did turn 118 say?', 'the newest user question is sent verbatim, last');
     // the chat's FIRST message is turn 1 of a 120-turn conversation, not this run's task: it is no longer pinned at the head
-    // (the run's own request, last, is the only message that earns a pin) — it folded, and its words ride the note once
+    // (only the run's request, or the user turn a cut splits, is pinned there) — it folded, and its words ride the note once
     const head = sent[0].messages.find(m => m.role !== 'system');
     A.eq(head && head.role, 'user', 'the rebuilt prompt still opens on a user turn');
     A.ok(String(head.content).indexOf('turn 0 ') !== 0, 'the stale first message is not pinned at the head');

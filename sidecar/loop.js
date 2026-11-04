@@ -958,11 +958,12 @@
   async function runAgentLoop(o) {
     const messages = o.messages;
     // THIS RUN'S REQUEST (consistency audit 2026-10-11): the latest Commander message at start. In a long chat the
-    // pinned "first non-system message" is an old turn, not this task, so a long agentic run could fold the request
-    // itself into the verbatim section at a fair share like any chatter. A fold now carries it as the current task:
-    // whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`). A screen-capture turn the loop built
-    // from a tool's pixels is a user-role message but never anyone's request: a recovered computer-use run ends on one,
-    // and the pin (maybeCompact) must stay on the directive that started the work.
+    // first non-system message is an old turn, not this task (it used to be the one pinned, which is why a long agentic run
+    // could fold the request itself into the verbatim section at a fair share like any chatter). A fold carries the request
+    // as the current task: whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`), and maybeCompact
+    // pins it at the head when it is first (a single directive) or a tail would open on an assistant turn (openOnUser).
+    // A screen-capture turn the loop built from a tool's pixels is a user-role message but never anyone's request: a
+    // recovered computer-use run ends on one, and the pin must stay on the directive that started the work.
     const runRequest = (() => { for (let i = (messages || []).length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'user' && !isScreenCapture(m)) return m; } return null; })();
     let provider = o.provider;
     const emit = o.emit;
@@ -1894,9 +1895,9 @@
           }
         }
       }
-      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt must still open on a user turn (openOnUser).
-         The micro tier above removes none, so it needed no such care — and it must keep seeing the whole slice, or a run
-         that follows a long chat would lose most of its free tier to the move. */
+      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt must still open on a user turn, so a tail
+         that would open on an assistant turn gets one user turn pinned at the head (openOnUser; the cut stays the
+         planner's). The micro tier above removes none, so it needed no such care. */
       if (!headPinned) {
         const opened = openOnUser(plan, runRequest);
         if (opened !== plan) {
