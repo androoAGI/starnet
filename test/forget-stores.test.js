@@ -33,6 +33,8 @@ const makeAttachments = require('../sidecar/attachments.js');
 const { makeGroupSessions } = require('../sidecar/group-sessions.js');
 const Store = require('../sidecar/transcriptstore.js');
 const History = require('../sidecar/transcript-history.js');
+const { sidecarTopLevelFunction } = require('./helpers/source.js');
+const { quotesForgotten: journalQuotesForgotten } = require('../sidecar/run-journal.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -451,6 +453,16 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.ok(/platypus nests/.test(JSON.stringify(await groups.get(keep.id))), 'and its messages are intact');
         A.eq(await forget('group-sessions'), 0, 'idempotent');
       } finally { if (groups) groups.close(); remove(gdir); }
+    }
+
+    // ---------------- the run journal: a run that began in a deleted session is never continued ----------------
+    {
+      const recoveryForgotten = new Function('journalQuotesForgotten', 'sessionTombstones', sidecarTopLevelFunction('runRecoveryForgotten') + '\nreturn runRecoveryForgotten;')(journalQuotesForgotten, ledger);
+      A.ok(recoveryForgotten({ meta: { streamId: 'sGone', startedAt: 4100 }, quotes: [], firstTs: 4100 }), 'an interrupted run that began in the deleted session is forgotten: not offered, prepared or continued');
+      A.ok(!recoveryForgotten({ meta: { streamId: 'sGone', startedAt: 6000 }, quotes: [], firstTs: 6000 }), '...one that began after the delete (a re-opened session) is not');
+      A.ok(!recoveryForgotten({ meta: { streamId: 'sKeep', startedAt: 4100 }, quotes: [], firstTs: 4100 }), '...nor one in another session');
+      A.ok(recoveryForgotten({ meta: { streamId: 'sKeep', startedAt: 4100 }, quotes: [{ id: 'sGone', at: 4400 }], firstTs: 4100 }), '...and the quote rule (commit 11) still applies to a run that read the deleted session');
+      A.ok(!recoveryForgotten({ meta: {}, quotes: [], firstTs: 0 }) && !recoveryForgotten(null), 'a record with no stream is not forgotten by this rule');
     }
 
     A.report('forget-stores');

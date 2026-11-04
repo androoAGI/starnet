@@ -29843,8 +29843,14 @@ function scanInterruptedRuns(files) {
 }
 // An interrupted run's journal says which sessions it read; one deleted at or after its read (or any non-adopted delete since a saturated
 // run began) forgets the run (commit 11): its recovery is neither offered, prepared nor consumed - a continuation would replay the tool
-// results that came from the deleted session.
-function runRecoveryForgotten(r) { return journalQuotesForgotten(r, id => sessionTombstones.deletedAt(id), () => sessionTombstones.latestAt()); }
+// results that came from the deleted session. A run that began in a session since deleted (its journal names the stream and its start) is
+// forgotten too (commit 12): its journal holds that session's words, so it is never offered, prepared or continued; the file itself stays - an
+// unmatched tool intent in it is the only evidence a side effect may have happened, and the Commander resolves or discards it.
+function runRecoveryForgotten(r) {
+  if (journalQuotesForgotten(r, id => sessionTombstones.deletedAt(id), () => sessionTombstones.latestAt())) return true;
+  const meta = (r && r.meta) || {};
+  return !!meta.streamId && sessionTombstones.forgotten(String(meta.streamId), Number(meta.startedAt) || Number(r && r.firstTs) || 0);
+}
 function canContinueRunRecovery(r) {
   if (!r || r.status !== 'resolved' || (r.continuation && r.continuation.state !== 'ready') || runRecoveryForgotten(r)) return false;
   try { RunRecovery.continuationPlan(r); return true; } catch (_) { return false; }
