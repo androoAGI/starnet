@@ -18,6 +18,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -194,19 +195,15 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKCHAIN';
     await waitUntil(() => tg.perToken[TOK_A].sends.some(s => String(s.chat_id) === '900' && /Owner paired/i.test(String(s.text || ''))), 8000, 'owner paired');
 
     // ---- 2. deploy a two-stage floor: research-agent (the bot's bound agent) chains into writer-agent ----
-    const Pipeline = require('../frontend/app/pipeline.js');
     const belt = (x, y, dir) => ({ x, y, dir });
-    const plan = Pipeline.compileRoutingPlan({
+    const { plan } = await publishFloor(fetchApi(B, { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }), floorOf({
       props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
               { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
               { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' },
               { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
       belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-    });
+    }), { label: 'the two-stage floor' });
     A.eq(plan.chains['research-agent'].next, ['writer-agent'], 'the drawn floor chains the two docks');
-    for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-    const posted = await api('POST', '/api/routing', plan);
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
 
     // ---- 3. DM the AGENT BOT: the whole line must run, and the reply must be the LAST stage's ----
     const callsBefore = llm.requests.length;

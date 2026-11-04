@@ -12,6 +12,7 @@ const os = require('os');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -206,30 +207,17 @@ async function readNdjson(res) {
        DIRECTLY, so it bypasses the cron driver's advanceChain seam — it shipped running four stages on
        schedule and ONE stage from the button (caught live 2026-07-27), the same "one routine, two
        behaviours" bug the slash-command redirect in this route already exists to prevent. */
-    const Pipeline = require('../frontend/app/pipeline.js');
     const belt = (x, y, dir) => ({ x, y, dir });
-    const plan = Pipeline.compileRoutingPlan({
+    /* the docks' ROOM is the saved station's (qa/bugs/a9a4f53c): both bays are saved with a workstation each and no dish, so the
+       bay room is computer-only (an unequipped bay would grant no compute). The page then publishes its hint of that floor */
+    const { plan } = await publishFloor(fetchApi(B, headers), floorOf({
       props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
               { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: 'Dig three primary sources and cite them.' },
               { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' },
               { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
       belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-    });
+    }), { label: 'the two-stage floor (two computer-only bays)' });
     A.eq(plan.chains['research-agent'].next, ['writer-agent'], 'the drawn floor chains the two docks');
-    for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];   // an unequipped bay grants no compute
-    /* the docks' ROOM is bounded by the saved station (a posted plan may narrow a bay's grant, never widen it —
-       qa/bugs/a9a4f53c): save both bays with a workstation each and no dish, so the bay room is computer-only */
-    const WM = require('../frontend/app/worldmodel.js');
-    const stDoc = WM.defaultDoc();
-    stDoc.props.push({ id: 'b1', t: 'bay', x: 2, y: 1, w: 1, h: 1, agentId: 'research-agent' }, { id: 'pc1', t: 'console', x: 4, y: 1, w: 2, h: 1, agentId: 'research-agent' },
-      { id: 'b2', t: 'bay', x: 8, y: 1, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'pc2', t: 'console', x: 10, y: 1, w: 2, h: 1, agentId: 'writer-agent' });
-    stDoc._nid = 5;
-    const prior = ((await (await fetch(B + '/api/save?agent=agent', { headers })).json()) || {}).save;
-    const sv = await fetch(B + '/api/save', { method: 'POST', headers,
-      body: JSON.stringify({ schema: 'starnet.save', version: 5, _saveRevision: (prior && prior._saveRevision) || 0, updatedAt: Date.now(), agent: { id: 'agent' }, station: stDoc }) });
-    A.ok(sv.status === 200 && ((await sv.json()) || {}).ok === true, 'the station the line runs on (two computer-only bays) is saved');
-    const posted = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(plan) });
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
 
     const callsBefore = mock.requests.length;
     const run2 = await fetch(B + '/api/cron/run', { method: 'POST', headers, body: JSON.stringify({ id: job.id }) });

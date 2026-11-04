@@ -22,6 +22,7 @@ const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 // the run-context note is the leading text of the newest user message on a non-Claude chat wire: key on the Commander's own words
 const { userWords } = require('./helpers/host-notes.js');
+const { canonical, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -282,25 +283,17 @@ const lastUserTurn = (req) => {
     // (permissions.js tier 4) and the REAL fail-closed waiter (consentwait.js) — only the network is faked.
     // Give this chat's agent a CABINET. Capability projection is what decides which tools exist at all, so
     // without a placed cabinet there is no fs.write for the broker to pause on, and a bay projects PURE room objects with no baseline, so it needs its own computer to run at all (a bare workspace offers only
-    // the consent-free skill tools) and this would silently prove nothing. The room is bounded by the SAVED station (a
-    // posted plan may narrow a bay's grant, never widen it — qa/bugs/a9a4f53c): save the bay, its workstation and the
-    // cabinet, then post the plan that names the bay with the room objects the page lists for it.
+    // the consent-free skill tools) and this would silently prove nothing. The room is the SAVED station's (a page's hint never
+    // grants anything — qa/bugs/a9a4f53c): save the bay, its workstation and the cabinet, then publish the page's hint of it.
     const WM = require('../frontend/app/worldmodel.js');
-    const saveHeaders = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
     const stDoc = WM.defaultDoc();
     stDoc.props.push({ id: 'bay1', t: 'bay', x: 4, y: 1, w: 2, h: 2, agentId: 'tg_4242' });
     stDoc.props.push({ id: 'pc1', t: 'console', x: 7, y: 1, w: 2, h: 1, agentId: 'tg_4242' });
     stDoc.props.push({ id: 'cab1', t: 'war_intelcab', x: 10, y: 1, w: 1, h: 2 });
     stDoc._nid = 4;
-    const prior = ((await (await fetch(B + '/api/save?agent=agent', { headers: saveHeaders })).json()) || {}).save;
-    const sv = await fetch(B + '/api/save', { method: 'POST', headers: saveHeaders,
-      body: JSON.stringify({ schema: 'starnet.save', version: 5, _saveRevision: (prior && prior._saveRevision) || 0, updatedAt: Date.now(), agent: { id: 'agent' }, station: stDoc }) });
-    A.ok(sv.status === 200 && ((await sv.json()) || {}).ok === true, 'the station with tg_4242\'s bay, workstation and cabinet is saved');
-    const rr = await fetch(B + '/api/routing', {
-      method: 'POST', headers: saveHeaders,
-      body: JSON.stringify({ errors: [], hash: 'buttons-e2e', bays: [], dockBays: [{ agentId: 'tg_4242', propId: 'bay1', objects: ['computer', 'cabinet'] }] })
-    });
-    A.eq(rr.status, 200, 'routing plan accepted (tg_4242 docked at its saved bay: computer + cabinet)');
+    const docked = await publishFloor(fetchApi(B, { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }), canonical(stDoc),
+      { label: 'the station with tg_4242\'s bay, workstation and cabinet' });
+    A.eq((docked.plan.dockBays || []).map(b => [b.agentId, b.propId, b.objects]), [['tg_4242', 'bay1', ['computer', 'cabinet']]], 'tg_4242 is docked at its saved bay: computer + cabinet');
 
     const sendsBeforeOptIn = tg.sends.length;
     tg.pushText(4242, 99, '/approvals on');
