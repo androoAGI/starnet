@@ -248,6 +248,27 @@ async function section(name, fn) {
     A.ok(!JSON.stringify(out3).includes(lib.info.get(note.path).sentinel), 'the file text is not in the turn-3 messages at all');
   });
 
+  // the shape S2 turns into taint: turn 1 = a text file + an image, then six text turns, each run posting the browser-style
+  // growing history (every earlier turn again, references and all). Bytes ride on runs 1-2 only; a fresh image on turn 5
+  // rides on runs 5-6 only. Through expandForRun, the entry point the run host calls.
+  await section("4b seven turns", async () => {
+    const lib = library();
+    const notes = lib.text(300), shot = lib.image(2048), fresh = lib.image(2048);
+    const R = rig(lib, { workspaces: path.join(os.tmpdir(), 'resend-ws-never-touched') });
+    const history = [], seen = [];
+    for (let turn = 1; turn <= 7; turn++) {
+      history.push(user('turn ' + turn, turn === 1 ? [notes, shot] : turn === 5 ? [fresh] : []));
+      const out = await R.att.expandForRun(history.map(m => Object.assign({}, m)), 'agent', '');
+      const wire = JSON.stringify(out);
+      seen.push({ ids: (out[RESENT] || []).filter(e => e.bytes).map(e => e.id), images: (wire.match(/"type":"image_url"/g) || []).length,
+        fileText: wire.includes(lib.info.get(notes.path).sentinel) });
+      history.push({ role: 'assistant', content: 'reply ' + turn });
+    }
+    A.eq(seen.map(s => s.ids), [[notes.id, shot.id], [notes.id, shot.id], [], [], [fresh.id], [fresh.id], []], 'bytes ride on runs 1-2, then a fresh image rides on runs 5-6 only');
+    A.eq(seen.map(s => s.images), [1, 1, 0, 0, 1, 1, 0], 'image parts on the wire per run');
+    A.eq(seen.map(s => s.fileText), [true, true, false, false, false, false, false], 'the file text is on the wire for runs 1-2 and never after');
+  });
+
   // ---------------------------------------------------------------------------------------------------------------
   // 5. the report, case by case: unreadable, binary-only, truncated text, marker-only
   await section("5 report cases", async () => {
@@ -389,7 +410,7 @@ async function section(name, fn) {
 
       // resent-report-matches-wire
       if (!rows.length) {   // no reference anywhere: the very same list comes back, and it has no report to read
-        A.ok(out === history && R.att.resentOf(out).length === 0, tag + 'a history with no references is returned as it is, with an empty report');
+        A.ok(out === history && (out[RESENT] || []).length === 0, tag + 'a history with no references is returned as it is, with an empty report');
         continue;
       }
       const rep = out[RESENT];
