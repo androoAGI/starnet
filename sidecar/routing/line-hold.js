@@ -16,8 +16,13 @@
                 digest, size } (throws when the file cannot be read) }
         prior   (S4) the job's saved continuation when a person SENT IT BACK and it stopped at a gate again: the second hold carries its
                 admission, ceilings, receipts and decisions over exactly and moves the revision on (see buildHeld's own comment)
-     It returns a refusal, never a throw, for every state this slice cannot save exactly: a gate inside a split that is still running or
-     after a JOINER merged its branches (S5), a file that cannot be read, a stage that left no run receipt, an entry door that names no
+     A gate INSIDE a split, or right after the JOINER that merged its branches, is saved with the split (S5): the walk hands over the
+     branches that have not started (each with the part of the job it was handed), the fan-out's record (its branches, the ones that
+     failed, the joiner it meets) and the barrier with every part parked in it, and they become the continuation's pending, fan and
+     barriers — each part tied to its branch and to the observed run that made it, the merged crate to the runs it was joined from.
+     It returns a refusal, never a throw, for every state this slice cannot save exactly: a split the walk cannot account for (a branch
+     that ended at an OUTBOX of its own, a part with no recorded stage, a batch still out), a split too wide for one record (the
+     validator's 512-part bound), a file that cannot be read, a stage that left no run receipt, an entry door that names no
      origin, an oversized crate, anything the validator rejects. The caller then ends the job the way it always did,
      with the reason said (line-runner.js) — a hold that cannot be saved exactly is never half-saved.
 
@@ -86,9 +91,14 @@ function buildHeld(seed, line, job, origin, host, prior) {
      this call's. Without `prior` this is the first hold, built wholly from the walk's own snapshot. */
   const resumed = !!prior;
   if (!resumed && !origin) return refuse('the way this job came in cannot be named for a saved hold');
+  /* THE SPLIT (S5). A gate inside a fan-out is saved WITH the split: the walk (chain.js snapshot) hands over the branches that have not
+     started, the fan-out's own record and the barrier with every part parked in it; they are mapped below into the continuation's
+     pending, fan and barriers, each part tied to its branch and the observed run that made it. What the walk cannot account for exactly
+     (a branch that ended at an OUTBOX of its own, a part with no recorded stage, a batch still out) it says in words in open.refuse. */
   const open = st.open || {};
-  if (open.pending || open.forced || open.fan || open.barriers || open.branchMode) return refuse('the gate sits inside a split that is still running, and a hold inside a split is not saved yet');
-  if (open.joined) return refuse('the held work is the crate a joiner merged, and a hold after a join is not saved yet');
+  if (open.refuse) return refuse(open.refuse);
+  const bars = Array.isArray(st.barriers) ? st.barriers : [];
+  if (bars.some(b => Array.isArray(b.inFlight) && b.inFlight.length)) return refuse('a parallel batch of branches was still out when the walk reached the gate');
   if (!resumed && !/^[a-f0-9]{8}$/.test(String(h.planHash))) return refuse('the floor plan has no hash to bind the hold to');
   if (resumed && prior.attempts.some(a => a.state !== 'observed')) return refuse('a stage this job ran again has no recorded result, so its spend cannot be saved exactly');
   const attempts = resumed ? prior.attempts : (Array.isArray(st.attempts) ? st.attempts : []);
@@ -125,6 +135,20 @@ function buildHeld(seed, line, job, origin, host, prior) {
   // dayReceipts stays empty and this hold notes nothing again
   const accounting = resumed ? prior.accounting : { entryUsd: sum(saved.filter(a => a.runId === entryRunId)), hopUsd: sum(saved.filter(a => a.runId !== entryRunId)),
     runIds: saved.map(a => a.runId), dayReceipts: [], limits: st.limits };
+  // the queued branches (each with its own part of the job), the fan-out's record and the barrier with its parts, in the continuation's shapes
+  const queued = (Array.isArray(w.pending) ? w.pending : []).map(b => ({ id: b.id, node: b.node, from: b.from || null, product: product(b.product), entry: !!b.entry, part: b.part || null }));
+  const barriers = bars.map(b => ({ joinId: b.joinId, entryRunId, branchIds: b.branchIds, failed: b.failed, pending: b.pending, inFlight: [], at: b.at, timeoutMs: b.timeoutMs,
+    parts: b.parts.map(p => ({ branchId: p.branchId, runId: p.runId, workitemId: p.workitemId, product: product(p.product) })) }));
+  if (queued.map(b => b.product).concat(...barriers.map(b => b.parts.map(p => p.product))).some(p => p.files.some(r => !r))) return refuse('a file the work carries has no receipt');
+  const fan = w.fan ? { branchIds: w.fan.branchIds, width: w.fan.width, failed: w.fan.failed, joinKey: w.fan.joinKey, joinStep: w.fan.joinStep, handed: w.fan.handed } : null;
+  /* a record the resume could not put back is never written: queued branches and a barrier belong to a split, and the branch the walk is in
+     is the one id of that split nothing else accounts for (not delivered, not failed, not queued) — chain.js resumeLocals reads it the same way */
+  if (!fan && (queued.length || barriers.length)) return refuse('queued branches or a join barrier are saved with no split to account for them');
+  if (fan) {
+    const parked = [].concat(...barriers.map(b => b.parts.map(p => p.branchId)));
+    const owing = fan.branchIds.filter(id => parked.indexOf(id) < 0 && !fan.failed.some(f => f.branchId === id) && !queued.some(q => q.id === id));
+    if (owing.length !== 1) return refuse('the saved split does not say which of its branches the walk is in');
+  }
   const allowed = ['approve'].concat(g.backTo && hold.pass < g.max ? ['send_back'] : [], ['stop']);   // a gate with no back lane, or no pass left, cannot send the work round again
   const decided = resumed ? settleDecisions(prior) : { decisions: [], activeDecision: null };
   const c = {
@@ -135,8 +159,8 @@ function buildHeld(seed, line, job, origin, host, prior) {
     restriction: resumed ? prior.restriction : { entryUntrusted: !st.restriction || st.restriction.entryUntrusted !== false, hostPowerWithheld: !st.restriction || st.restriction.hostPowerWithheld !== false, taints },
     walk: { current: w.current, next: w.next, product: walkProduct, originalText: w.originalText, lastHanded: w.lastHanded, producerVerdict: w.producerVerdict,
       hop: w.hop, loopHops: w.loopHops, visited: w.visited, gates: w.gates, openLoops: w.openLoops, fromTile: w.fromTile, via: w.via, entryOutput,
-      branchMode: false, pending: [], forced: null, fan: null, partial: w.partial, unapproved: w.unapproved },
-    barriers: [], accounting, attempts: saved, files: receiptList,
+      branchMode: !!w.branchMode, pending: queued, forced: null, fan, partial: w.partial, unapproved: w.unapproved },
+    barriers, accounting, attempts: saved, files: receiptList,
     hold: { gateId: String(hold.gateId), reason: hold.reason, why: clip(hold.why, 400), pass: hold.pass, allowed },
     decisions: decided.decisions, activeDecision: decided.activeDecision, terminal: null, publication: null
   };

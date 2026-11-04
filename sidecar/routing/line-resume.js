@@ -200,7 +200,8 @@ function makeLineResume(deps) {
     const seed = { agentId: w.current.agentId, dockId: w.current.dockId || undefined, text: w.product.text, originalText: w.originalText, runId: b.entryRunId,
       entryUsd: a.entryUsd + a.hopUsd, lineId: b.lineId, streamId: ready.streamId || undefined, since: c.attempts.length ? c.attempts[0].at : undefined,
       signal: rec.abort.signal, taints: c.restriction.taints.slice(),
-      resume: { walk: w, files: c.files, accounting: a, dockMode: b.dockMode, decision: { action: receipt.action, note: receipt.note } } };
+      // (a hold inside a split, S5: the barrier with its parts and the attempts they trace to come back with the walk, and the entry node the dead-branch rule needs)
+      resume: { walk: w, files: c.files, accounting: a, dockMode: b.dockMode, barriers: c.barriers, attempts: c.attempts, entryNode: b.entryNode, decision: { action: receipt.action, note: receipt.note } } };
     const durable = {
       intent: att => store.advance(id, x => intentOf(x, att), j => !!(j.continuation && j.continuation.attempts.some(y => y.runId === att.runId))),
       observed: (att, o) => store.advance(id, x => observedOf(x, att.runId, o), j => !!(j.continuation && j.continuation.attempts.some(y => y.runId === att.runId && y.state === 'observed')))

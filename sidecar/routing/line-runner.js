@@ -526,7 +526,8 @@ function makeLineRunner(deps) {
       if ((typeof j.halted === 'function' && j.halted()) || (h.signal && h.signal.aborted)) return stoppedHop(h);
       const runId = String(newId());
       h.runId = runId;
-      const att = { runId, node: { agentId: String(h.agentId || ''), dockId: h.dockId ? String(h.dockId) : null }, branchId: null, workitemId: String(h.workitemId || ''),
+      // (a stage inside a split names its branch, S5: a second hold inside the split ties each parked part to the observed run that made it)
+      const att = { runId, node: { agentId: String(h.agentId || ''), dockId: h.dockId ? String(h.dockId) : null }, branchId: h.branchId ? String(h.branchId) : null, workitemId: String(h.workitemId || ''),
         inputDigest: sha([String(h.text == null ? '' : h.text), Array.isArray(h.handoffReads) ? h.handoffReads : []]), at: now() };
       try { durable.intent(att); }
       catch (e) { failNote('line-runner.intent', e); return refusedHop(h, 'the station could not save this stage before it ran, so nothing was bought for it'); }
