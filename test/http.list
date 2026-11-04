@@ -7,6 +7,7 @@ test/memory-truth.http.test.js
 test/seam-audit-recovery.http.test.js
 test/customer-journey.e2e.test.js
 test/group-sessions.http.test.js
+test/group-earlier-note.http.test.js
 test/tool-model-fallback.e2e.test.js
 test/sidecar.http.test.js
 test/channels.replay.e2e.test.js
