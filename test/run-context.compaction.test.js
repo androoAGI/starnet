@@ -65,17 +65,18 @@ const isSummary = m => m && m.role === 'system' && /^<conversation_summary>/.tes
     A.eq(res.messages.filter(isRunContextNote).length, 1, mode + ': the final transcript holds one note');
   }
   // ONLY THE NOTE WOULD FOLD: a big pinned prefix pushes the prompt over the threshold, and the foldable slice is the
-  // note + one short user turn, so the tail keeps the user turn and the plan's `older` is the note alone. The pin takes
-  // it out of the slice, leaving NOTHING to fold: no summarizer call (a paid call over an empty slice) and no
-  // agent.compact claiming a fold that removed nothing.
+  // note alone (the run's request is the pinned head, the tail keeps the run's latest turn), so the plan's `older` is
+  // the note. The pin takes it out of the slice, leaving NOTHING to fold: no summarizer call (a paid call over an
+  // empty slice) and no agent.compact claiming a fold that removed nothing. (The head is the run's own request here:
+  // a stale first message would be foldable and is no longer pinned — test/fold-head-pin.test.js.)
   {
     const ctx = makeContext(Object.assign({ contextLimit: 20000 }, RUN_CONTEXT_DEFAULTS));
     const bigNote = runContextNote('<task_brief id="tb_r2" status="active">ORIGINAL REQUEST: ' + 'b'.repeat(20000) + '</task_brief>\n\n[RUNTIME]\nRun id: r2');
     const messages = [
       { role: 'system', content: 'You are an auditor agent. ' + 's'.repeat(56000) },
-      { role: 'user', content: 'Directive: audit the config files.' },
+      { role: 'user', content: 'Go: audit the config files.' },
       { role: 'system', content: bigNote },
-      { role: 'user', content: 'Go.' }
+      { role: 'assistant', content: 'Starting.' }
     ];
     A.eq(ctx.planCompaction(messages.slice(2)).older.map(m => m.content), [bigNote], 'setup: the plan would fold the note and nothing else');
     const requests = [], slices = [], compacts = [];

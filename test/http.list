@@ -7,6 +7,7 @@ test/memory-truth.http.test.js
 test/seam-audit-recovery.http.test.js
 test/customer-journey.e2e.test.js
 test/group-sessions.http.test.js
+test/group-earlier-note.http.test.js
 test/tool-model-fallback.e2e.test.js
 test/sidecar.http.test.js
 test/channels.replay.e2e.test.js
@@ -227,6 +228,8 @@ test/emergency-recovery.http.test.js
 test/growth-rating-upgrade.e2e.test.js
 test/feedbackmemory.http.test.js
 test/earlier-conversation.http.test.js
+test/fold-reuse.http.test.js
+test/fold-memory-provenance.http.test.js
 test/tasteref.http.test.js
 test/verdictpackets.http.test.js
 test/managed-image.e2e.test.js

@@ -7,6 +7,7 @@ test/group-sessions.test.js
 test/group-message-attachments.test.js
 test/bay-name-legibility.test.js
 test/group-sessions.edge.test.js
+test/group-earlier-note.test.js
 test/group-chat-picker.test.js
 test/group-sessions.repair.test.js
 test/group-sessions.memory.test.js
@@ -529,6 +530,7 @@ test/runstore.identity.test.js
 test/turn-merge.family.test.js
 test/turnmerge.test.js
 test/turnmerge.review.test.js
+test/turnmerge.trimmed-marker.test.js
 test/turn-dual.test.js
 test/save-merge.identity.test.js
 test/turnmerge.phone.test.js
@@ -551,6 +553,7 @@ test/turn-retract.disk.test.js
 test/turn-retract.review.test.js
 test/turn-retract.phone-refusal.test.js
 test/historyfit.gate.test.js
+test/context-budget.authority.test.js
 test/turn-dual.soak.test.js
 test/turn-soak.qa.test.js
 test/turn-window.test.js
@@ -1515,6 +1518,7 @@ test/errorclass.overflow-phrasings.test.js
 test/call-too-expensive.test.js
 test/loop.prestream-outage-ladder.test.js
 test/loop.overflow.anthropic.test.js
+test/overflow-named-cause.test.js
 test/loop.output-cap.test.js
 test/shell.timeout-telemetry.test.js
 test/registry.cancel-races-deaf-tool.test.js
@@ -1561,6 +1565,8 @@ test/preflight.first-call-fold.test.js
 test/threshold.anchored.test.js
 test/tail.token-budget.test.js
 test/fold.user-verbatim.test.js
+test/fold-head-pin.test.js
+test/summary-reuse.test.js
 test/earlier-conversation.test.js
 test/compaction.images.test.js
 test/skills.on-demand.test.js

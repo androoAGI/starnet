@@ -11,6 +11,7 @@ const A = require('./_assert.js');
 const { runAgentLoop } = require('../sidecar/loop.js');
 const { makeContext, RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
 const { makeCostEngine } = require('../sidecar/cost.js');
+const { projectRoles } = require('../sidecar/providers/provider.js');
 
 const WINDOW = 200000;
 function seeded() {
@@ -55,7 +56,20 @@ function seeded() {
     A.ok(sent[0].est < 0.65 * WINDOW, 'the first request is under the compaction threshold (' + sent[0].est + ' est. tokens vs ' + (0.65 * WINDOW) + ')');
     A.ok(sent[0].messages.some(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content))), 'the first request carries the summary note');
     A.eq(sent[0].messages[sent[0].messages.length - 1].content, 'new question: what did turn 118 say?', 'the newest user question is sent verbatim, last');
-    A.eq(sent[0].messages[1].content.slice(0, 7), 'turn 0 ', 'the pinned first message stays at the head');
+    // the chat's FIRST message is turn 1 of a 120-turn conversation, not this run's task: it is no longer pinned at the head
+    // (only the run's request, or a user turn light enough to carry whole that a cut splits, is pinned there) — it folded, and
+    // its words ride the note once. Every turn of THIS chat is a 10k-character paste, none light enough to pin (loop.js
+    // openOnUser: a pin the fold cannot remove must not outweigh what the verbatim section would carry), so the loop's prompt
+    // opens on the note and the tail's first reply and the WIRE opens the request on a user turn (providers/provider.js
+    // boundaryTurns) on both role policies
+    const head = sent[0].messages.find(m => m.role !== 'system');
+    for (const policy of ['chat', 'native']) {
+      const first = projectRoles(sent[0].messages, policy).find(m => m.role !== 'system');
+      A.eq(first && first.role, 'user', 'the request the wire builds still opens on a user turn (' + policy + ' roles)');
+    }
+    A.ok(String(head.content).indexOf('turn 0 ') !== 0, 'the stale first message is not pinned at the head');
+    const folded = sent[0].messages.find(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content)));
+    A.eq(String(folded.content).split('turn 0 ').length - 1, 1, 'its words ride the summary note\'s verbatim user section exactly once');
   }
 
   // ---- 2. a history UNDER the threshold is sent untouched (the preflight never folds without need) ----

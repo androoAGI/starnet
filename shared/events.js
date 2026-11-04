@@ -146,8 +146,13 @@
     }),
     'run.cancel': obj(['runId'], { runId: str }),
     // context was compacted mid-run (ref-style cache-aware compaction): tokens before/after + items removed.
+    // ADDITIVE (optional, 2026-11-04, context-budget-and-fold): how much of the stream's history the new prompt stands on that
+    // was SUMMARIZED BEFORE and how much this fold summarized. Both count canonical transcript rows. reused = rows a kept
+    // (stored) summary served; new = rows this fold's paid summarizer call covered. reason 'reused' is a run-start event, not
+    // a fold: a stored summary replaced the part of the chat it covers, with no summarizer call (reused > 0, new = 0).
+    // Old payloads stay valid; no listener has to read them.
     'agent.compact': obj(['agentId', 'runId'], {
-      agentId: str, runId: str, beforeTokens: int, afterTokens: int, removed: int, reason: str
+      agentId: str, runId: str, beforeTokens: int, afterTokens: int, removed: int, reason: str, reused: int, new: int
     }),
 
     // ---- memory / context (Cortex) ----

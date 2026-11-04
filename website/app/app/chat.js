@@ -2302,13 +2302,18 @@ const Chat = (() => {
   // on every run — memory + payload both climbing forever on a 24/7 station. Cap the STORED history and send only a
   // capped window. Chosen to preserve behavior for any normal session:
   //   • The sidecar (index.js) only auto-seeds from the durable transcript when the client sends ≤1 non-system
-  //     message, and its own resume horizon is transcriptStore.reconstruct(streamId,{limit:100}) — the server
-  //     already treats ~100 turns as the memory horizon.
+  //     message, and that seed is transcriptStore.view('model-replay', streamId, { limit: 100 }) — 100 transcript
+  //     ROWS (a user message, a reply and a tool row each count as one), not 100 turns.
+  //   • The page keeps 120 ROWS (HistoryFit.HISTORY_CAP: user and assistant rows alike), more than that seed reads.
+  //     What a long chat's window leaves out is not gone: the earlier-conversation note (index.js,
+  //     sidecar/earlier-conversation.js) rebuilds it free from the durable transcript on every run — the Commander's
+  //     dropped messages verbatim, the replies as heads — and, once a fold has summarized that range, the persisted
+  //     summary (sidecar/summary-ledger.js) carries it too.
   //   • Within a run, loop.js token-auto-compacts the working array, so older turns beyond the model's context are
   //     summarized away server-side regardless of how many the client sends.
-  // So capping at 120 kept turns (> the server's 100 resume horizon) is byte-identical for normal sessions and only
-  // bites pathologically long ones — exactly where the server would have compacted anyway. A single truncation
-  // marker object (role:'system', truncated:true) records the drop honestly for readers of the array.
+  // So the cap is byte-identical for normal sessions and only bites pathologically long ones — exactly where the
+  // server would have compacted anyway. A single truncation marker object (role:'system', truncated:true) records the
+  // drop honestly for readers of the array; TurnMerge.legacyWithIdentity keeps it across a reload.
   const HISTORY_CAP = HistoryFit.HISTORY_CAP;
   // `/api/run` accepts a 2 MiB JSON body. Reserve half for the system prompt, capability metadata, project
   // context, and JSON envelope; the dialogue gets one UTF-8-measured MiB. This keeps repeated 100K pastes from
@@ -2338,6 +2343,10 @@ const Chat = (() => {
     try {
       if (Harness.getModel) model.selected = Harness.getModel() || '';
       if (Harness.contextLimitOf) model.limit = Harness.contextLimitOf(model.selected);
+      // the line the server folds on: compactAt of the window a RUN works in, both from the sidecar's model row (the run window
+      // falls back to the model's own; an older sidecar publishes no compactAt, which keeps the former fit - historyfit.js)
+      model.runWindow = (Harness.runWindowOf && Harness.runWindowOf(model.selected)) || model.limit;
+      if (Harness.compactAtOf) model.compactAt = Harness.compactAtOf(model.selected);
     } catch (_) {}
     if (!model.limit) return model;
     try {

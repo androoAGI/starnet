@@ -11,11 +11,15 @@
      · claude-haiku-5-5 (bills 5x above a 100K prompt): the run works in 100K, folds at 65K, so the 80k prompt is
        folded (a summarizer request reaches the wire, agent.compact fires) before the next call;
      · claude-test (no documented tier): the run keeps the real 1M window (fold at 650k), so nothing folds.
+   ONE BUDGET AUTHORITY (context-budget-and-fold): the same sidecar's real GET /api/models/anthropic rows publish the pair the
+   page fits a chat to, runWindow and compactAt (the share RUN_CONTEXT_DEFAULTS folds with), and that pair is the line the runs
+   above really folded at: the 80k prompt is past floor(runWindow x compactAt) for the Haiku row and under it for the other.
    No external network and no provider spend. Part of test:http because it owns child processes and sockets. */
 'use strict';
 const A = require('./_assert.js');
 const http = require('http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
 
 const HOST = '127.0.0.1';
 const KEY = 'anthropic-price-tier-e2e';
@@ -89,7 +93,9 @@ async function eventsOf(response) {
   const sidecar = SidecarFixture.create({
     prefix: 'starnet-price-tier-',
     env: {
-      OPENROUTER_KEY: '', OPENROUTER_API_KEY: '', ANTHROPIC_API_KEY: '',
+      // the station holds the loopback credential too, so its own /api/models route can list the wire's catalog (the runs below
+      // still send the same key and endpoint in their bodies)
+      OPENROUTER_KEY: '', OPENROUTER_API_KEY: '', ANTHROPIC_API_KEY: KEY, ANTHROPIC_BASE_URL: provider.baseUrl,
       SKYNET_BUDGET_PER_RUN: '10', SKYNET_BUDGET_PER_AGENT: '0', SKYNET_BUDGET_PER_DAY: '0', SKYNET_BUDGET_GLOBAL: '0',
       SKYNET_EDGE_TTS: '0', STARNET_EDGE_TTS: '0'
     }
@@ -122,6 +128,22 @@ async function eventsOf(response) {
     A.ok(linear.events.some(e => e.name === 'agent.run.end' && e.payload && e.payload.reason === 'done'), 'no-tier model: the run completed');
     A.eq(linear.events.filter(e => e.name === 'agent.compact').length, 0, 'no-tier model: the same 80k prompt is not folded (the real 1M window is kept)');
     A.eq(linear.wire.filter(c => c.isSummary).length, 0, 'no-tier model: no summarizer request');
+
+    // the rows the page fits to: the REAL route, the REAL handler, the same station that just ran both
+    const listed = await api('GET', '/api/models/anthropic');
+    A.eq(listed.status, 200, '/api/models/anthropic answers');
+    const rows = ((await listed.json()).models) || [];
+    const rowOf = id => rows.find(m => m && m.id === id);
+    const haikuRow = rowOf('claude-haiku-5-5'), linearRow = rowOf('claude-test');
+    A.ok(haikuRow && linearRow, 'the loopback catalog lists both models: ' + JSON.stringify(rows.map(m => m.id)));
+    const line = row => Math.floor(row.runWindow * row.compactAt);
+    A.eq([haikuRow.context_length, haikuRow.runWindow, haikuRow.compactAt], [1000000, 100000, RUN_CONTEXT_DEFAULTS.compactAt],
+      'Haiku 5.5: the row publishes its 100K tier window and the share the context manager folds with');
+    A.eq([linearRow.context_length, linearRow.runWindow, linearRow.compactAt], [1000000, 1000000, RUN_CONTEXT_DEFAULTS.compactAt],
+      'no-tier model: the row publishes the whole window and the same share');
+    // the 80k prompt both runs reported: past the published line for Haiku (and the run folded), under it for the other (and it did not)
+    A.ok(80000 > line(haikuRow) && haiku.events.some(e => e.name === 'agent.compact'), 'Haiku 5.5: the published line ' + line(haikuRow) + ' is where the run folded an 80k prompt');
+    A.ok(80000 <= line(linearRow) && linear.events.filter(e => e.name === 'agent.compact').length === 0, 'no-tier model: the published line ' + line(linearRow) + ' is where the run kept an 80k prompt whole');
   } finally {
     await sidecar.dispose();
     await new Promise(resolve => provider.server.close(resolve));

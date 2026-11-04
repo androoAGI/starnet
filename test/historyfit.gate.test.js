@@ -2,6 +2,7 @@
 const A = require('./_assert.js'), fs = require('node:fs'), vm = require('node:vm');
 const Fit = require('../frontend/app/historyfit.js'), Merge = require('../frontend/app/turnmerge.js'), Gauge = require('../frontend/app/ctxgauge.js');
 const frozen = require('./fixtures/historyfit-3d581b9dd.js');
+const { RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
 const chat = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
 const modelFns = ['windowModelOf', 'modelFitHistory'].map(name => A.fnBody(chat, 'function ' + name + '(')).join('\n');
 const asks = Array.from({ length: 145 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', content: (i % 7 ? 'same words ' : '日本語 🌟 ') + 'x'.repeat(i * 30), rowId: i + 1, streamId: 's' }));
@@ -19,6 +20,20 @@ for (const mode of ['legacy', 'id']) for (const config of configs) for (const ro
   A.eq(context.fit(rows, ws), expected, mode + ': actual page delegation preserves the frozen fitted window');
   A.eq(inputs, before, mode + ': measured state receives the same preliminary fitted rows');
 }
+// A row that PUBLISHES where the server folds (context-budget-and-fold): the page fits to floor(runWindow x compactAt) less the measured
+// overhead, not to 85% of the model's window. The frozen cases above stay the contract for every row that does not publish it (an older
+// sidecar); the oracle here is the budget written out and fitted by the shared token fit, so it does not restate the code under test.
+for (const mode of ['legacy', 'id']) for (const win of [{ limit: 128000, run: 128000 }, { limit: 1048576, run: 200000 }, { limit: 32000, run: 32000 }, { limit: 8000, run: 0 }])
+  for (const rows of variants) for (const overhead of [null, 0, 13100]) {
+    const Harness = { getModel: () => 'selected', contextLimitOf: () => win.limit, runWindowOf: () => win.run, compactAtOf: () => RUN_CONTEXT_DEFAULTS.compactAt,
+      contextState: (_agent, _stream, fitted) => (overhead === null ? null : { model: 'selected', limit: win.limit, used: overhead + Fit.contextEstimateMessages(fitted), measured: true }) };
+    const context = vm.createContext({ HistoryFit: Fit, Harness, CtxGauge: Gauge, stationModes: { window: mode } });
+    vm.runInContext(modelFns + '\nthis.fit = modelFitHistory;', context);
+    const window = win.run || win.limit, line = Math.floor(window * RUN_CONTEXT_DEFAULTS.compactAt);
+    const budget = Math.max(1, line - (overhead === null ? Math.min(16000, Math.floor(window / 2)) : overhead));
+    A.eq(context.fit(rows, { id: 's', agentId: 'agent', history: rows }), Fit.fitHistoryTokens(Fit.windowRows(rows, { window: mode }), budget),
+      mode + ': actual page delegation fits a published row to the server fold line (window ' + window + ', overhead ' + overhead + ')');
+  }
 const identity = { v: 2, caps: { window: 'id', windowRequired: true } }, caps = Fit.capsOf(identity);
 const ws = { id: 's', history: [{ role: 'user', content: 'typed' }] };
 A.eq(caps, { v: 2, window: 'id', windowRequired: true }, 'caps shape is explicit');
@@ -37,6 +52,14 @@ const opts = { ids: { turnId: last.turnId }, model: { limit: 128000, selected: '
 const normal = Fit.sendPlan(rows, opts), skipped = Fit.sendPlan(rows, Object.assign({}, opts, { historyRead: { skipped: true } }));
 A.eq(normal.messages, rows, 'normal send keeps its full fitted window');
 A.eq(normal.post.windowTokens, 92800, 'request carries the same uncalibrated budget used by the fit');
+const published = { limit: 128000, runWindow: 128000, compactAt: RUN_CONTEXT_DEFAULTS.compactAt, selected: 'selected', window: 'id' };
+const folding = Fit.sendPlan(rows, Object.assign({}, opts, { model: published }));
+A.eq(folding.messages, rows, 'a row that publishes the fold share still keeps a short chat whole');
+A.eq(folding.post.windowTokens, Math.floor(128000 * RUN_CONTEXT_DEFAULTS.compactAt) - 16000, 'and the request carries the budget fitted to the server fold line');
+A.eq(Fit.sendPlan(rows, Object.assign({}, opts, { model: Object.assign({}, published, { limit: 1048576, runWindow: 200000 }) })).post.windowTokens,
+  Math.floor(200000 * RUN_CONTEXT_DEFAULTS.compactAt) - 16000, 'a price-tier row fits to the window its run works in, not the model window');
+A.eq(Fit.sendPlan(rows, Object.assign({}, opts, { model: Object.assign({}, opts.model, { runWindow: 50000 }) })).post.windowTokens, 92800,
+  'a runWindow with no compactAt (an older sidecar) changes nothing: the former budget');
 A.eq(skipped.messages, normal.messages, 'ID skip still posts the full compatibility window');
 A.eq(skipped.post.windowFrom, 'station', 'ID skip explicitly requires the station window');
 const degraded = Fit.sendPlan(rows, Object.assign({}, opts, { historyRead: { degraded: true } }));

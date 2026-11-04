@@ -929,13 +929,52 @@
     return /Commander (?:explicitly )?(?:declined|denied|cancelled)|user-control denied|user denied|Do NOT retry|approval denied/i.test(text);
   }
 
+  /* THE REBUILT PROMPT OPENS ON A USER TURN WHEN A LIGHT ONE IS AT HAND (context-budget-and-fold, 2026-11-04). The head pin
+     used to guarantee it (the pinned first message was a user turn), and the wire layers repair an assistant-first request
+     only with a synthetic "<host_turn>" user turn (provider.js boundaryTurns), which a fold should not need. With no stale pin a
+     fold that REMOVES messages rebuilds system prefix + summary note + tail, so when the tail's first non-system
+     message is an assistant turn (the cut fell between a question and its reply, or inside a long exchange's tool
+     pairs) one user turn is pinned at the head, the shape a single directive already has (system prefix + user turn +
+     note + tail; a second fold finds it again and re-picks):
+       - the run's own request when it sits inside the folded slice (a run already working in a long chat);
+       - otherwise the LAST user message of the slice: the question the tail's first reply answers. It is the chat's
+         first message only when the cut falls inside the first exchange.
+     `keep` names it; the slice that is folded no longer holds it, so its words are not carried twice.
+     A PIN IS A WEIGHT THE FOLD CANNOT REMOVE (review 11-04): it rides every post-fold prompt whole, and the old pin held
+     the chat's FIRST message only, so a big turn in the middle of a chat was always folded and its words went through the
+     clipped verbatim section. Pinned whatever its size, the question the cut falls behind decided how much a fold could
+     free: a 7k-token paste in an 8k window left the fold nothing to take and added a note on top (6848 -> 6909 tokens),
+     and a provider that refused the prompt could not be answered at all (every run ended context_overflow where the old
+     pin finished). So a turn is pinned only when it fits: `fits(m)` (maybeCompact's pinFits: a turn the verbatim section
+     would carry whole anyway, the run's request up to a quarter of the window). One that does not fit is FOLDED like any
+     older turn, its words ride the verbatim section clipped to its share, and the wire's own boundary turn
+     (providers/provider.js boundaryTurns) opens the request on a user turn.
+     THE CUT NEVER MOVES. Moving it back to a user message looks like the same guarantee for free and is not (probe
+     11-04): a cut inside an earlier exchange with several tool pairs, or after a giant paste, would pull that whole
+     exchange into the verbatim tail so the fold shrinks little, and when the chat's first message is the slice's only
+     user turn it empties the slice and nothing folds at all, where the old pin folded the tool pairs. A slice that
+     holds no user message has nothing to open on: the plan stands. A tail that already opens on a user turn (or has no
+     non-system message) is returned as it came. Pure; returns the SAME object when nothing changes. */
+  function openOnUser(plan, request, fits) {
+    if (!plan || !Array.isArray(plan.older) || !plan.older.length || !Array.isArray(plan.tail)) return plan;
+    const head = plan.tail.find(m => m && m.role !== 'system');
+    if (!head || head.role === 'user') return plan;
+    let keep = request && plan.older.indexOf(request) >= 0 ? request : null;
+    for (let k = plan.older.length - 1; !keep && k >= 0; k--) { const m = plan.older[k]; if (m && m.role === 'user' && !isScreenCapture(m)) keep = m; }
+    return keep && typeof fits === 'function' && fits(keep) ? { older: plan.older.filter(m => m !== keep), tail: plan.tail, keep } : plan;
+  }
+  const PIN_REQUEST_SHARE = 0.25;   // the most of the window the run's own request may weigh as a pin (openOnUser)
+
   async function runAgentLoop(o) {
     const messages = o.messages;
     // THIS RUN'S REQUEST (consistency audit 2026-10-11): the latest Commander message at start. In a long chat the
-    // pinned "first non-system message" is an old turn, not this task, so a long agentic run could fold the request
-    // itself into the verbatim section at a fair share like any chatter. A fold now carries it as the current task:
-    // whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`).
-    const runRequest = (() => { for (let i = (messages || []).length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'user') return m; } return null; })();
+    // first non-system message is an old turn, not this task (it used to be the one pinned, which is why a long agentic run
+    // could fold the request itself into the verbatim section at a fair share like any chatter). A fold carries the request
+    // as the current task: whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`), and maybeCompact
+    // pins it at the head when it is first (a single directive) or a tail would open on an assistant turn (openOnUser).
+    // A screen-capture turn the loop built from a tool's pixels is a user-role message but never anyone's request: a
+    // recovered computer-use run ends on one, and the pin must stay on the directive that started the work.
+    const runRequest = (() => { for (let i = (messages || []).length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'user' && !isScreenCapture(m)) return m; } return null; })();
     let provider = o.provider;
     const emit = o.emit;
     // COPIED, not aliased: a tool.search reveal APPENDS here, and the caller's array is built once per run and
@@ -1020,6 +1059,13 @@
       ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null))) } })
       : o.context;
     const summarize = o.summarize;
+    /* OPTIONAL: told about every PAID fold that committed (never the free micro tier, the deterministic fallback note or a
+       rejected summary: those are lossy by design and not a durable fact), after the working set is rebuilt and BEFORE
+       agent.compact goes out, so the host can make the summary durable before anything downstream may rely on the window
+       having shrunk. o.onFold({ note, older, kept, tail, tailHead, prevNote, summary }) may be async; it may answer
+       { reused, new } (rows served from a stored summary / rows this fold summarized), which ride agent.compact. A throw is
+       noted and the fold stands: the cost of an unkept summary is one more fold. Absent = no-op (every existing caller). */
+    const onFold = (typeof o.onFold === 'function') ? o.onFold : null;
     const microCompaction = o.microCompaction !== false;   // the free elision tier (STARNET_COMPACT_MICRO=0 turns it off at the host)
     // OPTIONAL: told the anchored prompt size and the fold line before each model call, after any fold. `trusted` is
     // false when a fold just ran or the size is only the local ruler while real counts are expected: a fold clears the
@@ -1791,25 +1837,34 @@
       }
       let i = 0;
       while (i < working.length && working[i].role === 'system') i++;   // leading system prefix kept verbatim
-      // THE DIRECTIVE IS PINNED: the first non-system message is the task itself. It used to sit inside the
-      // foldable slice, so after one fold the agent worked from a paraphrase of its own orders. Kept byte-identical.
-      if (i < working.length && working[i].role !== 'system') i++;
-      const prefix = working.slice(0, i);
+      /* THE RUN'S OWN REQUEST IS PINNED — NOT WHATEVER HAPPENS TO BE FIRST (context-budget-and-fold, 2026-11-04). The
+         first non-system message used to be pinned unconditionally: right for a single-directive agentic run, where it IS
+         the task (an agent that folded its own orders would work from a paraphrase of them), wrong for a long chat,
+         where it is turn 1 of the conversation — kept word for word at the head of every post-fold prompt while the
+         summarizer never saw it. It is pinned now only when it IS this run's request (runRequest, by identity), byte for
+         byte as before. Anything else folds like any older turn, and its words ride the verbatim user section once. */
+      const headPinned = i < working.length && working[i] === runRequest;
+      if (headPinned) i++;
+      let prefix = working.slice(0, i);
       // the tail budget is in REAL tokens: tell the planner how many real tokens one local-ruler token is worth right
       // now (anchored/provider count over the ruler), so an estimator blind spot cannot make the whole history "fit"
       const rulerNow = rulerTokens(messages);
       const realNow = (hint && hint.realBefore > 0) ? hint.realBefore : anchor;
-      const plan = context.planCompaction(working.slice(i), { scale: rulerNow > 0 ? Math.max(1, realNow / rulerNow) : 1 });
+      let plan = context.planCompaction(working.slice(i), { scale: rulerNow > 0 ? Math.max(1, realNow / rulerNow) : 1 });
       if (!plan.older.length) return false;                               // nothing safely foldable yet (no paid call)
       /* THE RUN CONTEXT IS PINNED (lean-prompt, 2026-10-12). The per-run <run_context> note (Task Brief, runtime identity,
          quests — index.js CACHE-STABLE PREFIX) sits with the run's newest user message, which a long run folds. It used to
          close the system prompt, which no fold touches, so no fold may take it now: it leaves the folded slice and rides
          right after the summary note. The micro tier removes no message, so there it simply stays where it is. */
       // The <crew_call> note is pinned the same way (review 2026-10-12): in the system prompt no fold ever took it either.
-      const ctxNote = isRunContextNote ? (plan.older.find(isRunContextNote) || null) : null;
-      const crewNote = isCrewCallNote ? (plan.older.find(isCrewCallNote) || null) : null;
-      const carriedCtx = [ctxNote, crewNote].filter(Boolean);
-      const foldOlder = carriedCtx.length ? plan.older.filter(m => carriedCtx.indexOf(m) < 0) : plan.older;
+      let carriedCtx, foldOlder;
+      const carryContext = () => {
+        const ctxNote = isRunContextNote ? (plan.older.find(isRunContextNote) || null) : null;
+        const crewNote = isCrewCallNote ? (plan.older.find(isCrewCallNote) || null) : null;
+        carriedCtx = [ctxNote, crewNote].filter(Boolean);
+        foldOlder = carriedCtx.length ? plan.older.filter(m => carriedCtx.indexOf(m) < 0) : plan.older;
+      };
+      carryContext();
       // the pin can leave NOTHING to fold (the plan's slice was the note alone): no paid summarizer call over an empty
       // slice, no agent.compact for a fold that removes nothing — the same answer as an empty plan above
       if (!foldOlder.length) return false;
@@ -1855,6 +1910,32 @@
             emit('agent.compact', { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'micro', elided: micro.elided });
             return true;
           }
+        }
+      }
+      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt should still open on a user turn, so a tail
+         that would open on an assistant turn gets one user turn pinned at the head (openOnUser; the cut stays the
+         planner's) when that turn is light enough to carry whole; a heavier one folds and the wire opens the request on
+         its own boundary turn. The micro tier above removes none, so it needed no such care. */
+      let keptTurn = null;   // the user turn pinned at the head instead of folded (onFold: a stored claim must stop before it)
+      if (!headPinned) {
+        /* WHAT A PINNED TURN MAY WEIGH (openOnUser): it rides every post-fold prompt, so by the same local ruler as the rest
+           of the fold a turn is pinned only when the verbatim section would have carried it whole anyway (the cap one carried
+           message gets, compaction-fidelity PER_MESSAGE_MAX_CHARS). The run's own request may weigh more, never less than
+           that: up to PIN_REQUEST_SHARE of the window. Anything heavier folds; an unreadable weight is no pin. */
+        const pinFits = (m) => {
+          try {
+            let cap = context.estimateMessages([{ role: 'user', content: 'x'.repeat(fidelity.PER_MESSAGE_MAX_CHARS) }]);
+            if (m === runRequest) { const w = windowTokens(); cap = w > 0 ? Math.max(cap, Math.floor(w * PIN_REQUEST_SHARE)) : Infinity; }
+            return context.estimateMessages([m]) <= cap;
+          } catch (e) { failNote('loop.compaction.pinFits', e); return false; }
+        };
+        const opened = openOnUser(plan, runRequest, pinFits);
+        if (opened !== plan) {
+          plan = { older: opened.older, tail: opened.tail };
+          keptTurn = opened.keep;
+          prefix = prefix.concat([opened.keep]);
+          carryContext();
+          if (!foldOlder.length) return false;                            // the pinned turn was all the slice held (no paid call)
         }
       }
       // ---- summarizer unavailable (breaker tripped): micro-elide + deterministic note, no LLM, never end the run ----
@@ -1942,6 +2023,15 @@
       if (r && typeof r === 'object') {   // chunked-fold telemetry (additive): how many summarizer calls, and whether the input was cut
         if (r.chunks > 0) compactEv.chunks = r.chunks;
         if (r.truncatedChars > 0) compactEv.truncatedChars = r.truncatedChars;
+      }
+      if (onFold) {
+        try {
+          const kept = await onFold({ note, summary, older: foldOlder, kept: keptTurn ? [keptTurn] : [], tail: plan.tail, tailHead: plan.tail.find(m => m && m.role !== 'system') || null, prevNote });
+          if (kept && typeof kept === 'object') {
+            if (Number.isSafeInteger(kept.reused) && kept.reused >= 0) compactEv.reused = kept.reused;
+            if (Number.isSafeInteger(kept.new) && kept.new >= 0) compactEv.new = kept.new;
+          }
+        } catch (e) { failNote('loop.compaction.onFold', e); }
       }
       emit('agent.compact', compactEv);
       // H5.2 anti-thrash: a fold that barely shrinks the prompt isn't worth another paid summarizer call. After two

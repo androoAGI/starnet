@@ -1,7 +1,8 @@
 /* sidecar/earlier-conversation.js — THE TURNS THE WINDOW DROPPED STILL COUNT (consistency audit 2026-10-11).
 
-   COMMS sends a bounded window of the conversation: the newest 120 messages, cut further to fit ~85% of the
-   model's window (frontend/app/chat.js historyWindowFrom / modelFitHistory). Everything older was simply left out
+   COMMS sends a bounded window of the conversation: the newest 120 messages, cut further to fit the line the server
+   folds a run at, compactAt of the run's window (frontend/app/historyfit.js fitModel; 85% of the model's window
+   from a sidecar that publishes no compactAt). Everything older was simply left out
    of the request — no summary, no marker — so an instruction the Commander gave on turn 3 of a long chat stopped
    existing for the model, and the server's compaction never saw it either (it only folds what it is sent). User
    report 10-11: "the longer I went back and forth the worse it got." The server still holds every turn in the
@@ -42,46 +43,69 @@ function keyOf(text, redact) {
   return squash(t).slice(0, KEY_CHARS);
 }
 
-/* Where does the client's window begin in the stream's transcript rows?
+/* Where does the client's window begin in the stream's transcript rows, and which row does each window message stand on?
    rows   — the stream's transcript rows, chronological ({ role, content, toolCalls?, ts, ... })
    window — the messages the client sent BEFORE the new directive (system messages ignored)
-   Returns the index of the first row the window does NOT cover from below (rows[0..cut) were dropped), 0 when
-   nothing was dropped, or -1 when the window cannot be placed (then the caller injects nothing). */
-function windowCut(rows, window, redact) {
+   align() -> { cut, index } where cut is the index of the first row the window does NOT cover from below (rows[0..cut)
+   were dropped), 0 when nothing was dropped, or -1 when the window cannot be placed (then the caller injects nothing), and
+   index[k] is the row index window[k] stands on, or -1 when nothing places it. THE ONE ALIGNMENT: windowCut below is its
+   cut, and the summary ledger (summary-cover.js) places every message with the same answer instead of a second matcher.
+   A window carrying durable ids (the seed, the station window) is placed by those ids alone; a client-kept window is
+   matched by its Commander messages (user rows only, newest first); an assistant message of a client-kept window stands on
+   no row of its own (one client reply can span several rows), so its index is -1. */
+function align(rows, window, redact) {
   const list = Array.isArray(rows) ? rows : [];
+  const win = Array.isArray(window) ? window : [];
+  const index = new Array(win.length).fill(-1);
   const ids = window && window[require('./turn-view.js').ROW_IDS];
   if (Array.isArray(ids)) {
     const valid = id => id && Number.isSafeInteger(id.rowId) && id.rowId > 0 && id.streamId;
     const at = window.findIndex(message => message && ['user', 'assistant', 'tool'].includes(message.role));
     const first = at >= 0 ? ids[at] : null;
     // A keyed window is placed only by its durable identity. A missing key is unknown, never a text match.
-    if (ids.some(valid)) return valid(first) ? list.findIndex(row => row && row.rowId === first.rowId && row.streamId === first.streamId) : -1;
+    if (ids.some(valid)) {
+      const cut = valid(first) ? list.findIndex(row => row && row.rowId === first.rowId && row.streamId === first.streamId) : -1;
+      if (cut >= 0) {
+        const where = new Map();
+        list.forEach((row, k) => { if (row) where.set(row.streamId + ':' + row.rowId, k); });
+        for (let k = 0; k < win.length; k++) { const id = ids[k]; if (valid(id) && where.has(id.streamId + ':' + id.rowId)) index[k] = where.get(id.streamId + ':' + id.rowId); }
+      }
+      return { cut, index };
+    }
   }
-  const msgs = (Array.isArray(window) ? window : []).filter(m => m && (m.role === 'user' || m.role === 'assistant'));
+  const msgs = win.filter(m => m && (m.role === 'user' || m.role === 'assistant'));
   const wantKeys = [];
   for (const m of msgs) {
     if (m.role !== 'user') continue;
     const k = keyOf(userText(m), redact);
     if (k) wantKeys.push(k);
   }
-  if (!wantKeys.length) return -1;
+  if (!wantKeys.length) return { cut: -1, index };
   // match the window's Commander messages newest-first against the rows, in order; every one must be found
   let w = wantKeys.length - 1, first = -1;
+  const rowOf = new Array(wantKeys.length).fill(-1);
   for (let i = list.length - 1; i >= 0 && w >= 0; i--) {
     const r = list[i];
     if (!r || r.role !== 'user') continue;
     // the page keeps the typed words: a row that stored a file's text beside them (typed) is placed by those words, not by the file
-    if (keyOf(TurnAttachment.wordsOf(r), null) === wantKeys[w]) { first = i; w--; }
+    if (keyOf(TurnAttachment.wordsOf(r), null) === wantKeys[w]) { first = i; rowOf[w] = i; w--; }
   }
-  if (w >= 0 || first < 0) return -1;
+  if (w >= 0 || first < 0) return { cut: -1, index };
+  // the window's user messages, in order, stand on the rows just matched
+  let j = 0;
+  for (let k = 0; k < win.length; k++) {
+    const m = win[k];
+    if (m && m.role === 'user' && keyOf(userText(m), redact)) index[k] = rowOf[j++];
+  }
   // a window that opens on an assistant reply carries the tail of the exchange before its first user message:
   // that exchange's question is the last thing dropped, its tool rows and reply are (in substance) in the window
   if (msgs.length && msgs[0].role === 'assistant') {
-    for (let i = first - 1; i >= 0; i--) if (list[i] && list[i].role === 'user') return i + 1;
-    return 0;
+    for (let i = first - 1; i >= 0; i--) if (list[i] && list[i].role === 'user') return { cut: i + 1, index };
+    return { cut: 0, index };
   }
-  return first;
+  return { cut: first, index };
 }
+function windowCut(rows, window, redact) { return align(rows, window, redact).cut; }
 
 function toolNames(row) {
   if (!row || !row.toolCalls) return [];
@@ -199,4 +223,4 @@ function taintOf(rows) {
   return null;
 }
 
-module.exports = { windowCut, render, taintOf, keyOf, userText, exchanges, _internals: { replyLine, toolNames, KEY_CHARS, REPLY_HEAD_CHARS } };
+module.exports = { windowCut, align, render, taintOf, keyOf, userText, exchanges, _internals: { replyLine, toolNames, KEY_CHARS, REPLY_HEAD_CHARS } };
