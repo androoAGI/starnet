@@ -145,6 +145,7 @@ function makeChannelOutbound(deps) {
       id: o.deliveryId || undefined, channel: t.channel, chatId: t.chatId, kind: o.kind || 'notice', reason: String(o.reason || ''),
       runId: String(o.runId || ''), agentId: o.agentId ? String(o.agentId) : '', route: route, parts: parts, release: o.release === 'caller' ? 'caller' : 'auto'
     };
+    if (Object.prototype.hasOwnProperty.call(o, 'historyDestination')) rec.historyDestination = o.historyDestination;
     let placed;
     try { placed = ledger.enqueue(rec); }
     catch (e) { failNote('channels.outbound.enqueue', e); report(t, o, false, 0); return { ok: false, error: (e && e.message) || 'could not be queued', parts: cut.send.length, sent: 0 }; }

@@ -1138,6 +1138,9 @@ test/channels.history-ownership.test.js
 test/channels.history-preparation.test.js
 test/channels.history-publication.test.js
 test/channels.history-publication.binding.test.js
+test/routine-history.publication.test.js
+test/cron-history.release.test.js
+test/cron-history.primary.test.js
 test/channels.edit-admission.test.js
 test/delivery-ledger.test.js
 test/channels.ledger-migration.test.js

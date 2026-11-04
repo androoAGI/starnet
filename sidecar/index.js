@@ -7059,6 +7059,7 @@ function disabledCapsSet() {
    unconditionally (cheap, no I/O), but it only ever runs when the boot block below arms the timer behind the
    SKYNET_CRON_ENABLED gate — so with cron off this is dead weight, never a behavior change. ---- */
 const CRON_FILE = path.join(WORKSPACES, 'cron.jobs.json');
+const cronPersistence = require('./persist/index.js');
 /* DEGRADED STORE (EMPTY-STORE FAIL-LOUD): when cron.jobs.json AND its .bak are BOTH unreadable the old path
    loaded an empty list behind a console warn, and the next write persisted the wipe as if it were truth. Now
    the corrupt main is quarantined (as before) AND the sidecar remembers it is DEGRADED: { quarantinePath, since }.
@@ -7073,9 +7074,31 @@ let cronJobs = [];
 // persist re-applies the repair on every load; it is logged once per routine, not once per load).
 let cronToolsetsRepairedOnLoad = 0;
 const cronToolsetsRepairNoted = new Set();
-function loadCronJobs() {
+function holdCronPublication(error) {
+  if (error && error.code === 'CRON_PUBLICATION_UNPROVEN') {
+    cronDegraded = { ...(cronDegraded || {}), publicationReadOnly: true, quarantinePath: null,
+      since: (cronDegraded && cronDegraded.since) || new Date().toISOString(), reason: error.message };
+  }
+  return error;
+}
+function inspectCronPublicationPrimary() {
+  const primary = cronPersistence.readOne(fs, CRON_FILE);
   try {
-    const r = readJsonResilient({ fs: fs }, CRON_FILE);
+    if (primary.kind === 'ok') cronStore.assertPublicationEnvelope(primary.value);
+    else if (primary.kind !== 'unreadable') {
+      const backup = cronPersistence.readOne(fs, CRON_FILE + '.bak');
+      if (backup.kind === 'ok') cronStore.assertPublicationEnvelope(backup.value);
+    }
+  } catch (error) { throw holdCronPublication(error); }
+  return primary;
+}
+function loadCronJobs() {
+  if (cronDegraded && cronDegraded.publicationReadOnly) return cronJobs;
+  try {
+    // Unknown publication metadata is inspected before the ordinary recovery policy can
+    // reinterpret a backup, quarantine bytes, or turn a filtered record into an empty store.
+    const primary = inspectCronPublicationPrimary();
+    const r = primary.kind === 'ok' ? { status: 'ok', value: primary.value } : readJsonResilient({ fs: fs }, CRON_FILE);
     if (r.status === 'recovered') console.warn('[cron] recovered ' + CRON_FILE + ' from .bak last-known-good after a torn/corrupt main.');
     else if (r.status === 'corrupt') {
       const problemFile = r.problemFile || CRON_FILE;
@@ -7109,6 +7132,7 @@ function loadCronJobs() {
     repaired.jobs = wires.jobs;
     return repaired.jobs;
   } catch (e) {
+    holdCronPublication(e);
     console.warn('[cron] load failed:', (e && e.message) || e);
     return Array.isArray(cronJobs) ? cronJobs : [];
   }
@@ -7184,6 +7208,8 @@ if (cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad) {
 })();
 let _cronWriteOverride = false;   // set ONLY inside clearCronDegraded() for the one acknowledged empty write
 function saveCronJobs() {   // throws on failure (the CRUD routes let it surface); the driver's setJobs catches+logs
+  if (cronDegraded && cronDegraded.publicationReadOnly) throw cronStore.publicationError('The routine store is read-only until its saved publication metadata is confirmed');
+  const prior = inspectCronPublicationPrimary();
   // G4.2: crash-SAFE persistence. The advance-before-run window (cron-driver persists the ADVANCED nextRunAt
   // BEFORE launching a fire) is the one place a lost/zero-length write would DOUBLE-FIRE a routine on restart,
   // so we don't just rename — we fsync the temp file's bytes to stable storage BEFORE the rename (per-pid+random
@@ -7202,9 +7228,21 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
     throw new Error('cron store is degraded (quarantined ' + (cronDegraded.quarantinePath || 'unknown') + '); refusing to persist an empty routine list — restore the file or POST /api/cron/degraded/clear to accept the loss');
   }
   const proofText = JSON.stringify(intended);
+  try { cronStore.assertPublicationEnvelope(intended); } catch (error) { throw holdCronPublication(error); }
+  const primaryProof = cronStore.hasPublicationMetadata(intended) || (prior.kind === 'ok' && cronStore.hasPublicationMetadata(prior.value));
   const saved = saveJsonVerified({
-    save: () => saveResilient(CRON_FILE, intended),
-    load: () => loadResilient(CRON_FILE, 'cron'),
+    save: () => {
+      if (cronDegraded && cronDegraded.publicationReadOnly) throw cronStore.publicationError('The routine publication store remains read-only');
+      inspectCronPublicationPrimary();
+      saveResilient(CRON_FILE, intended);
+    },
+    load: () => {
+      if (!primaryProof) return loadResilient(CRON_FILE, 'cron');
+      const current = cronPersistence.readOne(fs, CRON_FILE);
+      if (current.kind !== 'ok') throw new Error('The routine publication primary could not be read back');
+      try { cronStore.assertPublicationEnvelope(current.value); } catch (error) { throw holdCronPublication(error); }
+      return current.value;
+    },
     proof: got => JSON.stringify(got) === proofText
   });
   if (!saved.ok) throw new Error('cron durable read-back failed after ' + saved.attempts + ' attempt(s): ' + saved.error);
@@ -7329,10 +7367,13 @@ const CRON_WRITE_RETRY_MS = 3;
 async function withCronWrite(mutate) {
   const run = () => {
     const prior = cronJobs;
-    cronJobs = pairCronJobWires(mutate(loadCronJobs())).jobs;   // a write never stores a provider without a model (pairCronJobWires)
+    const loaded = loadCronJobs();
+    if (cronDegraded && cronDegraded.publicationReadOnly) throw cronStore.publicationError('The saved routine publication metadata is read-only');
+    cronJobs = pairCronJobWires(mutate(loaded)).jobs;   // a write never stores a provider without a model (pairCronJobWires)
     try { saveCronJobs(); }
     catch (e) {
-      try { cronJobs = loadCronJobs(); } catch (_) { cronJobs = prior; }
+      if (cronDegraded && cronDegraded.publicationReadOnly) cronJobs = prior;
+      else { try { cronJobs = loadCronJobs(); } catch (_) { cronJobs = prior; } }
       throw e;
     }
   };   // re-read -> apply -> verified persist; a failed receipt never leaves a RAM-only mutation
@@ -7576,6 +7617,11 @@ function cronContextFor(job, jobs) {
    runs, because it is built further down. */
 const routineDelivery = makeRoutineDelivery({
   channelStore: channelStore, channelOutbound: channelOutbound, channelReach: channelReach, channelRegistry: { get: (id) => channelRegistry.get(id) },
+  history: channelHistory, historyContext: (channel, chatId) => {
+    const live = liveChannelFor(channel);
+    return live && live.hub && typeof live.hub.historyContext === 'function'
+      ? live.hub.historyContext(chatId) : disconnectedChannelHistory(channel, chatId);
+  },
   redact: redact, runStore: runStore, egressReader: egressReader, transcriptStore: transcriptStore, stationBridge: stationBridge, now: () => Date.now()
 });
 const { deliverCronResult, cronPreflightConfig, cronDeliveryNote } = routineDelivery;
@@ -7593,6 +7639,7 @@ const cronDriver = makeCronDriver({
     // before the fire launches (crash-restart double-fire guard). The in-tick call is a re-entrant nested acquire
     // that succeeds on the first attempt (no spin). A DIRECT call (finishFire settling after the tick released the
     // lock) may find a live peer; take ONE attempt and retain the receipt on miss.
+    const prior = cronJobs;
     try {
       const r = cronLock.withLock(() => { cronJobs = jobs; saveCronJobs(); });
       if (r.ran) return true;
@@ -7603,7 +7650,8 @@ const cronDriver = makeCronDriver({
       // receipt (the driver fires NOTHING over an unpersisted advance — the crash-restart double-fire
       // window) and ROLL the in-memory mirror back to the disk state so the jobs stay DUE and are
       // retried next tick instead of living as a RAM-only advance that a restart would forget.
-      try { cronJobs = loadCronJobs(); } catch (_) { /* disk unreadable too — keep the RAM mirror */ }
+      if (cronDegraded && cronDegraded.publicationReadOnly) cronJobs = prior;
+      else { try { cronJobs = loadCronJobs(); } catch (_) { /* disk unreadable too — keep the RAM mirror */ } }
       return false;
     }
   },
@@ -7714,7 +7762,7 @@ const cronDriver = makeCronDriver({
 // A crash can land after markRun durably commits the result/cost/route receipt but before the destination send.
 // Reconcile those pending receipts at boot with the original run id; delivery remains idempotent at local sinks
 // and external transports receive the stable id for their durable outbox/audit trail.
-Promise.resolve(cronDriver.recoverFinalizations()).catch(e => console.warn('[cron] finalization recovery failed:', (e && e.message) || e));
+Promise.resolve().then(() => { if (!cronDegraded) return cronDriver.recoverFinalizations(); }).catch(e => console.warn('[cron] finalization recovery failed:', (e && e.message) || e));
 let cronTimer = null;
 // TICKER HEALTH (2026-07-15 reliability audit): "armed" only proves a timer EXISTS — not that ticks are
 // completing. Track every tick attempt so GET /api/cron can report scheduler health honestly (truthful
@@ -7730,7 +7778,8 @@ function cronTickHealthy() {
   if (cronDegraded) {
     // a degraded store must not tick: the list in RAM is a phantom of what was on disk, and a reconcile over
     // it would fire/advance/settle against state that no longer exists. Honest health: an error, not idle.
-    cronHealth.lastTickError = 'cron store degraded — routines frozen (quarantined ' + (cronDegraded.quarantinePath || 'unknown') + ')';
+    cronHealth.lastTickError = cronDegraded.publicationReadOnly ? 'The saved routine publication metadata is unconfirmed; routines are paused'
+      : 'cron store degraded — routines frozen (quarantined ' + (cronDegraded.quarantinePath || 'unknown') + ')';
     return { ran: false, degraded: true };
   }
   try {
@@ -16986,7 +17035,8 @@ function cronStateSnapshot(now) {
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
   return { jobs: jobs, enabled: cronArmed, halted: cronHalted, scheduler, armSet: !!cronArmSet, tickMs: CRON_TICK_MS, health: health,
-    degraded: cronDegraded ? { quarantinePath: cronDegraded.quarantinePath, since: cronDegraded.since } : null,
+    degraded: cronDegraded ? { quarantinePath: cronDegraded.quarantinePath, since: cronDegraded.since,
+      ...(cronDegraded.publicationReadOnly ? { readOnly: true, reason: cronDegraded.reason } : {}) } : null,
     maxConsecutiveFailures: CRON_MAX_CONSECUTIVE_FAILURES,
     // the delivery backlog ceiling the driver defers new runs at (cron-store) — the panel quotes it, never a copy
     maxPendingDeliveries: cronStore.MAX_PENDING_DELIVERIES };
@@ -17237,6 +17287,23 @@ function handleCronDegradedClear(req, res) {
     if (body.confirm !== true) return json(400, { error: 'confirm:true is required to accept the loss of the quarantined routine store' });
     if (!cronDegraded) return json(200, { ok: true, degraded: null });
     const was = cronDegraded;
+    if (was.publicationReadOnly) {
+      try {
+        const checked = cronLock.withLock(() => {
+          const primary = cronPersistence.readOne(fs, CRON_FILE);
+          if (primary.kind !== 'ok') throw cronStore.publicationError('The saved routine primary is still unavailable');
+          const validated = cronStore.loadEnvelope(primary.value);
+          if (!primary.value || !Array.isArray(primary.value.jobs) || validated.jobs.length !== primary.value.jobs.length) {
+            throw cronStore.publicationError('The saved routine primary cannot be restored without dropping records');
+          }
+          cronJobs = validated.jobs;
+        });
+        if (!checked.ran) return json(409, { error: 'The routine store is busy; retry the confirmation' });
+      } catch (error) { holdCronPublication(error); return json(409, { error: (error && error.message) || 'The saved routine publication is still unavailable' }); }
+      cronDegraded = null;
+      cronHealth.lastTickError = null;
+      return json(200, { ok: true, degraded: null, restored: true });
+    }
     try {
       _cronWriteOverride = true;
       try { await withCronWrite(jobs => jobs); } finally { _cronWriteOverride = false; }

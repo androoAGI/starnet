@@ -126,7 +126,10 @@ A.eq(api.routineWireRow(jobs[4]), null, 'a script-only routine shows no pair: it
   const load = sidecarTopLevelFunction('loadCronJobs');
   A.ok(/const wires = pairCronJobWires\(repaired\.jobs\);[\s\S]{0,120}repaired\.jobs = wires\.jobs;\s*return repaired\.jobs;/.test(load), 'every cron.jobs.json load normalises the routines (boot and each withCronWrite re-read)');
   const write = sidecarTopLevelFunction('withCronWrite');
-  A.ok(/cronJobs = pairCronJobWires\(mutate\(loadCronJobs\(\)\)\)\.jobs;/.test(write), 'every write normalises before it persists');
+  const loadedAt = write.indexOf('const loaded = loadCronJobs();');
+  const pairedAt = write.indexOf('cronJobs = pairCronJobWires(mutate(loaded)).jobs;');
+  A.ok(loadedAt >= 0 && pairedAt > loadedAt && write.indexOf('saveCronJobs();') > pairedAt,
+    'every write normalises its freshly loaded/mutated jobs before it persists');
   A.ok(/if \(cronWiresPairedOnLoad && !cronToolsetsRepairedOnLoad\) \{\s*try \{ saveCronJobs\(\);/.test(all), 'the boot load persists the clearing once');
   const snap = sidecarTopLevelFunction('cronStateSnapshot');
   A.ok(/\{ wire: routineWireRow\(j\)(?:,| \})/.test(snap), 'GET /api/cron shows each routine\'s resolved wire alongside additive scheduler fields');

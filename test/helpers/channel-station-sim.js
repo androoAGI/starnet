@@ -631,6 +631,10 @@ function makeWorld(seed, opts) {
     const none = async () => ({ ok: false, notFound: true, error: 'not found' });
     const rd = RoutineDelivery.makeRoutineDelivery({
       channelStore: store, channelOutbound: outbound, channelReach: channelReach, channelRegistry: registry, scrubOutbound: scrub, redact: (t) => t,
+      history: historyForStore(store), historyContext: (channel, chatId) => {
+        const live = liveFor(channel);
+        return live && live.hub && typeof live.hub.historyContext === 'function' ? live.hub.historyContext(chatId) : null;
+      },
       runStore: { list: () => [] }, egressReader: { fireReader: () => none, shownName: (paths, x) => String(x), pathsFor: () => ({}) }, readChannelUpload: none,
       transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) },
       now: () => w.now, setTimeout: vSetTimeout
