@@ -323,9 +323,31 @@
     return { nested: '', opaque: false };
   }
 
+  /* cmd READS ITS OWN SWITCHES (read off the real cmd.exe on Windows 11, harmless echo bodies). From the text after its name it takes
+     the first "/" followed by c, k or r in any case, through quotes, through junk before it, and with a caret in it written as the
+     shell that started it removes it; everything after that letter is the command. So the switch is not a token of its own: /d/c,
+     /q/s/c, /e:on/c and /t:07/c fuse it with other switches, /cecho and /c"echo" with what follows it, and /r is /c under another
+     name. A switch built by expansion (%VAR%, !VAR!) ahead of the first one cannot be placed; that is refused, never read as
+     absent. With no switch at all cmd runs nothing of the line's, and there is nothing nested. */
+  function cmdWrapperBody(segment, tokens, outerDialect) {
+    const tail = String(segment).slice(tokens[0].end);
+    let seen = '', at = [], quoted = false;
+    for (let i = 0; i < tail.length; i++) {
+      const ch = tail[i];
+      if (ch === '"') quoted = !quoted;
+      if (ch === '^' && !quoted && outerDialect === 'cmd' && i + 1 < tail.length) { i++; seen += tail[i]; at.push(i); continue; }
+      seen += ch; at.push(i);
+    }
+    const found = /\/[ckr]/i.exec(seen);
+    if (/[%!]/.test(found ? seen.slice(0, found.index) : seen)) return { nested: '', opaqueBody: true };
+    if (!found) return { nested: '' };
+    const invocation = wrapperCommandArg(tail.slice(at[found.index + 1] + 1), outerDialect, 'cmd');
+    return { nested: invocation.nested, opaqueWrapper: invocation.opaqueWrapper };
+  }
+
   function analyzeCommands(cmd, depth, dialect) {
     dialect = normalizeDialect(dialect);
-    const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false };
+    const result = { heads: [], opaquePowerShell: false, opaqueWrapper: false, opaqueBody: false };
     if ((depth || 0) > 8) return result;
     for (const part of splitCommandSegments(cmd, dialect)) {
       const segment = part.text.replace(dialect === 'cmd' ? /^(?:@\s*)+/ : /$^/, '');
@@ -336,13 +358,10 @@
       const verb = exeName(tokens[0].value);
       let nested = '', nestedDialect = dialect;
       if (verb === 'cmd' || verb === 'cmd.exe') {
-        const i = tokens.findIndex((t, n) => n > 0 && /^\/[ck]$/i.test(t.value));
-        if (i >= 0) {
-          nestedDialect = 'cmd';
-          const invocation = wrapperCommandArg(afterToken(segment, tokens[i]), dialect, nestedDialect);
-          nested = invocation.nested;
-          if (invocation.opaqueWrapper) result.opaqueWrapper = true;
-        }
+        const invocation = cmdWrapperBody(segment, tokens, dialect);
+        nestedDialect = 'cmd'; nested = invocation.nested;
+        if (invocation.opaqueWrapper) result.opaqueWrapper = true;
+        if (invocation.opaqueBody) result.opaqueBody = true;
       } else if (verb === 'call') {
         nestedDialect = 'cmd'; nested = afterToken(segment, tokens[0]);
       } else if (verb === 'start-process' || verb === 'saps') {
@@ -362,6 +381,7 @@
         result.heads.push.apply(result.heads, child.heads);
         if (child.opaquePowerShell) result.opaquePowerShell = true;
         if (child.opaqueWrapper) result.opaqueWrapper = true;
+        if (child.opaqueBody) result.opaqueBody = true;
       }
     }
     return result;
@@ -770,7 +790,7 @@
     opts = opts || {};
     const c = String(cmd == null ? '' : cmd), dialect = opts.dialect;
     const analysis = analyzeCommands(c, 0, dialect);
-    if (analysis.opaqueWrapper) return UNPROVEN_PROGRAM_REFUSAL;
+    if (analysis.opaqueWrapper || analysis.opaqueBody) return UNPROVEN_PROGRAM_REFUSAL;
     const heads = analysis.heads;
     if (heads.some(h => BROWSER_NAMES.has(exeName((headTokens(h)[0] || {}).value)))) {
       return 'launches a browser outside StarNet\'s synthetic-input CDP sandbox — use browser.test_navigate/browser.test_input';
@@ -845,6 +865,7 @@
     const c = String(cmd == null ? '' : cmd);
     const analysis = analyzeCommands(c, 0, dialect);
     if (analysis.opaqueWrapper) return 'uses native shell-wrapper quoting StarNet could not confirm as command text; use one plainly quoted command string or a script file';
+    if (analysis.opaqueBody) return 'runs command text StarNet cannot read with certainty (a cmd switch built by expansion, or a body or target it cannot place), so what it starts cannot be inspected; write the command out plainly or use a script file';
     if (analysis.opaquePowerShell) return 'runs a base64-encoded PowerShell command, or one with an option StarNet does not recognize, so it cannot be inspected — write the script to a file and run it plainly';
     if (analysis.heads.some(h => {
       const first = (headTokens(h)[0] || {}).value || '';

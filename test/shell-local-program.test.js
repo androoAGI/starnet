@@ -249,6 +249,40 @@ A.eq(risk('git.exe show HEAD^'), null, 'a caret that escapes nothing is data');
 A.eq(risk('C:\\bin\\git.exe status'), null, 'a path spelling is fine when it is the program proven');
 A.ok(UNPROVEN.test(risk('powershell -ep Bypass -c "git.exe status"') || ''), 'the short -ep does not earn it either');
 
+// ---- cmd reads its own switches wherever they sit (GitHub #167/#163, review round 7) ----
+// Read off the real cmd.exe with harmless echo bodies: the tail is scanned for the first "/" followed by c, k or r (any case),
+// through quotes and carets, and everything after it is the command. So /c is not only a token of its own: it is fused with other
+// switches (/d/c, /q/s/c, /e:on/c, /t:07/c), with what follows it (/cpaint.exe, /c"paint.exe"), spelled /r, written with a caret
+// (/^c) or preceded by junk. Whatever follows is then judged like any other nested command; a switch the guard cannot place
+// (built by %VAR% expansion) is refused, never read as absent.
+const wrapFs = memFs({
+  'C:\\bin\\cmd.exe': CONSOLE, 'C:\\bin\\git.exe': CONSOLE, 'C:\\bin\\powershell.exe': CONSOLE, 'C:\\bin\\paint.exe': GUI, 'C:\\proj\\probe.exe': GUI
+});
+{
+  const wrapped = (c, o) => risk(c, Object.assign({ fs: wrapFs }, o));
+  const wrappedSafety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, { fs: wrapFs }, o));
+  for (const c of [
+    'cmd /d/c paint.exe', 'cmd /cpaint.exe', 'cmd /c"paint.exe"', 'cmd /r paint.exe', 'cmd /R paint.exe', 'cmd /rpaint.exe', 'cmd /^c paint.exe',
+    'cmd ^/c paint.exe', 'cmd /q/s/c paint.exe', 'cmd /a/c paint.exe', 'cmd /u/c paint.exe', 'cmd /e:on/c paint.exe', 'cmd /e:off /v:on/c paint.exe',
+    'cmd /f:off/c paint.exe', 'cmd /t:07/c paint.exe', 'cmd /x/y/c paint.exe', 'cmd /d/k paint.exe', 'CMD /D/K paint.exe', 'CMD.EXE /D/C paint.exe',
+    '"C:\\bin\\cmd.exe" /d/c paint.exe', 'cmd /d/c paint', 'cmd /d/c probe', 'cmd /d/c "paint.exe"', 'cmd /d/s/c "paint.exe"', 'cmd /d/c git.exe status',
+    'call cmd /d/c paint.exe', 'cmd /c cmd /d/c paint.exe', 'cmd /d/c cmd /r paint.exe', 'powershell -c "cmd /d/c paint.exe"'
+  ]) A.ok(UNPROVEN.test(wrapped(c) || ''), 'the nested program is judged, however the switch is spelled: ' + c);
+  for (const c of ['cmd %SW% paint.exe', 'cmd /%CD:~0,0%c paint.exe', 'cmd /d %SW%', 'cmd %SW%', 'cmd /d:%X%/c paint.exe']) {
+    A.ok(UNPROVEN.test(wrapped(c) || ''), 'a switch built by expansion cannot be placed, so it is refused: ' + c);
+  }
+  // the text floors read the same nested command: the machine and the screen are as safe behind /d/c as behind /c
+  A.eq((wrappedSafety('cmd /d/c shutdown /r /t 0') || {}).kind, 'machine-state', 'shutdown behind /d/c is a machine-state refusal');
+  A.eq((wrappedSafety('cmd /cshutdown /r /t 0') || {}).kind, 'machine-state', 'and behind a fused /c');
+  A.eq((wrappedSafety('cmd /r start notepad') || {}).kind, 'visible-desktop', 'a window behind /r is a visible-desktop refusal');
+  // what cmd runs with no command at all, and the plain bodies, still run
+  for (const c of ['cmd /d/c echo hi', 'cmd /cecho hi', 'cmd /c"echo hi"', 'cmd /r echo hi', 'cmd /R echo hi', 'cmd /e:on/c echo hi', 'cmd /d /s /c "echo hi"',
+    'cmd /c echo %PATH%', 'cmd /?', 'cmd', 'cmd /d', 'cmd /q /d']) {
+    A.eq(wrapped(c), null, 'control, still runs: ' + c);
+  }
+}
+A.eq(wrapFs.openCount(), 0, 'every file read for the switch rows was closed');
+
 // ---- PowerShell's short option names are read, and an option it cannot name is refused unread ----
 const safety = (c, o) => commandSafetyRisk(c, Object.assign({}, at, o));
 for (const c of [
@@ -392,5 +426,10 @@ if (process.platform === 'win32') {
   A.eq(inputIsolationRisk('"' + process.execPath + '" --version', real), null, 'the real node.exe is a console program');
   const charmap = path.join(process.env.WINDIR || 'C:\\Windows', 'System32', 'charmap.exe');
   if (fs.existsSync(charmap)) A.ok(GUI_RE.test(inputIsolationRisk('"' + charmap + '"', real) || ''), 'the real charmap.exe is a GUI program');
+  // the real System32 GUI programs behind every spelling of cmd's switch: the decision only, nothing here starts them
+  for (const c of ['cmd /d/c winver', 'cmd /r winver', 'cmd /cwinver', 'cmd /c"winver.exe"', 'cmd /d/c charmap', 'cmd /rcharmap.exe', 'cmd /q/s/c winver']) {
+    A.ok(UNPROVEN.test(inputIsolationRisk(c, real) || ''), 'the real GUI program behind cmd is refused, however the switch is spelled: ' + c);
+  }
+  A.eq(inputIsolationRisk('cmd /d/c echo ok', real), null, 'control: the real cmd with a builtin body still runs');
 }
 A.report('shell-local-program.test');

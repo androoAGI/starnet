@@ -37,6 +37,27 @@ if (process.platform === 'win32') {
       A.ok(r.run && r.run.status === 0, 'positive executes normally: ' + command);
       A.eq(r.marker, command === '.\\console-probe.exe', 'quoted data does not become a program: ' + command);
     }
+    // cmd reads its own switches wherever they sit, fused or not (read off the real cmd.exe): each spelling hands the rest of the
+    // line to cmd as a command, so each is the class-2 probe again. Allowed, the inert GUI marker runs; refused, it never does.
+    for (const command of [
+      'cmd /d/c probe.exe', 'cmd /cprobe.exe', 'cmd /c"probe.exe"', 'cmd /r probe.exe', 'cmd /R probe', 'cmd /rprobe.exe', 'cmd /^c probe.exe',
+      'cmd /q/s/c probe.exe', 'cmd /e:on/c probe', 'cmd /d/k probe.exe', 'cmd /d/s/c "probe.exe"'
+    ]) {
+      const r = rig.execute(command);
+      A.ok(r.risk, 'guard refuses the respelled wrapper: ' + command);
+      A.eq(r.run, null, 'refused, never dispatched: ' + command);
+      A.eq(r.marker, false, 'no marker is produced by it: ' + command);
+    }
+    // the real System32 GUI programs behind a respelled wrapper: the decision only, nothing here starts them
+    for (const command of ['cmd /d/c winver', 'cmd /r winver', 'cmd /cwinver', 'cmd /d/c charmap', 'cmd /c"charmap.exe"']) {
+      A.ok(rig.decide(command).risk, 'the real GUI program behind a respelled wrapper is refused: ' + command);
+    }
+    for (const command of ['cmd /d/c echo plain', 'cmd /cecho plain', 'cmd /c"echo plain"', 'cmd /r echo plain', 'cmd /d /s /c "echo plain"']) {
+      const r = rig.execute(command);
+      A.eq(r.risk, null, 'plain respelled wrapper positive: ' + command);
+      A.ok(r.run && r.run.status === 0, 'positive executes normally: ' + command);
+      A.eq(r.marker, false, 'plain data does not become a program: ' + command);
+    }
   } finally { rig.dispose(); }
 } else {
   console.log('Windows native transport not run on this host; static reconstruction controls above only.');
