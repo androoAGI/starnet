@@ -8,8 +8,10 @@
       "afterTokens",
       "agentId",
       "beforeTokens",
+      "new",
       "reason",
       "removed",
+      "reused",
       "runId"
     ]
   },

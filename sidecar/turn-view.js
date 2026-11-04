@@ -2,6 +2,10 @@
 'use strict';
 const Kinds = require('../frontend/app/turnkinds.js');
 const ROW_IDS = Symbol('starnet.transcript.row-ids');
+// One message's place in the canonical rows, set by the HOST at assembly (summary-cover.js) and read when a fold must say which
+// rows it summarized. Non-enumerable and symbol-keyed: it never reaches a wire, a JSON copy or a spread, and an elided copy
+// inherits it through the loop's carryMarkers.
+const ROW_TAG = Symbol('starnet.transcript.row-tag');
 const hasId = row => row && Number.isSafeInteger(row.rowId) && row.rowId > 0;
 const text = row => typeof row.content === 'string' ? row.content : '';
 
@@ -128,4 +132,15 @@ function concat(...arrays) {
     value: arrays.flatMap(array => Array.isArray(array[ROW_IDS]) ? array[ROW_IDS] : array.map(() => null)), enumerable: false });
   return out;
 }
-module.exports = { ROW_IDS, project, ownerRow, slice, concat, messages: projectedMessages };
+// the durable identity ({ streamId, rowId }) of the i-th message of a model-replay assembly, or null (no ids, no id for it)
+function rowIdOf(messages, i) {
+  const ids = messages && messages[ROW_IDS];
+  const id = Array.isArray(ids) ? ids[i] : null;
+  return id && Number.isSafeInteger(id.rowId) && id.rowId > 0 && id.streamId ? id : null;
+}
+function tag(message, value) {
+  if (message && typeof message === 'object' && value) Object.defineProperty(message, ROW_TAG, { value: Object.freeze(Object.assign({}, value)), enumerable: false, configurable: true, writable: true });
+  return message;
+}
+function tagOf(message) { return message && typeof message === 'object' && message[ROW_TAG] || null; }
+module.exports = { ROW_IDS, ROW_TAG, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf };

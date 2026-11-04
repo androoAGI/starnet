@@ -239,6 +239,8 @@ const { redact, setKnownSecretSource, renderRecall, injectRecall, rank, makeCont
 const { runContextNote, crewCallFence, isBatchOnlyModel, chatModelId } = require('./providers/provider.js');   // lean-prompt: the per-run <run_context> note and the trailing <crew_call> note (adapters share their predicates)
 const { makeSummarizer } = require('./compaction-summarizer.js');   // chunked context-compaction fold (Lane A)
 const EarlierConversation = require('./earlier-conversation.js');     // the turns COMMS's history window dropped, carried verbatim
+const SummaryLedger = require('./summary-ledger.js');                 // a paid fold's summary, kept per stream and served only while provably still true
+const SummaryCover = require('./summary-cover.js');                   // which canonical rows a fold's note stands for (the claim a record makes)
 const TurnDual = require('./turn-dual.js');
 const TurnWindow = require('./turn-window.js');
 const TurnKinds = require('../frontend/app/turnkinds.js');   // turn identity: the turnId grammar and mints the page and phone host share
@@ -1938,6 +1940,23 @@ const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.create
   soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
 const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf,
   noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields) });
+/* A PAID FOLD'S SUMMARY IS KEPT (context-budget-and-fold, summary-ledger.js). A fold lives only in the run's message array, so
+   every send of a long chat past the fold line summarized the same range again (14 paid calls and 14 different notes in 14
+   sends, probed). The ledger keeps the note per stream, with the canonical rows it stands for and a digest of them, and a
+   later run serves it only while all of it is still provably true. The dot-prefixed directory cannot collide with an agent's
+   workspace. The digest is taken over the MODEL-REPLAY view, the same call the earlier-conversation note reads (canonicalRows):
+   the proof/raw views still hold forgotten rows, so a digest over them would never change on a forget. */
+const SUMMARIES_DIR = path.join(WORKSPACES, SummaryLedger.DIR_NAME);
+const summaryLedger = SummaryLedger.makeSummaryLedger({ fs, path, dir: SUMMARIES_DIR, now: () => Date.now(), redact: text => redact(text), writeDurable: writeFileDurable,
+  deletedAt: id => sessionTombstones.deletedAt(id), deletedSince: at => sessionTombstones.list().some(e => e.at >= at) });
+const canonicalRows = streamId => transcriptStore.view('model-replay', streamId, { limit: 3000, shape: 'pairs', rows: true });
+/* forgetDeletedSessionSummaries() — a deleted conversation's kept summaries go the moment the delete is learned (sync), and so
+   do those whose rows READ a deleted conversation (quote-forget). Not a hook inside forgetDeletedSessionMemory: turn-identity's
+   forget registry takes summaryLedger as one register({ name, sourceOf, forget }) line. An unfinished earlier pass is retried at boot. */
+function forgetDeletedSessionSummaries() {
+  try { return summaryLedger.purge({}); }
+  catch (e) { failNote('summary-ledger.purge', e); return null; }
+}
 // the desk's read-back redacts its own copy through the store's own redact before it merges (sidecar/transcript-redact.js)
 const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => redact(t), readBody, json: respondJson });
 /* POST /api/prompt/scrub { texts } -> { texts }: the page's own provider-bound text through the STORED-TEXT prompt rule
@@ -3512,6 +3531,7 @@ function observeDeletedSessions(save) {
   let fresh = [];
   try { fresh = sessionTombstones.observeSave(save); }
   catch (e) { failNote('session-tombstones.observe', e); }   // held in memory; the next save or boot writes it again
+  if (fresh.length) forgetDeletedSessionSummaries();   // sync, like the stamp: a kept summary of a deleted conversation is gone the moment this returns
   if (fresh.length) forgetDeletedSessionMemory();
   return fresh;
 }
@@ -3566,6 +3586,7 @@ function forgetDeletedSessionMemory() {
   observeDeletedSessions(bootLists);
   const adopted = firstList && sessionTombstones.since() > 0 ? sessionTombstones.adopted().length : 0;
   if (adopted) console.log('[session-tombstones] ' + adopted + ' session(s) deleted before this build: forgotten from history and recall; the memories they wrote are kept');
+  if (sessionTombstones.unpurged().length) forgetDeletedSessionSummaries();   // an unfinished purge (a crash between the stamp and the sweep) is retried here too
   if (sessionTombstones.unpurged().length) forgetDeletedSessionMemory();
 }
 // the saved floor as a validated station model for the capability note's room scope (cap-scope.js): re-validated
@@ -24798,15 +24819,25 @@ async function runOnceCore(o) {
      front (an instruction from turn 3, the design the Commander approved) was gone without a trace. The durable
      transcript still holds it: carry it as ONE <conversation_summary> note right after the system prompt — the
      Commander's words verbatim, the replies as heads — which loop.js's compaction then merges onto like its own
-     earlier fold. A window the transcript cannot place injects nothing (the old behavior). */
+     earlier fold. A window the transcript cannot place injects nothing (the old behavior).
+     THE SAME PLACEMENT FEEDS THE KEPT SUMMARY (summary-ledger.js): every window message is tagged with the row it stands on
+     and the user row that opens its exchange, so a fold can say exactly which rows its note stands for; a window nothing
+     places is never tagged and never claimed. */
+  const summaryRun = { startedAt: Date.now(), alignment: null };
   if (!internal && !o.recovery && !o.groupTools && streamId && Array.isArray(convo) && convo.length) {
     try {
       let at = convo.length - 1;
       while (at >= 0 && !(convo[at] && convo[at].role === 'user')) at--;
       const window = at > 0 ? TurnView.slice(convo, 0, at) : [];
       if (window.length) {
-        const rows = transcriptStore.view('model-replay', streamId, { limit: 3000, shape: 'pairs', rows: true });
-        const cut = EarlierConversation.windowCut(rows, window, redact);
+        const rows = canonicalRows(streamId);
+        const alignment = EarlierConversation.align(rows, window, redact);
+        const cut = alignment.cut;
+        if (cut >= 0) {
+          summaryRun.alignment = alignment;
+          try { SummaryCover.tagWindow(window, alignment, rows, streamId); }
+          catch (e) { failNote('run.summaryTag', e); summaryRun.alignment = null; }
+        }
         if (cut > 0) {
           const dropped = rows.slice(0, cut);
           const wired = (d) => d && d.function && d.function.name === 'recall_conversation';
@@ -24818,8 +24849,10 @@ async function runOnceCore(o) {
           if (earlier) {
             let lead = 0;
             while (lead < msgs.length && msgs[lead] && msgs[lead].role === 'system') lead++;
-            msgs.splice(lead, 0, { role: 'system', content: earlier.note });
+            const earlierMsg = { role: 'system', content: earlier.note };
+            msgs.splice(lead, 0, earlierMsg);
             const carried = EarlierConversation.taintOf(dropped);
+            SummaryCover.tagNote(earlierMsg, { source: 'earlier', rows: cut, toRowId: rows[cut - 1].rowId, taint: carried || null, quoted: false });
             if (carried && !execution.taintedBy()) { latchRunTaint('earlier conversation carried content from ' + String(carried).slice(0, 120)); taintAtStart = execution.taintedBy(); }
             // a pasted document the window dropped is still in the note — bounded by the same learning tail, counted back
             // across the window: rows the window dropped are older than all of it, so they withhold learning only while a
@@ -24830,6 +24863,42 @@ async function runOnceCore(o) {
       }
     } catch (e) { failNote('run.earlierConversation', e); }
   }
+  /* A PAID FOLD'S SUMMARY IS MADE DURABLE BEFORE ANYTHING RELIES ON IT (summary-ledger.js). loop.js calls this after a paid fold
+     committed and BEFORE it emits agent.compact (so before the run can go on, and before it can end): the note the fold built is
+     written with the canonical rows it stands for and read back. The claim (summary-cover.js claimFold) is snapped down to the
+     exchange the cut fell in and refuses anything it cannot place — a run's own tool turns, a pinned turn, a skipped exchange —
+     so it never says more than the fold summarized: an unplaced message is no claim, and no claim costs one more fold, never
+     dialogue. A failed write is noted and the fold stands in this run. Returns { reused, new } for agent.compact. */
+  const summaryModelKey = () => String(activeProviderId) + '/' + String(model);
+  const persistFold = async (fold) => {
+    if (!summaryRun.alignment) return undefined;   // not a run the ledger serves (internal, group, recovery, a window nothing places)
+    const prevCover = SummaryCover.coverOf(fold.prevNote);
+    let rows, claim;
+    try {
+      rows = canonicalRows(streamId);
+      claim = SummaryCover.claimFold({ streamId, rows, older: fold.older, kept: fold.kept, tailHead: fold.tailHead, prevNote: fold.prevNote, startRows: summaryRun.alignment.cut });
+    } catch (e) { failNote('run.summaryLedger.claim', e); return undefined; }
+    if (!claim.ok) { failNote('summary.no-claim.' + claim.reason, new Error('no kept summary: ' + claim.reason)); return undefined; }
+    const reusedRows = prevCover && prevCover.source !== 'earlier' ? prevCover.rows : 0;   // rows an earlier summary already stood for: carried, not summarized again
+    if (!claim.progress) {
+      if (prevCover) SummaryCover.tagNote(fold.note, prevCover);   // the new note still stands for what the previous one did
+      return { reused: reusedRows, new: 0 };
+    }
+    try {
+      const covered = rows.slice(0, claim.end);
+      const claimed = SummaryLedger.claimOf(rows, claim.end);
+      if (!claimed) { failNote('summary.no-claim.ids', new Error('no kept summary: the covered rows carry no strictly rising durable ids')); return undefined; }
+      const stamp = SummaryLedger.quoteUnion(covered);
+      const taint = EarlierConversation.taintOf(covered) || (prevCover && prevCover.taint) || execution.taintedBy() || null;
+      const quoted = TrustedLearning.quotedInLearningTail(fold.older.concat(fold.tail));   // the same bounded-tail rule the run start applies to what it replays
+      SummaryCover.tagNote(fold.note, { source: 'fold', rows: claim.end, toRowId: claimed.toRowId, taint, quoted });
+      const wrote = await summaryLedger.put(Object.assign({ streamId, agentId }, claimed, {
+        noteBody: fold.note.content, modelKey: summaryModelKey(), windowTokens: Math.floor(ctxMgr.contextLimit), ownerVoice: !tasteWithheld,
+        taint, quoted, quotes: stamp.quotes || [], quotesAt: stamp.quotesAt || [], runId, runStartedAt: summaryRun.startedAt }));
+      if (!wrote.ok && ['tombstoned', 'too-large', 'invalid'].includes(wrote.reason)) failNote('summary.put.' + wrote.reason, new Error('kept summary refused: ' + wrote.reason));
+    } catch (e) { failNote('run.summaryLedger.write', e); }
+    return { reused: reusedRows, new: Math.max(0, claim.end - reusedRows) };
+  };
   // CACHE-STABLE PREFIX: the per-run <run_context> note (see `stablePrefix`) takes the <recalled-memory> seam — a system
   // note immediately before the newest user message, so the request still ends on that user turn. Injected FIRST, so
   // recall (below) lands between it and the user turn: the same order the two had when the block closed the system.
@@ -25170,7 +25239,7 @@ async function runOnceCore(o) {
         maxSubscriptionTokens: CAPS.maxSubscriptionTokens
       },
       billingClassOf: runBilling.classify,   // each attempt's payer (billing-class.js); a provider fallback carries its own
-      budget: runBudget, context: ctxMgr, summarize, fallbacks, initialFallback,
+      budget: runBudget, context: ctxMgr, summarize, onFold: persistFold, fallbacks, initialFallback,   // onFold: a paid fold's summary is kept before the loop goes on (persistFold above)
       microCompaction: !/^(0|false|off|no)$/i.test(String(ENV('COMPACT_MICRO') || '').trim()),   // free elision tier before any paid fold (off: STARNET_COMPACT_MICRO=0)
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.

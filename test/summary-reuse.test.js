@@ -17,9 +17,13 @@ const path = require('node:path');
 const Module = require('node:module');
 const { sidecarSourceFiles } = require('./helpers/source.js');
 
-const LEDGER_PATH = path.join(__dirname, '..', 'sidecar', 'summary-ledger.js');
+const sidecarPath = name => path.join(__dirname, '..', 'sidecar', name);
+const sourceOf = name => sidecarSourceFiles().find(f => f.rel === 'sidecar/' + name).text;
 const Real = require('../sidecar/summary-ledger.js');
-const SRC = sidecarSourceFiles().find(f => f.rel === 'sidecar/summary-ledger.js').text;
+const Cover = require('../sidecar/summary-cover.js');
+const TurnView = require('../sidecar/turn-view.js');
+const EC = require('../sidecar/earlier-conversation.js');
+const SRC = sourceOf('summary-ledger.js');
 
 // ---- the in-memory fs: the durable write's whole protocol (temp, fsync, rename, directory fsync), listing, links ----
 function memFs() {
@@ -101,23 +105,26 @@ async function stored(Lib, rows, end, over, deps) {
 }
 
 // ---- mutants: the module's own source with ONE statement removed; the same scenario must then fail ----
-function load(src) {
-  const m = new Module(LEDGER_PATH, module);
-  m.filename = LEDGER_PATH; m.paths = Module._nodeModulePaths(path.dirname(LEDGER_PATH));
-  m._compile(src, LEDGER_PATH);
+function load(file, src) {
+  const p = sidecarPath(file);
+  const m = new Module(p, module);
+  m.filename = p; m.paths = Module._nodeModulePaths(path.dirname(p));
+  m._compile(src, p);
   return m.exports;
 }
-function mutant(name, from, to) {
-  const at = SRC.indexOf(from);
-  if (at < 0 || SRC.indexOf(from, at + 1) >= 0) throw new Error('mutation "' + name + '": anchor must occur exactly once: ' + from);
-  return load(SRC.slice(0, at) + to + SRC.slice(at + from.length));
+function mutant(name, from, to, file) {
+  const src = file ? sourceOf(file) : SRC;
+  const at = src.indexOf(from);
+  if (at < 0 || src.indexOf(from, at + 1) >= 0) throw new Error('mutation "' + name + '": anchor must occur exactly once: ' + from);
+  return load(file || 'summary-ledger.js', src.slice(0, at) + to + src.slice(at + from.length));
 }
 /* mustKill(name, from, to, scenario): scenario(Lib) -> truthy when the module behaves; async allowed. The real module
    passes it, the mutant must not (a wrong answer or a throw both count as the test noticing). */
-async function mustKill(name, from, to, scenario) {
-  A.ok(await scenario(Real), name + ': the real module passes the scenario');
+async function mustKill(name, from, to, scenario, file) {
+  const RealLib = file ? require('../sidecar/' + file) : Real;
+  A.ok(await scenario(RealLib), name + ': the real module passes the scenario');
   let survived;
-  try { survived = !!(await scenario(mutant(name, from, to))); } catch (e) { survived = false; }
+  try { survived = !!(await scenario(mutant(name, from, to, file))); } catch (e) { survived = false; }
   A.ok(!survived, name + ': removing that check makes the scenario fail (the test has teeth)');
 }
 const reasonOf = (Lib, record, ctx) => { const v = Lib.validate(record, ctx); return v.ok ? 'ok' : v.reason; };
@@ -346,6 +353,205 @@ const R = rowsOf(10);
   {
     const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
     A.ok(!/\.view\s*\(/.test(code) && !/'proof'|'display'|'recall'/.test(code), 'the ledger never reads a transcript view itself: the host hands it the model-replay rows (a digest over proof/raw would never change on a forget)');
+  }
+
+  // ================= 8. a claim never says more than the fold summarized (summary-cover.js) =================
+  // a chat of n exchanges: a user row, [a tool call and its result in every second exchange], the reply
+  function chatRows(n, tools) {
+    const rows = []; let id = 100;
+    const add = (role, content, extra) => { id += 3; rows.push(Object.assign({ rowId: id, streamId: 'ws_a', role, content, ts: 1000 + id }, extra || {})); };
+    for (let k = 0; k < n; k++) {
+      add('user', 'Request ' + k + ': question number ' + k);
+      if (tools && k % 2 === 1) { add('assistant', '', { toolCalls: '[{"id":"c' + k + '"}]' }); add('tool', 'tool result ' + k, { toolCallId: 'c' + k }); }
+      add('assistant', 'Reply ' + k + ': answer number ' + k);
+    }
+    return rows;
+  }
+  const userIndex = (rows, k) => rows.findIndex(r => r.role === 'user' && r.content.startsWith('Request ' + k + ':'));
+  // the window a client keeps: a user message and its reply per exchange from `from`; `lead` opens it on the previous reply
+  function pageWindow(from, n, lead) {
+    const w = [];
+    if (lead) w.push({ role: 'assistant', content: 'Reply ' + (from - 1) + ': answer number ' + (from - 1) });
+    for (let k = from; k < n; k++) w.push({ role: 'user', content: 'Request ' + k + ': question number ' + k }, { role: 'assistant', content: 'Reply ' + k + ': answer number ' + k });
+    return w;
+  }
+  const exchangeOf = (k, from, lead) => lead ? (k === 0 ? from - 1 : from + Math.floor((k - 1) / 2)) : from + Math.floor(k / 2);
+  const EARLIER = (alignment, rows) => alignment.cut > 0 ? Cover.tagNote({ role: 'system', content: note('the free earlier note') }, { source: 'earlier', rows: alignment.cut, toRowId: rows[alignment.cut - 1].rowId, taint: null, quoted: false }) : null;
+  function scene(n, tools, from, lead) {
+    const rows = chatRows(n, tools), win = pageWindow(from, n, lead);
+    const alignment = EC.align(rows, win, null);
+    const tagged = Cover.tagWindow(win, alignment, rows, 'ws_a');
+    return { rows, win, alignment, tagged, prev: EARLIER(alignment, rows), directive: { role: 'user', content: 'Now: the big new ask' } };
+  }
+  const claim = (sc, over) => Cover.claimFold(Object.assign({ streamId: 'ws_a', rows: sc.rows, older: [], kept: [], tailHead: sc.directive, prevNote: sc.prev, startRows: sc.alignment.cut }, over || {}));
+  {
+    let cases = 0, snapped = 0, exact = 0, noProgress = 0, claimsBeyond = 0;
+    for (const n of [6, 11]) for (const tools of [false, true]) for (const [from, lead] of [[0, false], [3, false], [3, true]]) {
+      const sc = scene(n, tools, from, lead);
+      const tag = 'n=' + n + (tools ? ' tools' : '') + ' from=' + from + (lead ? ' lead' : '');
+      A.ok(sc.alignment.cut >= 0 && sc.tagged === sc.win.length, tag + ': the client window is placed and every message tagged (' + sc.tagged + ')');
+      A.eq(sc.alignment.cut, lead ? userIndex(sc.rows, from - 1) + 1 : from === 0 ? 0 : userIndex(sc.rows, from), tag + ': the window cuts the canonical rows where it opens');
+      const prefix = sc.alignment.cut;
+      for (let cutPos = 1; cutPos <= sc.win.length; cutPos++) {
+        cases++;
+        const older = sc.win.slice(0, cutPos);
+        const tailHead = cutPos < sc.win.length ? sc.win[cutPos] : sc.directive;
+        // the truth, from the generator and not from the tags: the exchange holding the first message NOT summarized (the last
+        // summarized exchange when the tail starts on the run's own request, which no row stands for yet)
+        const ex = cutPos < sc.win.length ? exchangeOf(cutPos, from, lead) : exchangeOf(sc.win.length - 1, from, lead);
+        const wantOpen = userIndex(sc.rows, ex);
+        const res = claim(sc, { older, tailHead });
+        const want = Math.max(wantOpen, prefix);
+        A.ok(res.ok, tag + ' cut@' + cutPos + ': a contiguous, fully placed slice yields a claim (' + (res.reason || 'ok') + ')');
+        if (!res.ok) continue;
+        A.eq(res.end, want, tag + ' cut@' + cutPos + ': the claim stops at the opening user row of the exchange the cut falls in');
+        A.eq(res.progress, wantOpen > prefix, tag + ' cut@' + cutPos + ': progress only when it adds to the previous coverage');
+        if (res.end > want) claimsBeyond++;
+        if (res.progress) { A.eq(sc.rows[res.end].role, 'user', tag + ' cut@' + cutPos + ': the boundary is a Commander row'); if (cutPos < sc.win.length && sc.win[cutPos].role === 'assistant') snapped++; else exact++; }
+        else noProgress++;
+      }
+    }
+    A.eq(claimsBeyond, 0, 'no claim ever said more than the exchanges the fold summarized (' + cases + ' cuts)');
+    A.ok(snapped > 10 && exact > 10 && noProgress > 3, 'the sweep covered mid-exchange cuts (' + snapped + '), exchange-boundary cuts (' + exact + ') and no-progress folds (' + noProgress + ')');
+  }
+  {
+    // refusals: every unknown yields no claim, with its reason
+    const base = () => scene(8, true, 2, false);
+    const cutAt = (sc, k) => ({ older: sc.win.slice(0, k), tailHead: sc.win[k] });
+    let sc = base();
+    A.eq(claim(sc, cutAt(sc, 5)).ok, true, 'control: the base slice yields a claim');
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { older: sc.win.slice(0, 4).concat([{ role: 'assistant', content: 'the run\'s own tool turn' }]) })).reason, 'unplaced-in-slice', 'a message nothing places inside the slice is no claim (a half-run is not history)');
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { kept: [sc.directive] })).reason, 'kept-untagged', 'a pinned turn nothing places is no claim');
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { prevNote: { role: 'system', content: note('a note this host never tagged') } })).reason, 'prev-note-untagged', 'a previous note with no coverage is no claim');
+    sc = base(); { const moved = sc.rows.filter((_, i) => i !== sc.alignment.cut - 1); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { rows: moved })).reason, 'prev-coverage-moved', 'rows that moved under the previous coverage are no claim'); }
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { older: sc.win.slice(0, 2).concat(sc.win.slice(4, 6)), tailHead: sc.win[6] })).reason, 'gap', 'a skipped exchange (a Commander row the slice never held) is a gap, no claim');
+    sc = base(); { const gone = sc.rows.filter(r => r.rowId !== sc.rows[userIndex(sc.rows, 3)].rowId); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { rows: gone })).reason, 'row-gone', 'a covered row that left the view (forgotten, retracted) is "row-gone", never guessed around'); }
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { older: [sc.win[2], sc.win[0], sc.win[1], sc.win[3], sc.win[4]] })).reason, 'order', 'a slice out of canonical order is no claim');
+    sc = base(); A.eq(claim(sc, { older: [{ role: 'system', content: 'only a note' }], tailHead: sc.win[0] }).reason, undefined, 'a slice of notes alone changes nothing (it is not an error)');
+    sc = base(); A.eq(claim(sc, { older: [], tailHead: null }).reason, 'nothing-placed', 'an empty slice places nothing');
+    sc = base(); A.eq(claim(sc, Object.assign(cutAt(sc, 5), { prevNote: null, startRows: 9999 })).reason, 'start-beyond-rows', 'a run-start cut beyond the rows is no claim');
+    // a pinned turn inside the slice: the claim stops before it
+    sc = base();
+    { const keptTurn = sc.win[4];   // the user message of exchange 4, taken out of the slice like loop.js openOnUser does
+      const r = claim(sc, { older: sc.win.slice(0, 4), kept: [keptTurn], tailHead: sc.win[5] });
+      A.eq(r.end, userIndex(sc.rows, 4), 'a turn pinned verbatim at the head stops the claim at its own exchange');
+      const r2 = claim(sc, { older: sc.win.slice(0, 4), kept: [sc.win[2]], tailHead: sc.win[5] });
+      A.eq(r2.end, userIndex(sc.rows, 3), 'and an EARLIER pinned turn stops it earlier still (the claim never spans a message left in the prompt)'); }
+    // tags belong to one stream
+    sc = base(); A.eq(Cover.claimFold({ streamId: 'ws_other', rows: sc.rows, older: sc.win.slice(0, 4), kept: [], tailHead: sc.win[4], prevNote: sc.prev, startRows: 0 }).reason, 'unplaced-in-slice', 'a tag from another stream places nothing');
+    // a window nothing places is never tagged
+    const stray = [{ role: 'user', content: 'a message this stream never recorded' }, { role: 'assistant', content: 'ok' }];
+    A.eq(Cover.tagWindow(stray, EC.align(chatRows(4, false), stray, null), chatRows(4, false), 'ws_a'), 0, 'an unplaceable window is not tagged at all');
+    A.ok(!JSON.stringify(scene(4, false, 0, false).win).includes('Symbol'), 'tags are invisible to JSON, a spread and a wire');
+    const probe = scene(4, false, 0, false).win[0];
+    A.eq(Object.keys(probe), ['role', 'content'], 'a tagged message has the same enumerable keys');
+    A.eq(Object.keys(Object.assign({}, probe)), ['role', 'content'], 'and a spread copy drops the tag');
+  }
+  // the lines that make a claim safe, each removed in turn: the same scenarios must then fail
+  {
+    const base = () => scene(8, true, 2, false);
+    const cutAt = (sc, k) => ({ older: sc.win.slice(0, k), tailHead: sc.win[k] });
+    const via = (C, sc, over) => C.claimFold(Object.assign({ streamId: 'ws_a', rows: sc.rows, older: [], kept: [], tailHead: sc.directive, prevNote: sc.prev, startRows: sc.alignment.cut }, over || {}));
+    await mustKill('claim: unplaced message', "    if (!t) return refuse('unplaced-in-slice');\n", '', async C => { const sc = base(); return via(C, sc, Object.assign(cutAt(sc, 5), { older: sc.win.slice(0, 4).concat([{ role: 'assistant', content: 'own turn' }]) })).reason === 'unplaced-in-slice'; }, 'summary-cover.js');
+    await mustKill('claim: skipped exchange', "  for (let u = prefix; u < end; u++) if (rows[u] && rows[u].role === 'user' && !opens.has(u)) return refuse('gap');\n", '', async C => { const sc = base(); return via(C, sc, Object.assign(cutAt(sc, 5), { older: sc.win.slice(0, 2).concat(sc.win.slice(4, 6)), tailHead: sc.win[6] })).reason === 'gap'; }, 'summary-cover.js');
+    await mustKill('claim: pinned turn', "    end = Math.min(end, o);\n", '', async C => { const sc = base(); return via(C, sc, { older: sc.win.slice(0, 4), kept: [sc.win[2]], tailHead: sc.win[5] }).end === userIndex(sc.rows, 3); }, 'summary-cover.js');
+    await mustKill('claim: previous coverage', "    if (prefix > rows.length || (prefix > 0 && rows[prefix - 1].rowId !== c.toRowId)) return refuse('prev-coverage-moved');\n", '', async C => { const sc = base(); return via(C, sc, Object.assign(cutAt(sc, 5), { rows: sc.rows.filter((_, i) => i !== sc.alignment.cut - 1) })).reason === 'prev-coverage-moved'; }, 'summary-cover.js');
+    await mustKill('claim: row left the view', "    const o = at.get(t.openRowId);\n    if (o === undefined) return refuse('row-gone');\n    if (o < lastOpen) return refuse('order');\n", "    const o = at.get(t.openRowId);\n    if (o < lastOpen) return refuse('order');\n", async C => { const sc = base(); return via(C, sc, Object.assign(cutAt(sc, 5), { rows: sc.rows.filter(r => r.rowId !== sc.rows[userIndex(sc.rows, 3)].rowId) })).reason === 'row-gone'; }, 'summary-cover.js');
+    await mustKill('claim: order', "    if (o < lastOpen) return refuse('order');\n    if (t.rowId != null", "    if (t.rowId != null", async C => { const sc = base(); return via(C, sc, Object.assign(cutAt(sc, 5), { older: [sc.win[2], sc.win[0], sc.win[1], sc.win[3], sc.win[4]] })).reason === 'order'; }, 'summary-cover.js');
+    await mustKill('claim: snap down', "    end = h;\n", "    end = h + 1;\n", async C => { const sc = base(); return via(C, sc, cutAt(sc, 5)).end === userIndex(sc.rows, 4) && via(C, sc, cutAt(sc, 6)).end === userIndex(sc.rows, 5); }, 'summary-cover.js');
+  }
+
+  // ================= 9. the loop's hook: after a PAID fold, before agent.compact, never for a lossy one =================
+  {
+    const { runAgentLoop } = require('../sidecar/loop.js');
+    const { makeContext } = require('../sidecar/context.js');
+    const { makeCostEngine } = require('../sidecar/cost.js');
+    const failopen = require('../sidecar/failopen.js');
+    const WINDOW = 4000;
+    const chat = (n, bulk) => {
+      const msgs = [{ role: 'system', content: 'You are a station agent.' }];
+      for (let k = 1; k <= n; k++) msgs.push({ role: 'user', content: 'Request ' + k + ': question number ' + k }, { role: 'assistant', content: 'Reply ' + k + ' ' + 'w'.repeat(bulk) });
+      msgs.push({ role: 'user', content: 'Now: the latest ask' });
+      return msgs;
+    };
+    const toolChat = () => {
+      const msgs = [{ role: 'system', content: 'You are a station agent.' }, { role: 'user', content: 'read the files' }];
+      for (let k = 1; k <= 6; k++) { msgs.push({ role: 'assistant', content: '', tool_calls: [{ id: 't' + k, type: 'function', function: { name: 'read', arguments: '{}' } }] }, { role: 'tool', tool_call_id: 't' + k, content: 'result ' + k + ' ' + 'T'.repeat(2500) }); }
+      msgs.push({ role: 'assistant', content: 'read them all' }, { role: 'user', content: 'Now: summarize' });
+      return msgs;
+    };
+    const foldRun = async (seed, extra, keepTail, lib) => {
+      const trace = (extra && extra.trace) || [];
+      if (extra && extra.trace) { extra = Object.assign({}, extra); delete extra.trace; }
+      const ctx = makeContext({ contextLimit: WINDOW, compactAt: 0.65, keepTail: keepTail || 3 });
+      const log = [], messages = seed.slice();
+      const provider = { priceOf: () => null, contextLimit: () => WINDOW, stream: async function* () { yield { type: 'text', delta: 'done' }; yield { type: 'done', finishReason: 'stop' }; } };
+      const res = await (lib || { runAgentLoop }).runAgentLoop(Object.assign({ messages, provider, cost: makeCostEngine({ priceOf: () => null }), context: ctx,
+        emit: (n, p) => { if (n === 'agent.compact') { log.push({ ev: 'compact', p }); trace.push('compact'); } },
+        summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }), microCompaction: false, model: 'm', agentId: 'a', runId: 'r', limits: { maxIters: 4 }, contextLimit: WINDOW }, extra || {}));
+      return { res, log, messages };
+    };
+    // 1. called once for the paid fold, with the working set already rebuilt, BEFORE agent.compact; its answer rides the event
+    {
+      let seen = null;
+      const trace = [];
+      const { log } = await foldRun(chat(20, 650), { trace, onFold: async f => { seen = f; trace.push('onFold'); await new Promise(r => setTimeout(r, 15)); trace.push('onFold-settled'); return { reused: 7, new: 3 }; } });
+      A.eq(trace, ['onFold', 'onFold-settled', 'compact'], 'onFold runs to completion BEFORE agent.compact is emitted');
+      A.eq([log[0].p.reason, log[0].p.reused, log[0].p.new], ['context', 7, 3], 'its { reused, new } ride agent.compact');
+      A.ok(seen && seen.note && /^<conversation_summary>/.test(seen.note.content) && seen.summary === 'S', 'it receives the note the fold built and the summary text');
+      A.ok(seen.older.length > 0 && seen.tail.length > 0 && seen.tailHead === seen.tail.find(m => m.role !== 'system') && seen.prevNote === null, 'and the slice that was summarized, the tail, its first message and the previous note (none)');
+    }
+    {
+      let had = null;
+      const r = await foldRun(chat(20, 650), { onFold: async f => { had = f.note; return undefined; } });
+      A.ok(had && r.messages.includes(had), 'the note handed to the hook is the very object the loop put in the working set (a host can tag it)');
+    }
+    // 2. a hook that throws or answers nonsense never costs the fold
+    {
+      failopen.resetForTests();
+      const thrown = await foldRun(chat(20, 650), { onFold: async () => { throw new Error('disk full'); } });
+      A.eq(thrown.res.reason, 'done', 'a throwing hook leaves the run done');
+      A.eq(thrown.log.length, 1, 'the fold still announced itself');
+      A.ok(thrown.log[0].p.reused === undefined && thrown.log[0].p.new === undefined, 'with no counts');
+      A.eq(failopen.counts()['loop.compaction.onFold'], 1, 'and the failure is counted, not swallowed silently');
+      const junk = await foldRun(chat(20, 650), { onFold: async () => ({ reused: -4, new: 'x' }) });
+      A.ok(junk.log[0].p.reused === undefined && junk.log[0].p.new === undefined, 'counts that are not non-negative integers are ignored');
+      const bare = await foldRun(chat(20, 650), {});
+      A.ok(bare.log.length === 1 && bare.log[0].p.reused === undefined, 'with no hook the event is exactly what it was');
+    }
+    // 3. lossy folds are never a durable fact
+    {
+      let calls = 0;
+      const hook = async () => { calls++; return undefined; };
+      const micro = await foldRun(toolChat(), { onFold: hook, microCompaction: true });
+      A.ok(micro.log.some(e => e.p.reason === 'micro') && !micro.log.some(e => e.p.reason === 'context'), 'fixture: the free micro tier cleared the prompt');
+      const noSummarizer = await foldRun(chat(20, 650), { onFold: hook, summarize: undefined });
+      A.ok(noSummarizer.log.some(e => e.p.reason === 'fallback'), 'fixture: with no summarizer the deterministic fallback note was used');
+      const rejected = await foldRun(chat(20, 650), { onFold: hook, summarize: async () => ({ summary: '', rejected: 'length', usd: 0, tokens: 0 }) });
+      A.ok(!rejected.log.some(e => e.p.reason === 'context'), 'fixture: a cut-off summary is not committed');
+      A.eq(calls, 0, 'onFold was called for none of the micro, fallback and rejected folds');
+    }
+    // 4. a turn pinned at the head is handed over, so a claim can stop before it
+    {
+      let pinned = 0, unpinned = 0;
+      for (let keepTail = 1; keepTail <= 5; keepTail++) {
+        let got = null;
+        await foldRun(chat(20, 650), { onFold: async f => { got = f; return undefined; } }, keepTail);
+        if (!got) continue;
+        if (got.tailHead && got.tailHead.role !== 'user') { pinned++; A.ok(got.kept.length === 1 && got.kept[0].role === 'user' && !got.older.includes(got.kept[0]), 'tail ' + keepTail + ': a tail that opens on a reply gets one pinned user turn, handed over and not in the slice'); }
+        else { unpinned++; A.eq(got.kept.length, 0, 'tail ' + keepTail + ': a tail that opens on a user turn pins nothing'); }
+      }
+      A.ok(pinned > 0 && unpinned > 0, 'the sweep met both tails that open on a reply (' + pinned + ') and on a user turn (' + unpinned + ')');
+    }
+    // the hook's two guarantees, each removed in turn through the real loop source
+    const hooked = async Lib => {
+      const order = [];
+      const r = await foldRun(chat(20, 650), { onFold: async () => { order.push('start'); await new Promise(res => setTimeout(res, 10)); order.push('settled'); return { reused: 1, new: 2 }; } }, 3, Lib);
+      const ev = r.log.map(e => e.ev + ':' + (e.p.reused === 1 && e.p.new === 2 ? 'counted' : 'bare'));
+      return order.join() === 'start,settled' && ev.join() === 'compact:counted';
+    };
+    await mustKill('loop: the hook is called', '      if (onFold) {\n        try {', '      if (false) {\n        try {', hooked, 'loop.js');
+    await mustKill('loop: the hook is awaited before agent.compact', "const kept = await onFold(", "const kept = onFold(", hooked, 'loop.js');
   }
 
   A.report('summary-reuse');

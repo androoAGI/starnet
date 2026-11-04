@@ -1049,6 +1049,13 @@
       ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null))) } })
       : o.context;
     const summarize = o.summarize;
+    /* OPTIONAL: told about every PAID fold that committed (never the free micro tier, the deterministic fallback note or a
+       rejected summary: those are lossy by design and not a durable fact), after the working set is rebuilt and BEFORE
+       agent.compact goes out, so the host can make the summary durable before anything downstream may rely on the window
+       having shrunk. o.onFold({ note, older, kept, tail, tailHead, prevNote, summary }) may be async; it may answer
+       { reused, new } (rows served from a stored summary / rows this fold summarized), which ride agent.compact. A throw is
+       noted and the fold stands: the cost of an unkept summary is one more fold. Absent = no-op (every existing caller). */
+    const onFold = (typeof o.onFold === 'function') ? o.onFold : null;
     const microCompaction = o.microCompaction !== false;   // the free elision tier (STARNET_COMPACT_MICRO=0 turns it off at the host)
     // OPTIONAL: told the anchored prompt size and the fold line before each model call, after any fold. `trusted` is
     // false when a fold just ran or the size is only the local ruler while real counts are expected: a fold clears the
@@ -1898,10 +1905,12 @@
       /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt must still open on a user turn, so a tail
          that would open on an assistant turn gets one user turn pinned at the head (openOnUser; the cut stays the
          planner's). The micro tier above removes none, so it needed no such care. */
+      let keptTurn = null;   // the user turn pinned at the head instead of folded (onFold: a stored claim must stop before it)
       if (!headPinned) {
         const opened = openOnUser(plan, runRequest);
         if (opened !== plan) {
           plan = { older: opened.older, tail: opened.tail };
+          keptTurn = opened.keep;
           prefix = prefix.concat([opened.keep]);
           carryContext();
           if (!foldOlder.length) return false;                            // the pinned turn was all the slice held (no paid call)
@@ -1992,6 +2001,15 @@
       if (r && typeof r === 'object') {   // chunked-fold telemetry (additive): how many summarizer calls, and whether the input was cut
         if (r.chunks > 0) compactEv.chunks = r.chunks;
         if (r.truncatedChars > 0) compactEv.truncatedChars = r.truncatedChars;
+      }
+      if (onFold) {
+        try {
+          const kept = await onFold({ note, summary, older: foldOlder, kept: keptTurn ? [keptTurn] : [], tail: plan.tail, tailHead: plan.tail.find(m => m && m.role !== 'system') || null, prevNote });
+          if (kept && typeof kept === 'object') {
+            if (Number.isSafeInteger(kept.reused) && kept.reused >= 0) compactEv.reused = kept.reused;
+            if (Number.isSafeInteger(kept.new) && kept.new >= 0) compactEv.new = kept.new;
+          }
+        } catch (e) { failNote('loop.compaction.onFold', e); }
       }
       emit('agent.compact', compactEv);
       // H5.2 anti-thrash: a fold that barely shrinks the prompt isn't worth another paid summarizer call. After two
