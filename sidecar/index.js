@@ -28177,7 +28177,15 @@ async function handleProviderModels(req, res) {
     json(200, { provider: id, models: models.map(m => {
       const row = publicModel(m);
       const tier = promptTierCeiling(id, row.id, tierExempt);
-      if (row.context_length > 0) row.runWindow = (tier > 0 && tier < row.context_length) ? tier : row.context_length;
+      if (row.context_length > 0) {
+        row.runWindow = (tier > 0 && tier < row.context_length) ? tier : row.context_length;
+        // compactAt (context-budget-and-fold): the share of runWindow a run folds at, the one number makeContext folds on
+        // (context.js RUN_CONTEXT_DEFAULTS). The page fits the chat's history to floor(runWindow * compactAt) minus the
+        // harness overhead (historyfit.js fitModel), so a fitted send is never already past the fold line and a long chat
+        // stops paying for a fold on every send. Published beside runWindow: the pair arrives together or not at all, and
+        // a window the catalog does not know gets neither (no fold line is invented for it).
+        row.compactAt = RUN_CONTEXT_DEFAULTS.compactAt;
+      }
       return row;
     }) });
   } catch (e) {

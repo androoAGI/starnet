@@ -908,6 +908,12 @@ const Harness = (() => {
     const m = catalogModel(id);
     return (m && m.runWindow) || 0;
   }
+  // the share of that window a run folds at (the sidecar's /api/models compactAt, context.js RUN_CONTEXT_DEFAULTS), so the page
+  // fits a chat to the line the server folds on (historyfit.js fitModel); 0 = the sidecar did not say (an older one)
+  function compactAtOf(id) {
+    const m = catalogModel(id);
+    return (m && m.compactAt) || 0;
+  }
 
   /* Context-window occupancy for ONE conversation — the question the bottom-bar gauge actually asks
      ("MEMORY OF THIS CHAT"), so it is answered per (agentId, streamId), never per agent alone.
@@ -983,7 +989,9 @@ const Harness = (() => {
       reasoningEfforts: Array.isArray(m && m.reasoningEfforts) ? m.reasoningEfforts.slice() : [],
       defaultReasoningLevel: (m && m.defaultReasoningLevel) || null,
       reasoningNote: (m && typeof m.reasoningNote === 'string' && m.reasoningNote) || null,
-      runWindow: (m && +m.runWindow) || 0
+      runWindow: (m && +m.runWindow) || 0,
+      // a share of the window, so only (0, 1] is a fold line; anything else reads 0 = unknown, and the fit keeps its former share
+      compactAt: (m && +m.compactAt > 0 && +m.compactAt <= 1) ? +m.compactAt : 0
     };
   }
 
@@ -2165,7 +2173,7 @@ const Harness = (() => {
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
-    listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
+    listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, compactAtOf, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runStreamState: () => runStream.state(),   // the page's ONE run stream: { open, id, runs, unsupported, heldBack }
     streamPost,   // a run a button starts (Run now / Retry / an app refresh / a workshop build), on the page's ONE run stream
     runRecoveries, prepareAutomaticRecovery, resolveRunRecovery, prepareReviewedRecovery,

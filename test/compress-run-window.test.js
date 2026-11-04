@@ -16,6 +16,7 @@ const fs = require('fs');
 const vm = require('vm');
 const path = require('path');
 const { promptTierCeiling } = require('../sidecar/providers/prices.js');
+const { RUN_CONTEXT_DEFAULTS } = require('../sidecar/context.js');
 
 const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
 function region(source, marker, closing) {
@@ -33,7 +34,7 @@ module.exports = (async () => {
   const profiles = { gemini: {}, anthropic: {}, openrouter: {}, xai: {}, ollama: { unmetered: true } };
   const api = vm.runInNewContext(region(backend, 'function publicModel(m)', '\n}\n') + region(backend, 'async function handleProviderModels(', '\n}\n')
     + '\n({ handleProviderModels })', {
-    URL, promptTierCeiling,
+    URL, promptTierCeiling, RUN_CONTEXT_DEFAULTS,
     normalizeProvider: p => String(p || '').trim().toLowerCase(),
     getProviderProfile: id => profiles[id] || null,
     // the route's payer decides its window (billing-class.js POLICY promptTier), bound to the same profiles
@@ -57,16 +58,35 @@ module.exports = (async () => {
   A.eq((await catalog('ollama', [{ id: 'grok-4', context_length: 2000000 }]))[0].runWindow, 2000000, 'an unmetered route (no dollar cap to stay under): the whole window');
   const unknown = (await catalog('gemini', [{ id: 'gemini-2.5-pro', context_length: 0 }]))[0];
   A.ok(!('runWindow' in unknown), 'a window the catalog does not know is never invented: ' + JSON.stringify(unknown));
+  // compactAt (context-budget-and-fold): the share of that window a run folds at, published beside it, so the page fits a chat to
+  // the line the server folds on. It is the number makeContext folds with (RUN_CONTEXT_DEFAULTS), never a second copy of it.
+  for (const [provider, row] of [['gemini', PRO], ['gemini', FLASH], ['anthropic', { id: 'claude-haiku-5-5', context_length: 200000 }],
+    ['openrouter', { id: 'google/gemini-2.5-pro', context_length: 1048576 }], ['ollama', { id: 'grok-4', context_length: 2000000 }]]) {
+    const published = (await catalog(provider, [row]))[0];
+    A.eq(published.compactAt, RUN_CONTEXT_DEFAULTS.compactAt, provider + ' ' + row.id + ': the row publishes the share a run folds at');
+    A.ok(published.runWindow > 0 && published.compactAt > 0, provider + ' ' + row.id + ': the window and its fold share arrive together');
+  }
+  A.ok(!('compactAt' in unknown), 'a window the catalog does not know gets no fold line either: ' + JSON.stringify(unknown));
 
   // ---- 2. the browser catalog keeps it, and Harness.runWindowOf reads it ----
   const browser = vm.runInNewContext(region(harness, '  function normalizeModel(m)', '\n  }\n')
-    + region(harness, '  function runWindowOf(id)', '\n  }\n') + '\n({ normalizeModel, runWindowOf })',
-    { catalogModel: id => (id === 'gemini-2.5-pro' ? { runWindow: 200000 } : null) });
+    + region(harness, '  function runWindowOf(id)', '\n  }\n') + region(harness, '  function compactAtOf(id)', '\n  }\n')
+    + '\n({ normalizeModel, runWindowOf, compactAtOf })',
+    { catalogModel: id => (id === 'gemini-2.5-pro' ? { runWindow: 200000, compactAt: 0.65 } : null) });
   A.eq(browser.normalizeModel({ id: 'gemini-2.5-pro', context_length: 1048576, runWindow: 200000 }).runWindow, 200000, 'the browser catalog keeps runWindow');
   A.eq(browser.normalizeModel({ id: 'm', context_length: 8000 }).runWindow, 0, 'a row without one reads 0 (unknown)');
   A.eq(browser.runWindowOf('gemini-2.5-pro'), 200000, 'Harness.runWindowOf reads the catalog row');
   A.eq(browser.runWindowOf('other'), 0, 'Harness.runWindowOf: a model the catalog lacks reads 0');
   A.ok(/contextLimitOf, runWindowOf, contextState/.test(harness), 'Harness exports runWindowOf');
+  // ...and the fold share beside it: kept as published, 0 (unknown) for an older sidecar or a share that is not one
+  A.eq(browser.normalizeModel({ id: 'gemini-2.5-pro', context_length: 1048576, runWindow: 200000, compactAt: 0.65 }).compactAt, 0.65, 'the browser catalog keeps compactAt');
+  A.eq(browser.normalizeModel({ id: 'm', context_length: 8000, runWindow: 8000 }).compactAt, 0, 'a row without one (an older sidecar) reads 0 (unknown)');
+  for (const bad of [0, -0.5, 1.5, NaN, 'abc', null, '0.65x'])
+    A.eq(browser.normalizeModel({ id: 'm', context_length: 8000, compactAt: bad }).compactAt, 0, 'a share that is not in (0, 1] reads unknown: ' + String(bad));
+  A.eq(browser.normalizeModel({ id: 'm', context_length: 8000, compactAt: '0.5' }).compactAt, 0.5, 'a share the wire carried as text still reads');
+  A.eq(browser.compactAtOf('gemini-2.5-pro'), 0.65, 'Harness.compactAtOf reads the catalog row');
+  A.eq(browser.compactAtOf('other'), 0, 'Harness.compactAtOf: a model the catalog lacks reads 0');
+  A.ok(/turnIdentityCaps, compactAtOf, contextLimitOf, runWindowOf, contextState/.test(harness), 'Harness exports compactAtOf');
 
   // ---- 3. /compress measures against the window a run works in ----
   const compressBody = chat.slice(chat.indexOf('  function compressCommand() {'), chat.indexOf('\n  // /clear', chat.indexOf('  function compressCommand() {')));
@@ -92,6 +112,7 @@ module.exports = (async () => {
   const webChat = read('website/app/app/chat.js'), webHarness = read('website/app/app/harness.js');
   A.ok(webChat.indexOf('Harness.runWindowOf(cs.model)') >= 0, 'the website chat.js mirror carries the /compress run window');
   A.ok(webHarness.indexOf('function runWindowOf(id)') >= 0 && webHarness.indexOf('runWindow: (m && +m.runWindow) || 0') >= 0, 'the website harness.js mirror carries runWindow');
+  A.ok(webHarness.indexOf('function compactAtOf(id)') >= 0 && webHarness.indexOf('compactAt: (m && +m.compactAt > 0') >= 0, 'the website harness.js mirror carries compactAt');
 
   A.report('compress-run-window.test');
 })().catch(e => { console.log('FAIL: compress-run-window.test threw - ' + (e && e.stack || e)); process.exit(1); });
