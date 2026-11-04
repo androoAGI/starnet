@@ -119,8 +119,10 @@ function assertHeld(rig, ran, o, label) {
     rig.dispose();
   }
   // a door that cannot name its origin, and the step-through test, end the OLD way — never half-saved — and say why
-  const UNNAMED = [['step-through test', 'steptest', {}], ['a chat message with no sender', 'channel', Object.assign({}, makeRig().facts.channel, { senderId: '' })],
-    ['a webhook with no delivery receipt', 'trigger', { triggerId: 'trg_demo12345', triggerKind: 'webhook' }], ['a SEND TO with no source job', 'sendto', Object.assign({}, makeRig().facts.sendto, { sourceJobId: null })]];
+  const factsRig = makeRig();   // only for the facts it names (the doors' sample facts); nothing runs on it
+  const UNNAMED = [['step-through test', 'steptest', {}], ['a chat message with no sender', 'channel', Object.assign({}, factsRig.facts.channel, { senderId: '' })],
+    ['a webhook with no delivery receipt', 'trigger', { triggerId: 'trg_demo12345', triggerKind: 'webhook' }], ['a SEND TO with no source job', 'sendto', Object.assign({}, factsRig.facts.sendto, { sourceJobId: null })]];
+  factsRig.dispose();
   for (const [label, entry, origin] of UNNAMED) {
     const rig = makeRig();
     const ran = await rig.run({ entry, origin });
