@@ -1953,6 +1953,12 @@ const canonicalRows = streamId => transcriptStore.view('model-replay', streamId,
 /* forgetDeletedSessionSummaries() — a deleted conversation's kept summaries go the moment the delete is learned (sync), and so
    do those whose rows READ a deleted conversation (quote-forget). Not a hook inside forgetDeletedSessionMemory: turn-identity's
    forget registry takes summaryLedger as one register({ name, sourceOf, forget }) line. An unfinished earlier pass is retried at boot. */
+/* A row forgotten from its stream (an undo, a cached retraction) takes the stream's kept summaries with it at once: the stored note
+   may quote the row, and the digest check only drops it lazily at the next send, so the words would sit on disk until then. */
+function forgetStreamSummaries(streamId) {
+  try { summaryLedger.drop(streamId).catch(swallow('summary-ledger.drop')); }
+  catch (e) { failNote('summary-ledger.drop', e); }
+}
 function forgetDeletedSessionSummaries() {
   try { return summaryLedger.purge({}); }
   catch (e) { failNote('summary-ledger.purge', e); return null; }
@@ -30023,6 +30029,7 @@ async function handleTurnIdentityRetract(req, res) {
       rowIds: body && body.rowIds, reason: 'undo' });
     if (result.state === 'invalid') return respondJson(res, 400, { error: result.why });
     if (result.state !== 'done') return respondJson(res, 409, { error: 'The station could not prove the complete turn to undo. History was kept.', code: 'TRANSCRIPT_UNVOUCHED' });
+    forgetStreamSummaries(body.streamId);
     return respondJson(res, 200, { ok: true, targets: result.targets, rowId: result.rowId });
   } catch (error) {
     failNote('turn.retract.undo', error);
@@ -30036,6 +30043,7 @@ async function handleTurnIdentityRetractions(req, res) {
   const result = transcriptStore.cacheRetractions(body && body.streamId, body && body.rowIds);
   if (result.state === 'invalid') return respondJson(res, 400, { error: 'invalid stream or row ids' });
   if (result.state !== 'done') return respondJson(res, 503, { error: 'Cached transcript identity could not be proved.', code: 'TRANSCRIPT_UNVOUCHED' });
+  if (result.retracted && (Array.isArray(result.retracted) ? result.retracted.length : result.retracted)) forgetStreamSummaries(body.streamId);
   return respondJson(res, 200, { streamId: body.streamId, retracted: result.retracted });
 }
 function serveTranscript(req, res) {

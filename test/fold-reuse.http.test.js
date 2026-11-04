@@ -228,6 +228,7 @@ const noteSha = notes => notes.map(sha).join(',');
       const row = turns.find(r => r.role === 'user' && String(r.content).startsWith('Entry ' + victim + ':'));
       const undo = await fetch(base + '/api/turn-identity/retract', { method: 'POST', headers, body: JSON.stringify({ streamId: STREAM, turnId: row && row.turnId }) });
       A.eq(undo.status, 200, 'the Commander undoes that exchange (the real retract route)');
+      A.ok(!fs.existsSync(path.join(SUMMARIES, STREAM + '.json')) || !fs.readFileSync(path.join(SUMMARIES, STREAM + '.json'), 'utf8').includes('Entry ' + victim + ':'), 'at rest, right after the undo and before any send, the kept-summary file holds none of the undone words');
       const at = history.findIndex(m => m.role === 'user' && String(m.content).startsWith('Entry ' + victim + ':'));
       history.splice(at, 2);                                   // the page drops the undone turn from what it sends
       const out = await sendNext({});
