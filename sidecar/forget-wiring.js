@@ -35,6 +35,105 @@ const stampSource = r => ({ quotes: r && r.quotes, quotesAt: r && r.quotesAt, qu
 const settle = persist => { persist(); persist(); };
 const latestStamp = scope => { let l = 0; for (const w of (scope.streams || scope.at || new Map()).values()) if (w > l) l = w; return l; };
 
+/* THE CENSUS TABLE. Every durable store the sidecar writes - each saveResilient(<NAME>_FILE), each makeDurableJsonStore / makeDomainStore
+   (named by its const in index.js, by its file elsewhere) and each memory-store key prefix - is a row here: it is purged by a registered entry,
+   or kept ON PURPOSE with the reason. test/forget-registry.census.test.js scans the whole sidecar for those stores and fails on one that has no
+   row (a new store must choose) and on a row whose store is gone. Row: [census key, 'entry', registry entry name] or
+   [census key, 'exempt', exemption name | '', reason] (an empty name = the key). */
+const STORES = [
+  // ---- purged by a registered entry ----
+  ['INTERESTS_FILE', 'entry', 'interests'],
+  ['SCOUT_FILE', 'entry', 'scout'],
+  ['recommendation-ledger.js', 'entry', 'recommendations'],
+  ['VERDICT_PACKETS_FILE', 'entry', 'verdict-packets'],
+  ['taskbrief-store.js', 'entry', 'task-briefs'],
+  ['SKILL_GOLDENS_FILE', 'entry', 'skill-goldens'],
+  ['STUDY_STATE_FILE', 'entry', 'study-proposals'],
+  ['deliverable-store.js', 'entry', 'deliverables'],
+  ['NIGHTSHIFT_DRAFTS_FILE', 'entry', 'night-drafts'],
+  ['NIGHTSHIFT_ACTS_FILE', 'entry', 'night-acts'],
+  ['workshop-store.js', 'entry', 'workshop-backlog'],
+  ['quest-store.js', 'entry', 'quests'],
+  ['QUESTREFRESH_FILE', 'entry', 'north-star'],
+  ['awayBriefingStore', 'entry', 'away-briefing'],
+  ['overseer.js', 'entry', 'overseer'],
+  ['group-sessions.js', 'entry', 'group-sessions'],
+  ['memory:notebook', 'entry', 'notebook-memory'],
+  ['memory:pending', 'entry', 'notebook-memory'],
+  ['threads-store.js', 'entry', 'notebook-memory'],
+  // ---- kept on purpose, with the reason ----
+  ['CRON_FILE', 'exempt', 'cron-jobs', 'Q4: routines the Commander created are kept - a routine is the Commander\'s own configuration, not a memory of a session'],
+  ['CRON_ARMED_FILE', 'exempt', '', 'the arm switch of those routines (a flag and a time)'],
+  ['CRON_HALT_FILE', 'exempt', '', 'the halt switch of those routines (a flag and a time)'],
+  ['LOOPS_FILE', 'exempt', '', 'Q4: loops the Commander created are kept, like routines - configuration, not a memory'],
+  ['LOOPS_HALT_FILE', 'exempt', '', 'the halt switch of those loops (a flag and a time)'],
+  ['TURN_IDENTITY_FILE', 'exempt', 'turn-identity-mode', 'turn-identity surface modes only (a mode name per surface)'],
+  ['memory:declined', 'exempt', 'declined', 'Q5: the Commander\'s own reject list - plain strings kept on disk and in host dedup so a rejected proposal is never made again; from the first non-adopted delete reflect gets them as dedupOnly, so none reaches a prompt (commit 15)'],
+  ['memory:todo', 'exempt', '', 'the agent\'s in-session task plan (todo tool): no source is recorded on its items and it is replaced on every plan write; a known gap, noted for a follow-up - it can only be cleared wholesale'],
+  ['memory:embed', 'exempt', '', 'embedding vectors (numbers) keyed by notebook record ids; the notebook-memory entry removes the records and a vector without a record is never served'],
+  ['memory:minted', 'exempt', '', 'the mint ledger: fingerprints and counts of routines an agent created (dedup), no session text'],
+  ['memory-store.js', 'exempt', '', 'the key-value router itself; every key prefix it serves has its own row (memory:*)'],
+  ['personalization-store.js', 'exempt', '', 'the learning switch and its revision counter; the personalization-revision entry bumps the revision on a delete so a learning pass that began before it writes nothing'],
+  ['AGENT_ROSTER_FILE', 'exempt', '', 'the crew roster: agent definitions the Commander wrote (names, models, personas), not derived from a session'],
+  ['ALLOWLIST_FILE', 'exempt', '', 'the tool and path allowlist the Commander granted'],
+  ['BYPASS_FILE', 'exempt', '', 'a consent flag and its time'],
+  ['PROJECTS_FILE', 'exempt', '', 'the project registry (folders the Commander blessed)'],
+  ['GOALS_FILE', 'exempt', '', 'the Commander\'s own active goal, in the Commander\'s words'],
+  ['DOSSIER_FILE', 'exempt', '', 'pending commit 14 (forgotten-everywhere step): the dossier block is composed by the page and pushed here; the entry that clears it by sourceRunIds, with write admission, is registered there'],
+  ['AUTONOMY_POSTURE_FILE', 'exempt', '', 'pending commit 14 (forgotten-everywhere step): the posture dial plus the beliefs snapshot the page pushes; the entry that drops sourced beliefs, with write admission, is registered there'],
+  ['NIGHTFOCUS_STATE_FILE', 'exempt', '', 'the night focus steer the Commander chose and its settings'],
+  ['NIGHTSHIFT_STATE_FILE', 'exempt', '', 'whether the night shift is enabled and its cadence'],
+  ['NIGHTSHIFT_LEARN_FILE', 'exempt', '', 'per-archetype up and down verdict tallies (counts only, no text)'],
+  ['DISCOVERY_FILE', 'exempt', '', 'project discovery findings read from the Commander\'s folders on disk, not from a session'],
+  ['SCHEMA_VERSION_FILE', 'exempt', '', 'the workspace schema version stamp'],
+  ['BROWSER_SETTINGS_FILE', 'exempt', '', 'a browser setting the Commander chose'],
+  ['EXECUTION_SETTINGS_FILE', 'exempt', '', 'an execution setting the Commander chose'],
+  ['RUNTIME_KNOBS_FILE', 'exempt', '', 'runtime tuning settings (numbers and switches)'],
+  ['TOOLSETS_FILE', 'exempt', '', 'which tool sets are disabled (a setting)'],
+  ['ROUTING_FILE', 'exempt', '', 'the model routing plan (provider and model choices)'],
+  ['STEPTEST_FILE', 'exempt', '', 'step-test state of a work line (spend and ids)'],
+  ['CHANNEL_SECRETS_FILE', 'exempt', '', 'a credential store (secrets, not derived from a session)'],
+  ['CODEX_TOKENS_FILE', 'exempt', '', 'a credential store (OAuth tokens)'],
+  ['SERVICEKEYS_FILE', 'exempt', '', 'a credential store (service keys)'],
+  ['SKILLS_ALLOW_FILE', 'exempt', '', 'learned skill files (Q4): the Commander\'s approvals of reviewed skill bytes'],
+  ['SKILL_EVALUATIONS_FILE', 'exempt', '', 'learned skill files (Q4): behavioural comparison receipts of skill candidates'],
+  ['SKILL_REGISTRIES_FILE', 'exempt', '', 'skill registry sources (urls the Commander added)'],
+  ['SKILL_METRICS_FILE', 'exempt', '', 'skill usage counters'],
+  ['SKILL_NUDGE_FILE', 'exempt', '', 'a per-agent turn counter'],
+  ['budgetStore', 'exempt', '', 'spending caps and counters (numbers)'],
+  ['fallbackStore', 'exempt', '', 'the provider fallback chain (a setting)'],
+  ['voiceChatStore', 'exempt', '', 'voice-chat model settings'],
+  ['memoryConfigStore', 'exempt', '', 'memory settings (switches and thresholds)'],
+  ['lineSpendStore', 'exempt', '', 'work-line spend counters'],
+  ['lineShipmentStore', 'exempt', '', 'work-line shipment receipts (ids and states, no title)'],
+  ['lineJobStore', 'exempt', '', 'work-line jobs: the ask and output of a job a line ran are filed under the line, not under a conversation session'],
+  ['triggerStore', 'exempt', '', 'trigger runner configuration the Commander made'],
+  ['triggerSeenStore', 'exempt', '', 'trigger runner dedup state (hashes of items already seen)'],
+  ['widgetStore', 'exempt', '', 'widgets placed on the desk: delivered artifacts, kept like delivered workspace files (Q4)'],
+  ['appDataStore', 'exempt', '', 'data an installed app keeps for itself, not derived from a session'],
+  ['pluginDataStore', 'exempt', '', 'data an installed plugin keeps for itself, not derived from a session'],
+  ['terminalMetadataStore', 'exempt', '', 'metadata of the Commander\'s terminal sessions (not conversation sessions)'],
+  ['idempotency-ledger.js', 'exempt', '', 'receipts of external connector writes keyed by hashes (a safety record: it stops a write being repeated)'],
+  ['journey-store.js', 'exempt', '', 'the Commander\'s verified progression: outcomes the Commander or a harness contract confirmed, kept as earned'],
+  ['request-reservations.js', 'exempt', '', 'API request ids and hashes (24 hour receipts)'],
+  ['workflow-takeover.js', 'exempt', '', 'offer decisions keyed by workflow fingerprint (state and time)'],
+  ['session-tombstones.js', 'exempt', '', 'the ledger of deletes itself: ids and times only - it IS the record the purge reads']
+];
+// stores no pattern above can see, with the entry or exemption that covers them
+const UNKEYED_ENTRIES = {
+  'subagents': 'subagents.json: the manager owns its own writer',
+  'attachment-files': 'bytes under the agent workspace .attachments/ (files, not a JSON store)',
+  'personalization-revision': 'no store of its own: it bumps the revision of personalization-store.js'
+};
+const UNKEYED_EXEMPTIONS = [
+  ['turn-identity-soak', 'turn-identity.soak.json: ids, counts and hashes only (the soak ledger), no text of a session'],
+  ['run-journal', 'the journals of interrupted runs (.run-journal): an unmatched tool intent in one is the only evidence a side effect may have happened, so the file stays until the Commander resolves it; a run that began in, or read, a deleted session is never offered, prepared or continued (runRecoveryForgotten)'],
+  ['delivered-workspace-files', 'Q4: files an agent delivered into its workspace are the Commander\'s work product and stay (the deliverables entry removes the library rows that pointed at them)'],
+  ['learned-skill-files', 'Q4: skill files an agent learned stay; goldens and verdict packets, which copy a run, are purged'],
+  ['channel-legacy-files', 'the per-chat legacy history mirrors of the channel store (and their .bak and legacy-hops files): read only by the rollback path; the store cannot attribute a file to a stream (the hub\'s agentIdFor owns that mapping), so a delete cannot find it - a known gap, noted for a follow-up'],
+  ['restored-save-copies', 'a ~restored copy is a workstream row of the PAGE\'s own save (its id is not a valid stream id, so the ledger cannot stamp it); the page\'s delete purges it with the session (commit 16)']
+];
+
 function wireForgetRegistry(registry, deps) {
   const d = deps || {};
   const entry = e => registry.register(e);
@@ -318,7 +417,13 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.groupSessions().forget(src => inScope(src, scope))
   });
 
+  // the exemptions: each census row that keeps a store, and the stores no pattern sees
+  for (const row of STORES) if (row[1] === 'exempt') registry.exempt(row[2] || row[0], row[3]);
+  for (const [name, reason] of UNKEYED_EXEMPTIONS) registry.exempt(name, reason);
+  // the table is the contract: every row that names an entry names one that is registered
+  for (const row of STORES) if (row[1] === 'entry' && registry.names().indexOf(row[2]) < 0) throw new Error('forget wiring: ' + row[0] + ' names an entry that is not registered: ' + row[2]);
+  for (const name of Object.keys(UNKEYED_ENTRIES)) if (registry.names().indexOf(name) < 0) throw new Error('forget wiring: ' + name + ' is not registered');
   return registry;
 }
 
-module.exports = { wireForgetRegistry };
+module.exports = { wireForgetRegistry, STORES, UNKEYED_ENTRIES, UNKEYED_EXEMPTIONS };
