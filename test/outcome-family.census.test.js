@@ -477,6 +477,12 @@ const REPORTED = {
     ["reason: String(r.continuation.reason || '')", "the continuation's reason, settled from its OUTCOME at the source (handleRun: a cut continuation is 'cut_short')"],
     ["' reason=' + status.reason + ' saved='", NR("the learning status's own reason (owner_preference_saved …)")],
     ["reason: String(body.reason || 'user')", NR('why a memory was forgotten')],
+    // context-budget-and-fold (summary-ledger.js, summary-cover.js): the log tag a kept summary's refusal rides on. Each names the
+    // LEDGER's own answer (why a stored summary was not served, not claimed or not written); none says how a run ended.
+    ["failNote('summary.not-served.' + verdict.reason", NR("why the summary ledger would not serve a kept summary to this run: its validity check (model, window, voice, forgotten, digest …)")],
+    ["failNote('summary.not-served.' + sub.reason", NR("why a valid kept summary could not stand in for this run's window messages: the substitution's placement check")],
+    ["failNote('summary.no-claim.' + claim.reason", NR("why a fold's summary was not kept: the rows it stands for could not be proven")],
+    ["failNote('summary.put.' + wrote.reason", NR("why the ledger refused to write a kept summary (tombstoned / too-large / invalid)")],
     // the run-wire-resolver lane (this lane's base since the rebase): a wire resolution's reason is why a pair was chosen or passed over
     ["now: { provider: r.provider, model: r.model }, reason: r.reason", NR("why pairCronJobWires re-paired a routine's stored pair on load (its wireMigration note)")],
     ["') stored half a pair ') + JSON.stringify(note.was)", NR("the same re-pairing note, logged once")],
