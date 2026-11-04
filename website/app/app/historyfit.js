@@ -4,6 +4,7 @@
   else root.HistoryFit = factory(root.CtxGauge, root.TurnMerge);
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (CtxGauge, TurnMerge) {
   'use strict';
+  // 120 ROWS of page history (user and assistant alike); what a long chat drops is carried by the earlier-conversation note and the persisted summary (chat.js HISTORY CAP)
   const HISTORY_CAP = 120;
   const HISTORY_WIRE_MAX_BYTES = 1 << 20;
   function utf8Bytes(s) {
