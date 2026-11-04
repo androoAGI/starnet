@@ -12,7 +12,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -70,13 +70,8 @@ test('a job that ships on LINE A rides on to LINE B by SEND TO', async () => {
       { id: 'p5', t: 'bay', x: 3, y: 4, w: 1, h: 1, agentId: 'beta', role: 'WRITER', brief: 'Turn what you are handed into a haiku.' },
       { id: 'p6', t: 'outbox', x: 6, y: 4, w: 1, h: 1 }
     ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })).concat([1, 2, 4, 5].map(x => ({ x, y: 4, dir: 'E' }))) });
-    const arm = async (geo) => {
-      const plan = Pipeline.compileRoutingPlan(geo);
-      for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'workbench'];
-      const r = await fixture.json('POST', '/api/routing', plan);
-      assert.equal(r.body.ok, true, JSON.stringify(r.body));
-      return plan;
-    };
+    // each floor is SAVED, then the page's hint of it is published: the station routes by what it saved
+    const arm = async (geo) => (await publishFloor(fixture, floorOf(geo, { equip: ['computer', 'workbench'] }))).plan;
     const plan = await arm(geoOf('p4'));
     const LA = plan.lineOfProp.p1, LB = plan.lineOfProp.p4;
     assert.ok(LA && LB && LA !== LB, 'two lines, never fused');
@@ -239,16 +234,14 @@ test('hand-offs waiting when the station quits are said, never lost', async () =
       { agentId: 'beta', name: 'Beta', system: 'Line B', provider: 'custom', model: 'handoff-model' }
     ];
     assert.equal((await fixture.json('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);
-    const plan = Pipeline.compileRoutingPlan({ props: [
+    const { plan } = await publishFloor(fixture, floorOf({ props: [
       { id: 'p1', t: 'intake', x: 0, y: 0, w: 1, h: 1, label: 'A' },
       { id: 'p2', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'alpha', role: 'WRITER', brief: 'Answer briefly.' },
       { id: 'p3', t: 'outbox', x: 6, y: 0, w: 1, h: 1, sendTo: 'p4' },
       { id: 'p4', t: 'intake', x: 0, y: 4, w: 1, h: 1, label: 'B' },
       { id: 'p5', t: 'bay', x: 3, y: 4, w: 1, h: 1, agentId: 'beta', role: 'WRITER', brief: 'Work on what you are handed.' },
       { id: 'p6', t: 'outbox', x: 6, y: 4, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })).concat([1, 2, 4, 5].map(x => ({ x, y: 4, dir: 'E' }))) });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'workbench'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })).concat([1, 2, 4, 5].map(x => ({ x, y: 4, dir: 'E' }))) }, { equip: ['computer', 'workbench'] }));
     const LA = plan.lineOfProp.p1, LB = plan.lineOfProp.p4;
     const onB = async () => (await fixture.json('GET', '/api/line-jobs?line=' + encodeURIComponent(LB))).body.jobs;
     const sent = [];

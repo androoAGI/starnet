@@ -36,6 +36,7 @@ const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser +
 const Continuation = require('./line-continuation.js');
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // a hop's outcome word, for the per-hop evidence a hold saves
 const crypto = require('node:crypto');
+const { holdOf } = require('./saved-hold.js');   // a saved floor that went held between two hops: said as a refusal, never as the last stage
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
 // normalizer's defaults (Pipeline.LINE_LIMIT_DEFAULTS) so the compiler and the executor can never disagree.
@@ -1183,7 +1184,13 @@ function makeChainRunner(o) {
         const briefHeld = heldStop(loopGateAfter, cur.agentId, lineId, cur.dockId, ctx.verdict);
         if (briefHeld) return holdAt(briefHeld, cur, 'blocked', briefHeld.gateId, iter[briefHeld.gateId] || 0, { hop, ctx, gate: briefHeld.gate });
         fromTile = null; via = null;
-        try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; } catch (_) { step = null; }
+        try { step = (dockMode && cur.dockId) ? stepDock(cur.dockId, ctx) : stepAgent ? stepAgent(cur.agentId, ctx) : null; }
+        catch (e) {
+          // THE SAVED FLOOR WENT HELD BETWEEN TWO HOPS: the line cannot say where this work goes next. That is a refusal to say, not "this stage was the last" (which would ship half a line as finished)
+          const held = holdOf(e);
+          if (held) return stopAt(LineFire.lineStop('refused', { why: held.why }), cur);
+          step = null;
+        }
         let loopDone = false, atGate = false;
         if (step && step.loop) {
           atGate = true;   // (a gate that hands on to a JOINER replaces `step` with the join below: the person's word was already applied AT the gate)
@@ -1307,7 +1314,8 @@ function makeChainRunner(o) {
         } else if (step && (step.dockId || step.agentId)) {
           target = asNode(step);
         } else if (!stepAgent && !(dockMode && cur.dockId)) {
-          try { target = asNode(nextAgent(cur.agentId, ctx)); } catch (_) { target = null; }
+          try { target = asNode(nextAgent(cur.agentId, ctx)); }
+          catch (e) { const held = holdOf(e); if (held) return stopAt(LineFire.lineStop('refused', { why: held.why }), cur); target = null; }
         }
       }
       // no target = EITHER a terminal stage (its reply IS the answer — silent, correct) OR the line gate

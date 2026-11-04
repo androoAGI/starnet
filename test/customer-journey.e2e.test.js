@@ -8,7 +8,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const IPC = 'customer-journey-fixture-ipc-token-1234567890';
 const providers = ['starnet', 'openrouter', 'custom', 'gemini', 'codex'];
 // Agent ids are NOT provider names: WORKSPACES/codex holds the ChatGPT tokens, so an agent id `codex` is reserved
@@ -123,9 +123,7 @@ test('customer journey: connect, select, tool, output, restart and repeat on all
         for (const entry of ['sample', 'direct', 'routine']) {
           calls.length = 0;
           if (entry === 'sample') {
-            const plan = Pipeline.compileRoutingPlan({ props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: aid(p) }, { id: 'o', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) });
-            for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'cabinet'];
-            assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+            await publishFloor(fixture, floorOf({ props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: aid(p) }, { id: 'o', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) }, { equip: ['computer', 'cabinet'] }), { label: 'the ' + p + ' line' });
             const r = await fixture.json('POST', '/api/routing/sample', {});
             assert.equal(r.body.ok, true, JSON.stringify(r.body));
             assert.equal(r.body.delivered.agentId, aid(p));

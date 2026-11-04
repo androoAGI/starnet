@@ -11,7 +11,7 @@
    Last, vibe design: "the left side cozy, the right side a line that builds and tests code" lands exactly so, in one undo. Isolated like station-layout.e2e (APPDATA / LOCALAPPDATA / USERPROFILE / HOME /
    HERMES_HOME to scratch, a fresh Chrome profile, OS-picked ports, a local mock model). Skips LOUDLY with no Chromium. */
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import http from 'node:http';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -21,6 +21,7 @@ import { findChrome, connectCDP, evalJS, collectDiagnostics, sleep } from '../sc
 import { materializeSeedWorkspace, bootSeededSidecar, waitUp, waitDevReady } from '../scripts/lib/seed.mjs';
 const require = createRequire(import.meta.url);
 const { bootToken } = require('./_httpToken.js');
+const { hintFor } = require('./helpers/saved-floor.js');   // the compile the router routes by: the station's SAVED floor, compiled the way the page does
 
 let chromePath = null;
 try { chromePath = findChrome(); } catch (_) { chromePath = null; }
@@ -168,7 +169,10 @@ try {
   check('the Inbox is named and carries the $5 daily cap', !!floor.intake && floor.cap === 5, JSON.stringify(floor));
   check('both steps are staffed by the lead with their standard instructions', floor.bays.length === 2 && floor.bays.every(b => b[1] && b[2].length > 5) && floor.loop === 3, JSON.stringify(floor.bays));
 
-  const posted = JSON.parse(readFileSync(join(workspace, 'routing.plan.json'), 'utf8'));
+  // Nothing a page posts is installed or kept: the router routes by the floor the station SAVED. So the plan to hold the receipt against is that floor's, compiled
+  // the way the router compiles it (the old read of routing.plan.json, the last plan a page posted, is a file the station no longer writes).
+  const savedNow = await fetch(base + '/api/save?agent=agent', { headers: { 'X-StarNet-Token': token, Origin: base } }).then(r => r.json()).catch(() => null);
+  const posted = savedNow && savedNow.save && savedNow.save.station ? hintFor(savedNow.save.station).plan : {};
   const builtSync = await evalJS(cdp, 'World.planStatus()');
   check('the build receipt follows publication even with the frame pump held',
     !!BL && !!BL.routing && BL.routing.published === true && typeof floor.lineId === 'string' && !!floor.lineId

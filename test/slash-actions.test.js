@@ -325,6 +325,10 @@ const mk = (over) => { const d = deps(over); return { S: makeSlashActions(d), ca
     const cap = await mk({ workshop: { shiftNow: async () => ({ ok: true, fired: false, reason: 'no-capability' }) } })
       .S.run('away', 'now');
     A.ok(/AI & MODELS/.test(cap.text), 'a missing credential names where to add one');
+    // a saved floor that cannot be proved right now HOLDS the shift (fired:false, nothing claimed): said as held, never as a build that failed or an item parked
+    const held = await mk({ workshop: { shiftNow: async () => ({ ok: true, fired: false, reason: 'routing-held', why: 'the saved floor is corrupt; routing is held until it is readable' }) } })
+      .S.run('away', 'now');
+    A.ok(/No away shift ran/.test(held.text) && /saved floor cannot be proved/.test(held.text) && /queue is untouched/.test(held.text) && !/routing-held|nothing usable|parked/.test(held.text), 'a held shift is said in plain words and never as a failed one: ' + held.text);
     // an UNKNOWN code is passed through verbatim rather than swallowed or guessed at
     const odd = await mk({ workshop: { shiftNow: async () => ({ ok: true, fired: false, reason: 'brand-new-code' }) } })
       .S.run('away', 'now');

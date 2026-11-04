@@ -7,7 +7,7 @@
      2. GET discovery answers available without dispatching or spending, while an unauthenticated probe
         remains denied;
      3. NO ARMED PLAN → POST gives an honest 409 refusal ({ok:false,error}), and never a route-miss;
-     4. HAPPY PATH: the sample rides the REAL unaddressed dispatch path through a posted two-stage floor —
+     4. HAPPY PATH: the sample rides the REAL unaddressed dispatch path through a SAVED two-stage floor —
         the router picks the entry dock, the chain runner runs the downstream stage, the reply the line
         delivers is the LAST stage's, the recorded runs.jsonl rows are scoped by the sample's own streamId,
         and the workitem crates (with the additive sample:true marker, re-proven against shared/events
@@ -32,6 +32,7 @@ const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const Events = require('../shared/events.js');
+const { floorOf, hintFor, planOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -149,21 +150,22 @@ async function startSseCollector(url) {
 // the downstream dock's must reach the handoff turn — asserted against the mock provider's recordings.
 const ENTRY_BRIEF = 'Dig the sources and hand a clean evidence pack downstream.';
 const HOP_BRIEF = 'Draft the final answer in press style.';
-function twoStagePlan() {
-  const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
-    props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
-            { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: ENTRY_BRIEF },
-            { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent', brief: HOP_BRIEF },
-            { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
-    belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-  });
+const belt = (x, y, dir) => ({ x, y, dir });
+// the floor is SAVED (the station's own save owner is the routing authority) and the page's hint of it is published: nothing is posted as a plan
+const TWO_STAGE = {
+  props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
+          { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: ENTRY_BRIEF },
+          { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent', brief: HOP_BRIEF },
+          { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
+  belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
+};
+function twoStageFloor() {
+  const station = floorOf(TWO_STAGE, { equip: ['computer', 'workbench'] }), plan = planOf(hintFor(station));
   A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
   A.eq((plan.chains['research-agent'] || {}).next, ['writer-agent'], 'fixture: the floor chains the two docks');
   // the brief rides dockBays, NOT the hashed dispatch record (2026-08-07: prompt text may not move plan.hash)
   A.eq(plan.dockBays.find(b => b.agentId === 'research-agent').brief, ENTRY_BRIEF, 'fixture: the compiled plan carries the entry brief');
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer', 'workbench'];
-  return plan;
+  return { station, plan };
 }
 
 (async () => {
@@ -214,22 +216,13 @@ function twoStagePlan() {
     A.ok(noPlan.j && noPlan.j.ok === false, 'the refusal says ok:false');
     A.ok(/no work line is armed/.test(String(noPlan.j.error || '')), 'the refusal names the real reason: ' + noPlan.j.error);
 
-    /* ---- 3. HAPPY PATH through a posted two-stage floor ---- */
-    /* the docks' ROOM is bounded by the saved station (a posted plan may only narrow it — qa/bugs/a9a4f53c): save both
-       bays with a workstation each and a workbench in their room, so the bay room is computer + workbench and the shell
-       probe in section 5 meets a projected, consent-gated shell.exec */
-    const WM = require('../frontend/app/worldmodel.js');
-    const stDoc = WM.defaultDoc();
-    stDoc.props.push({ id: 'b1', t: 'bay', x: 2, y: 1, w: 1, h: 1, agentId: 'research-agent' }, { id: 'pc1', t: 'console', x: 4, y: 1, w: 2, h: 1, agentId: 'research-agent' },
-      { id: 'b2', t: 'bay', x: 8, y: 1, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'pc2', t: 'console', x: 10, y: 1, w: 2, h: 1, agentId: 'writer-agent' },
-      { id: 'wb1', t: 'workbench', x: 13, y: 1, w: 2, h: 1, block: true });
-    stDoc._nid = 6;
-    const prior = ((await (await fetch(B + '/api/save?agent=agent', { headers })).json()) || {}).save;
-    const sv = await fetch(B + '/api/save', { method: 'POST', headers,
-      body: JSON.stringify({ schema: 'starnet.save', version: 5, _saveRevision: (prior && prior._saveRevision) || 0, updatedAt: Date.now(), agent: { id: 'agent' }, station: stDoc }) });
-    A.ok(sv.status === 200 && ((await sv.json()) || {}).ok === true, 'the station the line runs on (two bays, a workstation each, a workbench) is saved');
-    const posted = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(twoStagePlan()) });
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
+    /* ---- 3. HAPPY PATH through a saved two-stage floor ---- */
+    /* the docks' ROOM is the saved station's (a page's hint never grants anything — qa/bugs/a9a4f53c): both bays are saved with a
+       workstation each and a workbench in their room, so the bay room is computer + workbench and the shell probe in section 5
+       meets a projected, consent-gated shell.exec. The page then publishes its hint of that floor, and the station says it is the saved one */
+    const api = fetchApi(B, headers);
+    const two = twoStageFloor();
+    await publishFloor(api, two.station, { label: 'the two-stage floor (two bays, a workstation each, a workbench)' });
     sse = await startSseCollector(B + '/api/channels/events?' + require('./_httpToken.js').sseQuery(token));
 
     const happy = await post({});
@@ -286,7 +279,7 @@ function twoStagePlan() {
        so its crates carry the line they were fired for — derived server-side from the compiled plan
        (router.lineOriginFor), never taken from the request body. This is what lets the floor animate the
        handoff for line-owned work and stay still for a direct order. */
-    const planLineId = require('../frontend/app/pipeline.js').lineOf(twoStagePlan(), 'research-agent');
+    const planLineId = Pipeline.lineOf(two.plan, 'research-agent');
     A.ok(!!planLineId, 'the compiled floor names the line these docks belong to');
     A.eq(entry.lineId, planLineId, 'the sample entry crate carries the line it was fired for');
     const hopCrate = placed.find(p => p.kind === 'chain' && p.agentId === 'writer-agent');
@@ -365,8 +358,7 @@ function twoStagePlan() {
        dock: the FILTER never decided, and the proof quietly stopped proving the thing it names. Posted here
        as a FILTER floor with two lanes so the failure is unmissable — a second sample carrying the OTHER
        content tag must land at the OTHER dock. Two samples, two tags, two docks. ---- */
-    const belt = (x, y, dir) => ({ x, y, dir });
-    const filterPlan = Pipeline.compileRoutingPlan({
+    const filterFloor = floorOf({
       props: [{ id: 'i2', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
               { id: 'f2', t: 'filter', x: 3, y: 0, w: 1, h: 1, routes: { code: 'S' }, def: 'E' },
               { id: 'bg', t: 'bay', x: 6, y: 0, w: 1, h: 1, agentId: 'general-agent' },
@@ -380,12 +372,10 @@ function twoStagePlan() {
       belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(4, 0, 'E'), belt(5, 0, 'E'), belt(7, 0, 'E'),
               belt(3, 1, 'S'), belt(3, 2, 'S'), belt(4, 3, 'E')]
     });
-    A.ok(Pipeline.ok(filterPlan), 'fixture: the FILTER floor is deployable');
-    A.eq(Pipeline.resolveTarget(filterPlan, { tag: 'code' }), 'code-agent', 'fixture: the filter sorts code work down the S lane');
-    A.eq(Pipeline.resolveTarget(filterPlan, { tag: 'general' }), 'general-agent', 'fixture: everything else takes the default lane');
-    for (const b of filterPlan.bays.concat(filterPlan.dockBays)) b.objects = ['computer'];
-    const postedF = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(filterPlan) });
-    A.eq(postedF.status, 200, 'the FILTER floor deploys');
+    const filter = await publishFloor(api, filterFloor, { label: 'the FILTER floor' });
+    A.ok(Pipeline.ok(filter.plan), 'fixture: the FILTER floor is deployable');
+    A.eq(Pipeline.resolveTarget(filter.plan, { tag: 'code' }), 'code-agent', 'fixture: the filter sorts code work down the S lane');
+    A.eq(Pipeline.resolveTarget(filter.plan, { tag: 'general' }), 'general-agent', 'fixture: everything else takes the default lane');
 
     const s1 = await post({ text: 'SAMPLE JOB: refactor the typescript module that keeps crashing.' });
     A.eq(s1.status, 200, 'sample #1 delivers');
@@ -402,11 +392,10 @@ function twoStagePlan() {
     /* the pre-flight refusal and the real run cannot name different docks — the check no longer resolves a
        dock at all (it reads the compiled `reach`, which fans every junction lane), so a splitter/filter can
        never clear lane 0 in the check and take lane 1 in the run. An UNCREWED line still refuses honestly. */
-    const uncrewed = Pipeline.compileRoutingPlan({
+    await publishFloor(api, floorOf({
       props: [{ id: 'i3', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b3', t: 'bay', x: 4, y: 0, w: 1, h: 1 }],
       belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E')]
-    });
-    A.eq((await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(uncrewed) })).status, 200, 'the uncrewed floor deploys');
+    }), { label: 'the uncrewed floor' });
     const noDock = await post({});
     A.eq(noDock.status, 409, 'a line with no crewed dock still refuses, and refuses honestly');
     A.ok(/no dock/.test(String(noDock.j.error || '')), 'naming the real reason: ' + noDock.j.error);
@@ -421,7 +410,7 @@ function twoStagePlan() {
          (a) line: B -> the sample enters through B's OWN door, runs B's dock, and its crate carries B;
          (b) an unknown line refuses 409 (never 404, never a ride down some other line), spending nothing;
              a known-but-uncrewed line refuses with the honest no-dock reason. */
-    const twoLine = Pipeline.compileRoutingPlan({
+    const twoLineFloor = floorOf({
       props: [
         // LINE A (oldest ids -> compiles first, keys 'p1'): INTAKE -> alpha-agent -> OUTBOX
         { id: 'p1', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
@@ -439,13 +428,12 @@ function twoStagePlan() {
               belt(1, 10, 'E'), belt(2, 10, 'E'), belt(3, 10, 'E'), belt(5, 10, 'E'), belt(6, 10, 'E'),
               belt(1, 20, 'E'), belt(2, 20, 'E'), belt(3, 20, 'E')]
     });
+    const twoLine = (await publishFloor(api, twoLineFloor, { label: 'the two-line floor' })).plan;
     A.ok(Pipeline.ok(twoLine), 'fixture: the two-line floor is deployable');
     const lineA = twoLine.lineOfAgent['alpha-agent'], lineB = twoLine.lineOfAgent['beta-agent'];
     const lineC = twoLine.lineOfProp['p7'];
     A.ok(lineA && lineB && lineC && lineA !== lineB && lineB !== lineC, 'fixture: three distinct compiled lines: ' + [lineA, lineB, lineC].join(','));
     A.eq(Pipeline.resolveTarget(twoLine, {}), 'alpha-agent', 'fixture: the unscoped source walk resolves LINE A first');
-    for (const b of twoLine.bays.concat(twoLine.dockBays)) b.objects = ['computer'];
-    A.eq((await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(twoLine) })).status, 200, 'the two-line floor deploys');
 
     // (c) no `line` in the body -> EXACTLY today's behaviour: first-compiled line, no `line` echo
     const plain = await post({});

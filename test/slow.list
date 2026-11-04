@@ -115,3 +115,6 @@ test/line-entry-parity.e2e.test.js
 # settle sleeps and job polls — 55.6 s standalone on 2026-11-04 with another gate running, so it is listed by the >= 40 s rule. (Its sibling
 # line-hold.restart.http is 33.9 s and stays off.)
 test/line-hold.e2e.http.test.js
+# routing.saved-floor-authority.e2e: one real sidecar booted and restarted with no page, sixteen dev jobs against a mock provider, five held-floor rows and a scheduled fire —
+# 32.5 s, 48.5 s and 74.7 s standalone on 2026-11-04 while other lanes built (a cold boot alone is 14 s on the throttled box), 18-22 s on a quiet box, so it is listed by the >= 40 s rule.
+test/routing.saved-floor-authority.e2e.test.js

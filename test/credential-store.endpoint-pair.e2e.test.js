@@ -41,7 +41,7 @@ const fs = require('fs');
 const http = require('http');
 const path = require('path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const EDGE = path.join(__dirname, 'helpers', 'outbound-edge.js');
 const IPC = 'credential-store-endpoint-pair-ipc-0123456789abcdef';
@@ -283,12 +283,10 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
 
       A.eq((await s.roster({ cus: { provider: 'custom' }, hop: { provider: 'custom', system: 'HOP-PERSONA answers briefly' } })).status, 200, 'P3b: the roster is saved');
       const belt = (x, y, dir) => ({ x, y, dir });
-      const plan = Pipeline.compileRoutingPlan({
+      await publishFloor(s.fx, floorOf({
         props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'cus' }, { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'hop' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
         belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-      });
-      for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-      A.eq((await s.fx.json('POST', '/api/routing', plan)).status, 200, 'P3b: the two-stage line deploys');
+      }), { label: 'P3b: the two-stage line' });
 
       const routine = await s.routine('cus', 'custom', 'PAIR-RUN-NOW');
       const line = await s.routine('cus', 'custom', 'PAIR-LINE', { runsLine: true });

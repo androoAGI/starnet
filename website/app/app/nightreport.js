@@ -51,13 +51,15 @@
     concurrency: 'the desk was busy with another run',
     'in-flight': 'a job was still running',
     'precheck-error': 'the station could not verify its budget, provider, or readiness checks, so it stood down safely',
+    // a build runs in its bay room, which a saved floor that can’t be proved right now can’t name: held before the job limit is spent
+    'routing-held': 'the saved floor can’t be proved right now, so building is held until it is readable',
     'persist-failed': 'the station couldn’t safely record the work, so it stood down'
   };
 
   // a stable, HONEST label for a binding we don't recognise (forward-compat: a new gate name renders as itself,
   // never a fabricated reason). Used by both the report's idle sentence and the panel's decision trail.
   // gates no wall clock clears: until their cause is fixed, NEXT JOB EARLIEST has no honest time to show
-  const NO_CLOCK_BINDINGS = new Set(['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'persist-failed']);
+  const NO_CLOCK_BINDINGS = new Set(['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed']);
   function bindingPhrase(binding) {
     if (binding == null || binding === '') return 'nothing is blocking the next job right now';
     return BINDING_PHRASE[binding] || ('held back by the ' + String(binding) + ' gate');

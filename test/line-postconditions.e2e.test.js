@@ -6,7 +6,7 @@ const A = require('./_assert.js');
 const http = require('node:http'), fs = require('node:fs'), path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const MODEL = 'contract-fixture';
 
@@ -96,9 +96,7 @@ async function eventFeed(url) {
       { id: 'target-out', t: 'outbox', x: 6, y: 10, w: 1, h: 1 }
     ];
     const belts = [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })).concat([1, 2, 4, 5].map(x => ({ x, y: 10, dir: 'E' })));
-    const plan = Pipeline.compileRoutingPlan({ props, belts });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'workbench'];
-    assert.equal((await api('POST', '/api/routing', plan)).ok, true);
+    const { plan } = await publishFloor(fixture, floorOf({ props, belts }, { equip: ['computer', 'workbench'] }), { label: 'the two-line floor' });
     const lineId = plan.lineOfProp.in, targetId = plan.lineOfProp['target-in'];
     assert.ok(lineId && targetId && lineId !== targetId);
     feed = await eventFeed(fixture.baseUrl + '/api/channels/events?' + require('./_httpToken.js').sseQuery(fixture.token));

@@ -25,6 +25,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, hintFor, planOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -103,18 +104,17 @@ function stopChild(child) {
 const ENTRY_BRIEF = 'Dig the sources and hand a clean evidence pack downstream.';
 const HOP_BRIEF = 'Draft the final answer in press style.';
 const HOP_BRIEF2 = 'Draft the final answer as a haiku.';
-function twoStagePlan(hopBrief) {
+function twoStageFloor(hopBrief) {
   const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
+  const station = floorOf({
     props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
             { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: ENTRY_BRIEF },
             { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent', brief: hopBrief || HOP_BRIEF },
             { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
   });
-  A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-  return plan;
+  A.ok(Pipeline.ok(planOf(hintFor(station))), 'fixture: the two-stage floor is deployable');
+  return station;
 }
 
 (async () => {
@@ -164,9 +164,9 @@ function twoStagePlan(hopBrief) {
     A.eq(badJson.status, 400, 'unparseable JSON -> 400');
     const unknownId = await call('GET', '/api/routing/steptest/st_nope');
     A.eq(unknownId.status, 409, 'an unknown session id refuses 409 (never 404)');
-    const posted = await call('POST', '/api/routing', twoStagePlan());
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
-    const lineId = Pipeline.lineOf(twoStagePlan(), 'research-agent');
+    const api = fetchApi(() => B, () => headers);   // B and headers are re-read: the sidecar is restarted below
+    const two = await publishFloor(api, twoStageFloor(), { label: 'the two-stage floor' });
+    const lineId = Pipeline.lineOf(two.plan, 'research-agent');
     const badLine = await call('POST', '/api/routing/steptest', { line: 'nope', text: 'STEPTEST JOB: go' });
     A.eq(badLine.status, 409, 'an unknown line -> 409');
 
@@ -209,7 +209,7 @@ function twoStagePlan(hopBrief) {
     A.ok([writerRow, entryRow].every(r => r && r.streamId === s.streamId), 'both runs are recorded under the session stream');
 
     /* ---- 5. rerun after a brief edit ---- */
-    A.eq((await call('POST', '/api/routing', twoStagePlan(HOP_BRIEF2))).status, 200, 'the floor re-posts with a new writer brief');
+    await publishFloor(api, twoStageFloor(HOP_BRIEF2), { label: 'the floor re-saved with a new writer brief' });
     const before = mock.requests.length;
     A.eq((await call('POST', '/api/routing/steptest/' + id + '/rerun', {})).status, 200, 'rerun answers 200');
     s = await poll(id);

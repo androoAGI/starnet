@@ -109,7 +109,7 @@ function pair(run) { return run ? [run.provider, run.model, run.system] : null; 
         const lineRunner = makeLineRunner({ chain, runOnce, newId:()=>kind + '-' + (++seq), now:()=>1 });
         const routed = mode === 'target-change' ? 'editor' : 'writer';
         const entry = kind === 'telegram-bot' ? 'writer' : routed;
-        Object.assign(h.scope, { router:{resolveDock:()=>({agentId:routed})}, sampleLineScope:'fixture-line' });
+        Object.assign(h.scope, { router:{resolveDock:()=>({agentId:routed})}, admit:{resolveDock:()=>({agentId:routed})}, sampleLineScope:'fixture-line' });
         Object.assign(h.scope.hooks, {lineId:()=> 'fixture-line', onRouted:value=>value});
         const resolveAgent = resolve(bag.props, ['resolveAgent'], h.scope).resolveAgent;
         // The legacy bound-bot entry resolved through its secrets closure; preserve that real behavior

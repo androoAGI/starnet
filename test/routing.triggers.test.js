@@ -162,14 +162,14 @@ const { makeFolderWatcher, makeFolderPolicy } = require('../sidecar/routing/trig
       }, close() {}
     };
   }
-  const mk = () => makeTriggerRunner({
+  const mk = (extra) => makeTriggerRunner(Object.assign({
     load: () => JSON.parse(JSON.stringify(disk.triggers)), save: v => { disk.triggers = JSON.parse(JSON.stringify(v)); },
     seen: { load: () => JSON.parse(JSON.stringify(disk.seen)), save: v => { disk.seen = JSON.parse(JSON.stringify(v)); } },
     makeHub: fakeHub, plan: () => plan, shipsToOutbox: (a) => a === 'agent-b', dayCap: () => ({ cap: null, spent: 0 }),
     runsFor: sid => runsByStream[sid] || [], emit: (nm, p) => emitted.push({ nm, p }),
     watcher: makeFolderWatcher({ fsp, pathMod: path, settleMs: 0 }),
     now: () => clock, newId: () => 'id' + (++n) + 'abcdef0123456789'
-  });
+  }, extra));
   let R = mk();
   const cw = R.create({ kind: 'webhook', lineId: 'L1', name: 'hook', maxPerHour: 3 }, { secretHash: T.hashSecret('k') });
   A.ok(cw.ok && T.ID_RE.test(cw.trigger.id), 'create returns a trigger with a well-formed id');
@@ -237,6 +237,36 @@ const { makeFolderWatcher, makeFolderPolicy } = require('../sidecar/routing/trig
   plan.lines = [];
   A.ok(/no longer on the floor/.test(R2.preflight(R2.get(cq.trigger.id)) || ''), 'a trigger whose line left the floor refuses with the reason');
   plan.lines = [{ lineId: 'L1' }];
+  /* THE SAVED FLOOR CANNOT BE PROVED RIGHT NOW (routing/saved-hold.js, deps.held): nothing fires from a guess about it. The trigger's own
+     lastError says why, in the hold's words, the hub is never reached, a waiting item is dropped with the same reason, and when the floor
+     is readable again the same trigger fires. */
+  {
+    const HELD = 'the saved floor is corrupt; routing is held until it is readable';
+    let held = HELD;
+    const RH = mk({ held: () => held });
+    const hh = RH.create({ kind: 'webhook', lineId: 'L1', name: 'held', maxPerHour: 100 }, { secretHash: T.hashSecret('h') });
+    const callsAtHold = hubCalls.length;
+    A.eq(RH.preflight(RH.get(hh.trigger.id)), HELD, 'a held saved floor: the preflight says so, in the hold\'s words');
+    const noGo = RH.enqueue(hh.trigger.id, { text: 'a job while the floor is held' });
+    A.ok(!noGo.ok && noGo.code === 'refused' && noGo.error === HELD, 'the fire is refused with those words: ' + JSON.stringify(noGo));
+    A.eq(RH.view(hh.trigger.id).lastError, HELD, 'and the trigger\'s own lastError says why');
+    A.eq(hubCalls.length, callsAtHold, 'the hub (and so the model) was never reached');
+    A.ok(!RH.canAccept(hh.trigger.id).ok, 'a folder poll asks canAccept first and leaves its file where it is');
+    held = null; hubMode = 'ok';
+    const goes = RH.enqueue(hh.trigger.id, { text: 'a job once it is readable' });
+    A.ok(goes.ok, 'the floor is readable again: the same trigger fires');
+    await new Promise(r => setTimeout(r, 30));
+    A.eq(hubCalls.length, callsAtHold + 1, 'and exactly that one job reached the hub');
+    // the floor goes held while a second item waits behind the one in flight: the check at dispatch asks again and drops it, with the reason on record
+    const callsBeforePair = hubCalls.length;
+    const pair = [RH.enqueue(hh.trigger.id, { text: 'first of two' }), RH.enqueue(hh.trigger.id, { text: 'second of two' })];
+    A.ok(pair.every(x => x.ok), 'two items are admitted while the floor is readable');
+    held = HELD;
+    await new Promise(r => setTimeout(r, 60));
+    A.eq(hubCalls.length, callsBeforePair + 1, 'the one in flight finished; the one waiting never reached the hub');
+    const dropped = RH.view(hh.trigger.id).lastError || '';
+    A.ok(dropped.indexOf('1 waiting item was dropped before running: ' + HELD) === 0, 'it was dropped with the hold\'s words on the record: ' + dropped);
+  }
 
   /* ---- 9. folder trigger end to end through the runner + restart no-refire ---- */
   const fdir = path.join(root, 'fdrop'); fs.mkdirSync(fdir);

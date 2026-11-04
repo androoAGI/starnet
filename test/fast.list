@@ -970,7 +970,11 @@ test/path-oracle.test.js
 test/run-truth.test.js
 test/station-authority.test.js
 test/station-saved-projection.test.js
+test/station-saved-hint.test.js
 test/routing.saved-projection.test.js
+test/routing.saved-authority.test.js
+test/routing.saved-seams.test.js
+test/saved-floor-callers.census.test.js
 test/zones.test.js
 test/idle-life-regressions.test.js
 test/social-border.test.js
@@ -1018,6 +1022,7 @@ test/joined-product-truth.test.js
 test/first-ship-receipt.test.js
 test/finish-line-card-truth.test.js
 test/plan-poster.test.js
+test/routing.page-publication.test.js
 test/chain.test.js
 test/chain.join-loop.test.js
 test/chain.limits.test.js

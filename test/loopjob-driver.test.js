@@ -56,6 +56,7 @@ function world(opts) {
     onStopped: opts.onStopped,
     trackRun: opts.trackRun,
     untrackRun: opts.untrackRun,
+    stationFor: opts.stationFor,
     ledger: (e) => ledger.push(e),
     maxParallel: opts.maxParallel,
     maxRunMs: opts.maxRunMs
@@ -765,6 +766,41 @@ function world(opts) {
     A.ok(/^This routine's folder is no longer an approved/.test(lapsed('schedule', new Error('x')).message), 'a routine still says routine');
     const core = sidecarTopLevelFunction('runOnceCore');
     A.ok(/try \{ cronRoot = cronCanonicalWorkdir\(o\.workdir\); \}[^\n]*\n\s*catch \(e\) \{ throw workdirLapsedError\(o\.trigger, e\); \}/.test(core), 'runOnceCore raises it when the run\'s workdir lapsed');
+  }
+
+  // ---- (saved-floor routing authority) INVARIANT held-is-a-stand-down: an iteration runs in its agent's bay room (stationFor), and a saved floor that
+  // cannot be proved right now throws a typed hold there. The room is named BEFORE the slot is taken, so a hold is a stand-down — no claim, no iteration,
+  // no failure on the record — and the objective is never paused for it. It used to settle the pass as "failed before launch", and the third in a row
+  // PAUSED the loop (in the router's raw error text). Any other throw from the room read is a bug, not a hold: it still fails the pass loudly.
+  {
+    const WHY = 'the saved floor is corrupt; routing is held until it is readable';
+    const heldErr = () => Object.assign(new Error('Saved routing authority is held: corrupt'), { held: true, status: 'corrupt', code: 'EROUTING_SAVED_CORRUPT', why: WHY });
+    let held = true;
+    const w = world({ context: async () => ({ text: '', reachable: true }),   // the host always hands a context (index.js): the production, async launch path
+      stationFor: (agentId) => { if (held) throw heldErr(); return { agents: { [agentId]: { id: agentId, room: 'bay' } }, rooms: { bay: { id: 'bay', objects: [] } } }; } });
+    w.seed({});
+    for (let i = 0; i < 8; i++) { A.eq(w.tick(T0 + i * TICK).fired, 0, i === 0 ? 'a held floor: the loop does not fire' : undefined); await w.flush(); }   // well past FAIL_STREAK_MAX (3)
+    const l = w.loop();
+    A.eq([w.calls.length, l.iterationCount, l.failStreak, l.unfinishedStreak, l.state, l.enabled, l.fireClaim, (l.iterations || []).length],
+      [0, 0, 0, 0, 'idle', true, null, 0], 'a held floor: no run, no slot taken, no claim, no failure of any kind on the record, and the loop is NOT paused');
+    A.eq(w.drv.leases.size, 0, 'and no lease is left behind');
+    const rows = skips(w);
+    A.eq(rows.length, 1, 'eight held ticks write ONE stand-down row (edge-triggered like every precheck)');
+    A.eq(rows[0], { source: 'loop', kind: 'skip', jobId: 'l1', agentId: 'agent', reason: 'precheck', binding: 'precheck', detail: { note: WHY } }, 'saying why in the hold\'s own words, as a precheck decline');
+    held = false;
+    A.eq(w.tick(T0 + 9 * TICK).fired, 1, 'the floor is readable again: the very next tick fires the loop, with no resume');
+    await w.flush();   // the project context hop
+    A.eq(w.calls.length, 1, 'one run');
+    A.ok(w.calls[0].station && w.calls[0].station.agents.agent.room === 'bay', 'in the room that was read before the slot was taken');
+    A.eq(w.loop().iterationCount, 1, 'and the slot is taken only now');
+  }
+  {
+    const w = world({ context: async () => ({ text: '', reachable: true }), stationFor: () => { throw new Error('a bug in the room read'); } });
+    w.seed({});
+    w.tick(T0); await w.flush();
+    const l = w.loop();
+    A.eq([w.calls.length, l.failStreak, l.iterations[0].outcome], [0, 1, 'failed'], 'a throw that is NOT a hold keeps its old path: the pass fails loudly, before any model call');
+    A.ok(/a bug in the room read/.test(l.iterations[0].error), 'with the error it raised: ' + l.iterations[0].error);
   }
 
   A.report('loopjob-driver (LOOP tick driver)');

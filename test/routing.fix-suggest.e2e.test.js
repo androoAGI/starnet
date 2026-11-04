@@ -7,7 +7,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 test('fix-suggest answers checked fixes on the station default model; sample runs name their bay', async () => {
   const calls = [];
@@ -43,13 +43,11 @@ test('fix-suggest answers checked fixes on the station default model; sample run
     await fixture.start();
     const agents = [{ agentId: 'agent', name: 'Overseer', system: 'Sample', provider: 'custom', model: 'fix-model' }];
     assert.equal((await fixture.json('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);
-    const plan = Pipeline.compileRoutingPlan({ props: [
+    await publishFloor(fixture, floorOf({ props: [
       { id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
       { id: 'w', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'agent', role: 'WRITER', brief: 'Write a 200-word digest.' },
       { id: 'o', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) }));
 
     // a job through the line: every stage's run names the BAY it ran at
     const job = await fixture.json('POST', '/api/routing/sample', { text: 'Write about sleep.' });

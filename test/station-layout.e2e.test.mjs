@@ -235,7 +235,11 @@ try {
   const run3 = await leadRun(base, token, 'why is step 2 not running?');
   const result3 = layoutResult(mock, run3, leadRequest(mock, run3));
   let P = null; try { P = JSON.parse(result3); } catch (_) { P = null; }
-  check('an edit held by Build mode reads as pending', !!P && P.routing.pendingEdits === true && /running the floor as last sent/.test(P.routing.note), JSON.stringify(P && P.routing));
+  /* The router routes by the floor the station SAVED, and the page saves the edit at once while Build mode holds back only its compile and its send.
+     So the router already differs from the floor the page last sent, and the answer says so, with the page's account of the edits it holds back —
+     never "the router runs the floor as last sent", and never "another open page". (test/station-layout.test.js holds the whole merge.) */
+  check('an edit held by Build mode reads as pending', !!P && P.routing.pendingEdits === true && P.routing.state === 'unconfirmed' && P.routing.confirmed === false
+    && /different version of the floor than the page last sent/.test(P.routing.note) && /newer edits/.test(P.routing.note) && !/running the floor as last sent|another open page/.test(P.routing.note), JSON.stringify(P && P.routing));
   const PL = P && (P.lines || []).find(l => l.name === 'RESEARCH DESK');
   check('and the drawn floor says what is missing', !!PL && /NEEDS AN AGENT/.test(PL.status), PL && PL.status);
   // The explicit run boundary can still publish while Build stays open; closing Build publishes the next edit.

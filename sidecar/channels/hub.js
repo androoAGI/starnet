@@ -702,6 +702,27 @@
       }
       await deliver(chatId, HISTORY_HOLD_NOTE, '', 'error', agentId, undefined, '', answers);
     }
+    /* THE SAVED FLOOR IS HELD (routing/saved-hold.js). resolveAgent throws the hold instead of answering from a floor that cannot be
+       proved right now, and this message is refused here, in words, with nothing run: never a fallback agent, never a guess about
+       which bay it would have reached. A job the host opened for this message beforehand (the sample and trigger hubs) is settled as
+       the refusal it is, in the existing 'refused' stop; the receipts leave with the reply like any other message's. */
+    const heldSaid = error => String((error && error.why) || 'the saved floor is held; routing is held until it is readable');
+    async function holdRouting(chatId, agentId, intake, error, answers) {
+      const why = heldSaid(error);
+      if (intake && typeof intake.onSettled === 'function') {
+        // held (additive): a caller that watches the settlement reads the refusal as typed, not only as words in the reply
+        try { intake.onSettled({ runId: '', ok: false, held: { status: String((error && error.status) || 'unreadable'), why } }); } catch (e) { failNote('channels.hub.onSettled', e); }
+      }
+      const preJobId = typeof o.jobId === 'function' ? o.jobId() : null;
+      const preJob = preJobId && lineRunner && typeof lineRunner.get === 'function' ? lineRunner.get(preJobId) : null;
+      if (preJob) {
+        try {
+          const settled = lineRunner.settle(preJob, { refusedSaid: why });
+          if (typeof o.onJobSettled === 'function') o.onJobSettled(settled);
+        } catch (e) { failNote('channels.hub.jobOutcome', e); }
+      }
+      await deliver(chatId, '⚠ StarNet did not run this message: ' + why + '.', '', 'error', agentId, undefined, '', answers);
+    }
 
     /* ---- ROUTE: answer WHERE the question was asked (channels/routes.js) -----------------------------------------
        The chat's forum topic and the message to quote ride every send as neutral opts ({ threadId, replyTo }); the
@@ -1698,7 +1719,15 @@
       /* resolveAgent may answer a bare agentId (every pre-dock seam) or { agentId, dockId } (router.resolveDock —
          multi-bay agents, 2026-09-22): the DOCK the floor routed the work to is the one whose brief, room and line
          the run gets. A binding/fallback resolution carries no dock and the seams read the agent's entry dock. */
-      const routedRaw = resolveAgent ? resolveAgent({ tag, chatId, text: msg.text, boundAgentId }) : null;
+      let routedRaw = null;
+      if (resolveAgent) {
+        try { routedRaw = resolveAgent({ tag, chatId, text: msg.text, boundAgentId }); }
+        catch (e) {
+          if (!e || e.held !== true) throw e;
+          await holdRouting(chatId, boundAgentId || undefined, intake, e, answers);
+          return;
+        }
+      }
       const routed = (routedRaw && typeof routedRaw === 'object') ? routedRaw.agentId : routedRaw;
       const routedDock = (routedRaw && typeof routedRaw === 'object' && routedRaw.dockId != null && AID_RE.test(String(routedRaw.dockId))) ? String(routedRaw.dockId) : null;
       const agentId = (routed && AID_RE.test(String(routed))) ? String(routed)
@@ -1828,7 +1857,15 @@
          the compiled plan stays the only authority; absent -> null -> every dock terminal, which is the
          safe direction. It rides `resolvedInfo` (so the host stamps the crate with it) and the chain seed
          below (so the gate can read it). */
-      const lineId = lineOriginFor ? ((dockId ? lineOriginFor(agentId, dockId) : lineOriginFor(agentId)) || null) : null;
+      let lineId = null;
+      if (lineOriginFor) {
+        try { lineId = (dockId ? lineOriginFor(agentId, dockId) : lineOriginFor(agentId)) || null; }
+        catch (e) {   // the saved floor went held after this message was routed: the same refusal, in words, with nothing run
+          if (!e || e.held !== true) throw e;
+          await holdRouting(chatId, agentId, intake, e, answers);
+          return;
+        }
+      }
       // A host-derived observation of this final resolution, never an input to the next dispatch. Unknown floor
       // clears old evidence; a changed /talk or hard-locked bot cannot inherit another agent's intake receipt.
       try { if (bindChats && typeof store.saveChatRecord === 'function' && (!boundAgentId || boundAgentId === agentId)) store.saveChatRecord(chatId,
@@ -1856,6 +1893,20 @@
         jobResult = lineRunner.settle(lineJob, jobFacts);
         if (typeof o.onJobSettled === 'function') { try { o.onJobSettled(jobResult); } catch (e) { failNote('channels.hub.jobOutcome', e); } }
         return jobResult;
+      };
+      /* THE SAVED FLOOR WENT HELD AFTER THIS MESSAGE WAS ROUTED (an outside edit landed between two reads of it): the dock's brief and its
+         room are read from the same floor the route was, so a hold at either is the route's own refusal, in the same words, with nothing run
+         — never a run with no brief and the whole default office. The job this hub opened settles as the existing 'refused' stop, now. */
+      const lateHold = async (error) => {
+        const why = heldSaid(error);
+        jobFacts.refusedSaid = why;
+        const result = settleJob();
+        intakeSettled = true;
+        if (intake && typeof intake.onSettled === 'function') {
+          try { intake.onSettled(Object.assign({ runId: '', ok: false, held: { status: String((error && error.status) || 'unreadable'), why } }, result ? { jobId: lineJob.id, result } : null)); }
+          catch (e) { failNote('channels.hub.onSettled', e); }
+        }
+        await deliver(chatId, '⚠ StarNet did not run this message: ' + why + '.', '', 'error', agentId, undefined, '', answers);
       };
       try {
       const resolvedInfo = { chatId: chatId, agentId: agentId, text: msg.text, isTask: isTask, lineId: lineId };
@@ -2051,7 +2102,10 @@
       // system context carries it — the SAME section header the chain handoff turn uses. Null-safe: no seam /
       // no floor / no brief composes the exact pre-brief system string.
       let dockBrief = null;
-      if (stageBriefFor) { try { dockBrief = dockId ? stageBriefFor(agentId, dockId) : stageBriefFor(agentId); } catch (_) { dockBrief = null; } }
+      if (stageBriefFor) {
+        try { dockBrief = dockId ? stageBriefFor(agentId, dockId) : stageBriefFor(agentId); }
+        catch (e) { if (e && e.held === true) { await lateHold(e); return; } dockBrief = null; }   // a hold is a refusal; any other miss is just no brief
+      }
       // the one-shot note an interrupted attempt left this chat (reportInterruptedAttempt): read by this run, then cleared
       let interruptedNote = '';
       if (rec && rec.interruptedAttempt && typeof store.saveChatRecord === 'function') {
@@ -2062,7 +2116,11 @@
 
       // B5: if this agent runs at a bound BAY, its tools are that bay room's objects (resolveStation), not the
       // default office — so a routed agent's reach is exactly what the floor granted it. null -> office default.
-      const bayStation = resolveStation ? (dockId ? resolveStation(agentId, dockId) : resolveStation(agentId)) : null;
+      let bayStation = null;
+      if (resolveStation) {
+        try { bayStation = dockId ? resolveStation(agentId, dockId) : resolveStation(agentId); }
+        catch (e) { if (!e || e.held !== true) throw e; await lateHold(e); return; }   // null here would mean the WHOLE default office: a hold refuses instead
+      }
 
       // ---- run with bounded supersede-retry ------------------------------------------------------------------
       // ONE run per conversation: the prev.abort.abort() above told this chat's prior run to stop. But its host-side

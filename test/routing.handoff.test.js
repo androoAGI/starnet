@@ -126,7 +126,7 @@ function station(n) {
   };
   const runsByStream = {}, emitted = [], hubCalls = [], hooksSeen = [];
   const fixtureFiles = async (agentId, list) => list.map(a => ({ abs: a.path }));   // transport fixture only; real locator/pathtrust proof is line-handoff-files.test
-  let halted = false, cap = {}, hang = null, R = null, n = 0, clock = 1000;
+  let halted = false, held = null, cap = {}, hang = null, R = null, n = 0, clock = 1000;
   // the fake hub stands in for the target line's run: its ONE resolution walks only that line's doors (hooks.lineId), a clean
   // run is recorded on the hand-off's own stream, the line's answer is "sent", and — as chain.js would — the target line's
   // clean exit is reported back through onShipped, so A → B → C rides on
@@ -157,7 +157,7 @@ function station(n) {
   R = makeHandoffRunner({
     handoffFiles: fixtureFiles,
     makeHub: fakeHub, plan: () => plan, jobs: J, emit: (nm, p) => emitted.push({ nm, p }),
-    shipsToOutbox: (agentId, dockId) => !!dockId, dayCap: line => cap[line] || { cap: null, spent: 0 }, halted: () => halted,
+    shipsToOutbox: (agentId, dockId) => !!dockId, dayCap: line => cap[line] || { cap: null, spent: 0 }, halted: () => halted, held: () => held,
     runsFor: sid => runsByStream[sid] || [], now: () => clock, newId: () => 'id' + (++n) + 'abcdef0123456789', warn: () => {}
   });
 
@@ -231,6 +231,16 @@ function station(n) {
   const es2 = R.onShipped(fresh('sample-es2', LA, lastA));
   A.ok(es2.jobId === es.jobId && LineJobs.get(jobs, es.jobId).repeats === 2, 'a STANDING refusal (same line, same reason, back to back) is counted on ONE record, not a new one per job');
   halted = false;
+  // the SAVED FLOOR cannot be proved right now (routing/saved-hold.js): nothing is handed on from a guess about it, and the record says so in the hold's words
+  held = 'the saved floor is corrupt; routing is held until it is readable';
+  const heldCalls = hubCalls.length;
+  J.start({ id: 'job-hhhh6666', line: LA, name: 'A', text: 'A job a held floor catches', streamId: 'sample-hd', at: clock });
+  const hd = R.onShipped(fresh('sample-hd', LA, lastA));
+  A.ok(!hd.ok && hd.error === held && hubCalls.length === heldCalls, 'a held saved floor: nothing is sent on, nothing runs — ' + JSON.stringify(hd));
+  A.eq(LineJobs.get(jobs, hd.jobId).error, 'not sent on: ' + held, 'and the target record says so in the words of the hold');
+  const hdA = LineJobs.get(jobs, 'job-hhhh6666');
+  A.ok(hdA.sentTo && hdA.sentTo.line === LB && hdA.sentTo.refused === held, 'the sending job says it was NOT sent on, and why');
+  held = null;
   // the target over its day cap
   cap[LB] = { cap: 1, spent: 1 };
   const dc = R.onShipped(fresh('sample-dc', LA, lastA));

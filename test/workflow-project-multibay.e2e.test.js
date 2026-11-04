@@ -11,7 +11,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 (async () => {
   const server = http.createServer(async (req, res) => {
     let raw = ''; for await (const c of req) raw += c;
@@ -52,12 +52,10 @@ const Pipeline = require('../frontend/app/pipeline.js');
       { id: 'b2', t: 'bay', x: 6, y: 4, w: 1, h: 1, agentId: 'hop' },
       { id: 'oB', t: 'outbox', x: 9, y: 4, w: 1, h: 1 }
     ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })).concat([1, 2, 4, 5, 7, 8].map(x => ({ x, y: 4, dir: 'E' }))) };
-    const plan = Pipeline.compileRoutingPlan(geometry);
+    const { plan } = await publishFloor(fixture, floorOf(geometry, { equip: ['computer', 'cabinet'] }), { label: 'the two-line floor' });   // saved, then published as the page does
     assert.equal((plan.errors || []).length, 0, JSON.stringify(plan.errors));
     const lineB = plan.lines.find(l => l.projectRoot === projB);
     assert.ok(lineB && plan.lines.some(l => l.projectRoot === projA), 'two lines, each with its own project');
-    for (const bay of plan.bays.concat(plan.dockBays || [])) bay.objects = ['computer', 'cabinet'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
 
     const routine = await fixture.json('POST', '/api/cron', { name: 'Line B', prompt: 'Write a file and read it back.', schedule: 'every 1h', agentId: 'writer', dockId: 'b1', model: 'writer-model', provider: 'openrouter', runsLine: true });
     assert.ok(routine.body.job?.id, routine.text);

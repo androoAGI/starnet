@@ -9,6 +9,7 @@ const Model = require('../frontend/app/worldmodel.js');
 const Sprites = require('../frontend/app/propsprites.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const WorkflowLine = require('../frontend/app/workflowline.js');
+const { canonical, publishFloor } = require('./helpers/saved-floor.js');
 
 /* one mock OpenAI-compatible provider: `answer(model, body, nth)` writes each reply (nth = that model's call count) */
 async function withPreset(presetId, agentIds, answer, fn) {
@@ -42,11 +43,9 @@ async function withPreset(presetId, agentIds, answer, fn) {
     before.roles.forEach((role,i)=>station.assignPropAgent(role.propId,agents[i].agentId));
     const guide=Templates.example(station.serialize(),Model,Pipeline,WorkflowLine);
     assert.equal(guide.ready,true,guide.issue);
-    const plan=Pipeline.compileRoutingPlan(station.projectGeometry());
-    // Mirror World.compileRouting: tools come from real furniture, never fixture grants.
-    for (const bay of [...plan.bays,...plan.dockBays]) bay.objects=station.bayObjects(bay.agentId);
-    assert.deepEqual(plan.errors,[]);
-    assert.equal((await fixture.json('POST','/api/routing',plan)).body.ok,true);
+    // The preset is SAVED as the page would save it and its hint published: tools come from the real furniture the save holds, never fixture grants.
+    const published=await publishFloor(fixture,canonical(station.serialize()),{label:'the '+presetId+' preset'});
+    assert.deepEqual(published.plan.errors,[]);
     const response=await fixture.json('POST','/api/routing/sample',{line:guide.key,text:guide.sample});
     assert.equal(response.status,200,JSON.stringify(response.body));
     assert.equal(response.body.ok,true,JSON.stringify(response.body));

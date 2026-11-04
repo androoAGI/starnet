@@ -1,15 +1,18 @@
 /* sidecar/routing/router.js — the server-authoritative RoutingPlan + dispatch resolution.
 
-   The browser posts the compiled plan (POST /api/routing) on every floor change; this holds it and answers
-   "which agent runs this work-item?" via the SAME ../../frontend/app/pipeline.js the frontend uses — one
-   compiler, two consumers, zero drift. A non-deployable plan (cycle / orphan source / dead bay) is NEVER
-   stored, so routing can't loop or send work into a void; resolveTarget returning null lets the caller fall
-   back to its own resolution, so real work never stalls. */
+   In the sidecar the router is built on the SAVED floor (savedProjection + savedHost, routing/saved-authority.js): the floor the
+   user saved is the only plan it routes by, and nothing is ever posted into it. The posted-plan mode below (setPlan/clearPlan, a
+   router built with neither seam) is for the pure routing tests, which compile a plan and hand it to a router directly; the
+   sidecar never builds it. Either way the router answers "which agent runs this work-item?" via the SAME
+   ../../frontend/app/pipeline.js the frontend uses — one compiler, two consumers, zero drift. A non-deployable plan (cycle /
+   orphan source / dead bay) is NEVER stored, so routing can't loop or send work into a void; resolveTarget returning null lets
+   the caller fall back to its own resolution, so real work never stalls. */
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { makeStationStore } = require('../station-store.js');
 const { healPlan } = require('./planlines.js');
 const { fullOffice } = require('../capability/office.js');
+const { heldWhy } = require('./saved-hold.js');
 // the object types of the default office a headless run is handed with no bay: a posted plan's room is never wider
 const DEFAULT_CEILING = new Set(fullOffice().map(o => o.objectType));
 
@@ -28,18 +31,30 @@ function makeRouter(o) {
   }
   const stationStore = o.stationStore || makeStationStore();
   /* THE SAVED STATION GRANTS (2026-10-21). `savedStation()` -> the server-side saved floor as a validated station model,
-     or null. When the host passes it (the sidecar always does), a bay's room objects are bounded by THAT floor, never
-     widened by the plan a page posted: the plan picks the dock a run is at and may only narrow its room. See savedStationFor. */
+     or null. A posted-plan router (a pure-router fixture) given it bounds a bay's room objects by THAT floor, never widened by
+     the plan posted: the plan picks the dock a run is at and may only narrow its room. See savedStationFor. The sidecar does
+     not build that router: it builds on savedProjection (below), where the saved floor is the plan itself. */
   const savedStation = typeof o.savedStation === 'function' ? o.savedStation : null;
-  // PRIVATE/UNWIRED. The host must supply the existing strict saved-floor owner;
+  // The host supplies the saved authority's projection (routing/saved-authority.js);
   // a malformed supplied seam cannot silently select the legacy posted mode.
   if ('savedProjection' in o && typeof o.savedProjection !== 'function') throw new Error('savedProjection must be the saved-floor reader');
   const savedProjection = o.savedProjection || null;
+  /* HOST MODE (savedHost: true, the sidecar). The same authority, read the way the posted-plan router was read, so every caller the host
+     has keeps its meaning: a question about a thing the saved floor does not hold (an agent with no bay, a stale dock, an unknown line)
+     answers null, [] or false instead of throwing; a saved floor the compiler refuses (unroutable) routes nothing but still answers its
+     capability, brief and limit facts; a new install with no saved floor at all (unfloored) answers as a router with no plan. ONLY a
+     floor that cannot be proved right now (a hold: corrupt, unreadable, changed, ...) throws, with error.held === true and error.why,
+     and the host classifies each caller (admit: shows it; observe: degrades). Without it the router is strict: every mismatch throws. */
+  if (o.savedHost != null && !savedProjection) throw new Error('savedHost needs the saved-floor reader');
+  const savedHost = !!(savedProjection && o.savedHost === true);
   let currentFloor = null, savedTopology = null;
-  function savedFailure(status) {
+  let lastSource = null, lastRuntimePlan = null;   // a memoized source is the same object: its runtime plan (and Pipeline's per-plan memos) is built once
+  // held: this error is a floor that cannot be proved (the host shows or degrades it); the rest are a caller asking about something the floor lacks
+  function savedFailure(status, held) {
     const error = new Error('Saved routing authority is held: ' + status);
     error.code = 'EROUTING_SAVED_' + String(status).toUpperCase().replace(/[^A-Z0-9]/g, '_');
     error.status = status;
+    if (held === true) { error.held = true; error.why = heldWhy(status); }
     return error;
   }
   function capabilityPlan() { return savedProjection ? currentFloor.plan : stationPlan || plan || capsPlan; }
@@ -93,24 +108,35 @@ function makeRouter(o) {
   function withSavedFloor(name, fn) {
     return function (...args) {
       let source;
-      try { source = savedProjection(); } catch (_) { savedTopology = null; rr = {}; throw savedFailure('unreadable'); }
+      try { source = savedProjection(); } catch (_) { savedTopology = null; rr = {}; throw savedFailure('unreadable', true); }
+      if (savedHost && source && source.version === 1 && source.status === 'unfloored') {
+        savedTopology = null; rr = {};
+        currentFloor = { source, plan: null };
+        try { return fn(...args); }
+        finally { currentFloor = null; }
+      }
       if (!source || source.version !== 1 || source.status !== 'ok' || !source.plan || !source.stationDoc
           || typeof source.routingOk !== 'boolean' || !Number.isSafeInteger(source.revision) || source.revision < 1
           || typeof source.stamp !== 'string' || !source.stamp || !/^saved-plan-v1:[a-f0-9]{64}$/.test(source.identity || '')) {
         savedTopology = null; rr = {};
-        throw savedFailure(source && source.status && source.status !== 'ok' ? source.status : 'invalid');
+        throw savedFailure(source && source.status && source.status !== 'ok' ? source.status : 'invalid', true);
       }
-      const runtimePlan = Object.assign({}, source.plan);
-      Object.defineProperty(runtimePlan, 'links', { value: source.compilerLinks, enumerable: false });
-      Object.freeze(runtimePlan);
+      if (source !== lastSource) {
+        const built = Object.assign({}, source.plan);
+        Object.defineProperty(built, 'links', { value: source.compilerLinks, enumerable: false });
+        lastRuntimePlan = Object.freeze(built); lastSource = source;
+      }
+      const runtimePlan = lastRuntimePlan;
       if (!source.topologyHash || source.topologyHash !== savedTopology) rr = {};
       savedTopology = source.topologyHash || null;
       currentFloor = { source, plan: runtimePlan };
       try {
-        guardSavedCall(name, args);
+        if (!savedHost) guardSavedCall(name, args);
         const result = fn(...args);
-        if (result == null && ['dockRef', 'intakeReceiptFor'].includes(name)) throw savedFailure('unresolved-identity');
-        if (name === 'dockRef' && args[1] != null && Pipeline.lineOfDock(currentFloor.plan, result.dockId) !== args[1]) throw savedFailure('unresolved-identity');
+        if (!savedHost) {
+          if (result == null && ['dockRef', 'intakeReceiptFor'].includes(name)) throw savedFailure('unresolved-identity');
+          if (name === 'dockRef' && args[1] != null && Pipeline.lineOfDock(currentFloor.plan, result.dockId) !== args[1]) throw savedFailure('unresolved-identity');
+        }
         return result;
       }
       finally { currentFloor = null; }
@@ -153,7 +179,7 @@ function makeRouter(o) {
   function clearPlan() { readOnlyAuthority(); plan = null; capsPlan = null; rr = {}; }
   function activePlan() {
     if (savedProjection) {
-      if (!currentFloor.source.routingOk) throw savedFailure('unroutable');
+      if (!currentFloor.source.routingOk) { if (savedHost) return null; throw savedFailure('unroutable'); }
       return currentFloor.plan;
     }
     return stationPlan || plan;
@@ -191,7 +217,7 @@ function makeRouter(o) {
     return r ? r.agentId : null;
   }
   function savedResolution(result, ctx) {
-    if (!savedProjection) return result;
+    if (!savedProjection || savedHost) return result;
     if (!result) throw savedFailure('unresolved-target');
     // Pipeline's legacy bound-agent resolution always picks its entry dock.
     // An explicit saved identity must never be silently redirected by that rule.
@@ -222,7 +248,7 @@ function makeRouter(o) {
       const want = String(ctx.lineId);
       const lop = p.lineOfProp || {};
       const srcs = (p.sources || []).filter(s => s && s.propId != null && String(lop[String(s.propId)] || '') === want);
-      if (!srcs.length) { if (savedProjection) throw savedFailure('unresolved-target'); return null; }
+      if (!srcs.length) { if (savedProjection && !savedHost) throw savedFailure('unresolved-target'); return null; }
       // the narrowed view shares the plan's own dock layer (no re-derivation on a sources-only clone)
       const resolved = Pipeline.resolveDock(Object.assign({}, p, { sources: srcs }, Pipeline.dockLayer(p)), ctx, pick);
       return savedResolution(resolved, ctx);

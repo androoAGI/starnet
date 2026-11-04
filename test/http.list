@@ -212,6 +212,8 @@ test/line-hold.restart.http.test.js
 test/line-hold.e2e.http.test.js
 test/line-hold.wiring.http.test.js
 test/routing.saved-station-grants.e2e.test.js
+test/routing.saved-floor-authority.e2e.test.js
+test/routing.held-floor-away.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js
 test/route-contract.test.js

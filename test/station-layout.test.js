@@ -263,6 +263,42 @@ const detail = async (o, line) => (await layout(o, { line: line || 'draft & revi
     A.ok(none.state === 'off' && none.confirmed === false && /holds no routing plan/.test(none.note), 'the router holds nothing: OFF, whatever the page believed');
     const other = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ hash: 'someone-else' }) }));
     A.ok(other.state === 'unconfirmed' && /different version of the floor/.test(other.note), 'the router holds another floor: unconfirmed');
+    // the SAVED floor is the router's authority: a floor it cannot prove right now is HELD, in its words
+    const heldFloor = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'held', status: 'corrupt', why: 'the saved floor is corrupt; routing is held until it is readable' }) }));
+    A.ok(heldFloor.state === 'off' && heldFloor.confirmed === false && /the saved floor is corrupt; routing is held until it is readable/.test(heldFloor.note) && /no line routes work/.test(heldFloor.note),
+      'a held saved floor: OFF, with the reason, whatever the page believed — ' + heldFloor.note);
+    // the saved floor routes by its topology hash AND an identity (saved-plan-v1:...): the page only knows the hash, so that is what is compared
+    const sameBelts = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'ok', hash: 'h1', identity: 'saved-plan-v1:' + 'a'.repeat(64) }) }));
+    A.ok(sameBelts.state === 'live' && sameBelts.confirmed === true && !('planHash' in sameBelts), 'the saved floor holds the same belts the page shows: live and confirmed');
+    const otherBelts = await at(undefined, Object.assign({}, FACTS, { routed: () => ({ state: 'ok', hash: 'someone-else', identity: 'saved-plan-v1:' + 'b'.repeat(64) }) }));
+    A.ok(otherBelts.state === 'unconfirmed' && /different version of the floor/.test(otherBelts.note), 'the saved floor under other belts than the page shows: unconfirmed');
+
+    /* THE MERGE LAW of the routing readout, over the whole family: the page's account (the poster's verdict, and the edits Build mode holds back
+       from it) against the router's (what the SAVED floor holds). Whatever the poster says and whatever the router answers, the readout keeps
+       what only the page knows, never claims more than the router confirmed, and never reads a held-back edit as "another open page".
+       The router routes by the floor the station SAVED, and the page saves every edit at once while it publishes none of them until Build mode
+       closes, so the floor the page last sent is bound to lag the router's while edits are held back (the station-layout e2e, in a real page). */
+    const ROUTER = {
+      same: { routed: () => ({ state: 'ok', hash: 'h1', identity: 'saved-plan-v1:' + 'a'.repeat(64) }) },
+      other: { routed: () => ({ state: 'ok', hash: 'someone-else', identity: 'saved-plan-v1:' + 'b'.repeat(64) }) },
+      none: { routed: () => null },
+      held: { routed: () => ({ state: 'held', status: 'corrupt', why: 'the saved floor is corrupt; routing is held until it is readable' }) }
+    };
+    const POSTER = { live: {}, 'live + edits held back': { pending: true }, unconfirmed: { stale: true }, 'unconfirmed + edits held back': { stale: true, pending: true } };
+    for (const [posterName, over] of Object.entries(POSTER)) {
+      for (const [routerName, facts] of Object.entries(ROUTER)) {
+        const out = await at(liveWorld(over), Object.assign({}, FACTS, facts));
+        const tag = ' — the poster is ' + posterName + ', the router answers ' + routerName + ': ' + out.note;
+        A.eq(!!out.pendingEdits, !!over.pending, 'the readout keeps the page\'s held-back edits and invents none' + tag);
+        A.eq(out.confirmed === true, routerName === 'same', 'confirmed only when the router holds the floor the page last sent' + tag);
+        if (routerName === 'none' || routerName === 'held') A.eq(out.state, 'off', 'a router with no routable saved floor is OFF, whatever the page believed' + tag);
+        if (routerName === 'other') {
+          A.eq(out.state, 'unconfirmed', 'a router on another floor than the page last sent is unconfirmed' + tag);
+          A.ok(/different version of the floor/.test(out.note) && !/Routing is live|running the floor as last sent/.test(out.note), 'and never says the router runs the floor the page sent' + tag);
+        }
+        if (over.pending && out.state !== 'off') A.ok(/newer edits/.test(out.note), 'a readout that still says the router routes also says the page holds newer edits' + tag);
+      }
+    }
   }
 
   /* ---- 10. one blocking finding ANYWHERE: every line is not ready, and the pill says why ---- */

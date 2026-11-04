@@ -17,6 +17,7 @@
      deps.seen: { load() -> {id:{key:at}}, save(obj) }   the folder trigger's fired-file record
      deps.makeHub(hooks) -> hub               a channel hub wired to the hooks (see index.js makeTriggerHub)
      deps.plan() -> the armed routing plan | null
+     deps.held() -> the sentence that says the saved floor is held right now, or null  (a held floor fires nothing: the trigger's lastError says why)
      deps.lineRunner -> the shared line-job book (open/settle/deliverCrate); the walk's actual OUTBOX receipt decides delivery
      deps.dayCap(lineId) -> { cap:number|null, spent:number }
      deps.halted() -> bool                    the durable automation E-STOP (cron halt)
@@ -67,6 +68,7 @@ function makeTriggerRunner(deps) {
   const dayCap = typeof d.dayCap === 'function' ? d.dayCap : function () { return { cap: null, spent: 0 }; };
   const runsFor = typeof d.runsFor === 'function' ? d.runsFor : function () { return []; };
   const planOf = typeof d.plan === 'function' ? d.plan : function () { return null; };
+  const heldOf = typeof d.held === 'function' ? d.held : function () { return null; };
   const seenStore = d.seen || { load: function () { return {}; }, save: function () {} };
 
   let records = T.normalizeAll(d.load()).triggers;
@@ -121,6 +123,8 @@ function makeTriggerRunner(deps) {
   /* ---- preflight: can THIS line take work right now? (no side effects) ---- */
   function preflight(t) {
     if (halted()) return faulted() ? 'the station hit an internal fault and stopped its background work — restart StarNet and this trigger fires again' : 'automation is stopped (E-STOP) — resume it and this trigger fires again';
+    const heldWhy = heldOf();
+    if (heldWhy) return heldWhy;   // the saved floor cannot be proved right now: nothing fires from a guess about it
     const plan = planOf();
     if (!plan) return 'no work line is armed — the floor has no complete line to run';
     if (!(Array.isArray(plan.lines) ? plan.lines : []).some(l => l && String(l.lineId) === t.lineId)) return 'its line is no longer on the floor (the line changed or was removed) — delete this trigger or re-create it on the line';

@@ -253,7 +253,9 @@ function makeSlashActions(deps) {
     // these two come back with fired:TRUE — the shift ran and produced nothing usable. See awayAction.
     'run-failed': 'the build run itself failed',
     'no-manifest': 'the run finished but produced no valid deliverable',
-    'stopped': 'the build was stopped before it finished'   // a stop is no failed build (review r7)
+    'stopped': 'the build was stopped before it finished',   // a stop is no failed build (review r7)
+    // fired:false — a saved floor that cannot be proved right now HOLDS the shift before it claims anything (not a failed build, nothing parked)
+    'routing-held': 'the saved floor cannot be proved right now, so nothing was tried and the queue is untouched'
   };
   function shiftReason(code) {
     const c = String(code || '').trim();

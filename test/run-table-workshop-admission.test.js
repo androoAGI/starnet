@@ -8,7 +8,8 @@ const RunTable = require('../sidecar/run-table.js');
 const RunOutcome = require('../frontend/app/runoutcome.js');
 const nightfocus = require('../sidecar/nightfocus.js');
 const Persist = require('../sidecar/persist/index.js');
-const names = ['runWorkshopShift', 'resolveNightFocus', 'saveNightFocusState', 'awayBuildStopped'];
+const { holdOf, heldWhy } = require('../sidecar/routing/saved-hold.js');
+const names = ['runWorkshopShift', 'resolveNightFocus', 'saveNightFocusState', 'awayBuildStopped', 'awayBuildRoom'];
 const source = names.map(name => {
   const text = sidecarFunctionSource(name);
   A.ok(text.length > 60 && text.length < 14000, name + ': bounded actual source located');
@@ -18,7 +19,10 @@ const source = names.map(name => {
 async function check(mode, suppliedSignal) {
   const table = RunTable.makeRunTable({ now: () => 1 });
   const notes = [], releases = [], settles = [], drops = [];
-  let calls = 0, writes = 0, reads = 0, finishScan, enteredScan;
+  let calls = 0, writes = 0, reads = 0, claims = 0, finishScan, enteredScan;
+  // a saved floor that cannot be proved right now: held at the entry gate, or going held between the gate and the room read
+  const hold = { status: 'corrupt', why: heldWhy('corrupt') };
+  const heldError = Object.assign(new Error('Saved routing authority is held: corrupt'), { held: true, status: 'corrupt', why: hold.why });
   const scanEntered = new Promise(resolve => { enteredScan = resolve; });
   const scan = new Promise(resolve => { finishScan = resolve; });
   const controller = new AbortController();
@@ -33,8 +37,9 @@ async function check(mode, suppliedSignal) {
     writeFileDurable() { writes++; if (mode === 'write-fault') throw new Error('focus durable write failed'); },
     reconcileNightFocusAuthority() {}, nightFocusInputs: () => ({ now: Date.now(), goal: { text: 'Build the requested change' } }),
     workshopOf: () => true, isRunLive: id => table.ownerLive(id),
+    routingHold: () => (mode === 'held' ? hold : null), holdOf,
     workshopStore: {
-      claimNext: async () => ({ id: 'item', title: 'Build it' }),
+      claimNext: async () => { claims++; return { id: 'item', title: 'Build it' }; },
       releaseClaim: async (id, runId, opts) => { releases.push({ id, runId, failed: opts && opts.failed }); return null; },
       setLastShift: async (id, info) => { notes.push(info); }
     },
@@ -47,6 +52,7 @@ async function check(mode, suppliedSignal) {
     },
     workshopPrompt: () => { if (mode === 'prompt-fault') throw new Error('prompt boundary fault'); return 'build'; },
     placeCronWorkitem() {}, cronSystemFor: () => '', router: { stationFor: () => null },
+    admit: { stationFor: () => { if (mode === 'held-midway') throw heldError; return null; } },
     runOnce: async o => { calls++; if (mode === 'core-fault') throw new Error('core boundary fault'); return { reason: o.signal.aborted ? 'cancelled' : 'done' }; },
     dropSteer: id => drops.push(id), settleCronWorkitem: (id, reason) => settles.push(reason),
     validateWorkshopManifest: async () => null, swallow: () => () => {}
@@ -66,6 +72,15 @@ async function check(mode, suppliedSignal) {
   let result, error;
   try { result = await pending; } catch (e) { error = e; }
   const label = mode + (suppliedSignal ? '/supplied' : '/local');
+  if (mode === 'held' || mode === 'held-midway') {
+    // INVARIANT held-is-no-failed-build: a shift on a saved floor that cannot be proved right now is REFUSED before it claims anything, so no attempt is counted
+    // and nothing parks (read inside the run, the typed hold landed in `threw` and was released as a failed build: two of them parked the item)
+    A.eq(error && error.message, undefined, label + ': refused through the result, not thrown');
+    A.eq([result && result.fired, result && result.reason, result && result.why], [false, 'routing-held', hold.why], label + ': the shift is held, in the hold\'s own words');
+    A.eq([claims, calls, releases.length, table.size(), drops.length, settles.length, table.groupBusy('agent')], [0, 0, 0, 0, 0, 0, false], label + ': nothing claimed, admitted, run or released: no attempt is counted');
+    A.eq(notes.map(n => n.reason), ['routing-held'], label + ': the away card\'s last shift says held, not broken');
+    return;
+  }
   A.eq(error && error.message, undefined, label + ': setup failure follows the existing failed-shift result path');
   A.eq(table.size(), 0, label + ': admission released on every exit');
   A.eq(table.groupBusy('agent'), false, label + ': no stale group blocker');
@@ -85,5 +100,7 @@ async function check(mode, suppliedSignal) {
 (async () => {
   for (const mode of ['read-fault', 'write-fault', 'scan-fault', 'prompt-fault', 'core-fault', 'success', 'held-stop']) await check(mode, false);
   await check('held-stop', true);
+  await check('held', false);
+  await check('held-midway', false);
   A.report('run-table-workshop-admission');
 })().catch(e => { A.ok(false, e.stack); A.report('run-table-workshop-admission'); });

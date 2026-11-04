@@ -152,7 +152,7 @@ A.ok(P.parseHandoff(last) && P.parseHandoff(last).original === '3 AI stories, ke
 A.ok(!/LAST stage/.test(P.handoffPrompt('req', 'writer', 'draft', 1, 'be picky', 'YOUR VERDICT DECIDES…', true)), 'a stage a review loop reads keeps its verdict instruction, never the last-stage one');
 const turnAt = lastStage => Chain.hopTurn({ originalText: 'req', from: 'a', upstream: 'up', hop: 1, target: 'w', targetDock: 'd2', lineId: 'L', lastStage });
 A.ok(/LAST stage/.test(turnAt((a, d) => a === 'w' && d === 'd2')) && !/LAST stage/.test(turnAt(() => false)) && !/LAST stage/.test(turnAt(undefined)), 'the chain asks lastStage(target, dock) — no helper, no change');
-A.ok(/lastStage: \(agentId, dockId\) => router\.chainShipsToOutbox\(agentId, dockId\)/.test(sidecar) && /lastStage: \(a, d\) => router\.chainShipsToOutbox\(a, d\)/.test(sidecar),
+A.ok(/lastStage: \(agentId, dockId\) => admit\.chainShipsToOutbox\(agentId, dockId\)/.test(sidecar) && /lastStage: \(a, d\) => admit\.chainShipsToOutbox\(a, d\)/.test(sidecar),
   '…and the station answers it for real runs and step tests alike: the dock whose lane ships to the OUTBOX');
 // the one billed station call NOT RIGHT? and SET IT UP FOR ME share (2026-09-30: stationOneShot)
 const oneShot = at(sidecar, 'async function stationOneShot(prompt, tag, failLead) {', 'async function handleRoutingFixSuggest(req, res) {');

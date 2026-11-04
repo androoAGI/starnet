@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 test('sample uses each dock provider and saved model without environment defaults, including restart', async () => {
   const calls = [];
@@ -41,14 +41,12 @@ test('sample uses each dock provider and saved model without environment default
       { agentId: 'hop', name: 'Hop', system: 'Sample', provider: 'custom', model: 'hop-model' }
     ];
     assert.equal((await fixture.json('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);
-    const plan = Pipeline.compileRoutingPlan({ props: [
+    await publishFloor(fixture, floorOf({ props: [
       { id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
       { id: 'a', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'entry' },
       { id: 'b', t: 'bay', x: 6, y: 0, w: 1, h: 1, agentId: 'hop' },
       { id: 'o', t: 'outbox', x: 9, y: 0, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    ], belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) }));
     for (let attempt = 0; attempt < 2; attempt++) {
       if (attempt) await fixture.restart();
       calls.length = 0;
@@ -74,13 +72,11 @@ test('sample uses each dock provider and saved model without environment default
       { agentId: 'scout', name: 'Scout', system: 'Sample', provider: 'starnet', model: '' }
     ];
     assert.equal((await fixture.json('POST', '/api/roster', { agents: station, updatedAt: Date.now() })).status, 200);
-    const unpinnedPlan = Pipeline.compileRoutingPlan({ props: [
+    await publishFloor(fixture, floorOf({ props: [
       { id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
       { id: 's', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'scout' },
       { id: 'o', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) });
-    for (const bay of unpinnedPlan.bays.concat(unpinnedPlan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await fixture.json('POST', '/api/routing', unpinnedPlan)).body.ok, true);
+    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) }));
     calls.length = 0;
     const followed = await fixture.json('POST', '/api/routing/sample', {});
     assert.equal(followed.status, 200, JSON.stringify(followed.body));

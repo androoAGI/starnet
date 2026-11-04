@@ -22,6 +22,7 @@ const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const Events = require('../shared/events.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -116,17 +117,15 @@ async function startSseCollector(url) {
   return { events, close() { try { ac.abort(); } catch (_) {} } };
 }
 
-function twoStagePlan() {
+function twoStageFloor() {
   const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
+  return floorOf({
     props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
             { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: 'Dig in.' },
             { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent', brief: 'Write it up.' },
             { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
   });
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-  return plan;
 }
 
 (async () => {
@@ -158,9 +157,8 @@ function twoStagePlan() {
     /* ---- 1. auth + refusals ---- */
     const bare = await fetch(B + '/api/routing/triggers', { headers: { Origin: B } });
     A.eq(bare.status, 403, 'GET triggers without the launch token -> 403');
-    const posted = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(twoStagePlan()) });
-    A.eq(posted.status, 200, 'the two-stage floor deploys');
-    const lineId = Pipeline.lineOf(twoStagePlan(), 'research-agent');
+    const two = await publishFloor(fetchApi(() => B, () => headers), twoStageFloor(), { label: 'the two-stage floor' });
+    const lineId = Pipeline.lineOf(two.plan, 'research-agent');
     A.ok(!!lineId, 'the compiled floor names the line: ' + lineId);
     const email = await api('/api/routing/triggers', 'POST', { kind: 'email', lineId });
     A.ok(email.status === 400 && /no mail connector/.test(email.j.error), 'an email trigger is refused honestly: ' + JSON.stringify(email.j));

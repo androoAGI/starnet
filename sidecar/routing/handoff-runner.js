@@ -61,7 +61,13 @@ function makeHandoffRunner(deps) {
   const faulted = typeof d.faulted === 'function' ? d.faulted : function () { return false; };
   const dayCap = typeof d.dayCap === 'function' ? d.dayCap : function () { return { cap: null, spent: 0 }; };
   const runsFor = typeof d.runsFor === 'function' ? d.runsFor : function () { return []; };
-  const planOf = typeof d.plan === 'function' ? d.plan : function () { return null; };
+  /* THE SAVED FLOOR HELD (routing/saved-hold.js): held() says so in words, and a plan read that finds it held answers no plan, so the
+     records below can still be written. Nothing is handed on from a floor that cannot be proved: dispatch refuses first, in those words. */
+  const planOf = function () {
+    if (typeof d.plan !== 'function') return null;
+    try { return d.plan(); } catch (e) { if (e && e.held === true) return null; throw e; }
+  };
+  const heldOf = typeof d.held === 'function' ? d.held : function () { return null; };
   const jobs = d.jobs || {};
   const J = {
     get: id => typeof jobs.get === 'function' ? jobs.get(id) : null,
@@ -101,6 +107,8 @@ function makeHandoffRunner(deps) {
   function preflight(plan, toLine, detail) {
     // (bare reasons — wave 2 review, conveyor-backend-09: the record's 'not sent on: ' and every sender surface already say it was not sent)
     if (halted()) return faulted() ? 'the station hit an internal fault and stopped its background work' : 'automation is stopped (E-STOP)';
+    const heldWhy = heldOf();   // the saved floor cannot be proved right now: nothing is handed on from a guess about it (said as the hold's words)
+    if (heldWhy) return heldWhy;
     if (closing) return closing;
     if (!plan) return 'no work line is armed';
     if (!lineRec(plan, toLine)) return 'the line it sends to is no longer on the floor — set its SEND TO again';
@@ -259,6 +267,8 @@ function makeHandoffRunner(deps) {
 
   async function dispatch(item, s) {
     // THE GATES AGAIN AT DISPATCH: the item may have waited; E-STOP, the cap, the floor or the SEND TO itself may have changed
+    const heldWhy = heldOf();
+    if (heldWhy) return refuse(item, heldWhy);
     const plan = planOf();
     if (!plan) return refuse(item, 'no work line is armed');
     const still = Pipeline.sendToOf(plan, item.fromLine, item.rec.dockId, item.fromOutbox);

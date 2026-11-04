@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, hintFor, planOf, publishFloor } = require('./helpers/saved-floor.js');
 (async () => {
   const calls = [];
   const server = http.createServer(async (req, res) => {
@@ -44,12 +44,11 @@ const Pipeline = require('../frontend/app/pipeline.js');
       { id: 'b', t: 'bay', x: 6, y: 0, w: 1, h: 1, agentId: 'hop' },
       { id: 'o', t: 'outbox', x: 9, y: 0, w: 1, h: 1 }
     ], belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) };
-    const plan = Pipeline.compileRoutingPlan(geometry);
+    const equip = ['computer', 'cabinet'];
+    const { plan } = await publishFloor(fixture, floorOf(geometry, { equip }), { label: 'the project floor' });   // saved, then published as the page does
     assert.equal(plan.lines[0].projectRoot, project);
-    const noProject = Pipeline.compileRoutingPlan({ ...geometry, props: geometry.props.map(p => ({ ...p, projectRoot: undefined })) });
-    assert.equal(noProject.hash, plan.hash, 'project edits preserve routing topology');
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'cabinet'];
-    assert.equal((await fixture.json('POST', '/api/routing', plan)).body.ok, true);
+    const noProjectFloor = floorOf({ ...geometry, props: geometry.props.map(p => ({ ...p, projectRoot: undefined })) }, { equip });
+    assert.equal(planOf(hintFor(noProjectFloor)).hash, plan.hash, 'project edits preserve routing topology');
     const sample = await fixture.json('POST', '/api/routing/sample', { text: 'Write a file and read it back.' });
     assert.equal(sample.body.delivered?.agentId, 'hop', JSON.stringify(sample.body));
     for (const id of ['entry', 'hop']) assert.equal(fs.readFileSync(path.join(project, id + '.txt'), 'utf8'), 'workflow project proof');
@@ -86,10 +85,8 @@ const Pipeline = require('../frontend/app/pipeline.js');
     assert.equal(blocked.body.ok, false, blocked.text);
     assert.equal(calls.length, 0, 'revoked workflow project fails before upstream work');
     // #60/#81 follow-up: an INBOX with NO working folder — every stage is told where relative paths really land
-    const folderless = Pipeline.compileRoutingPlan({ ...geometry, props: geometry.props.map(p => ({ ...p, projectRoot: undefined })) });
+    const folderless = (await publishFloor(fixture, noProjectFloor, { label: 'the folderless floor' })).plan;
     assert.ok(!folderless.lines[0].projectRoot, 'the folderless line carries no projectRoot');
-    for (const bay of folderless.bays.concat(folderless.dockBays)) bay.objects = ['computer', 'cabinet'];
-    assert.equal((await fixture.json('POST', '/api/routing', folderless)).body.ok, true);
     assert.ok(!fs.existsSync(path.join(fixture.workspace, 'hop/hop.txt')), 'hop has not written privately yet');
     const loose = await fixture.json('POST', '/api/routing/sample', { text: 'Write a file and read it back.' });
     assert.equal(loose.body.delivered?.agentId, 'hop', loose.text);
