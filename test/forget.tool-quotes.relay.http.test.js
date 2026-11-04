@@ -95,6 +95,10 @@ const sentinels = text => Array.from(new Set(String(text).match(/Sent-[aqu]\d\d/
       A.ok(toolRow.quotes && toolRow.quotes.includes(S), 'r1: the lead\'s result row carries the worker\'s read ' + S + ' (the live chain): ' + JSON.stringify(toolRow.quotes));
       const directive = before.find(r => r.role === 'user' && /\(r1\)/.test(r.content));
       A.ok(directive && !directive.quotes, 'r1: the lead\'s directive predates the dispatch and carries nothing');
+      // the worker's own run record (the dispatch result names its run; agent=* because the route answers for the Commander's agent by default): its brief was composed from the lead's conversation, so it quotes the lead's session before any tool ran, and the session it read
+      const workerRunId = (/"runId"\s*:\s*"([^"]+)"/.exec(toolRow.content) || [])[1];
+      const workerRun = workerRunId && ((await rig.json('GET', '/api/runs?agent=*&runId=' + encodeURIComponent(workerRunId))).body.runs || [])[0];
+      A.ok(workerRun && Array.isArray(workerRun.quotes) && workerRun.quotes.includes('l1') && workerRun.quotes.includes(S), 'r1: the worker\'s own run quotes its lead\'s session and the session it read: ' + JSON.stringify(workerRun && workerRun.quotes));
       await rig.forget(S);
       const after = await rowsAfter('l1');
       A.ok(!rowsText(after).includes(word(S)), 'r1: after the delete the lead\'s rows hold no word of ' + S);
