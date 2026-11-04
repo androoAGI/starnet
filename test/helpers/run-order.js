@@ -14,7 +14,7 @@ const RUN_ORDER = Object.freeze([
   { anchor: 'const kinds = TurnKinds.ofRun(', commit: 4, what: '#9b: the run\'s row kinds, from origin flags' },
   { anchor: 'const runTranscript = makeRunTranscript(', commit: 0, what: '#4: the run\'s transcript writer (reads kinds)' },
   { anchor: 'let retryDirective = TurnDirective.reuse(', commit: 3, what: '#3: the late key-blind input check' },
-  { anchor: 'runTranscript.setDirective(TurnDirective.row(', commit: 4, what: '#10: the directive row (reads kinds)' },
+  { anchor: 'TurnDirective.install(runTranscript, directive,', commit: 4, what: '#10: the directive row and the attachment rows of its files (reads kinds)' },
   { anchor: 'directiveTitle: TurnDirective.title(', commit: 4, what: '#11: the journal names the directive title' },
   { anchor: 'TurnDirective.runTitle(', commit: 4, what: '#12: the run-end title' }
 ]);

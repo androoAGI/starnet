@@ -6,6 +6,7 @@
 'use strict';
 
 const { makeToolProgressGuard } = require('./tool-progress-guard.js');
+const { ATTACHMENT_TAINT } = require('./taint.js');   // the bare attachment source: the one taint stamp that decays (taint-replay.js)
 
 /* WINDOW-SCALED PER-RUN TOOL-OUTPUT CAP. The cap exists so a few big reads can't blow the context window, but
    it must sit ABOVE the compaction threshold in bytes: compaction (0.65 × window tokens) is the one event that
@@ -46,6 +47,10 @@ function makeRunExecutionState(options) {
   const injectedNow = typeof opts.now === 'function' ? opts.now : () => 0;
   const failures = new Map();
   let taintedBy = opts.initialTaint ? String(opts.initialTaint) : null;
+  /* The first source that is NOT the bare attachment stamp (see rowTaint). taintedBy keeps its meaning (the FIRST source, for
+     the refusal wording and the run record); this one exists because the attachment is the only source that decays, so it must
+     never be allowed to hide a later one: a run that held the attachment and then read a page stamps its rows with the page. */
+  let otherTaint = taintedBy && taintedBy !== ATTACHMENT_TAINT ? taintedBy : null;
   let toolBytes = 0;
   let floorSpent = 0;   // characters a spent budget delivered this turn (startToolTurn)
   let toolsOk = 0;
@@ -64,9 +69,16 @@ function makeRunExecutionState(options) {
   const progress = opts.progressGuard || makeToolProgressGuard(opts.progressLimits);
 
   function latchTaint(source) {
-    if (!taintedBy && source) taintedBy = String(source);
+    if (source) {
+      const s = String(source);
+      if (!taintedBy) taintedBy = s;
+      if (!otherTaint && s !== ATTACHMENT_TAINT) otherTaint = s;
+    }
     return taintedBy;
   }
+  // The stamp DURABLE records carry (transcript rows, the run journal, a delegated worker's inherited latch): the first source that
+  // is not the bare attachment stamp, else the attachment itself. Truthy exactly when taintedBy() is.
+  function rowTaint() { return otherTaint || taintedBy; }
 
   function repeated(signature, maxRepeat) {
     return (failures.get(String(signature)) || 0) > Math.max(0, Number(maxRepeat) || 0);
@@ -281,6 +293,7 @@ function makeRunExecutionState(options) {
   return {
     taintedBy: () => taintedBy,
     latchTaint,
+    rowTaint,
     repeated,
     recordResult,
     boundToolResult,

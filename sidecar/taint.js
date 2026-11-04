@@ -27,6 +27,9 @@
        core granted use case, and the content is the agent's own, not a third party's.
      - local fs reads and the agent's notebook/memory: same reasoning, plus the fs jail already bounds them.
    Both are real residual paths (a routine could `cat` a downloaded file). Documented, not hidden.
+   The one carve-out is the Commander's own attachments folder (.attachments/): a read of it by fs.read, fs.search or
+   image_analyze, and a command or script that names it, is a source (isUntrustedSource), because an attachment is the one
+   place outside bytes are parked in the jail on purpose and then re-sent to the model only for two turns.
 
    Pure: no clock, no rng, no I/O — unit-testable, and one definition shared by the dispatch gate and the
    consent-broker predicates so the two can never disagree about what is revoked. */
@@ -40,6 +43,34 @@
 
   const impactOfTool = inputpolicy.impactOfTool;
   const CONNECTOR_CAP = /^mcp:/;
+  /* THE ATTACHMENT SOURCE (attachment decay, 2026-11-04). The exact string a run is tainted with while a Commander's
+     attachment BYTES are in its context (index.js runOnceCore: attachments.resentOf reports bytes:true). It is also the
+     stamp the rows that run writes carry, and it is the ONLY stamp that decays: transcriptStore.taintOf and
+     EarlierConversation.taintOf ignore a row stamped with exactly this, because the bytes it stood for are accounted for
+     by the bytes themselves (re-sent -> the run latches again; gone -> nothing is left to taint). Any other stamp, a
+     tool re-read of the saved file included, still taints. One place for the string (taint-replay.js has the rule). */
+  const ATTACHMENT_TAINT = 'user attachment';
+  /* The one row shape whose attachment stamp does NOT decay: a user row that STORES the expansion of its attachments. Replaying
+     or rendering that very row puts the file text in front of the model, so the stamp still means "bytes are here". Two shapes
+     are on disk. (1) Since 11-02 a row keeps the attachment references and the words the Commander typed (typed) beside a
+     content that is not those words. (2) In 0.14.2 and every release before it a row had neither field: the expansion IS the
+     content, and the "[Attached file: " header attachments.js has written since 0.14.0 says so. A row of the clean shape
+     (content = the typed words, whatever references it keeps) is neither, and decays. Pure. */
+  const EXPANSION_HEADER = /\[Attached file: /;
+  function rowStoresAttachmentText(row) {
+    if (!row || row.role !== 'user') return false;
+    if (Array.isArray(row.attachments) && row.attachments.length > 0 && typeof row.typed === 'string' && row.typed !== row.content) return true;
+    return typeof row.content === 'string' && EXPANSION_HEADER.test(row.content);
+  }
+  /* Free text (a shell command, a script) that NAMES the saved-attachments folder. The dot starts a word, so my.attachments.txt does
+     not. Bounded walk over the string values of a call's args: no JSON, no throw. */
+  const NAMES_ATTACHMENTS = /(?:^|[^A-Za-z0-9_])\.attachments(?![A-Za-z0-9_])/i;
+  function argStrings(v, out, depth) {
+    if (typeof v === 'string') out.push(v);
+    else if (v && typeof v === 'object' && depth < 3) for (const k of Object.keys(v).slice(0, 40)) argStrings(v[k], out, depth + 1);
+    return out;
+  }
+  const namesAttachments = (call) => argStrings(call && call.args, [], 0).some(s => NAMES_ATTACHMENTS.test(s));
 
   // Does this tool's RESULT bring content the Commander did not author into the context?
   function isUntrustedSource(tool, call) {
@@ -51,6 +82,14 @@
     const name = String((tool && tool.name) || '');
     const p = String((call && call.args && call.args.path) || '');
     if (name === 'fs.read' && /(?:^|[\\/])\.attachments(?:[\\/]|$)/i.test(p)) return true;
+    // ...and so is looking at a saved attachment with image_analyze (the other tool an old attachment's marker names): the
+    // vision model's reading of the picture is the picture's text, so it latches like fs.read of the same file.
+    if (name === 'image_analyze' && /(?:^|[\\/])\.attachments(?:[\\/]|$)/i.test(String((call && call.args && call.args.image) || ''))) return true;
+    // ...and so is a COMMAND that names the saved-attachments folder. A binary attachment (a PDF, an archive, an old Office file) is
+    // re-sent as a note only, and the note says the file/shell tools can operate on it, so a shell or a script is how its text reaches
+    // the model: that output is the attachment's text exactly as an fs.read of it would be. A path rule like the three around it, not
+    // a shell-output rule: the output of a command that does not name the folder is still not a source (the v1 boundary above).
+    if (String((tool && tool.impact) || '') === 'workspace-process' && namesAttachments(call)) return true;
     // PARKED UNTRUSTED OUTPUT. The host parks over-cap output into .output/; a park made from untrusted bytes (a web
     // or connector result, a tainted worker's text, anything a tainted run produced) is named `untrusted-*` by the
     // host. Reading it back — in a LATER run, where the original tool result no longer latches anything — carries
@@ -207,5 +246,5 @@
     return requestKeys(call).every(k => scope.keys.indexOf(k) >= 0);
   }
 
-  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX };
+  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
 });

@@ -76,6 +76,7 @@ test/e2e.worker-access.test.js
 test/taint-lineage.e2e.test.js
 test/taint-inherited-refusal.e2e.test.js
 test/e2e.trigger-fullaccess-taint.test.js
+test/attachment-taint-decay.http.test.js
 test/e2e.pathtrust.test.js
 test/e2e.subagent-background.test.js
 test/e2e.approval-lifecycle.test.js

@@ -21,6 +21,8 @@
 
 const fidelity = require('./compaction-fidelity.js');
 const UserText = require('../frontend/app/usertext.js');   // the one flattener (DIRECTIVE policy: index.js userMsgText's bytes)
+const TurnAttachment = require('./turn-attachment.js');   // a row that carried files reads as its typed words plus '[attached: name]', never the file's text
+const { ATTACHMENT_TAINT, rowStoresAttachmentText } = require('./taint.js');   // the bare attachment source: the one taint stamp that decays on replay (taint-replay.js)
 
 const KEY_CHARS = 240;
 const REPLY_HEAD_CHARS = 280;
@@ -68,7 +70,8 @@ function windowCut(rows, window, redact) {
   for (let i = list.length - 1; i >= 0 && w >= 0; i--) {
     const r = list[i];
     if (!r || r.role !== 'user') continue;
-    if (keyOf(r.content, null) === wantKeys[w]) { first = i; w--; }
+    // the page keeps the typed words: a row that stored a file's text beside them (typed) is placed by those words, not by the file
+    if (keyOf(TurnAttachment.wordsOf(r), null) === wantKeys[w]) { first = i; w--; }
   }
   if (w >= 0 || first < 0) return -1;
   // a window that opens on an assistant reply carries the tail of the exchange before its first user message:
@@ -96,13 +99,16 @@ function toolNames(row) {
 // the agent that wrote a user row the Commander did not type (transcript `from`: a delegating lead's brief); '' = none
 function fromOf(row) { return row && row.from != null ? squash(row.from).replace(/[[\]]/g, '').slice(0, 40) : ''; }
 
-/* The dropped rows -> exchanges: { user: text|null, from: agent|'', replies: [head], tools: [name] } in order. */
+/* The dropped rows -> exchanges: { user: text|null, from: agent|'', replies: [head], tools: [name] } in order. A user row that
+   carried files reads as the Commander's typed words and one '[attached: name]' per file (turn-attachment.js textOf): the note
+   presents these messages as the Commander's own words, so a file's text must never ride in them. A row that carried none
+   reads as its content, byte for byte. */
 function exchanges(rows) {
   const out = [];
   let cur = null;
   for (const r of (Array.isArray(rows) ? rows : [])) {
     if (!r) continue;
-    if (r.role === 'user') { cur = { user: str(r.content), from: fromOf(r), replies: [], tools: [] }; out.push(cur); continue; }
+    if (r.role === 'user') { cur = { user: TurnAttachment.textOf(r), from: fromOf(r), replies: [], tools: [] }; out.push(cur); continue; }
     if (r.role !== 'assistant') continue;
     if (!cur) { cur = { user: null, from: '', replies: [], tools: [] }; out.push(cur); }
     for (const n of toolNames(r)) if (cur.tools.indexOf(n) < 0) cur.tools.push(n);
@@ -179,9 +185,17 @@ function render(dropped, opts) {
   return { note, users: section.items.length, omittedUsers: section.omitted, replies: lines.length, omittedReplies: omitted };
 }
 
-/* The rows the window dropped carry outside content when any of them was written by a run that read it. */
+/* The rows the window dropped carry outside content when any of them was written by a run that read it. A row stamped with
+   EXACTLY the bare attachment source was written while the run held an attachment's bytes, which are accounted for by the
+   run that re-sends them: that stamp alone no longer taints (taint-replay.js ATTACHMENT DECAY). Any other stamp does, and so
+   does the stamp on a row whose FILE TEXT the note renders (taint.js rowStoresAttachmentText: a row that stores the
+   expansion, and has no typed words to be shown instead). exchanges() shows a row that kept its references beside typed
+   words as those words plus '[attached: name]', so the 11-02 shape (file text in the content, words in `typed`) puts no
+   bytes in the note and its stamp decays like any other; a row of the 0.14.2 shape has no typed words to render instead,
+   so its exception stays for good. */
+const rendersExpansion = r => rowStoresAttachmentText(r) && TurnAttachment.wordsOf(r) === str(r.content);
 function taintOf(rows) {
-  for (const r of (Array.isArray(rows) ? rows : [])) if (r && typeof r.taint === 'string' && r.taint) return r.taint;
+  for (const r of (Array.isArray(rows) ? rows : [])) if (r && typeof r.taint === 'string' && r.taint && (r.taint !== ATTACHMENT_TAINT || rendersExpansion(r))) return r.taint;
   return null;
 }
 

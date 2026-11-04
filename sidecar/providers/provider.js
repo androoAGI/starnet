@@ -46,8 +46,10 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // the ONE rule for a sender-chosen file name that a note echoes (sidecar/attachment-name.js); null where require does not exist (the local rule below stands)
+  const AttachmentName = (typeof require === 'function') ? require('../attachment-name.js') : null;
 
-  const EVENT_TYPES = ['text', 'tool_start', 'tool_args', 'tool_done', 'reasoning', 'generation', 'usage', 'done'];
+  const EVENT_TYPES =['text', 'tool_start', 'tool_args', 'tool_done', 'reasoning', 'generation', 'usage', 'done'];
   const FINISH = ['tool_calls', 'stop', 'length', 'content_filter', 'error'];
 
   // Verification deliberately bypasses every catalog cache/fallback. Adapters supply their native auth
@@ -718,7 +720,7 @@
   function imageOmittedNote(count, model, source) {
     const who = (model ? String(model) : 'this model') + ' cannot take image input, so ';
     if (source && source.path) {
-      const name = noteSafe(source.name, 120);
+      const name = AttachmentName ? (String(source.name || '').trim() ? AttachmentName.cleanName(source.name) : '') : noteSafe(source.name, 120);
       return '[image omitted' + (name ? ': ' + name : '') + ' — ' + who + 'it was not sent. It is saved at ' + pathSafe(source.path)
         + ' — to see what it shows, run an image-analysis tool (image_analyze) on that path if you have one, or tell the Commander to pick a vision model in the COMMS model dock.]';
     }

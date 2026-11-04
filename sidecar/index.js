@@ -9066,11 +9066,13 @@ function nightshiftBeliefMap() {
 // station's own reason-only calls read as the Commander's recent work (USER-STUDY LOOP, 2026-09-28).
 // Filter provenance before projecting into the pure pack: otherwise attachment/quoted content becomes ambient
 // owner activity in a later, clean run. Run storage omits taintedBy on clean rows; legacy rows share that shape.
+// A run whose directive carried files and NO typed words (wordless) is titled with the label of its files, a third party's names:
+// it is not the Commander's activity, whether or not the run latched anything (a file that sends no bytes leaves it clean).
 // Internal titles are exclusion markers only: retain them even when a later tool taints their run, so its
 // initially clean directive cannot reappear as owner chat. The pure pack never renders an internal run title.
 // Shared by the context pack and the readiness count, so both always read the SAME projection.
 function nightshiftRecentRuns() {
-  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && !sessionRunForgotten(r) && (r.internal || (!r.taintedBy && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
+  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && !sessionRunForgotten(r) && (r.internal || (!r.taintedBy && !r.wordless && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
 }
 
 /* NS-2: the CONTEXT-PACK io — the ambient half of contextpack.js. Gathers REAL recent activity from the durable
@@ -21837,7 +21839,7 @@ async function handleRun(req, res) {
     }
     // USER ATTACHMENTS: expand any Commander-attached photos/files (carried as lightweight references on the
     // user turns) into real provider content blocks before the model call. Degrades per-attachment, never throws.
-    const hasUserAttachments = messages.some(m => m && Array.isArray(m.attachments) && m.attachments.length > 0);
+    // TAINT FOLLOWS THE BYTES, not the references: the browser keeps every turn's references, so their mere presence no longer taints. runOnceCore latches taint.js ATTACHMENT_TAINT from what expandForRun actually re-sends (attachments.resentOf).
     const learningInput = ownerWording ? TrustedLearning.capture(messages, 'interactive-owner') : null;
     // Words the Commander TYPED stay owner authority even when they hold a code fence, a pasted log, a quoted label, a
     // blockquoted document or "example:" — only real outside bytes (an attachment here; fetched/forwarded content via the
@@ -21857,7 +21859,7 @@ async function handleRun(req, res) {
       fallbackProviders: Array.isArray(fallbackProviders) ? fallbackProviders.map(fb => (fb && typeof fb === 'object') ? Object.assign({}, fb, { keyInRequest: !!String(fb.key || fb.apiKey || fb.api_key || '').trim() }) : fb) : fallbackProviders,
       emit, signal: ac.signal, runId, trigger: 'directive', internal, evidence, keepEffort, runNotices,
       voiceTurn: !!(body && body.voiceTurn === true),   // the reply will be SPOKEN: the voice chat model may answer it
-      initialTaint: hasUserAttachments ? 'user attachment' : null,
+      initialTaint: null,   // never derived from the presence of references (see above): runOnceCore latches the attachment source when bytes are re-sent
       learningInput,   // host-captured BEFORE attachment expansion; never accepted from request metadata
       quotedOwnerInput,   // learning-only: skips the durable learning passes at run end, latches nothing
       ownerDirective: ownerWording,   // the Commander typed this directive at their own station (not a recipe template)
@@ -22259,6 +22261,8 @@ async function runOnceCore(o) {
   const directive = TurnDirective.capture(messages, { typedDirective: o.typedDirective, turnId: runStartExtra.turnId, recovery: o.recovery ? { title: o.recovery.sourceTitle } : null });   // the Commander's words, once, before files expand (e7dcb889; null = no user message)
   messages = turnWindow.apply(messages, o, { agentId, runId, directive, reused: turnReuse });
   messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
+  const attachReport = attachments.resentOf(messages);   // what the expansion read and sent, per reference (size and sha256 of the bytes read): the taint below follows it, and the directive's attachment rows record it (TurnDirective.install)
+  const attachTaint = attachReport.some(e => e && e.bytes === true) ? taintPolicy.ATTACHMENT_TAINT : null;   // TAINT FOLLOWS THE BYTES: read off the expansion's own report, before `messages` is reassigned; a reference whose bytes were not re-sent (a marker, an unreadable or binary file) taints nothing
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
   // A short channel reply such as "operators" is not independently task-shaped. Durable brief continuity is
@@ -22346,19 +22350,23 @@ async function runOnceCore(o) {
      Holds the FIRST tainting source, so the refusal can name the actual cause. Unattended runs lose the power;
      a watched run may recover exactly one call only through a fresh confirmation after the taint occurred. */
   const execution = makeRunExecutionState({
-    initialTaint: o.initialTaint ? String(o.initialTaint === true ? 'scheduled upstream context' : o.initialTaint) : null,
+    initialTaint: o.initialTaint ? String(o.initialTaint === true ? 'scheduled upstream context' : o.initialTaint) : attachTaint,   // a caller's own source (hub, channel, upstream, a lead's latch) wins; else the attachment source, only while its bytes are re-sent
     artifacts: makeArtifactCollector(),
     completion: makeCompletionEvidence({ authority: completionAuthority }),
     now: () => Date.now()
   });
   /* DURABLE TAINT (sec-taint 09-25). A latch made after the run journal began is journaled too, so a recovery
      continuation of this run (which replays its checkpointed context, untrusted bytes included) restores the taint
-     from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead. */
+     from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead.
+     THE ATTACHMENT NEVER HIDES A LATER SOURCE (taint-replay.js ATTACHMENT DECAY): taintedBy() stays the first source, but the
+     stamp durable records carry is rowTaint() (the first source that is not the bare attachment stamp), so a run that held the
+     attachment and THEN read a page journals the page (the journal reports it over the attachment) and stamps its rows with it. */
   const latchRunTaint = (source) => {
-    const before = execution.taintedBy();
+    const before = execution.rowTaint();
     const after = execution.latchTaint(source);
-    if (!before && after && execution.journalStarted() && !execution.journalFailed()) {
-      try { runJournal.taint(runId, { source: after }); } catch (e) { failNote('run-journal.taint', e); }
+    const now = execution.rowTaint();
+    if (now && now !== before && execution.journalStarted() && !execution.journalFailed()) {
+      try { runJournal.taint(runId, { source: now }); } catch (e) { failNote('run-journal.taint', e); }
     }
     return after;
   };
@@ -23614,7 +23622,7 @@ async function runOnceCore(o) {
       withholdHostPower: hostPowerWithheld,
       untrustedEntry: untrustedEntryRun,   // host-minted: a worker of a payload-started run keeps the taint lock under Full Access
       withholdTaste: tasteWithheld,        // host-minted: a worker of a non-owner/group run never receives the Commander's taste
-      taintedBy: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)
+      taintedBy: () => execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)   // rowTaint: a worker inherits the page a lead read after its attachment, not just the attachment (which decays)
     },
     // HOOKS reach the tool boundary through the dispatch ctx. registry.js consults them AFTER the authority,
     // capability, schema and consent gates — so a hook can only ever remove a permission, never add one.
@@ -23971,7 +23979,7 @@ async function runOnceCore(o) {
     turnId: () => runStartExtra.turnId,   // read at each write: the directive and every row of this run carry the run's turn
     stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,   // every row names its kind
     // rows written after untrusted content entered this run carry its taint source (sec-taint 09-25)
-    taint: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),
+    taint: () => execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),   // rowTaint, not taintedBy: the bare attachment stamp decays, so it must never hide a later source (taint-replay.js)
     // mid-run write failures never kill the run or reorder dialogue: the rows stay pending (and in the run journal)
     // and retry at the next boundary / strict run end. Counted + warned, so a failing disk is never invisible.
     onFailure: (stage, e) => failNote('transcript.run.' + stage, e)
@@ -24480,7 +24488,7 @@ async function runOnceCore(o) {
     // outside byte reached the context. MCP connector failures never carry the flag, so they still latch.
     if (r && typeof r.content === 'string' && r.content.length && !(r.isError && r.hostAuthored === true) && revokedByTaint.isSource(liveTool, c)) {
       taintScope = taintPolicy.scopeAfterSource(taintScope, liveTool, c, { wasTainted: !!execution.taintedBy(), runId, responseOrigin: responseProvenance.originOf(r) });
-      if (!execution.taintedBy()) latchRunTaint(c.name);
+      latchRunTaint(c.name);   // every untrusted result, not only the first: latchTaint keeps the first source, and the attachment (which decays) must not shield a page read after it
     }
     /* RELAYED TAINT (sec-taint 09-25). team.dispatch / team.spawn / team.subagents / team.resume hand this run the
        text of ANOTHER run. When that run was tainted (its worker read a hostile page), the text it returns is the
@@ -25112,7 +25120,7 @@ async function runOnceCore(o) {
   if (!TurnKinds.isTurnId(o.turnId) && !TurnKinds.isTurnId(o.retryOf) && !turnReuse && !retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.view('display', streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
-      && latest.content === redact(latestUserText(messages))) retryDirective = latest;
+      && (latest.content === redact(latestUserText(messages)) || (TurnDirective.attachedWording(directive) !== '' && latest.content === redact(TurnDirective.attachedWording(directive))))) retryDirective = latest;   // a turn that carried files stores its captured wording, not the expanded text
   }
   let convo = messages;
   try {
@@ -25184,7 +25192,7 @@ async function runOnceCore(o) {
             while (lead < msgs.length && msgs[lead] && msgs[lead].role === 'system') lead++;
             msgs.splice(lead, 0, { role: 'system', content: earlier.note });
             const carried = EarlierConversation.taintOf(dropped);
-            if (carried && !execution.taintedBy()) { latchRunTaint('earlier conversation carried content from ' + String(carried).slice(0, 120)); taintAtStart = execution.taintedBy(); }
+            if (carried) { latchRunTaint('earlier conversation carried content from ' + String(carried).slice(0, 120)); taintAtStart = execution.taintedBy(); }
             // a pasted document the window dropped is still in the note — bounded by the same learning tail, counted back
             // across the window: rows the window dropped are older than all of it, so they withhold learning only while a
             // pass reading the transcript's tail could still reach them (a short window), never for the rest of a long chat
@@ -25253,7 +25261,7 @@ async function runOnceCore(o) {
       // tainted from its start, exactly like replayed history (2026-10-10; notebook.write stamps taintedBy)
       const usedSet = new Set(recall.usedIds || []);
       const taintedNote = ranked.concat(tasteRecs).find(r => r && usedSet.has(r.id) && typeof r.taintedBy === 'string' && r.taintedBy);
-      if (taintedNote && !execution.taintedBy()) { latchRunTaint('recalled memory saved by a run that read ' + String(taintedNote.taintedBy).slice(0, 120)); taintAtStart = execution.taintedBy(); }
+      if (taintedNote) { latchRunTaint('recalled memory saved by a run that read ' + String(taintedNote.taintedBy).slice(0, 120)); taintAtStart = execution.taintedBy(); }
       msgs = injectRecall(msgs, redact(recall.text));   // §5.6 belt-and-suspenders: a legacy plaintext note can't reach the provider verbatim
       emit('memory.recall', { agentId, runId, count: recall.count, chars: recall.chars });
       if (taste.count && DEBUG_CHANNEL_LOGS) console.log('[memory] taste run=' + runId + ' agent=' + agentId + ' records=' + taste.count);
@@ -25303,7 +25311,7 @@ async function runOnceCore(o) {
   // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
   // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
   const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(TurnDirective.row(directive, runDirective, kinds.directiveKind));   // content = runDirective's bytes; typed = the captured wording
+  if (!o.syntheticTrigger) TurnDirective.install(runTranscript, directive, runDirective, kinds.directiveKind, attachReport, retryDirective);   // a new directive's content is the captured wording when it carries files (their text rides only the model's copy; each file is an attachment row beside it), runDirective's bytes otherwise; a reused directive writes none but hands the run its files' rows
   if (!internal) {
     try {
       runJournal.begin({
@@ -25314,7 +25322,7 @@ async function runOnceCore(o) {
         userTitle: o.syntheticTrigger ? '' : latestUserText(msgs), startedAt: Date.now(),
         cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '',
         cronJobName: isRoutineTrigger(trigger) ? String(o.cronJobName || '').slice(0, 200) : '',
-        initialTaint: execution.taintedBy() || '',   // additive: a continuation of this run restores it (replayedTaint)
+        initialTaint: execution.rowTaint() || '',   // additive: a continuation of this run restores it (replayedTaint); rowTaint, so a page read before the journal began is not hidden by the attachment
         untrustedEntry: untrustedEntryRun === true,   // additive: a continuation keeps Full Access off (recoverySourceEntryUntrusted)
         idempotencyScope: idempotencyScope || ''   // additive: a continuation dedupes connector writes under the SAME work item (consumeRunRecoveryContinuation)
       });
@@ -25772,7 +25780,7 @@ async function runOnceCore(o) {
         }
       }
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), taintedBy: execution.taintedBy() || '' });   // execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -25798,8 +25806,8 @@ async function runOnceCore(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState });
-        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState });
+        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.rowTaint() || (TurnDirective.labelOnly(directive) ? taintPolicy.ATTACHMENT_TAINT : null), content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState });
+        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.rowTaint(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState });
       }
     } catch (e) { failNote('run.transcript-end', e); }
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now

@@ -47,10 +47,11 @@
   const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
   const KINDS = Object.freeze(['turn', 'station', 'goal-step', 'routine', 'group', 'hop', 'capture', 'steer', 'observed',
-    'deliverable', 'delivery', 'retract', 'briefing', 'api']);
+    'deliverable', 'delivery', 'retract', 'briefing', 'api', 'attachment']);
   // stored role 'system': trunk's readers skip these, so a downgrade never replays one as the Commander's words.
   // 'delivery' is NOT here: it is a routine's reply, assistant speech, and stays role 'assistant'.
-  const SYSTEM_KINDS = Object.freeze(['steer', 'deliverable', 'retract']);
+  // 'attachment' is the record of one file a turn carried (sidecar/turn-attachment.js): provenance, never dialogue.
+  const SYSTEM_KINDS = Object.freeze(['steer', 'deliverable', 'retract', 'attachment']);
 
   function isTurnId(v) { return typeof v === 'string' && TURN_ID_RE.test(v); }
   function isKind(v) { return typeof v === 'string' && KINDS.indexOf(v) >= 0; }
@@ -169,6 +170,7 @@
     'hop': cells('own-line', false, true, true, true),
     'steer': cells(true, 'owner', true, true, true),
     'deliverable': cells(false, false, true, true, true),
+    'attachment': cells(false, false, true, false, true),
     'delivery': cells(true, false, true, true, true),
     'observed': cells(true, false, true, true, true),
     'carried': cells(true, false, true, true, true),

@@ -509,6 +509,15 @@
       // untrusted-content taint the run ended with (additive; absent on a clean run) — sec-taint 09-25
       const taintedBy = str(e.taintedBy).replace(/\s+/g, ' ').trim().slice(0, 200);
       if (taintedBy) entry.taintedBy = taintedBy;
+      // ROW STAMP (additive, attachment-rows-and-taint repair 2026-11-04): taintedBy is the FIRST source the run latched, which may be the
+      // bare attachment stamp (decays on replay) even when the run then read a page or the saved file. The stamp that rows written FOR
+      // this run after it ended must carry (a dispatched worker's accepted answer: dispatch-delivery.js) is the first source that is NOT
+      // the bare attachment (run-execution-state rowTaint). Present only when it differs from taintedBy, so every other row stays byte-identical.
+      const rowTaintedBy = str(e.rowTaintedBy).replace(/\s+/g, ' ').trim().slice(0, 200);
+      if (rowTaintedBy && rowTaintedBy !== taintedBy) entry.rowTaintedBy = rowTaintedBy;
+      // WORDLESS (additive, same repair): the run's directive carried files and no typed words, so its title is the label of the files,
+      // a third party's names. Present only when true; the ambient "worked recently" projection (index.js nightshiftRecentRuns) leaves such a run out.
+      if (e.wordless === true) entry.wordless = true;
       const error = str(e.error).replace(/\s+/g, ' ').trim().slice(0, ERROR_MAX);
       if (error) entry.error = error;
       rows.push(entry);

@@ -5,6 +5,8 @@ const Fit = require('../frontend/app/historyfit.js');
 const Kinds = require('../frontend/app/turnkinds.js');
 const Merge = require('../frontend/app/turnmerge.js');
 const View = require('./turn-view.js');
+const TurnAttachment = require('./turn-attachment.js');
+const { ATTACHMENT_TAINT } = require('./taint.js');
 const hash = value => crypto.createHash('sha256').update(value, 'utf8').digest('hex');
 const positiveId = n => Number.isSafeInteger(n) && n > 0;
 function callerOf(body) {
@@ -85,13 +87,20 @@ function make(d) {
     const proof = store.findTurns(o.streamId, candidates.map(c => ({ turnId: c.turnId, turnAt: c.turnAt })));
     const out = [];
     for (const c of candidates) if (proof.get(c.turnId)?.state === 'absent') {
+      // These proved-absent rows are unadmitted typed input: the Commander's words, written CLEAN (taint null) whatever
+      // provenance the page claimed. A file the turn carried is recorded beside it as an attachment row (turn-attachment.js:
+      // no size or sha256, no read happened here) stamped with the attachment source, which is where that provenance lives
+      // now; taint follows the bytes a run actually re-sends (attachments.resentOf), never a reference's presence.
       const row = store.appendStrict({ streamId: o.streamId, agentId: ctx.agentId, role: 'user', content: c.row.content,
         typed: typeof c.row.typedText === 'string' ? c.row.typedText : c.row.content, attachments: c.row.attachments,
-        // These proved-absent rows are unadmitted typed input. Match handleRun's input rule:
-        // actual attachment references taint it; typed/quoted words do not. Ignore posted provenance claims.
-        kind: 'turn', turnId: c.turnId, directive: true, carriedBy: ctx.runId,
-        taint: Array.isArray(c.row.attachments) && c.row.attachments.length > 0 ? 'user attachment' : null });
+        kind: 'turn', turnId: c.turnId, directive: true, carriedBy: ctx.runId, taint: null });
       if (!row || !positiveId(row.rowId)) throw new Error('carried turn was not durably acknowledged');
+      const items = TurnAttachment.rowsFor(c.row.attachments, null);
+      if (items.length) {
+        // provenance only: a failure is noted and never loses the carried directive or the window
+        const wrote = TurnAttachment.write(store, { items, streamId: o.streamId, agentId: ctx.agentId, turnId: c.turnId, runId: ctx.runId, taint: ATTACHMENT_TAINT });
+        if (wrote.failure) note('turn.window.attachment', wrote.failure);
+      }
       out.push(Object.assign({}, c.row, { rowId: row.rowId, streamId: o.streamId }));
     }
     return out;

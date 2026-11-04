@@ -86,8 +86,8 @@ const row = (id, role, content, ts) => ({ streamId: 'ws_a', agentId: 'agent', ro
   A.ok(np > 0 && ap > np && ap - np < 300, 'the page-closed note listener is registered right before handleRun\'s abort listener (listeners run in order)');
   A.ok(close, 'handleRun notes the open approvals only when the CLOSE is what stops a live run (STOP / E-STOP abort the signal first)');
   A.ok(/leadOver = true;\s*pageClosedRuns\.delete\(runId\);/.test(src), 'the note never outlives its run (dropped in the finally, after the record read it)');
-  // (the SEND NOW ledger field, steerNotes, sits between them since the reload lane, 2026-10-14)
-  A.ok(/pageClosed: pageClosedRuns\.get\(runId\) \|\| null, (?:steerNotes: steerBufs\.ledgerOf\(runId\), )?taintedBy: execution\.taintedBy\(\) \|\| '' \}\);/.test(src), 'runOnce writes the note into the run record');
+  // (the SEND NOW ledger field, steerNotes, sits between them since the reload lane, 2026-10-14; the attachment-rows lane adds wordless and rowTaintedBy around taintedBy)
+  A.ok(/pageClosed: pageClosedRuns\.get\(runId\) \|\| null, (?:steerNotes: steerBufs\.ledgerOf\(runId\), )?(?:wordless: TurnDirective\.labelOnly\(directive\), )?taintedBy: execution\.taintedBy\(\) \|\| ''(?:, rowTaintedBy: execution\.rowTaint\(\) \|\| '')? \}\);/.test(src), 'runOnce writes the note into the run record');
   const note = src.slice(src.indexOf('function notePageClosed('), src.indexOf('function notePageClosed(') + 900);
   A.ok(/f\.detached/.test(note) && /brief\.ask/.test(note), 'a background worker\'s ask and a question are not counted (they outlive / restore on their own)');
   // a foreground worker's open ask names the worker that asked ("your approval to change x" alone read as the lead's own)

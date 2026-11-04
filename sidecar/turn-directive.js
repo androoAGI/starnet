@@ -41,14 +41,29 @@
                                              { text, label, attachments, turnId, typedTitleSource, captured: true }, or
                                              null when there is no user message to read (an internal system-only run, an
                                              assistant-only body). text = the message's own words (UserText DIRECTIVE);
-                                             label = '[image: name]' / '[file: name]' per attachment, joined ', ' (<= 600);
+                                             label = '[image: name]' / '[file: name]' per attachment, joined ', ' (<= 600), each
+                                             name through the one rule (attachment-name.js; turn-attachment.js labelOf);
                                              attachments = bounded refs (the transcript store's own rule). A recovery
                                              continuation's directive is its SOURCE's title ({ recovered: true }); one
                                              with no title is null (the trunk path reads the recovered prompt)
      typedText(d)                            the typed words only ('' for null): KeyTools.ownerRun, learning's hand-off
      wording(d)                              the one wording: non-blank text, else the label ('' for null)
      row(d, contentBytes, kind)              setDirective's argument: { text, typed, attachments, kind }; contentBytes
-                                             itself for null (the trunk string path)
+                                             itself for null (the trunk string path). A directive that carries attachments
+                                             is written CLEAN: text is the captured wording (the typed words, else the
+                                             label), never contentBytes, which holds the files' expanded text; the file
+                                             rides as an attachment row beside it (sidecar/turn-attachment.js). A directive
+                                             without attachments keeps the trunk bytes exactly. When the wording is only the
+                                             label the row also says labelOnly: true, and the run transcript stamps it
+     labelOnly(d)                            a directive with no typed words whose whole wording is the label of its files
+                                             (the names, a third party's text): not the Commander's words, so its row is never
+                                             a clean owner row and its run is recorded wordless (index.js)
+     install(runTranscript, d, contentBytes, kind, report, reused)
+                                             the ONE decision of what a run writes for its directive: a new directive is
+                                             row(...) plus the attachment rows of its references (report = attachments.resentOf,
+                                             for each file's size and sha256); a REUSED directive (a retry or resend answering
+                                             the turn's existing row) writes none of its own and hands the run the references'
+                                             attachment rows instead, because a retry retracts the old ones
      title(d, runDirective) / runTitle(source, keys) / interruptedTitle(meta, keys)
                                              a run's title source (runDirective only for a null capture), scrubbed and
                                              key-named the one way (PromptScrub.scrubStored(KeyTools.nameSavedKeys(…)))
@@ -63,6 +78,8 @@ const TurnKinds = require('../frontend/app/turnkinds.js');
 const UserText = require('../frontend/app/usertext.js');
 const KeyTools = require('./tools/builtin/keys.js');
 const PromptScrub = require('./prompt-scrub.js');
+const TurnAttachment = require('./turn-attachment.js');
+const { rowStoresAttachmentText } = require('./taint.js');
 const { note: failNote } = require('./failopen.js');
 
 const count = (tag, what) => failNote(tag, new Error(what));
@@ -124,12 +141,15 @@ function refIds(list) {
 }
 // the key-blind input check: a row that carries `typed` (the redacted wording) is compared on it, any other row on its
 // content (trunk's basis: the expanded words, or the label of a captionless turn); a row that names attachments also
-// needs the same attachment ids. A null capture never matches (the turn's words are unknown: an input conflict).
+// needs the same attachment ids. A row that keeps attachment references and no `typed` is the CLEAN directive (row() below):
+// its content IS the captured wording, so it is compared on that, never on the expanded text of the request (which holds the
+// files' bytes). A null capture never matches (the turn's words are unknown: an input conflict).
 function sameInput(row, a) {
   const d = a.directive;
   if (!d) return false;
   if (Array.isArray(row.attachments) && refIds(row.attachments) !== refIds(d.attachments)) return false;
   if (row.typed != null) return keyBlind(row.typed) === keyBlind(storedForm(wording(d), a));
+  if (Array.isArray(row.attachments) && row.attachments.length && Array.isArray(d.attachments) && d.attachments.length) return keyBlind(row.content) === keyBlind(storedForm(wording(d), a));
   const latest = typeof a.latestUserText === 'function' ? a.latestUserText(a.messages) : '';
   return keyBlind(row.content) === keyBlind(storedForm(latest || d.label || '', a));
 }
@@ -168,7 +188,6 @@ function reuse(store, o) {
 }
 
 /* ---- the directive, captured once before expansion (commit 4) ---- */
-const LABEL_MAX = 600;
 const ATTACH_MAX = 16;
 const REF_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];   // transcriptstore attachmentRefs
 // the newest user message a run can read: its content flattens, or it carries attachments (latestUserText's walk)
@@ -181,10 +200,8 @@ function newestUser(messages) {
   }
   return null;
 }
-function labelOf(atts) {
-  const parts = atts.filter(a => a && typeof a === 'object').map(a => '[' + (a.kind === 'image' ? 'image' : 'file') + ': ' + String(a.name || 'file') + ']');
-  return parts.join(', ').slice(0, LABEL_MAX);
-}
+// the label of a turn sent with no words: '[file: name]' per attachment, the names through the one rule (turn-attachment.js labelOf)
+const labelOf = atts => TurnAttachment.labelOf(atts);
 function refsOf(atts) {
   const out = [];
   for (const a of atts) {
@@ -219,9 +236,39 @@ function wording(d) {
   const t = String(d.text || '');
   return t.trim() ? t : String(d.label || '');
 }
+// the content a turn that carried files stores as its directive row (the wording, never the expanded text); '' for a turn without files or a null capture
+function attachedWording(d) { return d && Array.isArray(d.attachments) && d.attachments.length ? wording(d) : ''; }
+// A directive with no typed words whose whole wording is the label of its files: the Commander said nothing, and the names in the label are
+// a third party's text. Its row must never be taken for the Commander's words (owner evidence, ambient activity, interests, briefs), and
+// the run that answered it must not be either (the run record says so: wordless). false for a null capture, a recovery and any typed words.
+function labelOnly(d) { return !!d && !String(d.text || '').trim() && !!String(d.label || ''); }
 function row(d, contentBytes, kind) {
   if (!d) return contentBytes;
-  return { text: contentBytes || d.label, typed: wording(d), attachments: d.attachments, kind };
+  const only = labelOnly(d) ? { labelOnly: true } : null;
+  // THE CLEAN DIRECTIVE: with attachments the row's content is the Commander's wording, never contentBytes (the expanded text,
+  // whose file bytes are a third party's words). The files ride as attachment rows (install); the refs stay for the thumbnails.
+  // With no typed words the wording is the label of the files: the row says so (labelOnly) and the run transcript stamps it.
+  if (Array.isArray(d.attachments) && d.attachments.length) return Object.assign({ text: wording(d), typed: wording(d), attachments: d.attachments, kind }, only);
+  // a recovery continuation that must write the directive its source never wrote reads the SOURCE's expanded prompt: when that
+  // holds a file's text the row keeps the source's title instead (the same fallback a missing directive takes at run end)
+  const expanded = d.recovered === true && rowStoresAttachmentText({ role: 'user', content: contentBytes });
+  return Object.assign({ text: expanded ? wording(d) : (contentBytes || d.label), typed: wording(d), attachments: d.attachments, kind }, only);
+}
+// what the run writes for its directive and the files it carried (see the header): runTranscript is makeRunTranscript's;
+// reused is the directive ROW the run answers when it reuses one (its turn is the one the files are recorded under)
+function install(runTranscript, d, contentBytes, kind, report, reused) {
+  if (!runTranscript || typeof runTranscript.setDirective !== 'function') return;
+  const refs = d && Array.isArray(d.attachments) ? d.attachments : [];
+  if (reused) {
+    // the files are recorded under the REUSED directive's turn; a reused row that names none (a legacy row of an older build, found
+    // by run id) has no turn to hang them on, and writing them under this run's own turn would orphan them
+    const items = TurnKinds.isTurnId(reused.turnId) ? TurnAttachment.rowsFor(refs, report) : [];
+    if (items.length && typeof runTranscript.setAttachments === 'function') runTranscript.setAttachments(items, reused.turnId);
+    return;
+  }
+  const r = row(d, contentBytes, kind);
+  if (r && typeof r === 'object' && refs.length) r.attachmentRows = TurnAttachment.rowsFor(refs, report);
+  runTranscript.setDirective(r);
 }
 function title(d, runDirective) { return d ? String(d.typedTitleSource || '') : runDirective; }
 function runTitle(source, keys) { return PromptScrub.scrubStored(KeyTools.nameSavedKeys(source, keys), { whole: true }); }
@@ -283,5 +330,5 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 
 module.exports = {
   turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
-  capture, typedText, wording, row, title, runTitle, interruptedTitle, packet
+  capture, typedText, wording, attachedWording, labelOnly, row, install, title, runTitle, interruptedTitle, packet
 };
