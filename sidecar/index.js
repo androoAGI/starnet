@@ -3681,7 +3681,8 @@ wireForgetRegistry(forgetRegistry, {
   personalization: () => personalizationStore,
   interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() },
   scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => persistScout() },
-  recommendations: () => recommendationLedger
+  recommendations: () => recommendationLedger,
+  verdictReview: () => verdictReview
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
@@ -4374,6 +4375,11 @@ function persistVerdictPackets(rows, meta) {
 }
 // Commander-triggered (a rating), so the background token ceiling does not stop it; its row still counts (auxgovernor.js CEILING_KINDS).
 function launchVerdictReview(job) {
+  // the registry's write-time gate: a review armed before its session was deleted (or whose run quoted one) is finished without running
+  if (!forgetRegistry.admit({ streamId: job.streamId, runId: job.runId, rowId: job.directive && job.directive.rowId, at: Date.now() })) {
+    console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': its session was deleted');
+    return Promise.resolve(true);
+  }
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
 }
@@ -25990,7 +25996,7 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
+    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));

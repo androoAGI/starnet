@@ -93,6 +93,17 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.recommendations().forget(e => inScope(stampSource(e), scope))
   });
 
+  /* verdict-review packets: a parked packet (the run's transcript tail and directive, kept so a later rating can teach a skill) and a held
+     review (armed by a rating, waiting out its grace) are copies of the run's words. Source: the packet's stream and directive row, and
+     the run itself - so the run that READ a deleted session loses its packet too. A held review is cancelled, not run. */
+  const packetSource = (runId, packet, at) => ({ streamIds: [packet && packet.streamId], runIds: [runId],
+    rowIds: [packet && packet.directive && packet.directive.rowId], at: num(at) });
+  entry({
+    name: 'verdict-packets',
+    sourceOf: row => packetSource(row && row.runId, row && row.packet, row && row.at),
+    forget: scope => d.verdictReview().forget((runId, packet, at) => inScope(packetSource(runId, packet, at), scope))
+  });
+
   return registry;
 }
 

@@ -340,11 +340,21 @@ function makeVerdictReview(opts) {
     return count;
   }
   function holding(runId) { return held.has(String(runId || '').trim()); }
+  /* forget(match) -> number: the forget registry's purge. Every parked packet and every held review `match(runId, packet, at)` names goes -
+     a held one has its timer cleared first, so a rating given before a session was deleted fires no review of it afterwards (a review
+     already RUNNING finishes on its own copy: completeHeld finds nothing held and returns). Persisted at once, acknowledged. */
+  function forget(match) {
+    let n = 0;
+    for (const [id, row] of Array.from(packets)) if (match(id, row.packet, row.at)) { packets.delete(id); n++; }
+    for (const [id, h] of Array.from(held)) if (match(id, h.packet, h.at)) { clearT(h.timer); h.timer = null; held.delete(id); n++; }
+    if (n) changed();
+    return n;
+  }
   // peek: read a parked packet WITHOUT consuming it (slice 4: a `great` verdict reads which skills the run loaded
   // to mint a golden; it never spends the packet — praise is not a review).
   function peek(runId) { sweep(); const row = packets.get(String(runId || '').trim()); return row ? row.packet : null; }
 
-  return { stash, shouldTrigger, take, size, has, cap, ttlMs, arm, correct, holding, peek, graceMs, snapshot, restore, resumeHeld };
+  return { stash, shouldTrigger, take, size, has, cap, ttlMs, arm, correct, holding, peek, graceMs, snapshot, restore, resumeHeld, forget };
 }
 
 module.exports = { makeVerdictReview, VERDICTS_THAT_TEACH, compactPacket, reviewPassFinished };

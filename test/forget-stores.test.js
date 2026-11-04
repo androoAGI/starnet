@@ -21,6 +21,7 @@ const { wireForgetRegistry } = require('../sidecar/forget-wiring.js');
 const Scout = require('../sidecar/scout.js');
 const { makeRecommendationLedger } = require('../sidecar/recommendation-ledger.js');
 const { makeDurableJsonStore } = require('../sidecar/durable-store.js');
+const { makeVerdictReview } = require('../sidecar/verdictreview.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -98,6 +99,36 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.eq(await forget('recommendations'), 0, 'idempotent');
         A.eq(left.find(e => e.id === 'e_keep').evidence.length, 1, 'an entry that quoted another session keeps its evidence');
       } finally { remove(rdir); }
+    }
+
+    // ---------------- verdict packets: parked packets and held reviews ----------------
+    {
+      const timers = [];
+      const persisted = [];
+      const fired = [];
+      const vr = makeVerdictReview({ now: () => 4600, graceMs: 90000, cap: 40, onChange: rows => { persisted.push(rows.map(r => r.runId)); return true; },
+        setTimeout: (fn, ms) => { const t = { fn, ms, cleared: false }; timers.push(t); return t; }, clearTimeout: t => { if (t) t.cleared = true; } });
+      const packet = (streamId, rowId, word) => ({ agentId: 'agent', messages: [{ role: 'user', content: 'tell me about ' + word }, { role: 'assistant', content: 'here is ' + word }], reason: 'done', streamId, directive: { rowId, text: 'tell me about ' + word } });
+      vr.stash('r_gone', packet('sGone', 11, 'quokkas'));
+      vr.stash('r_reader', packet('sKeep', 21, 'quokkas, read through a tool'));
+      vr.stash('r_keep', packet('sKeep', 22, 'platypuses'));
+      vr.stash('r_held', packet('sGone', 12, 'wombats'));
+      A.ok(vr.arm('r_held', 'miss', job => { fired.push(job.runId); return true; }), 'a rating arms a held review of a run in the session before it is deleted');
+      A.ok(vr.holding('r_held') && timers.length === 1 && !timers[0].cleared, '...with its grace timer running');
+      hold.verdictReview = () => vr;
+      const removed = await forget('verdict-packets');
+      A.eq(removed, 3, 'the packet of the deleted session\'s run, the packet of the run that READ it, and the held review are gone');
+      A.ok(!vr.has('r_gone') && !vr.has('r_reader') && vr.has('r_keep'), 'the other session\'s packet stays');
+      A.ok(!vr.holding('r_held') && timers[0].cleared, 'the held review is CANCELLED: its timer is cleared, nothing fires');
+      A.eq(vr.snapshot().map(r => r.runId), ['r_keep'], 'the persisted rows hold only the surviving packet');
+      A.eq(persisted[persisted.length - 1], ['r_keep'], '...and the change was acknowledged to the host\'s writer');
+      A.eq(fired, [], 'no review ran');
+      A.eq(await forget('verdict-packets'), 0, 'idempotent');
+      // the write-time gate: the same packet written late, by a run still in the deleted session or one that read it, is refused
+      A.ok(!registry.admit({ streamId: 'sGone', runId: 'r_late', at: 4000 }), 'a packet for a run filed in the deleted session before its delete is refused');
+      A.ok(registry.admit({ streamId: 'sGone', runId: 'r_after', at: 6000 }), '...one filed in the re-opened session after it is not');
+      A.ok(!registry.admit({ streamId: 'sKeep', runId: 'r_x', at: 6000, quotes: ['sGone'], quotesAt: [4400] }), '...and a packet for a run whose latch holds the deleted session is refused');
+      A.ok(!registry.admit({ streamId: 'sKeep', runId: 'r_reader', at: 6000 }), '...as is one for a run the registry already knows quoted it');
     }
 
     A.report('forget-stores');
