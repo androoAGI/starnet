@@ -25630,8 +25630,8 @@ async function runOnceCore(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState, ...TurnKinds.quoteStamp(execution.quotes()) });
-        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState, ...TurnKinds.quoteStamp(execution.quotes()) });   // rows written outside the run transcript carry the run's quotes too (commit 11)
+        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.taintedBy() || null, content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, ...TurnKinds.quoteStamp(execution.quotes()), dispatchState: transcriptState });
+        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.taintedBy(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, ...TurnKinds.quoteStamp(execution.quotes()), dispatchState: transcriptState });   // rows written outside the run transcript carry the run's quotes too (commit 11)
       }
     } catch (e) { failNote('run.transcript-end', e); }
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now
