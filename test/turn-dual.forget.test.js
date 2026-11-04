@@ -241,4 +241,73 @@ const ids = list => list.map(r => r.rowId);
   A.ok(dual.status().counters['window.forgotten'] >= 1, '…and the divergence ring tallies the class (window.forgotten)');
 }
 
+// ---------------- 7. the run's latch, its journal record and its run record ----------------
+{
+  const { makeRunExecutionState } = require('../sidecar/run-execution-state.js');
+  const J = require('../sidecar/run-journal.js');
+  const D = require('../sidecar/turn-directive.js');
+  const { makeRunStore } = require('../sidecar/runstore.js');
+  const exe = makeRunExecutionState({ startedAt: 1000 });
+  A.eq(exe.quotes(), [], 'a run that read nothing quotes nothing');
+  A.eq(exe.latchQuotes([{ id: 'S', at: 2000 }, { id: 'T', at: 1500 }]), [{ id: 'S', at: 2000 }, { id: 'T', at: 1500 }], 'latchQuotes returns what it added');
+  A.eq(exe.latchQuotes([{ id: 'S', at: 2500 }]), [], 'a later read of a latched stream adds nothing: it keeps the EARLIEST at');
+  A.eq(exe.latchQuotes([{ id: 'S', at: 1800 }]), [{ id: 'S', at: 1800 }], 'an earlier read moves the stream earlier (the journal must record it)');
+  A.eq(Kinds.quoteStamp(exe.quotes()), { quotes: ['S', 'T'], quotesAt: [1800, 1500] }, 'quotes() is exactly what a row stamp is made of');
+  A.eq(exe.quoteRoom(['S', 'U', 'S', '*']), ['S', 'U'], 'quoteRoom: a latched stream, a new one in candidate order, no duplicates, never the marker');
+  for (let i = 0; i < 30; i++) exe.latchQuotes([{ id: 'n' + i, at: 3000 + i }]);
+  A.eq(exe.quotes().length, 32, 'the latch holds QUOTES_MAX (32) streams');
+  A.eq(exe.quoteRoom(['n0', 'extra1', 'extra2']), ['n0'], 'full: a stream already held is in the room, a new one is not');
+  A.eq(exe.isSaturated(), false, 'a full latch is not saturated: the next direct read is REFUSED (overflow), nothing is cut');
+  exe.latchQuotes([{ id: 'overflow', at: 4000 }]);
+  A.eq([exe.isSaturated(), exe.quotesSaturatedAt()], [true, 1000], 'a latch that would pass the capacity saturates (never truncates), at the run start at the latest');
+  A.eq(Kinds.quoteStamp(exe.quotes()), { quotes: ['*'], quotesAt: [1000] }, '...and every row it writes from then on carries the saturated stamp');
+  A.eq(exe.quoteRoom(['anything', 'else']), ['anything', 'else'], 'a saturated run reads anything: its stamp already covers every session');
+  const sat = makeRunExecutionState({ startedAt: 500 });
+  sat.saturate(900); sat.saturate(2000);
+  A.eq(sat.quotesSaturatedAt(), 500, 'saturate() only ever moves earlier and never later than the run started');
+  A.eq(makeRunExecutionState({}).saturate(77), 77, 'a run with no known start saturates at the time it is told');
+
+  // the journal: a 'quotes' record, derived state, not redacted, and the verdict
+  const files = new Map();
+  const io = { create(id, line) { files.set(id, line + '\n'); }, append(id, line) { files.set(id, files.get(id) + line + '\n'); }, read: id => files.get(id), list: () => [...files.keys()],
+    readFile: id => files.get(id), remove: id => files.delete(id) };
+  let tick = 100;
+  const longId = 'ws_' + 'a1b2c3d4e5f60718'.repeat(2);
+  const j = J.makeRunJournal({ io, clock: { now: () => ++tick }, redact: s => s.replace(/[a-f0-9]{24,}/g, '[redacted]') });
+  j.begin({ runId: 'rq', agentId: 'a', streamId: 'T' });
+  A.eq([j.inspect('rq').quotes, j.inspect('rq').quotesSaturatedAt], [[], null], 'a journal with no quotes record derives none');
+  j.toolIntent('rq', { callId: 'c1', name: 'recall_conversation', argsRaw: '{}', mutating: false });
+  j.quotes('rq', { streams: [{ id: 'S', at: 50 }, { id: longId, at: 60 }, { id: 'bad id!', at: 1 }] });
+  j.toolResult('rq', { callId: 'c1', ok: true, content: 'found it' });
+  j.quotes('rq', { streams: [{ id: 'S', at: 40 }, { id: 'U', at: 70 }] });
+  const state = j.inspect('rq');
+  A.eq(state.quotes, [{ id: 'S', at: 40 }, { id: longId, at: 60 }, { id: 'U', at: 70 }], 'analyze derives state.quotes: the earliest at per stream; a stream id is validated, never redacted; a bad id is dropped');
+  A.eq(state.quotesSaturatedAt, null, '...and no saturation');
+  const order = String(files.get('rq')).split('\n').filter(Boolean).map(l => JSON.parse(l).type);
+  A.ok(order.indexOf('quotes') < order.indexOf('tool_result'), 'the quotes record precedes the tool_result record it covers');
+  A.ok(J.quotesForgotten(state, id => ({ S: 45 })[id] || 0, () => 0), 'a journaled quote deleted at or after its read forgets the journal');
+  A.ok(!J.quotesForgotten(state, id => ({ S: 30 })[id] || 0, () => 0), '...one deleted before its (earliest) read does not');
+  j.quotes('rq', { saturatedAt: 90 });
+  const state2 = j.inspect('rq');
+  A.eq(state2.quotesSaturatedAt, 90, 'a saturation is derived too');
+  A.ok(J.quotesForgotten(state2, () => 0, () => 95) && !J.quotesForgotten(state2, () => 0, () => 85) && !J.quotesForgotten(state2, () => 0, () => 0), 'a saturated journal is forgotten by any non-adopted delete at or after its time, by none before it');
+  A.eq(j.inspect('rq').corrupt, false, 'the hash chain holds across the new record type');
+  // the interrupted run's record names the sessions it read
+  A.eq(D.interruptedIdentity({ turnId: 'tinterrupted0001', streamId: '' }, null, state2).quotes, ['*'], 'interruptedIdentity: a saturated journal carries the saturated stamp');
+  A.eq(D.interruptedIdentity({}, null, state), { quotes: ['S', longId, 'U'], quotesAt: [40, 60, 70] }, '...a journal with no turn still names the sessions it read');
+  A.eq(D.interruptedIdentity({}, null, undefined), {}, 'a journal that read nothing adds nothing');
+  // the run record carries the stamp end to end (noteIdentity -> record), saturation included
+  const rs = makeRunStore({ io: { lines: [], readAll() { return this.lines.slice(); }, append(e) { this.lines.push(e); } }, clock: { now: () => 5000 } });
+  rs.noteIdentity('run-q', D.quoteIdentityOf(exe.quotes()));
+  const rec = rs.record({ runId: 'run-q', agentId: 'agent', reason: 'done', turns: 1, title: 'x' });
+  A.eq([rec.quotes, rec.quotesAt, rec.quotesSaturatedAt], [['*'], [1000], 1000], 'the run record carries quotes, quotesAt and quotesSaturatedAt');
+  A.ok(Kinds.quotesForgotten(rec, () => 0, () => 1500) && !Kinds.quotesForgotten(rec, () => 0, () => 900), '...and the one rule reads it: a delete since the run began forgets the run');
+  rs.noteIdentity('run-r', D.quoteIdentityOf([{ id: 'S', at: 50 }]));
+  const rec2 = rs.record({ runId: 'run-r', agentId: 'agent', reason: 'done', turns: 1, title: 'y' });
+  A.ok(Kinds.quotesForgotten(rec2, id => ({ S: 60 })[id] || 0, () => 0) && rec2.quotesSaturatedAt === undefined, 'a listed quote is forgotten by its stream delete; no saturation field');
+  // the refusal notice carries none of the read
+  const refusal = D.quoteRefusal({ content: 'the quokka codeword is Wallaby-Seven', quotedStreams: ['S'], taintedBy: 'x' }, 'deleted');
+  A.ok(refusal.isError === true && refusal.hostAuthored === true && !/quokka|Wallaby/.test(JSON.stringify(refusal)) && refusal.quotedStreams === undefined, 'quoteRefusal: a host-authored error that holds none of the read and quotes nothing');
+}
+
 A.report('turn-dual.forget');

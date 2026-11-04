@@ -32,7 +32,11 @@
                                              run's task brief (taskBriefStore.noteDirective; a rejection is noted)
      startFields(runStartExtra)              { turnId, directiveRowId } for the lead's own agent.run.start
      interruptedIdentity(meta, store, state) an interrupted run's record identity from its journal: { turnId } plus the
-                                             directive's rowId when findTurn's recent or run-rows rungs find it
+                                             directive's rowId when findTurn's recent or run-rows rungs find it, and the sessions it read
+                                             (state.quotes: quotes + quotesAt, quotesSaturatedAt once saturated)
+     quoteIdentityOf(entries) / journalQuoteIdentity(state)   a run's quote stamp as its record's fields
+     quoteRefusal(result, cause)             the host notice that replaces a read drawn on a session deleted in flight ('deleted') or past the
+                                             run's capacity ('overflow'): hostAuthored, isError, none of the read's words
 
    THE DIRECTIVE IS CAPTURED ONCE, BEFORE EXPANSION (commit 4; bug e7dcb889). runOnceCore reads the newest user message
    before attachments.expandForRun turns its files into text, so every reader of "what the Commander asked" reads the same
@@ -269,10 +273,39 @@ function echo(runStartExtra, runTranscript, reused, noteIdentity, noteBrief) {
 
 // The journal is the durable source for a run that never reached run end (runStore.noteIdentity is in memory). Only a
 // FOUND directive is used, so the absence rung (which needs a turn time) is never asked for.
-function interruptedIdentity(meta, store, state) {   // state: the journal inspection (its quotes join in commit 11)
+/* A run's quote stamp as its RECORD's fields (runStore.noteIdentity): quotes + quotesAt in the row-stamp form (TurnKinds.quoteStamp: up to
+   32 streams with their read times, or the saturated ['*'] + [satAt]) and quotesSaturatedAt once saturated. entries: [{ id, at }], the
+   saturated marker '*' included (execution.quotes()). {} for a run that read nothing. */
+function quoteIdentityOf(entries) {
+  const stamp = TurnKinds.quoteStamp(entries);
+  if (!stamp.quotes) return {};
+  const out = { quotes: stamp.quotes, quotesAt: stamp.quotesAt };
+  if (stamp.quotes[0] === TurnKinds.SATURATED) out.quotesSaturatedAt = stamp.quotesAt[0];
+  return out;
+}
+// the same, from a journal inspection (state.quotes [{ id, at }], state.quotesSaturatedAt): what an interrupted run's record carries
+function journalQuoteIdentity(state) {
+  if (!state || typeof state !== 'object') return {};
+  const entries = Array.isArray(state.quotes) ? state.quotes.slice() : [];
+  if (Number.isSafeInteger(state.quotesSaturatedAt) && state.quotesSaturatedAt >= 0) entries.push({ id: TurnKinds.SATURATED, at: state.quotesSaturatedAt });
+  return quoteIdentityOf(entries);
+}
+/* A READ THE HOST REFUSES (commit 11): a tool result that drew on a session deleted while the read was in flight, or on more sessions
+   than one run may hold, is replaced WHOLE by a host-authored notice before it reaches the messages, the journal or the rows - so the
+   deleted session's words never enter the run. Counted by the caller (failNote turn.quotes.<reason>). */
+const QUOTE_REFUSALS = {
+  deleted: 'This read drew on a session that was deleted while the read was in flight, so none of it was kept. Read again: a deleted session no longer appears.',
+  overflow: 'One run may read at most 32 sessions, and this read would pass that, so none of it was kept. Continue in a new run, or narrow the read.'
+};
+function quoteRefusal(result, cause) {
+  const text = QUOTE_REFUSALS[cause] || QUOTE_REFUSALS.overflow;
+  return { ok: false, isError: true, hostAuthored: true, summary: cause === 'deleted' ? 'read refused: session deleted' : 'read refused: too many sessions', content: text };
+}
+function interruptedIdentity(meta, store, state) {   // state: the journal inspection (its quotes join the record)
   const m = meta || {};
-  if (!TurnKinds.isTurnId(m.turnId)) return {};
-  const out = { turnId: m.turnId };
+  const quoted = journalQuoteIdentity(state);
+  if (!TurnKinds.isTurnId(m.turnId)) return quoted;
+  const out = Object.assign({ turnId: m.turnId }, quoted);
   const sid = String(m.streamId || '');
   if (!sid || !store || typeof store.findTurn !== 'function') return out;
   let found = null;
@@ -282,6 +315,6 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 }
 
 module.exports = {
-  turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
+  turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity, quoteIdentityOf, journalQuoteIdentity, quoteRefusal,
   capture, typedText, wording, row, title, runTitle, interruptedTitle, packet
 };
