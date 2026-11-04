@@ -24902,6 +24902,7 @@ async function runOnceCore(o) {
       }
     } catch (e) { failNote('run.summaryReuse', e); }
   }
+  summaryRun.rows = summaryRun.window = summaryRun.earlier = null;   // up to 3000 canonical rows: not held for the rest of the run (a fold reads them fresh)
   /* A PAID FOLD'S SUMMARY IS MADE DURABLE BEFORE ANYTHING RELIES ON IT (summary-ledger.js). loop.js calls this after a paid fold
      committed and BEFORE it emits agent.compact (so before the run can go on, and before it can end): the note the fold built is
      written with the canonical rows it stands for and read back. The claim (summary-cover.js claimFold) is snapped down to the
