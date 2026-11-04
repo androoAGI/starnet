@@ -34,12 +34,12 @@ const defer = () => { let resolve; const promise = new Promise(r => { resolve = 
   for (const pause of [false, true]) {
     let route = 'claude', enabled = true, queued, admitted, called, stamps = 0;
     const names = ['processFaultQuiesced', 'process', 'questRefreshingNow', 'commanderPosture', 'stationLife', 'QuestRefresh',
-      'questRefreshState', 'questRefreshOpenCount', 'questContextKey', 'auxTokenGate', 'cronProviderFor', 'questRefreshCeilingNoted',
+      'questRefreshState', 'questRefreshOpenCount', 'questContextKey', 'governor', 'cronProviderFor', 'questRefreshCeilingNoted',
       'questRefreshNote', 'automaticAux', 'persistQuestRefresh', 'runQuestRefreshCycle', 'swallow'];
     const tick = new Function(...names, sidecarTopLevelFunction('questRefreshTick') + '; return questRefreshTick;')(
       false, { env: {} }, false, { summary: () => ({ enabled }) }, { station: () => ({}) },
       { decide: () => ({ fire: true, why: 'due' }), stampCycle: () => { stamps++; return {}; } }, {}, () => 0, () => 'ctx',
-      () => ({ blocked: false }), () => route, false, () => {},
+      { admit: () => null }, () => route, false, () => {},
       (r, kind, agent, run, work) => { admitted = r; queued = work; return Promise.resolve(); }, () => {},
       (why, r) => { called = r; }, () => () => {});
     tick(); route = 'codex'; if (pause) enabled = false;

@@ -173,6 +173,7 @@ async function concurrentArm() {
   }) });
   try {
     await f.start();
+    await cliReady(f);
     A.eq((await post(f, { auxTokenCeiling: 1 })).status, 200, 'concurrent fixture ceiling saved');
     const before = starts().length;
     const responses = await Promise.all(['race-a', 'race-b', 'race-c'].map(agentId => f.json('POST', '/api/run', {
