@@ -9153,6 +9153,9 @@ function nightshiftPrecheck() {
     try {
       if (!cronModelFor({ agentId: NIGHTSHIFT_AGENT }) || !cronHasCredential(provider, cronKeyFor(provider))) return { ok: false, reason: 'no-provider' };
     } catch (_) { return { ok: false, reason: 'precheck-error' }; }
+    /* HELD FLOOR GATE (pre-spend): a saved floor that cannot be proved right now refuses an unattended BUILD (runNightshiftActShift stands down on the
+       same hold), so the beat is declined here, before the leash is spent on it. Only the beat that would BUILD asks — a reason-only draft names no room. */
+    if ((commanderPosture.summary() || {}).buildsUnattended && workshopOf(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
     const snap = commanderPosture.beliefs() || {};
     const summary = { known: Array.isArray(snap.known) ? snap.known : Object.keys((snap.beliefs) || {}) };
     const beliefsByDim = (dim) => (snap.beliefs && snap.beliefs[dim]) || [];
@@ -9354,6 +9357,9 @@ async function runNightshiftActShift(opts) {
   if (!workshopOf(agentId)) return { delivered: false, reason: 'not-granted' };
   const model = cronModelFor({ agentId }); const provider = cronProviderFor({ agentId }); const key = cronKeyFor(provider);
   if (!model || !cronHasCredential(provider, key)) return { delivered: false, reason: 'no-capability' };
+  // a saved floor that cannot be proved right now holds the beat BEFORE its first model call (and the driver's precheck declined it before the leash)
+  const firstRoom = awayBuildRoom(agentId);
+  if (firstRoom.held) return { delivered: false, reason: 'routing-held', why: firstRoom.held.why };
 
   // 1) PROPOSE + 2) SELECT — reason-only (nightshiftChat runs with NO tools), tool-capable CANDIDATE directive so
   //    the ideas are BUILD-shaped, still grounding-vetoed + confidence-gated + learn-biased. Same anti-slop heart.
@@ -9402,6 +9408,10 @@ async function runNightshiftActShift(opts) {
   ledgerPriorWorkVeto(agentId, priorVeto);
   const sel = Autopilot.scoreAndSelect(priorVeto.candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
+  // the beat's reason-only calls took a while: read the room again, fresh, BEFORE anything is picked, queued or claimed. A floor that went held
+  // since the first read ends the beat here with the queue and the threads exactly as they were.
+  const room = awayBuildRoom(agentId);
+  if (room.held) return { delivered: false, reason: 'routing-held', why: room.held.why };
   // NS-6 writeback: a build grounded on an open thread marks it PICKED now; a later keep/discard verdict (return
   // card → nightshiftDecideLearn) moves it to delivered/declined.
   if (sel.selected.threadId) { try { await threadsStore.pick(sel.selected.threadId, Date.now()); } catch (_) {} }
@@ -9447,7 +9457,7 @@ async function runNightshiftActShift(opts) {
       agentId, isTask: true, emit: (typeof opts.emit === 'function' ? opts.emit : function () {}), signal: sig,
       runId, streamId: 'nightshift-act-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!opts.broadcast,
       reflect: true,   // a night shift does real work; what it learns is durable memory, not scratch (see the reflect note on /api/run)
-      station: admit.stationFor(agentId) || undefined
+      station: room.station   // read above, before the pick, the queued row and the claim
     });
   } catch (e) { threw = e; }
   finally {
@@ -9674,6 +9684,14 @@ function loopPrecheck(loop) {
     }
     return { ok: true };
   } catch (e) { return { ok: false, reason: 'precheck error: ' + ((e && e.message) || e) }; }
+}
+/* loopReadiness — loopPrecheck, with the saved floor asked first. An iteration runs in its agent's bay room (admit.stationFor), and a floor that
+   cannot be proved right now cannot name it. Asked here, the loop STANDS DOWN in the hold's own words before a slot is taken: no claim, no
+   iteration, no failure on its record (it used to fail "before launch", and three of those PAUSED every standing objective, in the router's raw
+   error text). Like every precheck it is also what the LOOPS window renders, so the panel shows the loop waiting, never ready. */
+function loopReadiness(loop) {
+  const held = routingHold();
+  return held ? { ok: false, reason: held.why } : loopPrecheck(loop);
 }
 
 /* ---- THE HOST-RUN CHECK (S2). This is the only place in the product that executes a NON-git command at a
@@ -10105,7 +10123,7 @@ const loopDriver = makeLoopDriver({
   agentExists: (agentId) => { const id = String(agentId || ''); return !id || id === 'agent' || agentRoster.size === 0 || agentRoster.has(id); },
   // PURELY-LOCAL readiness, evaluated BEFORE any spend (the night shift's NS-2 cold-leash fix): a stand-down
   // that no model call could have avoided must not cost money or an iteration slot.
-  precheck: ({ loop }) => loopReviewBusy(loop.id) ? { ok: false, reason: 'review in progress' } : loopPrecheck(loop),
+  precheck: ({ loop }) => loopReviewBusy(loop.id) ? { ok: false, reason: 'review in progress' } : loopReadiness(loop),
   getKey: (provider) => cronKeyFor(provider),
   providerForLoop: (loop) => cronProviderFor(loop),
   hasCredential: (provider, key) => cronHasCredential(provider, key),
@@ -10242,7 +10260,7 @@ function loopStateSnapshot() {
       halted: loopsHalted,
       inFlight: loopDriver.leases.has(l.id),
       agentBusy: (() => { try { return concurrencyGate.inFlight(l.agentId) !== 0; } catch (_) { return false; } })(),
-      precheck: loopPrecheck(l)
+      precheck: loopReadiness(l)
     }
   }));
   return { loops: rows, halted: loopsHalted, armed: !!loopTimer, tickMs: LOOP_TICK_MS, inFlight: loopDriver.leases.size };
@@ -17925,6 +17943,19 @@ function awayBuildStopped(ran, threw, signal) {
   if (ran && RunOutcome.resolve({ reason: ran.reason }).outcome === 'stopped') return true;
   return !!threw && !!(signal && signal.aborted);
 }
+/* A SAVED FLOOR THAT CANNOT BE PROVED RIGHT NOW REFUSES AN AWAY BUILD BEFORE IT TOUCHES ANYTHING. A build runs in its agent's bay room
+   (admit.stationFor); off a floor nobody can vouch for there is no room to name, and "no room" would hand a bay-bound agent the WHOLE default
+   office (the 2026-08-10 audit #1 class). So the workshop shift, the Implement press and the night-shift act read the room FIRST, before a claim,
+   a queued row, a run-table slot or a model call, and a hold ends them there: nothing attempted, no attempt counted, nothing parked, the queue
+   exactly as it was. (Read inside the run's try, the typed hold landed in `threw` and was released as a FAILED build: two refusals PARKED a
+   queued item that nothing had ever tried.)
+   -> { station } (undefined: the default office, a station with no floor saved) or { held: { status, why } }. Any other throw is a bug and goes up. */
+function awayBuildRoom(agentId) {
+  const held = routingHold();
+  if (held) return { held };
+  try { return { station: admit.stationFor(agentId) || undefined }; }
+  catch (e) { const mid = holdOf(e); if (!mid) throw e; return { held: mid }; }   // a floor that went held between the two reads
+}
 function workshopPrompt(runId, item, ctx) {
   const dir = 'workshop/' + runId;
   const c = ctx || {};
@@ -18068,6 +18099,9 @@ async function runWorkshopShift(agentId, opts) {
   // (a keyless station no-op'd every 6h forever while the toggle read ON). Best-effort, never blocks the shift.
   const noteShift = (info) => { try { workshopStore.setLastShift(id, Object.assign({ at: Date.now() }, info)).catch(swallow('workshop.noteShift')); } catch (_) {} };
   if (!workshopOf(id)) { noteShift({ reason: 'not-granted' }); return { fired: false, reason: 'not-granted' }; }   // grant revoked between arm and fire
+  // a saved floor that cannot be proved right now: the shift is HELD, not failed. It claims nothing, so no attempt is counted and nothing parks.
+  const room = awayBuildRoom(id);
+  if (room.held) { noteShift({ reason: 'routing-held' }); return { fired: false, reason: 'routing-held', why: room.held.why }; }
   const runId = o.runId || crypto.randomUUID();
   // pass isRunLive so a zombie claim (a buildingRunId left by a crashed shift) is reaped in the SAME locked
   // claim, freeing an item that would otherwise look perpetually in-flight and mute this agent's backlog forever.
@@ -18099,8 +18133,8 @@ async function runWorkshopShift(agentId, opts) {
       runId: runId, streamId: 'workshop-' + runId, surface: 'autonomous', trigger: 'schedule', provider: provider, broadcast: !!o.broadcast,
       reflect: true,   // a workshop shift builds real things; its lessons outlive the shift (see the reflect note on /api/run)
       // B5 parity (2026-07-06 audit): a bay-docked agent's workshop shift runs with ITS bay room's objects,
-      // never the default office — the same station contract as routed channel messages and cron fires.
-      station: admit.stationFor(id) || undefined
+      // never the default office — the same station contract as routed channel messages and cron fires. (Read above, before the claim.)
+      station: room.station
     });
   } catch (e) { threw = e; }
   finally {
@@ -18271,6 +18305,10 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
   const provider = cronProviderFor({ agentId: id });
   const key = cronKeyFor(provider);
   if (!model || !cronHasCredential(provider, key)) return { fired: false, reason: 'no-capability' };
+  // a saved floor that cannot be proved right now holds the press BEFORE the synthetic backlog row: nothing is queued, claimed or counted, and the plan
+  // stays pending to press again (the card says so in the hold's words)
+  const room = awayBuildRoom(id);
+  if (room.held) return { fired: false, reason: 'routing-held', why: room.held.why };
 
   const runId = o.runId || crypto.randomUUID();
   const dir = 'workshop/' + runId;
@@ -18328,7 +18366,7 @@ async function runImplementBuild(agentId, sourceRunId, opts) {
       agentId: id, isTask: true, emit: (typeof o.emit === 'function' ? o.emit : function () {}), signal: signal,
       runId: runId, streamId: 'workshop-' + runId, surface: 'autonomous', trigger: 'directive', broadcast: !!o.broadcast,
       reflect: true,
-      station: admit.stationFor(id) || undefined
+      station: room.station   // read above, before the queued row
     });
   } catch (e) { threw = e; }
   finally {

@@ -5814,6 +5814,7 @@ const Chat = (() => {
       if (r === 'already-an-implementation') return 'this build IS an implementation already — there is nothing further to build from it';
       if (r === 'no-manifest' || r === 'run-failed') return 'the build ran but produced nothing reviewable';
       if (r === 'stopped') return 'the build was stopped before it finished';   // a stop is no failed build (review r7)
+      if (r === 'routing-held') return 'the saved floor can’t be proved right now, so nothing was tried';   // held, not failed: the queue is untouched
       if (r === 'manifest-stamp-failed') return 'the files landed, but the station could not durably prove their link to this plan';
       if (r === 'registration-failed') return 'the files landed, but the station could not durably register a reviewable build';
       if (r === 'built-source-retire-failed') return 'the build landed, but the station could not durably retire this source plan';

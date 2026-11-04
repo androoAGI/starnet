@@ -86,6 +86,8 @@
   const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
   // one run's reply, joined the way every reply sink joins it (a steering echo reads '↪ <note>', never the raw marker). Pure.
   const replyAssembler = (typeof require === 'function') ? require('./reply-assembler.js') : (root.SK && root.SK.replyAssembler);
+  // an error the router made for a saved floor that cannot be proved right now -> { status, why }, else null (routing/saved-hold.js, a leaf)
+  const holdOf = (typeof require === 'function') ? require('./routing/saved-hold.js').holdOf : (e) => (e && e.held === true ? { status: 'unreadable', why: String(e.why || 'the saved floor cannot be proved right now') } : null);
 
   const DEFAULT_MAX_PARALLEL = 0;          // unlimited; positive values opt into a ceiling
   const DEFAULT_MAX_RUN_MS = 900000;      // 15 min — the zombie-claim ceiling, extended by live heartbeats
@@ -318,6 +320,21 @@
         return false;
       }
 
+      /* THE ROOM IS NAMED BEFORE THE SLOT IS TAKEN. stationFor throws a typed hold when the saved floor cannot be proved right now. The host's precheck
+         usually stood this tick down already; this covers a floor that went held after it. Asked after the claim, the hold settled the pass as a FAILED
+         one (iteration failed before launch), and three of those PAUSED the objective: a hold is no failure, so the tick stands down here with no claim,
+         no iteration and nothing on the record, in the hold's own words. Any other throw is not ours to hide: it keeps its old place in launch, where it
+         fails the pass loudly. */
+      let station, stationFault = null;
+      if (deps.stationFor) {
+        try { station = deps.stationFor(loop.agentId); }
+        catch (e) {
+          const held = holdOf(e);
+          if (held) { noteStandDown('skip', loop, nowMs, { reason: 'precheck', binding: 'precheck', detail: { note: held.why } }); return false; }
+          stationFault = e;
+        }
+      }
+
       const runId = String(newId());
 
       // 1. durable claim, persisted BEFORE anything is launched.
@@ -445,6 +462,7 @@
       function launch(snapshotText) {
       const currentLease = leases.get(loop.id);
       if (!currentLease || currentLease.runId !== runId || (ac.signal && ac.signal.aborted)) return false;
+      if (stationFault) throw stationFault;   // a room read that failed for any reason but a hold (see above): the pass fails before launch, as it always did
       /* THE TOOLS WORK WHERE THE AGENT IS TOLD IT WORKS (run-paths lane). The project line tells the agent this loop
          works in its folder, but the run was never given that folder, so fs.* and shell.* resolved relative paths in
          the private workspace. The folder rides as the run's WORKDIR exactly when the host's projectLine names it (the
@@ -470,7 +488,7 @@
         streamId: 'loop-' + fresh.id,          // one durable stream per LOOP, so its iterations share a thread
         surface: 'autonomous',
         trigger: 'loop',
-        station: deps.stationFor ? deps.stationFor(fresh.agentId) : undefined,
+        station: station,   // read above, before the claim
         // a per-iteration USD ceiling, when the Commander set one. 0 = ungoverned (budgetcaps.js semantics).
         maxCostUsd: (fresh.budget && fresh.budget.perIterationUsd) || undefined,
         emit: sink

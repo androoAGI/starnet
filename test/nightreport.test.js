@@ -173,7 +173,9 @@ const resetAt = T0610Z + 18 * 3600000;
 const panelLeash = NR.panelModel({ status: { active: true, away: true, beatsUsedToday: 3, leashPerDay: 3, binding: 'leash', lastBeatAt: T0610Z, nextEligibleAt: T0610Z + 2700000, leashResetsAt: resetAt }, tzOffsetMin: -300 });
 A.ok(panelLeash.nextEligibleText.indexOf(NR.fmtLocalTime(T0610Z + 2700000, -300)) < 0, 'a leash-bound shift never names the cooldown clock as its next job');
 A.ok(panelLeash.nextEligibleText.indexOf(NR.fmtLocalTime(resetAt, -300)) >= 0 && /limit/.test(panelLeash.nextEligibleText), 'it names the leash refill time and why: ' + panelLeash.nextEligibleText);
-for (const binding of ['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'persist-failed']) {
+// a saved floor that cannot be proved right now holds an unattended BUILD before the leash is spent (saved-floor routing authority): plain words, and no clock clears it
+A.ok(/saved floor/.test(NR.bindingPhrase('routing-held')) && !/routing-held gate/.test(NR.bindingPhrase('routing-held')), 'routing-held renders plain copy naming the saved floor, not raw gate jargon: ' + NR.bindingPhrase('routing-held'));
+for (const binding of ['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed']) {
   const p = NR.panelModel({ status: { active: true, away: true, beatsUsedToday: 1, leashPerDay: 3, binding, lastBeatAt: T0610Z, nextEligibleAt: T0610Z + 2700000 }, tzOffsetMin: -300 });
   A.ok(!/\d{1,2}:\d{2}\s*(AM|PM)/.test(p.nextEligibleText) && /not scheduled/.test(p.nextEligibleText), binding + '-bound: no next-job clock a clock cannot clear (' + p.nextEligibleText + ')');
 }

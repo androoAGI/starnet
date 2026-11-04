@@ -185,4 +185,31 @@ const retired = tokenize(idxText.slice(idxText.indexOf('(function ignoreRetiredR
 A.ok(/routing\.plan\.json is ignored: the saved floor is the routing authority/.test(idxText) && /existsSync/.test(retired) && !/loadResilient|saveResilient|readFile|writeFile|unlink|rename|rm\(/.test(retired.slice(0, retired.indexOf('})();') + 5)),
   'boot only says routing.plan.json is ignored: it never reads, rewrites or deletes it');
 
+// ---- 7. the unattended seams name their room FIRST, and a hold is never read as a failure ----
+/* The room is read through awayBuildRoom BEFORE the first thing the build would claim, queue, pick, admit or spend (test/routing.held-floor-away.e2e.test.js
+   holds the behavior over a real sidecar; this holds the shape, so a new read of the room inside a run cannot come back). Read inside the run's try, the typed
+   hold landed in `threw` and was released as a FAILED build: two refusals parked a queued item that nothing had tried. */
+const room = tokenize(fn('awayBuildRoom')).code;
+A.ok(/routingHold\(\)[\s\S]{0,80}admit\.stationFor\(agentId\)[\s\S]{0,200}holdOf\(e\)/.test(room), 'awayBuildRoom asks the entry gate, then the room, and reads a hold that lands between the two as a hold');
+for (const [name, firsts] of [['runWorkshopShift', ['claimNext(']], ['runImplementBuild', ['workshopStore.queue(', 'claimById(']], ['runNightshiftActShift', ['nightshiftChat(', 'threadsStore.pick(', 'workshopStore.queue(', 'claimNext(']]]) {
+  const body = tokenize(fn(name)).code, at = body.indexOf('awayBuildRoom(');
+  A.ok(at >= 0 && !/admit\.stationFor/.test(body), name + ': the room comes from awayBuildRoom, and the run itself never asks the router (a hold there was a failed build)');
+  A.ok(/station: (room|firstRoom)\.station/.test(body), name + ': the run is handed the room that was read first');
+  A.ok(firsts.every(f => body.indexOf(f) < 0 || at < body.indexOf(f)), name + ': the room is read before ' + firsts.join(', ') + ' (it claims, queues, picks and spends nothing on a held floor)');
+}
+const nightAct = tokenize(fn('runNightshiftActShift')).code;
+A.ok(nightAct.split('awayBuildRoom(').length === 3 && nightAct.lastIndexOf('awayBuildRoom(') < nightAct.indexOf('threadsStore.pick('), 'the night-shift act reads the room twice: before its first model call, and again (fresh) before it picks, queues or claims anything');
+A.ok(/precheck: \(\{ loop \}\) => loopReviewBusy\(loop\.id\) \? \{ ok: false, reason: 'review in progress' \} : loopReadiness\(loop\)/.test(idxText) && /precheck: loopReadiness\(l\)/.test(fn('loopStateSnapshot')),
+  'a standing loop stands down on a held floor in the driver\'s precheck, and the LOOPS window renders the same gate (waiting, never ready)');
+A.ok(/function loopReadiness\(loop\) \{\s*const held = routingHold\(\);\s*return held \? \{ ok: false, reason: held\.why \} : loopPrecheck\(loop\);/.test(idxText), 'and says why in the hold\'s own words');
+A.ok(/buildsUnattended && workshopOf\(NIGHTSHIFT_AGENT\) && routingHold\(\)\) return \{ ok: false, reason: 'routing-held' \}/.test(fn('nightshiftPrecheck')), 'the night shift declines a beat that would BUILD before the leash is spent');
+const driverText = files.find(f => f.rel === 'sidecar/loopjob-driver.js').text;
+A.ok(/try \{ station = deps\.stationFor\(loop\.agentId\); \}[\s\S]{0,200}holdOf\(e\)[\s\S]{0,260}return false;[\s\S]{0,80}stationFault = e;/.test(driverText) && driverText.indexOf('deps.stationFor(loop.agentId)') < driverText.indexOf('store.claimFire(')
+  && !/deps\.stationFor\(fresh\.agentId\)/.test(driverText), 'the loop driver names the room before it takes the claim and the iteration slot, and stands a hold down');
+// what the person reads: an existing panel's line each (the away card, its build-now toast, the Implement card, the morning report), never a raw code
+const frontend = f => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'frontend', 'app', f), 'utf8');
+A.ok(/r === 'routing-held'\) return '· last shift/.test(frontend('stationui.js')) && /p\.reason === 'routing-held'\) notify\(/.test(frontend('stationui.js')), 'the away card and its build-now toast say a held shift in words');
+A.ok(/r === 'routing-held'\) return 'the saved floor/.test(frontend('chat.js')), 'the Implement card says a held press in words');
+A.ok(/'routing-held': 'the saved floor/.test(frontend('nightreport.js')), 'the morning report says a held night shift in words');
+
 A.report('saved-floor-callers.census');

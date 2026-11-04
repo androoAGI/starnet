@@ -3417,6 +3417,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (r === 'no-capability') return '⚠ last shift (' + when + '): couldn’t run — no model/key available for unattended builds. Fix the provider key in SETTINGS.';
       // a shift someone STOPPED (review r7) is no failed build: the item stays queued, uncounted
       if (r === 'stopped') return '■ last shift (' + when + '): “' + esc(ls.title || '') + '” was stopped before it finished — it stays queued';
+      // a saved floor that can’t be proved right now HOLDS the shift: nothing was tried and nothing counted (held, not broken)
+      if (r === 'routing-held') return '· last shift (' + when + '): held — the saved floor can’t be proved right now, so nothing was tried and the queue is untouched';
       if (r === 'run-failed' || r === 'no-manifest') return '⚠ last shift (' + when + '): tried “' + esc(ls.title || '') + '” but produced nothing reviewable' + (ls.parkedTitle ? ' — it’s now PARKED after repeated failures (retry below to try again)' : ' — it will retry next shift');
       // FREE = FINISHED: the top rung chains a plan straight into its build. When that chain doesn't land we
       // still deliver the plan (never an empty morning) — say so, rather than reporting a clean "built".
@@ -3495,6 +3497,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             if (p.reason === 'built') notify('⚒ built — it’s waiting as a new session in your rail', 'gold');
             else if (p.reason === 'no-capability') notify('couldn’t build — no model/key available for unattended runs', 'bad');
             else if (p.reason === 'empty-backlog') notify('nothing queued to build', 'warn');
+            else if (p.reason === 'routing-held') notify('held — the saved floor can’t be proved right now, so nothing was tried and the queue is untouched', 'warn');
             else if (p.chainedFrom) notify('⚒ planned it, then BUILT it — the finished thing is in your rail', 'gold');
             // a shift someone STOPPED (runWorkshopShift's { fired: true, reason: 'stopped' }, review r7) is no failed build: the item stays queued
             // — said as the away card's lastShiftLine says it, in the plain tone (review 7.3: it toasted "produced nothing reviewable" at warn)
