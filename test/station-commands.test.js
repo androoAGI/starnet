@@ -97,6 +97,29 @@ async function call(env, verb, args) {
   A.eq(out.result.session, 'news', 'into the session the routine was made in');
 }
 
+// ---- a routine's return is a row the station wrote BEFORE it asked the page (turn identity, commit 10): the page row is keyed at once ----
+{
+  const env = boot();
+  const ws = env.W.create('news');
+  env.W.switch(env.W.generalId());
+  const out = await call(env, 'station.deliver', { sessionId: ws.id, streamId: ws.id, agentId: 'agent', runId: 'cron-run-7', prompt: 'daily AI news', text: 'top stories…', rowId: 4242, turnId: 'rcron-run-7' });
+  A.eq(out.ok, true, 'the return is folded');
+  const row = env.W.get(ws.id).history.find(r => r.role === 'assistant');
+  A.eq([row.rowId, row.turnId, row.streamId, row.sourceRunId], [4242, 'rcron-run-7', ws.id, 'cron-run-7'], 'the spliced page row carries the station row\'s id, its turn, its stream and its run: it is the same row as the station\'s, not a twin to be matched later');
+  const again = await call(env, 'station.deliver', { sessionId: ws.id, streamId: ws.id, agentId: 'agent', runId: 'cron-run-7', text: 'top stories…', rowId: 4242, turnId: 'rcron-run-7' });
+  A.eq([again.ok, again.result.reason, env.W.get(ws.id).history.filter(r => r.role === 'assistant').length], [true, 'already delivered', 1], 'a retry of the same return folds nothing twice');
+  // no row ids (a worker's delivery, an older sidecar) keeps today's shape exactly
+  const plain = await call(env, 'station.deliver', { streamId: ws.id, agentId: 'researcher', runId: 'run-9', text: 'worker words' });
+  const wrow = env.W.get(ws.id).history.find(r => r.content === 'worker words');
+  A.eq(['rowId' in wrow, 'turnId' in wrow], [false, false], 'a delivery that names no row adds no identity');
+  A.ok(plain.ok, 'and still folds');
+  // a session the page can only find by its TITLE is another stream: the station's row id there would name a stranger's row, so only the turn is taken
+  const other = env.W.create('Recap');
+  const byTitle = await call(env, 'station.deliver', { sessionId: 'ws_gone_away', streamId: 'ws_gone_away', sessionTitle: 'Recap', agentId: 'agent', runId: 'cron-run-8', text: 'found by title', rowId: 77, turnId: 'rcron-run-8' });
+  const trow = env.W.get(other.id).history.find(r => r.content === 'found by title');
+  A.eq([byTitle.ok, byTitle.result.resolvedBy, trow && trow.rowId, trow && trow.turnId, trow && trow.streamId], [true, 'title', undefined, 'rcron-run-8', other.id], 'resolved by title: no row id from another stream, the turn id and this session\'s own stream');
+}
+
 // ---- station.deliver: the worker's answer lands in the session the Commander named ----
 {
   const env = boot();
