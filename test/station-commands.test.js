@@ -42,7 +42,7 @@ function boot(opts) {
       pull: async () => opts.readBackFails ? null : page.save
     },
     Delegated: { repaint: () => page.repainted++ },
-    Chat: { deliverTurns: (ws, turns) => page.delivered.push({ id: ws.id, turns }), load: ws => page.loaded.push(ws.id), canFocusSession: opts.canFocusSession || (() => true) },
+    Chat: { deliverTurns: (ws, turns) => page.delivered.push({ id: ws.id, turns }), load: ws => page.loaded.push(ws.id), canFocusSession: opts.canFocusSession || (() => true), hydrateHistory: opts.hydrateHistory },
     U: opts.U || { bus: { on: () => {} } },
     VoiceLive: opts.voiceLive,
     fetch: async (url, init) => {
@@ -736,6 +736,52 @@ for (const text of ['', 'Older partial work.']) {
   A.eq(w.history.length, 0, '…and the session holds no truncated answer');
   hangTranscript = false;
   A.eq(await settled(env.S.reconcile(w.id)), 1, 'the next reconcile recovers the complete answer');
+}
+
+/* ---- a session whose SAVED history is packed (save v7: it names rows the station holds, the page has not read them back) ----
+   station.read_session must read them back before it reads out, station.deliver before it asks whether the answer is filed:
+   a lead told "no visible conversation yet" about a session the page simply has not read is the guess these verbs end ---- */
+{
+  const HR = require('../frontend/app/historyref.js');
+  const station = { 1: { rowId: 1, role: 'user', content: 'what did the researcher find?', ts: 1 }, 2: { rowId: 2, role: 'assistant', agentId: 'researcher', content: 'Phobos and Deimos.', sourceRunId: 'run-filed', ts: 2 } };
+  // the page's station-backed reader: the real expand over a fake transport that returns what it holds (ids in `lost` are never returned)
+  const reader = (lost) => async (ws) => {
+    const ref = ws.historyRef, out = await HR.expand(ref, { streamId: ws.id, fetchRows: async (_stream, ids) => ({ turns: ids.filter(id => station[id] && !(lost || []).includes(id)).map(id => Object.assign({}, station[id])) }) });
+    env.W.hydrate(ws, out.rows, { ref });
+    return { complete: !ws.historyRef };
+  };
+  let env = boot({ hydrateHistory: (ws) => env.reading(ws) });
+  const seed = () => env.W.init({ workstreams: [{ id: 'packed', title: 'research', history: [{ $ref: '1,1' }, { role: 'system', sys: true, content: '— a note —', ts: 3 }], runIds: [], createdAt: 1, lastActiveAt: 1, lastReadAt: 1 }], activeId: 'packed', generalId: 'packed' });
+
+  seed(); env.reading = reader();
+  const whole = await call(env, 'station.read_session', { session: 'research' });
+  A.eq(whole.ok, true, 'a packed session can be read');
+  A.eq(whole.result.turns.map(t => t.speaker + ':' + t.text), ['commander:what did the researcher find?', 'researcher:Phobos and Deimos.', 'station:— a note —'], 'its rows are read back first: the lead is told the whole conversation, in order');
+  A.eq([whole.result.incomplete, whole.result.note], [undefined, undefined], 'and nothing is flagged: it is whole');
+  A.eq(env.W.needsHydration('packed'), false, 'the page holds the rows now');
+
+  seed(); env.reading = reader([2]);
+  const part = await call(env, 'station.read_session', { session: 'research' });
+  A.eq(part.ok, true, 'a conversation the station could not return all of is still read out');
+  A.eq(part.result.turns.map(t => t.text), ['what did the researcher find?', '— a note —'], 'with the rows that came back');
+  A.eq(part.result.incomplete, true, 'and says it is incomplete');
+  A.ok(/could not be read back yet/.test(part.result.note) && !/no visible conversation/.test(part.result.note), 'in words that never claim there is nothing to read');
+
+  seed(); env.reading = async () => ({ complete: false });
+  env.W.get('packed').history.length = 0;
+  const none = await call(env, 'station.read_session', { session: 'research' });
+  A.eq(none.result.turns.length, 0, 'a session with no row held at all');
+  A.ok(none.result.incomplete === true && !/no visible conversation/.test(none.result.note), 'is never reported as "no visible conversation yet": the rows exist, the page could not read them');
+
+  // station.deliver: the answer this run already filed is in a packed row; it is read back before the filed check, so it is not filed twice
+  seed(); env.reading = reader();
+  const again = await call(env, 'station.deliver', { streamId: 'packed', agentId: 'researcher', runId: 'run-filed', text: 'Phobos and Deimos.' });
+  A.eq([again.ok, again.result.folded, again.result.reason], [true, false, 'already delivered'], 'a run whose answer is in a packed row is recognised as filed once the rows are back');
+  A.eq(env.W.get('packed').history.filter(m => m.role === 'assistant').length, 1, 'and the answer is in the conversation once');
+  seed(); env.reading = reader();
+  const fresh = await call(env, 'station.deliver', { streamId: 'packed', agentId: 'researcher', runId: 'run-new', text: 'A new finding.' });
+  A.eq([fresh.ok, fresh.result.folded], [true, true], 'a new answer is filed');
+  A.eq(env.W.get('packed').history.map(m => m.content), ['what did the researcher find?', 'Phobos and Deimos.', '— a note —', 'A new finding.'], 'after the whole conversation, not among the few rows the page kept');
 }
 
 A.report('station-commands.test');

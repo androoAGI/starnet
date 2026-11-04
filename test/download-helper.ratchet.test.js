@@ -83,7 +83,7 @@ function callback(src, marker) {
     }
     const appSource = source('frontend/app/app.js');
     const session = rig(true);
-    session.context.Workstreams = { get: id => ({ id }), exportConversation: () => ({ text: 'conversation', filename: 'conversation.md' }), titleOf: () => 'fixture session' };
+    session.context.Workstreams = { get: id => ({ id }), needsHydration: () => false, exportConversation: () => ({ text: 'conversation', filename: 'conversation.md' }), titleOf: () => 'fixture session' };
     vm.runInContext(named(appSource, 'sessionDownload') + '\n' + named(appSource, 'exportSession') + '\nthis.run=exportSession;', session.context);
     await session.context.run('session-exact', 'markdown');
     A.eq([session.posts.length, session.clicks.length], [1, 0], 'actual session handler requests a desktop save instead of assuming a browser export');

@@ -174,7 +174,8 @@ const ReturnStore = (() => {
       if (!w && typeof Delegated !== 'undefined' && Delegated.reveal) Delegated.reveal(sid);
       return true;
     }
-    if (!w || !(w.history || []).some(m => m && m.role === 'assistant')) {
+    // (a session whose saved history names its rows, not read back yet, has output: opening it reads them)
+    if (!w || !((w.history || []).some(m => m && m.role === 'assistant') || (Workstreams.needsHydration && Workstreams.needsHydration(w)))) {
       // no session yet (or an output-less shell) — adopt + fold the durable transcript so the work is readable.
       // revive:true — this is a DELIBERATE Commander click ("review the work"), the one case that may
       // clear a deleted-session tombstone and bring the session back.

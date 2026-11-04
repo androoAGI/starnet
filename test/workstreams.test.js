@@ -531,4 +531,91 @@ A.eq([W.get(recoveredOrder.id).lastRunOk, W.get(recoveredOrder.id).lastRunReason
   A.eq(W.get('workshop-old1').title, '⚒ Pricing page v2', 'the stored title is untouched (only the name it is shown by)');
   A.eq(W.titleOf('s-forge'), '⚒ my forge notes', 'a session someone named with a hammer keeps it: only delivery sessions carried the mark');
 }
+/* ---------- a saved history that NAMES rows the station holds (save v7, history by reference): the record keeps it whole, tells the rail the truth, hands it back as it was ---------- */
+{
+  const unreadHistory = () => [{ $ref: '1,1,1', res: { '1': { typedText: 'typed' } } }];   // rows 1..3 named, none held
+  const record = (id, history, at, titled) => ({ id, title: titled ? 'roadmap talk' : null, kind: 'chat', history, runIds: [], createdAt: at, lastActiveAt: at, lastReadAt: at });
+  const note = { role: 'system', sys: true, content: '— a note the page wrote —', ts: 20 };
+  const ask = { role: 'user', content: 'a question typed after the last read', ts: 30 };
+  const answered = { role: 'assistant', content: 'the newest answer', ts: 40 };
+  const doc = () => ({ workstreams: [
+    record('titled', unreadHistory(), 50, true),
+    record('all', unreadHistory(), 100),
+    record('tail', unreadHistory().concat([note, answered]), 200),
+    record('head', [ask].concat(unreadHistory()), 300),
+    record('plain', [ask, answered], 400),
+    record('blank', [], 500)
+  ], activeId: 'plain', generalId: 'plain' });
+  W.init(doc());
+  const all = W.get('all'), tail = W.get('tail'), head = W.get('head');
+
+  A.eq([W.needsHydration('all'), W.needsHydration('tail'), W.needsHydration('plain'), W.needsHydration('blank')], [true, true, false, false], 'a session whose saved history names rows needs them read back');
+  A.eq(W.pendingHydration(), ['head', 'tail', 'all', 'titled'], 'and they are read the most recently active first');
+  A.eq(all.history, [], 'a record holds only the rows the page keeps itself: here none');
+  A.eq(tail.history, [note, answered], '…in order, the very same objects it was given (inline rows)');
+  A.ok(!Object.keys(all).includes('historyRef') && !JSON.stringify(all).includes('$ref'), 'the packed form is never an enumerable field: a record can not be stringified carrying a second copy of its history');
+
+  A.eq([W.isUntouched(all), W.isUntouched(W.get('blank'))], [false, true], 'a packed history is messages, not a blank line');
+  A.eq([W.turnCount(all), W.turnCount(tail), W.turnCount(W.get('plain')), W.turnCount('all')], [3, 5, 2, 3], 'the count names every row, packed ones included (by record or by id)');
+  A.eq([W.hasHistory(all), W.hasHistory(W.get('blank')), W.hasUserTurn(all), W.hasUserTurn(W.get('blank'))], [true, false, true, false], 'it has a history, and a Commander turn');
+  A.eq(W.latestVisibleMessage(all), null, 'a fully packed session names no newest message: it cannot know it');
+  A.eq(W.latestVisibleMessage(tail), answered, 'an inline tail after the packed run IS provably the newest message');
+  A.eq(W.latestVisibleMessage(head), null, 'an inline row BEFORE a packed run is never taken for the newest: a stale line is worse than none');
+  A.eq(W.latestVisibleMessage(W.get('plain')), answered, '(control) an ordinary session reads as it always did');
+  all.history.push(ask);
+  A.eq(W.latestVisibleMessage(all), ask, 'a row pushed since boot is after every packed row, so it is the newest');
+  all.history.length = 0;
+  A.eq([W.titleBasis('titled', 'a substantive first message about the roadmap'), W.needsModelTitle('titled')], [null, false], 'no title is made of half a conversation');
+  A.eq(W.exportConversation('all', 'json'), null, 'and no export');
+  A.eq(W.previewArchive({ empty: true }).ids, ['blank'], 'archive-empty takes only the really blank session');
+
+  // what a persist writes: the packed form as it was read, then whatever was pushed since; a copy only for such a session
+  const saved = () => W.serialize().workstreams;
+  A.eq(saved().find(w => w.id === 'all').history, unreadHistory(), 'a session nobody opened is written back exactly as it was read');
+  A.eq(saved().find(w => w.id === 'tail').history, unreadHistory().concat([note, answered]), 'with its inline rows in place');
+  A.ok(saved().find(w => w.id === 'plain') === W.get('plain') && saved().find(w => w.id === 'all') !== all, 'a session with all its rows is the live record, as before; the other is a copy that carries its packed form');
+  tail.history.push(ask);
+  A.eq(saved().find(w => w.id === 'tail').history, unreadHistory().concat([note, answered, ask]), 'a row pushed since follows the packed form');
+  tail.history.splice(tail.history.indexOf(note), 1);
+  A.eq(saved().find(w => w.id === 'tail').history, unreadHistory().concat([answered, ask]), 'an inline row the page dropped stays dropped, the packed run is untouched');
+  tail.history.length = 0; tail.history.push(note, answered);
+  W.init(JSON.parse(JSON.stringify(W.serialize())));
+  A.eq(W.get('all').history, [], 'a save and a reload keep the packed form (nothing was read in between)');
+  A.eq(W.serialize().workstreams.find(w => w.id === 'all').history, unreadHistory(), '…and writes it again');
+
+  // reading the rows back: in place, once, and never over what the Commander removed meanwhile
+  W.init(doc());
+  const held = W.get('tail'), ref = held.historyRef;
+  const rows = [{ rowId: 1, role: 'user', content: 'one' }, { rowId: 2, role: 'assistant', content: 'two', typedText: 'typed' }, { rowId: 3, role: 'user', content: 'three' }];
+  held.history.push(ask);
+  A.eq(W.hydrate('tail', rows.concat([note, answered]), { ref: {} }), false, 'a read of a packed form the session no longer holds puts nothing back');
+  A.eq(held.history, [note, answered, ask], '…and changes nothing');
+  A.eq(W.hydrate('tail', rows.concat([note, answered]), { ref }), true);
+  A.eq(held.history, rows.concat([note, answered, ask]), 'the rows come back in place, the inline rows where they were, a row pushed meanwhile after them');
+  A.eq([W.needsHydration('tail'), W.pendingHydration().includes('tail'), W.serialize().workstreams.includes(held)], [false, false, true], 'it is whole: no longer pending, handed out as the live record');
+  const part = W.get('all'), partRef = part.historyRef;
+  W.hydrate('all', [rows[0], rows[1], { $ref: '3' }], { ref: partRef });
+  A.eq([part.history, W.needsHydration('all')], [[rows[0], rows[1]], true], 'a run the station could not return stays packed beside the rows that came back');
+  A.eq(W.serialize().workstreams.find(w => w.id === 'all').history, [rows[0], rows[1], { $ref: '3' }], '…and a persist writes the proven rows and the reference');
+  A.eq(W.latestVisibleMessage(part), null, 'a partly read session still names no newest message it cannot prove');
+
+  // a clear or a replace takes the packed form with it; an undo puts it back as it was
+  W.init(doc());
+  const cleared = W.get('all'), clearedRef = cleared.historyRef;
+  A.ok(W.clearConversation('all', { at: 5 }), 'a packed conversation can be cleared');
+  A.eq([cleared.history, W.needsHydration('all'), W.turnCount(cleared)], [[], false, 0], 'nothing is left of it, packed or not');
+  A.eq(W.hydrate('all', rows, { ref: clearedRef }), false, 'a read that was out when it was cleared brings nothing back');
+  A.eq(cleared.history, [], 'nothing is resurrected');
+  A.eq(W.undoLast(), true);
+  A.eq([W.needsHydration('all'), W.serialize().workstreams.find(w => w.id === 'all').history], [true, unreadHistory()], 'undo puts the packed history back exactly as it was cleared');
+  A.ok(W.setHistory('all', [ask, answered]) && !W.needsHydration('all') && W.get('all').history.length === 2, 'a history put in whole replaces what the packed form named');
+  W.init(doc());
+  W.reset();
+  A.eq(W.all().some(w => w.historyRef), false, 'a reset leaves no packed form behind');
+
+  // an element the page cannot read is kept whole and counted, never dropped
+  W.init({ workstreams: [record('odd', [{ $ref: 'not a run' }, ask], 600)], activeId: 'odd', generalId: 'odd' });
+  A.eq([W.needsHydration('odd'), W.get('odd').history, W.serialize().workstreams.find(w => w.id === 'odd').history], [true, [ask], [{ $ref: 'not a run' }, ask]], 'an unreadable element stays in the saved history as it was');
+  W.reset();
+}
 A.report('workstreams.test');

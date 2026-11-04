@@ -16,7 +16,7 @@ module.exports = function resumeRatingFixture(saved) {
     composeSystemPrompt: () => 'fixture', registerHero: a => agents.set('agent', a),
     rehydrateRoster: rows => { for (const a of rows || []) if (a.id !== 'agent') agents.set(a.id, a); },
     recomposeOrchestrators: noop, Harness: {setProv:noop,setReasoningEffort:noop,setModel:noop,getModel:()=> 'test/model',setTotals:noop},
-    Workstreams: {init:noop}, enterGame:noop,persist:noop,
+    Workstreams: {init:noop}, armHistoryHydration:noop, enterGame:noop,persist:noop,
     pendingStationDoc:null,pendingStationStats:null,pendingGrowthSyncAt:0,pendingRatingSyncAt:0,
     pendingProfile:null,pendingWorkSignal:null,pendingDossier:null
   };

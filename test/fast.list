@@ -453,6 +453,8 @@ test/saveversion.test.js
 test/save-version-downgrade.test.js
 test/save-premigrate-backup.test.js
 test/history-migration.lossless.test.js
+test/history-hydrate.seam.test.js
+test/packed-history.writers.test.js
 test/backup-secrets.test.js
 test/station-export-location.test.js
 test/export-file-ownership.test.js

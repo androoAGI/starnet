@@ -306,6 +306,12 @@ const StationCommands = (() => {
     if (ws.conversationMode === 'group') throw new Error('"' + (ws.title || 'that chat') + '" is a group chat: its transcript belongs to its members, so a worker\'s result cannot be filed into it. Nothing was delivered there');
     const text = String((a && a.text) || '').trim();
     if (!text) throw new Error('nothing to deliver — the worker returned no text');
+    /* A SESSION WHOSE SAVED HISTORY IS STILL PACKED (save v7) cannot say whether this answer is already filed (answerFiled reads its rows) nor
+       where by time it belongs (the splice below): the rows are read back first and the same fold then runs on the whole conversation. One
+       the station cannot return all of is folded as it stands (the delivered row carries its rowId, so the next open merges it once). */
+    if (!opts.hydrated && Workstreams.needsHydration && Workstreams.needsHydration(ws) && typeof Chat !== 'undefined' && Chat.hydrateHistory) {
+      return Chat.hydrateHistory(ws).then(() => foldDelivery(a, Object.assign({}, opts, { hydrated: true })));
+    }
     const runId = String((a && a.runId) || '');
     if (runId && ((ws.runIds || []).indexOf(runId) >= 0 || answerFiled(ws, runId))) {
       const recorded = recordFiledRun(ws, runId, a.ts, opts.beforeRunId);
@@ -1066,9 +1072,14 @@ const StationCommands = (() => {
        Exists because of a live failure: asked "what did the researcher do?", a lead with no way to read the
        other session guessed "nothing" while the finished answer sat right there. Visible dialogue only
        (same filter the session power tools use — sys markers ride along labeled, hidden/internal never). */
-    'station.read_session': (a) => {
+    'station.read_session': function readSession(a, hydrated) {
       const hit = resolveSession(a && a.session);
       const ws = hit.w;
+      const packed = () => !!(Workstreams.needsHydration && Workstreams.needsHydration(ws));
+      /* A SESSION WHOSE SAVED HISTORY IS STILL PACKED (save v7) is read back before it is read out: handing the lead the few rows the
+         page keeps itself, or "no visible conversation yet", is the very guess this verb exists to end. One the station cannot return
+         all of is read out as it stands and SAYS so (incomplete + the note), never as the whole conversation. */
+      if (!hydrated && packed() && typeof Chat !== 'undefined' && Chat.hydrateHistory) return Chat.hydrateHistory(ws).then(() => readSession(a, true));
       const limit = Math.max(1, Math.min(30, Number(a && a.limit) || 12));
       const turns = (ws.history || [])
         .filter(m => m && !m.hidden && !m.internal && typeof m.content === 'string'
@@ -1086,10 +1097,13 @@ const StationCommands = (() => {
           };
         });
       const busy = (typeof Channels !== 'undefined' && Channels.isBusy) ? !!Channels.isBusy(ws.id) : false;
+      const incomplete = packed();
       return {
         id: ws.id, title: hit.title || sessionName(ws), agentId: ws.agentId || 'agent',
         busy, runCount: (ws.runIds || []).length, turns,
-        note: turns.length ? undefined : 'this session has no visible conversation yet'
+        ...(incomplete ? { incomplete: true } : null),
+        note: incomplete ? 'part of this session\'s conversation could not be read back yet, so the turns listed may be incomplete'
+          : turns.length ? undefined : 'this session has no visible conversation yet'
       };
     },
 
@@ -1302,7 +1316,7 @@ const StationCommands = (() => {
           continue;
         }
         try {
-          const out = foldDelivery(args, { quiet: true, beforeRunId, recover: true });
+          const out = await foldDelivery(args, { quiet: true, beforeRunId, recover: true });
           if (out && out.folded) folded++;
         } catch (_) {}
       }

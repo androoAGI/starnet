@@ -129,9 +129,9 @@ const mkRow = () => { const cls = new Set(); return { d: { classList: { add: c =
   const cards = [];
   const goalStepOf = new Function('GoalLoop', stepOfSrc + '\nreturn goalStepOf;')(GoalLoop);
   const s = GoalLoop.create('ship the landing page', { now: 1 });
-  const history = new Function('activeWs', 'localLine', 'systemCard', 'goalStepOf', src + '\nreturn historyCommand;')(
+  const history = new Function('activeWs', 'localLine', 'systemCard', 'goalStepOf', 'afterHydration', src + '\nreturn historyCommand;')(
     { history: [{ role: 'user', content: 'hi' }, { role: 'user', content: GoalLoop.continuationPrompt(s) }, { role: 'assistant', content: 'on it' }] },
-    () => {}, (title, lines) => cards.push(lines), goalStepOf);
+    () => {}, (title, lines) => cards.push(lines), goalStepOf, () => false);
   history('');
   A.eq(cards[0], ['You: hi', 'Goal step: ship the landing page', 'Agent: on it'], '/history lists a goal step as the station\'s line');
 }

@@ -1623,6 +1623,53 @@ const App = (() => {
     return { agentId: a.id, desk: deskWhere };
   }
 
+  /* THE IDLE HYDRATION PASS (save v7, history by reference). A session saved with runs it names by row id boots holding only the reference.
+     Opening one reads its rows back (Chat.load → hydrateHistory); this reads the rest in the background, the most recently active first,
+     HYDRATE_PER_TICK sessions a tick, so the rail, search and every command meet whole conversations without anyone opening them. It never
+     competes with work: while ANY run is live on this page it reads nothing and a run that begins mid-tick ends the tick after the session
+     in hand. A session the station could not return all of is not asked again at once (a doubling wait), so it cannot starve the sessions
+     behind it, and a station that does not answer pauses the whole pass. It stops itself when nothing is left packed. */
+  const HYDRATE_PER_TICK = 20, HYDRATE_BACKOFF_MS = 60000, HYDRATE_BACKOFF_MAX_MS = 15 * 60000, HYDRATE_PAUSE_MS = 30000;
+  const hydrationRetry = new Map();   // session id -> { at, wait }: when a session the station could not return all of may be asked for again
+  let hydrationLoop = null, hydrationWorked = true, hydrationPausedUntil = 0, hydrationTicking = false;
+  async function hydrateTick() {
+    if (hydrationTicking || typeof Workstreams === 'undefined' || !Workstreams.pendingHydration || typeof Chat === 'undefined' || !Chat.hydrateHistory) return false;   // (PollGate abandons a beat past its deadline and starts the next: a slow tick is never joined by a second)
+    const live = () => typeof Channels !== 'undefined' && Channels.anyBusy && Channels.anyBusy();
+    const now = Date.now();
+    if (live() || now < hydrationPausedUntil) return false;
+    const due = Workstreams.pendingHydration().filter(id => { const r = hydrationRetry.get(id); return !r || r.at <= now; }).slice(0, HYDRATE_PER_TICK);
+    let read = 0;
+    hydrationTicking = true;
+    try {
+      for (const id of due) {
+        if (live()) break;
+        const w = Workstreams.get(id);
+        if (!w || !Workstreams.needsHydration(w)) continue;
+        const got = await Chat.hydrateHistory(w, { windowMs: 20000 });
+        read++;
+        if (got.complete || got.stale) hydrationRetry.delete(id);
+        else {
+          const prior = hydrationRetry.get(id), wait = Math.min(HYDRATE_BACKOFF_MAX_MS, prior ? prior.wait * 2 : HYDRATE_BACKOFF_MS);
+          hydrationRetry.set(id, { at: Date.now() + wait, wait });
+        }
+        if (got.silent) { hydrationPausedUntil = Date.now() + HYDRATE_PAUSE_MS; break; }   // the station is not answering: ask nothing more for a while
+      }
+    } finally { hydrationTicking = false; }
+    if (read && typeof renderRail === 'function') renderRail();
+    return read > 0;
+  }
+  function armHistoryHydration() {
+    if (hydrationLoop || typeof Workstreams === 'undefined' || !Workstreams.pendingHydration || !Workstreams.pendingHydration().length) return false;
+    const beat = async () => {
+      hydrationWorked = await hydrateTick();
+      if (!Workstreams.pendingHydration().length && hydrationLoop) { hydrationLoop.stop(); hydrationLoop = null; }
+    };
+    const ms = () => hydrationWorked ? 1500 : 10000;
+    if (typeof PollGate !== 'undefined' && PollGate.every) hydrationLoop = PollGate.every(beat, { ms, gap: true, immediate: false });
+    else { let timer = setInterval(beat, 5000); hydrationLoop = { stop: () => clearInterval(timer) }; }
+    return true;
+  }
+
   let unsubscribeStationSave = null;
   let stationSaveQueued = false;
   function watchStationSave() {
@@ -3499,6 +3546,7 @@ const App = (() => {
     const needsAwakening = (agent.onboarded === undefined) ? !agent.purpose : !agent.onboarded;
     enterGame({ awaitingPurpose: needsAwakening, wake: false });
     persist();   // lock any v1->v2 migration to disk now (don't re-migrate every load)
+    armHistoryHydration();   // a save that names its rows by id: read the sessions nobody opens back in the background (save v7)
   }
 
   function enterGame(opts) {
@@ -4410,7 +4458,7 @@ const App = (() => {
   function railReceipt(w) {
     const latest = Workstreams.latestVisibleMessage ? Workstreams.latestVisibleMessage(w)
       : (Workstreams.visibleMessages ? Workstreams.visibleMessages(w) : []).slice().reverse().find(m => m.content.trim());
-    if (!latest) return 'No messages yet';
+    if (!latest) return Workstreams.needsHydration && Workstreams.needsHydration(w) ? '' : 'No messages yet';   // rows named by a saved history, not read back yet: no line beats a false one
     const memo = railExcerpts.get(latest);
     if (memo && memo.content === latest.content && memo.role === latest.role) return memo.out;
     const out = railExcerpt(latest);
@@ -4701,8 +4749,11 @@ const App = (() => {
   }
   // Export ONE named session from its row menu — never an implicit "the active one".
   async function exportSession(id, format) {
-    const w = Workstreams.get(id), bundle = w && Workstreams.exportConversation(id, format);
-    const receipt = await sessionDownload(bundle); if (receipt.ok) SFX.click(); else SFX.bad();
+    const w = Workstreams.get(id);
+    // a session whose rows are still packed is read back before it is written out: a file of the rows the page happens to hold would be a quiet partial copy
+    if (w && Workstreams.needsHydration(w) && typeof Chat !== 'undefined' && Chat.hydrateHistory) await Chat.hydrateHistory(w, { windowMs: 20000 });
+    const unread = !!w && Workstreams.needsHydration(w), bundle = w && !unread && Workstreams.exportConversation(id, format);
+    const receipt = unread ? { ok: false, line: 'conversation history could not be restored' } : await sessionDownload(bundle); if (receipt.ok) SFX.click(); else SFX.bad();
     if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(receipt.line + (receipt.ok ? ' — hidden data and secrets excluded' : ''), receipt.ok ? '' : 'warn', undefined, { transient: true });
   }
   function renderSessionSearch() {
@@ -4753,7 +4804,7 @@ const App = (() => {
     // history / runs / a live run keep their binding and fall through to the switch-or-mint path.
     const cur = Workstreams.active();
     if (cur && cur.id !== Workstreams.generalId() && !isGroupWs(cur) && (cur.agentId || 'agent') !== id
-        && !(cur.history && cur.history.length) && !(cur.runIds && cur.runIds.length)
+        && !(cur.history && cur.history.length) && !(Workstreams.needsHydration && Workstreams.needsHydration(cur)) && !(cur.runIds && cur.runIds.length)
         && !(typeof Channels !== 'undefined' && Channels.isBusy(cur.id))
         && Workstreams.setAgent(cur.id, id)) {
       focusAgent(id); if (typeof World !== 'undefined' && World.lockBody) World.lockBody(id);   // explicit agent pick → camera follow-lock

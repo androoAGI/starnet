@@ -144,6 +144,8 @@ const AutoSessions = ((TurnMerge) => {
   }
   // Blank assistant envelopes can carry tool calls, but they are not visible output. Settled status markers count;
   // a pending-transcript marker deliberately does not, so a later open/backfill remains eligible to heal it.
+  // a session whose saved history names rows the station holds, not read back yet (save v7): it has output, the page just has not read it
+  function packedRows(ws) { return !!(ws && typeof Workstreams !== 'undefined' && Workstreams.needsHydration && Workstreams.needsHydration(ws)); }
   function hasReadableOutput(history) {
     return (Array.isArray(history) ? history : []).some(m => m && (
       (m.role === 'assistant' && String(m.content == null ? '' : m.content).trim()) ||
@@ -300,7 +302,8 @@ const AutoSessions = ((TurnMerge) => {
         ? sysMarker('— routine ran, nothing to report —')
         : sysMarker('⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens', true, true));
     }
-    ws.history = next;
+    // the transcript IS this session's history (it replaces it): a saved history that named rows is replaced with it, never kept beside it
+    if (typeof Workstreams !== 'undefined' && Workstreams.setHistory) Workstreams.setHistory(ws, next); else ws.history = next;
     // hybrid-honest: a real run fired → todo advances to active. `endedAt` (heal/backfill paths) = the run
     // record's REAL end time, so the rail stamp is the run's, never this poll/boot moment.
     recordOutcome(ws, outcome, endedAt, reason);
@@ -403,12 +406,12 @@ const AutoSessions = ((TurnMerge) => {
         // Its session stays (or, the page closed, forms) busy; the live cron.result or the busy reconcile settles it.
         const fireJob = job || routineFor((existing && existing.automation && existing.automation.id) || '');   // a line hop's row names no routine
         if (!fireOf(runId) && stillFiring(fireJob, runId)) {
-          if (!existing || !hasReadableOutput(existing.history)) beginSession(runId, fireJob);
+          if (!existing || !(hasReadableOutput(existing.history) || packedRows(existing))) beginSession(runId, fireJob);
           continue;
         }
         const defining = String(run.runId || '') === runId;
         const settle = settleOf(existing, runId, defining ? run : null);   // the fire's outcome, else the defining row's
-        if (existing && hasReadableOutput(existing.history)) {
+        if (existing && (hasReadableOutput(existing.history) || packedRows(existing))) {
           // Transcript dedupe is not metadata dedupe: upgrade saved cron streams with real provenance/outcome.
           if (defining || settle.byFire) {
             // a fire its record settled FAILED says why, as foldTurns writes it, when its session never did (review 5.3: one a row settled
@@ -446,7 +449,7 @@ const AutoSessions = ((TurnMerge) => {
     let job = routineFor(p.jobId);
     if (!job && p.jobId) {
       // unknown routine → refresh the catalogue, then (re)seed the session's title once names arrive.
-      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && j.prompt) ws.history.push(seedRow(p.runId, j.prompt)); refreshRail(); persist(); } });
+      loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && !packedRows(ws) && j.prompt) ws.history.push(seedRow(p.runId, j.prompt)); refreshRail(); persist(); } });
     }
     beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job || {}));
   }

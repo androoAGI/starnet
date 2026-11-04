@@ -5211,7 +5211,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const s = w.get(id); if (!s) return;
     if (typeof App !== 'undefined' && App.openWorkstream) App.openWorkstream(id);
     else { w.switch(id); if (typeof Chat === 'object' && Chat.load) Chat.load(s); sync(); }
-    const started = s.history.some(m => m.role === 'user');
+    const started = w.hasUserTurn ? w.hasUserTurn(s) : s.history.some(m => m.role === 'user');   // a packed history holds the Commander's turns: never send the title as a first message over it
     workConversation('tasks');
     if (!started && s.title && typeof Chat === 'object' && Chat.send) Chat.send(s.title);
     // name the stream's OWN bound agent (s.agentId), resolved against the roster — never present[0], which is
@@ -5313,14 +5313,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       (s.lane === 'active' ? '<button data-act="queue">Back to To do</button>' : '') +
       (s.lane === 'shipped' ? '<button data-act="repeat" title="Review a schedule; nothing runs until you save and enable it">Repeat on a schedule</button>' : '') +
       '<button data-act="arch" title="Recover from the COMMS rail’s Archived view">Archive</button></span></details>';
-    const started = (s.history || []).some(m => m.role === 'user');
+    const started = typeof Workstreams !== 'undefined' && Workstreams.hasUserTurn ? Workstreams.hasUserTurn(s) : (s.history || []).some(m => m.role === 'user');
     const acts = s.lane === 'todo'
       ? '<button class="assign" data-act="assign">' + (started ? 'CONTINUE' : 'START') + '</button><button data-act="open">OPEN</button>' + tail
       : s.lane === 'active'
         ? '<button data-act="open">OPEN</button><button data-act="ship" title="Mark this task complete; this does not publish or send anything">MARK COMPLETE</button>' + tail
         : '<button data-act="open">OPEN RESULT</button><button data-act="reopen">REOPEN</button>' + tail;
-    const messages = (typeof Workstreams !== 'undefined' && Workstreams.visibleMessages) ? Workstreams.visibleMessages(s) : (s.history || []);
-    const last = messages.filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-1)[0];
+    // the newest visible message the history PROVES is the newest (a packed history not read back yet names none rather than a stale one)
+    const last = (typeof Workstreams !== 'undefined' && Workstreams.latestVisibleMessage) ? Workstreams.latestVisibleMessage(s)
+      : (s.history || []).filter(m => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim()).slice(-1)[0];
     const preview = last ? last.content.replace(/\s+/g, ' ').trim() : '';
     return '<div class="kb-card' + (s.pinned ? ' pinned' : '') + '" draggable="true" data-id="' + s.id + '" role="button" tabindex="0" aria-label="' + esc(s.title || 'untitled') + ' — open conversation" style="--ci:' + (i || 0) + '">' +
       '<div class="kb-title">' + esc(s.title || 'untitled') + '</div>' +
@@ -5431,9 +5432,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         else if (act === 'arch') archiveCard(id);
         else if (act === 'repeat') {
           const stream = boardStreams().find(s => s.id === id);
-          const message = stream && Workstreams.visibleMessages(stream).find(m => m.role === 'user');
-          if (message && typeof AutomationWindow !== 'undefined') AutomationWindow.openDraft({name:stream.title,prompt:message.content,agentId:stream.agentId,workdir:stream.projectRoot});
-          else notify('Open the task and give it instructions before scheduling it.', 'warn');
+          const draft = () => {
+            const message = stream && Workstreams.visibleMessages(stream).find(m => m.role === 'user');
+            if (message && typeof AutomationWindow !== 'undefined') AutomationWindow.openDraft({name:stream.title,prompt:message.content,agentId:stream.agentId,workdir:stream.projectRoot});
+            else notify('Open the task and give it instructions before scheduling it.', 'warn');
+          };
+          // the first instruction is read from the whole conversation: a packed one is read back first
+          if (stream && Workstreams.needsHydration && Workstreams.needsHydration(stream) && typeof Chat === 'object' && Chat.hydrateHistory) Chat.hydrateHistory(stream).then(draft);
+          else draft();
         }
       }));
       c.addEventListener('click', () => openStream(id));   // clicking the card body opens its conversation

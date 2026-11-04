@@ -53,14 +53,14 @@ A.ok(retryFn, 'retryLast exists');
     { role: 'assistant', content: 'The gate needs brief_proceed to succeed first.', sourceRunId: 'r1' },
     { role: 'assistant', content: '⚠ Something went wrong on that turn — try again.', error: true }
   ];
-  const ctx = { activeWs: { runIds: ['r1'], history }, isBusy: () => false, localLine: () => {}, load: () => {}, send: (text, opts) => sent.push({ text, opts, tail: history[history.length - 1].role }) };
+  const ctx = { activeWs: { runIds: ['r1'], history }, isBusy: () => false, localLine: () => {}, load: () => {}, afterHydration: () => false, send: (text, opts) => sent.push({ text, opts, tail: history[history.length - 1].role }) };
   vm.createContext(ctx); vm.runInContext(body + '; retryLast();', ctx);
   A.eq(sent.length, 1, 'retry sends exactly once');
   A.eq(sent[0].text, 'write Etsy listings', 'retry re-runs the last user turn');
   A.eq(sent[0].tail, 'user', 'the retried history ends on the user turn, never on an assistant message (prefill 400)');
   A.eq(history.length, 3, 'every row of the failed attempt is dropped; the earlier exchange is kept');
   A.eq(history[1].content, 'earlier answer', 'earlier assistant replies before the retried turn survive');
-  const stoppedCtx = { activeWs: { runIds: ['s'], history: [{ role: 'user', content: 'go', sourceRunId: 's' }, { role: 'assistant', content: 'partial', stopped: true }] }, isBusy: () => false, localLine: () => {}, load: () => {}, send: () => {} };
+  const stoppedCtx = { activeWs: { runIds: ['s'], history: [{ role: 'user', content: 'go', sourceRunId: 's' }, { role: 'assistant', content: 'partial', stopped: true }] }, isBusy: () => false, localLine: () => {}, load: () => {}, afterHydration: () => false, send: () => {} };
   vm.createContext(stoppedCtx); vm.runInContext(body + '; retryLast();', stoppedCtx);
   A.eq(stoppedCtx.activeWs.history.length, 1, 'retryLast discards a stopped partial assistant tail before re-running');
   // …but load() re-syncs from the server transcript and can put the replaced replies back before send() builds the
@@ -109,7 +109,7 @@ A.ok(/function\s+retryLast[\s\S]*?if\s*\(\s*!activeWs\s*\)\s*return[\s\S]*?if\s*
   const context = { activeWs: { runIds: ['latest-attempt'], history: [
     { role: 'user', content: 'same request', sourceRunId: 'original-user-run' },
     { role: 'assistant', content: 'failed', error: true }
-  ] }, isBusy: () => false, localLine: () => {}, load: () => {}, send: (text, opts) => sent.push({ text, opts }) };
+  ] }, isBusy: () => false, localLine: () => {}, load: () => {}, afterHydration: () => false, send: (text, opts) => sent.push({ text, opts }) };
   vm.createContext(context); vm.runInContext(body + '; retryLast();', context);
   A.eq(sent[0].opts.retryUserRunId, 'original-user-run', 'retry references the original user run, not the latest retry attempt');
   delete context.activeWs.history[0].sourceRunId;
