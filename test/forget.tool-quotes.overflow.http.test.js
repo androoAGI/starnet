@@ -10,6 +10,8 @@
      - every row T drained carries a stamp inside the latch: at most 32 ids (or the saturated '*'); the latch never shrinks; no workspace file holds a word
      - deleting a LATE latched source hides exactly the rows drained from that read on and leaves the earlier ones; deleting an EARLY one hides everything
        after it; with and without a restart; recall (from another session), display and model-replay (T's next window) agree
+     - park: a session.peek of another session that is bigger than a tool result may be is clamped, never saved to a workspace file (the host's parkOutput
+       refuses a quoted read), while the same-sized read of the run's own session is saved (the control: the cap fires in this rig)
    The relays (a worker's reads are its lead's) are test/forget.tool-quotes.relay.http.test.js. */
 const A = require('./_assert.js');
 const path = require('node:path');
@@ -39,8 +41,42 @@ const wordOf = n => 'Sent-' + idOf(n);
       rows.push({ streamId: id, agentId: 'agent', role: 'user', content: 'tell me about the topic of ' + id, ts: at + n * 10, turnId: turn, kind: 'turn', directive: true, taint: null, taintKnown: true });
       rows.push({ streamId: id, agentId: 'agent', role: 'assistant', content: 'About ' + group + ': ' + wordOf(n) + ' is the word of session ' + id + '.', ts: at + n * 10 + 1, turnId: turn, kind: 'turn', taint: null, taintKnown: true });
     }
+    // two long sessions for the park leg: thirty rows of about 2,900 characters each, so one session.peek of either is bigger than a tool result may be
+    const PARK_BIG = 'Zephyr-Big', PARK_OWN = 'Zephyr-Own';
+    const longRows = (id, word) => {
+      const out = [];
+      for (let k = 0; k < 15; k++) {
+        const turn = 'seed_' + id + '_' + String(k).padStart(2, '0'), body = word + ' part ' + k + '. ' + 'quiet notes about moss and lichen. '.repeat(80);
+        out.push({ streamId: id, agentId: 'agent', role: 'user', content: 'note ' + k + ' ' + body, ts: at + 100000 + k * 10, turnId: turn, kind: 'turn', directive: true, taint: null, taintKnown: true });
+        out.push({ streamId: id, agentId: 'agent', role: 'assistant', content: 'kept ' + k + ' ' + body, ts: at + 100000 + k * 10 + 1, turnId: turn, kind: 'turn', taint: null, taintKnown: true });
+      }
+      return out;
+    };
+    rows.push(...longRows('pk_big', PARK_BIG), ...longRows('pk_own', PARK_OWN));
     await seedRows(rig, rows);
-    await rig.list(...Array.from({ length: 45 }, (_, i) => [idOf(i + 1), 'session ' + idOf(i + 1)]), ['t1', 'reader']);
+    await rig.list(...Array.from({ length: 45 }, (_, i) => [idOf(i + 1), 'session ' + idOf(i + 1)]), ['t1', 'reader'], ['pk_big', 'pkbig'], ['pk_own', 'pkown'], ['pk_t', 'park reader']);
+
+    // ---------------- park: words a run quoted are never saved as a workspace file
+    // A tool result over the output cap (window-scaled, at most 80,000 characters) is written to the agent's workspace in full and the model gets a pointer to
+    // it. The words of ANOTHER session must not land there: the file would outlive the session's delete and the agent can read it back. The control is the
+    // same read of the run's OWN session (not a quote), which is parked, so the cap really fires in this rig and the absence below means something.
+    await leg('park', async () => {
+      const agentDir = path.join(rig.fx.workspace, 'agent');
+      const peek = (session, then) => ctx => ctx.made('session_peek') === 0 ? { tool: 'session_peek', args: { session, limit: 30 } } : { text: then };
+      up.behave = peek('pkbig', 'peeked at the big session');
+      const quoted = await rig.run('pk_t', 'peek at the big session (park-quoted)');
+      A.eq(quoted.end && quoted.end.reason, 'done', 'park: the run that peeked at another session completes');
+      A.ok(up.bodies.some(b => b.main && b.text.includes('(park-quoted)') && b.text.includes(PARK_BIG)), 'park: the model was handed the other session\'s words by the real session.peek (the read is a quote, and the test is not vacuous)');
+      up.behave = peek('pkown', 'peeked at my own session');
+      const own = await rig.run('pk_own', 'peek at my own session (park-own)');
+      A.eq(own.end && own.end.reason, 'done', 'park: the control run completes');
+      A.ok(filesHolding(agentDir, PARK_OWN).length >= 1, 'park control: the same-sized read of the run\'s OWN session is saved to a workspace file, so the output cap fires here: ' + JSON.stringify(filesHolding(agentDir, PARK_OWN)));
+      A.eq(filesHolding(agentDir, PARK_BIG), [], 'park: the read of ANOTHER session is clamped and never saved: no file the agent can read holds its word');
+      A.ok(rowsText((await rig.transcript('pk_t')).turns).includes(PARK_BIG), 'park: ...while the run\'s own rows do hold it, stamped, until the session is deleted');
+      await rig.forget('pk_big');
+      A.ok(!rowsText((await rig.transcript('pk_t')).turns).includes(PARK_BIG), 'park: after the delete the run\'s rows hold no word of the session');
+      A.eq(filesHolding(agentDir, PARK_BIG), [], 'park: and still no file does');
+    });
 
     // ---------------- overflow
     await leg('overflow', async () => {

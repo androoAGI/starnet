@@ -13,7 +13,9 @@
           anything stamped at or after its start hides its later rows
      r4   control for the cost side: a session deleted BEFORE the lead began leaves its rows visible, with and without a restart
      r5   the conservative boundary: an unrelated session is deleted after the lead started and before the relay saturated it: every lead row drained after
-          the saturation is hidden, the ones before stay, with and without a restart */
+          the saturation is hidden, the ones before stay, with and without a restart
+     r6   the delete lands while the worker that read S is still running (its next model call is held): the lead above it holds S through the live chain, so
+          the delete stops the lead too (it ends cancelled), and no model call made after the delete carries a word of S */
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path');
 const { station, seedRows, rowsText, gate, sleep, until } = require('./helpers/forget-quotes.js');
@@ -21,7 +23,7 @@ const { station, seedRows, rowsText, gate, sleep, until } = require('./helpers/f
 const WORKER = { agentId: 'worker-1', system: 'WORKER_MARK you are a worker.', name: 'WORKER', model: 'test/model', provider: 'openrouter', approvalMode: 'ask' };
 const at0 = Date.now() - 3600 * 1000;
 const word = id => 'Sent-' + id;
-const GROUP = { a: ['amber', 1, 15, 'a'], b: ['brass', 16, 30, 'a'], r1: ['cobalt', 1, 5, 'q'], r2: ['delta', 6, 10, 'q'], r4: ['epsilon', 11, 15, 'q'], r5: ['zeta', 16, 20, 'q'], r3: ['eta', 21, 25, 'q'] };
+const GROUP = { a: ['amber', 1, 15, 'a'], b: ['brass', 16, 30, 'a'], r1: ['cobalt', 1, 5, 'q'], r2: ['delta', 6, 10, 'q'], r4: ['epsilon', 11, 15, 'q'], r5: ['zeta', 16, 20, 'q'], r3: ['eta', 21, 25, 'q'], r6: ['fennec', 26, 30, 'q'] };
 const nid = (prefix, n) => prefix + String(n).padStart(2, '0');
 const sentinels = text => Array.from(new Set(String(text).match(/Sent-[aqu]\d\d/g) || []));
 
@@ -34,11 +36,12 @@ const sentinels = text => Array.from(new Set(String(text).match(/Sent-[aqu]\d\d/
   const idsOf = rows => rows.map(r => r.rowId);
   const lastTool = ctx => ctx.toolResults[ctx.toolResults.length - 1] || '';
   // the scripted model: a worker (its system says so) recalls its group and reports the words it found; a lead plays the script the leg gave it
-  const lead = {};
+  const lead = {}, workerHold = {};
   const behave = ctx => {
     if (/WORKER_MARK/.test(ctx.system)) {
       const tag = (/\((r\d)\)/.exec(ctx.userText) || [])[1];
       if (!tag || !GROUP[tag]) return { text: 'nothing to do' };
+      if (workerHold[tag] && ctx.made('recall_conversation') > 0) return { hold: workerHold[tag], partial: 'WORKER PARTIAL (' + tag + '): ' + sentinels(lastTool(ctx)).join(' ') };   // a worker that has read its group and is held at its next call
       return ctx.made('recall_conversation') === 0 ? { tool: 'recall_conversation', args: { query: GROUP[tag][0], scope: 'all', limit: 20 } } : { text: 'WORKER REPORT (' + tag + '): ' + sentinels(lastTool(ctx)).join(' ') };
     }
     const tag = (/\((r\d)\)/.exec(ctx.userText) || [])[1];
@@ -68,7 +71,7 @@ const sentinels = text => Array.from(new Set(String(text).match(/Sent-[aqu]\d\d/
     for (const u of ['u01', 'u02']) rows.push({ streamId: u, agentId: 'agent', role: 'assistant', content: 'unrelated ' + word(u), ts: at0 + 5, turnId: 'seed_' + u + '_01', kind: 'turn', taint: null, taintKnown: true });
     await seedRows(rig, rows);
     const all = [...new Set(rows.map(r => r.streamId))];
-    await rig.list(...all.map(id => [id, 'session ' + id]), ['l1', 'lead one'], ['l2', 'lead two'], ['l3', 'lead three'], ['l3b', 'lead three b'], ['l4', 'lead four'], ['l5', 'lead five']);
+    await rig.list(...all.map(id => [id, 'session ' + id]), ['l1', 'lead one'], ['l2', 'lead two'], ['l3', 'lead three'], ['l3b', 'lead three b'], ['l4', 'lead four'], ['l5', 'lead five'], ['l6', 'lead six']);
 
     // after-the-fact checks every leg shares: what the lead's rows say, and what a model is handed
     const rowsAfter = rowsOf;
@@ -157,6 +160,23 @@ const sentinels = text => Array.from(new Set(String(text).match(/Sent-[aqu]\d\d/
       A.ok(!rowsText(afterDelete).includes('The worker reported'), 'r5: the lead\'s answer is hidden');
       await rig.restart();
       A.eq(idsOf(await rowsAfter('l5')), idsOf(afterDelete), 'r5: with and without a restart');
+    });
+
+    // ---------------- r6: the delete lands while the worker runs
+    await leg('r6', async () => {
+      const held = gate();
+      workerHold.r6 = held;
+      lead.r6 = leadScript('r6', { reads: 0 });
+      const t = await rig.run('l6', 'ask the worker to look (r6)', {}, { detach: true });
+      await held.wait();   // the worker has read its group (the live chain gave the lead those sessions) and its next model call is held; the lead waits in team.dispatch
+      const S = 'q26';
+      const del = await rig.forget(S);
+      held.release();
+      await Promise.race([t.done, sleep(30000)]);
+      A.eq(t.end && t.end.reason, 'cancelled', 'r6: the delete stopped the lead too, through the worker\'s reads it holds (the existing stop path): ' + JSON.stringify(t.events.slice(-6).map(e => [e.name, e.payload && (e.payload.reason || e.payload.message || e.payload.name)])));
+      A.eq(up.bodies.filter(b => b.at >= del.at && b.text.includes(word(S))).length, 0, 'r6: no model call made after the delete carries a word of ' + S);
+      A.ok(!rowsText(await rowsAfter('l6')).includes(word(S)), 'r6: the lead\'s rows hold no word of ' + S);
+      A.eq(await replayHas('l6', [word(S)]), [], 'r6: model-replay hands the lead nothing of ' + S);
     });
 
     // ---------------- r3: not live, record gone
