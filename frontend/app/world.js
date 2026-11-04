@@ -2480,10 +2480,11 @@ const World = (() => {
   /* THE CINECAM RESTS when the station is TRULY idle. The auto-director is for when the Commander is away and the crew is
      living: it trails walkers and cuts between them, so the floor is never still and draws at the full visible pace for
      as long as the window is left open (perf-idle-ab P6, "the true left-open state"). With the flag on it stands down
-     once nobody has touched the window for its takeover time PLUS CINE_REST_MS, and no run has been live for CINE_REST_MS:
-     the camera stays exactly where the last shot left it, and the floor falls to the still pace Andrew approved on 10-21
-     (30 redraws/s of an unchanged scene; every moving thing still draws at 60, 144 while panning). Any hand on the window
-     or any live run ends the rest: the director comes back on its own rules. Nothing caps a frame rate here. */
+     once nobody has touched the window for its takeover time PLUS CINE_REST_MS, and no run has been live and no wake event
+     has been heard for CINE_REST_MS (no hand, no live run, no wake event): the camera stays exactly where the last shot left it,
+     and the floor falls to the still pace Andrew approved on 10-21 (30 redraws/s of an unchanged scene; every moving thing
+     still draws at 60, 144 while panning). Any hand on the window, any live run or any wake event ends the rest: the director
+     comes back on its own rules. Nothing caps a frame rate here. */
   const CINE_REST_MS = 5 * 60000;
   let idleRenderer = false, runSeenAt = 0, cineRestMs = CINE_REST_MS;
   function setCinecamRest(ms) { cineRestMs = Math.max(1000, +ms || CINE_REST_MS); }   // DEV knob (perf-idle-ab P7 only), like setCinecamIdle
@@ -2492,20 +2493,69 @@ const World = (() => {
     idleRenderer = q != null ? (q === '1' || q === 'on') : (typeof localStorage !== 'undefined' && localStorage.getItem('starnet.idleRenderer') === '1');
   } catch (_) {}
   function liveRunCount() { let n = 0; for (const runs of liveRunsByAgent.values()) n += runs.size; return n; }
-  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live
+  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live, restWakeOn when a wake event is heard
   function cineRested(now) {
     if (!idleRenderer || liveRunCount() > 0) return false;   // a working station is not idle, whatever the camera says
     return now - camUserAt >= cineIdleMs + cineRestMs && now - runSeenAt >= cineRestMs;
   }
+  /* WHAT ELSE ENDS THE REST: news that starts no run. A live run ends the rest by being live (liveRunCount), but a channel
+     message the dish only pulses for, a permission prompt, a deliverable or an alert starts none, and on its own it left the
+     camera rested and every crew body settled while only the frame pace woke, for one frame. Every event name the world hears
+     is listed once below. WAKE ends the rest the way a run does: restWakeOn stamps runSeenAt (the rest returns CINE_REST_MS
+     later), wakeSettledCrew hands every settled body its next decision on the same tick, and the motionWake tap beside it draws
+     the next vsync. QUIET never does: it is run traffic liveRunCount already owns, housekeeping, or the work of a hand. Tying the
+     rest to motionWake itself is wrong: polls, reconciles and an SSE reopen call it all day, and the station would never rest.
+     The idle-renderer test walks every U.bus.on in this file, so a new event cannot reach the floor unclassified. */
+  const REST_WAKE_EVENTS = new Set([
+    'channel.inbound',       // a message arrived (the dish pulses even when no run starts)
+    'permission.prompt',     // somebody has to answer
+    'deliverable',           // a finished product landed
+    'workitem.placed',       // a crate was placed on the line (a summon)
+    'cron.result',           // a routine reported in
+    'capdenied',             // a capability was refused
+    'credits.low',           // an alert about the money
+    'budget.threshold',      // an alert about the money
+    'agent.run.error'        // a run failed
+  ]);
+  const REST_QUIET_EVENTS = new Set([
+    // run traffic: liveRunCount() holds the rest open while a run lives, and the last live frame stamped runSeenAt
+    'agent.run.start',       // the run is live from this event on (liveRunCount)
+    'agent.run.end',         // the rest waits CINE_REST_MS after the run's last live frame
+    'agent.tool_call',       // work inside a live run
+    'agent.tool_result',     // work inside a live run
+    'agent.token',           // every token of a live run (chatter)
+    'agent.cost',            // a live run's bill
+    'cost.estimate',         // a live run's running estimate
+    'provider.fallback',     // a live run changed provider
+    'taskbrief.settled',     // a live run's brief
+    'shell.exec',            // a tool's effect inside a live run
+    'verify.result',         // a tool's verdict inside a live run
+    'task',                  // progress of a task that is already running
+    // housekeeping: counters, receipts and bookkeeping, never news
+    'queue.status',          // backlog depth, repeated
+    'workitem.superseded',   // a crate replaced by a newer one
+    'workitem.delivered',    // the end of work a run owned
+    'channel.delivery',      // the receipt of an answer that was news when it was asked
+    'memory.recall',         // the memory's own bookkeeping
+    'memory.write',          // the memory's own bookkeeping
+    'memory.forget',         // the memory's own bookkeeping
+    // the work of a hand (camUserAt already ended the rest) or the answer to news
+    'checkpoint.restored',   // a hand rewound the station
+    'permission.response',   // the answer to a prompt that was news when it came
+    // link state
+    'channel.connect'        // a connector came or went
+  ]);
+  function restWakeOn(ev) { if (idleRenderer && REST_WAKE_EVENTS.has(ev)) runSeenAt = performance.now(); }   // the second U.bus.tap (connectChannelBridge)
   /* THE CREW SETTLE (the idle renderer's second half: option A of the 11-02 design note, approved 11-03). A rested camera alone
      left a P7 floor drawing ~47 times a second: the idle crew kept wandering and running their social life on screen, and every
      on-screen body that moves books a full-pace frame. While the station rests (cineRested: ONE rule, so the flag, the hands-off
-     time and the no-live-run window are the camera's), a body reaching its next idle decision starts nothing new (no wander,
-     quirk, nap, social beat, chase, mimic, rounds or gathering) and holds still where it stands (standStill: no glance, no
-     swivel). Whatever it was doing when the rest began, it finishes first. Blinks and clock-driven pose frames go on as single due
-     frames, so the floor falls to the still pace. The first hand on the window or a live run ends the rest, and wakeSettledCrew
-     (run in the tick BEFORE any body steps) hands every settled body its next idle decision on that same tick. While the station
-     is in use nothing here runs; with the flag off cineRested is never true, so nothing here ever changes a body. */
+     time and the no-live-run, no-wake-event window are the camera's), a body reaching its next idle decision starts nothing new
+     (no wander, quirk, nap, social beat, chase, mimic, rounds or gathering) and holds still where it stands (standStill: no glance,
+     no swivel). Whatever it was doing when the rest began, it finishes first. Blinks and clock-driven pose frames go on as single
+     due frames, so the floor falls to the still pace. The first hand on the window, a live run or a wake event (a message that
+     starts no run, a prompt, a deliverable, an alert: REST_WAKE_EVENTS) ends the rest, and wakeSettledCrew (run in the tick BEFORE
+     any body steps) hands every settled body its next idle decision on that same tick. While the station is in use nothing here
+     runs; with the flag off cineRested is never true, so nothing here ever changes a body. */
   const CREW_REST_HOLD_MS = 30000;   // a settled body re-checks the rest this often (a wake never waits for it)
   let crewSettling = false;          // some body may be settled: the wake loop runs only while this is set
   function crewRestGate(now) {       // decideIdle's first word while the station rests (self = the deciding body)
@@ -11530,6 +11580,7 @@ const World = (() => {
     // STILL: every harness event that reaches a listener (SSE-bridged or the in-app run stream) wakes a still floor, so what
     // it starts — a body summoned, a crate placed, a desk lighting — is drawn on the next vsync
     if (typeof U.bus.tap === 'function') U.bus.tap(motionWake);
+    if (typeof U.bus.tap === 'function') U.bus.tap(restWakeOn);   // IDLE RENDERER (flag): and the few events that are news (REST_WAKE_EVENTS) end the rest as a run does; chatter never does
     setupTicker();   // join the .cam-hud overlay (starts empty — no fake backfill)
     // ── CAM-HUD ACTIVITY TICKER: narrate the latest REAL harness event as one diegetic camera line. ──
     U.bus.on('agent.run.start', p => {

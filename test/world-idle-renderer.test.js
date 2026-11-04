@@ -1,8 +1,9 @@
 /* node test/world-idle-renderer.test.js — THE IDLE RENDERER (wave 5, behind a flag: gh#69, gh#114, bug 9256a771, email E55).
 
-   An idle station should cost close to nothing, without lowering the visible frame rate. Two classes, each executed on the
-   real code, each failing on the commit below it (c9a51fa73, and 0b8441064), where the auto-director trailed walkers for as
-   long as a window was left open and every material was painted into its own canvas at boot:
+   An idle station should cost close to nothing, without lowering the visible frame rate. Three classes, each executed on the
+   real code, each failing on the commit below it (c9a51fa73, 0b8441064, and 6b9730864), where the auto-director trailed walkers
+   for as long as a window was left open, every material was painted into its own canvas at boot, and a message that started
+   no run left the resting station asleep:
 
      1. THE CINECAM RESTS — with the flag on, a station nobody has touched for the takeover time plus CINE_REST_MS, with no
         run live for CINE_REST_MS, has its auto-director stand down and stay down; a hand on the window or a live run brings
@@ -11,6 +12,12 @@
      1b. THE CREW SETTLE — while the station rests, a body's next idle decision starts nothing new and holds it still, the
         frame judge reads the settled floor (crew and hero) as no motion, and the first touch or a live run wakes every settled
         body on that same tick. Fails on 199227f14, where the rested camera still watched the crew wander at ~47 draws/s.
+     1c. A MESSAGE THAT STARTS NO RUN ENDS THE REST — one rule for a run and for news: no hand, no live run, no wake event for
+        CINE_REST_MS. A channel message the dish only pulses for, a permission prompt, a deliverable, a summon, a routine's report
+        or an alert (REST_WAKE_EVENTS) emitted on the real util.js bus ends the rest, wakes every settled body on that same tick
+        and lets the rest return CINE_REST_MS later; background chatter (tokens, queue depth, cost, memory, link state, tool
+        traffic) never does, and neither does motionWake itself, which polls and reconnects call all day. Every event the world
+        hears is classified wake or quiet. Fails on 6b9730864, where only the frame pace woke and the crew stayed asleep.
      2. LAZY ART — with the flag on, no material is painted at boot; one is painted the first time something draws it, at
         most ART_LRU_MAX are held, least recently used out first, and an evicted one is painted again on its next draw. With
         the flag off every material is painted at boot, as before. */
@@ -169,6 +176,140 @@ function floor(flagOn) {
   const gGate = glanceSrc.indexOf('if (agent.restSettled && agent.stilling) return;');
   A.ok(gGate > 0 && gGate < glanceSrc.indexOf('THE LOOK-UP'), 'maybeGlance: a settled hero makes no look-up and no swivel');
   A.ok(/crewSettled: crewSettledCount\(\)/.test(world), 'cameraDbg reports how many bodies are settled (perf-idle-ab P7 reads it)');
+}
+
+/* ---- 1c. A MESSAGE THAT STARTS NO RUN ENDS THE REST (the production wiring: the real util.js U.bus, the tap statements of
+   connectChannelBridge, and restWakeOn, both event sets, motionWake, cineRested, crewRestGate and wakeSettledCrew sliced from
+   world.js; fakes only for the bodies and the clock). A live run ends the rest by being live. A channel message that starts
+   no run (the dish pulses, nothing runs), a permission prompt, a deliverable, a summon or an alert left the camera rested and
+   every body settled: only the frame pace woke, for one frame. The wake itself is 1b's (wakeSettledCrew runs in the tick before
+   any body steps); this class pins what stamps the rest, and what must never. ---- */
+const utilSrc = fs.readFileSync(path.join(ROOT, 'frontend/js/util.js'), 'utf8');
+const stripped = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.*$/gm, '$1');
+const wcode = stripped(world);
+// The product call (Andrew decision 1 of the 11-04 idle-renderer plan; the default taken until he says otherwise): what is news to a
+// resting station. Everything else the world hears is chatter.
+const WAKE = ['channel.inbound', 'permission.prompt', 'deliverable', 'workitem.placed', 'cron.result', 'capdenied', 'credits.low', 'budget.threshold', 'agent.run.error'];
+const CHATTER = ['agent.token', 'queue.status', 'cost.estimate', 'memory.recall', 'channel.connect', 'agent.tool_call', 'task', 'shell.exec', 'verify.result'];
+// every event name the world hears: each literal U.bus.on('name', and the one loop over an array of names
+const heard = new Set();
+{
+  let literal = 0, looped = 0;
+  for (const m of wcode.matchAll(/U\.bus\.on\('([^']+)'/g)) { heard.add(m[1]); literal++; }
+  for (const m of wcode.matchAll(/for \(const (\w+) of \[([^\]]*)\]\) U\.bus\.on\(\1,/g)) { looped++; for (const n of m[2].match(/'[^']+'/g) || []) heard.add(n.slice(1, -1)); }
+  A.eq((wcode.match(/U\.bus\.on\(/g) || []).length, literal + looped, 'the walk reads every U.bus.on in world.js (a literal event name, or the one array loop)');
+  A.ok(heard.size >= 25 && WAKE.concat(CHATTER).every(n => heard.has(n)), 'the world hears the whole event vocabulary the rest cares about (' + heard.size + ' names)');
+}
+const namesIn = re => { const m = wcode.match(re); return m ? (m[1].match(/'[^']+'/g) || []).map(s => s.slice(1, -1)) : []; };
+const wakeNames = namesIn(/const REST_WAKE_EVENTS = new Set\(\[([\s\S]*?)\]\);/), quietNames = namesIn(/const REST_QUIET_EVENTS = new Set\(\[([\s\S]*?)\]\);/);
+{
+  A.eq(wakeNames.slice().sort(), WAKE.slice().sort(), 'REST_WAKE_EVENTS is exactly the product call: a message, a prompt, a deliverable, a summon, a routine report, an alert');
+  A.eq([...heard].filter(n => !wakeNames.includes(n) && !quietNames.includes(n)).sort(), [], 'every event the world hears is classified wake or quiet: a new event cannot reach the floor unclassified');
+  A.eq([...wakeNames, ...quietNames].filter(n => !heard.has(n)), [], 'both sets name only events the world hears (a wake event nobody hears would never reach the bus tap)');
+  A.eq(wakeNames.filter(n => quietNames.includes(n)), [], 'no event is both wake and quiet');
+  A.eq(new Set(wakeNames.concat(quietNames)).size, wakeNames.length + quietNames.length, 'each event is listed once');
+  A.ok(CHATTER.every(n => quietNames.includes(n)), 'tokens, queue depth, cost, memory, link state and tool traffic are quiet');
+}
+const restConsts = [/const REST_WAKE_EVENTS = new Set\(\[[\s\S]*?\]\);/, /const REST_QUIET_EVENTS = new Set\(\[[\s\S]*?\]\);/, /const CREW_REST_HOLD_MS = \d+;/].map(lineOf).join('\n');
+const restSrc = ['  function restWakeOn(', '  function motionWake(', '  function crewRestGate(', '  function wakeSettledCrew(', '  function crewSettledCount(', '  function standStill(',
+  '  function cineRested(', '  function liveRunCount('].map(sliceW).join('\n');
+// the production wiring: connectChannelBridge's own tap statements, run as written against the real bus
+const bridgeSrc = A.fnBody(world, '  function connectChannelBridge(');
+A.ok(bridgeSrc.length > 8000 && bridgeSrc.length < world.length / 4 && bridgeSrc.includes("U.bus.on('channel.inbound'"), 'connectChannelBridge is sliced whole (it holds the channel.inbound subscription)');
+const tapStmts = bridgeSrc.match(/if \(typeof U\.bus\.tap === 'function'\) U\.bus\.tap\(\w+\);/g) || [];
+A.ok(tapStmts.includes("if (typeof U.bus.tap === 'function') U.bus.tap(motionWake);"), 'the bridge still taps motionWake, its line untouched (every harness event wakes the frame pace)');
+A.ok(/U\.bus\.tap\(motionWake\);\s*if \(typeof U\.bus\.tap === 'function'\) U\.bus\.tap\(restWakeOn\);/.test(bridgeSrc), 'and taps restWakeOn right after it (the rest is a second tap, not a change to the first)');
+function wired(flagOn, unheard) {
+  const sb = { console, window: {}, document: {}, navigator: {}, setTimeout, clearTimeout };
+  vm.createContext(sb); vm.runInContext(utilSrc + '\nthis.U = U;', sb);
+  const U = sb.U, clock = { t: 0 }, reached = [];
+  U.irnd = a => a;
+  const h = new Function('U', 'flagOn', 'REST', 'clock', `
+    const performance = { now: () => clock.t };
+    ${restConsts}
+    const offbeat = (now, ms) => ms;
+    let camUserAt = 0, cineIdleMs = 120000, idleRenderer = flagOn, runSeenAt = 0, cineRestMs = REST, crewSettling = false;
+    let stillNow = true, stillKick = false, stillWhy = '', paceWakes = 0;
+    function paceWake() { paceWakes++; }
+    const liveRunsByAgent = new Map();
+    const mk = id => ({ id, agentId: id, px: 100, py: 100, dir: 'south', state: 'idle', goal: null, glance: null, glanceCd: 0, lookCd: 0, idleUntil: 0, _pose: 'set.rot.south', _renderFrame: 0 });
+    const agent = mk('a'), crew = [mk('b'), mk('c')], all = [agent].concat(crew);
+    let self = null;
+    ${restSrc}
+    ${tapStmts.join('\n    ')}
+    function decide(b, now) { self = b; b.stilling = false; if (crewRestGate(now)) return 'settled'; b.goal = 'wander'; b.state = 'walk'; return 'wander'; }
+    return { all, decide, motionWake, restWakeOn: typeof restWakeOn === 'function' ? restWakeOn : null,
+      settleAll: now => { clock.t = now; for (const b of all) { b.goal = null; b.state = 'idle'; decide(b, now); } },
+      recheck: now => all.map(b => b.idleUntil <= now ? decide(b, now) : 'holding'),
+      dueNow: now => all.every(b => b.idleUntil <= now && b.stilling === false && !b.restSettled),
+      wake: now => wakeSettledCrew(now), count: () => crewSettledCount(), rested: now => cineRested(now),
+      seen: () => runSeenAt, paceWakes: () => paceWakes, framePaceKicked: () => stillNow === false && stillKick === true };`)(U, flagOn, restMs, clock);
+  for (const n of heard) if (n !== unheard) U.bus.on(n, () => {});   // the world's own listeners: an emit with none reaches no tap
+  U.bus.tap(ev => reached.push(ev));              // a probe AFTER the production taps: the event got as far as the tap stage
+  return Object.assign(h, { U, clock, reached });
+}
+{
+  const takeover = 120000, rest = takeover + restMs + 1, wakeAt = rest + 30000;
+  for (const ev of WAKE) {
+    const w = wired(true);
+    w.settleAll(rest);
+    A.eq([w.rested(rest), w.count()], [true, 3], ev + ': the station rests and every body (hero and crew) is settled');
+    w.clock.t = wakeAt;
+    w.U.bus.emit(ev, {});
+    A.ok(w.reached.includes(ev), ev + ': the event reached the bus tap stage (the world listens for it)');
+    A.eq(w.rested(wakeAt), false, ev + ': a message that starts no run ends the rest');
+    w.wake(wakeAt);
+    A.eq([w.count(), w.dueNow(wakeAt)], [0, true], ev + ': the next tick wakes every settled body, each due its next decision on that same tick');
+    A.eq([w.paceWakes(), w.framePaceKicked()], [1, true], ev + ': and the frame pace wakes through the existing motionWake tap (the next vsync draws it)');
+    A.eq([w.rested(wakeAt + restMs - 1), w.rested(wakeAt + restMs)], [false, true], ev + ': the rest holds off for CINE_REST_MS, then returns (the same price a run pays)');
+    w.settleAll(wakeAt + restMs);
+    A.eq(w.count(), 3, ev + ': left alone again, the floor settles again');
+  }
+  // a wake event keeps waking: each one pushes the return of the rest out from ITS time
+  const again = wired(true);
+  again.settleAll(rest);
+  again.clock.t = wakeAt; again.U.bus.emit('channel.inbound', {});
+  again.clock.t = wakeAt + 4 * 60000; again.U.bus.emit('deliverable', {});
+  A.eq([again.rested(wakeAt + restMs), again.rested(wakeAt + 4 * 60000 + restMs - 1), again.rested(wakeAt + 4 * 60000 + restMs)], [false, false, true], 'a second wake event four minutes later restarts the rest clock from its own time');
+
+  // background chatter never ends a rest: every quiet event the world hears, at 1/s for ten simulated minutes
+  const chatter = [...new Set(CHATTER.concat(quietNames))];
+  const q = wired(true);
+  q.settleAll(rest);
+  const decisions = new Set();
+  for (let s = 1; s <= 600; s++) {
+    const t = rest + s * 1000;
+    q.clock.t = t;
+    q.U.bus.emit(chatter[(s - 1) % chatter.length], {});
+    q.wake(t);
+    for (const d of q.recheck(t)) decisions.add(d);
+  }
+  A.eq([q.rested(rest + 600000), q.count(), q.seen()], [true, 3, 0], 'ten minutes of chatter at 1 event/s (' + chatter.length + ' kinds): the station still rests, every body still settled, the rest never stamped');
+  A.eq([...decisions].sort(), ['holding', 'settled'], '...every 30 s re-check of a settled body found the rest holding (none started a beat)');
+  A.eq([q.reached.length, q.paceWakes()], [600, 600], '...and every one of them reached the bus tap and woke the frame pace, so the guard is not vacuous: the rest is not the frame pace');
+  // motionWake alone (the polls, the snapshot reconcile, an SSE reopen, setActivityFor with no run) never ends the rest
+  const m = wired(true);
+  m.settleAll(rest);
+  for (let i = 0; i < 1000; i++) { m.clock.t = rest + i; m.motionWake(); }
+  A.eq([m.rested(rest + 1000), m.count(), m.seen(), m.paceWakes()], [true, 3, 0, 1000], 'motionWake called all day wakes the frame pace and nothing else: the rest is not tied to it');
+  // the one way a wake event is lost: U.bus.emit returns early when nobody listens, so no tap runs. The ratchet above (both sets
+  // name only events the world hears) is what keeps every wake event heard.
+  const deaf = wired(true, 'channel.inbound');
+  deaf.settleAll(rest);
+  deaf.clock.t = wakeAt; deaf.U.bus.emit('channel.inbound', {});
+  A.eq([deaf.reached.length, deaf.rested(wakeAt)], [0, true], 'a wake event the world did not listen for reaches no tap and ends no rest (why every wake event must be heard)');
+
+  // the flag off (the default): restWakeOn is inert — nothing is stamped, nobody settles, the crew live as before
+  const off = wired(false);
+  off.settleAll(rest);
+  A.eq([off.count(), off.rested(rest)], [0, false], 'flag off: the station never rests and no body settles');
+  for (const ev of WAKE) { off.clock.t = wakeAt; off.U.bus.emit(ev, {}); }
+  A.eq([off.seen(), off.rested(wakeAt), off.count()], [0, false, 0], 'flag off: every wake event is heard and stamps nothing (restWakeOn is inert)');
+  A.eq(off.decide(off.all[1], wakeAt), 'wander', 'flag off: a body\'s next decision starts its beat, as before');
+
+  // the stamp's writers: its declaration, the live-run stamp in cinecamTick, and restWakeOn. motionWake and paceWake never touch the rest.
+  A.eq((wcode.match(/\brunSeenAt\s*=[^=]/g) || []).length, 3, 'runSeenAt has exactly three writers: its declaration, the live-run stamp in cinecamTick, and restWakeOn');
+  A.ok(!/runSeenAt|camUserAt/.test(A.fnBody(wcode, '  function motionWake(') + A.fnBody(wcode, '  function paceWake(')), 'motionWake and paceWake do not touch the rest');
 }
 
 /* ---- 2. LAZY ART (the real industrialtextures.js in a vm) ---- */
