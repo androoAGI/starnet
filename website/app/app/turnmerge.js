@@ -362,11 +362,20 @@ function legacyMerge(local, turns) {
       const out = Object.assign({}, row, { idFrom: 'collision' }); delete out.rowId; return out;
     });
   }
+  /* THE TRIMMED MARKER. chat.js capHistory records a local drop as ONE leading row, { role:'system', truncated:true }. The
+     frozen legacyMerge keeps user/assistant rows only (and is byte-pinned as the rollback owner), so every reload through
+     the legacy path erased the line and the thread read as complete. The local marker goes back FIRST, once, byte for
+     byte, when dialogue follows it; a history without one never gains one. The id merge words its own from station
+     evidence (R7) and is not touched here. */
+  const markerRow = r => objectRow(r) && r.truncated === true && r.role === 'system';
   function legacyWithIdentity(local, station, identity) {
-    return demoteRows(legacyMerge(filterLocal(local, identity), station), station, identity);
+    const mine = filterLocal(local, identity), lead = markerRow(mine[0]) ? mine[0] : null;
+    const rows = demoteRows(legacyMerge(mine, station), station, identity);
+    return lead && rows.some(r => objectRow(r) && (r.role === 'user' || r.role === 'assistant')) ? [lead].concat(rows) : rows;
   }
   function compare(a, b) {
-    const aa = Array.isArray(a) ? a : [], bb = Array.isArray(b) ? b : [];
+    // the marker is presentation (the legacy merge keeps the page's wording, the id merge words its own): never a divergence
+    const aa = (Array.isArray(a) ? a : []).filter(r => !markerRow(r)), bb = (Array.isArray(b) ? b : []).filter(r => !markerRow(r));
     const left = aa.map(diagnosticKey), right = bb.map(diagnosticKey);
     const subtract = (one, other) => {
       const counts = new Map(); for (const k of other) counts.set(k, (counts.get(k) || 0) + 1);

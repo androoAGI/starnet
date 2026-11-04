@@ -529,6 +529,7 @@ test/runstore.identity.test.js
 test/turn-merge.family.test.js
 test/turnmerge.test.js
 test/turnmerge.review.test.js
+test/turnmerge.trimmed-marker.test.js
 test/turn-dual.test.js
 test/save-merge.identity.test.js
 test/turnmerge.phone.test.js
