@@ -461,6 +461,92 @@ const R = rowsOf(10);
     await mustKill('claim: snap down', "    end = h;\n", "    end = h + 1;\n", async C => { const sc = base(); return via(C, sc, cutAt(sc, 5)).end === userIndex(sc.rows, 4) && via(C, sc, cutAt(sc, 6)).end === userIndex(sc.rows, 5); }, 'summary-cover.js');
   }
 
+  // ================= 8b. a stored note replaces only what it covers (summary-cover.js substitution) =================
+  {
+    let cases = 0, over = 0, replaced = 0, kept = 0, after = 0;
+    for (const n of [6, 11]) for (const tools of [false, true]) for (const [from, lead] of [[0, false], [3, false], [3, true]]) {
+      const sc = scene(n, tools, from, lead);
+      const tag = 'n=' + n + (tools ? ' tools' : '') + ' from=' + from + (lead ? ' lead' : '');
+      for (let e = 1; e < n; e++) {                          // a record claiming every exchange boundary of the chat in turn
+        cases++;
+        const end = userIndex(sc.rows, e);
+        const sub = Cover.substitution({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows, record: { rows: end } });
+        if (sc.alignment.cut > end) { after++; A.eq(sub.reason, 'window-after', tag + ' e=' + e + ': a window that opens after the claim leaves a gap the note does not cover: not used'); continue; }
+        A.ok(sub.ok, tag + ' e=' + e + ': a window that opens inside or at the claim can be served (' + (sub.reason || 'ok') + ')');
+        if (!sub.ok) continue;
+        // the truth, from the generator: the messages of exchanges BEFORE e are the claim's; exchange e and later stay
+        const want = sc.win.map((_, k) => k).filter(k => exchangeOf(k, from, lead) < e);
+        A.eq(sub.drop, want, tag + ' e=' + e + ': exactly the messages of the exchanges the note covers are replaced');
+        if (sub.drop.some(k => exchangeOf(k, from, lead) >= e)) over++;
+        replaced += sub.drop.length; kept += sc.win.length - sub.drop.length;
+      }
+    }
+    A.eq(over, 0, 'a stored note never replaces a message of an exchange it does not cover (' + cases + ' claims)');
+    A.ok(replaced > 50 && kept > 50 && after > 0, 'the sweep replaced ' + replaced + ' messages, kept ' + kept + ', and met ' + after + ' windows that open after the claim');
+    const sc = scene(8, true, 2, false);
+    const rec = { rows: userIndex(sc.rows, 5) };
+    const sub = args => Cover.substitution(Object.assign({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows, record: rec }, args || {}));
+    A.eq(sub({ record: { rows: sc.rows.length + 1 } }).reason, 'claim-beyond-rows', 'a claim beyond the rows is not served');
+    A.eq(sub({ alignment: { cut: -1, index: [] } }).reason, 'window-unplaced', 'a window nothing places is not served');
+    A.eq(sub({ rows: sc.rows.filter(r => r.rowId !== sc.rows[userIndex(sc.rows, 3)].rowId) }).reason, 'row-gone', 'a tagged row that left the view is not served');
+    A.eq(sub({ window: [sc.win[2], sc.win[0]].concat(sc.win.slice(3)) }).reason, 'order', 'a window out of canonical order is not served');
+    A.eq(sub({ streamId: 'ws_other' }).drop, [], 'tags from another stream place nothing, so nothing is replaced');
+    const untagged = sc.win.map(m => ({ role: m.role, content: m.content }));
+    A.eq(Cover.substitution({ streamId: 'ws_a', window: untagged, alignment: sc.alignment, rows: sc.rows, record: rec }).drop, [], 'an untagged message is never replaced: it stays exactly as the client sent it');
+    // the composition: serve a stored note, then fold again in the same run; the second claim extends the first
+    const served = scene(11, true, 0, false);
+    const stored = Cover.tagNote({ role: 'system', content: note('stored') }, { source: 'record', rows: userIndex(served.rows, 5), toRowId: served.rows[userIndex(served.rows, 5) - 1].rowId, taint: null, quoted: false });
+    const s2 = Cover.substitution({ streamId: 'ws_a', window: served.win, alignment: served.alignment, rows: served.rows, record: { rows: userIndex(served.rows, 5) } });
+    const remaining = served.win.filter((_, k) => !s2.drop.includes(k));
+    A.eq(remaining[0].content, 'Request 5: question number 5', 'after the substitution the window opens on the exchange the note ends at');
+    const again = Cover.claimFold({ streamId: 'ws_a', rows: served.rows, older: remaining.slice(0, 5), kept: [], tailHead: remaining[5], prevNote: stored, startRows: 0 });
+    A.ok(again.ok && again.prefix === userIndex(served.rows, 5) && again.end === userIndex(served.rows, 7) && again.progress, 'a fold after a served note merges onto it: its claim starts at the note\'s end and extends it (' + JSON.stringify(again) + ')');
+  }
+  // serving: the stored note takes the earlier note's place, byte for byte, and what it carries is latched
+  {
+    const servedScene = Lib => {
+      const sc = scene(8, false, 3, false);
+      const sys = { role: 'system', content: 'You are a station agent.' };
+      const msgs = [sys, sc.prev].concat(sc.win, [sc.directive]);
+      const record = { rows: userIndex(sc.rows, 5), toRowId: sc.rows[userIndex(sc.rows, 5) - 1].rowId, noteBody: note('the stored summary, exactly'), taint: 'web page example.com', quoted: true };
+      const sub = Lib.substitution({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows, record });
+      const out = Lib.serve({ msgs, window: sc.win, drop: sub.drop, earlier: sc.prev, record });
+      return { sc, sys, msgs, record, sub, out };
+    };
+    const { sc, sys, msgs, record, sub, out } = servedScene(Cover);
+    A.eq(out.msgs[0], sys, 'the system prompt stays first');
+    A.eq(out.msgs[1].content, record.noteBody, 'the stored note follows it, byte for byte');
+    A.eq(out.msgs.filter(m => m.role === 'system' && /^<conversation_summary>/.test(m.content)).length, 1, 'and it is the only summary note: the free earlier note gave way');
+    A.eq(out.msgs.slice(2), sc.win.filter((_, k) => !sub.drop.includes(k)).concat([sc.directive]), 'the rest is the client\'s window minus the exchanges the note covers, in order, then the directive');
+    A.eq(Cover.coverOf(out.note), { source: 'record', rows: record.rows, toRowId: record.toRowId, taint: 'web page example.com', quoted: true }, 'the served note carries its coverage, so a fold in this run merges onto it');
+    A.eq([out.taint, out.quoted], ['web page example.com', true], 'a tainted, quoted-material record hands the host both latches');
+    A.eq(msgs.length, 2 + sc.win.length + 1, 'the input array is not mutated');
+    const clean = Cover.serve({ msgs, window: sc.win, drop: sub.drop, earlier: sc.prev, record: Object.assign({}, record, { taint: null, quoted: false }) });
+    A.eq([clean.taint, clean.quoted], [null, false], 'a clean record latches nothing');
+    A.eq(Cover.taintOfFold({ covered: [{ taint: null }, { taint: 'web page a' }, { taint: 'web page b' }], prevCover: { taint: 'prev' }, runTaint: 'run' }), 'web page a', 'a covered row\'s outside content is kept first');
+    A.eq(Cover.taintOfFold({ covered: [{ taint: null }], prevCover: { taint: 'prev' }, runTaint: 'run' }), 'prev', 'else the previous note\'s (a summary of a summary never launders it)');
+    A.eq(Cover.taintOfFold({ covered: [], prevCover: null, runTaint: 'run' }), 'run', 'else the run\'s own, latched when the fold built the note');
+    A.eq(Cover.taintOfFold({ covered: [], prevCover: null, runTaint: null }), null, 'and clean when nothing was read');
+    await mustKill('serve: the earlier note gives way', "  if (i.earlier) gone.add(i.earlier);\n", '', async C => { const s = servedScene(C); return s.out.msgs.filter(m => m.role === 'system' && /^<conversation_summary>/.test(m.content)).length === 1; }, 'summary-cover.js');
+    await mustKill('serve: the covered window messages give way', "const gone = new Set((Array.isArray(i.drop) ? i.drop : []).map(k => i.window[k]));", "const gone = new Set();", async C => { const s = servedScene(C); return s.out.msgs.length === s.msgs.length - s.sub.drop.length; }, 'summary-cover.js');
+    await mustKill('serve: the taint latch', "taint: r.taint || null, quoted: r.quoted === true };", "taint: null, quoted: r.quoted === true };", async C => servedScene(C).out.taint === 'web page example.com', 'summary-cover.js');
+    await mustKill('serve: the quoted latch', "taint: r.taint || null, quoted: r.quoted === true };", "taint: r.taint || null, quoted: false };", async C => servedScene(C).out.quoted === true, 'summary-cover.js');
+    await mustKill('fold taint: a summary of a summary never launders', "(i.prevCover && i.prevCover.taint) || ", '', async C => C.taintOfFold({ covered: [], prevCover: { taint: 'prev' }, runTaint: null }) === 'prev', 'summary-cover.js');
+  }
+  await mustKill('substitution: a window that opens after the claim', "  if (alignment.cut > end) return refuse('window-after');", '', async C => {
+    const sc = scene(8, false, 5, false);
+    return C.substitution({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows, record: { rows: userIndex(sc.rows, 3) } }).reason === 'window-after';
+  }, 'summary-cover.js');
+  await mustKill('substitution: only what the note covers', "    if (o < end) drop.push(k);", "    if (o <= end) drop.push(k);", async C => {
+    const sc = scene(8, false, 0, false);
+    const want = sc.win.map((_, k) => k).filter(k => Math.floor(k / 2) < 4);
+    return JSON.stringify(C.substitution({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows, record: { rows: userIndex(sc.rows, 4) } }).drop) === JSON.stringify(want);
+  }, 'summary-cover.js');
+  await mustKill('substitution: a row that left the view', "    const o = at.get(t.openRowId);\n    if (o === undefined) return refuse('row-gone');\n    if (o < last) return refuse('order');", "    const o = at.get(t.openRowId);\n    if (o < last) return refuse('order');", async C => {
+    const sc = scene(8, false, 0, false);
+    return C.substitution({ streamId: 'ws_a', window: sc.win, alignment: sc.alignment, rows: sc.rows.filter(r => r.rowId !== sc.rows[userIndex(sc.rows, 2)].rowId), record: { rows: userIndex(sc.rows, 5) } }).reason === 'row-gone';
+  }, 'summary-cover.js');
+
   // ================= 9. the loop's hook: after a PAID fold, before agent.compact, never for a lossy one =================
   {
     const { runAgentLoop } = require('../sidecar/loop.js');

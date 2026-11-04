@@ -21,9 +21,13 @@
        presented as history), and it stops at the exchange holding the first thing NOT summarized (the tail's first message,
        or a turn the fold pinned verbatim at the head);
      · rows that left the view since the tags were set (a forget, a retract) are 'row-gone', never guessed around.
-   (The other direction — which window messages a stored note replaces at the next run start — is the read step.) */
+   substitution() is the other direction: given a valid record and the run's window, which window messages the stored note
+   replaces (those of exchanges that start before the claim's end) and whether the note may be used at all (the window must
+   open at or before the claim's end: one that opens after it would leave a gap the note does not cover, and the free
+   earlier note stays). */
 'use strict';
 const TurnView = require('./turn-view.js');
+const EarlierConversation = require('./earlier-conversation.js');   // taintOf: the one rule for "these rows carry outside content"
 
 const COVER = Symbol('starnet.summary.cover');
 
@@ -130,4 +134,56 @@ function claimFold(i) {
   return { ok: true, end, prefix, progress: true };
 }
 
-module.exports = { tagNote, coverOf, tagWindow, claimFold, COVER };
+/* substitution({ window, alignment, rows, record }) -> { ok: true, drop: [window indexes], end } or { ok: false, reason }.
+   The stored note covers rows [0, record.rows). It replaces the window messages of every exchange that starts before that
+   end; messages of later exchanges, and any message nothing placed, stay exactly as the client sent them. */
+function substitution(i) {
+  const refuse = reason => ({ ok: false, reason });
+  const rows = Array.isArray(i && i.rows) ? i.rows : [];
+  const win = Array.isArray(i && i.window) ? i.window : [];
+  const end = i && i.record ? i.record.rows : 0;
+  if (!(end > 0) || end > rows.length) return refuse('claim-beyond-rows');
+  const alignment = i.alignment;
+  if (!alignment || !(alignment.cut >= 0)) return refuse('window-unplaced');
+  if (alignment.cut > end) return refuse('window-after');   // the page's window opens after the claim: a gap the note does not cover
+  const at = new Map();
+  rows.forEach((r, k) => { if (r && Number.isSafeInteger(r.rowId)) at.set(r.rowId, k); });
+  const drop = [];
+  let last = -1;
+  for (let k = 0; k < win.length; k++) {
+    const t = TurnView.tagOf(win[k]);
+    if (!t || t.streamId !== i.streamId) continue;
+    const o = at.get(t.openRowId);
+    if (o === undefined) return refuse('row-gone');
+    if (o < last) return refuse('order');
+    last = o;
+    if (o < end) drop.push(k);
+  }
+  return { ok: true, drop, end };
+}
+
+/* serve({ msgs, window, drop, earlier, record }) -> { msgs, note, taint, quoted }: the run's messages with the stored note
+   in place of what it covers. The window messages named by drop and the free earlier note give way; the stored note, byte for
+   byte, takes the earlier note's place (right after the leading system messages) and is tagged with its coverage so a fold in
+   this run merges onto it. taint and quoted are what the host must latch: a summary of content that read the outside world,
+   or of quoted material, is not clean just because the run that reads it now did nothing wrong. */
+function serve(i) {
+  const gone = new Set((Array.isArray(i.drop) ? i.drop : []).map(k => i.window[k]));
+  if (i.earlier) gone.add(i.earlier);
+  const msgs = i.msgs.filter(m => !gone.has(m));
+  let lead = 0;
+  while (lead < msgs.length && msgs[lead] && msgs[lead].role === 'system') lead++;
+  const r = i.record;
+  const note = tagNote({ role: 'system', content: r.noteBody }, { source: 'record', rows: r.rows, toRowId: r.toRowId, taint: r.taint, quoted: r.quoted });
+  msgs.splice(lead, 0, note);
+  return { msgs, note, taint: r.taint || null, quoted: r.quoted === true };
+}
+
+/* taintOfFold({ covered, prevCover, runTaint }) -> the first outside-content source a new record must keep, or null: a
+   covered row that carries one, else the one the previous note already carried (a summary of a summary never launders it),
+   else the one this run had latched when the fold built the note (its own tool results are summarized into it). */
+function taintOfFold(i) {
+  return EarlierConversation.taintOf(i.covered) || (i.prevCover && i.prevCover.taint) || i.runTaint || null;
+}
+
+module.exports = { tagNote, coverOf, tagWindow, claimFold, substitution, serve, taintOfFold, COVER };

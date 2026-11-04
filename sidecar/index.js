@@ -24823,7 +24823,7 @@ async function runOnceCore(o) {
      THE SAME PLACEMENT FEEDS THE KEPT SUMMARY (summary-ledger.js): every window message is tagged with the row it stands on
      and the user row that opens its exchange, so a fold can say exactly which rows its note stands for; a window nothing
      places is never tagged and never claimed. */
-  const summaryRun = { startedAt: Date.now(), alignment: null };
+  const summaryRun = { startedAt: Date.now(), alignment: null, rows: null, window: null, earlier: null, reusedEvent: null };
   if (!internal && !o.recovery && !o.groupTools && streamId && Array.isArray(convo) && convo.length) {
     try {
       let at = convo.length - 1;
@@ -24834,7 +24834,7 @@ async function runOnceCore(o) {
         const alignment = EarlierConversation.align(rows, window, redact);
         const cut = alignment.cut;
         if (cut >= 0) {
-          summaryRun.alignment = alignment;
+          summaryRun.alignment = alignment; summaryRun.rows = rows; summaryRun.window = window;
           try { SummaryCover.tagWindow(window, alignment, rows, streamId); }
           catch (e) { failNote('run.summaryTag', e); summaryRun.alignment = null; }
         }
@@ -24852,6 +24852,7 @@ async function runOnceCore(o) {
             const earlierMsg = { role: 'system', content: earlier.note };
             msgs.splice(lead, 0, earlierMsg);
             const carried = EarlierConversation.taintOf(dropped);
+            summaryRun.earlier = earlierMsg;
             SummaryCover.tagNote(earlierMsg, { source: 'earlier', rows: cut, toRowId: rows[cut - 1].rowId, taint: carried || null, quoted: false });
             if (carried && !execution.taintedBy()) { latchRunTaint('earlier conversation carried content from ' + String(carried).slice(0, 120)); taintAtStart = execution.taintedBy(); }
             // a pasted document the window dropped is still in the note — bounded by the same learning tail, counted back
@@ -24863,13 +24864,50 @@ async function runOnceCore(o) {
       }
     } catch (e) { failNote('run.earlierConversation', e); }
   }
+  /* A KEPT SUMMARY REPLACES THE PART OF THE CHAT IT COVERS (summary-ledger.js). The part of the chat an earlier run's paid fold
+     summarized is not summarized again: when the stream's record is provably still true — same agent and stream, same route
+     and window it was sized for, same voice, the stream not deleted since the run that wrote it began, none of the streams its
+     rows read deleted, its note intact, and a digest of the canonical rows it covers (the model-replay view, read above) equal
+     to what was written — the window messages of the exchanges it covers and the free earlier note give way to the stored
+     note, byte for byte. A window that opens AFTER the claim would leave a gap the note does not cover: the record is not
+     used and the free earlier note stays. Anything unprovable is simply not used (one more fold, never lost dialogue). The
+     outside content the summary carries is latched like the earlier note's: it was summarized from rows or tool results that
+     may have read the web, and a clean run must not launder it. */
+  const summaryModelKey = () => String(activeProviderId) + '/' + String(model);
+  if (summaryRun.alignment) {
+    try {
+      const record = summaryLedger.get(streamId, agentId);
+      if (record) {
+        const verdict = SummaryLedger.validate(record, { agentId, streamId, modelKey: summaryModelKey(), windowTokens: Math.floor(ctxMgr.contextLimit), ownerVoice: !tasteWithheld,
+          rows: summaryRun.rows, deletedAt: id => sessionTombstones.deletedAt(id), deletedSince: at => sessionTombstones.list().some(e => e.at >= at) });
+        if (!verdict.ok) {
+          // what can never become true again is removed now (a forgotten stream, rows that changed under it, a damaged file); a record
+          // for another model, window or voice may serve a later run on that route, and the next fold overwrites it
+          if (['shape', 'note', 'forgotten', 'quote-forgotten', 'digest'].includes(verdict.reason)) summaryLedger.drop(streamId, agentId).catch(swallow('summary-ledger.drop'));
+          failNote('summary.not-served.' + verdict.reason, new Error('kept summary not served: ' + verdict.reason));
+        } else {
+          const sub = SummaryCover.substitution({ streamId, window: summaryRun.window, alignment: summaryRun.alignment, rows: summaryRun.rows, record });
+          if (!sub.ok) failNote('summary.not-served.' + sub.reason, new Error('kept summary not served: ' + sub.reason));
+          else if (sub.drop.length || summaryRun.earlier) {
+            const beforeTokens = ctxMgr.estimateMessages(msgs);
+            const served = SummaryCover.serve({ msgs, window: summaryRun.window, drop: sub.drop, earlier: summaryRun.earlier, record });
+            msgs = served.msgs;
+            if (served.taint && !execution.taintedBy()) { latchRunTaint('kept summary carried content from ' + String(served.taint).slice(0, 120)); taintAtStart = execution.taintedBy(); }
+            if (served.quoted) replayedQuoted = true;
+            const afterTokens = ctxMgr.estimateMessages(msgs);
+            // announced with the run's start (loopEmit), so the stream still opens on agent.run.start
+            summaryRun.reusedEvent = { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'reused', reused: record.rows, new: 0 };
+          }
+        }
+      }
+    } catch (e) { failNote('run.summaryReuse', e); }
+  }
   /* A PAID FOLD'S SUMMARY IS MADE DURABLE BEFORE ANYTHING RELIES ON IT (summary-ledger.js). loop.js calls this after a paid fold
      committed and BEFORE it emits agent.compact (so before the run can go on, and before it can end): the note the fold built is
      written with the canonical rows it stands for and read back. The claim (summary-cover.js claimFold) is snapped down to the
      exchange the cut fell in and refuses anything it cannot place — a run's own tool turns, a pinned turn, a skipped exchange —
      so it never says more than the fold summarized: an unplaced message is no claim, and no claim costs one more fold, never
      dialogue. A failed write is noted and the fold stands in this run. Returns { reused, new } for agent.compact. */
-  const summaryModelKey = () => String(activeProviderId) + '/' + String(model);
   const persistFold = async (fold) => {
     if (!summaryRun.alignment) return undefined;   // not a run the ledger serves (internal, group, recovery, a window nothing places)
     const prevCover = SummaryCover.coverOf(fold.prevNote);
@@ -24889,7 +24927,7 @@ async function runOnceCore(o) {
       const claimed = SummaryLedger.claimOf(rows, claim.end);
       if (!claimed) { failNote('summary.no-claim.ids', new Error('no kept summary: the covered rows carry no strictly rising durable ids')); return undefined; }
       const stamp = SummaryLedger.quoteUnion(covered);
-      const taint = EarlierConversation.taintOf(covered) || (prevCover && prevCover.taint) || execution.taintedBy() || null;
+      const taint = SummaryCover.taintOfFold({ covered, prevCover, runTaint: execution.taintedBy() });
       const quoted = TrustedLearning.quotedInLearningTail(fold.older.concat(fold.tail));   // the same bounded-tail rule the run start applies to what it replays
       SummaryCover.tagNote(fold.note, { source: 'fold', rows: claim.end, toRowId: claimed.toRowId, taint, quoted });
       const wrote = await summaryLedger.put(Object.assign({ streamId, agentId }, claimed, {
@@ -25088,6 +25126,8 @@ async function runOnceCore(o) {
       bufferedTaskEnd = payload; return;
     }
     emit(name, payload);
+    // a kept summary replaced part of the chat at the start of this run: announced right after the run's own start
+    if (name === 'agent.run.start' && summaryRun.reusedEvent && payload && payload.runId === runId) { const kept = summaryRun.reusedEvent; summaryRun.reusedEvent = null; emit('agent.compact', kept); }
   };
   try {
     // HOOKS — on_session_start. Fired HERE rather than inside loop.js because a "session" is a run as the
