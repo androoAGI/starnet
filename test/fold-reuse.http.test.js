@@ -15,7 +15,14 @@
    The invalidations, on the same chat: another model re-summarizes once; a ledger that cannot be written leaves the run done
    and the next send folds again (no record, no loss); deleting the conversation through the real save route removes the
    file and every copy beside it at once, and a stale page that still holds the history meets neither the forgotten rows nor
-   the stored summary. Nothing in the dialogue is ever dropped without a summary standing in for it. */
+   the stored summary. Nothing in the dialogue is ever dropped without a summary standing in for it.
+
+   doneMeans B (context-budget-and-fold, step 4): a run at about half the window that gets HTTP 400 "invalid image data" folds
+   nothing and ends format_error: the bad request is posted once, no summarizer request, no agent.compact, nothing kept for
+   the chat. (The size heuristic used to read that 400 as an overflow because the prompt was over 0.4 of the window: a paid
+   fold, the same bad image resent, the run dead on the same 400 - email E28.) The control beside it, on the same size: a
+   request the provider refuses as too long for the window folds ONCE, is retried with the summary standing in for the older
+   part, and finishes - the guard is not a blanket off switch. overflow-named-cause.test.js holds the class of phrasings. */
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -32,9 +39,12 @@ const SUMMARIES = path.join(workspace, '.summaries');
 const WINDOW = 32000;
 const STREAM = 'ws_long_chat_7';
 const RULE = 'UNIQUE-RULE7F3A';
+const BAD = 'BAD-IMAGE7C2E';     // a request carrying it is refused 400 "invalid image data"
+const LONG = 'TOO-LONG5D1B';     // a request carrying it is refused 400 "exceeds the context window" until a summary stands in
 const sha = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
 const textOf = c => typeof c === 'string' ? c : JSON.stringify(c);
 const mains = [];        // every main-call request body, in order
+const mainTokens = [];   // the mock's own prompt-size estimate of each, in step with `mains`
 const summaries = [];    // every summarizer request: { n, chars }
 let hold = null;         // a promise the summarizer's answer waits for (the delete-mid-fold leg)
 let child, base, headers;
@@ -57,7 +67,10 @@ const mock = http.createServer((req, res) => {
       reply = 'SUMMARY-' + n + (raw.includes(RULE) ? ' (keeps ' + RULE + ')' : '');
       if (hold) await hold;
     } else {
-      mains.push(body);
+      mains.push(body); mainTokens.push(promptTokens);
+      const refusal = JSON.stringify(body.messages).includes(BAD) ? 'invalid image data'
+        : (JSON.stringify(body.messages).includes(LONG) && !hostNotes(body.messages, 'conversation_summary').length) ? 'This request exceeds the context window of the selected model' : '';
+      if (refusal) { res.writeHead(400, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ error: { message: refusal, type: 'invalid_request_error' } })); }
       const last = body.messages.filter(m => m.role === 'user').pop();
       reply = 'Handled: ' + (last ? userWords(last).slice(0, 60) : '');
     }
@@ -82,12 +95,13 @@ async function send(history, text, opts) {
   const r = await fetch(base + '/api/run', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', key: 'sk-or-v1-fold-reuse-fixture', model: o.model || 'test/model', streamId: o.streamId || STREAM, messages: history.concat([{ role: 'user', content: text }]) }) });
   const events = (await r.text()).split('\n').filter(Boolean).map(s => JSON.parse(s));
   const end = events.find(e => e.name === 'agent.run.end');
-  A.eq(end && end.payload.reason, 'done', 'run completed: ' + text.slice(0, 24));
+  A.eq(end && end.payload.reason, o.expect || 'done', (o.expect ? 'run ended ' + o.expect : 'run completed') + ': ' + text.slice(0, 24));
   const reply = events.filter(e => e.name === 'agent.token').map(e => e.payload.delta).join('');
   const req = mains.slice(before).find(b => b.messages.some(m => m.role === 'user' && textOf(m.content).indexOf(text) >= 0));
   A.ok(req, 'the provider saw the request: ' + text.slice(0, 24));
   const notes = req ? hostNotes(req.messages, 'conversation_summary') : [];
-  return { reply, events, messages: req ? req.messages : [], notes, calls: summaries.length - calls, compacts: events.filter(e => e.name === 'agent.compact').map(e => e.payload) };
+  return { reply, events, messages: req ? req.messages : [], notes, calls: summaries.length - calls, compacts: events.filter(e => e.name === 'agent.compact').map(e => e.payload),
+    posts: mains.length - before, tokens: req ? mainTokens[mains.indexOf(req)] : 0 };
 }
 // ~1.1k characters of distinct, deterministic words
 function words(k, chars) {
@@ -144,6 +158,7 @@ const noteSha = notes => notes.map(sha).join(',');
       A.eq(out.compacts.filter(c => c.reason === 'context').length, 0, 'send ' + k + ': and no fold');
     }
     A.eq(summaries.length, 1, 'over sends 61-65 exactly ONE summarizer request was made');
+    const doneMeansA = { sends: '61-65', summarizerCalls: summaries.length, distinctNotes: new Set([s61].concat(reusedSends).map(o => noteSha(o.notes))).size };
     // nothing was dropped without the note standing in: the exchanges the note replaced are the ones it claims
     const lastReq = reusedSends[3].messages;
     A.ok(JSON.stringify(lastReq).includes(entry(65, 1100).slice(0, 60)), 'the newest turn is in the request verbatim');
@@ -279,7 +294,41 @@ const noteSha = notes => notes.map(sha).join(',');
       A.eq(full.calls, 1, 'a stale page that re-sends the whole conversation is folded once more from what it sent');
       A.eq(filesOfStream(), [], 'and nothing of it is kept: the conversation was deleted');
     }
-    console.log(JSON.stringify({ sends: history.length / 2, summarizerCalls: summaries.length, noteSha: sha61.slice(0, 12), noteChars: len61, claimedRows: record.rows }));
+
+    // ---- doneMeans B: a run at about half the window that gets "400 invalid image data" folds nothing and ends format_error ----
+    const doneMeansB = {};
+    {
+      const est = msgs => Math.ceil(JSON.stringify(msgs).length / 4);          // the mock's own prompt-size estimate
+      // what the sidecar adds to a request (its system prompt and notes), read off one small request on a chat of its own
+      const hello = 'Calibration: how much does the sidecar add to a request?';
+      const calib = await send([], hello, { streamId: 'ws_calibrate_9' });
+      const overhead = calib.tokens - est([{ role: 'user', content: hello }]);
+      // thirty exchanges the page carries (plenty for a fold to summarize), then one more message padded so the whole request is half the window
+      const chat = [];
+      for (let k = 1; k <= 30; k++) { const t = entry(300 + k, 1100); chat.push({ role: 'user', content: t }, { role: 'assistant', content: 'Handled: ' + t.slice(0, 60) }); }
+      const padded = (marker, k) => { const head = marker + ' Entry ' + k + ': '; return head + words(k, Math.max(0, Math.round((WINDOW / 2 - overhead - est(chat.concat([{ role: 'user', content: head }]))) * 4))); };
+      const share = tokens => Math.round(tokens / WINDOW * 100);
+
+      const calls = summaries.length, bad = await send(chat, padded(BAD, 1), { streamId: 'ws_bad_image_9', expect: 'error' });
+      const end = bad.events.find(e => e.name === 'agent.run.end'), fail = bad.events.find(e => e.name === 'agent.run.error');
+      A.ok(Math.abs(bad.tokens / WINDOW - 0.5) < 0.03, 'the refused request is about half the window (' + share(bad.tokens) + '%: ' + bad.tokens + ' of ' + WINDOW + ' tokens)');
+      A.eq(bad.posts, 1, 'the bad image is posted once: it is not resent');
+      A.eq(summaries.length - calls, 0, 'a 400 that names its cause makes no summarizer request');
+      A.eq(bad.compacts, [], 'and announces no agent.compact');
+      A.eq([end && end.payload.reason, end && end.payload.failureCode], ['error', 'format_error'], 'the run ends error / format_error');
+      A.ok(fail && fail.payload.failureCode === 'format_error' && fail.payload.transient === false && /invalid image data/.test(fail.payload.message), 'with the provider\'s own words, not retryable (' + (fail && fail.payload.message) + ')');
+      A.ok(!fs.existsSync(path.join(SUMMARIES, 'ws_bad_image_9.json')), 'and nothing is kept for the chat');
+      doneMeansB.badImage = { windowShare: share(bad.tokens), posts: bad.posts, summarizerCalls: summaries.length - calls, compacts: bad.compacts.length, end: end && end.payload.failureCode };
+
+      // the control, same size: a request the provider refuses as too long folds ONCE and the retry finishes
+      const before = summaries.length, long = await send(chat, padded(LONG, 2), { streamId: 'ws_long_request_9' });
+      const folds = long.compacts.filter(c => c.reason !== 'reused');
+      A.ok(Math.abs(long.tokens / WINDOW - 0.5) < 0.03, 'the control\'s refused request is the same size (' + share(long.tokens) + '%)');
+      A.eq([long.posts, summaries.length - before, folds.length], [2, 1, 1], 'a genuine overflow at that size: one refusal, ONE fold, one retry');
+      A.eq(hostNotes(mains[mains.length - 1].messages, 'conversation_summary').length, 1, 'the retry carries the summary that stands in for the older part');
+      doneMeansB.overflowControl = { posts: long.posts, summarizerCalls: summaries.length - before, compacts: folds.length };
+    }
+    console.log(JSON.stringify({ sends: history.length / 2, summarizerCalls: summaries.length, noteSha: sha61.slice(0, 12), noteChars: len61, claimedRows: record.rows, doneMeansA, doneMeansB }));
   } finally { await stop(); await new Promise(r => mock.close(r)); fs.rmSync(workspace, { recursive: true, force: true }); }
   A.report('fold-reuse.http');
 })().catch(e => { console.error(e); process.exit(1); });
