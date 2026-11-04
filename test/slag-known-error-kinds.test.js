@@ -27,7 +27,7 @@ const host = readSidecarSource();
 const KINDS = {};
 {
   const body = A.fnBody(friendlySrc, 'const KINDS = {');
-  A.ok(body.length > 500 && body.length < 20000, 'friendlyerror.js KINDS table located (length guard)');
+  A.ok(body.length > 500 && body.length < friendlySrc.length / 2, 'friendlyerror.js KINDS table located (length guard: shorter than half the file, so a runaway scan still trips it but a table that grows kind by kind does not)');
   for (const m of body.matchAll(/^\s+([a-z_]+):\s*\{\s*retryable:\s*(true|false)/gm)) KINDS[m[1]] = m[2] === 'true';
 }
 // the door each kind's post-mortem names. NAMED: the kind's own message is the fix, and a resend will not fix it.
