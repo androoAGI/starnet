@@ -1335,6 +1335,9 @@ test/line-entry.test.js
 test/linejobs.entry.test.js
 test/linejobs.entry.persistence.test.js
 test/line-entry.invocation.test.js
+test/line-entry.adoption.test.js
+test/line-entry.adoption.persistence.test.js
+test/line-entry.adoption-receipts.test.js
 test/linejobs.continuation.test.js
 test/linejobs.persistence.test.js
 test/line-spend.receipts.test.js

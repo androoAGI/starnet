@@ -33,6 +33,7 @@ const { note: failNote } = require('../failopen.js');   // tagged fail-open: a s
 const LineFire = require('./line-fire.js');   // the stop note's ONE wording (the routine paths fold a line the same way)
 const { withoutHostNotes } = require('../projectbless.js');   // #81: the host's note to the person is not a stage's work
 const Verdict = require('./verdict.js');   // the VERDICT channel (pure parser + reviewer brief)
+const Continuation = require('./line-continuation.js');
 
 // the DEFAULT ceilings — a line that sets no LINE BUDGET runs under exactly these. They are the one
 // normalizer's defaults (Pipeline.LINE_LIMIT_DEFAULTS) so the compiler and the executor can never disagree.
@@ -352,6 +353,14 @@ function lineRefusalStop(lineOfAgent, dock, lineId, dockId) {
 // lineRefusalStop(...) -> the refusal as its typed stop { code: 'wrong_line', why }; lineRefusalNote(...) -> its words alone
 function lineRefusalNote(lineOfAgent, dock, lineId, dockId) { const st = lineRefusalStop(lineOfAgent, dock, lineId, dockId); return st ? st.why : null; }
 
+// One initial cursor for the existing walk and the private saved-entry adapter.
+// This does not resolve a route, book spend, publish a crate or run an agent.
+function initialWalk(current, product, originalText) {
+  return { current, next: null, product, originalText, lastHanded: product.draft,
+    producerVerdict: product.verdict, hop: 0, loopHops: 0, visited: [nodeKey(current)],
+    gates: [], openLoops: [], fromTile: null, via: null, entryOutput: product,
+    branchMode: false, pending: [], forced: null, fan: null, partial: null, unapproved: null };
+}
 function makeChainRunner(o) {
   o = o || {};
   const nextAgent = typeof o.nextAgent === 'function' ? o.nextAgent : null;
@@ -417,6 +426,7 @@ function makeChainRunner(o) {
      answered right here and stops here" is the designed contract (Andrew's ruling, 2026-08-07) and the
      step editor says so on the floor — it is not a line that failed to run. */
   const lineOfAgent = typeof o.lineOfAgent === 'function' ? o.lineOfAgent : null;
+  const agentOfDock = typeof o.agentOfDock === 'function' ? o.agentOfDock : null;
   function refusalStop(node, lineId) { const n = asNode(node) || {}; return lineRefusalStop(lineOfAgent, n.agentId, lineId, n.dockId); }
 
   /* JOINER + LOOP seams (2026-08-21) — all optional, all injected like nextAgent:
@@ -663,8 +673,9 @@ function makeChainRunner(o) {
     if (!startDock && stepDock && entryDockOf) { try { startDock = entryDockOf(startAgent) || null; } catch (_) { startDock = null; } }
     const dockMode = !!(stepDock && startDock);
     if (dockMode) out.dockId = startDock;
-    let cur = { agentId: startAgent, dockId: dockMode ? String(startDock) : null };
-    const visited = { [nodeKey(cur)]: true };
+    const initial = initialWalk({ agentId: startAgent, dockId: dockMode ? String(startDock) : null }, entryProduct, originalText);
+    let cur = initial.current;
+    const visited = Object.fromEntries(initial.visited.map(k => [k, true]));
     let spent = entryUsd;   // entry + hops — what the $ ceiling is actually measured against
     /* JOIN + LOOP state (2026-08-21) — per advance() call, never across calls:
        runId    keys the joiner barrier: one barrier per (joiner tile, run) — branches of the SAME run rejoin,
@@ -674,24 +685,24 @@ function makeChainRunner(o) {
                 sidecar, one loop; parallel runs would double the RAM and the floor draws one crate at a time).
        fromTile resume a walk from a junction the previous hop released (a joiner exit / a loop gate lane). */
     const runId = (s.runId != null && String(s.runId)) || (s.workitemId != null && String(s.workitemId)) || newId();
-    const iter = {}, pending = [];
+    const iter = {}, pending = initial.pending;
     /* THE FAN (2026-10-10). One record per fan-out this run is inside: how many branches really LAUNCHED (a branch whose bay
        has no agent never does — the compiled joiner still counts its lane, and the barrier sat out its whole timeout for a
        branch nobody ran), which of them FAILED, and the joiner they meet at. The joiner waits for launched minus failed. A
        failed branch no longer ends the job: the other branches still run, and the JOINER sends on what arrived, the failed
        ones named as missing (it used to return the first branch's answer and strand the rest at the barrier). */
-    let fan = null;
-    let fromTile = null, via = null, loopHops = 0;
-    let lastHanded = entryProduct.draft;   // the producer carries the draft it reviewed, independently of a later gate's frame
+    let fan = initial.fan;
+    let fromTile = initial.fromTile, via = initial.via, loopHops = initial.loopHops;
+    let lastHanded = initial.lastHanded;   // the producer carries the draft it reviewed, independently of a later gate's frame
     // inside a loop pass every hop is a re-visit by design (the body runs again); `looping` is raised at a
     // re-entry and lowered when the gate lets the crate out on its done lane
     let looping = false;
     /* the gates whose pass is still open (2026-10-10 audit): two review loops in a row broke on the outer one's second pass —
        the INNER gate letting work out lowered `looping` while the outer gate's re-run was still under way, so its next
        (already visited) step read as a loop-back and the line stopped. A gate closes only its own pass. */
-    const openLoops = new Set();
+    const openLoops = new Set(initial.openLoops);
     // while a queued fan-out branch is running, the line's LAST GOOD answer is still the entry's own output
-    const entryOut = { text: s.text, agentId: startAgent, dockId: cur.dockId }; let branchMode = false;
+    const entryOut = { text: s.text, agentId: startAgent, dockId: cur.dockId }; let branchMode = initial.branchMode;
     /* ENTRY FAN-OUT: resolveTarget named ONE dock for the inbound message and it has already run (`cur`). If
        that dock sits on a lane of a split that feeds a JOINER, the other lanes are parallel branches the drawn
        line promised; queue them from the ORIGINAL text so the barrier can fill. The entry's own output goes
@@ -704,7 +715,7 @@ function makeChainRunner(o) {
     }
     // a branch that ends (terminal / parked at the joiner) hands the loop to the next queued branch
     const nextPending = () => { const b = pending.shift(); if (!b) return false; cur = b.from || cur; out.text = b.text; branchMode = true; return b; };
-    let forced = null;   // a queued branch's node, run on this hop in place of the walk's answer
+    let forced = initial.forced;   // a queued branch's node, run on this hop in place of the walk's answer
     // the receiving dock's standing brief, for a divided branch's own hand-off (Pipeline.partHandoff)
     const briefOf = t => { if (!stageBrief || !t) return null; try { return t.dockId ? stageBrief(t.agentId, t.dockId) : stageBrief(t.agentId); } catch (_) { return null; } };
     /* PARALLEL BRANCHES (2026-10-10 — "split the workload"). Branches that are each ONE step handing straight to the SAME
@@ -1021,7 +1032,19 @@ function makeChainRunner(o) {
   // ONE wording, shared with the routine paths (routing/line-fire.js folds a routine's line the same way).
   function stopNote(res) { return LineFire.lineStopNote(res); }
 
-  return { advance, stopNote, _limits: { maxHops, maxUsd }, _barrier: barrier };
+  function initializeEntry(raw) {
+    const e = Continuation.adoptableEntry(raw), n = e.binding.entryNode;
+    if (!stepDock || !fanSiblingsDock || !lineOfAgent || !agentOfDock || agentOfDock(n.dockId) !== n.agentId
+      || lineOfAgent(n.agentId, n.dockId) !== e.binding.lineId) {
+      throw new Error('line entry initialization has no exact current drawn dock membership');
+    }
+    // Unknown/throwing/missing membership is not proof of no sibling. Resolve
+    // through this chain's bound plan owner; a posted branch flag is never read.
+    const siblings = fanSiblingsDock(n.dockId, { lineId: e.binding.lineId });
+    if (!Array.isArray(siblings) || siblings.length) throw new Error('line entry initialization requires proved absence of drawn entry siblings');
+    return initialWalk(n, e.observation.product, e.input.text);
+  }
+  return { advance, stopNote, initializeEntry, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
 module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };

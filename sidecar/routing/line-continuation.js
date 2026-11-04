@@ -369,5 +369,65 @@ function checkpointEntry(raw, job, expectedRevision, next) {
   if (!allowed[before.state].includes(after.state)) throw new Error('line entry state cannot advance that way');
   return { receipt: after, replayed: false };
 }
+function adoptableEntry(raw, job) {
+  const e = demandEntry(raw, job), o = e.observation;
+  if (e.state !== 'observed' || !o || o.usageMissing || o.outcome !== 'succeeded'
+    || e.files.length || o.files.length || o.product.files.length || !e.binding.entryNode.dockId) {
+    throw new Error('line entry adoption requires complete successful text-only evidence at its exact dock');
+  }
+  return e;
+}
+function entryAttempt(e) {
+  const o = e.observation;
+  return { ordinal: 1, runId: e.binding.entryRunId, node: e.binding.entryNode, branchId: null,
+    workitemId: e.binding.workitemId, state: 'observed', inputDigest: e.inputDigest,
+    outputDigest: o.outputDigest, usd: o.usd, usageMissing: false, outcome: o.outcome, at: e.at, endedAt: o.endedAt };
+}
+function inspectEntryPair(rawEntry, rawContinuation, job) {
+  const captured = capture({ entry: rawEntry, continuation: rawContinuation });
+  if (captured.readOnly) return { ok: false, readOnly: true, issue: captured.issue };
+  try {
+    const e = adoptableEntry(captured.value.entry, job), c = demand(captured.value.continuation, job), b = e.binding;
+    const expectedBinding = { jobId: b.jobId, lineId: b.lineId, intakeId: b.intakeId, streamId: b.streamId,
+      entryRunId: b.entryRunId, planHash: b.planHash, dockMode: true, entryNode: b.entryNode };
+    const receipt = { runId: b.entryRunId, day: Math.floor(e.observation.endedAt / 86400000), usd: e.observation.usd };
+    if (!sameEntryFact(c.binding, expectedBinding) || !sameEntryFact(c.origin, e.origin)
+      || !sameEntryFact(c.restriction, e.restriction) || !sameEntryFact(c.accounting.limits, e.limits)
+      || !sameEntryFact(c.attempts[0], entryAttempt(e)) || !sameEntryFact(c.walk.entryOutput, e.observation.product)
+      || c.walk.originalText !== e.input.text || c.accounting.entryUsd !== e.observation.usd
+      || !sameEntryFact(c.accounting.dayReceipts.find(r => r.runId === b.entryRunId), receipt)) {
+      throw new Error('line continuation no longer names its exact retained entry and original-day receipt');
+    }
+    return { ok: true, readOnly: false, entry: e, continuation: c, issue: null };
+  } catch (error) {
+    return { ok: false, readOnly: true, issue: problem('entry_pair', error.message) };
+  }
+}
+function demandEntryPair(entry, continuation, job) {
+  const p = inspectEntryPair(entry, continuation, job);
+  if (!p.ok) throw new Error(p.issue.message);
+  return p;
+}
+function seedEntryContinuation(raw, job, walk) {
+  const e = adoptableEntry(raw, job), b = e.binding, o = e.observation;
+  // The existing chain instance supplies this initial cursor. No caller-supplied
+  // resume cursor, branch flag, or bookkeeping bit is an execution permission.
+  if (!walk || !sameEntryFact(walk.current, b.entryNode) || !sameEntryFact(walk.product, o.product)
+    || !sameEntryFact(walk.entryOutput, o.product) || walk.originalText !== e.input.text
+    || walk.lastHanded !== o.product.draft || walk.producerVerdict !== o.product.verdict
+    || !sameEntryFact(walk.visited, [nodeId(b.entryNode)]) || walk.next !== null || walk.hop !== 0 || walk.loopHops !== 0
+    || !sameEntryFact(walk.gates, []) || !sameEntryFact(walk.openLoops, []) || walk.fromTile !== null || walk.via !== null
+    || walk.branchMode !== false || !sameEntryFact(walk.pending, []) || walk.forced !== null || walk.fan !== null
+    || walk.partial !== null || walk.unapproved !== null) throw new Error('line entry initializer is not the original straight-line cursor');
+  const c = { version: 1, revision: 1, phase: 'ready',
+    binding: { jobId: b.jobId, lineId: b.lineId, intakeId: b.intakeId, streamId: b.streamId,
+      entryRunId: b.entryRunId, planHash: b.planHash, dockMode: true, entryNode: b.entryNode },
+    origin: e.origin, restriction: e.restriction, walk, barriers: [],
+    accounting: { entryUsd: o.usd, hopUsd: 0, runIds: [b.entryRunId],
+      dayReceipts: [{ runId: b.entryRunId, day: Math.floor(o.endedAt / 86400000), usd: o.usd }], limits: e.limits },
+    attempts: [entryAttempt(e)], files: [], hold: null, decisions: [], activeDecision: null, terminal: null, publication: null };
+  return demandEntryPair(e, c, job).continuation;
+}
 module.exports = { inspect, demand, checkpoint, claimDecision, fileRef, inspectEntry, demandEntry, prepareEntry, checkpointEntry,
+  adoptableEntry, inspectEntryPair, demandEntryPair, seedEntryContinuation,
   entryInputDigest, entryOutputDigest, MAX_BYTES, MAX_DEPTH, MAX_ATTEMPTS, MAX_PARTS, MAX_FILES };

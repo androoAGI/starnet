@@ -331,6 +331,7 @@ const { makeStepTest } = require('./routing/steptest.js');   // the conveyor STE
 const LineJobs = require('./routing/linejobs.js');   // WORKFLOWS — every job sent down a line, kept as one record the window and the OUTBOX open (/api/line-jobs)
 const LineContinuation = require('./routing/line-continuation.js'); // private saved-walk and exact attempt authority; no public resume route
 const LineEntryInvocation = require('./routing/line-entry-invocation.js'); // private actual-run observation; no public caller or saved-floor grant
+const LineEntryAdoption = require('./routing/line-entry-adoption.js'); // private receipt/cursor bridge; no public or paid activation
 const LineDraft = require('./routing/linedraft.js');   // WORKFLOWS › SET IT UP FOR ME — "what should it make?" → a starter, a name, each step's instructions (/api/routing/line-draft)
 const LineFix = require('./routing/linefix.js');   // NOT RIGHT? — a result the Commander doesn't want → fixes to the line's step instructions (/api/routing/fix-suggest)
 const { lineStats: foldLineStats } = require('./routing/line-stats.js');   // LINE WATCH: per-line runs/shipped/failed/$ + each bay's last outcome (GET /api/routing/lines/stats)
@@ -6347,6 +6348,7 @@ const chainRunner = makeChainRunner({
   // REFUSED this work" and say so honestly. Without it chain.js stays silent rather than guess (never a
   // false note) — which is exactly why the refusal was invisible before.
   lineOfAgent: (agentId, dockId) => router.lineOfAgent(agentId, dockId),
+  agentOfDock: dockId => router.agentOfDock(dockId), // exact private entry membership; the legacy line resolver may fall back by agent
   // JOINER + LOOP (2026-08-21): the richer step reading (barriers, fan-out, bounded loops) and the fan-out
   // siblings of an entry dock. Parked join barriers are written beside the plan so a restart can REPORT a
   // line that died mid-join (fail-loud; see chain.js — nothing in-flight is durable, so nothing resumes).
@@ -13794,6 +13796,10 @@ function lineJobsCheckpointEntry(id, expectedRevision, next) {
 // authority callback. No posted plan, saved positive flag or public route can opt in.
 const lineEntryInvocations = LineEntryInvocation.makeEntryInvocation({ prepare: lineJobsPrepareEntry,
   checkpoint: lineJobsCheckpointEntry, run: options => runOnce(options), authority: null });
+const lineEntryAdoptions = LineEntryAdoption.makeEntryAdoption({ read: lineJobsRefresh, write: lineJobsSet,
+  requireAccounting: lineJobsRequireAccounting, note: (line, usd, receipt) => lineSpend.note(line, usd, receipt),
+  receiptProof: (line, usd, receipt, ledgerId) => lineSpend.receiptProof(line, usd, receipt, ledgerId),
+  chain: chainRunner, authority: null });
 /* Private H3 checkpoint bridge. It does not resume a runner or expose a route.
    The ledger owns exact run/day dedupe; the same LineJob owns the saved acknowledgement.
    The two verified writes deliberately tolerate either lost ACK without buying another run. */

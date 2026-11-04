@@ -149,11 +149,19 @@ function normJob(j) {
       job.error = why; job.stop = { code: 'restart', why };
     }
   }
+  if (owns(j, 'entryAdmission') && owns(j, 'continuation')) {
+    const p = Continuation.inspectEntryPair(job.entryAdmission, job.continuation, job);
+    if (!p.ok) {
+      job.entryIssue = { code: p.issue.code, message: p.issue.message, readOnly: true };
+      job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
+      job.error = p.issue.message; job.stop = { code: 'restart', why: p.issue.message };
+    }
+  }
   return job;
 }
 function pendingContinuation(j) {
-  // Entry retirement/adoption is a later proved operation, never ordinary retention.
-  if (owns(j, 'entryAdmission')) return true;
+  if (owns(j, 'entryAdmission') && (!owns(j, 'continuation')
+    || !Continuation.inspectEntryPair(j.entryAdmission, j.continuation, j).ok)) return true;
   if (!owns(j, 'continuation')) return false;
   const c = Continuation.inspect(j.continuation, j);
   return !c.ok || c.value.phase !== 'complete' || j.endedAt == null;
@@ -165,7 +173,9 @@ function writable(state) {
     e.code = 'ELINE_CONTINUATION_READONLY'; throw e;
   }
   for (const j of ((state && Array.isArray(state.jobs)) ? state.jobs : [])) {
-    if (owns(j, 'entryAdmission') && (owns(j, 'continuation') || Continuation.inspectEntry(j.entryAdmission, j).readOnly)) {
+    if (owns(j, 'entryAdmission') && (owns(j, 'continuation')
+      ? !Continuation.inspectEntryPair(j.entryAdmission, j.continuation, j).ok
+      : Continuation.inspectEntry(j.entryAdmission, j).readOnly)) {
       const e = new Error('line-jobs: entry authority cannot be rewritten or adopted by this operation; original store must be preserved');
       e.code = 'ELINE_ENTRY_READONLY'; throw e;
     }
@@ -254,7 +264,7 @@ function finish(state, id, o) {
   writable(state);
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
-  if (owns(state.jobs[i], 'entryAdmission')) throw new Error('line entry must settle through its private receipt owner');
+  if (owns(state.jobs[i], 'entryAdmission') && !owns(state.jobs[i], 'continuation')) throw new Error('line entry must settle through its private receipt owner');
   if (owns(state.jobs[i], 'continuation')) {
     const c = Continuation.inspect(state.jobs[i].continuation, state.jobs[i]);
     if (!c.ok || !['terminal_pending', 'complete'].includes(c.value.phase)) throw new Error('line continuation must finish through its checkpoint owner');
@@ -334,7 +344,7 @@ function boot(state, at, ownedIds) {
   let changed = false;
   const jobs = (state && Array.isArray(state.jobs) ? state.jobs : []).map(j => {
     if (ownedIds && !ownedIds.has(j.id)) return j;
-    if (owns(j, 'entryAdmission')) {
+    if (owns(j, 'entryAdmission') && !owns(j, 'continuation')) {
       const e = Continuation.inspectEntry(j.entryAdmission, j);
       if (!e.ok || e.value.state === 'uncertain') return j;
       entryEnrollment(state, e.value);
@@ -404,9 +414,10 @@ function checkpoint(state, id, expectedRevision, next) {
   const i = idx(state, id);
   if (i < 0) return { state, job: null };
   const prior = state.jobs[i];
-  if (owns(prior, 'entryAdmission')) throw new Error('entry-to-continuation adoption is not implemented; no cost or execution authority may be inferred');
+  if (owns(prior, 'entryAdmission') && !owns(prior, 'continuation')) throw new Error('entry adoption belongs to its private receipt owner');
   if (!owns(prior, 'continuation') && prior.status !== 'running') throw new Error('a settled or paused job cannot acquire a review continuation');
   const c = Continuation.checkpoint(owns(prior, 'continuation') ? prior.continuation : undefined, prior, expectedRevision, next);
+  if (owns(prior, 'entryAdmission')) Continuation.demandEntryPair(prior.entryAdmission, c, prior);
   if (prior.endedAt == null && (c.phase === 'complete' || (c.publication && c.publication.state === 'confirmed'))) throw new Error('line publication requires an accepted terminal job first');
   const uncertain = c.phase === 'uncertain';
   const why = uncertain ? 'a saved attempt has no confirmed terminal receipt; reconcile it before continuing' : '';
@@ -462,6 +473,26 @@ function checkpointEntry(state, id, expectedRevision, next) {
     return Continuation.checkpointEntry(prior.entryAdmission, prior, expectedRevision, next);
   });
 }
+function adoptEntry(state, id, expectedRevision, continuation) {
+  writable(state);
+  const i = idx(state, id), prior = i < 0 ? null : state.jobs[i];
+  if (!prior || !owns(prior, 'entryAdmission')) throw new Error('line adoption has no existing entry receipt');
+  const entry = Continuation.adoptableEntry(prior.entryAdmission, prior);
+  entryEnrollment(state, entry);
+  if (!Number.isSafeInteger(expectedRevision) || expectedRevision !== entry.revision) throw new Error('line adoption entry revision conflict');
+  const c = Continuation.demandEntryPair(entry, continuation, prior).continuation;
+  const initial = Continuation.seedEntryContinuation(entry, prior, c.walk);
+  if (JSON.stringify(c) !== JSON.stringify(initial)) throw new Error('line adoption requires the exact original initial continuation');
+  if (owns(prior, 'continuation')) {
+    if (JSON.stringify(prior.continuation) !== JSON.stringify(c)) throw new Error('line adoption cannot replace its saved continuation');
+    return { state, job: prior, replayed: true };
+  }
+  if (prior.endedAt != null || !['running', 'interrupted'].includes(prior.status)
+    || c.revision !== 1 || c.phase !== 'ready') throw new Error('line adoption cannot reopen a settled job or invent a progressed cursor');
+  const job = normJob(Object.assign({}, prior, { continuation: c, status: 'running', outcome: 'running', endedAt: null, stop: null, error: '' }));
+  const jobs = state.jobs.slice(); jobs[i] = job;
+  return { state: withJobs(state, jobs), job, replayed: false };
+}
 function entryBootPending(job) {
   if (!owns(job, 'entryAdmission')) return false;
   const e = Continuation.inspectEntry(job.entryAdmission, job);
@@ -469,5 +500,5 @@ function entryBootPending(job) {
 }
 
 module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
-  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending,
+  accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending, adoptEntry,
   MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

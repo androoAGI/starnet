@@ -49,6 +49,7 @@ function sandbox(seed, configure) {
     const notes = [];
     const context = { fs: proxy, path, WORKSPACES: dir, makeDomainStore, LineJobs: J, writeFileDurable: undefined,
       LineEntryInvocation: require('../sidecar/routing/line-entry-invocation.js'),
+      LineEntryAdoption: require('../sidecar/routing/line-entry-adoption.js'), chainRunner: require('../sidecar/routing/chain.js').makeChainRunner({}),
       Date: { now: () => 900 }, failNote: (tag, error) => notes.push([tag, String(error && error.message)]),
       reportDomainStoreIssue: tag => status => notes.push([tag, status]), URL,
       readBody: async req => JSON.stringify(req.body || {}), respondJson: (res, status, body) => Object.assign(res, { status, body }) };
