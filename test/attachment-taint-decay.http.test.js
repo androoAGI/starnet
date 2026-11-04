@@ -6,7 +6,7 @@
    it), every provider request carried the picture and the file text, and the whole conversation stayed locked for good: no
    unattended grants, no learning, the replay of its own rows re-tainting every later turn.
    Now a run is tainted exactly while the attachment's BYTES are in front of it (the attaching turn and one follow-up), and
-   what that run wrote stops tainting once the bytes are gone. Five flows, five streams:
+   what that run wrote stops tainting once the bytes are gone. The flows, each on its own stream:
 
      A  taint-follows-bytes      turn 1 file + picture, then six text turns (turns 2 and 3 are typed preferences: the learning
                                  receipts). Runs 1-2 are tainted and send the bytes; runs 3-7 are untainted, send no image_url
@@ -29,9 +29,16 @@
                                  size and sha256 of the bytes read, and no stored row holds the file text
      E  a legacy note            the 11-02 shape (file text in the content, the words in typed) reads the same way in the note,
                                  and a note without bytes taints nothing
+     F  a resend and a retry     the clean directive still finds its turn again; each file is one live row, whatever is resent
+     G  delegated-worker-clean-  the lead hands a worker a credentialed request (email E15). On turn 1 or 2, with the bytes in front
+        after-decay              of the lead, the worker inherits the latch and its request is locked out; on turn 4 the worker
+                                 has no taint at all and the lock is not what stops it. Runs on the same workspace after a restart
+                                 WITHOUT Full Access (a Full Access run lifts the lock for an owner-typed job, which would hide it).
+                                 Also pins, as the open decision it is, the over-taint of a lead that delegated while it held the
+                                 bytes: it stays locked, because the worker's relayed output is not the bare attachment stamp
 
    The learning half reads the host's own receipts (GET /api/learning-status), the memory-learning-boundary pattern.
-   One sidecar boot, one provider mock. */
+   One provider mock; one sidecar boot, restarted once for flow G. */
 'use strict';
 const A = require('./_assert.js');
 const http = require('http');
@@ -51,6 +58,7 @@ const PNG_2 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNk+M9QD
 const PREF_A = 'From now on, use concise bullet summaries.';
 const PREF_B = 'From now on, use indigo headings in progress summaries.';
 const AGENT = 'dec';
+const WORKER = 'worker-1', WORKER_MARK = 'WORKER_SYS_MARKER_DECAY';
 
 const PNG_1_BYTES = Buffer.from(PNG_1, 'base64');
 const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
@@ -75,7 +83,9 @@ function startMock() {
         const tools = (body.tools || []).map(t => t.function && t.function.name);
         const after = msgs.slice(lastUser + 1);
         const called = (name) => after.some(m => (m.tool_calls || []).some(t => t.function && t.function.name === name));
-        requests.push({ msgs, tools, text, n: requests.length + 1 });
+        // a delegated worker is the roster entry whose standing orders carry WORKER_MARK; its calls are not the lead's conversation
+        const worker = !!msgs[0] && msgs[0].role === 'system' && flat(msgs[0].content).indexOf(WORKER_MARK) >= 0;
+        requests.push({ msgs, tools, text, worker, n: requests.length + 1 });
         const usage = { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 };
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
         const call = (id, name, args) => {
@@ -91,7 +101,21 @@ function startMock() {
         const read = /READ_SAVED_FILE@(\w+) (\S+)/.exec(text);
         // ...and a typed RECALL_CONV@<tag> <query> asks for ONE recall_conversation search of this chat (the same one-shot rule)
         const recall = /RECALL_CONV@(\w+) ([^\r\n]+)/.exec(text);
-        if (read && !served.has(read[1]) && tools.includes('fs_read')) {
+        // ...and a typed DELEGATE_API@<tag> asks the lead for ONE team_dispatch of a task to the worker (the same one-shot rule). The
+        // worker makes ONE credentialed request, the power a taint lock takes away, to a loopback address the host refuses by its own
+        // rule (hostAuthored: nothing is sent and no outside byte comes back, so the request cannot taint the worker), then reports
+        const delegate = /DELEGATE_API@(\w+)/.exec(text);
+        if (worker) {
+          // the worker's whole conversation, not its last user turn: a recovery nudge can follow its first tool result
+          const brief = JSON.stringify(msgs.filter(m => m && m.role === 'user').map(m => flat(m.content)));
+          const tag = (/WORKER_TASK@(\w+)/.exec(brief) || [])[1] || 'x';
+          if (!msgs.some(m => m && m.role === 'tool')) call('w_req_' + tag, 'web_request', { method: 'GET', url: 'https://127.0.0.1:9/v1/ping' });
+          else say('WORKER REPORT ' + tag + '. (reply ' + requests.length + ')');
+        } else if (delegate && !served.has(delegate[1]) && tools.includes('team_dispatch')) {
+          if (tools.includes('brief_proceed') && !called('brief_proceed')) call('b_' + requests.length, 'brief_proceed', { objective: 'hand the worker its task' });
+          else if (!called('team_dispatch')) call('d_' + delegate[1], 'team_dispatch', { workers: [{ agentId: WORKER, prompt: 'WORKER_TASK@' + delegate[1] + ' make the request with the stored key and report what came back' }] });
+          else { served.add(delegate[1]); say('Delegated. (reply ' + requests.length + ')'); }
+        } else if (read && !served.has(read[1]) && tools.includes('fs_read')) {
           if (tools.includes('brief_proceed') && !called('brief_proceed')) call('b_' + requests.length, 'brief_proceed', { objective: 'read the saved file and report what it says' });
           else if (!called('fs_read')) call('r_' + requests.length, 'fs_read', { path: read[2] });
           else { served.add(read[1]); say('It says hello. (reply ' + requests.length + ')'); }
@@ -149,8 +173,8 @@ function startMock() {
 
     seedLegacy(LEGACY_FILE, LEGACY_IMG);
     await fixture.start();
-    const B = fixture.baseUrl, token = fixture.token;
-    const H = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
+    // the sidecar's port and launch token change when flow G restarts it, so these are read again then
+    let B = fixture.baseUrl, H = { 'Content-Type': 'application/json', 'X-StarNet-Token': fixture.token, Origin: B };
     const get = async (route) => (await fetch(B + route, { headers: H })).json();
     const upload = async (agent, name, mime, buf) => {
       const up = await (await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ agent, name, dataUrl: 'data:' + mime + ';base64,' + buf.toString('base64') }) })).json();
@@ -177,7 +201,7 @@ function startMock() {
       const runId = start && start.payload.runId;
       const rows = (await get('/api/runs?agent=' + AGENT + '&limit=80')).runs || [];
       const rec = rows.find(r => r.runId === runId) || {};
-      const mine = mock.requests.slice(before).filter(r => r.text.indexOf(needle) >= 0);   // the run's own conversation calls (not an aux pass)
+      const mine = mock.requests.slice(before).filter(r => !r.worker && r.text.indexOf(needle) >= 0);   // the run's own conversation calls (not an aux pass, not a worker's)
       const userText = (r) => JSON.stringify(r.msgs.filter(m => m && m.role === 'user'));
       const out = {
         runId, reason: end && end.payload && end.payload.reason, taintedBy: rec.taintedBy || null, calls: mine.length,
@@ -427,6 +451,90 @@ function startMock() {
       A.eq(state().directives, 1, 'and it found the directive by its words: no second directive row');
       A.eq(state().live.length, 2, 'with the files still one live row each');
       A.ok(!diskRows(S).some(r => JSON.stringify(r).indexOf('FILE_BODY_SENTINEL') >= 0), 'no stored row holds the file text');
+    }
+
+    // =========================== FLOW G: delegated-worker-clean-after-decay (email E15) ===========================
+    // A worker starts with the latch its lead holds when it is dispatched (orchestration connectorOptions: the lead's
+    // execution.rowTaint()), so what the decay promises the lead it promises the crew. While the bytes are in front of the lead the
+    // worker is locked out of a credentialed request and says so; once they are gone the worker has no taint, and the lock is not
+    // what stops that request. The lock needs a station WITHOUT Full Access (Full Access lifts it for an owner-typed job), so the
+    // sidecar restarts on the same workspace with it off. The lead is on Full Access by its own roster entry, so its dispatch needs
+    // no card; the worker is an ordinary ask-mode agent. Its request goes to a loopback address, which the host refuses by its own
+    // rule: when the lock is not what stops it, the call still ends there, with nothing sent and no outside byte read, so it cannot
+    // taint the worker and no network is involved.
+    {
+      await fixture.restart({ SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: '' });
+      B = fixture.baseUrl; H = { 'Content-Type': 'application/json', 'X-StarNet-Token': fixture.token, Origin: B };
+      const roster = await fetch(B + '/api/roster', { method: 'POST', headers: H, body: JSON.stringify({ agents: [
+        { agentId: AGENT, name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode: 'full' },
+        { agentId: WORKER, system: WORKER_MARK + ' - you are a worker.', name: 'WORKER', model: 'test/model', provider: 'openrouter', approvalMode: 'ask' }
+      ] }) });
+      A.eq(roster.status, 200, 'the lead (Full Access) and the worker (ask) are on the roster');
+      // the worker run row the lead's run started, and what the model was handed back for one of its tool calls
+      const workerRow = async (leadRunId) => ((await get('/api/runs?agent=' + WORKER + '&limit=60')).runs || []).find(r => r.parentRunId === leadRunId && r.delegatedBy === AGENT) || null;
+      const resultOf = (callId) => {
+        for (const r of mock.requests) for (const m of r.msgs) if (m && m.role === 'tool' && m.tool_call_id === callId) return flat(m.content);
+        return null;
+      };
+      const LOCKOUT = /^(?:ERROR: )?BLOCKED: "web[._]request" is no longer available on this run/;
+      const lockedBy = (result) => LOCKOUT.test(String(result)) && /handed over by dec/.test(result) && /via user attachment/.test(result);
+
+      // G1: the turn that attaches the files also hands the worker its task
+      {
+        const turn = conversation('worker-a');
+        const t1 = await turn(1, 'TURN1 please look at these, then DELEGATE_API@g1', [fileRef, imgRef]);
+        A.eq([t1.reason, t1.taintedBy, t1.images], ['done', UA, 1], 'G1 turn 1: the lead holds the bytes');
+        const w = await workerRow(t1.runId);
+        A.ok(w, 'G1: the worker ran for the lead (a run row of ' + WORKER + ' whose parent is the lead\'s run)');
+        A.eq(w && w.taintedBy, UA, 'G1: the worker inherits the attachment latch of a lead that holds the bytes');
+        const locked = resultOf('w_req_g1');
+        A.ok(lockedBy(locked), 'G1: its credentialed request is locked out, and the refusal names the lead and the source: ' + String(locked).slice(0, 220));
+        // THE OPEN DECISION, pinned. The lead latched the worker's relayed output, 'worker output (tainted by user attachment)',
+        // which is not the bare attachment stamp, so the rows the lead wrote after the relay keep tainting its replays: a lead that
+        // delegated while it held the bytes stays locked after they are gone. The safe way round; docs/DECISIONS.md and
+        // docs/attachment-taint-security-review.md say what lifting it would take, and whose call that is
+        const t2 = await turn(2, 'TURN2 and then?');
+        const t3 = await turn(3, 'TURN3 thanks');
+        A.eq(t2.taintedBy, UA, 'G1 turn 2: the follow-up still re-sends the bytes');
+        A.eq([t3.reason, t3.images, t3.fileText], ['done', 0, false], 'G1 turn 3: no bytes are re-sent');
+        A.ok(/^replayed history \(tainted by .*worker output \(tainted by user attachment\)/.test(String(t3.taintedBy)), 'G1 turn 3 (open decision): it still starts tainted, by the rows the lead wrote after the relay of its worker\'s output: ' + t3.taintedBy);
+      }
+
+      // G2: the follow-up turn is still inside the window, so the lead holds the bytes and the worker inherits
+      {
+        const turn = conversation('worker-b');
+        await turn(1, 'TURN1 please look at these', [fileRef, imgRef]);
+        const t2 = await turn(2, 'TURN2 now DELEGATE_API@g2');
+        A.eq([t2.reason, t2.taintedBy, t2.images], ['done', UA, 1], 'G2 turn 2: the lead still holds the bytes');
+        const w = await workerRow(t2.runId);
+        A.eq(w && w.taintedBy, UA, 'G2: the worker inherits the attachment latch on the follow-up turn');
+        const locked = resultOf('w_req_g2');
+        A.ok(lockedBy(locked), 'G2: its credentialed request is locked out: ' + String(locked).slice(0, 220));
+      }
+
+      // G3: the done-means case. Turn 4, the bytes long gone: the lead is clean, so the worker it dispatches has no taint at all
+      {
+        const turn = conversation('worker-c');
+        await turn(1, 'TURN1 please look at these', [fileRef, imgRef]);
+        await turn(2, 'TURN2 and then?');
+        const t3 = await turn(3, 'TURN3 thanks');
+        const t4 = await turn(4, 'TURN4 one more thing, DELEGATE_API@g3');
+        A.eq([t3.taintedBy, t3.images, t3.fileText], [null, 0, false], 'G3 turn 3: the lead is clean');
+        A.eq([t4.reason, t4.taintedBy, t4.images, t4.fileText], ['done', null, 0, false], 'G3 turn 4: the lead is clean, re-sends no bytes, and is still clean after its worker\'s report');
+        const w = await workerRow(t4.runId);
+        const open = resultOf('w_req_g3');
+        A.ok(w && w.reason === 'done' && open !== null, 'G3: the worker ran for the lead and made its request');
+        A.ok(w && !w.taintedBy, 'G3 turn 4: the worker has no taint at all (its run row says ' + JSON.stringify(w && w.taintedBy) + ')');
+        A.ok(!LOCKOUT.test(String(open)) && !/handed over by|untrusted-content-lockout|outside content/.test(String(open)), 'G3 turn 4: the taint lock is not what stops its credentialed request (the host said: ' + String(open).slice(0, 200) + ')');
+        // the other half of the differential: the call got PAST the taint gate and ended at the host's own address policy (sidecar/net/safe-egress.js),
+        // which refuses a loopback literal before anything is dialled. Turns 1-2 above are the same call stopped at the gate instead
+        A.ok(/private\/loopback\/intranet host/.test(String(open)), 'G3 turn 4: it ended at the host\'s address policy, past the taint gate (the host said: ' + String(open).slice(0, 200) + ')');
+        // the report carried no latch, so the next turn is clean too, and the stream's stamps are the decay's: turns 1-2, then none
+        const t5 = await turn(5, 'TURN5 what did it say?');
+        A.eq([t5.reason, t5.taintedBy, t5.images, t5.fileText], ['done', null, 0, false], 'G3 turn 5: the lead is still clean after the worker\'s report');
+        const stamps = (await transcript('worker-c')).filter(r => r.role === 'assistant').map(r => r.taint || null);
+        A.eq([stamps.slice(0, 2), stamps.slice(2).length > 0 && stamps.slice(2).every(s => s === null)], [[UA, UA], true], 'G3: the answers of turns 1-2 carry the attachment stamp and no later answer carries one: ' + JSON.stringify(stamps));
+      }
     }
   } catch (e) {
     console.error(e && e.stack || e);
