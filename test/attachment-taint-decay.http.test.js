@@ -6,14 +6,15 @@
    it), every provider request carried the picture and the file text, and the whole conversation stayed locked for good: no
    unattended grants, no learning, the replay of its own rows re-tainting every later turn.
    Now a run is tainted exactly while the attachment's BYTES are in front of it (the attaching turn and one follow-up), and
-   what that run wrote stops tainting once the bytes are gone. Three flows, three streams:
+   what that run wrote stops tainting once the bytes are gone. Four flows, four streams:
 
-     A  taint-follows-bytes      turn 1 file + picture; turn 2 and 3 typed preferences (the learning receipts); a fresh picture
-                                 on turn 5; a tool read of the saved file on turn 7; turn 8 replays it
-                                 runs 1-2 tainted and send the bytes; runs 3-4 untainted, no image_url, no file text, and
-                                 the trusted capture is no longer flagged tainted; a fresh picture re-taints runs 5-6 only;
-                                 the run that opens the saved file latches fs.read although it started clean, and the next
-                                 turn starts tainted by replaying it
+     A  taint-follows-bytes      turn 1 file + picture, then six text turns (turns 2 and 3 are typed preferences: the learning
+                                 receipts). Runs 1-2 are tainted and send the bytes; runs 3-7 are untainted, send no image_url
+                                 and no file text, the trusted capture is no longer flagged tainted, and an untainted finished
+                                 task run is a learning candidate again
+     A2 a fresh picture, a read  turn 1 file + picture; a fresh picture on turn 5 re-taints runs 5-6 only; the run that opens
+                                 the saved file on turn 7 latches fs.read although it started clean, and turn 8 starts tainted
+                                 by replaying it
      B  no-taint-laundering      turn 1 attaches AND opens the saved file: the run record keeps the first source (the
                                  attachment) but the rows written after the read carry fs.read, so turns 3 and 4 stay tainted
      C  a legacy stream          every row stamped 'user attachment', the file text in the directive row's content: the
@@ -165,36 +166,37 @@ function startMock() {
     };
     const transcript = async (streamId) => ((await get('/api/transcript?stream=' + streamId + '&agent=' + AGENT + '&limit=200')).turns) || [];
 
-    // =========================== FLOW A: taint-follows-bytes ===========================
-    {
-      const S = 'decay-a', hist = [];
-      const turn = async (n, content, attachments, needle) => {
+    // one conversation as the browser holds it: every turn posts the whole history, with every earlier turn's attachment REFERENCES
+    const conversation = (S) => {
+      const hist = [];
+      return async (n, content, attachments, needle) => {
         hist.push(attachments ? { role: 'user', content, attachments } : { role: 'user', content });
         const r = await run(S, hist, needle || ('TURN' + n));
         hist.push({ role: 'assistant', content: 'Done. (reply ' + (mock.requests.length) + ')' });
         return r;
       };
+    };
+
+    // =========================== FLOW A: taint-follows-bytes (turn 1 file + picture, then six text turns) ===========================
+    {
+      const S = 'decay-a', turn = conversation(S);
       const t1 = await turn(1, 'TURN1 please look at these', [fileRef, imgRef]);
       const t2 = await turn(2, PREF_A, null, PREF_A);
       const t3 = await turn(3, PREF_B, null, PREF_B);
       const t4 = await turn(4, 'TURN4 thanks, and one more thing');
-      const t5 = await turn(5, 'TURN5 and this new picture?', [img2Ref]);
-      const t6 = await turn(6, 'TURN6 keep going');
-      const t7 = await turn(7, 'TURN7 READ_SAVED_FILE@A ' + file1.path, null, 'TURN7');
-      const t8 = await turn(8, 'TURN8 and now?');
-      const all = [t1, t2, t3, t4, t5, t6, t7, t8];
+      const t5 = await turn(5, 'TURN5 keep going');
+      const t6 = await turn(6, 'TURN6 and then?');
+      const t7 = await turn(7, 'TURN7 last one');
+      const all = [t1, t2, t3, t4, t5, t6, t7];
       A.ok(all.every(r => r.reason === 'done'), 'every run of flow A finished: ' + JSON.stringify(all.map(r => r.reason)));
-      // the taint each run carried
+      A.ok(all.every(r => r.calls >= 1), 'every run reached the provider');
+      // the taint each run carried: the attaching turn and the one follow-up, then nothing, although every earlier row is stamped
       A.eq(t1.taintedBy, UA, 'run 1 (file + picture): tainted by the attachment');
       A.eq(t2.taintedBy, UA, 'run 2 (the one follow-up): still tainted, the bytes are still re-sent');
-      A.eq([t3.taintedBy, t4.taintedBy], [null, null], 'runs 3 and 4: no taint at all, although every earlier row of the stream is stamped with the attachment');
-      A.eq([t5.taintedBy, t6.taintedBy], [UA, UA], 'a fresh picture on turn 5 re-taints runs 5 and 6');
-      A.eq(t7.taintedBy, 'fs.read', 'run 7 started clean and opening the saved file latched fs.read');
-      A.ok(/^replayed history \(tainted by fs\.read\)/.test(String(t8.taintedBy)), 'run 8 replays the run that read the saved file and starts tainted: ' + t8.taintedBy);
-      // the bytes each run put on the wire
-      A.eq(all.map(r => r.images), [1, 1, 0, 0, 1, 1, 0, 0], 'pictures on the wire: turn 1 and 2, then none, the fresh one on 5 and 6 only');
-      A.eq(all.map(r => r.fileText), [true, true, false, false, false, false, false, false], 'the file text rides on turns 1 and 2 only (the saved-file read on 7 returns it as a tool result, not in a user turn)');
-      A.ok(all.every(r => r.calls >= 1), 'every run reached the provider');
+      A.eq(all.slice(2).map(r => r.taintedBy), [null, null, null, null, null], 'runs 3 to 7: no taint at all, although every earlier row of the stream is stamped with the attachment');
+      // the bytes each run put on the wire: this is what the taint follows
+      A.eq(all.map(r => r.images), [1, 1, 0, 0, 0, 0, 0], 'pictures on the wire: turn 1 and 2 only');
+      A.eq(all.map(r => r.fileText), [true, true, false, false, false, false, false], 'the file text rides on turns 1 and 2 only');
       // the learning half: the host's own receipts for the two typed preferences
       const r2 = await receiptOf(t2.runId), r3 = await receiptOf(t3.runId);
       A.ok(r2 && r3, 'both typed preferences left a learning receipt');
@@ -203,11 +205,36 @@ function startMock() {
       const base = { reason: 'done', outcome: 'succeeded', reflect: true, task: true, internal: false };
       const clean = LE.passes(LE.runOutcome(Object.assign({ tainted: false }, base))), locked = LE.passes(LE.runOutcome(Object.assign({ tainted: true }, base)));
       A.ok(clean.reflection && clean.study && clean.threadmine && !locked.reflection && !locked.study && !locked.threadmine, 'an untainted finished task run is a candidate for reflection, study and thread mining again; a tainted one is not');
-      // the rows themselves: stamped with the attachment while the bytes were there, and the read's stamp is not the attachment's
+      // the rows themselves: stamped with the attachment while the bytes were there, unstamped after
       const rows = await transcript(S);
       const stamps = (needle) => rows.filter(r => String(r.content).indexOf(needle) >= 0).map(r => r.taint || null);
       A.ok(stamps('TURN1').includes(UA) && stamps(PREF_A).includes(UA) && stamps(PREF_B).every(t => t === null), 'the rows say the same: stamped with the attachment on turns 1-2, unstamped on turn 3 (' + rows.length + ' rows)');
-      A.ok(!rows.some(r => (r.taint || null) === UA && String(r.content).indexOf('TURN4') >= 0), 'turn 4 wrote no row stamped with the attachment');
+      A.ok(!rows.some(r => (r.taint || null) === UA && /TURN[4-7]/.test(String(r.content))), 'turns 4 to 7 wrote no row stamped with the attachment');
+    }
+
+    // =========================== FLOW A2: a fresh picture re-taints, a tool read of the saved file latches ===========================
+    {
+      const S = 'decay-a2', turn = conversation(S);
+      const t1 = await turn(1, 'TURN1 please look at these', [fileRef, imgRef]);
+      const t2 = await turn(2, 'TURN2 and then?');
+      const t3 = await turn(3, 'TURN3 thanks');
+      const t4 = await turn(4, 'TURN4 one more thing');
+      const t5 = await turn(5, 'TURN5 and this new picture?', [img2Ref]);
+      const t6 = await turn(6, 'TURN6 keep going');
+      const t7 = await turn(7, 'TURN7 READ_SAVED_FILE@A ' + file1.path);
+      const t8 = await turn(8, 'TURN8 and now?');
+      const all = [t1, t2, t3, t4, t5, t6, t7, t8];
+      A.ok(all.every(r => r.reason === 'done'), 'every run of flow A2 finished: ' + JSON.stringify(all.map(r => r.reason)));
+      A.ok(all.every(r => r.calls >= 1), 'every run of flow A2 reached the provider');
+      A.eq([t1.taintedBy, t2.taintedBy], [UA, UA], 'turns 1 and 2 hold the first attachment');
+      A.eq([t3.taintedBy, t4.taintedBy], [null, null], 'runs 3 and 4: no taint at all');
+      A.eq([t5.taintedBy, t6.taintedBy], [UA, UA], 'a fresh picture on turn 5 re-taints runs 5 and 6, and only those');
+      A.eq(t7.taintedBy, 'fs.read', 'run 7 started clean and opening the saved file latched fs.read');
+      A.ok(/^replayed history \(tainted by fs\.read\)/.test(String(t8.taintedBy)), 'run 8 replays the run that read the saved file and starts tainted: ' + t8.taintedBy);
+      A.eq(all.map(r => r.images), [1, 1, 0, 0, 1, 1, 0, 0], 'pictures on the wire: turn 1 and 2, then none, the fresh one on 5 and 6 only');
+      A.eq(all.map(r => r.fileText), [true, true, false, false, false, false, false, false], 'the file text rides on turns 1 and 2 only (the saved-file read on 7 returns it as a tool result, not in a user turn)');
+      // the read's stamp is not the attachment's
+      const rows = await transcript(S);
       A.ok(rows.some(r => r.taint === 'fs.read') && !rows.some(r => String(r.content).indexOf('It says hello') >= 0 && r.taint !== 'fs.read'), 'the rows written after the read of the saved file carry fs.read, not the bare attachment');
     }
 

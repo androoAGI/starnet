@@ -237,6 +237,8 @@ function startRun(ctx, runId, o) {
     A.eq(journal.inspect('run2').taintedBy, 'web_fetch', 'and the journal\'s answer for a continuation');
     A.eq(store.history('W').map(r => r.taint || null), [UA, UA, 'web_fetch', 'web_fetch'], 'the rows written after the page carry it');
     A.eq(journal.inspect('run2').meta.initialTaint, UA, 'the begin meta is untouched: the run really began with the bare attachment');
+    A.eq(replayFrom()({ streamId: 'W', msgs: browser(1) }), 'replayed history (tainted by web_fetch)', 'turn 3 after a run that held the attachment and then fetched a page starts tainted by the PAGE: the attachment decayed, the page did not');
+    A.eq(replayFrom()({ recovery: { sourceRunId: 'run2' }, streamId: 'other', msgs: [{ role: 'user', content: 'x' }] }), 'resumed run (tainted by web_fetch)', 'and a recovery continuation of that run restores the page, not the bare attachment');
 
     // CONTROL: an attachment run that reads nothing else stays attachment-only, in the journal and on its rows
     const r3 = startRun({ journal, store, streamId: 'C' }, 'run3', { initialTaint: UA, directive: 'turn 0' });
