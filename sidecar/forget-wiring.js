@@ -310,6 +310,14 @@ function wireForgetRegistry(registry, deps) {
     }
   });
 
+  /* group sessions (group-sessions.json): a group chat is a conversation whose id is its workstream's, so the Commander's delete of that session
+     takes its messages, turns, questions, instructions and shared files (the group's own delete tombstones it). Source: the group's id. */
+  entry({
+    name: 'group-sessions',
+    sourceOf: g => ({ streamIds: [g && g.id], at: num(g && g.createdAt) }),
+    forget: scope => d.groupSessions().forget(src => inScope(src, scope))
+  });
+
   return registry;
 }
 

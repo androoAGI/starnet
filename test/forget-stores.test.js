@@ -30,6 +30,7 @@ const QuestRefresh = require('../sidecar/questrefresh.js');
 const { makeOverseer } = require('../sidecar/overseer.js');
 const { makeSubagentManager } = require('../sidecar/subagents.js');
 const makeAttachments = require('../sidecar/attachments.js');
+const { makeGroupSessions } = require('../sidecar/group-sessions.js');
 const Store = require('../sidecar/transcriptstore.js');
 const History = require('../sidecar/transcript-history.js');
 
@@ -419,6 +420,37 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.eq(await forget('attachment-files'), 0, 'idempotent');
         A.ok(!fs.existsSync(path.join(adir, 'agent', '.attachments')) || !fs.readdirSync(path.join(adir, 'agent', '.attachments')).some(f => f === path.basename(onlyGone.path)), 'the agent\'s file tools can no longer list the deleted session\'s attachment');
       } finally { remove(adir); }
+    }
+
+    // ---------------- group sessions ----------------
+    {
+      const gdir = temp('groups');
+      let groups = null;
+      try {
+        let seq = 4000;
+        // group ids are minted by the host: the first group is the one the Commander deletes (its id is its workstream's)
+        const ids = ['sGone', 'gm1', 'sKeep', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6', 'gm7', 'gm8', 'gm9'];
+        groups = makeGroupSessions({ fs, path, root: gdir, now: () => ++seq, id: () => ids.shift() || ('x' + (++seq)), log: () => {},
+          roster: () => [{ id: 'agent', name: 'Lead' }, { id: 'research', name: 'Researcher' }],
+          execute: async o => { o.emit('agent.run.start', { runId: o.runId }); return { reason: 'done', messages: [{ role: 'assistant', content: 'done' }] }; },
+          readFile: async () => ({ name: 'r.md', content: 'aGVsbG8=', bytes: 5, hash: 'h' }), decodeFile: f => ({ text: 'hello', hash: f.hash }), uploadFile: (name, content) => ({ name, content, hash: 'h' }) });
+        await groups.ready;
+        const gone = await groups.create({ members: ['agent', 'research'], title: 'Quokka group' });
+        await groups.send(gone.id, { key: 'k1', text: '@Researcher tell me about quokka habitats' }); await groups.idle(gone.id);
+        const keep = await groups.create({ members: ['agent', 'research'], title: 'Platypus group' });
+        await groups.send(keep.id, { key: 'k2', text: '@Researcher tell me about platypus nests' }); await groups.idle(keep.id);
+        A.eq(gone.id, 'sGone', 'the group the Commander deletes is filed under its workstream id');
+        hold.groupSessions = () => groups;
+        const file = path.join(gdir, 'group-sessions.json');
+        A.ok(/quokka habitats/.test(fs.readFileSync(file, 'utf8')), 'before the purge the group file holds the deleted session\'s message');
+        A.eq(await forget('group-sessions'), 1, 'the group filed under the deleted session is deleted');
+        const disk = [file, file + '.bak'].filter(f => fs.existsSync(f)).map(f => fs.readFileSync(f, 'utf8')).join('\n');
+        A.ok(!/quokka/i.test(disk), 'neither group-sessions.json nor its .bak holds its words');
+        const left = (await groups.list()).groups.map(g => g.id);
+        A.eq(left, [keep.id], 'only the other session\'s group is listed');
+        A.ok(/platypus nests/.test(JSON.stringify(await groups.get(keep.id))), 'and its messages are intact');
+        A.eq(await forget('group-sessions'), 0, 'idempotent');
+      } finally { if (groups) groups.close(); remove(gdir); }
     }
 
     A.report('forget-stores');
