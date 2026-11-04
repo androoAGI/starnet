@@ -37,6 +37,9 @@
                                  Also pins, as the open decision it is, the over-taint of a lead that delegated while it held the
                                  bytes: it stays locked, because the worker's relayed output is not the bare attachment stamp
 
+   A FOLDED CONVERSATION (context-budget-and-fold x this lane, A10) follows the same rule for the summary a paid fold keeps: forced folds, the
+   stamp each kind writes and the serve latch (bare source latches nothing, bytes never decay, both sources recorded) are test/summary-taint.http.test.js.
+
    The learning half reads the host's own receipts (GET /api/learning-status), the memory-learning-boundary pattern.
    One provider mock; one sidecar boot, restarted once for flow G. */
 'use strict';
