@@ -31,7 +31,6 @@ const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeRunTranscript } = require('../sidecar/transcript-run.js');
 const TurnDirective = require('../sidecar/turn-directive.js');
 const TurnAttachment = require('../sidecar/turn-attachment.js');
-const TurnKinds = require('../frontend/app/turnkinds.js');
 const UserText = require('../frontend/app/usertext.js');
 const EarlierConversation = require('../sidecar/earlier-conversation.js');
 const { makeRecallTool } = require('../sidecar/tools/builtin/recall.js');

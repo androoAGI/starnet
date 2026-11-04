@@ -59,13 +59,14 @@ class TurnFixture {
     const directive = call('TurnDirective.capture(', () => Directive.capture(messages, { turnId, recovery: o.recovery }));
     messages = call('turnWindow.apply(', () => this.window.apply(messages, Object.assign({}, o, Kinds.clientTurnTime(o, this.now()), { windowCaller: Window.callerOf(o) }), { agentId, runId, directive, reused: found }));
     messages = await call('attachments.expandForRun(', () => this.attachments.expandForRun(messages, agentId, o.projectRoot));
+    const report = this.attachments.resentOf(messages);   // index.js: attachReport, read right after the expansion (size and sha256 of each file read)
     const kinds = call('const kinds = TurnKinds.ofRun(', () => Kinds.ofRun(o, { internal: !!o.internal, trigger: o.trigger || 'manual-page' }));
     const writer = call('const runTranscript = makeRunTranscript(', () => makeRunTranscript({ store: this.store, streamId: o.streamId, agentId, runId,
       turnId: () => turnId, stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,
       onFailure: (_stage, error) => { throw error; } }));
     const reused = call('let retryDirective = TurnDirective.reuse(', () => Directive.reuse(this.store, Object.assign({}, o, { found, streamId: o.streamId, turnId, runId, agentId, rekey, messages, directive, redact, latestUserText: list => UserText.latest(list, UserText.DIRECTIVE) })));
     const words = UserText.latest(messages, UserText.DIRECTIVE);
-    call('runTranscript.setDirective(TurnDirective.row(', () => { if (reused || o.recovery) writer.markDirectiveWritten(); else writer.setDirective(Directive.row(directive, words, kinds.directiveKind)); });
+    call('TurnDirective.install(runTranscript, directive,', () => { Directive.install(writer, directive, words, kinds.directiveKind, report, reused); if (reused || o.recovery) writer.markDirectiveWritten(); });
     const directiveTitle = call('directiveTitle: TurnDirective.title(', () => Directive.title(directive, words));
     const title = call('TurnDirective.runTitle(', () => Directive.runTitle(directiveTitle));
     const expected = upTo(8).map(r => r.anchor);
