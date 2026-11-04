@@ -262,6 +262,12 @@ function makeLineResume(deps) {
     try { job = store.read(id); } catch (e) { failNote('line-resume.read', e); return answer(503, { error: 'Line job storage could not be verified.' }); }
     if (!job) return answer(404, { error: 'no such job' });
     if (!job.continuation || job.continuationIssue) return answer(409, { error: 'this job has nothing waiting for a decision' });
+    // STOP on a walk a person already let go on asks its owner to stop it (the stop DELETE on a running job asks for): after the stage that is out, nothing more is bought
+    if (req.action === 'stop' && job.status === 'running' && runner.get(id)) {
+      let asked = false;
+      try { asked = !!runner.stop(id, 'user'); } catch (e) { failNote('line-resume.stopRunning', e); }
+      return asked ? answer(202, { stopRequested: true, running: true, job: safeRead(id) }) : answer(409, { error: 'this job has no live stop owner', job });
+    }
     // the claim (a replay of the same decision returns the SAVED receipt: nothing is claimed twice, nothing is bought twice)
     let claimed;
     try { claimed = store.claim(id, Object.assign({}, req, { at: now() })); }

@@ -151,6 +151,19 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     A.ok(!WW._resultHTML(line, Object.assign({}, stuck, { continuation: Object.assign({}, stuck.continuation, { activeDecision: null, decisions: [Object.assign({}, stuck.continuation.decisions[0], { state: 'complete' })] }) })).includes('decide-apply'), 'a decision that was carried out offers nothing');
   }
 
+  /* ---- 4c. a walk a person let go on is running: it can be stopped ---- */
+  {
+    const running = heldJob({ status: 'running', outcome: 'running', stop: null, error: '' }, { phase: 'intent', hold: null, revision: 5, activeDecision: null, decisions: [{ token: 'ui-done', revision: 1, fingerprint: 'f', action: 'approve', note: '', at: 5, state: 'complete' }] });
+    const h = WW._resultHTML(line, running);
+    A.ok(h.includes('data-decision="stop"') && /Stops after the stage that is out/.test(text(h)) && !h.includes('data-decision="approve"'), 'a running resumed job offers STOP and nothing else to decide');
+    A.ok(!WW._resultHTML(line, Object.assign({}, running, { status: 'delivered', outcome: 'delivered', endedAt: 2, output: 'done' })).includes('data-decision="stop"'), 'a finished one does not');
+    S.job = running; fetches.length = 0; S.deciding = null;
+    replyFor = url => /\/decision$/.test(url) ? { __status: 202, ok: true, stopRequested: true, running: true, job: running } : { ok: true, jobs: [], job: running };
+    WW._decide(running, 'stop');
+    for (let i = 0; i < 6; i++) await tick();
+    A.eq([posted().length, posted()[0].action, posted()[0].revision], [1, 'stop', 5], 'STOP posts the stop decision on the revision the job read');
+  }
+
   /* ---- 5. the list, and nothing new ---- */
   A.ok(/j\.status === 'held' \? '<span class="wfw-st warn">⏸ WAITING FOR YOU<\/span>'/.test(src), 'the list row says WAITING FOR YOU for a held job (not BLOCKED)');
   A.ok(!/registerWindow\('(held|decisions)/.test(src) && (src.match(/registerWindow\(/g) || []).length === 1, 'no new window: the decision lives in the existing job box');

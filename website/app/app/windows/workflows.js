@@ -791,7 +791,7 @@ const WorkflowsWindow = (() => {
     let h = '<section class="wfw-sec wfw-result"><div class="wfw-rhead">' + head + '<span class="wfw-rmeta">' + esc(meta) + '</span></div>'
       + prov
       + (why ? '<p class="wfw-why">' + esc(why) + '</p>' : '')
-      + (held ? heldHTML(job) : job.continuation ? unstartedHTML(job) : '')
+      + (held ? heldHTML(job) : job.continuation ? unstartedHTML(job) + runningStopHTML(job) : '')
       + work.notes.map(t => '<p class="wfw-why">⚠ ' + esc(t) + '</p>').join('')
       // (GitHub #122) delivered, but its review loop used all its passes without an approval — the record's own mark, in the loop note's
       // line, when the result itself carries no loop note (a step after the loop wrote it)
@@ -875,6 +875,15 @@ const WorkflowsWindow = (() => {
       + '<div class="wf-row"><button type="button" class="bb refit-primary" data-act="decide-apply"' + (busy ? ' disabled' : '') + '>' + (busy ? 'WORKING…' : '↻ CARRY IT OUT') + '</button>'
       + '<span class="wfw-note">It starts once, however many times you press this.</span></div>'
       + (msg ? '<p class="' + (msg.bad ? 'wfw-bad' : 'wfw-okline') + '">' + (msg.bad ? '✕ ' : '') + esc(msg.text) + '</p>' : '') + '</div>';
+  }
+  // a walk a person let go on is out and costs money: its STOP asks the station to stop it after the stage that is out (what ran is counted)
+  function runningStopHTML(job) {
+    const c = job.continuation;
+    if (job.status !== 'running' || !c || (c.phase !== 'ready' && c.phase !== 'intent')) return '';
+    const busy = !!(S.deciding && S.deciding.jobId === job.id), msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
+    return '<div class="wf-row"><button type="button" class="bb" data-act="decide" data-decision="stop"' + (busy ? ' disabled' : '') + '>' + (busy ? 'STOPPING…' : '■ STOP') + '</button>'
+      + '<span class="wfw-note">Stops after the stage that is out. What already ran is counted, and nothing is delivered.</span></div>'
+      + (msg ? '<p class="wfw-bad">✕ ' + esc(msg.text) + '</p>' : '');
   }
   function decide(job, action, stored) {
     if (!job || !job.id || !job.continuation || S.deciding) return;
