@@ -171,6 +171,50 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.deliverables().forget(r => inScope(deliverableSource(r), scope))
   });
 
+  /* the night shift's desk drafts (title and body of what a beat produced, read by the morning digest and by PriorWork into later beats), its
+     act ledger (which archetype a run served) and the away workshop's queued jobs. A beat is composed from the context pack's sessions, so a
+     draft or a job carries the quote stamp (draftStamp / quotedStamp in index.js) and the act's run; the run's own record is quote-stamped too.
+     A draft or a job queued by the night shift with NO stamp predates sources and may quote any session: it goes with the first delete after it
+     (a job already BUILT stays, its deliverable row and files are the Commander's to keep or discard). */
+  const draftSource = x => ({ runIds: [x && x.runId], quotes: x && x.quotes, quotesAt: x && x.quotesAt, quotesSaturatedAt: x && x.quotesSaturatedAt, at: num(x && x.at) });
+  entry({
+    name: 'night-drafts',
+    sourceOf: draftSource,
+    forget: scope => {
+      const latest = latestStamp(scope);
+      const cur = d.nightDrafts.get() || [];
+      const keep = cur.filter(x => !(x && (inScope(draftSource(x), scope) || (!x.quotes && !x.runId && num(x.at) <= latest))));
+      const removed = cur.length - keep.length;
+      if (removed) { d.nightDrafts.set(keep); settle(d.nightDrafts.persist); }
+      return removed;
+    }
+  });
+  entry({
+    name: 'night-acts',
+    sourceOf: act => ({ runIds: [act && act.runId], at: num(act && act.at) }),
+    forget: scope => {
+      const acts = d.nightActs.get() || {};
+      let removed = 0;
+      for (const runId of Object.keys(acts)) if (inScope({ runIds: [runId], at: num(acts[runId] && acts[runId].at) }, scope)) { delete acts[runId]; removed++; }
+      if (removed) settle(d.nightActs.persist);
+      return removed;
+    }
+  });
+  const jobSource = x => ({ runIds: [x && x.runId, x && x.builtRunId, x && x.buildingRunId], quotes: x && x.quotes, quotesAt: x && x.quotesAt, quotesSaturatedAt: x && x.quotesSaturatedAt, at: num(x && (x.ts || x.at)) });
+  entry({
+    name: 'workshop-backlog',
+    sourceOf: jobSource,
+    forget: async scope => {
+      const latest = latestStamp(scope);
+      let removed = 0;
+      for (const agentId of d.workshopAgentIds()) {
+        removed += await d.workshop().forget(agentId, x => inScope(jobSource(x), scope)
+          || (x && x.source === 'nightshift' && !x.quotes && !x.builtRunId && !x.buildingRunId && num(x.ts) <= latest));
+      }
+      return removed;
+    }
+  });
+
   return registry;
 }
 

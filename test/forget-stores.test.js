@@ -24,6 +24,7 @@ const { makeDurableJsonStore } = require('../sidecar/durable-store.js');
 const { makeVerdictReview } = require('../sidecar/verdictreview.js');
 const { makeTaskBriefStore } = require('../sidecar/taskbrief-store.js');
 const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
+const { makeWorkshopStore } = require('../sidecar/workshop-store.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -228,6 +229,51 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.eq(await store.record(row('d_late', 'r_gone', 'late'), 4600), null, 'a lifecycle row for a forgotten run is refused by the gate (null, nothing written)');
         A.ok((await store.record(row('d_new', 'r_after', 'fresh'), 4600)).id === 'd_new', '...and a live run\'s row is written');
       } finally { remove(ddir); }
+    }
+
+    // ---------------- the night shift: desk drafts, the act ledger, the away workshop's queue ----------------
+    {
+      const quoting = { quotes: ['sGone'], quotesAt: [4400] }, elsewhere = { quotes: ['sKeep'], quotesAt: [4400] };
+      let drafts = [
+        Object.assign({ title: 'Quokka plan', at: 4450, body: 'quokka plan body' }, quoting),
+        Object.assign({ title: 'Platypus plan', at: 4450, body: 'platypus plan body' }, elsewhere),
+        { title: 'Old draft', at: 4000, body: 'written before sources existed' },
+        { title: 'Newer draft', at: 6000, body: 'written after the delete, unstamped' },
+        Object.assign({ title: 'Built thing', at: 4455, body: 'built', runId: 'r_gone' }, elsewhere)
+      ];
+      const saves = [];
+      hold.nightDrafts = { get: () => drafts, set: list => { drafts = list; }, persist: () => saves.push(drafts.length) };
+      A.eq(await forget('night-drafts'), 3, 'the draft that quoted the deleted session, the one built by a run of it, and the unstamped (pre-source) one go');
+      A.eq(drafts.map(x => x.title), ['Platypus plan', 'Newer draft'], 'a draft quoting another session and one written after the delete stay');
+      A.eq(saves.length, 2, 'persisted twice (the .bak is the purged copy too)');
+      A.eq(await forget('night-drafts'), 0, 'idempotent');
+      A.ok(!registry.admit(Object.assign({ title: 'late', at: 6500 }, quoting)) && registry.admit(Object.assign({ title: 'ok', at: 6500 }, elsewhere)), 'the gate refuses a draft whose stamp names the deleted session, not another\'s');
+
+      const acts = { r_gone: { archetype: 'a', at: 4100, threadId: null }, r_reader: { archetype: 'b', at: 4600, threadId: 't1' }, r_keep: { archetype: 'c', at: 4100, threadId: null } };
+      let actSaves = 0;
+      hold.nightActs = { get: () => acts, persist: () => { actSaves++; } };
+      A.eq(await forget('night-acts'), 2, 'the acts of the deleted session\'s run and of the run that read it go');
+      A.eq(Object.keys(acts), ['r_keep'], 'the other run\'s act stays');
+      A.eq(actSaves, 2, 'persisted twice');
+
+      const wdir = temp('workshop');
+      try {
+        const ws = makeWorkshopStore({ fs, path, workspaces: wdir });
+        await ws.queue('agent', Object.assign({ id: 'ns-act-1', title: 'Quokka build', detail: 'spec about quokkas', source: 'nightshift' }, quoting), 4450);
+        await ws.queue('agent', Object.assign({ id: 'ns-act-2', title: 'Platypus build', detail: 'spec about platypus', source: 'nightshift' }, elsewhere), 4451);
+        await ws.queue('agent', { id: 'ns-act-3', title: 'Old nightshift job', detail: 'queued before sources existed', source: 'nightshift' }, 4000);
+        await ws.queue('agent', { id: 'user-1', title: 'My own job', detail: 'the Commander queued this', source: 'queued' }, 4000);
+        await ws.queue('agent', Object.assign({ id: 'ns-act-4', title: 'Built job', detail: 'built', source: 'nightshift' }, quoting), 4452);
+        await ws.markBuilt('agent', 'ns-act-4', 'r_gone', 4460);
+        await ws.queue('agent2', { id: 'ns-act-5', title: 'Another agent legacy job', detail: 'x', source: 'nightshift' }, 4000);
+        hold.workshop = () => ws;
+        hold.workshopAgentIds = () => ['agent', 'agent2'];
+        A.eq(await forget('workshop-backlog'), 4, 'the quoting job, the unstamped night job and the job built by a run of the deleted session go, on every agent');
+        A.eq(ws.backlogOf('agent').map(b => b.id).sort(), ['ns-act-2', 'user-1'], 'the other session\'s job and the Commander\'s own queued job stay');
+        const disk = fs.readdirSync(wdir).filter(f => /workshop/.test(f)).map(f => fs.readFileSync(path.join(wdir, f), 'utf8')).join('\n');
+        A.ok(!/quokka/i.test(disk), 'no workshop file or .bak holds the deleted session\'s job');
+        A.eq(await forget('workshop-backlog'), 0, 'idempotent');
+      } finally { remove(wdir); }
     }
 
     A.report('forget-stores');

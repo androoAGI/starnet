@@ -3682,14 +3682,17 @@ wireForgetRegistry(forgetRegistry, {
   now: () => Date.now(),
   notebookStore: () => notebookStore, threadsStore: () => threadsStore, memoryAgentIds: () => memoryAgentIds(),
   personalization: () => personalizationStore,
-  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() },
-  scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => persistScout() },
+  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => saveResilient(INTERESTS_FILE, { v: 1, state: interestsState }) },
+  scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => saveResilient(SCOUT_FILE, { v: 1, state: scoutState }) },
   recommendations: () => recommendationLedger,
   verdictReview: () => verdictReview,
   taskBriefs: () => taskBriefStore,
   deliverables: () => deliverableStore,
   goldens: { get: () => goldensByKey, persist: next => persistGoldens(next) },
-  study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => persistStudyState() }
+  study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => saveResilient(STUDY_STATE_FILE, { v: 1, byRun: Object.fromEntries(studyByRun), latest: Object.fromEntries(latestStudyRun), lastAt: Object.fromEntries(lastStudyAt), declined: Object.fromEntries(studyDeclinedByAgent) }) },
+  nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
+  nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
+  workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
@@ -8278,6 +8281,8 @@ function draftStamp(pack) {
   catch (e) { failNote('forget.draft-stamp', e); }
   return TurnKinds.quoteStamp(entries);
 }
+// packQuotes' { quotes, quotesAt: <one time> } as the canonical per-stream stamp a stored record carries (draftStamp's sibling)
+function quotedStamp(q) { return q && Array.isArray(q.quotes) ? TurnKinds.quoteStamp(q.quotes.map(id => ({ id, at: q.quotesAt }))) : {}; }
 async function nightshiftChat(o) {
   const agentId = String((o && o.agentId) || NIGHTSHIFT_AGENT);
   const ident = cronIdentityFor(agentId) || {};
@@ -8327,6 +8332,8 @@ const NIGHTSHIFT_DRAFTS_FILE = path.join(WORKSPACES, 'nightshift.drafts.json');
 function loadNightshiftDrafts() { try { const o = loadResilient(NIGHTSHIFT_DRAFTS_FILE, 'nightshift-drafts'); return (o && Array.isArray(o.drafts)) ? o.drafts : []; } catch (_) { return []; } }
 let nightshiftDrafts = loadNightshiftDrafts();
 function recordNightshiftDraft(entry) {
+  // the registry's write-time gate: a draft composed from a session deleted since (or by a run that read one) is not kept
+  if (!forgetRegistry.admit(entry)) { console.log('[nightshift] draft dropped: a session it was composed from was deleted'); return false; }
   nightshiftDrafts.push(entry);
   if (nightshiftDrafts.length > 20) nightshiftDrafts = nightshiftDrafts.slice(-20);
   try { saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }); } catch (e) { console.warn('[nightshift] drafts persist failed:', (e && e.message) || e); }
@@ -8356,7 +8363,7 @@ function loadNightshiftActs() { try { const o = loadResilient(NIGHTSHIFT_ACTS_FI
 let nightshiftActs = loadNightshiftActs();
 function recordNightshiftAct(runId, archetype, threadId) {
   const rid = String(runId || ''); const arch = String(archetype || '').trim();
-  if (!rid || !arch) return;
+  if (!rid || !arch || !forgetRegistry.admit({ runId: rid })) return;
   try {
     nightshiftActs[rid] = { archetype: arch, at: Date.now(), threadId: (threadId ? String(threadId) : null) };   // NS-6: carry the cited thread so the return-card verdict can deliver/decline it
     const keys = Object.keys(nightshiftActs);
@@ -9440,10 +9447,12 @@ async function runNightshiftBeat(opts) {
   // the do and critique runs are composed from the selected idea, which was composed from the pack's sessions: they quote them too. Kept on the selection
   // itself, out of its enumerable fields, so it never rides the idea into a ledger or a file (and the critique step reads only what it is handed)
   Object.defineProperty(sel, 'quoted', { value: packQuotes(pack), enumerable: false });
+  const quotedFrom = quotedStamp(sel.quoted);   // the stamp every record of this beat carries; a delete since the pack was read refuses the beat
+  if (!forgetRegistry.admit(quotedFrom)) return { delivered: false, reason: 'source-forgotten' };
   const draftRecId = 'nightshift-draft:' + String(opts.runId || crypto.randomUUID());
   recommendationLedger.record({ id: draftRecId, surface: 'nightshift', kind: sel.selected.archetype || 'draft', title: sel.selected.title,
     target: sel.selected.threadId || '', evidence: [{ id: sel.selected.threadId ? 'thread:' + sel.selected.threadId : 'nightshift-grounds', type: sel.selected.threadId ? 'thread' : 'context', quote: sel.selected.grounds || '' }],
-    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2' }, Date.now()).catch(swallow('recledger.record'));
+    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2', ...quotedFrom }, Date.now()).catch(swallow('recledger.record'));
   // NS-6 writeback: the selected candidate cited an open thread → mark it PICKED (it's being worked this beat).
   if (sel.selected.threadId) { try { await threadsStore.pick(sel.selected.threadId, Date.now()); } catch (_) {} }
   // CONVEYOR TRUTH (2026-07-18): the crate used to be dropped AFTER the draft landed, keyed to a runId no run.end
@@ -9473,8 +9482,8 @@ async function runNightshiftBeat(opts) {
   // 4) DELIVER — record the draft (the digest reads these) + surface to the floor via the SAME crate/beat plumbing
   //    an autonomous cron run uses, so the "while you were away" digest still works. Reach stays sandbox: nothing
   //    is sent/published/spent; in THIS lane the deliverable is a desk draft (NS-3 upgrades acts to jailed writes).
-  const entry = { title: deliverable.title, archetype: sel.selected.archetype, at: Date.now(), body: String(deliverable.body || '').slice(0, 4000), note: crit.note || '' };
-  recordNightshiftDraft(entry);
+  const entry = { title: deliverable.title, archetype: sel.selected.archetype, at: Date.now(), body: String(deliverable.body || '').slice(0, 4000), note: crit.note || '', ...quotedFrom };
+  if (recordNightshiftDraft(entry) === false) return { delivered: false, reason: 'source-forgotten' };
   // immediate visibility (2026-07-14): a draft landing while the app sits OPEN had no live surface — the
   // morning report needs an app-closure absence and the drafts nudge waits for N unseen. 'notify' is a
   // registered bare-string bus event with no other emitter; the station HUD toasts it on arrival. (The
@@ -9596,15 +9605,17 @@ async function runNightshiftActShift(opts) {
   //    the deliverable lands in /pending + /decide exactly like a workshop build (the return card + ship gate are
   //    keyed on a backlog item carrying builtRunId). The item id is deterministic from the runId so it can't collide.
   const runId = opts.runId || crypto.randomUUID();
+  const quotedFrom = quotedStamp(packQuotes(pack));   // what every record of this build carries; a delete since the pack was read refuses it
+  if (!forgetRegistry.admit(quotedFrom)) return { delivered: false, reason: 'source-forgotten' };
   recommendationLedger.record({ id: 'nightshift:' + runId, surface: 'nightshift', kind: sel.selected.archetype || 'build', title: sel.selected.title,
     target: sel.selected.threadId || targetRoot || '', evidence: [{ id: sel.selected.threadId ? 'thread:' + sel.selected.threadId : (targetRoot ? 'project:' + targetRoot : 'nightshift-grounds'), type: sel.selected.threadId ? 'thread' : (targetRoot ? 'project' : 'context'), quote: sel.selected.grounds || focusHeader || '' }],
-    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2' }, Date.now()).catch(swallow('recledger.record'));
+    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2', ...quotedFrom }, Date.now()).catch(swallow('recledger.record'));
   const backlogId = 'ns-act-' + runId;
   const title = String(sel.selected.title || 'Autonomy build').slice(0, 200);
   const continueOf = sel.selected.continueOf || null;
   let queued = null;
   try { queued = await workshopStore.queue(agentId, { id: backlogId, title, detail: String(sel.selected.spec || ''), source: 'nightshift', grounds: String(sel.selected.grounds || ''),
-    focusRef: (foc.focus && foc.focus.ref) || '', continuesRunId: (continueOf && continueOf.runId) || undefined }, Date.now()); }
+    focusRef: (foc.focus && foc.focus.ref) || '', continuesRunId: (continueOf && continueOf.runId) || undefined, ...quotedFrom }, Date.now()); }
   catch (_) { /* a queue hiccup (e.g. a title the Commander earlier discarded) → stand down honestly */ return { delivered: false, reason: 'queue-refused' }; }
   // a title already lined up (or discarded) is NOT a new item: building anyway produced an orphan run whose
   // markBuilt found no backlog row, so it never reached the desk. Stand down instead of duplicating the work.
@@ -9685,7 +9696,7 @@ async function runNightshiftActShift(opts) {
   // runNightshiftActShift). The driver's own generic outcome record stays a plain 'note' (no duplicate 'act').
   try { recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'act', agentId, runId, reason: 'built', detail: { phase: 'act', title: manifest.title, archetype: sel.selected.archetype, artifacts: paths, continues: (continueOf && continueOf.runId) || undefined } }); } catch (_) {}
   // record the desk draft too, so the "while you were away" digest still lists this beat.
-  try { recordNightshiftDraft({ title: manifest.title, archetype: sel.selected.archetype, at: Date.now(), body: String(manifest.summary || '').slice(0, 4000), wrote: { path: paths } }); } catch (_) {}
+  try { recordNightshiftDraft({ title: manifest.title, archetype: sel.selected.archetype, at: Date.now(), body: String(manifest.summary || '').slice(0, 4000), wrote: { path: paths }, runId, ...quotedFrom }); } catch (_) {}
   return { delivered: true, reason: 'built', title: manifest.title, archetype: sel.selected.archetype, runId, backlogId, artifactPaths: paths, continuesRunId: (continueOf && continueOf.runId) || undefined };
 }
 
