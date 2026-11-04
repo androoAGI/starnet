@@ -15,7 +15,7 @@
 const A = require('./_assert.js');
 const path = require('node:path');
 const Module = require('node:module');
-const { sidecarSourceFiles } = require('./helpers/source.js');
+const { sidecarSourceFiles, readSidecarIndex, sidecarFunctionSource } = require('./helpers/source.js');
 
 const sidecarPath = name => path.join(__dirname, '..', 'sidecar', name);
 const sourceOf = name => sidecarSourceFiles().find(f => f.rel === 'sidecar/' + name).text;
@@ -349,6 +349,37 @@ const R = rowsOf(10);
     A.eq([...fs.files.keys()], [], 'purge removes an orphaned .bak and a file that is not this stream\'s');
   }
 
+  // ================= 6b. the streams a row read ride the record (quote provenance), and a delete of one of them forgets it =================
+  {
+    const qrows = [
+      { rowId: 1, role: 'user', content: 'a', quotes: ['ws_b'], quotesAt: [2000] },
+      { rowId: 2, role: 'assistant', content: 'b', quotes: ['ws_b', 'ws_c'], quotesAt: [3000, 4000] },
+      { rowId: 3, role: 'user', content: 'c' }
+    ];
+    A.eq(Real.quoteUnion(qrows), { quotes: ['ws_b', 'ws_c'], quotesAt: [2000, 4000] }, 'each stream read is named once, at its EARLIEST read epoch');
+    A.eq(Real.quoteUnion(qrows.slice(2)), {}, 'rows that read nothing stamp nothing');
+    A.eq(Real.quoteUnion([{ quotes: ['*'], quotesAt: [900] }, { quotes: ['ws_b'], quotesAt: [100] }]), { quotes: ['*'], quotesAt: [100] }, 'a saturated stamp saturates the union at the earliest epoch seen');
+    A.eq(Real.quoteUnion([{ quotes: ['../x'], quotesAt: [5] }]), { quotes: ['*'], quotesAt: [5] }, 'a stamp that is not a stream id saturates: never dropped, never guessed');
+    A.eq(Real.quoteUnion([{ quotes: Array.from({ length: 33 }, (_, k) => 'ws_' + k), quotesAt: Array.from({ length: 33 }, () => 70) }]), { quotes: ['*'], quotesAt: [70] }, 'more streams than a stamp can name saturate it');
+    await mustKill('quote union: the earliest epoch', "first.set(id, first.has(id) ? Math.min(first.get(id), at) : at);", "first.set(id, at);", async Lib =>
+      JSON.stringify(Lib.quoteUnion(qrows)) === JSON.stringify({ quotes: ['ws_b', 'ws_c'], quotesAt: [2000, 4000] }));
+    // the chain: a record made from those rows is forgotten when ANY stream they read is deleted
+    const stamp = Real.quoteUnion(qrows);
+    const tomb = new Map();
+    const fs = memFs();
+    const { ledger } = makeLedger(Real, { fs, deletedAt: id => tomb.get(id) || 0, deletedSince: at => [...tomb.values()].some(t => t >= at) });
+    await ledger.put(inputFor(R, 6, Object.assign({ streamId: 'ws_q' }, stamp)));
+    const rec = ledger.get('ws_q', 'agent');
+    const vctx = () => ctxFor(R, { streamId: 'ws_q', deletedAt: id => tomb.get(id) || 0, deletedSince: at => [...tomb.values()].some(t => t >= at) });
+    A.eq(reasonOf(Real, rec, vctx()), 'ok', 'control: served while nothing it read was deleted');
+    tomb.set('ws_c', 3000);
+    A.eq(reasonOf(Real, rec, vctx()), 'ok', 'ws_c deleted BEFORE this record\'s rows read it (epoch 4000): it read only what was said since');
+    tomb.set('ws_c', 4500);
+    A.eq(reasonOf(Real, rec, vctx()), 'quote-forgotten', 'ws_c deleted after it was read: the record is dead, though ws_q itself was never deleted');
+    A.eq(ledger.purge({}).files, 1, 'and the sweep a delete runs removes its file');
+    A.eq([...fs.files.keys()].filter(p => p.includes('ws_q')), [], 'with every copy beside it');
+  }
+
   // ================= 7. the module reads no view of its own =================
   {
     const code = SRC.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
@@ -413,6 +444,36 @@ const R = rowsOf(10);
     }
     A.eq(claimsBeyond, 0, 'no claim ever said more than the exchanges the fold summarized (' + cases + ' cuts)');
     A.ok(snapped > 10 && exact > 10 && noProgress > 3, 'the sweep covered mid-exchange cuts (' + snapped + '), exchange-boundary cuts (' + exact + ') and no-progress folds (' + noProgress + ')');
+  }
+  {
+    // the same sweep for a window that carries DURABLE IDS (the seed and the station window: one message per row, tool rows
+    // included): placed by identity alone, and the claim is the same exchange-boundary truth
+    let cases = 0, snapped = 0, exact = 0, bad = 0;
+    for (const n of [6, 11]) for (const tools of [false, true]) {
+      const rows = chatRows(n, tools);
+      const starts = [0, userIndex(rows, 3), userIndex(rows, 3) + 1, rows.length - 4];     // from the start, at an exchange, mid-exchange, a short tail
+      for (const start of starts) {
+        const win = rows.slice(start).map(r => r.role === 'tool' ? { role: 'tool', content: r.content, tool_call_id: r.toolCallId }
+          : r.role === 'assistant' && r.toolCalls ? { role: 'assistant', content: '', tool_calls: JSON.parse(r.toolCalls) } : { role: r.role, content: r.content });
+        Object.defineProperty(win, TurnView.ROW_IDS, { value: rows.slice(start).map(r => ({ streamId: 'ws_a', rowId: r.rowId })), enumerable: false });
+        const alignment = EC.align(rows, win, null);
+        const tag = 'ids n=' + n + (tools ? ' tools' : '') + ' start=' + start;
+        A.eq(alignment.cut, start, tag + ': an id-carrying window is placed by identity (cut ' + alignment.cut + ')');
+        A.eq(Cover.tagWindow(win, alignment, rows, 'ws_a'), win.length, tag + ': every message is tagged');
+        const prev = alignment.cut > 0 ? Cover.tagNote({ role: 'system', content: note('earlier') }, { source: 'earlier', rows: alignment.cut, toRowId: rows[alignment.cut - 1].rowId, taint: null, quoted: false }) : null;
+        const directive = { role: 'user', content: 'Now: the new ask' };
+        const openOf = idx => { for (let k = idx; k >= 0; k--) if (rows[k].role === 'user') return k; return -1; };
+        for (let cutPos = 1; cutPos <= win.length; cutPos++) {
+          cases++;
+          const want = Math.max(openOf(start + (cutPos < win.length ? cutPos : win.length - 1)), alignment.cut);
+          const res = Cover.claimFold({ streamId: 'ws_a', rows, older: win.slice(0, cutPos), kept: [], tailHead: cutPos < win.length ? win[cutPos] : directive, prevNote: prev, startRows: alignment.cut });
+          if (!res.ok || res.end !== want) { bad++; A.eq(res.ok ? res.end : res.reason, want, tag + ' cut@' + cutPos + ': the claim stops at the opening user row of the exchange the cut falls in'); continue; }
+          if (res.progress) { if (cutPos < win.length && win[cutPos].role !== 'user') snapped++; else exact++; }
+        }
+      }
+    }
+    A.eq(bad, 0, 'every cut of every id-carrying window claims exactly the exchanges the fold summarized (' + cases + ' cuts)');
+    A.ok(snapped > 10 && exact > 5, 'including cuts inside an exchange (' + snapped + ') and on an exchange boundary (' + exact + ')');
   }
   {
     // refusals: every unknown yields no claim, with its reason
@@ -638,6 +699,24 @@ const R = rowsOf(10);
     };
     await mustKill('loop: the hook is called', '      if (onFold) {\n        try {', '      if (false) {\n        try {', hooked, 'loop.js');
     await mustKill('loop: the hook is awaited before agent.compact', "const kept = await onFold(", "const kept = onFold(", hooked, 'loop.js');
+  }
+
+  // ================= 7b. the host's wiring (index.js), read as text: where the orchestrator contract put each line =================
+  {
+    const index = readSidecarIndex();
+    const count = (hay, needle) => hay.split(needle).length - 1;
+    A.eq(count(index, "transcriptStore.view('model-replay', streamId, { limit: 3000, shape: 'pairs', rows: true })"), 1, '(a) ONE call reads the canonical rows, over the model-replay view: the earlier-conversation note, the claim and the digest share it');
+    A.ok(/const canonicalRows = streamId => transcriptStore\.view\('model-replay'/.test(index), '    and that call is canonicalRows');
+    const persist = sidecarFunctionSource('persistFold');
+    A.ok(persist.length > 200 && persist.includes('canonicalRows(streamId)') && !/\.view\s*\(/.test(persist), '(a) the write reads its rows through it and opens no view of its own');
+    A.ok(!/transcriptStore\.view\(\s*'(?:proof|display|recall)'/.test(index.slice(index.indexOf('const summaryLedger'), index.indexOf('function forgetDeletedSessionSummaries'))), '(a) nothing in the ledger wiring reads the proof, display or recall view');
+    A.ok(sidecarFunctionSource('observeDeletedSessions').includes('forgetDeletedSessionSummaries()'), '(c) a fresh delete purges the kept summaries, synchronously, in the function that learns it');
+    A.ok(!/summar/i.test(sidecarFunctionSource('forgetDeletedSessionMemory')), '(d) and NOT as a private hook inside forgetDeletedSessionMemory, which turn-identity rewrites: the ledger has the registry shape (name, sourceOf, forget)');
+    A.eq(count(index, 'if (sessionTombstones.unpurged().length) forgetDeletedSessionSummaries();'), 1, 'an unfinished purge is retried at boot, with the memory purge trigger');
+    A.ok(Real.DIR_NAME.startsWith('.') && /const SUMMARIES_DIR = path\.join\(WORKSPACES, SummaryLedger\.DIR_NAME\)/.test(index), '(e) the directory is dot-prefixed, under the workspaces root');
+    A.eq(count(index, 'onFold: persistFold'), 1, 'the one loop call of a run hands the fold hook over');
+    const ledger = makeLedger(Real).ledger;
+    A.eq([typeof ledger.sourceOf, typeof ledger.forget, ledger.name], ['function', 'function', 'conversation-summary'], '(d) the ledger is registry-shaped: name, sourceOf, forget');
   }
 
   A.report('summary-reuse');
