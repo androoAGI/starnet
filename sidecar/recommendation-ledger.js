@@ -279,7 +279,7 @@ function makeRecommendationLedger(deps) {
       }
       if (!changed) return undefined;
       s.entries = next; return s;
-    }).then(() => changed);
+    }).then(() => (changed ? durable.update(STORE_KEY, cur => normalize(cur)).then(() => changed) : 0));   // written twice: the .bak keeps the previous value
   }
   /* every text a declined row can be recognized by: the title AND the target (one-memory lane, 2026-08-05).
      A shelf decline's target is the recipe/class id; a spine decline's is a token fingerprint of the proposal.

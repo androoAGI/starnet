@@ -30,6 +30,8 @@ const { inScope } = ForgetRegistry;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 // the source of a record composed from sessions' lines: its quote stamp (the streams it quoted, read when; draftStamp in index.js)
 const stampSource = r => ({ quotes: r && r.quotes, quotesAt: r && r.quotesAt, quotesSaturatedAt: r && r.quotesSaturatedAt });
+// a store keeps the value it replaced as its .bak: a changed store is saved twice, so the purged copy is the .bak too
+const settle = persist => { persist(); persist(); };
 const latestStamp = scope => { let l = 0; for (const w of (scope.streams || scope.at || new Map()).values()) if (w > l) l = w; return l; };
 
 function wireForgetRegistry(registry, deps) {
@@ -66,7 +68,7 @@ function wireForgetRegistry(registry, deps) {
     sourceOf: ev => interestSource(ev.src || {}, ev),
     forget: scope => {
       const out = Interests.purge(d.interests.get(), (src, ev) => inScope(interestSource(src, ev), scope));
-      if (out.removed) { d.interests.set(out.state); d.interests.persist(); }
+      if (out.removed) { d.interests.set(out.state); settle(d.interests.persist); }
       return out.removed;
     }
   });
@@ -80,7 +82,7 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => {
       const latest = latestStamp(scope);
       const out = Scout.drop(d.scout.get(), it => (it.quotes ? inScope(stampSource(it), scope) : !!it.draft && num(it.at) <= latest));
-      if (out.removed) { d.scout.set(out.state); d.scout.persist(); }
+      if (out.removed) { d.scout.set(out.state); settle(d.scout.persist); }
       return out.removed;
     }
   });
@@ -102,6 +104,16 @@ function wireForgetRegistry(registry, deps) {
     name: 'verdict-packets',
     sourceOf: row => packetSource(row && row.runId, row && row.packet, row && row.at),
     forget: scope => d.verdictReview().forget((runId, packet, at) => inScope(packetSource(runId, packet, at), scope))
+  });
+
+  /* task briefs: the Commander's directive, the questions asked and the answers given, per conversation. Source: the brief's stream and
+     directive row and the runs that opened and completed it. patterns() also asks the registry's read-time belt, so an answered question of a
+     deleted session is never offered as an OBSERVED PATTERN while a purge is pending. */
+  const briefSource = b => ({ streamIds: [b && b.streamId], runIds: [b && b.originalRunId, b && b.runId], rowIds: [b && b.directiveRowId], at: num(b && b.createdAt) });
+  entry({
+    name: 'task-briefs',
+    sourceOf: briefSource,
+    forget: scope => d.taskBriefs().forget(b => inScope(briefSource(b), scope))
   });
 
   return registry;

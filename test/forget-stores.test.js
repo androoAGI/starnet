@@ -22,6 +22,7 @@ const Scout = require('../sidecar/scout.js');
 const { makeRecommendationLedger } = require('../sidecar/recommendation-ledger.js');
 const { makeDurableJsonStore } = require('../sidecar/durable-store.js');
 const { makeVerdictReview } = require('../sidecar/verdictreview.js');
+const { makeTaskBriefStore } = require('../sidecar/taskbrief-store.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -129,6 +130,38 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       A.ok(registry.admit({ streamId: 'sGone', runId: 'r_after', at: 6000 }), '...one filed in the re-opened session after it is not');
       A.ok(!registry.admit({ streamId: 'sKeep', runId: 'r_x', at: 6000, quotes: ['sGone'], quotesAt: [4400] }), '...and a packet for a run whose latch holds the deleted session is refused');
       A.ok(!registry.admit({ streamId: 'sKeep', runId: 'r_reader', at: 6000 }), '...as is one for a run the registry already knows quoted it');
+    }
+
+    // ---------------- task briefs ----------------
+    {
+      const bdir = temp('briefs');
+      try {
+        const store = makeTaskBriefStore({ fs, path, workspaces: bdir, forgotten: b => registry.forgotten({ streamIds: [b.streamId], runIds: [b.originalRunId, b.runId], rowIds: [b.directiveRowId], at: b.createdAt }) });
+        // one conversation asked the same question twice per session: two sessions answered it the same way, so it is an observed pattern
+        const finish = async (id, streamId, runId, ts, directive, answer) => {
+          await store.prepare({ id, key: 'k_' + id, streamId, agentId: 'agent', runId, text: directive }, ts);
+          await store.noteDirective(id, 30 + Number(id.slice(-1)), runId);
+          await store.ask(id, { text: 'Which format do you want for the report?', options: ['Markdown', 'PDF'] }, ts + 1, { source: 'marker' });
+          await store.answerInTurn(id, answer, ts + 2);
+          await store.complete(id, runId, ts + 3, []);
+        };
+        await finish('tb_g1', 'sGone', 'r_gone', 4000, 'write the quokka report', 'Markdown');
+        await finish('tb_k1', 'sKeep', 'r_keep', 4010, 'write the platypus report', 'Markdown');
+        await finish('tb_k2', 'sKeep', 'r_keep2', 4020, 'write the wombat report', 'Markdown');
+        await finish('tb_r1', 'sKeep', 'r_reader', 4500, 'write the reader report', 'Markdown');
+        A.eq(store.list({}).length, 4, 'four briefs are on file');
+        hold.taskBriefs = () => store;
+        // the read-time belt: while the purge is pending, patterns() already leaves the deleted session's answer out
+        A.eq(store.patterns(5).map(p => p.count), [2], 'before the purge the belt already hides the answer given in the deleted session and the one the reader run gave (2 of 4 still count)');
+        const removed = await forget('task-briefs');
+        A.eq(removed, 2, 'the brief opened in the deleted session and the brief of the run that read it are gone');
+        A.eq(store.list({}).map(b => b.id).sort(), ['tb_k1', 'tb_k2'], 'the other session\'s briefs stay');
+        A.eq(store.patterns(5).map(p => [p.count, p.answer]), [[2, 'Markdown']], 'the pattern the live session earned is still offered');
+        A.ok(!JSON.stringify(store.list({})).includes('quokka'), 'no brief holds the deleted session\'s words');
+        const bak = path.join(bdir, 'task-briefs.json.bak');
+        A.ok(!fs.existsSync(bak) || !fs.readFileSync(bak, 'utf8').includes('quokka'), 'the store\'s .bak (last-known-good) holds the purged copy too: a recovery cannot bring the session back');
+        A.eq(await forget('task-briefs'), 0, 'idempotent');
+      } finally { remove(bdir); }
     }
 
     A.report('forget-stores');

@@ -2803,7 +2803,9 @@ const taskBriefStore = makeTaskBriefStore({
   fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
   onRecover: (key, file) => console.warn('[taskbrief] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.'),
   onCorrupt: (key, file) => quarantineCorrupt(file, 'taskbrief'),
-  warn: (...args) => console.warn.apply(console, args)
+  warn: (...args) => console.warn.apply(console, args),
+  // the forget registry's read-time belt: an answered question of a deleted session is never offered as an observed pattern
+  forgotten: b => forgetRegistry.forgotten({ streamIds: [b.streamId], runIds: [b.originalRunId, b.runId], rowIds: [b.directiveRowId], at: b.createdAt })
 });
 const workflowTakeoverStore = WorkflowTakeover.makeWorkflowTakeoverStore({
   fs, path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
@@ -3682,7 +3684,8 @@ wireForgetRegistry(forgetRegistry, {
   interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => persistInterests() },
   scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => persistScout() },
   recommendations: () => recommendationLedger,
-  verdictReview: () => verdictReview
+  verdictReview: () => verdictReview,
+  taskBriefs: () => taskBriefStore
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });

@@ -347,7 +347,7 @@ function makeVerdictReview(opts) {
     let n = 0;
     for (const [id, row] of Array.from(packets)) if (match(id, row.packet, row.at)) { packets.delete(id); n++; }
     for (const [id, h] of Array.from(held)) if (match(id, h.packet, h.at)) { clearT(h.timer); h.timer = null; held.delete(id); n++; }
-    if (n) changed();
+    if (n) { changed(); changed(); }   // twice: the store keeps the previous value as its .bak, and the second save puts the purged copy there too
     return n;
   }
   // peek: read a parked packet WITHOUT consuming it (slice 4: a `great` verdict reads which skills the run loaded
