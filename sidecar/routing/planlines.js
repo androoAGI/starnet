@@ -1,9 +1,10 @@
 /* sidecar/routing/planlines.js — SELF-HEAL THE LINE MAP OF A PLAN THAT PREDATES LINE IDENTITY.
 
    WHY THIS EXISTS. `lineOfAgent` (which physical line a dock belongs to) is compiled by
-   frontend/app/pipeline.js from the floor's GEOMETRY and rides the posted RoutingPlan. The sidecar restores
-   the last accepted plan from disk at boot (index.js restoreRoutingPlan) so a headless service keeps routing
-   Telegram + cron traffic with no browser open. A plan written BEFORE line identity existed carries no line
+   frontend/app/pipeline.js from the floor's GEOMETRY and rides the posted RoutingPlan. The sidecar used to restore
+   the last accepted plan from disk at boot (the retired routing.plan.json) so a headless service kept routing
+   Telegram + cron traffic with no browser open; the posted-plan router (pure-router fixtures) still heals a plan
+   it is handed the same way. A plan written BEFORE line identity existed carries no line
    map at all — and Pipeline.chainNext reads a missing map as "every dock is terminal". On a desktop that
    self-heals the moment the app opens and re-posts; on a headless/service sidecar taking channel and routine
    traffic it does not, so every multi-stage line silently ran stage one only, forever.

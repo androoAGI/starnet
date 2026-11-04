@@ -14,7 +14,7 @@
         observe answers what a router with no plan answers; nothing is served from the floor that was good a moment before;
         a restored file routes again with no restart; hold() says the same sentence;
      5. observe swallows nothing but a hold; admit swallows nothing;
-     6. with no authority (the posted-plan host) both objects are the router itself;
+     6. with no authority (a pure-router fixture over the posted-plan router; the host always has one) both objects are the router itself;
      7. a floor that goes held between two hops stops the work line with the existing 'refused' stop and the hold's words,
         and ships nothing as if the line were finished;
      8. a real hub over the real router refuses a message whose floor is held, in words, runs nothing, and settles a job it had

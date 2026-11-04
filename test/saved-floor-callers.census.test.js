@@ -1,23 +1,25 @@
 'use strict';
 /* node test/saved-floor-callers.census.test.js — EVERY ROUTER CALLER IS CLASSIFIED (invariant every-router-caller-classified).
 
-   When the saved floor is the routing authority (SKYNET_ROUTING_AUTHORITY=saved, sidecar/routing/saved-authority.js), the router can
-   say "this floor cannot be proved right now" at ANY question, so every place the host asks one must decide what a held floor means
-   there, in the code, where a reviewer sees it:
+   The saved floor is the routing authority (sidecar/routing/saved-authority.js), so the router can say "this floor cannot be proved
+   right now" at ANY question, and every place the host asks one must decide what a held floor means there, in the code, where a
+   reviewer sees it:
      admit.<reader>(...)    a dispatch seam (which agent, which dock, which room, which brief, which line): the hold is never swallowed,
                             it ends in the seam's own visible refusal. A new seam is this unless it can be shown to be a read.
      observe.<reader>(...)  a read seam (a limit, a readout, a derived record): a hold degrades it to what a router with no plan
                             answers. This is a REVIEWED set, pinned below: a new observe seam must be added here on purpose.
    The census reads the real source (test/helpers/source.js) with a small tokenizer that skips comments, strings and regex literals:
      1. no sidecar file other than index.js builds a router, and index.js builds exactly one;
-     2. in index.js the identifier `router` appears only in its declaration, the seam factory call and the two LEGACY posted-plan
-        sites (restoreRoutingPlan, handleRouting's legacy branch: deleted with the posted path, when this test forbids them too);
+     2. in index.js the identifier `router` appears only in its declaration and the seam factory call: the host never installs, clears
+        or sets anything on it (no setPlan, clearPlan, setStation or clearStation anywhere in the host), and the switch that once let
+        a posted plan be the authority is gone;
      3. every other reference is admit.<reader> or observe.<reader>, never a mutator, never a name the router does not have;
      4. the observe set is exactly the pinned one (below), counted by reader;
      5. every router method is a reader or a mutator in saved-seams.js (a new router method must be classified to land);
      6. the visible refusals the admit seams rest on are wired where they must be (the hub, the chain, the routine driver's preflight,
         Run Now, the sample route, the step test, the triggers and the hand-off runner, the line stats and the layout fact).
-   RED before the lane: ninety-odd raw router.* sites and no seam module. */
+   RED before the lane: ninety-odd raw router.* sites and no seam module; RED before the default flipped: two host setPlan sites and
+   the switch. */
 const A = require('./_assert.js');
 const { sidecarSourceFiles, sidecarTopLevelFunction } = require('./helpers/source.js');
 const { READERS, MUTATORS } = require('../sidecar/routing/saved-seams.js');
@@ -90,6 +92,8 @@ A.ok(idx && idx.code.length === idxText.length, 'index.js is scanned whole');
 const builders = files.filter(f => /(^|[^\w$.])makeRouter\s*\(/.test(scanned.get(f.rel).code)).map(f => f.rel).sort();
 A.eq(builders, ['sidecar/index.js', 'sidecar/routing/router.js'], 'makeRouter is defined in router.js and called in index.js, and nowhere else');
 A.eq((idx.code.match(/(^|[^\w$.])makeRouter\s*\(/g) || []).length, 1, 'index.js builds exactly one router');
+A.ok(/(^|[^\w$.])makeRouter\(\{ savedProjection: savedAuthority\.projection, savedHost: true \}\)/.test(idx.code),
+  'and builds it on the saved authority, in host mode: the posted-plan mode of router.js is for pure-router fixtures, the host never constructs it');
 for (const f of files) {
   if (f.rel === INDEX || f.rel === 'sidecar/routing/router.js') continue;
   A.ok(!/require\(\s*['"][^'"]*routing\/router(\.js)?['"]\s*\)/.test(f.text) && !/require\(\s*['"]\.\/router(\.js)?['"]\s*\)/.test(f.text), f.rel + ': does not load the router');
@@ -103,14 +107,15 @@ for (const m of idx.code.matchAll(/(^|[^\w$.])router(?![\w$])(\s*\.\s*([A-Za-z_$
 }
 const declared = raw.filter(r => /const\s+$/.test(r.before) && !r.member);
 const handedToSeams = raw.filter(r => !r.member && /^router\s*,\s*authority/.test(r.after));
-const legacy = raw.filter(r => r.member);
-A.eq([declared.length, handedToSeams.length, legacy.length], [1, 1, 2], 'index.js names `router` as: its declaration, the seam factory\'s argument, and the legacy posted-plan calls — and nothing else (' + JSON.stringify(raw.map(r => r.line + ':' + (r.member || r.after))) + ')');
-A.eq(legacy.map(r => r.member), ['setPlan', 'setPlan'], 'the only raw router calls left are the two legacy posted-plan installs (restoreRoutingPlan and handleRouting); the lane\'s last step deletes them and this line then says []');
-for (const r of legacy) {
-  const body = r.line;
-  const slice = idxText.split('\n').slice(Math.max(0, body - 40), body).join('\n');
-  A.ok(/ROUTING_SAVED/.test(slice), 'legacy router.setPlan at line ' + r.line + ' is behind the saved-authority switch');
-}
+const rawCalls = raw.filter(r => r.member);
+A.eq([declared.length, handedToSeams.length, rawCalls.length], [1, 1, 0], 'index.js names `router` as: its declaration and the seam factory\'s argument — and nothing else (' + JSON.stringify(raw.map(r => r.line + ':' + (r.member || r.after))) + ')');
+A.eq(rawCalls.map(r => r.member), [], 'the host makes no raw router call at all: the two posted-plan installs (restoreRoutingPlan and handleRouting) are deleted');
+// the host never installs, clears or sets anything, on the router or by any other name: the saved floor is the only thing that routes
+const installers = [...idx.code.matchAll(/(?<![\w$])(setPlan|clearPlan|setStation|clearStation)(?![\w$])/g)].map(m => m[1] + '@' + lineAt(idxText, m.index));
+A.eq(installers, [], 'no setPlan, clearPlan, setStation or clearStation anywhere in sidecar/index.js (code, not comments)');
+// (EROUTING_SAVED_<STATUS> is the router's typed error code for a held floor, not the switch: the lookbehind keeps it out)
+A.eq(files.filter(f => /ROUTING_AUTHORITY|(?<![A-Za-z])ROUTING_SAVED(?![A-Za-z_])/.test(f.text)).map(f => f.rel), [], 'no sidecar file names the switch that made the saved floor optional (SKYNET_ROUTING_AUTHORITY / ROUTING_SAVED): it is deleted, the saved floor always routes');
+A.ok(!/\bpostedPlanOf\b|\bROUTING_FILE\b/.test(idx.code), 'and the posted-plan helpers are gone (postedPlanOf, ROUTING_FILE)');
 
 // ---- 3. every other reference is a seam call on a reader ----
 const sites = [];
@@ -135,9 +140,9 @@ A.eq(others.map(s => /const \{ admit, observe, hold: routingHold \}/.test(s.arou
 // ---- 4. the observe set is pinned, by reader ----
 const observed = {};
 for (const s of calls) if (s.receiver === 'observe') observed[s.method] = (observed[s.method] || 0) + 1;
-A.eq(observed, { lineLimits: 6, intakeReceiptFor: 4, dockOf: 1, lineOfAgent: 1, getPlan: 3, docksOf: 1 },
+A.eq(observed, { lineLimits: 6, intakeReceiptFor: 4, dockOf: 1, lineOfAgent: 1, getPlan: 2, docksOf: 1 },
   'the observe seams, by reader: line limits (the chain, both runners\' day caps, the step test, line stats, the layout budget); the persisted/stored intake receipt (the line runner, the routine store, the hub, the trigger runner); '
-  + 'the routine store\'s dock and line reads; the trigger folder roots, line stats and the layout fact\'s legacy branch; the room-scope hasBay probe. Everything else is admit.');
+  + 'the routine store\'s dock and line reads; the trigger folder roots and line stats; the room-scope hasBay probe. Everything else is admit. (The layout fact reads the authority\'s status, not the router.)');
 /* INVARIANT: a ROOM is never an observe. A held floor degrades an observe read to "no answer", and for stationFor "no answer" is null, which every
    caller reads as the WHOLE default office (router.js savedStationFor: "NEVER null" — the 2026-08-10 audit #1 class). So a group chat's participant
    and the slash readout ask admit.stationFor: a hold stops the turn in the hold's words, or leaves the readout with no placed objects. */
@@ -173,7 +178,11 @@ A.ok(/verb === 'continue' \|\| verb === 'rerun'\) \? routingHold\(\)/.test(fn('h
 A.eq((idxText.match(/held: \(\) => \{ const held = routingHold\(\); return held \? held\.why : null; \}/g) || []).length, 2, 'the trigger runner and the hand-off runner are told when the floor is held');
 A.ok(/routingHold\(\)[\s\S]{0,200}routing: \{ state: 'held'/.test(fn('lineStatsSnapshot')), 'line stats say why they are empty');
 A.ok(/state: 'held', status: s\.status, why: heldWhy\(s\.status\)/.test(idxText), 'the layout fact reports a held floor with its reason');
-A.ok(/if \(ROUTING_SAVED\) return answerRoutingHint\(res, plan\);/.test(fn('handleRouting')) && !/setPlan/.test(fn('answerRoutingHint')) && !/saveResilient|writeFile/.test(fn('answerRoutingHint')), 'in saved mode POST /api/routing is a receipt: it installs nothing and writes nothing');
-A.ok(/if \(ROUTING_SAVED\) \{[^}]*routing\.plan\.json is ignored[^}]*return;\s*\}/.test(fn('restoreRoutingPlan') || idxText.slice(idxText.indexOf('(function restoreRoutingPlan()'), idxText.indexOf('(function restoreRoutingPlan()') + 400)), 'boot ignores routing.plan.json in saved mode (said once, never deleted)');
+const receipt = tokenize(fn('handleRouting') + '\n' + fn('answerRoutingHint')).code;
+A.ok(/answerRoutingHint\(res, hint\)/.test(receipt) && /savedAuthority\.compareHint\(hint\)/.test(receipt), 'POST /api/routing hands whatever it was sent to the saved authority\'s compareHint, and nothing else');
+A.ok(!/setPlan|clearPlan|setStation|saveResilient|loadResilient|writeFile|appendFile|rename|unlink|router\./.test(receipt), 'POST /api/routing is a receipt: it installs nothing, reads no file and writes nothing');
+const retired = tokenize(idxText.slice(idxText.indexOf('(function ignoreRetiredRoutingPlan()'), idxText.indexOf('(function ignoreRetiredRoutingPlan()') + 500)).code;
+A.ok(/routing\.plan\.json is ignored: the saved floor is the routing authority/.test(idxText) && /existsSync/.test(retired) && !/loadResilient|saveResilient|readFile|writeFile|unlink|rename|rm\(/.test(retired.slice(0, retired.indexOf('})();') + 5)),
+  'boot only says routing.plan.json is ignored: it never reads, rewrites or deletes it');
 
 A.report('saved-floor-callers.census');

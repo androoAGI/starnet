@@ -5,8 +5,8 @@
    of that floor for a host to build on. It wraps the strict private projection (station-store.js makeSavedFloorProjection:
    the primary file only, never the .bak, never a quarantine, never a last-good value) and adds what a host needs around it,
    and nothing else. It owns no file, clock or route: the caller injects the reads. The sidecar builds its router and its
-   POST /api/routing receipt on it when SKYNET_ROUTING_AUTHORITY=saved (index.js); the line-hold lane adopts bindingOf and
-   checkBinding.
+   POST /api/routing receipt on it, always (index.js: there is no other routing authority); the line-hold lane adopts bindingOf
+   and checkBinding.
 
      makeSavedAuthority({ read: { agentId, stamp, loadPrimaryState, hasRecoveryCopy } }) -> {
        status()             -> frozen { version:1, state, status, routingOk, identity, revision, stamp, topologyHash }

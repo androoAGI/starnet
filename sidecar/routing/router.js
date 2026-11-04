@@ -1,10 +1,12 @@
 /* sidecar/routing/router.js — the server-authoritative RoutingPlan + dispatch resolution.
 
-   The browser posts the compiled plan (POST /api/routing) on every floor change; this holds it and answers
-   "which agent runs this work-item?" via the SAME ../../frontend/app/pipeline.js the frontend uses — one
-   compiler, two consumers, zero drift. A non-deployable plan (cycle / orphan source / dead bay) is NEVER
-   stored, so routing can't loop or send work into a void; resolveTarget returning null lets the caller fall
-   back to its own resolution, so real work never stalls. */
+   In the sidecar the router is built on the SAVED floor (savedProjection + savedHost, routing/saved-authority.js): the floor the
+   user saved is the only plan it routes by, and nothing is ever posted into it. The posted-plan mode below (setPlan/clearPlan, a
+   router built with neither seam) is for the pure routing tests, which compile a plan and hand it to a router directly; the
+   sidecar never builds it. Either way the router answers "which agent runs this work-item?" via the SAME
+   ../../frontend/app/pipeline.js the frontend uses — one compiler, two consumers, zero drift. A non-deployable plan (cycle /
+   orphan source / dead bay) is NEVER stored, so routing can't loop or send work into a void; resolveTarget returning null lets
+   the caller fall back to its own resolution, so real work never stalls. */
 'use strict';
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { makeStationStore } = require('../station-store.js');
@@ -29,10 +31,11 @@ function makeRouter(o) {
   }
   const stationStore = o.stationStore || makeStationStore();
   /* THE SAVED STATION GRANTS (2026-10-21). `savedStation()` -> the server-side saved floor as a validated station model,
-     or null. When the host passes it (the sidecar always does), a bay's room objects are bounded by THAT floor, never
-     widened by the plan a page posted: the plan picks the dock a run is at and may only narrow its room. See savedStationFor. */
+     or null. A posted-plan router (a pure-router fixture) given it bounds a bay's room objects by THAT floor, never widened by
+     the plan posted: the plan picks the dock a run is at and may only narrow its room. See savedStationFor. The sidecar does
+     not build that router: it builds on savedProjection (below), where the saved floor is the plan itself. */
   const savedStation = typeof o.savedStation === 'function' ? o.savedStation : null;
-  // PRIVATE/UNWIRED. The host must supply the existing strict saved-floor owner;
+  // The host supplies the saved authority's projection (routing/saved-authority.js);
   // a malformed supplied seam cannot silently select the legacy posted mode.
   if ('savedProjection' in o && typeof o.savedProjection !== 'function') throw new Error('savedProjection must be the saved-floor reader');
   const savedProjection = o.savedProjection || null;

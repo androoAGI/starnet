@@ -52,10 +52,13 @@ const server = http.createServer((req, res) => {
     };
     await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: ['agent', 'qa'].map(agentId => ({ agentId, name: agentId, model: 'test/model', provider: 'openrouter', approvalMode: 'full', system: agentId === 'qa' ? 'IDENTITY_QA' : 'IDENTITY_ENGINEER' })) });
     // the starter floor (a DISH among its gear), saved the way the app saves it: group participants draw their room gear
-    // from it, so web_request — and keys.save, were it allowed — would really be on their runs
+    // from it, so web_request — and keys.save, were it allowed — would really be on their runs. The saved floor is also the routing
+    // authority, which a group turn asks for its room: so it is saved as the app saves it NOW (the current save version, its window's
+    // id, the floor in the form the save owner reads back), and an older save or a floor it cannot prove would hold the turn.
     const WM = require('../frontend/app/worldmodel.js');
+    const { canonical } = require('./helpers/saved-floor.js');
     const rev = ((await fixture.json('GET', '/api/save?agent=agent')).body.save || {})._saveRevision || 0;
-    const floor = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: 5, _saveRevision: rev, updatedAt: Date.now(), agent: { id: 'agent' }, station: WM.create(WM.starterDoc()).serialize() });
+    const floor = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, _saveRevision: rev, _saveClient: 'group-http-page', updatedAt: Date.now(), agent: { id: 'agent' }, station: canonical(WM.starterDoc()) });
     assert.ok(floor.body && floor.body.ok, 'the starter floor is saved: ' + floor.text);
     const g = await request('POST', '', { op: 'create', members: ['agent', 'qa'], title: 'Integration group' });
     await request('POST', '', { op: 'send', id: g.id, key: 'origin', text: 'Build a report and ask QA to review the exact artifact. Our key for later: ' + COMMANDER_KEY });

@@ -1,5 +1,5 @@
 /* node test/routing.saved-floor-authority.e2e.test.js — THE SAVED FLOOR IS THE ROUTING AUTHORITY, over a REAL sidecar with NO page
-   (SKYNET_ROUTING_AUTHORITY=saved; invariant saved-floor-is-routing-authority).
+   (invariant saved-floor-is-routing-authority; the default: there is no switch).
 
    A station with INBOX > alpha > beta > OUTBOX is SAVED with the real save owner before the sidecar boots, and a mock provider records
    every request on the wire. No page ever connects and no plan is ever posted:
@@ -63,7 +63,7 @@ function startMockProvider(calls) {
   const calls = [];
   const mock = await startMockProvider(calls);
   const fx = SidecarFixture.create({ prefix: 'sk-saved-floor-authority-', timeoutMs: 30000, env: {
-    SKYNET_DEV: '1', STARNET_DEV: '1', SKYNET_ROUTING_AUTHORITY: 'saved',
+    SKYNET_DEV: '1', STARNET_DEV: '1',
     SKYNET_OPENROUTER_BASE: mock.base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-saved-floor-fake', SKYNET_DEFAULT_MODEL: 'test/model',
     STARNET_CRON_TICK_MS: '100', SKYNET_CRON_TICK_MS: '100', SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: '',
     // no background learning pass spends a model call of its own between the doors (an aux budget of 0 is UNLIMITED)

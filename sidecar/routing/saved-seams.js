@@ -15,8 +15,9 @@
 
    Both objects expose the router's READERS only. The mutators (setPlan, clearPlan, setStation, clearStation) are not on either, so
    a posted plan cannot be installed through a seam; test/saved-floor-callers.census.test.js holds every router.* site in the
-   sidecar to admit or observe and lists the few legacy mutator sites left until the posted path is deleted.
-   With no authority (the posted-plan host) both objects are the router itself: no seam changes behaviour. */
+   sidecar to admit or observe, and holds the host to no mutator at all.
+   With no authority (a pure-router fixture over the posted-plan router; the host always has one) both objects are the router
+   itself: no seam changes behaviour. */
 'use strict';
 const { holdOf, heldWhy } = require('./saved-hold.js');
 const { note: failNote } = require('../failopen.js');   // tagged fail-open: a log line that threw stays visible

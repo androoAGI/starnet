@@ -253,7 +253,7 @@ const BEFORE_I = '\n<capabilities_ground_truth>\nThese are your REAL powers this
   A.ok(/const savedFloor = makeSavedFloor\(\{ stamp: \(\) => saveStore\.stamp\('agent'\), loadStamped: \(\) => saveStore\.loadStamped\('agent'\) \}\);/.test(idx), 'the saved floor is memoized by the save stamp');
   A.ok(/toolless: !isTask,\s*\n(?:\s*\/\/[^\n]*\n)*\s*disabledCaps: unrestrictedHostNow\(\) \? new Set\(\) : disabledCapsSet\(\), enabledToolsets: unrestrictedHostNow\(\) \? null : o\.enabledToolsets,\s*\n\s*mediaRoute: !!\(studioRoute && studioRoute\.ok\),\s*\n(?:\s*\/\/[^\n]*\n)*\s*scopeFn: \(\) => \{ try \{ return scopeForRun\(\{ loadStation: savedFloor, agentId, runStation: o\.station, extraObjects: o\.extraObjects, interactive: surface === 'interactive', floorless: !!o\.floorless, hasBay: \(\) => observe\.docksOf\(agentId\)\.length > 0 \}\); \} catch \(e\) \{ failNote\('capsummary\.roomscope', e\); return null; \} \} \}\) \+ skillBlock;/.test(idx),
     'summarizeCapabilities gets the TOOLSETS switches, the routine\'s own toolset list, the image route and scopeFn from this run\'s station, placed objects, surface and the router\'s docks, failing open to null');
-  A.ok(/^const router = makeRouter\(ROUTING_SAVED \? \{ savedProjection: savedAuthority\.projection, savedHost: true \} : \{ savedStation: \(\) => savedFloor\(\) \}\);$/m.test(idx) && /const r = router\.setPlan\(plan\);/.test(idx), 'hasBay reads the router handleRouting posts the plan into, through the observe seam: a held saved floor has no bay to name (section 13 runs that very check on a posted plan)');
+  A.ok(/^const router = makeRouter\(\{ savedProjection: savedAuthority\.projection, savedHost: true \}\);$/m.test(idx) && !/router\.setPlan\(/.test(idx), 'hasBay reads the router the saved floor feeds, through the observe seam: a held saved floor has no bay to name, and nothing a page posts is installed into it (section 13 runs the same check on a pure-router fixture)');
   // authority-census: the run's grants are decided by ONE projection (capability/project-tools.js), handed these same facts
   const pt = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'capability', 'project-tools.js'), 'utf8');
   A.ok(pt.indexOf('const enabledToolsets = unrestricted ? null : origin.enabledToolsets;') > 0 && pt.indexOf('resolved = enforceEnabledToolsets(resolved, registry, enabledToolsets);') > 0
@@ -507,12 +507,14 @@ const BEFORE_I = '\n<capabilities_ground_truth>\nThese are your REAL powers this
   A.eq(askedEmpty, 0, '...and the scope is never computed');
 }
 
-/* 13. THE PRODUCTION PATH (polish 10-21): sections 5-12 hand the router the station (setStation), which no sidecar route
-       calls. Live, world.js compileRouting compiles Pipeline.compileRoutingPlan(station.projectGeometry()), stamps every
-       bay record with station.bayObjects(agentId, propId), and POSTs it; handleRouting JSON-parses it into router.setPlan,
-       and stationFor builds a routed run's room from those stamped objects. index.js's scopeFn asks router.docksOf first. */
+/* 13. THE POSTED-PLAN ROUTER (polish 10-21; a pure-router fixture): sections 5-12 hand the router the station (setStation), which no
+       sidecar route calls. Here the router takes a plan the way world.js compileRouting made one: Pipeline.compileRoutingPlan(
+       station.projectGeometry()), every bay record stamped with station.bayObjects(agentId, propId), through JSON, into router.setPlan,
+       and stationFor builds a routed run's room from those stamped objects. The sidecar no longer takes a posted plan (its router is
+       built on the saved floor, which is the plan; routing.saved-station-grants.e2e runs that over a real sidecar), but index.js's
+       scopeFn still asks docksOf first. */
 {
-  function posted(s) {   // world.js compileRouting -> postRoutingPlan -> handleRouting, byte for byte through JSON
+  function posted(s) {   // world.js compileRouting -> postRoutingPlan, byte for byte through JSON, into a pure router
     const plan = P.compileRoutingPlan(s.projectGeometry());
     for (const b of (plan.bays || [])) b.objects = s.bayObjects(b.agentId, b.propId);
     for (const b of (plan.dockBays || [])) b.objects = s.bayObjects(b.agentId, b.propId);

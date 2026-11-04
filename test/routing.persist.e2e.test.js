@@ -1,15 +1,21 @@
-/* node test/routing.persist.e2e.test.js — POST /api/routing over the REAL sidecar: refusal, persistence,
-   and the boot/live parity law (audit 2026-08-04).
+/* node test/routing.persist.e2e.test.js — POST /api/routing over the REAL sidecar: a post is a question, it persists nothing, and
+   a restart re-reads only the SAVED floor (the boot/live parity law, audit 2026-08-04, kept on the saved authority).
 
-   The bug (2026-08-04): an accepted plan persisted to routing.plan.json and re-armed at boot, but a REFUSED
-   (422) plan only cleared the IN-MEMORY plan — the previous accepted plan stayed on disk, so live behavior
-   (unrouted fallback) and post-restart behavior (the OLD floor's routing) diverged for the same posted state.
-   The bug's bug (2026-08-10 audit #1): persisting the CLEAR on refusal threw away the CAPABILITY view too —
-   capsPlan was memory-only, so a refusal + headless restart handed bay-bound cron/routed runs the FULL default
-   office while the floor still painted bay restrictions. A refusal now persists the REFUSED plan itself; boot
-   replays it through setPlan, which re-refuses routing AND restores the bay projection — boot matches live for
-   BOTH facts. Boot pattern per cron.run-now.e2e.test.js.
-   In test/http.list (a child-process boot test does not gate test:fast). */
+   The old law: an accepted plan persisted to routing.plan.json and re-armed at boot, a refused one persisted itself as the capability
+   view, an empty post cleared the file. That made the LAST PLAN A PAGE POSTED the routing authority across a restart, which is the
+   defect qa/bugs/a9a4f53c and the saved-floor lane retired: the floor the user SAVED is the only record that survives a restart, a
+   second window and a page that never opens. What is locked here, with no page and no plan ever installed:
+     1. nothing saved yet: a page's hint is pending (409) and nothing routes;
+     2. save the floor and publish its hint: 200, the saved floor's own identity, routing armed, and routing.plan.json never written;
+     3. a restart re-arms the very same line from the saved floor alone: no plan is restored from disk, there is no file to restore;
+     4. the hint of a floor that is NOT saved (a looped one), a bare plan body and an empty post (the old CLEAR) are all pending and
+        change nothing: live routing stays armed, no file is written, a page cannot unarm the station;
+     5. SAVE the loop: its exact hint answers 422 unroutable and live routing is unarmed (dispatch falls back), and a restart matches
+        it (boot/live parity): the refused floor does not re-arm at boot;
+     6. saving the good floor again re-arms at once, with no restart;
+     7. a routing.plan.json an older version left (a plan of other agents, in its pre-line-identity shape) is ignored at boot: never
+        read, rewritten or deleted, and it names no line the station routes.
+   Boot pattern per cron.run-now.e2e.test.js. In test/http.list (a child-process boot test does not gate test:fast). */
 'use strict';
 
 const A = require('./_assert.js');
@@ -19,6 +25,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { lineStation, hintFor, planOf, publishFloor, fetchApi, clone } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -59,130 +66,110 @@ function boot(port, env, attemptsLeft) {
 
 async function stop(b) { try { b.child.kill(); } catch (_) {} await sleep(200); }
 
-// A deployable two-stage floor. The existing line-stats read lists its line ONLY while routing is armed.
-function goodPlan() {
-  const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
-    props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
-            { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'stage-one' },
-            { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'stage-two' },
-            { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
-    belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-  });
-  A.ok(Pipeline.ok(plan), 'fixture: the two-stage floor is deployable');
-  A.eq((plan.chains['stage-one'] || {}).next, ['stage-two'], 'fixture: the floor chains the two docks');
-  return plan;
-}
-
-// a genuinely NON-deployable floor: a closed belt loop (an infinite paid runOnce) — a REAL blocker,
-// compiled by the same compiler, never a hand-forged errors array.
-function cyclicPlan() {
-  const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
-    props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
-            { id: 'b1', t: 'bay', x: 4, y: 4, w: 1, h: 1, agentId: 'stage-one' }],
-    belts: [belt(1, 0, 'E'), belt(2, 0, 'S'), belt(2, 1, 'W'), belt(1, 1, 'N')]
-  });
-  A.ok(plan.errors.some(e => e.code === 'CYCLE' && !e.warn), 'fixture: the broken floor is non-deployable for a REAL reason (CYCLE)');
-  return plan;
-}
-
 (async () => {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-routing-persist-'));
   const FILE = path.join(ws, 'routing.plan.json');
   const env = { SKYNET_WORKSPACES: ws };
-  const readFile = () => JSON.parse(fs.readFileSync(FILE, 'utf8'));
+  // A deployable two-stage floor, and the same floor with its last bay fed back into its first: a REAL blocker (a closed belt loop is an
+  // infinite paid run), compiled by the same compiler, never a hand-forged errors array.
+  const AGENTS = ['stage-one', 'stage-two'];
+  const good = lineStation({ agents: AGENTS }), looped = lineStation({ agents: AGENTS, cyclic: true });
+  const goodHint = hintFor(good), loopHint = hintFor(looped);
+  A.ok(Pipeline.ok(planOf(goodHint)), 'fixture: the two-stage floor is deployable');
+  A.eq((planOf(goodHint).chains['stage-one'] || {}).next, ['stage-two'], 'fixture: the floor chains the two docks');
+  A.ok(planOf(loopHint).errors.some(e => e.code === 'CHAIN_CYCLE' && !e.warn), 'fixture: the looped floor is non-deployable for a REAL reason (a belt loop)');
+  const LINE_ID = Pipeline.lineOf(planOf(goodHint), 'stage-one');
+  A.ok(!!LINE_ID, 'fixture: the two-stage floor names the line its docks belong to');
+  const stale = () => fs.existsSync(FILE);   // a routing.plan.json on disk: nothing the station does may leave one (section 7 plants one itself)
   let b = await boot(await allocatePort(), env, 20);
   try {
     let B = 'http://' + HOST + ':' + b.port;
     let token = await bootToken(B, B);
     A.ok(token.length >= 32, 'got a session API token');
     let headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    // Stats reads the armed router plan, not its separate capability view; the named line proves identity after restart.
-    const LINE_ID = Pipeline.lineOf(goodPlan(), 'stage-one');
-    A.ok(!!LINE_ID, 'fixture: the two-stage floor names the line its docks belong to');
-    const armedLine = async () => {
-      const r = await fetch(B + '/api/routing/lines/stats', { headers });
-      A.eq(r.status, 200, 'armed-line probe answers');
-      const value = await r.json();
-      const line = (value.lines || []).find(x => x.lineId === LINE_ID);
-      return line ? line.lineId : null;
+    const api = fetchApi(() => B, () => headers);
+    const rebootTo = async () => {
+      await stop(b);
+      b = await boot(b.port, env, 20);
+      B = 'http://' + HOST + ':' + b.port;
+      token = await bootToken(B, B);
+      headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
     };
+    // Stats lists a line ONLY while routing is armed, so the named line proves what routes, live and after a restart.
+    const armedLines = async () => {
+      const r = await api.json('GET', '/api/routing/lines/stats');
+      A.eq(r.status, 200, 'armed-line probe answers');
+      return (r.body.lines || []).map(x => x.lineId);
+    };
+    const post = body => api.json('POST', '/api/routing', body);
 
-    // ---- accept: 200, persisted, live-armed ----
-    const good = goodPlan();
-    const p1 = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(good) });
-    A.eq(p1.status, 200, 'a deployable plan is accepted (200)');
-    A.ok(((await p1.json()) || {}).ok, 'the accept body says ok');
-    A.eq(readFile().hash, good.hash, 'the ACCEPTED plan is persisted to routing.plan.json');
-    A.eq(await armedLine(), LINE_ID, 'live routing is armed (the named line is listed)');
+    // ---- 1. nothing saved yet: a hint is pending, nothing routes ----
+    const p0 = await post(goodHint);
+    A.eq([p0.status, p0.body.ok, p0.body.pending === true], [409, false, true], 'with no floor saved the page\'s hint is pending (409): ' + p0.text.slice(0, 160));
+    A.eq(await armedLines(), [], 'and nothing routes: no line is listed');
+    A.ok(!stale(), 'and nothing was written');
 
-    // ---- restart: the accepted plan re-arms at boot (existing behavior, kept) ----
+    // ---- 2. save the floor, publish its hint: 200, armed, still nothing persisted by the post ----
+    const first = await publishFloor(api, good, { label: 'the two-stage floor' });
+    A.eq(first.receipt.ok, true, 'a deployable floor is accepted (200)');
+    A.ok(/^saved-plan-v1:[a-f0-9]{64}$/.test(first.receipt.identity || ''), 'with the saved floor\'s own identity: ' + first.receipt.identity);
+    A.ok(!('plan' in first.receipt) && !('hash' in first.receipt), 'and nothing it was sent comes back');
+    A.eq(await armedLines(), [LINE_ID], 'live routing is armed (the named line is listed)');
+    A.ok(!stale(), 'the POST persisted nothing: there is no routing.plan.json');
+
+    // ---- 3. restart: the saved floor re-arms by itself ----
+    await rebootTo();
+    A.ok(b.out().indexOf('routing plan restored') < 0, 'boot restores no plan: there is none to restore');
+    A.eq(await armedLines(), [LINE_ID], 're-armed routing lists the same line identity after restart, with no page');
+    A.eq((await post(goodHint)).body.identity, first.receipt.identity, 'and the same hint proves the same identity');
+    A.ok(!stale(), 'still no routing.plan.json');
+
+    // ---- 4. what is NOT the saved floor changes nothing, and a page cannot unarm the station ----
+    for (const [what, body] of [['the hint of a looped floor that was never saved', loopHint], ['a bare plan body', clone(goodHint.plan)], ['an empty post (the old CLEAR)', undefined]]) {
+      const r = await post(body);
+      A.eq([r.status, r.body.ok, r.body.pending === true], [409, false, true], what + ' is pending (409): ' + r.text.slice(0, 160));
+      A.eq(await armedLines(), [LINE_ID], what + ' leaves live routing armed');
+      A.ok(!stale(), what + ' wrote nothing');
+    }
+    const clear = await fetch(B + '/api/routing', { method: 'POST', headers, body: '' });
+    A.eq(clear.status, 409, 'a raw empty body is the same pending answer, not a clear');
+
+    // ---- 5. SAVE the loop: its exact hint is unroutable, live routing unarms, and a restart matches ----
+    const loop = await publishFloor(api, looped, { label: 'the looped floor', expect: 422 });
+    A.eq([loop.receipt.ok, loop.receipt.unroutable], [false, true], 'the exact hint of a floor the compiler refuses answers 422 unroutable');
+    A.ok(/^saved-plan-v1:[a-f0-9]{64}$/.test(loop.receipt.identity || '') && loop.receipt.identity !== first.receipt.identity, 'with that floor\'s own identity');
+    A.eq(await armedLines(), [], 'live routing is unarmed after the refusal (dispatch falls back)');
+    A.eq((await post(goodHint)).status, 409, 'and the good floor\'s hint is now only pending: it is not what is saved');
+    await rebootTo();
+    A.ok(b.out().indexOf('routing plan restored') < 0, 'boot restores no plan after the refusal either');
+    A.eq(await armedLines(), [], 'post-restart routing matches live: unarmed (boot/live parity) — a refused floor cannot re-arm dispatch at boot');
+    A.ok(!stale(), 'and nothing was persisted along the way');
+
+    // ---- 6. saving the good floor again re-arms at once, no restart ----
+    const again = await publishFloor(api, good, { label: 'the two-stage floor again' });
+    A.eq(again.receipt.identity, first.receipt.identity, 'the same floor, the same identity');
+    A.eq(await armedLines(), [LINE_ID], 'armed again with no restart');
+
+    /* ---- 7. A routing.plan.json AN OLDER VERSION LEFT IS IGNORED ----
+       An older station persisted the last plan a page posted and re-armed it at boot (and healed a plan that predated line identity
+       from its own geometry). Written straight to disk in that pre-arc shape, a plan of OTHER agents, and booted cold: it is never read, so
+       it routes nothing; never rewritten and never deleted, so a downgrade finds it as it was. */
     await stop(b);
+    const old = clone(hintFor(lineStation({ agents: ['gamma', 'delta'] })).plan);
+    delete old.lines; delete old.lineOfProp; delete old.lineOfAgent;
+    for (const d of (old.dockBays || [])) delete d.lineId;
+    A.eq(old.lineOfAgent, undefined, 'fixture: the left-behind plan carries no line map at all');
+    const oldBytes = JSON.stringify(old);
+    fs.writeFileSync(FILE, oldBytes);
     b = await boot(b.port, env, 20);
     B = 'http://' + HOST + ':' + b.port;
-    A.ok(b.out().indexOf('routing plan restored from disk') >= 0, 'boot log confirms the accepted plan re-armed');
     token = await bootToken(B, B);
     headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await armedLine(), LINE_ID, 're-armed routing lists the same line identity after restart');
-
-    /* ---- refuse: 422 unarms LIVE routing but KEEPS the refused plan as the capability view ----
-       (2026-08-10 audit #1). The 2026-08-04 fix persisted the CLEAR on refusal so stale routing could not
-       re-arm at boot — but that threw away the CAPABILITY view with it: capsPlan was memory-only, so a
-       refusal followed by a headless restart handed every bay-bound cron/routed run the FULL default office
-       while the floor still painted bay restrictions. Now the refusal persists the REFUSED plan itself; boot
-       replays it through the same setPlan, which re-refuses routing AND restores the bay projection. The
-       stale-routing law still holds: the OLD accepted floor never survives a refusal on disk. */
-    const bad = cyclicPlan();
-    const p2 = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(bad) });
-    A.eq(p2.status, 422, 'a non-deployable plan is refused (422)');
-    const refusal = await p2.json();
-    A.ok(!refusal.ok && Array.isArray(refusal.codes) && refusal.codes.indexOf('CYCLE') >= 0, 'the refusal names the blocker (CYCLE)');
-    A.ok(refusal.caps === true, 'the refusal says the plan was KEPT as the capability view (caps: true)');
-    A.eq(await armedLine(), null, 'live routing is unarmed after the refusal (dispatch falls back)');
-    A.eq(readFile().hash, bad.hash, 'the refusal persists the REFUSED plan itself — and the old accepted floor no longer sits on disk');
-
-    // ---- restart after refusal: boot matches live for BOTH facts — routing unarmed, bays still isolated ----
-    await stop(b);
-    b = await boot(b.port, env, 20);
-    B = 'http://' + HOST + ':' + b.port;
-    A.ok(b.out().indexOf('routing plan restored for CAPABILITY only') >= 0, 'boot restores the refused plan as the CAPABILITY view (bays stay isolated after a headless restart)');
-    A.ok(b.out().indexOf('routing plan restored from disk') < 0, '...but never as ROUTING — a refused floor cannot re-arm dispatch at boot');
-    A.ok(b.out().indexOf('persisted plan refused at boot') < 0, '...and the malformed-plan warn does not fire — this is the deliberate capability restore, not an error');
-    token = await bootToken(B, B);
-    headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await armedLine(), null, 'post-restart routing matches live: unarmed (boot/live parity)');
-
-    // ---- an explicit CLEAR (empty body) persists too ----
-    const p3 = await fetch(B + '/api/routing', { method: 'POST', headers, body: JSON.stringify(goodPlan()) });
-    A.eq(p3.status, 200, 're-arm before the clear');
-    A.eq(await armedLine(), LINE_ID, 'armed again');
-    const p4 = await fetch(B + '/api/routing', { method: 'POST', headers, body: '' });
-    A.eq(p4.status, 200, 'an empty post is an accepted clear');
-    A.ok(((await p4.json()) || {}).cleared, 'the clear body says cleared');
-    A.eq(await armedLine(), null, 'the clear unarms live routing');
-    A.eq(readFile(), null, 'the clear is persisted (boot will match)');
-
-    /* ---- A PLAN THAT PREDATES LINE IDENTITY SELF-HEALS AT BOOT (2026-08-07) ----
-       The floor's line map (which physical line a dock belongs to) is compiled by the browser and rides the
-       posted plan; the chain gate reads a MISSING map as "every dock is terminal". On a desktop that heals
-       the moment the app opens and re-posts — but a HEADLESS sidecar taking Telegram + routine traffic has
-       no browser, so every multi-stage line ran stage one and nothing else, silently and forever. The router
-       now derives the map from the restored plan's OWN geometry (sidecar/routing/planlines.js). Written
-       straight to disk in its pre-arc shape and booted cold: no browser is involved anywhere in this block. */
-    await stop(b);
-    const preArc = JSON.parse(JSON.stringify(goodPlan()));
-    delete preArc.lines; delete preArc.lineOfProp; delete preArc.lineOfAgent;
-    for (const d of (preArc.dockBays || [])) delete d.lineId;
-    A.eq(preArc.lineOfAgent, undefined, 'fixture: the persisted plan carries no line map at all');
-    fs.writeFileSync(FILE, JSON.stringify(preArc));
-    b = await boot(b.port, env, 20);
-    B = 'http://' + HOST + ':' + b.port;
-    A.ok(b.out().indexOf('routing plan restored from disk') >= 0, 'the pre-arc plan is still accepted at boot');
-    token = await bootToken(B, B);
-    headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    A.eq(await armedLine(), LINE_ID, 'a RESTORED pre-arc plan lists its healed line identity with no browser ever opening');
-    // Direct-order and foreign-line terminal behavior remains covered by the router unit suite; the retired browser route is not needed here.
+    A.ok(/routing\.plan\.json is ignored/.test(b.out()), 'boot says the old routing.plan.json is ignored');
+    A.ok(b.out().indexOf('routing plan restored') < 0, 'and restores nothing from it');
+    A.eq(await armedLines(), [LINE_ID], 'the station routes by its saved floor alone: the old plan\'s agents name no line');
+    A.eq((await post(goodHint)).status, 200, 'the saved floor\'s hint still proves it');
+    A.eq(fs.readFileSync(FILE, 'utf8'), oldBytes, 'the old routing.plan.json is byte-identical: not read, not rewritten, not deleted');
   } finally {
     await stop(b);
     try { fs.rmSync(ws, { recursive: true, force: true }); } catch (_) {}

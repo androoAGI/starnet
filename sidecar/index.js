@@ -322,7 +322,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 // relayWebhook (the signed-ingress verifier) is composed AFTER the WORKSPACES stores below —
 // its replay-nonce inbox is a durable JSONL sibling of the other ledgers.
 const { makeRouter } = require('./routing/router.js');
-const { makeSavedAuthority } = require('./routing/saved-authority.js');   // the saved floor as the one routing authority (SKYNET_ROUTING_AUTHORITY=saved)
+const { makeSavedAuthority } = require('./routing/saved-authority.js');   // the saved floor as the one routing authority
 const { makeRouterSeams } = require('./routing/saved-seams.js');          // admit / observe: how every caller asks the router
 const { heldWhy, holdOf } = require('./routing/saved-hold.js');           // the one sentence for a saved floor that is held, and the test for an error that says so
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
@@ -6286,23 +6286,21 @@ const activeItem = new Map();   // chatId -> { agentId, workitemId } newest in-f
 // flight, not by every agentId that ever received a message (2026-09-03 audit: unbounded set-never-delete).
 function bumpQueue(agentId, d) { const n = Math.max(0, (queueDepth.get(agentId) || 0) + d); if (n > 0) queueDepth.set(agentId, n); else queueDepth.delete(agentId); return n; }
 
-// the placed floor's RoutingPlan (posted by the app on every geo change). resolveTarget answers "which agent
-// runs this work-item?"; a non-deployable plan (cycle/orphan/dead-bay) is refused so routing can't loop.
-// What a bay's runs may use is bounded by the SAVED floor (savedFloor: the save file, re-validated when it changes) and
-// the default office — the plan says where work goes and may narrow what it gets there, never widen it.
-/* THE ROUTING AUTHORITY (lane saved-floor-routing-authority). With SKYNET_ROUTING_AUTHORITY=saved the floor the user SAVED is the only
-   routing authority: the router is built on the saved-floor reader (one stat per question, re-read when a save lands, never a last-good
-   value), POST /api/routing is only a receipt that a page's floor is that floor, routing.plan.json is ignored, and a floor that cannot
-   be proved right now HOLDS: dispatch refuses visibly (admit), reads degrade (observe). A short-lived switch while the posted-plan
-   path below is still the default; it is deleted with that path. Every caller asks through admit.* or observe.* (never router.*). */
-const ROUTING_SAVED = ENV('ROUTING_AUTHORITY') === 'saved';
-const savedAuthority = ROUTING_SAVED ? makeSavedAuthority({ read: {
+// the SAVED floor's RoutingPlan. resolveTarget answers "which agent runs this work-item?"; a floor the compiler refuses
+// (cycle/orphan/dead-bay) routes nothing, so routing can't loop. What a bay's runs may use is the room the saved floor gives
+// that bay (savedFloor: the save file, re-validated when it changes) and the default office where it crews the agent nowhere.
+/* THE ROUTING AUTHORITY (lane saved-floor-routing-authority). The floor the user SAVED is the only routing authority: the router is
+   built on the saved-floor reader (one stat per question, re-read when a save lands, never a last-good value), POST /api/routing is
+   only a receipt that a page's floor is that floor, routing.plan.json is ignored, and a floor that cannot be proved right now HOLDS:
+   dispatch refuses visibly (admit), reads degrade (observe). Nothing a page or a test posts is ever installed in the router, and the
+   host never sets, clears or restores a plan on it. Every caller asks through admit.* or observe.* (never router.*). */
+const savedAuthority = makeSavedAuthority({ read: {
   agentId: 'agent',
   stamp: () => saveStore.stamp('agent'),
   loadPrimaryState: () => saveStore.loadPrimaryState('agent'),
   hasRecoveryCopy: () => saveStore.hasRecoveryCopy('agent')
-} }) : null;
-const router = makeRouter(ROUTING_SAVED ? { savedProjection: savedAuthority.projection, savedHost: true } : { savedStation: () => savedFloor() });
+} });
+const router = makeRouter({ savedProjection: savedAuthority.projection, savedHost: true });
 const routingHoldSaid = new Set();
 const { admit, observe, hold: routingHold } = makeRouterSeams({ router, authority: savedAuthority,
   onHold: (held, reader) => {   // said once per reason: a read seam answered as if no floor were saved
@@ -6420,28 +6418,14 @@ const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now:
     get: id => LineJobs.get(lineJobs, id), mark: (id, status) => lineJobsSet(state => LineJobs.mark(state, id, status)), all: () => lineJobs.jobs },
   runRow: runId => runStore.latest(runId),
   emit: chanEmit });
-/* RESTART TRUTH (2026-07-06 audit): the router used to hold the posted plan ONLY in memory — after a sidecar
-   restart, cron/channel work fired UNROUTED (fallback agent, default-office caps, no per-bay isolation) until
-   a browser happened to open and re-post. The last ACCEPTED plan persists beside the other protected state
-   (same durable save/load idiom as cron.jobs.json) and re-arms at boot; setPlan re-validates on load, so a
-   stale or corrupt file is refused and simply leaves routing unarmed — never worse than the old behavior. */
-const ROUTING_FILE = path.join(WORKSPACES, 'routing.plan.json');
-(function restoreRoutingPlan() {
-  if (ROUTING_SAVED) {   // the saved floor is the authority: a routing.plan.json an older version left is ignored, said once, never deleted
-    if (fs.existsSync(ROUTING_FILE)) console.log('  · routing.plan.json is ignored: the saved floor is the routing authority');
-    return;
-  }
-  try {
-    const plan = loadResilient(ROUTING_FILE, 'routing');
-    if (plan && typeof plan === 'object') {
-      const r = router.setPlan(plan);
-      if (r && r.ok) console.log('  · routing plan restored from disk (hash ' + (plan.hash || '?') + ')');
-      // a persisted REFUSED plan is the capability view on purpose (see handleRouting): bays stay isolated,
-      // routing stays unarmed — the restart may not widen what the live refusal kept narrow (2026-08-10 #1).
-      else if (r && r.caps) console.log('  · routing plan restored for CAPABILITY only (' + ((r && r.error) || 'refused') + ') — bays stay isolated; routing unarmed until the app posts a deployable plan');
-      else console.warn('[routing] persisted plan refused at boot (' + ((r && r.error) || 'invalid') + ') — routing unarmed until the app posts one');
-    }
-  } catch (e) { console.warn('[routing] plan restore failed:', (e && e.message) || e); }
+/* RESTART TRUTH (2026-07-06 audit; the boot half of it retired by the saved-floor lane). The last plan a page POSTED used to persist to
+   routing.plan.json and re-arm routing at boot, which made whatever a page said last the routing authority across a restart, a second
+   window and a page that never opens. The floor the user SAVED is the only record that survives one now: the saved authority above
+   reads it at boot as it does at any other time, so cron/channel work routes the moment the station is up, with no browser. A
+   routing.plan.json an older version left is therefore not read: boot says so once, and the file is never rewritten or deleted (a
+   downgrade finds it as it was). */
+(function ignoreRetiredRoutingPlan() {
+  if (fs.existsSync(path.join(WORKSPACES, 'routing.plan.json'))) console.log('  · routing.plan.json is ignored: the saved floor is the routing authority');
 })();
 
 /* ---- MCP connectors (the "connectors" capability): configured MCP servers whose live tools become real
@@ -13637,39 +13621,19 @@ function handleChannelEvents(req, res) {
   res.on('close', done);   // the reliable disconnect seam (req 'close' semantics moved under Node ≥15 — see /api/run F1 note); done() is idempotent
 }
 
-/* ---- POST /api/routing: the app posts its compiled RoutingPlan on every floor change; the router stores
-   it (or REFUSES a non-deployable one), and from then on the floor decides which agent each inbound runs. ---- */
-/* The page posts its floor as a hint envelope, {version:1, plan, compilerLinks} (frontend/app/world.js, the poster). The posted-plan
-   path below installs the plan INSIDE it, as it always installed the plan the page posted; compilerLinks are the hint's companion
-   and this path never had the compiler's links. A bare plan body (everything else that posts one) is still the plan itself, and a
-   real plan always carries its errors array, so an envelope is never mistaken for one. Goes with the posted-plan path. */
-function postedPlanOf(body) {
-  return body && typeof body === 'object' && !Array.isArray(body) && body.version === 1 && Object.prototype.hasOwnProperty.call(body, 'plan') && !Array.isArray(body.errors)
-    ? body.plan : body;
-}
+/* ---- POST /api/routing: the app publishes the floor it just SAVED, as a hint; the saved floor decides which agent each inbound runs. ---- */
 function handleRouting(req, res) {
   readBody(req, 1 << 20).then(raw => {
-    let plan = null;
-    if (raw && raw.trim()) { try { plan = JSON.parse(raw); } catch (_) { res.writeHead(400); return res.end('bad json'); } }
-    if (ROUTING_SAVED) return answerRoutingHint(res, plan);   // the saved floor routes: this body is only asked about, never installed or kept
-    const posted = postedPlanOf(plan);
-    const r = router.setPlan(posted);
-    // persist every ACCEPTED plan (incl. an accepted clear) so routing survives a sidecar restart (2026-07-06).
-    // A REFUSED post persists the REFUSED PLAN ITSELF, never the previously-accepted file (2026-08-04): stale
-    // routing must not re-arm at boot. But a well-formed refusal is still the CAPABILITY view (r.caps — see
-    // router.setPlan), and keeping capsPlan memory-only meant a refusal followed by a headless restart handed
-    // every bay-bound cron/routed run the FULL default office while the floor still painted bay restrictions
-    // (2026-08-10 audit #1). Boot replays this file through the same setPlan, which re-refuses routing AND
-    // restores the bay projection — boot matches live for BOTH facts. Malformed post or clear -> null.
-    try { saveResilient(ROUTING_FILE, (r && (r.ok || r.caps)) ? posted : null); } catch (e) { console.warn('[routing] plan persist failed:', (e && e.message) || e); }
-    res.writeHead(r.ok ? 200 : 422, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(r));
+    let hint = null;
+    if (raw && raw.trim()) { try { hint = JSON.parse(raw); } catch (_) { res.writeHead(400); return res.end('bad json'); } }
+    answerRoutingHint(res, hint);   // whatever was sent is only asked about, never installed or kept
   }).catch(() => { try { res.writeHead(400); res.end(); } catch (_) {} });
 }
 
-/* POST /api/routing when the saved floor is the routing authority (SKYNET_ROUTING_AUTHORITY=saved). The page posts {version:1, plan,
-   compilerLinks} only to ask "is this exactly the floor that is saved?". It installs nothing, persists nothing and echoes nothing it
-   sent: the identity and revision in the answer come from the saved floor alone (routing/saved-authority.js compareHint).
+/* The page posts {version:1, plan, compilerLinks} (frontend/app/world.js, the poster) only to ask "is this exactly the floor that is
+   saved?". The answer installs nothing, persists nothing and echoes nothing it was sent: the identity and revision in it come from the
+   saved floor alone (routing/saved-authority.js compareHint). A bare plan body, an empty post and a hint of any other floor are all
+   pending: a post can neither arm routing nor clear it.
      200 {ok,matched,identity,revision}   it is the saved floor, and the saved floor routes
      409 {ok:false,pending,reason}        it is not (yet) the saved floor, or is not a hint at all: a bare plan body is this too
      422 {ok:false,unroutable,...}        it is exactly the saved floor, and the compiler refuses it: nothing routes from it
@@ -22869,11 +22833,10 @@ async function runOnceCore(o) {
     // station.layout's HARNESS facts (audit 2026-09-28): the plan the router actually holds, each line's effective
     // budget (the runner's own effectiveLimits), and today's numbers since local midnight (the line plate's window)
     layoutFacts: {
-      /* what the router routes by: the posted plan's hash, or (saved floor) the saved floor's own topology hash AND identity, so the lead
-         can tell "the page shows another version of the floor" from "the same belts with another brief". A saved floor that cannot be
-         proved right now is HELD with its reason; one the compiler refuses, or none saved yet, routes nothing (null, like no plan). */
+      /* what the router routes by: the saved floor's own topology hash AND identity, so the lead can tell "the page shows another version
+         of the floor" from "the same belts with another brief". A saved floor that cannot be proved right now is HELD with its reason;
+         one the compiler refuses, or none saved yet, routes nothing (null, like no plan). */
       routed: () => {
-        if (!savedAuthority) { const p = observe.getPlan(); return p ? { hash: p.hash || null } : null; }
         const s = savedAuthority.status();
         if (s.state === 'ok') return { state: 'ok', hash: s.topologyHash || null, identity: s.identity };
         if (s.state === 'held') return { state: 'held', status: s.status, why: heldWhy(s.status) };
