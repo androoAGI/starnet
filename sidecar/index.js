@@ -22110,17 +22110,6 @@ async function runOnceCore(o) {
       if (Number.isSafeInteger(source.quotesSaturatedAt)) execution.saturate(source.quotesSaturatedAt);
     } catch (e) { failNote('turn.quotes.recovery', e); execution.saturate(runStartedAt); }
   }
-  /* DURABLE TAINT (sec-taint 09-25). A latch made after the run journal began is journaled too, so a recovery
-     continuation of this run (which replays its checkpointed context, untrusted bytes included) restores the taint
-     from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead. */
-  const latchRunTaint = (source) => {
-    const before = execution.taintedBy();
-    const after = execution.latchTaint(source);
-    if (!before && after && execution.journalStarted() && !execution.journalFailed()) {
-      try { runJournal.taint(runId, { source: after }); } catch (e) { failNote('run-journal.taint', e); }
-    }
-    return after;
-  };
   /* THE SESSIONS THIS RUN HAS READ (turn identity commit 11, A2-FP-01/02/R01). A tool that returns another session's words names those
      sessions in result.quotedStreams (recall_conversation, session.peek); the dispatch closure asks latchRunQuotes(ids, epoch) for them
      AFTER the tool ran and BEFORE the result is journaled, bounded, parked or handed to the model. epoch is read just before the
@@ -22131,7 +22120,8 @@ async function runOnceCore(o) {
      therefore precedes the 'tool_result' record it covers) and (6) every LIVE ancestor (the o.parentRunId chain) latches the same
      entries, so a lead's rows from that moment carry what its worker read. A delete stamped before the block is caught by (1); one
      stamped after finds this run in liveQuoteRuns (stopQuotingRuns). Over-forgetting is the accepted cost; a read of the run's own
-     stream is never a quote (its tombstone already covers it). A journal that cannot record the read refuses it ('journal'). */
+     stream is never a quote (its tombstone already covers it). A journal that cannot record the read refuses it ('journal').
+     It sits ABOVE latchRunTaint on purpose: test/api-continuation-boundary evaluates the source from latchRunTaint to the HANDED comment on its own. */
   const noteRunQuotes = () => {
     try { runStore.noteIdentity(runId, TurnDirective.quoteIdentityOf(execution.quotes())); } catch (e) { failNote('turn.quotes.note', e); }
   };
@@ -22189,6 +22179,17 @@ async function runOnceCore(o) {
     return true;
   };
   const liveQuote = { parentRunId: o.parentRunId ? String(o.parentRunId) : '', streamId: o.streamId ? String(o.streamId) : '', latched: () => execution.quotes(), absorb: absorbRunQuotes, abort: () => stopQuotingRun(runId) };
+  /* DURABLE TAINT (sec-taint 09-25). A latch made after the run journal began is journaled too, so a recovery
+     continuation of this run (which replays its checkpointed context, untrusted bytes included) restores the taint
+     from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead. */
+  const latchRunTaint = (source) => {
+    const before = execution.taintedBy();
+    const after = execution.latchTaint(source);
+    if (!before && after && execution.journalStarted() && !execution.journalFailed()) {
+      try { runJournal.taint(runId, { source: after }); } catch (e) { failNote('run-journal.taint', e); }
+    }
+    return after;
+  };
   // The taint this run was HANDED (caller's initialTaint: a delegated worker inherits its lead's latch) and the one
   // it STARTED with (set once the replay proof below has run): a refusal under either must not claim this run read anything.
   const taintHandedIn = execution.taintedBy();

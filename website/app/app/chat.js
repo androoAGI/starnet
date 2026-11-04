@@ -10053,7 +10053,7 @@ const Chat = (() => {
         const sys = GoalLoop.judgeSystem();
         const usr = GoalLoop.judgeUser(s, reply, { now: new Date().toISOString() });
         // keepEffort: a verdict that ends the Commander's loop runs on their reasoning effort, never the cheap aux one
-        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, keepEffort: true, quotesStream: ws.id });   // the verdict is composed from this session's reply: the station stamps it as a quote of the session
+        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], quotesStream: ws.id, internal: true, keepEffort: true });   // the verdict is composed from this session's reply: the station stamps it as a quote of the session
         raw = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? (res.text || '') : '';   // a succeeded verdict only (review r7)
       } catch (_) { raw = ''; }
       judged = GoalLoop.parseVerdict(raw);
