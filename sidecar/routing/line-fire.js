@@ -98,6 +98,10 @@ function hopStop(r, facts) {
 function lineStopNote(res) {
   if (!res || !res.stopped) return '';
   const why = res.stop && typeof res.stop.why === 'string' ? res.stop.why : String(res.stopped);
+  /* A HELD JOB (line-hold lane, S3): the walk parked at a gate and its job is saved as held (line-runner.js sets res.held after the
+     verified write). It says so, and where the person decides: the job in WORKFLOWS. A hold that could not be saved says why in `why`
+     itself (res.stop.why, the terminal stop's own sentence) and reads as every other early stop. */
+  if (res.held && typeof res.held === 'object') return '\n\n⏸ the work line paused — ' + why + '. It is saved for a person to decide: open ' + (res.held.jobId ? 'job ' + String(res.held.jobId) + ' ' : 'the job ') + 'in WORKFLOWS.';
   // a line SOMEONE STOPPED (res.halted / code 'stopped', routing/chain.js) is said as a stop, never as a stage that failed (review r7)
   if (res.halted || (res.stop && res.stop.code === 'stopped')) return '\n\n■ the work line was stopped before it finished' + (why !== 'stopped' ? ' — ' + why : '') + '.';
   return '\n\n⚠ the work line stopped early — ' + why + '.';

@@ -23,6 +23,11 @@
      durable row). open({ id?, line, entry, text, streamId, name?, retryOf?, from?, handedIn?, stopHandle? }) returns one live handle;
      settle(handle, { line?, runs?, output?, stop?, stopCode?, stopped?, stopCause?, onLine?, error?, refusedSaid? }) returns its one
      result. Only a result whose rows succeeded and whose walk reached an actual OUTBOX can deliverCrate(result, payload).
+     THE HOLD (line-hold lane, S3): with jobs.hold(id, 0, continuation) (the host's verified writer) and hold { originOf(record, facts),
+     planHash(), receiptFor(file) } a walk that stops AT A GATE for a person is saved as a held continuation on its own job (parkLine)
+     before anyone settles it. Settling a PARKED job finishes nothing and releases nothing: its result is { held: true, delivered: false,
+     outcome 'blocked' }, and only the saved record owns the job from there, across a restart. A hold that cannot be saved exactly
+     leaves the old terminal blocked stop, with the reason said (line.holdFailed, in the stop's own sentence).
 
    A PROFILE is what differs between entries. Only the factories below build one (profiles.channel / schedule / manual / steptest),
    so a test builds a hop exactly as the host does, with fakes only at runOnce. BY CONSTRUCTION, whatever a profile says, a hop is a
@@ -39,6 +44,7 @@ const { hopError, lineStop } = require('./line-fire.js');
 const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
 const { mergeFiles, productOf } = require('./work-product.js');
+const LineHold = require('./line-hold.js');
 
 const UPSTREAM_TAINT = 'upstream agent output';
 const FAULT_SAID = 'the station hit an internal fault and stopped this run';   // index.js hopStoppedSaid's fault words
@@ -138,11 +144,36 @@ function makeJobBook(d, now, newId) {
     }).filter(Boolean).reverse();   // LineJobs/readers keep the final stage first, matching runStore's newest-first rows.
     return outcomeOf(f);
   }
+  /* A JOB PARKED ON ITS SAVED HOLD (line-hold lane, S3). runLineJob saved the walk's stop at a reviewer's gate as a held continuation on
+     this very LineJob (parkLine below). The durable record is the authority, never the attempt: a hold write whose acknowledgement was
+     lost may still have landed, so a job whose hold was attempted is also read back, and found held, from the canonical record. */
+  function heldOf(job) {
+    if (job.held) return job.held;
+    if (!job.holdAttempt || typeof jobs.get !== 'function') return null;
+    const rec = jobs.get(job.id);
+    return rec && rec.status === 'held' && rec.stop ? (job.held = { jobId: job.id, stop: rec.stop }) : null;
+  }
+  /* The result of a parked job: NOT delivered, NOT finished, nothing released. It tells the entry that asked (the hub, a routine fire,
+     a trigger, SEND TO, the sample route) what happened; the saved record is what a person decides on. The finish and the terminal release
+     (the line-output authority, the shipment receipt, SEND TO) belong to the end of a decided job, so neither runs here, and the live
+     handle is forgotten: from here on only the saved record owns this job, across a restart too. */
+  function parked(job, result, held) {
+    const stop = held.stop;
+    Object.assign(result, { delivered: false, held: true, status: 'held', outcome: 'blocked', stop, error: String(stop.why || ''), outboxId: null, unapproved: '' });
+    delete job.pendingFinish;
+    if (typeof jobs.get === 'function') job.record = jobs.get(job.id) || job.record;
+    job.result = result;
+    active.delete(job.id);
+    delete job.terminalRelease;
+    return result;
+  }
   function settle(job, facts) {
     if (job && job.result) return job.result;
     const result = preview(job, facts);
     if (job) {
       result.jobId = job.id;
+      const held = heldOf(job);
+      if (held) return parked(job, result, held);
       // Finish before forgetting the handle. If persistence throws the caller may retry; no delivery was published yet.
       if (typeof jobs.finish === 'function') {
         try {
@@ -150,6 +181,8 @@ function makeJobBook(d, now, newId) {
           if (!record) throw new Error('line job could not be settled');
           job.record = record;
         } catch (error) {
+          const landed = heldOf(job);   // the refused finish re-read the saved record: a hold that landed beside a lost acknowledgement
+          if (landed) return parked(job, result, landed);
           // Keep the first terminal facts and their resolved run rows for the entry's retry owner.
           // A later catch reporting this write error must not erase the completed work's spend.
           if (!job.pendingFinish) job.pendingFinish = Object.assign({}, facts, {
@@ -248,7 +281,9 @@ function makeLineRunner(deps) {
       try { files = (await d.handoffFiles(at.agentId, artifacts, { projectRoot: (row && row.projectRoot) || '' }) || []).map(f => f.abs); }
       catch (e) { failNote('line-runner.producedFiles', e); }
     }
-    return productOf(Object.assign({}, row || {}, r, { runId, files: mergeFiles(files) }), { draft: at.draft });
+    // projectRoot rides beside the product (the run's own base the files were located against): a held job saves exact receipts for them
+    return Object.assign(productOf(Object.assign({}, row || {}, r, { runId, files: mergeFiles(files) }), { draft: at.draft }),
+      { projectRoot: row && typeof row.projectRoot === 'string' ? row.projectRoot : '' });
   }
 
   function hopRunner(profile) {
@@ -343,12 +378,58 @@ function makeLineRunner(deps) {
     };
   }
 
+  /* THE HOLD, PARKED (line-hold lane, S3). A walk that stopped AT A GATE for a person (line.hold, chain.js) is saved as a held
+     continuation on its own LineJob BEFORE anyone settles the job: line-hold.js builds it from the walk's snapshot and the job's admission
+     and the existing validator accepts it, then the host's verified writer (jobs.hold -> index.js lineJobsHold) saves it and reads it back.
+     Only a job read back as held is parked (job.held; line.held, which the stop note reads). Any refusal — no hold owner on this host, an
+     origin that cannot be named, a split still running, a file that cannot be read, a storage fault — leaves the walk ending as it always
+     did, the terminal blocked stop, with the reason said in its own sentence. Never throws: the walk's result is already in hand. */
+  function parkLine(job, seed, line, planHash) {
+    const jp = d.jobs || {}, hold = d.hold;
+    if (!job || !line || !line.hold || typeof jp.hold !== 'function' || !hold || typeof hold.originOf !== 'function') return;
+    job.holdAttempt = true;
+    const park = saved => {
+      const c = saved && saved.continuation;
+      if (!saved || saved.status !== 'held' || !c || c.phase !== 'held') return false;
+      job.held = { jobId: job.id, revision: c.revision, reason: line.hold.reason, gateId: line.hold.gateId, pass: line.hold.pass, stop: { code: 'blocked', why: line.hold.why } };
+      line.held = { jobId: job.id, revision: c.revision, reason: line.hold.reason, gateId: line.hold.gateId, pass: line.hold.pass };
+      return true;
+    };
+    let why = '';
+    try {
+      const record = (typeof jp.get === 'function' && jp.get(job.id)) || job.record;
+      const built = LineHold.buildHeld(seed, line, record, record ? hold.originOf(record, seed.origin) : null,
+        { planHash, receiptFor: hold.receiptFor });
+      if (built.ok) {
+        // the station vouches for the hold before it is written: the floor is still the one the walk ran on, its line and docks still
+        // compile, E-STOP is not engaged (index.js holdAuthority, synchronous and read-only; anything but true refuses)
+        const vouch = typeof hold.authority === 'function' ? hold.authority({ phase: 'hold', job: record, continuation: built.continuation }) : true;
+        if (vouch !== true) why = (vouch && vouch.refused) || 'the station did not vouch for the hold';
+        else if (park(jp.hold(job.id, 0, built.continuation))) return;
+        else why = 'the saved hold could not be read back as held';
+      } else why = built.reason;
+    } catch (e) {
+      failNote('line-runner.hold', e);
+      if (typeof jp.get === 'function' && park(jp.get(job.id))) return;   // the write landed beside a lost acknowledgement: the record says held
+      why = 'the hold could not be saved: ' + ((e && e.message) || e);
+    }
+    // the old terminal blocked stop, now saying why it was not parked (the stop's own sentence, the legacy words and the record's error)
+    const said = LineHold.notHeld(why);
+    line.holdFailed = said;
+    for (const k of ['stopped', 'blocked']) if (typeof line[k] === 'string') line[k] = (line[k] + '; ' + said).slice(0, 400);
+    if (line.stop && typeof line.stop === 'object') line.stop = Object.assign({}, line.stop, { why: (String(line.stop.why || '') + '; ' + said).slice(0, 400) });
+  }
+
   async function runLineJob(job) {
     const j = job || {};
     if (!chain) throw new Error('makeLineRunner: a chain is required to run a line');
     const runHop = hopRunner(j.profile);
     if (j.job && j.seed) book.track(j.job, j.seed.runId);
     const seed = j.seed || {};
+    // the floor plan this walk STARTS on: a hold is bound to it, and the station vouches (hold.authority) that the floor is still that one
+    // when the walk parks — a floor edited mid-walk refuses the hold, since the gate it stopped at was read from the old floor
+    let startedOn = null;
+    if (j.job && d.hold && typeof d.hold.planHash === 'function') { try { startedOn = d.hold.planHash(); } catch (e) { failNote('line-runner.holdPlan', e); } }
     const product = await workProduct(seed, { agentId: seed.agentId, runId: seed.runId, draft: seed.originalText == null ? seed.text : seed.originalText });
     product.files = mergeFiles(seed.handoffReads, product.files);
     const line = await chain.advance(Object.assign({}, seed, { product }, j.job ? {
@@ -358,7 +439,7 @@ function makeLineRunner(deps) {
       book.track(j.job, r.runId, Object.assign({ agentId: h.agentId, dockId: h.dockId }, r));
       return r;
     } }));
-    if (j.job) j.job.lastLine = line;
+    if (j.job) { j.job.lastLine = line; parkLine(j.job, seed, line, startedOn); }
     return line;
   }
   function stopNote(line) { return chain ? chain.stopNote(line) : ''; }

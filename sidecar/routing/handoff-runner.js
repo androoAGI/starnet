@@ -225,6 +225,7 @@ function makeHandoffRunner(deps) {
       onResolved: (info) => { if (s.current && !s.current.resolved) s.current.resolved = info; },
       onLineOutcome: (info) => { if (s.current) s.current.lineOutcome = info; },
       jobEntry: 'sendto', jobId: () => s.current && s.current.job && s.current.job.id,
+      jobOrigin: () => (s.current && s.current.origin) || null,   // a saved hold names the job this one came from (line-hold lane)
       handoffReads: () => s.current ? s.current.files.slice() : [],
       onJobSettled: result => { if (s.current) s.current.result = result; },
       /* SEND TO VERDICTS (conveyor-backend-04): the target line's job runs under the SENDING job's verdicts (index.js makeTriggerHub
@@ -301,7 +302,8 @@ function makeHandoffRunner(deps) {
     if (yj && item.fromJobId) J.link(item.fromJobId, { line: item.toLine, jobId: yj.id, name: item.toName });
 
     s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {}, job, files,
-      entryTrusted: item.entryTrusted === true, hostPowerKept: item.hostPowerKept === true };   // what hubFor's verdict hooks answer
+      entryTrusted: item.entryTrusted === true, hostPowerKept: item.hostPowerKept === true,
+      origin: { sourceJobId: item.fromJobId, sourceLineId: item.fromLine, sourceOutboxId: item.fromOutbox, targetIntakeId: item.toIntake, lineage: item.lines.concat([item.toLine]), depth: item.depth } };   // what hubFor's verdict hooks answer
     const hub = hubFor(item.toLine, s);
     const settled = Promise.resolve(hub.onInbound({ chatId: 'hof-' + item.toLine, userId: 'handoff', text: input, chatType: 'dm' }))
       .catch(e => ({ error: (e && e.message) || String(e) }));

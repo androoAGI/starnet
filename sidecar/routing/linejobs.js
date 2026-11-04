@@ -39,6 +39,7 @@ const MAX_JOBS = 120;       // newest kept; an older record drops off (its runs 
 const MAX_TEXT = 2000;       // the job as sent (the route reads at most 2000 characters)
 const MAX_OUTPUT = 12000;    // what the line delivered
 const MAX_RUNS = 40;
+const MAX_HELD = 40;        // jobs waiting for a person at once: a held job carries its whole saved walk and is never trimmed, so the count is bounded
 const MAX_NOTES = 12;
 const MAX_NOTE = 2000;
 const STATUSES = Object.assign(Object.create(null), { running: 1, paused: 1, held: 1, delivered: 1, problem: 1, stopped: 1, failed: 1, interrupted: 1 });
@@ -131,6 +132,14 @@ function normJob(j) {
       job.status = 'held'; job.outcome = 'blocked'; job.endedAt = null;
       job.stop = { code: 'blocked', why: c.value.hold.why };
       job.error = c.value.hold.why;
+      /* A PARKED job still shows what it cost and which stages ran (line-hold lane, S3): the spend and the stage list are read from the
+         saved continuation itself — derived, so a reload or a boot can never drift from it. It shows NO output: nothing was delivered, and
+         the draft under review is the continuation's to show (a list row never carries it: test/linejobs.continuation.test.js) */
+      const v = c.value;
+      job.usd = num(v.accounting.entryUsd + v.accounting.hopUsd);
+      job.runs = v.attempts.slice().reverse().map(a => normRun({ runId: a.runId, agentId: a.node.agentId, dockId: a.node.dockId,
+        reason: RunOutcome.reasonOf({ outcome: a.outcome }), usd: a.usd, outcome: a.outcome })).filter(Boolean).slice(0, MAX_RUNS);
+      job.output = '';
     } else if (job.status === 'held' || (!c.ok && job.status === 'running')) {
       job.status = 'interrupted'; job.outcome = 'interrupted'; job.endedAt = null;
       job.error = c.ok ? 'saved human hold has no held checkpoint' : c.issue.message;
@@ -383,6 +392,11 @@ function summary(j) {
     const c = Continuation.inspect(j.continuation, j);
     s.continuation = c.ok ? { version: c.value.version, revision: c.value.revision, phase: c.value.phase }
       : { issue: c.issue.code, message: c.issue.message, readOnly: c.readOnly };
+    // (line-hold lane) a parked job tells the window why it is held, where, and what a person may decide — bounded, never the work itself
+    if (c.ok && c.value.phase === 'held') {
+      const h = c.value.hold;
+      s.hold = { reason: h.reason, why: h.why, gateId: h.gateId, pass: h.pass, allowed: h.allowed.slice(), revision: c.value.revision };
+    }
   }
   return s;
 }
@@ -419,6 +433,11 @@ function checkpoint(state, id, expectedRevision, next) {
   const c = Continuation.checkpoint(owns(prior, 'continuation') ? prior.continuation : undefined, prior, expectedRevision, next);
   if (owns(prior, 'entryAdmission')) Continuation.demandEntryPair(prior.entryAdmission, c, prior);
   if (prior.endedAt == null && (c.phase === 'complete' || (c.publication && c.publication.state === 'confirmed'))) throw new Error('line publication requires an accepted terminal job first');
+  // a job that parks for a person is kept until someone decides it (retain never trims it): past MAX_HELD the next one is refused here and
+  // its line ends the way it always did, the reason said — a flaky reviewer cannot grow the saved store without bound
+  if (!owns(prior, 'continuation') && c.phase === 'held' && state.jobs.filter(j => j.status === 'held').length >= MAX_HELD) {
+    throw new Error('line-jobs: ' + MAX_HELD + ' jobs are already waiting for a decision, so this one cannot be held');
+  }
   const uncertain = c.phase === 'uncertain';
   const why = uncertain ? 'a saved attempt has no confirmed terminal receipt; reconcile it before continuing' : '';
   const projection = prior.endedAt != null ? {} : { endedAt: null,
@@ -501,4 +520,4 @@ function entryBootPending(job) {
 
 module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, assertWritable: writable,
   accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending, adoptEntry,
-  MAX_JOBS, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };
+  MAX_JOBS, MAX_HELD, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

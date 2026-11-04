@@ -324,6 +324,7 @@ const { makeBrowserViews, makeViewRoutes } = require('./browser-view.js');   // 
 const { makeRouter } = require('./routing/router.js');
 const { makeChainRunner, effectiveLimits: chainEffectiveLimits } = require('./routing/chain.js');
 const LineRunner = require('./routing/line-runner.js');   // THE ONE HOP EXECUTOR: every entry's later stages run through it (line-job-runner)
+const LineHold = require('./routing/line-hold.js');   // the saved hold of a job that stopped at a reviewer's gate (line-hold lane): origin mapping here, the build in the runner
 const { foldLineIntoFire } = require('./routing/line-fire.js');   // a routine's line: answer + stop note, spend, stop facts (quick win 25)
 const { routineRunIdentity, runsAsCommand, isRoutineTrigger } = require('./routine-identity.js');   // a routine run's identity + command rule, shared by the tick and Run Now (quick win 31)
 const RunWire = require('./run-wire.js');   // the ONE {provider, model} decision every entry point asks (runWireFor, run-wire-resolver lane)
@@ -6397,9 +6398,73 @@ const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now:
   } },
   // Lazy closures: the durable job store is initialized below before any entry can dispatch work.
   jobs: { start: rec => lineJobsSet(state => LineJobs.start(state, rec)), finish: (id, rec) => lineJobsSet(state => LineJobs.finish(state, id, rec)),
-    get: id => LineJobs.get(lineJobs, id), mark: (id, status) => lineJobsSet(state => LineJobs.mark(state, id, status)), all: () => lineJobs.jobs },
+    get: id => LineJobs.get(lineJobs, id), mark: (id, status) => lineJobsSet(state => LineJobs.mark(state, id, status)), all: () => lineJobs.jobs,
+    hold: (id, revision, continuation) => lineJobsHold(id, revision, continuation) },
+  /* THE HOLD'S HOST PROOFS (line-hold lane, S3): a walk that stops at a reviewer's gate is saved as a held continuation on its own job
+     (line-runner.js parkLine). The station names how the job came in (originOf), the floor plan it ran on (planHash), an exact receipt for
+     every file the work carries (receiptFor) and vouches that the floor is still that floor before anything is written (authority). */
+  hold: { originOf: (record, facts) => holdOriginOf(record, facts), planHash: () => holdPlanHash(), receiptFor: file => holdFileReceipt(file),
+    authority: q => holdAuthority(q) },
   runRow: runId => runStore.latest(runId),
   emit: chanEmit });
+/* ---- THE HOLD'S HOST PROOFS (line-hold lane, S3) — read-only, synchronous, no spend, no clock. They are the four things a walk that
+   stopped at a reviewer's gate needs the station to say before it is saved as a held continuation (line-runner.js parkLine). ---- */
+// how the job came in, as the H2 origin union: line-hold.js originOf over the door's facts. A folder trigger's file text is digested here
+// (the saved origin keeps the digest, never the text), as is the configuration a routine's hops run under (`policy`); a door that cannot
+// name its facts yields null and the job ends the old way
+function holdOriginOf(record, facts) {
+  const f = facts && typeof facts === 'object' ? Object.assign({}, facts) : {};
+  if (typeof f.sourceText === 'string') f.sourceDigest = crypto.createHash('sha256').update(f.sourceText, 'utf8').digest('hex');
+  delete f.sourceText;
+  if (f.policy && typeof f.policy === 'object') f.policyDigest = routinePolicyDigest(f.policy);
+  delete f.policy;
+  return LineHold.originOf(record, f);
+}
+// the compiled floor plan's hash right now (what the walk's gate was read from); no armed plan, no hold
+function holdPlanHash() {
+  const plan = router.getPlan();
+  if (!plan || !plan.hash) throw new Error('no armed floor plan to bind the hold to');
+  return String(plan.hash);
+}
+// an exact receipt for a file the work carries: its sha256 and size, read in 1 MiB steps, bounded. A file that is not there, is not a regular
+// file or is too large to vouch for throws, and the hold is refused in those words (line-hold.js buildHeld). The base is the run's project
+// root, else the workspaces root every jailed agent's files live under.
+const HOLD_FILE_MAX = 16 * 1024 * 1024;
+function holdFileReceipt(file) {
+  const p = String((file && file.path) || '');
+  if (!path.isAbsolute(p)) throw new Error('the file is not an absolute path');
+  const fd = fs.openSync(p, 'r');
+  try {
+    const st = fs.fstatSync(fd);
+    if (!st.isFile()) throw new Error('it is not a regular file');
+    if (st.size > HOLD_FILE_MAX) throw new Error('it is larger than ' + (HOLD_FILE_MAX / 1048576) + ' MiB');
+    const h = crypto.createHash('sha256'), buf = Buffer.allocUnsafe(1048576);
+    let n = 0, got = 0;
+    while ((got = fs.readSync(fd, buf, 0, buf.length, null)) > 0) { n += got; if (n > HOLD_FILE_MAX) throw new Error('it grew past ' + (HOLD_FILE_MAX / 1048576) + ' MiB while it was read'); h.update(buf.subarray(0, got)); }
+    return { path: p, projectRoot: (file.projectRoot && String(file.projectRoot)) || WORKSPACES, digest: h.digest('hex'), size: n };
+  } finally { fs.closeSync(fd); }
+}
+// the station vouches for a hold (phase 'hold') or its resume (phase 'resume'): the floor is still the one the walk ran on, its line and every
+// dock it went through still compile on that line, and E-STOP is not engaged. true, or { refused: why }; anything but true refuses.
+function holdAuthority(q) {
+  try {
+    const c = q && q.continuation, plan = router.getPlan();
+    if (!c) return { refused: 'there is no saved hold to vouch for' };
+    if (!plan || String(plan.hash) !== c.binding.planHash) return { refused: 'the floor was changed while this job was out, so its walk can no longer be vouched for' };
+    const line = c.binding.lineId, cur = c.walk.current;
+    for (const k of c.walk.visited.concat([cur.dockId || cur.agentId])) {
+      const agent = c.binding.dockMode ? router.agentOfDock(k) : k;
+      if (!agent || router.lineOfAgent(agent, c.binding.dockMode ? k : undefined) !== line) return { refused: 'a stage this job went through is no longer on its line' };
+    }
+    if (nightshift.isHalted(nightshiftState)) return { refused: 'E-STOP is engaged' };
+    return true;
+  } catch (e) { failNote('linejobs.holdAuthority', e); return { refused: 'the station could not vouch for this hold (' + ((e && e.message) || e) + ')' }; }
+}
+// the routine configuration a fire's hops ran under (skills, workdir, toolsets), digested: the saved origin of a scheduled or Run Now job
+function routinePolicyDigest(r) {
+  const x = r || {};
+  return crypto.createHash('sha256').update(JSON.stringify([x.preloadSkills || x.skills || [], x.requiredPreloads === true, x.workdir || null, x.enabledToolsets || null]), 'utf8').digest('hex');
+}
 /* RESTART TRUTH (2026-07-06 audit): the router used to hold the posted plan ONLY in memory — after a sidecar
    restart, cron/channel work fired UNROUTED (fallback agent, default-office caps, no per-bay isolation) until
    a browser happened to open and re-post. The last ACCEPTED plan persists beside the other protected state
@@ -7746,6 +7811,10 @@ const cronDriver = makeCronDriver({
     // SEND TO VERDICT (conveyor-backend-04): a routine run never withholds host power (run-origin.js: no channelSender), so its
     // hand-off keeps it too — the level it had before verdicts were carried. NEVER the trusted-entry verdict here: that stays the hub's alone.
     hostPowerKept: true,
+    /* THE SAVED HOLD'S ADMISSION (line-hold lane): the routine and the fire this job came from, and the configuration its hops run under
+       (digested), so a walk that parks at a reviewer's gate names its origin; a routine whose context came from other routines is tainted */
+    origin: { routineId: o.jobId, fireRunId: o.runId, policy: { preloadSkills: o.preloadSkills, requiredPreloads: o.requiredPreloads, workdir: o.workdir, enabledToolsets: o.enabledToolsets } },
+    taints: o.initialTaint ? ['routine context'] : [],
     /* ONLY A ROUTINE THAT BELONGS TO THE LINE RUNS THE LINE (Andrew's ruling, 2026-08-07). `o.runsLine` is
        the durable opt-in the driver reads off the job record (cron-store `runsLine`): true only for a routine
        created from a line's own INBOX trigger zone. Without it this is a routine that predates the workflow
@@ -13847,6 +13916,27 @@ function lineJobsBookReceipt(id, expectedRevision, runId) {
   });
   return { job: kept, receipt, replayed };
 }
+/* THE DURABLE HOLD (line-hold lane, S3). A work line that stopped at a reviewer's gate for a person is saved as a held continuation on its
+   own LineJob (line-runner.js parkLine), through the one verified writer every other job mutation uses: a fresh canonical read, the pure
+   LineJobs.checkpoint, a strict write and its readback. Nothing else stores it and nothing is noted: the legacy day ledger already counted
+   every cent the walk spent. The job that comes back must be HELD and carry exactly the continuation that was built; a write that landed
+   beside a lost acknowledgement is recognized by one fresh canonical read (an exact match counts, nothing else), never assumed. It throws
+   when the hold is not provably saved, and the runner then ends the job the old way, saying why. */
+function lineJobsHold(id, expectedRevision, continuation) {
+  const wanted = JSON.stringify(continuation);
+  const exact = job => (job && job.status === 'held' && job.continuation && JSON.stringify(job.continuation) === wanted) ? job : null;
+  try {
+    const kept = exact(lineJobsSet(state => LineJobs.checkpoint(state, id, expectedRevision, continuation)));
+    if (kept) return kept;
+    throw new Error('line-jobs: the saved hold did not read back as the one that was built');
+  } catch (error) {
+    let landed = null;
+    try { landed = exact(LineJobs.get(lineJobsRefresh(), id)); }
+    catch (e) { failNote('linejobs.hold.reread', e); }
+    if (landed) return landed;
+    throw error;
+  }
+}
 /* GET /api/line-jobs?line=&stream=&runId=&limit= — the jobs sent down a line, newest first (each a summary: the job, how it ended, what it
    cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
    'example', dockId, role, field, text, was, why} — what the Commander changed because of it. An unknown id is 404 {ok:false}. */
@@ -14235,6 +14325,7 @@ function makeTriggerHub(hooks) {
     classify: () => true,
     resolveAgent: (ctx) => { const lineId = hooks.lineId(); return hooks.onRouted(lineId ? router.resolveDock(Object.assign({}, ctx, { lineId: lineId, boundAgentId: undefined })) : null); },
     jobId: hooks.jobId,
+    jobOrigin: hooks.jobOrigin,
     jobEntry: hooks.jobEntry || 'trigger',
     onJobSettled: hooks.onJobSettled,
     onResolved: hooks.onResolved,
@@ -17829,6 +17920,9 @@ async function handleCronRun(req, res) {
           runId, streamId: 'cron-' + runId,
           entryUsd: state.usd,   // stage one is part of the chain — its spend counts against MAX_CHAIN_USD (2026-08-10)
           hostPowerKept: true,   // SEND TO VERDICT: the same as the scheduled seam above (a routine never withholds host power; never the trusted-entry verdict)
+          // the saved hold's admission, exactly as the scheduled seam names it (the same routine configuration, the same digest)
+          origin: { routineId: job.id, fireRunId: runId, policy: { preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null, enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null } },
+          taints: (job.contextFrom && job.contextFrom.length) ? ['routine context'] : [],
           // SAME ORIGIN AS THE SCHEDULED FIRE (work belongs to a line, 2026-08-07): Run Now is this routine's
           // own trigger pressed by hand, so it carries the dock's lineId and the line runs — but ONLY for a
           // routine that belongs to the line (the durable `runsLine` opt-in, read off the same job record the
@@ -18669,7 +18763,7 @@ async function deliverableRows() {
      (never listed again as loose run rows). A job where no step ran is not output (its text is the route's warning) and is left out. */
   const jobOfRun = new Map(), jobRows = [];
   for (const job of ((lineJobs && Array.isArray(lineJobs.jobs)) ? lineJobs.jobs : [])) {
-    if (!job || job.status === 'running') continue;
+    if (!job || job.status === 'running' || job.status === 'held') continue;   // a held job is waiting for a person (line-hold lane): its draft is no finished output yet
     const output = String(job.output || '').trim();
     if (job.status !== 'delivered' && !((job.runs || []).length && output)) continue;   // nothing ran: its text is a warning, not output
     const last = (job.runs || [])[0] || null;   // newest-first: [0] is the stage whose reply the line delivered

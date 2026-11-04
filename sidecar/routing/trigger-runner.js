@@ -290,6 +290,7 @@ function makeTriggerRunner(deps) {
       onResolved: (info) => { if (s.current && !s.current.resolved) s.current.resolved = info; },
       onLineOutcome: (info) => { if (s.current) s.current.lineOutcome = info; },
       jobEntry: 'trigger', jobId: () => s.current && s.current.job && s.current.job.id,
+      jobOrigin: () => (s.current && s.current.origin) || null,   // a saved hold names this trigger (line-hold lane; the host digests a folder file's text)
       onJobSettled: result => { if (s.current) s.current.result = result; },
       streamId: () => (s.current && s.current.streamId) || undefined,
       // a fire is ONE standalone job: the hub's per-agent turn history lives only for this fire (never a prior fire's)
@@ -323,7 +324,8 @@ function makeTriggerRunner(deps) {
       if (!saveSeen()) { delete mine[item.seenKey]; recordError(t.id, 'could not record fired files — paused to avoid refiring'); return null; }
     }
     s.current = { streamId, routed: null, resolved: null, lineOutcome: null, replies: [], turns: {},
-      job: item.job || lineRunner.open({ line: t.lineId, entry: 'trigger', text: item.text, streamId, at: startedAt }) };
+      job: item.job || lineRunner.open({ line: t.lineId, entry: 'trigger', text: item.text, streamId, at: startedAt }),
+      origin: { triggerId: t.id, triggerKind: t.kind, sourceText: String(item.text || ''), reservationId: item.delivery && item.delivery.reservationId, fingerprint: item.delivery && item.delivery.fingerprint } };
     // the previous fire's outcome is cleared as this one starts: a fire that dies mid-run (a restart, a crash) must
     // never leave the OLD "✓ reached the OUTBOX" standing beside the NEW lastFiredAt (sweep 2026-09-25)
     patch(t.id, cur => ({ fires: cur.fires + 1, lastFiredAt: startedAt, lastOutcome: null }));

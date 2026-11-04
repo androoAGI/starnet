@@ -32,6 +32,7 @@ const POLICY = Object.freeze({
   isOwner: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal"], off: "Only adapter-paired conversation channels expose owner commands." },
   jobEntry: { wired: ["sample", "trigger", "handoff"], off: "Ordinary channel jobs use the shared channel entry." },
   jobId: { wired: ["sample", "trigger", "handoff"], off: "Ordinary channel jobs allocate identity through LineRunner." },
+  jobOrigin: { wired: ["trigger", "handoff"], off: "Only trigger and SEND TO jobs name their own origin; an ordinary channel job is saved under its chat." },
   intakeReceiptFor: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   lineOriginFor: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
   lineRunner: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },
