@@ -8,7 +8,7 @@ One tracked file per bug under `qa/bugs/`; this is only the index. File a new bu
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **121** · source fixed: **100** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **115**.
+User/owner reports: **122** · source fixed: **101** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **116**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -70,6 +70,7 @@ User/owner reports: **121** · source fixed: **100** · installer verified: **6*
 | [Agents cross walls beside hallway openings](bugs/49192a68-agents-cross-walls-beside-hallway-openings.md) | doorway-movement | fixed | unverified | unconfirmed |
 | [Approved agent sprites remain behind preview switch in normal desktop](bugs/84e26970-approved-agent-sprites-remain-behind-preview-swi.md) | production-skin-activation | fixed | unverified | unconfirmed |
 | [Bay names are unreadable at normal station zoom](bugs/0ff9dfc6-bay-names-are-unreadable-at-normal-station-zoom.md) | bay-labels | fixed | verified | confirmed |
+| [A reviewer's BLOCKED ends the job with nothing held, and a reply with no verdict buys five paid passes and ships unapproved (GitHub #122)](bugs/6e3e7166-gh122-blocked-reviewer-ends-the-job-unheld.md) | line-review-gate | fixed | unverified | unconfirmed |
 | [GPU loss replaces authored props with legacy art and disables floor recovery](bugs/0db3e69c-gpu-loss-replaces-authored-props-with-legacy-art.md) | local-memory-graphics-recovery | fixed | unverified | unconfirmed |
 | [New backdrops stall switching and zoomed-out terrain rendering](bugs/04ca4207-new-backdrops-stall-switching-and-zoomed-out-ter.md) | backdrop-performance | fixed | verified | unconfirmed |
 | [Refit entry freezes the installed remastered station for roughly ten seconds](bugs/bf3be27e-refit-entry-freezes-the-installed-remastered-sta.md) | refit-entry-rendering | fixed | unverified | unconfirmed |
