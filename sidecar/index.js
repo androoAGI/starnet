@@ -3690,6 +3690,8 @@ wireForgetRegistry(forgetRegistry, {
   deliverables: () => deliverableStore,
   goldens: { get: () => goldensByKey, persist: next => persistGoldens(next) },
   study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => saveResilient(STUDY_STATE_FILE, { v: 1, byRun: Object.fromEntries(studyByRun), latest: Object.fromEntries(latestStudyRun), lastAt: Object.fromEntries(lastStudyAt), declined: Object.fromEntries(studyDeclinedByAgent) }) },
+  quests: () => questStore,
+  northStar: { get: () => questRefreshState, set: x => { questRefreshState = x; }, persist: () => saveResilient(QUESTREFRESH_FILE, { v: 1, state: questRefreshState }) },
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
   nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
   workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()
@@ -10903,14 +10905,14 @@ async function mintQuestRecommendations(quests, why, capturedGoal = commanderGoa
     const r = await questStore.mint({
       title: q.title, desc: q.desc, reward: q.reward, kind: 'generated', createdBy: 'system:quest-refresh',
       agentId: null, domain: q.domain, goalId: activeGoal && activeGoal.id, milestoneId: activeGoal && activeGoal.milestoneId,
-      contract: q.contract, steps: q.steps, groundedIn: q.groundedIn, executionMode: q.executionMode, whyNow: q.whyNow
+      contract: q.contract, steps: q.steps, groundedIn: q.groundedIn, executionMode: q.executionMode, whyNow: q.whyNow, quotes: q.quotes, quotesAt: q.quotesAt
     }, Date.now());
     if (r && r.ok) {
       minted++;
       await recommendationLedger.record({ id: 'quest:' + r.id, surface: 'quest', kind: 'quest', title: q.title, target: r.id,
         traits: rankedQ.traits, evidence: [{ id: 'quest-grounding', type: 'context', quote: q.groundedIn }],
         readiness: { ready: true, reasons: [] }, contextId: 'quest-refresh:' + Math.floor(Date.now() / 60000), rank: rankedQ.rank, score: rankedQ.utility,
-        scoreComponents: rankedQ.scoreComponents, modelVersion: 'quest-refresh-v4' }, Date.now()).catch(swallow('recledger.record', null));
+        scoreComponents: rankedQ.scoreComponents, modelVersion: 'quest-refresh-v4', quotes: q.quotes, quotesAt: q.quotesAt }, Date.now()).catch(swallow('recledger.record', null));
       questRefreshNote({ outcome: 'minted', reason: why + ' refresh — ' + q.groundedIn, title: q.title });
     } else questRefreshNote({ outcome: 'rejected', reason: (r && r.error) || 'the store rejected the mint', title: q.title });
   }
@@ -11009,6 +11011,7 @@ async function runQuestRefreshCycle(why) {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
     const pack = nightshiftContextPack();
+    const refreshStamp = draftStamp(pack), refreshAdmitted = () => forgetRegistry.admit(refreshStamp);   // the sessions this pass's prompt quotes: what it writes carries the stamp, and a delete since refuses it
     const activityBlock = (pack.activityLines || []).slice(0, 10).map(a => '• ' + a).join('\n');
     // RELEVANCE: the interest histogram (what the Commander keeps asking about) is already distilled by the
     // scout lane — fold it into the evidence so quests can ground in real recurring topics, not just the dossier.
@@ -11022,7 +11025,7 @@ async function runQuestRefreshCycle(why) {
     // cold-save guard below. (Completing or dismissing an open generated quest re-opens the fast path.)
     const openGenStationWide = rec.quests.filter(q => questActionable(q) && q.kind === 'generated' && q.agentId == null && (q.goalId || null) === ((capturedGoal || {}).id || null)).length;
     if (QuestRefresh.slateFull(openGenStationWide)) {
-      questRefreshNote({ outcome: 'skipped', reason: 'slate full — ' + openGenStationWide + ' open generated quests already await; complete, pause, or dismiss one to earn a fresh cycle' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'slate full — ' + openGenStationWide + ' open generated quests already await; complete, pause, or dismiss one to earn a fresh cycle' });
       return;
     }
     // PROGRESSION: the most recently completed quests feed the directive so each refresh proposes the NEXT
@@ -11060,14 +11063,14 @@ async function runQuestRefreshCycle(why) {
     // COLD-STATE HONESTY: a station that knows nothing yet has nothing to ground a quest in. Skip the model
     // call entirely and say so — a paid guess would be exactly the ungrounded busywork the doctrine forbids.
     if (!QuestRefresh.hasEvidence(evidenceCtx)) {
-      questRefreshNote({ outcome: 'skipped', reason: 'not enough is known yet (empty dossier, no goal, no activity) — the refresh waits for the station to learn more' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'not enough is known yet (empty dossier, no goal, no activity) — the refresh waits for the station to learn more' });
       return;
     }
     // Standalone auxiliary calls bypass runAgentLoop, so the governor admits this one too (REFRESH QUESTS runs past the token
     // ceiling). A manual refresh changes the cadence, not the spending authority; only an explicit budget resume does.
     const blocked = governor.admit('quest-refresh', { providerId, agentId: 'station', trigger: why === 'manual' ? 'commander' : 'background' });
     if (blocked) {
-      questRefreshNote({ outcome: 'skipped', reason: blocked.gate === 'tokens' ? 'background token ceiling reached' : blocked.unknown
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: blocked.gate === 'tokens' ? 'background token ceiling reached' : blocked.unknown
         ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
         : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
       return;
@@ -11090,9 +11093,10 @@ async function runQuestRefreshCycle(why) {
       { role: 'user', content: directive }
     ] };
     const out = await spend.stream(provider, req, cost);
+    if (!refreshAdmitted()) { questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'a session this pass read was deleted while it planned' }); return; }
 
     if (capturedGoalBinding !== QuestRefresh.goalBinding(commanderGoals.get())) {
-      questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
       return;
     }
     const grounding = [evidenceCtx.goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
@@ -11111,24 +11115,24 @@ async function runQuestRefreshCycle(why) {
     const goal = capturedGoal;
     if (goal && goal.text) questRefreshState = QuestRefresh.setNorthStar(questRefreshState, { text: goal.text, groundedIn: 'the Commander\'s active goal arc', source: 'goal' }, { now: Date.now() });
     else if (parsed.northStar && parsed.northStar.text) {
-      questRefreshState = QuestRefresh.proposeNorthStar(questRefreshState, { text: parsed.northStar.text, groundedIn: 'inferred from the dossier + recent activity', source: 'model' }, { now: Date.now() });
+      questRefreshState = QuestRefresh.proposeNorthStar(questRefreshState, { text: parsed.northStar.text, groundedIn: 'inferred from the dossier + recent activity', source: 'model', ...refreshStamp }, { now: Date.now() });
       const proposed = QuestRefresh.normalize(questRefreshState).proposedNorthStar;
       if (proposed) recommendationLedger.record({ id: 'northstar:' + Recommendation.fingerprint(proposed.text), surface: 'northstar', kind: 'direction', title: proposed.text,
         target: 'pending', traits: ['direction', 'north-star'], evidence: [{ id: 'quest-refresh-context', type: 'context', quote: proposed.groundedIn }],
-        readiness: { ready: true, reasons: [] }, modelVersion: 'quest-refresh-v4' }, Date.now()).catch(swallow('recledger.record'));
+        readiness: { ready: true, reasons: [] }, modelVersion: 'quest-refresh-v4', ...refreshStamp }, Date.now()).catch(swallow('recledger.record'));
     }
     persistQuestRefresh();
 
-    if (parsed.none) { questRefreshNote({ outcome: 'none', reason: 'model judged the open slate already covers the next steps (' + why + ' pass)' }); return; }
-    if (!parsed.quests.length) { questRefreshNote({ outcome: 'rejected', reason: 'every proposed quest failed hard validation (contract / dedup / grounding)' }); return; }
+    if (parsed.none) { questRefreshNote({ ...refreshStamp, outcome: 'none', reason: 'model judged the open slate already covers the next steps (' + why + ' pass)' }); return; }
+    if (!parsed.quests.length) { questRefreshNote({ ...refreshStamp, outcome: 'rejected', reason: 'every proposed quest failed hard validation (contract / dedup / grounding)' }); return; }
     // AUTHORITY BOUNDARY: a pass that inferred a NEW north star may not turn its own guess into open quest
     // authority. Stage the batch with the proposal; confirm mints it, decline erases it.
     if (QuestRefresh.normalize(questRefreshState).proposedNorthStar) {
-      questRefreshState = QuestRefresh.stageQuests(questRefreshState, parsed.quests); persistQuestRefresh();
-      questRefreshNote({ outcome: 'staged', reason: 'quests wait for the Commander to confirm the inferred north star', title: parsed.quests[0].title });
+      questRefreshState = QuestRefresh.stageQuests(questRefreshState, parsed.quests.map(q => Object.assign({}, q, refreshStamp))); persistQuestRefresh();
+      questRefreshNote({ ...refreshStamp, outcome: 'staged', reason: 'quests wait for the Commander to confirm the inferred north star', title: parsed.quests[0].title });
       return;
     }
-    await mintQuestRecommendations(parsed.quests, why, capturedGoal);
+    await mintQuestRecommendations(parsed.quests.map(q => Object.assign({}, q, refreshStamp)), why, capturedGoal);
   } catch (e) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {

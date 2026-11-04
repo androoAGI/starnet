@@ -25,6 +25,7 @@ const ForgetRegistry = require('./forget-registry.js');
 const SessionTombstones = require('./session-tombstones.js');
 const Interests = require('./interests.js');
 const Scout = require('./scout.js');
+const QuestRefresh = require('./questrefresh.js');
 
 const { inScope } = ForgetRegistry;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -212,6 +213,33 @@ function wireForgetRegistry(registry, deps) {
           || (x && x.source === 'nightshift' && !x.quotes && !x.builtRunId && !x.buildingRunId && num(x.ts) <= latest));
       }
       return removed;
+    }
+  });
+
+  /* quests and the north star. A generated quest (minted by the quest refresh from the context pack) and an inferred north star carry the quote
+     stamp of the sessions they were inferred from; the pass's ledger notes and staged quests do too. A generated OPEN quest with no stamp
+     predates sources and rides every run's context (questinject) until completed, so it goes with the first delete after it (the next refresh
+     mints it again from what is still there); a quest the Commander completed or dismissed, the declined-inference list and the dismissed-forever
+     titles stay. The Commander's own goal-arc star carries no stamp and is never dropped. */
+  const stampedSource = x => ({ quotes: x && x.quotes, quotesAt: x && x.quotesAt, quotesSaturatedAt: x && x.quotesSaturatedAt });
+  entry({
+    name: 'quests',
+    sourceOf: stampedSource,
+    forget: scope => {
+      const latest = latestStamp(scope);
+      return d.quests().forget(q => (q.quotes ? inScope(stampedSource(q), scope) : q.kind === 'generated' && q.status === 'open' && num(q.createdAt) <= latest));
+    }
+  });
+  entry({
+    name: 'north-star',
+    sourceOf: stampedSource,
+    forget: scope => {
+      const latest = latestStamp(scope);
+      // a pending inference or staged quest with no stamp predates sources: dropped (the next cycle infers again); notes and an adopted star only by stamp
+      const out = QuestRefresh.drop(d.northStar.get(), x => (x.quotes ? inScope(stampedSource(x), scope)
+        : ((x.status === 'proposed' && num(x.at) <= latest) || (!!x.contract && !x.outcome))));
+      if (out.removed) { d.northStar.set(out.state); settle(d.northStar.persist); }
+      return out.removed;
     }
   });
 

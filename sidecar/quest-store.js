@@ -29,6 +29,7 @@
 'use strict';
 
 const { makeDurableJsonStore } = require('./durable-store.js');
+const { stampOf } = require('./forget-registry.js');   // the quote stamp of a generated quest: the sessions its grounding was drawn from (turn identity commit 12)
 
 const STORE_KEY = 'station';               // single-file store: one logical key
 const STORE_FILE = '_station.quests.json'; // under WORKSPACES
@@ -143,7 +144,8 @@ function normQuest(r) {
     stalledReason: r.stalledReason == null ? null : clip(r.stalledReason, 24),
     createdAt: numOr(r.createdAt, 0),
     completedAt: num(r.completedAt),
-    dismissedAt: num(r.dismissedAt)
+    dismissedAt: num(r.dismissedAt),
+    ...stampOf(r)
   };
 }
 
@@ -274,13 +276,28 @@ function makeQuestStore(deps) {
         stalledReason: null,
         createdAt: numOr(now, 0),
         completedAt: null,
-        dismissedAt: null
+        dismissedAt: null,
+        ...stampOf(d)
       };
       rec.quests.push(q);
       capQuests(rec);
       out = { ok: true, id: id };
       return rec;
     }).then(() => out);
+  }
+
+  /* forget(match) -> Promise<number>: the forget registry's purge. Every quest `match(quest)` names - a generated quest that quotes a deleted
+     session, or one it cannot show was grounded elsewhere - goes, with its title, description, steps and grounding. The dismissed-forever
+     title list stays (a quest the Commander waved off must not come back). Written twice: the .bak holds the purged copy. */
+  function forget(match) {
+    let n = 0;
+    return durable.update(STORE_KEY, (cur) => {
+      const rec = normalize(cur);
+      const keep = rec.quests.filter(q => !match(q));
+      n = rec.quests.length - keep.length;
+      if (!n) return undefined;
+      rec.quests = keep; return rec;
+    }).then(() => (n ? durable.update(STORE_KEY, c => normalize(c)).then(() => n) : 0));
   }
 
   // ---- tickStep: flip a NAMED open step done (idempotent). Progress display only — NEVER completes the quest
@@ -477,7 +494,7 @@ function makeQuestStore(deps) {
 
   return {
     read, list, get, openForAgent,
-    mint, setDisposition, reportCompletion, tickStep, bindRun, completeByContract, stallRun, attest, confirmAttest, dismiss,
+    mint, forget, setDisposition, reportCompletion, tickStep, bindRun, completeByContract, stallRun, attest, confirmAttest, dismiss,
     _durable: durable
   };
 }

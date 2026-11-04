@@ -25,6 +25,8 @@ const { makeVerdictReview } = require('../sidecar/verdictreview.js');
 const { makeTaskBriefStore } = require('../sidecar/taskbrief-store.js');
 const { makeDeliverableStore } = require('../sidecar/deliverable-store.js');
 const { makeWorkshopStore } = require('../sidecar/workshop-store.js');
+const { makeQuestStore } = require('../sidecar/quest-store.js');
+const QuestRefresh = require('../sidecar/questrefresh.js');
 
 const temp = name => fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-forget-' + name + '-'));
 const remove = dir => fs.rmSync(dir, { recursive: true, force: true });
@@ -274,6 +276,50 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.ok(!/quokka/i.test(disk), 'no workshop file or .bak holds the deleted session\'s job');
         A.eq(await forget('workshop-backlog'), 0, 'idempotent');
       } finally { remove(wdir); }
+    }
+
+    // ---------------- quests and the north star ----------------
+    {
+      const qdir = temp('quests');
+      try {
+        const store = makeQuestStore({ fs, path, workspaces: qdir });
+        const contract = { type: 'attest', key: 'confirm' };
+        const mint = (title, extra) => store.mint(Object.assign({ title, desc: 'about ' + title, kind: 'generated', contract, groundedIn: 'you asked about ' + title }, extra || {}), 4100);
+        await mint('Quokka habitat survey', { quotes: ['sGone'], quotesAt: [4400] });
+        await mint('Platypus launch plan', { quotes: ['sKeep'], quotesAt: [4400] });
+        await mint('Old generated quest');   // generated and open, minted before sources existed
+        await store.mint({ title: 'My own quest', desc: 'the Commander made this', kind: 'user', contract, createdBy: 'user' }, 4100);
+        hold.quests = () => store;
+        A.eq(await forget('quests'), 2, 'the quest that quotes the deleted session and the unstamped generated open quest go');
+        A.eq(store.list().map(q => q.title).sort(), ['My own quest', 'Platypus launch plan'], 'the other session\'s quest and the Commander\'s own quest stay');
+        const disk = fs.readdirSync(qdir).map(f => fs.readFileSync(path.join(qdir, f), 'utf8')).join('\n');
+        A.ok(!/quokka/i.test(disk), 'no quest file or .bak holds the deleted session\'s quest');
+        A.eq(await forget('quests'), 0, 'idempotent');
+      } finally { remove(qdir); }
+
+      const stamp = (quotes, at) => ({ quotes, quotesAt: [at] });
+      let state = QuestRefresh.fresh();
+      state = QuestRefresh.setNorthStar(state, { text: 'Own the outbound stack', groundedIn: 'the Commander\'s active goal arc', source: 'goal' }, { now: 4000 });
+      state = QuestRefresh.proposeNorthStar(state, Object.assign({ text: 'Study quokka habitats', groundedIn: 'inferred from recent activity', source: 'model' }, stamp(['sGone'], 4400)), { now: 4450 });
+      state = QuestRefresh.stageQuests(state, [Object.assign({ title: 'Survey quokkas', desc: 'd', reward: 'r', contract: { type: 'attest', key: 'confirm' }, steps: [], groundedIn: 'g' }, stamp(['sGone'], 4400)),
+        { title: 'Unstamped staged quest', desc: 'd', reward: 'r', contract: { type: 'attest', key: 'confirm' }, steps: [], groundedIn: 'g' }]);
+      state = QuestRefresh.note(state, Object.assign({ outcome: 'staged', reason: 'quokka quests wait', title: 'Survey quokkas' }, stamp(['sGone'], 4400)), { now: 4450 });
+      state = QuestRefresh.note(state, Object.assign({ outcome: 'minted', reason: 'platypus quest', title: 'Platypus' }, stamp(['sKeep'], 4400)), { now: 4451 });
+      state = QuestRefresh.note(state, { outcome: 'skipped', reason: 'cadence' }, { now: 4452 });
+      state = QuestRefresh.normalize(JSON.parse(JSON.stringify(state)));
+      A.eq(state.proposedNorthStar.quotes, ['sGone'], 'a proposed star keeps the stamp of the sessions it was inferred from through a restart');
+      let saves = 0;
+      hold.northStar = { get: () => state, set: s => { state = s; }, persist: () => { saves++; } };
+      A.eq(await forget('north-star'), 4, 'the proposed star, both staged quests (one stamped, one pre-source) and the note that quoted the session go');
+      A.eq([state.northStar && state.northStar.text, state.proposedNorthStar, state.pendingQuests.length], ['Own the outbound stack', null, 0], 'the Commander\'s own goal-arc star stays; nothing inferred from the deleted session is pending');
+      A.eq(state.ledger.map(e => e.reason).sort(), ['cadence', 'platypus quest'], 'notes that quoted another session or nothing stay');
+      A.eq(saves, 2, 'persisted twice');
+      A.eq(await forget('north-star'), 0, 'idempotent');
+      // an ADOPTED inferred star that quotes the session goes too (the Commander confirmed it, but its words are the session\'s)
+      let adopted = QuestRefresh.confirmNorthStar(QuestRefresh.proposeNorthStar(QuestRefresh.fresh(), Object.assign({ text: 'Study quokka habitats', groundedIn: 'g', source: 'model' }, stamp(['sGone'], 4400)), { now: 4450 }), { now: 4460 });
+      A.eq(adopted.northStar.quotes, ['sGone'], 'confirming a proposal carries its stamp to the adopted star');
+      hold.northStar = { get: () => adopted, set: s => { adopted = s; }, persist: () => {} };
+      A.eq([await forget('north-star'), adopted.northStar], [1, null], 'an adopted inferred star that quotes the deleted session is dropped');
     }
 
     A.report('forget-stores');
