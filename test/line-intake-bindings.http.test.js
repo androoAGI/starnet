@@ -34,7 +34,7 @@ const MODEL = 'intake-receipt-fixture';
   const chat = () => JSON.parse(fs.readFileSync(path.join(fixture.workspace, 'channels/chatmap.json'), 'utf8')).chats['receipt-chat'];
   try {
     await fixture.start();
-    await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
+    await api('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'intake-fixture', agent: { id: 'agent', name: 'Receipt agent', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     assert.notEqual((await api('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', provider: 'custom', model: MODEL }] })).held, true);

@@ -203,7 +203,7 @@ function startMockProvider(calls) {
     const cyclic = lineStation({ cyclic: true }), cyclicHint = hintFor(cyclic);
     const saveFloor = async (doc, label) => {
       const rev = ((await fx.json('GET', '/api/save?agent=agent')).body || {}).save;
-      const r = await fx.json('POST', '/api/save', { schema: 'starnet.save', version: 6, _saveRevision: (rev && rev._saveRevision) || 0, updatedAt: Date.now(), _saveClient: 'e2e-page', agent: { id: 'agent' }, station: doc });
+      const r = await fx.json('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, _saveRevision: (rev && rev._saveRevision) || 0, updatedAt: Date.now(), _saveClient: 'e2e-page', agent: { id: 'agent' }, station: doc });
       A.ok(r.status === 200 && r.body && r.body.ok === true, label + ' saves (' + String(r.text).slice(0, 200) + ')');
     };
     await saveFloor(cyclic, 'the looped line');

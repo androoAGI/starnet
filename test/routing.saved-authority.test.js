@@ -70,7 +70,7 @@ const readOf = extra => Object.assign({ agentId: 'agent',
 const reset = () => { reads = 0; stats = 0; };
 const write = station => {
   const previous = store.loadPrimaryState('agent');
-  const result = store.save('agent', { schema: 'starnet.save', version: 6, updatedAt: now++,
+  const result = store.save('agent', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: now++,
     _saveRevision: previous.status === 'ok' ? previous.wrapper.revision : 0, _saveClient: 'saved-authority-test',
     _saveDirty: true, agent: { id: 'agent' }, station }, { compareRevision: true });
   if (!result.ok) throw new Error('fixture real save failed');
@@ -195,7 +195,7 @@ try {
     ['mismatched revision', edit(w => { w.revision++; }), 'invalid'],
     ['mismatched writer', edit(w => { w.client = 'another-window'; }), 'unvouched'],
     ['missing writer', edit(w => { delete w.client; }), 'unvouched'],
-    ['future save', edit(w => { w.doc.version = 7; }), 'future'],
+    ['future save', edit(w => { w.doc.version = require('../frontend/app/save.js').CURRENT + 1; }), 'future'],
     ['future station', edit(w => { w.doc.station.version = 3; }), 'future'],
     ['legacy station', edit(w => { w.doc.station.version = 1; }), 'migration-required'],
     ['duplicate dock identity', edit(w => { w.doc.station.props.find(p => p.id === 'b2').id = 'b1'; }), 'invalid'],

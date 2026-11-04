@@ -16,6 +16,7 @@ const A = require('./_assert.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const { geometry } = require('./helpers/line-hold-rig.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
 (async () => {
@@ -52,10 +53,9 @@ const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
       { agentId: 'reviewer', name: 'Reviewer', system: 'Review.', provider: 'custom', model: 'review-model' }];
     assert.equal((await api('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);
     const geo = geometry({ maxIter: 3 });
-    const plan = Pipeline.compileRoutingPlan(geo);
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await api('POST', '/api/routing', plan)).body.ok, true, 'the review line deploys');
-    const line = (Pipeline.lineComponents(geo) || [])[0].key;
+    // the floor is SAVED, and that is what routes (the saved floor is the routing authority; a posted plan is only the page's hint of it): a console in the room gives each bay its object
+    const published = await publishFloor({ json: api }, floorOf(geo), { label: 'the review line' });
+    const line = published.plan.lineOfProp.p1;
 
     /* ---- the job parks ---- */
     const sent = await api('POST', '/api/routing/sample', { line, text: 'Write a post about the moon.', name: 'Moon post' });

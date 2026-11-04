@@ -84,7 +84,7 @@ const source = extra => Object.assign({ agentId: 'agent',
 const compare = owner.makeSavedFloorHint(source()), project = owner.makeSavedFloorProjection(source());
 const write = station => {
   const previous = store.loadPrimaryState('agent');
-  return store.save('agent', { schema: 'starnet.save', version: 6, updatedAt: now++,
+  return store.save('agent', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: now++,
     _saveRevision: previous.status === 'ok' ? previous.wrapper.revision : 0, _saveClient: 'saved-hint-test',
     _saveDirty: true, agent: { id: 'agent' }, station }, { compareRevision: true });
 };

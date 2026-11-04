@@ -40,7 +40,7 @@ const MODEL = 'reader-fixture';
   const jobs = [];
   try {
     await fixture.start();
-    await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
+    await api('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'reader-fixture', agent: { id: 'agent', name: 'Reader agent', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     const roster = await api('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Reader agent', provider: 'custom', model: MODEL }] });

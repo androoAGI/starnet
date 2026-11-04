@@ -36,7 +36,7 @@ function seedActiveStation(ws) {
   const record = activeRecord(ws);
   const at = record.since;
   const save = {
-    schema: 'starnet.save', version: 6, updatedAt: at, _saveRevision: 1, _saveDirty: false, _saveClient: 'seed-window',
+    schema: 'starnet.save', version: require('../../frontend/app/save.js').CURRENT, updatedAt: at, _saveRevision: 1, _saveDirty: false, _saveClient: 'seed-window',
     agent: { id: 'agent', name: 'SEEDED', createdAt: at }, agents: [], workstreams: [{ id: 'general', history: [] }],
     activeId: 'general', generalId: 'general', station: emptyFloor()
   };

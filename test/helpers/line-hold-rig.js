@@ -67,7 +67,7 @@ function geometry(gate, wiring) {
    index.js would have in module scope: the router, E-STOP, the workspaces root, failNote. */
 function hostPorts(scope) {
   const index = Source.readSidecarIndex();
-  const a = index.indexOf("/* ---- THE HOLD'S HOST PROOFS (line-hold lane, S3)"), b = index.indexOf('/* RESTART TRUTH (2026-07-06 audit)', a);
+  const a = index.indexOf("/* ---- THE HOLD'S HOST PROOFS (line-hold lane, S3)"), b = index.indexOf('/* RESTART TRUTH (2026-07-06 audit', a);
   if (a < 0 || b <= a) throw new Error('rig: the hold host-proofs block is missing from sidecar/index.js');
   const names = ['holdOriginOf', 'holdPlanHash', 'holdFileReceipt', 'holdAuthority', 'routinePolicyDigest', 'routinePolicyOf', 'routineOf'];
   const s = Object.assign({ LineHold, crypto, fs, path, WORKSPACES: os.tmpdir(), failNote: () => {}, nightshiftState: {},
@@ -75,6 +75,7 @@ function hostPorts(scope) {
     cronJobs: [], cronStore: { getJob: (jobs, id) => jobs.find(j => j && j.id === id) || null },
     // what a RESUME's authority reads beside a hold's (line-hold lane, S4): the crew, the halts, the day ledger
     sampleRunConfigFor: () => ({ ok: true, configured: true }), cronHalted: false, processFaultQuiesced: false, lineSpend: { spentToday: () => 0 } }, scope);
+  if (!s.admit) s.admit = s.router;   // index.js reads the floor through the saved-floor seams (admit.*); a rig with one posted-plan router answers the same names with it
   return vm.compileFunction(index.slice(a, b) + '\nreturn {' + names.join(',') + '};', Object.keys(s))(...Object.values(s));
 }
 
@@ -178,7 +179,7 @@ function makeRig(o) {
   /* THE STATION'S OWN resumeProfileFor (index.js), compiled out of the host: the profile a resumed hop runs under — a channel profile that is
      untrusted and power-withheld whatever the job ran under, and, for a routine's job, inside the routine's own tool envelope. The rig supplies
      only what index.js has in module scope: the line runner (whose profiles are read when the profile is built), the run config, the router. */
-  rig.productionProfileFor = () => resumeProfile({ lineRunner: { get profiles() { return rig.runner.profiles; } }, sampleRunConfigFor: configFor, router, redact: s => s,
+  rig.productionProfileFor = () => resumeProfile({ lineRunner: { get profiles() { return rig.runner.profiles; } }, sampleRunConfigFor: configFor, router, admit: router, redact: s => s,
     routineOf: rig.ports.routineOf, routinePolicyOf: rig.ports.routinePolicyOf });
   rig.owner = (host, over) => {
     const Resume = require('../../sidecar/routing/line-resume.js'), inflight = new Map();

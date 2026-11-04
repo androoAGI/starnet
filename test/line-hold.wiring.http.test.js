@@ -28,8 +28,8 @@
    hold: null all 18 jobs end a dead 'problem' with no continuation, the stop note still saying "held" (187 problems).
    The jobs a station may hold at once are bounded (linejobs.js MAX_HELD, 40): this file parks 18.
 
-   Deploys: a floor is posted whole (POST /api/routing), exactly as line-hold.e2e.http and line-hold.restart.http do. When the saved floor
-   becomes the routing authority and the posted plan only a hint, all three are ported the same way. */
+   Deploys: a floor is SAVED whole and its hint posted (test/helpers/saved-floor.js publishFloor), exactly as line-hold.e2e.http and
+   line-hold.restart.http do: the saved floor is the routing authority and the posted plan only a hint (ported in batch 4c). */
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const A = require('./_assert.js');
@@ -37,10 +37,11 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { sseQuery } = require('./_httpToken.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const { geometry, WIRINGS, FORMS, REVISE } = require('./helpers/line-hold-rig.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const MISSING = 'looks fine to me, ship it';   // a reviewer that forgot its VERDICT line (the matrix's silent reviewer)
 const PUBLISHED = 'The post is live: published once.';
-const GATE = '12,4';                            // the LOOP gate's id on the rig's floor
+let GATE = '12,4';                              // the LOOP gate's id on the rig's floor (the saved floor moves it: set from the first floor deployed)
 const PASSES = 6;                               // its cap: a BLOCKED at the fifth revise is still a hold, not a spent gate
 const STAGE_PAIR = ['draft-model', 'review-model'];
 const belt = (x, y, dir) => ({ x, y, dir });
@@ -137,13 +138,12 @@ const isDelivery = e => !!e && e.name === 'workitem.delivered' && !!e.payload &&
       { agentId: 'fixer', name: 'Fixer', system: 'Fix.', provider: 'custom', model: 'fix-model' }];
     const crew = async () => assert.equal((await api('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);   // the page pushes its crew when it connects
     await crew();
-    // the floor is deployed the way line-hold.e2e.http deploys it: one POST of the compiled plan (a bay needs its object to take work)
+    // the floor is deployed the way line-hold.e2e.http deploys it: SAVED (the saved floor is the routing authority; a console in the room gives each bay its object)
     const deploy = async (geo, label) => {
-      const plan = Pipeline.compileRoutingPlan(geo);
-      for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-      const out = await api('POST', '/api/routing', plan);
-      A.ok(out.body && out.body.ok === true, label + ': the floor deploys: ' + String(out.text).slice(0, 200));
-      return (Pipeline.lineComponents(geo) || [])[0].key;
+      const published = await publishFloor({ json: api }, floorOf(geo), { label });
+      A.ok(published.receipt && published.receipt.ok === true, label + ': the floor deploys: ' + JSON.stringify(published.receipt).slice(0, 200));
+      GATE = Object.keys(published.plan.junctions).find(k => published.plan.junctions[k].kind === 'loop') || GATE;
+      return published.plan.lineOfProp.p1;
     };
     const libraryRows = async () => (await api('GET', '/api/deliverables')).body.items || [];
     const holdWord = { blocked: /answered VERDICT: blocked/, missing_verdict: /gave no usable VERDICT line/ };

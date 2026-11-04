@@ -81,7 +81,7 @@ async function eventFeed(url) {
   try {
     await fixture.start();
     await api('POST', '/api/memory/config', { reflectEnabled: false, studyEnabled: false, failureReviewEnabled: false });
-    const saved = await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
+    const saved = await api('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'contract-fixture', agent: { id: 'writer', name: 'Writer', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     assert.equal(saved.ok, true);

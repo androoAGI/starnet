@@ -123,7 +123,7 @@ function makeWorld() {
   const held = () => { const s = store.loadPrimaryState('agent'); return s.status === 'ok' ? s.wrapper.doc.station : null; };
   w.holds = doc => isDeepStrictEqual(held(), doc);
   // App.persist: the live station, queued for the station file (debounced; the page's flush sends it)
-  w.persist = () => w.cloud.push(K.stationDoc({ station: clone(w.pageDoc), updatedAt: ++w.stamp }));
+  w.persist = () => w.cloud.push(K.stationDoc({ station: clone(w.pageDoc), updatedAt: ++w.stamp, version: require('../frontend/app/save.js').CURRENT }));
   // the page's globals the wiring reaches for, faked at the edge: the station's route, CloudSave, the clock
   const scope = {
     makePlanPoster: lib.makePlanPoster, floorSaved: lib.floorSaved, routingKeyOf: lib.routingKeyOf, CloudSave: w.cloud,

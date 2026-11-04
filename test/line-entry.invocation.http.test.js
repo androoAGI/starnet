@@ -47,7 +47,7 @@ const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
     const api = async (method, route, body) => { const out = await fx.json(method, route, body); assert.equal(out.status, 200, route + ': ' + out.text.slice(0, 400)); return out.body; };
     await fx.start();
     await api('POST', '/api/memory/config', { reflectEnabled: false, studyEnabled: false, failureReviewEnabled: false });
-    await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
+    await api('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'entry-fixture', agent: { id: 'reviewer', name: 'Reviewer', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     await api('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'reviewer', name: 'Reviewer', provider: 'openrouter', model: 'test/model' }] });

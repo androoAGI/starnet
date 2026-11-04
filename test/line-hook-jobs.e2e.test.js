@@ -78,7 +78,7 @@ const MODEL = 'hook-job-fixture';
       { id: 'editor', t: 'bay', x: 6, y: 0, w: 1, h: 1, agentId: 'editor', role: 'EDITOR' },
       { id: 'out', t: 'outbox', x: 9, y: 0, w: 1, h: 1 }];
     const floor = floorOf({ props, belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) }, { equip: ['computer', 'workbench'] });
-    const save = await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
+    const save = await api('POST', '/api/save', { schema: 'starnet.save', version: require('../frontend/app/save.js').CURRENT, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'hook-fixture', agent: { id: 'agent', name: 'Commander agent', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     assert.equal(save.ok, true);

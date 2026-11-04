@@ -19,6 +19,7 @@ const A = require('./_assert.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const Pipeline = require('../frontend/app/pipeline.js');
 const { geometry, AFTER } = require('./helpers/line-hold-rig.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
 (async () => {
@@ -64,10 +65,9 @@ const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
     const crew = async () => assert.equal((await api('POST', '/api/roster', { agents, updatedAt: Date.now() })).status, 200);   // the page pushes its crew when it connects
     await crew();
     const geo = geometry({ maxIter: 3 }, AFTER);
-    const plan = Pipeline.compileRoutingPlan(geo);
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    assert.equal((await api('POST', '/api/routing', plan)).body.ok, true, 'the review line deploys');
-    const line = (Pipeline.lineComponents(geo) || [])[0].key;
+    // the floor is SAVED, and that is what routes (the saved floor is the routing authority; a posted plan is only the page's hint of it): a console in the room gives each bay its object
+    const published = await publishFloor({ json: api }, floorOf(geo), { label: 'the review line' });
+    const line = published.plan.lineOfProp.p1;
     const send = async text => { const r = await api('POST', '/api/routing/sample', { line, text, name: 'Post' }); return r.body.jobId; };
     const decide = (id, body) => api('POST', '/api/line-jobs/' + id + '/decision', body);
 
@@ -79,7 +79,9 @@ const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
     j = await job(id);
     const saved = j.continuation.walk.lastHanded;
     A.eq([j.status, paid(), saved], ['held', 2, draft], 'after a real restart: still held, the draft is saved, boot bought nothing');
-    // the crew has not loaded since the restart (no page has pushed it): the station cannot vouch that the next stage can run, so it refuses the decision
+    // the crew cannot run the next stage right now (the saved floor now brings the station up routing with no page, so it is the PUBLISHER's model that is missing, as when a
+    // crew has not loaded or a credential is lost): the station cannot vouch that the next stage can run, so it refuses the decision
+    assert.equal((await api('POST', '/api/roster', { agents: agents.map(a => a.agentId === 'publisher' ? Object.assign({}, a, { model: '' }) : a), updatedAt: Date.now() })).status, 200);
     const early = await decide(id, { action: 'approve', token: 'tok-early', revision: j.continuation.revision, note: '' });
     j = await job(id);
     A.eq([early.status, early.body.refused, /cannot run now/.test(early.body.error), j.status, j.resumeRefused && j.resumeRefused.token, paid()], [409, true, true, 'held', 'tok-early', 2], 'before the crew loads the decision is refused with the reason, nothing is bought, the job stays held');
