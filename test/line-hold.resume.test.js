@@ -212,5 +212,40 @@ const decide = (owner, id, c, action, token, note) => owner.resume(id, { action,
     A.throws(() => rig.runner.openResumed(where), 'and only one handle at a time');
     rig.dispose();
   });
+  /* ---- 9. the end: a publication that cannot be written down is never replayed ---- */
+  for (const [failAt, what, expect] of [[5, 'the publication marker', ['complete', 'confirmed']], [6, 'the confirmation', ['terminal_pending', 'uncertain']]]) {
+    await allocated(async env => {
+      const { rig, id } = await held(env, { wiring: AFTER });
+      let n = 0;
+      const store = Object.assign({}, env.host.store, { advance: (...a) => { if (++n === failAt) throw new Error('fixture: ' + what + ' cannot be written'); return env.host.store.advance(...a); } });   // 1 adoption, 2-3 the stage, 4 terminal_pending, 5 publication marker, 6 complete
+      const owner = rig.owner(env.host, { store }), c0 = cont(env, id);
+      await decide(owner, id, c0, 'approve', 'tok-1').done;
+      const job = get(env, id), c = job.continuation;
+      A.eq([job.status, JSON.parse(rig.world()).lineOutputs, JSON.parse(rig.world()).shipped, [c.phase, c.publication.state]], ['delivered', 1, 1, expect], 'if ' + what + ' cannot be written: delivered once, never twice; the saved publication says ' + expect.join('/'));
+      const world = rig.world(), again = decide(rig.owner(env.host), id, c0, 'approve', 'tok-1');
+      A.eq([again.code, again.replayed, rig.world()], [200, true, world], 'and the decision again is the saved receipt: nothing is published a second time');
+      rig.dispose();
+    });
+  }
+
+  /* ---- 10. a STOP or E-STOP between or during stages buys nothing more ---- */
+  await allocated(async env => {
+    const { rig, id, owner } = await held(env, { replies: [REVISE, BLOCKED, 'Looks good.\nVERDICT: approved'] }), c0 = cont(env, id);
+    rig.beforeCall = x => { if (x.agentId === 'drafter') rig.halted = true; };   // E-STOP is pressed while the first stage is out
+    await decide(owner, id, c0, 'send_back', 'tok-1', 'again').done;
+    const job = get(env, id), c = job.continuation;
+    A.eq([rig.calls.slice(2), job.status, job.outcome, c.terminal.stop.code, c.attempts.length, c.attempts[c.attempts.length - 1].state], [['drafter'], 'stopped', 'stopped', 'stopped', 4, 'observed'],
+      'E-STOP between stages: the next stage (the reviewer) was never bought; the stage that ran is counted; the job ended STOPPED');
+    A.eq([JSON.parse(rig.world()).lineOutputs, owner.inflight.size], [0, 0], 'nothing delivered, and the live walk is gone from the E-STOP registry');
+    rig.dispose();
+  });
+  await allocated(async env => {
+    const { rig, id, owner } = await held(env, { wiring: AFTER }), c0 = cont(env, id);
+    rig.beforeCall = () => { A.ok(owner.inflight.has(id) && rig.runner.stop(id, 'user'), 'the live walk is in the E-STOP registry and the job has a stop owner'); };
+    await decide(owner, id, c0, 'approve', 'tok-1').done;
+    const job = get(env, id);
+    A.eq([job.status, job.outcome, job.continuation.attempts.length, JSON.parse(rig.world()).lineOutputs, job.stop.code], ['stopped', 'stopped', 4, 0, 'stopped'], 'a STOP while the stage is out: the stage is counted, nothing is delivered, the job ended STOPPED');
+    rig.dispose();
+  });
   A.report('line-hold.resume');
 })().catch(e => { console.error(e && e.stack || e); A.ok(false, 'threw: ' + (e && e.message)); A.report('line-hold.resume'); });

@@ -274,9 +274,11 @@ function makeJobBook(d, now, newId) {
     active.delete(job.id);
     const release = job.terminalRelease;
     delete job.terminalRelease;
-    if (result.delivered) { try { port.publishing(); } catch (e) { failNote('line-runner.resumePublishing', e); } }
-    if (typeof release === 'function') { try { release(result); } catch (e) { failNote('line-runner.terminalRelease', e); } }
-    try { port.complete(result.delivered); } catch (e) { failNote('line-runner.resumeComplete', e); }
+    if (result.delivered) { try { port.publishing(); } catch (e) { failNote('line-runner.resumePublishing', e); } }   // (unsaved: it stays 'pending', and the release below still runs once)
+    let released = true;
+    if (typeof release === 'function') { try { release(result); } catch (e) { released = false; failNote('line-runner.terminalRelease', e); } }
+    // a delivery whose release failed or whose confirmation could not be written stays 'uncertain' on the saved record: honest, and never replayed
+    if (!result.delivered || released) { try { port.complete(result.delivered); } catch (e) { failNote('line-runner.resumeComplete', e); } }
     return result;
   }
   /* A resumed job that stopped at a gate AGAIN (the person sent it back and the reviewer held it once more) and was saved as a hold again
