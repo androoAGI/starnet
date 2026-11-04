@@ -517,7 +517,12 @@ const REPORTED = {
   // only by coincidence); no run ended here — the reviewer's reply was read, and nothing after it was bought
   'sidecar/routing/chain.js': [["lineStop('blocked', { loop: step.loop, reason: d.reason })", NR("a gate HOLD's reason (blocked | missing_verdict | spent): why the walk stopped at a gate for a person, never a run's end")]],
   'sidecar/routing/steptest.js': [["lineStop('blocked', { loop: step.loop, reason: d.reason })", NR("the same gate HOLD's reason, said in the step-through session's stop")]],
-  'sidecar/routing/linejobs.js': [["reason: str(r.reason, 40) || 'error', usd: num(r.usd)", "a line job's step record: it keeps the row's outcome and (since review 4.3) failureCode on the lines below — the WORKFLOWS window reads RunOutcome.ofRow (FOLD below)"]],
+  'sidecar/routing/linejobs.js': [["reason: str(r.reason, 40) || 'error', usd: num(r.usd)", "a line job's step record: it keeps the row's outcome and (since review 4.3) failureCode on the lines below — the WORKFLOWS window reads RunOutcome.ofRow (FOLD below)"],
+    ["s.hold = { reason: h.reason, why: h.why", NR("(line-hold S3) the WORKFLOWS row's view of a saved hold: why the walk stopped at a gate for a person (blocked | missing_verdict | spent), never a run's end")]],
+  // (line-hold S3) the SAVED hold carries the same gate-hold reason as the stop (line-continuation.js holdRecord): the continuation the walk is parked
+  // in, and the two handles the runner keeps of it (job.held, line.held) — a job waiting for a person, no run ended there
+  'sidecar/routing/line-hold.js': [["hold: { gateId: String(hold.gateId), reason: hold.reason,", NR("a saved hold's reason (blocked | missing_verdict | spent): why the walk stopped at a gate for a person, never a run's end")]],
+  'sidecar/routing/line-runner.js': [["reason: line.hold.reason, gateId: line.hold.gateId, pass: line.hold.pass", NR("a parked job's gate-hold reason (blocked | missing_verdict | spent), as the walk said it; never a run's end")]],
   'sidecar/run-execution-state.js': [["reason: String(row.reason || '').slice(0, 80), attempt:", NR("a recovery attempt's classifier reason")]],
   'sidecar/run-journal.js': [["reason: String(payload.reason || 'unknown'),", "the continuation_finish record: the host hands it the continuation's reason, settled from its outcome at the source (handleRun)"]],
   'sidecar/runstore.js': [

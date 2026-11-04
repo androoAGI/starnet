@@ -67,6 +67,7 @@ function allocated(run, seed) {
     context.LineEntryAdoption = owner('../../sidecar/routing/line-entry-adoption.js', 'LINE_ADOPTION_CONTROL');
     context.chainRunner = require('../../sidecar/routing/chain.js').makeChainRunner({});
     const build = vm.compileFunction(blocks + '\nreturn {book:lineJobsBookReceipt, mutate:lineJobsSet, jobs:()=>lineJobs, ledger:lineSpend,'
+      + 'hold:typeof lineJobsHold === "function" ? lineJobsHold : null,'   // the durable hold writer (line-hold lane): absent on an older host
       + 'enroll:typeof lineJobsEnrollAccounting === "function" ? lineJobsEnrollAccounting : null,'
       + 'prepare:typeof lineJobsPrepareEntry === "function" ? lineJobsPrepareEntry : null,'
       + 'checkpoint:typeof lineJobsCheckpointEntry === "function" ? lineJobsCheckpointEntry : null,'

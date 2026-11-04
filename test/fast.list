@@ -1330,6 +1330,8 @@ test/loop-verdict.test.js
 test/verdict.blocked.test.js
 test/line-verdict.shared.test.js
 test/line-hold.policy.test.js
+test/line-hold.matrix.test.js
+test/line-hold.persistence.test.js
 test/line-continuation.test.js
 test/line-continuation.transitions.test.js
 test/line-entry.test.js

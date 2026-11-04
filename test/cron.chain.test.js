@@ -59,6 +59,7 @@ async function fireAndSettle(s, reply) {
     A.ok(entryText.indexOf('UPSTREAM DIGEST') >= 0, 'fixture: the entry run was given the upstream context');
     A.ok(s.chainCalls.length === 1 && s.chainCalls[0].originalText.indexOf('UPSTREAM DIGEST: three findings from yesterday') >= 0, 'the line is handed the upstream context as part of the original ask');
     A.ok(s.chainCalls[0].originalText.indexOf('research the thing') > s.chainCalls[0].originalText.indexOf('UPSTREAM DIGEST'), '...with the routine directive after it, exactly as the entry run read it');
+    A.eq([s.chainCalls[0].jobId, s.chainCalls[0].runId], ['j1', 'run-1'], 'the line seam is told the routine and the fire it belongs to (a work line that parks at a reviewer\'s gate names them: index.js advanceChain)');
     A.eq(s.chainCalls[0].ask, 'research the thing', '...and the bare directive as `ask` (what a SEND TO record carries on)');
   }
 
