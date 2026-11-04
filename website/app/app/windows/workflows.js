@@ -921,10 +921,14 @@ const WorkflowsWindow = (() => {
   // a walk a person let go on is out and costs money: its STOP asks the station to stop it after the stage that is out (what ran is counted)
   function runningStopHTML(job) {
     const c = job.continuation;
-    if (job.status !== 'running' || !c || (c.phase !== 'ready' && c.phase !== 'intent')) return '';
+    /* …and a walk the station DIED in (line-hold lane): a resumed job a crash left open — not held, not finished, nothing carrying it — can only be
+       closed, and nothing else on this card can: its STOP closes the record (what already ran is counted, nothing is delivered) */
+    const dead = !!c && job.status === 'interrupted' && job.endedAt == null && c.phase !== 'held' && c.phase !== 'complete';
+    if (!dead && (job.status !== 'running' || !c || (c.phase !== 'ready' && c.phase !== 'intent'))) return '';
     const busy = !!(S.deciding && S.deciding.jobId === job.id), msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
     return '<div class="wf-row"><button type="button" class="bb" data-act="stop-walk"' + (busy ? ' disabled' : '') + '>' + (busy ? 'STOPPING…' : '■ STOP') + '</button>'
-      + '<span class="wfw-note">Stops after the stage that is out. What already ran is counted, and nothing is delivered.</span></div>'
+      + '<span class="wfw-note">' + (dead ? 'The station stopped while this job was out, so it cannot go on from where it was. STOP closes it: what already ran is counted, and nothing is delivered.'
+        : 'Stops after the stage that is out. What already ran is counted, and nothing is delivered.') + '</span></div>'
       + (msg ? '<p class="wfw-bad">✕ ' + esc(msg.text) + '</p>' : '');
   }
   function stopWalk(job) {

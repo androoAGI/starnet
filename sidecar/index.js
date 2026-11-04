@@ -14058,10 +14058,17 @@ async function handleLineJobId(req, res, gm) {
     const r = lineResume.resume(id, { action: 'stop', token: 'delete-' + id + '-r' + rev, revision: rev, note: '' });
     return respondJson(res, r.code === 202 ? 200 : r.code, Object.assign({ stopRequested: !!r.ok }, resumeBody(r)));
   }
+  /* A WALK THE STATION DIED IN (line-hold lane): a resumed job a crash left open — not held, not finished, nothing carrying it — is closed by this
+     STOP, which buys nothing (LineResume.closeStuck: the one resume owner). A job something still carries (a live handle) takes the ordinary stop. */
+  const closeStuck = () => { const r = lineResume.closeStuck(id); return respondJson(res, r.code, Object.assign({ stopRequested: !!r.ok }, resumeBody(r))); };
+  if (stopAsk && job.status === 'interrupted' && LineResume.stuck(job)) return closeStuck();
   if (stopAsk) {
     if (job.status !== 'running' && job.status !== 'paused') return respondJson(res, 200, { ok: true, stopRequested: false, job });
     try {
-      if (!lineRunner.stop(id, 'user')) return respondJson(res, 409, { ok: false, error: 'This job has no live stop owner.', job });
+      if (!lineRunner.stop(id, 'user')) {
+        if (LineResume.stuck(job)) return closeStuck();
+        return respondJson(res, 409, { ok: false, error: 'This job has no live stop owner.', job });
+      }
       const current = LineJobs.get(lineJobs, id);
       return respondJson(res, current && current.status === 'stopped' ? 200 : 202, { ok: true, stopRequested: true, job: current || job });
     } catch (e) {

@@ -29,6 +29,10 @@
    What a crash leaves (the job is never run twice for the same money): before the intent, nothing; after an intent and before its result,
    the attempt is UNCERTAIN (LineJobs.boot) and no run touches it until a person reconciles it; between the strict finish and the release,
    the publication stays 'uncertain' and is never replayed — the same at-most-once release an ordinary job has.
+   "A person reconciles it" is STOP (closeStuck, the stop route's ask — never a second decision): any open walk a crash left behind (a record
+   ready with nothing to carry out, intent, uncertain, or an accepted end the job never finished) is closed by it. A stage whose result was
+   never written is written down as what is known of it, an accepted result nobody released becomes the owned stop, and the job finishes
+   'stopped' with nothing bought and what ran counted, so retention can drop the record like any other.
 
    The pure transitions below (adopted, intent, observed, terminal, publishing, complete) take a continuation and return the next one for
    Continuation.checkpoint to judge; nothing here writes a file, reads a clock or calls a provider except through its deps.
@@ -48,6 +52,7 @@ const Continuation = require('./line-continuation.js');
 const LineHold = require('./line-hold.js');
 const { note: failNote } = require('../failopen.js');
 const Halt = require('../halt.js');
+const crypto = require('node:crypto');
 
 const TOKEN = /^[A-Za-z0-9_.:-]{1,120}$/, KEY = /^[A-Za-z0-9_.:-]{1,120}$/;
 const ACTIONS = ['approve', 'send_back', 'stop'];
@@ -92,6 +97,43 @@ function terminalOf(c, result) {
   return Object.assign({}, c, { revision: c.revision + 1, phase: 'terminal_pending', hold: null, decisions: closed.decisions, activeDecision: closed.activeDecision,
     terminal: { outcome: result.outcome, output: clip(result.output, MAX_OUTPUT), usd: a.entryUsd + a.hopUsd, runIds: a.runIds.slice(), stop },
     publication: result.delivered ? { outboxId: String(result.outboxId), entryRunId: c.binding.entryRunId, terminalRunId: last.runId, state: 'pending', shipmentId: null, sentToJobId: null } : null });
+}
+/* A WALK THE STATION DIED IN (line-hold lane): a crash between two verified writes of a resumed walk leaves a job that is not held (no decision
+   can claim it), not finished (nothing carries it) and not trimmed (retention keeps every open walk): phase ready with no decision to carry out,
+   intent (the stage was written down and its result never was; boot reads it as uncertain), uncertain, or terminal_pending with the job never
+   finished. A person closes it with STOP, which buys nothing; the two transitions below are what that close writes first. */
+const sha = x => crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex');
+// intent/uncertain -> ready: a stage whose result the station never wrote down is written as what is KNOWN of it — the run store's own row when the
+// run left one (what it cost, how it ended), else nothing: it reached no provider as far as any record shows, so it is an interrupted stage with no
+// spend and `usageMissing`, which says plainly that its cost is not known. Nothing is bought and no stage runs again.
+function reconciledOf(c, runRow) {
+  const b = c.binding, closed = closeDecisions(c);
+  const attempts = c.attempts.map(a => {
+    if (a.state === 'observed') return a;
+    let row = null;
+    try { row = typeof runRow === 'function' ? runRow(a.runId) : null; } catch (e) { failNote('line-resume.runRow', e); }
+    const usd = row && typeof row.usd === 'number' && isFinite(row.usd) && row.usd > 0 ? row.usd : 0;
+    return Object.assign({}, a, { state: 'observed', outputDigest: sha(['', '', [], a.runId]), usd, usageMissing: !row,
+      outcome: row && RunOutcome.isOutcome(row.outcome) ? row.outcome : 'interrupted', endedAt: a.at });
+  });
+  const seen = attempts.filter(a => a.state === 'observed');
+  const accounting = Object.assign({}, c.accounting, { entryUsd: sum(seen.filter(a => a.runId === b.entryRunId)), hopUsd: sum(seen.filter(a => a.runId !== b.entryRunId)),
+    runIds: c.accounting.runIds.concat(seen.map(a => a.runId).filter(id => !c.accounting.runIds.includes(id))) });
+  return Object.assign({}, c, { revision: c.revision + 1, phase: 'ready', attempts, accounting, decisions: closed.decisions, activeDecision: closed.activeDecision });
+}
+// terminal_pending: a result the walk accepted and the station died before finishing the job. A delivery nobody released becomes the owned STOP
+// (its publication suppressed, its output and spend as they were); a result that is already an owned stop only reopens for its end
+const ownedStop = t => !!(t && t.stop && (t.stop.code === 'stopped' || t.stop.code === 'station_fault'));
+function stoppedPendingOf(c, stop) {
+  if (ownedStop(c.terminal)) return Object.assign({}, c, { revision: c.revision + 1 });
+  return Object.assign({}, c, { revision: c.revision + 1, terminal: Object.assign({}, c.terminal, { outcome: 'stopped', stop }),
+    publication: c.publication ? Object.assign({}, c.publication, { state: 'suppressed' }) : null });
+}
+/* is this job a walk the station died in? A saved open walk (a continuation that is neither held nor complete) of a job that never finished.
+   Whether something still carries it is the owner's to say (its live handle, its inflight record). */
+function stuck(job) {
+  const c = job && job.continuation;
+  return !!c && !job.continuationIssue && job.endedAt == null && (job.status === 'interrupted' || job.status === 'running') && c.phase !== 'held' && c.phase !== 'complete';
 }
 // terminal_pending: the release is about to run — whether it ran is not known from here on, and it is never replayed
 function publishingOf(c) {
@@ -254,6 +296,38 @@ function makeLineResume(deps) {
     return why;
   }
 
+  /* ---- STOP on a walk the station died in: the way out of a job nothing carries any more (line-hold lane) ----
+     No decision claims it (a decision claims a held checkpoint, once), so STOP is the stop route's ask, never a second decision: the record is
+     brought to a state the end can be written from — a stage whose result was never written is written down as what is known of it (reconciledOf),
+     an accepted result nobody released becomes the owned stop (stoppedPendingOf), a record with nothing to write is opened for its end — and then it
+     ends exactly as a held job's STOP does: terminal_pending with the owned stop, the job's own strict finish, complete. Nothing is bought, nothing
+     is delivered, what already ran is counted, and the finished record is an ordinary one that retention can drop. A job something still
+     carries (a live handle, an inflight walk) is never touched. */
+  function closeStuck(jobId) {
+    const id = String(jobId || '');
+    let job;
+    try { job = store.read(id); } catch (e) { failNote('line-resume.read', e); return answer(503, { error: 'Line job storage could not be verified.' }); }
+    if (!job) return answer(404, { error: 'no such job' });
+    if (!stuck(job) || runner.get(id) || inflight.has(id)) return answer(409, { error: 'this job is not a walk the station stopped in', job });
+    try {
+      let c = job.continuation;
+      const node = c.walk.current;
+      const stop = { code: 'stopped', why: 'a person stopped this job after the station stopped while it was out, so nothing more was bought and nothing was sent on', agentId: key(node.agentId), dockId: key(node.dockId) };
+      if (c.attempts.some(a => a.state !== 'observed')) {
+        job = store.advance(id, x => reconciledOf(x, d.runRow), j => !!(j.continuation && j.continuation.attempts.every(a => a.state === 'observed')));
+        c = job.continuation;
+      }
+      const rev = c.revision;
+      if (c.phase === 'terminal_pending') job = store.advance(id, x => stoppedPendingOf(x, stop), j => !!(j.continuation && ownedStop(j.continuation.terminal)));
+      else if (job.status !== 'running') job = store.advance(id, x => Object.assign({}, x, { revision: x.revision + 1 }), j => j.status === 'running' && !!j.continuation && j.continuation.revision > rev);
+      const now2 = job.continuation;
+      const handle = runner.openResumed({ id, line: job.line, streamId: job.streamId });
+      try { runner.settleResumed(handle, { stop, runs: rowsOf(now2, d.runRow), output: '' }, portFor(id)); }
+      catch (e) { failNote('line-resume.closeStuck', e); runner.forget(handle); throw e; }
+    } catch (e) { const f = classify(e); failNote('line-resume.closeStuck', e); return answer(f.code, { error: f.error, job: safeRead(id) }); }
+    return answer(200, { stopped: true, job: safeRead(id) });
+  }
+
   /* ---- the one door ---- */
   function resume(jobId, request) {
     const parsed = parse(request);
@@ -305,7 +379,7 @@ function makeLineResume(deps) {
   }
   function safeRead(id) { try { return store.read(id); } catch (e) { failNote('line-resume.reread', e); return null; } }
 
-  return { resume, inflight };
+  return { resume, closeStuck, inflight };
 }
 
-module.exports = { makeLineResume, adopted, intentOf, observedOf, terminalOf, publishingOf, completeOf, closeDecisions, rowsOf, classify, ACTIONS, MAX_NOTE };
+module.exports = { makeLineResume, adopted, intentOf, observedOf, terminalOf, publishingOf, completeOf, closeDecisions, rowsOf, classify, stuck, reconciledOf, stoppedPendingOf, ACTIONS, MAX_NOTE };

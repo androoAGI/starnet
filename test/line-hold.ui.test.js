@@ -201,5 +201,22 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     A.ok(/Waiting for you/i.test(text(WW._pageHTML({ lines: [] }))), 'with every workflow gone the stray is still listed (not hidden behind the new-workflow page)');
     S.view = 'list'; S.job = null; S.jobs = []; S.line = line.key;
   }
+
+  /* ---- 7. a walk the station died in can be closed (invariant a-crash-never-strands-a-job; the station half is test/line-hold.stuck.test.js) ---- */
+  {
+    const gone = (phase, over, cont) => heldJob(Object.assign({ status: 'interrupted', outcome: 'interrupted', stop: { code: 'restart', why: 'the station stopped' }, error: 'the station stopped', endedAt: null }, over),
+      Object.assign({ phase, hold: null, revision: 5, activeDecision: null, decisions: [{ token: 'ui-done', revision: 1, fingerprint: 'f', action: 'approve', note: '', at: 5, state: 'complete' }] }, cont));
+    for (const phase of ['ready', 'intent', 'uncertain', 'terminal_pending']) {
+      const h = WW._resultHTML(line, gone(phase));
+      A.ok(h.includes('data-act="stop-walk"') && /cannot go on from where it was/.test(text(h)) && !h.includes('data-decision'), phase + ': an interrupted open walk offers STOP, says it cannot go on, and has nothing else to decide');
+    }
+    A.ok(!WW._resultHTML(line, gone('complete', { status: 'stopped', outcome: 'stopped', endedAt: 9 })).includes('stop-walk'), 'a finished job does not');
+    A.ok(!WW._resultHTML(line, gone('terminal_pending', { status: 'delivered', outcome: 'delivered', endedAt: 9, output: 'x' })).includes('stop-walk'), 'neither does a delivered one whose release is still being confirmed');
+    A.ok(!WW._resultHTML(line, heldJob()).includes('stop-walk'), 'a held job offers its own STOP decision, not this key');
+    const unstarted = WW._resultHTML(line, gone('ready', {}, { activeDecision: 'ui-adopted', decisions: [{ token: 'ui-adopted', revision: 1, fingerprint: 'f', action: 'approve', note: '', at: 5, state: 'adopted' }] }));
+    A.ok(unstarted.includes('data-act="decide-apply"') && unstarted.includes('data-act="stop-walk"'), 'a decision adopted and never started offers CARRY IT OUT and, beside it, STOP');
+    const live = WW._resultHTML(line, gone('intent', { status: 'running', outcome: 'running', stop: null, error: '' }));
+    A.ok(/Stops after the stage that is out/.test(text(live)) && !/cannot go on from where it was/.test(text(live)), 'a walk that is running still says it stops after the stage that is out');
+  }
   A.report('line-hold.ui');
 })().catch(e => { console.error(e && e.stack || e); A.ok(false, 'threw: ' + (e && e.message)); A.report('line-hold.ui'); });
