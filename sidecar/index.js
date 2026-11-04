@@ -8520,7 +8520,8 @@ async function runScoutCycle(o) {
         Interests.buildDirective({ activityLines: activity, knownTopics: known })
       );
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
-      if (!learningUnchangedSince(pz) || !admitted()) return;
+      if (!learningUnchangedSince(pz)) return;
+      if (!admitted()) return;   // …and so does a delete of a session the prompt quoted
       const cands = Interests.parse(reply, { activityLines: activity, requireExactEvidence: true });
       // each trusted quote takes the source row of the activity line it came from (pack.trustedActivity, parallel to the lines); a source whose
       // session was deleted while the pass ran is refused by the registry's write-time gate
@@ -8561,7 +8562,8 @@ async function runScoutCycle(o) {
         launchedOften: Scout.launchHints(scoutState, 5)   // lane B: names annotated "(rated well)" when the Commander's own verdicts earn it
       });
       const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive);
-      if (!learningUnchangedSince(pz) || !admitted()) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget or a delete of a session the prompt quoted
+      if (!learningUnchangedSince(pz)) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget
+      if (!admitted()) return;   // …or a delete of a session the prompt quoted
       // grounding = the same evidence the directive showed the model — the WHY must cite it (parseRecipe guard). The
       // direction block is part of that evidence, so a WHY that cites an open quest / the north star is grounded —
       // and so is the DOSSIER (it rides the directive at dossierBlock; excluding it here silently killed any WHY
@@ -8616,7 +8618,8 @@ async function runScoutCycle(o) {
         topRecommendation: cx.topRecommendation || ''
       });
       const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive);
-      if (!learningUnchangedSince(pz) || !admitted()) return;
+      if (!learningUnchangedSince(pz)) return;
+      if (!admitted()) return;
       const parsed = ProspectGen.parse(reply, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs, existingClasses: existing });
       scoutState = Scout.stampAttempt(scoutState, 'prospect', { now: Date.now() });
       // ProspectGen.parse has no denylist arm — enforce the dismissed-shape memory here (same 0.6 overlap rule).
