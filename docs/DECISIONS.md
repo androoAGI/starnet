@@ -198,47 +198,102 @@ many of these — they win on any wording conflict.
   update now asks before running commands."), or pick another split. Until he answers, the branch
   ships strict recall.
 - **Attachment taint is the bytes in the context, and the stamp on rows decays with them**
-  (attachment-rows-and-taint S2, 2026-11-04). A run is tainted `user attachment` (`taint.js`
-  `ATTACHMENT_TAINT`) exactly while the Commander's attachment BYTES are in front of it: `runOnceCore`
-  reads `attachments.resentOf` right after `expandForRun` and latches only when an entry has
-  `bytes:true` (the attaching turn and one follow-up: the newest four attachments, `RESEND_TURNS=2`;
-  an older one is a marker naming the saved path and the tools). A reference alone taints nothing: the
-  browser keeps every turn's references, and "any reference taints" locked tools and learning for the
-  rest of a conversation after one screenshot. A caller's own `initialTaint` (hub, channel, upstream,
-  a lead's latch) wins and is never cleared. **What decays:** a row stamped with EXACTLY
-  `user attachment` no longer taints a replay (`transcriptStore.taintOf`, `EarlierConversation.taintOf`),
-  because the bytes it stood for are either re-sent, and latched again by the run that re-sends them,
-  or gone. **What does not:** any other stamp (a near miss, `replayed history (tainted by user
-  attachment)`, `worker output (...)`, `resumed run (...)`); a tool read of the saved file (`fs.read`,
-  `fs.search`, `image_analyze` of `.attachments/`, and a shell command, terminal line or script that
-  NAMES the folder: a PDF is re-sent as a note only, and a command is how its text reaches the model);
-  a recalled row or memory record; a recovery continuation (its checkpoint holds the bytes); and a user
-  row that STORES the expansion when the replay is that very row, in either shape on disk (11-02: the
-  references kept and `content` other than the typed words; 0.14.2 and every release before it: no
-  references and no `typed` field, the `[Attached file: ` header in `content`; the server replays it
-  whenever it seeds a history from its own rows, as the phone host and a single-message `/api/run`
-  do). **No laundering:** the stamp a run's rows carry is `execution.rowTaint()`, the first source that
-  is not the bare attachment, so a page, connector or file read after the attachment stamps every later
-  row with it and it persists; `run-journal` `analyze` reports it over the attachment, so a recovery
-  continuation restores the page, not the attachment; the "not tainted yet" guards on the tool-result,
-  carried-note and recalled-note latches are gone (each latch is idempotent), so the attachment never
-  shields a later source. The run record's `taintedBy` stays the first source. **Residual risk, OPEN:
-  Andrew signs off before the next cut.** A model steered by hostile file text on turns 1-2 can carry
-  it into turn 3 through its own earlier replies, because their stamp decays; that is the price of a
-  conversation that is clean again from the third turn. The stricter alternative, keeping those rows
-  tainted for N more turns, fails that goal. Until he answers, the branch ships the decay. A second
-  residual stays open: the blanket reference taint used to hide every route to the saved file, and the
-  path rules above catch only a route that names the folder. A command that reaches the file without
-  naming it (a glob such as `cat .attach*/*`, or a script file written earlier) puts its bytes back in
-  front of an untainted run, because shell output is not a taint source (the v1 boundary in
-  `taint.js`). Also not
-  decayed: a memory record a tainted run saved (its `taintedBy` stays and a recall of it latches), and,
-  for any later lane, a summary or ledger built from rows written while the bytes were in view: a
-  derived text keeps the attachment taint, because only the exact stamp on a row replayed AS A ROW
-  decays. One over-taint stays too, the safe way round: a lead that delegates to a worker while it holds
-  the attachment latches the worker's relayed `worker output (tainted by user attachment)`, which is not
-  the bare stamp, so that lead's later rows keep tainting its replays. Proof:
-  test/taint-replay.attachment.test.js, test/attachment-taint-decay.http.test.js.
+  (attachment-rows-and-taint, 2026-11-04). A file or picture the Commander attaches taints a run
+  `user attachment` (`sidecar/taint.js` `ATTACHMENT_TAINT`) exactly while its BYTES are in front of the
+  model: the attaching turn and one follow-up. From the third turn the conversation is clean again, so
+  learning, standing grants and workers that hold a stored credential work again. Until now the mere
+  presence of an attachment REFERENCE in the browser's history tainted every later run, and the replay of
+  those runs' own rows re-tainted the next one, so one screenshot locked a conversation for good (email
+  E15: a lead's workers could not use their keys for the rest of the chat). **The OPEN list at the end of
+  this entry is Andrew's to decide before the next cut.** The threat table is
+  `docs/attachment-taint-security-review.md`.
+  - **The two numbers.** `RESEND_K = 4` and `RESEND_TURNS = 2` (`sidecar/attachments.js`, exported). Bytes
+    are re-sent only for the newest four attachments of the last two user turns. The current turn's
+    newest attachment is never dropped, not by the count and not by the 12 MB image budget, which is now
+    spent newest first (it used to drop the newest picture and keep a stale one). Every other reference
+    becomes a one-line marker naming the saved file and the tools that open it (`fs.read`,
+    `image_analyze`), and is not read at all. Two turns is what makes a conversation clean from the third;
+    four bounds what rides along, and a marker costs one tool call, never the conversation. The
+    seven-turn flow in `test/attachment-taint-decay.http.test.js` states its shape in literal turn
+    numbers, so changing either number means editing that test with it.
+  - **Why the current turn's taint is kept.** The taint does not try to tell a hostile file from a good
+    one; it removes the payoff. A tainted run loses its shell, credentialed requests (`web_request`),
+    connector calls and standing or unattended grants, its learning passes are withheld, and a worker it
+    dispatches inherits the lock. The bytes are in the prompt on the attaching turn, so the model can be
+    argued into anything they say on that very turn; that is when the lock has to hold. Attaching a file
+    shows the Commander wanted it read, not that its text is theirs (`taint.js`: the jail proves where
+    bytes live, not who wrote them). So the turn that carries the bytes is never unlocked, and the lock
+    is never a clock or a turn count: `runOnceCore` reads `attachments.resentOf` right after
+    `expandForRun` and latches only when an entry has `bytes:true`. A marker, an unreadable file and a
+    binary file send no bytes and latch nothing. The lock gets shorter by sending the bytes for fewer
+    turns, never by trusting them.
+  - **What decays, and only this.** A transcript row stamped with EXACTLY `user attachment` no longer
+    taints a replay (`transcriptStore.taintOf`, `EarlierConversation.taintOf`): its bytes are either
+    re-sent, and the replaying run latches them itself, or gone. In practice these are the model's own
+    replies on turns 1-2; the Commander's rows are written clean (see Rows). A caller's own
+    `initialTaint` (hub, channel, upstream, a lead's latch) wins over the byte latch and is never cleared.
+  - **What does not decay.** Any other stamp (a near miss, `replayed history (tainted by user
+    attachment)`, `worker output (...)`, `resumed run (...)`, `channel attachment`); a tool read of the
+    saved file (`fs.read`, `fs.search` and `image_analyze` of `.attachments/`, and a shell command,
+    terminal line or script that NAMES the folder: a PDF is re-sent as a note only, and a command is how
+    its text reaches the model); a recalled row or memory record; a recovery continuation (its
+    checkpoint holds the bytes); and a user row that STORES the expansion when the replay is that very
+    row, in either shape on disk (11-02: references kept and a `content` other than the typed words;
+    0.14.2 and every release before it: no references and no `typed` field, the `[Attached file: `
+    header in `content`; the server replays such a row whenever it seeds a history from its own rows, as
+    the phone host and a single-message `/api/run` do).
+  - **No laundering.** The stamp a run's rows carry is `execution.rowTaint()`, the first source that is
+    not the bare attachment, so a page, connector or file read after the attachment stamps every later
+    row and persists. `run-journal` `analyze` reports it over the attachment, so a recovery continuation
+    restores the page, not the attachment. The old "not tainted yet" guards on the tool-result,
+    carried-note and recalled-note latches are gone (each latch is idempotent), so the attachment never
+    shields a later source. The run record's `taintedBy` stays the first source.
+  - **Rows.** The Commander's row holds only the words they typed (else a label) and is written clean:
+    the file's text is stored nowhere as the Commander's words. Each file is a hidden `attachment` row
+    beside it (`sidecar/turn-attachment.js`: role `system`, never displayed, never replayed to the model,
+    recallable) with the name, the saved path and the size and sha256 of the bytes read, stamped with the
+    run's own taint. The earlier-conversation note and `recall_conversation` show `[attached: name]` next
+    to the typed words. No new screen was added.
+  - **Workers.** A worker starts with its lead's `execution.rowTaint()`. While the lead holds the bytes
+    (turns 1-2) the worker inherits `user attachment` and its credentialed request is refused, naming the
+    lead; on turn 4 the lead is clean, so the worker has no taint and the lock is not what stops it
+    (`test/attachment-taint-decay.http.test.js`, flow G, on a station without Full Access, which would
+    hide the lock). One over-taint stays, the safe way round: a lead that dispatches a worker while it
+    holds the bytes latches the worker's relayed `worker output (tainted by user attachment)`, which is
+    not the bare stamp, so that lead's rows keep tainting its replays and its conversation does not
+    become clean on turn 3. Flow G pins it.
+  - **OPEN: Andrew decides before the next cut.** Until he answers, the branch ships what is above.
+    1. *Replies written while the bytes were in view stop tainting once the bytes are gone.* A model
+       steered by hostile file text on turns 1-2 can carry it into turn 3 through its own earlier
+       replies, or through a file it saved (a local file read is not a taint source in v1, whatever
+       wrote the file), and a clean turn-3 run can use standing grants. That is the price of a
+       conversation that is clean from the third turn. Default taken: accept it. The stricter
+       alternative keeps those rows tainted for N more turns (clean from turn 3+N), gives up the
+       third-turn goal, and still does not cover a saved file.
+    2. *The two numbers* (four files, two turns). Default taken: as shipped.
+    3. *Workers.* They inherit the lead's lock while it holds the bytes and are clean once it is, with
+       no separate worker rule. Default taken: that, and keep the over-taint above. Lifting the
+       over-taint is two edits in the run host that must land together: the worker reports `rowTaint()`
+       instead of its first source, and the relay keeps a bare attachment bare. The second alone would
+       let a page a worker read after inheriting the attachment come back to its lead as only "user
+       attachment", which decays.
+    4. *A recall that returns an attachment row taints the run.* The row is a name and a hash, no bytes,
+       so this costs only a run that deliberately recalls an attachment turn. Default taken: yes
+       (the existing rule: a returned row's stamp latches).
+    5. *Routes the path rules do not see.* A shell glob that reaches the file without naming the folder
+       (`cat .attach*/*`) or a script file written earlier puts its bytes back in front of an untainted
+       run, because shell output is not a taint source (the v1 boundary in `taint.js`); the blanket
+       reference taint used to hide these and is gone. A file's NAME also rides on clean runs (the marker
+       and `[attached: name]`: one line, no brackets, 120 characters). Default taken: accept both.
+  - **Also not decayed:** a memory record a tainted run saved (its `taintedBy` stays and a recall of it
+    latches) and, for any later lane, a summary or ledger built from rows written while the bytes were in
+    view: a derived text keeps the attachment taint, because only the exact stamp on a row replayed AS A
+    ROW decays.
+  - **Proof.** `test/attachment-resend.test.js` (which bytes are sent),
+    `test/taint-replay.attachment.test.js` (the decay rule, the run state, the journal),
+    `test/attachment-rows.test.js` (the rows) and `test/attachment-taint-decay.http.test.js` (the
+    seven-turn conversation, the web case, the old streams and the worker, on a real sidecar with a
+    scripted provider).
 
 
 ## Build mode / conveyors (Andrew, 2026-10-10/11)
