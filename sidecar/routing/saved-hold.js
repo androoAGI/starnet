@@ -7,13 +7,17 @@
      HOLD_STATUSES  the statuses of a floor that cannot be proved: absent (a primary gone beside a copy), corrupt, unreadable,
                     unavailable, unstamped, invalid, future, migration-required, unvouched, unsupported-geometry, changed.
                     NOT unfloored (a new install: nothing to route) and NOT unroutable (a proved floor the compiler refuses).
-     heldWhy(s)     'the saved floor is <plain words>; routing is held until it is readable'
+     heldWhy(s)     'the saved floor is <plain words>; routing is held until it is readable'. A hold the person can end says the step
+                    inside the plain words, in brackets, so every refusal that reads the sentence carries it: migration-required
+                    (open StarNet once: the page migrates the save) and future (update StarNet). The sentence keeps its one grammar;
+                    test/routing.saved-seams.test.js section 11 holds every status to it.
      holdOf(error)  { status, why } for an error the router or the authority threw for a held floor, else null */
 'use strict';
 
 const WORDS = Object.freeze({
   absent: 'missing', corrupt: 'corrupt', unreadable: 'unreadable', unavailable: 'unavailable', unstamped: 'not stamped',
-  invalid: 'invalid', future: 'from a newer StarNet', 'migration-required': 'waiting for a migration', unvouched: 'not vouched for',
+  invalid: 'invalid', future: 'from a newer StarNet (update StarNet to read it)',
+  'migration-required': 'waiting for a migration (open StarNet once to bring it up to date)', unvouched: 'not vouched for',
   'unsupported-geometry': 'in a layout this version cannot route', changed: 'still being saved'
 });
 const HOLD_STATUSES = Object.freeze(Object.keys(WORDS));

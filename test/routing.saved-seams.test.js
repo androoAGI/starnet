@@ -24,7 +24,10 @@
         in the hold's own words. (The step-through test's profile used to swallow the hold: its hop ran in the WHOLE default office.);
     10. the step-through test over the real authority: a floor that goes held mid-test ENDS it 'stopped' with the chain's refused stop
         and the hold's words (never 'done' after the first stage, never "no work line is armed"); a start while held is refused in
-        the same words and makes no session; a paused test stays paused and CONTINUE refuses until the file is back. */
+        the same words and makes no session; a paused test stays paused and CONTINUE refuses until the file is back;
+    11. INVARIANT held-says-how: a table names every hold status; a hold the person can end (migration-required: open StarNet once;
+        future: update StarNet) says that step in the one sentence every refusal reads, both from heldWhy and from the hold a real
+        read of a real spoiled floor throws; every sentence still keeps the one grammar. */
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { makeSaveStore } = require('../sidecar/savestore.js');
@@ -412,6 +415,39 @@ const empties = () => READERS.map(name => [name, JSON.stringify(EMPTY[name]())])
       const resumed = stp.continue(id, {}); await stp.settled(id);
       A.ok(resumed.ok && ran.length === 2 && ran[1].agentId === 'beta' && ran[1].room === 'bay', 'the file is back: CONTINUE runs stage two in its bay room, with no restart — ' + JSON.stringify([resumed.ok, ran]));
       outside(goodBytes);
+    }
+
+    // ---- 11. INVARIANT held-says-how: a hold the person can end tells them the step, in the sentence every refusal reads ----
+    {
+      /* That sentence is the one place a chat reply, a routine's blocked row, Run Now's 409, a line's stop, the away card and the LOOPS window
+         all read, so a step that ends a hold has to be said THERE. STEP is the holds the person can end, each with the step its words must
+         name; NO_STEP is the holds with no single step to name (the file is gone, damaged, locked, mid-save or unproved), whose words say only
+         what is wrong and that routing waits. THE TABLE NAMES EVERY STATUS: a hold added to HOLD_STATUSES lands only with a row here. */
+      const STEP = {
+        'migration-required': /open StarNet once/,   // the page migrates a save one version behind, and saves it, when it opens (frontend/app/save.js)
+        future: /update StarNet/                       // a save a newer StarNet wrote is read by that StarNet, never migrated down
+      };
+      const NO_STEP = ['absent', 'corrupt', 'unreadable', 'unavailable', 'unstamped', 'invalid', 'unvouched', 'unsupported-geometry', 'changed'];
+      A.eq(Object.keys(STEP).concat(NO_STEP).sort(), HOLD_STATUSES.slice().sort(), 'the table names every hold status exactly once (a new hold must be added to it, endable or not, to land)');
+      for (const status of HOLD_STATUSES) {
+        const said = heldWhy(status);
+        A.ok(HELD_SAID.test(said), status + ': one sentence in the one grammar — ' + said);
+        if (STEP[status]) A.ok(STEP[status].test(said), status + ': the person can end this hold, so the sentence says how — ' + said);
+      }
+      // and the words reach the person through the real read, not only through heldWhy: section 4's spoiled floors, for each hold with a step
+      const rows = table.filter(row => STEP[row[2]]);
+      A.eq(rows.map(row => row[2]).sort(), Object.keys(STEP).sort(), 'fixture: section 4 spoils a real saved floor into every hold the person can end');
+      for (const [label, spoil, status] of rows) {
+        outside(goodBytes);
+        A.ok(admit.resolveDock(...ASKS.resolveDock), label + ': warm on a good floor');
+        spoil();
+        const e = caught(() => admit.resolveDock(...ASKS.resolveDock));
+        A.ok(e && e.held === true && e.status === status && STEP[status].test(e.why || ''), label + ': the hold a real read throws says the step — ' + (e && (e.why || e.message)));
+        const now = seams.hold();
+        A.ok(now && now.status === status && STEP[status].test(now.why), label + ': hold() says it too — ' + JSON.stringify(now));
+        outside(goodBytes);
+        A.eq(seams.hold(), null, label + ': the file is back and the hold is gone, with no restart');
+      }
     }
   } finally {
     locked = false;
