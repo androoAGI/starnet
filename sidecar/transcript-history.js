@@ -1002,6 +1002,39 @@ function makeSegmentedTranscriptIo(opts) {
     }
     return out.reverse().map(publicRow);
   }
+  /* A CURSOR READ (save-history-by-reference). history() answers "the newest N rows of a stream"; this answers "what came
+     after the row I already hold": the rows of ONE stream with a rowId past `afterRowId`, OLDEST first, at most `limit`
+     of them, so a stream of any length reads forward in pages. A segment whose newest row is not past the cursor is
+     never read. { rows, more, truncated }: more = the stream holds rows past the last one returned; truncated = the read
+     stopped at `maxSegments` segment visits (default 8) before the page was full, so `rows` is a short page and never a
+     gap: the next call continues from its last row. A view this io cannot vouch for, or a segment it must read and
+     cannot parse, throws TRANSCRIPT_UNVOUCHED instead of answering short. */
+  function pageAfter(streamId, afterRowId, options) {
+    const refuse = why => Object.assign(new Error('transcript cursor read cannot be vouched for: ' + why), { code: 'TRANSCRIPT_UNVOUCHED' });
+    if (degraded || unvouched || unsafe) throw refuse(degraded ? 'initialization degraded' : unvouched ? 'the active segment changed outside this process' : 'rowIds unproven');
+    const after = Math.max(0, Math.floor(num(afterRowId)));
+    const limit = Math.max(1, Math.floor(num(options && options.limit)) || 400);
+    const budget = Number.isSafeInteger(options && options.maxSegments) && options.maxSegments > 0 ? options.maxSegments : 8;
+    const out = [];
+    let visited = 0, more = false, truncated = false;
+    for (const meta of relevantSegments(streamId, false)) {
+      // wholly at or before the cursor: never read (the append-active segment's summary is refreshed lazily, so it is always read)
+      if (meta.number !== manifest.activeSegment && !meta.unreadable && num(meta.maxRowId) > 0 && num(meta.maxRowId) <= after) continue;
+      if (out.length >= limit) { more = true; break; }   // a full page, and the stream has a later segment
+      if (visited >= budget) { more = truncated = true; break; }
+      visited++;
+      const rows = readRows(meta.number);
+      if (rows === UNREADABLE) throw refuse('segment ' + meta.number + ' is unreadable');
+      for (const row of rows) {
+        if (row.streamId !== streamId || !(num(row.rowId) > after)) continue;
+        // a full page ends before the next row, but a row that shares the last row's id (a collision) stays with it
+        if (out.length >= limit && num(row.rowId) !== num(out[out.length - 1].rowId)) { more = true; break; }
+        out.push(row);
+      }
+      if (more) break;
+    }
+    return { rows: out.map(publicRow), more, truncated };
+  }
   /* A row's score is (query terms it holds) * 1000 + (their occurrences), ranked score, then ts, then rowId, newest
      first. Its rows per segment: a stream-scoped search reads that stream's own rows of a closed segment from RAM when
      history already holds them (streamRowsIn's slice: every row of the stream that holds a query term is among them,
@@ -1210,6 +1243,7 @@ function makeSegmentedTranscriptIo(opts) {
     readAll: readRecent,
     readRecent,
     history,
+    pageAfter,
     preview(streamId, options) { return history(streamId, { limit: Math.min(200, Math.max(1, num(options && options.limit) || 200)), previewBudget: options && options.budget || { remaining: 0 } }); },
     search,
     streams,
@@ -1275,7 +1309,13 @@ function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
     },
     retractionsFor(rowIds) { return this.readByIds(rowIds); },
     isCollided(rowId) { return (idCounts.get(rowId) || 0) > 1; },
-    streamRows(streamId) { const sid = str(streamId); let n = 0; for (const r of stored) if (r.streamId === sid) n++; return n; }
+    streamRows(streamId) { const sid = str(streamId); let n = 0; for (const r of stored) if (r.streamId === sid) n++; return n; },
+    // the cursor read of the segmented io (see pageAfter above), over the same rows: oldest first, past the cursor
+    pageAfter(streamId, afterRowId, options) {
+      const sid = str(streamId), after = Math.max(0, Math.floor(num(afterRowId))), limit = Math.max(1, Math.floor(num(options && options.limit)) || 400);
+      const past = stored.filter(r => r.streamId === sid && num(r.rowId) > after).sort((a, b) => num(a.rowId) - num(b.rowId));
+      return { rows: past.slice(0, limit).map(publicRow), more: past.length > limit, truncated: false };
+    }
   };
 }
 

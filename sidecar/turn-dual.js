@@ -98,7 +98,12 @@ function make(d) {
     }
     // Per-row provenance carries the complete demotion proof. Only its diagnostic summary is bounded at 50 keys.
     const turns = list.map(row => row && collided.has(key(row)) ? Object.assign({}, row, { idFrom: 'collision' }) : row);
-    return { stream: streamId, turns, identity: identity(streamId, turns, o) };
+    const reply = { stream: streamId, turns, identity: identity(streamId, turns, o) };
+    // A cursor read (GET ?after=) adds where it stopped, after the fields every reader already has; any other read is byte-identical.
+    const c = o.cursor;
+    if (c && typeof c === 'object') reply.cursor = { last: Number.isSafeInteger(c.last) && c.last >= 0 ? c.last : 0,
+      count: Number.isSafeInteger(c.count) && c.count >= 0 ? c.count : turns.length, more: c.more === true };
+    return reply;
   }
   return { modes, setMode, record, pick, status, identity, project, resetSoak: soak.reset };
 }

@@ -13132,6 +13132,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/turn-identity/soak', h: handleTurnIdentitySoak },
   { m: 'POST', exact: '/api/turn-identity/retract', h: handleTurnIdentityRetract },
   { m: 'POST', exact: '/api/turn-identity/retractions', h: handleTurnIdentityRetractions },
+  { m: 'POST', exact: '/api/transcript/rows', h: handleTranscriptRows },   // the rows a page names by id (a saved history that holds them by reference)
   { m: 'POST', exact: '/api/transcript/redact', h: handleTranscriptRedact },   // COMMS redacts its copy before the read-back merge
   { m: 'POST', exact: '/api/prompt/scrub', h: handlePromptScrub },             // live voice scrubs its provider-bound instructions
   { m: 'POST', exact: '/api/channels/handoff', h: handleChannelHandoff },
@@ -29866,9 +29867,9 @@ function transcriptRunSince(runId) {
   const at = [row && row.startedAt, row && row.ts].map(Number).filter(v => Number.isFinite(v) && v > 0);
   return at.length ? Math.min.apply(null, at) : 0;
 }
-function transcriptProjection(stream, rows) {
-  return turnDual.project(stream, rows, { liveRunIds: transcriptLiveRuns,
-    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) });
+function transcriptProjection(stream, rows, extra) {
+  return turnDual.project(stream, rows, Object.assign({ liveRunIds: transcriptLiveRuns,
+    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) }, extra));
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
 async function handleTurnIdentitySoak(req, res) {
@@ -29908,6 +29909,28 @@ async function handleTurnIdentityRetractions(req, res) {
   if (result.state !== 'done') return respondJson(res, 503, { error: 'Cached transcript identity could not be proved.', code: 'TRANSCRIPT_UNVOUCHED' });
   return respondJson(res, 200, { streamId: body.streamId, retracted: result.retracted });
 }
+/* POST /api/transcript/rows { agent?, streams: [{ streamId, rowIds }] } -> { streams: [{ streamId, turns, missing,
+   retracted, forgotten }] }: the rows a page names, by id, as the display view shows them (the same turn objects a GET
+   returns), in the order asked. At most 50 streams and 1000 ids in all. Every id lands in turns, forgotten (a deleted
+   session's row), retracted (undone) or missing (cannot be returned and cannot be proved gone: ask again with only those
+   ids). A proof the station cannot complete answers 503 TRANSCRIPT_UNVOUCHED, never every id as missing. */
+async function handleTranscriptRows(req, res) {
+  let body;
+  try { body = JSON.parse(await readBody(req, 65536, res)) || {}; }
+  catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
+  if (refuseBadAgentId(res, body.agent || 'agent')) return;   // the GET's rule: no agent means the hero, a malformed one is refused
+  const asks = Array.isArray(body.streams) ? body.streams : null;
+  if (!asks || !asks.length) return respondJson(res, 400, { error: 'streams must list the streams to read' });
+  try {
+    const found = transcriptStore.rowsByIdsBatch(asks.map(ask => ({ streamId: ask && ask.streamId, rowIds: ask && ask.rowIds })));
+    return respondJson(res, 200, { streams: found.map((one, i) => ({ streamId: asks[i].streamId, turns: transcriptProjection(asks[i].streamId, one.rows).turns,
+      missing: one.missing, retracted: one.retracted, forgotten: one.forgotten })) });
+  } catch (error) {
+    if (error && error.code === 'TRANSCRIPT_BAD_REQUEST') return respondJson(res, 400, { error: error.message });
+    if (error && error.code === 'TRANSCRIPT_UNVOUCHED') return respondJson(res, 503, { error: 'The station could not prove these rows.', code: 'TRANSCRIPT_UNVOUCHED' });
+    return respondJson(res, 500, readRouteFailure('transcript.rows', error));
+  }
+}
 function serveTranscript(req, res) {
   const json = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   try {
@@ -29917,6 +29940,14 @@ function serveTranscript(req, res) {
     const stream = u.searchParams.get('stream') || 'global';
     const limit = Math.max(1, Math.min(500, Number(u.searchParams.get('limit')) || 200));
     const sourceRunId = u.searchParams.get('runId') || '';
+    // ?after=<rowId>: the next `limit` durable rows after that row, oldest first, with where it stopped (cursor { last, count,
+    // more }): read on from cursor.last until more is false. Any other query is answered as it always was.
+    if (u.searchParams.has('after')) {
+      const after = u.searchParams.get('after');
+      if (!/^\d{1,15}$/.test(after) || sourceRunId || u.searchParams.has('delivery') || u.searchParams.has('view')) return json(400, { error: 'after is a row id, and reads the whole stream: not with runId, delivery or view' });
+      const page = transcriptStore.pageAfter(stream, Number(after), limit);
+      return json(200, transcriptProjection(stream, page.rows, { cursor: { last: page.last, count: page.rows.length, more: page.more } }));
+    }
     // H2: a run still writing per turn stays out of the stream view until it ends (see transcriptLiveRuns).
     // Every surface uses the same visibility owner; explicit delivery reads narrow to verified finals.
     const finalDelivery = sourceRunId && u.searchParams.get('delivery') === '1';

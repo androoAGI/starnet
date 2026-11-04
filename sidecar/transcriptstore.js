@@ -1163,9 +1163,132 @@
       return out;
     }
 
+    /* A STREAM READ BY CURSOR AND BY ROW ID (save-history-by-reference). The page keeps its rows as a cache of this
+       transcript, so it needs two reads view('display') cannot give: every row after the one it already holds, however
+       long the stream, and exactly the rows it names. Both answer from DISK (io.pageAfter / io.readByIds), never from
+       the RAM mirror, and both go through the ONE display projection (projectView), so a hidden kind, an undone or
+       forgotten row, a deleted session's row and a live run's row are exactly as invisible here as in a GET. */
+    const PAGE_MAX = 500, PAGE_DEFAULT = 200, ROWS_BY_IDS_MAX = 1000, ROWS_STREAMS_MAX = 50, READ_SEGMENTS = 8, RUN_CONTEXT_MAX = 16;
+    const byRowId = (a, b) => num(a.rowId) - num(b.rowId);
+    function badRead(message) { return Object.assign(new Error(message), { code: 'TRANSCRIPT_BAD_REQUEST' }); }
+    /* THE RUN AROUND A ROW. projectConversation reads a dispatch run as one unit (the stored prompt, its execution rows
+       and its accepted final), so a read that cuts through the run would hide or decorate its rows differently from a
+       read of the whole stream (a prompt whose final lies on the next page would not be shown). The same-run rows of a
+       dispatch row are supplied to the projection as context and are never returned (recall's search does the same),
+       read from the run's own start on (the run record's time, when the host has it). Ordinary turns carry no
+       dispatchState and cost no read. One request loads the context of at most RUN_CONTEXT_MAX runs (`state` carries the
+       count across a batch); the dispatch rows of any later run are `unproven`: a page ends before the first of them and
+       a by-id read names them missing, so a row is never shown with less of its run than a whole-stream read gives it. */
+    function runStart(runId) {
+      const run = typeof opts.runOf === 'function' ? opts.runOf(runId) : null;
+      const at = [run && run.startedAt, run && run.ts].map(Number).filter(v => Number.isFinite(v) && v > 0);
+      return at.length ? Math.min.apply(null, at) : 0;
+    }
+    function runContext(list, state) {
+      const have = new Set(list.map(row => row.rowId)), extra = [], unproven = new Set();
+      for (const row of list) {
+        // only a stored prompt (a pending user row) and a final can be shown by a dispatch run; its other pending rows
+        // are never shown, whatever the run holds, so they need no context and spend none of the budget
+        if (!row.sourceRunId || !(row.dispatchState === 'final' || (row.dispatchState === 'pending' && row.role === 'user'))) continue;
+        const key = JSON.stringify([row.streamId, row.sourceRunId]);
+        if (!state.loaded.has(key)) {
+          if (state.loaded.size >= RUN_CONTEXT_MAX) { unproven.add(row.rowId); continue; }
+          state.loaded.add(key);
+          for (const sibling of readHistory(row.streamId, { sourceRunId: row.sourceRunId, limit: 5000, since: runStart(row.sourceRunId) }, false))
+            if (!have.has(sibling.rowId)) { have.add(sibling.rowId); extra.push(sibling); }
+        }
+      }
+      return { extra, unproven };
+    }
+    /* pageAfter(streamId, afterRowId, limit) -> { rows, last, more }: the visible rows of the stream after `afterRowId`,
+       oldest first, from a window of the NEXT `limit` (<= 500) durable rows of the stream. `last` is the newest row id the
+       window decided (shown, or hidden for good), so reading on from `last` returns every visible row exactly once, in
+       rowId order, even when a whole window is hidden. `more` = the stream has rows past `last` to read now. A run still
+       writing is not visible yet (H2): the window stops before its first row and `more` is false, so `last` never passes a
+       row a later read will show. A page also ends early (more stays true) before the dispatch rows of the 17th run it
+       would have to load, so no request loads more than RUN_CONTEXT_MAX runs. Every row returned has a durable rowId;
+       the station's own lines (interrupted, page closed) are derived on each ordinary read and are not part of this one.
+       A view that cannot be vouched for throws TRANSCRIPT_UNVOUCHED, never an empty page. */
+    function pageAfter(streamId, afterRowId, limit) {
+      if (!Number.isSafeInteger(afterRowId) || afterRowId < 0) throw badRead('a cursor read needs a row id of zero or more');
+      const want = normStream(streamId), size = Number.isSafeInteger(limit) && limit > 0 ? Math.min(limit, PAGE_MAX) : PAGE_DEFAULT;
+      if (typeof io.pageAfter !== 'function') throw unvouched('the cursor reader is unavailable');
+      let read;
+      try { read = io.pageAfter(want, afterRowId, { limit: size, maxSegments: READ_SEGMENTS }); }
+      catch (error) {
+        if (error && error.code === 'TRANSCRIPT_UNVOUCHED') throw error;
+        failNote('transcript.pageAfter', error);
+        throw unvouched((error && error.message) || 'the cursor read failed');
+      }
+      if (!read || !Array.isArray(read.rows)) throw unvouched('the cursor reader answered nothing');
+      let window = read.rows.filter(row => row && Number.isSafeInteger(row.rowId) && row.rowId > afterRowId), more = read.more === true;
+      const live = viewContext().live;
+      if (live && live.size) {
+        const at = window.findIndex(row => live.has(str(row.sourceRunId)));
+        if (at >= 0) { window = window.slice(0, at); more = false; }
+      }
+      if (!window.length) return { rows: [], last: afterRowId, more };
+      const around = runContext(window, { loaded: new Set() }), cut = window.findIndex(row => around.unproven.has(row.rowId));
+      if (cut > 0) { window = window.slice(0, cut); more = true; }   // the run-context budget is spent: a short page, not a wrong row
+      const list = window.concat(around.extra).sort(byRowId), wanted = new Set(window.map(row => row.rowId));
+      return { rows: projectView('display', list, { streamId: want }, projectionContext(list)).filter(row => wanted.has(row.rowId)),
+        last: window[window.length - 1].rowId, more };
+    }
+    /* rowsByIds(streamId, rowIds) -> { rows, missing, retracted, forgotten }: exactly the rows asked for (<= 1000 ids),
+       as the display view shows them, in the ORDER ASKED (an id asked twice is answered once, where it was first asked).
+       Every id lands in one list: rows (shown), forgotten (a deleted session's row), retracted (undone by a later retract
+       row), or missing = the station cannot return it and cannot prove it gone: no such row, another stream's row (never
+       returned), a collided or hidden-kind row, a live run's row, a row beyond the read's eight-segment budget, or a
+       dispatch row of a 17th run (the request's run-context budget). Ask again with only the missing ids to read on:
+       each round reads the next segments and runs. rowsByIdsBatch(requests) answers several streams from
+       ONE proof read, so a request still touches at most eight segments, however many streams it names. A proof that
+       is incomplete throws TRANSCRIPT_UNVOUCHED: never every id as missing. */
+    function rowsByIds(streamId, rowIds) { return rowsByIdsBatch([{ streamId, rowIds }])[0]; }
+    function rowsByIdsBatch(requests) {
+      if (!Array.isArray(requests) || requests.length > ROWS_STREAMS_MAX) throw badRead('rows by id: at most ' + ROWS_STREAMS_MAX + ' streams');
+      const asks = [], union = new Set();
+      for (const request of requests) {
+        const streamId = request && request.streamId, rowIds = request && request.rowIds;
+        if (typeof streamId !== 'string' || !SID_RE.test(streamId) || !Array.isArray(rowIds) || rowIds.some(id => !Number.isSafeInteger(id) || id <= 0)) throw badRead('rows by id: a stream id and positive row ids are required');
+        const ids = Array.from(new Set(rowIds));
+        for (const id of ids) union.add(id);
+        asks.push({ streamId, ids });
+      }
+      if (union.size > ROWS_BY_IDS_MAX) throw badRead('rows by id: at most ' + ROWS_BY_IDS_MAX + ' row ids');
+      let proof = new Map();
+      if (union.size) {
+        if (typeof io.readByIds !== 'function') throw unvouched('the row reader is unavailable');
+        try { proof = io.readByIds(Array.from(union).sort((a, b) => a - b)); }
+        catch (error) { failNote('transcript.rowsByIds', error); throw unvouched((error && error.message) || 'the row read failed'); }
+        if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) throw unvouched('the row proof is incomplete');
+      }
+      const owned = asks.map(ask => new Map(ask.ids.filter(id => proof.has(id) && proof.get(id).streamId === ask.streamId).map(id => [id, proof.get(id)])));
+      const state = { loaded: new Set() }, unproven = new Set();
+      const lists = owned.map(map => {
+        const rows = Array.from(map.values()), around = runContext(rows, state);
+        for (const id of around.unproven) unproven.add(id);
+        return rows.concat(around.extra).sort(byRowId);
+      });
+      const every = new Map();
+      for (const list of lists) for (const row of list) every.set(row.rowId, row);
+      const context = every.size ? projectionContext(Array.from(every.values())) : null;
+      return asks.map((ask, i) => {
+        const shown = new Map(lists[i].length ? projectView('display', lists[i], { streamId: ask.streamId }, context).filter(row => owned[i].has(row.rowId) && !unproven.has(row.rowId)).map(row => [row.rowId, row]) : []);
+        const out = { rows: [], missing: [], retracted: [], forgotten: [] };
+        for (const id of ask.ids) {
+          const row = owned[i].get(id), why = context && context.retractions instanceof Map ? context.retractions.get(id) : undefined;
+          if (shown.has(id)) out.rows.push(shown.get(id));
+          else if (row && forgotten(row)) out.forgotten.push(id);
+          else if (row && why && why !== 'retry') out.retracted.push(id);
+          else out.missing.push(id);
+        }
+        return out;
+      });
+    }
+
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten,
+      view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }
