@@ -37,7 +37,7 @@ const { allocatePort, allocatePorts } = require('./helpers/ports.js');
 const { sseQuery } = require('./_httpToken.js');
 const { userWords } = require('./helpers/host-notes.js');
 const Phone = require('../relay/app/phone-client.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, emptyFloor, seedSavedFloor, publishFloor } = require('./helpers/saved-floor.js');
 
 const HOST = '127.0.0.1';
 const V1KEY = 'rt-coverage-v1-key-0123456789abcdef0123456789abcdef';
@@ -152,12 +152,14 @@ function startModel() {
       SKYNET_FULL_ACCESS: '1',                             // team.spawn / dispatch are consent-gated; the approval path has its own suites
       STARNET_REMOTE_PORT: String(lanPort), STARNET_REMOTE_LAN: '1', STARNET_REMOTE_RELAY: 'off'
     } });
-  // the overseer's conversation is a desk session: seed the save the way e2e.overseer does
-  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, '../dev/fixtures/seed-workspace/agent.save.json'), 'utf8'));
-  seed.doc.generalId = 'general'; seed.doc.activeId = 'home';
-  seed.doc.workstreams = [{ id: 'general', agentId: 'agent', title: null, history: [], kind: 'chat', lane: 'active' },
+  // the overseer's conversation is a desk session: seed the save the way e2e.overseer does, as a CURRENT save with its floor saved (a station
+  // of the old save version, or one with no floor in it, is held until a page migrates it: nothing would route). Nothing is drawn on the
+  // floor yet, so nothing routes until the line cell below publishes the two-stage line.
+  const seed = JSON.parse(fs.readFileSync(path.join(__dirname, '../dev/fixtures/seed-workspace/agent.save.json'), 'utf8')).doc;
+  seed.generalId = 'general'; seed.activeId = 'home';
+  seed.workstreams = [{ id: 'general', agentId: 'agent', title: null, history: [], kind: 'chat', lane: 'active' },
     { id: 'home', agentId: 'agent', title: 'Launch planning', history: [], kind: 'chat', lane: 'active' }];
-  fs.writeFileSync(path.join(fx.workspace, 'agent.save.json'), JSON.stringify(seed));
+  seedSavedFloor(fx.workspace, emptyFloor(), { save: seed });
 
   let feed = null, phone = null;
   try {
@@ -336,13 +338,11 @@ function startModel() {
     const lineJob = await fx.json('POST', '/api/cron', { name: 'RT line', prompt: 'LINE-START gather the news', schedule: 'every 1h', agentId: 'research-agent', model: 'test/model', provider: 'openrouter', runsLine: true });
     A.ok(lineJob.body && lineJob.body.job, 'a line routine');
     const belt = (x, y, dir) => ({ x, y, dir });
-    const plan = Pipeline.compileRoutingPlan({
+    await publishFloor(fx, floorOf({
       props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
         { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
       belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-    });
-    for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-    A.eq((await fx.json('POST', '/api/routing', plan)).status, 200, 'the two-stage line deploys');
+    }), { label: 'the two-stage line' });
     await cell('line-hop', userSaid('HOP-PAYLOAD'), () => fx.request('/api/cron/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: lineJob.body.job.id }) }).then(r => r.text()), { mark: 'HOP-PAYLOAD', stop: true, source: 'cron' });   // a routine's hop: its host admission's word, as before
 

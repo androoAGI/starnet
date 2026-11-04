@@ -7,6 +7,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { fixture, clone } = require('./helpers/line-entry.js');
 const C = require('../sidecar/routing/line-continuation.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 (async () => {
   let fx, upstream;
   const calls = [];
@@ -50,17 +51,15 @@ const Pipeline = require('../frontend/app/pipeline.js');
       _saveClient: 'entry-fixture', agent: { id: 'reviewer', name: 'Reviewer', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     await api('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'reviewer', name: 'Reviewer', provider: 'openrouter', model: 'test/model' }] });
-    // The existing host still requires real workflow membership. This synthetic
-    // posted plan is an explicit fixture precondition, not saved-floor authority.
-    const plan = Pipeline.compileRoutingPlan({ props: [
+    // The host requires real workflow membership: the workflow is SAVED (the saved floor is the routing authority) and the page's
+    // hint of it published. The entry itself is still the synthetic fixture input the preload represents.
+    const { plan } = await publishFloor(fx, floorOf({ props: [
       { id: 'intake-a', t: 'intake', x: 0, y: 0, w: 1, h: 1, lineId: 'line-a' },
       { id: 'dock-reviewer', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'reviewer' },
       { id: 'outbox-a', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) });
-    assert.equal(Pipeline.ok(plan), true, 'synthetic workflow compiles through the actual owner');
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
+    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) }), { label: 'the fixture workflow' });
+    assert.equal(Pipeline.ok(plan), true, 'the saved workflow compiles through the actual owner');
     const lineId = plan.lineOfProp['intake-a'];
-    assert.equal((await api('POST', '/api/routing', plan)).ok, true, 'actual host accepts the compiled fixture route');
     const route = { hash: plan.hash, lineId, agentId: 'reviewer', intakePresent: true };
     function data(id, runId) {
       const f = fixture(); f.job.id = id; f.receipt.binding.jobId = id; f.receipt.binding.entryRunId = runId;

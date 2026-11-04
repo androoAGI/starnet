@@ -19,8 +19,9 @@
      hintFor(station)                 what the page POSTs to /api/routing for that station: { version:1, plan, compilerLinks }
      planOf(hint)                     the compiled plan inside a hint with the compiler's links put back, for a test to read
      publishFloor(api, station, opts) save the station through POST /api/save, then publish its hint: the two things a page does, in
-                                      the order it does them. Throws unless the save lands and the hint answers 200 (opts.expect
-                                      names another status, 422 for a floor the compiler refuses). Returns { hint, plan, receipt }
+                                      the order it does them. The rest of the save (sessions, agent...) is kept, as a page keeps it.
+                                      Throws unless the save lands and the hint answers 200 (opts.expect names another status, 422 for
+                                      a floor the compiler refuses). Returns { hint, plan, receipt }
      fetchApi(base, headers)          the { json(method, route, body) } publishFloor wants, over fetch, for a test that boots by hand
      savePath(workspace)              the primary file the authority reads */
 const fs = require('node:fs');
@@ -133,9 +134,11 @@ function fetchApi(base, headers) {
 async function publishFloor(api, station, opts) {
   const o = opts || {}, label = o.label || 'the floor';
   const current = await api.json('GET', '/api/save?agent=agent');
-  const saved0 = current.body && current.body.save;
-  const wrote = await api.json('POST', '/api/save', { schema: 'starnet.save', version: Save.CURRENT, _saveRevision: (saved0 && saved0._saveRevision) || 0,
-    updatedAt: Date.now(), _saveClient: o.client || 'e2e-page', agent: { id: 'agent' }, station });
+  // a page saves its whole station with the floor changed, so whatever else the save holds (its sessions, its agent...) is kept,
+  // migrated to the current version the way the page migrates it on load; a workspace with no save yet gets a bare one
+  const held = current.body && current.body.save && Save.fromDoc(current.body.save), rest = held && held.doc ? held.doc : {};
+  const wrote = await api.json('POST', '/api/save', Object.assign({ schema: 'starnet.save', version: Save.CURRENT, agent: { id: 'agent' } }, rest,
+    { _saveRevision: Number(rest._saveRevision) || 0, updatedAt: Math.max(Date.now(), (Number(rest.updatedAt) || 0) + 1), _saveClient: o.client || 'e2e-page', station }));
   if (wrote.status !== 200 || !wrote.body || wrote.body.ok !== true) throw new Error(label + ' did not save: ' + wrote.status + ' ' + String(wrote.text).slice(0, 300));
   const hint = hintFor(station), want = o.expect || 200;
   const receipt = await api.json('POST', '/api/routing', hint);

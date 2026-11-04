@@ -13,6 +13,7 @@ const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const Verdict = require('../sidecar/routing/verdict.js');
 
 const MODEL = 'parity-model';
@@ -158,11 +159,9 @@ async function startSseCollector(url) {
     const arm = async (withFeeder) => {
       const props = scenario === 'terse_approval' ? loopProps : scenario === 'no_outbox' ? mainProps.filter(p => p.id !== 'p4') : mainProps;
       const belts = scenario === 'terse_approval' ? loopBelts : scenario === 'no_outbox' ? mainBelts.filter(b => b.x < 7) : mainBelts;
-      const plan = Pipeline.compileRoutingPlan({ props: props.concat(withFeeder ? feederProps : []), belts: belts.concat(withFeeder ? feederBelts : []) });
-      for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'workbench'];
-      const r = await fx.json('POST', '/api/routing', plan);
-      assert.equal(r.body.ok, true, JSON.stringify(r.body));
-      return plan;
+      // each floor is SAVED, then the page's hint of it is published: the station routes by what it saved
+      const floor = floorOf({ props: props.concat(withFeeder ? feederProps : []), belts: belts.concat(withFeeder ? feederBelts : []) }, { equip: ['computer', 'workbench'] });
+      return (await publishFloor(fx, floor, { label: 'the ' + scenario + (withFeeder ? ' floor with its feeder' : ' floor') })).plan;
     };
     const plan = await arm(true);
     const MAIN = plan.lineOfProp.p1, FEED = plan.lineOfProp.p5;

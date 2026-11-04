@@ -4,7 +4,7 @@ const A = require('./_assert.js'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), crypto = require('node:crypto');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const MODEL = 'hook-job-fixture';
 
@@ -77,8 +77,7 @@ const MODEL = 'hook-job-fixture';
       { id: 'writer', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'writer', role: 'WRITER' },
       { id: 'editor', t: 'bay', x: 6, y: 0, w: 1, h: 1, agentId: 'editor', role: 'EDITOR' },
       { id: 'out', t: 'outbox', x: 9, y: 0, w: 1, h: 1 }];
-    const plan = Pipeline.compileRoutingPlan({ props, belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer', 'workbench'];
+    const floor = floorOf({ props, belts: [1, 2, 4, 5, 7, 8].map(x => ({ x, y: 0, dir: 'E' })) }, { equip: ['computer', 'workbench'] });
     const save = await api('POST', '/api/save', { schema: 'starnet.save', version: 6, updatedAt: Date.now(), _saveRevision: 0, _saveDirty: true,
       _saveClient: 'hook-fixture', agent: { id: 'agent', name: 'Commander agent', createdAt: Date.now() }, agents: [],
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
@@ -88,7 +87,7 @@ const MODEL = 'hook-job-fixture';
     assert.equal(roster.ok, true); assert.notEqual(roster.held, true, 'the fixture roster is durable, not held until founding');
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(fixture.workspace, 'agent.roster.json'), 'utf8')).agents.map(a => [a.agentId, a.provider, a.model]),
       [['writer', 'custom', MODEL], ['editor', 'custom', MODEL]], 'both routed provider pairs survive restart');
-    await api('POST', '/api/routing', plan);
+    const { plan, hint } = await publishFloor(fixture, floor, { label: 'the two-stage floor' });   // saved after the station is founded, then published as the page does
     const lineId = plan.lines[0].lineId;
     const trigger = await api('POST', '/api/routing/triggers', { kind: 'webhook', lineId, maxPerHour: 60, config: { task: 'Complete this work through the line.' } });
     const denied = await hook(trigger, 'auth', { token: 'never-auth' }, 'wrong-secret');
@@ -111,7 +110,7 @@ const MODEL = 'hook-job-fixture';
     await fixture.restart();
     A.eq((await hook(trigger, 'duplicate', { token: 'duplicate' })).body, savedReceipt, 'completed receipt replays identically after restart');
     A.eq(count('duplicate'), 1, 'restart replay buys no second entry');
-    await api('POST', '/api/routing', plan);
+    await api('POST', '/api/routing', hint);   // the page publishes its hint again: the restarted station still holds exactly this saved floor
 
     const live = await hook(trigger, 'live', { token: 'hold-live' });
     assert.equal(live.status, 202, live.text);
@@ -156,7 +155,7 @@ const MODEL = 'hook-job-fixture';
     A.eq(replay.body.jobId, interrupted.body.jobId, 'restart returns the same unfinished job identity');
     A.eq((await job(replay.body.jobId)).outcome, 'interrupted', 'accepted work lost at restart is not advertised as still running');
     A.eq(count('hold-restart'), 1, 'restart never reruns interrupted paid work');
-    await api('POST', '/api/routing', plan);
+    await api('POST', '/api/routing', hint);
 
     const haltLive = await hook(trigger, 'halt-live', { token: 'hold-estop' });
     await until(() => held.has('hold-estop'), 'run before E-STOP');

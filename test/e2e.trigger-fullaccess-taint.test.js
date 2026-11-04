@@ -17,6 +17,7 @@ const path = require('path');
 const fs = require('fs');
 const Pipeline = require('../frontend/app/pipeline.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 
 const HOST = '127.0.0.1';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -67,17 +68,15 @@ function startMockOpenRouter() {
   });
 }
 
-function twoStagePlan() {
+function twoStageFloor() {
   const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
+  return floorOf({
     props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
             { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent', brief: 'Dig in.' },
             { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent', brief: 'Write it up.' },
             { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
   });
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-  return plan;
 }
 
 // every tool message the mock was handed, with the run's first user turn (so a run can be told apart)
@@ -115,8 +114,8 @@ function toolTurns(requests) {
       { agentId: 'writer-agent', name: 'WRITER', model: 'test/model', provider: 'openrouter', approvalMode: 'full' }
     ] });
     A.eq(roster.status, 200, 'both docks are set to Full Access');
-    A.eq((await api('/api/routing', 'POST', twoStagePlan())).status, 200, 'the two-stage floor deploys');
-    const lineId = Pipeline.lineOf(twoStagePlan(), 'research-agent');
+    const two = await publishFloor(fetchApi(B, H), twoStageFloor(), { label: 'the two-stage floor' });
+    const lineId = Pipeline.lineOf(two.plan, 'research-agent');
     const cw = await api('/api/routing/triggers', 'POST', { kind: 'webhook', lineId, name: 'Orders' });
     A.eq(cw.status, 200, 'a webhook trigger is created');
     const wid = cw.j.trigger.id, key = cw.j.secret;

@@ -4,6 +4,7 @@ const A = require('./_assert.js'), assert = require('node:assert/strict');
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http'), vm = require('node:vm');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const MODEL = 'reader-fixture';
 
 (async () => {
@@ -44,13 +45,11 @@ const MODEL = 'reader-fixture';
       workstreams: [{ id: 'general', history: [] }], activeId: 'general', generalId: 'general' });
     const roster = await api('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Reader agent', provider: 'custom', model: MODEL }] });
     assert.notEqual(roster.held, true, 'fixture roster persists after founding');
-    const plan = Pipeline.compileRoutingPlan({ props: [
+    const { plan, hint } = await publishFloor(fixture, floorOf({ props: [
       { id: 'in', t: 'intake', x: 0, y: 0, w: 1, h: 1 },
       { id: 'writer', t: 'bay', x: 3, y: 0, w: 1, h: 1, agentId: 'agent', role: 'WRITER' },
       { id: 'out', t: 'outbox', x: 6, y: 0, w: 1, h: 1 }
-    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) });
-    for (const bay of plan.bays.concat(plan.dockBays)) bay.objects = ['computer'];
-    await api('POST', '/api/routing', plan);
+    ], belts: [1, 2, 4, 5].map(x => ({ x, y: 0, dir: 'E' })) }), { label: 'the one-line floor' });
     await api('POST', '/api/dev/inbound', { chatId: 'reader-shared', text: '/talk agent' });
     for (const word of ['first', 'second']) {
       const delivery = await api('POST', '/api/dev/inbound', { chatId: 'reader-shared', text: 'TASK: Write the ' + word + ' reader result.' });
@@ -90,7 +89,7 @@ const MODEL = 'reader-fixture';
     await verify('after restart');
     A.eq(calls, 2, 'all reads and restart make no new generation call');
     A.eq(await reader.openJob('job-absent000000', 'deliverables'), false, 'a deleted exact job cannot claim a successful navigation');
-    await api('POST', '/api/routing', plan);
+    await api('POST', '/api/routing', hint);   // the page publishes its hint again: the restarted station still holds exactly this saved floor
     const sample = await api('POST', '/api/routing/sample', { line: plan.lines[0].lineId, text: 'Write the legacy sample result.' });
     assert.ok(sample.jobId, JSON.stringify(sample));
     A.eq(await reader.openByStream(sample.streamId, 'deliverables'), true, 'legacy unique sample stream still opens its durable job');

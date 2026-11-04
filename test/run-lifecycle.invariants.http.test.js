@@ -42,7 +42,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { allocatePort, allocatePorts } = require('./helpers/ports.js');
 const { sseQuery } = require('./_httpToken.js');
 const Phone = require('../relay/app/phone-client.js');
-const Pipeline = require('../frontend/app/pipeline.js');
+const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const HOST = '127.0.0.1';
 const V1KEY = 'rt-lifecycle-v1-key-0123456789abcdef0123456789abcdef';
@@ -187,13 +187,11 @@ async function setup(fx, lanPort, label) {
   const group = await groups({ op: 'create', members: ['gagent'], title: 'Run lifecycle group' });
   A.ok(group && group.id, label + ': a group session');
   const belt = (x, y, dir) => ({ x, y, dir });
-  const plan = Pipeline.compileRoutingPlan({
+  await publishFloor(fx, floorOf({
     props: [{ id: 'i', t: 'intake', x: 0, y: 0, w: 1, h: 1 }, { id: 'b1', t: 'bay', x: 4, y: 0, w: 1, h: 1, agentId: 'research-agent' },
       { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
-  });
-  for (const b of plan.bays.concat(plan.dockBays)) b.objects = ['computer'];
-  A.eq((await fx.json('POST', '/api/routing', plan)).status, 200, label + ': the two-stage line deploys');
+  }), { label: label + ': the two-stage line' });
   A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, label + ': Remote switched on');
   const pr = await fx.json('POST', '/api/remote/pair', { name: 'RL phone' });
   const key = await Phone.makeDeviceKey();
