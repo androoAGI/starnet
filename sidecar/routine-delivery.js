@@ -26,17 +26,18 @@
    that dies in between is asked again and sends nothing.
 
    A SESSION'S RETURN IS A ROW OF ITS OWN (turn identity, commit 10). A routine that hands its result back to the session it was
-   made in writes it there through TurnDelivery.write FIRST (strict, once per session and run, redacted), then asks the page to
-   fold it in (station.deliver, now carrying that row's rowId and turnId so the page's copy is keyed at once). A page that is away or
-   refuses leaves the row where it is: the retry finds it and sends the same identity, and a page that opens the session later reads
-   it from the station. A write the disk refuses is a failed delivery with no page command sent. Worker deliveries are not this path.
+   made in writes it there FIRST through deps.writeDelivery (index.js: TurnDelivery.write over the transcript store, the one writer
+   of a delivery row: strict, once per session and run, redacted), then asks the page to fold it in (station.deliver, now carrying
+   that row's rowId and turnId so the page's copy is keyed at once). A page that is away or refuses leaves the row where it is: the
+   retry finds it and sends the same identity, and a page that opens the session later reads it from the station. A write the disk
+   refuses is a failed delivery with no page command sent. Worker deliveries are not this path. A harness built by hand that supplies
+   no writeDelivery gets the page command alone, as before the row existed (index.js always supplies it).
 
    Pure: the clock (now) is injected like every store and gate. */
 'use strict';
 
 const { note: failNote, swallow } = require('./failopen.js');
 const TurnKinds = require('../frontend/app/turnkinds.js');
-const TurnDelivery = require('./turn-delivery.js');               // the one writer of a delivery row (a session's return goes through it first)
 const RoutineMedia = require('./routine-media.js');               // a chat-bound routine's delivery carries its files
 const RunOutcome = require('../frontend/app/runoutcome.js');      // a stopped fire is worded as a stop (typed-outcomes)
 const Publication = require('./channels/history-publication.js');
@@ -51,6 +52,8 @@ function makeRoutineDelivery(deps) {
   const redact = d.redact, runStore = d.runStore, egressReader = d.egressReader;
   const transcriptStore = d.transcriptStore, stationBridge = d.stationBridge;
   const now = d.now;
+  // the one writer of a delivery row, over the same transcript store (index.js: fields => TurnDelivery.write(transcriptStore, fields))
+  const writeDelivery = typeof d.writeDelivery === 'function' ? d.writeDelivery : null;
   const ledger = () => channelStore.ledger;
 
   // G7 pre-spend delivery/config proof. A scheduled model run must not spend when its configured destination is
@@ -318,16 +321,18 @@ function makeRoutineDelivery(deps) {
          refused, or the station restarted in between) finds that same row and sends its identity again; with no page connected
          the row is already in the station's transcript, and the page finds it the next time it opens the session. A write the
          disk refuses is a failed delivery with the page never asked, so the cron asks again later and nothing was marked done. */
-      const streamId = job.origin.streamId || job.origin.sessionId, sent = redact(text);
-      let row;
-      try {
-        row = TurnDelivery.write(transcriptStore, { streamId, agentId: job.agentId, runId: result.runId, text: sent,
-          ...(job.noAgent ? { taint: 'scheduled script output' } : {}) });   // a script's stdout is untrusted, and the host knows it; every other taint is not provable from the result
-      } catch (e) {
-        failNote('cron.session.write', e);
-        return { ok: false, error: 'The result could not be saved to the conversation it came from: ' + ((e && e.message) || e) };
+      const sent = redact(text);
+      let row = null;
+      if (typeof writeDelivery === 'function') {   // (typeof: a harness that slices this function names only the dependencies it supplies)
+        try {
+          row = writeDelivery({ streamId: job.origin.streamId || job.origin.sessionId, agentId: job.agentId, runId: result.runId, text: sent,
+            ...(job.noAgent ? { taint: 'scheduled script output' } : {}) });   // a script's stdout is untrusted, and the host knows it; every other taint is not provable from the result
+        } catch (e) {
+          failNote('cron.session.write', e);
+          return { ok: false, error: 'The result could not be saved to the conversation it came from: ' + ((e && e.message) || e) };
+        }
       }
-      const out = await stationBridge.request('station.deliver', { sessionId: job.origin.sessionId || job.origin.streamId, streamId: job.origin.streamId || job.origin.sessionId, sessionTitle: job.origin.sessionTitle || '', text: sent, prompt: job.prompt, runId: result.runId, agentId: job.agentId, ts: now(), rowId: row.rowId, turnId: row.turnId });
+      const out = await stationBridge.request('station.deliver', { sessionId: job.origin.sessionId || job.origin.streamId, streamId: job.origin.streamId || job.origin.sessionId, sessionTitle: job.origin.sessionTitle || '', text: sent, prompt: job.prompt, runId: result.runId, agentId: job.agentId, ts: now(), ...(row ? { rowId: row.rowId, turnId: row.turnId } : {}) });
       return out;
     }
     if (!targets.length) return { ok: true, skipped: true };

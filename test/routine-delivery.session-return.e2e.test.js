@@ -27,6 +27,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { sseQuery } = require('./_httpToken.js');
 const Kinds = require('../frontend/app/turnkinds.js');
 const { makeRoutineDelivery } = require('../sidecar/routine-delivery.js');
+const TurnDelivery = require('../sidecar/turn-delivery.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeSegmentedTranscriptIo } = require('../sidecar/transcript-history.js');
 
@@ -200,7 +201,7 @@ const deliveriesOf = body => rowsOf(body).filter(r => r.kind === 'delivery');
   const build = (store, answers) => {
     const asked = [];
     const delivery = makeRoutineDelivery({ channelStore: {}, channelOutbound: { provide() {} }, channelReach: () => ({ ok: false }), channelRegistry: { get: () => null },
-      redact: t => String(t).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]'), runStore: { list: () => [] }, egressReader: {}, transcriptStore: store,
+      redact: t => String(t).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]'), runStore: { list: () => [] }, egressReader: {}, transcriptStore: store, writeDelivery: fields => TurnDelivery.write(store, fields),
       stationBridge: { request: async (verb, args) => { asked.push({ verb, args: JSON.parse(JSON.stringify(args)) }); const a = answers.shift(); return typeof a === 'function' ? a() : a || { ok: true, result: { folded: true } }; } }, now: () => 5000 });
     return { deliver: delivery.deliverCronResult, asked };
   };

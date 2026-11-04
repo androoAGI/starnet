@@ -7622,7 +7622,8 @@ const routineDelivery = makeRoutineDelivery({
     return live && live.hub && typeof live.hub.historyContext === 'function'
       ? live.hub.historyContext(chatId) : disconnectedChannelHistory(channel, chatId);
   },
-  redact: redact, runStore: runStore, egressReader: egressReader, transcriptStore: transcriptStore, stationBridge: stationBridge, now: () => Date.now()
+  redact: redact, runStore: runStore, egressReader: egressReader, transcriptStore: transcriptStore, stationBridge: stationBridge, now: () => Date.now(),
+  writeDelivery: fields => TurnDelivery.write(transcriptStore, fields)   // a session's return is written here (strict, once per session and run) BEFORE the page is asked
 });
 const { deliverCronResult, cronPreflightConfig, cronDeliveryNote } = routineDelivery;
 
