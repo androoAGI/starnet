@@ -245,10 +245,25 @@
     else if (kind === 'delivery' || kind === 'routine') speaker = 'routine';
     return { kind, cell: MATRIX[cell] ? cell : 'local', speaker, legacy };
   }
+  // Who wrote a row: its own agent, else its run's agent; '' when neither is recorded.
+  function authorOf(row, ctx) {
+    if (row && typeof row.agentId === 'string' && row.agentId) return row.agentId;
+    const run = runOf(row, ctx);
+    return run && typeof run.agentId === 'string' ? run.agentId : '';
+  }
+  /* opts.forAgent names the STAGE that replays a stream other agents also wrote (a line stage reading its chat). A tool-call turn and a
+     tool result are their author's: replayed to another agent they arrive as THAT agent's own assistant turns and tell the provider it
+     made calls it never made (DESIGN 5.2). With no forAgent (a chat's own agent) every row's tool traffic is the reader's, as before;
+     an author that cannot be proved is not the stage. The message shaper asks this too, so a call that carried words keeps only its
+     words once its results are gone: a call is never left without its result, nor a result without its call. */
+  function foreignTools(row, opts, ctx) {
+    const reader = opts && typeof opts.forAgent === 'string' ? opts.forAgent : '';
+    return !!reader && authorOf(row, ctx) !== reader;
+  }
   function replayable(row, opts) {
     const o = opts || {}, c = o.ctx || {}, classification = classify(row, c), rule = MATRIX[classification.cell]['model-replay'];
     if (rule === true || rule === false) return rule;
-    if (rule === 'pairs') return o.shape === 'pairs';
+    if (rule === 'pairs') return o.shape === 'pairs' && !foreignTools(row, o, c);
     if (rule === 'own-stream') return !o.streamId || !row.streamId || o.streamId === row.streamId;
     if (rule === 'group') return o.group === true;
     if (rule === 'own-line') return !!o.line && row.line === o.line;
@@ -260,6 +275,6 @@
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
     QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
     KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind,
-    VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
+    VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, foreignTools, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
   };
 });
