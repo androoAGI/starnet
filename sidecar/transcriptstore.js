@@ -41,7 +41,7 @@
   const ATTACHMENT_TAINT = (Taint && Taint.ATTACHMENT_TAINT) || '';
   const storesExpansion = (Taint && Taint.rowStoresAttachmentText) || (() => false);
 
-  const SID_RE =/^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
+  const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
   const ROLES = new Set(['user', 'assistant', 'tool', 'system']);
