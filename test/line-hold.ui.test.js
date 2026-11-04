@@ -155,13 +155,14 @@ const tick = () => new Promise(r => setTimeout(r, 15));
   {
     const running = heldJob({ status: 'running', outcome: 'running', stop: null, error: '' }, { phase: 'intent', hold: null, revision: 5, activeDecision: null, decisions: [{ token: 'ui-done', revision: 1, fingerprint: 'f', action: 'approve', note: '', at: 5, state: 'complete' }] });
     const h = WW._resultHTML(line, running);
-    A.ok(h.includes('data-decision="stop"') && /Stops after the stage that is out/.test(text(h)) && !h.includes('data-decision="approve"'), 'a running resumed job offers STOP and nothing else to decide');
-    A.ok(!WW._resultHTML(line, Object.assign({}, running, { status: 'delivered', outcome: 'delivered', endedAt: 2, output: 'done' })).includes('data-decision="stop"'), 'a finished one does not');
+    A.ok(h.includes('data-act="stop-walk"') && /Stops after the stage that is out/.test(text(h)) && !h.includes('data-decision'), 'a running resumed job offers STOP and nothing else to decide');
+    A.ok(!WW._resultHTML(line, Object.assign({}, running, { status: 'delivered', outcome: 'delivered', endedAt: 2, output: 'done' })).includes('stop-walk'), 'a finished one does not');
     S.job = running; fetches.length = 0; S.deciding = null;
-    replyFor = url => /\/decision$/.test(url) ? { __status: 202, ok: true, stopRequested: true, running: true, job: running } : { ok: true, jobs: [], job: running };
-    WW._decide(running, 'stop');
+    replyFor = url => /\/stop$/.test(url) ? { __status: 202, ok: true, stopRequested: true, job: running } : { ok: true, jobs: [], job: running };
+    WW._stopWalk(running);
     for (let i = 0; i < 6; i++) await tick();
-    A.eq([posted().length, posted()[0].action, posted()[0].revision], [1, 'stop', 5], 'STOP posts the stop decision on the revision the job read');
+    const stops = fetches.filter(f => /\/stop$/.test(f.url));
+    A.eq([stops.length, stops[0].init.method, /\/api\/line-jobs\/job-0123456789ab\/stop$/.test(stops[0].url), posted().length], [1, 'POST', true, 0], 'STOP posts to the job stop route and is no decision');
   }
 
   /* ---- 5. the list, and nothing new ---- */

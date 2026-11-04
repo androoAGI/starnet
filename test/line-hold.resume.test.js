@@ -250,14 +250,5 @@ const decide = (owner, id, c, action, token, note) => owner.resume(id, { action,
     A.eq([late.code, rig.calls.length], [409, 3], 'a STOP decision on a job that is no longer out is refused (it is finished), buying nothing');
     rig.dispose();
   });
-  await allocated(async env => {
-    const { rig, id, owner } = await held(env, { wiring: AFTER }), c0 = cont(env, id);
-    let asked = null;
-    rig.beforeCall = () => { asked = decide(owner, id, cont(env, id), 'stop', 'tok-running-stop'); };   // the person presses STOP while the stage is out
-    await decide(owner, id, c0, 'approve', 'tok-1').done;
-    const job = get(env, id);
-    A.eq([asked.code, asked.stopRequested, job.status, job.outcome, JSON.parse(rig.world()).lineOutputs, job.continuation.attempts.length], [202, true, 'stopped', 'stopped', 0, 4], 'a STOP decision on a running walk is accepted (202) and the job ends STOPPED after the stage that was out, which is counted');
-    rig.dispose();
-  });
   A.report('line-hold.resume');
 })().catch(e => { console.error(e && e.stack || e); A.ok(false, 'threw: ' + (e && e.message)); A.report('line-hold.resume'); });

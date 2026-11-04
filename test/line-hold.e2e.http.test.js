@@ -114,6 +114,13 @@ const BLOCKED_REPLY = 'This is not safe to publish.\nVERDICT: blocked';
     A.eq(j.continuation.decisions.map(d => [d.action, d.state]), [['stop', 'complete']], 'as a claimed STOP decision');
     const del2 = await api('DELETE', '/api/line-jobs/' + stopId);
     A.eq([del2.status, paid()], [200, before2], 'a second DELETE changes nothing');
+    const stop2Id = await send('Write a post about the wind.');
+    const before2b = paid();
+    const postStop = await api('POST', '/api/line-jobs/' + stop2Id + '/stop', {});
+    j = await job(stop2Id);
+    A.eq([postStop.status, postStop.body.ok, j.status, j.stop.code, paid()], [200, true, 'stopped', 'stopped', before2b], 'POST …/stop is DELETE for a client that only posts: on a held job it is the STOP decision');
+    const stopDone = await api('POST', '/api/line-jobs/' + id + '/stop', {});
+    A.eq([stopDone.status, stopDone.body.stopRequested, (await job(id)).status, paid()], [200, false, 'delivered', before2b], 'on a finished job it asks for nothing and changes nothing');
 
     /* ---- SEND BACK twice: the note reaches the drafter, the pass count moves on, a second block is a SECOND hold on the same job,
        and the next SEND BACK goes round once more under the same cap until the reviewer approves and the publisher delivers ---- */

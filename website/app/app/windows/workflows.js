@@ -881,9 +881,20 @@ const WorkflowsWindow = (() => {
     const c = job.continuation;
     if (job.status !== 'running' || !c || (c.phase !== 'ready' && c.phase !== 'intent')) return '';
     const busy = !!(S.deciding && S.deciding.jobId === job.id), msg = S.heldMsg && S.heldMsg.jobId === job.id ? S.heldMsg : null;
-    return '<div class="wf-row"><button type="button" class="bb" data-act="decide" data-decision="stop"' + (busy ? ' disabled' : '') + '>' + (busy ? 'STOPPING…' : '■ STOP') + '</button>'
+    return '<div class="wf-row"><button type="button" class="bb" data-act="stop-walk"' + (busy ? ' disabled' : '') + '>' + (busy ? 'STOPPING…' : '■ STOP') + '</button>'
       + '<span class="wfw-note">Stops after the stage that is out. What already ran is counted, and nothing is delivered.</span></div>'
       + (msg ? '<p class="wfw-bad">✕ ' + esc(msg.text) + '</p>' : '');
+  }
+  function stopWalk(job) {
+    if (!job || !job.id || S.deciding) return;
+    S.deciding = { jobId: job.id, action: 'stop' }; S.heldMsg = null; sfx('click'); schedule();
+    return postJSON('/api/line-jobs/' + encodeURIComponent(job.id) + '/stop', {}).then(({ status, j }) => {
+      S.deciding = null;
+      if (j && j.job && S.job && S.job.id === job.id) S.job = j.job;
+      if (status === 200 || status === 202) { S.heldMsg = null; follow(job.id); }
+      else { sfx('bad'); S.heldMsg = { jobId: job.id, bad: true, text: (j && j.error) || ('the station refused (HTTP ' + status + ')') }; }
+      loadJobs(); schedule();
+    }, () => { S.deciding = null; S.heldMsg = { jobId: job.id, bad: true, text: 'the station could not be reached — E-STOP stops everything' }; schedule(); });
   }
   function decide(job, action, stored) {
     if (!job || !job.id || !job.continuation || S.deciding) return;
@@ -990,6 +1001,7 @@ const WorkflowsWindow = (() => {
     on('[data-act="stop"]', () => stop());
     on('[data-job]', n => { sfx('click'); showJob(n.dataset.job); });
     on('[data-act="decide"]', n => { if (S.job) decide(S.job, n.dataset.decision); });
+    on('[data-act="stop-walk"]', () => { if (S.job) stopWalk(S.job); });
     on('[data-act="decide-apply"]', () => {
       const c = S.job && S.job.continuation, d = c && c.decisions.find(x => x.token === c.activeDecision);
       if (d) decide(S.job, d.action, { action: d.action, token: d.token, revision: d.revision, note: d.note });
@@ -1137,6 +1149,6 @@ const WorkflowsWindow = (() => {
     schedule();
   };
   return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openJob, openOutbox, showJob, startLines,
-    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _decide: decide, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
+    _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _decide: decide, _stopWalk: stopWalk, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorkflowsWindow;

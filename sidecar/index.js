@@ -12174,7 +12174,7 @@ const GENERIC_CHANNEL_RX = {
 // LINE TRIGGERS (2026-09-23): the webhook ingress + per-trigger CRUD paths (declared before ROUTES reads them)
 const TRIGGER_HOOK_RX = /^\/api\/hooks\/(trg_[a-z0-9]{8,24})(?:\?.*)?$/;
 const TRIGGER_ID_RX = /^\/api\/routing\/triggers\/(trg_[a-z0-9]{8,24})(\/secret)?(?:\?.*)?$/;
-const LINE_JOB_RX = /^\/api\/line-jobs\/(job-[a-z0-9]{8,24})(\/note|\/decision)?(?:\?.*)?$/;   // WORKFLOWS: one job record (GET) / a change made because of it (POST …/note) / a person's word on a held job (POST …/decision)
+const LINE_JOB_RX = /^\/api\/line-jobs\/(job-[a-z0-9]{8,24})(\/note|\/decision|\/stop)?(?:\?.*)?$/;   // WORKFLOWS: one job record (GET) / a change made because of it (POST …/note) / a person's word on a held job (POST …/decision) / STOP (DELETE, or POST …/stop)
 const STEPTEST_RX = /^\/api\/routing\/steptest\/([A-Za-z0-9_-]{1,80})(?:\/(continue|rerun|rewind|stop|pause))?(?:\?.*)?$/;
 let stepTest = null;
 const TG_BOT_RX = {
@@ -14007,7 +14007,8 @@ function lineJobsAdvance(id, make, landed) {
    cost, a glance at what came out); GET /api/line-jobs/<id> — one whole record; POST /api/line-jobs/<id>/note {kind:'fix'|'putback'|
    'example', dockId, role, field, text, was, why} — what the Commander changed because of it. An unknown id is 404 {ok:false}.
    POST /api/line-jobs/<id>/decision {action:'approve'|'send_back'|'stop', token, revision, note?} — a PERSON's word on a job a work line
-   HELD at a reviewer's gate (routing/line-resume.js; DELETE on a held job is the STOP decision). 202 claimed and carried on, 200 a replay or
+   HELD at a reviewer's gate (routing/line-resume.js; DELETE on a held job, or POST …/stop, is the STOP decision; on a running job it stops
+   the walk after the stage that is out). 202 claimed and carried on, 200 a replay or
    a STOP, 409 refused (with the reason: another decision holds the checkpoint, or the floor, E-STOP, a limit or a file changed), 503 not
    confirmed durably. */
 function resumeBody(r) {
@@ -14026,14 +14027,17 @@ async function handleLineJobId(req, res, gm) {
   if (!job && lineJobsStorageIssue) return respondJson(res, 503, { ok: false, error: 'Line job storage could not be verified.', storage: lineJobsStorageStatus() });
   if (!job) return respondJson(res, 404, { ok: false, error: 'no such job' });
   if (req.method === 'GET' && !gm[2]) return respondJson(res, lineJobsStorageIssue ? 503 : 200, { ok: !lineJobsStorageIssue, storage: lineJobsStorageStatus(), job });
-  if (req.method === 'DELETE' && !gm[2] && job.status === 'held') {
+  // STOP: DELETE on the job, or POST …/stop (the same ask for a client that only posts: WORKFLOWS' STOP key on a running walk)
+  const stopAsk = (req.method === 'DELETE' && !gm[2]) || (req.method === 'POST' && gm[2] === '/stop');
+  if (stopAsk && req.method === 'POST') { try { await readBody(req, 1 << 12); } catch (e) { failNote('linejobs.stop.body', e); } }   // (the body of a stop says nothing)
+  if (stopAsk && job.status === 'held') {
     // STOP on a job waiting for a person is the STOP decision (line-hold lane, S4): the same claimed, exactly-once decision as the button's,
     // under a token of its own for this checkpoint, so a repeated DELETE answers the saved receipt and buys nothing
     const rev = job.continuation && job.continuation.revision;
     const r = lineResume.resume(id, { action: 'stop', token: 'delete-' + id + '-r' + rev, revision: rev, note: '' });
     return respondJson(res, r.code === 202 ? 200 : r.code, Object.assign({ stopRequested: !!r.ok }, resumeBody(r)));
   }
-  if (req.method === 'DELETE' && !gm[2]) {
+  if (stopAsk) {
     if (job.status !== 'running' && job.status !== 'paused') return respondJson(res, 200, { ok: true, stopRequested: false, job });
     try {
       if (!lineRunner.stop(id, 'user')) return respondJson(res, 409, { ok: false, error: 'This job has no live stop owner.', job });
