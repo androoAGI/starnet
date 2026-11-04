@@ -4,6 +4,7 @@
 const fs=require('fs'), os=require('os'), path=require('path');
 const A=require('./_assert.js');
 const Factory=require('../sidecar/channels/factory.js');
+const History=require('./helpers/channel-history.js');
 const {makeChannelStore}=require('../sidecar/channels/store.js');
 let Hub=require('../sidecar/channels/hub.js');
 if(process.env.CHANNEL_STATUS_CONTROL) {
@@ -25,7 +26,7 @@ if(process.env.CHANNEL_STATUS_CONTROL) {
       };
       if(kind === 'telegram') Object.assign(options,{roster:()=>[{agentId:'writer',name:'Writer',model:'stale-roster-model'}],
         setModel:(_id,value)=>{model=value;return {ok:true,model:value};}});
-      const hub=Hub.makeChannelHub(Factory.makeHubDeps(kind,{},options)); hubs.push(hub);
+      const hub=Hub.makeChannelHub(Factory.makeHubDeps(kind,{history:History.make(store).history},options)); hubs.push(hub);
       const send=text=>hub.onInbound({channel:kind,chatId:'42',chatType:'dm',userId:'owner',text,messageId:'m'+(++n),ts:1});
       await send('/status');
       A.ok(sends.at(-1).includes('(live-model)')&&!sends.at(-1).includes('stale-roster-model'),kind+': status names the live resolver model, including the bound bot without a roster surface');
