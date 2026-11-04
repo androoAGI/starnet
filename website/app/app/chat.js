@@ -3445,8 +3445,8 @@ const Chat = (() => {
     return rail;
   }
   // a clickable COMMS row for a file the agent produced — opens it via the sidecar's jailed /api/file route
-  function fileBlobUrl(title, agentId) {
-    const url = fileUrl(title, agentId);
+  function fileBlobUrl(title, agentId, projectRoot) {
+    const url = fileUrl(title, agentId, projectRoot);
     return fetch(url, { cache: 'no-store' }).then(r => {
       if (!r.ok) throw new Error('file HTTP ' + r.status);
       return r.blob();
@@ -3567,9 +3567,9 @@ const Chat = (() => {
   }
   // wire an image thumb in the transcript: click enlarges via the jailed /api/file route (fresh blob each
   // view — the thumbnail's own object URL was already revoked after its bitmap decoded).
-  function wireLightbox(a, rel, aid, name) {
+  function wireLightbox(a, rel, aid, name, projectRoot) {
     a.href = '#';
-    a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(() => fileBlobUrl(rel, aid), name, { revoke: true }); });
+    a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(() => fileBlobUrl(rel, aid, projectRoot), name, { revoke: true }); });
   }
 
   // ── "OPEN FOLDER" AFFORDANCE (Theme 4: outputs are findable) ──────────────────────────────────
@@ -3657,30 +3657,32 @@ const Chat = (() => {
     });
     return b;
   }
-  function deliverableLine(title, agentId) {
+  // a project file's address on disk: its project root + the relative path (openFile joins it the same way); any other path is itself
+  function inRoot(projectRoot, p) { return projectRoot && !/^([A-Za-z]:[\\/]|[\\/])/.test(String(p)) ? String(projectRoot).replace(/[\\/]+$/, '') + '/' + p : p; }
+  function deliverableLine(title, agentId, projectRoot) {
     noteDeliveryLanding();
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable');
     r.body.appendChild(document.createTextNode('▤ saved '));
     const a = document.createElement('a');
-    wireFileOpen(a, title, agentId);
+    wireFileOpen(a, title, agentId, projectRoot);
     a.textContent = String(title).split(/[\\/]/).pop() || title;   // show the filename, not the whole path
     a.title = title;                                               // full path on hover
     a.className = 'deliverable-link';
     r.body.appendChild(a);
-    r.body.appendChild(folderButton(agentId, title));             // reveal the exact saved location
-    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, title));
+    r.body.appendChild(folderButton(agentId, inRoot(projectRoot, title)));             // reveal the exact saved location
+    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, inRoot(projectRoot, title)));
     autoscroll();
   }
   // an image the agent generated (image_generate / the `studio` capability) — render it INLINE as a small
   // thumbnail (src = the sidecar's jailed /api/file viewer URL, served with an image content-type); clicking
   // opens the full image in a new tab. Built with DOM nodes (never innerHTML) so the title can't inject markup.
-  function imageDeliverableLine(title, agentId) {
+  function imageDeliverableLine(title, agentId, projectRoot) {
     noteDeliveryLanding();
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable'); r.d.classList.add('image');
     r.body.appendChild(document.createTextNode('▤ made '));
     const a = document.createElement('a');
     const shortName = String(title).split(/[\\/]/).pop() || title;
-    wireLightbox(a, title, agentId, shortName);   // click enlarges in-app (Esc / click-out / × to leave)
+    wireLightbox(a, title, agentId, shortName, projectRoot);   // click enlarges in-app (Esc / click-out / × to leave)
     a.className = 'deliverable-thumb';
     a.title = title;                                               // full path on hover
     const img = document.createElement('img');
@@ -3688,7 +3690,7 @@ const Chat = (() => {
     img.alt = shortName;
     a.appendChild(img);
     r.body.appendChild(a);
-    fileBlobUrl(title, agentId).then(u => {
+    fileBlobUrl(title, agentId, projectRoot).then(u => {
       img.src = u;
       // once the <img> has decoded (or failed) it no longer needs the object URL — the decoded bitmap
       // survives revocation, so the thumbnail keeps rendering. Revoke to avoid leaking one URL per image
@@ -3742,18 +3744,18 @@ const Chat = (() => {
   // (e.g. an .mkv/.avi the browser won't play), mirroring the reference harness's OpenMediaButton.
   // Always a real /api/file link (re-served with Range support), never the player's blob URL: a blob href
   // is dead on desktop (the Tauri window policy) and dies with the page.
-  function openFallback(parent, label, title, agentId) {
+  function openFallback(parent, label, title, agentId, projectRoot) {
     if (parent.querySelector('.media-fallback')) return;   // once
     const a = document.createElement('a');
     a.className = 'deliverable-link media-fallback';
-    wireFileOpen(a, title, agentId);
+    wireFileOpen(a, title, agentId, projectRoot);
     a.textContent = label; a.title = title;
     parent.appendChild(a);
   }
   // a media deliverable rendered INLINE as a seekable player. The src is the jailed /api/file route, which
   // now streams with HTTP Range so <video>/<audio> can seek without loading the whole file. preload=metadata
   // fetches just enough for a duration + scrubber. On a decode error we drop in an open-externally link.
-  function mediaPlayerLine(title, agentId, kind) {
+  function mediaPlayerLine(title, agentId, kind, projectRoot) {
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable'); r.d.classList.add(kind);
     const name = String(title).split(/[\\/]/).pop() || title;
     r.body.appendChild(document.createTextNode('▤ made '));
@@ -3762,16 +3764,16 @@ const Chat = (() => {
     const el = document.createElement(kind === 'audio' ? 'audio' : 'video');
     el.controls = true; el.preload = 'metadata'; el.className = 'deliverable-' + kind;
     let blobUrl = '';
-    el.addEventListener('error', () => openFallback(r.body, 'open ' + kind, title, agentId), { once: true });
+    el.addEventListener('error', () => openFallback(r.body, 'open ' + kind, title, agentId, projectRoot), { once: true });
     r.body.appendChild(el);
     // a <video>/<audio> keeps needing its object URL for the WHOLE row lifetime (seek/replay re-read it, and
     // the error fallback links to it), so we don't revoke on load here. But free any prior URL before we
     // replace it (defensive against a double-resolve leaking the first one) — the general revoke-before-
     // replace discipline every other createObjectURL site follows.
-    fileBlobUrl(title, agentId).then(u => {
+    fileBlobUrl(title, agentId, projectRoot).then(u => {
       if (blobUrl && blobUrl !== u) { try { URL.revokeObjectURL(blobUrl); } catch (_) {} }
       blobUrl = u; el.src = u;
-    }).catch(() => openFallback(r.body, 'open ' + kind, title, agentId));
+    }).catch(() => openFallback(r.body, 'open ' + kind, title, agentId, projectRoot));
     autoscroll();
   }
 
@@ -8409,9 +8411,19 @@ const Chat = (() => {
   }
   function replayDeliverableRow(d, agentId) {
     const mk = d.kind === 'file' ? mediaKindOf(d.title) : d.kind;   // the recorded kind IS the rendered kind (see onDeliverable)
-    if (mk === 'image') imageDeliverableLine(d.title, agentId);
-    else if (mk === 'video' || mk === 'audio') mediaPlayerLine(d.title, agentId, mk);
-    else deliverableLine(d.title, agentId);
+    if (mk === 'image') imageDeliverableLine(d.title, agentId, d.root);
+    else if (mk === 'video' || mk === 'audio') mediaPlayerLine(d.title, agentId, mk, d.root);
+    else deliverableLine(d.title, agentId, d.root);
+  }
+  /* A CANONICAL FILE ROW (turn identity, commit 10): the station's own record of a file a run wrote (kind 'deliverable', merged in with the
+     rest of the stream) draws its chip through the one adapter, in place. When this stream's ledger already holds that file (the chip the live
+     run drew, or an earlier replay), the ledger's copy draws it instead, and takes the row's workspace, project root and id so it opens the
+     right file; either way a file is one chip. The row's prose is never read: the path, media and owner are the adapter's. */
+  function replayFileRow(ws, row, agentId, teachOnly) {
+    const d = TurnMerge.deliverableOf(row);
+    if (!d) return;
+    const held = !!(ws && Workstreams.knownDeliverable(ws.id, d));   // true when the ledger holds the file; it then takes what this row knows
+    if (!teachOnly && !held) replayDeliverableRow(d, d.agentId || agentId);
   }
   function renderHistory(onlyTurns) {
     const h = onlyTurns || (activeWs ? activeWs.history : []);
@@ -8420,14 +8432,16 @@ const Chat = (() => {
     const delivs = onlyTurns ? [] : replayableDeliverables(activeWs);
     const delivAgent = (activeWs && activeWs.agentId) || 'agent';
     let di = 0;
+    if (activeWs) for (const m of h) if (m && m.kind === 'deliverable') replayFileRow(activeWs, m, delivAgent, true);   // a station file row teaches the ledger's copy of its file the workspace, root and id, before any chip is drawn
     // every recorded deliverable stamped at/before `ts` lands now (ts == null flushes the rest)
-    const flushDeliverablesBefore = (ts) => { while (di < delivs.length && (ts == null || (+delivs[di].t || 0) <= ts)) replayDeliverableRow(delivs[di++], delivAgent); };
+    const flushDeliverablesBefore = (ts) => { while (di < delivs.length && (ts == null || (+delivs[di].t || 0) <= ts)) { replayDeliverableRow(delivs[di], delivs[di].agentId || delivAgent); di++; } };
     try {
     for (const m of h) {
       if (m && m.truncated) {   // E3: the local history-cap marker — render it as a dim centered SYSTEM line (not a dropped record)
         if ((m.content || '').trim()) trimMarkerLine(m.content);
         continue;
       }
+      if (m && m.kind === 'deliverable') { replayFileRow(activeWs, m, delivAgent); continue; }   // the station's own row for a file a run wrote (a reload, a wiped cache, another device)
       // TIMESTAMP TRUTH (P0): pass the turn's STORED real time (m.ts), or `false` when a legacy turn carries none —
       // never `true` here (that would re-stamp replayed history with the current clock, the fabrication we're killing).
       const stamp = (m && m.ts != null) ? m.ts : false;
@@ -11440,7 +11454,7 @@ const Chat = (() => {
             }
             // the frozen 'deliverable' event carries no runId/time — synthesize from the live run + clock.
             // record the rendered media kind so a future history/replay surface can re-render the same way.
-            if (typeof Workstreams !== 'undefined') Workstreams.recordDeliverable(ws.id, { title: ev.title, kind: mk === 'file' ? ev.kind : mk, runId: Channels.runIdOf(ws.id), t: Date.now() });
+            if (typeof Workstreams !== 'undefined') Workstreams.recordDeliverable(ws.id, { title: ev.title, kind: mk === 'file' ? ev.kind : mk, runId: Channels.runIdOf(ws.id), t: Date.now(), agentId: ev.agentId !== (ws.agentId || 'agent') ? ev.agentId : undefined });   // a worker's file replays in the worker's own folder
             // POST-RUN DEDUPE: the recap card is the single artifact ledger. When the deliverable is ALREADY
             // visible in the on-screen transcript (inline row above + recap card below), the toast is a third
             // copy that also parks over the composer — suppress it. A BACKGROUND-stream deliverable isn't shown
