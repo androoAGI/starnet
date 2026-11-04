@@ -29,6 +29,7 @@ const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
 const { lineStation, seedSavedFloor, savePath, clone } = require('./helpers/saved-floor.js');
+const { heldWhy } = require('../sidecar/routing/saved-hold.js');
 
 const HOST = '127.0.0.1';
 const HELD_SAID = /^the saved floor is .+; routing is held until it is readable$/;
@@ -190,13 +191,20 @@ const frameOf = (r, name) => {
     A.ok(created.body && created.body.ok === true, 'a standing objective is created while the floor is held: ' + String(created.text).slice(0, 200));
     const loopId = created.body.loop.id;
     const loopRow = async () => ((await fx.json('GET', '/api/loops')).body.loops || []).find(l => l.id === loopId);
-    await sleep(11500);   // two driver ticks (5 s) and then some: the failure pause counts three
+    // the host's gate, for EVERY held status: the LOOPS window renders the same precheck the driver stands down on, so it needs no tick. The floor
+    // goes from one held state straight to the next (never through a good one), so no tick can land on a floor that routes.
+    for (const [label, spoil, status] of table) {
+      spoil();
+      const held = await loopRow();
+      A.ok(held && held.binding === 'precheck' && held.bindingDetail === heldWhy(status) && held.wouldFire === false, label + ': the loop is waiting, in the hold\'s words, never ready to fire — ' + JSON.stringify(held && { b: held.binding, d: held.bindingDetail, w: held.wouldFire }));
+    }
+    await sleep(11500);   // two driver ticks (5 s) and then some, on the last held state: the failure pause counts three
     let row = await loopRow();
     A.ok(row && !row.iterationCount && !row.failStreak && row.state === 'idle' && row.enabled !== false && !row.stopReason,
       'two ticks on a held floor: no iteration was taken, nothing failed, the loop is not paused — ' + JSON.stringify(row && { s: row.state, n: row.iterationCount, f: row.failStreak, e: row.enabled, why: row.stopReason, b: row.binding }));
     A.ok(row && row.binding === 'precheck' && HELD_SAID.test(row.bindingDetail || row.detail || ''), 'and the LOOPS window shows it waiting, in the hold\'s words, not ready to fire — ' + JSON.stringify(row && { b: row.binding, d: row.bindingDetail || row.detail }));
     A.eq(calls.length, mark2, 'the loop never reached the provider');
-    outside(good);
+    outside(good); try { fs.unlinkSync(primary + '.bak'); } catch (_) { /* only the absent row has one */ }
     let fired = null;
     for (let i = 0; i < 24 && !fired; i++) { await sleep(500); row = await loopRow(); if (row && row.iterationCount >= 1) fired = row; }
     A.ok(fired && !fired.failStreak && fired.enabled !== false, 'the file is back: the very next tick fires the loop, with no resume — ' + JSON.stringify(fired && { n: fired.iterationCount, f: fired.failStreak, s: fired.state }));
