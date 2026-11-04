@@ -68,7 +68,9 @@ const BUFFER_GATE = slice('if (((taskBrief || imageTask) || o.postconditions != 
 const POST = (() => {
   const a = CORE.indexOf('if (result && result.failureStage) execution.recordFailure(');
   const rewrite = CORE.indexOf("reason: taskQuestionAsked ? 'clarifying' : ((result && result.reason) || bufferedTaskEnd.reason),", a);
-  const b = CORE.indexOf('\n  } finally {', rewrite);
+  // the try body ends at its FIRST closer: since 7f7a2689a (private line-entry observation) a `} catch (error) {` precedes `} finally {`
+  const closers = ['\n  } catch (error) {', '\n  } finally {'].map(c => CORE.indexOf(c, rewrite)).filter(i => i > rewrite);
+  const b = closers.length ? Math.min(...closers) : -1;
   A.ok(a > 0 && rewrite > a && b > rewrite, 'fixture: runOnceCore holds the post-loop decisions, from the failure stage to the buffered end');
   return a > 0 && b > a ? CORE.slice(a, b) : '';
 })();
