@@ -7,6 +7,11 @@ const { createHash } = require('node:crypto');
 
 // A private snapshot boundary, not a second floor compiler. Reject values that
 // JSON would silently erase, and bound the walk before allocating its encoding.
+// One walk makes two things. `encoded` is the KEY-SORTED encoding: it is what identity and the exact hint
+// comparison are made of, so no key order can ever be authority. `data` is a frozen clone that keeps the
+// caller's OWN key order, because order is input to the compiler: WorldModel and Pipeline walk belts in
+// insertion order and plan.hash is taken over that order. A sorted copy (the old JSON.parse(encoded)) compiled
+// a different plan than the page that drew the floor, so no hint could ever match its own saved floor.
 function floorSnapshot(value) {
   let bytes = 0, nodes = 0;
   const seen = new Set();
@@ -15,39 +20,46 @@ function floorSnapshot(value) {
     if (bytes > 16 * 1024 * 1024) throw new Error('saved floor projection exceeds its byte bound');
     return s;
   }
+  // returns { e: the key-sorted encoding of v, c: a clone of v in v's own key order }
   function walk(v, depth) {
     if (++nodes > 500000 || depth > 48) throw new Error('saved floor projection exceeds its structural bound');
-    if (v === null || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))) return text(JSON.stringify(v));
-    if (typeof v === 'string') return text(JSON.stringify(v));
+    // -0 encodes as 0, so it clones as 0: data is always what JSON.parse(encoded) would have held
+    if (v === null || typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v))) return { e: text(JSON.stringify(v)), c: v === 0 ? 0 : v };
+    if (typeof v === 'string') return { e: text(JSON.stringify(v)), c: v };
     if (!v || typeof v !== 'object' || seen.has(v)) throw new Error('saved floor projection is not finite JSON');
     const proto = Object.getPrototypeOf(v);
     if (!Array.isArray(v) && proto !== Object.prototype && proto !== null) throw new Error('saved floor projection is not plain JSON');
     seen.add(v);
-    let encoded;
+    let encoded, clone;
     if (Array.isArray(v)) {
       const parts = [];
+      clone = [];
       for (let i = 0; i < v.length; i++) {
         if (!Object.prototype.hasOwnProperty.call(v, i)) throw new Error('saved floor projection contains a sparse array');
-        parts.push(walk(v[i], depth + 1));
+        const item = walk(v[i], depth + 1);
+        parts.push(item.e); clone.push(item.c);
       }
       encoded = text('[') + parts.join(text(',')) + text(']');
     } else {
-      const parts = [];
-      for (const key of Object.keys(v).sort()) {
+      const byKey = new Map();
+      clone = {};
+      for (const key of Object.keys(v)) {
         const descriptor = Object.getOwnPropertyDescriptor(v, key);
         if (!descriptor || !Object.prototype.hasOwnProperty.call(descriptor, 'value')) throw new Error('saved floor projection contains an accessor');
-        parts.push(text(JSON.stringify(key)) + text(':') + walk(descriptor.value, depth + 1));
+        const item = walk(descriptor.value, depth + 1);
+        byKey.set(key, text(JSON.stringify(key)) + text(':') + item.e);
+        // an own key even when it is named __proto__, exactly as JSON.parse made it
+        Object.defineProperty(clone, key, { value: item.c, enumerable: true, writable: true, configurable: true });
       }
-      encoded = text('{') + parts.join(text(',')) + text('}');
+      encoded = text('{') + Array.from(byKey.keys()).sort().map(key => byKey.get(key)).join(text(',')) + text('}');
     }
     seen.delete(v);
-    return encoded;
+    return { e: encoded, c: clone };
   }
-  const encoded = walk(value, 0);
+  const top = walk(value, 0), encoded = top.e;
   if (Buffer.byteLength(encoded, 'utf8') > 16 * 1024 * 1024) throw new Error('saved floor projection exceeds its byte bound');
-  const data = JSON.parse(encoded);
   function freeze(v) { if (v && typeof v === 'object') { for (const item of Object.values(v)) freeze(item); Object.freeze(v); } return v; }
-  return { encoded, data: freeze(data) };
+  return { encoded, data: freeze(top.c) };
 }
 
 function boundedFloorGeometry(doc) {
@@ -144,6 +156,34 @@ function makeSavedFloorProjection(read) {
   };
 }
 
+// PRIVATE/UNWIRED: a posted plan is only a comparison hint. JSON omits the
+// compiler's non-enumerable links, so callers must send that companion explicitly.
+// No posted field can install a plan or supply the saved identity in the reply.
+function makeSavedFloorHint(read) {
+  const project = makeSavedFloorProjection(read);
+  return function compareSavedFloorHint(rawHint) {
+    const saved = project(); // exactly one fresh primary-owner projection per comparison
+    const held = (status, reason) => Object.freeze({ version: 1, status, matched: false, routingOk: false,
+      sourceStatus: saved.status, reason, identity: null, revision: null, stamp: null });
+    if (saved.status !== 'ok') return held('unavailable', 'saved-floor-unavailable');
+    let hint, expected;
+    try {
+      hint = floorSnapshot(rawHint);
+      const h = hint.data;
+      if (!h || Array.isArray(h) || typeof h !== 'object' || Object.keys(h).length !== 3
+        || h.version !== 1 || !Object.prototype.hasOwnProperty.call(h, 'plan')
+        || !Object.prototype.hasOwnProperty.call(h, 'compilerLinks')
+        || !h.plan || typeof h.plan !== 'object' || Array.isArray(h.plan)) return held('pending', 'invalid-hint');
+      expected = floorSnapshot({ version: 1, plan: saved.plan, compilerLinks: saved.compilerLinks });
+    } catch (_) { return held('pending', 'invalid-hint'); }
+    if (hint.encoded !== expected.encoded) return held('pending', 'hint-mismatch');
+    return Object.freeze({ version: 1, status: saved.routingOk ? 'ok' : 'unroutable',
+      matched: saved.routingOk, routingOk: saved.routingOk, sourceStatus: 'ok',
+      reason: saved.routingOk ? null : 'saved-floor-unroutable', identity: saved.identity,
+      revision: saved.revision, stamp: saved.stamp });
+  };
+}
+
 function makeStationStore(o) {
   o = o || {};
   const model = o.worldModel || WorldModel;
@@ -190,4 +230,4 @@ function makeStationStore(o) {
   return { validateStationDoc, setStation, setSaveDoc, clearStation, hasStation, getStation, getRoutingPlan, bayObjects };
 }
 
-module.exports = { makeStationStore, makeSavedFloorProjection };
+module.exports = { makeStationStore, makeSavedFloorProjection, makeSavedFloorHint };
