@@ -90,6 +90,7 @@ function transport(st) {
     calls.push(call);
     if (t.down) throw new TypeError('Failed to fetch');
     if (t.gate && u.pathname === '/api/transcript/rows') await t.gate.promise;
+    if (t.gateGet && method === 'GET' && u.pathname === '/api/transcript') await t.gateGet.promise;
     if (t.status && u.pathname === '/api/transcript/rows') return answer(t.status, { error: 'down' });
     if (method === 'GET' && u.pathname === '/api/transcript') st.routes.serveTranscript({ url: u.pathname + u.search }, res);
     else if (method === 'POST' && u.pathname === '/api/transcript/rows') await st.routes.handleTranscriptRows({ body: init.body }, res);
@@ -179,7 +180,7 @@ const has = (W, name) => typeof W[name] === 'function';
 
 async function scenarios(root) {
   const env = await makeEnv(root);
-  const run = async (name, fn) => { env.tp.calls.length = 0; env.tp.gate = null; env.tp.down = false; env.tp.status = 0; try { await fn(); A.ok(true, root + ': ' + name); } catch (e) { A.ok(false, root + ': ' + name + ' — ' + String(e && e.stack || e).split('\n').slice(0, 5).join(' | ')); } };
+  const run = async (name, fn) => { env.tp.calls.length = 0; env.tp.gate = null; env.tp.gateGet = null; env.tp.down = false; env.tp.status = 0; try { await fn(); A.ok(true, root + ': ' + name); } catch (e) { A.ok(false, root + ': ' + name + ' — ' + String(e && e.stack || e).split('\n').slice(0, 5).join(' | ')); } };
   try {
     // ================================================================================================================
     await run('BEFORE any row is read: the rail tells the truth (count, preview, blank test), nothing is asked of the station', async () => {
@@ -387,6 +388,40 @@ async function scenarios(root) {
     });
 
     // ================================================================================================================
+    await run('a slow tick is never joined by a second (PollGate abandons a beat past its deadline and starts the next)', async () => {
+      const p = page(env); p.arm();
+      env.tp.gate = deferred();
+      const first = p.tick();
+      await flush();
+      const asked = env.tp.rowsCalls().length;
+      assert.equal(asked, 1, 'the first tick has its first read out (held at the station)');
+      assert.equal(await p.tick(), false, 'a second beat while one is out does nothing');
+      assert.equal(env.tp.rowsCalls().length, asked, 'and asks the station for nothing');
+      env.tp.gate.resolve(); env.tp.gate = null;
+      assert.equal(await first, true, 'the first tick finishes its work');
+      assert.equal(await p.tick(), true, 'and the pass goes on with the next');
+    });
+
+    // ================================================================================================================
+    await run('the local cap trims only a history that is whole', async () => {
+      const chat = fs.readFileSync(root + '/chat.js', 'utf8'), c = vm.createContext({ HISTORY_CAP: 3 });
+      vm.runInContext(A.fnBody(chat, 'function capHistory(ws)') + '\nthis.cap = capHistory;', c);
+      const rows = () => Array.from({ length: 6 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', content: 'row ' + i }));
+      const whole = { history: rows() }, packed = { history: rows(), historyRef: [{ $ref: '1,1' }] };
+      c.cap(whole); c.cap(packed);
+      assert.equal(whole.history.length, 4, '(control) a whole history is cut to the cap and marked'); assert.ok(whole.history[0].truncated);
+      assert.equal(packed.history.length, 6, 'a history with packed rows is not cut by a count of the few rows it holds'); assert.ok(!packed.history.some(r => r.truncated));
+    });
+
+    // ================================================================================================================
+    await run('the shipped files wire the pieces the lifted seam relies on', async () => {
+      const app = fs.readFileSync(root + '/app.js', 'utf8'), chat = fs.readFileSync(root + '/chat.js', 'utf8');
+      assert.match(A.fnBody(app, 'function resumeInto('), /Workstreams\.init\([\s\S]*armHistoryHydration\(\)/, 'a resumed station arms the idle pass once its sessions are in');
+      assert.match(chat, /Workstreams\.setHydrator\(ws => hydrateHistory\(ws, \{ windowMs: \d+ \}\)\)/, 'the store reads a purge\'s packed rows through chat.js\'s reader');
+      assert.match(chat, /hydrateHistory,? contextRef|getHistory, hydrateHistory/, 'chat.js hands the reader out (the idle pass, the writers and the commands call it)');
+    });
+
+    // ================================================================================================================
     await run('a silent station pauses the whole pass', async () => {
       const p = page(env); p.arm();
       env.tp.down = true;
@@ -433,6 +468,24 @@ async function scenarios(root) {
       const again = await p.api.hydrateHistory(ws);
       assert.equal(again.complete, true);
       deepEq(ws.history, env.original.open, 'the next read puts the rows back once, whole');
+    });
+
+    // ================================================================================================================
+    await run('an undo that puts a packed history back while the open-time read is out discards that read (the merge never lands on a session that is packed again)', async () => {
+      const p = page(env), W = p.W, ws = W.get('tail');
+      assert.ok(W.clearConversation('tail', { at: 5 }), 'the Commander clears a packed conversation: its packed form goes into the undo');
+      assert.equal(W.needsHydration(ws), false); assert.equal(ws.history.length, 0);
+      env.tp.gateGet = deferred();
+      const loading = p.load('tail');
+      await flush();
+      assert.equal(W.undoLast(), true); assert.equal(W.needsHydration(ws), true, 'the undo put the packed history back while the read was out');
+      const inline = ws.history.slice();
+      env.tp.gateGet.resolve(); env.tp.gateGet = null;
+      assert.equal(await loading, false, 'the late answer is not merged');
+      assert.ok(p.events().includes('history-stale-discarded'), 'the existing note (' + p.events() + ')');
+      assert.equal(W.needsHydration(ws), true); assert.deepEqual(ws.history, inline, 'the rows the session holds are exactly the ones the undo gave it: no station turn was merged beside the packed run');
+      assert.equal(p.persisted.length, 0, 'and nothing was saved over it');
+      assert.equal((await p.api.hydrateHistory(ws)).complete, true); deepEq(proj(ws.history.filter(r => r.rowId)), proj(env.original.tail.filter(r => r.rowId)), 'the next read puts the rows back once');
     });
 
     // ================================================================================================================

@@ -2105,7 +2105,7 @@ const Chat = (() => {
       let out;
       try { out = await HistoryRef.expand(ref, { streamId: ws.id, fetchRows }); }
       catch (_) { return { complete: false, stale: false, silent: true, refused: false, ids: new Set() }; }
-      if (Workstreams.get(ws.id) !== ws || ws.historyRef !== ref || !Workstreams.hydrate(ws, out.rows, { ref })) return { complete: false, stale: true, silent: false, refused: false, ids: new Set() };
+      if (Workstreams.get(ws.id) !== ws || !Workstreams.hydrate(ws, out.rows, { ref })) return { complete: false, stale: true, silent: false, refused: false, ids: new Set() };   // (hydrate refuses a read of a packed form the session no longer holds: cleared, undone, replaced)
       const left = new Set(out.unproven.concat(out.retracted, out.forgotten));
       return { complete: !ws.historyRef, stale: false, silent: saw.silent, refused: saw.refused, ids: new Set(HistoryRef.idsOf(ref).filter(id => !left.has(id))) };
     })();

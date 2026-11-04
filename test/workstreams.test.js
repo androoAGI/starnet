@@ -561,6 +561,10 @@ A.eq([W.get(recoveredOrder.id).lastRunOk, W.get(recoveredOrder.id).lastRunReason
   A.eq(W.latestVisibleMessage(all), null, 'a fully packed session names no newest message: it cannot know it');
   A.eq(W.latestVisibleMessage(tail), answered, 'an inline tail after the packed run IS provably the newest message');
   A.eq(W.latestVisibleMessage(head), null, 'an inline row BEFORE a packed run is never taken for the newest: a stale line is worse than none');
+  tail.history.splice(tail.history.indexOf(answered), 1);
+  A.eq(W.latestVisibleMessage(tail), null, 'a newest row the page has since dropped is not shown as the newest');
+  tail.history.push(answered);
+  A.eq(W.latestVisibleMessage(tail), answered, '(the same row put back is the newest again)');
   A.eq(W.latestVisibleMessage(W.get('plain')), answered, '(control) an ordinary session reads as it always did');
   all.history.push(ask);
   A.eq(W.latestVisibleMessage(all), ask, 'a row pushed since boot is after every packed row, so it is the newest');
@@ -593,6 +597,12 @@ A.eq([W.get(recoveredOrder.id).lastRunOk, W.get(recoveredOrder.id).lastRunReason
   A.eq(W.hydrate('tail', rows.concat([note, answered]), { ref }), true);
   A.eq(held.history, rows.concat([note, answered, ask]), 'the rows come back in place, the inline rows where they were, a row pushed meanwhile after them');
   A.eq([W.needsHydration('tail'), W.pendingHydration().includes('tail'), W.serialize().workstreams.includes(held)], [false, false, true], 'it is whole: no longer pending, handed out as the live record');
+  W.init(doc());
+  const dropper = W.get('tail'), dropperRef = dropper.historyRef;
+  dropper.history.splice(dropper.history.indexOf(note), 1);
+  W.hydrate('tail', rows.concat([note, answered]), { ref: dropperRef });
+  A.eq(dropper.history, rows.concat([answered]), 'an inline row the page dropped while the rows were out is not brought back by the read');
+  W.init(doc());
   const part = W.get('all'), partRef = part.historyRef;
   W.hydrate('all', [rows[0], rows[1], { $ref: '3' }], { ref: partRef });
   A.eq([part.history, W.needsHydration('all')], [[rows[0], rows[1]], true], 'a run the station could not return stays packed beside the rows that came back');
