@@ -45,7 +45,9 @@
 //       settle again is "skipped: did not re-settle", never a pass. P7 then judges itself: idleBudgetVerdict (proc-footprint.mjs)
 //       over its own row, main thread <= 15%, rAF callbacks per draw <= 1.25, 28-32 draws/s, crew settled, still share >= 95%;
 //       a contended or invalid window is "unjudged". Every phase records rafPerDraw (the page's, and the world's own) and the
-//       callbacks the pacer sent back undrawn (skippedFrames).
+//       callbacks the pacer sent back undrawn (skippedFrames), and timerLateMs: how late the still timers ran on this machine
+//       (the pacer measures it). A rafPerDraw over budget with timerLateMs near 15.6 on a 144/239 Hz panel is the machine's
+//       tick-late timer clock - a due change is then booked rAF for the last 3-4 vsyncs - not a booking that regressed.
 //       The flag's other half (LAZY ART) needs the page loaded with it: run twice, --idle-renderer off|on, with
 //       two --labels, and compare. Runs last.
 //
@@ -192,7 +194,7 @@ function pageState() {
   return { t: now, draws: p.draws, hasFocus: document.hasFocus(), visibilityState: document.visibilityState, vsyncMs, vsyncGaps: gaps.length,
     pace: { running: p.running, mode: p.mode, focused: p.focused, motion: p.motion, paceMs: p.paceMs, vsyncMs: p.vsyncMs, drawCostMs: p.drawCostMs, strained: p.strained, timerWait: p.timerWait,
       still: p.still, stillWhy: p.stillWhy, stillFrames: p.stillFrames, stillWhyCounts: p.stillWhyCounts || null,
-      skippedFrames: p.skippedFrames, dueDraws: p.dueDraws, dueLate: p.dueLate },   // a tree without the counters leaves them out (pacerWindow reads that as null)
+      skippedFrames: p.skippedFrames, dueDraws: p.dueDraws, dueLate: p.dueLate, timerLateMs: p.timerLateMs },   // a tree without the counters leaves them out (pacerWindow reads that as null)
     raf: { fired: r.fired || 0, booked: r.booked || 0, sampled: r.sampled || 0, sites: Object.assign({}, r.sites || {}) },
     camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale, rested: c.cineRested === true, crewSettled: typeof c.crewSettled === 'number' ? c.crewSettled : null } };
 }
@@ -452,6 +454,7 @@ async function runOnce(k) {
         // the pacer's own account of the window: rAF callbacks per draw (the page's, and the world's own = draws + skipped) and the
         // callbacks its pace check sent back undrawn; null on a tree that does not count them (see F.pacerWindow)
         rafPerDraw: pw ? pw.rafPerDraw : null, worldRafPerDraw: pw ? pw.worldRafPerDraw : null, skippedFrames: pw ? pw.skippedFrames : null, pacer: pw,
+        timerLateMs: Number.isFinite(b.s.pace.timerLateMs) ? b.s.pace.timerLateMs : null,   // the margin the still booking allowed for at the window's end (15.6 = the tick: unmeasured or late)
         vsyncHz: b.s.vsyncMs > 0 ? +(1000 / b.s.vsyncMs).toFixed(2) : null, worldVsyncHz: b.s.pace.vsyncMs > 0 ? +(1000 / b.s.pace.vsyncMs).toFixed(2) : null,
         mainBusyPct: +(100 * (b.m.TaskDuration - a.m.TaskDuration) / wallS).toFixed(2),
         scriptPct: +(100 * (b.m.ScriptDuration - a.m.ScriptDuration) / wallS).toFixed(2),
@@ -497,7 +500,7 @@ async function runOnce(k) {
       return Object.assign({ phase: name, label: v.label || name, valid: v.valid, invalidWhy: v.reasons, checksSkipped: v.skipped }, row);
     };
     const show = r => console.log('  ' + (r.phase + (r.cap != null ? '@' + r.capLabel : '')).padEnd(14) + (r.valid ? 'ok     ' : 'INVALID') + (r.contended ? ' CONTENDED' : '          ') +
-      ` draws ${r.drawsPerS}/s raf ${r.rafPerS}/s` + (r.rafPerDraw != null ? ` (${r.rafPerDraw}/draw` + (r.skippedFrames != null ? `, world ${r.worldRafPerDraw}, ${r.skippedFrames} skipped` : '') + ')' : '') + ` vsync ${r.vsyncHz}Hz main ${r.mainBusyPct}%` + (r.still ? ` still ${Math.round(r.still.share * 100)}%` + (r.still.share < 0.95 ? ' (' + Object.entries(r.still.why).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, n]) => k + ' ' + n).join(', ') + ')' : '') : '') +
+      ` draws ${r.drawsPerS}/s raf ${r.rafPerS}/s` + (r.rafPerDraw != null ? ` (${r.rafPerDraw}/draw` + (r.skippedFrames != null ? `, world ${r.worldRafPerDraw}, ${r.skippedFrames} skipped` : '') + ')' : '') + (r.timerLateMs != null ? ` timers<=${r.timerLateMs}ms` : '') + ` vsync ${r.vsyncHz}Hz main ${r.mainBusyPct}%` + (r.still ? ` still ${Math.round(r.still.share * 100)}%` + (r.still.share < 0.95 ? ' (' + Object.entries(r.still.why).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, n]) => k + ' ' + n).join(', ') + ')' : '') : '') +
       ` | cdp rend ${r.cdp.rendererPct}% gpu ${r.cdp.gpuPct}% brw ${r.cdp.browserPct}%` +
       (r.os && !r.os.error ? ` | os gpu3d ${r.os.gpu3dPct}% gpuDed ${r.os.gpuDedMB}MB side ${r.os.sidecarCpuPct}% ${r.os.sidecarPrivMB}MB` : r.os ? ' | os ' + r.os.error : '') +
       (r.valid ? '' : ' :: ' + r.invalidWhy.join('; ')));

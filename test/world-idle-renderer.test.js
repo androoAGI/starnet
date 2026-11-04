@@ -475,11 +475,15 @@ function loadProps() {
   A.ok(/const pw = F\.pacerWindow\(a\.s, b\.s\);/.test(ab) && /rafPerDraw: pw \? pw\.rafPerDraw : null, worldRafPerDraw: pw \? pw\.worldRafPerDraw : null, skippedFrames: pw \? pw\.skippedFrames : null/.test(ab),
     'every measured window records rafPerDraw (the page\'s and the world\'s own) and skippedFrames');
   A.ok(/\(\$\{r\.rafPerDraw\}\/draw/.test(ab) && /rafPerDraw: r => r\.rafPerDraw, worldRafPerDraw: r => r\.worldRafPerDraw/.test(ab), '...printed on each phase line and compared across runs');
+  // THE TIMER MARGIN (the 144/239 Hz review): how late the still timers run on this machine explains a rAF figure over budget - the
+  // page probe reads it from renderPace, the row keeps it, and the phase line prints it beside the rAF figure
+  A.ok(/dueLate: p\.dueLate, timerLateMs: p\.timerLateMs/.test(ab) && /timerLateMs: Number\.isFinite\(b\.s\.pace\.timerLateMs\) \? b\.s\.pace\.timerLateMs : null/.test(ab) && /timers<=\$\{r\.timerLateMs\}ms/.test(ab),
+    'the bench reads the still timers\' lateness (renderPace().timerLateMs), records it on every window and prints it on the phase line');
   // ...and the data path EXECUTED: the bench's own pageState() on a stub World that returns what renderPace() exports, through
   // pacerWindow. renderPace() itself must still export every counter the bench reads (a renamed one would read as undefined, and the
   // world's own rAF figure would silently turn into null)
   const renderPaceCode = A.fnBody(world, '  function renderPace(').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');   // comments out: a key is a name after "," or "{"
-  for (const k of ['draws', 'skippedFrames', 'dueDraws', 'dueLate']) A.ok(new RegExp('[,{]\\s*' + k + '\\s*[,:}]').test(renderPaceCode), 'renderPace() exports ' + k + ' as a key, which the bench reads');
+  for (const k of ['draws', 'skippedFrames', 'dueDraws', 'dueLate', 'timerLateMs']) A.ok(new RegExp('[,{]\\s*' + k + '\\s*[,:}]').test(renderPaceCode), 'renderPace() exports ' + k + ' as a key, which the bench reads');
   const pageStateSrc = A.fnBody(ab, 'function pageState(');
   const readPage = (pace, fired) => new Function('World', 'window', 'performance', 'document', pageStateSrc + '\nreturn pageState();')(
     { renderPace: () => pace, cameraDbg: () => ({ mode: 'manual', cineRested: true, crewSettled: 6, thresholdMs: 1000, scale: 1 }) },
@@ -490,6 +494,8 @@ function loadProps() {
     const w = F.pacerWindow(readPage(pace(1000, 7), 5000), readPage(pace(1900, 25), 6180));
     A.eq([w.draws, w.rafFired, w.rafPerDraw, w.skippedFrames, w.worldRafPerDraw, w.dueDraws], [900, 1180, 1.31, 18, 1.02, 450],
       'the bench\'s own pageState carries renderPace\'s counters and the rAF probe into pacerWindow: 900 draws, 1180 page callbacks, 18 of them skipped');
+    A.eq([readPage({ ...pace(10, 0), timerLateMs: 4.2 }, 10).pace.timerLateMs, readPage(pace(10, 0), 10).pace.timerLateMs], [4.2, undefined],
+      'the page probe carries renderPace\'s timerLateMs to the row (and leaves it out for a tree that has none)');
     const older = F.pacerWindow(readPage({ running: true, mode: 'still', draws: 10 }, 10), readPage({ running: true, mode: 'still', draws: 70 }, 190));
     A.eq([older.rafPerDraw, older.skippedFrames, older.worldRafPerDraw], [3, null, null], 'a tree whose renderPace has no counters reads the page-wide figure only (the base spin: 3 a draw)');
   }

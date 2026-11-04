@@ -13,7 +13,10 @@
         body with nothing over it, float dust, a static speech bubble, a planted body's sub-pixel breath, a cold belt) do
         not, and every clock the inner life gates on is either due in the verdict or exempt for a reason;
      5. the wait costs ONE rAF callback per draw (4f): stillBookAt books the vsync that draws, from a timer a Windows tick late
-        too, and the verdict books again from its own answer, so a due change a vsync or two out no longer spins rAF.
+        too, and the verdict books again from its own answer, so a due change a vsync or two out no longer spins rAF;
+     6. ...on every panel, not just 60 Hz (4g): the margin a timer is allowed to be late is MEASURED from the still timers
+        (the whole tick until they have been seen), so a clock on time costs one callback a draw at 144 and 239 Hz too, and a
+        clock a tick late still never costs a draw its vsync.
    The world is a browser IIFE: the pacer block, the verdict block and frame() are lifted out of the source and run in a vm
    sandbox on a fake vsync clock — behaviour, not prose. The prop / sky / sprite readouts the verdict reads are proven by
    test/render-still-readouts.test.js. */
@@ -34,7 +37,7 @@ const code = strip(world);
 // ---- the lifted source --------------------------------------------------------------------------------------------
 const pFrom = world.indexOf('  const PACE_VISIBLE_MS'), pTo = world.indexOf('  function renderPace()');
 const vFrom = world.indexOf('  /* STILL VERDICT'), vTo = world.indexOf('  // ---- end STILL VERDICT');
-A.ok(pFrom > 0 && pTo > pFrom && pTo - pFrom < 12000, 'world.js carries the RENDER PACING block before renderPace()');
+A.ok(pFrom > 0 && pTo > pFrom && pTo - pFrom < 16000, 'world.js carries the RENDER PACING block before renderPace()');   // a slicing sanity bound (+ THE TIMER MARGIN)
 A.ok(vFrom > pTo && vTo > vFrom && vTo - vFrom < 24000, 'world.js carries the STILL VERDICT block after renderPace()');
 const renderPaceSrc = A.fnBody(world, '  function renderPace()');
 const frameSrc = A.fnBody(code, 'function frame(now, force)');
@@ -76,24 +79,28 @@ function frameBody(now) { stillBegin(); scene.step(now); stillVerdict(now); }
 const EXPOSE = `
 this.W = { paceMs, scheduleFrame, paceWake, motionWake, userActive, cameraMoved, renderPace, stillBegin, stillVerdict, stillMove, noteDue, frame,
   noteDrawCost, resetBudget: () => { drawCostMs = 0; },
-  yieldToUi, stillBookAt, setBook: o => { if ('vsyncMs' in o) vsyncMs = o.vsyncMs; if ('stillDue' in o) stillDue = o.stillDue; if ('lastDrawnAt' in o) lastDrawnAt = o.lastDrawnAt; },
+  yieldToUi, stillBookAt, noteTimerLate: typeof noteTimerLate === 'function' ? noteTimerLate : null, setBook: o => { if ('vsyncMs' in o) vsyncMs = o.vsyncMs; if ('stillDue' in o) stillDue = o.stillDue; if ('lastDrawnAt' in o) lastDrawnAt = o.lastDrawnAt; },
   st: () => ({ stillNow, stillWhy, stillDue, paceTimer, inputAt, motionUntil, vsyncMs, stillFrames }),
   consts: { PACE_VISIBLE_MS, PACE_MOTION_MS, PACE_STILL_MS, PACE_MOTION_HOLD_MS, INPUT_HOLD_MS, BODY_CLOCKS } };`;
 
-// opts.timerLate: every setTimeout fires this many ms late (a Windows / WebView2 system tick is ~15.6 ms) ·
-// opts.pacer(src) / opts.verdict(src): rewrite the lifted pacer / verdict block (a mutation check: the old rule must fail) ·
-// opts.extra: more real world.js source (lifted functions + their stubs), run in the same sandbox
+// opts.timerLate: every setTimeout fires this many ms late (a Windows / WebView2 system tick is ~15.6 ms); a function of the wall
+// time at booking makes the lateness change mid-run · opts.timerTick: a quantised clock - a timer fires on the first system tick
+// (this many ms apart) at or after its time · opts.pacer(src) / opts.verdict(src): rewrite the lifted pacer / verdict block (a
+// mutation check: the old rule must fail) · opts.extra: more real world.js source (lifted functions + their stubs), run in the same sandbox
 function makeWorld(hz, opts) {
   opts = opts || {};
   const env = { now: 0, rafQ: [], timers: [], tid: 0, rafCalls: 0, draws: [], hz };
-  const P = 1000 / hz, late = opts.timerLate || 0;
+  const P = 1000 / hz, lateAt = typeof opts.timerLate === 'function' ? opts.timerLate : () => opts.timerLate || 0, tick = opts.timerTick || 0;
   const sb = {
     console, Map, Set, Math, Object, Infinity, NaN,
     document: { hasFocus: () => true },
     performance: { now: () => env.now },
     requestAnimationFrame: fn => { env.rafQ.push(fn); return env.rafQ.length + 1000; },
     cancelAnimationFrame: () => { env.rafQ.length = 0; },
-    setTimeout: (fn, ms) => { const id = ++env.tid; env.timers.push({ id, at: env.now + Math.max(0, ms) + late, fn }); return id; },
+    setTimeout: (fn, ms) => {
+      const id = ++env.tid, due = env.now + Math.max(0, ms);
+      env.timers.push({ id, at: tick ? Math.ceil(due / tick - 1e-9) * tick : due + lateAt(env.now), fn }); return id;
+    },
     clearTimeout: id => { env.timers = env.timers.filter(t => t.id !== id); },
   };
   vm.createContext(sb);
@@ -518,7 +525,8 @@ const rafRow = (lag, d, r) => lag + ' ms late, due +' + d + ': ' + r.perS + ' dr
     const r = rafRun(60, lag, d);
     A.ok(r.perS >= 59 && r.perS <= 61 && r.rafPerDraw <= 1.05 && r.dueLate === 0 && r.skipped <= 0.02 * r.n, '60 Hz, timers ' + lag + ' ms late, a change due +' + d + ' ms after every draw: 60 draws/s, one rAF each — ' + rafRow(lag, d, r));
   }
-  // 144 Hz: the last vsyncs before a due change still ride rAF (j = 3), never worse than the old lead window; the change lands on time
+  // 144 Hz: until the timers have been seen the last vsyncs before a due change ride rAF (j = 3 at most), never worse than the old lead
+  // window; the change lands on time. (This first second is the seed: 4g proves the margin then comes down to ONE rAF a draw.)
   for (const lag of [0, 4]) {
     const rows = [8, 15].concat(D).map(d => [d, rafRun(144, lag, d)]);
     const bad = rows.filter(([, r]) => !(r.dueLate === 0 && r.rafPerDraw <= 3.05 && r.perS >= 28));
@@ -612,6 +620,161 @@ const rafRow = (lag, d, r) => lag + ' ms late, due +' + d + ': ' + r.perS + ' dr
   A.ok(m2.rafPerDraw > 1.5, 'MUTATION CHECK — no verdict re-book: the stale booking is back, ~2 rAF per draw (' + rafRow(0, 30, m2) + ')');
   const m3 = stillRun(MUTE.old, 60, 15.6, 30);
   A.ok(m3.rafPerDraw > 1.5 || m3.dueLate > 0 || m3.perS < 29, 'MUTATION CHECK — the pre-10-21 rule (a timer 2 ms before the change) fails the same invariant (' + rafRow(15.6, 30, m3) + ')');
+}
+
+// ---- 4g. THE LATE-TIMER MARGIN IS MEASURED, NOT ASSUMED: one rAF per draw above 60 Hz too (idle renderer review) -------------
+// 4f proves one rAF per draw at 60 Hz, where a whole Windows tick (15.6 ms) is shorter than a vsync and the lead is one vsync. Above
+// 60 Hz the lead came from a constant: a due change was booked j = ceil((15.6 + 0.5) / vsync) vsyncs early whatever the timers really
+// did (144 Hz: 3, 239 Hz: 4), so the last j - 1 vsyncs before every due draw rode bare rAF callbacks - 3 to 4 a draw on the panels the
+// P7 budget line (rafPerDraw <= 1.25) is judged on - and 4f tested nothing above 144 Hz. The margin is now what the still timers have
+// really been late: the worst of the last TIMER_LATE_SAMPLES of them (clamped to the tick), and the whole tick until they have been seen.
+// THE CLASS: every panel x every timer lateness x every due distance. Once the timers have been seen:
+//   (a) a due change is drawn on its own vsync (the margin changes what a wait COSTS, never when anything is drawn);
+//   (b) the draw costs ONE rAF callback - or, when its vsync is within j of the last draw (a timer that late cannot be aimed there),
+//       the kD callbacks of the vsyncs it must ride, never more. j is what a timer `lag` late needs: ceil((lag + 0.5) / vsync).
+{
+  const SAMPLES = num('TIMER_LATE_SAMPLES'), TICK = num('STILL_TIMER_LATE_MS');
+  const C = makeWorld(60).W.consts;
+  // (100, not 75 or 90: there the 30/s tick or the visible pace falls EXACTLY on a vsync, and frame()'s strict compare decides it by float noise)
+  const HZ = [60, 100, 120, 144, 240], LAGS = [0, 4, TICK], DS = [20, 26, 30, 100, 400];
+  for (let d = 1; d <= 70; d += 3) DS.push(d);
+  // what frame() and the booking owe a due change d ms after every draw, per panel: kT = the vsync the 30/s tick draws on, kD = the
+  // vsync a change d out draws on (never before the visible pace), j = the vsyncs a timer `lag` late (woken 0.5 ms past its vsync) needs.
+  // A floor that has never booked a timer - every wait within jSeed vsyncs of its draw rides rAF - has nothing to measure with and
+  // keeps the tick as its margin (kD callbacks a draw, as before); any other floor learns the clock and pays one.
+  const owed = (hz, lag, d) => {
+    const P = 1000 / hz, slack = Math.max(1, Math.min(P, 17) / 2);
+    const kT = Math.max(1, Math.ceil((C.PACE_STILL_MS - slack) / P - 1e-9)), kD = Math.max(1, Math.ceil(Math.max(d, C.PACE_VISIBLE_MS - slack) / P - 1e-9));
+    const j = Math.max(1, Math.ceil((lag + 0.5) / P - 1e-9)), jSeed = Math.max(1, Math.ceil((TICK + 0.5) / P - 1e-9)), due = kD <= kT;
+    return { P, kT, kD, j, jSeed, due, callbacks: due && kD <= jSeed ? kD : 1 };
+  };
+  // one run: 3 s for the margin to settle (more than TIMER_LATE_SAMPLES timers), then 3 s measured
+  const settled = (hz, lag, d, opts) => {
+    const w = makeWorld(hz, Object.assign({ timerLate: lag }, opts || {}));
+    w.sb.agent = body(); dueScene(w, d);
+    w.W.frame(0); w.runUntil(3000);
+    const i0 = w.env.draws.length - 1, r0 = w.env.rafCalls;
+    w.runUntil(6000);
+    const draws = w.env.draws.slice(i0), n = draws.length - 1;
+    return { w, n, ivs: draws.slice(1).map((t, i) => t - draws[i]), rafPerDraw: (w.env.rafCalls - r0) / n };
+  };
+  A.ok(SAMPLES >= 16 && SAMPLES <= 64 && TICK === 15.6, 'the margin is the worst of the last ' + SAMPLES + ' still timers, and at most one Windows tick (' + TICK + ' ms)');
+  const rows = [];
+  for (const hz of HZ) for (const lag of LAGS) for (const d of DS) rows.push([hz, lag, d, owed(hz, lag, d), settled(hz, lag, d)]);
+  const fmt = ([hz, lag, d, o, r]) => hz + ' Hz, timers ' + lag + ' ms late, due +' + d + ': ' + r.rafPerDraw.toFixed(2) + ' rAF/draw (owed ' + o.callbacks + ')';
+  // (b) THE INVARIANT, RED on a constant margin: one callback per draw wherever a timer can be aimed at the draw's own vsync
+  const heavy = rows.filter(([, , , o, r]) => !(r.rafPerDraw <= o.callbacks * 1.05 + 0.02));
+  A.ok(!heavy.length, 'EVERY panel (60-240 Hz) x timer lateness (0, 4, 15.6 ms) x due distance (+1..+400 ms): a draw costs ONE rAF callback, or the kD it must ride when no timer has ever been aimable'
+    + ' - ' + rows.length + ' runs' + (heavy.length ? ' - over: ' + heavy.length + ', e.g. ' + heavy.slice(0, 3).map(fmt).join('; ') : ''));
+  const worst = hz => Math.max(...rows.filter(([h, l, d, o]) => h === hz && l === 0 && o.due && o.callbacks === 1).map(([, , , , r]) => r.rafPerDraw));
+  A.ok(HZ.every(hz => worst(hz) <= 1.05), '...so with timers on time the 30/s floor with a change due +20..+70 ms reads ' + HZ.map(hz => hz + ' Hz ' + worst(hz).toFixed(2)).join(', ') + ' rAF per draw (the P7 line wants <= 1.25)');
+  // (a) nothing is drawn late for it: every interval between draws is the vsync the change is due on (the tick-only draws too, on time timers)
+  const late = rows.filter(([, lag, , o, r]) => (o.due || lag === 0) && !r.ivs.every(iv => Math.abs(iv - (o.due ? o.kD : o.kT) * o.P) < 0.01));
+  A.ok(!late.length, '...and every change is still drawn on its own vsync (no interval but kD vsyncs)' + (late.length ? ' - late: ' + late.length + ', e.g. ' + late.slice(0, 3).map(fmt).join('; ') : ''));
+  A.ok(rows.every(([, , , , r]) => r.n >= 25), '...a station that draws (>= 8 draws a second) in every one of those runs');
+
+  // THE SEED: before any timer has been seen the whole tick is assumed, so a timer a tick late costs no draw its vsync from the first
+  // draw on - the margin is the worst case until the evidence is in
+  for (const hz of [120, 144, 240]) for (const d of [20, 30]) {
+    const o = owed(hz, TICK, d), w = makeWorld(hz, { timerLate: TICK });
+    w.sb.agent = body(); dueScene(w, d); w.W.frame(0); w.runUntil(500);
+    const ivs = w.env.draws.slice(1).map((t, i) => t - w.env.draws[i]).slice(3), rp = w.W.renderPace();   // (not the first three: the vsync is still being learned)
+    A.ok(ivs.length >= 10 && ivs.every(iv => Math.abs(iv - o.kD * o.P) < 0.01) && rp.timerSamples < SAMPLES && rp.timerLateMs === TICK,
+      hz + ' Hz, timers a whole tick late from the first draw, due +' + d + ': the first ' + ivs.length + ' changes land on their vsync (the margin still ' + rp.timerLateMs + ' ms after ' + rp.timerSamples + ' timers)');
+  }
+
+  // THE FOLLOW: a clock that gets worse is believed at once (one draw in flight pays for it, none after); one that gets better only once
+  // the worst timers have turned over - the margin is a window, not a mood
+  {
+    const hz = 240, d = 30, o = owed(hz, 0, d);
+    const worse = makeWorld(hz, { timerLate: t => (t < 3000 ? 0 : TICK) });
+    worse.sb.agent = body(); dueScene(worse, d); worse.W.frame(0); worse.runUntil(3000);
+    const mid = worse.W.renderPace().timerLateMs, i0 = worse.env.draws.length - 1;
+    worse.runUntil(6000);
+    const draws = worse.env.draws.slice(i0), lateDraws = draws.slice(1).filter((t, i) => Math.abs(t - draws[i] - o.kD * o.P) > 0.01).length;
+    A.ok(mid < 1 && lateDraws <= 1 && worse.W.renderPace().timerLateMs === TICK,
+      '240 Hz, timers on time and then a whole tick late: the margin goes from ' + mid + ' to ' + worse.W.renderPace().timerLateMs + ' ms at the first late timer - ' + lateDraws + ' draw late, none after');
+    const better = makeWorld(hz, { timerLate: t => (t < 3000 ? TICK : 0) });
+    better.sb.agent = body(); dueScene(better, d); better.W.frame(0); better.runUntil(3300);
+    const soon = better.W.renderPace().timerLateMs;
+    better.runUntil(7000);
+    A.ok(soon === TICK && better.W.renderPace().timerLateMs === 0, '240 Hz, timers a tick late and then on time: still ' + soon + ' ms 0.3 s later (trusted only once the late ones have turned over), ' + better.W.renderPace().timerLateMs + ' ms in the end');
+  }
+  // ...a stall is not a clock: one timer 250 ms late (the main thread was busy) cannot push the margin past the tick, and the window forgets it
+  {
+    const w = makeWorld(240, { timerLate: t => (t >= 3000 && t < 3040 ? 250 : 0) });
+    w.sb.agent = body(); dueScene(w, 30); w.W.frame(0); w.runUntil(3400);
+    const during = w.W.renderPace().timerLateMs;
+    w.runUntil(6000);
+    A.ok(during === TICK && w.W.renderPace().timerLateMs === 0, 'one timer 250 ms late (a stall) reads as one tick (' + during + ' ms), never more, and is forgotten after ' + SAMPLES + ' timers (' + w.W.renderPace().timerLateMs + ' ms)');
+  }
+  // ...and what a timer can report is read defensively: early (a delay the browser rounds down) is on time, an unreadable lateness is
+  // the worst case, never a good one
+  {
+    const w = makeWorld(240).W, margin = () => w.renderPace().timerLateMs;
+    A.ok(typeof w.noteTimerLate === 'function', 'the pacer takes a still timer\'s lateness through noteTimerLate');
+    if (typeof w.noteTimerLate === 'function') {
+      for (let i = 0; i < SAMPLES; i++) w.noteTimerLate(0);
+      const quiet = margin();
+      w.noteTimerLate(-0.7); const early = margin();
+      w.noteTimerLate(NaN); const nan = margin();
+      for (let i = 0; i < SAMPLES; i++) w.noteTimerLate(1.25);
+      const mid = margin();
+      w.noteTimerLate(Infinity); const inf = margin();
+      A.eq([quiet, early, nan, mid, inf], [0, 0, TICK, 1.3, TICK], 'a timer reports its lateness defensively: early reads 0, an unreadable value or Infinity reads the whole tick (margin ' + [quiet, early, nan, mid, inf].join(', ') + ')');
+    }
+  }
+  // a quantised clock (Windows without a high-resolution timer: a timer fires on the next 15.625 ms system tick, so it is late by anything
+  // from 0 to a tick, unpredictably): the margin is the whole tick, nothing is drawn late - before or after the margin has settled - and
+  // the cost is no worse than the constant it replaces
+  for (const hz of [60, 120, 144, 240]) for (const d of [20, 26, 30, 55]) {
+    const o = owed(hz, TICK, d), w = makeWorld(hz, { timerTick: 15.625 });
+    w.sb.agent = body(); dueScene(w, d); w.W.frame(0); w.runUntil(6000);
+    const ivs = w.env.draws.slice(1).map((t, i) => t - w.env.draws[i]).slice(3), rp = w.W.renderPace(), perDraw = w.env.rafCalls / w.env.draws.length, most = o.due ? Math.min(o.kD, o.j) : 1;
+    A.ok((!o.due || ivs.every(iv => Math.abs(iv - o.kD * o.P) < 0.01)) && rp.timerLateMs >= 12 && perDraw <= most * 1.05 + 0.02,
+      hz + ' Hz, a 15.625 ms quantised timer clock, due +' + d + ': every change on its vsync, the margin ' + rp.timerLateMs + ' ms, ' + perDraw.toFixed(2) + ' rAF/draw (at most ' + most + ')');
+  }
+
+  // THE READOUT the bench prints beside the P7 verdict: the margin in use and how many timers it has seen
+  {
+    const w = makeWorld(240, { timerLate: 4 }); w.sb.agent = body(); dueScene(w, 30);
+    const rp0 = w.W.renderPace();
+    w.W.frame(0); w.runUntil(4000);
+    const rp = w.W.renderPace();
+    A.ok(rp0.timerLateMs === TICK && rp0.timerSamples === 0 && rp.timerLateMs === 4 && rp.timerSamples >= SAMPLES,
+      "renderPace() reads the margin in use (timerLateMs: " + rp0.timerLateMs + ' -> ' + rp.timerLateMs + ') and the timers it has seen (timerSamples: ' + rp0.timerSamples + ' -> ' + rp.timerSamples + ')');
+  }
+
+  // THE MARGIN CARRIES OVER: a floor whose waits all ride rAF (a change due within jSeed vsyncs of every draw: 240 Hz, +8 ms) books no
+  // timer, so it cannot measure the clock - and a probe armed beside the rAF chain would read it with the thread kept awake. But the
+  // station that has been quiet first (the app's day: boot, then the 30/s floor) has measured it, and keeps what it learned
+  {
+    const run = (dAt, ms) => {
+      const w = makeWorld(240, { timerLate: 0 }); w.sb.agent = body();
+      w.sb.scene = { step(now) { w.env.draws.push(now); w.W.noteDue(now + dAt(now), now); } };
+      w.W.frame(0); w.runUntil(ms[0]);
+      const i0 = w.env.draws.length - 1, r0 = w.env.rafCalls;
+      w.runUntil(ms[1]);
+      return { w, rafPerDraw: (w.env.rafCalls - r0) / (w.env.draws.length - 1 - i0), rp: w.W.renderPace() };
+    };
+    const quietFirst = run(now => (now < 3000 ? 400 : 8), [4000, 6000]), fresh = run(() => 8, [4000, 6000]);
+    A.ok(quietFirst.rafPerDraw <= 1.05 && quietFirst.rp.timerLateMs === 0, '240 Hz, quiet for 3 s and then a change due +8 ms after every draw: the margin it learned is kept (' + quietFirst.rp.timerLateMs + ' ms), ' + quietFirst.rafPerDraw.toFixed(2) + ' rAF per draw');
+    A.ok(fresh.rafPerDraw > 3.5 && fresh.rp.timerLateMs === TICK && fresh.rp.timerSamples === 0, '...while a floor that never booked a timer keeps the tick (' + fresh.rp.timerLateMs + ' ms, ' + fresh.rp.timerSamples + ' timers seen): the 4 vsyncs ride rAF as before (' + fresh.rafPerDraw.toFixed(2) + ' a draw)');
+  }
+
+  // MUTATION CHECKS: the pre-fix rule (a constant margin) and a margin that starts at zero are both caught
+  const CONST_MARGIN = src => src.replace('(timerLateMax + TICK_AFTER_VSYNC_MS)', '(STILL_TIMER_LATE_MS + TICK_AFTER_VSYNC_MS)');
+  const ZERO_SEED = src => src.replace('.fill(STILL_TIMER_LATE_MS)', '.fill(0)');
+  const pacerSrc = world.slice(pFrom, pTo);
+  A.ok(CONST_MARGIN(pacerSrc) !== pacerSrc && ZERO_SEED(pacerSrc) !== pacerSrc, '(the mutation checks find the margin in stillBookAt and its starting window)');
+  const m1 = settled(240, 0, 26, { pacer: CONST_MARGIN });
+  A.ok(m1.rafPerDraw > 3.5, 'MUTATION CHECK - the constant margin (the rule before this fix), 240 Hz, timers on time, a change due +26 ms: ' + m1.rafPerDraw.toFixed(2) + ' rAF per draw (the invariant above wants 1)');
+  {
+    const o = owed(240, TICK, 30), w = makeWorld(240, { timerLate: TICK, pacer: ZERO_SEED });
+    w.sb.agent = body(); dueScene(w, 30); w.W.frame(0); w.runUntil(1000);
+    const lateOnes = w.env.draws.slice(1).filter((t, i) => Math.abs(t - w.env.draws[i] - o.kD * o.P) > 0.01).length;
+    A.ok(lateOnes >= 1, 'MUTATION CHECK - a margin that starts at zero: the first timers, a tick late, cost ' + lateOnes + ' draw(s) their vsync');
+  }
 }
 
 // ---- 4e. the final fixes' wakes, through the real pacer: a camera cut from a timer, a layout edit, start stamps ------------

@@ -1796,15 +1796,32 @@ const World = (() => {
   // STILL state: the last verdict (still?), why not (the first motion source it found), the next known change, input stamp,
   // and when a booked still timer fires (the verdict re-books)
   let stillNow = false, stillWhy = 'boot', stillDue = Infinity, inputAt = -Infinity, paceTimerAt = 0, stillKick = false;
-  /* THE STILL BOOKING (Andrew: exactly 30/s while still; a due change on its own vsync). Windows (WebView2) timers fire up
+  /* THE STILL BOOKING (Andrew: exactly 30/s while still; a due change on its own vsync). Windows (WebView2) timers can fire up
      to a whole ~15.6 ms system tick late (STILL_TIMER_LATE_MS), so a timer is never aimed AT a draw: it wakes a hair
      (TICK_AFTER_VSYNC_MS) after a vsync and ONE rAF lands the draw. stillBookAt counts vsyncs from the last draw: kT is where
      frame()'s own rule (drawSlackMs: the vsync NEAREST the pace) draws the 30/s tick, kD where a due change draws (stillDue, or
      the visible pace once due). Tick only: the timer wakes at kT - 1. A change due first (kD <= kT): j vsyncs before kD, j =
-     what a timer a tick late needs to still land it (1 at 60 Hz; above it the last vsyncs ride rAF, as the old DUE LEAD did).
-     A past aim, or none left (kD <= j), is one bare rAF now. So a still draw costs one callback, never one per vsync it waited
-     out; stillVerdict re-books from the FRESH verdict (frame() books first, from the previous one). */
-  const STILL_TIMER_LATE_MS = 15.6, TICK_AFTER_VSYNC_MS = 0.5;
+     what the timers have really been late needs to still land it (1 whenever they are on time, on any panel; a clock a whole
+     tick late: 1 at 60 Hz, and above it the last vsyncs ride rAF). A past aim, or none left (kD <= j), is one bare rAF now. So a
+     still draw costs one callback, never one per vsync it waited out; stillVerdict re-books from the FRESH verdict (frame() books
+     first, from the previous one).
+     THE TIMER MARGIN (idle renderer review): j came from the whole tick whatever the timers did, so a 144 Hz panel rode 3
+     callbacks and a 239 Hz one 4 for every due draw (P7's rafPerDraw <= 1.25 could not pass there). Each still booking's own
+     timer now reports how late it fired (noteTimerLate); the margin is the worst of the last TIMER_LATE_SAMPLES, never more than
+     the tick, and it starts AT the tick, so nothing is drawn late before the timers have been seen. A clock that gets worse is
+     believed by its first late timer (one draw in flight pays); one that gets better, once the late ones have turned over.
+     Only a booked timer measures: a probe armed beside a bare-rAF wait would read the clock while that rAF chain keeps the thread
+     awake (a due timer then runs at the next wake, whatever the tick does) and under-read it. So a floor whose every wait rides
+     rAF (a change due within j vsyncs of each draw) keeps the margin it has - the tick, until a quieter draw has taught it.
+     renderPace: timerLateMs (the margin in use), timerSamples (the timers it has seen). */
+  const STILL_TIMER_LATE_MS = 15.6, TICK_AFTER_VSYNC_MS = 0.5, TIMER_LATE_SAMPLES = 32;
+  const timerLate = new Array(TIMER_LATE_SAMPLES).fill(STILL_TIMER_LATE_MS);
+  let timerLateAt = 0, timerLateMax = STILL_TIMER_LATE_MS, timerSamples = 0;
+  function noteTimerLate(ms) {
+    timerLate[timerLateAt] = ms >= 0 ? Math.min(STILL_TIMER_LATE_MS, ms) : ms < 0 ? 0 : STILL_TIMER_LATE_MS;   // early: on time · unreadable: the worst case
+    timerLateAt = (timerLateAt + 1) % TIMER_LATE_SAMPLES; timerSamples++;
+    timerLateMax = Math.max.apply(null, timerLate);
+  }
   /* dueWatch: the change the last still verdict waits on; the draw that lands it records how late it came (renderPace: dueDraws,
      dueLate — later than a vsync + 1 ms — dueLatMaxMs, dueLatAvgMs). skippedFrames: callbacks the pace check sent back undrawn. */
   let dueWatch = Infinity, dueDraws = 0, dueLate = 0, dueLatSum = 0, dueLatMax = 0, skippedFrames = 0;
@@ -1820,7 +1837,7 @@ const World = (() => {
     let aimK = kT - 1;
     if (stillDue < Infinity) {
       const kD = Math.max(1, Math.ceil(Math.max(stillDue - lastDrawnAt, Math.max(PACE_VISIBLE_MS, budgetMs()) - slack) / P - 1e-9));
-      if (kD <= kT) aimK = kD - Math.max(1, Math.ceil((STILL_TIMER_LATE_MS + TICK_AFTER_VSYNC_MS) / P - 1e-9));
+      if (kD <= kT) aimK = kD - Math.max(1, Math.ceil((timerLateMax + TICK_AFTER_VSYNC_MS) / P - 1e-9));
     }
     return aimK > 0 ? lastDrawnAt + aimK * P + TICK_AFTER_VSYNC_MS : 0;
   }
@@ -1902,7 +1919,11 @@ const World = (() => {
     const now = performance.now(), still = pace < PACE_TIMER_MIN_MS && stillPaced(now);
     const wait = now < yieldUntil ? yieldUntil - now : pace >= PACE_TIMER_MIN_MS ? lastDrawnAt + pace - now - 2
       : still ? stillBookAt(pace) - now : 0;
-    if (wait > 0) { lastRafAt = 0; paceTimerAt = still ? now + wait : 0; paceTimer = setTimeout(() => { paceTimer = 0; if (running && !raf) raf = requestAnimationFrame(frame); }, wait); }
+    if (wait > 0) {
+      lastRafAt = 0; paceTimerAt = still ? now + wait : 0;
+      const meant = still && !(now < yieldUntil) ? now + wait : 0;   // a still booking's own timer is the one that tells how late timers run (a hold's is not)
+      paceTimer = setTimeout(() => { paceTimer = 0; if (meant) noteTimerLate(performance.now() - meant); if (running && !raf) raf = requestAnimationFrame(frame); }, wait);
+    }
     else raf = requestAnimationFrame(frame);
   }
   // focus / input / visible again: drop a pending low-rate wait and draw on the very next vsync
@@ -1940,6 +1961,7 @@ const World = (() => {
       // cumulative: the due changes a still floor waited on, how many drew later than a vsync (+1 ms), and how late (THE STILL
       // BOOKING), and the callbacks frame()'s pace check sent back undrawn (skippedFrames: a rAF per draw above ~1 is spin)
       dueDraws, dueLate, dueLatMaxMs: +dueLatMax.toFixed(1), dueLatAvgMs: dueDraws ? +(dueLatSum / dueDraws).toFixed(1) : null, skippedFrames,
+      timerLateMs: +timerLateMax.toFixed(1), timerSamples,   // THE TIMER MARGIN: the lateness a still booking allows for (the tick until seen), and the timers it has seen
       drawCostMs: +drawCostMs.toFixed(2), budgetMs: +budgetMs().toFixed(1), strained, strainProbeMs: +strainProbeMs.toFixed(1),
       draws: pacedDraws, simMs: Math.round(simMs), timerWait: !!paceTimer, yieldMs: Math.max(0, Math.round(yieldUntil - now)) };
   }
