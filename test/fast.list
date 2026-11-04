@@ -556,6 +556,7 @@ test/turn-soak.qa.test.js
 test/turn-window.test.js
 test/turn-window.review.test.js
 test/turn-delivery.test.js
+test/turn-delivery.files.test.js
 test/turn-carry.proof.test.js
 test/turn-run-order.lint.test.js
 test/recall.test.js

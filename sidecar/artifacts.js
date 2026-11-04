@@ -16,7 +16,9 @@
                                         delivers the REPLY after runOnce returns, outside any tool call)
    target/path are display labels only: NEVER message content, NEVER chat ids — nothing secret/PII enters
    the ledger. Failed calls (result.ok === false / isError) produce nothing. Unknown tools are ignored.
-   Repeated writes to the same path dedupe (last bytes win). Capped: max 50 records, strings cut at 260.
+   Repeated writes to the same path dedupe (last bytes win). Capped: max 50 records, strings cut at 260. A file or image
+   path cut at 260 marks its record cut:true (absent otherwise): the label is then a prefix of what was written, and
+   nothing may publish it as the path (turn-identity deliverable rows skip it). runstore.js does not persist the flag.
 
    PURE (matches runstore.js): no ambient time/rng/IO — this passes lint-determinism and tests headlessly.
 
@@ -112,6 +114,7 @@
       const p = capStr(path);
       if (!p) return;
       const fields = { path: p };
+      if (String(path).length > strMax) fields.cut = true;   // a prefix of the written path, never the path itself
       if (typeof bytes === 'number' && isFinite(bytes) && bytes >= 0) fields.bytes = Math.floor(bytes);
       upsert(kind, p, fields);
     }

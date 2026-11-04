@@ -565,6 +565,17 @@
       if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
       if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
       if (typeof e.importKey === 'string' && IMPORT_KEY_RE.test(e.importKey)) entry.importKey = e.importKey;
+      /* A FILE ROW'S ADDRESS (commit 10): kind 'deliverable' only; any other kind drops the field. TurnKinds.deliverableFields is the one
+         grammar (exact relative path, enum media, agent workspace, bounded root, event-style artifactId) and an invalid value is dropped
+         whole, never repaired or shortened. Only the display name is redacted; the path is an address and stays exactly as written. */
+      if (e.kind === 'deliverable') {
+        const d = TurnKinds.deliverableFields(e.deliverable);
+        if (d) {
+          try { d.name = str(redact(d.name)).slice(0, 200); }
+          catch (error) { d.name = ''; failNote('transcript.redact', error); }   // never stored unredacted
+          entry.deliverable = d;
+        }
+      }
     }
 
     function persistEntry(entry, strict) {

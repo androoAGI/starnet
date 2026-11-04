@@ -22,7 +22,9 @@
                                              -> { index, rekeyed, turnId }: turnId = the turn the run answers (the echo,
                                              else the sent one)
      ofTurn(row, { turnId, sourceRunId })    a copy of a reply / partial / stopped / hop row naming its turn and run (a
-                                             field the row already holds is kept) */
+                                             field the row already holds is kept)
+     deliverableOf(row)                      the one adapter from a canonical file row to the page's deliverable record
+                                             { title, kind, runId, t, agentId, root, rowId }; null for anything else */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./turnkinds.js'), require('./apiticket.js').sha256Text);
@@ -573,14 +575,26 @@ function legacyMerge(local, turns) {
     return out;
   }
 
+  /* THE ONE DELIVERABLE ADAPTER (turn identity, commit 10). A canonical kind:'deliverable' row becomes the page's deliverable record
+     { title: the exact path, kind: its media, runId, t, agentId: the writing agent's folder, root: the project folder or '', rowId }.
+     The page draws and files a file chip only through this, and nothing reads or splits the row's prose. Null for a row that is not
+     a well-formed file row: a bad field is never repaired here either (TurnKinds.deliverableFields is the one grammar). */
+  function deliverableOf(row) {
+    if (!objectRow(row) || row.kind !== 'deliverable') return null;
+    const d = TurnKinds.deliverableFields(row.deliverable);
+    if (!d) return null;
+    return { title: d.path, kind: d.media, runId: row.sourceRunId, t: row.ts, agentId: d.workspace, root: d.root, rowId: row.rowId };
+  }
+
   function windowRows(input, options) {
     const rows = Array.isArray(input) ? input : [], o = options || {};
-    if (o.window === 'legacy') return rows.filter(row => !(row && (row.truncated || row.sys || row.error)));
+    // a canonical system-kind row (a file row, from commit 10) is display only: the rollback window never carries one either
+    if (o.window === 'legacy') return rows.filter(row => !(row && (row.truncated || row.sys || row.error || (row.role === 'system' && TurnKinds.SYSTEM_KINDS.indexOf(row.kind) >= 0))));
     const ctx = { finalRuns: new Set(rows.filter(row => TurnKinds.isFinalDeliveryRow(row)).map(row => String(row.sourceRunId || ''))) };
     return rows.filter(row => row && TurnKinds.replayable(row, { shape: 'prose', forAgent: o.forAgent, line: o.line, streamId: o.streamId, ctx }))
       .map(row => TurnKinds.classify(row, ctx).kind === 'steer'
         ? Object.assign({}, row, { role: 'user', content: String(row.content || '').startsWith('[steering] ') ? row.content : '[steering] ' + String(row.content || '') }) : row);
   }
 
-  return { pendingRow, newTurnId, sendIds, bindStart, ofTurn, legacyMerge, legacyWithIdentity, merge, reconcile, stationRow, idsOf, localKind, sameTurn, compare, windowRows };
+  return { pendingRow, newTurnId, sendIds, bindStart, ofTurn, legacyMerge, legacyWithIdentity, merge, reconcile, stationRow, idsOf, localKind, sameTurn, compare, windowRows, deliverableOf };
 });

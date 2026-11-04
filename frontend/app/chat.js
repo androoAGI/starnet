@@ -3699,18 +3699,9 @@ const Chat = (() => {
     }).catch(() => {});
     autoscroll();
   }
-  // CLIENT-SIDE MEDIA KIND, keyed off the file extension (the reference harness's extension-keyed media model): the backend doesn't
-  // declare "this is a video" — we decide from the path, so any .mp4 an agent writes/downloads renders as a
-  // player with zero backend wiring. Unknown extensions fall through to 'file' (the plain clickable row).
-  const MEDIA_KIND_BY_EXT = {
-    png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image',
-    mp4: 'video', webm: 'video', mov: 'video', mkv: 'video', avi: 'video',
-    mp3: 'audio', m4a: 'audio', ogg: 'audio', wav: 'audio', flac: 'audio', opus: 'audio'
-  };
-  function mediaKindOf(title) {
-    const ext = String(title || '').split(/[?#]/, 1)[0].split('.').pop().toLowerCase();
-    return MEDIA_KIND_BY_EXT[ext] || 'file';
-  }
+  // CLIENT-SIDE MEDIA KIND, keyed off the file extension: the rule and its table live in TurnKinds (turn identity, commit 10), so the page's
+  // chip and the station's deliverable row decide from the one extension rule
+  function mediaKindOf(title) { return TurnKinds.mediaKindOf(title); }
   // The jailed /api/file URL for a workspace file — usable as a REAL href/src, not just inside fetch().
   // Base: on desktop the page runs
   // on the tauri.localhost origin and the shell rewrites ONLY window.fetch to the sidecar — a relative

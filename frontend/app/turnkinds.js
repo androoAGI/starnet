@@ -30,7 +30,19 @@
                                       'api'), else turn. rowKind 'station' | 'hop' | undefined; line 'lineId@dockId'
                                       (<= 120) when o.lineHop; kindOf(m) = messageKind(m, rowKind)
      messageKind(m, rowKind)          a drained row's kind: its tag; else 'station' for a user row (any user row a run
-                                      writes besides its directive is the station's own); else rowKind, else 'turn' */
+                                      writes besides its directive is the station's own); else rowKind, else 'turn'
+     mediaKindOf(title)               the extension rule for a file's media ('file' | 'image' | 'video' | 'audio'), the page's
+                                      own table moved here byte for byte (chat.js keeps a one-line delegate)
+     deliverableFields(d)             the ONE grammar of a deliverable row's `deliverable` field, shared by the store, the
+                                      writer and the page adapter: { path, media, workspace, root, name, artifactId } or null
+                                      (path <= 260 and exactly as written: relative, no '..', no NUL, no drive or UNC;
+                                      workspace an agent id; root '' or an absolute host folder; artifactId file_/img_ + the
+                                      path with every other character as '_'). Nothing is repaired: a bad value is null
+     deliverablePathProblem(p)        why a path cannot be a deliverable's exact path ('' when it can)
+     deliverableRootProblem(r)        why a root cannot be a deliverable's project folder ('' = none, or an absolute host folder)
+     artifactIdOf(kind, path)         the live deliverable event's id rule ('img_' for an image, else 'file_', + sanitized path)
+     sameDeliverable(a, b)            two page records ({ title, runId, root? }) are one file: the same run and the same exact path (or an
+                                      absolute title that is the other record's root + relative title) */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./pipeline.js'), require('./goalloop.js'));
@@ -151,6 +163,80 @@
     return { directiveKind, rowKind, line, kindOf: m => messageKind(m, rowKind) };
   }
 
+  // CLIENT-SIDE MEDIA KIND, keyed off the file extension (the reference harness's extension-keyed media model): the backend doesn't
+  // declare "this is a video" — we decide from the path, so any .mp4 an agent writes/downloads renders as a
+  // player with zero backend wiring. Unknown extensions fall through to 'file' (the plain clickable row).
+  const MEDIA_KIND_BY_EXT = {
+    png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image',
+    mp4: 'video', webm: 'video', mov: 'video', mkv: 'video', avi: 'video',
+    mp3: 'audio', m4a: 'audio', ogg: 'audio', wav: 'audio', flac: 'audio', opus: 'audio'
+  };
+  function mediaKindOf(title) {
+    const ext = String(title || '').split(/[?#]/, 1)[0].split('.').pop().toLowerCase();
+    return MEDIA_KIND_BY_EXT[ext] || 'file';
+  }
+
+  /* A DELIVERABLE ROW'S FIELD (commit 10): the file a run wrote, as an exact, openable address. One grammar for the store (which
+     copies it), the writer (turn-delivery fileRows, which builds it) and the page (TurnMerge.deliverableOf, which adapts it).
+     Nothing is repaired to make a value fit: a path is stored exactly as the run wrote it or the row has no field at all. */
+  const DELIVERABLE_MEDIA = Object.freeze(['file', 'image', 'video', 'audio']);
+  const DELIVERABLE_PATH_MAX = 260;    // artifacts.js STR_MAX: a longer path was cut by the collector, so it is not the written one
+  const DELIVERABLE_ROOT_MAX = 4096;   // handleRun's own clamp on a project root
+  const DELIVERABLE_NAME_MAX = 200;
+  const AGENT_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;                  // fs.js safeAgentId: the jail an agent's relative files live in
+  const ARTIFACT_ID_RE = /^(?:file|img)_[A-Za-z0-9_.-]{1,260}$/;
+  const DOTDOT_RE = /(^|[\\/])\.\.([\\/]|$)/;
+
+  // why `p` cannot be a deliverable's exact path ('' = it can): relative to the run's one base (the agent's own folder, or the
+  // project root the row names), written exactly, and not able to leave that base
+  function deliverablePathProblem(p) {
+    if (typeof p !== 'string' || !p) return 'empty';
+    if (p.length > DELIVERABLE_PATH_MAX) return 'too-long';
+    if (p.indexOf('\u0000') >= 0) return 'nul';
+    if (/^[\\/]/.test(p)) return 'absolute';      // rooted, UNC (\\host, //host) and device paths alike
+    if (/^[A-Za-z]:/.test(p)) return 'drive';     // C:\x and the drive-relative C:x
+    if (DOTDOT_RE.test(p)) return 'dotdot';
+    if (/[\\/]$/.test(p)) return 'directory';
+    return '';
+  }
+  // '' (the agent's own folder) or an absolute host folder; a UNC or device path is never a project root (serveWorkspaceFile)
+  function deliverableRootProblem(r) {
+    if (r === '') return '';
+    if (typeof r !== 'string' || r.length > DELIVERABLE_ROOT_MAX || r.indexOf('\u0000') >= 0) return 'root';
+    if (/^[\\/]{2}/.test(r)) return 'root-unc';
+    if (!/^(?:[A-Za-z]:[\\/]|\/)/.test(r)) return 'root-relative';
+    if (DOTDOT_RE.test(r)) return 'root-dotdot';
+    return '';
+  }
+  function artifactIdOf(kind, path) {
+    return (kind === 'image' ? 'img_' : 'file_') + String(path == null ? '' : path).replace(/[^A-Za-z0-9_.-]/g, '_');
+  }
+  // the name is display prose only: whitespace and control characters collapse, so it can never carry a second line
+  function deliverableName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim().slice(0, DELIVERABLE_NAME_MAX) : ''; }
+  function deliverableFields(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+    const root = d.root === undefined || d.root === null ? '' : d.root;
+    if (deliverablePathProblem(d.path) || deliverableRootProblem(root)) return null;
+    if (DELIVERABLE_MEDIA.indexOf(d.media) < 0) return null;
+    if (typeof d.workspace !== 'string' || !AGENT_ID_RE.test(d.workspace)) return null;
+    if (typeof d.artifactId !== 'string' || !ARTIFACT_ID_RE.test(d.artifactId)) return null;
+    return { path: d.path, media: d.media, workspace: d.workspace, root, name: deliverableName(d.name), artifactId: d.artifactId };
+  }
+  // Two page records ({ title, runId, root? }) name one file when they belong to the same run and spell the same path exactly. The
+  // single other spelling is the conversion the writer makes: an absolute title that is the other record's root + relative title.
+  function sameDeliverable(a, b) {
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    const run = String(a.runId || '');
+    if (!run || run !== String(b.runId || '')) return false;
+    const pa = typeof a.title === 'string' ? a.title : '', pb = typeof b.title === 'string' ? b.title : '';
+    if (!pa || !pb) return false;
+    if (pa === pb) return true;
+    const absolute = p => /^(?:[A-Za-z]:|[\\/])/.test(p);
+    const flat = p => { const s = p.replace(/[\\/]+/g, '/').replace(/\/$/, ''); return /^[A-Za-z]:/.test(s) ? s.toLowerCase() : s; };
+    const under = (full, rel) => rel.root && absolute(full) && !absolute(rel.title) && flat(full) === flat(String(rel.root) + '/' + rel.title.replace(/^\.\//, ''));
+    return !!(under(pa, b) || under(pb, a));
+  }
+
   // Each non-boolean cell names the additional proof/context its view must supply. This is the shared
   // visibility table; neither the page nor a sidecar reader keeps a second list of hidden kinds.
   const VIEWS = Object.freeze(['model-replay', 'owner-evidence', 'recall', 'display', 'proof']);
@@ -260,6 +346,7 @@
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
     QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
     KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind,
+    mediaKindOf, DELIVERABLE_MEDIA, DELIVERABLE_PATH_MAX, DELIVERABLE_ROOT_MAX, deliverablePathProblem, deliverableRootProblem, deliverableFields, artifactIdOf, sameDeliverable,
     VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
   };
 });
