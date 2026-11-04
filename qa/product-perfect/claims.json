@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "4f6de35fb63c095db309c53754b9b51b93482f67",
+    "sourceCommit": "a346e4de27127cc576324baa74f3855ed8267507",
     "pathSetSha256": "4fab60d76360c93624d9821b2d23105e8c0429c151554b4ad9dc531d47e40ba3",
     "files": [
       {
@@ -1238,8 +1238,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1003646,
-        "sha256": "fe65adce211a47442f17bc6c6c21365de341313439ff06d1911e3e4631c9877e"
+        "bytes": 1003676,
+        "sha256": "294cea72bacbd8a6485f2c03a9f06170f35c7d38bcf7c913055fe4a16e50121a"
       },
       {
         "path": "frontend/app/stepin.js",
@@ -1328,8 +1328,8 @@
       },
       {
         "path": "frontend/app/turnkinds.js",
-        "bytes": 17565,
-        "sha256": "fbb7143380b1d0797c56fdf806ed8569a398a692493418f822251e103ef1574e"
+        "bytes": 18754,
+        "sha256": "453fcee00f9e69134b7630058cc2fa19adac88769f5da1851080ef716b01c3de"
       },
       {
         "path": "frontend/app/turnmerge.js",
