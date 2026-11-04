@@ -38,6 +38,7 @@ const TurnView = require('../turn-view.js');
 const { hopError, lineStop } = require('./line-fire.js');
 const { note: failNote } = require('../failopen.js');
 const { isAgentId } = require('../respond.js');
+const { holdOf } = require('./saved-hold.js');   // a hop's room or brief read off a saved floor that cannot be proved right now: said as that, never swallowed
 const { mergeFiles, productOf } = require('./work-product.js');
 
 const UPSTREAM_TAINT = 'upstream agent output';
@@ -326,7 +327,11 @@ function makeLineRunner(deps) {
           lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || crateId || undefined,
           lineHop: !h.entry || undefined
         }));
-      } catch (e) { hs.errMsg = hs.errMsg || ('run failed: ' + ((e && e.message) || e)); }
+      } catch (e) {
+        // the hop's room (or brief) was asked of a saved floor that cannot be proved right now: nothing ran, and the stage fails in the hold's own words
+        const held = holdOf(e);
+        hs.errMsg = hs.errMsg || (held ? held.why : 'run failed: ' + ((e && e.message) || e));
+      }
       finally {
         if (typeof release === 'function') release();
         else if (live && typeof liveRuns.remove === 'function') liveRuns.remove(runId);
@@ -443,10 +448,13 @@ function steptest(o) {
       const persona = (cfg && cfg.system) || o.persona;
       if (!h.entry) return persona;
       let brief = null;
-      try { brief = o.brief(h.agentId, h.dockId); } catch (e) { failNote('steptest.brief', e); brief = null; }
+      // a hold is not "no brief": it goes up to the hop, which then fails in the hold's words, as the hub refuses a message whose dock brief it cannot read
+      try { brief = o.brief(h.agentId, h.dockId); } catch (e) { if (holdOf(e)) throw e; failNote('steptest.brief', e); brief = null; }
       return o.dockSystem(persona, brief, true);
     },
-    station: (h) => { try { return o.station(h.agentId, h.dockId); } catch (e) { failNote('steptest.station', e); return null; } },
+    /* NO swallow on the room, like every other profile: a null room is the WHOLE default office (the 2026-08-10 audit #1 class), so a read that
+       fails (a hold above all) fails the hop, and runOnce is never called. */
+    station: (h) => o.station(h.agentId, h.dockId),
     options: (h) => ({ broadcast: true,
       taskKey: 'steptest:' + h.sessionId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: 'sample',
       handoffEdited: h.edited === true,   // the run row says the owner edited what this dock was handed

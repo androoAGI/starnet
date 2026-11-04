@@ -58,6 +58,7 @@ const Verdict = require('./verdict.js');
 const Pipeline = require('../../frontend/app/pipeline.js');
 const { effectiveLimits, loopDecision, heldStop, preHopStop, hopTurn, lineRefusalStop, asNode, nodeKey } = require('./chain.js');
 const LineFire = require('./line-fire.js');   // a stop's one sentence (lineStop) and a step's own stop code (hopStopCode)
+const { holdOf } = require('./saved-hold.js');   // a saved floor that cannot be proved right now: a refusal to say, never "no next step"
 const { note: failNote } = require('../failopen.js');
 const { endOf } = require('../halt.js');
 
@@ -101,7 +102,10 @@ function makeStepTest(o) {
   if (typeof o.runDock !== 'function') throw new Error('makeStepTest: runDock is required');
   const runDock = o.runDock;
   const plan = o.plan || {};
-  const call = (fn, ...a) => { if (typeof fn !== 'function') return null; try { return fn(...a); } catch (e) { failNote('steptest.plan', e); return null; } };
+  /* a plan read that fails degrades to null (the walk reads "no answer" as no next step) — EXCEPT a saved floor that cannot be proved right now.
+     That is not "no answer", it is a refusal to say: read as one, a held floor ended a test 'done' after its first stage, or ran a stage in the
+     whole default office. It goes up typed to the verb that asked, and the verb ends in the hold's words (heldVerb below, drive's walk). */
+  const call = (fn, ...a) => { if (typeof fn !== 'function') return null; try { return fn(...a); } catch (e) { if (holdOf(e)) throw e; failNote('steptest.plan', e); return null; } };
   const now = typeof o.now === 'function' ? o.now : function () { return 0; };
   let seq = 0;
   const newId = typeof o.newId === 'function' ? o.newId : function () { return 'st' + (++seq); };
@@ -343,7 +347,19 @@ function makeStepTest(o) {
     drives.set(s.id, p);
   }
 
+  /* drive(s) — the walk, with one rule above it: a saved floor that cannot be proved right now (a next-step read that threw the typed hold) ENDS the
+     test, 'stopped' with the chain's own refused stop and the hold's words. It is never "no next step" (a test that finished 'done' after its first
+     stage) and never a crash. What ran stays on the session; RE-RUN STEP runs the last stage again once the floor is readable. */
   async function drive(s) {
+    try { await walk(s); }
+    catch (e) {
+      const held = holdOf(e);
+      if (!held) throw e;   // anything else is kick's crash handler's
+      if (s.state === 'running') finish(s, 'stopped', 'the test stopped: ' + held.why, LineFire.lineStop('refused', { why: held.why }));
+    }
+  }
+
+  async function walk(s) {
     for (let guard = 0; guard < 200; guard++) {
       const pend = s._pending, job = pend.job;   // captured: a later verb may install a new pending job
       // THE LINE BUDGET, PRE-run, over the WHOLE session (re-runs + dropped hops included) — preHopRefusal's
@@ -521,7 +537,9 @@ function makeStepTest(o) {
      old next dock> WILL GET" after the floor changed. The paused text itself is untouched. */
   function freshPreview(s) {
     if (!s || s.state !== 'paused' || !s.paused || !s._w) return;
-    const nx = resolveNext(s, null, false);
+    let nx = null;
+    // a floor that cannot be proved right now cannot say what comes next: the paused view keeps what it had (a read never throws), and CONTINUE refuses in the hold's words
+    try { nx = resolveNext(s, null, false); } catch (e) { if (!holdOf(e)) throw e; return; }
     if (nx && nx.next) s.paused.next = nx.next;
   }
   function get(id) {
@@ -608,7 +626,15 @@ function makeStepTest(o) {
   // test seam: resolves when the session's background drive settles (routes never await it)
   function settled(id) { return drives.get(String(id)) || Promise.resolve(); }
 
-  return { start, get, continue: cont, rerun, rewind, stop, pause: setPause, settled, inflight, _sessions: () => sessions };
+  /* a verb that reads the plan answers a saved floor that cannot be proved right now in the hold's own words — a refusal, typed 'refused' like the chain's:
+     nothing started, nothing moved. The reads come before the verb changes anything, so a paused session stays paused and CONTINUE works once the floor
+     is readable. (Never "no work line is armed": that is a floor with no line, not a floor nobody can read.) */
+  const heldVerb = fn => function (...a) {
+    try { return fn(...a); }
+    catch (e) { const held = holdOf(e); if (!held) throw e; return Object.assign(refuse(held.why), { stop: LineFire.lineStop('refused', { why: held.why }) }); }
+  };
+
+  return { start: heldVerb(start), get, continue: heldVerb(cont), rerun, rewind, stop, pause: setPause, settled, inflight, _sessions: () => sessions };
 }
 
 module.exports = { makeStepTest, normPause, KEEP };

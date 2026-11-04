@@ -212,4 +212,17 @@ A.ok(/r === 'routing-held'\) return '· last shift/.test(frontend('stationui.js'
 A.ok(/r === 'routing-held'\) return 'the saved floor/.test(frontend('chat.js')), 'the Implement card says a held press in words');
 A.ok(/'routing-held': 'the saved floor/.test(frontend('nightreport.js')), 'the morning report says a held night shift in words');
 
+// ---- 8. the step-through test never reads a hold as "no room", "no brief that matters" or "no next step" ----
+/* test/routing.saved-seams.test.js sections 9 and 10 hold the behavior (every hop profile, and a session over the real authority); this holds the shape. The test's
+   profile once swallowed a hold into a null room, which the run reads as the WHOLE default office (the 2026-08-10 audit #1 class), and its plan reads swallowed
+   one into "no answer", which ended a test 'done' after its first stage. */
+const lineRunnerText = files.find(f => f.rel === 'sidecar/routing/line-runner.js').text;
+const stepText = files.find(f => f.rel === 'sidecar/routing/steptest.js').text;
+const stepProfile = lineRunnerText.slice(lineRunnerText.indexOf('function steptest(o)'), lineRunnerText.indexOf('const PROFILES'));
+A.ok(/station: \(h\) => o\.station\(h\.agentId, h\.dockId\),/.test(stepProfile) && !/failNote\('steptest\.station'/.test(stepProfile), 'the step-through test asks for its hop\'s room like every other profile: no swallow, so a failed read fails the hop and runOnce is not called');
+A.ok(/catch \(e\) \{ if \(holdOf\(e\)\) throw e; failNote\('steptest\.brief', e\); brief = null; \}/.test(stepProfile), 'a hold reading the dock\'s brief ends the hop; any other brief failure still degrades to no brief');
+A.ok(/catch \(e\) \{ if \(holdOf\(e\)\) throw e; failNote\('steptest\.plan', e\); return null; \}/.test(stepText), 'a step-test plan read rethrows a hold: it is a refusal to say, never "no answer"');
+A.ok(/start: heldVerb\(start\)/.test(stepText) && /continue: heldVerb\(cont\)/.test(stepText), 'a start or a CONTINUE on a held floor is refused in the hold\'s words, before anything moves');
+A.ok(/async function drive\(s\) \{\s*try \{ await walk\(s\); \}\s*catch \(e\) \{\s*const held = holdOf\(e\);[\s\S]{0,260}LineFire\.lineStop\('refused', \{ why: held\.why \}\)/.test(stepText), 'a hold mid-walk ends the test stopped, with the chain\'s refused stop and the hold\'s words');
+
 A.report('saved-floor-callers.census');

@@ -18,7 +18,13 @@
      7. a floor that goes held between two hops stops the work line with the existing 'refused' stop and the hold's words,
         and ships nothing as if the line were finished;
      8. a real hub over the real router refuses a message whose floor is held, in words, runs nothing, and settles a job it had
-        opened for that message as the existing 'refused' stop; the file coming back routes again with no restart. */
+        opened for that message as the existing 'refused' stop; the file coming back routes again with no restart;
+     9. INVARIANT held-never-runs, for EVERY hop profile (channel, schedule, manual, steptest — a new profile must be added to the
+        table): a hop whose room or brief is asked of a held floor calls runOnce never, hands the stage no default office, and fails
+        in the hold's own words. (The step-through test's profile used to swallow the hold: its hop ran in the WHOLE default office.);
+    10. the step-through test over the real authority: a floor that goes held mid-test ENDS it 'stopped' with the chain's refused stop
+        and the hold's words (never 'done' after the first stage, never "no work line is armed"); a start while held is refused in
+        the same words and makes no session; a paused test stays paused and CONTINUE refuses until the file is back. */
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { makeSaveStore } = require('../sidecar/savestore.js');
@@ -294,6 +300,118 @@ const empties = () => READERS.map(name => [name, JSON.stringify(EMPTY[name]())])
         A.ok(lateSeen.length === 1 && lateSeen[0].ok === false, 'the settlement is told exactly once — ' + JSON.stringify(lateSeen.map(x => ({ ok: x.ok, held: x.held, stop: x.result && x.result.stop }))));
         outside(goodBytes);
       } finally { hub.close(); }
+    }
+
+    // ---- 9. INVARIANT held-never-runs: every hop profile, built by its production factory over the real seams ----
+    const cfg = () => ({ ok: true, key: 'k', model: 'm', provider: 'openrouter', configured: true });
+    const bayOf = o => (o && o.station && o.station.rooms && o.station.rooms.bay) ? 'bay' : 'NO ROOM (the whole default office)';
+    {
+      const room = (a, d) => admit.stationFor(a, d), brief = (a, d) => admit.stageBrief(a, d);
+      const profiles = {
+        channel: () => LineRunner.profiles.channel({ channel: 'sample', chatId: 'c1', streamId: 's1', config: cfg, persona: () => 'p', station: room }),
+        schedule: () => LineRunner.profiles.schedule({ streamId: 's1', config: cfg, system: () => 'p', routine: {}, station: room }),
+        manual: () => LineRunner.profiles.manual({ streamId: 's1', config: cfg, system: () => 'p', routine: {}, station: room }),
+        steptest: () => LineRunner.profiles.steptest({ config: cfg, persona: 'p', brief, dockSystem: (p, b) => p + (b ? ' | ' + b : ''), station: room, emit() {}, redact: x => x, stoppedByYou: () => false })
+      };
+      A.eq(Object.keys(profiles).sort(), Object.keys(LineRunner.profiles).sort(), 'fixture: every hop profile the executor has is asked below (a new profile must be added to this table to land)');
+      for (const name of Object.keys(profiles)) {
+        for (const entry of [true, false]) {
+          const label = name + (entry ? ' entry hop' : ' later hop');
+          const seen = [];
+          const lr = LineRunner.makeLineRunner({ now: () => 1000, runOnce: async o => { seen.push(o); return { reason: 'done', outcome: 'succeeded', text: 'a stage output', runId: o.runId }; } });
+          const hop = () => lr.hopRunner(profiles[name]())({ agentId: 'alpha', dockId: 'b1', entry, text: 'a job', from: 'beta', streamId: 's1', sessionId: 'x', signal: new AbortController().signal,
+            lineId: 'line-one', runId: '00000000-0000-4000-8000-000000000001' });
+          outside(goodBytes);
+          const good = await hop();
+          A.ok(seen.length === 1 && bayOf(seen[0]) === 'bay' && !good.error && /a stage output/.test(good.text), label + ': control: on a good floor the stage runs in alpha\'s bay room — ' + JSON.stringify({ n: seen.length, room: bayOf(seen[0]), error: good.error }));
+          outside('{ not a save'); seen.length = 0;
+          const held = await hop();
+          A.eq(seen.length, 0, label + ': a held floor: runOnce is never called — not in a fallback room, not in the whole default office');
+          A.ok(HELD_SAID.test(held.error || '') && held.stopCode === 'stage_failed' && !held.text, label + ': the stage fails in the hold\'s own words — ' + JSON.stringify([held.error, held.stopCode]));
+          outside(goodBytes);
+        }
+      }
+      // the dock's brief is asked of the floor too: a hold there ends the hop, but any OTHER brief failure still degrades to "no brief" (narrower, as before)
+      const holdErr = Object.assign(new Error('Saved routing authority is held: corrupt'), { held: true, status: 'corrupt', code: 'EROUTING_SAVED_CORRUPT', why: heldWhy('corrupt') });
+      for (const [what, err, runs] of [['a hold', holdErr, false], ['a bug', new TypeError('a bug in the brief read'), true]]) {
+        const seen = [];
+        const lr = LineRunner.makeLineRunner({ now: () => 1000, runOnce: async o => { seen.push(o); return { reason: 'done', outcome: 'succeeded', text: 'a stage output', runId: o.runId }; } });
+        const r = await lr.hopRunner(LineRunner.profiles.steptest({ config: cfg, persona: 'p', brief: () => { throw err; }, dockSystem: (p, b) => p + (b ? ' | ' + b : ' | NO BRIEF'),
+          station: () => ({ agents: {}, rooms: { bay: { id: 'bay', objects: [] } } }), emit() {}, redact: x => x, stoppedByYou: () => false }))(
+          { agentId: 'alpha', dockId: 'b1', entry: true, text: 'a job', streamId: 's1', sessionId: 'x', signal: new AbortController().signal, lineId: 'line-one', runId: '00000000-0000-4000-8000-000000000002' });
+        if (runs) A.ok(seen.length === 1 && /NO BRIEF/.test(seen[0].system) && !r.error, 'steptest: ' + what + ' reading the brief is not a hold: the entry hop runs with no brief — ' + JSON.stringify([seen.length, r.error]));
+        else A.ok(seen.length === 0 && HELD_SAID.test(r.error || ''), 'steptest: ' + what + ' reading the brief ends the hop, in the hold\'s words, before runOnce — ' + JSON.stringify([seen.length, r.error]));
+      }
+    }
+
+    // ---- 10. the step-through test over the real authority ----
+    {
+      const { makeStepTest } = require('../sidecar/routing/steptest.js');
+      const ran = [];
+      let spoilAfter = 0, spoilAtPreflight = false;
+      const lineRunner = LineRunner.makeLineRunner({ now: () => 1000, runOnce: async o => {
+        ran.push({ agentId: o.agentId, room: bayOf(o) });
+        if (spoilAfter === ran.length) outside('{ not a save');   // the floor goes held while this stage runs
+        return { reason: 'done', outcome: 'succeeded', text: 'output of ' + o.agentId, runId: o.runId, usd: 0 };
+      } });
+      const runDock = h => lineRunner.hopRunner(LineRunner.profiles.steptest({ config: cfg, persona: 'p', brief: (a, d) => admit.stageBrief(a, d), dockSystem: (p, b) => p + (b ? ' | ' + b : ''),
+        station: (a, d) => admit.stationFor(a, d), emit() {}, redact: x => x, stoppedByYou: () => false }))(h);
+      // the plan seams exactly as index.js getStepTest hands them: admit for every routing decision, observe for the limit
+      const plan = { get: () => admit.getPlan(), step: (a, c) => admit.chainStep(a, c), peek: (a, c) => admit.chainPeek(a, c), stepDock: (d, c) => admit.chainStepDock(d, c),
+        peekDock: (d, c) => admit.chainPeekDock(d, c), dockRef: (r, l) => admit.dockRef(r, l),
+        entryDock: (line, text) => { const r = admit.resolveDock({ text, lineId: line }); return (r && admit.lineOriginFor(r.agentId, r.dockId) === line) ? r : null; },
+        lineOf: (a, d) => admit.lineOfAgent(a, d), stageBrief: (a, d) => admit.stageBrief(a, d), loopGateAfter: (a, l, d) => admit.loopGateAfter(a, l, d),
+        lastStage: (a, d) => admit.chainShipsToOutbox(a, d), lineLimits: l => observe.lineLimits(l), shipsToOutbox: (a, d) => admit.chainShipsToOutbox(a, d) };
+      let seq = 0;
+      const mk = () => makeStepTest({ lineRunner, runDock, plan, preflight: () => { if (spoilAtPreflight) outside('{ not a save'); return null; }, poolCap: () => null,
+        getTag: () => undefined, label: id => id, now: () => 1000, newId: () => 'st_' + (++seq) });
+      const walk = async (st, body) => { const r = st.start(body); if (!r.ok) return { r, s: null }; await st.settled(r.session.id); return { r, s: st.get(r.session.id).session }; };
+      const HELD_TEST = /^the test stopped: the saved floor is corrupt; routing is held until it is readable$/;
+
+      outside(goodBytes); ran.length = 0;
+      let x = await walk(mk(), { line: 'line-one', text: 'carry this job', pause: 'none' });
+      A.ok(x.s.state === 'done' && x.s.error === null && x.s.hops.length === 2 && ran.map(r => r.agentId + '@' + r.room).join() === 'alpha@bay,beta@bay',
+        'control: on a good floor the test walks both stages, each in its bay room — ' + JSON.stringify([x.s.state, x.s.error, ran]));
+
+      // the floor goes held while stage one runs, with the test set to run straight through
+      outside(goodBytes); ran.length = 0; spoilAfter = 1;
+      x = await walk(mk(), { line: 'line-one', text: 'carry this job', pause: 'none' });
+      spoilAfter = 0;
+      A.ok(x.s.state === 'stopped' && x.s.stop && x.s.stop.code === 'refused' && HELD_TEST.test(x.s.error || '') && x.s.stop.why === heldWhy('corrupt'),
+        'a floor that goes held after stage one ENDS the test: stopped, the refused stop, the hold\'s words — never "done" with no word of it — ' + JSON.stringify([x.s.state, x.s.stop, x.s.error]));
+      A.ok(x.s.hops.length === 1 && ran.length === 1 && x.s.hops[0].output === 'output of alpha', 'stage one\'s work is kept, and stage two never ran');
+
+      // the floor goes held between the plan reads that START the test and its first stage
+      outside(goodBytes); ran.length = 0; spoilAtPreflight = true;
+      x = await walk(mk(), { line: 'line-one', text: 'carry this job', pause: 'none' });
+      spoilAtPreflight = false;
+      A.eq(ran.length, 0, 'a floor held at the instant of the first stage: nothing ran — not in the whole default office, not with no brief');
+      A.ok(x.s.state === 'failed' && /the saved floor is corrupt; routing is held until it is readable/.test(x.s.error || '') && x.s.stop && x.s.stop.code === 'stage_failed',
+        'and the stage fails in the hold\'s words — ' + JSON.stringify([x.s.state, x.s.error, x.s.stop]));
+
+      // a start while the floor is held (the route gates first; the engine must not depend on it)
+      outside('{ not a save'); ran.length = 0;
+      const direct = mk(), refusedStart = direct.start({ line: 'line-one', text: 'carry this job', pause: 'none' });
+      A.ok(refusedStart.ok === false && HELD_SAID.test(refusedStart.error) && refusedStart.stop && refusedStart.stop.code === 'refused' && direct._sessions().length === 0 && ran.length === 0,
+        'a start on a held floor is refused in the hold\'s words, typed refused: no session, nothing run — not "no work line is armed" — ' + JSON.stringify(refusedStart));
+
+      // a paused test: held floor keeps it paused; CONTINUE refuses; the file coming back resumes it
+      outside(goodBytes); ran.length = 0;
+      const stp = mk(), begun = stp.start({ line: 'line-one', text: 'carry this job', pause: 'every' });
+      await stp.settled(begun.session.id);
+      const id = begun.session.id;
+      A.eq([stp.get(id).session.state, stp.get(id).session.paused.next.kind, ran.length], ['paused', 'agent', 1], 'control: the test pauses after stage one, with stage two next');
+      outside('{ not a save');
+      const look = stp.get(id);
+      A.ok(look.ok && look.session.state === 'paused' && look.session.paused.next.kind === 'agent' && look.session.paused.next.agentId === 'beta',
+        'a held floor does not rewrite what a paused test shows next (a read never throws, and never says "no work line is armed") — ' + JSON.stringify(look.session.paused.next));
+      const go = stp.continue(id, {});
+      A.ok(go.ok === false && HELD_SAID.test(go.error) && go.stop && go.stop.code === 'refused' && ran.length === 1 && stp.get(id).session.state === 'paused',
+        'CONTINUE on a held floor refuses in the hold\'s words and the test stays paused — ' + JSON.stringify(go));
+      outside(goodBytes);
+      const resumed = stp.continue(id, {}); await stp.settled(id);
+      A.ok(resumed.ok && ran.length === 2 && ran[1].agentId === 'beta' && ran[1].room === 'bay', 'the file is back: CONTINUE runs stage two in its bay room, with no restart — ' + JSON.stringify([resumed.ok, ran]));
+      outside(goodBytes);
     }
   } finally {
     locked = false;
