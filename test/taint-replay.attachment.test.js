@@ -317,11 +317,12 @@ function startRun(ctx, runId, o) {
     begin('page-first', 'forwarded message'); j.taint('page-first', { source: 'web_fetch' });
     begin('clean-then-page', ''); j.taint('clean-then-page', { source: 'web_fetch' }); j.taint('clean-then-page', { source: 'fs.read' });
     begin('clean-then-att', ''); j.taint('clean-then-att', { source: UA });
+    begin('clean-att-page', ''); j.taint('clean-att-page', { source: UA }); j.taint('clean-att-page', { source: 'web_fetch' });   // the attachment journaled as a latch record is no more a source than the one in the begin meta
     begin('clean', '');
     const j2 = mk();   // a restart
     const got = (id) => j2.inspect(id).taintedBy;
-    A.eq([got('att-only'), got('att-then-page'), got('att-then-att'), got('page-first'), got('clean-then-page'), got('clean-then-att'), got('clean')],
-      [UA, 'web_fetch', UA, 'forwarded message', 'web_fetch', UA, null], 'the journal never lets the bare attachment hide a later source, and answers exactly as before for every run without one');
+    A.eq([got('att-only'), got('att-then-page'), got('att-then-att'), got('page-first'), got('clean-then-page'), got('clean-then-att'), got('clean-att-page'), got('clean')],
+      [UA, 'web_fetch', UA, 'forwarded message', 'web_fetch', UA, 'web_fetch', null], 'the journal never lets the bare attachment hide a later source, whether it began the run or was journaled as a latch, and answers exactly as before for every run without one');
   } finally { rm(dir); }
 }
 
