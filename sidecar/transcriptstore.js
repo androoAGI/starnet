@@ -40,6 +40,8 @@
   const Taint = (typeof require === 'function') ? require('./taint.js') : ((typeof globalThis !== 'undefined' && globalThis.SK && globalThis.SK.taint) || null);
   const ATTACHMENT_TAINT = (Taint && Taint.ATTACHMENT_TAINT) || '';
   const storesExpansion = (Taint && Taint.rowStoresAttachmentText) || (() => false);
+  // the validator of an 'attachment' row's `attachment` field (sidecar/turn-attachment.js). Unknown here = the field is not kept.
+  const TurnAttachment = (typeof require === 'function') ? require('./turn-attachment.js') : ((typeof globalThis !== 'undefined' && globalThis.SK && globalThis.SK.turnattachment) || null);
 
   const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
@@ -558,6 +560,7 @@
       }
       const attachments = attachmentRefs(e.attachments);
       if (attachments) entry.attachments = attachments;
+      if (e.kind === 'attachment' && TurnAttachment) { const attached = TurnAttachment.fieldOf(e.attachment, s => str(redact(s))); if (attached) entry.attachment = attached; }   // the record of ONE file (turn-attachment.js): validated, its name redacted
       if (typeof e.line === 'string') { const line = e.line.slice(0, 120); if (line) entry.line = line; }
       const quoted = quoteFields(e.quotes, e.quotesAt);
       if (quoted) { entry.quotes = quoted.quotes; if (quoted.quotesAt) entry.quotesAt = quoted.quotesAt; }

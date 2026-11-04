@@ -702,7 +702,7 @@ try {
     const id = TurnKinds.mintTurnId(() => ((n++ * 7) % 36) / 36);
     A.ok(/^t[0-9a-z]{24}$/.test(id) && TurnKinds.isTurnId(id), '7: mintTurnId gives t + 24 base36 chars (' + id + ')');
     A.eq(codeOf(() => TurnKinds.mintTurnId()), 'threw: TurnKinds.mintTurnId needs an rng() returning a number in [0,1)', '7: mintTurnId without an rng throws');
-    A.ok(Object.isFrozen(TurnKinds.KINDS) && Object.isFrozen(TurnKinds.SYSTEM_KINDS) && TurnKinds.SYSTEM_KINDS.join() === 'steer,deliverable,retract' && TurnKinds.isKind('delivery') && !TurnKinds.isKind('nope'), '7: frozen kinds; delivery is a kind, not a system kind');
+    A.ok(Object.isFrozen(TurnKinds.KINDS) && Object.isFrozen(TurnKinds.SYSTEM_KINDS) && TurnKinds.SYSTEM_KINDS.join() === 'steer,deliverable,retract,attachment' && TurnKinds.isKind('delivery') && TurnKinds.isKind('attachment') && !TurnKinds.isKind('nope'), '7: frozen kinds; delivery is a kind, not a system kind; attachment is a system kind (the record of one file a turn carried)');
     const m = TurnKinds.tag({ role: 'user', content: 'x' }, 'capture');
     A.eq([TurnKinds.tagOf(m), Object.keys(m), JSON.stringify(m), Object.keys(Object.assign({}, m))], [{ kind: 'capture' }, ['role', 'content'], '{"role":"user","content":"x"}', ['role', 'content']], '7: a tag is invisible to JSON, keys and spread');
   });

@@ -21903,7 +21903,8 @@ async function runOnceCore(o) {
   const directive = TurnDirective.capture(messages, { typedDirective: o.typedDirective, turnId: runStartExtra.turnId, recovery: o.recovery ? { title: o.recovery.sourceTitle } : null });   // the Commander's words, once, before files expand (e7dcb889; null = no user message)
   messages = turnWindow.apply(messages, o, { agentId, runId, directive, reused: turnReuse });
   messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
-  const attachTaint = attachments.resentOf(messages).some(e => e && e.bytes === true) ? taintPolicy.ATTACHMENT_TAINT : null;   // TAINT FOLLOWS THE BYTES: read off the expansion's own report, before `messages` is reassigned; a reference whose bytes were not re-sent (a marker, an unreadable or binary file) taints nothing
+  const attachReport = attachments.resentOf(messages);   // what the expansion read and sent, per reference (size and sha256 of the bytes read): the taint below follows it, and the directive's attachment rows record it (TurnDirective.install)
+  const attachTaint = attachReport.some(e => e && e.bytes === true) ? taintPolicy.ATTACHMENT_TAINT : null;   // TAINT FOLLOWS THE BYTES: read off the expansion's own report, before `messages` is reassigned; a reference whose bytes were not re-sent (a marker, an unreadable or binary file) taints nothing
   const internal = !!o.internal || !!o.outputOnly;   // reason-only self-talk: system prompt stays VERBATIM, no memory/transcript injection
   let isTask = !!o.isTask;
   // A short channel reply such as "operators" is not independently task-shaped. Durable brief continuity is
@@ -24753,7 +24754,7 @@ async function runOnceCore(o) {
   if (!TurnKinds.isTurnId(o.turnId) && !TurnKinds.isTurnId(o.retryOf) && !turnReuse && !retryDirective && streamId && !internal && typeof o.retryUserRunId === 'string' && o.retryUserRunId.length <= 200) {
     const latest = transcriptStore.view('display', streamId, { limit: 1200 }).filter(row => row.role === 'user').pop();
     if (latest && latest.sourceRunId === o.retryUserRunId && latest.agentId === agentId
-      && latest.content === redact(latestUserText(messages))) retryDirective = latest;
+      && (latest.content === redact(latestUserText(messages)) || (directive && directive.attachments.length && latest.content === redact(TurnDirective.wording(directive))))) retryDirective = latest;   // a turn that carried files stores its captured wording, not the expanded text
   }
   let convo = messages;
   try {
@@ -24944,7 +24945,7 @@ async function runOnceCore(o) {
   // (e.g. a screen-capture turn). A continuation's is its SOURCE's directive. The run-end title and the line-hop check
   // read THIS capture too (bug e7dcb889 family): latestUserText(msgs) after the loop named the run after a capture label.
   const runDirective = latestUserText(recoveredTranscript ? msgs.slice(0, recoveredTranscript.base) : msgs);
-  if (!retryDirective && !o.syntheticTrigger) runTranscript.setDirective(TurnDirective.row(directive, runDirective, kinds.directiveKind));   // content = runDirective's bytes; typed = the captured wording
+  if (!o.syntheticTrigger) TurnDirective.install(runTranscript, directive, runDirective, kinds.directiveKind, attachReport, retryDirective);   // a new directive's content is the captured wording when it carries files (their text rides only the model's copy; each file is an attachment row beside it), runDirective's bytes otherwise; a reused directive writes none but hands the run its files' rows
   if (!internal) {
     try {
       runJournal.begin({

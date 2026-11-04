@@ -27,13 +27,18 @@
 'use strict';
 (function (root, factory) {
   const api = factory(typeof require === 'function' ? require('../../context.js') : (root.SK && root.SK.context),
-    typeof require === 'function' ? require('../../transcriptstore.js') : (root.SK && root.SK.transcriptstore));
+    typeof require === 'function' ? require('../../transcriptstore.js') : (root.SK && root.SK.transcriptstore),
+    typeof require === 'function' ? require('../../turn-attachment.js') : (root.SK && root.SK.turnattachment));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.tools = root.SK.tools || {}; (root.SK.tools.builtin = root.SK.tools.builtin || {}).recall = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval, transcripts) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (retrieval, transcripts, turnAttachment) {
   'use strict';
   // the one rule for a stored row's provenance (transcriptstore.js rowTaint; docs/DECISIONS.md)
   const { rowTaint, UNVERIFIED_ROW } = transcripts;
+  // what a recalled row SAYS: the Commander's typed words and one '[attached: name]' per file it carried, never a file's text
+  // (turn-attachment.js textOf); a row that carried no file reads as its content, byte for byte. An attachment row says
+  // '[attached: name]' itself.
+  const rowText = (r) => (turnAttachment && typeof turnAttachment.textOf === 'function') ? turnAttachment.textOf(r) : String(r && r.content == null ? '' : r && r.content);
 
   const { note: failNote } = (typeof require === 'function') ? require('../../failopen.js') : { note: function (tag, code) { console.warn('[failopen] ' + tag + ':', code); } };
 
@@ -122,7 +127,7 @@
           try { win = ownRows(transcriptStore.view('recall', where, { op: 'around', anchor, window: limit }) || []); }
           catch (_) { return { content: 'Conversation history could not be read. This does not prove there are no turns around that point.', summary: 'history read incomplete' }; }
           if (!win.length) return { content: 'No turns found around ' + (stable ? 'id=' : 't=') + anchor + (where ? ' in workstream "' + where + '"' : '') + '.', summary: '0 turns' };
-          const body = win.map(r => '[' + r.role + ' · t=' + r.ts + '] ' + oneLine(r.content, SNIPPET)).join('\n');
+          const body = win.map(r => '[' + r.role + ' · t=' + r.ts + '] ' + oneLine(rowText(r), SNIPPET)).join('\n');
           return { content: 'Turns around ' + (stable ? 'id=' : 't=') + anchor + (where ? ' in "' + where + '"' : '') + ':\n' + body, summary: win.length + ' turn(s)', taintedBy: resultTaint(win) };
         }
 
@@ -195,7 +200,7 @@
         const crossStream = !strictStream;
         const body = hits.map((h, i) => {
           const tag = (crossStream && h.streamId ? '[' + h.streamId + ' · ' : '[') + h.role + ' · t=' + h.ts + (day(h.ts) ? ' · ' + day(h.ts) : '') + ']';
-          return (i + 1) + '. ' + tag + (h.rowId ? ' [id=tx-' + h.rowId + ']' : '') + ' ' + oneLine(h.content, SNIPPET);
+          return (i + 1) + '. ' + tag + (h.rowId ? ' [id=tx-' + h.rowId + ']' : '') + ' ' + oneLine(rowText(h), SNIPPET);
         }).join('\n');
         const lead = widened
           ? 'Nothing matched in this workstream, so I searched all of them:\n'

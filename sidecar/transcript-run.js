@@ -50,13 +50,25 @@
      directiveKind, line   the directive's default kind; 'lineId@dockId', passed through to every row
      quotes      an array, or a function read at EACH drain, of [{id, at}] (a bare string is {id, at: 0}): the streams
                  this run has read so far, stamped on each drained row as quotes + quotesAt (TurnKinds.quoteStamp)
-   setDirective({ text, typed, attachments, kind }) writes text as the content and the rest on the directive row;
-   directiveRow() is { rowId, turnId, text } once the directive is proven durable.
+   setDirective({ text, typed, attachments, kind, attachmentRows }) writes text as the content and the rest on the directive
+   row; directiveRow() is { rowId, turnId, text } once the directive is proven durable.
+
+   ATTACHMENT ROWS (attachment-rows-and-taint, S3; sidecar/turn-attachment.js). attachmentRows are the files the directive's turn
+   carried, as turn-attachment items. The directive row holds the Commander's words only, so each file is recorded beside it as
+   a role-system, kind 'attachment' row, written right after the directive (same turnId and sourceRunId). They are provenance,
+   never dialogue, so a failure to write them is reported through onFailure and the rows stay pending for the next boundary: the
+   directive is never rewritten, nothing is thrown, and the run is never blocked. Only the run that wrote the directive (or one
+   handed the files of a directive it reuses, setAttachments) writes them, and every append is checked against the turn's LIVE
+   rows, so a retry (which retracts the old rows) writes each file once and a resend or a continuation writes none twice.
+   The directive row's own taint is the run's NON-attachment taint: the bare attachment stamp is what the attachment rows carry,
+   and the Commander's typed words are not bytes (a directive stamped only with the attachment source is written clean).
 
    Pure: no clock, no randomness, no I/O of its own — every write is the injected store's. */
 'use strict';
 
 const TurnKinds = require('../frontend/app/turnkinds.js');
+const TurnAttachment = require('./turn-attachment.js');
+const { ATTACHMENT_TAINT } = require('./taint.js');
 const ROW_KINDS = new Set(['station', 'hop']);
 
 function makeRunTranscript(opts) {
@@ -105,6 +117,8 @@ function makeRunTranscript(opts) {
   function kindOf(m) { return TurnKinds.messageKind(m, rowKind); }
   let directiveExtra = null;   // { typed, attachments, kind } from setDirective({ … })
   let directiveStored = null;  // the row appendStrict proved for the directive
+  let attachmentItems = [];    // the turn-attachment items still owed a row (setDirective's attachmentRows / setAttachments)
+  let attachmentTurn = null;   // the turn a REUSED directive's files are recorded under (setAttachments); null = this run's own turn
 
   // the directive row's turn fields ({} with none of the new opts: the row is the trunk row)
   function directiveFields() {
@@ -131,10 +145,29 @@ function makeRunTranscript(opts) {
     return out;
   }
 
+  // the directive's taint: the run's own source unless that is the bare attachment stamp, which belongs to the attachment rows —
+  // the directive holds the Commander's typed words, not the file's bytes (see ATTACHMENT ROWS above)
+  function directiveTaint() {
+    const t = taintNow();
+    return t === ATTACHMENT_TAINT ? null : t;
+  }
+  // the attachment rows still owed, written AFTER the directive: never throws (onFailure + retried at the next boundary)
+  function writeAttachments() {
+    if (!attachmentItems.length) return;
+    let result;
+    try {
+      result = TurnAttachment.write(store, { items: attachmentItems, streamId, agentId, turnId: attachmentTurn || turnIdNow(), runId, dispatchState, taint: taintNow() || ATTACHMENT_TAINT });
+    } catch (e) { onFailure('attachment', e); return; }
+    const done = new Set(result.done);
+    attachmentItems = attachmentItems.filter(item => !done.has(TurnAttachment.keyOf(item)));
+    if (result.failure) onFailure('attachment', result.failure);
+  }
   function writeDirective() {
-    if (directiveWritten || !directive) return;
-    directiveStored = store.appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: 'user', content: directive, sourceRunId: runId, dispatchState, taint: taintNow(), from: from || undefined }, directiveFields()));
-    directiveWritten = true;
+    if (!directiveWritten && directive) {
+      directiveStored = store.appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: 'user', content: directive, sourceRunId: runId, dispatchState, taint: directiveTaint(), from: from || undefined }, directiveFields()));
+      directiveWritten = true;
+    }
+    writeAttachments();
   }
 
   // STRICT: directive first, then every message not yet carrying the persisted marker. Throws on the first
@@ -152,15 +185,27 @@ function makeRunTranscript(opts) {
 
   return {
     // the triggering user text, captured by the host before the loop can add user-role turns of its own; or
-    // { text, typed, attachments, kind }: the content, plus the typed words, attachment refs and kind of its row
+    // { text, typed, attachments, kind, attachmentRows }: the content, plus the typed words, attachment refs and kind of its row,
+    // and the turn-attachment items to record beside it (see ATTACHMENT ROWS in the header)
     setDirective(text) {
       if (text && typeof text === 'object') {
         directive = text.text == null ? '' : String(text.text);
         directiveExtra = { typed: text.typed, attachments: text.attachments, kind: text.kind };
+        attachmentItems = Array.isArray(text.attachmentRows) ? text.attachmentRows.slice() : [];
+        attachmentTurn = null;
         return;
       }
       directive = text == null ? '' : String(text);
       directiveExtra = null;
+      attachmentItems = [];
+      attachmentTurn = null;
+    },
+    // the files of a directive this run REUSES (a retry answers the turn's existing directive and has no directive of its own to
+    // write): their attachment rows are owed like a new directive's, under that directive's turn (the run's own turn when none is
+    // named), and written once, checked against the turn's live rows
+    setAttachments(items, turnId) {
+      attachmentItems = Array.isArray(items) ? items.slice() : [];
+      attachmentTurn = TurnKinds.isTurnId(turnId) ? turnId : null;
     },
     // { rowId, turnId, text } of the directive once its row is proven durable; null before that (held, not yet
     // written) or when the store kept no rowId (a store without a durable io)

@@ -44,6 +44,7 @@ const fixtures = [
   ['hop', make({ kind: 'hop', line: 'line@dock' }), [0, 0, 1, 1, 1]],
   ['steer', make({ kind: 'steer', role: 'system' }), [1, 1, 1, 1, 1]],
   ['deliverable', make({ kind: 'deliverable', role: 'system' }), [0, 0, 1, 1, 1]],
+  ['attachment', make({ kind: 'attachment', role: 'system' }), [0, 0, 1, 0, 1]],
   ['delivery', make({ kind: 'delivery', role: 'assistant' }), [1, 0, 1, 1, 1]],
   ['observed', make({ kind: 'observed' }), [1, 0, 1, 1, 1]],
   ['carried', make({ carriedBy: 'run-carrier' }), [1, 0, 1, 1, 1]],

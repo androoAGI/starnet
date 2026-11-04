@@ -156,7 +156,10 @@ A.eq(typeof taint.rowStoresAttachmentText, 'function', 'taint.js exports the sto
   A.eq(EarlierConversation.taintOf([row('assistant', 'b', 'worker output (tainted by user attachment)')]), 'worker output (tainted by user attachment)', 'a wrapped attachment source is a different stamp and taints');
   A.eq(EarlierConversation.taintOf([row('user', 'a', 'User Attachment'), row('user', 'b', 'user attachment ')]), 'User Attachment', 'near-miss spellings are not the constant');
   A.eq(EarlierConversation.taintOf([row('user', 'a', null), row('user', 'b', ''), row('user', 'c', undefined), null, 'junk']), null, 'clean, empty and junk rows carry nothing');
-  A.eq(EarlierConversation.taintOf([row('user', 'look\n' + FILE_BODY, UA, { typed: 'look', attachments: [REF] })]), UA, 'the note renders a row\'s content verbatim, so a row that stores the file text still taints it');
+  // (S3) the note renders the typed words and '[attached: name]' of a row that kept its references beside them (earlier-conversation
+  // exchanges), never the file text in its content: the 11-02 shape puts no bytes in the note, so its bare stamp decays like any other
+  A.eq(EarlierConversation.taintOf([row('user', 'look\n' + FILE_BODY, UA, { typed: 'look', attachments: [REF] })]), null, 'a row of the 11-02 shape (file text in the content, the words in typed) is rendered as its typed words, so it carries no bytes into the note');
+  A.ok(!EarlierConversation.render([row('user', 'look\n' + FILE_BODY, UA, { typed: 'look', attachments: [REF] }), row('assistant', 'I read it', UA)], { windowTokens: 8000 }).note.includes('FILE_BODY_SENTINEL'), 'and the rendered note really holds none of the file text');
   A.eq(EarlierConversation.taintOf([row('user', 'look', UA, { typed: 'look', attachments: [REF] }), row('assistant', 'ok', UA)]), null, 'a clean directive row with references does not');
   A.eq(EarlierConversation.taintOf([row('user', SHIPPED, UA), row('assistant', 'I read it', UA)]), UA, 'a row of the shipped shape (no typed words, no references: the header in the content) taints the note that renders it');
   A.eq(EarlierConversation.taintOf([row('user', 'plain typed words', UA), row('assistant', SHIPPED, UA)]), null, 'typed words, and a model reply that quotes the header, do not');
@@ -246,7 +249,8 @@ function startRun(ctx, runId, o) {
     r1.finish();
     A.eq([r1.execution.taintedBy(), r1.execution.rowTaint()], [UA, 'fs.read'], 'the production observe block latches fs.read even though the run already held the attachment');
     const rows1 = store.history('S');
-    A.eq(rows1.map(r => r.taint || null), [UA, UA, 'fs.read', 'fs.read'], 'rows written before the read carry the bare source, rows after it carry fs.read');
+    // (S3) the directive row holds the Commander's typed words, so it is written clean; the bare attachment stamp is the model's rows
+    A.eq(rows1.map(r => r.taint || null), [null, UA, 'fs.read', 'fs.read'], 'the directive is clean, rows written before the read carry the bare source, rows after it carry fs.read');
     A.eq(replayFrom()({ streamId: 'S', msgs: browser(1) }), 'replayed history (tainted by fs.read)', 'turn 3 replays the fs.read rows and starts tainted: the attachment did not launder the read');
     A.eq(journal.inspect('run1').taintedBy, 'fs.read', 'the journal reports the page over the bare attachment it began with');
 
@@ -262,7 +266,7 @@ function startRun(ctx, runId, o) {
     r2.finish();
     A.eq(r2.execution.rowTaint(), 'web_fetch', 'a page read after the attachment is the row stamp');
     A.eq(journal.inspect('run2').taintedBy, 'web_fetch', 'and the journal\'s answer for a continuation');
-    A.eq(store.history('W').map(r => r.taint || null), [UA, UA, 'web_fetch', 'web_fetch'], 'the rows written after the page carry it');
+    A.eq(store.history('W').map(r => r.taint || null), [null, UA, 'web_fetch', 'web_fetch'], 'the rows written after the page carry it');
     A.eq(journal.inspect('run2').meta.initialTaint, UA, 'the begin meta is untouched: the run really began with the bare attachment');
     A.eq(replayFrom()({ streamId: 'W', msgs: browser(1) }), 'replayed history (tainted by web_fetch)', 'turn 3 after a run that held the attachment and then fetched a page starts tainted by the PAGE: the attachment decayed, the page did not');
     A.eq(replayFrom()({ recovery: { sourceRunId: 'run2' }, streamId: 'other', msgs: [{ role: 'user', content: 'x' }] }), 'resumed run (tainted by web_fetch)', 'and a recovery continuation of that run restores the page, not the bare attachment');
@@ -272,7 +276,7 @@ function startRun(ctx, runId, o) {
     r3.say('just text');
     r3.finish();
     A.eq([r3.execution.rowTaint(), journal.inspect('run3').taintedBy], [UA, UA], 'an attachment-only run reports the attachment, in its stamp and in the journal');
-    A.eq(store.history('C').map(r => r.taint || null), [UA, UA], 'and its rows carry only the bare source, which decays');
+    A.eq(store.history('C').map(r => r.taint || null), [null, UA], 'and its model rows carry only the bare source, which decays (the directive holds the typed words: clean)');
     A.eq(replayFrom()({ streamId: 'C', msgs: browser(1) }), null, 'turn 3 after an attachment-only conversation replays clean');
     A.eq(replayFrom()({ recovery: { sourceRunId: 'run3' }, streamId: 'other', msgs: [{ role: 'user', content: 'x' }] }), 'resumed run (tainted by user attachment)', 'a continuation of an attachment-only run still latches (bytes are in its checkpoint), under a stamp that does not decay');
 
@@ -374,7 +378,7 @@ function startRun(ctx, runId, o) {
   A.ok(/taintedBy: \(\) => execution\.rowTaint\(\) \|\| /.test(idx), 'a delegated worker inherits rowTaint');
   A.ok(/latchRunTaint\(c\.name\);\s*\/\/ every untrusted result/.test(idx) && !/if \(!execution\.taintedBy\(\)\) latchRunTaint\(/.test(idx), 'an untrusted tool result latches even when the run is already tainted');
   A.ok(/if \(carried\) \{ latchRunTaint\('earlier conversation carried content from '/.test(idx) && /if \(taintedNote\) \{ latchRunTaint\('recalled memory saved by a run that read '/.test(idx), 'carried-note and recalled-memory latches are not guarded by an earlier taint either');
-  A.ok(/const attachTaint = attachments\.resentOf\(messages\)\.some\(e => e && e\.bytes === true\) \? taintPolicy\.ATTACHMENT_TAINT : null;/.test(idx), 'runOnceCore taints from the bytes actually re-sent');
+  A.ok(/const attachReport = attachments\.resentOf\(messages\);/.test(idx) && /const attachTaint = attachReport\.some\(e => e && e\.bytes === true\) \? taintPolicy\.ATTACHMENT_TAINT : null;/.test(idx), 'runOnceCore taints from the bytes actually re-sent (the report off the expansion itself)');
   A.ok(!/hasUserAttachments/.test(idx.replace(/\/\/[^\n]*/g, '')), 'handleRun no longer derives taint from the presence of references');
   const src = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'run-journal.js'), 'utf8');
   A.ok(/const \{ ATTACHMENT_TAINT \} = require\('\.\/taint\.js'\)/.test(src), 'the journal reads the one constant');

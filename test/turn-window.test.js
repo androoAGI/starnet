@@ -88,13 +88,24 @@ const quoted = { role: 'user', content: '> a quoted log is still typed input', t
 window.apply([quoted, newest], o, ctx);
 A.eq(Store.rowTaint(store.all().find(r => r.turnId === quoted.turnId)), null, 'quoted typed input retains the existing host rule');
 const attached = { role: 'user', content: 'READ_ATTACHMENT', turnId: 'window_attached_0001', turnAt: 999999,
-  attachments: [{ id: 'attachment-ref', name: 'note.txt' }], taint: null, taintKnown: true };
+  attachments: [{ id: 'attachment-ref', name: 'note.txt', path: '.attachments/attachment-ref.txt', mediaType: 'text/plain', kind: 'file' }, { id: 'elsewhere', name: 'elsewhere.txt', path: '../outside/elsewhere.txt' }], taint: 'forged', taintKnown: true };
 window.apply([attached, newest], o, ctx);
-const attachedRow = store.all().find(r => r.turnId === attached.turnId);
-A.eq([attachedRow.taintKnown, Store.rowTaint(attachedRow), attachedRow.sourceRunId], [true, 'user attachment', undefined], 'attachment references retain taint despite a posted clean claim and never borrow the current run');
+const attachedRow = store.all().find(r => r.turnId === attached.turnId && r.directive === true);
+// (attachment rows, S3) a carried turn is written like a new one: the directive holds the Commander's typed words, CLEAN whatever
+// provenance the page claimed, and each file it carried is an attachment row beside it. Taint follows the bytes a run re-sends
+// (attachments.resentOf), so the mere presence of a reference stamps nothing on the words.
+A.eq([attachedRow.taintKnown, Store.rowTaint(attachedRow), attachedRow.sourceRunId, attachedRow.content, attachedRow.attachments.map(a => a.id)], [true, null, undefined, 'READ_ATTACHMENT', ['attachment-ref']], 'a carried directive with files is written clean, never borrows the current run, and keeps its saved references');
+const carriedFiles = store.all().filter(r => r.turnId === attached.turnId && r.kind === 'attachment');
+A.eq(carriedFiles.length, 1, 'one attachment row for the one saved reference (a path outside .attachments/ names no attachment)');
+A.eq([carriedFiles[0].role, carriedFiles[0].content, carriedFiles[0].taint, carriedFiles[0].sourceRunId, carriedFiles[0].attachment], ['system', '[attached: note.txt]', 'user attachment', ctx.runId, { id: 'attachment-ref', name: 'note.txt', mime: 'text/plain', path: '.attachments/attachment-ref.txt' }],
+  'the carried file is a system row stamped with the attachment source and this run, without size or sha256 (no read happened)');
+A.ok(carriedFiles[0].rowId > attachedRow.rowId, 'and it follows its directive');
+window.apply([attached, newest], o, ctx);
+A.eq(store.all().filter(r => r.turnId === attached.turnId).length, 2, 'a resend duplicates neither the carried directive nor its attachment row');
+A.ok(!store.view('display', 's').some(r => r.kind === 'attachment') && !JSON.stringify(store.view('model-replay', 's', { shape: 'pairs' })).includes('[attached:'), 'the attachment row is neither shown nor replayed');
 // (attachment decay) the bare attachment stamp is the one stamp that does not taint a replay: the bytes it stood for are re-sent
-// (and latched by the run that re-sends them, attachments.resentOf) or gone, so the carried row keeps its provenance but replays clean
-A.eq(store.taintOf('s', [{ role: 'user', content: attached.content }]), null, 'a carried attachment row replays clean: the bare attachment stamp decays');
+// (and latched by the run that re-sends them, attachments.resentOf) or gone, so a carried attachment turn replays clean
+A.eq(store.taintOf('s', [{ role: 'user', content: attached.content }]), null, 'a carried attachment turn replays clean: the directive is clean and the bare attachment stamp decays');
 store.appendStrict({ streamId: 's', role: 'assistant', content: 'PRIOR_FETCHED_TEXT', taint: 'web source' });
 window.apply([{ role: 'user', content: 'AFTER_FETCH_TYPED', turnId: 'window_after_fetch_0001', turnAt: 999999 }, newest], o, ctx);
 A.eq(store.taintOf('s', [{ role: 'assistant', content: 'PRIOR_FETCHED_TEXT' }]), 'web source', 'carrying typed words never clears prior outside-content provenance');

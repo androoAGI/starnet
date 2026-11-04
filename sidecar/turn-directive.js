@@ -48,7 +48,17 @@
      typedText(d)                            the typed words only ('' for null): KeyTools.ownerRun, learning's hand-off
      wording(d)                              the one wording: non-blank text, else the label ('' for null)
      row(d, contentBytes, kind)              setDirective's argument: { text, typed, attachments, kind }; contentBytes
-                                             itself for null (the trunk string path)
+                                             itself for null (the trunk string path). A directive that carries attachments
+                                             is written CLEAN: text is the captured wording (the typed words, else the
+                                             label), never contentBytes, which holds the files' expanded text; the file
+                                             rides as an attachment row beside it (sidecar/turn-attachment.js). A directive
+                                             without attachments keeps the trunk bytes exactly
+     install(runTranscript, d, contentBytes, kind, report, reused)
+                                             the ONE decision of what a run writes for its directive: a new directive is
+                                             row(...) plus the attachment rows of its references (report = attachments.resentOf,
+                                             for each file's size and sha256); a REUSED directive (a retry or resend answering
+                                             the turn's existing row) writes none of its own and hands the run the references'
+                                             attachment rows instead, because a retry retracts the old ones
      title(d, runDirective) / runTitle(source, keys) / interruptedTitle(meta, keys)
                                              a run's title source (runDirective only for a null capture), scrubbed and
                                              key-named the one way (PromptScrub.scrubStored(KeyTools.nameSavedKeys(…)))
@@ -63,6 +73,8 @@ const TurnKinds = require('../frontend/app/turnkinds.js');
 const UserText = require('../frontend/app/usertext.js');
 const KeyTools = require('./tools/builtin/keys.js');
 const PromptScrub = require('./prompt-scrub.js');
+const TurnAttachment = require('./turn-attachment.js');
+const { rowStoresAttachmentText } = require('./taint.js');
 const { note: failNote } = require('./failopen.js');
 
 const count = (tag, what) => failNote(tag, new Error(what));
@@ -124,12 +136,15 @@ function refIds(list) {
 }
 // the key-blind input check: a row that carries `typed` (the redacted wording) is compared on it, any other row on its
 // content (trunk's basis: the expanded words, or the label of a captionless turn); a row that names attachments also
-// needs the same attachment ids. A null capture never matches (the turn's words are unknown: an input conflict).
+// needs the same attachment ids. A row that keeps attachment references and no `typed` is the CLEAN directive (row() below):
+// its content IS the captured wording, so it is compared on that, never on the expanded text of the request (which holds the
+// files' bytes). A null capture never matches (the turn's words are unknown: an input conflict).
 function sameInput(row, a) {
   const d = a.directive;
   if (!d) return false;
   if (Array.isArray(row.attachments) && refIds(row.attachments) !== refIds(d.attachments)) return false;
   if (row.typed != null) return keyBlind(row.typed) === keyBlind(storedForm(wording(d), a));
+  if (Array.isArray(row.attachments) && row.attachments.length && Array.isArray(d.attachments) && d.attachments.length) return keyBlind(row.content) === keyBlind(storedForm(wording(d), a));
   const latest = typeof a.latestUserText === 'function' ? a.latestUserText(a.messages) : '';
   return keyBlind(row.content) === keyBlind(storedForm(latest || d.label || '', a));
 }
@@ -221,7 +236,27 @@ function wording(d) {
 }
 function row(d, contentBytes, kind) {
   if (!d) return contentBytes;
-  return { text: contentBytes || d.label, typed: wording(d), attachments: d.attachments, kind };
+  // THE CLEAN DIRECTIVE: with attachments the row's content is the Commander's wording, never contentBytes (the expanded text,
+  // whose file bytes are a third party's words). The files ride as attachment rows (install); the refs stay for the thumbnails.
+  if (Array.isArray(d.attachments) && d.attachments.length) return { text: wording(d), typed: wording(d), attachments: d.attachments, kind };
+  // a recovery continuation that must write the directive its source never wrote reads the SOURCE's expanded prompt: when that
+  // holds a file's text the row keeps the source's title instead (the same fallback a missing directive takes at run end)
+  const expanded = d.recovered === true && rowStoresAttachmentText({ role: 'user', content: contentBytes });
+  return { text: expanded ? wording(d) : (contentBytes || d.label), typed: wording(d), attachments: d.attachments, kind };
+}
+// what the run writes for its directive and the files it carried (see the header): runTranscript is makeRunTranscript's;
+// reused is the directive ROW the run answers when it reuses one (its turn is the one the files are recorded under)
+function install(runTranscript, d, contentBytes, kind, report, reused) {
+  if (!runTranscript || typeof runTranscript.setDirective !== 'function') return;
+  const refs = d && Array.isArray(d.attachments) ? d.attachments : [];
+  if (reused) {
+    const items = TurnAttachment.rowsFor(refs, report);
+    if (items.length && typeof runTranscript.setAttachments === 'function') runTranscript.setAttachments(items, reused.turnId);
+    return;
+  }
+  const r = row(d, contentBytes, kind);
+  if (r && typeof r === 'object' && refs.length) r.attachmentRows = TurnAttachment.rowsFor(refs, report);
+  runTranscript.setDirective(r);
 }
 function title(d, runDirective) { return d ? String(d.typedTitleSource || '') : runDirective; }
 function runTitle(source, keys) { return PromptScrub.scrubStored(KeyTools.nameSavedKeys(source, keys), { whole: true }); }
@@ -283,5 +318,5 @@ function interruptedIdentity(meta, store, state) {   // state: the journal inspe
 
 module.exports = {
   turnOf, reuseByTurn, reuse, keyBlind, echo, startFields, interruptedIdentity,
-  capture, typedText, wording, row, title, runTitle, interruptedTitle, packet
+  capture, typedText, wording, row, install, title, runTitle, interruptedTitle, packet
 };
