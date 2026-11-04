@@ -116,6 +116,51 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.taskBriefs().forget(b => inScope(briefSource(b), scope))
   });
 
+  /* skill goldens: a great-rated run frozen per skill - its directive and the start of its output, kept to measure later runs against. Source:
+     the run (the scope names every run filed in a deleted session and every run that quoted one). A skill whose last golden goes keeps no key. */
+  const goldenSource = g => ({ runIds: [g && g.runId], at: num(g && g.mintedAt) });
+  entry({
+    name: 'skill-goldens',
+    sourceOf: goldenSource,
+    forget: scope => {
+      const cur = d.goldens.get() || {};
+      const next = {};
+      let removed = 0;
+      for (const key of Object.keys(cur)) {
+        const list = Array.isArray(cur[key]) ? cur[key] : [];
+        const keep = list.filter(g => !inScope(goldenSource(g), scope));
+        removed += list.length - keep.length;
+        if (keep.length || !list.length) next[key] = keep;
+      }
+      if (removed) settle(() => d.goldens.persist(next));
+      return removed;
+    }
+  });
+
+  /* study proposals: belief updates a finished run's aux pass proposed, held server-side until the Commander turns them in. Source: the run
+     the pass studied and the runs its proposals cite. A proposal citing a deleted session's run goes alone; a run whose proposals all go
+     leaves no entry (and no 'latest' pointer to it). The browser-owned `declined` mirror beside it is a reject list: kept (Q5). */
+  const studyRuns = e => [e && e.runId].concat(((e && e.proposals) || []).flatMap(p => [p && p.sourceRunId, p && p.evidenceRef && p.evidenceRef.runId]));
+  entry({
+    name: 'study-proposals',
+    sourceOf: e => ({ runIds: studyRuns(e), at: num(e && e.createdAt) }),
+    forget: scope => {
+      const byRun = d.study.byRun(), latest = d.study.latest();
+      let removed = 0;
+      for (const [runId, e] of Array.from(byRun)) {
+        if (inScope({ runIds: [runId, e && e.runId] }, scope)) { byRun.delete(runId); removed++; continue; }
+        const proposals = Array.isArray(e && e.proposals) ? e.proposals : [];
+        const keep = proposals.filter(p => !inScope({ runIds: [p && p.sourceRunId, p && p.evidenceRef && p.evidenceRef.runId] }, scope));
+        if (keep.length === proposals.length) continue;
+        removed += proposals.length - keep.length;
+        if (keep.length) byRun.set(runId, Object.assign({}, e, { proposals: keep })); else byRun.delete(runId);
+      }
+      for (const [agent, runId] of Array.from(latest)) if (!byRun.has(runId)) latest.delete(agent);
+      if (removed) settle(d.study.persist);
+      return removed;
+    }
+  });
+
   return registry;
 }
 

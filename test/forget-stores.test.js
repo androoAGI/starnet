@@ -164,6 +164,36 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       } finally { remove(bdir); }
     }
 
+    // ---------------- skill goldens and study proposals ----------------
+    {
+      const golden = (runId, skillId, word) => ({ id: 'g_' + runId, skillId, agentId: 'agent', runId, directive: 'about ' + word, reference: { text: word + ' notes', words: 2, chars: 12, keywords: [word] }, mintedAt: 4100 });
+      let goldens = { 'agent\u0000skillA': [golden('r_gone', 'skillA', 'quokka'), golden('r_keep', 'skillA', 'platypus')], 'agent\u0000skillB': [golden('r_reader', 'skillB', 'readerword')], 'agent\u0000skillC': [golden('r_keep2', 'skillC', 'wombat')] };
+      const goldenSaves = [];
+      hold.goldens = { get: () => goldens, persist: next => { goldens = next; goldenSaves.push(JSON.stringify(next)); } };
+      A.eq(await forget('skill-goldens'), 2, 'the golden of the deleted session\'s run and the golden of the run that read it are gone');
+      A.eq(Object.keys(goldens).sort(), ['agent\u0000skillA', 'agent\u0000skillC'], 'a skill whose only golden went keeps no key');
+      A.eq(goldens['agent\u0000skillA'].map(g => g.runId), ['r_keep'], 'the other run\'s golden stays');
+      A.ok(goldenSaves.length === 2 && !goldenSaves.some(s => s.includes('quokka')), 'written twice (the .bak is the purged copy too) and neither holds the deleted words');
+      A.eq(await forget('skill-goldens'), 0, 'idempotent');
+      A.ok(!registry.admit({ runId: 'r_gone', streamId: 'sGone', at: 6000 }) && registry.admit({ runId: 'r_after', streamId: 'sKeep', at: 6000 }), 'a golden for a forgotten run is refused by the gate, another run\'s is not');
+
+      const proposal = (id, sourceRunId, text) => ({ id, dim: 'goals', kind: 'add', text, evidence: '', evidenceRef: { runId: sourceRunId, kind: 'directive' }, source: 'study', sourceRunId });
+      const byRun = new Map([
+        ['r_gone', { agentId: 'agent', runId: 'r_gone', createdAt: 4100, proposals: [proposal('p1', 'r_gone', 'keeps quokkas')] }],
+        ['r_reader', { agentId: 'agent', runId: 'r_reader', createdAt: 4600, proposals: [proposal('p2', 'r_reader', 'reads quokka notes')] }],
+        ['r_keep', { agentId: 'agent2', runId: 'r_keep', createdAt: 4100, proposals: [proposal('p3', 'r_keep', 'likes platypuses'), proposal('p4', 'r_gone', 'cites the deleted run')] }]
+      ]);
+      const latest = new Map([['agent', 'r_reader'], ['agent2', 'r_keep']]);
+      let persists = 0;
+      hold.study = { byRun: () => byRun, latest: () => latest, persist: () => { persists++; } };
+      A.eq(await forget('study-proposals'), 3, 'two whole entries and the one proposal that cited the deleted run are gone');
+      A.eq(Array.from(byRun.keys()), ['r_keep'], 'the other run\'s entry stays');
+      A.eq(byRun.get('r_keep').proposals.map(p => p.id), ['p3'], '...without the proposal that cited the deleted session\'s run');
+      A.eq(Array.from(latest.entries()), [['agent2', 'r_keep']], 'the pointer to a removed entry goes with it');
+      A.eq(persists, 2, 'persisted twice');
+      A.eq(await forget('study-proposals'), 0, 'idempotent');
+    }
+
     A.report('forget-stores');
   } finally { remove(dir); }
 })().catch(e => { console.error(e && e.stack || e); process.exit(1); });

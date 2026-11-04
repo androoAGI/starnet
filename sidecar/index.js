@@ -3685,7 +3685,9 @@ wireForgetRegistry(forgetRegistry, {
   scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => persistScout() },
   recommendations: () => recommendationLedger,
   verdictReview: () => verdictReview,
-  taskBriefs: () => taskBriefStore
+  taskBriefs: () => taskBriefStore,
+  goldens: { get: () => goldensByKey, persist: next => persistGoldens(next) },
+  study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => persistStudyState() }
 });
 // once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
 setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
@@ -4247,6 +4249,7 @@ async function runStudy(o) {
     // CROSS-WIRE: study() already deduped THIS agent's own studyDeclined list; drop anything the Commander declined
     // in ANOTHER surface (a mined thread / a quest title / a reflected belief / a north star) before it is stashed.
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.text)); }
+    if (proposals.length && !forgetRegistry.admit(o.src || { runId })) { console.log('[study] proposals for run=' + runId + ' dropped: its session was deleted'); proposals = []; }   // the registry's gate: a pass that began before a delete stashes nothing
     if (proposals.length) {
       // arm the cooldown ONLY when proposals actually survive — a floored/all-dedup run never blocks the next study.
       lastStudyAt.set(agentId, Date.now());
@@ -25977,7 +25980,8 @@ async function runOnceCore(o) {
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = TurnDirective.wording(directive);   // the captured words: never the loop's screen capture or a repair prompt
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
+      src: Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())) }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
@@ -29489,7 +29493,7 @@ async function handleGrowthRatings(req, res) {
         }
         const directive = lead.deliveryPrompt || (packet && packet.directive && packet.directive.text) || (packet && Array.isArray(packet.messages) ? latestUserText(packet.messages) : '') || lead.title || '';   // the packet's captured directive first (already safe)
         const g0 = skillGoldens.mint({ runId, agentId: lead.agentId || 'agent', directive: redact(directive), outputText }, Date.now());   // redacted whatever its source
-        if (g0) {
+        if (g0 && forgetRegistry.admit({ runId, streamId: lead.streamId, at: Date.now() })) {   // the registry's gate: no golden of a forgotten run
           const next = Object.assign({}, goldensByKey);
           for (const id of ids) { const key = String(lead.agentId || 'agent') + '\x00' + id; next[key] = skillGoldens.fold(next[key], Object.assign({}, g0, { skillId: id })); goldensMinted++; }
           persistGoldens(next);
