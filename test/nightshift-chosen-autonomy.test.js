@@ -70,7 +70,9 @@ function makeHost(runs) {
     // the one governor the host binds (billing-class.js), over a clear budget and the registry's payer
     governor: BillingClass.makeGovernor({ budget: { check: () => null }, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => billing.classOf(id) }), NIGHTSHIFT_AGENT: 'agent',
     cronProviderFor: () => 'openrouter', cronModelFor: () => 'test/model', cronHasCredential: () => true, cronKeyFor: () => 'k',
-    nightshiftUserRunCount: () => runs
+    nightshiftUserRunCount: () => runs,
+    // the held-floor gate reads the agent's room and the saved-floor hold: a fresh station has neither (held-floor behaviour is routing.held-floor-away.e2e)
+    workshopOf: () => null, routingHold: () => null
   });
   return vm.runInContext(postureSrc + ';\n' + precheckSrc + '\n' + viewSrc + '\n({ commanderPosture, nightshiftPrecheck, nightshiftReadinessView })', ctx);
 }
