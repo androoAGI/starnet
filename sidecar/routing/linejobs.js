@@ -508,9 +508,7 @@ function refuseDecision(state, id, request) {
   if (!d) throw new Error('no such line decision');
   if (d.state === 'refused') return { state, job: prior, receipt: d, replayed: true };
   if (before.phase !== 'held' || before.activeDecision !== d.token || d.state !== 'accepted') throw new Error('only the claimed decision on a held job can be refused');
-  const next = Object.assign({}, before, { revision: before.revision + 1, activeDecision: null,
-    decisions: before.decisions.map(x => x.token === d.token ? Object.assign({}, x, { state: 'refused' }) : x) });
-  const c = Continuation.checkpoint(before, prior, before.revision, next);
+  const c = Continuation.refuseDecision(before, prior, d.token);
   const job = normJob(Object.assign({}, prior, { continuation: c, resumeRefused: { token: d.token, action: d.action, why: str(r.why, 400), at: num(r.at) } }));
   const jobs = state.jobs.slice(); jobs[i] = job;
   return { state: withJobs(state, jobs), job, receipt: c.decisions.find(x => x.token === d.token), replayed: false };
