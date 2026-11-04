@@ -6465,6 +6465,14 @@ function holdAuthority(q) {
     if (resuming) {
       if (cronHalted === true) return { refused: 'E-STOP is engaged' };
       if (processFaultQuiesced === true) return { refused: 'the station stopped its background work after an internal fault' };
+      /* A ROUTINE'S JOB resumes only under the routine it was admitted by: its limits (tool families, folder, skills) ride on every stage it
+         runs (resumeProfileFor), so the routine must still be there and still say what the job's saved origin says. Gone or changed, the
+         decision is refused and the job stays held; a STOP never gets here. */
+      if (c.origin.kind === 'schedule' || c.origin.kind === 'manual') {
+        const r = routineOf(c.origin.routineId);
+        if (!r) return { refused: 'the routine this job came from is gone, so the limits it ran under can no longer be applied to the stages it would run' };
+        if (routinePolicyDigest(routinePolicyOf(r)) !== c.origin.policyDigest) return { refused: 'the routine this job came from was changed while it waited (its tools, folder or skills), so the limits it ran under can no longer be vouched for' };
+      }
       /* every agent the job went through AND every agent on its line (the stage it will run next is one of them) can run NOW — on the
          config the stage itself would resolve (sampleRunConfigFor, the SEND TO hub's): a crew that has not loaded since a restart, a deleted
          agent or a lost credential refuses the decision here, instead of letting the approved work die on its first stage */
@@ -6486,6 +6494,18 @@ function holdAuthority(q) {
     }
     return true;
   } catch (e) { failNote('linejobs.holdAuthority', e); return { refused: 'the station could not vouch for this hold (' + ((e && e.message) || e) + ')' }; }
+}
+/* the configuration a routine's hops run under, read off its job record — spelled exactly as the two seams that start a routine's job spell it
+   (the cron driver's advanceChain call and Run Now's work line): its skills, its required preloads, its working folder and its tool families.
+   A resumed stage runs under it again (resumeProfileFor) and a decision is refused when the routine no longer says what the job was admitted
+   with (holdAuthority). The routine itself is read from the cron store: null when it is gone. */
+function routinePolicyOf(job) {
+  return { preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null,
+    enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null };
+}
+function routineOf(routineId) {
+  try { return cronStore.getJob(cronJobs, String(routineId == null ? '' : routineId)) || null; }
+  catch (e) { failNote('linejobs.routineOf', e); return null; }
 }
 // the routine configuration a fire's hops ran under (skills, workdir, toolsets), digested: the saved origin of a scheduled or Run Now job
 function routinePolicyDigest(r) {
@@ -14507,13 +14527,25 @@ const RESUME_PERSONA = 'You are an agent aboard the STARNET station. A work line
 function resumeProfileFor(job, c, rec) {
   const o = c.origin, kind = o && o.kind;
   const channel = kind === 'channel' ? String(o.instanceId) : kind === 'trigger' ? 'trigger' : kind === 'sendto' ? 'handoff' : kind === 'sample' ? 'sample' : 'cron';
-  return lineRunner.profiles.channel({
+  const profile = lineRunner.profiles.channel({
     channel, chatId: kind === 'channel' ? String(o.chatId) : job.id, streamId: job.streamId || undefined,
     config: agentId => sampleRunConfigFor(agentId), persona: () => RESUME_PERSONA, station: (agentId, dockId) => router.stationFor(agentId, dockId),
     ownerTrusted: false, untrustedEntry: true, channelSender: true, channelSenderOwner: false,
     history: null, redact: redact,
     onRun: (runId, h) => { rec.runId = runId; rec.agentId = h.agentId; rec.startedAt = Date.now(); }   // E-STOP and the snapshot read the hop
   });
+  /* A ROUTINE'S JOB RUNS ITS STAGES INSIDE THE ROUTINE'S LIMITS (line-hold lane). A scheduled or Run Now fire runs every hop under the routine's
+     tool families (a restriction-only list that also strips connector, MCP and plugin tools), working folder and skills; the plain channel profile
+     above read none of them, so the stage after the gate came back with every tool family — at exactly the stage whose input was built from
+     untrusted text. They ride beside the untrusted, owner-less, power-withheld verdicts, so the profile can only narrow. holdAuthority has just
+     checked the routine is still there and still says what the job was admitted with; if it vanished in between, the stage is not run. */
+  if (kind === 'schedule' || kind === 'manual') {
+    const routine = routineOf(o.routineId);
+    if (!routine) throw new Error('the routine this job came from is gone');
+    const policy = routinePolicyOf(routine), base = profile.options;
+    profile.options = h => Object.assign({}, base(h), { preloadSkills: policy.preloadSkills, requiredPreloads: policy.requiredPreloads, workdir: policy.workdir, enabledToolsets: policy.enabledToolsets });
+  }
+  return profile;
 }
 const lineResumeInflight = new Map();   // job id -> { runId, abort, endReason, agentId, startedAt }: the live resumed walks E-STOP and the fault containment stop
 const lineResume = LineResume.makeLineResume({

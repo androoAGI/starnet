@@ -64,11 +64,22 @@ function hostPorts(scope) {
   const index = Source.readSidecarIndex();
   const a = index.indexOf("/* ---- THE HOLD'S HOST PROOFS (line-hold lane, S3)"), b = index.indexOf('/* RESTART TRUTH (2026-07-06 audit)', a);
   if (a < 0 || b <= a) throw new Error('rig: the hold host-proofs block is missing from sidecar/index.js');
-  const names = ['holdOriginOf', 'holdPlanHash', 'holdFileReceipt', 'holdAuthority', 'routinePolicyDigest'];
+  const names = ['holdOriginOf', 'holdPlanHash', 'holdFileReceipt', 'holdAuthority', 'routinePolicyDigest', 'routinePolicyOf', 'routineOf'];
   const s = Object.assign({ LineHold, crypto, fs, path, WORKSPACES: os.tmpdir(), failNote: () => {}, nightshiftState: {},
+    // the routines the station knows (index.js cronJobs, read through cronStore.getJob): a resume of a routine's job reads its configuration from here
+    cronJobs: [], cronStore: { getJob: (jobs, id) => jobs.find(j => j && j.id === id) || null },
     // what a RESUME's authority reads beside a hold's (line-hold lane, S4): the crew, the halts, the day ledger
     sampleRunConfigFor: () => ({ ok: true, configured: true }), cronHalted: false, processFaultQuiesced: false, lineSpend: { spentToday: () => 0 } }, scope);
   return vm.compileFunction(index.slice(a, b) + '\nreturn {' + names.join(',') + '};', Object.keys(s))(...Object.values(s));
+}
+
+/* The station's resume profile, compiled from sidecar/index.js (the block from RESUME_PERSONA to the live-walk registry). `scope` supplies what
+   index.js has in module scope (lineRunner, sampleRunConfigFor, router, redact, and the routine reads of the host proofs). */
+function resumeProfile(scope) {
+  const index = Source.readSidecarIndex();
+  const a = index.indexOf('const RESUME_PERSONA ='), b = index.indexOf('const lineResumeInflight = new Map();', a);
+  if (a < 0 || b <= a) throw new Error('rig: the resume profile block is missing from sidecar/index.js');
+  return vm.compileFunction(index.slice(a, b) + '\nreturn resumeProfileFor;', Object.keys(scope))(...Object.values(scope));
 }
 
 function makeRig(o) {
@@ -90,7 +101,8 @@ function makeRig(o) {
   rig.roster = new Map((o.agents || ['drafter', 'reviewer', 'publisher', 'fixer']).map(a => [a, { agentId: a }]));   // the crew the station knows (a resume refuses a deleted agent)
   // the run config a stage would resolve (index.js sampleRunConfigFor): an agent the station's crew no longer holds cannot run
   const configFor = a => rig.roster.has(a) ? { ok: true, configured: true } : { ok: false, error: 'target agent ' + a + ' is not in the live roster' };
-  rig.ports = hostPorts({ router, nightshift: { isHalted: () => rig.halted }, sampleRunConfigFor: configFor, lineSpend: { spentToday: l => rig.day.spent(l) } });
+  rig.cron = [];   // the routines this station knows (a test pushes the cron job record a scheduled or Run Now job came from)
+  rig.ports = hostPorts({ router, nightshift: { isHalted: () => rig.halted }, sampleRunConfigFor: configFor, lineSpend: { spentToday: l => rig.day.spent(l) }, cronJobs: rig.cron });
   // (the chain is built by a function: a RESTARTED station is a new chain with no barrier in memory — rig.restartChain())
   const buildChain = () => makeChainRunner(Object.assign({ nextAgent: (a, x) => router.chainNext(a, x), stepDock: (d, x) => router.chainStepDock(d, x), entryDockOf: a => router.entryDockOf(a),
     fanSiblingsDock: d => router.fanSiblingsDock(d), lineOfAgent: (a, d) => router.lineOfAgent(a, d), agentOfDock: d => router.agentOfDock(d),
@@ -141,7 +153,7 @@ function makeRig(o) {
     const facts = opts.origin !== undefined ? opts.origin : (typeof rig.facts[entry] === 'function' ? rig.facts[entry](runId) : rig.facts[entry]);
     const seed = Object.assign({ agentId: entryDock.agentId, dockId: entryDock.dockId, lineId, runId, streamId, since: rows.get(runId).startedAt, text: first, originalText: 'write a post',
       entryUsd, entryTrusted: true, hostPowerKept: true, origin: facts, taints: [] }, opts.seed);
-    const line = await rig.runner.runLineJob({ job, seed, profile: rig.runner.profiles.channel({}) });
+    const line = await rig.runner.runLineJob({ job, seed, profile: opts.profile || rig.runner.profiles.channel({}) });   // (opts.profile: the profile the door's hub really builds)
     return { job, line, runId, streamId };
   };
   rig.settle = (job, line, facts) => rig.runner.settle(job, Object.assign({ line, output: String(line.text || '') + rig.runner.stopNote(line) }, facts));
@@ -158,12 +170,14 @@ function makeRig(o) {
     return rig;
   };
   /* THE RESUME OWNER over the real host's store, the rig's runner and the station's own authority (line-resume.js); `over` swaps one dep */
+  /* THE STATION'S OWN resumeProfileFor (index.js), compiled out of the host: the profile a resumed hop runs under — a channel profile that is
+     untrusted and power-withheld whatever the job ran under, and, for a routine's job, inside the routine's own tool envelope. The rig supplies
+     only what index.js has in module scope: the line runner (whose profiles are read when the profile is built), the run config, the router. */
+  rig.productionProfileFor = () => resumeProfile({ lineRunner: { get profiles() { return rig.runner.profiles; } }, sampleRunConfigFor: configFor, router, redact: s => s,
+    routineOf: rig.ports.routineOf, routinePolicyOf: rig.ports.routinePolicyOf });
   rig.owner = (host, over) => {
     const Resume = require('../../sidecar/routing/line-resume.js'), inflight = new Map();
-    const profileFor = (job, c, rec) => rig.runner.profiles.channel({ channel: 'rig', chatId: job.id, streamId: job.streamId, config: () => ({ ok: true, model: 'rig-model', key: 'k', configured: true }),
-      persona: () => 'a resumed stage', station: () => null, ownerTrusted: false, untrustedEntry: true, channelSender: true, channelSenderOwner: false, history: null,
-      onRun: runId => { rec.runId = runId; } });
-    return Resume.makeLineResume(Object.assign({ store: host.store, authority: q => rig.ports.holdAuthority(q), runner: rig.runner, profileFor, hold: { receiptFor: rig.ports.holdFileReceipt },
+    return Resume.makeLineResume(Object.assign({ store: host.store, authority: q => rig.ports.holdAuthority(q), runner: rig.runner, profileFor: rig.productionProfileFor(), hold: { receiptFor: rig.ports.holdFileReceipt },
       halted: () => rig.halted, inflight, runRow: id => rows.get(id), now }, over));
   };
   rig.record = id => J.get(state, id);

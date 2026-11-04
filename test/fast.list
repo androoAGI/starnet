@@ -1340,6 +1340,7 @@ test/line-hold.ui.test.js
 test/line-jobs.held-visible.test.js
 test/floor.onspent.seam.test.js
 test/line-hold.approve-shown.test.js
+test/line-hold.routine-policy.test.js
 test/line-continuation.test.js
 test/line-continuation.transitions.test.js
 test/line-entry.test.js
