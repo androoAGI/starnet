@@ -1536,6 +1536,7 @@ test/threshold.anchored.test.js
 test/tail.token-budget.test.js
 test/fold.user-verbatim.test.js
 test/fold-head-pin.test.js
+test/summary-reuse.test.js
 test/earlier-conversation.test.js
 test/compaction.images.test.js
 test/skills.on-demand.test.js
