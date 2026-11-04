@@ -22,7 +22,7 @@ function fixture() {
     CHANNEL_AGENT_PREFIX: Hub.DEFAULT_AGENT_PREFIX || 'tg_', channelRegistry: new Map([['telegram', {}], ['discord', {}]]),
     telegramBotRecords: () => bots, liveChannelFor: id => live.get(id),
     readBody: async req => JSON.stringify(req.body), respondJson: (res, code, value) => Object.assign(res, { code, value }),
-    isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(id), failNote: (tag, e) => notes.push([tag, e.message]) };
+    isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(id), refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId, failNote: (tag, e) => notes.push([tag, e.message]) };
   const definitions = Source.callRegion(source, 'const botScopedStores = ', ';') + '\n' +
     ['makeBotScopedStore', 'disconnectedChannelHistory', 'handleChannelHandoff'].map(name =>
       A.fnBody(source, (name === 'handleChannelHandoff' ? 'async function ' : 'function ') + name + '(')).join('\n');

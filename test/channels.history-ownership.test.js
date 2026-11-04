@@ -62,7 +62,7 @@ const defer = () => { let resolve; const promise = new Promise(r => { resolve = 
     const scope = { channelStore: f.channelStore, channelHistory: f.history, channelHubFactory: Factory, ChannelHistory: Port,
       CHANNEL_AGENT_PREFIX: Hub.DEFAULT_AGENT_PREFIX, telegramBotRecords: () => bots, channelRegistry: new Map(), liveChannelFor: () => null,
       readBody: async req => JSON.stringify(req.body), respondJson: (res, code, value) => Object.assign(res, { code, value }),
-      isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(id), failNote() {} };
+      isAgentId: id => /^[A-Za-z0-9_-]{1,40}$/.test(id), refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId, failNote() {} };
     const definitions = Source.callRegion(source, 'const botScopedStores = ', ';') + '\n' +
       ['makeBotScopedStore', 'disconnectedChannelHistory', 'handleChannelHandoff'].map(name =>
         A.fnBody(source, (name === 'handleChannelHandoff' ? 'async function ' : 'function ') + name + '(')).join('\n');
