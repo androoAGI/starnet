@@ -17,13 +17,26 @@ const Save = (() => {
   function key() { return KEY; }
   function useKey(k) { if (JOURNAL_KEY_RE.test(String(k || ''))) KEY = String(k); return KEY; }
   const PRE_MIGRATE_BACKUP_KEY = 'starnet.save.pre-migrate.backup';
+  /* THE PRE-MIGRATION COPY IS A COPY OF EVERY CONVERSATION. It is the raw save from before a migration, kept so a bad migration can be
+     recovered by hand, which makes it the one place a chat the Commander deleted outlives the delete — and, written once and never
+     touched again, outlives everything else. So it is bounded and it follows deletes: PRE_MIGRATE_BACKUP_AT_KEY stamps when it was made
+     and expireBackup() removes it BACKUP_TTL_MS later; forgetFromBackup() cuts a forgotten conversation out of it (write() does that
+     for every id in the save's forgetIds, in the persist that records the delete); clear() removes it with the save. It is cut, not
+     dropped at the first confirmed load of the new format, so a way back inside those days still has every conversation that was not
+     deleted (test/save-premigrate-backup.test.js). */
+  const PRE_MIGRATE_BACKUP_AT_KEY = PRE_MIGRATE_BACKUP_KEY + '.at';
+  const BACKUP_TTL_MS = 30 * 24 * 60 * 60 * 1000;
   const LEGACY_SCHEMA = 'skynet.save';   // Skynet→StarNet rename: saves written before the rename carry this schema tag (the
   const SCHEMA = 'starnet.save';         // legacymigrate boot pass copies the OLD `skynet.save` localStorage KEY forward; load() still accepts the old TAG inside the value).
   // v6 belongs to the 0.9 line. v0.8.5 shipped save v5 and its Workstreams normalizer does not know the
   // candidate's persisted `titleStrong` provenance bit. Reusing v5 let a manual rollback accept the newer save,
   // silently strip that bit on persist, and make a re-upgraded session eligible for another automatic rename.
   // Advancing the envelope makes the already-shipped forward-version guard refuse that destructive downgrade.
-  const CURRENT = 6;
+  // v7 belongs to history-by-reference (frontend/app/historyref.js): a session's history may now hold a packed element
+  // { "$ref": …, "res": … } naming a run of rows the station's transcript holds. A v6 page would draw that element as an empty
+  // message and write it back over the real history on its next persist, so the stamp is what keeps it out: it refuses a
+  // v7 save (loadStatus 'future', the cache bytes untouched) instead of reading it. The bump is taken here, before anything packs.
+  const CURRENT = 7;
 
   // forward-only migrations: { fromVersion: (doc) => upgradedDoc }
   const migrations = {
@@ -72,7 +85,12 @@ const Save = (() => {
         }
       }
       return doc;
-    }
+    },
+    // v6 -> v7 (history by reference): nothing moves. A v6 envelope whose sessions hold their whole history inline IS a valid v7
+    // envelope — an inline row is one of the two shapes a v7 history is made of, the other being a packed run — so the doc is
+    // handed on as it is and packing only happens later, as rows are sealed against a station read. What changes is the stamp:
+    // migrate() sets version = CURRENT, and from then on this build's saves are refused by every page that predates the element.
+    6: doc => doc
   };
 
   function migrate(doc) {
@@ -86,7 +104,74 @@ const Save = (() => {
     try {
       const v = Number(doc && doc.version || 0);
       if (v >= CURRENT) return;
-      if (!localStorage.getItem(PRE_MIGRATE_BACKUP_KEY)) localStorage.setItem(PRE_MIGRATE_BACKUP_KEY, raw);
+      if (!localStorage.getItem(PRE_MIGRATE_BACKUP_KEY)) {
+        localStorage.setItem(PRE_MIGRATE_BACKUP_KEY, raw);
+        localStorage.setItem(PRE_MIGRATE_BACKUP_AT_KEY, String(Date.now()));   // if the cache refuses the stamp, expireBackup stamps the copy when it first sees it
+      }
+    } catch (_) {}
+  }
+
+  function dropBackup() {
+    try { localStorage.removeItem(PRE_MIGRATE_BACKUP_KEY); } catch (_) {}
+    try { localStorage.removeItem(PRE_MIGRATE_BACKUP_AT_KEY); } catch (_) {}
+  }
+
+  // 30 days after it was made the copy goes. A copy with no stamp (one an older build made) is stamped the first time it is seen and goes
+  // 30 days after that: nothing is removed the moment it is found, whatever its age. A stamp from the future (a clock that was wrong) is
+  // pulled back to now, so a bad clock cannot keep the copy for ever. Cheap: one read of the stamp, and of the copy only while it has none.
+  function expireBackup(now) {
+    try {
+      const t = Number.isFinite(now) ? now : Date.now();
+      const at = Number(localStorage.getItem(PRE_MIGRATE_BACKUP_AT_KEY));
+      if (at > 0) {
+        if (at > t) localStorage.setItem(PRE_MIGRATE_BACKUP_AT_KEY, String(t));
+        else if (t - at >= BACKUP_TTL_MS) dropBackup();
+        return;
+      }
+      if (localStorage.getItem(PRE_MIGRATE_BACKUP_KEY) !== null) localStorage.setItem(PRE_MIGRATE_BACKUP_AT_KEY, String(t));
+    } catch (_) {}
+  }
+
+  // Cut the conversations `ids` out of the pre-migration copy: their records, the ~restored copies of them, the worker threads that were
+  // theirs, and their rows in the undo checkpoint. Returns how many records it removed. A copy that cannot be read, or cannot be written
+  // back, cannot be shown to be free of them, so it is removed whole: a forgotten chat is never kept to keep a rollback.
+  function forgetFromBackup(ids) {
+    try {
+      const gone = new Set((Array.isArray(ids) ? ids : []).filter(x => typeof x === 'string' && x));
+      if (!gone.size) return 0;
+      const raw = localStorage.getItem(PRE_MIGRATE_BACKUP_KEY);
+      if (raw === null) return 0;
+      let doc = null;
+      try { doc = JSON.parse(raw); } catch (_) { doc = null; }
+      if (!doc || typeof doc !== 'object' || Array.isArray(doc)) { dropBackup(); return 0; }
+      const goneRow = r => !!r && typeof r === 'object' && typeof r.id === 'string'
+        && (gone.has(r.id) || gone.has(r.id.replace(/~restored\d*$/, '')) || (typeof r.parentStreamId === 'string' && gone.has(r.parentStreamId)));
+      let removed = 0;
+      if (Array.isArray(doc.workstreams)) {
+        const keep = doc.workstreams.filter(w => !goneRow(w));
+        removed += doc.workstreams.length - keep.length;
+        doc.workstreams = keep;
+      }
+      const undo = doc.sessionUndo;
+      if (undo && typeof undo === 'object' && Array.isArray(undo.rows)) {
+        const keep = undo.rows.filter(r => !goneRow(r));
+        if (keep.length !== undo.rows.length) { removed++; if (keep.length) undo.rows = keep; else delete doc.sessionUndo; }
+      }
+      if (removed) localStorage.setItem(PRE_MIGRATE_BACKUP_KEY, JSON.stringify(doc));
+      return removed;
+    } catch (_) { dropBackup(); return 0; }
+  }
+
+  // write() hands every persist's forgetIds here. An id is cut out of the copy once per page lifetime (the copy only shrinks), so a save that
+  // forgets nothing new costs a loop over its ids and no read of the copy.
+  const scrubbed = new Set();
+  function scrubBackup(forgetIds) {
+    try {
+      if (!Array.isArray(forgetIds) || !forgetIds.length) return;
+      const fresh = forgetIds.filter(id => typeof id === 'string' && id && !scrubbed.has(id));
+      if (!fresh.length) return;
+      forgetFromBackup(fresh);
+      for (const id of fresh) scrubbed.add(id);
     } catch (_) {}
   }
 
@@ -106,6 +191,7 @@ const Save = (() => {
       if (!doc || (doc.schema !== SCHEMA && doc.schema !== LEGACY_SCHEMA) || !doc.agent) return { status: 'none', doc: null, version: 0 };
       const v = Number(doc.version || 0);
       if (v > CURRENT) return { status: 'future', doc: null, version: v };   // NEWER build wrote this — do not touch it
+      expireBackup();
       backupBeforeMigrate(raw, doc);
       return { status: 'ok', doc: migrate(doc), version: CURRENT };
     } catch (e) { console.warn('[save] load failed:', e); return { status: 'error', doc: null, version: 0 }; }
@@ -146,6 +232,7 @@ const Save = (() => {
      takeWriteRaw() hands it over once and forgets it; it is the same bytes the cache was given. */
   let lastRaw = null;
   function write(state) {
+    scrubBackup(state && state.forgetIds);
     const doc = envelope(state);
     lastRaw = null;
     try { lastRaw = JSON.stringify(doc); localStorage.setItem(KEY, lastRaw); lastWriteError = null; return doc; }
@@ -155,9 +242,9 @@ const Save = (() => {
   function writeError() { return lastWriteError; }
   function writeQuotaFull() { return /quota/i.test(String(lastWriteError || '')); }
 
-  function clear() { try { localStorage.removeItem(KEY); } catch (e) {} }
+  function clear() { try { localStorage.removeItem(KEY); } catch (e) {} dropBackup(); }
   function has() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } }
 
-  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, envelope, fromDoc, clear, has, key, useKey, CURRENT, PRE_MIGRATE_BACKUP_KEY, LEGACY_KEY, JOURNAL_KEY_RE };
+  return { load, loadStatus, isFuture, write, takeWriteRaw, writeError, writeQuotaFull, envelope, fromDoc, clear, has, key, useKey, forgetFromBackup, expireBackup, CURRENT, PRE_MIGRATE_BACKUP_KEY, PRE_MIGRATE_BACKUP_AT_KEY, BACKUP_TTL_MS, LEGACY_KEY, JOURNAL_KEY_RE };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Save;

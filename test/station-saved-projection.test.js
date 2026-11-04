@@ -5,6 +5,7 @@ const fs = require('node:fs'), path = require('node:path'), os = require('node:o
 const WM = require('../frontend/app/worldmodel.js');
 const { makeStationStore, makeSavedFloorProjection } = require('../sidecar/station-store.js');
 const { makeSaveStore } = require('../sidecar/savestore.js');
+const Save = require('../frontend/app/save.js');   // the page's save format: the projection reads only a save of exactly this version
 const clone = v => JSON.parse(JSON.stringify(v));
 function canonical(raw) {
   const model = WM.deserialize(raw); model.projectGeometry(); return model.serialize();
@@ -46,7 +47,7 @@ const read = project();
 const write = station => {
   const previous = store.loadPrimaryState('agent');
   const revision = previous.status === 'ok' ? previous.wrapper.doc._saveRevision : 0;
-  return store.save('agent', { schema: 'starnet.save', version: 6, updatedAt: now++, _saveRevision: revision,
+  return store.save('agent', { schema: 'starnet.save', version: Save.CURRENT, updatedAt: now++, _saveRevision: revision,
     _saveClient: 'projection-test', _saveDirty: true, agent: { id: 'agent' }, station }, { compareRevision: true });
 };
 try {
@@ -99,7 +100,9 @@ try {
     ['mismatched revision', w => { w.revision++; }, 'invalid'],
     ['mismatched writer', w => { w.client = 'another-window'; }, 'unvouched'],
     ['missing writer', w => { delete w.client; }, 'unvouched'],
-    ['future save', w => { w.doc.version = 7; }, 'future'],
+    ['future save', w => { w.doc.version = Save.CURRENT + 1; }, 'future'],
+    // a save the page has not rewritten since history-by-reference (v7) is held, not read as a floor, until its first v7 save lands
+    ['previous-format save (v6)', w => { w.doc.version = 6; }, 'migration-required'],
     ['future station', w => { w.doc.station.version = 3; }, 'future'],
     ['legacy station', w => { w.doc.station.version = 1; }, 'migration-required'],
     ['missing intake identity', w => { delete w.doc.station.props.find(p => p.id === 'i1').lineId; }, 'migration-required'],
@@ -111,7 +114,7 @@ try {
   ]) {
     const changed = clone(good); edit(changed); const bytes = Buffer.from(JSON.stringify(changed)); fs.writeFileSync(primary, bytes);
     const result = read();
-    A.eq([result.status, result.plan, result.identity], [expected, null, null], name + ': no last-good/default authority leaks');
+    A.eq([result.status, result.routingOk, result.plan, result.identity], [expected, false, null, null], name + ': no last-good/default authority leaks');
     A.eq(fs.readFileSync(primary), bytes, name + ': primary bytes remain untouched');
   }
   for (const [name, change] of [

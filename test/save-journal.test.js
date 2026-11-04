@@ -155,7 +155,7 @@ const turn = K.turn;
       const on = page(b, host);
       await on.cs.openJournal(); await on.cs.reconcile(on.Save.load());
       // `off` is still live (it answers for w.new), so `on` continued w.old or took its own; the other clean one is gone once read
-      const left = Array.from(b.cache.keys()).filter(k => /^starnet\.save/.test(k));
+      const left = Array.from(b.cache.keys()).filter(k => k === 'starnet.save' || k.startsWith('starnet.save.w.'));   // the journals: a migration's recovery copy (and its stamp) is not one
       A.ok(left.length <= 2 && left.includes(on.cs.journalKey()) && left.includes(off.cs.journalKey()), 'c: once the station is read, only the live pages\' journals remain (' + left + ')');
     }
 

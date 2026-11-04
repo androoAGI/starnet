@@ -253,7 +253,7 @@ const CloudSave = (() => {
   // StarNet and MUST NOT be adopted into the cache (that would clobber the local doc with fields this code
   // can't read). Mirror Save.CURRENT when available; fall back to a literal only if Save hasn't loaded yet.
   // The literal IS save.js CURRENT (test/cloudsave-version-fallback.test.js): a stale one called this build's own saves newer.
-  function currentVersion() { return (typeof Save !== 'undefined' && Number.isFinite(Save.CURRENT)) ? Save.CURRENT : 6; }
+  function currentVersion() { return (typeof Save !== 'undefined' && Number.isFinite(Save.CURRENT)) ? Save.CURRENT : 7; }
   function isFutureSave(d) { return isSave(d) && num(d.version) > currentVersion(); }
   // the sentinel reconcile hands the boot path when a durable remote is from a newer build. Distinct object
   // (never a real save envelope) so the boot path can raise the honest "update the app" gate. localStorage is

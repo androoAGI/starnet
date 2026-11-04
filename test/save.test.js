@@ -322,4 +322,23 @@ for (const torn of [false, true]) {
   A.eq(s.recoveryNotice('agent'), undefined, 'reading recovered backup does not re-arm acknowledged notice');
 }
 
+// ---- O. v6 -> v7 (history by reference, frontend/app/historyref.js): the station file keeps what the page wrote, as it wrote it ----
+// A v7 save may hold a packed element ({ "$ref": …, "res": … }) in place of a run of history rows. The store never reads a history:
+// the first v7 save replaces a v6 file as any newer save does, the element reads back untouched, the v6 file is kept as the .bak, and
+// a store that knows nothing of the element (an older sidecar is this same code on this path) serves the file back as bytes.
+{
+  const fs = memFs();
+  const s = mk(fs);
+  const file = pathMod.join(ROOT, 'agent.save.json');
+  const inline = [{ streamId: 's1', rowId: 11, role: 'user', content: 'hi' }, { streamId: 's1', rowId: 12, role: 'assistant', content: 'hello' }, { role: 'system', sys: true, content: 'a note' }];
+  const v6 = envelope({ version: 6, updatedAt: 300, workstreams: [{ id: 's1', history: inline }] });
+  const v7 = envelope({ version: 7, updatedAt: 400, workstreams: [{ id: 's1', history: [{ $ref: 'b,1', res: { 1: { typedText: 'typed' } } }, inline[2]] }] });
+  A.eq(s.save('agent', v6).ok, true, 'a v6 save lands');
+  A.eq(s.load('agent').version, 6, '...and reads back as the version it was');
+  A.eq(s.save('agent', v7).ok, true, 'the first v7 save replaces the v6 file as any newer save does');
+  A.eq(s.load('agent'), v7, '...and the packed element reads back exactly as written: the store never reads a history');
+  A.eq(JSON.parse(fs.files.get(file + '.bak')).doc, v6, 'the v6 file it replaced is kept as the .bak');
+  A.eq(mk(fs).load('agent'), v7, 'a restarted store serves the packed history back, field for field');
+}
+
 A.report('save.test');

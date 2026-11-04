@@ -49,6 +49,9 @@ files.push(path.join(base, 'frontend', 'app', 'turnkinds.js'));
 files.push(path.join(base, 'frontend', 'app', 'turnmerge.js'));
 // The shared page/station fitter and capability decisions are pure; host reads stay injected outside it.
 files.push(path.join(base, 'frontend', 'app', 'historyfit.js'));
+// historyref.js is the saved-history format (pack, explode, expand, digest) the sidecar's merge engines will run through too:
+// pure, no clock or randomness, and the station read is injected
+files.push(path.join(base, 'frontend', 'app', 'historyref.js'));
 // usertext.js is the one flattener of a message's text parts, required by the sidecar (transcript store, run directive
 // capture, learning, observer): pure, no clock
 files.push(path.join(base, 'frontend', 'app', 'usertext.js'));

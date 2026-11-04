@@ -23,7 +23,7 @@ const WorkspaceRecovery = require('../sidecar/workspace-recovery.js');
 
 const SAVE_KEY = 'starnet.save';
 const RELEASE_SAVE_VERSION = 5;
-const CANDIDATE_SAVE_VERSION = 6;
+const CANDIDATE_SAVE_VERSION = 7;   // 6 shipped the title-provenance bit (0.9); 7 lets a history name rows the station holds (historyref.js)
 
 class MemoryStorage {
   constructor(seed) { this.map = new Map(Object.entries(seed || {}).map(([k, v]) => [String(k), String(v)])); }
