@@ -176,10 +176,10 @@ const SAMPLES = 120;
         taintMode === 0 ? [undefined, undefined] : taintMode === 1 ? [undefined, true] : ['web page ' + seed, true], where + ': taint is absent (unknown), an explicit null (clean) or the source\'s');
     }
     for (const a of artifacts) if (a.cut === true) {
-      A.ok(first.skipped.some(s => s.reason === 'cut'), where + ': a cut record is reported, not published');
+      A.ok(first.skipped.some(s => s.why === 'cut'), where + ': a cut record is reported, not published');
       A.ok(rows.every(r => r.deliverable.path !== a.path), where + ': and its 260-character label is never a row');
     }
-    for (const s of first.skipped) A.ok(typeof s.reason === 'string' && s.reason && typeof s.path === 'string' && s.path.length <= 300, where + ': every skip names a bounded path and a reason');
+    for (const s of first.skipped) A.ok(typeof s.why === 'string' && s.why && typeof s.path === 'string' && s.path.length <= 300, where + ': every skip names a bounded path and a reason');
     skippedTotal += first.skipped.length;
     // retry and restart: the same rows come back, nothing new is written
     const before = io.streamRows(streamId);
@@ -210,7 +210,7 @@ const rec = (kind, p, extra) => Object.assign({ kind, path: p }, extra);
     rec('file', WIN + '\\src\\a.md'), rec('file', WIN.toLowerCase() + '/Src/b.md'), rec('file', WIN + '2\\x.md'), rec('file', WIN + '\\..\\y.md'), rec('file', WIN), rec('file', WIN + '\\'),
     rec('file', '\\\\host\\share\\z.md'), rec('file', 'D:\\proj\\q.md'), rec('image', 'ok.png'), rec('message', undefined, { target: 'slack' }), rec('video', 'v.mp4'), { kind: 'file' }, null, 'junk'] }, RUN));
   A.eq(out.rows.map(r => r.path), ['src/a.md', 'Src/b.md', 'ok.png'], 'a Windows path is converted by whole segments, case-blind, with either separator; its tail keeps its own spelling');
-  A.eq(out.skipped.map(s => s.reason), ['outside-root', 'outside-root', 'outside-root', 'outside-root', 'outside-root', 'outside-root', 'unknown', 'empty', 'unknown', 'unknown'],
+  A.eq(out.skipped.map(s => s.why), ['outside-root', 'outside-root', 'outside-root', 'outside-root', 'outside-root', 'outside-root', 'unknown', 'empty', 'unknown', 'unknown'],
     'the rest are reported with a reason: a sibling folder that merely starts with the root, a dot-dot, the root itself, a trailing slash, UNC and another drive are all outside it; a video record, no path, null and junk are not files (a message record is not reported)');
 }
 {
@@ -218,12 +218,12 @@ const rec = (kind, p, extra) => Object.assign({ kind, path: p }, extra);
     rec('file', POSIX + '/src/a.md'), rec('file', POSIX.toUpperCase() + '/b.md'), rec('file', POSIX + 'x/c.md'), rec('file', POSIX + '/./d.md')] }, RUN));
   A.eq(out.rows.map(r => r.path), ['src/a.md'], 'a POSIX root compares exactly: case, a longer sibling name and a dot segment are not inside it');
   const none = Delivery.fileRows(f.store, Object.assign({}, RUN, { runId: 'run-00000002', artifacts: [rec('file', '/abs/x.md'), rec('file', 'C:\\x.md')] }));
-  A.eq([none.rows.length, none.skipped.map(s => s.reason)], [0, ['absolute', 'drive']], 'with no root an absolute path is never converted');
+  A.eq([none.rows.length, none.skipped.map(s => s.why)], [0, ['absolute', 'drive']], 'with no root an absolute path is never converted');
 }
 {
   const f = fresh(), out = Delivery.fileRows(f.store, Object.assign({ artifacts: [rec('file', 'a.md', { cut: true }), rec('file', 'b.md', { failed: true }), rec('file', 'c.md', { ok: false }), rec('file', 'd.md', { error: 'boom' }), rec('file', 'e.md'), rec('image', 'e.md'), rec('image', 'f.png')] }, RUN));
   A.eq(out.rows.map(r => r.path), ['e.md', 'f.png'], 'a cut or failed record never becomes a row, and one exact path is one row whichever tool wrote it');
-  A.eq(out.skipped.map(s => s.reason), ['cut', 'failed', 'failed', 'failed'], 'with its reason');
+  A.eq(out.skipped.map(s => s.why), ['cut', 'failed', 'failed', 'failed'], 'with its reason');
   A.eq(f.store.view('proof', 'chat', { complete: true }).map(r => r.deliverable.artifactId), ['file_e.md', 'img_f.png'], 'the id prefix follows the artifact kind');
 }
 {
@@ -232,7 +232,7 @@ const rec = (kind, p, extra) => Object.assign({ kind, path: p }, extra);
   A.eq(names.rows.map(r => r.path), ['out/main.md', 'out/side.md', 'RAW_SECRET.txt'], 'and no path is ever the note\'s or redacted');
   const g = fresh(), big = Array.from({ length: 60 }, (_, i) => rec('file', 'f' + i + '.md'));
   const cap = Delivery.fileRows(g.store, Object.assign({ artifacts: big }, RUN));
-  A.eq([cap.rows.length, cap.skipped.filter(s => s.reason === 'capacity').length], [50, 10], 'a run is bounded at the collector\'s 50 files, and says what it left out');
+  A.eq([cap.rows.length, cap.skipped.filter(s => s.why === 'capacity').length], [50, 10], 'a run is bounded at the collector\'s 50 files, and says what it left out');
 }
 
 /* ---- failures are never successes ---- */

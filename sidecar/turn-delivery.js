@@ -53,7 +53,7 @@ function write(store, input) {
    The address is exact or there is no row. `path` is what the run wrote, byte for byte (relative, at most 260 characters, no
    '..', no NUL, no drive or UNC). The one conversion is an absolute path that lies lexically inside the run's own projectRoot,
    stored relative to it with `root` named. A record the collector cut at 260 (cut:true), an absolute path anywhere else, a
-   failed or unknown record never becomes a row and is returned in `skipped` with its reason: no path is ever shortened,
+   failed or unknown record never becomes a row and is returned in `skipped` with a short cause: no path is ever shortened,
    guessed or derived from content. Nothing here grants anything: /api/file still re-proves the jail, the blessed root and the
    protected-file floor every time a chip is opened, and no permission or hash is invented from the extension.
 
@@ -63,7 +63,7 @@ function write(store, input) {
    input: { streamId, agentId, runId, turnId?, root?, artifacts, note?, taint? }: agentId is the writing agent, whose own folder
    the relative paths live in; root the run's blessed project folder or ''; note the run's deliverable_note { title, main } (it
    names only the file `main` proves; every other row is named by its basename); taint as in write() (absent = unverified,
-   an explicit null = proved clean). Returns { rows: [{ rowId, turnId, path, media, existed }], skipped: [{ path, reason }] }. */
+   an explicit null = proved clean). Returns { rows: [{ rowId, turnId, path, media, existed }], skipped: [{ path, why }] }. */
 const FILE_ROWS_MAX = 50;      // artifacts.js MAX_ENTRIES
 const basenameOf = p => String(p).split(/[\\/]/).pop() || String(p);
 // the part of an absolute path below `root`, by whole path segments (no fs, no realpath), or null. A Windows root (drive letter)
@@ -78,22 +78,22 @@ function belowRoot(abs, root) {
   const rest = target.slice(base.length);
   return rest.some(s => s === '') ? null : rest.join('/');
 }
-// one artifact record -> { path, kind } (the exact address to publish) or { reason } (why not). A 'message' record is not a file.
+// one artifact record -> { path, kind } (the exact address to publish) or { why } (why not). A 'message' record is not a file.
 function fileCandidate(a, root) {
-  if (!a || typeof a !== 'object') return { reason: 'unknown' };
+  if (!a || typeof a !== 'object') return { why: 'unknown' };
   if (a.kind === 'message') return { quiet: true };
-  if (a.kind !== 'file' && a.kind !== 'image') return { reason: 'unknown', path: a.path };
-  if (a.ok === false || a.failed === true || a.isError === true || a.error) return { reason: 'failed', path: a.path };
-  if (a.cut === true) return { reason: 'cut', path: a.path };
+  if (a.kind !== 'file' && a.kind !== 'image') return { why: 'unknown', path: a.path };
+  if (a.ok === false || a.failed === true || a.isError === true || a.error) return { why: 'failed', path: a.path };
+  if (a.cut === true) return { why: 'cut', path: a.path };
   const problem = Kinds.deliverablePathProblem(a.path);
   if (!problem) return { path: a.path, kind: a.kind, source: a.path };
   if ((problem === 'absolute' || problem === 'drive') && root) {
     const rel = belowRoot(a.path, root);
-    if (rel === null) return { reason: 'outside-root', path: a.path };
+    if (rel === null) return { why: 'outside-root', path: a.path };
     const bad = Kinds.deliverablePathProblem(rel);
-    return bad ? { reason: bad, path: a.path } : { path: rel, kind: a.kind, source: a.path };
+    return bad ? { why: bad, path: a.path } : { path: rel, kind: a.kind, source: a.path };
   }
-  return { reason: problem, path: a.path };
+  return { why: problem, path: a.path };
 }
 function fileRows(store, input) {
   const o = input || {}, hasTaint = Object.prototype.hasOwnProperty.call(o, 'taint'), root = o.root == null ? '' : o.root;
@@ -111,10 +111,10 @@ function fileRows(store, input) {
   for (const a of o.artifacts) {
     const c = fileCandidate(a, root);
     if (c.quiet) continue;
-    if (c.reason) { skipped.push({ path: typeof c.path === 'string' ? c.path.slice(0, 300) : '', reason: c.reason }); continue; }
+    if (c.why) { skipped.push({ path: typeof c.path === 'string' ? c.path.slice(0, 300) : '', why: c.why }); continue; }
     if (seen.has(c.path)) continue;             // one row per exact path, whichever tool wrote it
     seen.add(c.path);
-    if (wanted.length >= FILE_ROWS_MAX) { skipped.push({ path: c.path, reason: 'capacity' }); continue; }
+    if (wanted.length >= FILE_ROWS_MAX) { skipped.push({ path: c.path, why: 'capacity' }); continue; }
     wanted.push(c);
   }
   if (!wanted.length) return { rows: [], skipped };
@@ -153,7 +153,7 @@ function fileRows(store, input) {
       if (prior) { rows.push({ rowId: prior.rowId, turnId: prior.turnId, path: c.path, media: prior.deliverable.media, existed: true }); continue; }
       const field = Kinds.deliverableFields({ path: c.path, media: shown, workspace: o.agentId, root,
         name: main && (main === c.path || main === c.source) && title ? title : basenameOf(c.path), artifactId: Kinds.artifactIdOf(c.kind, c.path) });
-      if (!field) { skipped.push({ path: c.path.slice(0, 300), reason: 'unrepresentable' }); continue; }
+      if (!field) { skipped.push({ path: c.path.slice(0, 300), why: 'unrepresentable' }); continue; }
       const row = store.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'system', kind: 'deliverable',
         content: (shown === 'file' ? 'saved ' : 'made ') + (field.name || 'file'), sourceRunId: o.runId, turnId,
         deliverable: field, ...(hasTaint ? { taint: taint } : {}) });
