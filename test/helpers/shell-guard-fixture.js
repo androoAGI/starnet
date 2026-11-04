@@ -38,10 +38,15 @@ function windowsRig(api) {
     if (r.error || r.status !== 0) throw new Error('Harmless fixture compilation failed: ' + String(r.error || r.stderr || r.stdout));
   }
   const opts = { cwd: root, exactCwd: true, fs, pathMod: path.win32, isWin: true, dialect: 'cmd', env };
+  // The guard's decision alone, for a launch context: no process is started, so a row that only needs a verdict costs nothing.
+  function decide(command, launch) {
+    launch = Object.assign({ cwd: root, env }, launch);
+    return { command, cwd: launch.cwd, escapes: api.escapesWorkspace(command), risk: api.commandSafetyRisk(command, Object.assign({}, opts, { cwd: launch.cwd, env: launch.env })) };
+  }
   function execute(command, force, launch) {
     launch = Object.assign({ cwd: root, env }, launch);
     if (fs.existsSync(marker)) fs.unlinkSync(marker);
-    const escapes = api.escapesWorkspace(command), risk = api.commandSafetyRisk(command, Object.assign({}, opts, { cwd: launch.cwd, env: launch.env }));
+    const { escapes, risk } = decide(command, launch);
     let run = null;
     if (force || (!escapes && !risk)) {
       const r = cp.spawnSync(api.buildMarkedCmd(command, true, 'guardfixture'), { cwd: launch.cwd, env: launch.env, shell: true, windowsHide: true, encoding: 'utf8', timeout: 10000 });
@@ -51,7 +56,7 @@ function windowsRig(api) {
     console.log(JSON.stringify(result));
     return result;
   }
-  return { root, marker, env, opts, execute, dispose() { fs.rmSync(root, { recursive: true, force: true }); } };
+  return { root, marker, env, opts, execute, decide, dispose() { fs.rmSync(root, { recursive: true, force: true }); } };
 }
 
 module.exports = { loadShell, windowsRig };

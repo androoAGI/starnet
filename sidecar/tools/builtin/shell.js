@@ -487,6 +487,19 @@
     } catch (_) { return null; } finally { if (fd != null) { try { fs.closeSync(fd); } catch (e) { shellFailNote('shell.pe-close', e); } } }
   }
   const DEFAULT_PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
+  /* WHICH ENVIRONMENT, AND HOW IT IS READ. A search is only as true as the environment it reads, so the caller says which one the
+     command will run with (opts.env: the local backend's own snapshot, a terminal's PTY env, an injected one) and process.env is
+     the answer only when it says nothing. Windows names its variables without regard to case; a copied environment is a plain
+     object that does not, so a name is found whatever its case. */
+  function envEntry(env, name) {
+    if (!env) return undefined;
+    if (env[name] != null) return env[name];
+    const want = name.toLowerCase();
+    for (const k of Object.keys(env)) if (k.toLowerCase() === want && env[k] != null) return env[k];
+    return undefined;
+  }
+  // Read off the real cmd.exe: defined (a value of any length, even none) takes the working folder out of the search for a bare name.
+  function cmdSkipsCwd(env) { return envEntry(env, 'NoDefaultCurrentDirectoryInExePath') !== undefined; }
   // These names are cmd's internal commands, not an executable-policy allowlist.
   // In particular, a cwd echo.exe cannot replace cmd's own `echo` command.
   const CMD_BUILTINS = new Set(('assoc break call cd chdir cls color copy date del dir echo endlocal erase exit for ftype goto if md mkdir mklink move path pause popd prompt pushd rd rem ren rename rmdir set setlocal shift start time title type ver verify vol').split(' '));
@@ -500,19 +513,24 @@
     try { return fs.statSync(file).isFile() ? 'file' : 'absent'; }
     catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unknown'; }
   }
-  // Resolve the FIRST executable candidate, in cwd then PATH and PATHEXT order.
+  // Resolve the FIRST executable candidate, in cmd's own order: the working folder, then PATH (the working folder is out of the
+  // search when the command's environment defines NoDefaultCurrentDirectoryInExePath), each folder in PATHEXT order.
   // An unreadable earlier candidate (or network path) cannot be vouched for by
   // a later console copy. Never stat a network path while deciding consent.
   function cmdProgramFile(value, opts) {
     const fs = opts.fs, P = opts.pathMod, env = opts.env || process.env;
     // Explicit .exe paths keep their existing proof. Other paths or dynamic
-    // names cannot silently become an uninspected bare invocation.
-    if (/[\\/:%!"<>|?*\u0000-\u001f]/.test(value) || /[. ]$/.test(value)) return { status: 'unknown' };
-    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
-    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    // names cannot silently become an uninspected bare invocation. cmd ends a program name at , ; = ( and at a space of any
+    // width or a control character (`probe,x` runs probe.exe with the argument ,x), so a name holding one is not a file whose
+    // name can be looked up as it is spelled.
+    if (/[\\/:%!"<>|?*,;=(\u0000-\u001f\u007f-\u009f]/.test(value) || /[. ]$/.test(value) || /[\p{Z}\p{Cf}]/u.test(value.replace(/ /g, ''))) return { status: 'unknown' };
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
     if (rawPath.includes('"') || !exts.length || exts.some(e => !/^\.[A-Za-z0-9]+$/.test(e))) return { status: 'unknown' };
-    for (const entry of [opts.cwd].concat(rawPath.split(P.delimiter))) {
-      const dir = String(entry || opts.cwd || '').trim();
+    const noCwd = cmdSkipsCwd(env);
+    // an empty PATH entry reads as the working folder; whether cmd still does with the folder switched off is not known
+    for (const entry of (noCwd ? [] : [opts.cwd]).concat(rawPath.split(P.delimiter))) {
+      const dir = String(entry || (noCwd ? '' : opts.cwd) || '').trim();
       if (!dir) return { status: 'unknown' };
       const folder = P.resolve(opts.cwd, dir);
       if (/^[\\/]{2}/.test(folder)) return { status: 'unknown' };
@@ -540,11 +558,13 @@
     } catch (_) { return null; }
   }
   /* Every file this head could run, or null when that cannot be proven. A bare `git.exe` is cmd's current folder first
-     and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. */
+     and then PATH, so both are read: one console copy must not vouch for a GUI one beside the command. cmd leaves the
+     working folder out when the command's environment defines NoDefaultCurrentDirectoryInExePath, and PowerShell never
+     searches it for a bare name, so there only PATH is read. */
   function localProgramFiles(value, opts) {
     const fs = opts.fs, P = opts.pathMod, cwd = opts.cwd, env = opts.env || process.env;
     if (value.includes('/') && opts.dialect !== 'powershell') return null;
-    const exts = String(env.PATHEXT || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
+    const exts = String(envEntry(env, 'PATHEXT') || DEFAULT_PATHEXT).split(';').map(e => e.trim()).filter(Boolean);
     const look = file => {
       if (/^[\\/]{2}/.test(file)) return 'unknown';
       const direct = probeFile(file, fs);
@@ -553,15 +573,17 @@
       return direct;
     };
     if (/[\\/:]/.test(value)) { const f = P.resolve(cwd || '.', value); return look(f) === 'file' ? [f] : null; }
-    const rawPath = String(env.PATH != null ? env.PATH : (env.Path != null ? env.Path : ''));
+    const rawPath = String(envEntry(env, 'PATH') != null ? envEntry(env, 'PATH') : '');
     if (rawPath.includes('"')) return null;
-    const out = [];
-    for (const [i, entry] of [cwd].concat(rawPath.split(P.delimiter)).entries()) {
+    const out = [], onPath = rawPath.split(P.delimiter);
+    const lead = opts.dialect === 'powershell' || cmdSkipsCwd(env) ? 0 : 1;   // 1 when the working folder is searched first
+    for (const [i, entry] of (lead ? [cwd] : []).concat(onPath).entries()) {
       const dir = String(entry || '').trim();
       if (!dir) continue;
-      const f = P.join(dir, value), seen = look(f);
+      // a relative PATH entry is read from the folder the command runs in
+      const f = P.join(P.resolve(cwd || '.', dir), value), seen = look(f);
       if (seen === 'unknown') return null;
-      if (seen === 'file') { out.push(f); if (i > 0) break; }
+      if (seen === 'file') { out.push(f); if (i >= lead) break; }
     }
     return out.length ? out : null;
   }
@@ -1151,9 +1173,20 @@
     if (!environment || typeof environment.refusalFor !== 'function') return null;
     try { return environment.refusalFor(aid) || null; } catch (_) { return null; }
   }
+  /* THE ENVIRONMENT THE COMMAND WILL RUN WITH, for the guard to search in. The local backend answers with the snapshot every
+     command it starts begins from (environment.commandEnv); a rig that gives the tool its own (deps.env) is believed; if
+     neither speaks the answer is undefined and the guard falls back to the process's own. */
+  function commandEnvOf(environment, ownEnv, aid, surface) {
+    if (environment && typeof environment.commandEnv === 'function') {
+      try { const e = environment.commandEnv({ agentId: aid, surface: surface }); if (e && typeof e === 'object') return e; }
+      catch (e) { shellFailNote('shell.commandenv', e); }
+    }
+    return ownEnv && typeof ownEnv === 'object' ? ownEnv : undefined;
+  }
   function makeShellTool(deps) {
     deps = deps || {};
     const environment = deps.environment || null;
+    const ownEnv = deps.env && typeof deps.env === 'object' ? deps.env : null;   // the environment a direct (no environment manager) command runs with
     const spawn = deps.spawn, fs = deps.fs || null, P = deps.pathMod || (typeof require === 'function' ? require('node:path') : null), ROOT = deps.root || '';
     const bg = deps.bg || null;   // H2.2: the singleton background-process manager (shellbg.js); null -> bg disabled
     // the marker's per-call nonce (S1): random by default; a deterministic rig may inject its own
@@ -1248,7 +1281,7 @@
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
-        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin });
+        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
         const checkpoint = typeof ctx.checkpointMutation === 'function'
@@ -1288,7 +1321,7 @@
         const run = checkpoint.then(function () {
           return environment && typeof environment.execute === 'function'
             ? environment.execute({ agentId: aid, cmd: buildMarkedCmd(cmd, markerIsWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface, ledgerCmd: redact(cmd), breakaway: forPerson })
-            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '' });
+            : runCommand({ spawn: forPerson ? breakaway.spawnVia(spawn) : spawn, cmd: buildMarkedCmd(cmd, isWin, nonce), cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, ledger: ledger, ledgerCmd: ledger ? redact(cmd) : '', env: ownEnv || undefined });
         });
         return run.then(function (res) {
           // recover the final cwd + the REAL exit code from THIS call's marker; keep the cwd only inside the allowed envelope.
@@ -1581,5 +1614,5 @@
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
 });

@@ -209,6 +209,8 @@ function makeExecutionRouter(deps) {
     ensureWorkspace: agentId => callAgent('ensureWorkspace', agentId, []),
     getCwd: agentId => callAgent('getCwd', agentId, []),
     rememberCwd: (agentId, cwd) => callAgent('rememberCwd', agentId, [cwd]),
+    // null when the agent's backend cannot say what its commands begin from (a container or remote host)
+    commandEnv: opts => { const env = fromOpts(opts); return typeof env.commandEnv === 'function' ? env.commandEnv(opts) : null; },
     execute: opts => fromOpts(opts).execute(opts),
     startBackground: opts => fromOpts(opts).startBackground(opts),
     statusBackground: (agentId, bgId) => callAgent('statusBackground', agentId, [bgId]),

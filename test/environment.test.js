@@ -646,5 +646,25 @@ function makeFakeSpawn() {
     A.eq(r.out.indexOf('�'), -1, 'no replacement character reaches the model');
   }
 
+  // ---- the shell guard asks what a command begins from, and gets what execute() really spawns with ----
+  // The guard searches PATH, PATHEXT and NoDefaultCurrentDirectoryInExePath in that environment. It is the sanitized snapshot, so it
+  // carries the search variables and none of the host's secrets, and it is the same one the spawned command is given.
+  {
+    const spawn = makeFakeSpawn();
+    const env = makeEnvironmentManager({ spawn, fs, pathMod: path, root, bg: { start: () => ({ ok: true }), status: () => [], kill: () => ({ ok: true }) }, clock,
+      env: { PATH: 'C:\\bin', PATHEXT: '.EXE', NoDefaultCurrentDirectoryInExePath: '1', OPENAI_API_KEY: 'sk-not-for-a-task' }, config: { backend: 'local' } });
+    const begins = env.commandEnv({ agentId: 'a1', surface: 'interactive' });
+    A.eq(begins.PATH, 'C:\\bin', 'commandEnv carries the search path');
+    A.eq(begins.PATHEXT, '.EXE', 'and the executable extensions');
+    A.eq(begins.NoDefaultCurrentDirectoryInExePath, '1', 'and the variable that takes the working folder out of cmd\'s search');
+    A.eq(begins.OPENAI_API_KEY, undefined, 'but none of the host\'s secrets: it is the sanitized snapshot');
+    const before = spawn.calls.length;
+    const p = env.execute({ agentId: 'a1', cmd: 'echo check', timeoutMs: 1000 });
+    const spawned = spawn.calls[before].opts.env;
+    await p;
+    A.eq(spawned.PATH, begins.PATH, 'execute spawns with the PATH commandEnv reported');
+    A.eq(spawned.NoDefaultCurrentDirectoryInExePath, begins.NoDefaultCurrentDirectoryInExePath, 'and the same working-folder variable');
+  }
+
   A.report('environment.test');
 })().catch(e => { console.log('FAIL: environment.test threw - ' + (e && e.stack || e)); process.exit(1); });

@@ -7,7 +7,8 @@
 const A = require('./_assert.js');
 const fs = require('node:fs');
 const path = require('node:path');
-const { inputIsolationRisk, commandSafetyRisk } = require('../sidecar/tools/builtin/shell.js');
+// loadShell(): the guard under test, or the one SHELL_GUARD_CONTROL names (the proof that a new row fails against the old guard)
+const { inputIsolationRisk, commandSafetyRisk } = require('./helpers/shell-guard-fixture').loadShell();
 
 // A PE image big enough that only the field under test can fail: e_lfanew, signature, optional-header magic, Subsystem.
 function pe(subsystem, opts) {
