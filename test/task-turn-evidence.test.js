@@ -70,6 +70,7 @@ function host(saveImpl) {
       view: (name, streamId, options) => { if (streamId == null) c.transcriptRecent++; else c.legacyProofs++; return transcript.view(name, streamId, options); },
       ownerProof: ids => { c.ownerProofs++; return transcript.ownerProof(ids); }
     },
+    runView: (name, r) => r,   // the host's run-title filter: this fixture deletes no session
     runStore: { all: () => { c.runsAll++; return h.runs.map(r => Object.assign({}, r)); }, list: () => h.runs.slice() },
     cronJobs: [], growthRatings: { list: () => [] },
     workflowTakeoverStore: { read: () => ({ v: 1, decisions: [] }), decide: () => Promise.resolve(true) },

@@ -370,7 +370,7 @@ const { makeStationControlTools } = require('../sidecar/tools/builtin/station-co
       void p;
     }
     A.ok(/function deliverTurns\(ws, turns\) \{[\s\S]*?noteDeliveryLanding\(\);[\s\S]*?return true;\n  \}/.test(chat), 'a delivered answer landing in the open conversation (deliverTurns) is a delivery landing');
-    A.ok(/function deliverableLine\(title, agentId\) \{[\s\S]{0,120}noteDeliveryLanding\(\);/.test(chat) && /function imageDeliverableLine\(title, agentId\) \{[\s\S]{0,160}noteDeliveryLanding\(\);/.test(chat), 'so is a saved file or image line');
+    A.ok(/function deliverableLine\(title, agentId(?:, projectRoot)?\) \{[\s\S]{0,120}noteDeliveryLanding\(\);/.test(chat) && /function imageDeliverableLine\(title, agentId(?:, projectRoot)?\) \{[\s\S]{0,160}noteDeliveryLanding\(\);/.test(chat), 'so is a saved file or image line');   // (commit 10: a chip may carry the project root its relative path lives under)
   }
 
   A.report('comms-render-seams.test');

@@ -43,6 +43,9 @@ function makeOverseer(deps) {
     const read = deps.sessionsRead ? deps.sessionsRead() : { doc: deps.sessions(), stamp: '' };
     const legacy = (read && read.doc) || {};
     const deleted = new Set(legacy.deletedIds || []);
+    // the page's list is the newest 500 ids and a NEW AGENT clears it: the sidecar's own ledger of the Commander's deletes (deps.forgotten(id, ts),
+    // session-tombstones) is the authority, so a thread filed in a deleted session never reads back as live (turn identity commit 12)
+    if (typeof deps.forgotten === 'function') for (const w of state.threads) if (deps.forgotten(w.id, Number(w.createdAt) || 0)) deleted.add(w.id);
     const rows = new Map((legacy.workstreams || []).map(w => [w.id, w]));
     for (const w of state.threads) {
       if (deleted.has(w.id)) { rows.delete(w.id); continue; }
@@ -325,6 +328,21 @@ function makeOverseer(deps) {
     const row = state.reviews.find(r => r.id === id);
     return row ? copy(row) : null;
   }
+  /* forget(match) -> number: the forget registry's purge. match({ streamIds, runIds, at }) names a delegated thread (its id and its parent
+     session; the lead run that filed it) or a hand-off report (its parent and child sessions, its review run and its workers' runs) whose session
+     was deleted or whose run quoted one. The thread's title and a report's error line are words of that session. Written twice: the store
+     keeps the value it replaced as its .bak. */
+  function forget(match) {
+    if (unavailable) throw new Error(unavailable);
+    const next = copy(state);
+    const threads = next.threads.filter(w => !match({ streamIds: [w.id, w.parentStreamId], runIds: [String(w.requestId || '').split(':')[0]], at: Number(w.createdAt) || 0 }));
+    const reviews = next.reviews.filter(r => !match({ streamIds: [r.parentStreamId, r.childStreamId], runIds: [r.reviewRunId].concat(Array.isArray(r.workerRunIds) ? r.workerRunIds : []), at: Number(r.createdAt) || 0 }));
+    const n = (next.threads.length - threads.length) + (next.reviews.length - reviews.length);
+    if (!n) return 0;
+    next.threads = threads; next.reviews = reviews;
+    commit(next); commit(next);
+    return n;
+  }
   function snapshot() { if (unavailable) return { threads: [], reviews: [], paused: true, error: unavailable };
     return { threads: listedThreads().map(w => ({ ...w })), reviews: copy(state.reviews), paused: paused() }; }
   function resumeReviews() {
@@ -334,7 +352,7 @@ function makeOverseer(deps) {
     if (state.paused || emergencyPaused) update(s => { s.paused = false; return null; });
     emergencyPaused = false;
   }
-  return { threads, resolve, create, ensure, projectHome, collect, patchReview, withThread, snapshot, stopReviews, resumeReviews, membersOf, refreshReview,
+  return { threads, resolve, create, ensure, projectHome, collect, patchReview, withThread, forget, snapshot, stopReviews, resumeReviews, membersOf, refreshReview,
     paused, error, reviews, review, resolveListed };
 }
 /* station.read_session as the OVERSEER answers it (org P29-sys review, 2026-10-14). The lead's session.peek in an interactive

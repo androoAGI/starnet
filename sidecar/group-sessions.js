@@ -429,6 +429,22 @@ function makeGroupSessions(d) {
     });
     return { deleted: true };
   }
+  /* forget(match) -> Promise<number>: the forget registry's purge. A group session is a conversation of its own whose id is its workstream's, so
+     the Commander's delete of that session (the rail's Delete) must take its messages, turns, questions, instructions and shared files like the
+     group's own delete does: every live group `match({ streamIds: [id], at })` names is deleted through control(), which stops its running turns
+     and leaves only the tombstone dedupe and membership need. Written once more afterwards so the store's .bak is the purged copy too. */
+  async function forget(match) {
+    await ready;
+    const ids = Object.values(committed().groups).filter(g => g && !g.deleted && match({ streamIds: [g.id], at: Number(g.createdAt) || 0 })).map(g => g.id);
+    for (const id of ids) {
+      try { await control(id, { action: 'delete' }); }
+      catch (e) { failNote('group.forget', e); throw e; }
+      // the group's own delete keeps the title (nothing lists a tombstone); a forgotten session keeps no words at all
+      await transact((next, draft) => { const g = draft(id); g.title = ''; });
+    }
+    if (ids.length) await store.mutex.run('all', () => { store.set('all', committed()); });
+    return ids.length;
+  }
   async function fork(id, b) {
     await ready;
     const source = get(id), cutoff = b.messageId ? source.messages.find(m => m.id === b.messageId)?.seq : source.messages.length;
@@ -719,7 +735,7 @@ function makeGroupSessions(d) {
     committedState = freeze(s);
   });
   ready.catch(e => d.log('group storage unavailable: ' + e.message));
-  return { ready, create, send, configure, control, fork, invite, answerQuestion, sweep,
+  return { ready, create, send, configure, control, forget, fork, invite, answerQuestion, sweep,
     list: async () => {
       await ready;
       // updatedAt + what is waiting on the Commander, so a group you are NOT looking at can still light its rail row

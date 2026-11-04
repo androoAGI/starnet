@@ -113,7 +113,10 @@ function trustedInterests(label, now) {
   const candidates = Interests.parse('TOPIC: ' + label + ' | EVIDENCE: ' + label,
     { activityLines: ['Observed clean work: ' + label], requireExactEvidence: true });
   let state = Interests.fresh(now);
-  for (let i = 0; i < 5; i++) state = Interests.fold(state, candidates, { now, trustedActivity: true });
+  // a trusted quote names the owner row it came from (turn identity commit 12); a station re-proves sourceless trusted evidence at boot and
+  // quarantines what no owner row contains, so a seeded WARM station seeds sourced evidence
+  const activity = [{ line: 'Observed clean work: ' + label, src: { streamId: 'seed-stream', runId: 'seed-run', rowId: 1 } }];
+  for (let i = 0; i < 5; i++) state = Interests.fold(state, candidates, { now, trustedActivity: true, activity });
   return state;
 }
 

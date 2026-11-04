@@ -329,7 +329,10 @@ const StationCommands = (() => {
     // agent that wrote it — the marker would say the same thing twice
     const turns = [];
     if (prompt && !ws.worker) turns.push({ role: 'system', sys: true, content: '— delegated to ' + who + ': ' + prompt.slice(0, 400) + ' —', ts });
-    turns.push(Object.assign({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id }, TurnMerge.idsOf({ rowId: a.rowId, turnId: a.turnId })));
+    // the station's row id (a routine's return, written before this command) names a row of the stream it wrote into; a session found by
+    // its title instead is another stream, where that id would name a stranger's row, so only the turn id is taken there
+    const known = ws.id === String((a && (a.streamId || a.sessionId)) || '') ? TurnMerge.idsOf({ rowId: a.rowId, turnId: a.turnId }) : TurnMerge.idsOf({ turnId: a.turnId });
+    turns.push(Object.assign({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id }, known));
     const beforeTurn = opts.recover || opts.beforeRunId ? ws.history.findIndex(m => Number(m && m.ts) > ts) : -1;
     ws.history.splice(beforeTurn < 0 ? ws.history.length : beforeTurn, 0, ...turns);
     if (runId && Workstreams.appendRun) Workstreams.appendRun(ws.id, runId, ts, opts.beforeRunId);

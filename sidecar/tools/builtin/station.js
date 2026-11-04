@@ -182,14 +182,24 @@
           limit: { type: 'integer' }     // optional: how many recent turns (default 12, max 30)
         }
       },
-      run: async (args) => {
+      run: async (args, ctx) => {
         const ref = String((args && args.session) || '').trim().slice(0, 80);
         if (!ref) return refuse('name which session to read');
         const limit = Math.max(1, Math.min(30, Number(args && args.limit) || 12));
         const out = await ask('station.read_session', { session: ref, limit });
         if (!out.ok) return refuse(out.error);
         const r = scrubPeek(out.result || {});
-        return { content: JSON.stringify(r), summary: '"' + (r.title || ref) + '": ' + ((r.turns || []).length) + ' recent turn(s)' + (r.busy ? ' — still working' : '') };
+        /* A READ OF ANOTHER SESSION IS A QUOTE (turn identity commit 11): the session read (its resolved id, the page's or the overseer's
+           answer alike) is named in quotedStreams so the host latches it, and a session the run has no room left to read is refused
+           HERE, before its turns are composed into the result. The run's own session is never a quote. */
+        const mine = ctx && ctx.streamId ? String(ctx.streamId) : '';
+        const read = typeof r.id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(r.id) && r.id !== mine && (r.turns || []).length ? r.id : '';
+        if (read && typeof deps.quoteRoom === 'function') {
+          let room = [];
+          try { room = deps.quoteRoom([read]); } catch (_) { room = []; }
+          if (!Array.isArray(room) || !room.includes(read)) return refuse('one run may read at most 32 sessions, and this run has read that many; continue in a new run', 'session withheld');
+        }
+        return Object.assign({ content: JSON.stringify(r), summary: '"' + (r.title || ref) + '": ' + ((r.turns || []).length) + ' recent turn(s)' + (r.busy ? ' — still working' : '') }, read ? { quotedStreams: [read] } : null);
       }
     };
 

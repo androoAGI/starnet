@@ -52,7 +52,9 @@
   }
   function endOnUserTurn(messages) {
     const list = Array.isArray(messages) ? messages : [];
-    const at = list.map(m => m && m.role).lastIndexOf('user');
+    // the last turn the Commander started: a note that steered a run (a window's user '[steering] …' message, kind 'steer') is not one,
+    // or a retry would end on the replaced attempt's note instead of on the directive it re-runs
+    const at = list.map(m => m && m.role === 'user' && m.kind !== 'steer' ? 'user' : '').lastIndexOf('user');
     if (at < 0) return list;
     const out = list.slice(0, at + 1), target = out[at];
     if (typeof target.typedText === 'string') out[at] = Object.assign({}, target, { content: target.typedText });

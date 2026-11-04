@@ -21,6 +21,7 @@
 'use strict';
 
 const { makeDurableJsonStore } = require('./durable-store.js');
+const { stampOf } = require('./forget-registry.js');   // the quote stamp of a queued job: the sessions its idea was composed from (turn identity commit 12)
 
 const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
 const DENYLIST_CAP = 500;   // FIFO cap on the permanent discarded-backlogId list (per agent)
@@ -155,6 +156,7 @@ function makeWorkshopStore(deps) {
       // so later nights can scope "already built" to the same focus and see the iteration chain. Additive; optional.
       if (it.focusRef != null && String(it.focusRef).trim()) stored.focusRef = String(it.focusRef).slice(0, 500);
       if (it.continuesRunId != null && /^[A-Za-z0-9_-]{1,80}$/.test(String(it.continuesRunId))) stored.continuesRunId = String(it.continuesRunId);
+      Object.assign(stored, stampOf(it));   // the sessions the idea was composed from: the forget registry drops a job that quotes a deleted one
       rec.backlog.push(stored);
       while (rec.backlog.length > BACKLOG_CAP) rec.backlog.shift();
       out = { item: stored, reason: 'added' };
@@ -378,6 +380,23 @@ function makeWorkshopStore(deps) {
 
   // SHIFT HEALTH (2026-07-15 UX audit): record the last shift's honest outcome so the away card can render it.
   // info: { at, reason, runId?, title?, parkedTitle? } — written by runWorkshopShift on EVERY exit path.
+  /* forget(agentId, match) -> Promise<number>: the forget registry's purge of one agent's workshop. Every backlog item `match(item)` names,
+     every retired-build provenance row and the last-shift summary that names a forgotten run goes. The grant, the denylists and the dedup
+     titles of what the Commander DISCARDED stay (a rejected piece of work must not come back). Written twice: the .bak holds the purged copy. */
+  function forget(agentId, match) {
+    let n = 0;
+    const key = keyOf(agentId);
+    return durable.update(key, (cur) => {
+      const rec = normalize(cur);
+      const backlog = rec.backlog.filter(b => !match(b));
+      const superseded = rec.superseded.filter(x => !match(x));
+      n = (rec.backlog.length - backlog.length) + (rec.superseded.length - superseded.length);
+      if (rec.lastShift && match(rec.lastShift)) { rec.lastShift = null; n++; }
+      if (!n) return undefined;
+      rec.backlog = backlog; rec.superseded = superseded; return rec;
+    }).then(() => (n ? durable.update(key, c => normalize(c)).then(() => n) : 0));
+  }
+
   function setLastShift(agentId, info) {
     return durable.update(keyOf(agentId), (cur) => {
       const rec = normalize(cur);
@@ -394,7 +413,7 @@ function makeWorkshopStore(deps) {
 
   return {
     read, hasGrant, setGrant, grantIfUndecided, backlogOf, isDenied,
-    queue, claimNext, claimById, sweepStaleClaims, markBuilt, releaseClaim, discard, complete, restorePending, itemForRun, remove, supersede, setLastShift,
+    queue, claimNext, claimById, sweepStaleClaims, markBuilt, releaseClaim, discard, complete, restorePending, itemForRun, remove, supersede, setLastShift, forget,
     _durable: durable
   };
 }

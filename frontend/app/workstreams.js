@@ -698,10 +698,31 @@
     if (typeof reason === 'string' && reason.trim()) w.lastRunReason = clamp(reason.trim(), 80);
     return true;
   }
+  /* A FILE A RUN WROTE (the chips a reload replays). One record per file: the same run and the same exact path (TurnKinds.sameDeliverable) is
+     one file however many times it is filed, so the live chip, the station's canonical row (TurnMerge.deliverableOf) and a re-filing all
+     land on one record. A record also carries what only some of them know: the writing agent when it is not the session's (agentId), the
+     project root its relative path lives under (root) and the station's row id (rowId); a second filing adds what the first lacked.
+     true = a new record; false = the file was already filed. */
+  function adoptDeliverable(held, d) {
+    if (typeof d.agentId === 'string' && d.agentId && held.agentId == null) held.agentId = d.agentId;
+    if (typeof d.root === 'string' && d.root && held.root == null) held.root = d.root;
+    if (Number.isSafeInteger(d.rowId) && d.rowId > 0 && held.rowId == null) held.rowId = d.rowId;
+  }
   function recordDeliverable(id, d) {
     const w = find(id); if (!w || !d) return false;
-    w.deliverables.push({ title: String(d.title || ''), kind: d.kind || 'file', runId: d.runId || null, t: d.t || now() });
+    const rec = { title: String(d.title || ''), kind: d.kind || 'file', runId: d.runId || null, t: d.t || now() };
+    const held = rec.runId ? w.deliverables.find(r => TurnKinds.sameDeliverable(r, rec)) : null;
+    adoptDeliverable(held || rec, d);
+    if (held) return false;
+    w.deliverables.push(rec);
     return true;
+  }
+  // is this file (same run, same exact path) already in the stream's ledger? A hit takes the agent, root and row id the caller knows
+  function knownDeliverable(id, d) {
+    const w = find(id); if (!w || !d) return false;
+    const held = w.deliverables.find(r => TurnKinds.sameDeliverable(r, d));
+    if (held) adoptDeliverable(held, d);
+    return !!held;
   }
   // accumulate a per-stream usage delta (chat.js passes a copy-snapshotted Harness.totals() diff).
   function addCost(id, delta) {
@@ -1079,7 +1100,7 @@
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
     switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
     autoTitle, retitle, deriveTitle, needsModelTitle, isLowSignal, titleBasis,
-    finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, addCost, costOf, noteModel, modelOf,
+    finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, knownDeliverable, addCost, costOf, noteModel, modelOf,
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and
     // export already trust, so the count and the preview can never surface machine chatter.
     visibleMessages, latestVisibleMessage, hasAgent,

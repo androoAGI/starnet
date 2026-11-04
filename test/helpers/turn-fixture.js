@@ -13,6 +13,11 @@ const UserText = require('../../frontend/app/usertext.js');
 const { redact } = require('../../sidecar/context.js');
 const Dual = require('../../sidecar/turn-dual.js');
 const { makeRemoteHost } = require('../../sidecar/remote/host.js');
+const TurnDelivery = require('../../sidecar/turn-delivery.js');
+const View = require('../../sidecar/turn-view.js');
+const { makeArtifactCollector } = require('../../sidecar/artifacts.js');
+const { makeRoutineDelivery } = require('../../sidecar/routine-delivery.js');
+const { steeredLoop } = require('./steer-run.js');
 const { upTo } = require('./run-order.js');
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 class TurnFixture {
@@ -79,9 +84,24 @@ class TurnFixture {
     // This is the injected provider response only; all transcript admission, directive and kind choices are above.
     const reply = opts.reply == null ? 'Done.' : opts.reply;
     this.calls.push({ runId, messages: JSON.parse(JSON.stringify(messages)) });
-    if (reply) events.push({ name: 'agent.token', payload: { runId, delta: reply } });
-    if (!opts.interrupt && !opts.fail) { messages.push(...(opts.extraMessages || []), { role: 'assistant', content: reply }); writer.drain(messages); }
-    else if (opts.persistPartial) { messages.push({ role: 'assistant', content: reply }); writer.drain(messages); }
+    const steered = !!opts.steer && !opts.interrupt && !opts.fail;
+    if (reply && !steered) events.push({ name: 'agent.token', payload: { runId, delta: reply } });
+    if (!opts.interrupt && !opts.fail) {
+      if (steered) {
+        // SEND NOW notes through the real buffer, loop and run writer (test/helpers/steer-run.js): the notes arrive while the first tool runs and
+        // fold at the next message boundary; the wire carries the loop's own tokens (the '[steering]' echoes included) and tool calls
+        const out = await steeredLoop({ writer, messages, runId, agentId, notes: opts.steer, lead: opts.lead, reply, tools: opts.tools });
+        for (const e of out.events) events.push({ name: e.name, payload: Object.assign({}, e.payload, { runId }) });
+      } else messages.push(...(opts.extraMessages || []), { role: 'assistant', content: reply });
+      // the host's run-end line (index.js): the run's files, as rows of their own, before the final drain writes the reply
+      if (opts.files) {
+        const ledger = makeArtifactCollector();
+        for (const file of opts.files) ledger.add(file);
+        const wrote = TurnDelivery.fileRows(this.store, { streamId: o.streamId, agentId, runId, turnId, root: '', artifacts: ledger.list() });
+        if (wrote.skipped.length) throw Error('fixture files were not all eligible: ' + JSON.stringify(wrote.skipped));
+      }
+      writer.drain(messages);
+    } else if (opts.persistPartial) { messages.push({ role: 'assistant', content: reply }); writer.drain(messages); }
     this.live.delete(runId);
     const reason = opts.interrupt ? 'interrupted' : opts.fail ? 'error' : 'done';
     this.records.set(runId, { runId, streamId: o.streamId, agentId, reason, title, turnId, ts: this.now() });
@@ -90,6 +110,25 @@ class TurnFixture {
     return { events, start, reply, turnId, runId, directive, reused, messages };
   }
   async dispatch(request, options) { const result = await this.run(request, options); return result.events.map(e => JSON.stringify(e)).join('\n'); }
+  // what the model would be handed from the station's own rows right now: the whole stream through the one model-replay view, with the row
+  // id behind each message (View.ROW_IDS; null for a message no row stands behind)
+  modelWindow(streamId) {
+    const messages = this.store.view('model-replay', streamId, { shape: 'prose', form: 'pre', complete: true });
+    return { messages, ids: Array.isArray(messages[View.ROW_IDS]) ? messages[View.ROW_IDS] : [] };
+  }
+  /* A routine's result handed back to a session, through the module index.js builds (makeRoutineDelivery) over this store, with the row
+     writer index.js gives it. `station` is the page's answer to station.deliver (a function over the command's args), or none: no page. */
+  async sessionReturn(streamId, runId, text, station) {
+    const asked = [];
+    const delivery = makeRoutineDelivery({ channelStore: {}, channelOutbound: { provide() {} }, channelReach: () => ({ ok: false }), channelRegistry: { get: () => null },
+      redact, runStore: { list: () => [] }, egressReader: {}, transcriptStore: this.store, writeDelivery: fields => TurnDelivery.write(this.store, fields),
+      stationBridge: { request: async (_verb, args) => { asked.push(JSON.parse(JSON.stringify(args))); return station ? station(args) : { ok: false, error: 'no station page answered — open StarNet to run station commands', unattended: true }; } },
+      now: this.now });
+    const job = { id: 'job-property', name: 'Property routine', agentId: 'agent', deliver: 'local', attachToSession: true, prompt: 'routine prompt',
+      origin: { sessionId: streamId, streamId, sessionTitle: 'Property session' } };
+    const out = await delivery.deliverCronResult(job, { outcome: 'ok', runId, text });
+    return { out, asked };
+  }
   async phoneSend(streamId, text) {
     const before = this.pendingRuns.length;
     const out = await this.phone.send({ agentId: 'agent', streamId, text });

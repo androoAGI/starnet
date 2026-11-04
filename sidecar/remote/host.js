@@ -33,6 +33,7 @@ const RunOutcome = require('../../frontend/app/runoutcome.js');
 const TurnKinds = require('../../frontend/app/turnkinds.js');
 const TurnMerge = require('../../frontend/app/turnmerge.js');
 const TurnWindow = require('../turn-window.js');
+const TurnView = require('../turn-view.js');   // the display view's forgotten side channel rides to the identity block (commit 11)
 
 const TEXT_FLUSH_MS = 250;
 
@@ -72,6 +73,19 @@ function makeRemoteHost(d) {
          page has not merged yet (a phone turn sent while the desk was closed)
      The desk reconciles the other way on its own: opening a session merges the station's transcript into it. */
   const isProse = (m) => m && (m.role === 'user' || m.role === 'assistant') && !m.sys && typeof m.content === 'string' && m.content.trim();
+  /* A FILE A RUN WROTE is a row of the thread too (turn identity, commit 10): the station's canonical file row (kind deliverable), shown to the
+     phone as a display row with its `deliverable` field and never as prose. Only the thread asks for it; every replay array (the legacy
+     window a send hands the model, the previews, the activity feed) keeps filtering with isProse, so a file row never reaches a model. */
+  const isFileRow = (m) => !!m && m.role === 'system' && m.kind === 'deliverable' && !!TurnMerge.deliverableOf(m);
+  /* A NOTE THE RUN READ is a row of the thread too (commit 10): the station's canonical steer row (kind steer, the Commander's words),
+     shown as a display row and, outside the rollback window, replayed to the model as the user line '[steering] <words>' that the
+     station's own replay makes of it. Never prose of the agent's. keeps(true) is the thread (prose, file rows, steer rows); keeps('steer')
+     is a replay window outside window:legacy (prose and steer rows); anything else is prose only, byte for byte as before. */
+  const isSteerRow = (m) => !!m && m.role === 'system' && m.kind === 'steer' && typeof m.content === 'string' && !!m.content.trim();
+  const keeps = (more) => (more === true ? (m) => isProse(m) || isFileRow(m) || isSteerRow(m) : more === 'steer' ? (m) => isProse(m) || isSteerRow(m) : isProse);
+  const steerLine = (m) => (isSteerRow(m) ? Object.assign({}, m, { role: 'user', content: m.content.startsWith('[steering] ') ? m.content : '[steering] ' + m.content }) : m);
+  // the window mode the phone's replay is built under ('legacy' = the rollback: today's bytes, no note rows, no split)
+  const windowMode = () => { try { return d.turnDual && typeof d.turnDual.modes === 'function' ? d.turnDual.modes().window : 'legacy'; } catch (e) { note('remote.host.windowMode', e); return 'legacy'; } };
   function deskSessions() {
     let list = [];
     try { list = (d.deskSessions && d.deskSessions()) || []; } catch (e) { note('remote.host.deskSessions', e); list = []; }
@@ -83,8 +97,14 @@ function makeRemoteHost(d) {
     catch (e) { note('remote.host.workerThreads', e); return new Set(); }
   }
   const STATION_TURNS = 2000;
-  function stationTurns(streamId, limit) {
-    try { return (d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || []).filter(isProse); }
+  function stationTurns(streamId, limit, more) {
+    try {
+      const rows = d.transcript.view('display', streamId, { limit: limit || STATION_TURNS }) || [];
+      const kept = rows.filter(keeps(more));
+      // the rows the quote rule hid ride along (non-enumerable), so the merge below drops this phone's cached copies of them (TurnMerge R2/R4)
+      if (rows[TurnView.FORGOTTEN]) Object.defineProperty(kept, TurnView.FORGOTTEN, { value: rows[TurnView.FORGOTTEN], enumerable: false });
+      return kept;
+    }
     catch (e) { note('remote.host.stationTurns', e); return []; }
   }
   /* ONE CONVERSATION, TWO COPIES: the desk's save (its own order, its status lines) and the station's transcript
@@ -108,11 +128,13 @@ function makeRemoteHost(d) {
   /* The desk save is raw; the station transcript is redacted when it is written. Redact the desk copy first, so a turn holding a
      secret-shaped token is ONE turn (the two copies' keys match) and its raw text never reaches the relay. */
   const redactText = (t) => { try { return typeof d.redact === 'function' ? String(d.redact(String(t))) : String(t); } catch (e) { note('remote.host.redact', e); throw e; } };
-  // limit: the newest N turns (a phone SEND hands the model at most 100, as it always did; a page reads them all)
-  function mergedTurns(streamId, limit) {
+  // limit: the newest N turns (a phone SEND hands the model at most 100, as it always did; a page reads them all); more: true keeps the
+  // station's file and steer rows too (the thread asks; nothing that feeds a model does), 'steer' keeps its steer rows (a replay window
+  // outside the rollback mode)
+  function mergedTurns(streamId, limit, more) {
     const w = deskSessions().find(x => x.id === streamId);
     const local = w && Array.isArray(w.history) ? w.history : [];
-    const st = stationTurns(streamId);
+    const st = stationTurns(streamId, undefined, more);
     const projection = typeof d.turnProjection === 'function' ? d.turnProjection(streamId, st) : { turns: st, identity: null };
     const ids = [...new Set(local.filter(row => row && row.idFrom !== 'collision' &&
       (!row.streamId || row.streamId === streamId) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
@@ -123,7 +145,7 @@ function makeRemoteHost(d) {
       projection.turns = projection.turns.filter(row => !retracted.has(row.rowId));
       projection.identity = Object.assign({ streamId }, projection.identity, { retracted: proof.retracted });
     }
-    const all = mergeCanonical(local, projection.turns, projection.identity).filter(isProse).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
+    const all = mergeCanonical(local, projection.turns, projection.identity).filter(keeps(more)).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
     return Number(limit) > 0 ? all.slice(-Number(limit)) : all;
   }
   const lastUserLine = (turns) => { for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'user') return clip(turns[i].content.replace(/\s+/g, ' ').trim(), 140); return ''; };
@@ -184,11 +206,11 @@ function makeRemoteHost(d) {
      many older turns remain, and pulls them with SHOW EARLIER, so a long conversation is never cut off. */
   const THREAD_BUDGET = 180 * 1024;
   async function thread(o) {
-    const all = mergedTurns(o.streamId);
+    const all = mergedTurns(o.streamId, undefined, true);
     const cursor = Number(o.beforeRowId);
     const cursorAt = Number.isSafeInteger(cursor) && cursor > 0 ? all.findIndex(r => r.streamId === o.streamId && r.rowId >= cursor) : -1;
     const end = cursorAt >= 0 ? cursorAt : Number.isSafeInteger(cursor) && cursor > 0 ? all.length : Math.max(0, all.length - (Number(o.before) || 0));
-    const rows = all.slice(Math.max(0, end - (o.limit || 60)), end).map(r => Object.assign({ role: r.role, agentId: r.agentId || null, ts: r.ts || null, content: clip(r.content, 20000) }, TurnMerge.idsOf(r), typeof r.typed === 'string' ? { typed: clip(r.typed, 20000) } : null));
+    const rows = all.slice(Math.max(0, end - (o.limit || 60)), end).map(r => Object.assign({ role: r.role, agentId: r.agentId || null, ts: r.ts || null, content: clip(r.content, 20000) }, TurnMerge.idsOf(r), typeof r.typed === 'string' ? { typed: clip(r.typed, 20000) } : null, isFileRow(r) ? { deliverable: TurnKinds.deliverableFields(r.deliverable) } : null, isSteerRow(r) && r.noteId ? { noteId: r.noteId } : null));
     let used = 0, keep = rows.length;
     for (let i = rows.length - 1; i >= 0; i--) { used += Buffer.byteLength(JSON.stringify(rows[i])) + 1; if (used > THREAD_BUDGET && i < rows.length - 1) break; keep = i; }
     const page = rows.slice(keep);
@@ -221,7 +243,10 @@ function makeRemoteHost(d) {
     const rec = { ac, agentId: o.agentId, streamId, deviceId: o.deviceId || '', startedAt: now() };
 
     // the conversation so far: the desk's memory of this session plus anything the station recorded since
-    const legacyRows = mergedTurns(streamId, 100).map(m => ({ role: m.role, content: m.content }));
+    // Outside the rollback window (A2-REB-1) a reply the Commander steered is never replayed with the note inside the agent's message:
+    // it is split at its notes (TurnMerge.splitSteer, the one helper the desk's window uses), and the station's own steer rows ride as
+    // the user lines they replay as. window:legacy keeps today's rows byte for byte.
+    const legacyRows = (windowMode() === 'legacy' ? mergedTurns(streamId, 100) : TurnMerge.splitSteer(mergedTurns(streamId, 100, 'steer').map(steerLine))).map(m => ({ role: m.role, content: m.content }));
     const legacyReplay = () => legacyRows;   // one cache-authority proof serves this comparison and selection
     const replay = () => d.transcript.view('model-replay', streamId, { limit: 100, shape: 'prose', form: 'pre', forAgent: o.agentId });
     const prior = d.turnDual ? d.turnDual.pick('window', legacyReplay, () => {

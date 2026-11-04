@@ -88,6 +88,9 @@ function makeTaskBriefStore(deps) {
     writeDurable: deps.writeDurable, onRecover: deps.onRecover, onCorrupt: deps.onCorrupt
   });
   const warn = typeof deps.warn === 'function' ? deps.warn : function () {};
+  // deps.forgotten(brief) -> bool: the forget registry's read-time belt (turn identity commit 12). A brief whose session was deleted never
+  // feeds patterns(), whatever the purge has reached yet.
+  const forgotten = typeof deps.forgotten === 'function' ? deps.forgotten : () => false;
   function read() { try { return normalize(durable.get(STORE_KEY)); } catch (e) { warn('[taskbrief] read failed', e); return normalize(null); } }
   function list(opts) {
     opts = opts || {}; let rows = read().briefs;
@@ -291,6 +294,20 @@ function makeTaskBriefStore(deps) {
     }).then(() => changed ? durable.update(STORE_KEY, cur => normalize(cur)).then(() => true) : false);
   }
 
+  /* forget(match) -> Promise<number>: the forget registry's purge. Every brief `match(brief)` names (its session was deleted, or its run
+     quoted one) goes, with the directive and the answers it kept. The store keeps the prior value as its .bak, so a changed store is
+     written twice (as scrubText does): the second write puts the purged copy in the .bak too. */
+  function forget(match) {
+    let n = 0;
+    return durable.update(STORE_KEY, cur => {
+      const rec = normalize(cur);
+      const keep = rec.briefs.filter(b => !match(b));
+      n = rec.briefs.length - keep.length;
+      if (!n) return undefined;
+      rec.briefs = keep; return rec;
+    }).then(() => (n ? durable.update(STORE_KEY, cur => normalize(cur)).then(() => n) : 0));
+  }
+
   function complete(id, runId, now, assumptions) {
     const key = String(id || ''); let out = null;
     return durable.update(STORE_KEY, cur => {
@@ -308,7 +325,7 @@ function makeTaskBriefStore(deps) {
   function patterns(limit) {
     const bins = {};
     for (const b of list({ limit: 200 })) {
-      if (b.status !== 'done') continue;
+      if (b.status !== 'done' || forgotten(b)) continue;
       for (const q of b.questions) {
       if (!q.answer) continue; const fpText = fingerprintQuestion(q.text); const ans = q.answer.toLowerCase(); if (!fpText || !ans) continue;
       const fp = (q.dimension ? 'dimension:' + q.dimension + ':' : '') + fpText;
@@ -420,7 +437,7 @@ function makeTaskBriefStore(deps) {
       .map(t => t.dimension);
   }
 
-  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, noteDirective, proceed, complete, scrubText, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
+  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, noteDirective, proceed, complete, scrubText, forget, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
 }
 
 module.exports = { makeTaskBriefStore, normalize, normalizeBrief, normalizeQuestion, fingerprintQuestion };

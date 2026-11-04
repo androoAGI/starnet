@@ -5,6 +5,7 @@
 'use strict';
 
 const { makeDurableJsonStore } = require('./durable-store.js');
+const { stampOf } = require('./forget-registry.js');   // the quote stamp of a record: the sessions its evidence was drawn from (turn identity commit 12)
 
 const STORE_KEY = 'recommendations';
 const CAP = 4000;
@@ -69,7 +70,8 @@ function normalizeEntry(raw) {
     outcome: normOutcome(x.outcome),
     modelVersion: clip(x.modelVersion, 80), state, reason, transitions: transitions.slice(-20),
     createdAt, updatedAt,
-    expiresAt: Number(x.expiresAt) || 0, completedAt: Number(x.completedAt) || 0
+    expiresAt: Number(x.expiresAt) || 0, completedAt: Number(x.completedAt) || 0,
+    ...stampOf(x)
   };
 }
 function normalize(raw) {
@@ -262,6 +264,23 @@ function makeRecommendationLedger(deps) {
     }).then(() => dropped);
   }
   function clear() { return durable.update(STORE_KEY, () => ({ v: 1, entries: [] })).then(() => true); }
+  /* forget(match) -> Promise<number>: a deleted session's words leave the ledger (the forget registry; match(entry) reads the entry's own
+     quote stamp). An entry the Commander DECLINED keeps its decision - the reject list the host dedups against, and the preference model's
+     sample - but loses the evidence quotes; any other entry goes whole. */
+  function forget(match) {
+    let changed = 0;
+    return durable.update(STORE_KEY, cur => {
+      const s = normalize(cur);
+      const next = [];
+      for (const e of s.entries) {
+        if (!match(e)) { next.push(e); continue; }
+        changed++;
+        if (e.state === 'declined') next.push(Object.assign({}, e, { evidence: [], quotes: undefined, quotesAt: undefined }));
+      }
+      if (!changed) return undefined;
+      s.entries = next; return s;
+    }).then(() => (changed ? durable.update(STORE_KEY, cur => normalize(cur)).then(() => changed) : 0));   // written twice: the .bak keeps the previous value
+  }
   /* every text a declined row can be recognized by: the title AND the target (one-memory lane, 2026-08-05).
      A shelf decline's target is the recipe/class id; a spine decline's is a token fingerprint of the proposal.
      The shared declined index normalizes both, so a re-proposal that matches EITHER exactly is suppressed —
@@ -276,7 +295,7 @@ function makeRecommendationLedger(deps) {
     return out;
   }
   function summary(opts) { return replay(read(), opts); }
-  return { read, list, record, verdict, verdictTarget, outcome, sweep, clear, declinedTexts, summary, _durable: durable };
+  return { read, list, record, verdict, verdictTarget, outcome, sweep, clear, forget, declinedTexts, summary, _durable: durable };
 }
 
 module.exports = { makeRecommendationLedger, normalize, normalizeEntry, replay, fingerprint, preferenceFor,

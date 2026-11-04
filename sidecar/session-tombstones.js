@@ -67,7 +67,9 @@ function normalizeState(value) {
   rows.sort((a, b) => a[1].at - b[1].at || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
   const streams = {};
   for (const [id, e] of rows.slice(-MAX_STREAMS)) streams[id] = e;
-  return { since: value && num(value.since) > 0 ? num(value.since) : 0, streams };
+  const out = { since: value && num(value.since) > 0 ? num(value.since) : 0, streams };
+  if (value && num(value.purgedV) > 0) out.purgedV = Math.floor(num(value.purgedV));
+  return out;
 }
 
 function makeSessionTombstones(deps) {
@@ -98,6 +100,7 @@ function makeSessionTombstones(deps) {
     const want = new Set(validIds(forgetIds));
     const at = Math.max(1, num(now()));
     const next = { since: adopting ? at : state.since, streams: Object.assign({}, state.streams) };
+    if (state.purgedV) next.purgedV = state.purgedV;
     const fresh = [];
     let changed = adopting;
     for (const id of adopting ? new Set(validIds(forgetIds).concat(validIds(deletedIds))) : want) {
@@ -135,6 +138,45 @@ function makeSessionTombstones(deps) {
     const at = deletedAt(streamId);
     return at > 0 && num(ts) <= at;
   }
+  /* latestAt() -> ms: the newest stamp of a delete the Commander MADE after this ledger first read the save (0 = none). An adopted
+     stamp (the first read's) is skipped: it records when the ledger learned of an old delete, not when a delete happened, so it
+     must not read as "a delete since" to a run whose rows say they may have read any session (the saturated quote stamp, commit
+     11: latestDeleteAt() >= the run's saturation time). unpurged() skips adopted stamps for the same reason (they are born purged). */
+  function latestAt() {
+    let latest = 0;
+    for (const id of Object.keys(state.streams)) {
+      const e = state.streams[id];
+      if (e.adopted !== true && e.at > latest) latest = e.at;
+    }
+    return latest;
+  }
+  /* freshAt(streamId) -> ms: the stamp of a delete the Commander MADE (0 = never deleted, or deleted before this ledger's first read).
+     deletedAt answers every stamp; the read-time belt over a derived record must not drop what I7's limit (d) keeps, so it asks this. */
+  function freshAt(streamId) {
+    const id = String(streamId == null ? '' : streamId);
+    const e = Object.prototype.hasOwnProperty.call(state.streams, id) ? state.streams[id] : null;
+    return e && e.adopted !== true ? e.at : 0;
+  }
+  /* repurge(version) -> number of stamps made pending again. The forget registry carries a VERSION; a ledger that was last purged
+     under an older one (purgedV, absent = before the registry) re-opens every non-adopted stamp that was already purged, once, so
+     the stores the newer registry covers are purged for deletes made before the upgrade too. Adopted stamps are never re-run (they
+     are born purged and their memory is kept, I7 limit d). The version is stored first, so a crash after it leaves the stamps
+     pending (purged = 0) and the next boot retries the pass. */
+  function repurge(version) {
+    const v = Math.max(0, Math.floor(num(version)));
+    if (!(v > num(state.purgedV))) return 0;
+    const next = { since: state.since, purgedV: v, streams: Object.assign({}, state.streams) };
+    let again = 0;
+    for (const id of Object.keys(next.streams)) {
+      const e = next.streams[id];
+      if (e.adopted === true || e.purged !== e.at) continue;
+      next.streams[id] = Object.assign({}, e, { purged: 0 });
+      again++;
+    }
+    state = normalizeState(next);
+    commit(state);
+    return again;
+  }
   // the deletions whose derived memory has not been purged for their current stamp: [{ id, at }], oldest first
   function unpurged() {
     return Object.keys(state.streams).map(id => ({ id, at: state.streams[id].at, purged: state.streams[id].purged }))
@@ -142,6 +184,7 @@ function makeSessionTombstones(deps) {
   }
   function markPurged(list) {
     const next = { since: state.since, streams: Object.assign({}, state.streams) };
+    if (state.purgedV) next.purgedV = state.purgedV;
     let changed = false;
     for (const it of Array.isArray(list) ? list : []) {
       const e = it && next.streams[it.id];
@@ -155,22 +198,42 @@ function makeSessionTombstones(deps) {
   function list() {
     return Object.keys(state.streams).map(id => Object.assign({ id }, state.streams[id]));
   }
-  return { observe, observeSave, deletedAt, forgotten, unpurged, markPurged, adopted, list, since: () => state.since, status: () => status, file: store.file };
+  return { observe, observeSave, deletedAt, freshAt, forgotten, latestAt, unpurged, markPurged, repurge, adopted, list, since: () => state.since, purgedV: () => num(state.purgedV), status: () => status, file: store.file };
 }
 
 /* ---- what a deleted session left in memory ---- */
 
-// deleted: [{ id, at }]; runs: the run history rows ({ runId, streamId, ts }). The runs a deleted session held are the
-// ones filed under its stream at or before its delete.
+/* deleted: [{ id, at }]; runs: the run history rows ({ runId, streamId, ts, quotes?, quotesAt?, quotesSaturatedAt? }).
+   scope = { at, streams, runIds, rowIds }:
+     streams  the deleted sessions and the moment each was deleted (at is the same Map: the name the older readers use)
+     runIds   every run that is forgotten with them: the runs a deleted session held (filed under its stream at or before its
+              delete) AND the runs that QUOTE one (turn identity commit 11: a run whose quote stamp names a deleted stream read at or
+              before its delete, or that is saturated and a delete is stamped at or after its saturation). The reading run's own
+              derived records (its verdict packet, golden, study, notebook entries) go with the session it read
+     rowIds   rows named individually (none from the run list; a caller that already knows forgotten rows adds them) */
+function quoteBound(r, at, latest) {
+  if (!r || typeof r !== 'object') return false;
+  if (num(r.quotesSaturatedAt) > 0 && latest > 0 && latest >= num(r.quotesSaturatedAt)) return true;
+  const quotes = Array.isArray(r.quotes) ? r.quotes : [];
+  const times = Array.isArray(r.quotesAt) ? r.quotesAt : [];
+  for (let i = 0; i < quotes.length; i++) {
+    const when = quotes[i] === '*' ? latest : at.get(String(quotes[i]));
+    if (when && when >= num(times[i])) return true;
+  }
+  return false;
+}
 function deletedScope(deleted, runs) {
   const at = new Map();
   for (const e of Array.isArray(deleted) ? deleted : []) if (e && SID_RE.test(String(e.id)) && num(e.at) > 0) at.set(String(e.id), num(e.at));
+  let latest = 0;
+  for (const w of at.values()) if (w > latest) latest = w;
   const runIds = new Set();
   for (const r of Array.isArray(runs) ? runs : []) {
-    const when = r && at.get(String(r.streamId || ''));
-    if (when && r.runId && num(r.ts) <= when) runIds.add(String(r.runId));
+    if (!r || !r.runId) continue;
+    const when = at.get(String(r.streamId || ''));
+    if ((when && num(r.ts) <= when) || (at.size && quoteBound(r, at, latest))) runIds.add(String(r.runId));
   }
-  return { at, runIds };
+  return { at, streams: at, runIds, rowIds: new Set() };
 }
 function streamBound(scope, streamId, ts) {
   const when = streamId ? scope.at.get(String(streamId)) : 0;
@@ -253,7 +316,7 @@ function threadBound(ref, scope) {
    and retries. */
 async function forgetSessionMemory(deps) {
   const d = deps || {};
-  const scope = deletedScope(d.deleted, d.runs);
+  const scope = d.scope && d.scope.at instanceof Map ? d.scope : deletedScope(d.deleted, d.runs);
   const out = { notes: 0, revisions: 0, restored: 0, verdicts: 0, pending: 0, threads: 0, forgot: [] };
   if (!scope.at.size) return out;
   let failure = null;
@@ -303,4 +366,4 @@ async function forgetSessionMemory(deps) {
   return out;
 }
 
-module.exports = { makeSessionTombstones, forgetSessionMemory, _internals: { normalizeState, deletedScope, notebookRecordBound, forgetRecord, pendingBound, threadBound, SID_RE, MAX_STREAMS } };
+module.exports = { makeSessionTombstones, forgetSessionMemory, deletedScope, _internals: { normalizeState, deletedScope, notebookRecordBound, forgetRecord, pendingBound, threadBound, SID_RE, MAX_STREAMS } };

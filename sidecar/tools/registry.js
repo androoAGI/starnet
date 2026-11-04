@@ -318,10 +318,19 @@
   // means we fall back to the plain clamp — losing the tail must never also lose the answer.
   // PROVENANCE rides the park request (capability + any relayed taint) so the HOST can name a park made from
   // untrusted bytes as such; a later fs.read of that file then taints like the result that made it (taint.js).
+  /* QUOTED STREAMS (turn identity commit 11): a tool that hands back ANOTHER session's words (recall_conversation, session.peek) names the
+     workstreams in result.quotedStreams, beside taintedBy. Shaped here, the one seam every result passes: valid workstream ids only,
+     distinct, bounded. The run host latches them (index.js latchRunQuotes) before the result is journaled or handed to the model, and the
+     park meta carries them so a quoted read is never saved as a workspace file (parkOutput refuses). */
+  function quotedList(list) {
+    if (!Array.isArray(list)) return [];
+    return Array.from(new Set(list.filter(id => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id)))).slice(0, 100);
+  }
   function parkMeta(call, tool, out) {
     const meta = { tool: (call && call.name) || 'tool' };
     if (tool && tool.capability) meta.capability = String(tool.capability);
     if (out && typeof out === 'object' && typeof out.taintedBy === 'string' && out.taintedBy) meta.taintedBy = out.taintedBy;
+    if (out && typeof out === 'object') { const quoted = quotedList(out.quotedStreams); if (quoted.length) meta.quotedStreams = quoted; }
     return meta;
   }
   async function parkIfOver(content, call, ctx, limit, meta) {
@@ -727,6 +736,7 @@
         // RELAYED TAINT (additive): a tool that hands back ANOTHER run's text (team.dispatch / team.subagents …)
         // reports that run's host-proven taint; the run host latches it on the ingesting run (see taint.relayedTaint).
         if (shaped && typeof out.taintedBy === 'string' && out.taintedBy) done.taintedBy = out.taintedBy.slice(0, 200);
+        if (shaped) { const quoted = quotedList(out.quotedStreams); if (quoted.length) done.quotedStreams = quoted; }   // the sessions this result drew on (commit 11)
         // Only host-minted provenance survives shaping; body text and ordinary metadata fields are not proof.
         if (shaped && responseProvenance) responseProvenance.carry(out, done);
         return await notifyPost(done, elapsed());

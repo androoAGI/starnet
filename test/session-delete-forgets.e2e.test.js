@@ -16,6 +16,10 @@
           MEMORY        both memories its run wrote are gone from the notebook and from the later run's recall fence.
           CROSS-SESSION the station read of ws_keep is untouched.
      4. All of it holds after a sidecar restart on the same workspace (the ledger is durable).
+     THE REGISTRY'S STORES (turn identity commit 12): the files the session attached sit in the agent's workspace, where its file tools read
+        them - the deleted session's is gone, a file another session attached is not (ATTACHMENT FILES); and GET /api/runs lists no run of the
+        deleted session, whose title is its words (RUN TITLES, runView). The per-store proofs are test/forget-stores.test.js (each entry over its
+        real store) and the census; the full cross-store run with the aux passes on is the forgotten-everywhere step.
      5. A session re-opened under the same id hears only what was said after the delete. */
 'use strict';
 const A = require('./_assert.js');
@@ -108,9 +112,19 @@ function hermeticEnv(base) {
     A.eq((await json('POST', '/api/memory/config', { reflectEnabled: false })).status, 200, 'reflection off (no aux model calls)');
 
     // ---- 1. the session that will be deleted, and the control session ----
-    const seeded = await run('seed', DELETED, 'echo session uniqueword quokka');
+    const upload = async (name, body) => (await json('POST', '/api/attachments', { agent: 'agent', name, dataUrl: 'data:text/plain;base64,' + Buffer.from(body).toString('base64') })).body;
+    const goneFile = await upload('quokka-notes.txt', 'kept notes about the quokka');
+    const keepFile = await upload('platypus-notes.txt', 'kept notes about the platypus');
+    A.ok(goneFile && goneFile.ok && keepFile && keepFile.ok && /^\.attachments\//.test(goneFile.path), 'both sessions\' files are uploaded into the agent\'s workspace');
+    const fileStatus = async ref => (await fixture.request('/api/file?agent=agent&path=' + encodeURIComponent(ref.path), { headers: { 'X-StarNet-Token': fixture.token } })).status;
+    const seeded = await run('seed', DELETED, 'echo session uniqueword quokka', { messages: [{ role: 'user', content: 'echo session uniqueword quokka', attachments: [goneFile] }] });
     A.ok(seeded.bodies.length >= 3, 'the seed run reached the model (two memory saves + the reply)');
     await run('keep', KEPT, 'Draft the platypus launch plan for Friday');
+    // a message that attaches a file is not clean owner evidence (the file is third-party text), so the kept session's RECENT ACTIVITY line comes from the plain run above
+    await run('keep', KEPT, 'Review the attached platypus notes', { messages: [{ role: 'user', content: 'Review the attached platypus notes', attachments: [keepFile] }] });
+    A.eq([await fileStatus(goneFile), await fileStatus(keepFile)], [200, 200], 'before the delete both attachment files are served from the agent\'s workspace');
+    const listedRuns = async () => ((await json('GET', '/api/runs?agent=*&limit=200')).body.runs || []);
+    A.ok((await listedRuns()).some(r => r.streamId === DELETED), 'before the delete GET /api/runs lists the deleted session\'s run (its title is its words)');
     A.ok((await transcript(DELETED)).some(t => /uniqueword/.test(t)), 'before the delete the deleted session\'s words are in its transcript');
     const before = await records();
     A.ok(before.filter(r => /Wallaby/.test(String(r.body))).length === 2, 'before the delete its two memories are in the notebook: ' + JSON.stringify(before.map(r => r.body)));
@@ -140,6 +154,13 @@ function hermeticEnv(base) {
       const browse = results.find(t => /workstreams/i.test(t)) || '';
       A.ok(search && !/uniqueword|ws_quokka/.test(search) && /platypus/.test(search), label + ' RECALL: search (scope all) finds the live session, never the deleted one: ' + search.slice(0, 300));
       A.ok(browse && !/ws_quokka/.test(browse) && /ws_keep/.test(browse), label + ' RECALL: browse lists the live session, not the deleted one: ' + browse.slice(0, 300));
+      // the registry's stores: the purge runs behind the reply, so poll for the attachment file the way the memory records are polled above
+      let gone = 200;
+      for (let i = 0; i < 100; i++) { gone = await fileStatus(goneFile); if (gone !== 200) break; await new Promise(r => setTimeout(r, 50)); }
+      A.ok(gone !== 200, label + ' ATTACHMENT FILES: the deleted session\'s file is gone from the agent\'s workspace (the file route answers ' + gone + ')');
+      A.eq(await fileStatus(keepFile), 200, label + ' ATTACHMENT FILES: the other session\'s file is still served');
+      A.ok(!(await listedRuns()).some(r => r.streamId === DELETED), label + ' RUN TITLES: GET /api/runs lists no run of the deleted session');
+      A.ok((await listedRuns()).some(r => r.streamId === KEPT), label + ' RUN TITLES: …and still lists the live session\'s');
     }
     await provesForgotten('after the delete:');
     A.ok(fs.existsSync(path.join(fixture.workspace, 'session-tombstones.json')), 'the delete is recorded in the sidecar\'s own ledger');

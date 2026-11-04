@@ -23,8 +23,8 @@
    thresholds, no cross-tree import, standalone (the mint-ledger precedent).
 
    THE STATE (one workspaces JSON, persisted by the host):
-     { v, staged: [ { id, kind:'prospect'|'recipe', draft, why, fingerprint, at } ],
-       denylist: [fp], ledger: [ { at, kind, outcome, reason, title? } ],
+     { v, staged: [ { id, kind:'prospect'|'recipe', draft, why, fingerprint, at, quotes?, quotesAt? } ],
+       denylist: [fp], ledger: [ { at, kind, outcome, reason, title?, quotes?, quotesAt? } ],
        runsSinceMint, lastMintAt, lastKind,
        context: { customClasses:[], customRecipes:[], worksignalSummary, topRecommendation, at } } */
 'use strict';
@@ -67,6 +67,15 @@
   const NAME_MAX = 28, TAGLINE_MAX = 60, BLURB_MAX = 160, TASK_MAX = 600, WHY_MAX = 200;
 
   const str = (v) => (v == null ? '' : String(v));
+  /* THE SESSIONS A DRAFT OR A NOTE WAS COMPOSED FROM (turn identity commit 12, qa/bugs/31042fab): a staged draft's WHY and a ledger note's
+     reason quote the activity lines and interest evidence the cycle's prompt held. They carry the quote stamp rows carry - the streams
+     (<= 32, or the saturated '*') with the time each was read - and the forget registry drops what quotes a deleted session. */
+  function stampOf(raw) {
+    const quotes = raw && Array.isArray(raw.quotes) ? raw.quotes.map(str).filter(Boolean).slice(0, 32) : [];
+    if (!quotes.length) return {};
+    const at = Array.isArray(raw.quotesAt) ? raw.quotesAt : [];
+    return { quotes, quotesAt: quotes.map((_, i) => (Number.isSafeInteger(at[i]) && at[i] >= 0 ? at[i] : 0)) };
+  }
 
   /* ---- dedup math (inlined from prospect.js / reflect.js — same thresholds so behavior matches) ---- */
   function fingerprint(text) {
@@ -104,13 +113,13 @@
       if (Array.isArray(raw.staged)) {
         s.staged = raw.staged.filter(it => it && typeof it === 'object' && str(it.id) && KINDS.indexOf(it.kind) !== -1 && it.draft && typeof it.draft === 'object')
           .slice(0, STAGED_RETAIN)
-          .map(it => ({ id: str(it.id), kind: it.kind, draft: it.draft, why: str(it.why).slice(0, WHY_MAX), fingerprint: str(it.fingerprint), at: Number.isFinite(it.at) ? Math.floor(it.at) : 0 }));
+          .map(it => Object.assign({ id: str(it.id), kind: it.kind, draft: it.draft, why: str(it.why).slice(0, WHY_MAX), fingerprint: str(it.fingerprint), at: Number.isFinite(it.at) ? Math.floor(it.at) : 0 }, stampOf(it)));
       }
       if (Array.isArray(raw.denylist)) s.denylist = raw.denylist.map(str).filter(Boolean).slice(-DENYLIST_CAP);
       if (Array.isArray(raw.ledger)) {
         s.ledger = raw.ledger.filter(e => e && typeof e === 'object')
           .slice(-LEDGER_CAP)
-          .map(e => ({ at: Number.isFinite(e.at) ? Math.floor(e.at) : 0, kind: str(e.kind), outcome: str(e.outcome), reason: str(e.reason).slice(0, 200), title: str(e.title).slice(0, 60) }));
+          .map(e => Object.assign({ at: Number.isFinite(e.at) ? Math.floor(e.at) : 0, kind: str(e.kind), outcome: str(e.outcome), reason: str(e.reason).slice(0, 200), title: str(e.title).slice(0, 60) }, stampOf(e)));
       }
       if (raw.coldStartDone === true) s.coldStartDone = true;   // lane E: the one-shot day-one mint, spent forever (old saves default false)
       if (Number.isFinite(raw.runsSinceMint) && raw.runsSinceMint >= 0) s.runsSinceMint = Math.floor(raw.runsSinceMint);
@@ -398,8 +407,18 @@
   function note(state, entry, opts) {
     const now = Number(opts && opts.now) || 0;
     const s = normalize(state, now);
-    const e = { at: now, kind: str(entry && entry.kind), outcome: str(entry && entry.outcome), reason: str(entry && entry.reason).slice(0, 200), title: str(entry && entry.title).slice(0, 60) };
+    const e = Object.assign({ at: now, kind: str(entry && entry.kind), outcome: str(entry && entry.outcome), reason: str(entry && entry.reason).slice(0, 200), title: str(entry && entry.title).slice(0, 60) }, stampOf(entry));
     return Object.assign({}, s, { ledger: s.ledger.concat([e]).slice(-LEDGER_CAP) });
+  }
+
+  /* drop(state, match) -> { state, removed }: take the staged drafts and ledger notes `match(item)` names out (the forget registry: they
+     quote a deleted session). The dismissed-shape denylist holds fingerprints only and stays: a draft the Commander waved off must not
+     come back. Pure: a NEW state, the input untouched. */
+  function drop(state, match) {
+    const s = normalize(state, 0);
+    const staged = s.staged.filter(it => !match(it)), ledger = s.ledger.filter(e => !match(e));
+    const removed = (s.staged.length - staged.length) + (s.ledger.length - ledger.length);
+    return { state: removed ? Object.assign({}, s, { staged, ledger }) : s, removed };
   }
 
   // sweep — evict undecided staged drafts older than DRAFT_TTL_MS, appending one {outcome:'expired'} ledger
@@ -425,7 +444,7 @@
     const now = Number(opts && opts.now) || 0;
     const s = normalize(state, now);
     if (!item || !str(item.id) || KINDS.indexOf(item.kind) === -1 || !item.draft) return s;
-    const staged = s.staged.concat([{ id: str(item.id), kind: item.kind, draft: item.draft, why: str(item.why).slice(0, WHY_MAX), fingerprint: str(item.fingerprint), at: now }]);
+    const staged = s.staged.concat([Object.assign({ id: str(item.id), kind: item.kind, draft: item.draft, why: str(item.why).slice(0, WHY_MAX), fingerprint: str(item.fingerprint), at: now }, stampOf(item))]);
     return Object.assign({}, s, { staged: staged, runsSinceMint: 0, lastMintAt: now, lastKind: item.kind });
   }
 
@@ -551,7 +570,7 @@
   return {
     fresh, normalize, noteRun, decide, buildRecipeDirective, parseRecipe,
     matchArchetype, archetypeDraft,
-    note, sweep, stage, stampAttempt, dismiss, accept, setContext, noteLaunch, noteRated, topLaunched, launchHints,
+    note, sweep, stage, drop, stampAttempt, dismiss, accept, setContext, noteLaunch, noteRated, topLaunched, launchHints,
     fingerprint, overlap,
     KINDS, MINT_EVERY_RUNS, MINT_MIN_GAP_MS, MAX_LIVE, MAX_LIVE_BY_KIND, liveCap, DRAFT_TTL_MS, LEDGER_CAP, TAG_LANES, CATEGORIES, USAGE_CAP,
     ARCH_MIN_TOPIC_WEIGHT

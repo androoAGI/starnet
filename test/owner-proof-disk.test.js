@@ -19,7 +19,7 @@ try {
   for (const [runId, row] of [['one', first], ['retry-one', first], ['two', second]]) briefs.push({ id: 'tb_' + runId,
     originalRunId: runId, agentId: 'agent', streamId: 's', directiveRowId: row.rowId, originalDirective: row.content });
   briefs.push({ id: 'tb_missing', originalRunId: 'one', agentId: 'agent', streamId: 's', directiveRowId: 99999, originalDirective: first.content });
-  const sandbox = { Map, Set, transcriptStore: store, runStore: { all: () => runs }, taskBriefStore: { list: () => briefs }, failNote(tag, error) { throw error; } };
+  const sandbox = { Map, Set, transcriptStore: store, runView: (name, r) => r, runStore: { all: () => runs }, taskBriefStore: { list: () => briefs }, failNote(tag, error) { throw error; } };
   vm.createContext(sandbox); vm.runInContext(sidecarFunctionSource('evidenceRows'), sandbox);
   const ev = sandbox.evidenceRows({});
   A.ok(!ev.ownerRecent.some(row => row.rowId === first.rowId), 'original occasion is older than the actual RAM recency mirror');

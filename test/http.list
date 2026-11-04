@@ -303,6 +303,7 @@ test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/routine-delivery.parts.e2e.test.js
+test/routine-delivery.session-return.e2e.test.js
 test/routine-history.publication.http.test.js
 test/channels.ledger-upgrade.e2e.test.js
 test/cron.upgrade-backlog.e2e.test.js
@@ -320,6 +321,7 @@ test/provider-cli-admission.http.test.js
 test/scheduler-state-consumers.http.test.js
 test/local-runtime-silence.test.js
 test/turn-id.run-start.http.test.js
+test/deliverable-rows.e2e.test.js
 test/retry-by-turn.http.test.js
 test/retract.http.test.js
 test/turn-id.recovery.http.test.js
@@ -341,3 +343,8 @@ test/turn-window.http.test.js
 test/turn-window.phone.http.test.js
 test/turn-window.caller-shape.http.test.js
 test/transcript-cursor.http.test.js
+test/forget.tool-quotes.http.test.js
+test/forget.tool-quotes.timing.http.test.js
+test/forget.tool-quotes.overflow.http.test.js
+test/forget.tool-quotes.relay.http.test.js
+test/forget.phone.http.test.js

@@ -125,9 +125,12 @@ fs.writeFileSync(path.join(WS, 'runs.jsonl'), LEGACY_TITLES.map((title, i) => JS
   runId: 'legacy-' + i, agentId: 'agent', provider: 'openrouter', reason: 'done', turns: 1, tokens: 10, usd: 0, title,
   streamId: 'legacy' + i, model: 'test/model', internal: false, surface: 'interactive', ownerDirective: true, ts: NOW - HOUR - i * 1000
 })).join('\n') + '\n');
+// (trusted quotes carry the owner row they came from, turn identity commit 12: a station quarantines sourceless trusted evidence at boot, so a seeded
+// quote that must still reach prompts - scrubbed - is a sourced one)
+const SRC = n => ({ streamId: 'legacy' + n, runId: 'legacy-' + n, rowId: n + 1 });
 const interests = { v: 1, state: { v: 1, topics: {}, lastPassAt: NOW, runsSincePass: 0, trustedTopics: {
-  'legacy-outreach': { label: 'legacy outreach', w: 3, n: 3, lastAt: NOW - HOUR, ev: [{ q: 'LEGACY-3 instantly ' + K.VAULT.value + ' pull my campaigns (today)', at: NOW - HOUR }] },
-  'legacy-maps': { label: 'legacy maps', w: 2.5, n: 2, lastAt: NOW - HOUR, ev: [{ q: cutTitle('geocode with', K.GOOGLE, 18), at: NOW - HOUR }] }
+  'legacy-outreach': { label: 'legacy outreach', w: 3, n: 3, lastAt: NOW - HOUR, ev: [{ q: 'LEGACY-3 instantly ' + K.VAULT.value + ' pull my campaigns (today)', at: NOW - HOUR, src: SRC(3) }] },
+  'legacy-maps': { label: 'legacy maps', w: 2.5, n: 2, lastAt: NOW - HOUR, ev: [{ q: cutTitle('geocode with', K.GOOGLE, 18), at: NOW - HOUR, src: SRC(1) }] }
 } } };
 fs.writeFileSync(path.join(WS, 'scout.interests.json'), JSON.stringify(interests));
 // an open thread edited raw at turn-in (threads-store keeps title + spec as typed)

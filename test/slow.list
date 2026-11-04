@@ -114,3 +114,13 @@ test/run-lifecycle.invariants.http.test.js
 # line-entry-parity.e2e: one real sidecar, the same job by all seven entries twice (the second pass saves a file before it answers) —
 # 44-67 s standalone on 2026-11-03 with other lanes building on the box, so it is listed by the >= 40 s rule.
 test/line-entry-parity.e2e.test.js
+# deliverable-rows.e2e: a routine's Run Now, a worker run, a project run and a disk-fault run on one real sidecar, plus a restart — 53-69 s standalone on 2026-11-04 while other lanes were building, 27 s on a quiet box; listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
+test/deliverable-rows.e2e.test.js
+# forget.tool-quotes.timing: five legs on one real sidecar (an in-flight delete, a held drain, a kill with a restart, a page, a held observer hook), each with its own held model call and several restarts - 18 s on a quiet box, 42 s with other lanes building (2026-11-04); listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
+test/forget.tool-quotes.timing.http.test.js
+# forget.tool-quotes.relay: six lead and worker legs on one real sidecar (62 seeded sessions, team.dispatch, a worker held mid-run while its session is deleted, a background worker whose run record is removed while the station is stopped, restarts) - about 30 s quiet, 52-60 s with other lanes building (2026-11-04); listed by the >= 40 s rule.
+test/forget.tool-quotes.relay.http.test.js
+# forget.tool-quotes.overflow: 45 seeded sessions, the 32-session room, two 90 KB reads for the park leg, deletes of a late and an early source with restarts - 24 s quiet, 44 s with other lanes building (2026-11-04); listed by the >= 40 s rule.
+test/forget.tool-quotes.overflow.http.test.js
+# forget.tool-quotes.http: the core shard (setup runs, a routine, the delete, replay and recall through real runs, the rollback modes, a posted window, TurnMerge, a restart, session.list titles, the recorded limit) - 34-40 s with other lanes building (2026-11-04); listed so a 2-3x slowdown under load cannot turn a healthy step red.
+test/forget.tool-quotes.http.test.js
