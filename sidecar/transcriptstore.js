@@ -36,8 +36,12 @@
   // the one flattener of a message's text parts (frontend/app/usertext.js; this store's join is its STORED policy)
   const UserText = (typeof require === 'function') ? require('../frontend/app/usertext.js') : ((typeof globalThis !== 'undefined' && globalThis.UserText) || null);
   const TurnView = (typeof require === 'function') ? require('./turn-view.js') : ((typeof globalThis !== 'undefined' && globalThis.TurnView) || null);
+  // the bare attachment source: the one taint stamp that decays on replay (taint-replay.js). Unknown here = nothing decays.
+  const Taint = (typeof require === 'function') ? require('./taint.js') : ((typeof globalThis !== 'undefined' && globalThis.SK && globalThis.SK.taint) || null);
+  const ATTACHMENT_TAINT = (Taint && Taint.ATTACHMENT_TAINT) || '';
+  const storesExpansion = (Taint && Taint.rowStoresAttachmentText) || (() => false);
 
-  const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
+  const SID_RE =/^[A-Za-z0-9_-]{1,64}$/;   // same workstream grammar index.js validates streamId against
   // Sets, not object literals: `({a:1})['constructor']` is truthy, so an object-literal allowlist
   // silently admits every Object.prototype key — and these keys come off persisted/model-supplied data.
   const ROLES = new Set(['user', 'assistant', 'tool', 'system']);
@@ -727,7 +731,13 @@
        context. Returns the first taint source found, else null.
        Only an explicit `taint` counts here: a replayed row with no provenance (rowTaint's unverifiable case — all
        history from before the clean stamp) does not taint the run, or every older conversation would start tainted
-       after an update. recall_conversation does treat it as unverifiable; docs/DECISIONS.md records the split. */
+       after an update. recall_conversation does treat it as unverifiable; docs/DECISIONS.md records the split.
+       ATTACHMENT DECAY (taint-replay.js): a row stamped with EXACTLY the bare attachment source (taint.js ATTACHMENT_TAINT)
+       was written while the run held an attachment's bytes, and those bytes are accounted for by the run that re-sends
+       them, so the stamp alone taints nothing. Any other stamp counts, including one a run wrote after it ALSO read a page
+       (index.js rowTaint keeps the first non-attachment source). The one exception is the identity proof for a row that
+       STORES the expansion itself (a user row with attachment references whose content differs from the words the
+       Commander typed: written before the directive row was kept clean): replaying that very row replays the file text. */
     function taintOf(streamId, messages, o) {
       o = o || {};
       const prior = (Array.isArray(messages) ? messages : []).filter(m => m && typeof m === 'object' && ROLES.has(m.role) && m.role !== 'system');
@@ -735,13 +745,14 @@
       // every row, deleted or not: forgetting a session never clears the taint of text that is replayed from it
       const rowsNow = readHistory(streamId, { limit: num(o.limit) > 0 ? num(o.limit) : 1200 }, false);
       if (!rowsNow.some(r => r && r.taint)) return null;          // the common case: this stream never carried taint
+      const bare = (r) => !!ATTACHMENT_TAINT && r.taint === ATTACHMENT_TAINT;
       const tainted = new Map();
-      for (const r of rowsNow) if (r && r.taint) { const k = rowIdentity(r); if (k && !tainted.has(k)) tainted.set(k, str(r.taint)); }
+      for (const r of rowsNow) if (r && r.taint && (!bare(r) || storesExpansion(r))) { const k = rowIdentity(r); if (k && !tainted.has(k)) tainted.set(k, str(r.taint)); }
       for (const m of prior) { const hit = tainted.get(messageIdentity(m)); if (hit) return hit; }
       let turns = prior.filter(m => m.role === 'user' || m.role === 'assistant').length;
       for (let i = rowsNow.length - 1; i >= 0 && turns > 0; i--) {
         const r = rowsNow[i];
-        if (r && r.taint) return str(r.taint);
+        if (r && r.taint && !bare(r)) return str(r.taint);
         if (r && (r.role === 'user' || r.role === 'assistant')) turns--;
       }
       return null;

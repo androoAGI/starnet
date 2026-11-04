@@ -92,7 +92,9 @@ const attached = { role: 'user', content: 'READ_ATTACHMENT', turnId: 'window_att
 window.apply([attached, newest], o, ctx);
 const attachedRow = store.all().find(r => r.turnId === attached.turnId);
 A.eq([attachedRow.taintKnown, Store.rowTaint(attachedRow), attachedRow.sourceRunId], [true, 'user attachment', undefined], 'attachment references retain taint despite a posted clean claim and never borrow the current run');
-A.eq(store.taintOf('s', [{ role: 'user', content: attached.content }]), 'user attachment', 'replay restores the carried attachment provenance');
+// (attachment decay) the bare attachment stamp is the one stamp that does not taint a replay: the bytes it stood for are re-sent
+// (and latched by the run that re-sends them, attachments.resentOf) or gone, so the carried row keeps its provenance but replays clean
+A.eq(store.taintOf('s', [{ role: 'user', content: attached.content }]), null, 'a carried attachment row replays clean: the bare attachment stamp decays');
 store.appendStrict({ streamId: 's', role: 'assistant', content: 'PRIOR_FETCHED_TEXT', taint: 'web source' });
 window.apply([{ role: 'user', content: 'AFTER_FETCH_TYPED', turnId: 'window_after_fetch_0001', turnAt: 999999 }, newest], o, ctx);
 A.eq(store.taintOf('s', [{ role: 'assistant', content: 'PRIOR_FETCHED_TEXT' }]), 'web source', 'carrying typed words never clears prior outside-content provenance');

@@ -299,12 +299,14 @@ const leadCtx = (extra) => makeCapCtx({ agentId: 'lead', room: 'office', hasComp
   // one report per hand-off (2026-10-11): ANY tainted worker of the batch taints the reviewing lead
   A.ok(/initialTaint: taintPolicy\.relayedTaint\(\{ taintedBy: taintPolicy\.firstTaint\(members\) \|\| '' \}\) \|\| undefined/.test(src), 'the overseer hand-back review starts tainted by a tainted worker');
   A.ok(/taintPolicy\.UNTRUSTED_PARK_PREFIX/.test(src), 'the host parker names untrusted parks');
-  A.ok(/taint: \(\) => execution\.taintedBy\(\)/.test(src), 'transcript rows are written with the run\'s live taint');
-  A.ok(/appendNew\(o\.streamId, agentId, result\.messages, \{ taint: execution\.taintedBy\(\)(?:, [^}]+)? \}\)/.test(src), 'the run-end transcript fallback writes taint too');
+  // the stamp rows carry is rowTaint (the first source that is not the bare attachment stamp), never the first source itself:
+  // the attachment is the one stamp that decays on replay (taint-replay.js), so it must not hide a page read after it
+  A.ok(/taint: \(\) => execution\.rowTaint\(\)/.test(src), 'transcript rows are written with the run\'s live taint');
+  A.ok(/appendNew\(o\.streamId, agentId, result\.messages, \{ taint: execution\.rowTaint\(\)(?:, [^}]+)? \}\)/.test(src), 'the run-end transcript fallback writes taint too');
   A.ok(/const replayed = replayedTaint\(\{ recovery: o\.recovery, streamId, msgs \}\);\s*if \(replayed\) execution\.latchTaint\(replayed\);/.test(src), 'a run latches replayed taint before its first model call');
   A.ok(/catch \(e\) \{ failNote\('taint\.replay', e\); execution\.latchTaint\('replayed context \(taint check failed\)'\); \}/.test(src), 'a replay check that throws starts the run tainted (fail closed), still noted for diagnostics');
-  A.ok(src.indexOf("initialTaint: execution.taintedBy() || ''") > 0, 'the journal begin meta records the start taint');
-  A.ok(/runJournal\.taint\(runId, \{ source: after \}\)/.test(src), 'a mid-run latch is journaled');
+  A.ok(src.indexOf("initialTaint: execution.rowTaint() || ''") > 0, 'the journal begin meta records the start taint');
+  A.ok(/runJournal\.taint\(runId, \{ source: now \}\)/.test(src), 'a mid-run latch is journaled');
   A.ok(/taintedBy: execution\.taintedBy\(\) \|\| '' \}\);/.test(src), 'the run row records its taint');
   const hub = fs.readFileSync(path.join(root, 'sidecar', 'channels', 'hub.js'), 'utf8');
   A.ok(hub.indexOf('store.loadHistory(h.agentId)') < 0 && hub.indexOf("store.appendTurn(h.agentId,") < 0, 'no hop reads or writes the agent-keyed shared history any more');

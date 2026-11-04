@@ -40,6 +40,21 @@
 
   const impactOfTool = inputpolicy.impactOfTool;
   const CONNECTOR_CAP = /^mcp:/;
+  /* THE ATTACHMENT SOURCE (attachment decay, 2026-11-04). The exact string a run is tainted with while a Commander's
+     attachment BYTES are in its context (index.js runOnceCore: attachments.resentOf reports bytes:true). It is also the
+     stamp the rows that run writes carry, and it is the ONLY stamp that decays: transcriptStore.taintOf and
+     EarlierConversation.taintOf ignore a row stamped with exactly this, because the bytes it stood for are accounted for
+     by the bytes themselves (re-sent -> the run latches again; gone -> nothing is left to taint). Any other stamp, a
+     tool re-read of the saved file included, still taints. One place for the string (taint-replay.js has the rule). */
+  const ATTACHMENT_TAINT = 'user attachment';
+  /* The one row shape whose attachment stamp does NOT decay: a user row that STORES the expansion of its attachments, i.e. it
+     keeps the attachment references while its content is not the words the Commander typed (an older build, and this one
+     before the directive row was kept clean, wrote the file text into content and the words into typed). Replaying or
+     rendering that very row puts the file text in front of the model, so the stamp still means "bytes are here". Pure. */
+  function rowStoresAttachmentText(row) {
+    return !!row && row.role === 'user' && Array.isArray(row.attachments) && row.attachments.length > 0
+      && typeof row.typed === 'string' && row.typed !== row.content;
+  }
 
   // Does this tool's RESULT bring content the Commander did not author into the context?
   function isUntrustedSource(tool, call) {
@@ -51,6 +66,9 @@
     const name = String((tool && tool.name) || '');
     const p = String((call && call.args && call.args.path) || '');
     if (name === 'fs.read' && /(?:^|[\\/])\.attachments(?:[\\/]|$)/i.test(p)) return true;
+    // ...and so is looking at a saved attachment with image_analyze (the other tool an old attachment's marker names): the
+    // vision model's reading of the picture is the picture's text, so it latches like fs.read of the same file.
+    if (name === 'image_analyze' && /(?:^|[\\/])\.attachments(?:[\\/]|$)/i.test(String((call && call.args && call.args.image) || ''))) return true;
     // PARKED UNTRUSTED OUTPUT. The host parks over-cap output into .output/; a park made from untrusted bytes (a web
     // or connector result, a tainted worker's text, anything a tainted run produced) is named `untrusted-*` by the
     // host. Reading it back — in a LATER run, where the original tool result no longer latches anything — carries
@@ -207,5 +225,5 @@
     return requestKeys(call).every(k => scope.keys.indexOf(k) >= 0);
   }
 
-  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX };
+  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
 });

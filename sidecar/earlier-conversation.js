@@ -21,6 +21,7 @@
 
 const fidelity = require('./compaction-fidelity.js');
 const UserText = require('../frontend/app/usertext.js');   // the one flattener (DIRECTIVE policy: index.js userMsgText's bytes)
+const { ATTACHMENT_TAINT, rowStoresAttachmentText } = require('./taint.js');   // the bare attachment source: the one taint stamp that decays on replay (taint-replay.js)
 
 const KEY_CHARS = 240;
 const REPLY_HEAD_CHARS = 280;
@@ -179,9 +180,13 @@ function render(dropped, opts) {
   return { note, users: section.items.length, omittedUsers: section.omitted, replies: lines.length, omittedReplies: omitted };
 }
 
-/* The rows the window dropped carry outside content when any of them was written by a run that read it. */
+/* The rows the window dropped carry outside content when any of them was written by a run that read it. A row stamped with
+   EXACTLY the bare attachment source was written while the run held an attachment's bytes, which are accounted for by the
+   run that re-sends them: that stamp alone no longer taints (taint-replay.js ATTACHMENT DECAY). Any other stamp does, and so
+   does the stamp on a row that STORES the file text (the note renders a row's content verbatim, so for that row the stamp
+   still means "bytes are in the note"; once such a row is rendered by its typed words instead, the exception can go). */
 function taintOf(rows) {
-  for (const r of (Array.isArray(rows) ? rows : [])) if (r && typeof r.taint === 'string' && r.taint) return r.taint;
+  for (const r of (Array.isArray(rows) ? rows : [])) if (r && typeof r.taint === 'string' && r.taint && (r.taint !== ATTACHMENT_TAINT || rowStoresAttachmentText(r))) return r.taint;
   return null;
 }
 

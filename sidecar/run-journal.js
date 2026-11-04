@@ -29,6 +29,8 @@ const crypto = require('crypto');
 const { note: failNote } = require('./failopen.js');
 // the quarantine, the repair temp's name and its sweep, and the evidence names are persist's (one grammar)
 const persist = require('./persist/index.js');
+// the bare attachment source, the one taint stamp that decays: analyze() must not let it hide a later source (taint-replay.js)
+const { ATTACHMENT_TAINT } = require('./taint.js');
 
 const VERSION = 1;
 const MAX_STRING = 200000;
@@ -343,8 +345,13 @@ function analyze(records, corrupt, damage) {
   let finishPayload = null;
   let continuation = null;
   let taintedBy = '';           // first durable taint latch (a 'taint' record) — see makeRunJournal.taint
+  let otherTaint = '';          // the first one that is not the bare attachment stamp (taint.js ATTACHMENT_TAINT), which must not hide a later source
   for (const r of records) {
-    if (r.type === 'taint' && !taintedBy && r.payload && r.payload.source) taintedBy = String(r.payload.source).slice(0, 200);
+    if (r.type === 'taint' && r.payload && r.payload.source) {
+      const source = String(r.payload.source).slice(0, 200);
+      if (!taintedBy) taintedBy = source;
+      if (!otherTaint && source !== ATTACHMENT_TAINT) otherTaint = source;
+    }
     if (r.type === 'checkpoint') {
       if (r.payload && r.payload.phase === 'initial' && !baseCheckpoint) baseCheckpoint = r.payload;
       else {
@@ -432,6 +439,7 @@ function analyze(records, corrupt, damage) {
   // acknowledgement was durably recorded first (the same order finishAndRetire uses for an ordinary run).
   const continuationSettled = !!(exposedContinuation && exposedContinuation.state === 'finished'
     && exposedContinuation.transcriptAck === true);
+  const begun = first && first.type === 'begin' && first.payload && first.payload.initialTaint ? String(first.payload.initialTaint).slice(0, 200) : '';   // the taint the run STARTED with
   return {
     runId: first ? first.runId : '', records: records.length, corrupt: !!corrupt || deltaMismatch, terminal,
     damage: damageClass, forensic,
@@ -443,9 +451,10 @@ function analyze(records, corrupt, damage) {
       || (continuationSettled && (status === 'resolved' || status === 'resumable'))),
     meta: first && first.type === 'begin' ? first.payload : {},
     // UNTRUSTED-CONTENT TAINT the run carried (begin meta's initialTaint, else its first mid-run latch). A recovery
-    // continuation replays this run's context, so it must start with the same taint (index.js replayedTaint).
-    taintedBy: (first && first.type === 'begin' && first.payload && first.payload.initialTaint
-      ? String(first.payload.initialTaint).slice(0, 200) : '') || taintedBy || null,
+    // continuation replays this run's context, so it must start with the same taint (index.js replayedTaint). The bare
+    // attachment stamp never hides a later source: a run that began holding an attachment and then read a page reports the
+    // page (index.js latchRunTaint journals it), so the continuation's rows carry a stamp that does not decay.
+    taintedBy: (begun !== ATTACHMENT_TAINT && begun) || otherTaint || begun || taintedBy || null,
     firstTs: first ? Number(first.ts) || 0 : 0, lastTs: last ? Number(last.ts) || 0 : 0,
     uncertain, replayableReads, replayablePrepared, completed, recoveryAttempts,
     baseCheckpoint: baseCheckpoint || {}, deltaCheckpoint: latestCheckpoint || {},
