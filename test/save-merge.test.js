@@ -182,6 +182,31 @@ const merge = (station, base, mine) => SaveMerge.merge(station, mine, Core.merge
   A.eq([r.doc.stationStats.xp, r.doc.agents[1].stats.xp], [25, 8], 'growth: a newer projection is taken whole');
 }
 
+// ---- save v7: a history that names runs of rows by reference merges as the rows it names (save-history-by-reference S3) ----
+{
+  const H = require('../frontend/app/historyref.js');
+  const R = id => ({ streamId: 'general', agentId: 'agent', role: id % 2 ? 'user' : 'assistant', kind: 'turn', taintKnown: true, ts: 100 + id, content: 'row ' + id, rowId: id });
+  const packed = ids => H.pack(ids.map(R), { streamId: 'general', seal: k => R(Number(k.split(':')[1])) });
+  const withHistory = (history) => { const d = station0(); sess(d, 'general').history = clone(history); return d; };
+  const named = history => history.reduce((all, el) => all.concat(H.isRef(el) ? H.decode(el.$ref) : [el.rowId]), []);
+  // a run that grew in the window AND in the station is not a rewritten history
+  let r = merge(withHistory(packed([1, 2, 3, 5])), withHistory(packed([1, 2, 3])), withHistory(packed([1, 2, 3, 4])));
+  A.eq(named(sess(r.doc, 'general').history), [1, 2, 3, 5, 4], 'packed: a run that grew on both sides keeps the station\'s rows, then the window\'s, none twice');
+  A.eq([r.overrode.length, sess(r.doc, 'general').history.every(H.isRef)], [0, true], 'packed: nothing is reported overridden, and the answer is packed again');
+  // the same rows packed in one window and inline in the other are the same rows
+  r = merge(withHistory(packed([1, 2, 3])), withHistory([R(1), R(2)]), withHistory([R(1), R(2), R(3)]));
+  A.eq(named(sess(r.doc, 'general').history), [1, 2, 3], 'packed: a row packed in the station and inline in the window is one row');
+  // the base describes the window's change in ROWS
+  const d = Core.mergeDelta(withHistory(packed([1, 2, 3])), withHistory(packed([1, 2, 3, 4])));
+  A.ok(d.rows[0].bLen === 3 && d.rows[0].b.history === undefined, 'packed: the delta says the window kept 3 base rows (bLen counts rows, not elements)');
+  // nothing new, nothing written
+  r = merge(withHistory(packed([1, 2, 3, 4])), withHistory(packed([1, 2, 3])), withHistory(packed([1, 2, 3])));
+  A.ok(!r.changed && r.extended.length === 0, 'packed: a window that changed nothing brings nothing new');
+  // an inline history is merged exactly as it always was (the same objects come back)
+  const inl = [T('a', 1), T('b', 2)];
+  A.ok(SaveMerge.mergeHistory(inl, clone(inl), inl, 'general', { overrode: [], lost: [] }) === inl, 'inline: a window that changed nothing: the station\'s own history comes back');
+}
+
 // ---- write(): through a real store ----
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'save-merge-'));

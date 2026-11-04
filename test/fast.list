@@ -1401,6 +1401,7 @@ test/save-conflicts-route.test.js
 test/save-restore-hardening.test.js
 test/save-adopt-merge.test.js
 test/save-interleave.seeded.test.js
+test/save-history-ref.engines.test.js
 test/save-journal.test.js
 test/save-journal-page-lock.test.js
 test/growth-fold.test.js

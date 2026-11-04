@@ -32,6 +32,7 @@
 
 const { deepEq } = require('../frontend/app/cloudsavecore.js');
 const { sameTurn } = require('../frontend/app/turnmerge.js');
+const SaveHistory = require('./save-history.js');   // a v7 history may name runs of rows by reference: the merge reads it as rows
 
 // fields the merge itself writes (the envelope and the station-owned ones); everything else merges three-way
 const OWN = new Set(['schema', 'version', 'updatedAt', '_saveRevision', '_saveClient', '_saveDirty', '_saveMerge', '_saveRestore', '_saveAdoptBy',
@@ -44,6 +45,8 @@ function isObj(v) { return v !== null && typeof v === 'object' && !Array.isArray
 function has(o, k) { return isObj(o) && Object.prototype.hasOwnProperty.call(o, k) && o[k] !== undefined; }
 function list(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => isObj(w) && typeof w.id === 'string' && w.id) : []; }
 function hist(w) { return Array.isArray(w && w.history) ? w.history : []; }
+// the session's turns as ROWS (a packed run is one stub per row, which sameTurn compares by key): an inline history is itself
+function rowsOf(w) { return SaveHistory.rowsOf(hist(w), w && w.id); }
 function fieldsOf(w) { if (!isObj(w)) return w; const o = Object.assign({}, w); delete o.history; return o; }
 // an array whose every member is an object with its own unique string id (the crew): merged row by row. null otherwise.
 function keyed(a) {
@@ -98,8 +101,21 @@ function mergeRows(kb, m, km, s, ks, path, ctx) {
 
 /* a session's turns: B = the base's, W = this window's, S = the station's. The turns this window added go after the
    station's, never twice (a merge whose answer was lost is merged again from the same base); a history this window
-   rewrote stands, with what the station added after the part they share kept after it. */
+   rewrote stands, with what the station added after the part they share kept after it.
+
+   A HISTORY THAT NAMES ROWS BY REFERENCE (save v7, historyref.js) is merged as the rows it names: the same algorithm over the
+   exploded histories, packed again, so a run that grew on one side is not a rewrite and a row packed on one side and inline on
+   the other is one row (save-history.js). The answer is the station's or the window's own history object whenever the merge
+   decided on one, so a merge that brings nothing new still writes nothing. */
 function mergeHistory(B, W, S, id, ctx) {
+  if (!SaveHistory.hasPacked(B) && !SaveHistory.hasPacked(W) && !SaveHistory.hasPacked(S)) return mergeTurns(B, W, S, id, ctx);
+  const eB = SaveHistory.rowsOf(B, id), eW = SaveHistory.rowsOf(W, id), eS = SaveHistory.rowsOf(S, id);
+  const out = mergeTurns(eB, eW, eS, id, ctx);
+  if (out === eS) return S;
+  if (out === eW) return W;
+  return SaveHistory.repack(out, id);
+}
+function mergeTurns(B, W, S, id, ctx) {
   if (deepEq(W, B)) return S;
   if (deepEq(S, B)) return W;
   const pw = prefix(W, B), ps = prefix(S, B);
@@ -179,7 +195,7 @@ function merge(station, mine, delta, opts) {
     if (gone.has(s.id)) { removed.push(s.id); continue; }   // this window deleted it
     const m = mm.get(s.id), r = rows.get(s.id);
     if (!m || !r) { ws.push(s); continue; }                // not this window's change: the station's, as it is
-    const bh = !has(r, 'b') ? [] : (Number.isInteger(r.bLen) && r.bLen >= 0 ? hist(m).slice(0, r.bLen) : hist(r.b));
+    const bh = !has(r, 'b') ? [] : (Number.isInteger(r.bLen) && r.bLen >= 0 ? rowsOf(m).slice(0, r.bLen) : hist(r.b));   // bLen counts ROWS (cloudsavecore mergeDelta)
     const fields = merge3(has(r, 'b') ? fieldsOf(r.b) : undefined, fieldsOf(m), fieldsOf(s), ['session', s.id], ctx);
     const row = Object.assign({}, fields, { history: mergeHistory(bh, hist(m), hist(s), s.id, ctx) });
     if (!deepEq(row, s)) extended.push(s.id);

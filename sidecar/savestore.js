@@ -6,11 +6,14 @@
    that move: a durable mirror of the save envelope on the sidecar's own disk (the app-data dir that
    survives a browser wipe). The frontend keeps localStorage as a fast cache and writes through to here.
 
-     makeSaveStore({ fs, pathMod, root, clock, resetAt?, onFounded? }) -> {
+     makeSaveStore({ fs, pathMod, root, clock, resetAt?, onFounded?, inflate? }) -> {
        load(agentId)        -> doc | undefined        // the stored save envelope; undefined if none/corrupt
        stamp(agentId)       -> string                 // one stat: moves on every save/outside edit; '' = unknown
        loadStamped(agentId) -> { doc, stamp }         // load()'s doc + the pre-read stamp ('' unless a clean read)
        save(agentId, doc, {compareRevision?}) -> { ok, conflict?, reset?, reseeded?, seeded?, revision?, updatedAt }
+       inflate              -> the host's (streamId, rows) -> rows | null that reads a history's packed runs out of the transcript
+                               (sidecar/save-inflate.js), or null: the restore handlers pass it to save-restore.js, which is pure
+       scrubKept(ids) / expireKept(agentId) / expireAllKept()   // the file kept at the v7 upgrade follows deletes and goes after 30 days (below)
      }
 
    The file lives at <root>/<agentId>.save.json — a SIBLING of the notebook/channels stores, OUTSIDE the
@@ -115,6 +118,7 @@
     }
     // THE FILES' ONE OWNER is sidecar/persist: the tagged read, the first-free quarantine and the atomic, durable replace
     const persist = require('./persist/index.js');
+    const { refreshBackup } = require('./persist/replace.js');
     // reads + parses a save file path (persist's readOne), returning a TAGGED result so callers can tell a genuinely-absent
     // file from one that EXISTS but couldn't be READ (locked/EBUSY/EACCES on Windows) versus one that read but has GARBAGE
     // bytes. The distinction is load-bearing for the anti-clobber gate. The agentId grammar is validated by the caller via
@@ -222,6 +226,9 @@
     // THE FOUNDING: every main-file write this store ACCEPTS is reported (a refused copy never is), so the host can found the
     // station's generation in its record (index.js: the station file's first accepted write; idempotent after that)
     const onFounded = typeof d.onFounded === 'function' ? d.onFounded : null;
+    // THE HOST'S READ OF A HISTORY'S PACKED RUNS (save-history-by-reference): save-restore.js is pure and is handed this to carry a
+    // restored copy's rows by value. It rides on the store because the restore handlers reach their collaborators through it.
+    const inflate = typeof d.inflate === 'function' ? d.inflate : null;
     function foundedAt(doc) { return Number(doc && doc.agent && doc.agent.createdAt); }
     // true when a station founded at `founded` is not provably from after the reset (`at` from resetAt(): null = no reset)
     function predatesReceipt(founded, at) { return at !== null && !(Number.isFinite(at) && Number.isFinite(founded) && founded > at); }
@@ -296,6 +303,78 @@
     function writeAtomic(file, value, prior) {
       ensureRoot();
       persist.replaceJson({ fs: fs, path: pathMod }, file, value, { prior: prior });
+    }
+
+    /* THE LAST FILE AN OLDER BUILD CAN READ (save-history-by-reference). Save v7 lets a session's history name runs of rows the
+       transcript holds (historyref.js); a build from before it would draw such a run as an empty message and write that over the real
+       history, and it refuses a v7 save for exactly that reason (Save.loadStatus 'future'). So the way back after a downgrade is the
+       station file as it was: the first save that takes the station file from before v7 to v7 copies it to
+       <agent>.save.pre-history-ref.json, once, BEFORE the replace (exclusive: a copy that is already there is never replaced). It is
+       the main as it was (a drop-in for the main) plus `keptAt`, the stamp its 30 days count from.
+
+       It is a copy of EVERY conversation, which makes it the one place a chat the Commander deleted outlives the delete, so it is
+       bounded and it follows deletes (the same rules as the page's pre-migration copy, save.js): scrubKept(ids) cuts the conversations
+       deleted — their records, the ~restored copies of them, the worker threads that were theirs and their rows in the undo
+       checkpoint — out of it with an atomic rewrite (no .bak: that would keep them), and removes it whole when it cannot be read or
+       written back; expireKept() removes it 30 days after it was kept, once the main has read back as v7 (a main that is still old, or
+       cannot be read, is not a new format that has read back). The sidecar's deleted-session pass calls the first (index.js
+       forgetDeletedSessionMemory: this is the 'save-pre-history-ref' forget until the forget registry takes it over); boot and a
+       12-hour timer call the second.
+
+       When the copy cannot be made (the disk), the replace goes on only if the file it replaces survives it as the .bak (a hard link
+       costs no space), else the save is REFUSED with the write failure's own errno — SaveWire names it, the disk for ENOSPC — and
+       nothing is replaced. */
+    const KEEP_FROM_VERSION = 7;                       // historyref.js SINCE_VERSION: the first save format that may hold a packed run
+    const KEPT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+    const KEPT_SUFFIX = '.save.pre-history-ref.json';
+    const KEPT_RE = /^([A-Za-z0-9_-]{1,40})\.save\.pre-history-ref\.json$/;
+    const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;            // the session grammar the deleted-session ledger keeps ids in
+    function keptFile(agentId) { saveFile(agentId); return pathMod.join(rootDir, agentId + KEPT_SUFFIX); }
+    function exists(p) {
+      if (typeof fs.existsSync === 'function') return fs.existsSync(p);
+      try { fs.statSync(p); return true; } catch (e) { return !(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')); }
+    }
+    // known: this process's memo of its own last write (it knows the version, not the bytes); prev/prevRead: the main save() just read, when it did
+    function keepOlderMain(agentId, file, doc, known, prev, prevRead) {
+      if (!(num(doc.version) >= KEEP_FROM_VERSION)) return;
+      const was = known ? known.version : (prev && prev.doc && typeof prev.doc === 'object' ? num(prev.doc.version) : null);
+      if (was === null || was === undefined || !(was < KEEP_FROM_VERSION)) return;   // no main to keep, or already the new format
+      const kept = keptFile(agentId);
+      if (exists(kept)) return;                                                     // once: an earlier first replace kept it
+      let wrapper = prev, good = !!prev && prevRead.status === 'ok';
+      if (!wrapper) {                                                               // the memo knows the version, not the bytes: one read
+        const r = readTagged(file, true);
+        wrapper = (r.status === 'ok' || r.status === 'recovered') ? r.wrapper : undefined;
+        good = r.status === 'ok';
+      }
+      if (!wrapper || typeof wrapper !== 'object') return;
+      try {
+        writeDurable(kept, JSON.stringify(Object.assign({}, wrapper, { keptAt: num(clock.now()) })));
+        console.log('[savestore] kept the station file from before save v' + KEEP_FROM_VERSION + ' (history by reference) as ' + pathMod.basename(kept)
+          + ' before replacing it: the way back after a downgrade. It follows deletes and goes 30 days after the new format reads back.');
+      } catch (e) {
+        failNote('savestore.keep-prior', e);
+        // the old main has to outlive this replace some other way: as the .bak. A hard link costs no space; a copy may not fit
+        if (good && refreshBackup(fs, pathMod, persist.writeAtomic, file, undefined) === 'failed') throw e;
+        console.warn('[savestore] could not keep ' + pathMod.basename(kept) + ' (' + ((e && (e.code || e.message)) || 'unknown') + '): the station file from before stays as '
+          + pathMod.basename(file) + '.bak until the next save');
+      }
+    }
+    function keptNames() {
+      if (typeof fs.readdirSync !== 'function') return [];
+      try { return fs.readdirSync(rootDir).map(String).filter(n => KEPT_RE.test(n)); }
+      catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.kept.list', e); return []; }
+    }
+    function dropKept(file) {
+      try { fs.unlinkSync(file); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
+    }
+    // the kept wrapper as an object, or null when it cannot be read as one
+    function readKept(file) {
+      let text;
+      try { text = fs.readFileSync(file, 'utf8'); }
+      catch (e) { if (!e || e.code !== 'ENOENT') failNote('savestore.kept.read', e); return e && e.code === 'ENOENT' ? undefined : null; }
+      try { const w = JSON.parse(text); return w && typeof w === 'object' && !Array.isArray(w) ? w : null; }
+      catch (e) { failNote('savestore.kept.parse', e); return null; }
     }
 
     return {
@@ -493,6 +572,7 @@
         const priorFounded = known ? known.founded : foundedAt(prev && prev.doc);
         if (prevRead.status !== 'ok' || explicitRestore || !sameFounding(priorFounded, foundedAt(doc))) unsettle(String(agentId));
         lastWritten.delete(file);
+        keepOlderMain(String(agentId), file, doc, known, prev, prevRead);   // before the first v7 replace; a refusal (the named write failure) is thrown here
         const writer = options.compareRevision && /^[A-Za-z0-9_-]{1,80}$/.test(String(doc._saveClient || '')) ? { revision: num(doc._saveRevision), client: doc._saveClient } : {};
         try {
           writeAtomic(file, { version: 1, agentId: String(agentId), updatedAt: incomingUpdated, savedAt: clock.now(), ...(options.compareRevision ? { requestUpdatedAt } : {}), ...writer, ...(options.compareRevision && seededRevision > 0 ? { seededRevision } : {}),
@@ -510,7 +590,7 @@
         recoveredMissing.delete(file);   // the main exists again and is this write
         const after = stamp(agentId);
         if (after) lastWritten.set(file, { stamp: after, updatedAt: incomingUpdated, revision: num(doc._saveRevision), replayAt: options.compareRevision ? requestUpdatedAt : incomingUpdated, seededRevision: options.compareRevision ? seededRevision : 0,
-          seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, writer: writer.client || null, founded: foundedAt(doc) });
+          seededClient: options.compareRevision && seededRevision > 0 ? seededClient : undefined, client: doc._saveClient, writer: writer.client || null, founded: foundedAt(doc), version: num(doc.version) });
         // the write landed: report it for the founding (see onFounded). The hook can never turn a landed save into a failure.
         if (onFounded) { try { onFounded({ agentId: String(agentId) }); } catch (e) { failNote('savestore.founded', e); } }
         return { ok: true, updatedAt: incomingUpdated, ...(options.compareRevision ? { revision: doc._saveRevision } : {}), ...(seeded ? { seeded: true } : {}) };
@@ -652,7 +732,86 @@
         return name;
       },
 
-      _internals: { saveFile, AID_RE, num, readTagged, recoveryFile }
+      // the host's read of a history's packed runs, for the restore handlers (null: none; save-restore.js then leaves such a session unplaced)
+      inflate,
+
+      /* scrubKept(ids) — the conversations the Commander deleted are cut out of every kept pre-history-ref copy (see THE LAST FILE
+         AN OLDER BUILD CAN READ). ids: session ids; the ~restored copies of them, their worker threads and their undo-checkpoint
+         rows go with them. A copy that cannot be read, or cannot be written back, cannot be shown to be free of them: it is removed
+         whole. -> { files: rewritten, removed: files removed whole, sessions: records cut }. Throws only when a copy that must go
+         cannot be removed (the deleted-session pass then retries at the next boot). */
+      scrubKept(ids) {
+        const gone = new Set((Array.isArray(ids) ? ids : []).filter(x => typeof x === 'string' && SID_RE.test(x)));
+        const out = { files: 0, removed: 0, sessions: 0 };
+        if (!gone.size) return out;
+        const goneRow = r => !!r && typeof r === 'object' && typeof r.id === 'string'
+          && (gone.has(r.id) || gone.has(r.id.replace(/~restored\d*$/, '')) || (typeof r.parentStreamId === 'string' && gone.has(r.parentStreamId)));
+        for (const name of keptNames()) {
+          const file = pathMod.join(rootDir, name);
+          const wrapper = readKept(file);
+          if (wrapper === undefined) continue;                        // gone between the listing and the read
+          if (wrapper === null) { dropKept(file); out.removed++; continue; }
+          const doc = wrapper.doc && typeof wrapper.doc === 'object' ? wrapper.doc : null;
+          let cut = 0;
+          if (doc && Array.isArray(doc.workstreams)) {
+            const keep = doc.workstreams.filter(w => !goneRow(w));
+            cut += doc.workstreams.length - keep.length;
+            if (keep.length !== doc.workstreams.length) doc.workstreams = keep;
+          }
+          const undo = doc && doc.sessionUndo;
+          if (undo && typeof undo === 'object' && Array.isArray(undo.rows)) {
+            const keep = undo.rows.filter(r => !goneRow(r));
+            if (keep.length !== undo.rows.length) { cut += undo.rows.length - keep.length; if (keep.length) undo.rows = keep; else delete doc.sessionUndo; }
+          }
+          if (!cut) continue;
+          out.sessions += cut;
+          try { writeDurable(file, JSON.stringify(wrapper)); out.files++; }
+          catch (e) { failNote('savestore.kept.rewrite', e); dropKept(file); out.removed++; }
+        }
+        return out;
+      },
+
+      /* expireKept(agentId) — the kept pre-history-ref copy goes 30 days after it was kept, once the main has READ BACK as the new
+         format. -> 'none' (no copy) | 'kept' | 'stamped' (it had no stamp, or one from a clock that was wrong: now it has) | 'expired'.
+         A copy with no stamp is stamped when first seen and goes 30 days after that (never removed on sight, whatever its age); a
+         stamp from the future is pulled back to now, so a wrong clock cannot keep it for ever; a copy that cannot be parsed goes by its
+         file's age. */
+      expireKept(agentId) {
+        const id = String(agentId == null ? 'agent' : agentId);
+        const kept = keptFile(id);
+        if (!exists(kept)) return 'none';
+        const main = readTaggedRaw(saveFile(id));
+        const mainDoc = main.status === 'ok' && main.wrapper && typeof main.wrapper === 'object' ? main.wrapper.doc : null;
+        if (!(mainDoc && typeof mainDoc === 'object' && num(mainDoc.version) >= KEEP_FROM_VERSION)) return 'kept';   // the new format has not read back
+        const now = num(clock.now());
+        const wrapper = readKept(kept);
+        if (wrapper === undefined) return 'none';
+        if (wrapper === null) {
+          let age = 0;
+          try { age = now - num(fs.statSync(kept).mtimeMs); } catch (e) { failNote('savestore.kept.stat', e); }
+          if (age >= KEPT_TTL_MS) { dropKept(kept); return 'expired'; }
+          return 'kept';
+        }
+        const at = num(wrapper.keptAt);
+        if (at > 0 && at <= now) {
+          if (now - at >= KEPT_TTL_MS) { dropKept(kept); return 'expired'; }
+          return 'kept';
+        }
+        try { writeDurable(kept, JSON.stringify(Object.assign({}, wrapper, { keptAt: now }))); return 'stamped'; }
+        catch (e) { failNote('savestore.kept.stamp', e); return 'kept'; }
+      },
+
+      // every kept copy in the folder, whichever agent's: [[agentId, status]]. A copy that fails to go is noted and the rest are still seen
+      expireAllKept() {
+        const out = [];
+        for (const name of keptNames()) {
+          const agentId = KEPT_RE.exec(name)[1];
+          try { out.push([agentId, this.expireKept(agentId)]); } catch (e) { failNote('savestore.kept.expire', e); out.push([agentId, 'failed']); }
+        }
+        return out;
+      },
+
+      _internals: { saveFile, AID_RE, num, readTagged, recoveryFile, keptFile }
     };
   }
 

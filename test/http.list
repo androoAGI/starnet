@@ -241,6 +241,7 @@ test/aux-token-ceiling.e2e.test.js
 test/e2e.overseer.test.js
 test/overseer-publication.http.test.js
 test/save-unreadable.http.test.js
+test/save-pre-history-ref.http.test.js
 test/durable-store-faults.http.test.js
 test/persist-seam.http.test.js
 test/dev-seed-isolation.http.test.js

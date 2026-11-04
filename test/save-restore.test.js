@@ -191,6 +191,39 @@ assert.equal(restorable(station, { workstreams: 'not a list' }), 0);
   assert.equal(restorable(st, before), 0, 'r2 #2: a copy from before the clear brings nothing back');
 }
 
+// save v7 (history by reference, save-history-by-reference S3): a preserved window whose history names runs of rows the station's
+// transcript holds comes back as the rows it names. A session keeps its packed runs under its own id (the stream a run names is the
+// session's); a restored COPY is a new stream, so its rows are carried by value, read from the transcript through the injected
+// inflate; with none, or when a row cannot be returned, the session is UNPLACED, never a silent empty copy
+{
+  const H = require('../frontend/app/historyref.js');
+  const { makeInflate } = require('../sidecar/save-inflate.js');
+  const R = id => ({ streamId: 'P', agentId: 'agent', role: id % 2 ? 'user' : 'assistant', kind: 'turn', taintKnown: true, ts: 10 + id, content: 'row ' + id, rowId: id });
+  const run = ids => H.pack(ids.map(R), { streamId: 'P', seal: k => R(Number(k.split(':')[1])) });
+  const readRows = (sid, ids) => ({ turns: sid === 'P' ? ids.map(R) : [], missing: sid === 'P' ? [] : ids, retracted: [], forgotten: [] });
+  const inflate = makeInflate({ readRows });
+  const doc = history => ({ generalId: 'g', workstreams: [{ id: 'g', title: null, history: [] }, { id: 'P', title: 'Packed', createdAt: 1, lastActiveAt: 5, history }] });
+  const st = doc(run([1, 2]));
+  let p = plan(st, doc(run([1, 2, 3, 4])), { inflate });
+  assert.deepEqual([p.extended, p.copied, p.unplaced], [['P'], [], []], 'v7: a window that continued a packed run extends it');
+  assert.deepEqual(p.doc.workstreams[1].history, run([1, 2, 3, 4]), 'v7: only the missing rows are appended, and the run is still one packed element');
+  assert.equal(restorable(st, doc(run([1, 2, 3, 4]))), 1, 'v7: the offer counts it (no transcript read for a continuation)');
+  assert.deepEqual(plan(doc(run([1, 2, 3, 4])), doc(run([1, 2])), { inflate }).extended, [], 'v7: a station that is ahead keeps its run');
+  const split = doc(run([1, 2, 5, 6])), st2 = doc(run([1, 2, 3, 4]));   // both moved on from [1, 2], in different directions
+  p = plan(st2, split, { inflate });
+  assert.deepEqual([p.copied, p.unplaced], [['P~restored'], []], 'v7: a window that diverged is restored as a copy');
+  const copy = p.doc.workstreams.find(w => w.id === 'P~restored');
+  assert.deepEqual(copy.history, [1, 2, 5, 6].map(R), 'v7: the copy carries its rows by value (a copy is a new stream and outlives the original)');
+  assert.ok(p.doc.workstreams.find(w => w.id === 'P').history.every(H.isRef), 'v7: the station\'s own session stays packed');
+  p = plan(st2, split, {});
+  assert.deepEqual([p.copied, p.unplaced, p.doc.workstreams.some(w => /~restored/.test(w.id))], [[], ['P'], false], 'v7: with no inflate the session is unplaced, and no copy is made');
+  assert.equal(restorable(st2, split, {}), 0, 'v7: the offer does not count what the restore would leave unplaced');
+  assert.equal(restorable(st2, split, { inflate }), 1, 'v7: ...and counts it when the transcript can be read');
+  p = plan(st2, split, { inflate: makeInflate({ readRows: (sid, ids) => readRows(sid, ids.filter(id => id !== 5)) }) });
+  assert.deepEqual([p.copied, p.unplaced], [[], ['P']], 'v7: a row the transcript cannot return leaves the session unplaced');
+  assert.deepEqual(plan(doc([R(1), R(2)]), doc([R(1), R(2), R(7)]), {}).extended, ['P'], 'v7: an inline history is restored as it always was, with no inflate');
+}
+
 // the store lists preserved saves newest first and copies the station file aside before a restore
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'save-restore-'));
 try {

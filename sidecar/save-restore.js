@@ -25,16 +25,26 @@
    The preserved save's General stream is the station's General (a window that booted without the station minted
    its own id for it), so it is compared with the station's General, never added as a second one.
 
-   Pure: no I/O, no clock. plan(current, preserved, opts) -> { doc, added, extended, copied } where doc is a new station
-   save (the input objects are not modified; the station is copied shallowly, never deep-cloned) and the three lists hold
+   A HISTORY THAT NAMES ROWS BY REFERENCE (save v7, historyref.js) is compared as the rows it names (save-history.js: the same
+   algorithm over the exploded histories, packed again), so a run that grew is a continuation and a row packed on one side and
+   inline on the other is one row. A session keeps its packed runs under its own id: the stream a run names is the session's. A
+   RESTORED COPY is a new stream (nothing is recorded under its id) and must outlive the session it was copied from, so its rows are
+   carried BY VALUE: opts.inflate(streamId, rows) -> rows | null reads them from the transcript (the host binds it; this module
+   reads nothing). The same goes for any rows appended to a session under another id (a copy slot, a mapped General). With no
+   inflate, or when the transcript cannot return a row of it, the session is UNPLACED (never a silent empty copy).
+
+   Pure: no I/O, no clock. plan(current, preserved, opts) -> { doc, added, extended, copied, unplaced } where doc is a new station
+   save (the input objects are not modified; the station is copied shallowly, never deep-cloned) and the lists hold
    session ids. restorable(current, preserved, opts) counts the same sessions without building a doc (review 10-23 #3d:
-   the boot offer runs it on a multi-MiB station). */
+   the boot offer runs it on a multi-MiB station) and without reading the transcript: a session that would need an inflate it
+   was not given is not counted. */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof module !== 'undefined' && module.exports ? require('../frontend/app/turnmerge.js') : root.TurnMerge);
+  const node = typeof module !== 'undefined' && module.exports;
+  const api = factory(node ? require('../frontend/app/turnmerge.js') : root.TurnMerge, node ? require('./save-history.js') : ((root.SK && root.SK.saveHistory) || null));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.saveRestore = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnMerge) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnMerge, SaveHistory) {
   'use strict';
 
   const COPY_SUFFIX = '~restored';
@@ -43,6 +53,10 @@
   function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
   function list(doc) { return doc && Array.isArray(doc.workstreams) ? doc.workstreams.filter(w => w && typeof w === 'object' && typeof w.id === 'string' && w.id) : []; }
   function hist(w) { return Array.isArray(w && w.history) ? w.history : []; }
+  // the session's turns as ROWS (a packed run is one stub per row, which sameTurn compares by key); an inline history is itself
+  function rowsOf(w) { return SaveHistory ? SaveHistory.rowsOf(hist(w), w && w.id) : hist(w); }
+  const packed = rows => !!SaveHistory && SaveHistory.hasPacked(rows);
+  const settle = (rows, id) => (SaveHistory ? SaveHistory.repack(rows, id) : rows);
   const sameTurn = TurnMerge.sameTurn;
   // the first `shorter.length` turns of `longer` are `shorter`
   function startsWith(longer, shorter) {
@@ -64,7 +78,7 @@
     const out = new Map();
     if (cp && typeof cp === 'object' && cp.kind === 'clear' && Array.isArray(cp.rows)) {
       const at = num(cp.at) > 0 ? num(cp.at) : Infinity;
-      for (const r of cp.rows) if (r && typeof r.id === 'string') out.set(r.id, { at, history: hist(r) });
+      for (const r of cp.rows) if (r && typeof r.id === 'string') out.set(r.id, { at, history: rowsOf(r) });
     }
     return out;
   }
@@ -77,8 +91,8 @@
     const id = ctx.mapId(raw.id);
     const have = ctx.byId.get(id);
     if (!have) return ctx.deleted(id, activity(raw)) ? null : { kind: 'add', id };
-    const mine = hist(have);
-    let theirs = hist(raw);
+    const mine = rowsOf(have);
+    let theirs = rowsOf(raw);
     const cleared = ctx.cleared.get(id);
     if (cleared) {
       // the Commander cleared this session at cleared.at: what the preserved copy held then stays cleared. Only a copy
@@ -95,9 +109,9 @@
       const born = Number(have.createdAt), touched = Number(have.lastActiveAt);
       const untouched = born > 0 && touched > 0 && touched <= born;
       if (!cleared && !(untouched || Number(raw.lastActiveAt) > Number(have.lastActiveAt || 0))) return null;
-      return { kind: 'extend', id, have, more: theirs };
+      return { kind: 'extend', id, have, more: theirs, from: raw.id };
     }
-    if (startsWith(theirs, mine)) return { kind: 'extend', id, have, more: theirs.slice(mine.length) };
+    if (startsWith(theirs, mine)) return { kind: 'extend', id, have, more: theirs.slice(mine.length), from: raw.id };
     /* BOTH SIDES CHANGED IT DIFFERENTLY: the preserved one is kept beside it as a restored copy. A copy an earlier restore or
        merge made is CONTINUED when this one continues it, and left alone when it already holds this one (a second restore of
        the same save brings nothing twice); a session that diverged AGAIN gets the next copy (~restored2, ~restored3, …).
@@ -114,11 +128,11 @@
       if (!copy) {
         if (ctx.coveredByDelete(copyId, activity(raw))) return null;                  // deleted on purpose after this work
         if (ctx.deleted(copyId, activity(raw))) continue;                               // a dead slot: the next one
-        return { kind: 'copy', id, have, copyId, history: theirs };
+        return { kind: 'copy', id, have, copyId, history: theirs, from: raw.id };
       }
-      const ch = hist(copy);
+      const ch = rowsOf(copy);
       if (startsWith(ch, theirs)) return null;                                          // that copy already holds it
-      if (startsWith(theirs, ch)) return { kind: 'extend', id: copyId, have: copy, more: theirs.slice(ch.length) };
+      if (startsWith(theirs, ch)) return { kind: 'extend', id: copyId, have: copy, more: theirs.slice(ch.length), from: raw.id };
     }
     return { kind: 'unplaced', id };
   }
@@ -138,8 +152,23 @@
     };
   }
 
+  /* the rows a session under another id would hold of a preserved session: its packed runs read from the transcript, by value
+     (opts.inflate). null = they cannot be carried, and the session stays out of the station (unplaced). */
+  function carried(inflate, streamId, rows) {
+    if (typeof inflate !== 'function') return null;
+    try { const out = inflate(streamId, rows); return Array.isArray(out) ? out : null; }
+    catch (e) { return null; }
+  }
+  // does placing this decision need rows read out of the transcript? (the session ends up under another id than the stream its runs name)
+  function needsRows(d, raw) {
+    if (d.kind === 'add') return d.id !== raw.id && packed(rowsOf(raw));
+    if (d.kind === 'extend') return d.from !== d.id && packed(d.more);
+    return d.kind === 'copy' && packed(d.history);
+  }
+
   function plan(current, preserved, opts) {
     const ctx = context(current, preserved, opts);
+    const inflate = opts && opts.inflate;
     const doc = Object.assign({}, current || {});
     const out = ctx.stationList.slice();
     const at = new Map(out.map((w, i) => [w.id, i]));
@@ -150,22 +179,33 @@
       if (d.kind === 'unplaced') { unplaced.push(d.id); continue; }
       if (d.kind === 'add') {
         const w = Object.assign({}, raw, { id: d.id });
+        if (needsRows(d, raw)) {
+          const rows = carried(inflate, raw.id, rowsOf(raw));
+          if (!rows) { unplaced.push(d.id); continue; }
+          w.history = rows;
+        }
         if (w.parentStreamId) w.parentStreamId = ctx.mapId(w.parentStreamId);
         if (w.title == null && w.id !== ctx.toGeneral) w.title = 'Restored session';   // a null title means General
         out.push(w); ctx.byId.set(w.id, w); at.set(w.id, out.length - 1); added.push(w.id);
       } else if (d.kind === 'extend') {
         // the station's session with the missing turns appended: every station-side field stays as the station has it
-        const w = Object.assign({}, d.have, { history: hist(d.have).concat(d.more) });
+        let more = d.more;
+        if (needsRows(d, raw)) { more = carried(inflate, d.from, d.more); if (!more) { unplaced.push(d.id); continue; } }
+        const had = rowsOf(d.have);
+        const w = Object.assign({}, d.have, { history: packed(had) || packed(more) ? settle(had.concat(more), d.id) : hist(d.have).concat(more) });
         out[at.get(d.id)] = w; ctx.byId.set(d.id, w); extended.push(d.id);
       } else {
-        const w = Object.assign({}, raw, { id: d.copyId, history: d.history, title: String(d.have.title || raw.title || 'General').slice(0, 64) + ' (restored copy)' });
+        let history = d.history;
+        if (needsRows(d, raw)) { history = carried(inflate, d.from, d.history); if (!history) { unplaced.push(d.id); continue; } }
+        const w = Object.assign({}, raw, { id: d.copyId, history, title: String(d.have.title || raw.title || 'General').slice(0, 64) + ' (restored copy)' });
         if (w.parentStreamId) w.parentStreamId = ctx.mapId(w.parentStreamId);
         out.push(w); ctx.byId.set(d.copyId, w); at.set(d.copyId, out.length - 1); copied.push(d.copyId);
       }
     }
     doc.workstreams = out;
-    // unplaced: diverged sessions with no restored-copy slot left (every one taken): not in `doc` — the caller says so, and
-    // the save they came from stays where it is (a preserved copy, a kept copy)
+    // unplaced: diverged sessions with no restored-copy slot left (every one taken), and sessions whose packed runs could not be read
+    // out of the transcript to be carried by value: not in `doc` — the caller says so, and the save they came from stays where it is
+    // (a preserved copy, a kept copy)
     return { doc, added, extended, copied, unplaced };
   }
 
@@ -176,11 +216,12 @@
     for (const raw of list(preserved)) {
       const d = decide(raw, ctx);
       if (!d || d.kind === 'unplaced') continue;   // nothing a restore could bring back
+      if (needsRows(d, raw) && !(opts && typeof opts.inflate === 'function')) continue;   // plan() would leave it unplaced: the transcript is not read here
       n++;
       // a later preserved session with the same id (or the copy's id) sees this one as present, exactly as plan() does
       if (d.kind === 'add') ctx.byId.set(d.id, raw);
       else if (d.kind === 'copy') ctx.byId.set(d.copyId, raw);
-      else ctx.byId.set(d.id, { history: hist(d.have).concat(d.more) });
+      else ctx.byId.set(d.id, { id: d.id, history: rowsOf(d.have).concat(d.more) });
     }
     return n;
   }
