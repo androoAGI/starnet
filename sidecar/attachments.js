@@ -29,6 +29,7 @@ const { cleanName, cleanMime } = require('./attachment-name.js');   // the ONE r
    latch on bytes in context instead of on a reference merely being present in the history. */
 const RESEND_K = 4;
 const RESEND_TURNS = 2;
+const RESEND_IMAGE_MIME = /^image\/(png|jpeg|gif|webp)$/;   // the picture types expandOne sends as image blocks
 const RESENT = Symbol.for('starnet.attachments.resent');   // off-wire (never enumerable): the report on an expansion's result array
 
 const hasRefs = m => !!(m && m.role === 'user' && Array.isArray(m.attachments) && m.attachments.length);
@@ -48,8 +49,11 @@ function selectResend(messages) {
     const msg = messages[m];
     if (!isTurn(msg)) continue;
     const refs = Array.isArray(msg.attachments) ? msg.attachments : [];
+    // the current directive's newest IMAGE is exempt too: K counts every kind, so an image staged before K other files must not be the one cut
+    let img = -1;
+    if (age === 0) for (let a = refs.length - 1; a >= 0 && img < 0; a--) { const x = refs[a] || {}; if (x.kind === 'image' && RESEND_IMAGE_MIME.test(String(x.mediaType || '').toLowerCase())) img = a; }
     for (let a = refs.length - 1; a >= 0; a--) {
-      const exempt = age === 0 && picks.length === 0;
+      const exempt = age === 0 && (picks.length === 0 || a === img);
       if (exempt || picks.length < RESEND_K) picks.push({ m, a, age, exempt });
     }
     age++;
@@ -186,10 +190,10 @@ module.exports = function makeAttachments(deps) {
     let imageBudget = IMAGE_BUDGET;
 
     // a reference that is not re-sent: the marker, with nothing read
-    function markerOf(att) {
+    function markerOf(att, now) {
       const entry = entryOf(att || {});
       const text = namable(entry.path)
-        ? '\n[attached earlier: ' + noteName(entry.name) + ' - saved at ' + place(entry.path) + '; open it with fs.read / image_analyze]'
+        ? '\n[' + (now ? 'attached just now but not shown (over the per-turn limit)' : 'attached earlier') + ': ' + noteName(entry.name) + ' - saved at ' + place(entry.path) + '; open it with fs.read / image_analyze]'
         : '\n[attachment "' + noteName(entry.name) + '" is no longer available]';
       return { block: { type: 'text', text }, entry };
     }
@@ -233,6 +237,8 @@ module.exports = function makeAttachments(deps) {
 
     // 1. read and spend the budget NEWEST first
     const done = new Map();
+    let cur = -1;   // the current directive's message index: a miss there was attached in THIS turn, not earlier
+    for (let m = messages.length - 1; m >= 0 && cur < 0; m--) if (isTurn(messages[m])) cur = m;
     for (const p of selectResend(messages)) done.set(p.m + ':' + p.a, await expandOne(messages[p.m].attachments[p.a], p.exempt));
     // 2. assemble in message order
     const report = [];
@@ -242,7 +248,7 @@ module.exports = function makeAttachments(deps) {
       const text = textOf(m.content);
       if (text) blocks.push({ type: 'text', text });
       m.attachments.forEach((att, ai) => {
-        const r = done.get(mi + ':' + ai) || markerOf(att);
+        const r = done.get(mi + ':' + ai) || markerOf(att, mi === cur);
         blocks.push(r.block);
         report.push(r.entry);
       });

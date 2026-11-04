@@ -93,7 +93,7 @@ function wireOf(out, history, lib) {
   const rows = [];   // in document order: { ref, block, how }
   history.forEach((m, i) => {
     if (m.role !== 'user' || !Array.isArray(m.attachments)) return;
-    m.attachments.forEach((ref, j) => { const block = out[i].content[1 + j]; rows.push({ ref, block, how: classify(block, ref, lib) }); });
+    m.attachments.forEach((ref, j) => { const block = out[i].content[1 + j]; rows.push({ mi: i, ref, block, how: classify(block, ref, lib) }); });
   });
   return rows;
 }
@@ -108,14 +108,18 @@ function oracle(history, lib, imageBudget) {
     const refs = history[mi].attachments || [];
     for (let j = refs.length - 1; j >= 0; j--) ranked.push({ ref: refs[j], age });
   });
-  const chosen = ranked.slice(0, K);
+  // K counts every kind; the current directive's newest attachment AND its newest image are exempt from the count
+  const curRefs = ranked.filter(c => c.age === 0);
+  const curImg = curRefs.find(c => c.ref.kind === 'image' && new RegExp("^image/(png|jpeg|gif|webp)$").test(String(c.ref.mediaType).toLowerCase()));
+  const chosen = [];
+  ranked.forEach((c, i) => { if ((i === 0 && c.age === 0) || c === curImg || chosen.length < K) chosen.push(c); });
   let budget = imageBudget;
   const sent = new Set();
   chosen.forEach((c, rank) => {
     const inf = lib.info.get(c.ref.path);
     if (!inf) return;
     if (inf.kind === 'image') {
-      if ((rank === 0 && c.age === 0) || inf.buf.length <= budget) { budget -= inf.buf.length; sent.add(c.ref.path); }
+      if ((rank === 0 && c.age === 0) || c === curImg || inf.buf.length <= budget) { budget -= inf.buf.length; sent.add(c.ref.path); }
     } else if (inf.kind === 'text') sent.add(c.ref.path);
   });
   return { chosen: new Set(chosen.map(c => c.ref.path)), sent };
@@ -184,6 +188,27 @@ async function section(name, fn) {
     A.eq(makeAttachments.selectResend(six).map(p => p.a), [5, 4, 3, 2], 'K inside one message: the newest four references, the oldest two are cut');
     A.eq(makeAttachments.selectResend(null), [], 'not a list -> nothing picked');
     A.eq(makeAttachments.selectResend([{ role: 'user', content: 'hi' }]), [], 'no references -> nothing picked');
+  });
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // 1b. K counts every kind, but the current directive's newest IMAGE is always present (review: an image staged first
+  //     among more than K files fell outside the count, and its miss read "attached earlier" for a file sent this turn)
+  await section("1b newest image in the current turn", async () => {
+    const lib = library();
+    const img = lib.image(10), fs5 = [1, 2, 3, 4, 5].map(() => lib.text(10));
+    const one = [user('shot and logs', [img, ...fs5])];
+    const picks = makeAttachments.selectResend(one);
+    A.ok(picks.some(p => p.a === 0 && p.exempt), 'selectResend: the image staged first among ' + (fs5.length + 1) + ' files is picked, and exempt');
+    A.eq(picks.length, K + 1, 'the exempt image rides beside the K newest files');
+    const two = [user('old', [lib.image(10)]), user('shot and logs', [img, ...fs5])];
+    A.ok(makeAttachments.selectResend(two).some(p => p.m === 1 && p.a === 0), 'same with an older turn behind it');
+    const R = rig(lib);
+    const out = await R.att.expandUserAttachments(one, 'p', { place });
+    const wire = wireOf(out, one, lib);
+    A.eq(wire[0].how, 'image', 'seam: the image reaches the model as bytes');
+    const cut = wire.filter(r => r.how === 'note');
+    A.eq(cut.length, 1, 'seam: exactly one file is cut');
+    A.ok(/attached just now/.test(cut[0].block.text) && !/attached earlier/.test(cut[0].block.text), 'a current-turn miss is not called "attached earlier" - ' + cut[0].block.text);
   });
 
   // ---------------------------------------------------------------------------------------------------------------
@@ -382,11 +407,12 @@ async function section(name, fn) {
       histories++; refsSeen += rows.length; sentSeen += sent.length;
 
       // resend-newest-k-newest-first
-      A.ok(sent.length <= K, tag + 'at most K=' + K + ' attachments carry bytes (' + sent.length + ')');
+      A.ok(sent.length <= K + 1, tag + 'at most K=' + K + ' attachments carry bytes, plus the current turn exempt image (' + sent.length + ')');
       A.eq(rows.filter(x => x.how === 'foreign-image').length, 0, tag + 'every image on the wire is its own file');
       const userAt = []; history.forEach((m, i) => { if (m.role === 'user') userAt.push(i); });
       const inWindow = new Set(userAt.slice(-TURNS).flatMap(i => history[i].attachments || []).map(x => x.path));
       A.ok(sent.every(x => inWindow.has(x.ref.path)), tag + 'nothing older than ' + TURNS + ' user turns carries bytes');
+      const lastTurnAt = userAt[userAt.length - 1];
       const cur = history[userAt[userAt.length - 1]].attachments || [];
       if (cur.length) { exemptChecks++; A.ok(sent.some(x => x.ref.path === cur[cur.length - 1].path), tag + 'the current directive\'s newest attachment is always sent'); }
       A.eq(sent.map(x => x.ref.path).sort(), Array.from(want.sent).sort(), tag + 'exactly the newest K within the window, the budget spent newest first');
@@ -396,7 +422,7 @@ async function section(name, fn) {
         const t = String(x.block && x.block.text);
         const inf = lib.info.get(x.ref.path);
         if (!want.chosen.has(x.ref.path)) {
-          A.ok(t.includes('[attached earlier: ' + x.ref.name + ' - saved at ' + place(x.ref.path) + '; open it with fs.read / image_analyze]'), tag + 'an omitted reference is the marker with path and tools — ' + t.slice(0, 120));
+          A.ok(t.includes('[' + (x.mi === lastTurnAt ? 'attached just now but not shown (over the per-turn limit)' : 'attached earlier') + ': ' + x.ref.name + ' - saved at ' + place(x.ref.path) + '; open it with fs.read / image_analyze]'), tag + 'an omitted reference is the marker with path and tools — ' + t.slice(0, 120));
         } else if (inf.kind === 'image') {
           budgetMisses++;
           A.ok(/over the image budget/.test(t) && t.includes(place(x.ref.path)) && /image_analyze/.test(t), tag + 'a budget miss names the path and the tool — ' + t.slice(0, 120));
