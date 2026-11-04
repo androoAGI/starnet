@@ -210,6 +210,7 @@ test/line-postconditions.e2e.test.js
 test/line-entry.invocation.http.test.js
 test/routing.saved-station-grants.e2e.test.js
 test/routing.saved-floor-authority.e2e.test.js
+test/routing.page-envelope.e2e.test.js
 test/station-template-example.e2e.test.js
 test/route-honesty.e2e.test.js
 test/route-contract.test.js

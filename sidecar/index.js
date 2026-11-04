@@ -13639,12 +13639,21 @@ function handleChannelEvents(req, res) {
 
 /* ---- POST /api/routing: the app posts its compiled RoutingPlan on every floor change; the router stores
    it (or REFUSES a non-deployable one), and from then on the floor decides which agent each inbound runs. ---- */
+/* The page posts its floor as a hint envelope, {version:1, plan, compilerLinks} (frontend/app/world.js, the poster). The posted-plan
+   path below installs the plan INSIDE it, as it always installed the plan the page posted; compilerLinks are the hint's companion
+   and this path never had the compiler's links. A bare plan body (everything else that posts one) is still the plan itself, and a
+   real plan always carries its errors array, so an envelope is never mistaken for one. Goes with the posted-plan path. */
+function postedPlanOf(body) {
+  return body && typeof body === 'object' && !Array.isArray(body) && body.version === 1 && Object.prototype.hasOwnProperty.call(body, 'plan') && !Array.isArray(body.errors)
+    ? body.plan : body;
+}
 function handleRouting(req, res) {
   readBody(req, 1 << 20).then(raw => {
     let plan = null;
     if (raw && raw.trim()) { try { plan = JSON.parse(raw); } catch (_) { res.writeHead(400); return res.end('bad json'); } }
     if (ROUTING_SAVED) return answerRoutingHint(res, plan);   // the saved floor routes: this body is only asked about, never installed or kept
-    const r = router.setPlan(plan);
+    const posted = postedPlanOf(plan);
+    const r = router.setPlan(posted);
     // persist every ACCEPTED plan (incl. an accepted clear) so routing survives a sidecar restart (2026-07-06).
     // A REFUSED post persists the REFUSED PLAN ITSELF, never the previously-accepted file (2026-08-04): stale
     // routing must not re-arm at boot. But a well-formed refusal is still the CAPABILITY view (r.caps — see
@@ -13652,7 +13661,7 @@ function handleRouting(req, res) {
     // every bay-bound cron/routed run the FULL default office while the floor still painted bay restrictions
     // (2026-08-10 audit #1). Boot replays this file through the same setPlan, which re-refuses routing AND
     // restores the bay projection — boot matches live for BOTH facts. Malformed post or clear -> null.
-    try { saveResilient(ROUTING_FILE, (r && (r.ok || r.caps)) ? plan : null); } catch (e) { console.warn('[routing] plan persist failed:', (e && e.message) || e); }
+    try { saveResilient(ROUTING_FILE, (r && (r.ok || r.caps)) ? posted : null); } catch (e) { console.warn('[routing] plan persist failed:', (e && e.message) || e); }
     res.writeHead(r.ok ? 200 : 422, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(r));
   }).catch(() => { try { res.writeHead(400); res.end(); } catch (_) {} });

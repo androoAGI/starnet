@@ -9905,37 +9905,84 @@ const World = (() => {
     postRoutingPlan(routingPlan);
     lineStatsSoon();   // LINE WATCH: the floor's lines changed — re-ask their numbers once the plan has landed
   }
-  /* PLAN-POSTER-BEGIN (extraction marker — test/plan-poster.test.js evals this block with injected deps;
-     keep it PURE: params + locals only, no module state, no direct fetch/console/setTimeout).
+  /* PLAN-POSTER-BEGIN (extraction marker — test/plan-poster.test.js and test/routing.page-publication.test.js eval this block with
+     injected deps; keep it PURE: params + locals only, no module state, no direct fetch/console/setTimeout).
 
-     Delivery of the compiled plan to /api/routing, with the hash committed ONLY on a server answer — the old
+     PUBLICATION of the drawn floor to /api/routing, with the hash committed ONLY on a server answer — the old
      fire-and-forget committed the dedupe hash BEFORE the fetch and swallowed every failure, so one dropped
      POST left the sidecar routing by a STALE floor forever while the world drew the new one (audit 2026-08-04).
+
+     THE SAVED FLOOR IS THE ROUTING AUTHORITY (lane saved-floor-routing-authority). The sidecar routes by the floor the user SAVED,
+     so this post installs nothing: it is a HINT, {version:1, plan, compilerLinks} (JSON drops the compiler's non-enumerable
+     links, so they ride beside the plan), and it asks "is this exactly the floor you hold?". Two consequences:
+       • the SAVE comes first. deps.saved() resolves true only when the station file holds this window's newest save
+         (floorSaved below). A save that did not land posts nothing, keeps the floor stale and warns; the retry asks the save
+         again. flush() — World.syncPlan — therefore resolves only after the save AND the station's verdict.
+       • a 409 is "not yet": the station holds some other floor (this change has not landed, or does not match it).
      Semantics:
-       • 200 → commit the hash (dedupe as before: same topology+caps never re-posts), clear staleness.
-       • 422 → the PLAN ITSELF is refused (cycle/orphan) — re-posting the same hash is pointless, so commit it
-         and record the refusal. Not stale: the sidecar holds (and persists) the CLEARED plan, and the floor
+       • 200 → the station holds exactly this floor and it routes: commit the hash (dedupe as before: the same floor, caps,
+         briefs, budget and SEND TO never re-post), clear staleness.
+       • 422 → the station holds exactly this floor and the compiler REFUSES it (cycle/orphan) — re-posting the same hash is
+         pointless, so commit it and record the refusal. Not stale: nothing routes from a refused floor and the floor
          already draws the same compiler errors as nags — live truth on both sides.
-       • network failure / other status → do NOT commit; bounded fixed-delay retries, then give up until the
-         next offer (rederive re-offers the uncommitted hash). `stale` stays true — server-side routing may
-         not match the drawn floor — and each failure warns via deps.warn.
+       • 409 → NOT YET (pending): never committed, `stale` stays true, the hash is recorded as unsavedHash, and delivery is
+         retried like a failure (bounded), because the save that makes it true may still be on its way.
+       • a save that did not land / network failure / any other status (503 = the saved floor is held) → do NOT commit;
+         bounded fixed-delay retries, then give up until the next offer (rederive re-offers the uncommitted hash). `stale`
+         stays true — server-side routing may not match the drawn floor — and each failure warns via deps.warn.
      A newer offer supersedes any pending retry (seq guard: a late stale response can never commit). */
+  // the body of a publication: the hint envelope. The compiler's links are a NON-ENUMERABLE property of its plan, which JSON
+  // drops, so they travel beside it (the saved floor's own projection keeps them the same way)
+  function envelopeOf(plan) { return { version: 1, plan: plan, compilerLinks: (plan && plan.links) || null }; }
+  /* The dedupe key of a floor: everything an edit can change that the station has to be told again. The compiled plan's hash is
+     the dispatch topology and nothing else, so the rest rides the key. */
+  function routingKeyOf(plan) {
+    if (!plan) return '';
+    // dedupe on topology hash + per-bay caps, so equipping a bay (a capability change with no belt change) still re-POSTs
+    const objKey = o => (o && typeof o === 'object') ? (o.objectType + '#' + (o.connectorId || '')) : o;   // connector objs carry a binding; stringify it so a re-bind re-POSTs
+    // dockBays BRIEFS ride the key too (step editor): a belt-hooked bay's brief already moves plan.hash
+    // (it compiles into `bays`), but a LONE dock's brief lives only in dockBays — outside the hash — and
+    // editing it must still reach the sidecar's copy or stageBrief() serves a stale duty line.
+    return (plan.hash || '') + '|' + (plan.bays || []).map(b => b.agentId + ':' + ((b.objects || []).map(objKey).join(','))).join(';')
+      + '|' + (plan.dockBays || []).map(b => b.propId + ':' + (b.brief || '')).join(';')
+      // LINE BUDGET rides the key too (2026-08-21): limits live on `lines`, outside plan.hash (policy, not
+      // topology — splitter balance must survive a cap edit), but the sidecar's copy must re-read them.
+      + '|' + JSON.stringify(plan.lineLimits || {}) + '|' + JSON.stringify((plan.lines || []).map(l => [l.lineId, l.projectRoot || '', l.name || '']))
+      // SEND TO rides the key too (2026-10-10): plan.sendTo is outside plan.hash (a hand-off is not dispatch topology), but the
+      // sidecar's handoff runner reads the posted copy — an edited SEND TO that never re-posted would hand work to the old line
+      + '|' + JSON.stringify(plan.sendTo || {});
+  }
+  /* The SAVE STEP of a publication (deps.saved is this, over CloudSave): a promise of true when the station file holds this window's
+     newest save — or nothing was waiting — and of false when that save was refused or could not be sent. CloudSave.flush() cannot say
+     which: it answers false both for "nothing pending" and for "the write failed". flushForUpdate() answers { ok, hadPending,
+     flushed }, and ok is exactly "the station file holds everything this window queued" (a standing conflict or a degraded station
+     is not ok). It runs one turn late on purpose: the app queues a change's persist with queueMicrotask (app.js watchStationSave),
+     and a page that publishes in the very turn it changed the floor (World.syncPlan after a build) must find that save queued, not
+     post before it. No CloudSave has nothing to wait for. A flush that rejects rejects this too: the poster reads a save that did
+     not land. */
+  function floorSaved(cloud) {
+    return Promise.resolve().then(() => (cloud && typeof cloud.flushForUpdate === 'function')
+      ? cloud.flushForUpdate().then(r => !!(r && r.ok))
+      : true);
+  }
   function makePlanPoster(deps) {
     const MAX_RETRIES = 3, RETRY_MS = 4000;   // bounded + fixed-delay (deterministic-friendly); rederive re-offers after
     let lastHash = null;      // last hash the server ANSWERED (200 committed / 422 refused) — never committed on a guess
     let refusedHash = null;   // the hash of the last 422-refused plan (refusal state, inspectable)
     let pendingHash = null;   // the hash currently being delivered (in flight or awaiting a retry tick)
+    let unsavedHash = null;   // the hash whose save did not land, or that the station answered 409 (pending) for: drawn here, not held there yet
     let inflight = false, timer = null, seq = 0;
     let sendingHash = null;   // the hash of the POST on the wire right now
     let queued = null;        // the NEWEST floor offered while a POST was on the wire — sent the moment it settles
     let stale = false;        // honest flag: the sidecar may still route by an older floor than the one drawn
     let waiters = [];         // flush() callers awaiting the NEXT server answer (run-now ordering, 2026-08-22)
-    function state() { return { lastHash: lastHash, refusedHash: refusedHash, pendingHash: pendingHash, inflight: inflight, retryPending: timer != null, stale: stale }; }
+    function state() { return { lastHash: lastHash, refusedHash: refusedHash, pendingHash: pendingHash, unsavedHash: unsavedHash, inflight: inflight, retryPending: timer != null, stale: stale }; }
     function settle() { const w = waiters; waiters = []; const s = state(); for (const f of w) { try { f(s); } catch (_) {} } }
     /* flush(): a promise of the poster's state once the in-flight delivery has a verdict — resolved at once
        when nothing is pending. A run trigger (sample / RUN NOW) awaits THIS before dispatching so the sidecar
-       routes the line the user just drew, not the last one it heard about. A failed attempt resolves too
-       (stale=true, retries continue in the background): the caller refuses rather than running a stale floor. */
+       routes the line the user just drew, not the last one it heard about. The delivery stays in flight while its
+       save is awaited, so this resolves only after the save AND the station's verdict. A failed attempt resolves
+       too (stale=true, retries continue in the background): the caller refuses rather than running a stale floor. */
     function flush() { return new Promise(resolve => { if (!inflight && timer == null) resolve(state()); else waiters.push(resolve); }); }
     /* ONE POST AT A TIME, IN ORDER (2026-10-08). Two POSTs on separate connections can ARRIVE out of order: the
        sidecar then kept the OLDER floor while this page committed the newer hash and believed it delivered — a
@@ -9949,31 +9996,42 @@ const World = (() => {
       if (hash === lastHash) return false;                                   // server already answered this exact floor
       if (hash === pendingHash && (inflight || timer != null)) return false; // same floor already being delivered
       if (timer != null) { deps.cancel(timer); timer = null; }               // a different floor supersedes the pending retry
-      pendingHash = hash;
+      pendingHash = hash; unsavedHash = null;
       send(plan, hash, 0, ++seq);
       return true;
     }
     function send(plan, hash, attempt, mySeq) {
-      const fail = why => {
+      const fail = (why, unsaved) => {
         if (mySeq !== seq) return;   // superseded — the newer offer owns delivery (and the flags) now
         inflight = false; sendingHash = null;
         if (drainQueued()) return;   // a NEWER floor was offered meanwhile: deliver it instead of retrying this one
-        stale = true;
+        stale = true; unsavedHash = unsaved ? hash : null;
         deps.warn('[routing] plan post failed (' + why + ') — sidecar routing may be stale' +
           (attempt < MAX_RETRIES ? '; retrying in ' + RETRY_MS + 'ms' : '; will retry on the next floor change'));
         if (attempt < MAX_RETRIES) timer = deps.delay(() => { timer = null; send(plan, hash, attempt + 1, mySeq); }, RETRY_MS);
         settle();
       };
-      let p = null;
+      // the hint goes out once the save it asks about has landed
+      const post = () => {
+        let p = null;
+        try { p = deps.post(envelopeOf(plan)); } catch (_) { fail('exception'); return; }
+        Promise.resolve(p).then(res => {
+          if (mySeq !== seq) return;   // superseded — never let a stale response commit or clear flags
+          inflight = false; sendingHash = null;
+          if (res && res.ok) { lastHash = hash; refusedHash = null; unsavedHash = null; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
+          if (res && res.status === 422) { lastHash = hash; refusedHash = hash; unsavedHash = null; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
+          if (res && res.status === 409) { fail('floor not saved yet', true); return; }   // the station holds another floor: not yet, never a commit
+          fail('http ' + (res ? res.status : '?'));
+        }, () => fail('network'));
+      };
       inflight = true; sendingHash = hash;
-      try { p = deps.post(plan); } catch (_) { fail('exception'); return; }
-      Promise.resolve(p).then(res => {
-        if (mySeq !== seq) return;   // superseded — never let a stale response commit or clear flags
-        inflight = false; sendingHash = null;
-        if (res && res.ok) { lastHash = hash; refusedHash = null; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
-        if (res && res.status === 422) { lastHash = hash; refusedHash = hash; if (drainQueued()) return; pendingHash = null; stale = false; settle(); return; }
-        fail('http ' + (res ? res.status : '?'));
-      }, () => fail('network'));
+      if (typeof deps.saved !== 'function') { post(); return; }   // a page with no durable save has nothing to wait for
+      let landed = null;
+      try { landed = deps.saved(); } catch (_) { fail('save did not land', true); return; }
+      Promise.resolve(landed).then(ok => {
+        if (mySeq !== seq) return;   // superseded while the save was awaited
+        if (ok === true) post(); else fail('save did not land', true);
+      }, () => fail('save did not land', true));
     }
     // the wire is free: send the newest floor offered while it was busy (unless the server already holds it)
     function drainQueued() {
@@ -9981,7 +10039,7 @@ const World = (() => {
       if (!q) return false;
       if (q.hash === lastHash) { pendingHash = null; return false; }
       if (timer != null) { deps.cancel(timer); timer = null; }
-      pendingHash = q.hash; stale = true;
+      pendingHash = q.hash; stale = true; unsavedHash = null;
       send(q.plan, q.hash, 0, ++seq);
       return true;
     }
@@ -9992,30 +10050,20 @@ const World = (() => {
   // an unreachable sidecar already raises the LINK DOWN chrome (linkDown/linkState — the one honest
   // connectivity signal), and _dbgBeltLegibility exposes planSync for the verify harness.
   const planPoster = makePlanPoster({
-    post: plan => fetch(apiUrl('/api/routing'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(plan || {}) }),
+    // the station answers from the floor it SAVED, so this window's save lands before the hint is asked about
+    saved: () => floorSaved(typeof CloudSave !== 'undefined' ? CloudSave : null),
+    // the poster hands over the hint envelope: JSON carries its links beside the plan
+    post: body => fetch(apiUrl('/api/routing'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     warn: m => { try { console.warn(m); } catch (_) {} },
     delay: (fn, ms) => setTimeout(fn, ms),
     cancel: id => clearTimeout(id)
   });
-  // post the plan to /api/routing when the floor TOPOLOGY actually changed (hash dedupe — rederive() also runs
-  // on pure camera/agent moves). The sidecar REFUSES a non-deployable plan (cycle/orphan) and falls back to its
-  // default resolution, so a broken floor disables routed-mode rather than stalling work.
+  // publish the drawn floor to /api/routing when it actually changed (key dedupe — rederive() also runs on pure camera/agent
+  // moves). The station answers from its SAVED floor and installs nothing from the post: a floor it cannot route (cycle/orphan) is
+  // refused there, so a broken floor disables routed-mode rather than stalling work.
   function postRoutingPlan(plan) {
     if (typeof fetch === 'undefined') return;
-    // dedupe on topology hash + per-bay caps, so equipping a bay (a capability change with no belt change) still re-POSTs
-    const objKey = o => (o && typeof o === 'object') ? (o.objectType + '#' + (o.connectorId || '')) : o;   // connector objs carry a binding; stringify it so a re-bind re-POSTs
-    // dockBays BRIEFS ride the key too (step editor): a belt-hooked bay's brief already moves plan.hash
-    // (it compiles into `bays`), but a LONE dock's brief lives only in dockBays — outside the hash — and
-    // editing it must still reach the sidecar's copy or stageBrief() serves a stale duty line.
-    const hash = plan ? ((plan.hash || '') + '|' + (plan.bays || []).map(b => b.agentId + ':' + ((b.objects || []).map(objKey).join(','))).join(';')
-      + '|' + (plan.dockBays || []).map(b => b.propId + ':' + (b.brief || '')).join(';')
-      // LINE BUDGET rides the key too (2026-08-21): limits live on `lines`, outside plan.hash (policy, not
-      // topology — splitter balance must survive a cap edit), but the sidecar's copy must re-read them.
-      + '|' + JSON.stringify(plan.lineLimits || {}) + '|' + JSON.stringify((plan.lines || []).map(l => [l.lineId, l.projectRoot || '', l.name || '']))
-      // SEND TO rides the key too (2026-10-10): plan.sendTo is outside plan.hash (a hand-off is not dispatch topology), but the
-      // sidecar's handoff runner reads the posted copy — an edited SEND TO that never re-posted would hand work to the old line
-      + '|' + JSON.stringify(plan.sendTo || {})) : '';
-    planPoster.offer(plan, hash);
+    planPoster.offer(plan, routingKeyOf(plan));
   }
   // junction props (splitter/filter/merger) keyed by tile — derived from the compiled plan so the VISUAL engine
   // animates filters + mergers (not just splitters) using the SAME config the dispatch router routes by.
