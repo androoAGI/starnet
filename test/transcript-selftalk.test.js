@@ -15,6 +15,7 @@
         same readers; the same words in a named session are the Commander's and are still found. */
 'use strict';
 const { readSidecarSource } = require('./helpers/source');
+const { makeMemoryTranscriptIo } = require('./helpers/memory-transcript-io.js');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -30,8 +31,9 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
   // ---------------- 1. WRITE: the host stamps streamless self-talk 'internal' ----------------
   {
     const src = readSidecarSource();
-    const rule = src.match(/const transcriptState = \(o\.dispatchDelivery && o\.dispatchDelivery\.state\) \|\| \(internal && !o\.streamId \? 'internal' : undefined\);/);
-    A.ok(!!rule, 'runOnce names ONE transcript state: the dispatch envelope\'s, else \'internal\' for streamless self-talk');
+    // turn-identity commit 4: 'internal' in ANY stream (station speech is stamped), not only the streamless 'global' one
+    const rule = src.match(/const transcriptState = \(o\.dispatchDelivery && o\.dispatchDelivery\.state\) \|\| \(internal \? 'internal' : undefined\);/);
+    A.ok(!!rule, 'runOnce names ONE transcript state: the dispatch envelope\'s, else \'internal\' for self-talk in any stream');
     const mk = src.indexOf('const runTranscript = makeRunTranscript({');
     A.ok(mk > 0 && rule && rule.index < mk && /dispatchState: transcriptState,/.test(src.slice(mk, mk + 400)), 'makeRunTranscript writes with that state');
     const endAt = src.indexOf("if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append(");
@@ -83,7 +85,7 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
       A.eq(projectConversation(store.history('global', { limit: 50 })).filter(r => r.dispatchState === 'internal').length, 0, label + ': the conversation projection shows no stamped self-talk');
     } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   }
-  await readers('ram', () => ({ readAll() { return []; }, append() {} }));
+  await readers('ram', makeMemoryTranscriptIo);
   await readers('segmented', dir => makeSegmentedTranscriptIo({ fs, path, root: path.join(dir, 'history'), segmentBytes: 600, recentPerStream: 3 }));
 
   // ---------------- 4. BROWSE: the 'global' listing never previews self-talk ----------------
@@ -146,8 +148,8 @@ const clockAt = start => { let t = start; return { now: () => t, set: v => { t =
   const segIo = dir => makeSegmentedTranscriptIo({ fs, path, root: path.join(dir, 'history'), segmentBytes: 600, recentPerStream: 3 });
   const titleReply = 'Landlord Mold Letter Withheld Rent';
   const goalReply = 'continue — the letter to the landlord about the mold and the withheld rent is not drafted yet';
-  await browse('ram-title', () => ({ readAll() { return []; }, append() {} }), titlePrompt, titleReply);
-  await browse('ram-goal', () => ({ readAll() { return []; }, append() {} }), goalPrompt, goalReply);
+  await browse('ram-title', makeMemoryTranscriptIo, titlePrompt, titleReply);
+  await browse('ram-goal', makeMemoryTranscriptIo, goalPrompt, goalReply);
   await browse('segmented-title', segIo, titlePrompt, titleReply);
   await browse('segmented-goal', segIo, goalPrompt, goalReply);
 

@@ -1,6 +1,6 @@
 /* sidecar/apiauth.js — the PURE auth/guard logic for the loopback HTTP API, factored out of index.js so
    it is unit-testable (index.js self-boots a server and cannot be required by a test). index.js keeps the
-   thin res-writing wrappers (applyApiCors / rejectApi / rejectBadApiToken) and delegates the decisions here.
+   thin res-writing wrappers (applyApiCors / refuseAtGate) and delegates the decisions here.
 
    THREAT MODEL (read before changing):
    - PRIMARY (defended): a malicious WEBSITE the user visits must not drive the agent or read its data via

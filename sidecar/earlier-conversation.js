@@ -20,6 +20,7 @@
 'use strict';
 
 const fidelity = require('./compaction-fidelity.js');
+const UserText = require('../frontend/app/usertext.js');   // the one flattener (DIRECTIVE policy: index.js userMsgText's bytes)
 
 const KEY_CHARS = 240;
 const REPLY_HEAD_CHARS = 280;
@@ -30,15 +31,7 @@ function squash(s) { return str(s).replace(/\s+/g, ' ').trim(); }
 
 // a user message's text the way the transcript stored it (index.js userMsgText): string content, or text parts joined
 function userText(m) {
-  if (!m || m.role !== 'user') return null;
-  if (typeof m.content === 'string') return m.content;
-  if (!Array.isArray(m.content)) return null;
-  const parts = [];
-  for (const p of m.content) {
-    if (typeof p === 'string') parts.push(p);
-    else if (p && typeof p.text === 'string') parts.push(p.text);
-  }
-  return parts.join('');
+  return m && m.role === 'user' ? UserText.flatten(m.content, UserText.DIRECTIVE) : null;
 }
 
 // comparison key: whitespace-insensitive head of the (redacted) text; '' = not a usable anchor
@@ -54,6 +47,14 @@ function keyOf(text, redact) {
    nothing was dropped, or -1 when the window cannot be placed (then the caller injects nothing). */
 function windowCut(rows, window, redact) {
   const list = Array.isArray(rows) ? rows : [];
+  const ids = window && window[require('./turn-view.js').ROW_IDS];
+  if (Array.isArray(ids)) {
+    const valid = id => id && Number.isSafeInteger(id.rowId) && id.rowId > 0 && id.streamId;
+    const at = window.findIndex(message => message && ['user', 'assistant', 'tool'].includes(message.role));
+    const first = at >= 0 ? ids[at] : null;
+    // A keyed window is placed only by its durable identity. A missing key is unknown, never a text match.
+    if (ids.some(valid)) return valid(first) ? list.findIndex(row => row && row.rowId === first.rowId && row.streamId === first.streamId) : -1;
+  }
   const msgs = (Array.isArray(window) ? window : []).filter(m => m && (m.role === 'user' || m.role === 'assistant'));
   const wantKeys = [];
   for (const m of msgs) {

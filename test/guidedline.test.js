@@ -8,7 +8,7 @@
         agent does not strip it (role is provenance, not a gate).
      3. Hand-placed bays have no role (roles are blueprint meaning, not a bay default).
      4. LINE COMPONENTS (Pipeline.lineComponents): a stamped line groups into ONE component with
-        a stable key (smallest member prop id), correct machine membership, and a `tiles` set
+        the saved INBOX's stable key, correct machine membership, and a `tiles` set
         that contains its belt tiles (the delivery-retirement hit-test). Two separate lines are
         two components. Checklist derivation: crew-left = unbound bays of the component, in
         lockstep with the compiled plan's UNBOUND_BAY warns, and reaches zero when crewed. */
@@ -100,7 +100,9 @@ function freshFloor() {
   A.eq(c.intakes.length, 1, 'component sees the intake');
   A.eq(c.outboxes.length, 1, 'component sees the outbox');
   A.eq(c.beltCount, 9, 'component counts every belt tile');
-  A.eq(c.key, c.props.slice().sort()[0], 'key = smallest member prop id');
+  const inbox = s.propById(c.intakes[0]);
+  A.ok(typeof inbox.lineId === 'string' && inbox.lineId.length > 0, 'the stamped INBOX has a saved line identity');
+  A.eq([c.key, c.intakeId], [inbox.lineId, inbox.id], 'component identity belongs to its saved INBOX');
   A.ok(c.bays.every(b => b.role), 'component bays carry their roles');
 
   // tiles set contains a known belt tile (the delivery-retirement hit-test contract).

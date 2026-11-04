@@ -1044,7 +1044,7 @@
       if (r.ok && S.thread && S.thread.streamId === streamId) {
         const d = r.data;
         if (Array.isArray(d)) { S.thread.turns = d; S.thread.earlier = 0; }   // an older station answers with the bare list
-        else { S.thread.turns = d.turns || []; S.thread.earlier = Number(d.earlier) || 0; }
+        else { S.thread.turns = d.turns || []; S.thread.earlier = Number(d.earlier) || 0; S.thread.beforeRowId = d.beforeRowId; }
       }
     } catch (e) { toast(e.message, true); }
     render();
@@ -1056,10 +1056,10 @@
     const t = S.thread; if (!t || !t.turns) return;
     btn.disabled = true; btn.textContent = 'Loading…';
     try {
-      const r = await call('thread', { streamId: t.streamId, limit: 80, before: t.turns.length, page: true });
+      const r = await call('thread', { streamId: t.streamId, limit: 80, before: t.turns.length, beforeRowId: t.beforeRowId, page: true });
       if (r.ok && S.thread === t && r.data && Array.isArray(r.data.turns)) {
         const v = $('view'), fromBottom = v.scrollHeight - v.scrollTop;
-        t.turns = r.data.turns.concat(t.turns); t.earlier = Number(r.data.earlier) || 0;
+        t.turns = r.data.turns.concat(t.turns); t.earlier = Number(r.data.earlier) || 0; t.beforeRowId = r.data.beforeRowId;
         render(); v.scrollTop = v.scrollHeight - fromBottom;   // keep the reader where they were
         return;
       }
@@ -1081,7 +1081,7 @@
         const m = el('div', 'msg ' + (t.role === 'user' ? 'user' : 'agent'));
         m.appendChild(el('span', 'who', t.role === 'user' ? 'YOU' : agentName(t.agentId || S.thread.agentId).toUpperCase()));
         const q = t.role === 'assistant' ? questionOf(t.content) : null;
-        if (!q) { m.appendChild(mdNode(t.content)); log.appendChild(m); return; }
+        if (!q) { m.appendChild(mdNode(t.role === 'user' && t.typed != null ? t.typed : t.content)); log.appendChild(m); return; }
         if (q.before) m.appendChild(mdNode(q.before));
         const box = el('div', 'qcard');
         box.appendChild(el('div', 'q', q.question));
@@ -1208,7 +1208,7 @@
         row.appendChild(el('i', 'dot' + (j.inFlight ? ' work' : (j.enabled && !j.held) ? ' ok' : '')));
         const t = el('span', 't');
         t.appendChild(el('b', null, j.name || j.prompt || j.id));
-        const when = j.held === 'halted' ? 'not running — E-STOP is on' : j.held === 'off' ? 'not running — scheduling is off' : j.enabled ? (j.schedule || 'scheduled') : 'paused';
+        const when = j.held === 'halted' ? 'not running — E-STOP is on' : j.held === 'off' ? 'not running — scheduling is off' : j.held === 'degraded' ? 'not running — scheduler storage needs recovery' : j.enabled ? (j.schedule || 'scheduled') : 'paused';
         t.appendChild(el('span', null, when + (j.agentId ? ' · ' + agentName(j.agentId) : '')));
         row.appendChild(t);
         const b = el('button', 'btn', j.enabled ? 'Pause' : 'Resume'); b.type = 'button';

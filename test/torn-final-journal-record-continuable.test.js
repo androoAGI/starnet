@@ -48,7 +48,7 @@ try {
     A.eq([seen.corrupt, seen.damage, seen.forensic], [true, 'torn_tail', false], 'a torn final record is disclosed but classified torn_tail, not forensic');
     A.eq(seen.status, 'needs_review', 'the valid prefix keeps its exact recovery status');
     const listed = boot.recoverPage({ limit: 10 }).rows.find(r => r.runId === 'torn-a');
-    A.ok(listed && /\.torn-[a-f0-9]{10}$/.test(String(listed.repairedFrom || '')), 'the repair keeps a .torn-* forensic copy of the damaged bytes');
+    A.ok(listed && /\.torn-r[a-f0-9]{10}$/.test(String(listed.repairedFrom || '')), 'the repair keeps a .torn-* forensic copy of the damaged bytes (its nonce carries a letter: never a numbered quarantine)');
     A.ok(fs.readFileSync(listed.repairedFrom, 'utf8').endsWith(tornTail), 'the forensic copy holds the torn bytes verbatim');
     A.eq(siblings('torn-a').filter(n => /\.corrupt/.test(n)), [], 'no .corrupt* sibling is created for a torn tail');
     A.eq(J._internals.parseRecords(fs.readFileSync(fileOf('torn-a'), 'utf8')).damage, 'none', 'the active journal is the clean valid prefix after repair');
@@ -130,7 +130,7 @@ try {
       A.eq([seen.damage, seen.forensic], ['corrupt', true], id + ': classified corrupt and forensic');
       A.throws(() => Recovery.continuationPlan(Object.assign({}, seen, { resolution: { outcomes: [{ callId: 'w1', outcome: 'happened' }] } })), id + ': no continuation plan');
       const row = s.recoverPage({ limit: 50 }).rows.find(r => r.file === fileOf(id));
-      A.ok(row && /\.corrupt-[a-f0-9]{10}$/.test(String(row.repairedFrom || '')), id + ': repair keeps a .corrupt-* forensic copy');
+      A.ok(row && /\.corrupt-r[a-f0-9]{10}$/.test(String(row.repairedFrom || '')), id + ': repair keeps a .corrupt-* forensic copy (its nonce carries a letter)');
       // after the repair the active file parses clean: the sibling is the durable damage verdict
       const after = s.inspect(id);
       A.eq([after.corrupt, after.damage, after.forensic, after.retirable], [false, 'corrupt', true, false], id + ': the repaired prefix stays forensic on every later inspect');

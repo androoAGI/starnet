@@ -622,7 +622,11 @@
     // catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return geminiEffortsFor(id); }
 
-    return { stream, listModels, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
+    function verifyCredential(o) {
+      return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
+        j => (Array.isArray(j.models) ? j.models : (Array.isArray(j.data) ? j.data : [])).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
+    }
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
   }
 
   return { makeGeminiProvider, _internals: { messagesToGemini, toGeminiTools, normalizeUsage, normalizeModel, modelPath, cleanBaseUrl, finishFor } };

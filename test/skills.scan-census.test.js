@@ -53,7 +53,7 @@ const gateMod = require('../sidecar/skills/gate.js');
 function hostFunction(name, globals) {
   const src = sidecarFunctionSource(name);
   A.ok(src.length > 60 && src.length < 20000, 'harness: ' + name + ' is sliced out of the sidecar source (' + src.length + ' chars)');
-  const g = Object.assign(globals, { console, Buffer });   // the route's free variables resolve to `globals`, which it may assign
+  const g = Object.assign(globals, { console, Buffer, refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId });   // the route's free variables resolve to `globals`, which it may assign
   vm.createContext(g);
   return vm.runInContext('(' + src + ')', g);
 }

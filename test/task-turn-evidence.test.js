@@ -30,6 +30,8 @@ const TrustedLearning = require('../sidecar/trusted-learning.js');
 const W = require('../sidecar/workflow-takeover.js');
 const CP = require('../sidecar/contextpack.js');
 const CC = require('../sidecar/commander-context.js');
+const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
+const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 
 const src = readSidecarSource();
 const names = ['function evidenceRows(ev)', 'function stationEpoch()', 'function nightshiftRecentRuns()', 'function nightshiftContextPack(evidence)',
@@ -49,7 +51,10 @@ function fixture() {
 }
 function host(saveImpl) {
   const h = fixture();
-  const c = { runsAll: 0, transcriptAll: 0, saveReads: 0 };
+  const c = { runsAll: 0, transcriptRecent: 0, legacyProofs: 0, ownerProofs: 0, saveReads: 0 };
+  const io = makeMemoryTranscriptIo();
+  h.rows.forEach(row => io.appendDurable(row));
+  const transcript = makeTranscriptStore({ io, runOf: id => h.runs.find(run => run.runId === id), quotedMaterial: TrustedLearning.quotedMaterial });
   const save = saveImpl || { stamp: () => 's1', doc: { agent: { createdAt: 5 } } };
   const sandbox = {
     WorkflowTakeover: W, TrustedLearning, CommanderContext: CC, redact: s => s, console,
@@ -61,7 +66,10 @@ function host(saveImpl) {
       loadStamped: () => { c.saveReads++; return { doc: save.doc, stamp: save.stamp() }; }
     },
     taskBriefStore: { list: opts => h.briefs.slice(0, (opts && opts.limit) || 500) },
-    transcriptStore: { all: () => { c.transcriptAll++; return h.rows.map(r => Object.assign({}, r)); } },
+    transcriptStore: {
+      view: (name, streamId, options) => { if (streamId == null) c.transcriptRecent++; else c.legacyProofs++; return transcript.view(name, streamId, options); },
+      ownerProof: ids => { c.ownerProofs++; return transcript.ownerProof(ids); }
+    },
     runStore: { all: () => { c.runsAll++; return h.runs.map(r => Object.assign({}, r)); }, list: () => h.runs.slice() },
     cronJobs: [], growthRatings: { list: () => [] },
     workflowTakeoverStore: { read: () => ({ v: 1, decisions: [] }), decide: () => Promise.resolve(true) },
@@ -85,7 +93,9 @@ const brief = { id: 'current-brief', source: 'interactive', status: 'ready', age
   const inputs = { brief, standingWork: notice };
   const ctx = api.commanderEvidenceContext('', inputs, turnEvidence);
   A.eq(c.runsAll, 1, 'one run-history copy per task turn (was 4)');
-  A.eq(c.transcriptAll, 1, 'one transcript copy per task turn (was 3)');
+  A.eq(c.transcriptRecent, 1, 'one bounded recent owner projection per task turn');
+  A.eq(c.ownerProofs, 1, 'one shared durable directive proof batch');
+  A.eq(c.legacyProofs, 3, 'each legacy brief original run is proved once for the shared snapshot');
   A.ok(notice && notice.count === 4, 'the repeat-work notice is still found from the shared snapshot');
   A.ok(/The Commander has now asked/.test(ctx), 'and it reaches the composed context');
   // the same turn with SEPARATE copies (no shared snapshot) yields the identical notice + context
@@ -101,7 +111,7 @@ const brief = { id: 'current-brief', source: 'interactive', status: 'ready', age
   const { api, c } = host();
   api.nightshiftContextPack();
   A.eq(c.runsAll, 1, 'a stand-alone context pack copies the run history once for both proofs (was 2)');
-  A.eq(c.transcriptAll, 1, 'and the transcript once (was 2)');
+  A.eq(c.transcriptRecent, 1, 'and the bounded recent owner projection once');
 }
 
 // ---- (3) stationEpoch ----
@@ -148,6 +158,7 @@ const brief = { id: 'current-brief', source: 'interactive', status: 'ready', age
     const notes = [];
     const api = vm.runInNewContext("let _stationEpochMemo = { stamp: '', epoch: 1 };\nlet _remoteLooksMemo = { stamp: '', looks: null };\n" + sliced.join('\n') +
       '\n({ stationEpoch, handleSaveWrite })', { saveStore, workspaceDegraded: false, growthRatings: { latestTs: () => 0 },
+        refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
       readBody: async (req) => req.body, failNote: (tag) => notes.push(tag), observeDeletedSessions: () => [] });   // the deleted-session ledger feed (qa/bugs/3e926b6a)
     const big = Array.from({ length: 300 }, (_, i) => ({ id: 'ws' + i, history: [{ role: 'user', content: 'x'.repeat(2000) }] }));
     let rev = 0, upd = 0;

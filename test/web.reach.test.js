@@ -169,7 +169,7 @@ function stubFetch(routes) {
         ['duckduckgo.com', { status: 202, body: 'anomaly' }]
       ]),
       lookup: null, reader: r,
-      openrouter: { apiKey: 'k', model: 'm' }   // present, and must NOT be reached
+      openrouter: { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'm' }   // present, and must NOT be reached
     });
     const res = await w.webSearch('some query', {});
     A.eq(res.source, 'browser', 'the reader rung rescues a throttled chain');
@@ -223,7 +223,7 @@ function stubFetch(routes) {
   {
     const r = makeWebReader({ makeDriver: () => deadDriver(), idleMs: 3600000 });
     await r.search('warm');   // the browser failed to start a moment ago
-    const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED.concat([OR_HIT])), lookup: null, reader: r, openrouter: { apiKey: 'k', model: 'm' } });
+    const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED.concat([OR_HIT])), lookup: null, reader: r, openrouter: { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'm' } });
     const res = await w.searchTool.run({ query: 'q' }, {});
     A.ok(/via openrouter/.test(res.summary), 'N: the search still answers through the next rung: ' + res.summary);
     A.ok(/web search's background browser could not start/.test(res.summary) && /web search's background browser could not start/.test(res.content), 'N: and says web search\'s background browser could not start: ' + res.summary);
@@ -232,7 +232,7 @@ function stubFetch(routes) {
     // a browser stuck starting: the rung gives up within its budget when OpenRouter can still answer
     let made = 0;
     const r = makeWebReader({ makeDriver: () => { made++; return { navigate: () => new Promise(() => {}), close: async () => {}, evalPublic: async () => ({ value: [] }), getText: async () => '' }; }, idleMs: 3600000 });
-    const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED.concat([OR_HIT])), lookup: null, reader: r, openrouter: { apiKey: 'k', model: 'm' }, readerBudgetMs: 60 });
+    const w = makeWebTools({ fetchImpl: stubFetch(THROTTLED.concat([OR_HIT])), lookup: null, reader: r, openrouter: { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'm' }, readerBudgetMs: 60 });
     const t0 = Date.now();
     const res = await w.searchTool.run({ query: 'q' }, {});
     A.ok(Date.now() - t0 < 3000 && /via openrouter/.test(res.summary), 'O: a browser that does not answer in time is passed over: ' + res.summary);
@@ -259,7 +259,7 @@ function stubFetch(routes) {
     const r = makeWebReader({ makeDriver: () => slowDriver, idleMs: 3600000 });
     const fetchOr = stubFetch(THROTTLED.concat([OR_HIT]));
     const counting = async (u, o) => { if (String(u).indexOf('openrouter.ai') >= 0) orCalls++; return fetchOr(u, o); };
-    const w = makeWebTools({ fetchImpl: counting, lookup: null, reader: r, openrouter: { apiKey: 'k', model: 'm' }, readerBudgetMs: 40 });
+    const w = makeWebTools({ fetchImpl: counting, lookup: null, reader: r, openrouter: { apiKey: 'k', baseUrl: 'https://openrouter.ai/api/v1', model: 'm' }, readerBudgetMs: 40 });
     const res = await w.webSearch('q', {});
     A.ok(res.source === 'browser' && orCalls === 0 && !res.browserNote, 'Q: a started browser that reads slowly keeps the search (no paid fallback): ' + res.source + ' or=' + orCalls);
     const again = await w.webSearch('q2', {});

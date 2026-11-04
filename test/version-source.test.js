@@ -1001,7 +1001,7 @@ scenario('V7 wiring: the boot kick, the bounded waits, the tree kill and the shu
   A.ok(ab && /\bversionStopped\b/.test(ab[1]) && Number(ab[2]) <= 2500, 'V12 gracefulShutdown exits only once that settle landed, inside afterBrowser\'s bound (' + (ab ? ab[1] + ', ' + ab[2] + ' ms' : 'afterBrowser not found') + ')');
   A.ok(gs.indexOf('versionStopped = ') >= 0 && gs.indexOf('versionStopped = ') < gs.indexOf('const afterBrowser'), 'V12 the stop runs before the exit wait is built');
   const idx = readSidecarIndex();   // index.js's own boot sequence and composition (pinned here on purpose)
-  const listen = idx.indexOf("server.listen(PORT, '127.0.0.1', () => {");
+  const listen = idx.search(/server\.listen\(PORT, '127\.0\.0\.1', (?:async )?\(\) => \{/);
   const boot = listen >= 0 ? idx.slice(listen, listen + 1500) : '';
   A.ok(/versionSource\.read\(\)/.test(boot), 'V7 the listen callback kicks the version resolution at boot');
   const at = idx.indexOf("require('./version-source.js').makeVersionSource(");

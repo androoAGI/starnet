@@ -23,6 +23,7 @@ const fsNative = require('fs');
 const pathNative = require('path');
 const { isCredentialName } = require('./secret-values.js');
 const { LIFECYCLE_FILES } = require('./station-record.js');
+const channelSecrets = require('./channels/secrets.js');
 
 const SCHEMA = 'starnet.station-recovery';
 const VERSION = 1;
@@ -273,6 +274,15 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     if (redacted.length) reauthentication.push({ kind: 'hook', id: 'hooks.json', reason: 'Hook credential values are intentionally excluded.', fields: redacted.slice() });
   } else if (p === 'channels/secrets.json') {
     value = sanitizeObject(doc, [], redacted);
+    // A bot's own-key reference is identity, not the excluded secret. Keep only the schema-owned
+    // projection on actual channel records so restore cannot silently turn it into a station follower.
+    // A recognizable secret or URL masquerading as a bind still fails the existing export security rules.
+    const references = {};
+    for (const row of channelSecrets.credentialRows(doc)) {
+      const reference = channelSecrets.credentialReference(row.credential);
+      if (reference && !(reference.ref === 'channel' && (tokenShaped(reference.bind) || URL_VALUE.test(reference.bind)))) references[row.id] = reference;
+    }
+    value = channelSecrets.withCredentials(value, references);
     for (const id of ['telegram', 'discord', 'slack', 'matrix']) {
       if (doc[id] && (doc[id].token || doc[id].key)) reauthentication.push({ kind: 'channel', id, reason: 'Channel/provider token is intentionally excluded.', fields: ['token', 'key'].filter(k => doc[id][k]) });
     }
@@ -425,6 +435,7 @@ function linkRow(fs, path, root, abs) {
   } catch (_) { return LINK_INFO_ROW; }
 }
 const GIT_CONFIG = /(?:^|\/)\.git\/config$|^\.checkpoints\/.*\/config$/i;
+const siblingNames = require('./persist/names.js');   // the sibling-file names grammar (temps, backups, forensic copies)
 function classifyPolicy(rel, st) {
   const p = slash(rel);
   const parts = p.split('/');
@@ -438,10 +449,11 @@ function classifyPolicy(rel, st) {
   if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: CREDENTIAL_ROW, reauth: credentialReauth(p) };
   // these names are StarNet's own bookkeeping only among its own stores: agent/thesis.bak and draft.tmp.md are someone's work
   const store = budgetTier(p) < 2;
-  if (EPHEMERAL_FILES.has(p.toLowerCase()) || /(?:^|\/)\.owner\.lock$/.test(p.toLowerCase()) || (store && /\.tmp(?:$|\.)/.test(p.toLowerCase()))) return { action: 'skip', reason: 'ephemeral lock/process/temp state' };
-  // quarantineCorrupt (index.js) names a torn store <file>.corrupt-<pid>-<seq>: the old \d+$ never matched that, so a
-  // quarantined channels/secrets.json or connectors/servicekeys.json was copied RAW into every pre-update backup.
-  if (store && (/\.bak$/.test(p.toLowerCase()) || /\.corrupt-[\d-]+$/.test(p.toLowerCase()))) return { action: 'skip', reason: 'superseded recovery/forensic generation; bundle versioning is authoritative' };
+  if (EPHEMERAL_FILES.has(p.toLowerCase()) || /(?:^|\/)\.owner\.lock$/.test(p.toLowerCase()) || (store && siblingNames.isTemp(p))) return { action: 'skip', reason: 'ephemeral lock/process/temp state' };
+  // persist's names grammar (sidecar/persist/names.js) knows every forensic generation, new and legacy: .corrupt-<n>,
+  // .unseen-<n>, the bare .corrupt and index.js's old .corrupt-<pid>-<seq> (a quarantined channels/secrets.json was once
+  // copied RAW into every pre-update backup). A run journal's damage evidence is not one: it rides with its journal.
+  if (store && (siblingNames.isBackup(p) || siblingNames.isForensic(p))) return { action: 'skip', reason: 'superseded recovery/forensic generation; bundle versioning is authoritative' };
   // Any OTHER derivative of a credential store (a stray copy, a future suffix) can only be sanitized under its exact
   // name below; never include one raw.
   if (/^(?:channels\/secrets|connectors\/(?:state|connectors|oauth|servicekeys))\.json./i.test(p)) return { action: 'skip', reason: 'derivative copy of a credential store; only the live store is captured (sanitized)' };

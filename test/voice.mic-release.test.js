@@ -15,8 +15,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice.js'), 'utf8');
+const { bootVoice } = require('./helpers/voice-rig.js');
 const LIVE_SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice-live.js'), 'utf8');
 
 const tick = (n = 10) => new Promise(r => setTimeout(r, n));
@@ -80,8 +79,7 @@ function boot(opts) {
   sandbox.globalThis = sandbox;
   sandbox.window.AudioContext = MockAC;
   vm.createContext(sandbox);
-  vm.runInContext(SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester' });
   return { Voice, nodes, sandbox };
 }

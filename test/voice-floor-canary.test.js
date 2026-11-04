@@ -161,7 +161,8 @@ function run(args, env) {
   const canaryJob = train.slice(train.indexOf('\n  voice-floor-canary:'), train.indexOf('\n  stage-draft:'));
   A.ok(/uses: \.\/\.github\/workflows\/floor-canaries\.yml/.test(canaryJob) && /blocking: true/.test(canaryJob), 'release-train: calls the voice canary, blocking');
   const stage = train.slice(train.indexOf('\n  stage-draft:'), train.indexOf('\n  stage-draft:') + 200);
-  A.ok(/needs: \[assemble, voice-floor-canary\]/.test(stage), 'release-train: no draft is staged until the floor answered');
+  // (the WebKit floor job joins this list: test/webkit-floor-boot.test.js holds that half)
+  A.ok(/needs: \[assemble, voice-floor-canary(?:, [\w-]+)*\]/.test(stage), 'release-train: no draft is staged until the floor answered');
 
   A.report('voice-floor-canary');
 })().catch(e => { console.error(e); process.exit(1); });

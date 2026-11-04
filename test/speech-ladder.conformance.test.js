@@ -104,8 +104,8 @@ for (const text of CORPUS) {
   const start = chatSrc.indexOf('    let speechClosed = false;'), end = chatSrc.indexOf('\n    try {', start);
   A.ok(start > 0 && end > start, 'the streamer closure is sliced');
   const spokenChunks = [];
-  const ctx = { SpeechSplit: require('../frontend/app/speech-split.js'), Voice: { speakChunk: s => spokenChunks.push(s), endReply() {} }, willSpeak: true,
-    speechOwner: () => true, speakSafe: s => s, spokenIdx: 0, acc: '', name: 'agent', speechOpts: {}, Date: { now: () => 10000 },
+  const ctx = { SpeechSplit: require('../frontend/app/speech-split.js'), Voice: { speakChunk: (reply, s) => spokenChunks.push(s), endReply() {} }, willSpeak: true,
+    speechOwner: () => true, speakSafe: s => s, spokenIdx: 0, acc: '', name: 'agent', speech: {}, Date: { now: () => 10000 },
     setTimeout: () => 0, clearTimeout() {} };
   vm.createContext(ctx); vm.runInContext(chatSrc.slice(start, end) + '\nthis.push = pushSpeech;', ctx);
   for (let i = 0; i < c.length; i += 7) { ctx.acc = c.slice(0, i + 7); ctx.push(false); }
@@ -192,7 +192,9 @@ function station(script, policy) {
         workspaces, fs, fsp, fetch, edgetts, localVoice,
         nativeStt: { status: () => ({ available: false }), recognize: async () => ({ ok: false, text: '' }) },
         readBody: async () => body, readBodyBuffer: async () => Buffer.alloc(0),
-        providerRuntimeKey: p => (p === 'openrouter' || p === 'gemini' ? 'key-' + p : ''), providerRuntimeBaseUrl: () => '',
+        providerRuntimeKey: p => (p === 'openrouter' || p === 'gemini' ? 'key-' + p : ''),
+        // Match the current media credential-pair contract. Every request is intercepted by fetch above.
+        endpointFor: (p, key) => key === 'key-' + p ? ({ openrouter: 'https://openrouter.ai/api/v1', gemini: 'https://generativelanguage.googleapis.com/v1beta' }[p] || '') : '',
         normalizeProviderId: v => String(v || '').toLowerCase(), env: () => '', processEnv: {}, redact: String,
         logger: { error() {}, warn() {}, log() {} }, now: () => 1234, randomUUID: () => 'u' + Math.random().toString(36).slice(2),
         sleep: async ms => { log.push('wait ' + ms); },

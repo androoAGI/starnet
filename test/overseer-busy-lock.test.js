@@ -21,9 +21,11 @@ const { makeOverseer } = require('../sidecar/overseer.js');
 const idx = readSidecarSource();
 const tickSrc = A.fnBody(idx, 'async function tickOverseer');
 const countSrc = A.fnBody(idx, 'function runningReviews');
+const settleSrc = A.fnBody(idx, 'function settleRun(');
 const cap = (idx.match(/\nconst REVIEW_RUNS_AT_ONCE = (\d+);/) || [])[1];
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-overseer-busy-'));
+const diskClosers = [];
 const page = { generalId: 'convA', deletedIds: [], workstreams: ['convA', 'convB', 'convC'].map(id => ({ id, title: 'Conversation ' + id.slice(4), agentId: 'agent' })) };
 const flush = async () => { for (let i = 0; i < 25; i++) await new Promise(r => setImmediate(r)); };
 const deferred = () => { let resolve; const promise = new Promise(r => { resolve = r; }); return { promise, resolve }; };
@@ -42,36 +44,55 @@ function station(file, opts) {
   const calls = [];           // the stream of every paid review run, in launch order
   const gates = new Map();    // streamId -> the deferred that ends its review run
   const order = [];           // what ran on a conversation's line, in order
-  const runs = new Map(), runsMeta = new Map(), grantsSession = new Map();
+  const runs = new Map(), grantsSession = new Map();
+  // the REAL run table (sidecar/run-table.js): a report is the one run that drives the run core without runOnce, so it admits itself
+  const runTable = require('../sidecar/run-table.js').makeRunTable();
   const reviewTasks = new Map();
+  const History = require('../sidecar/transcript-history.js');
+  const io = o.failPublication ? History.makeSegmentedTranscriptIo({ fs, path, root: path.join(root, file + '-transcript'), onWarning() {}, schedule() {} }) : History.makeMemoryTranscriptIo();
+  if (io.close) diskClosers.push(() => io.close());
+  const transcriptStore = require('../sidecar/transcriptstore.js').makeTranscriptStore({ io, clock: { now: () => ++clock } });
+  const append = io.appendDurable;
+  let failPublication = o.failPublication === true;
+  io.appendDurable = entry => {
+    if (failPublication && entry.kind === 'delivery') throw new Error('injected publication storage failure');
+    return append(entry);
+  };
   const deps = {
     workspaceDegraded: false, updateHolding: () => false, overseer,
     RunOutcome: require('../frontend/app/runoutcome.js'),
+    OverseerDelivery: require('../sidecar/overseer-delivery.js'), redact: text => text,
     subagents: { list: () => workers.slice(), get: id => workers.find(w => w.id === id) },
     runStore: { all: () => proofs.slice() }, isBlessedRoot: () => true,
     agentRoster: new Map([['agent', { provider: 'openrouter', model: 'test/model', system: 'You coordinate work.' }]]),
     normalizeProvider: p => p, providerRuntimeKey: () => 'sk-test', providerRuntimeBaseUrl: () => '', providerHasCredential: () => o.credential !== false,
     // the reviewer's ONE pair (run-wire-resolver lane: index.js runWireFor), here the roster row as a pinned pair
     runWireFor: id => { const a = deps.agentRoster.get(id) || {}; return { ok: !!a.model, provider: a.provider, model: a.model, source: 'agent' }; },
-    crypto, runs, runsMeta,
+    crypto, runs, runTable, endedOutcomes: new Map(),
     delegatedReportPrompt: () => 'Review the background work you delegated for this conversation.',
-    runOnceCoreCounted: o => {
+    runOnceCore: o => {
       calls.push(o.streamId); order.push('review:' + o.streamId);
       const d = deferred(); gates.set(o.streamId, d);
-      return d.promise.then(() => { proofs.push({ runId: o.runId, reason: 'done' }); });
+      return d.promise.then(() => {
+        const deliveryText = 'Reviewed findings for ' + o.streamId;
+        proofs.push({ runId: o.runId, reason: 'done', agentId: o.agentId, streamId: o.streamId, deliveryText });
+        transcriptStore.appendStrict({ sourceRunId: o.runId, streamId: o.streamId, agentId: o.agentId,
+          role: 'assistant', kind: 'station', turnId: require('../frontend/app/turnkinds.js').runTurnId(o.runId), content: deliveryText, taint: null });
+      });
     },
     cronSystemFor: () => '', taintPolicy: { relayedTaint: () => undefined, firstTaint: () => '' }, chanEmit: () => {},
-    transcriptStore: { reconstruct: () => [] }, grantsSession, reviewTasks, REVIEW_RUNS_AT_ONCE: Number(cap)
+    transcriptStore, grantsSession, reviewTasks, REVIEW_RUNS_AT_ONCE: Number(cap)
   };
   const names = Object.keys(deps);
-  const tick = new Function(...names, "'use strict';\nlet overseerTickRunning = false;\n" + countSrc + '\n' + tickSrc + '\nreturn tickOverseer;')(...names.map(n => deps[n]));
+  const tick = new Function(...names, "'use strict';\nlet overseerTickRunning = false;\n" + countSrc + '\n' + settleSrc + '\n' + tickSrc + '\nreturn tickOverseer;')(...names.map(n => deps[n]));
   const settle = (id, conv) => workers.push({ id, runId: id + '_run', leadId: 'agent', agentId: 'researcher', parentStreamId: conv, parentRunId: 'lead_' + id,
     streamId: 'thread_' + id, status: 'done', completedAt: clock, generation: 1, prompt: 'work', result: 'found it' });
   const row = conv => overseer.reviews().find(r => r.parentStreamId === conv) || {};
   // a tick that must come back on its own: never awaited blind (the old tick hung on a busy lock)
   const tickReturns = async () => { let back = false; tick().then(() => { back = true; }); await flush(); return back; };
   const release = async conv => { gates.get(conv).resolve(); gates.delete(conv); await flush(); };
-  return { overseer, tick, tickReturns, release, settle, row, workers, calls, gates, order, runs, reviewTasks, proofs, reads };
+  return { overseer, tick, tickReturns, release, settle, row, workers, calls, gates, order, runs, runTable, reviewTasks, proofs, reads,
+    transcriptStore, allowPublication: () => { failPublication = false; } };
 }
 
 (async () => {
@@ -90,6 +111,7 @@ function station(file, opts) {
     s.settle('wA', 'convA'); s.settle('wB', 'convB');
     A.ok(await s.tickReturns(), 'the tick comes back while conversation A is mid-turn (it used to wait on A\'s lock)');
     A.eq(s.calls, ['convB'], 'B\'s report starts while A is busy');
+    A.ok(s.runTable.has(s.row('convB').reviewRunId) && s.runTable.size() === 1, 'B\'s running report is in the run table, under the run id its row names');
     A.eq([s.row('convA').status, s.row('convB').status], ['pending', 'reviewing'], 'A\'s report waits its turn, B\'s runs');
     A.eq(s.reviewTasks.size, 2, 'both reports have a task: A\'s queued on its conversation, B\'s running');
     // later ticks while B runs and A is busy: nothing is called interrupted, nothing runs twice, the tick never waits
@@ -102,7 +124,7 @@ function station(file, opts) {
     await s.release('convB');
     A.eq(s.row('convB').status, 'done', 'B\'S REPORT COMPLETED WHILE A\'S LOCK IS STILL HELD');
     A.eq(s.row('convA').status, 'pending', 'A\'s report is still waiting on A');
-    A.ok(!s.reviewTasks.has(s.row('convB').id) && s.runs.size === 0, 'B\'s task and run are gone');
+    A.ok(!s.reviewTasks.has(s.row('convB').id) && s.runs.size === 0 && s.runTable.size() === 0, 'B\'s task and run are gone (the run table released it)');
     A.ok(await s.tickReturns(), 'next tick');
     A.eq(s.calls, ['convB', 'convC'], 'C\'s report starts once B\'s is done, A still busy');
     await s.release('convC');
@@ -116,7 +138,7 @@ function station(file, opts) {
     await s.release('convA');
     A.eq(s.order, ['turnA1', 'review:convB', 'review:convC', 'review:convA', 'turnA2'], 'A\'s line: its turn, its report, then its later turn');
     A.eq(s.overseer.reviews().map(r => r.status), ['done', 'done', 'done'], 'every report done');
-    A.eq([s.reviewTasks.size, s.runs.size], [0, 0], 'no task or run left behind');
+    A.eq([s.reviewTasks.size, s.runs.size, s.runTable.size()], [0, 0, 0], 'no task or run left behind, in the run table either');
     A.ok(await s.tickReturns(), 'a settled station ticks');
     A.eq(s.calls.length, 3, 'and runs nothing again');
   }
@@ -161,6 +183,39 @@ function station(file, opts) {
     A.eq(s.calls, [], 'and nothing runs');
     A.ok(s.reads.n <= 2, 'ten ticks parse the save at most twice (the first look, and once after the error note changed the state): ' + s.reads.n);
   }
+  // A durable run is not a published report. Retry only publication, including the no-task restart path.
+  {
+    const s = station('publication.json', { failPublication: true });
+    s.settle('wP', 'convA'); await s.tickReturns();
+    const runId = s.row('convA').reviewRunId;
+    await s.release('convA');
+    A.eq(s.row('convA').status, 'reviewing', 'a storage failure never calls the public report done');
+    A.ok(/publication is pending/.test(s.row('convA').error), 'the report exposes its actual publication fault');
+    A.eq(s.row('convA').reviewRunId, runId, 'the already paid run identity stays durable');
+    A.eq(s.transcriptStore.view('model-replay', 'convA', { shape: 'pairs' }), [], 'hidden execution is not a public fallback');
+    await s.tickReturns();
+    A.eq(s.calls, ['convA'], 'a repeated storage fault never invokes a second paid review');
+    s.allowPublication(); await s.tickReturns();
+    A.eq(s.row('convA').status, 'done', 'the orphan/restart path completes only after strict publication');
+    A.eq(s.transcriptStore.view('model-replay', 'convA', { shape: 'pairs' }), [{ role: 'assistant', content: 'Reviewed findings for convA' }], 'canonical replay receives exactly the saved public answer');
+    s.overseer.patchReview(s.row('convA').id, { status: 'reviewing' });
+    await s.tickReturns();
+    A.eq(s.transcriptStore.view('proof', 'convA', { complete: true }).filter(row => row.kind === 'delivery').length, 1, 'lost done acknowledgement does not duplicate delivery');
+    A.eq(s.calls, ['convA'], 'reconciliation never repeats execution');
+  }
+  {
+    const s = station('publication-undone.json', { failPublication: true });
+    s.settle('wU', 'convA'); await s.tickReturns(); await s.release('convA');
+    const source = s.transcriptStore.view('proof', 'convA', { complete: true })[0];
+    A.eq(s.transcriptStore.retract({ streamId: 'convA', rowIds: [source.rowId], reason: 'undo' }).state, 'done', 'the saved source can be explicitly undone before publication');
+    s.allowPublication(); await s.tickReturns();
+    A.eq(s.row('convA').status, 'cancelled', 'an intentionally removed review stops publication retry');
+    A.ok(/removed before publication/.test(s.row('convA').error), 'cancellation names the actual removal');
+    await s.tickReturns();
+    A.eq(s.calls, ['convA'], 'removal never authorizes another model review');
+    A.eq(s.transcriptStore.view('model-replay', 'convA', { shape: 'pairs' }), [], 'removed execution is never published under a new identity');
+  }
+  for (const close of diskClosers) close();
   fs.rmSync(root, { recursive: true, force: true });
   A.report('overseer-busy-lock');
-})().catch(e => { console.error(e); fs.rmSync(root, { recursive: true, force: true }); process.exit(1); });
+})().catch(e => { console.error(e); for (const close of diskClosers) close(); fs.rmSync(root, { recursive: true, force: true }); process.exit(1); });

@@ -1,6 +1,7 @@
 'use strict';
 const { readSidecarSource } = require('./helpers/source');
 const A = require('./_assert.js');
+const History = require('./helpers/channel-history.js');
 const fs = require('fs');
 const path = require('path');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
@@ -15,7 +16,11 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   };
   const canonical = [{ role: 'user', content: 'from desktop' }, { role: 'assistant', content: 'desktop answer' }];
   const hub = makeChannelHub({
-    channel: 'telegram', store, historyFor: id => id === 'desktop_stream_1' ? canonical.slice() : [],
+    channel: 'telegram', store, history: (() => {
+      const h = History.make(store);
+      for (const row of canonical) h.transcript.appendStrict(Object.assign({ streamId: 'desktop_stream_1', agentId: 'agent', kind: 'turn' }, row));
+      return h.history;
+    })(),
     runOnce: async o => { runs.push(o); o.emit('agent.token', { delta: 'channel answer' }); o.emit('agent.run.end', { reason: 'done' }); },
     send: (_id, text) => { sends.push(text); return Promise.resolve({ ok: true }); },
     secrets: () => ({ configured: true, key: 'k', model: 'm', provider: 'openrouter', agentId: 'agent' }),
@@ -27,7 +32,7 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   A.eq(runs[0].messages.map(x => x.content), ['from desktop', 'desktop answer', 'continue here'], 'canonical transcript replaces divergent channel-only replay');
   A.eq(sends, ['channel answer'], 'one canonical run emits one final reply');
   A.eq(records.chat.streamId, 'desktop_stream_1', 'chat binding survives the ordinary record refresh');
-  A.ok(appended.some(x => x.role === 'user') && appended.some(x => x.role === 'assistant'), 'legacy history remains a fallback projection');
+  A.eq(appended, [], 'bound canonical conversation never writes a parallel legacy fallback');
 
   let now = 1700000000000;
   A.throws(() => makeWebhookVerifier({ secret: 'x'.repeat(32) }), 'webhook replay protection refuses an ambient wall clock');
@@ -42,8 +47,8 @@ const { makeWebhookVerifier } = require('../sidecar/channels/webhook-auth.js');
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   const mirror = fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8');
   const index = readSidecarSource();
-  A.ok(/mergeCanonicalHistory/.test(chat) && /buckets\.get\(key\)/.test(chat), 'desktop reconciliation is occurrence-aware');
-  const mergeBody = A.fnBody(chat, 'function mergeCanonicalHistory(local, turns)');
+  A.ok(/TurnMerge\.reconcile\(/.test(chat) && /buckets\.get\(key\)/.test(require('./helpers/turnmerge').source()), 'desktop reconciliation is occurrence-aware');
+  const mergeBody = require('./helpers/turnmerge').source('mergeCanonicalHistory');
   const mergeCanonicalHistory = new Function(mergeBody + '; return mergeCanonicalHistory;')();
   const healed = mergeCanonicalHistory([
     { role: 'user', content: 'make the report' },

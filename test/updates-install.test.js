@@ -66,6 +66,7 @@ function makeCase(opts) {
     setTimeout: () => 1, clearTimeout: () => {},
     Date, JSON, Promise, Math, String, Number, Object, Array, RegExp, Error, encodeURIComponent
   };
+  require('./helpers/frontend-esc.js').installEsc(context);
   vm.createContext(context);
   vm.runInContext(source, context, { filename: 'updates.js' });
   return {

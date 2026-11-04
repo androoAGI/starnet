@@ -323,7 +323,7 @@ const StationCommands = (() => {
     // agent that wrote it — the marker would say the same thing twice
     const turns = [];
     if (prompt && !ws.worker) turns.push({ role: 'system', sys: true, content: '— delegated to ' + who + ': ' + prompt.slice(0, 400) + ' —', ts });
-    turns.push({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id });
+    turns.push(Object.assign({ role: 'assistant', content: text, agentId: who, ts, sourceRunId: runId || undefined, streamId: ws.id }, TurnMerge.idsOf({ rowId: a.rowId, turnId: a.turnId })));
     const beforeTurn = opts.recover || opts.beforeRunId ? ws.history.findIndex(m => Number(m && m.ts) > ts) : -1;
     ws.history.splice(beforeTurn < 0 ? ws.history.length : beforeTurn, 0, ...turns);
     if (runId && Workstreams.appendRun) Workstreams.appendRun(ws.id, runId, ts, opts.beforeRunId);
@@ -440,10 +440,8 @@ const StationCommands = (() => {
     const geo = st.projectGeometry(), plan = P.compileRoutingPlan(geo) || {};
     const origin = geo.origin || { tx: 0, ty: 0 };
     const roomAtTile = t => { const id = st.roomAt(t.x + origin.tx, t.y + origin.ty); const r = id && st.roomById(id); return r ? (r.name || r.kind || id) : null; };
-    // advice that is not a routing finding (never painted on the floor at rest) still reaches the lead, in its own words
-    const ADVICE_LABEL = { SEND_TO_PRIVATE_FILES: 'PRIVATE FILES — THE NEXT CREW CANNOT OPEN THEM' };
     const issue = e => {
-      const o = { code: e.code, label: ADVICE_LABEL[e.code] || label(e.code), blocking: !e.warn, propId: e.propId || null };
+      const o = { code: e.code, label: label(e.code), blocking: !e.warn, propId: e.propId || null };
       const f = why(e.code); if (f !== o.label) o.fix = f;
       if (!o.propId && e.tile) { const room = roomAtTile(e.tile); if (room) o.room = room; }   // a belt CYCLE has only a tile: say where it is
       return o;
@@ -456,8 +454,7 @@ const StationCommands = (() => {
       const p = propOf(pid);
       return (p && P.composeStageBrief && P.composeStageBrief(p.brief, p.hands)) || '';
     };
-    // + the SEND TO file advice, only where it is TRUE (Pipeline.sendToFileAdvice: no project folder, a different crew next — M19 / M29)
-    const errors = (plan.errors || []).filter(Boolean).concat(P.sendToFileAdvice ? P.sendToFileAdvice(plan) : []), claimed = new Set();
+    const errors = (plan.errors || []).filter(Boolean), claimed = new Set();
     const onLine = (c, e) => (e.propId != null && c.props.indexOf(e.propId) >= 0) || !!(e.tile && c.tiles && c.tiles[e.tile.x + ',' + e.tile.y])
       || (e.propId == null && !e.tile && [].concat(e.agentId || [], e.agents || []).some(a => c.bays.some(b => b.agentId === a)));
     const unread = (facts && facts.unread) || [];

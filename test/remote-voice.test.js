@@ -386,7 +386,7 @@ function parsePages(buf) {
       nativeStt: { status: () => ({ available: false }) },
       readBody: async () => '{}', readBodyBuffer: async () => Buffer.alloc(0),
       providerRuntimeKey: () => { if (keyThrows) throw new TypeError('key store blew up'); return ''; },
-      providerRuntimeBaseUrl: () => '', normalizeProviderId: v => String(v || '').toLowerCase(),
+      normalizeProviderId: v => String(v || '').toLowerCase(),
       env: () => '', processEnv: {}, redact: String, logger: { error() {}, warn() {}, log() {} }, now: () => 1
     });
     const noText = await media.synthesizeStationVoice('   ');

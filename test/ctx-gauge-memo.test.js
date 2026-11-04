@@ -13,9 +13,10 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 const CtxGauge = require('../frontend/app/ctxgauge.js');
+const TurnMerge = require('../frontend/app/turnmerge.js');
 
 const chatSrc = fs.readFileSync(path.join(__dirname, '..', 'frontend/app/chat.js'), 'utf8');
-const from = chatSrc.indexOf('  const HISTORY_CAP = 120;');
+const from = chatSrc.indexOf('  const HISTORY_CAP = HistoryFit.HISTORY_CAP;');
 const to = chatSrc.indexOf('  function persistPartial(', from);
 A.ok(from > 0 && to > from, 'fixture: the history-window block is locatable in chat.js');
 
@@ -23,7 +24,7 @@ let stringifies = 0, clock = 5000000, model = 'model-a', rev = 0;
 const limits = { 'model-a': 200000, 'model-b': 32000 };
 const countingJSON = { stringify: (...a) => { stringifies++; return JSON.stringify(...a); }, parse: JSON.parse };
 const ctx = vm.createContext({
-  JSON: countingJSON, CtxGauge, TextEncoder, Math, Number, String, Array, Object,
+  JSON: countingJSON, CtxGauge, TurnMerge, stationModes: { window: 'legacy' }, TextEncoder, Math, Number, String, Array, Object,
   Date: { now: () => clock },
   activeWs: null,
   Harness: {
@@ -34,6 +35,8 @@ const ctx = vm.createContext({
     contextState: (aid, sid, msgs) => ({ model, limit: limits[model], used: 40000 + CtxGauge.estimateMessages(msgs || []), measured: true })
   }
 });
+// Load the real shared fitter in this realm so its JSON work is measured along with Chat's memo.
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend/app/historyfit.js'), 'utf8'), ctx, { filename: 'historyfit.js' });
 vm.runInContext(chatSrc.slice(from, to) + '\nthis.contextRef = contextRef; this.historyWindow = historyWindow;', ctx, { filename: 'chat.js#history-window' });
 
 const msg = (i) => ({ role: i % 2 ? 'assistant' : 'user', content: 'turn ' + i + ' ' + 'lorem ipsum dolor sit amet '.repeat(40), ts: 1000 + i });

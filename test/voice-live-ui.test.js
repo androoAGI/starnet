@@ -37,12 +37,14 @@ assert.match(source, /approvalCommand\(lower\)/, 'run-scoped approvals can be an
 assert.match(source, /agentCommand\(value,\s*lower\)/, 'voice can select the active Starnet agent without provider coupling');
 assert.match(source, /Harness\.getProv/, 'the controller reports the active Starnet provider');
 assert.doesNotMatch(source, /CODEX OAUTH/, 'provider-agnostic voice UI does not claim Codex is required');
-assert.match(source, /attachCoordinator\(\{\s*onState,\s*onAssistant,\s*onOutputLevel,\s*onTiming[\s\S]*?onSpeechInterrupted[\s\S]*?\}\)/, 'live controller subscribes to real agent output levels');
+// one hook factory for every leg (its key set against voice.js's hooks: test/voice-live-turns.table.test.js I6)
+assert.match(bodyOf('coordinatorHooks'), /onOutputLevel,[\s\S]*?onSpeechInterrupted:/, 'live controller subscribes to real agent output levels and speech notes');
+assert.match(bodyOf('start'), /Voice\.attachCoordinator\(coordinatorHooks\(\)\)/, 'the models leg attaches the one hook object');
 assert.match(source, /bar\.dataset\.src\s*=\s*cell\.src/, 'wave history preserves which side of the conversation produced each sample');
 assert.match(source, /setAttribute\('aria-busy'/, 'working voice states are exposed to assistive technology');
 assert.match(source, /Agent speaking — press to interrupt and speak/, 'barge-in control names the active agent-speaking state');
 assert.match(source, /Stop Local Live hands-free voice/, 'active Local Live button truthfully advertises its stop action');
-assert.match(source, /Voice\.inVoiceMode\(\)[\s\S]*?Voice\.stopConvo\(\)/, 'Local Live closes any legacy hands-free loop before opening');
+assert.match(source, /Voice\.inVoiceMode\(\)[\s\S]*?Voice\.endSession\('live_start', \{ scope: 'audible' \}\)/, 'Local Live closes any legacy hands-free loop before opening');
 assert.match(chatSource, /VoiceLive\.start\(false\)/, '/voice live opens the canonical Local Live system');
 assert.match(chatSource, /Local Live voice stopped\./, '/voice live toggles the canonical system off');
 assert.doesNotMatch(chatSource, /Hands-free voice mode toggled\./, 'slash command no longer activates the legacy hands-free loop');
@@ -134,10 +136,18 @@ function bodyOf(name) {
     startBody.indexOf('readiness.probeFailed') < startBody.indexOf('openMicrophone(seq)'),
     'a failed sidecar probe is refused before requesting microphone access'
   );
-  assert.match(startBody, /catch \(error\)[\s\S]*?Voice\.restoreSpeak\(\)/, 'failed startup restores a mute that Live Voice lifted');
+  assert.match(startBody, /catch \(error\)[\s\S]*?Voice\.endSession\('live_start_failed', \{ lease: 'live', scope: 'audible' \}\)/,
+    'a failed startup gives back the speaker Live Voice borrowed (its lease), and a reply still thinking still speaks');
 }
 for (const fn of ['start', 'startDictation']) {
-  assert.match(bodyOf(fn), /Voice\.forceSpeakOn\(\)/, fn + '() force-enables the speaker — hands-free is never opened muted');
+  const body = bodyOf(fn), lease = body.indexOf("Voice.leaseSpeaker('live')"), close = body.indexOf("Voice.endSession('live_start'");
+  assert.ok(lease > 0, fn + '() borrows the speaker for the call — hands-free is never opened muted');
+  /* ⛔ THE LEASE COMES FIRST. The legacy loop's hold ending after the call's has begun never turns the speaker off in
+     between; the other way round, a loop held over a hand-set mute muted it for a moment, and going off cancels every
+     reply, the one still thinking that the call was about to speak included (test/voice-reply.census.test.js row
+     "VoiceLive.start (over a legacy hands-free loop over a hand-set mute)"). The owner tags, not the order, are what
+     stopped Live opening muted (test/voice-speaker.property.test.js). */
+  assert.ok(close > lease, fn + '() closes the legacy loop (endSession live_start) only after the lease is taken');
   /* ⛔ BOTH entry points speak with the BUILT-IN identity. setLocalTts(true) is what routes /api/tts through
      the picked voice; the dictation leg passing false is what let the keyed provider voice speak on every
      degraded install while the picker adjusted an engine that was not there (the identity bug Andrew heard).
@@ -145,10 +155,11 @@ for (const fn of ['start', 'startDictation']) {
      the shipped path too. */
   assert.match(bodyOf(fn), /Voice\.setLocalTts\(true\)/, fn + '() opts into the built-in voice identity');
 }
-// (start()'s failure teardown legitimately resets the flag — only a reset on the HAPPY path would be the bug,
-// and the positive per-function assert above is what locks that.)
-assert.match(bodyOf('finish'), /Voice\.restoreSpeak\(\)/, 'leaving restores a mute we lifted (a hand-set speaker is left alone)');
-assert.match(bodyOf('finish'), /Voice\.setLocalTts\(false\)/, 'leaving live voice returns ordinary speech to the persona ladder');
+// (start()'s failure teardown legitimately resets the flag, through endSession — only a reset on the HAPPY path would be
+// the bug, and the positive per-function assert above is what locks that.)
+assert.match(bodyOf('finish'), /Voice\.endSession\(cause, \{ lease: 'live' \}\)/, 'leaving gives back the speaker the call borrowed (a hand-set speaker is left alone)');
+const endSessionBody = (/  function endSession\(cause, opts\) \{[\s\S]*?\n  \}/.exec(voiceSource) || [''])[0];
+assert.match(endSessionBody, /opts\.lease === 'live'[^\n]*detachCoordinator\(\)[^\n]*setLocalTts\(false\)/, 'leaving live voice returns ordinary speech to the persona ladder');
 
 /* ⛔ THE CALL IS BOUND TO ONE SESSION. Everything routed through Chat lands on the ACTIVE workstream, so
    without a binding, browsing the rail mid-call silently re-targeted the conversation — the next utterance
@@ -160,7 +171,9 @@ for (const fn of ['start', 'startDictation']) {
 }
 assert.match(bodyOf('handleTranscript'), /ensureBoundFocus\(\)/, 'every utterance routes to the BOUND session, not whatever is focused');
 assert.doesNotMatch(bodyOf('onAssistant'), /ensureBoundFocus\(\)/, 'a delayed assistant reply preserves the browsed session and its draft');
-assert.match(bodyOf('rebind'), /Voice\.stopSpeaking\(\)/, 'a voice-commanded rebind cuts queued audio owned by the former session');
+assert.match(bodyOf('rebind'), /Voice\.replies\(\)\.filter\(reply => reply\.owner === boundWsId\)\.forEach\(reply => Voice\.cancelReply\(reply, 'session_rebind'\)\)/,
+  'a voice-commanded rebind cancels the replies owned by the former session (typed), and only those');
+assert.doesNotMatch(bodyOf('rebind'), /Voice\.stopSpeaking\(/, 'a rebind never cuts the call\'s own lines or another session\'s reply');
 assert.match(bodyOf('finish'), /boundWsId = null/, 'the binding dies with the call');
 assert.match(source, /boundSession\(\) \|\| Workstreams\.active\(\)/, "the panel reports the CALL's session, not the browsed one");
 const cmdSource = fs.readFileSync(path.join(root, 'frontend', 'app', 'stationcommands.js'), 'utf8');
@@ -289,7 +302,14 @@ assert.match(bodyOf('chipCommand'), /\.click\(\)/, 'a spoken pick clicks the REA
   assert.equal(matchChoice('la', chips), -1, 'a two-letter fragment is too little to act on');
   assert.equal(matchChoice('', chips), -1, 'silence picks nothing');
 }
-assert.match(voiceSource, /if \(!forcedSpeak\) return false;/, "restoreSpeak never undoes the Commander's own speaker choice");
+{
+  // giving back the call's lease never undoes the Commander's own speaker choice (the whole law: voice-speaker.property)
+  const { speaker } = require(path.join(root, 'frontend', 'app', 'voice-state.js'));
+  const store = {}, own = speaker({ key: 'k', storage: () => ({ getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = v; } }) });
+  own.apply({ pref: true }); own.apply({ lease: 'live' }); own.apply({ release: 'live' });
+  assert.equal(own.isOn(), true, "giving back a lease never undoes the Commander's own speaker choice");
+  assert.equal(store.k, '1', 'and the saved setting stays that choice');
+}
 
 /* ⛔ THE METER IS REAL ON THE FALLBACK LEG TOO. The dictation leg used to scroll
    nothing — the engine that listens exposes no frame clock — so the strip sat flat for both voices while

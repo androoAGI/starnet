@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 const source = fs.readFileSync(path.join(__dirname, '../frontend/app/chat.js'), 'utf8');
-const merge = new Function(A.fnBody(source, 'function mergeCanonicalHistory(local, turns)') + '; return mergeCanonicalHistory;')();
+const merge = new Function(require('./helpers/turnmerge').source('mergeCanonicalHistory') + '; return mergeCanonicalHistory;')();
 
 // single durable turn: one row, steer line kept, durable identity enriched onto it
 {
@@ -62,7 +62,7 @@ const merge = new Function(A.fnBody(source, 'function mergeCanonicalHistory(loca
 // inserted again beside it (and the phone's SEND feeds those twins into the model). Run on BOTH copies.
 {
   const phone = fs.readFileSync(path.join(__dirname, '../sidecar/remote/host.js'), 'utf8');
-  const phoneMerge = new Function(A.fnBody(phone, 'function mergeCanonical(local, turns)') + '; return mergeCanonical;')();
+  const phoneMerge = new Function(require('./helpers/turnmerge').source('mergeCanonical') + '; return mergeCanonical;')();
   for (const [who, fn] of [['desk', merge], ['phone', phoneMerge]]) {
     const durable = [
       { role: 'user', content: 'go', sourceRunId: 'r4', rowId: 17 },
@@ -122,7 +122,7 @@ A.ok(/steerRow\(text, true\)/.test(A.fnBody(source, 'function steerNote(text)'))
    steer-echo row the live stream drew — never a plain station line, never the agent's prose, never model context (sys). */
 {
   const phone = fs.readFileSync(path.join(__dirname, '../sidecar/remote/host.js'), 'utf8');
-  const phoneMerge = new Function(A.fnBody(phone, 'function mergeCanonical(local, turns)') + '; return mergeCanonical;')();
+  const phoneMerge = new Function(require('./helpers/turnmerge').source('mergeCanonical') + '; return mergeCanonical;')();
   const durable = [
     { role: 'user', content: 'run the slow job', sourceRunId: 'r9', rowId: 1 },
     { role: 'assistant', sys: true, error: true, transcriptPending: true, sourceRunId: 'r9', dispatchState: 'page-closed', content: '■ the run ended when this page closed' }

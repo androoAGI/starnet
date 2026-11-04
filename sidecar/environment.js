@@ -365,6 +365,10 @@
       ensureWorkspace: ensureWorkspace,
       getCwd: getCwd,
       rememberCwd: rememberCwd,
+      // The environment every command this backend starts begins from (the sanitized snapshot; a run's service keys are layered on
+      // top per call and never touch the search path). The shell guard searches PATH, PATHEXT and NoDefaultCurrentDirectoryInExePath
+      // in this one, so it judges the folders the command will really search.
+      commandEnv: function () { return childEnv; },
       execute: function (opts) {
         opts = opts || {};
         const aid = safeAgentId(opts.agentId || 'agent');
@@ -1363,6 +1367,7 @@
       ensureWorkspace: backend.ensureWorkspace,
       getCwd: backend.getCwd,
       rememberCwd: backend.rememberCwd,
+      commandEnv: backend.commandEnv,   // the local backend only: a container or remote host has its own
       execute: backend.execute,
       startBackground: backend.startBackground,
       statusBackground: backend.statusBackground,

@@ -169,8 +169,10 @@ A.eq(runTeeView('agent.reasoning', { agentId: 'a1', runId: 'r1', on: true }), nu
   const fs = require('fs');
   const path = require('path');
   const src = readSidecarSource();
-  // (typed-outcomes: the tee sits inside the outcome sink, so every copy of a run's end — SSE included — carries its outcome)
-  const i = src.indexOf('const emit = outcomeSink(o.broadcast');
+  // (typed-outcomes: the tee sits inside the outcome sink, so every copy of a run's end — SSE included — carries its outcome; run-table S2:
+  // the run table's guard heads that chain, so the sink is `chainEmit` and the run's `emit` is its guarded head)
+  const i = src.indexOf('const chainEmit = outcomeSink(o.broadcast');
+  A.ok(/const emit = runEntry \? runEntry\.guard\(chainEmit\) : chainEmit;/.test(src.slice(i, i + 700)), 'the run table\'s guard heads the chain, over the outcome sink and the tee');
   A.ok(i > 0, 'index.js has the broadcast-opted tee, inside the outcome sink');
   const seg = src.slice(i, i + 400);
   A.ok(/runTeeView\(name,\s*payload\)/.test(seg), 'the tee routes through the runTeeView egress policy');

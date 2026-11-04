@@ -31,6 +31,7 @@ function fakeStore() {
     o.emit('agent.run.start', { agentId: o.agentId, runId: o.runId });
     o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'OUT' + runs.length + ' by ' + o.agentId });
     o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0.01 });
+    return { reason: 'done', text: 'OUT' + runs.length + ' by ' + o.agentId };   // what runOnce returns: its terminal text hands on
   };
   const chain = makeChainRunner({
     nextAgent: (a, ctx) => router.chainNext(a, ctx), stepAgent: (a, ctx) => router.chainStep(a, ctx), fanSiblings: a => router.fanSiblings(a),
@@ -70,7 +71,7 @@ function fakeStore() {
   {
     const runs2 = [];
     const hub2 = makeChannelHub({
-      runOnce: async (o) => { runs2.push(o.agentId); o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'x' + runs2.length }); o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 }); },
+      runOnce: async (o) => { runs2.push(o.agentId); o.emit('agent.token', { agentId: o.agentId, runId: o.runId, delta: 'x' + runs2.length }); o.emit('agent.run.end', { agentId: o.agentId, runId: o.runId, reason: 'done', turns: 1, usd: 0 }); return { reason: 'done', text: 'x' + runs2.length }; },
       store: fakeStore(), send: () => Promise.resolve({ ok: true }), secrets: () => ({ key: 'k', model: 'm/x', configured: true }),
       classify: () => true, emit: () => {}, newId: () => 'j' + (++n),
       resolveAgent: (ctx) => router.resolveTarget(ctx), lineOriginFor: (a, d) => router.lineOriginFor(a, d),

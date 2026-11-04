@@ -46,16 +46,19 @@ const mkStore = () => makeChannelStore({ fs: memFs(), pathMod, root: '/ws/channe
   }
 
   // ---- B. the REAL hub: a second job's hop does not replay the first job's hand-off ----
-  async function twoJobs(wrap) {
+  // (line-job-runner: a one-job hub's hops carry NO history at all, over any store; only a real chat keeps its earlier jobs)
+  async function twoJobs(wrap, bindChats) {
     const real = mkStore();
     let fire = { turns: {} };
     const store = wrap ? perFireStore(real, (a) => fire.turns[a] || (fire.turns[a] = [])) : real;
     const hopSaw = [];
     const runOnce = async (o) => {
       if (o.agentId === 'writer') hopSaw.push(o.messages.map(m => m.content));
+      const said = o.agentId === 'writer' ? 'draft' : 'findings';
       o.emit('agent.run.start', { runId: o.runId });
-      o.emit('agent.token', { delta: o.agentId === 'writer' ? 'draft' : 'findings' });
+      o.emit('agent.token', { delta: said });
       o.emit('agent.run.end', { reason: 'done' });
+      return { reason: 'done', text: said };   // what runOnce returns: a stage hands on its terminal text
     };
     let n = 0;
     const chain = {
@@ -63,7 +66,7 @@ const mkStore = () => makeChannelStore({ fs: memFs(), pathMod, root: '/ws/channe
       stopNote: () => ''
     };
     const hub = makeChannelHub({
-      channel: 'sample', agentPrefix: 'smp_', textBatchWaitMs: 0, bindChats: false, ownerSurface: true,
+      channel: 'sample', agentPrefix: 'smp_', textBatchWaitMs: 0, bindChats: bindChats === true, ownerSurface: true,
       runOnce, store, chain, lineOriginFor: () => 'L1', classify: () => true,
       resolveRunConfig: () => ({ key: 'k', model: 'm' }), resolveEntryRunConfig: () => ({ key: 'k', model: 'm' }),
       send: () => Promise.resolve({ ok: true }), secrets: () => ({}),
@@ -76,10 +79,12 @@ const mkStore = () => makeChannelStore({ fs: memFs(), pathMod, root: '/ws/channe
     hub.close();
     return hopSaw;
   }
-  const leaked = await twoJobs(false);
-  A.eq(leaked.length, 2, 'fixture: the line ran its hop on both jobs');
-  A.ok(leaked[1].some(c => /HAND-OFF OF JOB 1/.test(c)), 'control: over the bare store the second job\'s hop replays the first job\'s hand-off');
-  const kept = await twoJobs(true);
+  const chat = await twoJobs(false, true);
+  A.eq(chat.length, 2, 'fixture: the line ran its hop on both jobs');
+  A.ok(chat[1].some(c => /HAND-OFF OF JOB 1/.test(c)), 'control: a REAL chat (bindChats) keeps its earlier job\'s hand-off — the chat\'s own lineage');
+  const bare = await twoJobs(false, false);
+  A.eq(bare[1], ['HAND-OFF OF JOB 2'], 'a one-job hub\'s hop carries no history, even over the bare store');
+  const kept = await twoJobs(true, false);
   A.eq(kept.length, 2, 'the line ran its hop on both jobs');
   A.eq(kept[1], ['HAND-OFF OF JOB 2'], 'over perFireStore the second job\'s hop sees only its own hand-off');
 

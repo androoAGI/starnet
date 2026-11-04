@@ -251,8 +251,9 @@ const { makeCostEngine } = require('../sidecar/cost.js');
     const src = readSidecarSource();
     const at = src.indexOf('async function applyVoiceTurnRoute(');
     const apply = at > 0 ? src.slice(at, src.indexOf('\n}\n', at)) : '';
-    A.ok(/const tierCeiling = promptTierCeiling\(tProvider, setting\.model, !!\(getProviderProfile\(tProvider\) \|\| \{\}\)\.unmetered\);/.test(apply),
-      'applyVoiceTurnRoute reads the voice model\'s ceiling on the voice route (unmetered: none)');
+    // the voice route's payer decides (billing-class.js POLICY promptTier): a dollar payer stops at the tier, a plan does not
+    A.ok(/const tierCeiling = promptTierCeiling\(tProvider, setting\.model, !billing\.policyOf\(tProvider\)\.promptTier\);/.test(apply),
+      'applyVoiceTurnRoute reads the voice model\'s ceiling on the voice route (a sign-in plan or local model: none)');
     A.ok(/const runLimit = \(tierCeiling > 0 && limit > tierCeiling\) \? tierCeiling : limit;/.test(apply), 'the planner window is the real window capped by that ceiling');
     A.ok(/target: \{ credentialOk, contextLimit: runLimit, /.test(apply), 'the planner is handed the capped window');
     // the plan that window gives: an 80k conversation does not move to a Haiku 5.5 voice slot that would fold it at 65K

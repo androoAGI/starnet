@@ -39,7 +39,15 @@
 //   P7  the IDLE RENDERER's rest (wave 5, flag): World.setIdleRenderer(true) + setCinecamIdle(1000) + setCinecamRest(2000),
 //       wait for cameraDbg().cineRested: what a truly idle "left open" station costs with the flag on. P7 vs P6 prices the
 //       cinecam rest. It also waits for the CREW SETTLE (cameraDbg().crewSettled reaching the body count, at most 90 s), and
-//       after the window reads the wake: one synthetic pointermove must leave no body settled one frame later.
+//       after the window reads the wake: one synthetic pointermove must leave no body settled one frame later. Then the same
+//       for NEWS: the touched station rests and settles again (at most 40 s), a channel.inbound (a message that starts no run)
+//       goes through the page's own bus, and one frame later the rest must be over and no body settled. A station that did not
+//       settle again is "skipped: did not re-settle", never a pass. P7 then judges itself: idleBudgetVerdict (proc-footprint.mjs)
+//       over its own row, main thread <= 15%, rAF callbacks per draw <= 1.25, 28-32 draws/s, crew settled, still share >= 95%;
+//       a contended or invalid window is "unjudged". Every phase records rafPerDraw (the page's, and the world's own) and the
+//       callbacks the pacer sent back undrawn (skippedFrames), and timerLateMs: how late the still timers ran on this machine
+//       (the pacer measures it). A rafPerDraw over budget with timerLateMs near 15.6 on a 144/239 Hz panel is the machine's
+//       tick-late timer clock - a due change is then booked rAF for the last 3-4 vsyncs - not a booking that regressed.
 //       The flag's other half (LAZY ART) needs the page loaded with it: run twice, --idle-renderer off|on, with
 //       two --labels, and compare. Runs last.
 //
@@ -185,7 +193,8 @@ function pageState() {
   const vsyncMs = gaps.length >= 20 ? +gaps[gaps.length >> 1].toFixed(3) : 0;   // under 20 gaps: no vsync-rate frames to read
   return { t: now, draws: p.draws, hasFocus: document.hasFocus(), visibilityState: document.visibilityState, vsyncMs, vsyncGaps: gaps.length,
     pace: { running: p.running, mode: p.mode, focused: p.focused, motion: p.motion, paceMs: p.paceMs, vsyncMs: p.vsyncMs, drawCostMs: p.drawCostMs, strained: p.strained, timerWait: p.timerWait,
-      still: p.still, stillWhy: p.stillWhy, stillFrames: p.stillFrames, stillWhyCounts: p.stillWhyCounts || null },
+      still: p.still, stillWhy: p.stillWhy, stillFrames: p.stillFrames, stillWhyCounts: p.stillWhyCounts || null,
+      skippedFrames: p.skippedFrames, dueDraws: p.dueDraws, dueLate: p.dueLate, timerLateMs: p.timerLateMs },   // a tree without the counters leaves them out (pacerWindow reads that as null)
     raf: { fired: r.fired || 0, booked: r.booked || 0, sampled: r.sampled || 0, sites: Object.assign({}, r.sites || {}) },
     camera: { mode: c.mode, thresholdMs: c.thresholdMs, scale: c.scale, rested: c.cineRested === true, crewSettled: typeof c.crewSettled === 'number' ? c.crewSettled : null } };
 }
@@ -196,6 +205,21 @@ function firstTouchWake() {
     const after = World.cameraDbg();
     res({ settledBefore: before.crewSettled, restedBefore: before.cineRested === true, settledAfter: after.crewSettled, restedAfter: after.cineRested === true,
       ok: before.crewSettled > 0 && after.cineRested !== true && after.crewSettled === 0 });
+  })));
+}
+// THE MESSAGE WAKE (P7, after the first-touch wake): news that starts no run ends the rest the way a hand does. A channel message
+// the dish only pulses for goes through the page's own bus, so the world's production taps run, not a copy of them; one frame later
+// the rest must be over and no body settled. The touch just woke the station, so it must be rested AND settled again first: a
+// station that is not proves nothing, and that is a skip with its reason, never a pass (ok stays null).
+function messageWake() {
+  const before = World.cameraDbg();
+  if (!(before.crewSettled > 0 && before.cineRested === true))
+    return Promise.resolve({ ok: null, skipped: 'did not re-settle', settledBefore: before.crewSettled, restedBefore: before.cineRested === true });
+  const hero = World.bodies().find(b => b.hero);
+  U.bus.emit('channel.inbound', { channel: 'probe', chatId: '0', agentId: hero ? hero.id : null });
+  return new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => {
+    const after = World.cameraDbg();
+    res({ ok: after.cineRested !== true && after.crewSettled === 0, skipped: null, settledBefore: before.crewSettled, restedBefore: true, settledAfter: after.crewSettled, restedAfter: after.cineRested === true });
   })));
 }
 function reviewRead() {
@@ -230,7 +254,9 @@ const PHASE_WANT = {
   P6: { focus: 'focused', visibility: 'visible', camera: 'auto', hz: true, mode: 'focused' },
   P7: { focus: 'focused', visibility: 'visible', camera: 'manual', rested: true, hz: true, mode: 'focused' },   // rested: a never-engaged director also reads 'manual'
 };
-// the pacer's draw-rate rule and the STILL window readout live in proc-footprint.mjs (F.expectedDraws, F.stillWindow: tested there)
+// the pacer's draw-rate rule, the STILL window readout, the rAF-per-draw window and the P7 budget verdict live in proc-footprint.mjs
+// (F.expectedDraws, F.stillWindow, F.pacerWindow, F.idleBudgetVerdict: tested there)
+const MSG_WAKE_SETTLE_MS = 40000;   // P7's message wake waits this long, at most, for the touched station to rest and settle again (a social beat runs up to 55 s)
 
 // ---------- one run ----------
 async function runOnce(k) {
@@ -420,10 +446,15 @@ async function runOnce(k) {
       const renderers = perProc.filter(x => x.type === 'renderer').sort((x, y) => y.pct - x.pct);
       const fired = b.s.raf.fired - a.s.raf.fired, sampled = b.s.raf.sampled - a.s.raf.sampled, bySite = {};
       for (const [site, n] of Object.entries(b.s.raf.sites)) { const d = n - (a.s.raf.sites[site] || 0); if (d > 0) bySite[site] = sampled ? Math.round(fired * d / sampled / pageS) : null; }
+      const pw = F.pacerWindow(a.s, b.s);
       const row = {
         wallS: +wallS.toFixed(2),
         drawsPerS: +((b.s.draws - a.s.draws) / pageS).toFixed(2),
         rafPerS: +(fired / pageS).toFixed(2), rafBySitePerS: bySite,
+        // the pacer's own account of the window: rAF callbacks per draw (the page's, and the world's own = draws + skipped) and the
+        // callbacks its pace check sent back undrawn; null on a tree that does not count them (see F.pacerWindow)
+        rafPerDraw: pw ? pw.rafPerDraw : null, worldRafPerDraw: pw ? pw.worldRafPerDraw : null, skippedFrames: pw ? pw.skippedFrames : null, pacer: pw,
+        timerLateMs: Number.isFinite(b.s.pace.timerLateMs) ? b.s.pace.timerLateMs : null,   // the margin the still booking allowed for at the window's end (15.6 = the tick: unmeasured or late)
         vsyncHz: b.s.vsyncMs > 0 ? +(1000 / b.s.vsyncMs).toFixed(2) : null, worldVsyncHz: b.s.pace.vsyncMs > 0 ? +(1000 / b.s.pace.vsyncMs).toFixed(2) : null,
         mainBusyPct: +(100 * (b.m.TaskDuration - a.m.TaskDuration) / wallS).toFixed(2),
         scriptPct: +(100 * (b.m.ScriptDuration - a.m.ScriptDuration) / wallS).toFixed(2),
@@ -469,7 +500,7 @@ async function runOnce(k) {
       return Object.assign({ phase: name, label: v.label || name, valid: v.valid, invalidWhy: v.reasons, checksSkipped: v.skipped }, row);
     };
     const show = r => console.log('  ' + (r.phase + (r.cap != null ? '@' + r.capLabel : '')).padEnd(14) + (r.valid ? 'ok     ' : 'INVALID') + (r.contended ? ' CONTENDED' : '          ') +
-      ` draws ${r.drawsPerS}/s raf ${r.rafPerS}/s vsync ${r.vsyncHz}Hz main ${r.mainBusyPct}%` + (r.still ? ` still ${Math.round(r.still.share * 100)}%` + (r.still.share < 0.95 ? ' (' + Object.entries(r.still.why).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, n]) => k + ' ' + n).join(', ') + ')' : '') : '') +
+      ` draws ${r.drawsPerS}/s raf ${r.rafPerS}/s` + (r.rafPerDraw != null ? ` (${r.rafPerDraw}/draw` + (r.skippedFrames != null ? `, world ${r.worldRafPerDraw}, ${r.skippedFrames} skipped` : '') + ')' : '') + (r.timerLateMs != null ? ` timers<=${r.timerLateMs}ms` : '') + ` vsync ${r.vsyncHz}Hz main ${r.mainBusyPct}%` + (r.still ? ` still ${Math.round(r.still.share * 100)}%` + (r.still.share < 0.95 ? ' (' + Object.entries(r.still.why).sort((x, y) => y[1] - x[1]).slice(0, 3).map(([k, n]) => k + ' ' + n).join(', ') + ')' : '') : '') +
       ` | cdp rend ${r.cdp.rendererPct}% gpu ${r.cdp.gpuPct}% brw ${r.cdp.browserPct}%` +
       (r.os && !r.os.error ? ` | os gpu3d ${r.os.gpu3dPct}% gpuDed ${r.os.gpuDedMB}MB side ${r.os.sidecarCpuPct}% ${r.os.sidecarPrivMB}MB` : r.os ? ' | os ' + r.os.error : '') +
       (r.valid ? '' : ' :: ' + r.invalidWhy.join('; ')));
@@ -556,12 +587,26 @@ async function runOnce(k) {
       // THE CREW SETTLE's wake, read AFTER the window so the window stays untouched: one synthetic pointermove (a first touch,
       // through the window's own input listener) must end the rest and hand every settled body its next decision by the next frame
       if (name === 'P7' && row.obs && typeof row.obs[1].crewSettled === 'number') row.wake = await evalJS(page, call(firstTouchWake));
+      // ...and the same for NEWS: the touch just woke the station, so let it rest and settle AGAIN on the phase's own knobs (a hand
+      // ends the rest for 2 s here), then send a message that starts no run. messageWake reads the state itself, so a wait that ran
+      // out is its "skipped: did not re-settle", never a pass. A probe that throws is a skip too: it must not cost the measured window.
+      if (name === 'P7' && row.wake) {
+        try {
+          await evalJS(page, '(World.setCinecamIdle(1000), World.setCinecamRest(1000), 1)');
+          for (const t0 = Date.now(); Date.now() - t0 < MSG_WAKE_SETTLE_MS;) { const c = await evalJS(page, 'World.cameraDbg()'); if (c.crewSettled > 0 && c.cineRested === true) break; await sleep(500); }
+          row.msgWake = await evalJS(page, call(messageWake));
+        } catch (e) { row.msgWake = { ok: null, skipped: 'probe error: ' + (e && e.message || e) }; }
+      }
+      if (name === 'P7') row.budget = F.idleBudgetVerdict(row);   // P7 judges itself: a contended or invalid window is "unjudged", never a pass
       if (js) await evalJS(page, js[1]);
       if (name === 'P6') { await evalJS(page, `(World.setCinecamIdle(1e9), ${hasIdle ? 'World.setCinecamRest(0), ' : ''}World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       if (name === 'P7') { await evalJS(page, `(World.setIdleRenderer(${JSON.stringify(!!saveIdle)}, false), World.setCinecamRest(0), World.setCinecamIdle(1e9), World.restoreCamera(${JSON.stringify(saveCam)}), 1)`); }
       res.phases.push(row); show(row);
       if (row.wake) console.log('  P7 wake       ' + (row.wake.ok ? 'ok' : 'FAIL') + ': settled ' + row.wake.settledBefore + ' -> ' + row.wake.settledAfter + ' one frame after a first touch, rested ' + row.wake.restedBefore + ' -> ' + row.wake.restedAfter);
+      if (row.msgWake) console.log('  P7 msg wake   ' + (row.msgWake.skipped ? 'skipped: ' + row.msgWake.skipped + (row.msgWake.settledBefore === undefined ? '' : ' within ' + MSG_WAKE_SETTLE_MS / 1000 + ' s (settled ' + row.msgWake.settledBefore + ', rested ' + row.msgWake.restedBefore + ')')
+        : (row.msgWake.ok ? 'ok' : 'FAIL') + ': settled ' + row.msgWake.settledBefore + ' -> ' + row.msgWake.settledAfter + ' one frame after a message that starts no run, rested ' + row.msgWake.restedBefore + ' -> ' + row.msgWake.restedAfter));
       if (name === 'P7' && row.obs) console.log('  P7 crew       settled ' + row.obs.map(o => o.crewSettled).join(' -> ') + ' of ' + (await evalJS(page, 'typeof World.bodies === "function" ? World.bodies().length : null')) + ' bodies over the window');
+      if (row.budget) console.log('  P7 budget     ' + F.idleBudgetLine(row.budget));
     }
     await setMode('focused').catch(() => {});
   } catch (e) {
@@ -592,7 +637,7 @@ function compare() {
     const r = JSON.parse(readFileSync(f, 'utf8'));
     if (r.tool === 'perf-idle-ab' && (r.label === A || r.label === B)) runs.push(r);
   }
-  const M = { drawsPerS: r => r.drawsPerS, rafPerS: r => r.rafPerS, mainBusyPct: r => r.mainBusyPct, 'cdp.renderer': r => r.cdp && r.cdp.rendererPct, 'cdp.gpu': r => r.cdp && r.cdp.gpuPct,
+  const M = { drawsPerS: r => r.drawsPerS, rafPerS: r => r.rafPerS, rafPerDraw: r => r.rafPerDraw, worldRafPerDraw: r => r.worldRafPerDraw, mainBusyPct: r => r.mainBusyPct, 'cdp.renderer': r => r.cdp && r.cdp.rendererPct, 'cdp.gpu': r => r.cdp && r.cdp.gpuPct,
     'cdp.browser': r => r.cdp && r.cdp.browserPct, 'os.gpu3d': r => r.os && r.os.gpu3dPct, 'os.web': r => r.os && r.os.webCpuPct, 'os.sidecar': r => r.os && r.os.sidecarCpuPct, 'os.webPrivMB': r => r.os && r.os.webPrivMB };
   const groups = {};
   for (const r of runs) {
@@ -607,7 +652,7 @@ function compare() {
       const a = valid.filter(x => x.label === A).map(x => get(x.row)).filter(Number.isFinite), b = valid.filter(x => x.label === B).map(x => get(x.row)).filter(Number.isFinite);
       if (!a.length && !b.length) continue;
       const sa = F.stats(a), sb = F.stats(b), v = F.verdict(a, b, { contended });
-      console.log('  ' + k.padEnd(13) + ` A ${String(sa.median).padStart(8)} [${sa.min}..${sa.max}] n${sa.n}   B ${String(sb.median).padStart(8)} [${sb.min}..${sb.max}] n${sb.n}   ${v.verdict}${v.verdict === 'NO VERDICT' ? ' (' + v.reason + ')' : ''}`);
+      console.log('  ' + k.padEnd(15) + ` A ${String(sa.median).padStart(8)} [${sa.min}..${sa.max}] n${sa.n}   B ${String(sb.median).padStart(8)} [${sb.min}..${sb.max}] n${sb.n}   ${v.verdict}${v.verdict === 'NO VERDICT' ? ' (' + v.reason + ')' : ''}`);
     }
   }
   console.log('\nVERDICT RULE: improved only when every B run beats every A run, n>=3 each, valid phases only, no CONTENDED run.');

@@ -5,12 +5,12 @@
 'use strict';
 // rowTaint: the one rule for a stored transcript row's provenance (transcriptstore.js; docs/DECISIONS.md).
 const { rowTaint } = require('./transcriptstore.js');
+const TurnView = require('./turn-view.js');
+const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (LEARNING policy)
 
 function textOf(message) {
   if (!message || message.role !== 'user') return '';
-  if (typeof message.content === 'string') return message.content;
-  if (!Array.isArray(message.content)) return '';
-  return message.content.filter(p => p && p.type === 'text' && typeof p.text === 'string').map(p => p.text).join('\n');
+  return UserText.flatten(message.content, UserText.LEARNING);
 }
 function quotedMaterial(text) {
   return /```|~~~|(?:^|\n)\s*>|<\/?(?:document|email|untrusted|script)\b|[“"][^“”"]{20,}[”"]/i.test(String(text || '')) || /\b(?:examples?|samples?|transcript|following (?:document|email|message)|(?:document|attachment|website|webpage|email|message|article)\s+(?:says?|said|states?|reads?|instructs?))[^\n]*[:\n]/i.test(String(text || ''));
@@ -52,16 +52,7 @@ function originsOf(runRecords) {
   return runRecords === undefined ? null : new Map((Array.isArray(runRecords) ? runRecords : []).filter(r => r && r.runId).map(r => [r.runId, r]));
 }
 function cleanOwnerRow(m, origins) {
-  if (!m || m.role !== 'user' || rowTaint(m) !== null || m.from ||
-    typeof m.content !== 'string' || !m.content.trim() || quotedMaterial(m.content)) return false;
-  if (!origins) return false;   // no run records, no proof of who gave the directive
-  // A clean row can still be station self-talk, or a channel GROUP GUEST's message: a guest's row is as clean as
-  // the owner's, and surface/streamId cannot tell them apart. Resolve its original run independently of the recent
-  // title window; only the host's ownerDirective stamp (runstore) proves the Commander gave it. A missing origin, an
-  // unknown internal flag, or a legacy run without the stamp is not evidence of an owner request.
-  const r = origins.get(m.sourceRunId);
-  return !!(r && r.ownerDirective === true && r.internal === false && !r.parentRunId && !r.delegatedBy && !r.cronJobId && !r.recoveryOf &&
-    r.agentId === m.agentId && (r.streamId || 'global') === m.streamId && !/^(?:nightshift-|cron-|workshop-)/i.test(r.streamId || ''));
+  return TurnView.ownerRow(m, { rowTaint, quotedMaterial, runOf: id => origins && origins.get(id) });
 }
 // `tail` bounds the window to the newest rows, before filtering (ambient activity: 400); 0 reads every row passed in.
 function cleanOwnerRows(rows, runRecords, tail = 400) {
@@ -81,19 +72,29 @@ function ownedBriefs(briefs, transcriptRows, runRecords) {
   // one lookup per brief. The host's RAM mirror keeps only the newest 3000 rows station-wide (routine streams count
   // too), so on a busy station a weekly request's earlier occasions can still fall out of it; proving those from disk
   // is the host's job.
-  const wanted = new Set(list.map(originalOf).filter(Boolean)), origins = originsOf(runRecords), proof = new Map();
+  const wanted = new Set(list.map(originalOf).filter(Boolean)), origins = originsOf(runRecords), proof = new Map(), byId = new Map();
   for (const m of Array.isArray(transcriptRows) ? transcriptRows : []) {
-    if (!m || !wanted.has(m.sourceRunId) || !cleanOwnerRow(m, origins)) continue;
+    if (!m || !cleanOwnerRow(m, origins)) continue;
+    if (Number.isSafeInteger(m.rowId) && m.rowId > 0) byId.set(m.rowId, m);
+    if (!wanted.has(m.sourceRunId)) continue;
     const key = JSON.stringify([m.agentId, m.streamId, m.sourceRunId]);
     if (!proof.has(key)) proof.set(key, []);
     proof.get(key).push(m);
   }
   const seen = new Set();
   return list.filter(b => {
+    if (b.directiveRowId != null) {
+      const row = Number.isSafeInteger(b.directiveRowId) && b.directiveRowId > 0 ? byId.get(b.directiveRowId) : null;
+      if (!row || row.agentId !== b.agentId || row.streamId !== (b.streamId || 'global')
+          || row.content.trim().slice(0, 4000) !== b.originalDirective || seen.has(row.rowId)) return false;
+      seen.add(row.rowId); return true;
+    }
     const original = originalOf(b);
     if (!original) return false;
     const stream = b.streamId || 'global', key = JSON.stringify([b.agentId, stream, original]);
-    if (seen.has(key) || !(proof.get(key) || []).some(m => m.content.trim().slice(0, 4000) === b.originalDirective)) return false;
+    const row = (proof.get(key) || []).find(m => m.content.trim().slice(0, 4000) === b.originalDirective);
+    if (seen.has(key) || !row || (row.rowId && seen.has(row.rowId))) return false;
+    if (row.rowId) seen.add(row.rowId);
     seen.add(key); return true;
   });
 }

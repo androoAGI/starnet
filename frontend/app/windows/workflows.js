@@ -20,7 +20,7 @@ const WorkflowsWindow = (() => {
   const P = () => (typeof Pipeline !== 'undefined' ? Pipeline : null);
   const W = () => (typeof WorkflowLine !== 'undefined' ? WorkflowLine : null);
   const B = () => (typeof Build !== 'undefined' ? Build : null);
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../../js/util.js')).esc(s);
   const sfx = k => { try { const h = H(); if (h && h.sfx) h.sfx(k); } catch (_) {} };
   const notify = (t, kind) => { try { const h = H(); if (h && h.notify) h.notify(t, kind || ''); } catch (_) {} };
   const api = p => ((typeof window !== 'undefined' && window.__STARNET_API__) ? window.__STARNET_API__ : '') + p;
@@ -121,7 +121,8 @@ const WorkflowsWindow = (() => {
   }
   /* the job the station's ONE sample slot is riding (this window's SEND / the panel's SEND A JOB). A job another line HANDED
      ON (SEND TO, `from`) is not it: it holds no sample lock, the sample STOP cannot stop it, and it never blocks sending (10-11) */
-  const runningJob = () => (S.jobs || []).find(j => j.status === 'running' && !j.from) || null;
+  const runningJob = () => (S.jobs || []).find(j => j.status === 'running' && !j.from && (!j.entry || j.entry === 'sample')) || null;
+  const jobOutcome = j => typeof RunOutcome !== 'undefined' && RunOutcome.lineOutcomeOf ? RunOutcome.lineOutcomeOf(j) : (j.outcome || j.status);
   const runningHandoff = key => (S.jobs || []).find(j => j.status === 'running' && j.from && (key == null || j.line === key)) || null;
   /* the words a SEND TO end is said in: the floor's own name for that line (worldmodel.lineName — the plates and this window's
      list say LINE N for an unnamed line), else the name the job recorded. A job end is { line, jobId, name } (linejobs normEnd):
@@ -133,11 +134,12 @@ const WorkflowsWindow = (() => {
   }
   function showJob(id) {
     return loadJob(id).then(job => {
-      if (!job) { notify('that job’s record could not be read', 'warn'); return; }
+      if (!job) { notify('that job’s record could not be read', 'warn'); return false; }
       S.view = 'line'; S.line = job.line; S.job = job; S.fix = null; S.msg = null; S.scrollTo = '.wfw-result';
       if (job.retryOf && !S.prev[job.id]) loadJob(job.retryOf).then(p => { if (p) { S.prev[job.id] = p; schedule(); } });
       (job.runs || []).forEach(r => readStep(r, job.streamId));
       schedule();
+      return true;
     });
   }
   /* a job out on a line that this window did not send (the panel's SEND A JOB, or sent before a reload): its record says
@@ -643,16 +645,15 @@ const WorkflowsWindow = (() => {
   function jobRows(l) {
     const rows = jobsOf(l.key).slice(0, 8);
     if (S.jobsErr && !rows.length) return '<p class="wfw-note">The job history could not be read — is the station running?</p>';
-    /* (org P15) a scheduled, channel, folder or webhook run is not a job record yet (only a job you send and a SEND TO hand-off write one:
-       the sample route and the handoff runner — trigger-runner.js never does): say where it is filed, never an empty "nothing ran" (org wire AUTO-P15-3) */
-    if (!rows.length) return '<p class="wfw-note">No jobs yet. Jobs you send show here; scheduled, channel, folder and webhook runs are filed in DELIVERABLES.</p>';
+    if (!rows.length) return '<p class="wfw-note">No recorded jobs on this line yet.</p>';
     const mark = s => ({ delivered: '<span class="wfw-st ok">✓ DELIVERED</span>', running: '<span class="wfw-st run">RUNNING</span>', stopped: '<span class="wfw-st">STOPPED</span>',
+      paused: '<span class="wfw-st">PAUSED</span>', blocked: '<span class="wfw-st warn">BLOCKED</span>', stopped_short: '<span class="wfw-st warn">⚠ PROBLEM</span>',
       problem: '<span class="wfw-st warn">⚠ PROBLEM</span>', failed: '<span class="wfw-st warn">DIDN’T RUN</span>', interrupted: '<span class="wfw-st warn">INTERRUPTED</span>' })[s] || '';
     // a handed-on job reads as FROM LINE A · the job (its text is the job as it first arrived); a standing refusal says ×N
     // (an older record held the hand-off frame as its text: read the job back out of it)
     const jobOf = j => { const h = j.from && !j.handedIn && P() && P().parseHandoffInput ? P().parseHandoffInput(j.text) : null; return h && h.original ? h.original : String(j.text || ''); };
     const said = j => (j.from ? 'FROM ' + lineWord(j.from) + ' · ' : '') + jobOf(j).replace(/\s+/g, ' ');
-    const markOf = j => j.repeats > 1 ? mark(j.status).replace('</span>', ' ×' + esc(j.repeats) + '</span>') : mark(j.status);
+    const markOf = j => j.repeats > 1 ? mark(jobOutcome(j)).replace('</span>', ' ×' + esc(j.repeats) + '</span>') : mark(jobOutcome(j));
     return '<div class="wfw-jobs">' + rows.map(j => '<button type="button" class="wfw-jobrow" data-job="' + esc(j.id) + '">' + markOf(j) + '<span class="wfw-jtext">' + esc(said(j).slice(0, 120) || '(no text)') + '</span><span class="wfw-jmeta">' + esc(ago(j.startedAt) + (j.usd ? ' · ' + usd(j.usd) : '')) + '</span></button>').join('') + '</div>';
   }
   function composeHTML(l) {
@@ -725,7 +726,7 @@ const WorkflowsWindow = (() => {
       + '<p class="wfw-note">The result lands in LAST JOBS and this line’s OUTBOX. E-STOP stops it.</p></section>';
   }
   function resultHTML(l, job) {
-    const st = stationOf(), runs = (job.runs || []).slice().reverse(), work = workOf(job.output), ok = job.status === 'delivered';
+    const st = stationOf(), runs = (job.runs || []).slice().reverse(), work = workOf(job.output), outcome = jobOutcome(job), ok = outcome === 'delivered';
     const delivered = ok && (job.runs || [])[0];
     // the TO REVIEW row this delivered run still waits on (ReturnStore's ledger) — none once it was rated, or if it was never folded
     const waitRow = delivered && delivered.runId && typeof ReturnStore !== 'undefined' && ReturnStore.pendingRows ? (ReturnStore.pendingRows().find(r => r && r.runId === delivered.runId) || null) : null, waits = !!waitRow;
@@ -745,10 +746,12 @@ const WorkflowsWindow = (() => {
     const stepWarn = r => { const o = typeof RunOutcome !== 'undefined' ? RunOutcome.ofRow(r) : { ok: r.reason === 'done', outcome: r.reason === 'cancelled' ? 'stopped' : '' }; return !o.ok && o.outcome !== 'stopped'; };
     // (typed-outcomes) a step's end in words: a 'done' row that did not SUCCEED names its outcome ("ended: the reply was cut short")
     const endOf = r => (r.reason !== 'done' ? (END[r.reason] || String(r.reason || 'did not finish').replace(/_/g, ' ')) : (typeof RunOutcome !== 'undefined' ? 'ended: ' + RunOutcome.line(RunOutcome.ofRow(r)) : 'did not finish'));
-    const head = ok ? '<b class="ok">✓ DELIVERED</b>' : job.status === 'stopped' ? '<b>■ STOPPED</b>' : job.status === 'interrupted' ? '<b class="warn">⚠ INTERRUPTED</b>' : job.status === 'failed' ? '<b class="warn">✕ IT DIDN’T RUN</b>' : '<b class="warn">⚠ FINISHED WITH A PROBLEM</b>';
+    const head = outcome === 'paused' ? '<b>PAUSED</b>' : outcome === 'running' ? '<b>RUNNING</b>' : outcome === 'blocked' ? '<b class="warn">BLOCKED</b>'
+      : ok ? '<b class="ok">✓ DELIVERED</b>' : outcome === 'stopped' ? '<b>■ STOPPED</b>' : outcome === 'interrupted' ? '<b class="warn">⚠ INTERRUPTED</b>' : outcome === 'failed' ? '<b class="warn">✕ IT DIDN’T RUN</b>' : '<b class="warn">⚠ FINISHED WITH A PROBLEM</b>';
     const meta = [runs.length + ' step' + (runs.length === 1 ? '' : 's'), usd(job.usd), took].filter(Boolean).join(' · ');
     // a step goes by its NAME first, then its role — the map's word for it (conveyor-ui-15)
-    const why = ok ? '' : job.status === 'problem' && bad ? (() => { const p = bad.dockId && st ? st.propById(bad.dockId) : null, nm = p && (p.label || p.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + NAME(bad.agentId) + ') ' + endOf(bad) + ', so this job did not finish cleanly. Sending it again often works.'; })()
+    const why = ok ? '' : outcome === 'paused' ? 'The step-through test is waiting for you to continue.' : outcome === 'running' ? 'This job is still running.'
+      : job.stop && job.stop.why ? sentence(job.stop.why, '') : job.status === 'problem' && bad ? (() => { const p = bad.dockId && st ? st.propById(bad.dockId) : null, nm = p && (p.label || p.role); return 'The ' + (nm ? nm + ' step' : 'step') + ' (' + NAME(bad.agentId) + ') ' + endOf(bad) + ', so this job did not finish cleanly. Sending it again often works.'; })()
       // (a stopped record says WHO stopped it — "you stopped this job", E-STOP, or the station's own fault — never "You stopped" for all)
       : job.status === 'stopped' ? sentence(job.error, 'You stopped this job.') + ' What already ran is counted.' : job.status === 'interrupted' ? 'The station stopped while this job was out. Send it again.'
       : (wasRefused ? refusedWhy() : sentence(job.error, 'Nothing ran.')) + (job.repeats > 1 ? ' (' + job.repeats + ' hand-offs from ' + lineWord(job.from) + ' were refused like this — the last ' + ago(job.endedAt) + ')' : '');
@@ -955,13 +958,21 @@ const WorkflowsWindow = (() => {
     const w = document.querySelector('.term.wfw-win');
     if (w && typeof U !== 'undefined' && U.zTop) w.style.zIndex = U.zTop();
   }
-  // the OUTBOX's way back: a job record by the run stream it rode (a work line's delivered row carries it)
-  function openByStream(streamId, from) {
-    return getJSON('/api/line-jobs?stream=' + encodeURIComponent(streamId) + '&limit=1').then(({ status, j }) => {
-      const hit = status === 200 && j && Array.isArray(j.jobs) ? j.jobs[0] : null;
+  function openJob(id, from) {
+    return showJob(id).then(ok => {
+      if (!ok) return false;
+      open(null, from);
+      return true;
+    });
+  }
+  // Reused channel streams require an exact run. Only legacy per-job streams can resolve without one.
+  function openByStream(streamId, from, runId) {
+    if (runId == null && !/^(sample|handoff)-/.test(String(streamId || ''))) return Promise.resolve(false);
+    const query = '/api/line-jobs?stream=' + encodeURIComponent(streamId) + (runId != null ? '&runId=' + encodeURIComponent(runId) : '') + '&limit=2';
+    return getJSON(query).then(({ status, j }) => {
+      const hit = status === 200 && j && Array.isArray(j.jobs) && j.jobs.length === 1 ? j.jobs[0] : null;
       if (!hit) return false;
-      open({ view: 'line', line: hit.line }, from);
-      return showJob(hit.id).then(() => true);
+      return openJob(hit.id, from);
     }, () => false);
   }
   /* THE FLOOR OUTBOX IS ITS OWN LINE'S (Andrew 10-03: "the outbox should only show output of the specific conveyor system, it
@@ -1034,7 +1045,7 @@ const WorkflowsWindow = (() => {
     }
     schedule();
   };
-  return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openOutbox, showJob, startLines,
+  return { open, refresh, openLine: key => open({ view: 'line', line: key, job: null }), openNew: () => open({ view: 'new' }), openByStream, openJob, openOutbox, showJob, startLines,
     _state: S, _body: () => body, _floor: floor, _lineWord: lineWord, _pick: pickStarter, _create: create, _send: send, _useFix: useFix, _styleKept: styleKept, _keepStyle: keepStyle, _putStyleBack: putStyleBack, _exampleBrief: exampleBrief, _resultHTML: resultHTML, _startsText: startsText, _newHTML: newHTML, EX_HEAD };   // (the _ seams are test/eval reads)
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = WorkflowsWindow;

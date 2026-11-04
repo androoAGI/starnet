@@ -1783,7 +1783,7 @@ const World = (() => {
      (they are motion now: a city sky with traffic driving never goes still). And the planted breath was counted as
      motion, so a scene with a standing body never went still — the breath is now drift (see AMBIENT in the STILL VERDICT: sub-pixel, drawn at its true phase).
      The final fixes (10-21): frameReviewRoom's camera cut (and init's resize) wake the floor, and every camera-writing export
-     is locked to the wrapper; a due change is met by rAF, never by a timer that can fire a Windows tick late (DUE LEAD); a
+     is locked to the wrapper; a due change is met by rAF, never by a timer that can fire a Windows tick late (THE STILL BOOKING); a
      layout edit (station.onChange) wakes; animation start stamps set between frames read the wall clock; the ocean's plate
      steps are due; a body napping in a bunk is rest and one boxing the heavy bag is motion; a dormant focus ease under a lock
      is not camera motion; PropSprites.pulsing reads one stamp. */
@@ -1794,31 +1794,52 @@ const World = (() => {
   let paceTimer = 0, paceLowRate = false, motionUntil = 0, pacedDraws = 0, simMs = 0;   // simMs: total simulated time advanced (renderPace readout)
   let vsyncMs = 0, lastRafAt = 0;   // the display's own frame interval, learned from back-to-back rAF callbacks (rounds the pace to whole vsyncs)
   // STILL state: the last verdict (still?), why not (the first motion source it found), the next known change, input stamp,
-  // and when a booked still timer fires (a verdict that finds an earlier change re-books)
+  // and when a booked still timer fires (the verdict re-books)
   let stillNow = false, stillWhy = 'boot', stillDue = Infinity, inputAt = -Infinity, paceTimerAt = 0, stillKick = false;
-  /* DUE LEAD (2026-10-21 final fixes): a timer is never trusted to hit a vsync. Windows (WebView2) timers can fire a whole
-     ~15.6 ms system tick late, so a timer booked 2 ms before a due change missed its vsync and the change drew a frame late.
-     The last vsync + 4 ms before a due change rides requestAnimationFrame (a skipped callback is cheap); the timer only
-     covers the long still wait before it. dueWatch is the change the last still verdict was waiting on: the draw that lands
-     it records how late it came (renderPace: dueDraws, dueLate — later than a vsync + 1 ms — dueLatMaxMs, dueLatAvgMs). */
-  const DUE_LEAD_SLACK_MS = 4;
-  let dueWatch = Infinity, dueDraws = 0, dueLate = 0, dueLatSum = 0, dueLatMax = 0;
-  function dueLeadMs() { return (vsyncMs || 17) + DUE_LEAD_SLACK_MS; }
+  /* THE STILL BOOKING (Andrew: exactly 30/s while still; a due change on its own vsync). Windows (WebView2) timers can fire up
+     to a whole ~15.6 ms system tick late (STILL_TIMER_LATE_MS), so a timer is never aimed AT a draw: it wakes a hair
+     (TICK_AFTER_VSYNC_MS) after a vsync and ONE rAF lands the draw. stillBookAt counts vsyncs from the last draw: kT is where
+     frame()'s own rule (drawSlackMs: the vsync NEAREST the pace) draws the 30/s tick, kD where a due change draws (stillDue, or
+     the visible pace once due). Tick only: the timer wakes at kT - 1. A change due first (kD <= kT): j vsyncs before kD, j =
+     what the timers have really been late needs to still land it (1 whenever they are on time, on any panel; a clock a whole
+     tick late: 1 at 60 Hz, and above it the last vsyncs ride rAF). A past aim, or none left (kD <= j), is one bare rAF now. So a
+     still draw costs one callback, never one per vsync it waited out; stillVerdict re-books from the FRESH verdict (frame() books
+     first, from the previous one).
+     THE TIMER MARGIN (idle renderer review): j came from the whole tick whatever the timers did, so a 144 Hz panel rode 3
+     callbacks and a 239 Hz one 4 for every due draw (P7's rafPerDraw <= 1.25 could not pass there). Each still booking's own
+     timer now reports how late it fired (noteTimerLate); the margin is the worst of the last TIMER_LATE_SAMPLES, never more than
+     the tick, and it starts AT the tick, so nothing is drawn late before the timers have been seen. A clock that gets worse is
+     believed by its first late timer (one draw in flight pays); one that gets better, once the late ones have turned over.
+     Only a booked timer measures: a probe armed beside a bare-rAF wait would read the clock while that rAF chain keeps the thread
+     awake (a due timer then runs at the next wake, whatever the tick does) and under-read it. So a floor whose every wait rides
+     rAF (a change due within j vsyncs of each draw) keeps the margin it has - the tick, until a quieter draw has taught it.
+     renderPace: timerLateMs (the margin in use), timerSamples (the timers it has seen). */
+  const STILL_TIMER_LATE_MS = 15.6, TICK_AFTER_VSYNC_MS = 0.5, TIMER_LATE_SAMPLES = 32;
+  const timerLate = new Array(TIMER_LATE_SAMPLES).fill(STILL_TIMER_LATE_MS);
+  let timerLateAt = 0, timerLateMax = STILL_TIMER_LATE_MS, timerSamples = 0;
+  function noteTimerLate(ms) {
+    timerLate[timerLateAt] = ms >= 0 ? Math.min(STILL_TIMER_LATE_MS, ms) : ms < 0 ? 0 : STILL_TIMER_LATE_MS;   // early: on time · unreadable: the worst case
+    timerLateAt = (timerLateAt + 1) % TIMER_LATE_SAMPLES; timerSamples++;
+    timerLateMax = Math.max.apply(null, timerLate);
+  }
+  /* dueWatch: the change the last still verdict waits on; the draw that lands it records how late it came (renderPace: dueDraws,
+     dueLate — later than a vsync + 1 ms — dueLatMaxMs, dueLatAvgMs). skippedFrames: callbacks the pace check sent back undrawn. */
+  let dueWatch = Infinity, dueDraws = 0, dueLate = 0, dueLatSum = 0, dueLatMax = 0, skippedFrames = 0;
   function noteDueDraw(now) {
     const l = now - dueWatch; dueWatch = Infinity;
     dueDraws++; dueLatSum += l; if (l > dueLatMax) dueLatMax = l;
     if (l > (vsyncMs || 17) + 1) dueLate++;
   }
-  /* THE STILL TICK'S TIMER (Andrew: exactly 30/s while still). A still frame is drawn on the vsync frame()'s own rule picks
-     (the first one at least pace - half a vsync after the last draw). The timer wakes a hair after the vsync BEFORE that one
-     and rAF lands the draw, so a timer up to a vsync late (a Windows tick, ~15.6 ms at 60 Hz) still makes it, and an on-time
-     one books one rAF callback per still draw, as before. It used to aim 2 ms before the draw: a timer over 2 ms late missed
-     the vsync and the still pace fell to 20/s. */
-  const TICK_AFTER_VSYNC_MS = 0.5;
   function drawSlackMs() { return Math.max(1, Math.min(vsyncMs || 2, 17) / 2); }   // frame()'s own slack: it draws on the vsync NEAREST the pace
-  function stillTickTimerAt(pace) {
-    const P = vsyncMs || 17, k = Math.max(1, Math.ceil((pace - drawSlackMs()) / P - 1e-9));
-    return lastDrawnAt + (k - 1) * P + TICK_AFTER_VSYNC_MS;
+  function stillBookAt(pace) {
+    const P = vsyncMs || 17, slack = drawSlackMs();
+    const kT = Math.max(1, Math.ceil((pace - slack) / P - 1e-9));
+    let aimK = kT - 1;
+    if (stillDue < Infinity) {
+      const kD = Math.max(1, Math.ceil(Math.max(stillDue - lastDrawnAt, Math.max(PACE_VISIBLE_MS, budgetMs()) - slack) / P - 1e-9));
+      if (kD <= kT) aimK = kD - Math.max(1, Math.ceil((timerLateMax + TICK_AFTER_VSYNC_MS) / P - 1e-9));
+    }
+    return aimK > 0 ? lastDrawnAt + aimK * P + TICK_AFTER_VSYNC_MS : 0;
   }
   function pageFocused() {
     try { return typeof document === 'undefined' || typeof document.hasFocus !== 'function' || document.hasFocus(); } catch (_) { return true; }
@@ -1882,9 +1903,9 @@ const World = (() => {
     if (paceTimer) { clearTimeout(paceTimer); paceTimer = 0; }
   }
   // the ONE place the next frame is booked: rAF at a draw-rate pace, a timer then rAF at a low one or the still pace. The
-  // still wait is a timer to just past the vsync before the still frame (THE STILL TICK'S TIMER) or a DUE LEAD before stillDue,
-  // then rAF (see DUE LEAD). A timer-booked callback is not a vsync sample: lastRafAt is cleared so a 33 ms gap can never be
-  // learned as the display's frame interval.
+  // still wait is stillBookAt (THE STILL BOOKING): a timer to just past the vsync before the one that draws, then rAF. A
+  // timer-booked callback is not a vsync sample: lastRafAt is cleared so a 33 ms gap can never be learned as the display's
+  // frame interval.
   // UI FIRST (2026-10-26): a window opening holds the floor's draws for a moment — see the note in frame()
   const YIELD_MAX_MS = 250;
   let yieldUntil = 0;
@@ -1895,10 +1916,14 @@ const World = (() => {
   function yieldWait(now, force) { return force === true || !(now < yieldUntil) ? 0 : yieldUntil - now; }
   function scheduleFrame(pace) {
     if (!running) return;
-    const now = performance.now(), still = pace < PACE_TIMER_MIN_MS && stillPaced(now), lead = dueLeadMs();
+    const now = performance.now(), still = pace < PACE_TIMER_MIN_MS && stillPaced(now);
     const wait = now < yieldUntil ? yieldUntil - now : pace >= PACE_TIMER_MIN_MS ? lastDrawnAt + pace - now - 2
-      : still && stillDue - now > lead ? Math.min(stillTickTimerAt(pace), stillDue - lead) - now : 0;
-    if (wait > 0) { lastRafAt = 0; paceTimerAt = still ? now + wait : 0; paceTimer = setTimeout(() => { paceTimer = 0; if (running && !raf) raf = requestAnimationFrame(frame); }, wait); }
+      : still ? stillBookAt(pace) - now : 0;
+    if (wait > 0) {
+      lastRafAt = 0; paceTimerAt = still ? now + wait : 0;
+      const meant = still && !(now < yieldUntil) ? now + wait : 0;   // a still booking's own timer is the one that tells how late timers run (a hold's is not)
+      paceTimer = setTimeout(() => { paceTimer = 0; if (meant) noteTimerLate(performance.now() - meant); if (running && !raf) raf = requestAnimationFrame(frame); }, wait);
+    }
     else raf = requestAnimationFrame(frame);
   }
   // focus / input / visible again: drop a pending low-rate wait and draw on the very next vsync
@@ -1933,8 +1958,10 @@ const World = (() => {
         : pace > PACE_VISIBLE_MS + 0.5 ? 'budget' : 'visible',
       still: stillNow, stillWhy: stillWhy || null, stillDueMs: stillDue < Infinity ? Math.max(0, Math.round(stillDue - now)) : null,
       stillFrames, stillWhyCounts: Object.assign({}, stillWhyN),   // cumulative: a bench window's still share and what kept it moving
-      // cumulative: the due changes a still floor waited on, how many drew later than a vsync (+1 ms), and how late (DUE LEAD)
-      dueDraws, dueLate, dueLatMaxMs: +dueLatMax.toFixed(1), dueLatAvgMs: dueDraws ? +(dueLatSum / dueDraws).toFixed(1) : null,
+      // cumulative: the due changes a still floor waited on, how many drew later than a vsync (+1 ms), and how late (THE STILL
+      // BOOKING), and the callbacks frame()'s pace check sent back undrawn (skippedFrames: a rAF per draw above ~1 is spin)
+      dueDraws, dueLate, dueLatMaxMs: +dueLatMax.toFixed(1), dueLatAvgMs: dueDraws ? +(dueLatSum / dueDraws).toFixed(1) : null, skippedFrames,
+      timerLateMs: +timerLateMax.toFixed(1), timerSamples,   // THE TIMER MARGIN: the lateness a still booking allows for (the tick until seen), and the timers it has seen
       drawCostMs: +drawCostMs.toFixed(2), budgetMs: +budgetMs().toFixed(1), strained, strainProbeMs: +strainProbeMs.toFixed(1),
       draws: pacedDraws, simMs: Math.round(simMs), timerWait: !!paceTimer, yieldMs: Math.max(0, Math.round(yieldUntil - now)) };
   }
@@ -2165,11 +2192,15 @@ const World = (() => {
     if (chatFocusId != null) noteDue(chatWarmUntil, now);   // the COMMS stare goes cold (chatStareHold)
     if (!linkStaleDim && lastSseEventAt) noteDue(lastSseEventAt + LINK_STALE_MS, now);   // the link goes stale: LINK DOWN, telemetry dims
     stillWhy = why; stillNow = !why; stillDue = stillDueAcc;
-    dueWatch = stillNow ? stillDue : Infinity;   // DUE LEAD: the draw that lands this change records how late it came
+    dueWatch = stillNow ? stillDue : Infinity;   // the draw that lands this change records how late it came
     if (stillNow) stillFrames++; else stillWhyN[why] = (stillWhyN[why] || 0) + 1;
-    // the next frame was booked before this one ran: a STILL wait that must not stand (motion, or an earlier change: its
-    // timer must fire a DUE LEAD before it) re-books
-    if (paceTimer && paceTimerAt && (!stillNow || stillDue - dueLeadMs() < paceTimerAt - 0.5)) paceWake();   // (a budget-floor timer is left to the budget)
+    // the next frame was booked before this one ran, from the PREVIOUS verdict (frame() books first, so a throw cannot kill the
+    // loop). Moving, or the change already due: a pending still wait must not stand (next vsync, normal pace). Still: book again
+    // from THIS verdict, so the one callback left alive lands the earliest drawing vsync (stillBookAt), not a bare rAF that
+    // frame() would only skip. (A budget-floor timer is left to the budget, and a capped floor is never re-booked.)
+    const booked = performance.now();
+    if (!stillNow || !stillPaced(booked)) { if (paceTimer && paceTimerAt) paceWake(); }
+    else if (paceTimer ? paceTimerAt : raf) { cancelScheduled(); scheduleFrame(paceMs(booked)); }
   }
   // ---- end STILL VERDICT
   /* OVERLAYS (HUD widget, 2026-09-30): the station's in-world readouts — run clocks, tool tickers, await tags,
@@ -2471,10 +2502,11 @@ const World = (() => {
   /* THE CINECAM RESTS when the station is TRULY idle. The auto-director is for when the Commander is away and the crew is
      living: it trails walkers and cuts between them, so the floor is never still and draws at the full visible pace for
      as long as the window is left open (perf-idle-ab P6, "the true left-open state"). With the flag on it stands down
-     once nobody has touched the window for its takeover time PLUS CINE_REST_MS, and no run has been live for CINE_REST_MS:
-     the camera stays exactly where the last shot left it, and the floor falls to the still pace Andrew approved on 10-21
-     (30 redraws/s of an unchanged scene; every moving thing still draws at 60, 144 while panning). Any hand on the window
-     or any live run ends the rest: the director comes back on its own rules. Nothing caps a frame rate here. */
+     once nobody has touched the window for its takeover time PLUS CINE_REST_MS, and no run has been live and no wake event
+     has been heard for CINE_REST_MS (no hand, no live run, no wake event): the camera stays exactly where the last shot left it,
+     and the floor falls to the still pace Andrew approved on 10-21 (30 redraws/s of an unchanged scene; every moving thing
+     still draws at 60, 144 while panning). Any hand on the window, any live run or any wake event ends the rest: the director
+     comes back on its own rules. Nothing caps a frame rate here. */
   const CINE_REST_MS = 5 * 60000;
   let idleRenderer = false, runSeenAt = 0, cineRestMs = CINE_REST_MS;
   function setCinecamRest(ms) { cineRestMs = Math.max(1000, +ms || CINE_REST_MS); }   // DEV knob (perf-idle-ab P7 only), like setCinecamIdle
@@ -2483,20 +2515,69 @@ const World = (() => {
     idleRenderer = q != null ? (q === '1' || q === 'on') : (typeof localStorage !== 'undefined' && localStorage.getItem('starnet.idleRenderer') === '1');
   } catch (_) {}
   function liveRunCount() { let n = 0; for (const runs of liveRunsByAgent.values()) n += runs.size; return n; }
-  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live
+  // a pure read (cameraDbg calls it): cinecamTick stamps runSeenAt while a run is live, restWakeOn when a wake event is heard
   function cineRested(now) {
     if (!idleRenderer || liveRunCount() > 0) return false;   // a working station is not idle, whatever the camera says
     return now - camUserAt >= cineIdleMs + cineRestMs && now - runSeenAt >= cineRestMs;
   }
+  /* WHAT ELSE ENDS THE REST: news that starts no run. A live run ends the rest by being live (liveRunCount), but a channel
+     message the dish only pulses for, a permission prompt, a deliverable or an alert starts none, and on its own it left the
+     camera rested and every crew body settled while only the frame pace woke, for one frame. Every event name the world hears
+     is listed once below. WAKE ends the rest the way a run does: restWakeOn stamps runSeenAt (the rest returns CINE_REST_MS
+     later), wakeSettledCrew hands every settled body its next decision on the same tick, and the motionWake tap beside it draws
+     the next vsync. QUIET never does: it is run traffic liveRunCount already owns, housekeeping, or the work of a hand. Tying the
+     rest to motionWake itself is wrong: polls, reconciles and an SSE reopen call it all day, and the station would never rest.
+     The idle-renderer test walks every U.bus.on in this file, so a new event cannot reach the floor unclassified. */
+  const REST_WAKE_EVENTS = new Set([
+    'channel.inbound',       // a message arrived (the dish pulses even when no run starts)
+    'permission.prompt',     // somebody has to answer
+    'deliverable',           // a finished product landed
+    'workitem.placed',       // a crate was placed on the line (a summon)
+    'cron.result',           // a routine reported in
+    'capdenied',             // a capability was refused
+    'credits.low',           // an alert about the money
+    'budget.threshold',      // an alert about the money
+    'agent.run.error'        // a run failed
+  ]);
+  const REST_QUIET_EVENTS = new Set([
+    // run traffic: liveRunCount() holds the rest open while a run lives, and the last live frame stamped runSeenAt
+    'agent.run.start',       // the run is live from this event on (liveRunCount)
+    'agent.run.end',         // the rest waits CINE_REST_MS after the run's last live frame
+    'agent.tool_call',       // work inside a live run
+    'agent.tool_result',     // work inside a live run
+    'agent.token',           // every token of a live run (chatter)
+    'agent.cost',            // a live run's bill
+    'cost.estimate',         // a live run's running estimate
+    'provider.fallback',     // a live run changed provider
+    'taskbrief.settled',     // a live run's brief
+    'shell.exec',            // a tool's effect inside a live run
+    'verify.result',         // a tool's verdict inside a live run
+    'task',                  // progress of a task that is already running
+    // housekeeping: counters, receipts and bookkeeping, never news
+    'queue.status',          // backlog depth, repeated
+    'workitem.superseded',   // a crate replaced by a newer one
+    'workitem.delivered',    // the end of work a run owned
+    'channel.delivery',      // the receipt of an answer that was news when it was asked
+    'memory.recall',         // the memory's own bookkeeping
+    'memory.write',          // the memory's own bookkeeping
+    'memory.forget',         // the memory's own bookkeeping
+    // the work of a hand (camUserAt already ended the rest) or the answer to news
+    'checkpoint.restored',   // a hand rewound the station
+    'permission.response',   // the answer to a prompt that was news when it came
+    // link state
+    'channel.connect'        // a connector came or went
+  ]);
+  function restWakeOn(ev) { if (idleRenderer && REST_WAKE_EVENTS.has(ev)) runSeenAt = performance.now(); }   // the second U.bus.tap (connectChannelBridge)
   /* THE CREW SETTLE (the idle renderer's second half: option A of the 11-02 design note, approved 11-03). A rested camera alone
      left a P7 floor drawing ~47 times a second: the idle crew kept wandering and running their social life on screen, and every
      on-screen body that moves books a full-pace frame. While the station rests (cineRested: ONE rule, so the flag, the hands-off
-     time and the no-live-run window are the camera's), a body reaching its next idle decision starts nothing new (no wander,
-     quirk, nap, social beat, chase, mimic, rounds or gathering) and holds still where it stands (standStill: no glance, no
-     swivel). Whatever it was doing when the rest began, it finishes first. Blinks and clock-driven pose frames go on as single due
-     frames, so the floor falls to the still pace. The first hand on the window or a live run ends the rest, and wakeSettledCrew
-     (run in the tick BEFORE any body steps) hands every settled body its next idle decision on that same tick. While the station
-     is in use nothing here runs; with the flag off cineRested is never true, so nothing here ever changes a body. */
+     time and the no-live-run, no-wake-event window are the camera's), a body reaching its next idle decision starts nothing new
+     (no wander, quirk, nap, social beat, chase, mimic, rounds or gathering) and holds still where it stands (standStill: no glance,
+     no swivel). Whatever it was doing when the rest began, it finishes first. Blinks and clock-driven pose frames go on as single
+     due frames, so the floor falls to the still pace. The first hand on the window, a live run or a wake event (a message that
+     starts no run, a prompt, a deliverable, an alert: REST_WAKE_EVENTS) ends the rest, and wakeSettledCrew (run in the tick BEFORE
+     any body steps) hands every settled body its next idle decision on that same tick. While the station is in use nothing here
+     runs; with the flag off cineRested is never true, so nothing here ever changes a body. */
   const CREW_REST_HOLD_MS = 30000;   // a settled body re-checks the rest this often (a wake never waits for it)
   let crewSettling = false;          // some body may be settled: the wake loop runs only while this is set
   function crewRestGate(now) {       // decideIdle's first word while the station rests (self = the deciding body)
@@ -6934,8 +7015,9 @@ const World = (() => {
      render body can never permanently kill the loop), then runs the body in try/catch. A throwing frame is
      logged ONCE per distinct message (no per-frame spam); after RENDER_FAULT_LIMIT consecutive throws it paints
      an honest "RENDER FAULT" overlay while still attempting frames, and a single clean frame resets the counter.
-     frameBody() therefore NEVER reschedules rAF itself — the wrapper owns scheduling, so exactly one callback is
-     ever alive (double-scheduling was the old early-out bug). */
+     frameBody() therefore never ADDS a callback — the wrapper owns scheduling, so exactly one is ever alive
+     (double-scheduling was the old early-out bug). The one swap: stillVerdict, last in the body, cancels that
+     booking and books again from its fresh verdict. */
   let renderFaults = 0;         // consecutive throwing frames
   let lastFaultMsg = '';        // de-dupe console spam: only log a NEW error message
   const RENDER_FAULT_LIMIT = 30;
@@ -6975,9 +7057,9 @@ const World = (() => {
     if (yieldWait(now, force) > 0) { scheduleFrame(pace); return; }   // scheduleFrame books the first vsync after the hold
     paceLowRate = pace >= PACE_TIMER_MIN_MS;
     // RENDER PACING: not this vsync. Half a vsync of slack draws on the vsync NEAREST the pace (never a whole one late)
-    if (force !== true && now - lastDrawnAt < pace - Math.max(1, Math.min(vsyncMs || 2, 17) / 2)) { scheduleFrame(pace); return; }
+    if (force !== true && now - lastDrawnAt < pace - Math.max(1, Math.min(vsyncMs || 2, 17) / 2)) { skippedFrames++; scheduleFrame(pace); return; }
     lastDrawnAt = now; pacedDraws++;
-    if (dueWatch <= now) noteDueDraw(now);   // STILL: this draw lands the change the still floor waited on (DUE LEAD readout)
+    if (dueWatch <= now) noteDueDraw(now);   // STILL: this draw lands the change the still floor waited on (the dueWatch readout)
     scheduleFrame(pace);   // schedule next frame FIRST — a throw below can't kill the loop
     const drawStart = performance.now(), bakedBefore = cache;   // only rebake() (and loadStation) replace the bake
     const reviewStart=reviewPerformance.enabled?drawStart:0;
@@ -11520,6 +11602,7 @@ const World = (() => {
     // STILL: every harness event that reaches a listener (SSE-bridged or the in-app run stream) wakes a still floor, so what
     // it starts — a body summoned, a crate placed, a desk lighting — is drawn on the next vsync
     if (typeof U.bus.tap === 'function') U.bus.tap(motionWake);
+    if (typeof U.bus.tap === 'function') U.bus.tap(restWakeOn);   // IDLE RENDERER (flag): and the few events that are news (REST_WAKE_EVENTS) end the rest as a run does; chatter never does
     setupTicker();   // join the .cam-hud overlay (starts empty — no fake backfill)
     // ── CAM-HUD ACTIVITY TICKER: narrate the latest REAL harness event as one diegetic camera line. ──
     U.bus.on('agent.run.start', p => {

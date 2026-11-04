@@ -92,9 +92,9 @@ const harness = (status) => {
   // the spend line above the rows tells the same story: an unpriced evaluation is never counted as an interrupted run
   const evalRun2 = { ...evalRun, runId: 'skill-eval-abc-2-after-0123456789ab' };
   for (const [unsettled, re, settle] of [
-    [[evalRun], /— a skill evaluation run has no recorded price, so your spending limits can’t be checked\./, /Settle it below/],
-    [[evalRun, evalRun2], /— 2 skill evaluation runs have no recorded price, so/, /Settle each below/],
-    [[evalRun, st.unsettled[1]], /— 2 runs never recorded what they spent, so/, /Settle each below/]
+    [[evalRun], /— a skill evaluation run has no recorded price\. Limits you chose refuse paid calls until this is settled/, /Settle it below/],
+    [[evalRun, evalRun2], /— 2 skill evaluation runs have no recorded price\. Limits you chose refuse paid calls/, /Settle each below/],
+    [[evalRun, st.unsettled[1]], /— 2 runs never recorded what they spent\. Limits you chose refuse paid calls/, /Settle each below/]
   ]) {
     const h = harness({ ...st, unsettled }); await tick();
     const line = h.node('#budget-spend').textContent;
@@ -116,11 +116,40 @@ const harness = (status) => {
   assert.equal(dRow.children.length, 3, 'no COUNT AS: a damaged line recorded no limit');
   dRow.children[2].click(); await tick();
   assert.equal(dm.posts.length, 0, 'a blank charge is never booked as $0');
-  assert.match(dm.node('#budget-spend').textContent, /— a line of your spend record is damaged \(what it recorded is unknown\), so your spending limits can’t be checked\. Settle it below/, dm.node('#budget-spend').textContent);
+  assert.match(dm.node('#budget-spend').textContent, /— a line of your spend record is damaged \(what it recorded is unknown\)\. Limits you chose refuse paid calls until this is settled;.* Settle it below/, dm.node('#budget-spend').textContent);
   dRow.children[1].value = '0.3'; dRow.children[2].click(); await tick();
   assert.match(dm.node('#budget-msg').textContent, /damaged record line settled/, dm.node('#budget-msg').textContent);
   const mixed = harness({ ...st, unsettled: [damagedLine, st.unsettled[1]] }); await tick();
-  assert.match(mixed.node('#budget-spend').textContent, /— 2 items in your spend history have no recorded charge, so/, mixed.node('#budget-spend').textContent);
+  assert.match(mixed.node('#budget-spend').textContent, /— 2 items in your spend history have no recorded charge\. Limits you chose refuse paid calls/, mixed.node('#budget-spend').textContent);
+  // A bound is an estimate, never a measured charge or admission authority; each row still offers one
+  // click (COUNT AS at the server's countAs), posted as mode 'bound' so the server books its own figure, never the page's
+  const counted = { ...st, unknown: { items: 3, unbounded: 0, countedUsd: 4.7 }, day: { usd: null, estimatedUsd: 26.7, cap: 25, base: 25, countedUsd: 4.7 }, unsettled: [
+    { ...damagedLine, bound: { usd: 2, source: 'assumed' }, countAs: { usd: 2, source: 'assumed' } },
+    { ...damagedLine, runId: 'damaged-rec', bound: { usd: 0.7, source: 'recorded' }, countAs: { usd: 0.7, source: 'recorded' } },
+    { ...st.unsettled[0], bound: { usd: 2, source: 'limit' }, countAs: { usd: 2, source: 'limit' } }] };
+  const cs = harness(counted); await tick();
+  const [aRow, rRow, lRow] = cs.node('#budget-unsettled').children;
+  assert.match(aRow.children[0].textContent, / · ESTIMATE \$2 \(ASSUMED\)$/, aRow.children[0].textContent);
+  assert.match(aRow.attrs['data-tip'], /Suggested settlement: \$2 .*not a measured charge and does not waive a spending limit you chose/, aRow.attrs['data-tip']);
+  assert.match(aRow.attrs['data-tip'], /does not waive a spending limit you chose/, 'a bounded charge remains uncertain');
+  assert.equal(aRow.children[3].textContent, 'COUNT AS $2', 'a damaged line gets its one click too');
+  assert.match(aRow.children[3].attrs['data-tip'], /^book it at \$2, the assumption for a charge nobody can read .* verify the exact charge in the original billing records$/, aRow.children[3].attrs['data-tip']);
+  assert.match(rRow.children[0].textContent, /ESTIMATE \$0\.7 \(AS RECORDED\)$/);
+  assert.match(rRow.children[3].attrs['data-tip'], /^book it at the \$0\.7 the damaged line still records/);
+  assert.match(lRow.children[0].textContent, /ESTIMATE \$2 \(ITS LIMIT\)$/);
+  assert.match(lRow.children[3].attrs['data-tip'], /per-run limit it started with — its last call can run past that limit, so the STORE’s RECENT ACTIVITY has the exact charge$/);
+  assert.match(cs.node('#budget-spend').textContent, /Limits you chose refuse paid calls until this is settled/, 'bounded and unbounded items keep chosen limits strict');
+  assert.equal(cs.node('#budget-pools').children.length, 0, 'unknown spend offers no speculative cap-hit RESUME');
+  aRow.children[3].click(); await tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(cs.posts[0])), ['/api/budget/settle', { runId: damagedLine.runId, mode: 'bound' }], 'COUNT AS posts mode bound');
+  const unb = harness({ ...st, unknown: { items: 1, unbounded: 1, countedUsd: 0 }, unsettled: [{ ...st.unsettled[1], runCapUsd: null, bound: null, countAs: { usd: 2, source: 'assumed' } }] }); await tick();
+  const uRow = unb.node('#budget-unsettled').children[0];
+  assert.match(uRow.children[0].textContent, /CHARGE UNKNOWN$/, uRow.children[0].textContent);
+  assert.match(uRow.attrs['data-tip'], /A spending limit you chose refuses paid calls until this charge is settled/);
+  assert.equal(uRow.children[3].textContent, 'COUNT AS $2', 'one click even with no bound: the assumption');
+  assert.match(unb.node('#budget-spend').textContent, /Limits you chose refuse paid calls until this is settled/, 'an item without a bound is still unknown');
+  uRow.children[3].click(); await tick();
+  assert.deepEqual(JSON.parse(JSON.stringify(unb.posts[0])), ['/api/budget/settle', { runId: 'b1', mode: 'bound' }]);
   // every skill evaluation run id opens with the runner's 'skill-eval-' namespace, so its first 8 chars are the same for
   // all of them: the tip and RECENT ACTIVITY both name its evaluation, serial and phase instead (one helper, same words)
   const evalId = 'skill-eval-3f2a9c1d-7b4e-4c1a-9d2e-0123456789ab';

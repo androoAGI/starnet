@@ -42,8 +42,9 @@ function memfs() {
   };
 }
 function makeStore() {
-  // no `require` in the context: savestore's fail-open note falls back to console.warn (hermetic, nothing on disk)
-  const ctx = vm.createContext({ module: { exports: {} }, console: { warn() {}, log() {} }, Buffer });
+  // the context's require loads only the sidecar modules savestore imports (failopen, and sidecar/persist, which owns its
+  // reads and writes): every byte the store touches is still the in-memory fs (hermetic, nothing on disk)
+  const ctx = vm.createContext({ module: { exports: {} }, require: rel => require(path.join(ROOT, 'sidecar', rel)), console: { warn() {}, log() {} }, Buffer });
   vm.runInContext(src('sidecar/savestore.js'), ctx);
   return ctx.module.exports.makeSaveStore({ fs: memfs(), pathMod: path.posix, root: '/ws', clock: { now: () => Date.now() } });
 }
@@ -83,6 +84,7 @@ function pageContext(localStorage, fetch, extra) {
     console: { warn() {}, info() {}, log() {} }, queueMicrotask, setTimeout, clearTimeout, AbortController, crypto: nodeCrypto,
     localStorage, fetch, JSON
   }, extra || {}));
+  vm.runInContext(src('frontend/js/util.js'), c); // actual page graph: shared utilities precede Backup
   vm.runInContext(src('frontend/app/save.js'), c);
   vm.runInContext(src('frontend/app/cloudsavecore.js'), c);
   vm.runInContext(src('frontend/app/cloudsave.js'), c);
@@ -438,7 +440,7 @@ async function exportCarriesTheStation() {
     document: { createElement: () => ({ click() {} }), body: { appendChild() {}, removeChild() {} } }
   });
   const r = await vm.runInContext('Backup.exportAll()', reload.c);
-  A.ok(r.ok && /^starnet-nova-/.test(r.file), 'E3: the saved file is named for the agent (got ' + r.file + ')');
+  A.ok(r.ok && /^starnet-nova-/.test(r.file), 'E3: the requested download is named for the agent (got ' + r.file + ')');
 
   // the file restores the station on a browser with room for it
   const roomy = quotaStorage({ limit: 0 });

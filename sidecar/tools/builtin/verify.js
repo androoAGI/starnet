@@ -33,6 +33,7 @@
   function makeVerifyTool(deps) {
     deps = deps || {};
     const environment = deps.environment || null;
+    const ownEnv = deps.env && typeof deps.env === 'object' ? deps.env : null;   // the environment a direct (no environment manager) check runs with
     const spawn = deps.spawn, fs = deps.fs, P = deps.pathMod, ROOT = deps.root;
     if (!environment && (typeof spawn !== 'function' || !fs || !P || !ROOT)) throw new Error('verify.js requires { spawn, fs, pathMod, root } or { environment }');
     const redact = typeof deps.redact === 'function' ? deps.redact : (s) => s;
@@ -77,8 +78,9 @@
         const hostWide = shell.unrestrictedHost(ctx);
         const deny = hostWide ? null : escapesWorkspace(cmd);
         if (deny) throw new Error('refused: ' + deny);
-        const safetyDeny = hostWide ? null : commandSafetyRisk(cmd, { cwd: hostCwd, fs: fs, pathMod: P,
-          dialect: environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix'), isWin: isWin });
+        const safetyDeny = hostWide ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P,
+          dialect: environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix'), isWin: isWin,
+          env: shell.commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this check ' + safetyDeny.reason + '. verify.run cannot change the user\'s screen, session, processes, input, or network exposure; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
         const checkpoint = typeof ctx.checkpointMutation === 'function'
@@ -89,7 +91,7 @@
           // ctx.surface rides along (host authority): an unattended run receives only the service keys whose
           // unattended grant is flipped ON — the same rule resolveForRequest enforces on web_request.
           ? environment.execute({ agentId: aid, cmd: cmd, cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, surface: ctx.surface })
-          : runCommand({ spawn: spawn, cmd: cmd, cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin }); });
+          : runCommand({ spawn: spawn, cmd: cmd, cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, env: ownEnv || undefined }); });
         return run.then(function (res) {
           const verdict = interpret(res);
           const body = redact(res.out || '(no output)');

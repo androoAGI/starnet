@@ -225,6 +225,65 @@ export function stillWindow(a, b) {
   return { share: +((b.stillFrames - a.stillFrames) / d).toFixed(3), draws: d, why };
 }
 
+/* What a window's pacer did, from two page reads (pageState: draws, the passive rAF probe, the renderPace counters). rafPerDraw is
+   the PAGE's rAF callbacks per draw: the crew clock's short rides (crewcards.js, 6-7 a second) count in it. worldRafPerDraw is the
+   world's own: every callback frame() takes ends as a draw, a skip (renderPace().skippedFrames) or a UI-first yield (a window opening:
+   none in a quiet window, and a yield would only make the figure read low), so (draws + skipped) / draws. The old still pacer booked
+   two callbacks per draw (a spin the draw rate hides: P7 read 59 + 27 rAF a second for 30 draws). null: a tree that does not count
+   the callbacks it skips, or a window with no draws. */
+export function pacerWindow(a, b) {
+  if (!a || !b || !a.raf || !b.raf) return null;
+  const draws = b.draws - a.draws, rafFired = b.raf.fired - a.raf.fired;
+  if (!(draws > 0) || !Number.isFinite(rafFired)) return null;
+  const delta = k => { const x = a.pace && a.pace[k], y = b.pace && b.pace[k]; return Number.isFinite(x) && Number.isFinite(y) ? y - x : null; };
+  const skippedFrames = delta('skippedFrames');
+  return { draws, rafFired, rafPerDraw: +(rafFired / draws).toFixed(2), skippedFrames,
+    worldRafPerDraw: skippedFrames == null ? null : +((draws + skippedFrames) / draws).toFixed(2), dueDraws: delta('dueDraws'), dueLate: delta('dueLate') };
+}
+
+/* THE IDLE BUDGET (the world-idle-renderer lane: "an idle station costs close to nothing, without lowering the visible frame rate";
+   done means the idle main thread is at most 15%). One pure verdict over the quiet-window row (P7), so the run judges itself:
+     mainBusyPct   the page's main thread, % of the wall                  <= 15
+     rafPerDraw    rAF callbacks per draw: the WORLD's own when the tree counts its skips (the crew clock's rides are another
+                   module's and bounded), else the page's                <= 1.25   (the base still pacer spun at ~2)
+     drawsPerS     the approved still pace, 30 a second                   28 - 32
+     crewSettled   bodies holding still for the rest, at BOTH ends        > 0       (a floor that never settled is not the rest)
+     stillShare    the window's draws the frame judge read as still       >= 95%
+   Evidence first: an invalid phase, a contended box, or a phase that never said either is 'unjudged', and so is a row with a line
+   that was not measured. A busy box's numbers are not evidence either way, so contention outranks a fail. A line that WAS measured
+   and is over its budget is a 'fail' whatever else is missing. Pure: the row is not touched. */
+export const IDLE_BUDGET = Object.freeze({ mainBusyPct: 15, rafPerDraw: 1.25, drawsPerS: Object.freeze([28, 32]), stillShare: 0.95 });
+export function idleBudgetVerdict(row) {
+  if (!row || typeof row !== 'object') return { verdict: 'unjudged', checks: [], reasons: ['no row to judge'] };
+  const B = IDLE_BUDGET, num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const world = num(row.worldRafPerDraw), page = num(row.rafPerDraw);
+  const settled = (Array.isArray(row.obs) ? row.obs : []).map(o => num(o && o.crewSettled));
+  const lines = [
+    { name: 'mainBusyPct', value: num(row.mainBusyPct), want: '<= ' + B.mainBusyPct + '%', pass: v => v <= B.mainBusyPct },
+    { name: 'rafPerDraw', value: world != null ? world : page, note: world != null ? 'world' : page != null ? 'page' : null, want: '<= ' + B.rafPerDraw, pass: v => v <= B.rafPerDraw },
+    { name: 'drawsPerS', value: num(row.drawsPerS), want: B.drawsPerS[0] + '-' + B.drawsPerS[1], pass: v => v >= B.drawsPerS[0] && v <= B.drawsPerS[1] },
+    { name: 'crewSettled', value: settled.length && settled.every(x => x != null) ? Math.min(...settled) : null, want: '> 0', pass: v => v > 0 },
+    { name: 'stillShare', value: num(row.still && row.still.share), want: '>= ' + Math.round(B.stillShare * 100) + '%', pass: v => v >= B.stillShare },
+  ];
+  const checks = lines.map(l => { const c = { name: l.name, ok: l.value == null ? null : l.pass(l.value), value: l.value, want: l.want }; if (l.note) c.note = l.note; return c; });
+  const why = [];
+  if (row.valid === false) why.push('the phase is not valid: ' + ((row.invalidWhy || []).join('; ') || 'no reason given'));
+  else if (row.valid !== true) why.push('the phase never reported its validity');
+  if (row.contended === true) why.push('the box was contended: ' + ((row.contendedWhy || []).join('; ') || 'no reason given'));
+  else if (row.contended !== false) why.push('the phase never reported whether the box was contended');
+  if (why.length) return { verdict: 'unjudged', checks, reasons: why };
+  const failed = checks.filter(c => c.ok === false);
+  if (failed.length) return { verdict: 'fail', checks, reasons: failed.map(c => c.name + ' ' + c.value + ' (want ' + c.want + ')') };
+  const unread = checks.filter(c => c.ok === null);
+  if (unread.length) return { verdict: 'unjudged', checks, reasons: unread.map(c => c.name + ' was not measured') };
+  return { verdict: 'pass', checks, reasons: [] };
+}
+// the one line the bench prints for P7: the verdict, then every reading (with what it wanted when it failed), then why it was unjudged
+export function idleBudgetLine(v) {
+  const read = (v.checks || []).map(c => c.name + ' ' + (c.value == null ? 'n/a' : c.value) + (c.ok === false ? ' (want ' + c.want + ')' : '')).join(', ');
+  return String(v.verdict).toUpperCase() + ' :: ' + read + (v.verdict === 'unjudged' ? ' :: ' + (v.reasons || []).join('; ') : '');
+}
+
 export function stats(values) {
   const v = (values || []).filter(x => typeof x === 'number' && Number.isFinite(x)).sort((a, b) => a - b);
   if (!v.length) return { n: 0, median: null, min: null, max: null, mean: null, p95: null };

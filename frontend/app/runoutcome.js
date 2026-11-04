@@ -189,7 +189,7 @@
     succeeded: 'finished', asked: 'asked a question', cut_short: 'the reply was cut short', failed: 'failed',
     refused: 'the model declined the request', stopped: 'stopped before it finished', out_of_budget: 'hit a spending limit',
     step_limit: 'reached the step limit', empty: 'the model sent back an empty reply', interrupted: 'interrupted when StarNet stopped',
-    blocked: 'held: a reviewer blocked the work'
+    blocked: 'held: the work was not accepted'
   });
   function line(o) {
     const x = o || {};
@@ -239,5 +239,54 @@
   });
   function look(o) { const k = typeof o === 'string' ? o : (o && o.outcome); return LOOK[k] || LOOK.failed; }
 
-  return { OUTCOMES, BY_REASON, NO_TERMINAL, PROVIDER_CODES, LOOK, resolve, ofEnd, ofRow, ofLine, ofWord, ofWorker, reasonOf, stamp, sink, line, look, isProviderCode, providerAnswered, isOutcome: v => KNOWN.has(v) };
+  /* HOW A WORK LINE'S JOB ENDED (line-job-runner, 2026-11-03) — the line's own vocabulary beside the run's above. A job is many runs
+     (one per stage); where its walk stopped is ONE code, and the job's end is ONE outcome. sidecar/routing/line-fire.js lineStop(code,
+     facts) says each code in one sentence; chain.js (out.stop) and the step-through test (session.stop) set them.
+     LINE_STOPS — why a walk stopped:
+       hop_limit / usd_limit / day_limit   the line's LINE BUDGET (stages, $ per message, $ per day) or the walk's own hop guard
+       stage_incomplete                    a stage did not finish (cut short, a spending or step limit, a question, interrupted, no end)
+       stage_failed / stage_empty          a stage failed, was refused or could not start / it handed on nothing
+       loops_back / wrong_line             the walk came back to a bay outside a loop pass / the job belongs to another line
+       no_outbox                           the walk ended at a bay whose belt reaches no OUTBOX
+       partial_join / joiner_lost          a JOINER sent the job on without every branch / lost the branches it waited for
+       stopped / station_fault             someone stopped it (STOP, E-STOP) / the station's own fault containment did
+       blocked                             a reviewer's VERDICT: blocked held the work at a gate
+       not_steppable / refused / restart   the step-through test cannot carry it / refused before it ran / StarNet restarted mid-step
+     LINE_OUTCOMES — the job's end: running · paused (a step-through test waiting on you) · delivered (an OUTBOX reached, no stop) ·
+     stopped_short · stopped · blocked · failed (it never ran) · interrupted.
+       lineOutcomeOf(x)  a stop code -> the outcome it ends a job with (no code = delivered: the walk reached its OUTBOX); a job
+                         record -> its stamped outcome, else its legacy status through LEGACY_LINE (a record written before the codes)
+       lineStatus(o)     -> the LineJob status word every older reader knows ('problem' stays the stored and shown alias of
+                         stopped_short and blocked; an older build reads 'paused' as interrupted)
+       lineLook(o)       -> { word, tone } one short word and one tone per outcome, the WORKFLOWS chips' own. */
+  const LINE_STOPS = Object.freeze(['hop_limit', 'usd_limit', 'day_limit', 'stage_incomplete', 'stage_failed', 'stage_empty', 'loops_back',
+    'wrong_line', 'no_outbox', 'partial_join', 'joiner_lost', 'stopped', 'station_fault', 'blocked', 'not_steppable', 'refused', 'restart']);
+  const LINE_OUTCOMES = Object.freeze(['running', 'paused', 'delivered', 'stopped_short', 'stopped', 'blocked', 'failed', 'interrupted']);
+  const LINE_STOP_SET = new Set(LINE_STOPS), LINE_OUTCOME_SET = new Set(LINE_OUTCOMES);
+  // a stop someone made, the station's fault containment, a reviewer's hold, a refusal and a restart are their own ends; every other
+  // stop left the job short of its OUTBOX (the stages that ran stay real work)
+  const STOP_OUTCOME = Object.freeze({ stopped: 'stopped', station_fault: 'stopped', blocked: 'blocked', refused: 'failed', restart: 'interrupted' });
+  const LEGACY_LINE = Object.freeze({ running: 'running', paused: 'paused', delivered: 'delivered', problem: 'stopped_short', stopped: 'stopped', failed: 'failed', interrupted: 'interrupted' });
+  const LINE_STATUS = Object.freeze({ running: 'running', paused: 'paused', delivered: 'delivered', stopped_short: 'problem', stopped: 'stopped', blocked: 'problem', failed: 'failed', interrupted: 'interrupted' });
+  const LINE_LOOK = Object.freeze({
+    running: Object.freeze({ word: 'running', tone: 'run' }), paused: Object.freeze({ word: 'paused', tone: 'ask' }),
+    delivered: Object.freeze({ word: 'delivered', tone: 'ok' }), stopped_short: Object.freeze({ word: 'problem', tone: 'warn' }),
+    stopped: Object.freeze({ word: 'stopped', tone: 'stop' }), blocked: Object.freeze({ word: 'blocked', tone: 'warn' }),
+    failed: Object.freeze({ word: 'didn’t run', tone: 'warn' }), interrupted: Object.freeze({ word: 'interrupted', tone: 'warn' })
+  });
+  function lineOutcomeOf(x) {
+    if (x && typeof x === 'object') {
+      if (LINE_OUTCOME_SET.has(x.outcome)) return x.outcome;
+      return LEGACY_LINE[str(x.status)] || 'failed';
+    }
+    const c = str(x).trim();
+    if (!c) return 'delivered';
+    if (LINE_STOP_SET.has(c)) return STOP_OUTCOME[c] || 'stopped_short';
+    return LINE_OUTCOME_SET.has(c) ? c : (LEGACY_LINE[c] || 'failed');
+  }
+  function lineStatus(o) { return LINE_STATUS[lineOutcomeOf(o)] || 'failed'; }
+  function lineLook(o) { return LINE_LOOK[lineOutcomeOf(o)] || LINE_LOOK.failed; }
+
+  return { OUTCOMES, BY_REASON, NO_TERMINAL, PROVIDER_CODES, LOOK, resolve, ofEnd, ofRow, ofLine, ofWord, ofWorker, reasonOf, stamp, sink, line, look, isProviderCode, providerAnswered, isOutcome: v => KNOWN.has(v),
+    LINE_STOPS, LINE_OUTCOMES, lineOutcomeOf, lineStatus, lineLook, isLineStop: v => LINE_STOP_SET.has(v) };
 });

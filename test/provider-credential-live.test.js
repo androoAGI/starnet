@@ -18,7 +18,11 @@ srcs.forEach((s, i) => A.ok(s.length > 40 && s.length < 3000, 'one bounded ' + n
 const { getProviderProfile } = require('../sidecar/providers/registry.js');
 
 function build(state) {
+  const providerVerification = require('../sidecar/provider-readiness.js').makeProviderReadiness({ now: () => 1000,
+    digest: s => require('crypto').createHash('sha256').update(s).digest('hex') });
   const deps = {
+    providerVerification, providerRuntimeBaseUrl: () => '',
+    credStore: require('./helpers/credential-store-sandbox.js').sandboxStore({ providerVerification }),
     getProviderProfile,
     normalizeProvider: p => String(p || 'openrouter'),
     registryProviderUsesCodex: id => id === 'codex',
@@ -109,10 +113,9 @@ A.ok(!build({}).providerHasCredential('custom', 'k', ''), 'a base-URL provider w
   A.ok(/stationHubRunConfig\([^\n]*\{ storedCredential: true \}\)/.test(follows) && !/providerHasCredential\(/.test(follows), "the boot gate is the live pair's resolution on the STORED credential");
   A.ok(/o\.storedCredential \? providerHasStoredCredential\(provider, key, baseUrl\) : providerHasCredential\(provider, key, baseUrl\)/.test(sidecarFunctionSource('channelRunConfigFor')),
     '...which channelRunConfigFor reads as providerHasStoredCredential');
-  for (const fn of ['startTelegram', 'startDiscord', 'startGenericChannel']) {
-    const s = sidecarFunctionSource(fn);
-    A.ok(/secrets: \(\) => \{[\s\S]*?configured: providerHasCredential\([^)]*\), error: expiredSignInNote\(/.test(s), fn + '\'s hub secrets carry the expired-sign-in note');
-  }
+  // (credential-store S8) the three hubs' per-message read is one function
+  A.ok(/configured: !lost && providerHasCredential\([^)]*\),\s+error: lost \? channelKeyLostError\(provider, r\.keyLost\) : expiredSignInNote\(/.test(sidecarFunctionSource('channelHubSecrets')), 'a hub\'s secrets carry the expired-sign-in note');
+  for (const fn of ['startTelegram', 'startDiscord', 'startGenericChannel']) A.ok(/secrets: \(\) => channelHubSecrets\(/.test(sidecarFunctionSource(fn)), fn + ' reads them');
 }
 
 // ---- the image route reads the SAME verdict, never a private copy (quick win 9) ----

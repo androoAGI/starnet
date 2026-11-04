@@ -8,11 +8,12 @@
 
    THE CENSUS (source, through test/helpers/source.js): every line of sidecar/ that names agent.token is an emitter, the
    assembler itself, a declared live-stream surface or a declared reader that keeps no reply, each with its reason; nothing
-   else folds a run's deltas; the assembler's users are exactly the nine sinks; and joinReplyDelta is called nowhere else.
+   else folds a run's deltas; the assembler's users are exactly the five remaining stream sinks; and joinReplyDelta is called nowhere else.
 
    THE BEHAVIOUR: a steered run and an ordinary run through every sink the way production runs them: the REAL hub (entry and
-   line hop), the REAL cron driver, the REAL loop driver, and the five host sinks LIFTED out of sidecar/index.js. Each
-   delivers '↪ <note>' on its own line, never '[steering]', and an ordinary stream byte for byte as it always did. A seeded
+   line hop), the REAL cron driver, the REAL loop driver, and the two remaining host stream sinks LIFTED out of sidecar/index.js.
+   The stream sinks deliver '↪ <note>' on its own line, never '[steering]', and ordinary streams byte for byte. Line hops now
+   use the real LineRunner profiles and the run's accepted terminal text; streamed narration/steering cannot become their work. A seeded
    property says the same of the assembler: its text differs from a raw fold only when a steering echo is in the stream.
 
    THE ENDINGS. A run's ending was four flags (superseded, supersededBy, halted, faulted) with three writers and fourteen hub
@@ -29,7 +30,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const { sidecarSourceFiles, readSidecarIndex, sidecarTopLevelFunction, callRegion } = require('./helpers/source.js');
+const { sidecarSourceFiles, readSidecarIndex, sidecarTopLevelFunction } = require('./helpers/source.js');
 const { makeClock } = require('../shared/clock-rng.js');
 const cron = require('../sidecar/cron.js');
 const cronStore = require('../sidecar/cron-store.js');
@@ -37,6 +38,8 @@ const { makeCronDriver } = require('../sidecar/cron-driver.js');
 const LoopStore = require('../sidecar/loopjob-store.js');
 const { makeLoopDriver } = require('../sidecar/loopjob-driver.js');
 const { makeChannelHub } = require('../sidecar/channels/hub.js');
+const LineRunner = require('../sidecar/routing/line-runner.js');
+const { makeRunTable } = require('../sidecar/run-table.js');
 const { killAll, markFaulted } = require('../sidecar/halt.js');
 // the assembler is this lane's; a trunk tree has none, and its cases say so
 const ASSEMBLER = path.join(__dirname, '..', 'sidecar', 'reply-assembler.js');
@@ -65,6 +68,8 @@ const KEEPS_NO_REPLY = [
   { rel: 'sidecar/observer.js', at: /case 'agent\.token':$/, why: '/api/observe: one event projected and clipped, nothing kept' },
   { rel: 'sidecar/subagents.js', at: /PROGRESS_EVENTS = new Set\(\['agent\.run\.start', 'agent\.token'/, why: 'liveness: a worker that streams is not stalled' },
   { rel: 'sidecar/index.js', at: /\(name === 'agent\.token' && payload\.delta\) \|\| name === 'agent\.tool_call'/, why: 'the answer hold: the first streamed word spends it' },
+  { rel: 'sidecar/routing/line-runner.js', at: /if \(name === 'agent\.token'\) return;/, why: 'hops ignore streamed prose and hand on only runOnce returned terminal text after its outcome is accepted' },
+  { rel: 'sidecar/run-table.js', at: /const CALL_EVENTS = new Set\(\['agent\.cost', 'cost\.estimate', 'agent\.token'/, why: 'the run table records that a provider call started; it keeps no reply bytes' },
   { rel: 'sidecar/run-streams.js', at: /\{"k":"<key>","name":"agent\.token"/, why: 'the wire format, in the header comment' }
 ];
 const DECLARED = [THE_ONE].concat(LIVE_STREAMS, KEEPS_NO_REPLY);
@@ -87,15 +92,15 @@ const folds = [];
 for (const f of FILES) f.text.split('\n').forEach((line, i) => { if (FOLDS_DELTA.test(line) && !/ev\.type === 'text'/.test(line)) folds.push({ rel: f.rel, n: i + 1, line: line }); });
 A.eq(folds.filter(s => !LIVE_STREAMS.some(d => d.rel === s.rel && d.at.test(s.line))).map(where), [], 'nothing folds a run\'s deltas by hand');
 
-// the assembler's users are exactly the nine sinks, and nothing joins a delta past it
-const SINKS = { 'sidecar/index.js': 5, 'sidecar/channels/hub.js': 2, 'sidecar/cron-driver.js': 1, 'sidecar/loopjob-driver.js': 1 };
+// LJR retired the three inline host hops and the hub's hop fold: the shared runner consumes accepted output instead.
+const SINKS = { 'sidecar/index.js': 2, 'sidecar/channels/hub.js': 1, 'sidecar/cron-driver.js': 1, 'sidecar/loopjob-driver.js': 1 };
 const users = {};
 for (const f of FILES) {
   if (f.rel === THE_ONE.rel) continue;
   const n = (f.text.match(/\bmakeReplyAssembler\(\)/g) || []).length;
   if (n) users[f.rel] = n;
 }
-A.eq(users, SINKS, 'the hub\'s entry and hop, the cron driver, the loop driver and the host\'s five sinks each build one assembler');
+A.eq(users, SINKS, 'hub entry, cron, loop, Run Now entry and night shift each build one assembler; line hops use accepted terminal output');
 A.eq(FILES.filter(f => f.rel !== THE_ONE.rel && /\bjoinReplyDelta\(/.test(f.text)).map(f => f.rel), [], 'joinReplyDelta is called only by the assembler');
 
 /* ---- 2. THE RUN: the loop's own wire shapes ----------------------------------------------------------------------------- */
@@ -103,7 +108,8 @@ const STEERED = ['Let me look.', '<tool>', 'First answer.', '\n[steering] also a
 const STEERED_REPLY = 'First answer.\n\n↪ also add a sonnet\n\nSecond answer.';
 const ORDINARY = ['Let me look.', '<tool>', 'Plain ', 'answer.', '\n\n', 'A [steering] word stays a word.'];
 const ORDINARY_REPLY = 'Plain answer.\n\nA [steering] word stays a word.';
-function runHost(deltas, reason) {
+const TERMINAL_REPLY = 'Accepted terminal work. The stream-only notes are not the handoff.';
+function runHost(deltas, reason, terminalText) {
   return async (o) => {
     const ids = { agentId: o.agentId, runId: o.runId };
     o.emit('agent.run.start', ids);
@@ -112,7 +118,7 @@ function runHost(deltas, reason) {
       else o.emit('agent.token', Object.assign({ delta: d }, ids));
     }
     o.emit('agent.run.end', Object.assign({ reason: reason || 'done', turns: 1, usd: 0 }, ids));
-    return { reason: reason || 'done' };
+    return { reason: reason || 'done', ...(terminalText !== undefined ? { text: terminalText } : {}) };
   };
 }
 
@@ -130,11 +136,11 @@ async function hubEntry(deltas) {
   await hub.onInbound(dm('go'));
   return { text: sends.join('|') };
 }
-async function hubHop(deltas) {
+async function hubHop(deltas, terminalText = TERMINAL_REPLY) {
   const sends = [];
   let runs = 0;
-  const hop = runHost(deltas);
-  const runOnce = (o) => (++runs === 1 ? runHost(['stage one'])(o) : hop(o));
+  const hop = runHost(deltas, 'done', terminalText);
+  const runOnce = (o) => (++runs === 1 ? runHost(['stage one'], 'done', 'stage one')(o) : hop(o));
   const chain = {
     advance: async (c) => { const r = await c.runAgent({ agentId: 'writer', text: 'handed on', signal: c.signal }); return { text: r.text, hops: [{ agentId: 'writer' }], agentId: 'writer', usd: 0, stopped: null }; },
     stopNote: () => ''
@@ -174,16 +180,10 @@ async function loopPass(deltas, reason) {
   return { text: harvested == null ? '' : harvested, error: LoopStore.getLoop(loops, 'l1').iterations[0].error };
 }
 
-// the host's five sinks: the function, or the seam, lifted whole out of sidecar/index.js and run with stubs at its edges
+// The two remaining host stream sinks are lifted whole. Their lifecycle dependency is the actual RunTable.
 const stubs = (host) => ({
-  makeReplyAssembler, runOnce: host, crypto: { randomUUID: () => 'run-lifted' }, runsMeta: new Map(),
-  cronSystemFor: () => 'P', hopStoppedSaid: () => 'stopped by you', failNote: () => {},
-  // a hop's and a step's outcome are their own run's (typed-outcomes): the real line-fire.js rule and the one resolver; who
-  // stopped a hop is index.js's rule with no process fault in the census
-  hopError: require('../sidecar/routing/line-fire.js').hopError, RunOutcome: require('../frontend/app/runoutcome.js'),
-  hopStoppedByYou: (hs) => !!(hs && hs.stopped && !hs.errMsg),
-  cronHopConfigFor: () => ({ ok: true, key: 'k', model: 'm', provider: 'p' }),
-  router: { dockOf: () => undefined, lineOfAgent: () => null, stationFor: () => null, stageBrief: () => null }
+  makeReplyAssembler, runOnce: host, crypto: { randomUUID: () => 'run-lifted' }, runTable: makeRunTable({ now: () => T0 }),
+  cronSystemFor: () => 'P', RunOutcome: require('../frontend/app/runoutcome.js')
 });
 const idx = readSidecarIndex();
 async function nightShift(deltas) {
@@ -192,20 +192,30 @@ async function nightShift(deltas) {
   }));
   return fn({ agentId: 'ns', messages: [] });
 }
-async function stepTest(deltas) {
-  const fn = vm.runInNewContext('(' + sidecarTopLevelFunction('stepTestRunDock') + ')', Object.assign(stubs(runHost(deltas)), {
-    sampleRunConfigFor: () => ({ ok: true, key: 'k', model: 'm', provider: 'p', configured: true, system: 'P' }), STEPTEST_PERSONA: 'P', dockSystem: (p) => p,
-    redact: (x) => x, chanEmit: () => {}, isAgentId: () => true
-  }));
-  return fn({ agentId: 'ag', entry: true, text: 'go', streamId: 's', sessionId: 'x', signal: null });
+// The retired inline bodies are not compatibility shims. Exercise the shared production profiles, with
+// deliberately different streamed and returned text, and pin that the host still selects these profiles.
+for (const name of ['schedule', 'manual', 'steptest']) {
+  A.ok(new RegExp('LineRunner\\.profiles\\.' + name + '\\(').test(idx), 'the host uses the real ' + name + ' LineRunner profile');
 }
-async function scheduledHop(deltas) {
-  const seam = callRegion(idx, '  advanceChain: (o) => chainRunner.advance({', '\n  })\n');
-  const o = vm.runInNewContext('({\n' + seam + '})', Object.assign(stubs(runHost(deltas)), {
-    chainRunner: { advance: (spec) => spec.runAgent({ agentId: 'writer', text: 'handed on', signal: null }) }, runTeeView: () => null, cronEmitNotify: () => {}
-  }));
-  return o.advanceChain({ agentId: 'ag', text: 'x' });
+async function profiledHop(kind, deltas, terminalText = TERMINAL_REPLY) {
+  const table = makeRunTable({ now: () => T0 });
+  const runner = LineRunner.makeLineRunner({ runOnce: runHost(deltas, 'done', terminalText), now: () => T0,
+    newId: () => 'profile-run-' + (++seq), liveRuns: { add: (runId, rec) => {
+      const lease = table.admit(Object.assign({}, rec, { runId }));
+      return () => lease.release();
+    } } });
+  const profile = LineRunner.profiles[kind]({
+    config: () => ({ ok: true, key: 'k', model: 'm', provider: 'p', configured: true, system: 'P' }),
+    system: () => 'P', station: () => null, persona: 'P', brief: () => null, dockSystem: p => p,
+    streamId: 'profile-stream', emit: () => {}, redact: x => x
+  });
+  const result = await runner.hopRunner(profile)({ agentId: 'writer', entry: true, text: 'handed on',
+    streamId: 'profile-stream', sessionId: 'profile-session', signal: null });
+  A.eq(table.size(), 0, kind + ': its own returned admission is released after completion');
+  return result;
 }
+const stepTest = (deltas, terminalText) => profiledHop('steptest', deltas, terminalText);
+const scheduledHop = (deltas, terminalText) => profiledHop('schedule', deltas, terminalText);
 const runNow = () => sidecarTopLevelFunction('handleCronRun');
 async function runNowEntry(deltas) {
   const src = runNow();
@@ -217,22 +227,19 @@ async function runNowEntry(deltas) {
   await runHost(deltas)({ agentId: 'ag', runId: 'r', emit: lifted.teeEmit });
   return { text: lifted.state.buf, tools: lifted.state.toolsRan };
 }
-async function runNowHop(deltas) {
-  const hop = callRegion(runNow(), '          runAgent: async (h) => {', '\n          }\n');
-  const o = vm.runInNewContext('({\n' + hop + '})', Object.assign(stubs(runHost(deltas)), { emit: () => {}, job: {}, key: 'k', model: 'm', provider: 'p', runId: 'r' }));
-  return o.runAgent({ agentId: 'writer', text: 'handed on', signal: null });
-}
+const runNowHop = (deltas, terminalText) => profiledHop('manual', deltas, terminalText);
 
 const EVERY_SINK = [
-  ['the hub\'s entry run', hubEntry], ['the hub\'s line hop', hubHop],
+  ['the hub\'s entry run', hubEntry],
   ['the cron driver', cronFire], ['the loop driver', loopPass],
-  ['a scheduled fire\'s line hop', scheduledHop], ['Run Now', runNowEntry], ['a Run Now line hop', runNowHop],
-  ['night shift', nightShift], ['the step test', stepTest]
+  ['Run Now', runNowEntry], ['night shift', nightShift]
 ];
+const TERMINAL_HOPS = [['the hub\'s line hop', hubHop], ['a scheduled fire\'s line hop', scheduledHop],
+  ['a Run Now line hop', runNowHop], ['the step test', stepTest]];
 
 /* ---- 4. A WITHDRAWN RUN: each way, through a real hub, with what the chat is told ----------------------------------------- */
 function parkedRun() {
-  const sends = [];
+  const sends = [], deliveries = [];
   let calls = 0, release = null;
   const latch = new Promise(r => { release = r; });
   const runOnce = async (o) => {
@@ -244,8 +251,8 @@ function parkedRun() {
     await latch;   // still unwinding: the record stays in the chat's inflight slot until the test lets it go
     o.emit('agent.run.end', Object.assign({ reason: 'cancelled', turns: 0, usd: 0 }, ids));
   };
-  const h = { sends, onEmit: null, release: () => release() };
-  h.hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'end-run-' + (++seq), isOwner: () => true,
+  const h = { sends, deliveries, calls: () => calls, onEmit: null, release: () => release() };
+  h.hub = makeChannelHub({ runOnce, store: fakeStore(), send: (c, t) => { sends.push(t); deliveries.push({ chatId: String(c), text: t }); return Promise.resolve({ ok: true, messageId: 'm' + sends.length }); }, secrets: () => ({ key: 'k', model: 'm' }), classify: () => false, newId: () => 'end-run-' + (++seq), isOwner: () => true,
     emit: (name, payload) => { if (h.onEmit) h.onEmit(name, payload); } });
   h.live = () => h.hub._internals.inflight;
   return h;
@@ -263,11 +270,11 @@ const ENDINGS = [
   ['/stop, then an E-STOP while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); killAll(null, h.live()); }],
   ['/stop, then a newer message while it unwinds', 'stopped', [SAID_STOP], async (h) => { await h.hub.onInbound(dm('/stop')); await newer(h); }],
   ['E-STOP, then a newer message while it unwinds', 'halted', [SAID_ESTOP], async (h) => { killAll(null, h.live()); await newer(h); }],
-  // the one instant a kill can still find a superseded run in the chat's slot: its replacement has not been filed yet
-  ['a newer message, then an E-STOP before its run starts', 'superseded', [SAID_SUPERSEDE], async (h) => {
-    h.onEmit = (name) => { if (name === 'channel.inbound') { h.onEmit = null; killAll(null, h.live()); } };
+  // The older run retains superseded; the new preparation already owns its own cancellable record.
+  ['a newer message, then an E-STOP before its run starts', 'superseded', [SAID_SUPERSEDE, SAID_ESTOP], async (h) => {
+    h.onEmit = (name) => { if (name === 'channel.inbound') { h.onEmit = null; h.newerOwner = h.live().get('4242'); killAll(null, h.live()); } };
     await newer(h);
-  }]
+  }, 0]
 ];
 
 /* ---- 5. THE SOURCE: one field, one reader -------------------------------------------------------------------------------- */
@@ -280,7 +287,17 @@ for (const rel of ENDING_FILES) {
   A.eq(flags.map(where), [], rel + ': no run-end flag is read or written: a withdrawn run carries one endReason');
 }
 for (const rel of ENDING_FILES.slice(0, 2)) A.ok(!/\.endReason\b/.test(fileText(rel)) && /\bendOf\(/.test(fileText(rel)), rel + ': reads the ending only through endOf(rec)');
-A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('sidecar/channels/hub.js').match(/\bmarkEnd\(/g) || []).length === 3, 'the hub writes it in three places (supersede, /stop, plain stop), first-wins');
+const hubEndSource = fileText('sidecar/channels/hub.js');
+const prestartStop = /if \(lineJob && lineJob\.stopRequested\) \{\s*markEnd\(myRec, lineJob\.stopRequested === 'fault' \? 'faulted' : 'halted'\);\s*if \(await abandoned\(\)\) \{ withdrawn = true; return; \}\s*\}/.exec(hubEndSource);
+A.ok(!!prestartStop && prestartStop.index < hubEndSource.indexOf('if (!markAttempt({ runId: runId'),
+  'the prestart STOP receipt is consumed through first-wins markEnd and withdrawal before any run attempt');
+const editDispatchGuard = /if \(msg\.edited && !delivery\.editReady\(msg, intake\)\) \{\s*markEnd\(myRec, delivery\.editState\(msg, intake\) === 'superseded' \? 'superseded' : 'faulted'\);\s*withdrawn = true; await abandoned\(\); return;\s*\}/.exec(hubEndSource);
+A.ok(!!editDispatchGuard && hubEndSource.indexOf('if (!markAttempt({ runId: runId', editDispatchGuard.index) > editDispatchGuard.index,
+  'an edit whose receipt lost admission withdraws through first-wins markEnd before the paid attempt');
+const withoutPrestartStop = prestartStop ? hubEndSource.replace(prestartStop[0], '') : hubEndSource;
+const withoutNamedGuards = editDispatchGuard ? withoutPrestartStop.replace(editDispatchGuard[0], '') : withoutPrestartStop;
+A.ok(!/\.endReason\s*=/.test(hubEndSource) && (withoutNamedGuards.match(/\bmarkEnd\(/g) || []).length === 4,
+  'the other first-wins owners remain supersede, /stop, plain stop and the LineJob live stop handle');
 
 (async () => {
   /* ---- the assembler itself ---- */
@@ -324,6 +341,19 @@ A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('
       A.eq((await run(ORDINARY)).text, ORDINARY_REPLY, name + ': an ordinary stream is byte for byte what it was');
     });
   }
+  for (const [name, run] of TERMINAL_HOPS) {
+    await guard(name, async () => {
+      A.eq((await run(STEERED, TERMINAL_REPLY)).text, TERMINAL_REPLY, name + ': accepted terminal work excludes streamed narration and steering');
+      A.eq((await run(ORDINARY, TERMINAL_REPLY)).text, TERMINAL_REPLY, name + ': even an ordinary stream cannot replace accepted terminal work');
+    });
+  }
+  for (const [name, run] of TERMINAL_HOPS.slice(1)) {
+    await guard(name + ' empty terminal', async () => {
+      const empty = await run(STEERED, '');
+      A.eq(empty.text, '', name + ': an empty accepted result never falls back to streamed prose');
+      A.eq(empty.stopCode, 'stage_empty', name + ': the empty hop keeps its typed stop');
+    });
+  }
   // the count the stop sentences read comes from the assembler now
   await guard('tools ran', async () => {
     const tools = (r) => r.tools;
@@ -337,7 +367,7 @@ A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('
   });
 
   /* ---- every way a run is withdrawn ---- */
-  for (const [how, end, said, withdraw] of ENDINGS) {
+  for (const [how, end, said, withdraw, expectedNewerReplies] of ENDINGS) {
     await guard(how, async () => {
       const h = parkedRun();
       const first = h.hub.onInbound(dm('do the long thing'));
@@ -351,7 +381,12 @@ A.ok(!/\.endReason\s*=/.test(fileText('sidecar/channels/hub.js')) && (fileText('
       A.eq(rec.endReason, end, how + ': the record says how the run ended');
       for (const re of ALL_SAID) A.eq(h.sends.filter(t => re.test(t)).length, said.includes(re) ? 1 : 0, how + ': ' + re + ' — ' + JSON.stringify(h.sends));
       A.ok(!h.sends.some(t => /half an answ/.test(t)), how + ': the stale partial is abandoned');
-      A.eq(h.sends.filter(t => t === 'the newer reply').length, /newer message/.test(how) ? 1 : 0, how + ': the newer message is answered, whatever ended the run before it');
+      A.eq(h.sends.filter(t => t === 'the newer reply').length, expectedNewerReplies == null ? (/newer message/.test(how) ? 1 : 0) : expectedNewerReplies, how + ': only a newer message that was not itself stopped is answered');
+      if (h.newerOwner) {
+        A.ok(h.newerOwner !== rec && h.newerOwner.runId === '' && h.newerOwner.endReason === 'halted', 'E-STOP names the distinct newer preparation, without changing the older first-wins ending');
+        A.eq(h.calls(), 1, 'the newer stopped preparation never dispatches a provider call');
+        A.eq(h.deliveries.filter(d => SAID_ESTOP.test(d.text)).map(d => d.chatId), ['4242'], 'the pending-work stop acknowledgement reaches the same actual chat');
+      }
       A.eq(Object.keys(rec).filter(k => /^(superseded|supersededBy|halted|faulted)$/.test(k)), [], how + ': and carries none of the old flags');
     });
   }

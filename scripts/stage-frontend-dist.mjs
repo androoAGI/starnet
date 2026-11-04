@@ -32,6 +32,7 @@ import { cpSync, rmSync, mkdirSync, existsSync, statSync, readdirSync, writeFile
 import { join, relative, resolve, sep, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assertBundleSources } from './lib/bundle-source-integrity.mjs';
+import { assertEngineFloor } from './lib/engine-floor.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(HERE, '..');
@@ -137,10 +138,16 @@ if (isMain) {
     console.log('would stage ' + p.kept.files + ' file(s) / ' + mb(p.kept.bytes) + '; would drop ' + p.dropped.files + ' file(s) / ' + mb(p.dropped.bytes));
     for (const [dir, bytes] of [...p.dropped.dirs].sort((a, b) => b[1] - a[1])) console.log('  - ' + dir + '  ' + mb(bytes));
   } else {
-    // every bundle path (desktop:build, desktop:dev, both CI workflows) stages here, before `tauri build` copies
-    // sidecar/ and shared/ verbatim: an empty or missing module stops the build instead of shipping (85f602c4)
+    // every bundle path (desktop:build, desktop:dev, both CI workflows) stages here, before `tauri build` copies the
+    // tauri.conf.json resource trees verbatim: an empty or missing module stops the build instead of shipping (85f602c4)
     const integrity = assertBundleSources({ root: ROOT });
-    console.log('bundle sources: no empty or missing engine/frontend files' + (integrity.gitChecked ? ' (checked against git)' : ' (git unavailable: empty code files only)'));
+    console.log('bundle sources: no empty or missing code file in ' + integrity.trees.join(', ')
+      + (integrity.gitChecked ? ' (checked against git)' : ' (git unavailable: empty code files only)')
+      + (integrity.thirdParty.length ? '; third-party, not held to the empty-file rule: ' + integrity.thirdParty.join(', ') : ''));
+    // the one web-engine floor (scripts/lib/engine-floor.json): a tauri.conf.json minimum or a bootguard.js FLOOR that
+    // disagrees with it stops the build, naming the file and the floor's value
+    const engine = assertEngineFloor({ root: ROOT });
+    console.log('engine floor: Safari ' + engine.safari + ' / macOS ' + engine.macos + ' (tauri.conf.json and bootguard.js agree; probes ' + engine.probes.join(', ') + ')');
     stage();
   }
 }

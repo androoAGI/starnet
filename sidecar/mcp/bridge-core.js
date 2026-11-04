@@ -309,6 +309,7 @@ const IMPLS = {
     const turns = (tr.json && Array.isArray(tr.json.turns)) ? tr.json.turns : [];
     const messages = turns.slice(-limit).map((t, i) => ({
       id: str(t.id != null ? t.id : i),
+      row_id: Number.isSafeInteger(t.rowId) && t.rowId > 0 ? t.rowId : null,
       role: str(t.role),
       content: str(t.content).slice(0, 2000),
       timestamp: t.ts != null ? t.ts : ''

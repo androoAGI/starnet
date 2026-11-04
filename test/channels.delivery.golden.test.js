@@ -36,7 +36,11 @@
    A pure move never re-records. Later steps of the lane state theirs: the ledger (S2) kept the transport trace of the
    no-fault scenarios (NO_FAULT below) byte-identical and re-recorded the store trace and the fault scenarios; routine
    delivery on the shared outbound contract (S4) re-recorded the routine trace: the same parts, file and note go out,
-   part 3 on its lane's retry rather than after a 429 wait, and each delivery now reports its channel.delivery. */
+   part 3 on its lane's retry rather than after a 429 wait, and each delivery now reports its channel.delivery.
+   Factory integration adds the existing steer/queue/background commands to help: only command-reply-not-queued's
+   expected help chunk count changes from 15 to 20; transport/store behavior and every other trace stay identical.
+   C9 canonical publication changes only the routine trace: actual history import/binding, strict canonical rows,
+   ledger acknowledgement and result receipts replace per-agent legacy copies. --update-routine refuses other drift. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('fs');
@@ -47,9 +51,14 @@ const { makeChannelHub } = require('../sidecar/channels/hub.js');
 const { makePromptRegistry } = require('../sidecar/channels/prompts.js');
 const { TaskIntent } = require('../frontend/app/fork.js');
 const { sidecarFunctionSource } = require('./helpers/source.js');
+const CanonicalHistory = require('./helpers/channel-history.js');
+const HistoryPort = require('../sidecar/channels/history-port.js');
+const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 
 const FIXTURE = path.join(__dirname, 'fixtures', 'channels-delivery-golden.json');
 const UPDATE = process.argv.includes('--update');
+const UPDATE_ROUTINE = process.argv.includes('--update-routine');
+const TRACE_OUT = (process.argv.find(arg => arg.startsWith('--trace-out=')) || '').slice('--trace-out='.length);
 const ROOT = '/ws/channels';
 const T0 = 1761900000000;   // the station clock every scenario starts at (fixed: a trace never depends on how often it is read)
 const NO_FAULT = ['success', 'multi-chunk', 'merged-batch', 'keyboard-last-chunk', 'stream-seed-edit'];
@@ -377,8 +386,13 @@ scenario('routine', async (env) => {
   const channelRegistry = { get: (id) => ({ telegram: { label: 'Telegram', maxMessageLength: 220 }, discord: { label: 'Discord', maxMessageLength: 2000 } })[id] || null };
   const scrubOutbound = (t) => String(t).split('/ws/agents/').join('[workspace]/');
   const redact = (t) => String(t).replace(/sk-[A-Za-z0-9]{8,}/g, '[redacted]');
+  const io = makeMemoryTranscriptIo(), append = io.appendDurable.bind(io);
+  io.append = io.appendDurable = row => {
+    const stored = append(row); env.store.push({ file: 'transcript:' + stored.streamId, data: clone(stored) }); return stored;
+  };
+  const canonical = CanonicalHistory.make(channelStore, { io, now: () => env.now, redact });
   // the lane sends a routine's words through the channel's ATTACHED sender: the station hub's own send, as in production
-  if (channelStore.ledger) env.hub({ runOnce: env.says('unused'), send: (c, t, o) => adapter.send(c, t, o), maxMessageLength: 220 });
+  const hub = channelStore.ledger && env.hub({ history: canonical.history, runOnce: env.says('unused'), send: (c, t, o) => adapter.send(c, t, o), maxMessageLength: 220 });
   const Outbound = fs.existsSync(OUTBOUND) ? require(OUTBOUND) : null;
   const channelOutbound = (Outbound && channelStore.ledger) ? Outbound.makeChannelOutbound({
     ledger: channelStore.ledger, registry: channelRegistry, reach: channelReach, chatRecord: (k) => channelStore.getChatRecord(k),
@@ -388,14 +402,18 @@ scenario('routine', async (env) => {
     now: () => env.now,
     setTimeout: (fn, ms) => { env.transport.push({ op: 'wait', ms: ms }); fn(); return 0; },
     channelStore: channelStore, channelOutbound: channelOutbound, channelReach: channelReach, channelRegistry: channelRegistry,
+    history: canonical.history, historyContext: (channel, chatId) => {
+      if (channel === 'telegram') return hub.historyContext(chatId);
+      if (channel === 'discord') return canonical.history.context({ store: channelStore, channel, chatId, legacyKey: HistoryPort.keyFor(chatId, 'dc_') });
+      return null;
+    },
     scrubOutbound: scrubOutbound, redact: redact,
     runStore: { list: () => [] },
     egressReader: { fireReader: () => read, shownName: (paths, p) => String(p), pathsFor: () => ({}) },
     readChannelUpload: read,
-    transcriptStore: {
-      reconstruct: () => [],
-      append: (row) => { env.store.push({ file: 'transcript:' + row.streamId, data: clone(row) }); }
-    },
+    transcriptStore: Object.assign({}, canonical.transcript, {
+      view: (name, ...args) => { A.eq(name, 'proof', 'routine delivery checks canonical proof'); return canonical.transcript.view(name, ...args); }
+    }),
     stationBridge: { request: (name, payload) => { env.transport.push({ op: 'station', name: name, payload: clone(payload) }); return Promise.resolve({ ok: true, delivered: true }); } }
   };
   const { deliverCronResult } = routineDelivery(deps);
@@ -453,11 +471,23 @@ function firstDiff(got, want) {
     live.store[s.name] = env.store;
   }
 
+  if (TRACE_OUT) fs.writeFileSync(TRACE_OUT, serialize(live));
   if (UPDATE) {
     fs.mkdirSync(path.dirname(FIXTURE), { recursive: true });
     fs.writeFileSync(FIXTURE, serialize(live));
     console.log('channels delivery golden re-recorded: ' + FIXTURE + ' (' + SCENARIOS.length + ' scenarios)');
     process.exit(0);
+  }
+  if (UPDATE_ROUTINE) {
+    const prior = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
+    for (const kind of ['transport', 'store']) {
+      for (const s of SCENARIOS) if (s.name !== 'routine' && JSON.stringify(live[kind][s.name]) !== JSON.stringify(prior[kind][s.name])) {
+        throw new Error('Routine-only golden update refused unrelated ' + kind + ' drift: ' + s.name);
+      }
+      prior[kind].routine = live[kind].routine;
+    }
+    fs.writeFileSync(FIXTURE, serialize(prior));
+    console.log('Only the routine golden was re-recorded; all other traces were byte-identical');
   }
 
   A.ok(fs.existsSync(FIXTURE), 'the golden fixture exists (record it with --update)');
@@ -513,6 +543,9 @@ function firstDiff(got, want) {
     'routine: the refused part is sent again, once, and no landed part ever is (the cron\'s later asks are answered from the record)');
   A.ok(events('routine').some(p => p.reason === 'routine' && p.channel === 'telegram') && events('routine').some(p => p.ok === false && p.channel === 'discord'),
     'routine: each delivery reports its channel.delivery, a refused channel included');
+  const publicRows = S.routine.filter(entry => entry.file === 'transcript:channel_telegram_4242');
+  A.eq(publicRows.map(entry => [entry.data.role, entry.data.kind]), [['assistant', 'delivery']], 'routine: exactly one canonical delivery replaces the fabricated legacy user/assistant pair');
+  A.ok(publicRows[0]?.data.content.includes('[redacted]') && !publicRows[0]?.data.content.includes('sk-ABCDEFGH12345678'), 'routine: canonical publication preserves the delivered credential redaction');
 
   A.report('channels.delivery.golden.test');
 })().catch((e) => { console.error(e && e.stack || e); process.exit(1); });

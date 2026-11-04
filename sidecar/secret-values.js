@@ -17,9 +17,17 @@
                                           secret to scrub out of the Commander's own words.
    Whitespace-separated parts of a value are added as well: a Slack channel token is stored as the combined
    "xoxb-… xapp-…" pair and either half can surface alone. Short strings are filtered by context.js (KNOWN_MIN).
-   Pure, bounded (depth + count caps), never throws on odd input. */
+   Pure, bounded (depth + count caps), never throws on odd input.
+
+   SECRET_SHAPES — how a value LOOKS, for a holder that keeps a value only when it looks like a credential
+   (credential-store.js secretValues, credential-store lane S5: an endpoint URL's parts, and the env key of a provider that
+   takes no key, decision 8). index.js hands it to the store, which is pure and requires nothing.
+     name(n)        a credential NAME (isCredentialName below): a query parameter api_key, key, token, sig …
+     token(v)       a run of 20 or more letters and digits that holds both (tokenShaped: the credentialUnder rule's test)
+     credential(v)  a token, or a vendor key shape redact() scrubs (context.js: sk-…, gsk_…, AIza…, a JWT, a Bearer …) */
 'use strict';
 const { note: failNote } = require('./failopen.js');
+const { redactWith } = require('./context.js');   // the vendor key SHAPES alone (no known values), for credentialShaped
 
 const SECRET_KEY = /^(?:key|apikey|api[_-]?key|token|access[_-]?token|refresh[_-]?token|id[_-]?token|bot[_-]?token|app[_-]?token|device[_-]?token|client[_-]?secret|signing[_-]?secret|webhook[_-]?secret|secret|password|passwd|bearer|authorization)$/i;
 /* CREDENTIAL NAMES (review r2, 2026-10-28). A header/env name is a credential by its WHOLE SEGMENTS (split on _ - . and
@@ -64,6 +72,18 @@ function isCredentialName(name) {
 }
 const CREDENTIAL_NAME = { test: isCredentialName };   // the old export's .test(name) interface
 const TOKEN_LIKE = /[A-Za-z0-9]{20,}/;
+const TOKEN_RUNS = new RegExp(TOKEN_LIKE.source, 'g');
+// a run of 20 or more letters and digits that holds both: shaped like a token, whatever surrounds it
+function tokenShaped(v) {
+  for (const m of String(v == null ? '' : v).match(TOKEN_RUNS) || []) if (/[0-9]/.test(m) && /[A-Za-z]/.test(m)) return true;
+  return false;
+}
+// a token, or a vendor key shape: what redact()'s shape rules would scrub on their own
+function credentialShaped(v) {
+  const s = String(v == null ? '' : v).trim();
+  return !!s && (tokenShaped(s) || redactWith(s, null) !== s);
+}
+const SECRET_SHAPES = Object.freeze({ name: isCredentialName, token: tokenShaped, credential: credentialShaped });
 const MAX_DEPTH = 8;
 const MAX_VALUES = 2000;
 
@@ -87,8 +107,7 @@ function collectSecretValues(sources) {
   function addCredentials(v, depth, named) {
     if (depth > MAX_DEPTH || v == null) return;
     if (typeof v === 'string') {
-      if (named) return add(v);
-      for (const m of v.match(new RegExp(TOKEN_LIKE.source, 'g')) || []) if (/[0-9]/.test(m) && /[A-Za-z]/.test(m)) return add(v);
+      if (named || tokenShaped(v)) add(v);
       return;
     }
     if (Array.isArray(v)) { for (const x of v) addCredentials(x, depth + 1, named); return; }
@@ -116,4 +135,4 @@ function collectSecretValues(sources) {
   return Array.from(out);
 }
 
-module.exports = { collectSecretValues, SECRET_KEY, CREDENTIAL_NAME, isCredentialName };
+module.exports = { collectSecretValues, SECRET_KEY, CREDENTIAL_NAME, isCredentialName, tokenShaped, credentialShaped, SECRET_SHAPES };

@@ -13,7 +13,7 @@
         A direct vendor endpoint keeps the hint (it is right there).
      3. The onboarding Model button shows a typed id verbatim; a catalog display name still reads as a name. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, functionSourceIn } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
@@ -43,12 +43,21 @@ function fakeEndpoint(chatModels) {
 
 // The REAL sidecar route, its provider seams bound to the real registry + factory and the fake endpoint.
 function sidecarValidate(endpointFetch) {
-  const cleanSrc = /function cleanProviderKey\(v\) \{[^\n]*\}/.exec(sidecar)[0];
-  const handle = new Function('readBody', 'normalizeProvider', 'getProviderProfile', 'providerUsesCodex', 'providerUsesDeviceOAuth', 'providerRuntimeBaseUrl', 'providerRequiresKey', 'providerRequiresBaseUrl', 'selectProvider', 'noteKeyCheckFailure',
-    cleanSrc + '\n' + A.fnBody(sidecar, 'async function handleProviderValidate(') + '\nreturn handleProviderValidate;')(
-    async req => req.body, p => registry.normalizeProviderId(p, 'openrouter'), registry.getProviderProfile, registry.providerUsesCodex,
-    registry.providerUsesDeviceOAuth, (id, explicit) => String(explicit || ''), registry.providerRequiresKey, registry.providerRequiresBaseUrl,
-    opts => factory.selectProvider(Object.assign({}, opts, { fetch: endpointFetch })), () => {});
+  const deps = {
+    readBody: async req => req.body, normalizeProviderIdFromRegistry: registry.normalizeProviderId,
+    getProviderProfile: registry.getProviderProfile, registryProviderUsesCodex: registry.providerUsesCodex,
+    registryProviderUsesDeviceOAuth: registry.providerUsesDeviceOAuth, providerUsesCodex: registry.providerUsesCodex,
+    providerUsesDeviceOAuth: registry.providerUsesDeviceOAuth, providerRequiresKey: registry.providerRequiresKey,
+    providerRequiresBaseUrl: registry.providerRequiresBaseUrl, providerRuntimeBaseUrl: (id, explicit) => String(explicit || ''),
+    providerRuntimeKey: () => '', selectProvider: opts => factory.selectProvider({ ...opts, fetch: endpointFetch }),
+    noteKeyCheckFailure() {}, redact: s => s,
+    credStore: require('./helpers/credential-store-sandbox.js').sandboxStore({}),
+    providerReadiness: () => ({ configured: false, unattendedReady: false }),
+    providerVerification: require('../sidecar/provider-readiness.js').makeProviderReadiness({ now: () => 1000,
+      digest: s => require('crypto').createHash('sha256').update(s).digest('hex') })
+  };
+  const functions = ['cleanProviderKey', 'verifyProviderPair', 'providerCheckRoute', 'handleProviderValidate'].map(n => functionSourceIn(sidecar, n)).join('\n');
+  const handle = new Function(...Object.keys(deps), functions + '\nreturn handleProviderValidate;')(...Object.values(deps));
   return async body => {
     let out = null;
     await handle({ body: JSON.stringify(body) }, { writeHead() {}, end(s) { out = JSON.parse(s); } });
@@ -58,7 +67,7 @@ function sidecarValidate(endpointFetch) {
 
 // The REAL browser key check (validateAndSetKey + postKeyCheck + keyCheckFailure) over a localStorage-shaped store.
 function browserHarness(store, validate, sent) {
-  const kcSrc = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(harness)[0];
+  const kcSrc = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(harness)[0];
   const H = new Function('normalizeProviderId', 'getProv', 'getModel', 'getBaseUrl', 'setKey', 'fetch', 'hasStoredCredential',
     "const cleanKey = k => String(k == null ? '' : k).replace(/[\\s\\u200b-\\u200d\\u2060\\ufeff]+/g, '');\n"
     + kcSrc + '\n' + A.fnBody(harness, 'function keyCheckLine(') + '\n' + A.fnBody(harness, 'async function postKeyCheck(') + '\n' + A.fnBody(harness, 'async function validateAndSetKey(')
@@ -68,7 +77,7 @@ function browserHarness(store, validate, sent) {
     async (route, init) => { const body = JSON.parse(init.body); sent.push(body); const out = await validate(body); return { ok: true, status: 200, text: async () => JSON.stringify(out) }; },
     p => !!store.keys[p]);
   return Object.assign(H, {
-    configured: () => true, hasStoredCredential: () => false, setTotals: () => {},
+    refreshProviderReadiness: async () => {}, readiness: () => ({ unattendedReady: true }), configured: () => true, hasStoredCredential: () => false, setTotals: () => {},
     getModel: () => store.model, setModel: m => { store.model = m; },
     getProv: () => store.prov, setProv: p => { store.prov = p; },
     setBaseUrl: async (u, p) => { store.baseUrl[p] = u; }

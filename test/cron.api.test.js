@@ -250,8 +250,17 @@ function boot(port, workspaces, attemptsLeft) {
     A.eq(scriptJob.lastOutput, 'script-only result', 'script-only stdout is durable for delivery/contextFrom');
     const delivered = await j('GET', '/api/dev/replies?chatId=cron-dev');
     A.ok((delivered.body.replies || []).some(x => String(x.text || '').includes('script-only result')), 'specific-target delivery carries the actual final output');
-    const continued = JSON.parse(fs.readFileSync(path.join(ws, 'channels', 'cron_brief.history.json'), 'utf8'));
-    A.ok((continued.messages || []).some(x => x.role === 'assistant' && x.content === 'script-only result'), 'delivered output is folded into channel history for continuation');
+    // The routine's words join the CHAT's canonical history (routine-delivery.js publishRecord, C9): one 'delivery' row in the stream
+    // that chat replays from (history-port.js resolveStream: 'channel_<channel>_<chatId>'), no longer a per-agent legacy file.
+    // It lands after the transport, so wait for it rather than reading once.
+    let continued = null;
+    for (let tries = 0; tries < 100 && !continued; tries++) {
+      const chatHistory = await j('GET', '/api/transcript?agent=cron_brief&stream=' + encodeURIComponent('channel_dev_cron-dev') + '&limit=20');
+      continued = ((chatHistory.body && chatHistory.body.turns) || []).find(x => x.role === 'assistant' && x.kind === 'delivery' && String(x.content || '').includes('script-only result'));
+      if (!continued) await sleep(100);
+    }
+    A.ok(continued, 'delivered output is published into the chat\'s canonical history for continuation');
+    A.eq(continued && continued.content, '✦ Script health\n\nscript-only result', 'the published row is exactly what the chat received');
     const scriptTranscript = await j('GET', '/api/transcript?agent=cron_brief&stream=' + encodeURIComponent('cron-' + scriptJob.lastRunId) + '&limit=20');
     A.ok((scriptTranscript.body.turns || []).some(t => t.role === 'assistant' && t.content === 'script-only result'), 'script-only output is recoverable in its continuable cron session');
     await j('POST', '/api/cron/remove', { id: scriptCreate.body.job.id });

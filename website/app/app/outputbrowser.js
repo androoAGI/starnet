@@ -53,7 +53,7 @@
   };
   try { state.follow = !!(root.localStorage && root.localStorage.getItem(FOLLOW_KEY) === '1'); } catch (_) { state.follow = false; }
 
-  const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const norm = p => String(p || '').replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\/+/, '');
   const dirOf = p => { const n = norm(p); const i = n.lastIndexOf('/'); return i < 0 ? '' : n.slice(0, i); };
   const baseOf = p => { const n = norm(p); return n.slice(n.lastIndexOf('/') + 1); };

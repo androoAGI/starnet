@@ -23,10 +23,17 @@
         never re-run (was: kept on the receipt and replayed)
    (the store's receipts and replies live in the delivery ledger, channels/delivery-ledger.js) */
 'use strict';
+const History = require('./helpers/channel-history.js');
 const A = require('./_assert.js');
 const pathMod = require('path');
 const { makeChannelStore } = require('../sidecar/channels/store.js');
-const { makeChannelHub } = require('../sidecar/channels/hub.js');
+const { makeChannelHub } = (() => {
+  if (!process.env.CHANNEL_RETRY_HUB_SOURCE) return require('../sidecar/channels/hub.js');
+  const Module = require('node:module'), filename = require.resolve('../sidecar/channels/hub.js');
+  const owner = new Module(filename, module); owner.filename = filename; owner.paths = Module._nodeModulePaths(pathMod.dirname(filename));
+  owner._compile(require('node:fs').readFileSync(process.env.CHANNEL_RETRY_HUB_SOURCE, 'utf8'), filename);
+  return owner.exports;
+})();
 
 function memFs() {
   const files = new Map();
@@ -52,6 +59,8 @@ function boot(disk, script, extra, storeOpts) {
   const tag = 'p' + (++bootN);
   const store = makeChannelStore(Object.assign({ fs: disk, pathMod, root: ROOT, clock }, storeOpts || {}));
   const sends = [], runs = [];
+  const supplied = Object.assign({}, extra || {});
+  if (typeof supplied.historyForStore === 'function') { supplied.history = supplied.historyForStore(store); delete supplied.historyForStore; }
   const hub = makeChannelHub(Object.assign({
     channel: 'telegram',
     runOnce: async (o) => { runs.push(o); return script(o, runs.length); },
@@ -61,7 +70,7 @@ function boot(disk, script, extra, storeOpts) {
     emit: () => {},
     newId: (() => { let n = 0; return () => tag + '-run-' + (++n); })(),
     sleep: () => Promise.resolve(), outboxRetryMs: 5
-  }, extra || {}));
+  }, supplied));
   return { store, hub, sends, runs };
 }
 const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'user' && m.content === words).length;
@@ -151,22 +160,30 @@ const userCopies = (list, words) => (list || []).filter(m => m && m.role === 'us
   {
     const disk = memFs();
     const words = 'summarise the meeting notes';
-    const canon = [{ role: 'user', content: 'earlier question' }, { role: 'assistant', content: 'earlier answer' }];
-    const historyFor = () => canon.map(r => ({ role: r.role, content: r.content }));
+    let io, transcript;
+    const historyForStore = store => {
+      const canonical = History.make(store, { io });
+      transcript = canonical.transcript;
+      if (!io) for (const row of [{ role: 'user', content: 'earlier question' }, { role: 'assistant', content: 'earlier answer' },
+        { role: 'user', content: words, directive: true, turnId: 'earlier_same_words', sourceRunId: 'earlier_run' }])
+        transcript.appendStrict(Object.assign({ streamId: 'channel_telegram_66', agentId: 'tg_66', kind: 'turn' }, row));
+      io = canonical.io; return canonical.history;
+    };
     // the host writes the triggering words into the canonical stream before the first model call (transcript-run.js start)
     const p1 = boot(disk, async (o) => {
-      canon.push({ role: 'user', content: o.messages[o.messages.length - 1].content, sourceRunId: o.runId });
+      transcript.appendStrict({ streamId: o.streamId, agentId: o.agentId, role: 'user', kind: 'turn', directive: true, turnId: o.turnId, content: o.messages[o.messages.length - 1].content, sourceRunId: o.runId });
       o.emit('agent.run.start', { runId: o.runId });
       await hang();
-    }, { historyFor });
+    }, { historyForStore });
     p1.hub.onInbound({ chatId: '66', chatType: 'dm', userId: 'u1', text: words, messageId: '910', ts: 1 });
     await waitFor(() => p1.runs.length === 1);
     p1.hub.close();
-    const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Summary.' }); o.emit('agent.run.end', { reason: 'done' }); }, { historyFor });
+    const p2 = boot(disk, async (o) => { o.emit('agent.run.start', { runId: o.runId }); o.emit('agent.token', { delta: 'Summary.' }); o.emit('agent.run.end', { reason: 'done' }); }, { historyForStore });
     p2.hub.onStatus({ state: 'up' });
     await waitFor(() => p2.store.ledger.pending('telegram').length === 0);
     A.eq(p2.runs.length, 1, 'canonical: the second go runs once');
-    A.eq(userCopies(p2.runs[0].messages, words), 1, 'canonical: the interrupted directive row is not sent alongside a second copy');
+    A.eq(userCopies(p2.runs[0].messages, words), 2, 'canonical: the interrupted directive is excluded but the distinct earlier same-text turn remains beside the current input');
+    A.eq(p2.runs[0].messages.map(row => row.content), ['earlier question', 'earlier answer', words, words], 'canonical: retry exclusion uses turn identity, never the now-last equal text');
     A.eq(userCopies(p2.runs[0].messages, 'earlier question'), 1, 'canonical: the real earlier history is untouched');
     p2.hub.close();
   }

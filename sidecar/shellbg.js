@@ -677,7 +677,7 @@
     return { start, status, read, write, closeStdin, wait, kill, killAll, count, touchLedger, killBudgetMs: KILL_BUDGET_MS, _internals: { procs, view, own, pruneFinished, exitNoticeText } };
   }
 
-  /* makeBgExitWaker({ steer, runs, runsMeta, log? }) -> (notice) => { delivered, runId?, status?, reason? }
+  /* makeBgExitWaker({ steer, liveRuns?, runs?, runsMeta?, log? }) -> (notice) => { delivered, runId?, status?, reason? }
      The host side of the wake (index.js wires it as onExitNotice). `runs` is the host's in-flight map (has(runId)),
      `runsMeta` maps runId -> { agentId, startedAt }, `steer` is sidecar/steer-buffer.js. The note goes to the most
      recently started LIVE run of the owning agent whose steer buffer is still open — one run, never a fan-out —
@@ -686,13 +686,17 @@
   function makeBgExitWaker(deps) {
     deps = deps || {};
     const steer = deps.steer, runs = deps.runs, runsMeta = deps.runsMeta;
+    const liveRuns = typeof deps.liveRuns === 'function' ? deps.liveRuns : null;
     const log = typeof deps.log === 'function' ? deps.log : () => {};
     function liveRunFor(agentId) {
       let best = null, bestAt = -1;
-      if (!runsMeta || typeof runsMeta[Symbol.iterator] !== 'function') return null;
-      for (const [runId, meta] of runsMeta) {
+      // The host projects eligible owner entries from its one run table at the instant of the wake.
+      // Older injected callers can still supply their existing registries. No second registry is stored here.
+      const candidates = liveRuns ? (liveRuns() || []).map(r => [r.runId, r]) : runsMeta;
+      if (!candidates || typeof candidates[Symbol.iterator] !== 'function') return null;
+      for (const [runId, meta] of candidates) {
         if (!meta || String(meta.agentId || '') !== String(agentId || '')) continue;
-        if (!runs || typeof runs.has !== 'function' || !runs.has(runId)) continue;
+        if (!liveRuns && (!runs || typeof runs.has !== 'function' || !runs.has(runId))) continue;
         if (steer && typeof steer.isClosed === 'function' && steer.isClosed(runId)) continue;
         const at = Number(meta.startedAt) || 0;
         if (at >= bestAt) { best = runId; bestAt = at; }

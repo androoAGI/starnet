@@ -30,7 +30,7 @@ const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/.
 
 // ---- 1. the pacing helpers, lifted and run ----------------------------------------------------------------
 const from = world.indexOf('  const PACE_VISIBLE_MS'), to = world.indexOf('  function renderPace()');
-A.ok(from > 0 && to > from && to - from < 12000, 'world.js still carries the RENDER PACING block before renderPace()');   // +STILL tier (2026-10-21)
+A.ok(from > 0 && to > from && to - from < 16000, 'world.js still carries the RENDER PACING block before renderPace()');   // +STILL tier (2026-10-21), +THE TIMER MARGIN
 const env = { focused: true, now: 1000, rafs: 0, timers: [] };
 const sandbox = {
   document: { hasFocus: () => env.focused },

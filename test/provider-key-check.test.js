@@ -9,17 +9,18 @@
      · the sidecar logs a key-free line for a failed validate/probe and for every refused API call (once per cause)
      · Settings shows the probe's reason under NOT VERIFIED / CHECK FAILED. */
 'use strict';
-const { readSidecarSource } = require('./helpers/source');
+const { readSidecarSource, functionSourceIn } = require('./helpers/source');
 const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 const harness = read('frontend', 'app', 'harness.js');
-const sidecar = readSidecarSource();
+const sidecar = process.env.PROVIDER_KEY_CHECK_CONTROL ? fs.readFileSync(process.env.PROVIDER_KEY_CHECK_CONTROL, 'utf8') : readSidecarSource();
+const sidecarFunctionSource = name => functionSourceIn(sidecar, name);
 const stationui = read('frontend', 'app', 'stationui.js');
 
 // ---- keyCheckFailure (pure, extracted from the browser source) ----
-const mFail = /function keyCheckFailure\(status, j, text\) \{[\s\S]*?\n  \}/.exec(harness);
+const mFail = /function keyCheckFailure\(status, j, text, code\) \{[\s\S]*?\n  \}/.exec(harness);
 A.ok(mFail, 'harness.js defines keyCheckFailure');
 const keyCheckFailure = new Function(mFail[0] + '\nreturn keyCheckFailure;')();
 A.eq(keyCheckFailure(200, { error: 'provider rejected this key (HTTP 401)' }, ''), 'provider rejected this key (HTTP 401)', 'a provider verdict passes through verbatim');
@@ -51,7 +52,9 @@ A.ok(mSide, 'index.js defines cleanProviderKey');
 const cleanProviderKey = new Function(mSide[0] + '\nreturn cleanProviderKey;')();
 A.eq(cleanProviderKey('sk-or-v1-abc\ndef ﻿'), 'sk-or-v1-abcdef', 'the sidecar cleans the candidate the same way');
 A.ok(/candidate = cleanProviderKey\(body\.key\);/.test(sidecar), 'validate cleans its candidate');
-A.ok(/body\.key = cleanProviderKey\(body\.key\);/.test(sidecar), 'probe cleans the key it is handed');
+const verifyPair = sidecarFunctionSource('verifyProviderPair');
+const checkRoute = sidecarFunctionSource('providerCheckRoute');
+A.ok(/const candidate = cleanProviderKey\(body\.key\);/.test(verifyPair) && /providerRuntimeKey\(id, candidate\)/.test(verifyPair), 'the shared verifier cleans probe input before resolving the credential');
 A.ok(/const candidate = cleanKey\(key\);/.test(harness), 'validateAndSetKey stores the CLEANED key it proved');
 
 // ---- server-side diagnosis: key-free, rate-limited ----
@@ -67,20 +70,23 @@ A.eq(logged.length, 1, 'one line per distinct failure (rate-limited)');
 A.ok(logged[0] && logged[0].indexOf(KEY) < 0 && /\[key\]/.test(logged[0]), 'the candidate key never reaches the log: ' + logged[0]);
 A.ok(/^\[providers\] validate openrouter: provider rejected this key \(HTTP 401\)/.test(logged[0]), 'the line names route, provider and reason (no doubled status)');
 A.eq(diag.length, 1, 'the same line lands in the persisted diag error tail');
-A.ok(/if \(obj && obj\.credentialVerified === false\) noteKeyCheckFailure\('validate', id, obj, candidate\);/.test(sidecar), 'every failed validate answer is noted');
-A.ok(/noteKeyCheckFailure\('probe', id, obj, probeKey\)/.test(sidecar), 'a saved credential failing its probe is noted');
+A.ok(/providerCheckRoute\(req, res, true\)/.test(sidecarFunctionSource('handleProviderValidate')) && /providerCheckRoute\(req, res, false\)/.test(sidecarFunctionSource('handleProviderProbe')), 'validate and probe enter the same checked response with distinct route labels');
 
 // ---- refused API calls are no longer silent ----
-A.ok(/isAllowedApiOrigin\(String\(req\.headers\.origin \|\| ''\), PORT, req\.headers\.host\)\) \{ noteApiRefusal\(req, 'forbidden origin'\);/.test(sidecar), 'rejectApi passes the Host (tunnel same-origin) and notes an origin refusal');
-A.ok(/noteApiRefusal\(req, 'forbidden token'\);/.test(sidecar), 'a stale-token refusal is noted');
+A.ok(/isAllowedApiOrigin\(String\(req\.headers\.origin \|\| ''\), PORT, req\.headers\.host\)\) return refuseAtGate\(req, res, 'forbidden origin'\);/.test(sidecar), 'the Origin check passes the Host (tunnel same-origin) and refuses through refuseAtGate');
+A.ok(/function refuseAtGate\(req, res, reason\) \{\n  noteApiRefusal\(req, reason\);/.test(sidecar), 'refuseAtGate notes every refusal before it answers');
+A.ok(sidecar.includes("return refuseAtGate(req, res, 'forbidden token');"), 'a stale-token refusal goes through refuseAtGate, so it is noted');
 // sidecar-index-06: a page the station WITHHELD its key from sends no key at all. Its refusals must not be logged as "a
 // page from before a sidecar restart; reload it" (the station did not restart, and reloading changes nothing).
 {
   const m = /function noteApiRefusal\(req, reason\) \{[\s\S]*?\n\}/.exec(sidecar);
   A.ok(m, 'index.js defines noteApiRefusal');
+  // the one no-key rule, which refuseAtGate also reads to name token_missing / token_stale on the wire
+  const mKey = /function carriesNoKey\(req\) \{[^\n]*\}\n/.exec(sidecar);
+  A.ok(mKey, 'index.js defines carriesNoKey');
   const lines = [];
   // a fresh once-per-cause registry per instance, so each case below is logged
-  const noter = () => new Function('apiRefusalsSeen', 'apiauth', 'apitickets', 'PORT', 'recordDiagError', 'failNote', 'console', m[0] + '\nreturn noteApiRefusal;')(
+  const noter = () => new Function('apiRefusalsSeen', 'apiauth', 'apitickets', 'PORT', 'recordDiagError', 'failNote', 'console', mKey[0] + m[0] + '\nreturn noteApiRefusal;')(
     new Set(), require('../sidecar/apiauth.js'), require('../sidecar/apitickets.js'), 8787, () => {}, () => {}, { warn: l => lines.push(l) });
   const note = noter();
   note({ method: 'GET', url: '/api/state', headers: { host: '127.0.0.1:8787', origin: 'http://127.0.0.1:8787' } }, 'forbidden token');
@@ -101,6 +107,81 @@ A.ok(/const statWhy = [^\n]*health && !health\.credentialVerified\n[^\n]*health\
 // org P03: an empty probe error still prints what the probe saw — never a bare NOT VERIFIED / CHECK FAILED
 A.ok(/health\.reachable \? 'the provider answered but did not confirm this key' : 'the check got no answer from the provider'/.test(stationui), 'an empty probe error prints a fallback reason');
 A.ok(/<span class="prov-stat-t">' \+ stat \+ statWhy \+ [^\n]*'<\/span><\/span>'/.test(stationui), 'the reason renders inside the card status, right under the verdict it explains');
-A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text\)/.test(harness), 'a refused probe names the refusal instead of a blank CHECK FAILED');
+A.ok(/error: r\.ok \? String\(\(j && j\.error\) \|\| ''\) : keyCheckFailure\(r\.status, j, text, stationCodeOf\(r\)\)/.test(harness), 'a refused probe names the refusal (by the gate\'s own code) instead of a blank CHECK FAILED');
 
-A.report('provider-key-check.test');
+// Actual route + shared verifier + diagnostic logger. Only transport/account/storage dependencies are fixtures;
+// identity redaction deliberately knows no secrets, so an unsaved echo must be scrubbed by this production path.
+async function sharedRouteProof() {
+  const secretReader = require('./helpers/credential-store-sandbox.js').sandboxStore({});
+  function station(savedKey, oauth = false) {
+    const calls = [], lines = [], errors = [], responses = [];
+    const base = 'https://fixture-user:fixture-password@fixture.invalid/v1?token=endpoint-secret';
+    let verdict = 'reject';
+    const deps = {
+      getProviderProfile: () => ({}), registryProviderUsesCodex: () => oauth, registryProviderUsesDeviceOAuth: () => false,
+      providerUsesCodex: () => oauth, providerUsesDeviceOAuth: () => false,
+      providerRuntimeKey: (id, offered) => offered || (oauth ? '' : savedKey), providerRuntimeBaseUrl: () => base,
+      providerRequiresKey: () => !oauth, providerRequiresBaseUrl: () => false,
+      normalizeProviderIdFromRegistry: id => id === (oauth ? 'codex' : 'openrouter') ? id : '', readBody: async req => req.body,
+      providerVerification: { keySlot: () => 'slot', ticket: () => ({}), note() {}, sync() {} },
+      orderedAccountChain: () => [{ id: '' }], ensureCodexAccessToken: async () => savedKey,
+      oauthPrimaryStatus: () => ({ tokens: { access_token: savedKey } }),
+      credStore: { syncReadiness() {}, urlSecretParts: secretReader.urlSecretParts },
+      selectProvider: options => ({ verifyCredential: async () => {
+        const actualKey = options.key || options.token;
+        calls.push(actualKey);
+        if (verdict === 'throw') throw new Error('transport echoed ' + actualKey + ' ' + base + ' fixture-password endpoint-secret');
+        return { ok: verdict === 'ok', credentialVerified: verdict === 'ok', reachable: true, status: verdict === 'ok' ? 'verified' : 'rejected',
+          httpStatus: verdict === 'ok' ? 200 : 401, error: verdict === 'ok' ? '' : 'rejected ' + actualKey,
+          cause: verdict === 'ok' ? '' : 'echo ' + actualKey + ' fixture-password endpoint-secret ' + base };
+      } }),
+      providerReadiness: () => ({ configured: false }), redact: String, keyCheckNoted: new Map(),
+      recordDiagError: line => errors.push(line), console: { warn: line => lines.push(line) }, failNote: (tag, e) => { throw e; }
+    };
+    const names = Object.keys(deps), bodies = ['cleanProviderKey', 'noteKeyCheckFailure', 'verifyProviderPair', 'providerCheckRoute', 'handleProviderProbe', 'handleProviderValidate'].map(sidecarFunctionSource).join('\n');
+    const handlers = new Function(...names, bodies + '\nreturn { probe: handleProviderProbe, validate: handleProviderValidate };')(...names.map(name => deps[name]));
+    return { calls, lines, errors, responses, setVerdict: value => { verdict = value; }, async request(route, body) {
+      let status, wire;
+      await handlers[route]({ body: typeof body === 'string' ? body : JSON.stringify(body) }, { writeHead: s => { status = s; }, end: value => { wire = value; } });
+      responses.push(wire); A.eq(status, 200, route + ': normal check response status'); return JSON.parse(wire);
+    } };
+  }
+  const saved = 'saved-probe-fixture-key', offered = 'request-probe-fixture-key';
+  const s = station(saved);
+  const failed = await s.request('probe', { provider: 'openrouter' });
+  A.eq(s.calls, [saved], 'saved-key probe verifies the actual resolved credential');
+  A.eq(failed.credentialVerified, false, 'saved-key failure stays unverified');
+  A.eq(s.lines.length, 1, 'a failed saved-key probe is noted even without a request candidate');
+  A.ok(s.lines[0] && s.lines[0].startsWith('[providers] probe openrouter:'), 'saved-key diagnostic names the probe route');
+  await s.request('probe', { provider: 'openrouter' });
+  A.eq(s.lines.length, 1, 'the repeated saved-key failure is rate-limited');
+  A.eq(s.errors, s.lines, 'saved-key failure reaches the durable diagnostic tail once');
+  s.setVerdict('ok'); await s.request('probe', { provider: 'openrouter' });
+  A.eq(s.lines.length, 1, 'successful verification does not log a failure');
+  for (const route of ['probe', 'validate']) {
+    const candidate = station(saved);
+    await candidate.request(route, { provider: 'openrouter', key: ' \n' + offered + ' ' });
+    A.eq(candidate.calls, [offered], route + ': cleaned request credential is verified');
+    A.eq(candidate.lines.length, 1, route + ': request-key failure is noted');
+    A.ok(!JSON.stringify([candidate.lines, candidate.errors, candidate.responses]).includes(offered), route + ': request credential never escapes');
+  }
+  const thrown = station(saved); thrown.setVerdict('throw');
+  await thrown.request('probe', { provider: 'openrouter' });
+  A.eq(thrown.lines.length, 1, 'a saved-key transport exception is also noted');
+  A.ok(!JSON.stringify([thrown.lines, thrown.errors, thrown.responses]).includes(saved), 'transport throw cannot expose the privately captured key');
+  A.ok(!/fixture-password|endpoint-secret|fixture-user/.test(JSON.stringify([thrown.lines, thrown.errors, thrown.responses])), 'saved endpoint and separately echoed URL credentials are scrubbed on a thrown transport error');
+  const signedIn = station('oauth-token-fixture', true); signedIn.setVerdict('throw');
+  await signedIn.request('probe', { provider: 'codex' });
+  A.eq(signedIn.calls, ['oauth-token-fixture'], 'OAuth probe verifies the actual account token');
+  A.eq(signedIn.lines.length, 1, 'a failing saved-token OAuth probe is diagnosed');
+  A.ok(!/oauth-token-fixture|fixture-password|endpoint-secret/.test(JSON.stringify([signedIn.lines, signedIn.errors, signedIn.responses])), 'OAuth token and saved endpoint never escape transport-failure diagnostics');
+  const missing = station('');
+  await missing.request('probe', { provider: 'openrouter' });
+  await missing.request('validate', '{invalid');
+  await missing.request('probe', { provider: 'unknown', key: offered });
+  A.eq([missing.calls.length, missing.lines.length], [0, 0], 'missing credential, malformed JSON and unknown provider invent no verification or credential diagnostic');
+  const wire = JSON.stringify([s.lines, s.errors, s.responses]);
+  A.ok(!wire.includes(saved) && !/endpoint-secret|fixture-password/.test(wire), 'saved credential and endpoint secrets never enter response or diagnostics');
+  A.ok(s.responses.every(text => !/checkedKey|checkedEndpoint|onCredential/.test(text)), 'the diagnostic callback adds no internal credential field to JSON');
+}
+sharedRouteProof().then(() => A.report('provider-key-check.test')).catch(error => { console.error(error); process.exitCode = 1; });

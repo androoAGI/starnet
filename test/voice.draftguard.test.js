@@ -18,8 +18,7 @@ const A = require('./_assert.js');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-
-const SRC = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'voice.js'), 'utf8');
+const { bootVoice } = require('./helpers/voice-rig.js');
 
 // ---- controllable browser mocks (mirrors voice.button.test.js) -------------------------------
 let srInstances = [];
@@ -87,8 +86,7 @@ function boot(opts) {
   };
   sandbox.globalThis = sandbox; win.SpeechRecognition = MockSR;
   vm.createContext(sandbox);
-  vm.runInContext(SRC + '\nthis.__Voice = Voice;', sandbox, { filename: 'voice.js' });
-  const Voice = sandbox.__Voice;
+  const { Voice } = bootVoice(sandbox);   // the voice scripts in index.html order
   Voice.init({ name: 'Tester' });
   return { Voice, nodes, sandbox, input: nodes['chat-input'], sent: () => sandbox.__sent };
 }

@@ -90,21 +90,23 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
   A.eq(bad.guardAction, 'block', 'dangerous community content is blocked');
   A.throws(() => dangerousExchange.install({ agentId: 'a', inspectionId: bad.inspectionId }), /blocked/, 'blocked content cannot install');
 
-  // Redirects are revalidated, so a public URL cannot bounce the fetcher into loopback.
+  // Redirects are revalidated, so a public URL cannot bounce the fetcher into loopback. The guard is the fetcher's own
+  // (the outbound boundary's skillSource row); every construction below fakes only the transport edge: a public DNS
+  // answer for the .example names, and the fetch.
+  const PUBLIC = async () => [{ address: '93.184.216.34', family: 4 }];
   const fetcher = makeSkillDocumentFetcher({
     fetchImpl: async () => ({ status: 302, ok: false, headers: new Map([['location', 'https://127.0.0.1/SKILL.md']]) }),
-    assertSafeUrl(raw) { const u = new URL(raw); if (u.hostname === '127.0.0.1') throw new Error('private host'); return u; },
-    assertResolvedSafe: async () => {}, lookup: async () => []
+    lookup: PUBLIC
   });
   let redirectError = '';
   try { await fetcher('https://public.example/SKILL.md'); } catch (e) { redirectError = e.message; }
-  A.ok(/private host/.test(redirectError), 'every redirect target is revalidated');
+  A.eq(redirectError, 'refusing to fetch private/loopback/intranet host: 127.0.0.1', 'every redirect target is revalidated');
 
   // The request deadline covers the BODY (memory lane 2026-10-20): the timer was cleared when headers arrived, so a
   // source that answered its headers and then stalled its body held the fetch open forever.
   {
     const stalled = makeSkillDocumentFetcher({
-      timeoutMs: 80,
+      timeoutMs: 80, lookup: PUBLIC,
       fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null },
         body: { async *[Symbol.asyncIterator]() { yield Buffer.from('# Partial'); await new Promise(() => {}); } } })
     });
@@ -121,12 +123,12 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
   {
     const steady = (gapMs, chunks) => async () => ({ status: 200, ok: true, headers: { get: () => null },
       body: { async *[Symbol.asyncIterator]() { for (let i = 0; i < chunks; i++) { await new Promise(r => setTimeout(r, gapMs)); yield Buffer.alloc(1000, 65); } } } });
-    const slow = makeSkillDocumentFetcher({ timeoutMs: 80, fetchImpl: steady(30, 12) });
+    const slow = makeSkillDocumentFetcher({ timeoutMs: 80, lookup: PUBLIC, fetchImpl: steady(30, 12) });
     const t0 = Date.now();
     const got = await slow('https://maps.example/still.png', { maxBytes: 3990000, label: 'the map picture' }).then(r => r.bytes.length, e => e.message);
     A.eq(got, 12000, 'a steady body that takes longer than the request timeout (' + (Date.now() - t0) + ' ms vs 80 ms) still arrives whole');
     // a caller with a budget of its own (the package fetcher's timeoutMs: left) still caps the whole read at it
-    const capped = makeSkillDocumentFetcher({ timeoutMs: 80, fetchImpl: steady(30, 1000) });
+    const capped = makeSkillDocumentFetcher({ timeoutMs: 80, lookup: PUBLIC, fetchImpl: steady(30, 1000) });
     const t1 = Date.now();
     const trickle = await Promise.race([
       capped('https://slow.example/SKILL.md', { timeoutMs: 200 }).then(() => 'resolved', e => e.message),
@@ -136,7 +138,7 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
     A.ok(Date.now() - t1 < 1500, 'at that budget (' + (Date.now() - t1) + ' ms)');
     // …and a caller WITHOUT one (community maps, the market catalog, an import) still has an overall deadline (review
     // 2026-10-21): a trickle that beats every silence window held the read, and its socket, open for as long as it liked.
-    const unbudgeted = makeSkillDocumentFetcher({ timeoutMs: 80, bodyDeadlineMs: 300, fetchImpl: steady(30, 1000) });
+    const unbudgeted = makeSkillDocumentFetcher({ timeoutMs: 80, bodyDeadlineMs: 300, lookup: PUBLIC, fetchImpl: steady(30, 1000) });
     const t2 = Date.now();
     const endless = await Promise.race([
       unbudgeted('https://maps.example/still.png', { maxBytes: 3990000, label: 'the map picture' }).then(() => 'resolved', e => e.message),
@@ -148,7 +150,7 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
     const delays = [], realSetTimeout = global.setTimeout;
     global.setTimeout = function (fn, ms, ...rest) { delays.push(ms); return realSetTimeout(fn, ms, ...rest); };
     let quick;
-    try { quick = await makeSkillDocumentFetcher({ fetchImpl: steady(0, 1) })('https://maps.example/still.png', { maxBytes: 3990000, label: 'the map picture' }).then(r => r.bytes.length, e => e.message); }
+    try { quick = await makeSkillDocumentFetcher({ lookup: PUBLIC, fetchImpl: steady(0, 1) })('https://maps.example/still.png', { maxBytes: 3990000, label: 'the map picture' }).then(r => r.bytes.length, e => e.message); }
     finally { global.setTimeout = realSetTimeout; }
     A.eq(quick, 1000, 'a quick source still arrives');
     A.ok(delays.includes(60000), 'and its read was capped at 60 s (timers armed: ' + JSON.stringify(delays) + ')');
@@ -168,7 +170,7 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
       if (n < 4) return { status: 302, ok: false, headers: { get: (h) => h === 'location' ? 'https://hops.example/r' + (n + 1) : null } };
       return { status: 200, ok: true, headers: { get: () => null }, body: { async *[Symbol.asyncIterator]() { yield Buffer.from('# Landed'); } } };
     };
-    const roomy = await makeSkillDocumentFetcher({ timeoutMs: 200, bodyDeadlineMs: 3000, fetchImpl: slowHops })('https://hops.example/r0').then(r => r.text, e => e.message);
+    const roomy = await makeSkillDocumentFetcher({ timeoutMs: 200, bodyDeadlineMs: 3000, lookup: PUBLIC, fetchImpl: slowHops })('https://hops.example/r0').then(r => r.text, e => e.message);
     A.eq(roomy, '# Landed', 'the five-hop chain itself lands when the deadline has room for it');
     for (const [name, opts, deps] of [
       ['a read with no budget of its own', {}, { bodyDeadlineMs: 300 }],
@@ -176,7 +178,7 @@ function store(io) { return makeSkillStore({ io, clock: { now: () => 9000 }, gua
     ]) {
       hopsSeen.length = 0;
       const t0 = Date.now();
-      const out = await makeSkillDocumentFetcher(Object.assign({ timeoutMs: 200, fetchImpl: slowHops }, deps))('https://hops.example/r0', opts).then(r => 'resolved: ' + r.text, e => e.message);
+      const out = await makeSkillDocumentFetcher(Object.assign({ timeoutMs: 200, lookup: PUBLIC, fetchImpl: slowHops }, deps))('https://hops.example/r0', opts).then(r => 'resolved: ' + r.text, e => e.message);
       const took = Date.now() - t0;
       A.eq(out, 'skill source timed out', name + ' that keeps redirecting is ended at its one deadline (it resolved after every hop restarted the cap before)');
       A.ok(took < 600 && hopsSeen.length <= 3, 'at ~300 ms, partway through the chain (' + took + ' ms, ' + hopsSeen.length + ' hops)');

@@ -59,6 +59,25 @@
     return 'Shell: shell.exec runs /bin/sh on this computer' + os + posix;
   }
 
+  /* HOST FACTS (gh#128 family, safe-egress S4, 2026-11-03): the platform phrases a host-shared tool description may
+     state. A description rides the cached tool schema to every model this machine serves, so a platform word in it is
+     a claim about the machine: computer.use said "on the Windows desktop" and browser.test_navigate "never reach
+     Windows" on macOS and Linux too, the family #128 closed for shell.exec (whose description now names no shell). A
+     description takes its phrase from this one table, for the platform its factory was built for (deps.platform,
+     default process.platform; tools/catalog.js buildCatalog({ platform }) declares any one). Same rule as shellLine:
+     a platform the table does not know gets neutral words, never a guessed OS and never the raw string. The Windows
+     phrases are the bytes those descriptions always had, so the cached tool prefix and payload.budget do not move. */
+  const HOST_FACTS = Object.freeze({
+    win32: Object.freeze({ os: 'Windows', desktop: 'the Windows desktop', desktopShort: 'Windows' }),
+    darwin: Object.freeze({ os: 'macOS', desktop: 'the macOS desktop', desktopShort: 'macOS' }),
+    linux: Object.freeze({ os: 'Linux', desktop: 'the Linux desktop', desktopShort: 'the desktop' })
+  });
+  const NEUTRAL_HOST = Object.freeze({ os: 'this computer\'s OS', desktop: 'this computer\'s desktop', desktopShort: 'the desktop' });
+  function hostFacts(platform) {
+    const p = String(platform == null ? '' : platform);
+    return Object.prototype.hasOwnProperty.call(HOST_FACTS, p) ? HOST_FACTS[p] : NEUTRAL_HOST;
+  }
+
   function runtimeIdentityBlock(o) {
     o = o || {};
     const provider = oneLine(o.provider, 'unknown', 80);
@@ -92,5 +111,5 @@
     return '\n\n' + lines.join('\n');
   }
 
-  return { oneLine, runtimeIdentityBlock, todayLine, shellLine };
+  return { oneLine, runtimeIdentityBlock, todayLine, shellLine, hostFacts };
 });

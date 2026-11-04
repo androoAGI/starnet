@@ -3474,7 +3474,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const id = b.closest('.ws-bl-row').getAttribute('data-blid');
         b.disabled = true;   // re-queueing the SAME id un-parks it server-side (clears the failed-attempt count)
         Harness.api.post('/api/workshop/queue', { agentId: aid, id: id, title: b.getAttribute('data-title') || '' })
-          .then(() => loadWsLive())
+          .then(r => { if (!r.ok) notify('could not re-queue that: ' + Harness.api.why(r), 'bad'); loadWsLive(); })   // a refusal is an answer: say it
           .catch(() => { notify('could not reach the station', 'bad'); loadWsLive(); });
       }));
       wsLive.querySelectorAll('.ws-bl-review').forEach(b => b.addEventListener('click', () => {
@@ -4945,18 +4945,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (act === 'export') {
         btn.classList.add('busy'); const r = await Harness.skillExchangeExport({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.envelope) {
-          const url = URL.createObjectURL(new Blob([r.envelope], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = r.filename || (skill.id + '.starnet-skill.json'); a.click();
-          setTimeout(() => URL.revokeObjectURL(url), 1000); notify('Exported sealed package ' + String(r.digest || '').slice(0, 12), 'good');
+          const receipt = await U.saveFile({ name: r.filename || (skill.id + '.starnet-skill.json'), ext: 'json', text: r.envelope });
+          notify(receipt.line, receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Export was refused.', 'warn');
         return;
       }
       if (act === 'publish') {
         btn.classList.add('busy'); const r = await Harness.skillExchangePublishHandoff({ agentId, id: skill.id }); btn.classList.remove('busy');
         if (r && r.ok && r.handoff) {
-          const text = JSON.stringify(r.handoff, null, 2) + '\n'; const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-          const a = document.createElement('a'); a.href = url; a.download = skill.id + '.publish-handoff.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-          notify('Prepared local publish handoff; nothing was uploaded.', 'good');
+          const receipt = await U.saveFile({ name: skill.id + '.publish-handoff.json', ext: 'json', text: JSON.stringify(r.handoff, null, 2) + '\n' });
+          notify(receipt.line + (receipt.ok ? ' — nothing was uploaded.' : ''), receipt.ok ? 'good' : 'warn');
         } else notify((r && r.error) || 'Publish handoff was refused.', 'warn');
         return;
       }
@@ -5078,16 +5076,21 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!fields.agree) { result.textContent = 'Turn on the agreement to share it: it is the license others use it under.'; $f('agree').focus(); return; }
       send.disabled = true; send.textContent = 'Sending…'; result.textContent = '';
       try { localStorage.setItem(SHARE_CREDIT_KEY, fields.credit); } catch (_) {}
-      let r = null;
-      try { r = await (await Harness.apiFetch('/api/skill-market/share', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) })).json(); } catch (_) { r = null; }
+      // the station's answer, read once (Harness.api): a refusal the gate wrote in plain text is an answer, not "not answering"
+      let res = null;
+      // the station's own market call waits up to 60 s and then answers 504 'unknown': let that answer arrive
+      try { res = await Harness.api.post('/api/skill-market/share', fields, { timeoutMs: 90000 }); } catch (_) { res = null; }
+      const r = res && res.j;
       send.disabled = false; send.textContent = 'Send for review';
-      if (r && r.ok && r.submission) {
+      if (res && res.ok && r.submission) {
         result.textContent = 'Sent for review as "' + (r.submission.title || fields.title) + '". A person reads it next; your Skills tab on account.starnetos.com shows where it stands.'
           + (r.referencesLeftOut ? ' ' + r.referencesLeftOut + (r.referencesLeftOut === 1 ? ' support file was' : ' support files were') + ' left out: the market takes up to five plain-text references.' : '');
         send.remove(); cancel.textContent = 'Done'; cancel.focus(); sfx('click');
         return;
       }
-      if (!r) { result.textContent = 'The station is not answering right now. This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
+      if (!res || (!r && res.status >= 500)) { result.textContent = (res ? 'The station hit an error (HTTP ' + res.status + ').' : 'The station is not answering right now.') + ' This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
+      // a refusal without the route's own body (the gate's, before the share ran): its sentence, and nothing left the station
+      if (!r) { const why = Harness.api.why(res); result.textContent = why.charAt(0).toUpperCase() + why.slice(1) + '. Nothing was shared.'; return; }
       if (r.outcome === 'unknown') { result.textContent = (r.error ? r.error + ' ' : '') + 'This station cannot tell whether the skill arrived. Check your Skills tab on account.starnetos.com before you send it again.'; return; }
       if (r.linked === false) { result.textContent = 'Link this station to your StarNet account first (STORE › LINK STATION). A free account works. Nothing was shared.'; return; }
       result.textContent = r.code === 'token_rejected' ? r.error : (r.error || 'The market refused it.') + ' Nothing was shared.';
@@ -5616,7 +5619,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const w = open.settings;
       if (!w) return;
       const before = w.querySelector('.con-pane'), section = consoleSection.settings, top = before ? before.scrollTop : 0;
-      rerender('settings');
+      // Provider probes update their own pane. Rebuilding unrelated forms would detach
+      // an in-flight save callback and erase its confirmed receipt or unsaved edits.
+      if (typeof w._refreshProviderStatus === 'function') w._refreshProviderStatus();
       const after = open.settings && open.settings.querySelector('.con-pane');
       if (after && top > 0 && consoleSection.settings === section) after.scrollTop = top;
     }, SETTINGS_REPAINT_COALESCE_MS);
@@ -5733,8 +5738,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (keychainModeKnown === false) return 'stored locally in this browser';
     return 'stored on this machine';
   }
-  const providerHealth = Object.create(null);   // last no-generation sidecar probe, keyed by provider id
+  const providerHealth = Object.create(null);   // last sidecar credential check, keyed by provider id
   const providerProbePending = Object.create(null);
+  function providerActiveProof(row, id) {
+    return !!(row && row.unattendedReady && !row.cached && (row.credential.status === 'verified'
+      || (!row.credential.required && row.endpoint.status === 'reachable')
+      || (id === 'claude-cli' && row.credential.present && row.credential.status !== 'unavailable')));
+  }
   function invalidateProviderHealth(provider) { delete providerHealth[provider]; delete providerProbePending[provider]; }
   function refreshProviderHealth(provider) {
     const h = H();
@@ -5781,7 +5791,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (j.max > 0) claudeAccountsMax = j.max;
       })
       .catch(() => { claudeCliSt = null; claudeAccounts = null; })
-      .finally(() => { claudeCliStPending = false; scheduleSettingsRepaint(); });
+      .finally(async () => {
+        const h = H();
+        if (h && h.refreshProviderReadiness) await h.refreshProviderReadiness();
+        claudeCliStPending = false;
+        scheduleSettingsRepaint();
+      });
   }
   function claudeCliPlan(st) {
     if (!st) return '';
@@ -6083,34 +6098,37 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       // refresh token) — that must never render as SIGNED IN. The row still exists (ks has the expired entry) so
       // RE-SIGN-IN is reachable. `codexDead` keeps its historical name because the source-lock tests pin
       // `codexDead ? 'avail expired'` / `&& !codexDead`; it now flags a dead sign-in for ANY OAuth provider.
-      const codexDead = isOAuthProvider(p.id) && oauthExpiredFor(p.id);
       const h = H();
-      const credentialSaved = isOAuthProvider(p.id) ? (ks.length > 0 && !codexDead) : !!(h && h.hasStoredCredential && h.hasStoredCredential(p.id));
-      const endpointConfigured = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && !!(h && h.getBaseUrl && h.getBaseUrl(p.id)));
-      const configured = credentialSaved || endpointConfigured;
+      const readiness = h && h.readiness ? h.readiness(p.id) : { credential: { present: false, status: 'unknown' }, endpoint: { configured: false }, cached: true };
+      const codexDead = isOAuthProvider(p.id) && readiness.credential.status === 'expired';
+      const credentialSaved = readiness.credential.present && !codexDead;
+      const endpointConfigured = !!readiness.endpoint.configured;
+      const configured = readiness.unattendedReady === true;
       const health = providerHealth[p.id];
       // ACTIVE is reserved for a selected model whose endpoint and credential (when applicable) were proven by
-      // the no-generation probe. Selection plus a model id is not evidence that a run can leave the station.
+      // the credential check. Selection plus a model id is not evidence that a run can leave the station.
       // CLAUDE CODE has no key to verify: its sign-in is proven by the CLI (claudeCliSt) and its catalog by the probe
-      const runnable = !!(health && health.reachable && (health.credentialVerified || (p.id === 'claude-cli' && claudeCliSt && claudeCliSt.loggedIn)) && p.id === active && h && h.getModel && h.getModel());
-      const claudeIn = p.id === 'claude-cli' && !!(claudeCliSt && claudeCliSt.loggedIn);
-      const cls = codexDead ? 'avail expired' : ((p.id === 'claude-cli' ? claudeIn : configured) ? 'conn' : (p.live ? 'avail' : 'soon'));
+      const runnable = !!(providerActiveProof(readiness, p.id) && p.id === active && h && h.getModel && h.getModel());
+      const cls = codexDead ? 'avail expired' : (configured ? 'conn' : (p.live ? 'avail' : 'soon'));
       // E5: `connected` is KEY PRESENCE, not a verified live connection — a saved key can be revoked,
       // rate-limited, or wrong, and we haven't round-tripped it. Label it "KEY SAVED" (or SIGNED IN for
       // the codex OAuth path, which IS real auth) rather than the over-claiming "CONNECTED". The
       // ACTIVE/runnable badge logic below is unchanged — that already gates on selected provider + model.
       const connLabel = isOAuthProvider(p.id) ? '● SIGNED IN' : '● KEY SAVED';
       const keyless = p.id === 'ollama' || p.id === 'claude-cli' || (p.id === 'custom' && endpointConfigured && !credentialSaved);
-      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : health === undefined ? '◐ LOCAL ENDPOINT CONFIGURED · CHECKING…'
-        : health && health.reachable ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
-      const keyStat = health === undefined ? connLabel + ' · CHECKING…'
-        : health && health.credentialVerified ? connLabel + ' · VERIFIED' : health && health.reachable ? connLabel + ' · NOT VERIFIED' : connLabel + ' · CHECK FAILED';
+      const localStat = !endpointConfigured ? '○ NO ENDPOINT' : readiness.endpoint.status === 'unknown' ? '◐ LOCAL ENDPOINT CONFIGURED · UNVERIFIED'
+        : readiness.endpoint.status === 'reachable' ? '● LOCAL ENDPOINT CONFIGURED · REACHABLE' : '○ LOCAL ENDPOINT CONFIGURED · OFFLINE';
+      const keyStat = readiness.credential.status === 'rejected' ? 'KEY REJECTED' + (configured ? ' · ALTERNATE AVAILABLE' : ' — REPLACE KEY')
+        : readiness.credential.status === 'verified' && readiness.lastVerified ? connLabel + ' · VERIFIED' : connLabel + ' · UNVERIFIED';
       const isClaude = p.id === 'claude-cli';
-      const claudeStat = claudeCliSt === undefined ? '◐ CHECKING CLAUDE CODE…' : claudeCliSt === null ? '○ COULDN’T CHECK CLAUDE CODE'
-        : !claudeCliSt.installed ? '○ CLAUDE CODE NOT INSTALLED' : !claudeCliSt.loggedIn ? '○ NOT SIGNED IN'
-        : '● SIGNED IN' + claudeCliPlan(claudeCliSt);
-      const stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
+      const claudeStat = readiness.credential.status === 'unknown' ? '◐ CHECKING CLAUDE CODE…'
+        : readiness.credential.status === 'unavailable' ? '○ COULDN’T CHECK CLAUDE CODE'
+        : !configured ? String(readiness.reason || '○ NOT SIGNED IN').toUpperCase()
+        : '● SIGNED IN · REMOTE UNVERIFIED' + claudeCliPlan(claudeCliSt);
+      let stat = !p.live ? '○ COMING SOON' : codexDead ? '⚠ SIGN-IN EXPIRED — RECONNECT'
         : isClaude ? claudeStat : keyless ? localStat : credentialSaved ? keyStat : (isOAuthProvider(p.id) ? '○ NOT SIGNED IN' : (p.id === 'custom' ? '○ NO ENDPOINT' : '○ NO KEY'));
+      if (readiness.cached) stat += ' · CACHED STATION STATUS';
+      if (readiness.persistenceError) stat += ' · CHECK NOT SAVED';
       // #62: NOT VERIFIED / CHECK FAILED says WHY (the probe's own reason: "credential probe HTTP 401", a station
       // refusal, a timeout) — a bare verdict left a valid-key user with nothing to act on.
       // org P03: a probe that gave no reason still says what it saw — never a bare NOT VERIFIED / CHECK FAILED.
@@ -6261,10 +6279,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const rows = keys.map((k, i) => {
       // The credential row follows the same truth contract as the provider card above. Selection is useful context,
       // but ACTIVE is reserved for a selected model whose endpoint/credential probe proved it can run.
-      const health = providerHealth[k.provider];
+      const readiness = H() && H().readiness ? H().readiness(k.provider) : null;
       const selected = k.provider === active && !!k.model;
       // CLAUDE CODE has no key to verify: its row exists only while the CLI proves the sign-in (same rule as its card)
-      const runnable = !!(selected && health && health.reachable && (health.credentialVerified || k.claude));
+      const runnable = !!(selected && providerActiveProof(readiness, k.provider));
       const runState = runnable ? '<span class="key-stat on">ACTIVE</span>'
         : selected ? '<span class="key-stat">SELECTED</span>' : '<span class="key-stat">idle</span>';
       if (k.claude) {
@@ -6390,14 +6408,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         }
         if (act === 'codex-logout') {
           if (typeof CodexSignIn !== 'undefined') CodexSignIn.cancel(); delete oauthCardFlow.codex;   // the cancelled flow's code leaves every box
-          const drop = (typeof CodexSignIn !== 'undefined') ? CodexSignIn.logout() : Harness.api.post('/api/auth/codex/logout').catch(() => {});
-          Promise.resolve(drop).then(() => {
-            codexStatusKnown = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
-            if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured('codex', false);
-            notify('disconnected ChatGPT — sign in again anytime from PROVIDERS', 'warn');
-            sfx('bad');
-            if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
-            if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+          const drop = (typeof CodexSignIn !== 'undefined') ? CodexSignIn.logout() : Harness.api.post('/api/auth/codex/logout').catch(() => null);
+          Promise.resolve(drop).then(res => {
+            // DISCONNECTED ONLY ON THE STATION'S YES: a logout it refused (or never answered) left the sign-in in force
+            if (!res || !res.ok) { notify('could NOT disconnect ChatGPT — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); }
+            else {
+              codexStatusKnown = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
+              if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured('codex', false);
+              notify('disconnected ChatGPT — sign in again anytime from PROVIDERS', 'warn');
+              sfx('bad');
+              if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+              if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            }
             rerender('settings');
           });
           return;
@@ -6411,14 +6433,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (oauthAct[2] === 'resign') { if (engine) startCardSignin(pid, '⏼ RE-SIGN-IN'); return; }   // the ONE card flow
           // logout
           if (engine) engine.cancel(); delete oauthCardFlow[pid];
-          const drop = engine ? engine.logout() : Harness.api.post('/api/auth/' + pid + '/logout').catch(() => {});
-          Promise.resolve(drop).then(() => {
-            oauthStatus[pid] = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
-            if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, false);
-            notify('disconnected ' + provName(pid) + ' — sign in again anytime from PROVIDERS', 'warn');
-            sfx('bad');
-            if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
-            if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+          const drop = engine ? engine.logout() : Harness.api.post('/api/auth/' + pid + '/logout').catch(() => null);
+          Promise.resolve(drop).then(res => {
+            if (!res || !res.ok) { notify('could NOT disconnect ' + provName(pid) + ' — ' + (res ? Harness.api.why(res) + '; it is still signed in' : 'the station did not answer; check PROVIDERS before trying again'), 'warn'); sfx('bad'); }
+            else {
+              oauthStatus[pid] = { connected: false, expired: false, reason: '' };   // the sidecar just confirmed the drop
+              if (typeof Harness !== 'undefined' && Harness.setDesktopConfigured) Harness.setDesktopConfigured(pid, false);
+              notify('disconnected ' + provName(pid) + ' — sign in again anytime from PROVIDERS', 'warn');
+              sfx('bad');
+              if (typeof ModelDock !== 'undefined' && ModelDock.reflect) ModelDock.reflect();
+              if (typeof KeyCTA !== 'undefined' && KeyCTA.refresh) KeyCTA.refresh();
+            }
             rerender('settings');
           });
           return;
@@ -7206,7 +7231,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // Same failure facts as the genesis LINK (app.js startStarnetLink): a dead local engine is never "the link service".
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+      .then(r => { if (generation !== _creditsLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j, why: r ? Harness.api.why(r) : '' }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => { if (generation !== _creditsLinkGeneration) return; if (!j || !j.code) throw new Error('no code'); showCreditsLinkCode(body, host, j); })
       .catch(e => {
@@ -7280,6 +7305,28 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const m = /^skill-eval-(.+)-(\d+)-([a-z]+)-[A-Za-z0-9]+$/.exec(s);
     return m ? 'skill eval ' + m[1].slice(0, 8) + '-' + m[2] + '-' + m[3] : 'run ' + s.slice(0, 8);
   }
+  // Read-only server facts, grouped by the payers the current station routes can use. No client-side admission rule.
+  function effectiveLimitsHtml(effective) {
+    if (!effective || !Array.isArray(effective.rows) || !Array.isArray(effective.classes)) return '<div class="dim">effective limits unavailable</div>';
+    const names = { metered: 'API KEY', managed: 'STARNET CREDITS', subscription: 'SIGN-IN PLAN', local: 'LOCAL MODEL' };
+    const valueText = row => {
+      if (typeof row.value !== 'number' || !Number.isFinite(row.value)) return 'unavailable';
+      if (row.value === 0 && row.zero === 'off') return 'off';
+      if (row.value === 0 && row.zero === 'inherit') return 'station policy';
+      if (row.value === 0 && row.zero === 'wallet') return 'reported wallet';
+      return (row.unit === 'USD' || row.unit.indexOf('USD/') === 0 ? '$' : '') + row.value.toLocaleString('en-US') + (row.unit === 'USD' ? '' : ' ' + row.unit.replace('USD/', 'per '));
+    };
+    return effective.classes.map(cls => {
+      const rows = effective.rows.filter(r => Array.isArray(r.inUse) && r.inUse.indexOf(cls) >= 0);
+      if (!rows.length) return '';
+      return '<details class="mc-effective-payer"><summary>' + esc(names[cls] || cls) + '</summary>' + rows.map(r => {
+        const pending = typeof r.nextValue === 'number' ? ' <span class="dim">(saved: ' + esc(r.nextValue.toLocaleString('en-US')) + '; after restart)</span>' : '';
+        const media = r.group === 'spending' && (cls === 'subscription' || cls === 'local') ? ' Paid images only; chat calls spend no dollars.' : '';
+        return '<div class="set-row"><span>' + esc(r.label) + '</span><strong>' + esc(valueText(r)) + '</strong>' + pending + '</div>' +
+          '<div class="mc-hint">' + esc(r.source || 'unknown') + ' · ' + esc(r.where || '') + (r.env ? ' · STARNET_' + esc(r.env) : '') + '<br>' + esc((r.hint || '') + media) + '</div>';
+      }).join('') + '</details>';
+    }).join('') || '<div class="dim">No payer is selected yet.</div>';
+  }
   function wireBudget(body) {
     const form = body.querySelector('#budget-form');
     if (!form) return;
@@ -7300,6 +7347,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const paint = (st) => {
       if (!st || !st.caps || !BG_KEYS.every(k => typeof st.caps[k] === 'number' && Number.isFinite(st.caps[k]) && st.caps[k] >= 0)) throw new Error('invalid budget response');
       loaded = true; enable(true);
+      const effectiveEl = body.querySelector('#budget-effective');
+      if (effectiveEl) effectiveEl.innerHTML = effectiveLimitsHtml(st.effective);
       const caps = st.caps;
       const saved = (st && st.saved) || {};
       const envd = (st && st.envDefaults) || {};
@@ -7360,11 +7409,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : evals ? open + ' runs never recorded what they spent'
             : (open === 1 ? 'an interrupted run never recorded what it spent' : open + ' interrupted runs never recorded what they spent');
         const floor = (st.atLeast && typeof st.atLeast.today === 'number') ? ' At least ' + fmtUsd(st.atLeast.today) + ' today.' : '';
+        // Estimates are recovery choices, not measured spend or permission to waive a chosen cap.
         spendEl.textContent = acc.writeError
           ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
           : (acc.readError === 'UNSETTLED_SPEND' && open)
             ? 'Spend history unavailable — ' + missing +
-              ', so your spending limits can’t be checked. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+              '. Limits you chose refuse paid calls until this is settled; the shipped soft rail stays unenforced. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
             : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
@@ -7374,11 +7424,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       paintUnsettled(st);
       paintPools(st);
     };
-    // INTERRUPTED RUNS — a run that stopped before its spend was booked leaves that spend unknown, and a limit the
-    // Commander chose refuses every paid run until it is known. One row per run (/api/budget/status `unsettled`, only
-    // runs found at boot), settled ONLY by the amount the Commander enters from the provider dashboard, or — when the run
-    // started under a per-run limit — counted at that limit. Never a guessed figure (DECISIONS.md "Strict vs soft").
+    // UNKNOWN SPEND — an interrupted run, an unpriced skill evaluation or a damaged record line leaves one charge unknown
+    // (/api/budget/status `unsettled`, found at boot). Until the Commander settles it, each counts at its bound in every limit
+    // shown as a possible explicit settlement: the per-run limit it started with, the charge a damaged line still records, or
+    // the assumption for one nobody can read. An interrupted run with no limit counts at nothing, so a limit the Commander
+    // chose that contains it refuses paid runs until it is settled. Settled by the amount the Commander enters, or in one
+    // click (COUNT AS, every row) at the figure the row names; the booking says which. Never a figure nobody chose.
     const unsettledEl = body.querySelector('#budget-unsettled');
+    const BOUND_WORDS = { limit: 'ITS LIMIT', recorded: 'AS RECORDED', assumed: 'ASSUMED' };
+    const exactAt = (managed, byok) => managed ? 'the STORE’s RECENT ACTIVITY has the exact charge' : byok ? 'your provider dashboard has the exact charge' : 'verify the exact charge in the original billing records';
+    const countAsTip = (c, managed, byok) => (c.source === 'recorded'
+      ? 'book it at the ' + fmtUsd(c.usd) + ' the damaged line still records — the line was torn after that figure, so '
+      : c.source === 'assumed'
+        ? 'book it at ' + fmtUsd(c.usd) + ', the assumption for a charge nobody can read (the largest single charge in your spend history, or more) — the real charge may differ, so '
+        : 'book it at the ' + fmtUsd(c.usd) + ' per-run limit it started with — its last call can run past that limit, so ') + exactAt(managed, byok);
     const whenOf = ts => {
       if (!(typeof ts === 'number' && ts > 0)) return 'time unknown';
       try { return new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (_) { return new Date(ts).toISOString(); }
@@ -7418,13 +7477,19 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         // a DAMAGED record line (sidecar ledgerIo): one line of the spend record could not be read, so its charge is
         // unknown. It is never rewritten or deleted; settling it books the verified charge once and history is whole again.
         const damaged = r.kind === 'damaged';
+        // what it counts at until it is settled (the server's bound; an older server sends none, and says nothing of it)
+        const bound = (r.bound && typeof r.bound.usd === 'number' && Number.isFinite(r.bound.usd) && r.bound.usd > 0) ? r.bound : null;
+        const countedTip = bound ? ' Suggested settlement: ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'estimate') + '). This is not a measured charge and does not waive a spending limit you chose.'
+          : ' A spending limit you chose refuses paid calls until this charge is settled.';
         if (damaged) row.setAttribute('data-tip', 'One line of your spend record could not be read (an older crash can leave a torn line), so what it recorded is unknown' +
-          (r.model ? ' (it names ' + r.model + ')' : '') + '. Match it to StarNet Recent Activity or your provider billing records, then enter only its verified charge: StarNet books it once, keeps the damaged line untouched, and your spending limits can be checked again.');
+          (r.model ? ' (it names ' + r.model + ')' : '') + '. Match it to StarNet Recent Activity or your provider billing records, then enter only its verified charge: StarNet books it once, keeps the damaged line untouched, and ' +
+          (bound ? 'the charge is settled.' : 'your spending limits can be checked again.') + countedTip);
         else row.setAttribute('data-tip', (evaluation ? 'This skill evaluation run has no recorded price: its provider usage came back without one, or the call failed or was cut off'
           : 'This run stopped before StarNet recorded what it spent') +
           (managed ? ' (it ran on your StarNet credits' + (r.model ? ', ' + r.model : '') + ')' : (where ? ' (it started on ' + where + ')' : '')) +
           (managed ? '. Enter what StarNet charged for it — SETTINGS → AI & MODELS › STORE › RECENT ACTIVITY lists those charges as ' + creditRunTag(r.runId)
-            : byok ? '. Enter the charge your provider dashboard shows for it' : '. The billing source was not recorded. Match this run to StarNet Recent Activity or the original provider billing records, then enter only its verified charge') + ': StarNet books it once and your spending limits can be checked again.');
+            : byok ? '. Enter the charge your provider dashboard shows for it' : '. The billing source was not recorded. Match this run to StarNet Recent Activity or the original provider billing records, then enter only its verified charge') +
+          (bound ? ': StarNet books it once and the charge is settled.' : ': StarNet books it once and your spending limits can be checked again.') + countedTip);
         const what = document.createElement('span');
         what.className = 'bg-un-what';
         const name = document.createElement('b');
@@ -7433,6 +7498,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         what.appendChild(name);
         what.appendChild(document.createTextNode(' · ' + whenOf(r.ts)));
         if (!managed && !byok && !damaged) what.appendChild(document.createTextNode(' · BILLING SOURCE UNKNOWN'));
+        if (bound) what.appendChild(document.createTextNode(' · ESTIMATE ' + fmtUsd(bound.usd) + ' (' + (BOUND_WORDS[bound.source] || 'ITS BOUND') + ')'));
+        else if (r.countAs) what.appendChild(document.createTextNode(' · CHARGE UNKNOWN'));
         const usd = document.createElement('input');
         usd.className = 'key-input bg-cap bg-un-usd';
         usd.type = 'number'; usd.min = '0'; usd.step = '0.01'; usd.placeholder = '$ charged';
@@ -7443,10 +7510,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         btn.setAttribute('data-tip', 'book the amount you entered as this run’s spend');
         const btns = [btn];
         let capBtn = null;
-        if (typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) {
+        // ONE CLICK FOR EVERY ITEM: the server's countAs (its bound, or the assumption for a run with none), posted as mode 'bound'
+        // so the server books its own figure; an older server's row offers its recorded limit only (mode 'limit')
+        const countAs = (r.countAs && typeof r.countAs.usd === 'number' && Number.isFinite(r.countAs.usd) && r.countAs.usd > 0) ? r.countAs : null;
+        const oneClick = countAs || ((typeof r.runCapUsd === 'number' && Number.isFinite(r.runCapUsd) && r.runCapUsd > 0) ? { usd: r.runCapUsd, source: 'limit' } : null);
+        if (oneClick) {
           capBtn = document.createElement('button');
-          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(r.runCapUsd);
-          capBtn.setAttribute('data-tip', 'book it at the ' + fmtUsd(r.runCapUsd) + ' per-run limit it started with — its last call can run past that limit, so ' + (managed ? 'the STORE’s RECENT ACTIVITY has the exact charge' : byok ? 'your provider dashboard has the exact charge' : 'verify the exact charge in the original billing records'));
+          capBtn.className = 'bb xs'; capBtn.textContent = 'COUNT AS ' + fmtUsd(oneClick.usd);
+          capBtn.setAttribute('data-tip', countAsTip(oneClick, managed, byok));
           btns.push(capBtn);
         }
         btn.addEventListener('click', () => {
@@ -7455,7 +7526,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           if (!Number.isFinite(n) || n < 0) { setMsg('enter ' + chargedBy + ' for that run (a number ≥ 0)'); sfx('bad'); if (usd.focus) usd.focus(); return; }
           settleRun(r, { usd: n }, btns);
         });
-        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: 'limit' }, btns));
+        if (capBtn) capBtn.addEventListener('click', () => settleRun(r, { mode: countAs ? 'bound' : 'limit' }, btns));
         row.appendChild(what); row.appendChild(usd); row.appendChild(btn);
         if (capBtn) row.appendChild(capBtn);
         unsettledEl.appendChild(row);
@@ -7477,7 +7548,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         row.className = 'set-row bg-pool-hit';
         const label = scope === 'day' ? 'DAY POOL' : 'GLOBAL POOL';
         const txt = document.createElement('span');
-        txt.innerHTML = label + ' CAP HIT — <b>' + fmtUsd(p.usd) + '</b> of <b>' + fmtUsd(p.cap) + '</b>. New runs are paused by the governor.';
+        // a pool that counts unknown spend at its bound says how much of the figure that is (sidecar/budget.js status countedUsd)
+        const counted = (typeof p.countedUsd === 'number' && Number.isFinite(p.countedUsd) && p.countedUsd > 0) ? ' (' + fmtUsd(p.countedUsd) + ' of it is unknown spend, counted until you settle it above)' : '';
+        txt.innerHTML = label + ' CAP HIT — <b>' + fmtUsd(p.usd) + '</b> of <b>' + fmtUsd(p.cap) + '</b>' + counted + '. New runs are paused by the governor.';
         const btn = document.createElement('button');
         btn.className = 'bb sm';
         btn.textContent = 'RESUME (+' + fmtUsd(p.base) + ' headroom)';
@@ -7790,16 +7863,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // P1-9 ADVANCED runtime knobs — fetch the server's current + effective values, render an editable form, POST
   // saved overrides. Precedence (env > saved > default) is enforced + reported by the sidecar; the UI just shows
   // whether a field is env-locked (read-only + a note) or a saved override.
-  const ADV_FIELDS = [
-    { key: 'maxIters', label: 'MAX ITERATIONS', hint: 'the most tool steps one run may take. 0 = no limit (default).', min: 0, max: 200, step: 1 },
-    { key: 'maxConcurrentAgents', label: 'MAX CONCURRENT AGENTS', hint: 'the most agents working at the same time. 0 = no limit (default).', min: 0, max: 32, step: 1 },
-    { key: 'consentTimeoutMs', label: 'CONSENT TIMEOUT (MS)', hint: 'how long an approval card waits for your answer before it says no for you (so a run never hangs).', min: 5000, max: 600000, step: 1000 },
-    { key: 'cronTickMs', label: 'ROUTINE TICK (MS)', hint: 'how often the scheduler checks for due routines.', min: 5000, max: 600000, step: 1000 },
-    { key: 'maxSubscriptionTokens', label: 'CLAUDE CODE TOKEN CEILING', hint: 'tokens one run may use on a Claude subscription sign-in (cache re-reads count 1/10). 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 },
-    // issue #135: the ceiling on a model StarNet can't price (a custom provider's model) was env-only. Both token ceilings
-    // apply from the next run (the sidecar re-resolves them into CAPS on save); the other rows wait for a restart.
-    { key: 'maxUnpricedTokens', label: 'UNPRICED MODEL TOKEN CEILING', hint: 'tokens one run may use on a model StarNet has no price for. 0 = no ceiling. Applies from the next run.', min: 0, max: 100000000, step: 100000 }
-  ];
+
   /* the STANDING APPROVALS heading's tip (org P02): when an ask nobody answers is denied, in minutes, and where to change
      it. The number is the deadline the sidecar ENFORCES now (GET /api/runtime/knobs consentTimeoutMs.live — frozen at
      boot) and its ack bound (liveAckMs: an ask whose card is on screen waits 5× as long, capped at 15 min). A CONSENT
@@ -7829,22 +7893,24 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const setMsg = (t, ok) => { if (msgEl) { msgEl.textContent = t || ''; msgEl.className = 'msg' + (ok ? ' ok' : ''); } };
     const render = (st) => {
       const fields = (st && st.fields) || {};
-      form.innerHTML = ADV_FIELDS.map(f => {
+      const definitions = st && Array.isArray(st.definitions) ? st.definitions : [];
+      if (!definitions.length) { form.innerHTML = '<div class="dim">runtime settings unavailable</div>'; return; }
+      form.innerHTML = definitions.map(f => {
         const d = fields[f.key] || {};
         const envLocked = !!d.envLocked;
         const val = (d.effective != null) ? d.effective : (d.default != null ? d.default : '');
         const note = envLocked ? '<span class="dim"> · locked by an environment variable</span>'
           : (d.saved != null ? '<span class="dim"> · saved override</span>' : '<span class="dim"> · default</span>');
-        return '<div class="set-row"><label for="adv-' + f.key + '">' + f.label + note + '</label>' +
+        return '<div class="set-row"><label for="adv-' + f.key + '">' + esc(f.label) + (f.unit === 'ms' ? ' (MS)' : '') + note + '</label>' +
           '<input id="adv-' + f.key + '" class="key-input adv-in" data-key="' + f.key + '" type="number" min="' + f.min + '" max="' + f.max + '" step="' + f.step + '" value="' + esc(String(val)) + '"' + (envLocked ? ' disabled' : '') + '></div>' +
-          '<div class="mc-hint">' + esc(f.hint) + '</div>';
+          '<div class="mc-hint">' + esc(f.hint) + ' ' + esc({ 'next-run': 'Changes apply from the next run.', restart: 'Changes apply after restart.', live: 'Changes apply immediately.' }[f.applies] || '') + '</div>';
       }).join('') +
         '<div class="mc-acts"><button class="bb sm" id="adv-save">SAVE</button>' +
         '<button class="bb xs" id="adv-reset" title="clear every saved override so these follow the environment / built-in defaults again">RESET TO DEFAULTS</button></div>';
       const saveBtn = form.querySelector('#adv-save');
       if (saveBtn) saveBtn.addEventListener('click', () => {
         const payload = {};
-        for (const f of ADV_FIELDS) {
+        for (const f of definitions) {
           const el = form.querySelector('#adv-' + f.key); if (!el || el.disabled) continue;
           const raw = String(el.value).trim();
           if (raw === '') { payload[f.key] = null; continue; }   // blank -> clear override
@@ -7856,15 +7922,15 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         Harness.api.post('/api/runtime/knobs', payload)
           .then(({ ok, j }) => {
             if (!ok) { setMsg((j && j.error) || 'could not save'); sfx('bad'); return; }
-            render(j); setMsg('✓ saved (some limits apply on next restart)', true); sfx('click');
+            render(j); setMsg(j.appliesMessage || 'Saved.', true); sfx('click');
           }).catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
       const resetBtn = form.querySelector('#adv-reset');
       if (resetBtn) resetBtn.addEventListener('click', () => {
-        const payload = {}; ADV_FIELDS.forEach(f => { payload[f.key] = null; });
+        const payload = {}; definitions.forEach(f => { payload[f.key] = null; });
         setMsg('resetting…');
         Harness.api.post('/api/runtime/knobs', payload)
-          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg('✓ reset to defaults', true); sfx('click'); })
+          .then(({ ok, j }) => { if (!ok) { setMsg('reset failed'); sfx('bad'); return; } render(j); setMsg(j.appliesMessage || 'Reset to defaults.', true); sfx('click'); })
           .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
       });
     };
@@ -8079,7 +8145,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // The inner <h4 class="ms-h"> sub-headers stay (they read as sub-labels within a section and every
     // settings test source-locks them). mountConsole builds these panes once and returns a content host
     // that spans them all, so the wireX calls below reach every control with no per-section rewire.
-    const secProviders =
+    const secProviders = () =>
       // NB: no inner "PROVIDERS" heading — the console section head already prints PROVIDERS above the pane
       // (a second identical h4 read as a duplicated title in sys-settings.png).
       '<div class="prov-list">' + providersHtml() + '</div>' +
@@ -8260,7 +8326,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           '<button class="bb xs" id="bg-reset" title="clear the saved value so this cap follows the environment default again" style="display:none">RESET TO DEFAULTS</button>' +
         '</div>' +
       '</div>' +
-      '<div id="budget-msg" class="msg"></div>';
+      '<div id="budget-msg" class="msg"></div>' +
+      '<h4 class="ms-h">WHAT CAN STOP A RUN</h4>' +
+      '<p class="set-about">The station’s active limits and background-work ceilings. Settings saved for a restart are shown separately. These are limits, not a promise of remaining provider allowance.</p>' +
+      '<div id="budget-effective"><span class="dim">reading effective limits…</span></div>';
     const secModels =
       // MODELS — the ordered FALLBACK CHAIN (P0-3). The primary model is chosen live in the COMMS model dock; this
       // sets what the loop tries NEXT if that model fails mid-run. Persisted server-side + applied live to every run
@@ -8622,7 +8691,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     let paintBackdropSwatches = () => {};
 
     const sections = [
-      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: frag(secProviders + secModels) },
+      { id: 'providers', label: 'AI & MODELS', glyph: '⌁', desc: 'The AI your agents think with. Connect one below: StarNet credits, a subscription you have, an API key, or your own models. Everything under API KEYS is optional.', build: el => frag(secProviders() + secModels)(el) },
       // ONE WORD: AUTONOMY — the dial and what it did while you were away are one section (the old NIGHT SHIFT
       // section folded in; openTerm maps its id here so an old deep link still lands).
       { id: 'autonomy', label: 'AUTONOMY', glyph: '◈', desc: 'Choose when agents work on their own, where that work goes, and see what they did while you were away.', build: frag(secAutonomy + secAwayActivity) },
@@ -8656,6 +8725,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // LOOK & SOUND); every old section id still lands through SETTINGS_ALIAS in openTerm.
     const host = mountConsole(body, 'settings', sections, { search: true, searchPlaceholder: 'search settings…' });
     sectionsOf(body)['*'] = scheduleSettingsRepaint;   // invalidate('settings') takes the coalesced, scroll-keeping repaint
+    if (settingsWindow) settingsWindow._refreshProviderStatus = () => {
+      const pane = host.querySelector('.con-sec[data-section="providers"] .con-sec-body');
+      if (!pane || !pane.isConnected) return;
+      frag(secProviders() + secModels)(pane);
+      wireProviderActions(pane);
+      wireKeyActions(pane);
+      wireCredits(pane);
+      wireFallbackChain(pane);
+      wireTierModels(pane);
+      wireVoiceChatModel(pane);
+    };
 
     wireProviderActions(host);
     wireKeyActions(host);
@@ -9656,7 +9736,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           const payload = { agentId: box.getAttribute('data-exec-agent'), host: (box.querySelector('[data-ssh-host]') || {}).value || '', user: (box.querySelector('[data-ssh-user]') || {}).value || '', port: Number((box.querySelector('[data-ssh-port]') || {}).value || 22), remoteRoot: (box.querySelector('[data-ssh-root]') || {}).value || '/workspace' };
           Harness.api.post('/api/execution/ssh', payload).then(r => {
             const j = r.j, ready = r.ok && j && j.ok === true && j.ready === true;
-            notify(ready ? 'SSH target saved and ready' : (r.ok && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
+            // a 200 {ok:false, saved:true} is the station's "saved, but the probe failed" (r.ok folds j.ok, so the 2xx is read by status)
+            notify(ready ? 'SSH target saved and ready' : (r.status >= 200 && r.status < 300 && j && j.saved === true ? 'SSH target saved — probe failed: ' + (j.error || 'unavailable') : ((j && j.error) || 'could not save SSH target')), ready ? 'good' : 'bad');
             refreshExecutionProfiles();
           }).catch(() => { notify('could not save SSH target', 'bad'); refreshExecutionProfiles(); });
         }));
@@ -10507,7 +10588,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         banner.style.cssText = 'position:fixed;top:8px;left:10%;right:10%;z-index:100000;padding:16px;background:#281e12;color:#fff;border:2px solid #e8b35c';
         const label = document.createElement('p'); label.textContent = d.title;
         const exportButton = document.createElement('button'); exportButton.className = 'bb'; exportButton.textContent = 'Download this window’s save';
-        exportButton.onclick = () => { const blob = new Blob([JSON.stringify(CloudSave.localSnapshot() || {})], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'starnet-conflicting-save.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); };
+        exportButton.onclick = async () => { const receipt = await U.saveFile({ name: 'starnet-conflicting-save.json', ext: 'json', text: JSON.stringify(CloudSave.localSnapshot() || {}) }); notify(receipt.line, receipt.ok ? '' : 'warn'); };
         const reload = document.createElement('button'); reload.className = 'bb'; reload.textContent = reset ? 'Open the fresh station' : 'Reload current station'; reload.onclick = async () => { try { await CloudSave.reloadCurrent(); } catch (e) { label.textContent = e.message; } };
         // the preserved copy's sessions go INTO the station (added, never removing any), then this window reloads onto it
         // never after a RESET, and never for erased work: the station was erased on purpose, and this copy is from before it
@@ -10781,10 +10862,12 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     foot.appendChild(flows);
     if (block) {
       const copy = mkEl('button', 'consent-btn cd-brief-copy'); copy.textContent = 'copy briefing';
+      // "copied ✓" only when the copy happened (it used to print it whether or not the clipboard took the briefing)
       copy.onclick = () => {
-        try { navigator.clipboard.writeText(block); } catch (_) {}
-        copy.textContent = 'copied ✓'; sfx('click');
-        setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        U.copyText(block).then(ok => {
+          copy.textContent = ok ? 'copied ✓' : 'copy failed — select the briefing above'; sfx(ok ? 'click' : 'bad');
+          setTimeout(() => { copy.textContent = 'copy briefing'; }, 1500);
+        });
       };
       foot.appendChild(copy);
     }
@@ -12158,10 +12241,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       current.querySelectorAll('input,textarea').forEach(el => { el.dataset.dirty = el.value ? '1' : '0'; });
       current.querySelector('.q-new-success').focus(); current.scrollIntoView({ block: 'nearest' });
     }));
-    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', () => {
-      const url = URL.createObjectURL(new Blob([GoalStore.exportJourney()], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = 'starnet-journey.json'; a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    body.querySelectorAll('.q-journey-export').forEach(b => b.addEventListener('click', async () => {
+      const receipt = await U.saveFile({ name: 'starnet-journey.json', ext: 'json', text: GoalStore.exportJourney() });
+      notify(receipt.line, receipt.ok ? '' : 'warn');
     }));
     body.querySelectorAll('.q-goal-focus').forEach(b => b.addEventListener('click', () => { if (GoalStore.focusGoal(b.dataset.gid)) rerender('quests', false); }));
     body.querySelectorAll('.q-goal-create').forEach(b => b.addEventListener('click', async () => {

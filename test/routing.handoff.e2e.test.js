@@ -200,7 +200,8 @@ test('a job that ships on LINE A rides on to LINE B by SEND TO', async () => {
    POST /api/halt FIRST — src-tauri drain_and_kill_sidecar — so there handleHalt had already said them as "automation is stopped
    (E-STOP)", before and after this fix; that Quit says E-STOP because it really sends one.) After the restart LINE B has ONE failed
    "not sent on" record counting both, and each sending job on LINE A reads NOT sent on, with why — they used to vanish with no record
-   anywhere (A's jobs read DELIVERED with no "sent on" and no "NOT sent on"). The one that was running is said as interrupted. */
+   anywhere (A's jobs read DELIVERED with no "sent on" and no "NOT sent on"). Graceful shutdown now aborts and settles the active
+   owned run before exit. A separate abrupt-kill arm below proves boot still marks an unfinalized hand-off interrupted. */
 test('hand-offs waiting when the station quits are said, never lost', async () => {
   const held = [];
   const server = http.createServer((req, res) => {
@@ -265,6 +266,10 @@ test('hand-offs waiting when the station quits are said, never lost', async () =
     assert.equal((await fixture.json('POST', '/api/lifecycle/quit')).status, 202);
     await exited;
     await fixture.stop();
+    const quitJobs = JSON.parse(fs.readFileSync(path.join(fixture.workspace, 'line-jobs.json'), 'utf8')).jobs;
+    const settledAtQuit = quitJobs.find(j => j.id === before[0].id);
+    assert.deepEqual([settledAtQuit.status, settledAtQuit.outcome, settledAtQuit.stop && settledAtQuit.stop.code], ['stopped', 'stopped', 'stopped'],
+      'graceful shutdown durably settles the owned hand-off with its typed stop before any restart');
     for (const f of held.splice(0)) f();
     await fixture.start();
     const after = await onB();
@@ -281,7 +286,27 @@ test('hand-offs waiting when the station quits are said, never lost', async () =
     const first = (await fixture.json('GET', '/api/line-jobs/' + sent[0])).body.job;
     assert.ok(first.sentTo && first.sentTo.line === LB && !first.sentTo.refused, 'the first job was sent on (its B job ran)');
     const ran = after.find(j => j.id === first.sentTo.jobId);
-    assert.ok(ran && ran.status === 'interrupted', 'the hand-off that was running is said as interrupted: ' + JSON.stringify(ran && ran.status));
+    assert.deepEqual([ran && ran.status, ran && ran.outcome, ran && ran.stop && ran.stop.code], ['stopped', 'stopped', 'stopped'],
+      'restart preserves the already-settled graceful stop');
+
+    // An abrupt exit cannot run the owned finalizer. This is the distinct interrupted-at-boot contract.
+    const crashSend = await fixture.json('POST', '/api/routing/sample', { line: LA, text: 'Crash-only hand-off.', name: 'A' });
+    assert.equal(crashSend.status, 200, JSON.stringify(crashSend.body));
+    for (let k = 0; k < 100 && !held.length; k++) await sleep(50);
+    assert.equal(held.length, 1, 'the crash arm has an actual in-flight hand-off at the provider');
+    const crashJobs = await onB(), crashJob = crashJobs.find(j => j.status === 'running');
+    assert.ok(crashJob, 'the crash arm starts a distinct running B job');
+    const beforeCrash = JSON.parse(fs.readFileSync(path.join(fixture.workspace, 'line-jobs.json'), 'utf8')).jobs.find(j => j.id === crashJob.id);
+    assert.equal(beforeCrash.status, 'running', 'the unfinalized hand-off is actually durable before the abrupt exit');
+    const crashed = new Promise(resolve => fixture.child.once('exit', resolve));
+    fixture.child.kill('SIGKILL');
+    await crashed;
+    await fixture.stop();
+    for (const release of held.splice(0)) release();
+    await fixture.start();
+    const interrupted = (await fixture.json('GET', '/api/line-jobs/' + crashJob.id)).body.job;
+    assert.deepEqual([interrupted.status, interrupted.outcome], ['interrupted', 'interrupted'], 'actual abrupt death remains interrupted after boot');
+    assert.match(interrupted.error, /send it again/, 'the unfinished hand-off gives the existing recovery instruction');
   } finally {
     for (const f of held.splice(0)) f();
     await fixture.dispose();

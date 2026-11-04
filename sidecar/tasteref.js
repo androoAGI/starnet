@@ -24,7 +24,8 @@
    PURE: no I/O, no clock. index.js reads the run row, the transcript rows and the files, and hands them in. */
 'use strict';
 
-const DESIGN_EXT = /\.(html?|css|scss|sass|less|styl|svg|jsx?|mjs|tsx?|vue|svelte|astro|md|mdx)$/i;
+const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (STORED policy)
+const DESIGN_EXT =/\.(html?|css|scss|sass|less|styl|svg|jsx?|mjs|tsx?|vue|svelte|astro|md|mdx)$/i;
 const MARKDOWN_EXT = /\.(md|mdx)$/i;
 const SCRIPT_EXT = /\.(jsx?|mjs|tsx?)$/i;
 const PATHS_MAX = 4;
@@ -142,9 +143,7 @@ function callsOf(row) {
   return Array.isArray(tc) ? tc : [];
 }
 function contentText(c) {
-  if (typeof c === 'string') return c;
-  if (Array.isArray(c)) return c.map(p => (p && typeof p.text === 'string') ? p.text : '').join(' ');
-  return '';
+  return UserText.flatten(c, UserText.STORED);   // the transcript row's own flattening
 }
 const SAVED = /^Generated and saved (.+?) \(\d+ KB, [^,]+, model ([^,)\s]+)([^\n]*)/;
 // -> [{ path, prompt, model, aspect, transparent, reference }] for every image_generate call whose result says it SAVED

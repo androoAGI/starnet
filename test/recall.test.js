@@ -8,7 +8,7 @@ const A = require('./_assert.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { makeRecallTool } = require('../sidecar/tools/builtin/recall.js');
 
-function memIo() { const lines = []; return { lines, readAll() { return lines.slice(); }, append(e) { lines.push(e); } }; }
+function memIo() { return require('../sidecar/transcript-history.js').makeMemoryTranscriptIo(); }
 let clk = 1000; const clock = { now: () => clk };
 
 (async () => {
@@ -264,7 +264,7 @@ let clk = 1000; const clock = { now: () => clk };
     const preview = { streamId: row.streamId, preview: privateText, turns: 1, lastAt: row.ts };
     let lookups = 0;
     const store = {
-      search: () => [row], around: () => [row], streams: () => [preview],
+      view: (_name, _stream, options) => options.op === 'streams' ? [preview] : [row],
       taintOf: () => {
         lookups++;
         const e = new Error('private-exception C:/private/history: ' + privateText);

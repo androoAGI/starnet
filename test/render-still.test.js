@@ -11,7 +11,12 @@
      4. every motion source the frame knows about flips the still flag (unsure is motion: a prop whose art moves on its
         clock, a bobbing body, a meteor, a bubble sliding with its body even off screen), the ambient ones (an off-screen
         body with nothing over it, float dust, a static speech bubble, a planted body's sub-pixel breath, a cold belt) do
-        not, and every clock the inner life gates on is either due in the verdict or exempt for a reason.
+        not, and every clock the inner life gates on is either due in the verdict or exempt for a reason;
+     5. the wait costs ONE rAF callback per draw (4f): stillBookAt books the vsync that draws, from a timer a Windows tick late
+        too, and the verdict books again from its own answer, so a due change a vsync or two out no longer spins rAF;
+     6. ...on every panel, not just 60 Hz (4g): the margin a timer is allowed to be late is MEASURED from the still timers
+        (the whole tick until they have been seen), so a clock on time costs one callback a draw at 144 and 239 Hz too, and a
+        clock a tick late still never costs a draw its vsync.
    The world is a browser IIFE: the pacer block, the verdict block and frame() are lifted out of the source and run in a vm
    sandbox on a fake vsync clock — behaviour, not prose. The prop / sky / sprite readouts the verdict reads are proven by
    test/render-still-readouts.test.js. */
@@ -32,7 +37,7 @@ const code = strip(world);
 // ---- the lifted source --------------------------------------------------------------------------------------------
 const pFrom = world.indexOf('  const PACE_VISIBLE_MS'), pTo = world.indexOf('  function renderPace()');
 const vFrom = world.indexOf('  /* STILL VERDICT'), vTo = world.indexOf('  // ---- end STILL VERDICT');
-A.ok(pFrom > 0 && pTo > pFrom && pTo - pFrom < 12000, 'world.js carries the RENDER PACING block before renderPace()');
+A.ok(pFrom > 0 && pTo > pFrom && pTo - pFrom < 16000, 'world.js carries the RENDER PACING block before renderPace()');   // a slicing sanity bound (+ THE TIMER MARGIN)
 A.ok(vFrom > pTo && vTo > vFrom && vTo - vFrom < 24000, 'world.js carries the STILL VERDICT block after renderPace()');
 const renderPaceSrc = A.fnBody(world, '  function renderPace()');
 const frameSrc = A.fnBody(code, 'function frame(now, force)');
@@ -74,24 +79,28 @@ function frameBody(now) { stillBegin(); scene.step(now); stillVerdict(now); }
 const EXPOSE = `
 this.W = { paceMs, scheduleFrame, paceWake, motionWake, userActive, cameraMoved, renderPace, stillBegin, stillVerdict, stillMove, noteDue, frame,
   noteDrawCost, resetBudget: () => { drawCostMs = 0; },
-  dueLeadMs,
+  yieldToUi, stillBookAt, noteTimerLate: typeof noteTimerLate === 'function' ? noteTimerLate : null, setBook: o => { if ('vsyncMs' in o) vsyncMs = o.vsyncMs; if ('stillDue' in o) stillDue = o.stillDue; if ('lastDrawnAt' in o) lastDrawnAt = o.lastDrawnAt; },
   st: () => ({ stillNow, stillWhy, stillDue, paceTimer, inputAt, motionUntil, vsyncMs, stillFrames }),
   consts: { PACE_VISIBLE_MS, PACE_MOTION_MS, PACE_STILL_MS, PACE_MOTION_HOLD_MS, INPUT_HOLD_MS, BODY_CLOCKS } };`;
 
-// opts.timerLate: every setTimeout fires this many ms late (a Windows / WebView2 system tick is ~15.6 ms) ·
-// opts.pacer(src) / opts.verdict(src): rewrite the lifted pacer / verdict block (a mutation check: the old rule must fail) ·
-// opts.extra: more real world.js source (lifted functions + their stubs), run in the same sandbox
+// opts.timerLate: every setTimeout fires this many ms late (a Windows / WebView2 system tick is ~15.6 ms); a function of the wall
+// time at booking makes the lateness change mid-run · opts.timerTick: a quantised clock - a timer fires on the first system tick
+// (this many ms apart) at or after its time · opts.pacer(src) / opts.verdict(src): rewrite the lifted pacer / verdict block (a
+// mutation check: the old rule must fail) · opts.extra: more real world.js source (lifted functions + their stubs), run in the same sandbox
 function makeWorld(hz, opts) {
   opts = opts || {};
   const env = { now: 0, rafQ: [], timers: [], tid: 0, rafCalls: 0, draws: [], hz };
-  const P = 1000 / hz, late = opts.timerLate || 0;
+  const P = 1000 / hz, lateAt = typeof opts.timerLate === 'function' ? opts.timerLate : () => opts.timerLate || 0, tick = opts.timerTick || 0;
   const sb = {
     console, Map, Set, Math, Object, Infinity, NaN,
     document: { hasFocus: () => true },
     performance: { now: () => env.now },
     requestAnimationFrame: fn => { env.rafQ.push(fn); return env.rafQ.length + 1000; },
     cancelAnimationFrame: () => { env.rafQ.length = 0; },
-    setTimeout: (fn, ms) => { const id = ++env.tid; env.timers.push({ id, at: env.now + Math.max(0, ms) + late, fn }); return id; },
+    setTimeout: (fn, ms) => {
+      const id = ++env.tid, due = env.now + Math.max(0, ms);
+      env.timers.push({ id, at: tick ? Math.ceil(due / tick - 1e-9) * tick : due + lateAt(env.now), fn }); return id;
+    },
     clearTimeout: id => { env.timers = env.timers.filter(t => t.id !== id); },
   };
   vm.createContext(sb);
@@ -191,7 +200,7 @@ function walkerScene(w, b) {
   const slack = (world.slice(pFrom, pTo).match(/function drawSlackMs\(\) \{ return (Math\.max\(1, Math\.min\(vsyncMs \|\| 2, 17\) \/ 2\)); \}/) || [])[1];
   A.ok(!!slack && frameSrc.includes('now - lastDrawnAt < pace - ' + slack + ')'), "the still tick timer's slack (drawSlackMs) is frame()'s own skip rule (" + slack + ')');
   // MUTATION CHECK: the old tick timer (2 ms before the draw) loses a vsync to any timer over 2 ms late
-  const OLD_TICK = src => src.replace('Math.min(stillTickTimerAt(pace), stillDue - lead)', 'Math.min(lastDrawnAt + pace - 2, stillDue - lead)');
+  const OLD_TICK = src => src.replace('still ? stillBookAt(pace) - now : 0', 'still ? lastDrawnAt + pace - 2 - now : 0');
   A.ok(OLD_TICK(world.slice(pFrom, pTo)) !== world.slice(pFrom, pTo), '(the mutation check finds the still tick timer in scheduleFrame)');
   const old = stillRate(60, { timerLate: 4, pacer: OLD_TICK });
   A.ok(old.per < 25, 'MUTATION CHECK — the old tick timer, timers 4 ms late: the still pace fell to ' + old.per + '/s');
@@ -391,10 +400,26 @@ function walkerScene(w, b) {
   A.ok(m >= 26 && w.W.st().stillWhy === 'speech', '...but with a bubble over its head (which rounds to whole px as the head swells) it keeps the normal pace (' + m + ' draws in 450 ms)');
 }
 
-// ---- 4d. DUE LEAD: a due change is met by rAF, never by a timer that can fire a Windows tick late (final fixes 10-21) ---
+// ---- 4d. a due change is met by rAF, never by a timer that can fire a Windows tick late (final fixes 10-21) ------------
 // The scene arms a body's idle clock d ms after a draw (inside the frame, as the inner life does); its walk must be drawn on
 // the first vsync at/after the clock, whatever the timers do. WebView2 on Windows can fire a timer a whole ~15.6 ms system
 // tick late: the old rule (a timer 2 ms before the change) then missed the vsync and drew the change a frame late.
+// The mutation helpers below rewrite the lifted source back to a rule the booking replaced (4d's pre-10-21 rule, 4f's checks).
+const BOOK_EXPR = 'still ? stillBookAt(pace) - now : 0';
+const REBOOK_FROM = 'const booked = performance.now();', REBOOK_TO = 'scheduleFrame(paceMs(booked)); }';
+const rebookText = src => { const a = src.indexOf(REBOOK_FROM), b = src.indexOf(REBOOK_TO); return a > 0 && b > a ? src.slice(a, b + REBOOK_TO.length) : null; };
+const MUTE = {
+  // the pre-10-21 rule: the still wait's timer aims 2 ms before the change (inside the last vsync too), and a frame's verdict
+  // re-books only a timer that would fire after the change
+  old: {
+    pacer: src => src.replace(BOOK_EXPR, 'still ? Math.min(lastDrawnAt + pace, stillDue) - now - 2 : 0'),
+    verdict: src => { const t = rebookText(src); return t ? src.replace(t, 'if (paceTimer && paceTimerAt && (!stillNow || stillDue < paceTimerAt)) paceWake();') : src; },
+  },
+  // stillBookAt without the due branch: only the 30/s tick is booked, so a change due before it waits for the tick
+  noDue: { pacer: src => src.replace('if (kD <= kT) aimK', 'if (false) aimK') },
+  // the verdict books nothing: the callback frame() booked before the draw, from the previous verdict, stands
+  noRebook: { verdict: src => src.replace('else if (paceTimer ? paceTimerAt : raf) { cancelScheduled(); scheduleFrame(paceMs(booked)); }', '') },
+};
 function dueRun(d, opts) {
   const w = makeWorld(60, opts), b = body();
   w.sb.agent = b;
@@ -412,14 +437,9 @@ function dueRun(d, opts) {
   return { w, L, at: b.walkFrom, want: w.firstVsyncAtOrAfter(L + d) };
 }
 {
-  // the rule before the fix: the still wait's timer aims 2 ms before the change (inside the last vsync too), and a frame's
-  // verdict re-books only a timer that would fire after the change
-  const OLD = {
-    pacer: src => src.replace('still && stillDue - now > lead ? Math.min(stillTickTimerAt(pace), stillDue - lead) - now : 0', 'still ? Math.min(lastDrawnAt + pace, stillDue) - now - 2 : 0'),
-    verdict: src => src.replace('stillDue - dueLeadMs() < paceTimerAt - 0.5', 'stillDue < paceTimerAt'),
-  };
+  const OLD = MUTE.old;
   A.ok(OLD.pacer(world.slice(pFrom, pTo)) !== world.slice(pFrom, pTo) && OLD.verdict(world.slice(vFrom, vTo)) !== world.slice(vFrom, vTo),
-    '(the mutation check finds the DUE LEAD rule in scheduleFrame and the verdict\'s re-book)');
+    "(the mutation check finds the still booking in scheduleFrame and the verdict's re-book)");
   // +60 ms: the change is known a still tick ahead, so the draw before it books the wait toward it
   const old = dueRun(60, Object.assign({ timerLate: 15.6 }, OLD));
   A.ok(old.at - old.want > 1, 'MUTATION CHECK — the old rule, timers 15.6 ms late: a change due +60 ms is drawn a vsync late (+' + (old.at - old.L).toFixed(1) + ' ms; its vsync is +' + (old.want - old.L).toFixed(1) + ')');
@@ -446,7 +466,315 @@ function dueRun(d, opts) {
   w.runUntil(3000);
   const dn = w.env.draws.length - d0, rn = w.env.rafCalls - r0;
   A.ok(rn <= dn + 1 && w.W.renderPace().mode === 'still', 'the long still wait is still a timer: one rAF callback per still draw, no spin (' + rn + ' callbacks, ' + dn + ' draws in 2 s, timers 15.6 ms late)');
-  A.ok(Math.abs(w.W.dueLeadMs() - (1000 / 60 + 4)) < 0.5, 'the lead is one learned vsync + 4 ms (' + w.W.dueLeadMs().toFixed(1) + ' ms)');
+  // the lead on a due change is j vsyncs, derived: a timer STILL_TIMER_LATE_MS late (one Windows tick) must still land its rAF
+  // before the vsync that draws the change, and j is the fewest vsyncs that does it (1 at 60 Hz; the panels above it ride rAF
+  // for the last j - 1 vsyncs, as the old lead window did). Asked of the real stillBookAt, with the change due AT the tick's vsync, per panel.
+  const late = num('STILL_TIMER_LATE_MS'), after = num('TICK_AFTER_VSYNC_MS');
+  A.ok(late === 15.6 && after === 0.5, 'a timer is assumed up to 15.6 ms late (one Windows system tick) and wakes 0.5 ms past its vsync (' + late + ', ' + after + ')');
+  const jOf = { 60: 1, 75: 2, 120: 2, 144: 3, 240: 4 };
+  for (const hz of Object.keys(jOf)) {
+    const P = 1000 / hz, bw = makeWorld(60).W, PACE_STILL = bw.consts.PACE_STILL_MS;
+    bw.setBook({ vsyncMs: P, lastDrawnAt: 5000 });
+    const kT = Math.ceil((PACE_STILL - Math.max(1, P / 2)) / P - 1e-9), kD = kT;   // the change is due AT the tick's vsync: the due branch books it
+    bw.setBook({ stillDue: 5000 + (kD - 0.5) * P });
+    // (0 = no timer: j reaches the draw's own vsync, so a bare rAF now rides every vsync up to it — 75 Hz books its tick that way)
+    const aim = bw.stillBookAt(PACE_STILL), fire = aim === 0 ? 5000 : aim, j = kD - (aim === 0 ? 0 : Math.round((aim - 0.5 - 5000) / P));
+    A.eq(j, jOf[hz], hz + ' Hz: the due change is booked ' + jOf[hz] + ' vsync(s) early (' + j + ')');
+    A.ok(fire + late < 5000 + kD * P, '...so a timer ' + late + ' ms late still fires before the vsync that draws it (fires at +' + (fire + late - 5000).toFixed(1) + ' ms, the vsync is +' + (kD * P).toFixed(1) + ')');
+    A.ok(j === 1 || fire + P + late >= 5000 + kD * P, '...and no earlier than that needs: one vsync later would let it miss');
+    bw.setBook({ stillDue: Infinity });
+    A.ok(Math.abs(bw.stillBookAt(PACE_STILL) - (5000 + (kT - 1) * P + after)) < 1e-6, '...and with nothing due the tick alone is booked: a hair past the vsync before it');
+  }
+}
+
+// ---- 4f. ONE rAF PER DRAW: the still floor books the vsync that draws, not every vsync it waited out (idle renderer) ------
+// P7 (the idle station, ?idleRenderer on) booked ~2 rAF callbacks per drawn still frame: 59 + 27 rAF/s for 30.5 draws/s. A scene
+// that books a due change d ms after EVERY draw (a clock-driven pose, a blink, a twinkle step: noteDue) reproduces it, from two causes:
+//  (a) frame() books the next frame BEFORE the draw, from the previous verdict. After a due draw that verdict's stillDue is already
+//      past, so the booking was a bare rAF at the next vsync that the pace check only skipped;
+//  (b) within a vsync + 4 ms of a due change the rule was rAF every vsync, and the timer aimed a whole vsync before the one that draws.
+// stillBookAt now aims the timer at the vsync before the one that draws, and the verdict books again from the fresh verdict.
+const dueScene = (w, d) => { w.sb.scene = { step(now) { w.env.draws.push(now); w.W.noteDue(now + d, now); } }; };
+function rafRun(hz, lag, d, opts) {
+  const w = makeWorld(hz, Object.assign({ timerLate: lag }, opts || {}));
+  w.sb.agent = body(); dueScene(w, d);
+  w.W.frame(0); w.runUntil(1000);
+  const d0 = w.env.draws.length, r0 = w.env.rafCalls, rp0 = w.W.renderPace();
+  w.runUntil(5000);
+  const rp = w.W.renderPace(), n = w.env.draws.length - d0;
+  return { w, n, perS: n / 4, rafPerDraw: (w.env.rafCalls - r0) / n, skipped: rp.skippedFrames - rp0.skippedFrames, dueLate: rp.dueLate - rp0.dueLate, mode: rp.mode };
+}
+const rafRow = (lag, d, r) => lag + ' ms late, due +' + d + ': ' + r.perS + ' draws/s, ' + r.rafPerDraw.toFixed(2) + ' rAF/draw, ' + r.skipped + ' skipped, ' + r.dueLate + ' late';
+{
+  const book = A.fnBody(code, 'function scheduleFrame(pace)');
+  A.ok(book && /still \? stillBookAt\(pace\) - now : 0/.test(book) && !/dueLeadMs|DUE_LEAD_SLACK_MS|stillTickTimerAt/.test(code),
+    'scheduleFrame books the still wait with stillBookAt; the old lead window (dueLeadMs) and tick timer are gone');
+  A.ok(/now < yieldUntil \? yieldUntil - now : pace >= PACE_TIMER_MIN_MS \? lastDrawnAt \+ pace - now - 2/.test(book) && /\n\s*else raf = requestAnimationFrame\(frame\);/.test(book),
+    'the yield, the >= 100 ms timer and the non-still branches (plain rAF at a draw-rate pace) are untouched');
+  const D = [20, 30, 40, 55, 66, 100, 400];
+  // THE INVARIANT: whatever is due, the 30/s floor costs one callback per draw, and the change still lands on its own vsync
+  for (const lag of [0, 4, 15.6]) {
+    const rows = D.map(d => [d, rafRun(60, lag, d)]);
+    const bad = rows.filter(([, r]) => !(r.perS >= 29 && r.perS <= 31 && r.rafPerDraw <= 1.05 && r.skipped <= 0.02 * r.n && r.dueLate === 0));
+    const worst = Math.max(...rows.map(([, r]) => r.rafPerDraw));
+    A.ok(!bad.length, '60 Hz, timers ' + lag + ' ms late, a change due +20..+400 ms after every draw: ~30 draws/s, ONE rAF per draw (worst ' + worst.toFixed(2) + '), none skipped, none late'
+      + (bad.length ? ' — ' + bad.slice(0, 3).map(([d, r]) => rafRow(lag, d, r)).join('; ') : ''));
+  }
+  // a change due inside one vsync is drawn at the normal pace from the next vsync: 60 draws/s, one callback each, nothing waits
+  for (const lag of [0, 15.6]) for (const d of [8, 15]) {
+    const r = rafRun(60, lag, d);
+    A.ok(r.perS >= 59 && r.perS <= 61 && r.rafPerDraw <= 1.05 && r.dueLate === 0 && r.skipped <= 0.02 * r.n, '60 Hz, timers ' + lag + ' ms late, a change due +' + d + ' ms after every draw: 60 draws/s, one rAF each — ' + rafRow(lag, d, r));
+  }
+  // 144 Hz: until the timers have been seen the last vsyncs before a due change ride rAF (j = 3 at most), never worse than the old lead
+  // window; the change lands on time. (This first second is the seed: 4g proves the margin then comes down to ONE rAF a draw.)
+  for (const lag of [0, 4]) {
+    const rows = [8, 15].concat(D).map(d => [d, rafRun(144, lag, d)]);
+    const bad = rows.filter(([, r]) => !(r.dueLate === 0 && r.rafPerDraw <= 3.05 && r.perS >= 28));
+    A.ok(!bad.length, '144 Hz, timers ' + lag + ' ms late: every due change lands on its vsync (none late), at most 3 rAF per draw, the 30/s tick holds'
+      + (bad.length ? ' — ' + bad.slice(0, 3).map(([d, r]) => rafRow(lag, d, r)).join('; ') : ''));
+  }
+  {   // (the corner nobody fixes: a timer a whole system tick late on a 144 Hz panel already cost the old rule its 30/s tick, 20.5/s; this one is no worse)
+    const rows = [8, 15].concat(D).map(d => [d, rafRun(144, 15.6, d)]);
+    const bad = rows.filter(([, r]) => !(r.perS >= 20 && r.rafPerDraw <= 3.05));
+    A.ok(!bad.length, '144 Hz, timers 15.6 ms late: never worse than the old rule (>= 20 draws/s, <= 3 rAF per draw)' + (bad.length ? ' — ' + bad.slice(0, 3).map(([d, r]) => rafRow(15.6, d, r)).join('; ') : ''));
+  }
+  // exactly one booking is alive after every draw: one timer or one rAF, never both, never none
+  for (const [lag, d] of [[0, 8], [0, 30], [15.6, 55], [4, 400]]) {
+    const w = makeWorld(60, { timerLate: lag }); w.sb.agent = body(); dueScene(w, d);
+    w.W.frame(0); w.runUntil(1000);
+    let bad = 0, timers = 0;
+    for (let i = 0; i < 60; i++) { w.toNextDraw(); const alive = w.env.rafQ.length + w.env.timers.length; if (alive !== 1) bad++; if (w.env.timers.length) timers++; }
+    A.ok(bad === 0, 'after each of 60 still draws (timers ' + lag + ' ms late, due +' + d + '): exactly one booking is alive (' + bad + ' draws with none or two; ' + timers + ' booked a timer)');
+  }
+  // a wake from outside the frame, right after a re-booked draw, lands on the next vsync whatever the re-booked callback is (a bare rAF, or a timer it drops)
+  for (const [d, lag, want] of [[8, 0, 'rAF'], [20, 0, 'timer'], [20, 15.6, 'timer'], [100, 15.6, 'timer'], [400, 0, 'timer']]) {
+    const w = makeWorld(60, { timerLate: lag }); w.sb.agent = body(); dueScene(w, d);
+    w.W.frame(0); w.runUntil(1000);
+    const L = w.toNextDraw(), kind = w.W.renderPace().timerWait ? 'timer' : w.sb.raf ? 'rAF' : 'none';
+    w.at(L + 5, () => w.W.motionWake());
+    w.runUntil(L + 100);
+    const next = w.env.draws.find(t => t > L);
+    A.ok(kind === want && Math.abs(next - (L + 1000 / 60)) < 0.01, 'a wake 5 ms after a re-booked draw (due +' + d + ', timers ' + lag + ' ms late; booked: ' + kind + ') is drawn on the next vsync (+' + (next - L).toFixed(1) + ' ms)');
+  }
+  // motion is untouched: a walking body is 60 draws/s with ONE callback each and none skipped; a panning hand 144/s the same way
+  {
+    const w = makeWorld(60), b = body({ idleUntil: 0 }); w.sb.agent = b; walkerScene(w, b);
+    w.W.frame(0); w.runUntil(1000);
+    const d0 = w.env.draws.length, r0 = w.env.rafCalls, s0 = w.W.renderPace().skippedFrames;
+    w.runUntil(3000);
+    const n = w.env.draws.length - d0, rp = w.W.renderPace();
+    A.ok(n >= 119 && n <= 121 && w.env.rafCalls - r0 <= n + 1 && rp.skippedFrames === s0, 'a walking body: 60 draws/s, one rAF callback per draw, none skipped (' + n + ' draws, ' + (w.env.rafCalls - r0) + ' callbacks in 2 s)');
+    const w2 = makeWorld(144), b2 = body(); w2.sb.agent = b2; walkerScene(w2, b2);
+    w2.W.frame(0); w2.runUntil(1000);
+    for (let t = 1000; t < 2000; t += 3) w2.at(t, () => { w2.sb.panX += 1; w2.W.cameraMoved(); });
+    w2.runUntil(1200);
+    const e0 = w2.env.draws.length, q0 = w2.env.rafCalls, k0 = w2.W.renderPace().skippedFrames;
+    w2.runUntil(2000);
+    const m = w2.env.draws.length - e0, rp2 = w2.W.renderPace();
+    A.ok(m >= 114 && m <= 116 && w2.env.rafCalls - q0 <= m + 1 && rp2.skippedFrames === k0, 'a panning hand on a 144 Hz panel: 144 draws/s, one rAF callback per draw, none skipped (' + m + ' draws, ' + (w2.env.rafCalls - q0) + ' callbacks in 0.8 s)');
+  }
+  // a heavy MOTION draw (20 ms, over a vsync) is drawn exactly as it is without the verdict's re-book: frame() still books its
+  // next callback before it draws, and the re-book never touches a moving floor (the fake clock is pushed on inside the draw)
+  {
+    const heavy = opts => {
+      const w = makeWorld(60, opts), b = body({ idleUntil: 0 }); w.sb.agent = b;
+      let last = 0;
+      w.sb.scene = { step(now) { w.env.draws.push(now); const dt = last ? now - last : 0; last = now; b.px += 0.03 * dt; b.state = 'walk'; w.env.now += 20; } };
+      w.W.frame(0); w.runUntil(3000);
+      return [w.env.draws.length, w.env.rafCalls, w.W.renderPace().skippedFrames].join('/');
+    };
+    const real = heavy(), plain = heavy({ verdict: MUTE.noRebook.verdict });
+    A.ok(real === plain, 'a 20 ms motion draw: the same draws, callbacks and skips with and without the verdict re-book (' + real + ' vs ' + plain + ')');
+  }
+  // skippedFrames counts what the pace check sent back: a 48 ms caller cap at 60 Hz books rAF every vsync, two of three skipped
+  {
+    const w = makeWorld(60), b = body({ idleUntil: 0 }); w.sb.agent = b; walkerScene(w, b); w.sb.frameCapMs = 48;
+    w.W.frame(0); w.runUntil(1000);
+    const d0 = w.env.draws.length, s0 = w.W.renderPace().skippedFrames;
+    w.runUntil(3000);
+    const n = w.env.draws.length - d0, s = w.W.renderPace().skippedFrames - s0;
+    A.ok(typeof w.W.renderPace().skippedFrames === 'number' && n >= 38 && n <= 42 && s >= n * 1.9 && s <= n * 2.1, 'renderPace().skippedFrames counts the callbacks the pace check sent back (a 48 ms cap: ' + s + ' skipped for ' + n + ' draws)');
+  }
+  // the verdict books again only for a floor on the still pace: a capped floor is never re-booked (no rAF cancelled and rebooked),
+  // and a UI-first hold that begins INSIDE a still draw (a window opening from the draw's own callbacks) is kept to the vsync
+  {
+    const w = makeWorld(60); let cancels = 0; const cancel0 = w.sb.cancelAnimationFrame;
+    w.sb.cancelAnimationFrame = id => { cancels++; return cancel0(id); };
+    w.sb.agent = body(); dueScene(w, 400); w.sb.frameCapMs = 48;
+    w.W.frame(0); w.runUntil(3000);
+    A.ok(w.W.renderPace().mode === 'capped' && w.W.renderPace().stillFrames > 20 && cancels === 0, 'a capped floor judged still is never re-booked: the plain rAF it booked stands (' + cancels + ' booking(s) cancelled in 3 s)');
+    const h = makeWorld(60), hold = 140; h.sb.agent = body();   // (not a whole number of vsyncs: a timer ON a vsync boundary fires after it)
+    let armed = false, at = 0;
+    h.sb.scene = { step(now) { h.env.draws.push(now); h.W.noteDue(now + 20, now); if (armed && !at) { at = now; h.W.yieldToUi(hold); } } };
+    h.W.frame(0); h.runUntil(1000); armed = true; h.runUntil(1500);
+    const next = h.env.draws.find(t => t > at), want = h.firstVsyncAtOrAfter(at + hold);
+    A.ok(at > 0 && Math.abs(next - want) < 0.01 && h.env.draws.filter(t => t > at && t < want).length === 0, 'a hold begun inside a still draw stands: no draw until it ends (' + hold + ' ms), then the first vsync (+' + (next - at).toFixed(1) + ' ms)');
+  }
+  // MUTATION CHECKS: each half of the fix, alone removed, is caught
+  const stillRun = (m, hz, lag, d) => rafRun(hz, lag, d, m);
+  A.ok(MUTE.noDue.pacer(world.slice(pFrom, pTo)) !== world.slice(pFrom, pTo) && MUTE.noRebook.verdict(world.slice(vFrom, vTo)) !== world.slice(vFrom, vTo),
+    '(the mutation checks find the due branch of stillBookAt and the verdict re-book)');
+  const m1 = stillRun(MUTE.noDue, 60, 0, 8);
+  A.ok(m1.dueLate > 0 || m1.perS < 55, 'MUTATION CHECK — stillBookAt without the due branch: a change due +8 ms waits for the 30/s tick (' + rafRow(0, 8, m1) + ')');
+  const m2 = stillRun(MUTE.noRebook, 60, 0, 30);
+  A.ok(m2.rafPerDraw > 1.5, 'MUTATION CHECK — no verdict re-book: the stale booking is back, ~2 rAF per draw (' + rafRow(0, 30, m2) + ')');
+  const m3 = stillRun(MUTE.old, 60, 15.6, 30);
+  A.ok(m3.rafPerDraw > 1.5 || m3.dueLate > 0 || m3.perS < 29, 'MUTATION CHECK — the pre-10-21 rule (a timer 2 ms before the change) fails the same invariant (' + rafRow(15.6, 30, m3) + ')');
+}
+
+// ---- 4g. THE LATE-TIMER MARGIN IS MEASURED, NOT ASSUMED: one rAF per draw above 60 Hz too (idle renderer review) -------------
+// 4f proves one rAF per draw at 60 Hz, where a whole Windows tick (15.6 ms) is shorter than a vsync and the lead is one vsync. Above
+// 60 Hz the lead came from a constant: a due change was booked j = ceil((15.6 + 0.5) / vsync) vsyncs early whatever the timers really
+// did (144 Hz: 3, 239 Hz: 4), so the last j - 1 vsyncs before every due draw rode bare rAF callbacks - 3 to 4 a draw on the panels the
+// P7 budget line (rafPerDraw <= 1.25) is judged on - and 4f tested nothing above 144 Hz. The margin is now what the still timers have
+// really been late: the worst of the last TIMER_LATE_SAMPLES of them (clamped to the tick), and the whole tick until they have been seen.
+// THE CLASS: every panel x every timer lateness x every due distance. Once the timers have been seen:
+//   (a) a due change is drawn on its own vsync (the margin changes what a wait COSTS, never when anything is drawn);
+//   (b) the draw costs ONE rAF callback - or, when its vsync is within j of the last draw (a timer that late cannot be aimed there),
+//       the kD callbacks of the vsyncs it must ride, never more. j is what a timer `lag` late needs: ceil((lag + 0.5) / vsync).
+{
+  const SAMPLES = num('TIMER_LATE_SAMPLES'), TICK = num('STILL_TIMER_LATE_MS');
+  const C = makeWorld(60).W.consts;
+  // (100, not 75 or 90: there the 30/s tick or the visible pace falls EXACTLY on a vsync, and frame()'s strict compare decides it by float noise)
+  const HZ = [60, 100, 120, 144, 240], LAGS = [0, 4, TICK], DS = [20, 26, 30, 100, 400];
+  for (let d = 1; d <= 70; d += 3) DS.push(d);
+  // what frame() and the booking owe a due change d ms after every draw, per panel: kT = the vsync the 30/s tick draws on, kD = the
+  // vsync a change d out draws on (never before the visible pace), j = the vsyncs a timer `lag` late (woken 0.5 ms past its vsync) needs.
+  // A floor that has never booked a timer - every wait within jSeed vsyncs of its draw rides rAF - has nothing to measure with and
+  // keeps the tick as its margin (kD callbacks a draw, as before); any other floor learns the clock and pays one.
+  const owed = (hz, lag, d) => {
+    const P = 1000 / hz, slack = Math.max(1, Math.min(P, 17) / 2);
+    const kT = Math.max(1, Math.ceil((C.PACE_STILL_MS - slack) / P - 1e-9)), kD = Math.max(1, Math.ceil(Math.max(d, C.PACE_VISIBLE_MS - slack) / P - 1e-9));
+    const j = Math.max(1, Math.ceil((lag + 0.5) / P - 1e-9)), jSeed = Math.max(1, Math.ceil((TICK + 0.5) / P - 1e-9)), due = kD <= kT;
+    return { P, kT, kD, j, jSeed, due, callbacks: due && kD <= jSeed ? kD : 1 };
+  };
+  // one run: 3 s for the margin to settle (more than TIMER_LATE_SAMPLES timers), then 3 s measured
+  const settled = (hz, lag, d, opts) => {
+    const w = makeWorld(hz, Object.assign({ timerLate: lag }, opts || {}));
+    w.sb.agent = body(); dueScene(w, d);
+    w.W.frame(0); w.runUntil(3000);
+    const i0 = w.env.draws.length - 1, r0 = w.env.rafCalls;
+    w.runUntil(6000);
+    const draws = w.env.draws.slice(i0), n = draws.length - 1;
+    return { w, n, ivs: draws.slice(1).map((t, i) => t - draws[i]), rafPerDraw: (w.env.rafCalls - r0) / n };
+  };
+  A.ok(SAMPLES >= 16 && SAMPLES <= 64 && TICK === 15.6, 'the margin is the worst of the last ' + SAMPLES + ' still timers, and at most one Windows tick (' + TICK + ' ms)');
+  const rows = [];
+  for (const hz of HZ) for (const lag of LAGS) for (const d of DS) rows.push([hz, lag, d, owed(hz, lag, d), settled(hz, lag, d)]);
+  const fmt = ([hz, lag, d, o, r]) => hz + ' Hz, timers ' + lag + ' ms late, due +' + d + ': ' + r.rafPerDraw.toFixed(2) + ' rAF/draw (owed ' + o.callbacks + ')';
+  // (b) THE INVARIANT, RED on a constant margin: one callback per draw wherever a timer can be aimed at the draw's own vsync
+  const heavy = rows.filter(([, , , o, r]) => !(r.rafPerDraw <= o.callbacks * 1.05 + 0.02));
+  A.ok(!heavy.length, 'EVERY panel (60-240 Hz) x timer lateness (0, 4, 15.6 ms) x due distance (+1..+400 ms): a draw costs ONE rAF callback, or the kD it must ride when no timer has ever been aimable'
+    + ' - ' + rows.length + ' runs' + (heavy.length ? ' - over: ' + heavy.length + ', e.g. ' + heavy.slice(0, 3).map(fmt).join('; ') : ''));
+  const worst = hz => Math.max(...rows.filter(([h, l, d, o]) => h === hz && l === 0 && o.due && o.callbacks === 1).map(([, , , , r]) => r.rafPerDraw));
+  A.ok(HZ.every(hz => worst(hz) <= 1.05), '...so with timers on time the 30/s floor with a change due +20..+70 ms reads ' + HZ.map(hz => hz + ' Hz ' + worst(hz).toFixed(2)).join(', ') + ' rAF per draw (the P7 line wants <= 1.25)');
+  // (a) nothing is drawn late for it: every interval between draws is the vsync the change is due on (the tick-only draws too, on time timers)
+  const late = rows.filter(([, lag, , o, r]) => (o.due || lag === 0) && !r.ivs.every(iv => Math.abs(iv - (o.due ? o.kD : o.kT) * o.P) < 0.01));
+  A.ok(!late.length, '...and every change is still drawn on its own vsync (no interval but kD vsyncs)' + (late.length ? ' - late: ' + late.length + ', e.g. ' + late.slice(0, 3).map(fmt).join('; ') : ''));
+  A.ok(rows.every(([, , , , r]) => r.n >= 25), '...a station that draws (>= 8 draws a second) in every one of those runs');
+
+  // THE SEED: before any timer has been seen the whole tick is assumed, so a timer a tick late costs no draw its vsync from the first
+  // draw on - the margin is the worst case until the evidence is in
+  for (const hz of [120, 144, 240]) for (const d of [20, 30]) {
+    const o = owed(hz, TICK, d), w = makeWorld(hz, { timerLate: TICK });
+    w.sb.agent = body(); dueScene(w, d); w.W.frame(0); w.runUntil(500);
+    const ivs = w.env.draws.slice(1).map((t, i) => t - w.env.draws[i]).slice(3), rp = w.W.renderPace();   // (not the first three: the vsync is still being learned)
+    A.ok(ivs.length >= 10 && ivs.every(iv => Math.abs(iv - o.kD * o.P) < 0.01) && rp.timerSamples < SAMPLES && rp.timerLateMs === TICK,
+      hz + ' Hz, timers a whole tick late from the first draw, due +' + d + ': the first ' + ivs.length + ' changes land on their vsync (the margin still ' + rp.timerLateMs + ' ms after ' + rp.timerSamples + ' timers)');
+  }
+
+  // THE FOLLOW: a clock that gets worse is believed at once (one draw in flight pays for it, none after); one that gets better only once
+  // the worst timers have turned over - the margin is a window, not a mood
+  {
+    const hz = 240, d = 30, o = owed(hz, 0, d);
+    const worse = makeWorld(hz, { timerLate: t => (t < 3000 ? 0 : TICK) });
+    worse.sb.agent = body(); dueScene(worse, d); worse.W.frame(0); worse.runUntil(3000);
+    const mid = worse.W.renderPace().timerLateMs, i0 = worse.env.draws.length - 1;
+    worse.runUntil(6000);
+    const draws = worse.env.draws.slice(i0), lateDraws = draws.slice(1).filter((t, i) => Math.abs(t - draws[i] - o.kD * o.P) > 0.01).length;
+    A.ok(mid < 1 && lateDraws <= 1 && worse.W.renderPace().timerLateMs === TICK,
+      '240 Hz, timers on time and then a whole tick late: the margin goes from ' + mid + ' to ' + worse.W.renderPace().timerLateMs + ' ms at the first late timer - ' + lateDraws + ' draw late, none after');
+    const better = makeWorld(hz, { timerLate: t => (t < 3000 ? TICK : 0) });
+    better.sb.agent = body(); dueScene(better, d); better.W.frame(0); better.runUntil(3300);
+    const soon = better.W.renderPace().timerLateMs;
+    better.runUntil(7000);
+    A.ok(soon === TICK && better.W.renderPace().timerLateMs === 0, '240 Hz, timers a tick late and then on time: still ' + soon + ' ms 0.3 s later (trusted only once the late ones have turned over), ' + better.W.renderPace().timerLateMs + ' ms in the end');
+  }
+  // ...a stall is not a clock: one timer 250 ms late (the main thread was busy) cannot push the margin past the tick, and the window forgets it
+  {
+    const w = makeWorld(240, { timerLate: t => (t >= 3000 && t < 3040 ? 250 : 0) });
+    w.sb.agent = body(); dueScene(w, 30); w.W.frame(0); w.runUntil(3400);
+    const during = w.W.renderPace().timerLateMs;
+    w.runUntil(6000);
+    A.ok(during === TICK && w.W.renderPace().timerLateMs === 0, 'one timer 250 ms late (a stall) reads as one tick (' + during + ' ms), never more, and is forgotten after ' + SAMPLES + ' timers (' + w.W.renderPace().timerLateMs + ' ms)');
+  }
+  // ...and what a timer can report is read defensively: early (a delay the browser rounds down) is on time, an unreadable lateness is
+  // the worst case, never a good one
+  {
+    const w = makeWorld(240).W, margin = () => w.renderPace().timerLateMs;
+    A.ok(typeof w.noteTimerLate === 'function', 'the pacer takes a still timer\'s lateness through noteTimerLate');
+    if (typeof w.noteTimerLate === 'function') {
+      for (let i = 0; i < SAMPLES; i++) w.noteTimerLate(0);
+      const quiet = margin();
+      w.noteTimerLate(-0.7); const early = margin();
+      w.noteTimerLate(NaN); const nan = margin();
+      for (let i = 0; i < SAMPLES; i++) w.noteTimerLate(1.25);
+      const mid = margin();
+      w.noteTimerLate(Infinity); const inf = margin();
+      A.eq([quiet, early, nan, mid, inf], [0, 0, TICK, 1.3, TICK], 'a timer reports its lateness defensively: early reads 0, an unreadable value or Infinity reads the whole tick (margin ' + [quiet, early, nan, mid, inf].join(', ') + ')');
+    }
+  }
+  // a quantised clock (Windows without a high-resolution timer: a timer fires on the next 15.625 ms system tick, so it is late by anything
+  // from 0 to a tick, unpredictably): the margin is the whole tick, nothing is drawn late - before or after the margin has settled - and
+  // the cost is no worse than the constant it replaces
+  for (const hz of [60, 120, 144, 240]) for (const d of [20, 26, 30, 55]) {
+    const o = owed(hz, TICK, d), w = makeWorld(hz, { timerTick: 15.625 });
+    w.sb.agent = body(); dueScene(w, d); w.W.frame(0); w.runUntil(6000);
+    const ivs = w.env.draws.slice(1).map((t, i) => t - w.env.draws[i]).slice(3), rp = w.W.renderPace(), perDraw = w.env.rafCalls / w.env.draws.length, most = o.due ? Math.min(o.kD, o.j) : 1;
+    A.ok((!o.due || ivs.every(iv => Math.abs(iv - o.kD * o.P) < 0.01)) && rp.timerLateMs >= 12 && perDraw <= most * 1.05 + 0.02,
+      hz + ' Hz, a 15.625 ms quantised timer clock, due +' + d + ': every change on its vsync, the margin ' + rp.timerLateMs + ' ms, ' + perDraw.toFixed(2) + ' rAF/draw (at most ' + most + ')');
+  }
+
+  // THE READOUT the bench prints beside the P7 verdict: the margin in use and how many timers it has seen
+  {
+    const w = makeWorld(240, { timerLate: 4 }); w.sb.agent = body(); dueScene(w, 30);
+    const rp0 = w.W.renderPace();
+    w.W.frame(0); w.runUntil(4000);
+    const rp = w.W.renderPace();
+    A.ok(rp0.timerLateMs === TICK && rp0.timerSamples === 0 && rp.timerLateMs === 4 && rp.timerSamples >= SAMPLES,
+      "renderPace() reads the margin in use (timerLateMs: " + rp0.timerLateMs + ' -> ' + rp.timerLateMs + ') and the timers it has seen (timerSamples: ' + rp0.timerSamples + ' -> ' + rp.timerSamples + ')');
+  }
+
+  // THE MARGIN CARRIES OVER: a floor whose waits all ride rAF (a change due within jSeed vsyncs of every draw: 240 Hz, +8 ms) books no
+  // timer, so it cannot measure the clock - and a probe armed beside the rAF chain would read it with the thread kept awake. But the
+  // station that has been quiet first (the app's day: boot, then the 30/s floor) has measured it, and keeps what it learned
+  {
+    const run = (dAt, ms) => {
+      const w = makeWorld(240, { timerLate: 0 }); w.sb.agent = body();
+      w.sb.scene = { step(now) { w.env.draws.push(now); w.W.noteDue(now + dAt(now), now); } };
+      w.W.frame(0); w.runUntil(ms[0]);
+      const i0 = w.env.draws.length - 1, r0 = w.env.rafCalls;
+      w.runUntil(ms[1]);
+      return { w, rafPerDraw: (w.env.rafCalls - r0) / (w.env.draws.length - 1 - i0), rp: w.W.renderPace() };
+    };
+    const quietFirst = run(now => (now < 3000 ? 400 : 8), [4000, 6000]), fresh = run(() => 8, [4000, 6000]);
+    A.ok(quietFirst.rafPerDraw <= 1.05 && quietFirst.rp.timerLateMs === 0, '240 Hz, quiet for 3 s and then a change due +8 ms after every draw: the margin it learned is kept (' + quietFirst.rp.timerLateMs + ' ms), ' + quietFirst.rafPerDraw.toFixed(2) + ' rAF per draw');
+    A.ok(fresh.rafPerDraw > 3.5 && fresh.rp.timerLateMs === TICK && fresh.rp.timerSamples === 0, '...while a floor that never booked a timer keeps the tick (' + fresh.rp.timerLateMs + ' ms, ' + fresh.rp.timerSamples + ' timers seen): the 4 vsyncs ride rAF as before (' + fresh.rafPerDraw.toFixed(2) + ' a draw)');
+  }
+
+  // MUTATION CHECKS: the pre-fix rule (a constant margin) and a margin that starts at zero are both caught
+  const CONST_MARGIN = src => src.replace('(timerLateMax + TICK_AFTER_VSYNC_MS)', '(STILL_TIMER_LATE_MS + TICK_AFTER_VSYNC_MS)');
+  const ZERO_SEED = src => src.replace('.fill(STILL_TIMER_LATE_MS)', '.fill(0)');
+  const pacerSrc = world.slice(pFrom, pTo);
+  A.ok(CONST_MARGIN(pacerSrc) !== pacerSrc && ZERO_SEED(pacerSrc) !== pacerSrc, '(the mutation checks find the margin in stillBookAt and its starting window)');
+  const m1 = settled(240, 0, 26, { pacer: CONST_MARGIN });
+  A.ok(m1.rafPerDraw > 3.5, 'MUTATION CHECK - the constant margin (the rule before this fix), 240 Hz, timers on time, a change due +26 ms: ' + m1.rafPerDraw.toFixed(2) + ' rAF per draw (the invariant above wants 1)');
+  {
+    const o = owed(240, TICK, 30), w = makeWorld(240, { timerLate: TICK, pacer: ZERO_SEED });
+    w.sb.agent = body(); dueScene(w, 30); w.W.frame(0); w.runUntil(1000);
+    const lateOnes = w.env.draws.slice(1).filter((t, i) => Math.abs(t - w.env.draws[i] - o.kD * o.P) > 0.01).length;
+    A.ok(lateOnes >= 1, 'MUTATION CHECK - a margin that starts at zero: the first timers, a tick late, cost ' + lateOnes + ' draw(s) their vsync');
+  }
 }
 
 // ---- 4e. the final fixes' wakes, through the real pacer: a camera cut from a timer, a layout edit, start stamps ------------
@@ -959,7 +1287,7 @@ A.ok(/return wakeOnCall\(\{ init, rebake,/.test(code), 'the World API is returne
     'userReturnUntil': "raises THE LOOK-UP's chance inside maybeGlance, whose pending roll is motion (heroGlanceAt)",
     'plan.until': 'a traffic plan for a body holding a walk target — motion already', 'trafficRetry.get': 'a traffic retry for a body holding a walk target — motion already',
     'forgetAt': 'habituation decay: it changes later decisions, nothing drawn', 'mournCd': 'gates a grief beat that a prop edit queues (an input / World API wake)',
-    'dueWatch': "the DUE LEAD readout: frame() records how late the verdict's own due change drew — it gates nothing",
+    'dueWatch': "the due-draw readout (THE STILL BOOKING): frame() records how late the verdict's own due change drew — it gates nothing",
   };
   const unknown = [], stale = [];
   for (const k of keys) {

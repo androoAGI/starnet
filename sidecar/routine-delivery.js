@@ -29,8 +29,10 @@
 'use strict';
 
 const { note: failNote, swallow } = require('./failopen.js');
+const TurnKinds = require('../frontend/app/turnkinds.js');
 const RoutineMedia = require('./routine-media.js');               // a chat-bound routine's delivery carries its files
 const RunOutcome = require('../frontend/app/runoutcome.js');      // a stopped fire is worded as a stop (typed-outcomes)
+const Publication = require('./channels/history-publication.js');
 
 function makeRoutineDelivery(deps) {
   const d = deps || {};
@@ -121,7 +123,8 @@ function makeRoutineDelivery(deps) {
     const head = recordId(jobId, runId, '');
     let all = [];
     try { all = ledger().deliveries(); } catch (e) { failNote('cron.delivery.ledger', e); all = []; }
-    return all.filter(x => x.kind === 'routine' && x.id.indexOf(head) === 0);
+    return all.filter(x => x.kind === 'routine' && (Publication.hasMetadata(x)
+      ? Publication.binding(x).jobId === jobId && x.runId === runId : x.id.indexOf(head) === 0));
   }
   /* deliveryStarted(jobId, runId) — something of this run's result has gone out: a part landed, or one is on the wire. Its
      lane drives it to the end, so the cron's supersede never drops it (a half-sent digest finishes), and a pause no longer
@@ -139,16 +142,70 @@ function makeRoutineDelivery(deps) {
       try { ledger().withdraw(x.id); } catch (e) { failNote('cron.delivery.withdraw', e); }
     }
   }
-  function deliveryRecorded(jobId, runId, out) {
+  async function deliveryRecorded(jobId, runId, out) {
     const named = new Set(Array.isArray(out && out.deliveredTargets) ? out.deliveredTargets.map(String) : []);
     const head = recordId(jobId, runId, '');
-    for (const x of recordsOf(jobId, runId)) {
-      if (x.state !== 'done' || !named.has(x.id.slice(head.length))) continue;
-      try { ledger().release(x.id); } catch (e) { failNote('cron.delivery.release', e); }
+    const proofs = Publication.receipts(Publication.owns(out, 'historyPublications') ? out.historyPublications : [], { jobId, runId });
+    if (Publication.owns(out, 'historyPublications') && out.ok !== true) return false;
+    let complete = true;
+    // A persisted cron receipt survives ledger release. Re-prove the canonical row before
+    // treating fresh durable absence as an idempotent release after a crash.
+    for (const proof of proofs) {
+      try {
+        await confirmPublished(proof);
+        if (ledger().release(proof.deliveryId, proof) !== true) complete = false;
+      } catch (e) { failNote('cron.delivery.release', e); complete = false; }
     }
+    for (const x of recordsOf(jobId, runId)) {
+      if (Publication.hasMetadata(x)) {
+        if (x.state === 'done' && !proofs.some(p => p.deliveryId === x.id)) complete = false;
+        continue;
+      }
+      if (Publication.owns(out, 'historyPublications')) { complete = false; continue; }
+      if (x.state !== 'done' || !named.has(x.id.slice(head.length))) continue;
+      try { if (ledger().release(x.id) !== true) complete = false; } catch (e) { failNote('cron.delivery.release', e); complete = false; }
+    }
+    return complete;
   }
-  const wordsDone = (x) => !!x && x.parts.filter(p => p.kind === 'text').every(p => p.sent);
   const started = (x) => !!x && (x.state === 'done' || x.parts.some(p => p.sent));
+
+  function historyContext(channel, chatId, streamId) {
+    if (!d.history || typeof d.historyContext !== 'function') Publication.refuse('The chat history owner is unavailable');
+    const actual = d.historyContext(channel, chatId);
+    if (!actual) Publication.refuse('The chat history destination is unavailable');
+    if (streamId === undefined) return actual;
+    // The ledger/cron proof supplies the OLD destination, never today's chat binding.
+    return d.history.context({ store: actual.store, channel, chatId, bindChats: false, streamIdFor: () => streamId });
+  }
+  async function confirmPublished(proof) {
+    const chat = historyContext(proof.channel, proof.chatId, proof.streamId);
+    const row = await d.history.deliver({ chat, agentId: proof.agentId, runId: proof.runId, text: '', existingOnly: true });
+    if (!row || row.rowId !== proof.rowId || row.turnId !== proof.turnId) Publication.refuse('The saved routine publication no longer matches its row');
+    return proof;
+  }
+  async function publishRecord(job, result, target, prior) {
+    const id = recordId(job.id, result.runId, target), record = ledger().publication(id);
+    const destination = Publication.record(record);
+    if (destination.jobId !== job.id || destination.target !== target || record.runId !== result.runId || record.agentId !== job.agentId) {
+      Publication.refuse('The completed delivery belongs to another routine result');
+    }
+    if (prior && (prior.deliveryId !== id || ['channel', 'chatId', 'agentId', 'runId'].some(k => prior[k] !== record[k]) || prior.streamId !== destination.streamId)) {
+      Publication.refuse('The saved routine publication conflicts with its delivery');
+    }
+    const parts = record.parts.filter(p => p.kind === 'text').sort((a, b) => a.n - b.n);
+    if (!parts.length) Publication.refuse('The completed routine has no delivered text');
+    if (parts.some(p => Publication.owns(p, 'raw') && typeof p.raw !== 'string')) Publication.refuse('The completed routine text is ambiguous');
+    const text = parts.map(p => typeof p.raw === 'string' ? p.raw : p.text).join('');
+    const chat = historyContext(record.channel, record.chatId, destination.streamId);
+    const row = await d.history.deliver({ chat, agentId: record.agentId, runId: record.runId, text,
+      existingOnly: !!record.sessionTurns || !!prior });
+    if (prior && (!row || row.rowId !== prior.rowId || row.turnId !== prior.turnId)) Publication.refuse('The saved routine publication conflicts with its canonical row');
+    const ack = ledger().noteSession(id, { streamId: destination.streamId, rowId: row && row.rowId, turnId: row && row.turnId });
+    Publication.acknowledgement(ack, record);
+    return Publication.receipt({ v: 1, target, deliveryId: id, channel: record.channel, chatId: record.chatId,
+      streamId: ack.streamId, agentId: record.agentId, runId: record.runId, rowId: ack.rowId, turnId: ack.turnId },
+    { jobId: job.id, runId: result.runId, agentId: job.agentId, targets: [target] });
+  }
 
   // A file part is read again when its turn comes (after a restart too): through the fire's reader, which picks the run
   // row that produced the name; the missed-file note names what did not come by its shown name, never a host path.
@@ -228,11 +285,11 @@ function makeRoutineDelivery(deps) {
     if (job.noAgent) {
       try {
         const streamId = 'cron-' + result.runId;
-        const recorded = transcriptStore.reconstruct(streamId, { limit: 2 });
+        const recorded = transcriptStore.view('proof', streamId, { limit: 2 });
         // provenance on both rows (memory-learning-07): the routine's prompt is the Commander's own; the script's stdout is
         // untrusted output, the same as the <untrusted_script_output> a scheduled pre-check script hands a run
-        if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || '') });
-        if (!recorded.some(t => t.role === 'assistant')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'assistant', taint: 'scheduled script output', content: result.outcome === 'failed' ? String(result.error || 'script failed') : String(result.text || '') });
+        if (!recorded.some(t => t.role === 'user')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'user', taint: null, content: String(job.prompt || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });
+        if (!recorded.some(t => t.role === 'assistant')) transcriptStore.append({ streamId, agentId: job.agentId, role: 'assistant', taint: 'scheduled script output', content: result.outcome === 'failed' ? String(result.error || 'script failed') : String(result.text || ''), turnId: TurnKinds.runTurnId(result.runId), sourceRunId: result.runId, kind: 'routine' });
       } catch (e) { failNote('cron.script.transcript', e); }
     }
     // a fire SOMEONE STOPPED (the finalization's runOutcome, cron-store markRun; review r7) is worded as a stop by RunOutcome.line —
@@ -258,13 +315,25 @@ function makeRoutineDelivery(deps) {
     // the targets an earlier ask found given up for good (the cron keeps them with the receipt, markDelivery givenUpTargets)
     const givenUp = Array.isArray(result.givenUpTargets) ? result.givenUpTargets.map(String) : [];
     const list = Array.from(new Set(targets)).slice(0, 16);
+    const savedPublications = Publication.receipts(Publication.owns(result, 'historyPublications') ? result.historyPublications : [],
+      { jobId: job.id, runId: result.runId, agentId: job.agentId, targets: list });
+    if (savedPublications.some(p => givenUp.includes(p.target))) Publication.refuse('A refused destination cannot claim routine publication');
+    if (savedPublications.some(p => !prior.includes(p.target))) Publication.refuse('The saved publication has no completed transport receipt');
     let plan = null;
     const planOnce = () => plan || (plan = chatPlan(job, result, text, supersededNote));
     // per target: its record's first attempt in this call (a record the ledger already holds is asked, never written again)
     const outcomes = await Promise.all(list.map(async (target) => {
+      try {
       const id = recordId(job.id, result.runId, target);
       const held = ledger().delivery(id);
       if (held) {
+        if (job.attachToSession) {
+          const destination = Publication.record(held);
+          if (destination.jobId !== job.id || destination.target !== target || held.runId !== result.runId || held.agentId !== job.agentId) {
+            Publication.refuse('The saved delivery belongs to another routine result');
+          }
+          if (savedPublications.some(p => p.target === target) && held.state !== 'done') Publication.refuse('The published delivery is not confirmed complete');
+        }
         if (held.state !== 'done') {
           // only asking how it goes: its first attempt reported itself, and its landing will (one delivery, one report)
           const first = ledger().whenAttempted(id, { quiet: true });
@@ -283,26 +352,33 @@ function makeRoutineDelivery(deps) {
       const chatId = String(rec.chatId || target);
       const p = await planOnce();
       const media = mediaFor(p, job, target, chatId);
+      const channel = String(rec.channel || 'telegram');
+      let historyDestination;
+      if (job.attachToSession) {
+        const chat = historyContext(channel, chatId);
+        const streamId = await d.history.destination({ chat, agentId: job.agentId });
+        historyDestination = Publication.destination({ v: 1, streamId, jobId: job.id, target });
+      }
       // an explicit route wins: the thread the routine was made in (its origin) or its target's own; else the chat's last
-      const out = await channelOutbound.send({ channel: String(rec.channel || 'telegram'), chatId: chatId }, p.chatText, {
+      const out = await channelOutbound.send({ channel, chatId: chatId }, p.chatText, {
         durable: true, deliveryId: id, kind: 'routine', release: 'caller', reason: 'routine', runId: result.runId, agentId: job.agentId,
+        ...(historyDestination ? { historyDestination } : {}),
         route: rec.threadId ? { threadId: String(rec.threadId) } : null, media: media.files,
         // the missed-file note rides last, only when a file goes or one is already known not to come
         note: (media.files.length || media.missed.length || media.refused.length) ? { missed: media.missed, refused: media.refused } : null
       });
       if (out.refused || !out.id) return { target, error: out.error || 'could not be queued' };   // the channel is down: asked again later
       return { target, id };
+      } catch (e) { return { target, error: (e && e.message) || 'The routine delivery could not be confirmed' }; }
     }));
 
     let failed = 0, firstError = '';
     const deliveredTargets = new Set(prior);
     const givenUpTargets = new Set(givenUp);
-    const records = [];
     for (const o of outcomes) {
       if (o.delivered) continue;
       const x = o.id ? ledger().delivery(o.id) : null;
       const tomb = (o.id && !x) ? tombOf(o.id) : null;
-      if (x) records.push(x);
       // its first part landed: an older build skips it now, and so will this one when a tombstone that stands for it is pruned
       if ((x && started(x)) || (tomb && tomb.sent > 0)) deliveredTargets.add(o.target);
       /* GIVEN UP FOR GOOD, from its first part on too (review round 1): the tombstone is bounded, and the cron goes on asking
@@ -318,24 +394,25 @@ function makeRoutineDelivery(deps) {
       if (!error) error = (tomb && tomb.error) || 'undeliverable';
       firstError = firstError || error;
     }
-    if (job.attachToSession) await sessionOnce(job, result, records, prior.filter(t => !givenUpTargets.has(t)), planOnce);
-    return { ok: failed === 0, error: firstError || null, deliveredTargets: Array.from(deliveredTargets), givenUpTargets: Array.from(givenUpTargets) };
-  }
-
-  /* ATTACH TO SESSION, ONCE: the run's words join the agent's chat history when they first landed in a chat — written by
-     the first record whose words are all out, marked in that record first (noteSession), so no later ask writes them
-     again. A target the cron lists as delivered that has no record and no tombstone was released after its delivery, and
-     its words were recorded then (or an older build delivered it, which recorded them); a tombstone's words never all
-     landed, so another target may still be the first. */
-  async function sessionOnce(job, result, records, prior, planOnce) {
-    if (records.some(x => x.sessionTurns)) return;
-    if (prior.some(t => { const id = recordId(job.id, result.runId, t); return !ledger().delivery(id) && !tombOf(id); })) return;
-    const done = records.find(wordsDone);
-    if (!done) return;
-    const p = await planOnce();
-    if (!ledger().noteSession(done.id)) return;
-    channelStore.appendTurn(job.agentId, 'user', '[Scheduled routine: ' + job.name + '] ' + String(job.prompt || ''));
-    channelStore.appendTurn(job.agentId, 'assistant', p.chatBody);
+    const published = new Map(savedPublications.map(p => [p.target, p]));
+    if (job.attachToSession) for (const target of list) {
+      try {
+        if (givenUpTargets.has(target)) continue;
+        const id = recordId(job.id, result.runId, target), x = ledger().delivery(id), old = published.get(target);
+        if (x && x.state === 'done') {
+          published.set(target, await publishRecord(job, result, target, old));
+          // Another target may finish while an earlier canonical publication awaits. Its
+          // strict publication proves complete transport; keep the returned receipt aligned.
+          deliveredTargets.add(target);
+        }
+        else if (!x && prior.includes(target)) {
+          if (!old) Publication.refuse('The original delivery destination is unknown; the result will not be sent again');
+          await confirmPublished(old);
+        }
+      } catch (e) { failed++; firstError = firstError || (e && e.message) || 'The routine publication could not be confirmed'; }
+    }
+    return { ok: failed === 0, error: firstError || null, deliveredTargets: Array.from(deliveredTargets), givenUpTargets: Array.from(givenUpTargets),
+      ...(job.attachToSession ? { historyPublications: [...published.values()] } : {}) };
   }
 
   return { deliverCronResult, cronPreflightConfig, cronDeliveryNote, cronReturnsToSession, cronSupersededNote, deliveryStarted, deliveryWithdrawn, deliveryRecorded, recordId };

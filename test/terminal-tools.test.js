@@ -51,8 +51,18 @@ const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
   A.eq(calls.filter(x => x[0] === 'start').length, 1, 'refused terminal command never reaches the manager');
 
   const write = family.tools.find(t => t.name === 'terminal.write');
-  const wrote = await write.run({ session: 'repl', data: 'hello' }, ctx);
-  A.ok(/Sent 6 byte/.test(wrote.content), 'terminal input reports manager-confirmed bytes');
+  if (process.platform === 'win32') {
+    let unknownContext = null;
+    try { await write.run({ session: 'repl', data: 'hello' }, ctx); } catch (e) { unknownContext = e; }
+    A.ok(unknownContext && /live terminal write cannot prove its current directory/.test(unknownContext.message), 'Windows live input cannot borrow the session starting cwd or interpreter');
+    A.eq(calls.filter(x => x[0] === 'write').length, 0, 'unproven live input never reaches the manager');
+    A.eq(checkpoints, 1, 'refused live input does not announce a mutation checkpoint');
+  }
+  // This tests manager acknowledgement only, not general REPL support. Windows
+  // uses a native builtin; POSIX retains its existing arbitrary-input control.
+  const safeInput = process.platform === 'win32' ? 'echo hello' : 'hello';
+  const wrote = await write.run({ session: 'repl', data: safeInput }, ctx);
+  A.ok(wrote.content.includes('Sent ' + (safeInput.length + 1) + ' byte'), 'terminal input reports manager-confirmed bytes');
   A.eq(checkpoints, 2, 'terminal input checkpoints before it can mutate workspace state');
 
   const read = family.tools.find(t => t.name === 'terminal.read').run({ session: 'repl' }, ctx);

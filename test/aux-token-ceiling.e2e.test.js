@@ -71,6 +71,15 @@ const seed = (f, rows) => fs.appendFileSync(path.join(f.workspace, 'ledger.jsonl
 const auxRow = (provider, tokens, ageMs) => Object.assign({ runId: 'seed-' + provider + '-' + ageMs, agentId: 'seed', turns: 0, usd: 0, tokens, model: 'm', unmetered: provider !== 'claude-cli', provider, aux: 'reflection', ts: Date.now() - ageMs }, provider === 'claude-cli' ? { subscription: true } : {});
 const post = (f, body) => fetch(f.baseUrl + '/api/memory/config', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': f.token, Origin: f.baseUrl }, body: JSON.stringify(body) });
 const cfg = async f => (await f.request('/api/memory/config')).json();
+// These scenarios test background token policy on an established local sign-in. Merely
+// reading memory/config does not resolve the CLI's initially unknown auth state.
+async function cliReady(f) {
+  const actual = await f.json('GET', '/api/auth/claude-cli/status');
+  A.eq([actual.status, actual.body && actual.body.installed, actual.body && actual.body.loggedIn], [200, true, true],
+    'fixture: the supported bounded local check proves the fake CLI is installed and signed in');
+  if (actual.status !== 200 || !actual.body || !actual.body.installed || !actual.body.loggedIn)
+    throw new Error('fake CLI sign-in precondition failed: ' + JSON.stringify(actual.body));
+}
 
 async function governorLine(f, agentId, from) {
   const re = new RegExp('\\[aux-governor\\][^\\n]*agent=' + agentId + '\\b[^\\n]*');
@@ -96,7 +105,13 @@ async function run(f, agentId, extra) {
   const before = starts().length, from = f.output().length;
   const r = await fetch(f.baseUrl + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': f.token, Origin: f.baseUrl },
     body: JSON.stringify(Object.assign({ provider: 'claude-cli', model: 'haiku', agentId, isTask: true, placed: [], system: MARK + ': you are Ada.', messages: [{ role: 'user', content: 'Rebuild the staging rollback path and write up what changed and why.' }] }, extra || {})) });
-  const events = (await r.text()).trim().split('\n').map(l => JSON.parse(l));
+  const raw = await r.text();
+  if (r.status !== 200) {
+    const local = await f.json('GET', '/api/auth/claude-cli/status');
+    throw new Error('/api/run admission failed: HTTP ' + r.status + ' ' + raw.slice(0, 1000) +
+      '; provider=' + ((extra && extra.provider) || 'claude-cli') + '; actual local CLI status=' + JSON.stringify(local.body));
+  }
+  const events = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
   const line = await governorLine(f, agentId, from);
   const spent = Number((line.match(/ spent=(\d+)/) || [])[1] || 0);
   await childrenDone(f, before, !extra && spent > 0);
@@ -109,6 +124,7 @@ async function ceilingArm() {
   const f = SidecarFixture.create({ prefix: 'sk-auxceiling-', env: Object.assign({}, COMMON, { SKYNET_QUEST_REFRESH: '0', SKYNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', SKYNET_SKILL_REVIEW_EVERY: '1' }) });
   try {
     await f.start();
+    await cliReady(f);
     const fresh = await cfg(f);
     A.eq([fresh.auxTokenCeiling, fresh.defaultAuxTokenCeiling, fresh.auxTokensUsed24h, fresh.auxTokenBlocked, fresh.auxTokenRoutes], [200000, 200000, 0, [], []], 'the default ceiling, nothing used, nothing stopped');
 
@@ -139,6 +155,7 @@ async function ceilingArm() {
     for (const bad of [-1, 1.5, 'lots', null, '   ', '\n0', '\t0', '0x0', '1e3', [], [0], true]) A.eq((await post(f, { auxTokenCeiling: bad })).status, 400, 'refused: ' + JSON.stringify(bad));
     A.eq((await cfg(f)).auxTokenCeiling, 1, 'a refused value changed nothing');
     await f.restart();
+    await cliReady(f);
     A.eq((await cfg(f)).auxTokenCeiling, 1, 'the ceiling survives a sidecar restart');
     A.eq((await cfg(f)).auxTokensUsed24h, used, 'the count survives it too: it is read from the ledger');
 
@@ -178,9 +195,11 @@ async function scopeArm() {
   const f = SidecarFixture.create({ prefix: 'sk-auxscope-', env: Object.assign({}, COMMON, { SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_REVIEW: '0' }) });
   try {
     await f.start();
+    await cliReady(f);
     await f.stop();
     seed(f, [auxRow('codex', 900000, HOUR), auxRow('ollama', 900000, HOUR), auxRow('claude-cli', 900000, 25 * HOUR)]);
     await f.start();
+    await cliReady(f);
     const c = await cfg(f);
     A.eq(c.auxTokenRoutes.map(r => [r.provider, r.used, r.blocked]), [['codex', 900000, true]], 'CE10: a 25-hour-old row has left the window; Ollama is not a capped route; Codex is at its own ceiling');
     const a = await run(f, 'scope-a');
@@ -188,6 +207,7 @@ async function scopeArm() {
     await f.stop();
     seed(f, [auxRow('claude-cli', 900000, 23 * HOUR)]);
     await f.start();
+    await cliReady(f);
     const b = await run(f, 'scope-b');
     A.eq(b.spawned.filter(s => !s.main).length, 0, 'CE11: a 23-hour-old row is still in the window');
     A.ok((await cfg(f)).auxTokenBlocked.includes('claude-cli'), 'and the settings read says so');
@@ -240,6 +260,7 @@ async function questArm() {
   const status = async () => (await f.request('/api/quests/refresh')).json();
   try {
     await f.start();
+    await cliReady(f);
     // A roster alone is held until the first accepted station save. Found the station through its real door:
     // an automatic quest look must remain inert on an unfounded workspace, regardless of seeded soft evidence.
     const foundedAt = Date.now();
@@ -260,6 +281,7 @@ async function questArm() {
     seed(f, [auxRow('claude-cli', 900000, HOUR)]);
     for (const name of ['_station.questrefresh.json', '_station.questrefresh.json.bak']) fs.rmSync(path.join(f.workspace, name), { force: true });
     await f.start();
+    await cliReady(f);
     let s = null;
     for (const until = Date.now() + 15000; Date.now() < until;) {
       s = await status();

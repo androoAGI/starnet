@@ -48,7 +48,8 @@
       return (isFinite(i) && isFinite(o)) ? { in: i, out: o } : null;
     }
 
-    return { stream, listModels, contextLimit, outputLimit, priceOf, callCount: () => calls, reset() { cursor = 0; calls = 0; } };
+    return { stream, listModels, verifyCredential: async () => ({ ok: false, status: 'unverified', credentialVerified: false, reachable: false, error: 'replay fixture has no remote credential' }),
+      contextLimit, outputLimit, priceOf, callCount: () => calls, reset() { cursor = 0; calls = 0; } };
   }
 
   return { makeReplayProvider };

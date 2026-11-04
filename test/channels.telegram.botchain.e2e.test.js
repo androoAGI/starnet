@@ -7,7 +7,7 @@
    Bot API + fake OpenRouter (multibot e2e pattern), adds one agent-bound bot, deploys a two-stage floor
    (research-agent -> writer-agent), DMs the bot, and proves the downstream stage really ran: two provider
    calls, the handoff prompt carried the upstream output, the reply delivered is the LAST stage's, and the
-   hop persisted under the downstream agent's own channel history. The hard-lock stays intact: stage ONE is
+   hop filed in the chat's canonical stream under the downstream agent. The hard-lock stays intact: stage ONE is
    the bound agent, never a floor-rerouted one. */
 'use strict';
 
@@ -220,19 +220,21 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKCHAIN';
     A.ok(handoffTurn.indexOf('research-agent') >= 0, 'the handoff names the upstream stage (the bot\'s bound agent — the hard-lock held)');
     A.ok(handoffTurn.indexOf('Stage one findings') >= 0, 'the handoff carries the upstream OUTPUT, not the raw DM');
 
-    // ---- 4. the hop persisted under the DOWNSTREAM agent's own channel history ----
-    const chanHist = (agentId) => {
-      try { return (JSON.parse(fs.readFileSync(path.join(ws, 'channels', agentId + '.history.json'), 'utf8')).messages || []); }
-      catch (_) { return []; }
-    };
-    A.ok(chanHist('research-agent').some(t => t.role === 'user' && String(t.content || '').indexOf('research the market') >= 0), 'stage one (the bound agent) owns the DM turn');
-    // sec-taint 09-25: a hop's history is keyed by THIS chat's line lineage (hop_<digest>), never the downstream
-    // agent's shared file — so another chat of writer-agent can never replay this chat's handoff
-    const hopFiles = fs.readdirSync(path.join(ws, 'channels')).filter(f => /^hop_[0-9a-f]{32}\.history\.json$/.test(f)).map(f => f.replace(/\.history\.json$/, ''));
-    const hopHist = [].concat(...hopFiles.map(chanHist));
-    A.ok(hopHist.some(t => t.role === 'user' && String(t.content || '').indexOf('PIPELINE HANDOFF') >= 0), 'the downstream stage owns its handoff turn (per-chat hop history)');
-    A.ok(hopHist.some(t => t.role === 'assistant' && String(t.content || '').indexOf('Final line answer') >= 0), 'the downstream stage owns its answer (per-chat hop history)');
-    A.ok(!chanHist('writer-agent').some(t => String(t.content || '').indexOf('PIPELINE HANDOFF') >= 0), 'the handoff never lands in the downstream agent\'s SHARED history');
+    // ---- 4. the hop is filed in THIS chat's canonical stream: owned by the DOWNSTREAM agent, tagged with its line ----
+    // 8f6cb7928: a bound conversation's history IS the canonical transcript stream (channel_telegram_<botId>_<chatId>); the hub
+    // writes no <agentId>.history.json / hop_<digest>.history.json twin for it. The sec-taint 09-25 property (another chat of
+    // writer-agent can never replay this chat's handoff) now holds by stream (one per chat) plus the hop row's line tag.
+    const STREAM = 'channel_telegram_333_900';
+    const chatTurns = async () => ((await api('GET', '/api/transcript?agent=research-agent&stream=' + STREAM + '&limit=50')).j.turns || []);
+    await waitUntil(async () => (await chatTurns()).some(t => t.kind === 'hop' && t.role === 'assistant'), 5000, 'the hop\'s answer is filed in the chat stream');
+    const turns = await chatTurns();
+    A.ok(turns.some(t => t.role === 'user' && t.agentId === 'research-agent' && t.kind === 'turn' && String(t.content || '').indexOf('research the market') >= 0), 'stage one (the bound agent) owns the DM turn');
+    const hops = turns.filter(t => t.kind === 'hop');
+    A.ok(hops.some(t => t.role === 'user' && t.agentId === 'writer-agent' && t.line === 'b1@b2' && String(t.content || '').indexOf('PIPELINE HANDOFF') >= 0), 'the downstream stage owns its handoff turn (this chat\'s line, tagged with its dock)');
+    A.ok(hops.some(t => t.role === 'assistant' && t.agentId === 'writer-agent' && t.line === 'b1@b2' && String(t.content || '').indexOf('Final line answer') >= 0), 'the downstream stage owns its answer (this chat\'s line, tagged with its dock)');
+    const shared = await api('GET', '/api/transcript?agent=writer-agent&stream=global&limit=200');
+    A.ok(!(shared.j.turns || []).some(t => String(t.content || '').indexOf('PIPELINE HANDOFF') >= 0), 'the handoff never lands in the downstream agent\'s SHARED history');
+    A.eq(fs.readdirSync(path.join(ws, 'channels')).filter(f => /\.history\.json$/.test(f)).length, 0, 'a bound conversation writes no parallel legacy history file (no <agentId> or hop_<digest> twin)');
   } finally {
     try { child.kill(); } catch (_) {}
     await new Promise(resolve => tg.close(resolve));

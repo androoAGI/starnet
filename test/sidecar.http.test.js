@@ -22,6 +22,7 @@ const edge = require('../sidecar/edgetts.js');   // V-EDGE: exported WS codec + 
 const { bootToken, sseQuery, fileQuery } = require('./_httpToken.js');
 const Tickets = require('../sidecar/apitickets.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -157,7 +158,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes need the token too now
     const r = await fetch(B + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
-    return { status: r.status, body: v };
+    return { status: r.status, body: v, code: r.headers.get('x-starnet-code') };
   };
 
   try {
@@ -540,7 +541,9 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(offlineProbe.status, 200, 'POST /api/providers/probe returns a fact payload even when the endpoint is offline');
     A.eq(offlineProbe.body.reachable, false, 'offline custom endpoint is not reachable');
     A.eq(offlineProbe.body.catalogAvailable, false, 'offline custom endpoint has no proven catalog');
+    const probeRequests = [];
     const probeServer = http.createServer((rq, rs) => {
+      probeRequests.push([rq.method, rq.url, !!rq.headers.authorization]);
       if (rq.url.endsWith('/auth/key')) {
         rs.writeHead(rq.headers.authorization === 'Bearer probe-good-key' ? 200 : 401, { 'Content-Type': 'application/json' });
         return rs.end(JSON.stringify({ data: { label: 'credential probe fixture' } }));
@@ -558,10 +561,12 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     await new Promise(resolve => probeServer.listen(0, HOST, resolve));
     try {
       const liveBase = 'http://' + HOST + ':' + probeServer.address().port + '/v1';
+      const keylessFrom = probeRequests.length;
       const liveProbe = await j('POST', '/api/providers/probe', { provider: 'custom', baseUrl: liveBase });
       A.eq(liveProbe.body.reachable, true, 'reachable custom endpoint is proven by a real model-catalog round-trip');
       A.eq(liveProbe.body.catalogAvailable, true, 'reachable custom endpoint reports its real non-empty catalog');
-      A.eq(liveProbe.body.credentialVerified, true, 'keyless custom endpoint needs no fabricated credential proof');
+      A.eq([liveProbe.body.ok, liveProbe.body.credentialVerified, liveProbe.body.verificationStatus], [true, false, 'unverified'], 'keyless endpoint success does not fabricate a credential verification');
+      A.eq(probeRequests.slice(keylessFrom), [['GET', '/v1/models', false]], 'keyless proof uses the actual public catalog without authentication or inference');
       const wrongCandidate = await j('POST', '/api/providers/validate', { provider: 'custom', baseUrl: liveBase, key: 'probe-wrong-key', model: 'local/proven-model' });
       A.eq(wrongCandidate.body.credentialVerified, false, 'candidate-key validation rejects a key that fails the inference wire');
       const goodCandidate = await j('POST', '/api/providers/validate', { provider: 'custom', baseUrl: liveBase, key: 'probe-good-key', model: 'local/proven-model' });
@@ -570,9 +575,29 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       A.eq(routerCandidate.body.credentialVerified, true, 'OpenRouter candidate validation proves the authenticated key endpoint');
       const routerHealth = await j('POST', '/api/providers/probe', { provider: 'openrouter', baseUrl: liveBase, key: 'probe-good-key' });
       A.eq(routerHealth.body.credentialVerified, true, 'saved-key health preserves the same authenticated OpenRouter proof');
+      const rejectedFrom = probeRequests.length;
       const rejectedHealth = await j('POST', '/api/providers/probe', { provider: 'openrouter', baseUrl: liveBase, key: 'probe-wrong-key' });
       A.eq(rejectedHealth.body.credentialVerified, false, 'replacing a valid key with an invalid key cannot reuse prior verification');
-      A.eq(rejectedHealth.body.catalogAvailable, true, 'rejected credential does not erase the independently reachable public catalog');
+      A.eq([rejectedHealth.body.status, rejectedHealth.body.verificationStatus], [401, 'rejected'], 'the actual credential endpoint refusal remains explicit');
+      A.eq([rejectedHealth.body.catalogAvailable, rejectedHealth.body.modelCount], [false, 0], 'an auth-only refusal supplies no catalog evidence');
+      A.eq(probeRequests.slice(rejectedFrom), [['GET', '/v1/auth/key', true]], 'rejected-key verification reaches the authenticated endpoint and does not claim an unrequested catalog');
+      // OpenRouter intentionally shares a process-wide catalog. The main host already read one
+      // above, so a changed base URL cannot prove a fresh catalog there. A new isolated host
+      // starts on this synthetic endpoint before its first read (including any boot warm).
+      const catalogFrom = probeRequests.length;
+      const catalogHost = SidecarFixture.create({ prefix: 'sidecar-http-public-catalog-', env: {
+        OPENROUTER_BASE: liveBase, SKYNET_CRON_ENABLED: '0', STARNET_CRON_ENABLED: '0'
+      } });
+      try {
+        await catalogHost.start();
+        const refused = await catalogHost.json('POST', '/api/providers/probe', { provider: 'openrouter', key: 'probe-wrong-key' });
+        A.eq([refused.body.credentialVerified, refused.body.status], [false, 401], 'the fresh host also observes the actual key refusal');
+        const publicCatalog = await catalogHost.json('GET', '/api/models/openrouter');
+        A.eq(publicCatalog.status, 200, 'the independent public catalog route remains available after credential rejection');
+        A.ok(Array.isArray(publicCatalog.body.models) && publicCatalog.body.models.some(m => m.id === 'local/proven-model'), 'the fresh host catalog route returns the model actually served by the fixture');
+        const catalogReads = probeRequests.slice(catalogFrom).filter(r => r[1] === '/v1/models');
+        A.ok(catalogReads.length > 0 && catalogReads.every(r => r[0] === 'GET' && !r[2]), 'this host proves public catalog access by a real unauthenticated GET, never another host\'s cache or the rejected candidate');
+      } finally { await catalogHost.dispose(); }
       const customHealth = await j('POST', '/api/providers/probe', { provider: 'custom', baseUrl: liveBase, key: 'probe-wrong-key' });
       A.eq(customHealth.body.credentialVerified, false, 'public custom catalog cannot verify a supplied key rejected by inference');
     } finally { await new Promise(resolve => probeServer.close(resolve)); }
@@ -1010,7 +1035,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(decl.status, 200, 'GET /api/memory/declined (with token) -> 200');
     A.ok(Array.isArray(decl.body.declined), 'declined is an array (empty for a fresh agent)');
     const declBadAgent = await j('GET', '/api/memory/declined?agent=' + encodeURIComponent('../evil'));
-    A.eq(declBadAgent.status, 403, 'a path-traversal agent id on the declined route -> 403');
+    A.eq([declBadAgent.status, declBadAgent.code, declBadAgent.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'a malformed declined agent id has the typed input refusal');
 
     const restoreNoTok = await fetch(B + '/api/memory/declined/restore', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: B }, body: JSON.stringify({ agent: 'agent', text: 'x' }) });
     A.eq(restoreNoTok.status, 403, 'POST /api/memory/declined/restore WITHOUT a token -> 403');
@@ -1069,7 +1094,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(pend.body.agentId, 'agent', 'the pending deck is reported per agent');
     A.eq(pend.body.pending, [], 'a station with nothing awaiting a verdict reports an empty deck');
     const pendBad = await j('GET', '/api/memory/pending?agent=..%2Fetc');
-    A.eq(pendBad.status, 403, 'a bad agent id is refused, not path-joined');
+    A.eq([pendBad.status, pendBad.code, pendBad.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'a malformed pending agent id is refused before path resolution');
 
     // ---- FORGET = NEVER AGAIN (2026-07-16 resurrect audit): Memory Core's Forget must be as durable as a
     //      veto/discard — the removed belief's text joins the SAME permanent declined denylist, or reflection
@@ -1090,7 +1115,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     const resetNoTok = await fetch(B + '/api/memory/reset', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: B }, body: JSON.stringify({ agent: 'agent' }) });
     A.eq(resetNoTok.status, 403, 'POST /api/memory/reset WITHOUT a token -> 403');
     const resetBad = await j('POST', '/api/memory/reset', { agent: '../evil' });
-    A.eq(resetBad.status, 403, 'reset with a path-traversal agent id -> 403');
+    A.eq([resetBad.status, resetBad.code, resetBad.body.code], [400, 'bad_agent_id', 'bad_agent_id'], 'reset with a malformed agent id has the typed input refusal');
     const reset = await j('POST', '/api/memory/reset', { agent: 'agent' });
     A.eq(reset.status, 200, 'POST /api/memory/reset (with token) -> 200');
     A.eq(reset.body.ok, true, 'reset reports ok');

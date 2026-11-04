@@ -161,7 +161,10 @@ A.ok(/\+ taskDoctrineNote/.test(sidecar), 'the task doctrine is actually wired i
 {
   A.ok(!/throw new Error\('sidecar HTTP ' \+ res\.status\);/.test(src), 'the body-discarding bare throw is gone');
   A.ok(/sidecarErrorDetail\(await res\.text\(\)\)/.test(src), 'chat() reads the error body (bounded) and folds it via sidecarErrorDetail');
-  A.ok(/throw new Error\('sidecar HTTP ' \+ res\.status \+ \(detail \? ' — ' \+ detail : ''\)\)/.test(src), 'the thrown message carries the body detail');
+  A.ok(/const error = Object\.assign\(new Error\('sidecar HTTP ' \+ res\.status \+ \(detail \? ' — ' \+ detail : ''\)\), \{ status: res\.status, stationCode: /.test(src),
+    'the thrown message carries the body detail, and the station\'s own code for the refusal rides beside it');
+  A.ok(/if \(windowFrom === 'station' && res\.status === 503\) error\.code = 'HISTORY_UNAVAILABLE';\s+throw error;/.test(src),
+    'the same thrown error retains its history-refusal code when required station history is unavailable');
   const mDet = /function sidecarErrorDetail\(text\) \{[\s\S]*?\n  \}/.exec(src);
   A.ok(mDet, 'harness.js defines the pure sidecarErrorDetail helper');
   const detail = new Function(mDet[0] + '\nreturn sidecarErrorDetail;')();

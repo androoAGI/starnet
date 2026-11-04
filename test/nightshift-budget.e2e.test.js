@@ -35,7 +35,7 @@ const FAULT_BOOT = 'const b=require(' + JSON.stringify(BUDGET) + '),mk=b.makeBud
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // clear any AMBIENT OpenRouter key from the parent env so "no runnable provider" is deterministic (the dev seed holds
-// NO secret — the key lives only in runtimeKey, sourced from these envs; blanking them removes the credential).
+// NO secret — the key lives only in the credential store, sourced from these envs; blanking them removes the credential).
 const NO_KEY = { OPENROUTER_KEY: '', OPENROUTER_API_KEY: '', SKYNET_OPENROUTER_KEY: '' };
 
 function boot(port, env, attemptsLeft, injectBudgetFault) {

@@ -1,4 +1,5 @@
 'use strict';
+const CanonicalHistory = require('./channel-history.js');
 /* test/helpers/channel-station-sim.js — a station's channels, faked only at the transport edge, for the delivery property
    (test/channels.delivery-ledger.property.test.js) and its soak (channel-delivery-ledger S2), and for the intake receipts
    of edits and taps (test/channels.intake-receipts.test.js, S3).
@@ -65,7 +66,9 @@ const { makeApprovals } = require('../../sidecar/remote/approvals.js');
 const HostPathScrub = require('../../sidecar/host-path-scrub.js');
 const { TaskIntent } = require('../../frontend/app/fork.js');
 const Events = require('../../shared/events.js');
-const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, objectProps, readSidecarIndex, liftValues } = require('./source.js');
+const { sidecarTopLevelFunction, sidecarFunctionSource, callRegion, readSidecarIndex, liftValues } = require('./source.js');
+const { productionHubBag, productionAdapterBag, topLevel } = require('./channel-hub-bags.js');
+const HubFactory = require('../../sidecar/channels/factory.js');
 const fsReal = require('fs');
 const pathReal = require('path');
 const cronStore = require('../../sidecar/cron-store.js');
@@ -106,14 +109,14 @@ const MANIFEST = {
     // taskIntent is real since S3: a question's keyboard is what a choice tap answers
     real: ['channel', 'store', 'ownerTrusted', 'isOwner', 'send', 'chatAction', 'prompts', 'answerCallback', 'editMessage', 'setReaction',
       'deleteMessage', 'streamReplies', 'askConsent', 'resolveConsent', 'consentOutcome', 'newId', 'now', 'maxMessageLength', 'textBatchWaitMs',
-      'scrubOutbound', 'taskIntent'],
+      'scrubOutbound', 'taskIntent', 'history'],
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
-      historyFor: 'no canonical transcript', observeInto: 'records overheard lines', runSlash: 'answers every slash command', userCommandNames: 'none',
-      desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider',
+      runSlash: 'answers every slash command', userCommandNames: 'none',
+      desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider', resolveRunConfig: 'a configured downstream provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
-      briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', chain: 'no work line',
-      lineOriginFor: 'no line', getTag: 'no tag', resolveStation: 'office default', stageBriefFor: 'no brief', roster: 'empty', setModel: 'refused',
+      briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',
+      lineOriginFor: 'no line', intakeReceiptFor: 'no floor binding or durable line intake in this delivery simulation', getTag: 'no tag', resolveStation: 'office default', stageBriefFor: 'no brief', roster: 'empty', setModel: 'refused',
       modelCatalog: 'empty', fetchMedia: 'no media', transcribe: 'no media', saveAttachment: 'no media', expandAttachments: 'identity'
     }
   },
@@ -126,19 +129,17 @@ const MANIFEST = {
   }
 };
 // the agent bot's bags (startTelegramBot) carry the same delivery seams under the same names; its hub answers no roster
-// commands and resolves a hop's agent through resolveRunConfig instead of resolveEntryRunConfig
+// commands; its live bound entry and every later target now have explicit configuration resolvers.
 MANIFEST.botHub = { real: MANIFEST.stationHub.real.slice(), stub: Object.assign({}, MANIFEST.stationHub.stub, { resolveRunConfig: 'a configured provider' }) };
-for (const k of ['resolveEntryRunConfig', 'roster', 'setModel', 'modelCatalog']) delete MANIFEST.botHub.stub[k];
+for (const k of ['roster', 'setModel', 'modelCatalog']) delete MANIFEST.botHub.stub[k];
 MANIFEST.botAdapter = { real: MANIFEST.stationAdapter.real.slice(), stub: Object.assign({}, MANIFEST.stationAdapter.stub) };
 
 function productionBags() {
-  const tg = sidecarTopLevelFunction('startTelegram');
-  const bot = sidecarTopLevelFunction('startTelegramBot');
   return {
-    stationHub: objectProps(callRegion(tg, 'const hub = makeChannelHub({', '\n  });')),
-    stationAdapter: objectProps(callRegion(tg, 'const adapter = makeTelegramAdapter({', '\n  });')),
-    botHub: objectProps(callRegion(bot, 'const hub = makeChannelHub({', '\n  });')),
-    botAdapter: objectProps(callRegion(bot, 'const adapter = makeTelegramAdapter({', '\n  });'))
+    stationHub: productionHubBag('telegram').props,
+    stationAdapter: productionAdapterBag('telegram').props,
+    botHub: productionHubBag('telegram-bot').props,
+    botAdapter: productionAdapterBag('telegram-bot').props
   };
 }
 function manifestProblems() {
@@ -165,13 +166,14 @@ function liftedFactory(kind, scopeNames) {
   const adM = kind === 'bot' ? MANIFEST.botAdapter : MANIFEST.stationAdapter;
   const prop = (p, m, which) => '  ' + p.key + ': ' + (m.real.indexOf(p.key) >= 0 ? '(' + p.expr + ')' : '__stub.' + which + '[' + JSON.stringify(p.key) + ']');
   const body = 'let adapterRef = null;\n'
-    + 'const hub = makeChannelHub({\n' + hubBag.map(p => prop(p, hubM, 'hub')).join(',\n') + '\n});\n'
+    + 'const hub = makeChannelHub(__factory.makeHubDeps(' + JSON.stringify(kind === 'bot' ? 'telegram-bot' : 'telegram') + ', {}, {\n' + hubBag.map(p => prop(p, hubM, 'hub')).join(',\n') + '\n}));\n'
     + 'const adapterBag = {\n' + adBag.map(p => prop(p, adM, 'adapter')).join(',\n') + '\n};\n'
-    + 'const adapter = makeTelegramAdapter(adapterBag);\n'
+    + 'const adapter = makeTelegramAdapter(__factory.makeAdapterOpts(' + JSON.stringify(kind === 'bot' ? 'telegram-bot' : 'telegram') + ', adapterBag));\n'
     + 'guardOutbound(adapter);\n'
     + 'adapterRef = adapter;\n'
     + 'return { hub: hub, adapter: adapter, adapterBag: adapterBag, status: function () { return telegramStatus; } };';
-  const fn = new Function(...scopeNames, '__stub', body);   // eslint-disable-line no-new-func
+  const compiled = new Function(...scopeNames, '__stub', '__factory', body);   // eslint-disable-line no-new-func
+  const fn = (...args) => compiled(...args, HubFactory);
   factoryCache.set(key, fn);
   return fn;
 }
@@ -544,24 +546,33 @@ function makeWorld(seed, opts) {
           w.steered.push({ runId: String(runId), text: String(note == null ? '' : note), gen, at: w.now });
           return { ok: true };
         },
-        historyFor: () => [], observeInto: () => {}, userCommandNames: () => [],
+        userCommandNames: () => [],
         runSlash: async (line) => { w.slashCalls.push({ line: String(line), gen: gen, at: w.now }); return { ok: true, text: 'done' }; },
         desktopCommand: () => false, canReadAllGroupMessages: () => null,
         secrets: () => ({ key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         resolveEntryRunConfig: () => ({ ok: true, key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         resolveRunConfig: () => ({ ok: true, key: 'k', model: 'sim/model', provider: 'openrouter', configured: true }),
         persona: 'You are a simulated agent.', classify: () => true, redact: (p) => p, emit: emitter(channel, gen),
-        taskIntent: null, briefFor: () => null, groundedFor: () => null, resolveAgent: live, chain: null, lineOriginFor: live, getTag: () => undefined,
+        taskIntent: null, briefFor: () => null, groundedFor: () => null, resolveAgent: live, lineRunner: null, lineOriginFor: live, intakeReceiptFor: () => null, getTag: () => undefined,
         resolveStation: live, stageBriefFor: live, roster: () => [], setModel: () => ({ ok: false, error: 'not here' }), modelCatalog: () => [],
         fetchMedia: async () => ({ ok: false, error: 'no media' }), transcribe: null, saveAttachment: null, expandAttachments: (m) => m
       },
       adapter: { onOwnerClaim: () => {}, ownerAdmission: () => null }
     };
   }
+  const historyByStore = new WeakMap();
+  let transcriptIo;
+  function historyForStore(store) {
+    if (!historyByStore.has(store)) {
+      const built = CanonicalHistory.make(store, { io: transcriptIo, now: () => w.now });
+      transcriptIo = built.io; historyByStore.set(store, built.history);
+    }
+    return historyByStore.get(store);
+  }
   function scopeFor(gen, store, extra) {
     return Object.assign({
       makeChannelHub, makeTelegramAdapter, makePromptRegistry, guardOutbound: (a) => HostPathScrub.guardOutbound(a, scrub), TaskIntent,
-      channelStore: store, crypto: { randomUUID: () => w.uuid() }, Date: { now: () => w.now },
+      channelStore: store, channelHistory: historyForStore(store), crypto: { randomUUID: () => w.uuid() }, Date: { now: () => w.now },
       channelAskConsent: consent.channelAskConsent, channelResolveConsent: consent.channelResolveConsent, channelConsentOutcome: consent.channelConsentOutcome,
       scrubOutbound: scrub, telegramTransportFetch: () => w.tgFetch(gen), token: '1:SIM', TELEGRAM_API_BASE: 'http://tg.sim',
       stationBotUsername: 'simbot', stationBotName: 'Sim', stationBotSeesAll: null, channelSecrets: { telegram: { ownerId: OWNER } },
@@ -576,7 +587,7 @@ function makeWorld(seed, opts) {
   }
   function bootBot(gen, store) {
     // makeBotScopedStore, sliced out of index.js over this process's store
-    const scoped = new Function('channelStore', sidecarTopLevelFunction('makeBotScopedStore') + '\nreturn makeBotScopedStore;')(store);   // eslint-disable-line no-new-func
+    const scoped = new Function('channelStore', 'botScopedStores', sidecarTopLevelFunction('makeBotScopedStore') + '\nreturn makeBotScopedStore;')(store, new Map());   // eslint-disable-line no-new-func
     const rec = { username: 'simbot2', botName: 'SimTwo', name: 'Agent', ownerId: OWNER };
     const entry = { adapter: null, hub: null, status: { connected: false, state: 'connecting', detail: '', delivery: { state: 'unknown', detail: '', at: 0 } } };
     const scope = scopeFor(gen, store, {
@@ -592,7 +603,7 @@ function makeWorld(seed, opts) {
     const st = stubs(gen, 'discord').hub;
     return wireChannel(reg.get('discord'), {
       outbound: scrub,
-      hub: { runOnce: st.runOnce, store: store, steerRun: st.steerRun, secrets: st.secrets, persona: st.persona, classify: st.classify, redact: st.redact,
+      hub: { runOnce: st.runOnce, store: store, history: historyForStore(store), steerRun: st.steerRun, secrets: st.secrets, persona: st.persona, classify: st.classify, redact: st.redact,
         emit: st.emit, newId: () => w.uuid(), now: () => w.now, roster: st.roster, runSlash: st.runSlash, userCommandNames: st.userCommandNames },
       adapter: { fetch: w.dcFetch(gen), token: 'D', clock: { now: () => w.now }, connectGateway: () => ({ close() {} }), ownerUserId: DC_OWNER }
     });
@@ -620,6 +631,10 @@ function makeWorld(seed, opts) {
     const none = async () => ({ ok: false, notFound: true, error: 'not found' });
     const rd = RoutineDelivery.makeRoutineDelivery({
       channelStore: store, channelOutbound: outbound, channelReach: channelReach, channelRegistry: registry, scrubOutbound: scrub, redact: (t) => t,
+      history: historyForStore(store), historyContext: (channel, chatId) => {
+        const live = liveFor(channel);
+        return live && live.hub && typeof live.hub.historyContext === 'function' ? live.hub.historyContext(chatId) : null;
+      },
       runStore: { list: () => [] }, egressReader: { fireReader: () => none, shownName: (paths, x) => String(x), pathsFor: () => ({}) }, readChannelUpload: none,
       transcriptStore: { reconstruct: () => [], append: () => {} }, stationBridge: { request: async () => ({ ok: true }) },
       now: () => w.now, setTimeout: vSetTimeout
@@ -1297,27 +1312,35 @@ const ONE_JOB_SITES = {
   makeTriggerHub: 'line triggers and SEND TO hand-offs: each fire\'s replies are captured into that fire\'s job record'
 };
 function storeSiteProblems(indexSource) {
-  const src = String(indexSource || '');
-  const out = [];
-  const sites = [];
-  const re = /(?<![\w$])(makeChannelHub\(\{|wireChannel\()/g;   // never unwireChannel(...), which builds nothing
-  let m;
-  while ((m = re.exec(src))) sites.push({ at: m.index, call: m[1] });
-  const fire = [];
-  for (const site of sites) {
-    const region = src.slice(site.at, site.at + 4000);
-    const store = /\bstore: ([^\n]+)/.exec(region);
-    const fnHead = src.lastIndexOf('\nfunction ', site.at);
-    const fnName = (/^\nfunction ([\w$]+)/.exec(src.slice(fnHead)) || [])[1] || '?';
-    if (!store) { out.push(fnName + ': a hub with no store property'); continue; }
-    const s = store[1].trim();
-    if (/^(channelStore|botStore),/.test(s + ',')) continue;
-    if (/^perFireStore\(channelStore\b/.test(s)) { fire.push(fnName); if (!ONE_JOB_SITES[fnName]) out.push(fnName + ': perFireStore outside the named one-job sites'); continue; }
-    out.push(fnName + ': a hub over "' + s.slice(0, 60) + '"');
+  const src = String(indexSource || ''), out = [], fire = new Set(), owners = new Set();
+  const kinds = HubFactory.KINDS.slice();
+  for (const kind of kinds) {
+    let bag;
+    try { bag = productionHubBag(kind, src); }
+    catch (e) { out.push(kind + ': ' + e.message); continue; }
+    owners.add(bag.owner);
+    const prop = bag.props.find(p => p.key === 'store'), value = prop && prop.expr.trim();
+    if (kind === 'telegram-bot') {
+      if (value !== 'botStore' || !/const botStore = makeBotScopedStore\(botId\);/.test(topLevel(src, bag.owner)))
+        out.push(kind + ': store is not the actual bot-scoped station view');
+    } else if (['sample', 'trigger', 'handoff'].includes(kind)) {
+      if (!/^perFireStore\(channelStore\b/.test(value || '') || !ONE_JOB_SITES[bag.owner])
+        out.push(kind + ': store is not its named per-fire station view');
+      else fire.add(bag.owner);
+    } else if (value !== 'channelStore') out.push(kind + ': store is not the shared station owner (' + String(value) + ')');
   }
-  // botStore is makeBotScopedStore(botId): a view of the station's store, so its hub shares the station's ledger
-  if (/const botStore = makeBotScopedStore\(botId\);/.test(src) === false) out.push('startTelegramBot: botStore is no longer makeBotScopedStore(botId)');
-  return { problems: out, sites: sites.length, oneJob: fire };
+  // Census the actual call sites as well as all ten effective bags: a new unclassified constructor must fail.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const sites = [...code.matchAll(/(?<![\w$])(?:makeChannelHub|wireChannel)\(/g)];
+  const found = [];
+  for (const site of sites) {
+    const heads = [...code.slice(0, site.index).matchAll(/^(?:async )?function ([\w$]+)\(/gm)];
+    const name = heads.length ? heads[heads.length - 1][1] : '?';
+    found.push(name);
+    if (!owners.has(name)) out.push(name + ': unclassified production hub constructor');
+  }
+  for (const owner of owners) if (found.filter(name => name === owner).length !== 1) out.push(owner + ': expected one actual constructor');
+  return { problems: out, sites: sites.length, kinds, oneJob: [...fire] };
 }
 
 module.exports = { makeWorld, manifestProblems, storeSiteProblems, MANIFEST, ONE_JOB_SITES, CHATS, HEADER, ROOT, OWNER, GROUP, T0, rng, chunkTextParts };

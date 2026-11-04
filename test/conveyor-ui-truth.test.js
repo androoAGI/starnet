@@ -30,19 +30,18 @@ for(const [bp,worst] of [['revision_loop',8],['deep_dive',12]]) {
  A.ok(st.setSendTo(ob,ib).ok,'two independent lines linked by SEND TO');
  st.setPropLabel(ib,'Line B'); A.eq(st.sendToChoices(ob).find(c=>c.on).name,'LINE B','model SEND TO choices use the same normalized label');
  const p=P.compileRoutingPlan(st.projectGeometry());
- // PRIVATE FILES is advice, never a routing finding (final floor lane M19 / M29): no floor nag at rest, and TRUE only where it is
+ // Produced files now ride the job as exact read grants, so the old blanket private-files warning is retired.
  A.ok(!p.errors.some(e=>/^SEND_TO/.test(e.code)),'a clean SEND TO compiles no finding (no PRIVATE FILES nag on the floor)');
- const adv=P.sendToFileAdvice(p);
- A.ok(adv.length===1&&adv[0].code==='SEND_TO_PRIVATE_FILES'&&adv[0].propId===ob&&adv[0].warn,'a folderless line handing on to a DIFFERENT crew: its files sit in private workspaces the next crew cannot open — advice');
- A.ok(P.ok(p)&&!!p.sendTo[ob],'file-access advice does not disable hand-off');
+ A.eq(typeof P.sendToFileAdvice,'undefined','retired private-files advice has no remaining public producer');
+ A.ok(P.ok(p)&&!!p.sendTo[ob],'different crews can hand produced files on without a shared project');
  st.setPropProject(ia,'C:/projects/source'); st.setPropProject(ib,'C:/projects/target');
  const q=P.compileRoutingPlan(st.projectGeometry());
- A.ok(!q.errors.some(e=>e.code==='SEND_TO_PRIVATE_FILES')&&!P.sendToFileAdvice(q).length,'two named project folders need no private-workspace warning');
+ A.ok(!q.errors.some(e=>e.code==='SEND_TO_PRIVATE_FILES'),'two named project folders need no private-workspace warning');
  A.eq(q.hash,p.hash,'private-file legibility does not change the routing hash');
  st.setPropProject(ib,'');
- A.eq(P.sendToFileAdvice(P.compileRoutingPlan(st.projectGeometry())),[],'the SENDING line project folder is what makes its files reachable (the target needs none)');
+ A.ok(!!P.compileRoutingPlan(st.projectGeometry()).sendTo[ob],'source project alone preserves SEND TO');
  st.setPropProject(ia,''); st.setPropProject(ib,'C:/projects/target');
- A.eq(P.sendToFileAdvice(P.compileRoutingPlan(st.projectGeometry())).map(x=>x.propId),[ob],'…a project folder only on the receiving line does not reach the sender private files');
+ A.ok(!!P.compileRoutingPlan(st.projectGeometry()).sendTo[ob],'target project alone preserves SEND TO');
 }
 // one agent on both lines: its own private workspace — the files ARE reachable, so no advice (M29: the old warning was false here)
 {
@@ -51,10 +50,10 @@ for(const [bp,worst] of [['revision_loop',8],['deep_dive',12]]) {
  const find=(r,t)=>r.ids.find(id=>st.propById(id).t===t), ob=find(a,'outbox'), ib=find(b,'intake');
  A.ok(st.setSendTo(ob,ib).ok,'one agent, two lines, SEND TO');
  const p=P.compileRoutingPlan(st.projectGeometry());
- A.ok(!!p.sendTo[ob]&&!p.errors.some(e=>/^SEND_TO/.test(e.code))&&P.sendToFileAdvice(p).length===0,'the same agent on both lines opens its own files: no PRIVATE FILES advice');
- // a second agent joins the receiving line: that crew member cannot open the writer's private files
+ A.ok(!!p.sendTo[ob]&&!p.errors.some(e=>/^SEND_TO/.test(e.code)),'the same agent on both lines keeps a valid SEND TO');
+ // A different receiving agent can read exactly the files handed on by this job.
  const bayB=b.ids.find(id=>st.propById(id).t==='bay'); st.assignPropAgent(bayB,'coder');
- A.eq(P.sendToFileAdvice(P.compileRoutingPlan(st.projectGeometry())).map(x=>x.propId),[ob],'…a different agent on the next line makes it true');
+ A.ok(!P.compileRoutingPlan(st.projectGeometry()).errors.some(e=>e.code==='SEND_TO_PRIVATE_FILES'),'changing the receiving crew cannot revive the retired warning');
 }
 
 // Placement checks the complete footprint and calls the same insertion verdict as the click.

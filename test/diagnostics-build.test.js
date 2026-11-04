@@ -40,6 +40,33 @@ const { formatBuild } = Diag._internals;
   A.eq(formatBuild({ version: '0.2.2', commit: '' }), 'build 0.2.2 @ unknown', 'version-only falls back commit to "unknown"');
 }
 
+// ---- formatInstall: the install verdict (BuildInfo.installIntegrity, src-tauri/src/install_manifest.rs to_info) ----
+// 85f602c4 / E62: a zeroed or quarantined module that nothing named. The copied report now says whether the install
+// verified; a shell that predates the field prints NO line, never a guess and never "verified".
+const { formatInstall } = Diag._internals;
+const SHELL_ZEROED = 'sidecar/tools/builtin/shell.js is empty (0 of 101,179 bytes)';
+{
+  const build = { version: '0.14.2', commit: 'c160d90' };
+  const at = installIntegrity => Object.assign({}, build, { installIntegrity });
+  A.eq(formatInstall(at({ state: 'verified', files: 2351 })), 'verified 2,351 files', 'a verified install');
+  A.eq(formatInstall(at({ state: 'checking', files: 2351 })), 'checking 2,351 files', 'hashing still running');
+  A.eq(formatInstall(at({ state: 'not-checked', reason: 'dev build' })), 'not checked (dev build)', 'a dev build claims nothing');
+  A.eq(formatInstall(at({ state: 'damaged', files: 2351, damaged: 1, hashed: false, named: [SHELL_ZEROED] })), 'DAMAGED - ' + SHELL_ZEROED, 'the damaged file is named');
+  A.eq(formatInstall(at({ state: 'damaged', files: 2351, damaged: 7, hashed: true, named: [SHELL_ZEROED, 'shared/events.js is missing'] })),
+    'DAMAGED - ' + SHELL_ZEROED + ' (+6 more, named in startup.log)', 'more damage is counted, the first file named');
+  A.eq(formatInstall(at({ state: 'damaged', named: ['a\nforged: line\u0007'] })), 'DAMAGED - a forged: line', 'control characters cannot forge report lines');
+  A.eq(formatInstall(build), '', 'an older shell without the field: no install line');
+  for (const junk of [null, undefined, 'verified', 42, {}, { state: 'official' }]) {
+    A.eq(formatInstall(at(junk)), '', 'a malformed field is no line, never "verified": ' + JSON.stringify(junk));
+  }
+  A.eq(formatInstall(null), '', 'no BuildInfo, no line');
+  A.eq(formatBuild(at({ state: 'damaged', named: [SHELL_ZEROED] })), 'build 0.14.2 @ c160d90', 'the build line itself is unchanged');
+  A.eq(Diag.withInstall('REPORT', 'verified 3 files'), 'REPORT\ninstall:       verified 3 files', 'one install line is appended');
+  A.eq(Diag.withInstall('REPORT', ''), 'REPORT', 'no verdict, no line');
+  A.eq(Diag.withInstall('', 'verified 3 files'), '', 'an empty report stays empty (the caller\'s "could not read" path)');
+  A.eq(Diag.withInstall('x\ninstall:       verified 3 files', 'checking 3 files'), 'x\ninstall:       verified 3 files', 'never a second install line');
+}
+
 // ---- buildLine: browser fail-soft (no Tauri) ----
 (async () => {
   const hadWindow = typeof global.window !== 'undefined';
@@ -59,6 +86,42 @@ const { formatBuild } = Diag._internals;
     // (3) old shell WITHOUT the command (invoke rejects) → '' (never surface an error/fake line)
     global.window = { __TAURI__: { core: { invoke: () => Promise.reject(new Error('unknown command')) } } };
     A.eq(await Diag.buildLine(), '', 'a shell without starnet_build_info => "" (graceful)');
+
+    // (4) THE COPIED REPORT carries the install line, in both of its paths. Driven through copy() with fakes only at
+    // the edges: the shell's invoke, the sidecar's /api/diagnostics and the clipboard.
+    const damaged = { version: '0.14.2', commit: 'c160d90', installIntegrity: { state: 'damaged', files: 2351, damaged: 1, hashed: false, named: [SHELL_ZEROED] } };
+    let shell = damaged;
+    global.window = { __TAURI__: { core: { invoke: (cmd) => cmd === 'starnet_build_info' ? Promise.resolve(shell) : Promise.reject(new Error('unknown command')) } } };
+    let sidecarText = '';
+    const savedFetch = global.fetch;
+    const savedNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+    const copied = [];
+    global.fetch = (url) => Promise.resolve({ ok: !!sidecarText, json: () => Promise.resolve({ text: sidecarText }) });
+    Object.defineProperty(globalThis, 'navigator', { value: { clipboard: { writeText: (t) => { copied.push(t); return Promise.resolve(); } } }, configurable: true, writable: true });
+    try {
+      const copy = () => new Promise(resolve => Diag.copy({ notify: false, onDone: (ok, text) => resolve(text) }));
+      // the engine answered: its report gains the shell's install line
+      sidecarText = 'STARNET DIAGNOSTICS\nAgents:        3';
+      const alive = await copy();
+      A.ok(alive.startsWith(sidecarText) && alive.includes('\ninstall:       DAMAGED - ' + SHELL_ZEROED + '\n'), 'the sidecar report carries the install line: ' + JSON.stringify(alive));
+      A.eq(copied[copied.length - 1], alive, 'that is the text on the clipboard');
+      // the engine is down: the page-side report puts it right under the build line
+      sidecarText = '';
+      const dead = await copy();
+      A.ok(/\nbuild:         build 0\.14\.2 @ c160d90\ninstall:       DAMAGED - sidecar\/tools\/builtin\/shell\.js is empty \(0 of 101,179 bytes\)\n/.test(dead), 'the fallback report names the file under its build line: ' + JSON.stringify(dead));
+      A.eq(dead.split('\ninstall:').length, 2, 'exactly one install line');
+      // an older shell (no field): no install line in either path, never a guess
+      shell = { version: '0.14.1', commit: 'abc1234' };
+      A.ok(!/\ninstall:/.test(await copy()), 'an older shell adds no install line (dead engine)');
+      sidecarText = 'STARNET DIAGNOSTICS';
+      A.ok(!/\ninstall:/.test(await copy()), 'an older shell adds no install line (live engine)');
+      // a verified install says so
+      shell = Object.assign({}, damaged, { installIntegrity: { state: 'verified', files: 2351 } });
+      A.ok(/\ninstall:       verified 2,351 files(\n|$)/.test(await copy()), 'a verified install says so');
+    } finally {
+      global.fetch = savedFetch;
+      if (savedNavigator) Object.defineProperty(globalThis, 'navigator', savedNavigator); else delete globalThis.navigator;
+    }
   } finally {
     if (hadWindow) global.window = savedWindow; else { try { delete global.window; } catch (_) { global.window = undefined; } }
   }

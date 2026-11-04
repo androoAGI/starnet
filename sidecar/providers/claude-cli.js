@@ -710,6 +710,10 @@
           let j = null;
           try { j = JSON.parse(out.trim()); } catch (_) { j = null; }
           const keyed = !!String(childEnv().ANTHROPIC_API_KEY || '').trim();   // only a key the CLI will actually see
+          if ((!j || typeof j.loggedIn !== 'boolean') && !keyed) {
+            return finish({ installed: true, loggedIn: false,
+              error: Object.assign(new Error('Claude Code returned no usable local sign-in status'), { code: 'status_unavailable' }) });
+          }
           const loggedIn = !!((j && j.loggedIn === true) || keyed);
           const st = { installed: true, loggedIn, authMethod: (j && j.authMethod && j.authMethod !== 'none') ? String(j.authMethod) : (keyed ? 'api_key' : '') };
           if (j && typeof j.email === 'string' && j.email) st.email = j.email.slice(0, 200);
@@ -790,7 +794,7 @@
       if (!st.ok) throw st.error;
       return MODELS.map(m => ({
         id: m.id, name: m.name, context_length: m.context || DEFAULT_CONTEXT, max_completion_tokens: null, pricing: null,
-        supportsTools: true, supportsReasoning: true, supported_parameters: ['tools', 'reasoning'], reasoningEfforts: EFFORTS.slice()
+        supportsTools: true, supportsReasoning: true, supported_parameters: ['tools', 'reasoning'], reasoningEfforts: EFFORTS.slice(), fallback: true
       }));
     }
 
@@ -1440,6 +1444,15 @@
     return {
       stream,
       listModels,
+      async verifyCredential() {
+        // Local auth status proves a stored sign-in, not that the remote service accepted it. Never mint
+        // lastVerified from this or the curated model list (and never spend on a model just to show a badge).
+        const st = await host.authStatus();
+        const unavailable = st.error && st.installed !== false && st.error.code !== 'provider_not_configured';
+        return { ok: false, credentialVerified: false, status: unavailable ? 'unavailable' : st.loggedIn ? 'unverified' : 'missing', reachable: !!st.installed,
+          credentialPresent: !!st.loggedIn, error: unavailable ? 'local sign-in status unavailable' : st.loggedIn ? 'local sign-in present; remote credential not verified' :
+            st.installed ? 'Claude Code is not signed in' : 'Claude Code is not installed' };
+      },
       release,
       persistStats() {
         const closing = Array.from(ownedSessions).filter(s => s.closing);

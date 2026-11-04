@@ -1,0 +1,67 @@
+# webkit-floor-boot — the station page boots in a real WebKit at the engine floor.
+#
+# WHY. On macOS the app window is the system WebKit, which only updates with Safari / macOS. gh#136 (macOS Intel,
+# 0.13.5) and qa/bugs/5308fc67: one construct the customer's WebKit lacked dropped a whole module while every gate was
+# green. test/webkit-floor-syntax.test.js gates the syntax lexically; this job boots the page.
+#
+# WHAT. scripts/qa/webkit-floor-boot.mjs boots this ref's sidecar keyless and hermetic on a port the OS hands out,
+# opens / and /agent-station-demo.html in Playwright WebKit with every API newer than the floor
+# (scripts/lib/engine-floor.json) deleted before any page script runs, and requires the boot guard's own accounting to
+# say every station script ran, with no page error while booting, no fatal banner and the engine not below the floor.
+# One retry on a fresh sidecar (a boot under CI load can flake). The receipt and screenshots are kept.
+# Honest limit: Playwright's WebKit is today's WebKit minus those APIs, not a real Safari 15.4.
+#
+# Playwright is pinned here and installed with npm i --no-save: it is never a dependency in package.json (the harness
+# exits 3, "unconfigured", never green, when it is missing).
+# Called by fast-gate.yml (every PR and trunk push) and by release-train.yml (the draft is staged only after it).
+name: webkit-floor-boot
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ""
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  webkit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PLAYWRIGHT_VERSION: "1.64.1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm ci
+
+      - name: Playwright WebKit (pinned; installed in CI only, never in package.json)
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm i --no-save --no-audit --no-fund "playwright@$PLAYWRIGHT_VERSION"
+          npx playwright install --with-deps webkit
+
+      - name: The station page boots in WebKit at the floor
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/qa/webkit-floor-boot.mjs --floor --retry 1 --out webkit-floor
+
+      - name: Keep the receipt and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webkit-floor-boot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: webkit-floor/
+          if-no-files-found: warn

@@ -2,14 +2,14 @@
 
    Boots the ACTUAL sidecar with a mock OpenRouter, SEEDS a fabricated runs.jsonl (user-initiated runs = "what the
    Commander is working on") + a fabricated transcript.jsonl (recent user chats) + internal-stream noise that must be
-   EXCLUDED, plus a THIN dossier that alone would be cold — proving the ACTIVITY grounding path carries the beat. It
+   EXCLUDED, plus a THIN dossier that cannot ground the proposed job — proving the ACTIVITY grounding path carries the beat. It
    drives the night shift via POST /api/nightshift/beat (attended test of the unattended pipeline) and asserts:
 
-     · THE PROPOSE DIRECTIVE CARRIED THE ACTIVITY — the reason-only PROPOSE prompt the model received contained the
-       fabricated recent-run titles + chat first-lines (dated "worked on recently" block), NOT just dossier strings.
+     · THE PROPOSE DIRECTIVE CARRIED PROVEN ACTIVITY — the reason-only PROPOSE prompt contains the fabricated clean
+       owner chat, not a raw run title. A run title is retained context, never proof of the Commander's own words.
      · INTERNAL NOISE EXCLUDED — a nightshift-/cron- streamed run never appears in the directive.
-     · THE BUILT JOB GROUNDS IN ACTIVITY — the model grounds its chosen job in a recent-run line, and the grounding
-       veto lets it through (activity is load-bearing evidence), and it lands as a real deliverable + ledger 'act'.
+     · THE BUILT JOB GROUNDS IN ACTIVITY — a job citing only a raw run title is rejected before BUILD. The next job
+       cites the proven owner chat and lands as a real deliverable + ledger 'act'; activity is load-bearing evidence.
      · COLD-LEASH FIX — with NO dossier AND NO activity, the status route reports binding:'readiness' and
        beatsUsedToday stays 0 (a purely-local stand-down that spends no leash). */
 'use strict';
@@ -29,13 +29,16 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const ACT_MARK = '[NIGHTSHIFT_ACT]';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// a fabricated recent-run title we expect to see echoed into the propose directive + cited in GROUNDS.
+// The raw run title stays in history, but only the proven owner chat can ground a proposed job.
 const REAL_RUN_TITLE = 'Wire up the belt-router retry loop';
 const REAL_CHAT = 'help me cut the release-notes toil';
 const INTERNAL_RUN_TITLE = 'night-shift Busywork DO NOT SURFACE';
 
 // the mock records the PROPOSE prompt it received so the test can assert the activity reached the model.
 let lastProposePrompt = '';
+let chosenGround = REAL_RUN_TITLE;
+let proposeCalls = 0, buildCalls = 0;
+const buildRunIds = new Set();
 
 function startMockOpenRouter() {
   return new Promise((resolve) => {
@@ -59,7 +62,9 @@ function startMockOpenRouter() {
           const text = t => { res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: t } }] }) + '\n\n'); res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12 } }) + '\n\n'); };
 
           if (prompt.indexOf(ACT_MARK) === 0) {
+            buildCalls++;
             const runId = (prompt.match(/workshop\/([A-Za-z0-9-]+)\//) || [])[1] || 'run';
+            buildRunIds.add(runId);
             const dir = 'workshop/' + runId;
             if (toolResults === 0) { tool('f1', 'fs_write', { path: dir + '/notes.md', content: '# retry loop notes\n' }); }
             else if (toolResults === 1) {
@@ -67,13 +72,14 @@ function startMockOpenRouter() {
               tool('f2', 'fs_write', { path: dir + '/deliverable.json', content: JSON.stringify(manifest) });
             } else { text('Wrote the plan.'); }
           } else if (/JOB:/.test(prompt) && /GROUNDS:/.test(prompt)) {
-            // the reason-only PROPOSE (V2 candidate directive). CAPTURE it, then ground the job in the RECENT RUN
-            // line (activity evidence), not a dossier belief — proving activity is load-bearing.
+            // First offer a title-only job (refused), then cite the proven owner chat. The mock deliberately
+            // cannot rely on a dossier belief to pass the grounding veto.
+            proposeCalls++;
             lastProposePrompt = prompt;
             text([
               'JOB: Finish the belt-router retry loop',
               'KIND: advance-goal',
-              'GROUNDS: ' + REAL_RUN_TITLE,            // cites the fabricated recent RUN, not a belief
+              'GROUNDS: ' + chosenGround,
               'CONFIDENCE: high',
               'SPEC: a plan to complete the retry loop'
             ].join('\n'));
@@ -120,8 +126,7 @@ async function fireBeat(B, headers) {
 
 // a THIN dossier: goals only (undated → fresh). Since bug 41b2d015 (the act floor is one aim or one run, not 4 areas /
 // 4 runs) this alone is hot; with the seeded runs beside it readiness names ACTIVITY as the grounding (a tie goes to
-// activity), and the chosen job below cites a recent-RUN line the grounding veto must accept — activity is still
-// what this beat's grounding rests on.
+// activity). The accepted job cites the proven owner chat; a raw run title alone does not pass the grounding veto.
 function thinBeliefs() {
   return { known: ['goals'], beliefs: { goals: [{ text: 'ship something good' }] } };
 }
@@ -168,27 +173,46 @@ function seedLogs(ws, now) {
     await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
     await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: thinBeliefs() }) });
 
+    const before = await (await fetch(B + '/api/runs?limit=60', { headers })).json();
+    A.ok(Array.isArray(before.runs) && before.runs.some(r => r.runId === 'r1' && r.title === REAL_RUN_TITLE), 'the raw recent run exists in actual host history before the grounding proof');
+    const refused = await fireBeat(B, headers);
+    const refusedPrompt = lastProposePrompt;
+    A.eq(refused.reason, 'no-candidates', 'a raw run title is not a proven owner directive and cannot ground BUILD');
+    A.ok(refused.delivered !== true && !refused.runId, 'title-only proposal produces no delivered build or build runId');
+    A.eq([proposeCalls, buildCalls], [1, 0], 'title-only proposal pays for one synthetic proposal and zero BUILD calls');
+    const refusedLedger = await (await fetch(B + '/api/autonomy/ledger', { headers })).json();
+    const refusedEntries = Array.isArray(refusedLedger.entries) ? refusedLedger.entries : (Array.isArray(refusedLedger) ? refusedLedger : []);
+    A.ok(!refusedEntries.some(e => e.kind === 'act'), 'title-only proposal records no successful act');
+    A.ok(!fs.existsSync(path.join(ws, 'agent', 'workshop')), 'title-only proposal creates no workshop artifact');
+
+    chosenGround = REAL_CHAT;
     const act = await fireBeat(B, headers);
     A.ok(act.delivered === true && act.reason === 'built', 'thin dossier + fabricated recent activity → the beat still reached a REAL build (activity is the grounding)');
     A.ok(act.runId, 'the build returned a runId');
 
-    // THE PROOF: the propose directive the model received carried the fabricated recent-activity lines.
-    A.ok(lastProposePrompt.indexOf('worked on recently') >= 0, 'the propose directive rendered the "worked on recently" activity block');
-    A.ok(lastProposePrompt.indexOf(REAL_RUN_TITLE) >= 0, 'the propose directive contained the fabricated recent-RUN title (real activity, not a static dossier string)');
-    A.ok(lastProposePrompt.indexOf(REAL_CHAT) >= 0, 'the propose directive contained the fabricated recent-CHAT first-line');
-    A.ok(lastProposePrompt.indexOf(INTERNAL_RUN_TITLE) < 0, 'internal-stream (nightshift-) runs were EXCLUDED from the directive');
-    A.ok(lastProposePrompt.indexOf('cron digest run') < 0, 'internal-stream (cron-) runs were EXCLUDED from the directive');
-    A.ok(lastProposePrompt.indexOf('internal propose prompt should not surface') < 0, 'known-clean internal-stream chat is still excluded');
-    for (const sentinel of ['TAINTED_RUN_SENTINEL', 'QUOTED_RUN_SENTINEL', 'TAINTED_CHAT_SENTINEL', 'UNKNOWN_CHAT_SENTINEL', 'DELEGATED_CHAT_SENTINEL', 'QUOTED_CHAT_SENTINEL']) {
-      A.ok(!lastProposePrompt.includes(sentinel), sentinel + ' never reaches the real model propose prompt');
+    A.eq([proposeCalls, buildCalls], [2, 3], 'proven-chat proposal drives exactly one build: two file writes and its final answer');
+    A.eq(Array.from(buildRunIds), [act.runId], 'all synthetic BUILD calls belong to the one returned build runId');
+
+    // THE PROOF: the model receives only caller-proven directive activity as grounding evidence.
+    for (const [stage, prompt] of [['refused', refusedPrompt], ['built', lastProposePrompt]]) {
+      A.ok(prompt.indexOf('worked on recently') >= 0, stage + ': the propose directive rendered the "worked on recently" activity block');
+      A.ok(prompt.indexOf(REAL_RUN_TITLE) < 0, stage + ': the raw run title is excluded from authority-bearing proposal activity');
+      A.ok(prompt.indexOf(REAL_CHAT) >= 0, stage + ': the propose directive contained the fabricated recent-CHAT first-line');
+      A.ok(prompt.indexOf(INTERNAL_RUN_TITLE) < 0, stage + ': internal-stream (nightshift-) runs were EXCLUDED from the directive');
+      A.ok(prompt.indexOf('cron digest run') < 0, stage + ': internal-stream (cron-) runs were EXCLUDED from the directive');
+      A.ok(prompt.indexOf('internal propose prompt should not surface') < 0, stage + ': known-clean internal-stream chat is still excluded');
+      for (const sentinel of ['TAINTED_RUN_SENTINEL', 'QUOTED_RUN_SENTINEL', 'TAINTED_CHAT_SENTINEL', 'UNKNOWN_CHAT_SENTINEL', 'DELEGATED_CHAT_SENTINEL', 'QUOTED_CHAT_SENTINEL']) {
+        A.ok(!prompt.includes(sentinel), stage + ': ' + sentinel + ' never reaches the real model propose prompt');
+      }
     }
 
-    // the chosen job GROUNDS in a recent-activity line — and the veto let it through (activity is load-bearing).
+    // The chosen job grounds in the proven owner chat, and the veto lets it through.
     const led = await (await fetch(B + '/api/autonomy/ledger', { headers })).json();
     const entries = (led && Array.isArray(led.entries)) ? led.entries : (Array.isArray(led) ? led : []);
+    A.eq(entries.filter(e => e.kind === 'act').map(e => e.runId), [act.runId], 'only the proven-chat build records one act for its exact runId');
     const actEntry = entries.find(e => e.kind === 'act' && e.runId === act.runId && e.detail);
-    A.ok(actEntry && /retry|Belt-router/.test(String(actEntry.detail.title || '')), "the built deliverable (grounded in the recent run) recorded a ledger 'act'");
-    A.ok(fs.existsSync(path.join(ws, 'agent', 'workshop', act.runId, 'notes.md')), 'the activity-grounded build produced a real artifact on disk');
+    A.ok(actEntry && /retry|Belt-router/.test(String(actEntry.detail.title || '')), "the built deliverable (grounded in the proven owner chat) recorded a ledger 'act'");
+    A.ok(typeof act.runId === 'string' && fs.existsSync(path.join(ws, 'agent', 'workshop', act.runId, 'notes.md')), 'the activity-grounded build produced a real artifact on disk');
 
     // ===== 2. COLD-LEASH FIX — with NO dossier and NO activity, status reports binding:readiness + no spend. =====
     // wipe the activity by pointing at a FRESH workspace-less state: clear the dossier (empty beliefs) and rely on

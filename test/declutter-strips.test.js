@@ -65,9 +65,9 @@ A.ok(/\bresolveAll\b/.test(rstore.slice(rstore.lastIndexOf('return {'))), 'Retur
 /* ---- CHAT: files the agent names render as files, not raw markdown (Andrew's screenshot, 2026-10-10) ---- */
 const chat = read('frontend/app/chat.js');
 const ex = name => { const m = new RegExp('(  function ' + name + '\\([\\s\\S]*?\\n  \\})').exec(chat); A.ok(m, 'chat.js defines ' + name); return m ? m[1] : ''; };
-const esc = /const HTML_ESC = \{[^}]*\};/.exec(chat)[0], rel = /  const REL_PATH = [^\n]*;/.exec(chat)[0];
+const rel = /  const REL_PATH = [^\n]*;/.exec(chat)[0];
 // eslint-disable-next-line no-new-func
-const inline = new Function(esc + '\n' + rel + '\n' + ex('escapeHtml') + ex('linkify') + ex('hostOf') + ex('linkHostNote') + ex('appFileRef') + ex('fileRefLink') + ex('fileRefImage') + ex('reportInline') + '\nreturn reportInline;')();
+const inline = new Function('U', rel + '\n' + ex('escapeHtml') + ex('linkify') + ex('hostOf') + ex('linkHostNote') + ex('appFileRef') + ex('fileRefLink') + ex('fileRefImage') + ex('reportInline') + '\nreturn reportInline;')(require('../frontend/js/util.js'));
 let o = inline('[Review the original](review/coffee-break-cat-new/index.html)');
 A.ok(/<a class="md-file" href="#" data-md-path="review\/coffee-break-cat-new\/index\.html">Review the original<\/a>/.test(o), 'a relative [link](path) is a file link');
 o = inline('![New candidate](review/coffee-break-cat-new/final-preview.jpg)');
@@ -91,7 +91,7 @@ const voice = read('frontend/app/voice.js');
 // (the speaker-off clear is one helper since 2026-10-15; voice.button.test proves every off path behaviorally)
 A.ok(/el\.addEventListener\('click', \(\) => showInterruption\(''\)\)/.test(voice)
   && /function speakerOffClearsNote\(\) \{ if \(interruptionMessage\) showInterruption\(''\); \}/.test(voice)
-  && /muteStopSpeaking\(\); speakerOffClearsNote\(\);/.test(voice),
+  && /stopSpeaking\('all', 'speaker_off'\); speakerOffClearsNote\(\);/.test(voice),
   'the speech-interrupted note can be dismissed and clears when the speaker goes off');
 
 /* ---- DELIVERABLES toolbar + drawer (org pass 10-14, P13): upkeep folds, filters stay, chips read plainly ---- */

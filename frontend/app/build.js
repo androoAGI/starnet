@@ -148,17 +148,16 @@ const Build = (() => {
     LINE_BUDGET_SHADOWED: 'This INBOX has its own LINE BUDGET, but a line has ONE: the first INBOX on it that carries a budget sets it for the whole line, so the numbers on this one are not used. Change the budget on that INBOX, or clear this one’s.',
     SEND_TO_MISSING: 'This OUTBOX sends to an INBOX that is gone or starts no line yet (or the OUTBOX itself ends no line), so nothing is sent on. Click the OUTBOX and pick a line under SEND TO (or NOWHERE).',
     SEND_TO_SELF: 'This OUTBOX sends its work back into its own line’s INBOX, so nothing is sent on. Click it and pick another line under SEND TO (or NOWHERE).',
-    // (advice on the OUTBOX's card, never a floor nag — Pipeline.sendToFileAdvice says when it is true: final floor lane M19 / M29)
-    SEND_TO_PRIVATE_FILES: 'This line has no project folder, so the files its crew makes stay in each agent’s private workspace. The finished text rides on, but the next line’s crew cannot open those files. Give this line a shared project folder (on its INBOX) to hand files on.',
     SEND_TO_LOOP: 'These lines send their work round in a circle, so every SEND TO on the circle is off — a job would never stop. Click one OUTBOX on the circle and set its SEND TO to NOWHERE or another line.'
   };
   const valWhy = code => VAL_WHY[code] || VAL_LABEL[code] || code;
   // a finding's full sentence for THIS machine — with its own numbers where the finding carries them (LINE_TOO_LONG)
   function findingWhy(e) {
-    if (e && e.code === 'LINE_TOO_LONG' && e.stages > 0) {
-      const fits = e.stages - 1 <= 24;
-      return 'Too long — the longest way through this line runs ' + e.stages + ' stages, but its LINE BUDGET allows ' + (e.maxHops + 1) + ' (the first + ' + e.maxHops + ' more), so a job that goes that way would stop at stage ' + (e.maxHops + 2) + ' (the stages that ran are still paid for). '
-        + (fits ? 'Raise “max stages after the first” to ' + (e.stages - 1) + ' in this INBOX’s Workflow card › Optional limits · LINE BUDGET, or shorten the line.' : 'No LINE BUDGET allows that many (25 stages at most): shorten the line.');
+    // (its numbers are the one stage count's — WorkflowLine.tooLongNumbers over Pipeline.stageCeiling, what the executor stops by)
+    const n = (e && e.code === 'LINE_TOO_LONG' && e.stages > 0 && typeof WorkflowLine !== 'undefined' && WorkflowLine.tooLongNumbers) ? WorkflowLine.tooLongNumbers(e) : null;
+    if (n) {
+      return 'Too long — the longest way through this line runs ' + e.stages + ' stages, but its LINE BUDGET allows ' + n.allows + ' (the first + ' + e.maxHops + ' more), so a job that goes that way would stop at stage ' + n.stopsAt + ' (the stages that ran are still paid for). '
+        + (n.raiseTo != null ? 'Raise “max stages after the first” to ' + n.raiseTo + ' in this INBOX’s Workflow card › Optional limits · LINE BUDGET, or shorten the line.' : 'No LINE BUDGET allows that many (' + n.most + ' stages at most): shorten the line.');
     }
     if (e && e.code === 'LINE_BUDGET_SHADOWED' && e.inForceName) {
       return 'This INBOX has its own LINE BUDGET, but a line has ONE: the budget in force is the one on the INBOX “' + e.inForceName + '”, so the numbers on this one are not used. Change the budget there, or clear this one’s.';
@@ -3160,14 +3159,12 @@ const Build = (() => {
     const exp = g.querySelector('[data-export-build]'), imp = g.querySelector('[data-import-build]'), fileIn = g.querySelector('[data-import-file]');
     const grid = g.querySelector('[data-build-section="shared"] .station-build-grid');
     if (!exp || !imp || !fileIn || !grid) return;
-    exp.onclick = () => {
+    exp.onclick = async () => {
       const r = BuildShare.exportBuild(station.serialize(), WorldModel, { name: station.doc().meta.name });
       if (r.error) { status.textContent = 'This station could not be exported.'; sfx('bad'); return; }
-      const url = URL.createObjectURL(new Blob([r.text], { type: 'application/json' }));
-      const a = document.createElement('a'); a.href = url; a.download = r.filename;
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-      status.innerHTML = sharedBuildCopy(r.filename, r.stats, r.dropped, 'Downloading ');
-      sfx('click');
+      const receipt = await U.saveFile({ name: r.filename, ext: 'json', text: r.text });
+      status.innerHTML = '<span>' + esc(receipt.line) + '</span>' + (receipt.ok ? sharedBuildCopy(r.filename, r.stats, r.dropped, 'Build snapshot: ') : '');
+      sfx(receipt.ok ? 'click' : 'bad');
     };
     imp.onclick = () => fileIn.click();
     fileIn.onchange = () => {
@@ -8634,7 +8631,7 @@ const Build = (() => {
         if (!rect) continue;
         let label = VAL_LABEL[e.code] || e.code, layer = 'topNag';
         // THE HAND (H5): an over-budget INBOX says its n/max on the floor — the one resting number — in the same voice that names the fix
-        if (e.code === 'LINE_TOO_LONG' && e.stages > 0) label = 'TOO LONG ' + e.stages + '/' + (e.maxHops + 1) + ' — RAISE THE BUDGET';
+        if (e.code === 'LINE_TOO_LONG' && e.stages > 0 && typeof Pipeline !== 'undefined' && Pipeline.stageCeiling) label = 'TOO LONG ' + e.stages + '/' + Pipeline.stageCeiling(e.maxHops) + ' — RAISE THE BUDGET';
         /* a ROLE-carrying unbound dock is a PLACARD, not a permanent nag (one-voice law): it speaks
            only while hovered or while it is the checklist's focused next step — at rest the amber
            bracket + the FINISH-THE-LINE card already carry the story. Roleless unbound bays keep
@@ -8940,15 +8937,18 @@ const Build = (() => {
     if (stagesPlan !== valPlan) { stagesPlan = valPlan; stagesMemo = new Map(); }
     const mk = rec.lineId + (rest ? '|rest' : '|full');
     if (stagesMemo.has(mk)) return stagesMemo.get(mk);
-    const max = ((rec.limits && rec.limits.maxHops != null) ? rec.limits.maxHops : ((typeof Pipeline !== 'undefined' && Pipeline.LINE_LIMIT_DEFAULTS && Pipeline.LINE_LIMIT_DEFAULTS.maxHops) || 6)) + 1;
+    // THE ONE STAGE COUNT (Pipeline.stageCeiling / overStageCeiling — the executor's and LINE_TOO_LONG's): no plate without it
+    if (typeof Pipeline === 'undefined' || !Pipeline.stageCeiling) return null;
+    const budget = (rec.limits && rec.limits.maxHops != null) ? rec.limits.maxHops : null;   // none set: the default's ceiling
+    const max = Pipeline.stageCeiling(budget);
     let v = null;
-    if (typeof rec.stages === 'number') v = { n: rec.stages, max, over: rec.stages > max };
+    if (typeof rec.stages === 'number') v = { n: rec.stages, max, over: Pipeline.overStageCeiling(rec.stages, budget) };
     else {
       const e = (valPlan.errors || []).find(q => q.code === 'LINE_TOO_LONG' && q.lineId === rec.lineId);
-      if (e) v = { n: e.stages, max: e.maxHops + 1, over: true };
+      if (e) v = { n: e.stages, max: Pipeline.stageCeiling(e.maxHops), over: true };
       else if (!rest) {
-        const ls = (typeof Pipeline !== 'undefined' && Pipeline.lineStages) ? Pipeline.lineStages(valPlan, rec.lineId) : null;   // the compiler's own count
-        v = ls && ls.stages > 0 ? { n: ls.stages, max: ls.max, over: ls.stages > ls.max } : null;
+        const ls = Pipeline.lineStages ? Pipeline.lineStages(valPlan, rec.lineId) : null;   // the compiler's own count
+        v = ls && ls.stages > 0 ? { n: ls.stages, max: ls.max, over: Pipeline.overStageCeiling(ls.stages, ls.maxHops) } : null;
       }
     }
     if (v && !rest && typeof Pipeline !== 'undefined' && Pipeline.lineStages) { const ls = Pipeline.lineStages(valPlan, rec.lineId); if (ls) v.worst = ls.worst; }   // (null where the compiler cannot count: never read through it)

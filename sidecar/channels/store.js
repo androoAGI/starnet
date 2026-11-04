@@ -24,15 +24,16 @@
      • <root>/<agentId>.history.json  = { version:1, messages:[{role,content,ts}] }
      • <root>/chatmap.json            = { version:1, chats:{ "<chatId>": { agentId, model, persona, ... } } }
 
-   Save-safe: versioned; atomic temp+rename; a missing/corrupt file loads as empty and NEVER throws. History is
+   Save-safe (sidecar/persist): versioned; atomic temp+rename; a missing/corrupt file loads as empty (its bad bytes kept
+   aside as <file>.corrupt-<n>), and one that cannot be read right now throws ESTORE_UNREADABLE, never empty. History is
    trimmed (lossy) on write to a bounded tail so the file and the replayed prompt stay within budget. Pure +
    deterministic: all I/O is the injected `fs` (sync), time is the injected `clock` — no Date.now/rng. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('../../frontend/app/turnkinds.js') : root.TurnKinds);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; root.SK.channels = root.SK.channels || {}; root.SK.channels.store = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
@@ -60,13 +61,12 @@
      appendTurn that would rewrite such a file first archives the untouched envelope beside it
      (<agentId>.history.legacy-hops.json, written once, never overwritten), and only then drops the turns. */
   const HOP_KEY_RE = /^hop_[0-9a-f]{32}$/;
-  const LEGACY_HOP_TURN = /^PIPELINE HANDOFF — you are stage \d+ of a work line on this station\.\n\nThe original request was:\n/;
   function withoutLegacyHops(msgs) {
     const kept = [];
     let dropped = 0;
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
-      if (m && m.role === 'user' && LEGACY_HOP_TURN.test(m.content)) {
+      if (m && m.role === 'user' && TurnKinds.classify(m).kind === 'hop') {
         dropped++;
         if (msgs[i + 1] && msgs[i + 1].role === 'assistant') { dropped++; i++; }   // the hop's own reply to that handoff
         continue;
@@ -100,11 +100,12 @@
     if (!clock || typeof clock.now !== 'function') throw new Error('makeChannelStore: an injected clock is required');
     const limits = Object.assign({}, DEFAULTS, d.limits || {});
 
-    let tmpSeq = 0;   // deterministic, process-unique tmp suffix (no pid/rng needed for a single host)
-    // P2: when the host injects writeDurable (writeFileDurable — fsync-before-rename), every write is power-loss
-    // durable; standalone (browser/tests) it degrades to the atomic temp+rename below. onRecover (optional) is
-    // called when a torn/corrupt main was recovered from its .bak last-known-good.
-    const writeDurable = (typeof d.writeDurable === 'function') ? d.writeDurable : null;
+    // P2: every write is sidecar/persist's atomic, durable replace: through the host's writer when it injects one (index.js:
+    // writeFileDurable, so the update freeze holds for every channel write), else persist.writeAtomic itself (fsync before
+    // the rename where the fs has one; a facade without fsync still gets temp + rename). onRecover (optional) is called
+    // when a torn/corrupt main was recovered from its .bak last-known-good.
+    const persist = require('../persist/index.js');
+    const writeDurable = (typeof d.writeDurable === 'function') ? d.writeDurable : persist.writeAtomic;
     const onRecover = (typeof d.onRecover === 'function') ? d.onRecover : function () {};
 
     let rootReady = false;   // mkdir once, not before every write (a removed dir is re-made on the ENOENT retry in writeRaw)
@@ -146,85 +147,102 @@
       if (hit.value === undefined) { hit.value = JSON.parse(hit.text); hit.text = undefined; }
       return hit;
     }
-    /* parse-or-undefined for ONE file: missing (ENOENT) / zero-length / corrupt -> undefined. ANY OTHER read error THROWS
-       (quick win 34): a file Windows reports EBUSY/EPERM/EACCES — an antivirus scan or an indexer holding it — is not an
-       absent file. Read as absent, the read-modify-write callers (saveChatRecord, appendTurn, pushOutbox…) wrote an empty
-       or .bak-old document over the real one and every other chat's record was gone. A throw refuses that write; the
-       caller's own guard reports it, and the next attempt reads the real file. */
-    function absent(e) { return !e || e.code === 'ENOENT' || e.code === 'ENOTDIR' || e instanceof SyntaxError; }
-    function readRaw(file) {
+    /* ONE FILE: sidecar/persist's read (readOne) behind the stat cache -> { kind: 'ok', value } | 'absent' (ENOENT/ENOTDIR)
+       | 'empty' / 'corrupt' (present but bad: a torn write) | 'unreadable' (err). Only a good read is ever cached.
+       UNREADABLE IS NOT ABSENT (quick win 34): a file Windows reports EBUSY/EPERM/EACCES — an antivirus scan or an indexer
+       holding it — is not an absent file. Read as absent, the read-modify-write callers (saveChatRecord, appendTurn,
+       pushOutbox…) wrote an empty or .bak-old document over the real one and every other chat's record was gone. */
+    function readFile(file) {
       const hit = cachedHit(file);
-      if (hit) return clone(hit.value);
-      try {
-        const key = canStat ? stampOf(file) : null;
-        const raw = fs.readFileSync(file, 'utf8');
-        if (raw == null || String(raw).length === 0) return undefined;
-        const value = JSON.parse(raw);
-        if (key) { cache.set(file, { key: key, value: value }); return clone(value); }
-        return value;
+      if (hit) return { kind: 'ok', value: clone(hit.value) };
+      let key = null;
+      if (canStat) {
+        try { key = stampOf(file); }
+        catch (e) { if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) return { kind: 'absent' }; }   // else the read decides
       }
-      catch (e) { if (absent(e)) return undefined; throw e; }
+      const r = persist.readOne(fs, file);
+      if (r.kind !== 'ok' || !key) return r;
+      cache.set(file, { key: key, value: r.value });
+      return { kind: 'ok', value: clone(r.value) };
     }
-    function readJson(file) {   // recovery-aware: try the main file, then the <file>.bak last-known-good
-      const m = readRaw(file);
-      if (m !== undefined) return m;
-      const b = readRaw(file + '.bak');
-      if (b !== undefined) { try { onRecover(file); } catch (_) {} return b; }   // a torn/corrupt main recovered from .bak
-      return undefined;   // genuinely absent OR unrecoverable -> caller treats as empty (channels is fail-closed)
+    // the refusal every persist store gives for bytes it cannot read right now: typed, the errno as its cause
+    function unreadable(file, err) {
+      const e = new Error('channels: ' + file + ' cannot be read right now (' + ((err && err.code) || 'EUNKNOWN') + '); refusing to treat it as empty');
+      e.code = 'ESTORE_UNREADABLE';
+      e.cause = err;
+      e.file = file;
+      return e;
     }
+    // ONE file: its value, or undefined when it is absent or bad. An unreadable file THROWS ESTORE_UNREADABLE: the caller's
+    // own guard reports it, the write it would have fed is refused, and the next attempt reads the real file.
+    function readRaw(file) {
+      const r = readFile(file);
+      if (r.kind === 'unreadable') throw unreadable(file, r.err);
+      return r.kind === 'ok' ? r.value : undefined;
+    }
+    /* readJson — the main, else its <file>.bak last-known-good, under persist's ONE READ POLICY: a present-but-bad main is
+       moved aside to the first free <file>.corrupt-<n> whether or not the .bak recovers it, and a bad .bak too when no good
+       copy is left, so the next write never drops torn bytes (a move that fails leaves them for that write to keep first,
+       or to refuse). An unreadable main, or an unreadable .bak behind a missing or bad main, throws ESTORE_UNREADABLE:
+       never empty, never a stale .bak, nothing moved. undefined = absent, or nothing good left (fail-closed: empty). */
+    function readJson(file) {
+      const m = readFile(file);
+      if (m.kind === 'ok') return m.value;
+      if (m.kind === 'unreadable') throw unreadable(file, m.err);
+      const b = readFile(file + '.bak');
+      if (b.kind === 'unreadable') throw unreadable(file + '.bak', b.err);
+      if (persist.isBad(m.kind)) setAside(file);
+      if (b.kind === 'ok') { try { onRecover(file); } catch (e) { failNote('channels.store.onRecover', e); } return b.value; }
+      if (persist.isBad(b.kind)) setAside(file + '.bak');
+      return undefined;
+    }
+    function setAside(file) {
+      cache.delete(file);   // that name is about to hold something else, or nothing
+      const moved = persist.moveAside({ fs: fs }, file, persist.names.LABELS.CORRUPT);
+      if (moved.ok) console.warn('[channels] bad store bytes ' + file + ' moved aside to ' + moved.to + ' (kept, never silently wiped).');
+      else if (!moved.absent) failNote('channels.store.quarantine', moved.error);
+    }
+    // writeRaw — ONE plain atomic, durable replace of `file` (no .bak policy: writeJsonAtomic below is the last-known-good
+    // replace), through writeDurable (above). A channels dir removed since the last write is re-made, once (inRoot).
     function writeRaw(file, value) {
       const text = JSON.stringify(value);
-      const put = function () {
-        if (writeDurable) { writeDurable({ fs: fs, path: pathMod }, file, text); return; }
-        const tmp = file + '.' + (++tmpSeq) + '.tmp';
-        fs.writeFileSync(tmp, text);
-        fs.renameSync(tmp, file);   // atomic replace
-      };
       cache.delete(file);
+      inRoot(function () { writeDurable({ fs: fs, path: pathMod }, file, text); });
+      remember(file, text);
+    }
+    /* writeJsonAtomic — THE LAST-KNOWN-GOOD REPLACE, persist's replaceJson: the good main becomes <file>.bak by HARD LINK
+       (two metadata ops, never a second durable write: those bytes were made durable when they were written as the main;
+       a durable copy without hard links), a present-but-bad main is kept as <file>.corrupt-<n> before it is replaced
+       (ESTORE_CORRUPT, bytes untouched, when it cannot be kept), and a .bak that cannot be refreshed never blocks the
+       write. Every caller is a SYNCHRONOUS read-modify-write (readJson -> mutate -> writeJsonAtomic, no await between),
+       serialized per file by the event loop, so its value is built on what it just read (persist's `seen`). The stat
+       cache is the prior: a main this store last wrote or read, unchanged on disk, is not read again, so a warm DM reads
+       nothing and each mutation is one durable write. */
+    function writeJsonAtomic(file, value) {
+      const bak = file + '.bak';
+      const hit = cachedHit(file);
+      cache.delete(file);
+      cache.delete(bak);
+      const did = inRoot(function (retry) {
+        return persist.replaceJson({ fs: fs, path: pathMod, writeDurable: writeDurable }, file, value,
+          { prior: hit && !retry ? { status: 'ok' } : undefined, seen: true });   // a retry reads what is there now
+      });
+      remember(file, did.text);
+      if (hit && did.backup === 'link') cache.set(bak, hit);   // one inode, one stamp: the old main's entry is the .bak's
+    }
+    function inRoot(put) {
       ensureRoot();
-      try { put(); }
+      try { return put(false); }
       catch (e) {
         if (!(e && e.code === 'ENOENT' && rootReady)) throw e;
-        rootReady = false; ensureRoot(); put();   // the channels dir was removed since the last write
-      }
-      if (canStat) {
-        try { cache.set(file, { key: stampOf(file), text: text }); }
-        catch (e) { failNote('channels.store.cacheStamp', e); }
+        rootReady = false; ensureRoot(); return put(true);   // the channels dir was removed since the last write
       }
     }
-    function writeJsonAtomic(file, value) {
-      // keep the current GOOD main as <file>.bak BEFORE replacing it, so a torn replace can be recovered.
-      // A corrupt current main is NOT kept (never clobber a possibly-good .bak with garbage). The read-modify-
-      // write in appendTurn/saveChatRecord is fully SYNCHRONOUS (no await between readJson and writeJsonAtomic),
-      // so it is inherently serialized per file by the event loop — concurrent in-process writers cannot lose an
-      // update — and it is durable + recoverable too.
-      //
-      // The good main becomes the .bak by HARD LINK (two metadata ops: drop the old .bak, add a second name for the
-      // main's bytes), not by re-serializing it through a second durable write (a second fsync + temp + rename per
-      // mutation). Those bytes were made durable when they were written as the main; the main itself never goes
-      // missing, and the shared inode ends when the main's atomic tmp+rename replace lands (this store never writes a
-      // file in place). No hard links (FAT/exFAT, an fs facade without linkSync, a refused link) = the old copy path.
-      const bak = file + '.bak';
-      const good = cachedHit(file) ? true : readRaw(file) !== undefined;
-      if (good && !linkBak(file, bak)) {
-        const prev = readRaw(file);
-        if (prev !== undefined) { try { writeRaw(bak, prev); } catch (e) { failNote('channels.store.bak', e); } }
-      }
-      writeRaw(file, value);
-    }
-    function linkBak(file, bak) {
-      if (typeof fs.linkSync !== 'function' || typeof fs.unlinkSync !== 'function') return false;
-      try {
-        try { fs.unlinkSync(bak); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; }
-        cache.delete(bak);
-        fs.linkSync(file, bak);
-        const hit = cache.get(file);
-        if (hit) cache.set(bak, hit);   // one inode, one stamp: the entry describes both names
-        return true;
-      } catch (e) {
-        if (!e || (e.code !== 'EPERM' && e.code !== 'ENOTSUP' && e.code !== 'EXDEV' && e.code !== 'ENOSYS')) failNote('channels.store.bak.link', e);
-        return false;
-      }
+    // a written file is cached as the exact text written (parsed only if it is read again)
+    function remember(file, text) {
+      if (!canStat) return;
+      try { cache.set(file, { key: stampOf(file), text: text }); }
+      catch (e) { failNote('channels.store.cacheStamp', e); }
     }
 
     /* THE DELIVERY LEDGER (channel-delivery-ledger S2) lives in this store's own files, written through this store's own IO:
@@ -234,7 +252,13 @@
     const deliveryFile = () => pathMod.join(root, 'delivery.json');
     const timers = (d.timers && typeof d.timers.setTimeout === 'function') ? d.timers : null;
     const ledger = Ledger ? Ledger.makeDeliveryLedger({
-      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc) },
+      io: { read: () => readJson(deliveryFile()), write: (doc) => writeJsonAtomic(deliveryFile(), doc),
+        readConfirmed: () => {
+          const file = deliveryFile(), result = persist.readOne(fs, file);
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          if (result.kind !== 'ok') throw Object.assign(new Error('The delivery publication primary could not be confirmed'), { code: 'ECHANNEL_PUBLICATION_UNPROVEN' });
+          return result.value;
+        } },
       clock: clock, timers: timers, bootId: bootId, limits: d.ledgerLimits, holding: d.holding, onHealth: d.onLedgerHealth,
       beforeDrive: () => { if (!migration.done) migrateV1(); }   // an unfinished migration retries before any lane sends
     }) : null;
@@ -310,7 +334,22 @@
     migrateV1();   // before any hub attaches; it never throws (a busy file retries on its own timer)
 
     return {
-      loadHistory(agentId) {
+      loadHistory(agentId, options) {
+        // Canonical import reads legacy evidence without quarantine/recovery writes. A malformed
+        // envelope or row is not an empty history that may be marked imported successfully.
+        if (options && options.readOnly === true) {
+          let file = historyFile(agentId), result = persist.readOne(fs, file);
+          if (result.kind === 'absent') { file += '.bak'; result = persist.readOne(fs, file); }
+          if (result.kind === 'absent') return [];
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          const raw = result.kind === 'ok' && result.value;
+          if (!raw || raw.version !== 1 || !Array.isArray(raw.messages) || raw.messages.some(row => !row ||
+              !ROLES.has(row.role) || typeof row.content !== 'string' || !Number.isSafeInteger(row.ts) || row.ts < 0)) {
+            const error = new Error('Legacy chat history is malformed; canonical import is held');
+            error.code = 'ELEGACY_HISTORY_INVALID'; throw error;
+          }
+          return raw.messages.map(row => Object.assign({}, row));
+        }
         const raw = readJson(historyFile(agentId));
         const msgs = raw && Array.isArray(raw.messages) ? raw.messages : [];
         // defend against a hand-corrupted file: keep only well-formed {role,content} turns
@@ -363,7 +402,27 @@
         return { version: 1, chats: (raw && raw.chats && typeof raw.chats === 'object') ? raw.chats : {} };
       },
 
-      getChatRecord(chatId) {
+      getChatRecord(chatId, options) {
+        if (options && options.readOnly === true) {
+          // Import ownership cannot be acknowledged from the stat cache or an older recovered map.
+          // Read the actual primary without repairing it; a backup behind a missing primary is
+          // ambiguous evidence, not a new chat whose partial canonical import may be marked done.
+          const file = chatMapFile(), result = persist.readOne(fs, file);
+          if (result.kind === 'unreadable') throw unreadable(file, result.err);
+          if (result.kind === 'absent') {
+            const backup = persist.readOne(fs, file + '.bak');
+            if (backup.kind === 'absent') return undefined;
+            if (backup.kind === 'unreadable') throw unreadable(file + '.bak', backup.err);
+            throw Object.assign(new Error('Chat history marker primary is missing; recovery is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          const raw = result.kind === 'ok' && result.value;
+          const record = raw && raw.chats && Object.prototype.hasOwnProperty.call(raw.chats, String(chatId)) ? raw.chats[String(chatId)] : undefined;
+          if (!raw || raw.version !== 1 || !raw.chats || typeof raw.chats !== 'object' || Array.isArray(raw.chats) ||
+              (record !== undefined && (!record || typeof record !== 'object' || Array.isArray(record)))) {
+            throw Object.assign(new Error('Chat history marker is malformed; import is held'), { code: 'ECHANNEL_MARKER_UNPROVEN' });
+          }
+          return record === undefined ? undefined : clone(record);
+        }
         const map = this.loadChatMap();
         return map.chats[String(chatId)];
       },

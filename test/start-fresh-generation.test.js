@@ -694,6 +694,12 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   const to = app.indexOf("show('screen-lineage');", from);
   A.ok(from > 0 && to > from, 'fixture: the gate\'s START FRESH block is found in app.js');
   const block = app.slice(from, to);
+  // the block's polls decide a reload through gateRefusedPage (App scope, not in the block): lift the real one by source, as
+  // station-refusal-readers.test.js does, over a Harness whose reader says whether the gate refused this page's key
+  const gateSrc = A.fnBody(app, 'function gateRefusedPage(');
+  A.ok(gateSrc.length > 0, 'fixture: app.js defines gateRefusedPage');
+  let gateRefused = false;
+  const gateRefusedPage = new Function('Harness', gateSrc + '\nreturn gateRefusedPage;')({ classifyApiFailure: () => gateRefused ? { staleSession: true } : null });
   function gate(lineage, answers) {
     const page = { status: { textContent: '' }, btn: { textContent: '✦ START FRESH', disabled: false, onclick: null }, reloads: 0, timer: null, stopped: false, later: [], asked: [] };
     const fetchFake = async (url, opts) => {
@@ -701,9 +707,9 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
       const answer = url === '/api/lineage/start-fresh' ? answers.post : answers.poll();
       return { ok: answer.status < 400, status: answer.status, json: async () => answer.body };
     };
-    const run = new Function('el', 'SFX', 'status', 'lineage', 'validCandidates', 'fetch', 'setInterval', 'clearInterval', 'setTimeout', 'location', block);
+    const run = new Function('el', 'SFX', 'status', 'lineage', 'validCandidates', 'fetch', 'setInterval', 'clearInterval', 'setTimeout', 'location', 'gateRefusedPage', block);
     run(id => id === 'btn-lineage-fresh' ? page.btn : null, {}, page.status, lineage, [], fetchFake,
-      fn => { page.timer = fn; return 1; }, () => { page.stopped = true; }, (fn, ms) => { page.later.push({ fn, ms }); return 1; }, { reload() { page.reloads++; } });
+      fn => { page.timer = fn; return 1; }, () => { page.stopped = true; }, (fn, ms) => { page.later.push({ fn, ms }); return 1; }, { reload() { page.reloads++; } }, gateRefusedPage);
     return page;
   }
   const REQUESTED_AT = T0 + 100;
@@ -751,6 +757,19 @@ for (const [what, bytes] of [['torn', '{"schema":"starnet.station","vers'], ['a 
   A.ok(/account link could not be carried/.test(p.status.textContent), 'long enough to read that it stayed behind (' + p.status.textContent + ')');
   p.later.filter(l => l.ms > 1000 && l.ms !== 12000).forEach(l => l.fn());
   A.eq(p.reloads, 1, 'then it reloads');
+  // #39: the gate refusing this page's key (the restart minted a new one) means only a reload reconnects, and the work is already done
+  answer = lineageAnswer({ priorInstallEvidence: true });
+  p = gate({ priorInstallEvidence: true }, { post: accepted, poll: () => answer });
+  await press(p);
+  gateRefused = true;
+  await p.timer();
+  gateRefused = false;
+  A.eq([p.stopped, p.reloads], [true, 1], 'a poll the gate refused reloads once and stops, whatever lineage says');
+  // an answer the gate did not refuse (the old service still going down) leaves the poll going
+  p = gate({ priorInstallEvidence: true }, { post: accepted, poll: () => answer });
+  await press(p);
+  await p.timer();
+  A.eq([p.stopped, p.reloads], [false, 0], 'an answer the gate did not refuse leaves the poll going');
   // a refused POST re-arms at once
   p = gate({ priorInstallEvidence: true }, { post: { status: 409, body: { ok: false, error: 'a station recovery request is already pending' } }, poll: () => answer });
   await press(p);

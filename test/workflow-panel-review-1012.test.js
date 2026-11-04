@@ -20,6 +20,12 @@ const panel = rd('frontend/app/workflowpanel.js'), windowSrc = rd('frontend/app/
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // the named functions of `src`, run in one vm context over `globals` (each body bounded: a mis-scan fails loudly)
 function load(src, headers, globals, extra) {
+  if (headers.includes('function resultHTML(l, job)')) {
+    const owner = src.match(/^  const jobOutcome = .*;$/m);
+    A.ok(!!owner, 'the result view includes its actual typed job-outcome helper');
+    extra = (extra || '') + '\n' + owner[0];
+    globals = Object.assign({ RunOutcome: require('../frontend/app/runoutcome.js') }, globals);
+  }
   const body = headers.map(h => { const b = A.fnBody(src, h); A.ok(b.length > 20 && b.length < 20000, 'sliced ' + h + ' (' + b.length + ' chars)'); return b; }).join('\n');
   const names = headers.map(h => /function (\w+)\(/.exec(h)[1]);
   const ctx = vm.createContext(Object.assign({ esc, console, JSON, Math, Date, String, Object, Array, Promise }, globals));

@@ -41,6 +41,7 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     ReturnStore: { foldRow: row => { folded.push(row); return true; }, pendingRows: () => [] },
     fetch: (url, init) => { fetches.push({ url, init }); return Promise.resolve(replyFor(url, init)).then(r => ({ status: r.__status || 200, json: () => Promise.resolve(r) })); },
   });
+  require('./helpers/frontend-esc.js').installEsc(ctx);
   vm.runInContext(src, ctx, { filename: 'workflows.js' });
   const WW = ctx.module.exports, S = WW._state;
   A.ok(registered.workflows && registered.workflows.t === 'WORKFLOWS' && registered.workflows.o.className === 'wfw-win', 'it is a station window: StationUI.registerWindow(\'workflows\', \'WORKFLOWS\', …) — the dock raises it from the bottom like every other');
@@ -254,7 +255,7 @@ const tick = () => new Promise(r => setTimeout(r, 15));
   A.ok(/<button class="bb" id="bb-automate" data-family="automate"/.test(html) && /\{ id: 'workflows', k: 'workflows', label: 'WORKFLOWS'/.test(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8')) && !/bbWorkflows\.onclick/.test(app), 'WORK › AUTOMATE › WORKFLOWS opens this window through the dock (never Build Mode)');
   A.ok(html.indexOf('app/windows/workflows.js') > html.indexOf('app/stationui.js') && /css\/workflows-window\.css/.test(html), 'it loads after the window manager, with its stylesheet');
   A.ok(/function editLine\(propId\) \{[\s\S]{0,400}openFlowCard\(propId\)/.test(build) && /lineWords: \(\) => \(\{ plain: LINE_PLAIN, purpose: LINE_PURPOSE \}\)/.test(build), 'EDIT WORKFLOW opens the full editor on this line; the window speaks the shelf\'s own words');
-  A.ok(/class="consent-btn ob-wf">OPEN IN WORKFLOWS<\/button>/.test(outbox) && /WorkflowsWindow\.openByStream\(rw\.streamId, 'deliverables'\)/.test(outbox), 'DELIVERABLES › TO REVIEW opens a workflow job\'s own record here');
+  A.ok(/class="consent-btn ob-wf" hidden>OPEN IN WORKFLOWS<\/button>/.test(outbox) && /WorkflowsWindow\.openJob\(resolvedJob\.id, 'deliverables'\)/.test(outbox), 'DELIVERABLES › TO REVIEW opens the exact durable job proved beside its provenance');
   A.ok(/const work = w\.classList\.contains\('wfw-win'\);/.test(glass) && /work \? available \* \.8/.test(glass), 'it opens tall enough for the job and its result');
   // the window's status reads the panel's facts — the ones station.layout gives the lead (stationcommands.js describeLayout)
   A.ok(/hasCompute = \(aid, pid\) => [^\n]*bayObjects\(aid, pid\)[^\n]*'computer'/.test(src) && /toolsAt = \(aid, pid\) => [^\n]*bayObjects\(aid, pid\)/.test(sc) && /hasCompute = \(aid, pid\) => !!aid && toolsAt\(aid, pid\)\.indexOf\('computer'\) >= 0/.test(sc),
@@ -351,10 +352,10 @@ const tick = () => new Promise(r => setTimeout(r, 15));
     A.ok(/const pinned = !!\(map && typeof getComputedStyle === 'function' && getComputedStyle\(map\)\.position === 'sticky'\);/.test(panelSrc)
       && /sc\.scrollTop \+= startsScrollBy\(sec\.getBoundingClientRect\(\)\.top, sc\.getBoundingClientRect\(\)\.top, pinned \? map\.getBoundingClientRect\(\)\.height : 0, z\);/.test(panelSrc),
       'scrollToStarts subtracts the map\'s height only while the map is actually sticky');
-    A.ok(src.includes('scheduled, channel, folder and webhook runs are filed in DELIVERABLES'), 'an empty LAST JOBS says where scheduled, channel, folder and webhook runs are filed');
-    // (org wire AUTO-P15-3) every start that writes no job record is named there: a folder or webhook trigger never records a line job
+    A.ok(A.fnBody(src, 'function jobRows(l)').includes('No recorded jobs on this line yet.'), 'empty LAST JOBS names the absence of recorded jobs without excluding automatic entries');
+    // Automatic entries use the shared durable job book and belong in LAST JOBS too.
     const trSrc = rd('sidecar/routing/trigger-runner.js');
-    A.ok(!/jobs\.start\(|LineJobs/.test(trSrc), 'fixture: trigger-runner records no line job (if it ever does, its runs show in LAST JOBS and this note changes)');
+    A.ok(/lineRunner\.open\(\{ line: t\.lineId, entry: 'trigger'/.test(trSrc) && /lineRunner\.settle\(job,/.test(trSrc), 'folder and webhook triggers open and settle the shared line job');
   }
 
   /* ---------- org P14 (2026-10-14; final round): a delivered job waiting for its rating is rated right here, and the view a floor OUTBOX

@@ -174,7 +174,7 @@ function fakeStack(tools) {
   A.ok(/function wireRemoveButtons\(\)/.test(station) && /ArmConfirm\.wire\(btn/.test(station) &&
     /armedLabel:\s*'SURE\? REMOVE CONNECTOR'/.test(station) && /btn\.dataset\.wired === '1'/.test(station),
     'connector removal requires the shared two-step armed confirmation');
-  A.ok(/postJSON\('\/api\/connectors', \{ id, transport: c\.transport, enabled: cb\.checked \}\)[\s\S]{0,250}if \(!r\.ok\)/.test(station),
+  A.ok(/Harness\.api\.post\('\/api\/connectors', \{ id, transport: c\.transport, enabled: cb\.checked \}(?:, CONNECT_WAIT)?\)[\s\S]{0,250}if \(!r\.ok\)/.test(station),
     'connector enable toggles reject and visibly revert a refused HTTP write');
 
   // beginner-first: inline help under fields + a discoverable send shape (transport is passed)
@@ -221,12 +221,12 @@ function fakeStack(tools) {
   const sidecar = readSidecarSource();
   A.ok(/resolveConnectorOauthTarget\([^\n]+connectorCatalog, connectorConfigs\)/.test(sidecar),
     'OAuth start resolves both catalog and durably saved custom connector ids');
-  A.ok(/connectorOauthPublicUrl[\s\S]{0,500}assertResolvedSafe/.test(sidecar) && /fetchImpl: connectorOauthFetch/.test(sidecar)
+  A.ok(/connectorOauthPublicUrl[\s\S]{0,500}publicDestination/.test(sidecar) && /fetchImpl: connectorOauthFetch/.test(sidecar)
       && /if \(target\.custom\) await connectorOauthPublicUrl\(disc\.authorizationEndpoint\)/.test(sidecar),
     'custom OAuth discovery/token legs use the public-host DNS guard');
   A.ok(/oauthAuthorized/.test(sidecar), 'connector status distinguishes a configured OAuth row from a stored grant');
   // installing reuses the SAME upsert (no parallel install path) and never fabricates the endpoint
-  A.ok(/function ccInstall/.test(station) && /postJSON\('\/api\/connectors'/.test(station), 'install posts through the existing /api/connectors upsert');
+  A.ok(/function ccInstall/.test(station) && /Harness\.api\.post\('\/api\/connectors', payload(?:, CONNECT_WAIT)?\)/.test(station), 'install posts through the existing /api/connectors upsert');
   A.ok(/ccCache\.find\(/.test(station), 'install reads the authoritative url/name from the catalog, never a re-typed value');
   A.ok(/transport:\s*'http',\s*url:\s*e\.url/.test(station), 'install pre-fills the catalog entry url');
   A.ok(/if \(token\) payload\.token = token/.test(station), 'an API key is sent only when the user provided one');

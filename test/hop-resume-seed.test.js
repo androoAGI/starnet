@@ -24,12 +24,23 @@ A.ok(/!o\.recovery && !o\.groupTools && !internal && o\.resumeSeed !== false && 
   'runOnceCore: the resume seed skips a run that opted out (resumeSeed:false)');
 A.ok(/if \(queued && o\.resumeSeed !== false && !o\.recovery/.test(idx), 'a queued turn is not re-seeded from the stream when it opted out');
 
-// the runners: two cron / Run Now line drivers + the step test (index.js), and the channel / trigger / SEND TO hub (hub.js)
-A.eq(count(idx, 'resumeSeed: false,'), 3, 'index.js: both line drivers and the step-test runner opt their hops out');
-A.ok(/streamId: o\.streamId, parallelBranch: !!h\.parallel,[^\n]*\n\s*resumeSeed: false,/.test(idx), 'the scheduled fire line driver (cron-driver advanceChain, stream = the fire) opts out');
-A.ok(/streamId: 'cron-' \+ runId, parallelBranch: !!h\.parallel,[^\n]*\n\s*resumeSeed: false,/.test(idx), 'the Run Now line driver opts out');
-A.ok(/streamId: h\.streamId,\n\s*resumeSeed: false,/.test(idx), 'the step-test runner opts out (one stream shared by every step)');
-A.eq(count(hub, 'resumeSeed: false,'), 1, 'hub.js: the channel / trigger / SEND TO hop opts out (its dock history rides `hist`)');
-A.ok(/streamId: canonicalStreamId \|\| undefined, parallelBranch: !!h\.parallel,[^\n]*\n\s*resumeSeed: false,/.test(hub), 'the hub hop opt-out sits on the hop runOnce');
+// the runners: every entry's hop (the channel / trigger / SEND TO / sample hubs, the scheduled fire, Run Now and the step test) runs
+// through the ONE hop executor (sidecar/routing/line-runner.js), whose runOnce opts out BY CONSTRUCTION; no runner elsewhere
+const runner = read('sidecar/routing/line-runner.js');
+const others = readSidecarSource({ except: ['sidecar/routing/line-runner.js'] });
+A.eq(count(runner, 'resumeSeed: false,'), 1, 'line-runner.js: the one hop executor opts its hops out');
+A.ok(/parallelBranch: !!h\.parallel,[^\n]*\n\s*ceilingUsd: h\.ceilingUsd,[^\n]*\n\s*handoffReads: mergeFiles\(h\.handoffReads\),[^\n]*\n\s*resumeSeed: false,/.test(runner), 'the opt-out sits on the hop runOnce, beside its ceiling and proved upstream reads');
+A.eq(count(others, 'resumeSeed: false,'), 0, 'no other sidecar file runs a hop of its own (index.js, hub.js: only profiles of the one executor)');
+A.eq(count(hub, 'resumeSeed: false,'), 0, 'hub.js: the channel / trigger / SEND TO hop is the executor\'s channel profile');
 
-A.report('hop-resume-seed.test');
+// …and driven: whatever a profile says, the hop's runOnce is handed resumeSeed false (a fake runOnce at the transport edge)
+const { makeLineRunner, profiles } = require('../sidecar/routing/line-runner.js');
+const seen = [];
+const lr = makeLineRunner({ runOnce: async (o) => { seen.push(o.resumeSeed); o.emit('agent.run.end', { runId: o.runId, reason: 'done' }); return { reason: 'done', text: 'out', outcome: 'succeeded' }; } });
+const routine = { config: () => ({ key: 'k', model: 'm' }), system: () => 'S', station: () => null, routine: { resumeSeed: true } };
+Promise.all([profiles.channel({ channel: 'telegram', chatId: '1' }), profiles.schedule(routine), profiles.manual(routine),
+  profiles.steptest({ config: () => ({ model: 'm', key: 'k' }), persona: 'P', brief: () => null, dockSystem: p => p, station: () => null, emit: () => {} })]
+  .map(p => lr.hopRunner(p)({ agentId: 'b', text: 'hand-off', streamId: 's1' }))).then(() => {
+  A.eq(seen, [false, false, false, false], 'every profile\'s hop opts out of its stream\'s resume seed');
+  A.report('hop-resume-seed.test');
+}).catch(e => { console.error(e); process.exit(1); });

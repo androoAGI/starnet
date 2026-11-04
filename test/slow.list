@@ -9,6 +9,8 @@
 test/qa-product-perfect-claims.test.js
 # station-recovery-boot-quiet.http: two real sidecar boots (restored and control), each watched 15 s against a stub — 40 s standalone on 2026-11-02 (one run, throttled box).
 test/station-recovery-boot-quiet.http.test.js
+# ledger-damaged-line.http: twelve real sidecar boots (seven ledgers, restarts for line identity and settlement) and two runs against a local fake provider — 124 s and 203 s standalone on 2026-11-03 (throttled box, other lanes building).
+test/ledger-damaged-line.http.test.js
 # stationbake.chunk: station bake chunking — 114.5 s.
 test/stationbake.chunk.test.js
 # cli-dashboard-drive: the real CLI dashboard driven by typed keys against a fake station — 87.7 s.
@@ -86,3 +88,26 @@ test/stationless-boot-census.http.test.js
 # routine-delivery.parts.e2e: two sidecar boots around a restart, then the cron's own 60 s retry of the refused delivery
 # (it asks again on its 5 s tick) — 76-78 s standalone (2026-10-31).
 test/routine-delivery.parts.e2e.test.js
+# Measured one file at a time on 2026-11-03 with other sessions running (130-150 bash.exe on the box); both spend their
+# time creating MSYS processes, which takes well under a second for the whole file on Linux.
+# release-train-macos-trust: runs the DMG own-signature proof (scripts/verify-macos-dmg.sh) for real in Git Bash against
+# stub macOS tools, 12 runs — 116 s on a lighter box, 269 s on that one.
+test/release-train-macos-trust.test.js
+# installed-integrity-proofs: the Mac installed-integrity proof run for real in Git Bash (17 runs) and the Windows proof's
+# own Assert-InstalledIntegrity in Windows PowerShell (11 verifies), the executable stubbed — 182 s on that box.
+test/installed-integrity-proofs.test.js
+# credential-store.remove-rotate.e2e — 33-45 s run alone, 84 s beside other gates: six stations, scheduled fires, and runs held mid-turn. Review round 1 added a seventh (a turn queued behind a held one): 85-121 s at 531c9ef2c on a loaded box.
+test/credential-store.remove-rotate.e2e.test.js
+# credential-store.openrouter-consumers.e2e — 35-47 s run alone: six stations, each driving every consumer past the free engines' refusals. Review round 1 added a seventh with three runs held mid-turn: 104-117 s at 531c9ef2c on a loaded box.
+test/credential-store.openrouter-consumers.e2e.test.js
+# credential-store.endpoint-pair.e2e — 52-67 s run alone, 182 s beside other gates: twelve boots, a fake Bot API and scheduled fires, each surface twice, across a restart.
+test/credential-store.endpoint-pair.e2e.test.js
+# credential-store.channel-ref.e2e — 87 s run alone: nine stations, a fake Bot API, a real message through a real hub at each step. Review round 1 added three (a station backup key, a channel file that cannot be read, a read-only secrets.json): 196 s at 531c9ef2c on a loaded box.
+test/credential-store.channel-ref.e2e.test.js
+# run-lifecycle.invariants.http: eleven run surfaces x six faults (66 runs, six of them loop iterations on the 5 s loop tick, eleven E-STOPs
+# each RESUMEd) through the real sidecar, a second boot that holds all eleven at once for one process fault, and a third for the golden
+# refusals — 61 s standalone with four faults, 106 s with run-table S3's three stops on 2026-11-03; listed by the >= 40 s rule.
+test/run-lifecycle.invariants.http.test.js
+# line-entry-parity.e2e: one real sidecar, the same job by all seven entries twice (the second pass saves a file before it answers) —
+# 44-67 s standalone on 2026-11-03 with other lanes building on the box, so it is listed by the >= 40 s rule.
+test/line-entry-parity.e2e.test.js

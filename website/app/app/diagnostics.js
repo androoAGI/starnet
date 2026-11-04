@@ -43,46 +43,18 @@
   // is a real support address configured? (bool — drives whether the email clause renders at all.)
   function hasSupport() { return supportEmail() !== ''; }
 
-  // clipboard write — mirrors chat.js copyText (Clipboard API with a legacy execCommand fallback). Local so this
-  // module has no cross-file dependency and works even if chat.js hasn't loaded (e.g. very early boot).
-  function copyToClipboard(text) {
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text).then(() => true, () => fallbackCopy(text));
-      }
-    } catch (_) {}
-    return Promise.resolve(fallbackCopy(text));
+  /* THE ONE CLIPBOARD is U.copyText / U.copyDeferred (frontend/js/util.js, which loads before this file). Diag.copyText and
+     Diag.copyDeferred ARE those helpers, so a copy here resolves true only when a write happened and the write starts inside
+     the click: copyDeferred registers it before the report is fetched, because WebKit (macOS WKWebView, Linux WebKitGTK) allows
+     a clipboard write only during the click's activation and an awaited /api/diagnostics fetch uses that up. A node test that
+     requires this module reaches the same production helpers through util.js's guarded export. */
+  function clip() {
+    if (typeof U !== 'undefined' && U && typeof U.copyText === 'function') return U;
+    try { if (typeof require === 'function') return require('../js/util.js'); } catch (_) {}
+    return null;
   }
-  function fallbackCopy(text) {
-    try {
-      const ta = document.createElement('textarea'); ta.value = text;
-      ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      const ok = document.execCommand('copy'); ta.remove(); return ok;
-    } catch (_) { return false; }
-  }
-
-  /* GESTURE-SAFE copy of text that is still being fetched. WebKit (macOS WKWebView, Linux WebKitGTK) only lets a
-     page write the clipboard during the click's transient user activation, and an awaited /api/diagnostics fetch
-     uses that up — so a fetch-then-writeText copy fails there EVERY time (WebView2 on Windows tolerates it). The
-     fix is to REGISTER the write synchronously inside the click with a ClipboardItem whose content is a promise;
-     the clipboard fills when the report arrives. MUST be called in the same tick as the click (no await before
-     it). If ClipboardItem is missing or the write is refused, falls back to the plain copy once the text is in.
-     An empty report rejects the item (never a hanging write) and resolves false. Never throws. */
-  function copyDeferred(textP) {
-    const text = Promise.resolve(textP).then(t => (typeof t === 'string' ? t : ''), () => '');
-    let wrote = null;
-    try {
-      if (typeof ClipboardItem === 'function' && typeof navigator !== 'undefined' && navigator.clipboard && typeof navigator.clipboard.write === 'function') {
-        const blob = text.then(t => { if (!t) throw new Error('empty diagnostics'); return new Blob([t], { type: 'text/plain' }); });
-        blob.catch(() => {});   // the rejection is consumed by write(); this only keeps it from surfacing as unhandled
-        wrote = Promise.resolve(navigator.clipboard.write([new ClipboardItem({ 'text/plain': blob })])).then(() => true, () => false);
-      }
-    } catch (_) { wrote = null; }
-    const plain = () => text.then(t => (t ? copyToClipboard(t) : false)).then(ok => !!ok, () => false);
-    if (!wrote) return plain();
-    return wrote.then(ok => ok ? true : plain());
-  }
+  function copyToClipboard(text) { const u = clip(); return u ? u.copyText(text) : Promise.resolve(false); }
+  function copyDeferred(textP) { const u = clip(); return u ? u.copyDeferred(textP) : Promise.resolve(false); }
 
   // GET the paste-ready block from the sidecar. window.fetch is token-hardened for /api/ (harness.js), so a bare
   // fetch carries the API token automatically. Returns the plain-text string, or '' on any failure.
@@ -169,11 +141,39 @@
     if (info.dirty) line += ' DIRTY';
     return line;
   }
+  /* INSTALL INTEGRITY (85f602c4 / E62: a zeroed or quarantined module that nothing named). BuildInfo.installIntegrity
+     is the shell's verdict over the files this install shipped (src-tauri/src/install_manifest.rs: every code file listed
+     at build time, stat'd before the engine starts and hashed after). One value for the report's `install:` line:
+     'verified N files', 'checking N files', 'DAMAGED - <file> is empty (0 of N bytes)[ (+K more, named in startup.log)]'
+     or 'not checked (<reason>)'. A shell that predates the field gets NO line: never a guess, never 'verified'. The
+     named files are install-relative paths, never a user's own. */
+  function formatInstall(info) {
+    const checked = info && typeof info === 'object' ? info.installIntegrity : null;   // the install check's verdict, never a run's
+    if (!checked || typeof checked !== 'object') return '';
+    const text = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, 240);
+    const count = n => (Number.isSafeInteger(n) && n >= 0) ? String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '?';
+    if (checked.state === 'verified') return 'verified ' + count(checked.files) + ' files';
+    if (checked.state === 'checking') return 'checking ' + count(checked.files) + ' files';
+    if (checked.state === 'not-checked') return 'not checked' + (text(checked.reason) ? ' (' + text(checked.reason) + ')' : '');
+    if (checked.state !== 'damaged') return '';
+    const named = Array.isArray(checked.named) ? checked.named.map(text).filter(Boolean) : [];
+    const more = (Number.isSafeInteger(checked.damaged) && checked.damaged > 0 ? checked.damaged : named.length) - 1;
+    return 'DAMAGED - ' + (named[0] || 'a shipped file does not match') + (more > 0 ? ' (+' + more + ' more, named in startup.log)' : '');
+  }
+  // The shell's BuildInfo, or null in a browser session / from an old shell without the command.
+  function shellInfo() {
+    const core = tauriCore();
+    if (!core) return Promise.resolve(null);
+    return Promise.resolve(core.invoke('starnet_build_info')).catch(() => null);
+  }
   // Resolve the build line asynchronously. In browser mode (no Tauri) → '' (no binary, nothing to prove).
   function buildLine() {
-    const core = tauriCore();
-    if (!core) return Promise.resolve('');   // browser session — fail soft, omit the line
-    return Promise.resolve(core.invoke('starnet_build_info')).then(formatBuild).catch(() => '');   // old shell w/o the command → ''
+    return shellInfo().then(formatBuild).catch(() => '');   // browser session or an old shell w/o the command → ''
+  }
+  // The install line for a report that does not carry one yet (the sidecar's report has no shell lines). Pure.
+  function withInstall(text, line) {
+    if (!text || !line || /(^|\n)install:\s/.test(text)) return text;
+    return text + '\ninstall:       ' + line;
   }
 
   /* THE DEAD-ENGINE FALLBACK (2026-07-29). The whole report used to come from GET /api/diagnostics — i.e. from
@@ -217,13 +217,16 @@
   }
   function localReport(context) {
     context = context || {};
-    return Promise.all([buildLine(), engineVerdict(context)]).then(([build, alive]) => {
+    return Promise.all([shellInfo(), engineVerdict(context)]).then(([info, alive]) => {
+      const build = formatBuild(info);
+      const install = formatInstall(info);
       const lines = [];
       lines.push('STARNET DIAGNOSTICS (page-side fallback — the local engine did not answer, so this report was');
       lines.push('assembled by the app window itself and is SHORTER than a normal report.)');
       lines.push('');
       lines.push('when:          ' + new Date().toISOString());
       lines.push('build:         ' + (build || 'unknown (browser session — no binary provenance)'));
+      if (install) lines.push('install:       ' + install);
       lines.push('local engine:  ' + (alive === true ? 'REACHABLE (GET /api/health answered)'
         : alive === false ? 'NOT REACHABLE (GET /api/health failed to connect)'
         : 'UNPROVEN (health probe did not answer in time — do NOT read this as "down")'));
@@ -282,6 +285,7 @@
     const textP = fetchText()
       .then(text => text ? text : localReport(opts.context))
       .then(text => text ? withPageErrors(text) : text)
+      .then(text => text ? shellInfo().then(formatInstall).then(line => withInstall(text, line), () => text) : text)
       .then(withSessionContinuity)
       .then(withPageScreen)
       .catch(() => '');
@@ -354,5 +358,5 @@
     return fetchText().then(paint).catch(() => paint(''));
   }
 
-  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, fallbackCopy, normSupport, SUPPORT_PLACEHOLDER, formatBuild, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
+  return { SUPPORT_EMAIL, supportEmail, hasSupport, fetchText, fetchReport, formatSwallowed, runLive, copy, showBlock, buildLine, localReport, withPageErrors, withInstall, copyText: copyToClipboard, copyDeferred, _internals: { copyToClipboard, copyDeferred, normSupport, SUPPORT_PLACEHOLDER, formatBuild, formatInstall, tauriCore, localRedact, apiOrigin, MAX_LINE_TAGS } };
 });

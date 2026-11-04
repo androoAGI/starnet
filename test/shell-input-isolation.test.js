@@ -65,15 +65,17 @@ try {
   A.ok(inputIsolationRisk('powershell -Command "Add-Type SetWindowsHookEx"', { cwd: root, fs, pathMod: path }), 'global input hooks are refused');
   A.ok(inputIsolationRisk('powershell -Command "Invoke-Expression $payload"', { cwd: root, fs, pathMod: path }), 'opaque PowerShell evaluation is refused');
 
-  A.eq(inputIsolationRisk('npm run check', { cwd: root, fs, pathMod: path }), null, 'ordinary unit checks stay allowed');
-  A.eq(inputIsolationRisk('npm run build', { cwd: root, fs, pathMod: path }), null, 'ordinary build stays allowed');
-  A.eq(inputIsolationRisk('curl http://127.0.0.1:5173/', { cwd: root, fs, pathMod: path }), null, 'HTTP health probes stay allowed');
+  // These are new commands in the supplied directory, like shell.exec/verify,
+  // not text typed into a running terminal whose cwd may have changed.
+  A.eq(inputIsolationRisk('npm run check', { cwd: root, exactCwd: true, fs, pathMod: path }), null, 'ordinary unit checks stay allowed');
+  A.eq(inputIsolationRisk('npm run build', { cwd: root, exactCwd: true, fs, pathMod: path }), null, 'ordinary build stays allowed');
+  A.eq(inputIsolationRisk('curl http://127.0.0.1:5173/', { cwd: root, exactCwd: true, fs, pathMod: path }), null, 'HTTP health probes stay allowed');
   A.eq(inputIsolationRisk('echo SetCursorPos is forbidden', { cwd: root, fs, pathMod: path }), null, 'API words as inert echo arguments do not false-trip');
 
   // Issue #50: GUI runtimes are judged as launched PROGRAMS, not as words anywhere in a referenced script.
   const plain = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-gui-words-'));
   try {
-    const at = { cwd: plain, fs, pathMod: path };
+    const at = { cwd: plain, exactCwd: true, fs, pathMod: path };
     put(plain, 'routine.mjs', '// Re-read before each write so a new pause or external assignment wins.\n' +
       'process.stdout.write("status ok\\n");\nconst width = "calc(100% - 4px)";\nopen(p, { mode: \'write\' });\n');
     A.eq(inputIsolationRisk('node routine.mjs', at), null, 'a comment/identifier/string containing "write" or "calc" does not refuse a Node routine (#50)');

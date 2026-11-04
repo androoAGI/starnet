@@ -388,18 +388,24 @@ function linearRun(f, unit, count) {
   {
     // index.js's own structure is the subject here (which adapters it guards, which calls it routes), so the exact file
     const idx = readSidecarIndex();
+    const { productionHubBag } = require('./helpers/channel-hub-bags');
+    const { KINDS } = require('../sidecar/channels/factory');
+    const getsHostScrub = kind => productionHubBag(kind).props.some(prop => prop.key === 'scrubOutbound' && prop.expr.trim() === 'scrubOutbound');
     A.eq((idx.match(/const scrubOutbound = HostPathScrub\.makeHostPathScrub\(\{ fixed: \[WORKSPACES\], prefixes: \(\) => HostPathScrub\.hostPathForms\(WORKSPACES, \{ realpath:/g) || []).length, 1, 'one host scrub: the configured root fixed (fail closed), its real path and spellings live');
     A.ok(!/hostPathPrefixes/.test(idx), 'no hub is left on round 2\'s per-hub prefix list');
     for (const fn of ['startTelegram', 'startTelegramBot']) {
       const body = functionSourceIn(idx, fn);
       A.ok(body.length > 1000 && /guardOutbound\(adapter\);[^\n]*\n\s*adapterRef = adapter;/.test(body), fn + ': the bot\'s adapter is guarded before anything holds it');
-      A.ok(/scrubOutbound: scrubOutbound/.test(body), fn + ': its hub scrubs the whole text before chunking');
+      A.ok(getsHostScrub(fn === 'startTelegram' ? 'telegram' : 'telegram-bot'), fn + ': its actual factory hub scrubs the whole text before chunking');
     }
     A.eq((idx.match(/wireChannel\([^\n]*\{\n\s*outbound: scrubOutbound,/g) || []).length, (idx.match(/= wireChannel\(/g) || []).length, 'every wireChannel call (Discord, Slack / Matrix / Signal) passes the outbound scrub');
     A.ok(/discord = \{ adapter: wired\.adapter/.test(idx) && /genericChannels\[id\] = \{ adapter: wired\.adapter/.test(idx), 'the live Discord / generic handles are the wired (guarded) adapters');
-    const hubs = idx.split('makeChannelHub({').slice(1).map(s => s.slice(0, s.indexOf('\n  });') > 0 ? s.indexOf('\n  });') : 6000));
-    const unscrubbed = hubs.filter(h => !/scrubOutbound: scrubOutbound/.test(h) && !/channel: 'sample'/.test(h));
-    A.eq(unscrubbed.length, 0, 'every hub the host builds (station + agent Telegram, DEV, trigger) carries the scrub; only the in-app sample hub does not (' + hubs.length + ' hubs)');
+    const hubs = idx.match(/makeChannelHub\(/g) || [];
+    A.ok(hubs.length > 0 && hubs.length === (idx.match(/makeChannelHub\(makeHubDeps\(/g) || []).length,
+      'every direct host hub constructor uses the classified factory bag');
+    A.ok(KINDS.filter(kind => kind !== 'sample').every(getsHostScrub),
+      'every external/deliverable hub takes the one scrub through its actual factory policy');
+    A.ok(!getsHostScrub('sample'), 'only the local in-app proof sample keeps the deliberate no-transport exception');
     // every send outside a hub reply goes through the ONE outbound contract (channels/outbound.js, channel-delivery-ledger S4):
     // index.js builds it over its ONE scrub, and builds the routine delivery (sidecar/routine-delivery.js) over it
     const routine = (sidecarSourceFiles().find(x => x.rel === 'sidecar/routine-delivery.js') || { text: '' }).text;

@@ -57,6 +57,8 @@ function harness(root, w, stationTurns, opts) {
   const requests = [];
   const sessions = new Map([[w.id, w]]);
   const context = vm.createContext({
+    TurnMerge: require('./helpers/turnmerge').TurnMerge,
+    HistoryFit: require('../' + root + '/historyfit.js'), stationModes: {}, stationCaps: {},
     Date, WeakMap, Map, Set, Promise, AbortController, setTimeout, clearTimeout,
     Workstreams: { get: id => sessions.get(id) }, Channels: { isBusy: () => false },
     App: { persist() {} },
@@ -73,7 +75,7 @@ function harness(root, w, stationTurns, opts) {
     renderHistory() {}, replayChannel() {}, syncStatus() {}, maybeEmptyState() {}, pinLoadedHistoryAfterLayout() {},
     log: { innerHTML: '' }, activeWs: w, historyPinSeq: 3, historyPinPending: 0, revealKey: '',
   });
-  const merge = A.fnBody(src, 'function mergeCanonicalHistory(local, turns)') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
+  const merge = require('./helpers/turnmerge').source('mergeCanonicalHistory') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
   const start = src.indexOf('  const historyLoads = new WeakMap();');
   const seam = src.slice(start, src.indexOf('\n  // swap the rendered conversation', start));
   assert.ok(merge.length > 500 && start > 0 && seam.length > 1000 && seam.length < 16000, root + ': bounded production seam');

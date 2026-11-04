@@ -146,8 +146,8 @@ for (const kind of Object.keys(KIND_FACTS)) {
     const at = src.indexOf('function servePending(req, res)');
     const fn = src.slice(at, src.indexOf('\n}\n', at) + 2);
     let sent = null;
-    const serve = vm.runInNewContext('(' + fn + ')', { respondJson: (res, code, obj) => { sent = { code, obj }; }, URL, isAgentId: () => true, redact: x => x,
-      listPending: () => MS.listPending(store, 'agent'), readRouteFailure: () => ({ error: 'x' }) });
+    const serve = vm.runInNewContext('(' + fn + ')', { respondJson: (res, code, obj) => { sent = { code, obj }; }, URL, refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId, redact: x => x,
+      listPending: () => MS.listPending(store, 'agent'), readRouteFailure: (where, e) => ({ error: where + ': ' + (e && e.message) }) });
     serve({ url: '/api/memory/pending?agent=agent' }, {});
     A.ok(sent && sent.code === 200 && sent.obj.pending[0].outcome === 'failed' && !('outcome' in sent.obj.pending[1]), 'GET /api/memory/pending serves the outcome to the deck: ' + JSON.stringify(sent && sent.obj));
   }

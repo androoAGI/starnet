@@ -74,7 +74,7 @@
     const proposed = suggest(pain || []);
     let intent = TASKS.some(t => t.id === ctx.intent) ? ctx.intent : proposed.task.id;
     let roots = [], alive = true, loading = false;
-    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
     el.innerHTML = '<form class="fv-form">' +
       '<p class="fv-lead">Give the station one real source. Get a useful draft to review.</p>' +
       '<p class="fv-reason">' + esc(ctx.reason || proposed.reason) + '</p>' +

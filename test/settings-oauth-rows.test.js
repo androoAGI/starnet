@@ -33,7 +33,7 @@ A.ok(/function isOAuthProvider/.test(ui) && /isOAuthProvider\(p\.id\)/.test(ui),
 
 // ---- dead sign-in renders EXPIRED, never SIGNED IN; the row survives so recovery is reachable ----
 A.ok(/const connLabel = isOAuthProvider\(p\.id\) \? '● SIGNED IN'/.test(ui), 'SIGNED IN is reserved for a live OAuth sign-in (all providers), gated below on !dead');
-A.ok(/const codexDead = isOAuthProvider\(p\.id\) && oauthExpiredFor\(p\.id\)/.test(ui), 'a dead sign-in flag covers every OAuth provider, not just codex');
+A.ok(ui.includes("const codexDead = isOAuthProvider(p.id) && readiness.credential.status === 'expired'"), 'every OAuth card reads the sidecar expired verdict');
 A.ok(/oauthProvConnected\(pid\) \|\| oauthProvExpired\(pid\)/.test(ui), 'an expired grok/kimi sign-in still earns its row (RE-SIGN-IN lives there)');
 A.ok(/key-mask-dead/.test(ui) && /⚠ EXPIRED/.test(ui), 'the expired oauth row masks the fault, never a live label');
 
@@ -52,12 +52,12 @@ A.ok(!/\/api\/auth\/grok\/poll/.test(ui) && !/\/api\/auth\/kimi\/poll/.test(ui),
 A.ok(/codex: 0, grok: 1, kimi: 2/.test(dock), 'grok + kimi rank immediately after codex in the model dock');
 A.ok(/grok: 'GROK OAUTH'/.test(dock) && /kimi: 'KIMI OAUTH'/.test(dock), 'the dock labels read GROK OAUTH / KIMI OAUTH');
 A.ok(/'codex', 'grok', 'kimi'/.test(dock), 'the provider fan-out includes grok + kimi');
-A.ok(/async function oauthProviderEnabled/.test(dock) && /'\/api\/auth\/'\s*\+\s*pid\s*\+\s*'\/status'/.test(dock), 'grok/kimi are gated on their live OAuth status route');
+A.ok(dock.includes('await Harness.refreshProviderReadiness()') && dock.includes('return providerEnabled(pid)'), 'OAuth model enablement reads the common provider readiness row');
 A.ok(/'\/api\/auth\/'\s*\+\s*p\s*\+\s*'\/models'/.test(dock), 'grok/kimi model discovery hits /api/auth/<pid>/models');
-A.ok(/if \(p === 'grok'[^\n]*\) return 'grok'/.test(dock) && /return 'kimi'/.test(dock), 'grok/kimi are their OWN providers in normalizeProvider (not aliased to xai)');
+A.ok(dock.includes("require('./provider-registry.js') : SK.providers.registry") && dock.includes('providerRegistry.normalizeProviderId'), 'model dock uses the common alias registry in Node and the page');
 
 // ---- keycta treats grok/kimi as keyless (no "add a key" banner for an OAuth station) ----
-A.ok(/p !== 'codex' && p !== 'grok' && p !== 'kimi'/.test(keycta), 'keycta treats grok/kimi as keyless OAuth providers');
+A.ok(keycta.includes('SK.providers.registry.providerRequiresKey'), 'KeyCTA uses the registry key requirement');
 
 // ---- friendlyerror doors: RECONNECT GROK / RECONNECT KIMI, plus the xAI 403-allowlist escape ----
 {
@@ -135,7 +135,7 @@ A.ok(/p !== 'codex' && p !== 'grok' && p !== 'kimi'/.test(keycta), 'keycta treat
   A.ok(/entry\.refreshInFlight\s*=\s*refreshOAuthTokensOnce\(id,\s*entry\)\.finally/.test(sidecar), 'grok/kimi refresh is single-flight per provider');
   // desktop keychain writes: configured flips ONLY after the invoke proves itself; Settings callers await and
   // render the honest failure (the optimistic flip toasted "stored in your OS keychain" over a rejected write).
-  A.ok(/\.then\(r => \{ setDesktopConfigured\(p, on\); return r; \}\)/.test(harness), 'setKey flips configured only after the keychain write resolves');
+  A.ok(/\.then\(async r => \{ await setDesktopConfigured\(p, on\); return r; \}\)/.test(harness), 'setKey refreshes the common readiness row only after the keychain write resolves');
   A.ok(/err && err\.message/.test(ui) && /could not verify and store the ' \+ provName\(provider\) \+ ' key/.test(ui), 'Settings key save renders the exact validation/keychain failure copy');
   // Settings OAuth state changes mirror into the desktop configured-map (genesis already did; Settings must too).
   // (org P03 wiring) every sign-in — card, door, or the API KEYS row's RE-SIGN-IN, codex included — finishes in startCardSignin

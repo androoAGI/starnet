@@ -290,7 +290,7 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   // hostAuthored is minted only by StarNet's own URL guards — never by a connector, whose failure text IS third-party bytes
   {
     const tools = path.join(__dirname, '..', 'sidecar');
-    const minted = ['tools/builtin/browser.js', 'tools/builtin/web.js'];
+    const minted = ['net/safe-egress.js', 'tools/builtin/browser.js', 'tools/builtin/web.js'];
     for (const rel of minted) A.ok(/e\.hostAuthored = true/.test(fs.readFileSync(path.join(tools, rel), 'utf8')), rel + ' marks its own URL refusals hostAuthored');
     const mcpDir = path.join(tools, 'mcp');
     const mcpFiles = fs.readdirSync(mcpDir).filter(f => /\.js$/.test(f));
@@ -345,7 +345,9 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   A.ok(/function makeTriggerHub\(hooks\) \{[\s\S]{0,4000}entryTaint: hooks\.entryTaint \|\| 'line trigger payload'/.test(idx), 'line-trigger runs (webhook bodies, watched files) begin tainted');
   // SEND TO (2026-10-10): a hand-off's entry run reads another line's OUTPUT — it begins tainted like any chain hop
   A.ok(/makeHub: \(hooks\) => makeTriggerHub\(Object\.assign\(\{\}, hooks, \{ persona: HANDOFF_PERSONA, entryTaint: 'upstream line output' \}\)\)/.test(idx), 'SEND TO hand-off runs (another line\'s output) begin tainted');
-  A.ok(/initialTaint: 'upstream agent output'/.test(hub), 'agent-chain hops cannot treat upstream output as Commander-authored');
+  // every agent-chain hop runs through the ONE hop executor (sidecar/routing/line-runner.js), which starts it tainted by construction
+  const runner = fs.readFileSync(path.join(root, 'sidecar', 'routing', 'line-runner.js'), 'utf8');
+  A.ok(/const UPSTREAM_TAINT = 'upstream agent output';/.test(runner) && /initialTaint: h\.entry \? null : UPSTREAM_TAINT,/.test(runner), 'agent-chain hops cannot treat upstream output as Commander-authored');
 }
 
 // ---- SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12, Etsy-factory Publisher report) ----

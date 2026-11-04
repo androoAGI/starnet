@@ -37,11 +37,15 @@ function check(fn) { checks++; try { fn(); } catch(e) { failures++; console.erro
       }
     }
     const file=path.join(root,'backup-write.json'); fs.writeFileSync(file,'{"version":1}');
-    const wd=(_deps,p,bytes)=>{if(p.endsWith('.bak')) throw Object.assign(new Error('disk full'),{code:'ENOSPC'});fs.writeFileSync(p,bytes);};
+    // D1: the .bak copy runs out of disk after its temp exists; the real durable writer runs for both files
+    const full=Object.create(fs); full.writeSync=()=>{throw Object.assign(new Error('disk full'),{code:'ENOSPC'});};
+    const wd=(deps,p,bytes)=>require('../sidecar/durable-write.js').writeFileDurable(p.endsWith('.bak')?{...deps,fs:full}:deps,p,bytes);
     // the .bak is a hard link when the filesystem allows one (perf 10-19); refuse the link so the COPY path runs
     const noLink=new Proxy(fs,{get(t,k){if(k==='linkSync') return ()=>{throw Object.assign(new Error('not supported'),{code:'EPERM'});}; const v=t[k]; return typeof v==='function'?v.bind(t):v;}});
-    check(()=>assert.throws(()=>writeJsonResilient({fs:noLink,path,writeDurable:wd},file,{version:2}),{code:'ENOSPC'}));
-    check(()=>assert.deepEqual(readJsonResilient({fs},file).value,{version:1},'failed backup must preserve the committed primary'));
+    check(()=>assert.doesNotThrow(()=>writeJsonResilient({fs:noLink,path,writeDurable:wd},file,{version:2}),'D1: a .bak that cannot be refreshed never blocks the write'));
+    check(()=>assert.deepEqual(readJsonResilient({fs},file).value,{version:2},'D1: the committed write lands'));
+    check(()=>assert.ok(!fs.existsSync(file+'.bak')||JSON.parse(fs.readFileSync(file+'.bak','utf8')).version===1,'D1: the .bak keeps what it could (absent, or the previous main), never a torn copy'));
+    check(()=>assert.deepEqual(fs.readdirSync(root).filter(n=>n.startsWith('backup-write.json')&&/\.tmp$/.test(n)),[],'D1: no temp of the main or the .bak is left'));
     // the link path: the .bak is the previous main's bytes, and no second durable write is made for it
     const linked=path.join(root,'backup-link.json'); fs.writeFileSync(linked,'{"version":1}');
     const writes=[]; const wd2=(deps,p,bytes)=>{writes.push(p); return require('../sidecar/durable-write.js').writeFileDurable(deps,p,bytes);};

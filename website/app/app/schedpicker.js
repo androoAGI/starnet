@@ -34,7 +34,7 @@
     { id: 'once', label: 'ONCE' },
     { id: 'advanced', label: 'CUSTOM' }
   ];
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const pad2 = n => (n < 10 ? '0' : '') + n;
 
   // the browser's IANA zone, or '' when the runtime won't tell us. Only ever used to LABEL the clock —

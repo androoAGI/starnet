@@ -77,12 +77,15 @@ function makeHost(sc) {
   const normalizeProviderId = p => { const v = String(p || '').trim().toLowerCase().replace(/^openai-codex$/, 'codex'); return KNOWN.indexOf(v) >= 0 ? v : ''; };
   const deps = {
     agentRoster, agentRosterRaw: new Map(), RunWire, codexTokens, runtimeKey: sc.env.orKey || '',
+    billing: require('../sidecar/billing-class.js').makeBilling({ profileOf: require('../sidecar/providers/registry.js').getProviderProfile, creditsConfigured: () => false }),
     normalizeProviderId, normalizeProvider: p => normalizeProviderId(p) || 'openrouter',
     registryProviderUsesCodex: p => p === 'codex', providerUsesCodex: p => normalizeProviderId(p) === 'codex', providerUsesDeviceOAuth: () => false,
     providerRuntimeKey: (id, explicit) => String(explicit || '') || ((normalizeProviderId(id) || 'openrouter') === 'openrouter' ? (sc.env.orKey || '') : ''),
     providerRuntimeBaseUrl: () => '',
     providerHasCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
     providerHasStoredCredential: (id, key) => (normalizeProviderId(id) === 'codex' ? !!codexTokens : !!key),
+    // This matrix supplies credential presence; the real runtime handler now projects the common row.
+    providerReadiness: (id, pair) => ({ unattendedReady: normalizeProviderId(id) === 'codex' ? !!codexTokens : !!pair.key }),
     providerCredentialError: id => 'connect ' + id,
     resolveReasoningEffort: (p, v) => v || 'default', chatModelId: (p, m) => m,
     ENV: n => sc.env[n], CRON_DEFAULT_MODEL: String(sc.env.DEFAULT_MODEL || ''), CODEX_DEFAULT_MODEL: 'gpt-codex-default',
@@ -294,7 +297,7 @@ function expect(entry, sc, agentId, got, opts) {
           const provider = host.deps.normalizeProvider(snap.provider), key = host.deps.providerRuntimeKey(provider, snap.key || '');
           return { key, model: snap.model, provider, baseUrl: '', configured: host.deps.providerHasCredential(provider, key), reasoningEffort: 'medium', agentId: snap.agentId, system: snap.system };
         },
-        resolveEntryRunConfig: wiredSeam(tg, 'resolveEntryRunConfig', seamScope(host, { channelSecrets: { telegram: snap } }))
+        resolveEntryRunConfig: wiredSeam(tg, 'resolveEntryRunConfig', seamScope(host, { channelCredential: () => snap }))
       });
       await hub.onInbound({ channel: 'telegram', chatId: '777', chatType: 'dm', userId: 'owner', text, messageId: String(Date.now()), ts: 1 });
       return runs[0] || null;
@@ -481,7 +484,7 @@ function expect(entry, sc, agentId, got, opts) {
       const h = sidecarTopLevelFunction(fn);
       const starts = ['  // the gate is the pair the channel will really run', '  if (!model) return json(400'].map(a => h.indexOf(a)).filter(i => i >= 0);
       const from = starts.length ? Math.min(...starts) : -1;
-      const to = h.indexOf('  let started; try { started = start', from);
+      const to = h.indexOf('  const own = credStore.putChannel(', from);
       A.ok(from > 0 && to > from && to - from < 1200, 'fixture: ' + fn + "'s connect gate is sliced");
       const gate = (snap) => {
         const d = Object.assign({}, host.deps, { stationHubConnectError: host.stationHubConnectError });
@@ -527,8 +530,8 @@ function expect(entry, sc, agentId, got, opts) {
         A.eq(starts, want, 'boot auto-start of the ' + ch + ' channel saved by ' + label + ': ' + (want ? 'starts' : 'stays off'));
       }
       let restarted = null;
-      new Function(...Object.keys(d), 'telegram', 'channelToken', 'stopTelegram', 'startTelegram', revoke + '\nreturn restartTelegramAfterOwnerRevoke;')(
-        ...Object.values(d), {}, () => 'tok', () => { restarted = false; }, () => { restarted = true; })(rec);
+      new Function(...Object.keys(d), 'telegram', 'channelToken', 'channelCredential', 'stopTelegram', 'startTelegram', revoke + '\nreturn restartTelegramAfterOwnerRevoke;')(
+        ...Object.values(d), {}, () => 'tok', () => rec, () => { restarted = false; }, () => { restarted = true; })(rec);
       A.eq(restarted, want, 'the owner revoke ' + (want ? 'restarts' : 'stops') + ' the Telegram bot saved by ' + label);
     }
   }

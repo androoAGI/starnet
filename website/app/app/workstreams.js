@@ -18,10 +18,10 @@
      'shipped' is only ever set by a deliberate human turn-in via setLane. A lane can't lie. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof module !== 'undefined' && module.exports ? require('./turnkinds.js') : root.TurnKinds);
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.Workstreams = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (TurnKinds) {
   'use strict';
 
   const LANES = ['todo', 'active', 'shipped'];
@@ -570,7 +570,8 @@
   // prompts, recovery markers, tool metadata, or other implementation state and must never leak through
   // a user-facing transcript surface.
   const isVisibleMessage = m => !!(m && !m.sys && !m.hidden && !m.internal
-    && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string');
+    && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string'
+    && TurnKinds.MATRIX[TurnKinds.classify(m).cell].display === true);
   function visibleMessages(w) {
     return ((w && Array.isArray(w.history)) ? w.history : []).filter(isVisibleMessage);
   }

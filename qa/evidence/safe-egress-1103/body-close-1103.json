@@ -1,0 +1,27 @@
+{
+  "baseline": "448c99d2a6ca16d79b23fdf7c9930ae1818dac92",
+  "test": "test/skill-exchange.body-close.test.js",
+  "source": "sidecar/skills/exchange-fetch.js",
+  "qualification": "Actual undici Agents and socket/body ownership; validated public hosts mapped only at the transport edge to an allocated loopback HTTP server. No external request. Responses retained through teardown to exclude garbage-collection cleanup.",
+  "old": {
+    "sourceOverride": "safe-egress-exchange-fetch-before-body-fix.js.txt",
+    "pid": 51540,
+    "startedAt": "2026-11-03T21:11:50.791Z",
+    "endedAt": "2026-11-03T21:12:04.302Z",
+    "exitCode": 1,
+    "failed": 4,
+    "passed": 80,
+    "failures": ["document/declared depends on request abort", "session/declared requires watchdog socket close", "package/declared requires watchdog socket close", "github/declared requires watchdog socket close"]
+  },
+  "current": {
+    "pid": 62448,
+    "startedAt": "2026-11-03T21:12:04.320Z",
+    "endedAt": "2026-11-03T21:12:04.761Z",
+    "exitCode": 0,
+    "failed": 0,
+    "passed": 84
+  },
+  "logs": "C:/Users/andro/gen-trees/_logs/codex-overnight-1103/safe-egress-body-2113-{old,current}.{log,json}",
+  "secondSecurityReview": "closed at bc80d6ed381742521a14c6e5e11825bbe76e3212; continuation-proof.json",
+  "installed": "unverified"
+}

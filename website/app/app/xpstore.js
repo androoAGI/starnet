@@ -381,6 +381,9 @@ const XpStore = (() => {
     if (!res || !res.ok || !body || !body.ok || !body.rating || !Array.isArray(body.rating.entries)) {
       const status = Number(res && res.status) || 0;
       const reason = String(body && body.error || '');
+      // the GATE refused this page's key (the ONE reading, Harness.classifyApiFailure: the gate's own code; a bare 401/403 only
+      // from a station that names no refusal, or with no Harness loaded) — a route's own 403 is not a rejected connection
+      const refused = res && typeof Harness !== 'undefined' && Harness && typeof Harness.classifyApiFailure === 'function' ? Harness.classifyApiFailure(res) : null;
       // Read rejected responses too. Keep UI copy actionable without exposing arbitrary storage paths.
       let error = 'Rating was not saved — try again.';
       if (!res) error = 'Cannot reach the rating service — try again.';
@@ -390,7 +393,9 @@ const XpStore = (() => {
       else if (reason === 'non-interactive run cannot be rated') error = 'This scheduled activity is not eligible for rating. New interactive replies can be rated separately.';
       else if (reason === 'run origin unavailable for rating') error = 'This older reply has no saved run origin, so its rating eligibility cannot be verified. It cannot be rated; new interactive replies can be rated separately.';
       else if (reason === 'run did not produce rateable agent work') error = 'This task did not finish with rateable work.';
-      else if (status === 401 || status === 403) error = 'Rating connection was rejected — reload the app and try again.';
+      else if (refused ? (refused.staleSession || refused.tokenWithheld) : (status === 401 || status === 403)) {
+        error = refused && refused.tokenWithheld ? refused.tokenWithheld : 'Rating connection was rejected — reload the app and try again.';
+      }
       else if (status === 503 || (body && body.growthUnavailable)) error = 'Rating history is unavailable — try again after restarting the app.';
       else if (status >= 500) error = 'The rating service could not save this rating — try again.';
       return { ok: false, error, status };

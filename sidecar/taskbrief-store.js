@@ -40,6 +40,8 @@ function normalizeBrief(b) {
     id: bounded(x.id, 100), key: bounded(x.key, 160), streamId: bounded(x.streamId, 80),
     // Completion updates runId; the original owner occurrence remains immutable across clarification/recovery.
     ...(x.originalRunId ? { originalRunId: bounded(x.originalRunId, 100) } : {}),
+    // the transcript row of the directive the brief was opened on (turn identity; noteDirective). Absent on older briefs.
+    ...(Number.isSafeInteger(x.directiveRowId) && x.directiveRowId > 0 ? { directiveRowId: x.directiveRowId } : {}),
     agentId: bounded(x.agentId || 'agent', 40), source: bounded(x.source || 'interactive', 24),
     originalDirective: bounded(x.originalDirective, 4000), currentInput: bounded(x.currentInput, 4000),
     status: STATES.has(x.status) ? x.status : 'ready',
@@ -248,6 +250,19 @@ function makeTaskBriefStore(deps) {
     }).then(() => out);
   }
 
+  /* THE BRIEF NAMES ITS DIRECTIVE ROW (turn identity, commit 4): once the run that OPENED the brief has written (or reused)
+     its directive, that row's id is recorded on the brief, once. A later run of the same brief (an answer, a resume) never
+     moves it. Resolves the updated brief, or null when nothing changed. */
+  function noteDirective(id, rowId, runId) {
+    const key = String(id || ''); const run = bounded(runId, 100); let out = null;
+    if (!key || !run || !(Number.isSafeInteger(rowId) && rowId > 0)) return Promise.resolve(null);
+    return durable.update(STORE_KEY, cur => {
+      const rec = normalize(cur); const b = rec.briefs.find(x => x.id === key);
+      if (!b || b.directiveRowId || b.originalRunId !== run) return undefined;
+      b.directiveRowId = rowId; out = b; return rec;
+    }).then(() => out);
+  }
+
   function updateContext(id, candidate, now) {
     let out=null;
     return durable.update(STORE_KEY,cur=>{
@@ -405,7 +420,7 @@ function makeTaskBriefStore(deps) {
       .map(t => t.dimension);
   }
 
-  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, proceed, complete, scrubText, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
+  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, noteDirective, proceed, complete, scrubText, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
 }
 
 module.exports = { makeTaskBriefStore, normalize, normalizeBrief, normalizeQuestion, fingerprintQuestion };

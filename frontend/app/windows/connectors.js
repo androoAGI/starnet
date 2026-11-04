@@ -430,9 +430,9 @@
     async function extPost(url, payload, btn) {
       if (btn) { btn.disabled = true; btn.classList.add('busy'); }
       try {
-        const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) { extSay((j && j.error) || ('request failed (' + r.status + ')'), true); return false; }
+        // Harness.api: a 2xx {ok:false} is a refusal too, and every refusal is worded from the station's own answer
+        const r = await Harness.api.post(url, payload);
+        if (!r.ok) { extSay(Harness.api.why(r), true); return false; }
         return true;
       } catch (e) { extSay('could not reach the station: ' + ((e && e.message) || e), true); return false; }
       finally { if (btn) { btn.disabled = false; btn.classList.remove('busy'); } }
@@ -647,8 +647,8 @@
       else if (kind === 'plugin-where') {
         if (!extPluginDir) { extSay('the station has not reported a plugins folder yet', true); return; }
         const path = extPluginDir + (btn.dataset.id ? '/' + btn.dataset.id : '');
-        try { await navigator.clipboard.writeText(path); extSay('Path copied to your clipboard.'); }
-        catch (_) { extSay(path); }   // no clipboard permission — show it rather than fail silently
+        // the one clipboard: "copied" only when the copy happened; else the path is shown rather than failing silently
+        U.copyText(path).then(ok => extSay(ok ? 'Path copied to your clipboard.' : path));
         return;
       }
       else return;
@@ -1088,7 +1088,7 @@
                 let r = null;
                 try { r = await Harness.api.post('/api/connectors/storage/start-fresh', { confirm: true }); } catch (_) {}
                 if (r && r.ok) { sfx('ok'); notify(startFreshKeptText(r.j)); }
-                else { sfx('bad'); notify('START FRESH failed: ' + ((r && r.j && r.j.error) || 'the station did not answer')); }
+                else { sfx('bad'); notify('START FRESH failed: ' + (r ? Harness.api.why(r) : 'the station did not answer')); }   // a refusal is an answer
                 refresh();
               }
             });
@@ -1115,7 +1115,11 @@
         listEl.innerHTML = '<div class="mc-detail">Could not read connections. Retry when the station is available.</div>';
       }
     }
-    const postJSON = (path, payload) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    // EVERY JSON EXCHANGE HERE IS Harness.api.post (truthful acks, 2026-11-03): a refusal is the station's answer, worded by
+    // Harness.api.why, and "connected" / "saved" appear only on r.ok. The bare postJSON helper threw the Response away at
+    // three sites, so a plain-text refusal parsed to {} and read as "not connected" or "failed to reach the sidecar".
+    // A save or reload waits on the server's connector handshake (up to 120 s), so its deadline outlasts that.
+    const CONNECT_WAIT = { timeoutMs: 180000 };
 
     /* ⛔ AN ERRORED ENDPOINT IS NOT AN EMPTY ONE, AND A REFUSAL IS NOT AN OFFLINE STATION.
        `(await fetch(u)).json()` resolves on 4xx/5xx: a JSON error body parses fine, `j.groups` comes back
@@ -1141,11 +1145,10 @@
     async function removeConnector(id, btn) {
       if (btn) btn.disabled = true;
       try {
-        const r = await postJSON('/api/connectors/remove', { id });
+        const r = await Harness.api.post('/api/connectors/remove', { id });
         if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
           notify('Connector "' + id + '" was NOT removed', 'warn');
-          msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + ((j && j.error) || ('HTTP ' + r.status)); sfx('bad');
+          msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + Harness.api.why(r); sfx('bad');
         } else {
           notify('Connector "' + id + '" removed'); sfx('click'); if (editing === id) resetForm(); ccRefresh();
         }
@@ -1183,9 +1186,10 @@
       try {
         if (act === 'reload') {
           msgEl.classList.remove('ok'); msgEl.textContent = 'reloading ' + id + '…';
-          const j = await (await postJSON('/api/connectors/refresh', { id })).json().catch(() => ({}));
-          if (j.status && j.status.state === 'up') { msgEl.classList.add('ok'); msgEl.textContent = '✓ ' + id + ' — ' + (j.status.toolCount || 0) + ' tool(s)'; }
-          else { msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + id + ' — ' + ((j.status && j.status.detail) || j.error || 'not connected'); }
+          const r = await Harness.api.post('/api/connectors/refresh', { id }, CONNECT_WAIT);
+          const j = r.j || {};
+          if (r.ok && j.status && j.status.state === 'up') { msgEl.classList.add('ok'); msgEl.textContent = '✓ ' + id + ' — ' + (j.status.toolCount || 0) + ' tool(s)'; }
+          else { msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + id + ' — ' + ((j.status && j.status.detail) || (r.ok ? 'not connected' : Harness.api.why(r))); }
           sfx('click');
         }
       } catch (e) { msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + ((e && e.message) || 'request failed'); sfx('bad'); }
@@ -1198,10 +1202,9 @@
       const c = lastList.find(x => x.id === id) || {};
       cb.disabled = true;
       try {
-        const r = await postJSON('/api/connectors', { id, transport: c.transport, enabled: cb.checked });
+        const r = await Harness.api.post('/api/connectors', { id, transport: c.transport, enabled: cb.checked }, CONNECT_WAIT);
         if (!r.ok) {
-          const j = await r.json().catch(() => ({}));
-          cb.checked = !cb.checked; msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + ((j && j.error) || ('HTTP ' + r.status)); sfx('bad');
+          cb.checked = !cb.checked; msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + Harness.api.why(r); sfx('bad');
         } else sfx('tick');
       }
       catch (e) { cb.checked = !cb.checked; msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + ((e && e.message) || 'request failed'); sfx('bad'); }
@@ -1247,13 +1250,16 @@
       if (to) payload.timeout = Number(to);
       msgEl.classList.remove('ok'); msgEl.textContent = (editing ? 'saving ' : 'connecting ') + id + '…';
       try {
-        const j = await (await postJSON('/api/connectors', payload)).json().catch(() => ({}));
+        const r = await Harness.api.post('/api/connectors', payload, CONNECT_WAIT);
+        const j = r.j || {};
+        // saved:true is the station's verdict even when the live handshake failed (200 {ok:false, saved:true}): an OAuth row
+        // signs in next. Any other refusal is said in the station's words.
         if (tp === 'oauth' && j.saved) {
           // The unsigned 401 is expected between the durable config save and the callback. Start the same proven
           // browser flow as catalog connectors; the poll waits for oauthAuthorized before treating that 401 as final.
           await ccSignIn(id, msgEl, label || id);
           if (ccPending.has(id)) resetForm();
-        } else if (j.error) { msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + j.error; sfx('bad'); }
+        } else if (!r.ok) { msgEl.classList.remove('ok'); msgEl.textContent = '✕ ' + Harness.api.why(r); sfx('bad'); }
         else if (j.status && j.status.state === 'up') {
           msgEl.classList.add('ok'); msgEl.textContent = '✓ connected — ' + (j.status.toolCount || 0) + ' tool(s) available'; sfx('click');
           notify('Connector "' + id + '" ' + (editing ? 'saved' : 'connected'), 'good');
@@ -1538,8 +1544,9 @@
       const payload = { id: e.id, label: e.name, transport: 'http', url: e.url, enabled: true };
       if (token) payload.token = token;
       try {
-        const j = await (await postJSON('/api/connectors', payload)).json().catch(() => ({}));
-        if (j.error) { ccMsgEl.textContent = '✕ ' + j.error; sfx('bad'); }
+        const r = await Harness.api.post('/api/connectors', payload, CONNECT_WAIT);
+        const j = r.j || {};
+        if (!r.ok) { ccMsgEl.textContent = '✕ ' + Harness.api.why(r); sfx('bad'); }
         else if (j.status && j.status.state === 'up') {
           ccMsgEl.classList.add('ok'); ccMsgEl.textContent = '✓ ' + e.name + ' connected — ' + (j.status.toolCount || 0) + ' tool(s) available'; sfx('click');
           notify('Connector "' + e.name + '" connected', 'good');
@@ -1594,10 +1601,10 @@
       if (earlyCancel) { earlyCancel.dataset.ccAct = 'signin-cancel'; earlyCancel.textContent = 'CANCEL'; earlyCancel.disabled = false; }
       let url, device;
       try {
-        const startRes = await fetch('/api/connectors/oauth/start', { method: 'POST', signal: controller.signal,
-          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: id, attemptId: attemptId }) });
-        const j = await startRes.json().catch(() => ({}));
-        if (j.error || !j.url) { out.textContent = '✕ ' + (j.error || 'could not start sign-in'); sfx('bad'); ccPending.delete(id); ccAttempts.delete(id); ccResetSignBtn(id); return; }
+        // the CANCEL key's abort rides the request (Harness.api honours the signal); a refusal is said in the station's words
+        const startRes = await Harness.api.post('/api/connectors/oauth/start', { id: id, attemptId: attemptId }, { signal: controller.signal, timeoutMs: 120000 });
+        const j = startRes.j || {};
+        if (!startRes.ok || !j.url) { out.textContent = '✕ ' + (startRes.ok ? 'could not start sign-in' : Harness.api.why(startRes)); sfx('bad'); ccPending.delete(id); ccAttempts.delete(id); ccResetSignBtn(id); return; }
         url = j.url;
         if (j.deviceFlow) device = j;
       } catch (err) {
@@ -1654,9 +1661,8 @@
       notice.addEventListener('cancel', ev => { ev.preventDefault(); ccCancelSignIn(id); });
       const progress = message => { out.textContent = message; notice.querySelector('[data-device-status]').textContent = message; };
       const copy = notice.querySelector('[data-device-copy]');
-      copy.addEventListener('click', async () => {
-        try { await navigator.clipboard.writeText(device.userCode); copy.textContent = 'COPIED'; }
-        catch (_) { copy.textContent = 'SELECT CODE ABOVE'; }
+      copy.addEventListener('click', () => {
+        U.copyText(device.userCode).then(ok => { copy.textContent = ok ? 'COPIED' : 'SELECT CODE ABOVE'; });   // the one clipboard
       });
       const open = async () => {
         const result = await openSignIn(device.url);
@@ -1673,22 +1679,21 @@
         while (!controller.signal.aborted && body.isConnected && Date.now() < until) {
           await new Promise(resolve => setTimeout(resolve, 2000));
           if (controller.signal.aborted || !body.isConnected) break;
-          const res = await fetch('/api/connectors/oauth/device/poll', { method: 'POST', signal: controller.signal,
-            headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attemptId: device.attemptId }) });
-          const j = await res.json();
-          if (j.state === 'pending') continue;
+          const res = await Harness.api.post('/api/connectors/oauth/device/poll', { attemptId: device.attemptId }, { signal: controller.signal });
+          const j = res.j || {};
+          if (res.ok && j.state === 'pending') continue;
           if (controller.signal.aborted) break;
-          if (j.state === 'connected') {
+          if (res.ok && j.state === 'connected') {
             out.classList.add('ok'); out.textContent = '✓ GitHub connected as ' + j.login + ' — ' + j.toolCount + ' tool(s)';
             sfx('click'); notify(out.textContent, 'good');
-          } else { out.classList.remove('ok'); out.textContent = j.error || 'GitHub sign-in failed. Try again.'; notify(out.textContent, 'bad'); }
+          } else { out.classList.remove('ok'); out.textContent = (res.ok ? j.error : Harness.api.why(res)) || 'GitHub sign-in failed. Try again.'; notify(out.textContent, 'bad'); }
           ccRefresh(); refresh(); return;
         }
         if (!controller.signal.aborted && body.isConnected) { out.textContent = 'GitHub code expired. Sign in again to get a new code.'; notify(out.textContent, 'bad'); }
       } catch (_) { if (!controller.signal.aborted) { out.textContent = 'Could not finish GitHub sign-in. Please try again.'; notify(out.textContent, 'bad'); } }
       finally {
         controller.signal.removeEventListener('abort', remove); notice.remove();
-        postJSON('/api/connectors/oauth/cancel', { id, attemptId: device.attemptId }).catch(() => {});
+        Harness.api.post('/api/connectors/oauth/cancel', { id, attemptId: device.attemptId }).catch(() => {});
         if (ccAttempts.get(id) && ccAttempts.get(id).attemptId === device.attemptId) {
           ccPending.delete(id); ccAttempts.delete(id); ccPendingWin.delete(id); ccResetSignBtn(id);
         }
@@ -1702,8 +1707,8 @@
       const attempt = ccAttempts.get(id); ccAttempts.delete(id);
       if (attempt) {
         try { attempt.controller.abort(); } catch (_) {}
-        postJSON('/api/connectors/oauth/cancel', { id: id, attemptId: attempt.attemptId }).catch(() => {});
-      } else postJSON('/api/connectors/oauth/cancel', { id: id }).catch(() => {});
+        Harness.api.post('/api/connectors/oauth/cancel', { id: id, attemptId: attempt.attemptId }).catch(() => {});
+      } else Harness.api.post('/api/connectors/oauth/cancel', { id: id }).catch(() => {});
       const w = ccPendingWin.get(id); ccPendingWin.delete(id);
       try { if (w && !w.closed) w.close(); } catch (_) {}
       ccResetSignBtn(id);
@@ -1713,9 +1718,12 @@
     ccListEl.addEventListener('click', async ev => {
       const copyBtn = ev.target.closest('button[data-cc-copy]');
       if (copyBtn) {
-        try { await navigator.clipboard.writeText(copyBtn.dataset.ccCopy); copyBtn.textContent = 'COPIED'; sfx('tick'); }
-        catch (_) { copyBtn.textContent = 'SELECT'; const code = copyBtn.previousElementSibling; try { getSelection().selectAllChildren(code); } catch (__) {} }
-        setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500);
+        // the one clipboard: COPIED only when the copy happened; else the code is selected for a manual copy
+        U.copyText(copyBtn.dataset.ccCopy).then(ok => {
+          if (ok) { copyBtn.textContent = 'COPIED'; sfx('tick'); }
+          else { copyBtn.textContent = 'SELECT'; const code = copyBtn.previousElementSibling; try { getSelection().selectAllChildren(code); } catch (__) {} }
+          setTimeout(() => { copyBtn.textContent = 'COPY'; }, 1500);
+        });
         return;
       }
       const btn = ev.target.closest('button[data-cc-act]'); if (!btn) return;
@@ -1931,12 +1939,12 @@
       // the sidecar reads a reference before it answers: say so, since 1Password may be asking for approval right now
       if (kyIsRef(key)) kyMsgEl.textContent = 'reading from 1Password — approve StarNet in the 1Password app if it asks…';
       try {
-        // a non-JSON refusal parses to {} — without the r.ok check that {} reads as "saved".
-        // A body that carries `key` is a structured verdict (saved:false = live-this-session,
-        // handled below) even on a 500, so only a key-less answer is a refusal.
-        const r = await postJSON('/api/servicekeys', { name, key, docsUrl });
-        const j = await r.json().catch(() => ({}));
-        if (!j.key && (!r.ok || j.error)) { kyMsgEl.textContent = '✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — the key was NOT saved')); sfx('bad'); return; }
+        // A body that carries `key` is a structured verdict (saved:false = live-this-session, handled below) even on a 500,
+        // so only a key-less answer is a refusal, said in the station's words. The deadline outlasts the station's own 60 s
+        // wait on a 1Password approval.
+        const r = await Harness.api.post('/api/servicekeys', { name, key, docsUrl }, { timeoutMs: 120000 });
+        const j = r.j || {};
+        if (!j.key && (!r.ok || j.error)) { kyMsgEl.textContent = '✕ ' + (r.ok ? j.error : Harness.api.why(r)) + ' — the key was NOT saved'; sfx('bad'); return; }
         // saved:false still means LIVE this session — surface the persistence truth instead of a flat "saved".
         // A 1Password reference is saved even when the read failed; the message says which happened.
         const opUnread = !!(j.key && j.key.source === '1password' && !j.key.refReady);
@@ -1958,11 +1966,11 @@
       const rowEl = ev.target.closest('.mc-row'); const id = rowEl && rowEl.dataset.id; if (!id) return;
       if (btn.dataset.kyAct === 'remove') {
         try {
-          const r = await postJSON('/api/servicekeys/remove', { id });
-          const j = await r.json().catch(() => ({}));
-          if (!r.ok || (j.error && !j.ok)) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — the key was NOT removed')); sfx('bad'); }
+          const r = await Harness.api.post('/api/servicekeys/remove', { id });
+          const j = r.j || {};
+          if (!r.ok || (j.error && !j.ok)) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ ' + (r.ok ? j.error : Harness.api.why(r)) + ' — the key was NOT removed'; sfx('bad'); }
           else { sfx('tick'); notify('Key removed'); }
-        } catch (_) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ could not reach the sidecar — the key was NOT removed'; sfx('bad'); }
+        } catch (_) { kyMsgEl.classList.remove('ok'); kyMsgEl.textContent = '✕ could not reach the station — the key was NOT removed'; sfx('bad'); }
         ccRefresh(); kyRefresh();
       }
     });
@@ -1975,15 +1983,15 @@
         // the unattended-grant switch: a ticked box the station never recorded is a false grant
         // readout, so any non-ok answer reverts the checkbox to the state the harness can prove.
         const r = isAutonomy
-          ? await postJSON('/api/servicekeys/autonomy', { id, autonomous: cb.checked })
-          : await postJSON('/api/servicekeys/toggle', { id, enabled: cb.checked });
-        const j = await r.json().catch(() => ({}));
+          ? await Harness.api.post('/api/servicekeys/autonomy', { id, autonomous: cb.checked })
+          : await Harness.api.post('/api/servicekeys/toggle', { id, enabled: cb.checked });
+        const j = r.j || {};
         if (j.key && j.saved === false) {
           // structured 500: the switch IS live this session (list + env already updated) — keep the
           // box truthful to the live state and surface the persistence gap instead of reverting.
           sfx('bad'); notify('⚠ the switch is live for this session, but saving to disk failed — it may not survive a restart', 'warn');
         }
-        else if (!r.ok || (j.error && !j.ok)) { cb.checked = !cb.checked; sfx('bad'); notify('✕ ' + (j.error || ('the station refused (HTTP ' + r.status + ') — nothing changed'))); }
+        else if (!r.ok || (j.error && !j.ok)) { cb.checked = !cb.checked; sfx('bad'); notify('✕ ' + (r.ok ? j.error : Harness.api.why(r)) + ' — nothing changed'); }
         else sfx('tick');
       } catch (_) { cb.checked = !cb.checked; sfx('bad'); }
       cb.disabled = false;
@@ -2033,8 +2041,10 @@
       const clientId = (clientInput.value || '').trim();
       msgEl.textContent = 'opening Spotify…';
       try {
-        const j = (await Harness.api.post('/api/spotify/auth/start', clientId ? { clientId } : {})).j;
-        if (j.error) { msgEl.textContent = '✕ ' + j.error; sfx('bad'); return; }
+        const r = await Harness.api.post('/api/spotify/auth/start', clientId ? { clientId } : {});
+        const j = r.j;
+        // a refusal (any body, or none) says the station's reason; only a confirmed answer opens a sign-in page
+        if (!r.ok || !j.url) { msgEl.textContent = '✕ ' + (r.ok ? 'the station did not return a sign-in link' : Harness.api.why(r)); sfx('bad'); return; }
         const opened = await openSignIn(j.url);
         if (!opened.opened) {
           // No consent window opened → don't poll and don't claim one is waiting (truthful-telemetry law).

@@ -702,11 +702,11 @@
 
     /* TEST A LINE (2026-10-01, Andrew: "and then also setting up the conveyor systems"): one real job down a line the lead
        built or set up, and what came of it, step by step. It is the very job the Workflow panel's SEND A JOB sends
-       (deps.runLineJob = the route's own core: the one-per-station lock, its refusals, the job record the OUTBOX opens),
+       (deps.sampleLineJob = the route's own core: the one-per-station lock, its refusals, the job record the OUTBOX opens),
        so it runs the line's agents and spends what they spend: it asks first. What the line delivered is the station's
        agents' output, which can carry what they read, so it comes back fenced as data. */
     const TEST_WAIT_MS = 20 * 60 * 1000;
-    const runLineJob = typeof deps.runLineJob === 'function' ? deps.runLineJob : null;
+    const sampleLineJob = typeof deps.sampleLineJob === 'function' ? deps.sampleLineJob : null;
     let fenceExternal = null; try { fenceExternal = require('../fence.js').fenceExternal; } catch (_) { fenceExternal = null; }
     const testLineTool = {
       name: 'station.test_line', capability: 'orchestrator', impact: 'none', scope: 'write', requiresConsent: true,
@@ -716,7 +716,7 @@
         + 'line is the line\'s name (or the id of any machine on it, from station.map { room }); room helps when two lines share a name; job is the work to send, written the way a real job would arrive. Use it after you build or set a line up: if a step failed, went the wrong way or handed on the wrong thing, fix the line with a refit (brief, hands, routes, loop, budget …) and test again. It waits for the job (up to 20 minutes). A step refused a permission (a page fetch, a file write) needs the Commander\'s grant: say which agent needs what and how they grant it, never change an agent\'s approval or permissions yourself, and never reach around the station\'s controls (a shell, a browser debug port, the page itself) to get a job through.',
       schema: { type: 'object', properties: { line: { type: 'string' }, job: { type: 'string' }, room: { type: 'string' } }, required: ['line', 'job'] },
       run: async (args, ctx) => {
-        if (!runLineJob) return refuse('Testing lines is not available on this station.');
+        if (!sampleLineJob) return refuse('Testing lines is not available on this station.');
         const a = args && typeof args === 'object' ? args : {};
         const job = String(a.job == null ? '' : a.job).replace(/\r/g, '').trim();
         if (!job) return refuse('job is the work to send down the line, in a sentence or two, the way a real job would arrive.');
@@ -726,16 +726,17 @@
         const L = ref.result || {};
         if (!L.crewed) return refuse('Nobody works the line ' + L.name + ' yet: give its steps agents (a refit { op: "agent" }, or { staff }) and test again.');
         let r;
-        try { r = await runLineJob({ line: L.lineId, text: job, name: L.name }, ctx && ctx.signal); }
+        try { r = await sampleLineJob({ line: L.lineId, text: job, name: L.name }, ctx && ctx.signal); }
         catch (e) { return refuse('The test job could not be sent: ' + String((e && e.message) || e).slice(0, 200)); }
         const o = (r && r.obj) || {};
         if (r && r.code === 409) return refuse(String(o.error || 'the line could not take a job right now'));
         const runs = Array.isArray(o.runs) ? o.runs.slice().reverse() : [];   // oldest first: the order the steps ran
         const stepOf = run => { const s = (L.steps || []).find(x => x.id === run.dockId); return s ? (s.role || 'a step') + (s.agent ? ' (' + s.agent + ')' : '') : (run.agentId || 'a step'); };
-        const status = o.ok ? 'delivered' : o.stopped ? 'stopped' : runs.length ? 'problem' : 'failed';
+        const outcome = o.outcome || (o.ok ? 'delivered' : o.stopped ? 'stopped' : runs.length ? 'stopped_short' : 'failed');
+        const status = RunOutcome && RunOutcome.lineStatus ? RunOutcome.lineStatus(outcome) : outcome;
         const said = Array.isArray(o.replies) ? o.replies.join('').trim() : '';
         const out = {
-          line: L.name, status, cost: '$' + (Number(o.totalUsd) || 0).toFixed(2),
+          line: L.name, status, outcome, stop: o.stop || null, cost: '$' + (Number(o.totalUsd) || 0).toFixed(2),
           // each step ENDED as its run's outcome says (endedOf): a cut or error-outranked step never reads 'done'; a failed step names its code
           steps: runs.map((x, i) => Object.assign({ step: i + 1, at: stepOf(x), ended: endedOf(x) },
             (x && x.failureCode && RunOutcome && !RunOutcome.ofRow(x).ok) ? { failureCode: RunOutcome.ofRow(x).failureCode } : {},

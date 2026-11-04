@@ -20,6 +20,7 @@
    The webhook SECRET itself is never stored — only its sha256. It is shown once at create/regenerate. */
 'use strict';
 const nodeCrypto = require('node:crypto');
+const RunOutcome = require('../../frontend/app/runoutcome.js');
 
 const KINDS = ['folder', 'webhook'];
 const ID_RE = /^trg_[a-z0-9]{8,24}$/;
@@ -63,6 +64,9 @@ function normalizeOutcome(o) {
   if (ua) out.unapproved = ua;
   // (additive, review r7) someone STOPPED the job: a stop, never "did not finish" with a last error — kept only on a job that did not finish
   if (!out.ok && o.stopped === true) out.stopped = true;
+  if (RunOutcome.LINE_OUTCOMES.includes(o.outcome)) out.outcome = o.outcome;
+  if (RunOutcome.isLineStop(o.code)) out.code = o.code;
+  if (/^job-[a-z0-9]{8,24}$/.test(String(o.jobId || ''))) out.jobId = o.jobId;
   return out;
 }
 
@@ -85,6 +89,7 @@ function normalizeTrigger(raw) {
     t.secretHash = /^[a-f0-9]{64}$/.test(h) ? h : null;
     t.secretSetAt = num(raw.secretSetAt);
   }
+  if (typeof raw.intakeId === 'string' && LINE_RE.test(raw.intakeId)) t.intakeId = raw.intakeId;
   return t;
 }
 
@@ -110,6 +115,7 @@ function publicView(t, nowMs) {
     firesLastHour: recentWithin(t.recent, nowMs).length
   };
   if (t.kind === 'webhook') { v.hasSecret = !!t.secretHash; v.secretSetAt = iso(t.secretSetAt); }
+  if (t.intakeId) v.intakeId = t.intakeId;
   return v;
 }
 

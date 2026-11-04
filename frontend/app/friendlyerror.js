@@ -96,6 +96,10 @@
     // auth: the pure message is context-blind (classify time can't know if ChatGPT is already connected). It names the
     // one honest next step; the action BUTTON (actionButton) tailors the door — "add a key" vs "sign in with ChatGPT".
     auth:          { retryable: false, action: 'settings', msg: 'No model is connected yet — add a provider key (or sign in with ChatGPT) to let it run.' },
+    claude_cli_checking: { retryable: true, action: null, msg: 'StarNet is checking your local Claude Code sign-in. Try again once the check finishes.' },
+    claude_cli_status_unavailable: { retryable: true, action: null, msg: 'StarNet could not check your local Claude Code sign-in. Try again in a moment.' },
+    claude_cli_missing: { retryable: false, action: 'settings', msg: 'Claude Code is not installed. Open its card in AI & MODELS to set it up.' },
+    claude_cli_signed_out: { retryable: false, action: 'settings', msg: 'Claude Code is not signed in. Open its card in AI & MODELS to sign in.' },
     // a provider is connected but no MODEL is picked: the fix is the model dock, not a key or a sign-in
     no_model:      { retryable: false, action: 'settings', msg: 'No model is picked yet — choose one from the model dock in COMMS, then send again.' },
     oauth:         { retryable: false, action: 'settings', msg: 'Your ChatGPT sign-in expired — reconnect it (or add a provider key instead).' },
@@ -150,6 +154,12 @@
     // "add a key" is the wrong door — the page needs the fresh boot token, which only a reload fetches.
     stale_session: { retryable: false, action: 'reload',   msg: 'The station restarted — reload this page to reconnect.' },
     // (a page the station KEPT its key from gets the same 403 but is no restart — see withheldNotice() below)
+    /* THE STATION'S OWN ANSWERS (truthful acks, 2026-11-03): a refusal the station named in X-StarNet-Code (STATION_CODE_TO_KIND
+       below). station_refused: a route turned this request down — its own sentence leads (stationSaid), and no retry, key or
+       model door rides with it (a resend is refused the same way; the key and the model were never the question). wrong_address:
+       the gate refused this page's ADDRESS (forbidden_origin / forbidden_host) — the same hints the key check gives, no door. */
+    station_refused: { retryable: false, action: null,     msg: 'The station refused this request.' },
+    wrong_address: { retryable: false, action: null,       msg: 'This page’s address doesn’t match the station — open StarNet at the exact address you forward to it.' },
     /* StarNet's OWN spend ledger can't say what was spent (sidecar/loop.js stopForSpend, failureCode
        spend_history_unavailable): a limit the Commander chose can't be checked, so the run was stopped. NOT a provider
        out of credit (never `billing`), and never the generic "Something went wrong — try again": a retry hits the same
@@ -174,6 +184,13 @@
        the adapter's own sentence (it names the server); this msg is only the fallback. */
     endpoint_mismatch:  { retryable: false, action: 'settings', msg: 'The OLLAMA card points at a server that is not Ollama. Add that server under SETTINGS → AI & MODELS → CUSTOM with its /v1 URL instead.' },
     local_model_memory: { retryable: false, action: 'settings', msg: 'The local model ran out of memory. Close other local models or memory-heavy apps, or choose a smaller model from the model picker in COMMS before trying again. If the station is still blank or disconnected, restart StarNet after freeing memory.' },
+    /* A LOCAL MODEL SERVER STAYED SILENT through StarNet's whole wait (errorClass local_timeout: LM Studio, vLLM, llama.cpp on
+       this computer or network, or Ollama with the model loaded). The station ended the turn rather than start the same prompt
+       over on a server that may still be working on it, so no ↻ Try again; the door is the model dock (a smaller model). The
+       headline is the station's own sentence (it names the server, the phase and the wait); this msg is only the fallback.
+       It read "That took too long and timed out — try again" with the code, and "start a fresh chat" (context_overflow)
+       without it (local-runtime-profile review M2, 2026-11-03). */
+    local_timeout:      { retryable: false, action: 'settings', msg: 'The model server on this computer or network sent nothing back within StarNet’s wait, so StarNet ended this turn instead of sending the same prompt again. Check the server’s own log, or pick a smaller model in the COMMS model dock.' },
     /* The model's CHAT TEMPLATE refused the conversation's shape (errorClass template_refusal, #102): the adapter already resent
        it once with no system message, so a resend is refused the same way — no ↻ Try again. Another model has another template,
        so the door is the model dock. The headline is the station's own sentence (it names the model, the host and the template's
@@ -209,7 +226,8 @@
     server_error: 'provider_server_error', timeout: 'timeout', context_overflow: 'context_overflow',
     model_not_found: 'model_not_found', call_too_expensive: 'call_too_expensive', content_policy_blocked: 'content_policy_blocked',
     format_error: 'unknown', endpoint_mismatch: 'endpoint_mismatch', unknown: 'unknown',
-    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory'
+    template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory',
+    local_timeout: 'local_timeout'
   };
   /* THE ONE TABLE: the station's failure CODE -> the kind whose words COMMS shows (typed-outcomes lane, 2026-10-29). The code
      rides agent.run.error / agent.run.end (failureCode — the provider classifier's reason, or the loop's own stop code) and
@@ -218,7 +236,7 @@
      limit, never a spent plan). A code not in this table (run_failure, format_error, unknown…) names nothing specific: the
      error's words decide, as before. StarNet's own UI-level messages (a sign-in, a busy agent, a stale page) are read first. */
   const CODE_TO_KIND = Object.assign({}, REASON_TO_KIND, {
-    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'timeout', provider_stalled: 'timeout',
+    format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'local_timeout', provider_stalled: 'timeout',
     spend_history_unavailable: 'spend_unknown', capability_denied: 'capdenied', output_limit_tool_cut: 'output_limit',
     memory_write_unverified: 'memory_unverified', incomplete_work: 'incomplete_work', repeated_identical_failure: 'loop_stuck',
     unknown_tools: 'unknown_tools', repeated_tool_failure: 'tool_keeps_failing', no_progress: 'no_progress',
@@ -231,6 +249,39 @@
     managed_credit: 'managed_credit', managed_credit_held: 'managed_credit_held', managed_credit_link: 'managed_credit_link',
     managed_credit_unavailable: 'managed_credit_unavailable'
   });
+  /* THE STATION'S OWN REFUSAL CODES (truthful acks, 2026-11-03): every failure the station answers names itself in X-StarNet-Code
+     (sidecar/respond.js CODES — one row here per code there), and Harness.chat's pre-stream throw carries it as err.stationCode.
+     It is read BEFORE the words: a 403 is a stale page only when the gate says token_stale (token_missing is a page the station
+     kept its key from), a 404 is never "that model isn't available", and no station code reads as a provider's key, billing or
+     model fault. The GATE's codes decide outright: the gate answered before any route ran, so no route's sentence rides with
+     them. A ROUTE's code still lets the station's own sentences keep their kinds (a ChatGPT sign-in, a missing key or model, a
+     busy agent, a spend history it cannot read — the doors those sentences name) and decides everything the status ladders
+     would have guessed. A station that sends no code is read by the words, exactly as before. */
+  const STATION_CODE_TO_KIND = Object.freeze({
+    token_stale: 'stale_session', token_missing: 'stale_session', forbidden_origin: 'wrong_address', forbidden_host: 'wrong_address',
+    bad_request: 'station_refused', bad_json: 'station_refused', bad_agent_id: 'station_refused', refused: 'station_refused',
+    forbidden: 'station_refused', wrong_owner: 'station_refused', path_refused: 'station_refused', ticket_refused: 'station_refused',
+    not_found: 'station_refused', method_not_allowed: 'station_refused', conflict: 'station_refused', too_large: 'station_refused',
+    frozen: 'station_refused', rate_limited: 'station_refused', upstream_error: 'station_refused', upstream_timeout: 'station_refused',
+    station_error: 'server_error', unavailable: 'server_error'
+  });
+  const STATION_GATE_CODES = { token_stale: 1, token_missing: 1, forbidden_origin: 1, forbidden_host: 1 };
+  // the station's code for a failure it answered ('' = none: an older station, or an error the station never answered)
+  function stationCodeOf(err, opts) {
+    const c = (opts && opts.stationCode) || (err && typeof err === 'object' ? err.stationCode : '');
+    return typeof c === 'string' ? c.trim() : '';
+  }
+  // a station code's kind: its row, else (a code a newer station added) the station's own refusal
+  function stationKind(code) {
+    return code ? (Object.prototype.hasOwnProperty.call(STATION_CODE_TO_KIND, code) ? STATION_CODE_TO_KIND[code] : 'station_refused') : null;
+  }
+  // the station's own sentence for its refusal: the words after "sidecar HTTP <n> — ", without the code it already named
+  function stationSaid(raw, code) {
+    let s = String(raw || '').replace(/^\s*sidecar http \d{3}\b\s*(?:—|-|:)?\s*/i, '').trim();
+    const tail = '(' + code + ')';
+    if (code && s.slice(-tail.length) === tail) s = s.slice(0, -tail.length).trim();
+    return s.replace(/[.\s]+$/, '');
+  }
   // the kinds whose words are the station's own sentence (the refusal names the script, the skill, the limit, the model): it leads
   const STATION_SENTENCE_KINDS = { routine_skill: 1, agent_deleting: 1, concurrency_limit: 1, model_unsuitable: 1, image_blocked: 1, image_not_produced: 1 };
   function codeKind(code) {
@@ -602,14 +653,20 @@
      cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
      "spend history is unavailable" wording. Local by construction — never a provider's billing. */
   const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
-  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door
+  // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door. The loop's
+  // sentence ends with the way out it names for that cause (sidecar/budget.js unknownExit): a one-click one (COUNT AS, or
+  // setting that limit to 0) is kept word for word, so the headline never offers less than the refusal did.
   function spendUnknownMessage(raw) {
     const low = String(raw || '').toLowerCase();
-    if (/interrupted before its spend was recorded/.test(low)) {
-      return "Your spending limits can't be checked — an earlier run stopped before StarNet recorded what it spent, so this run was stopped. Settle that run in SETTINGS › SPENDING LIMITS.";
+    const exit = (/can['’]t be checked\.\s+(.+)$/i.exec(String(raw || '')) || [])[1] || '';
+    const oneClick = /\bCOUNT AS\b|\bto 0\b/.test(exit) ? ' ' + exit.trim() : '';
+    if (/interrupted before its spend was recorded|earlier call has no settled charge/.test(low)) {
+      return "Your spending limits can't be checked — an earlier call has an unsettled charge, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
     }
-    if (/line of the spend record is damaged/.test(low)) {
-      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped. Settle it in SETTINGS › SPENDING LIMITS.";
+    if (oneClick && /could not be read/.test(low)) return "Your spending limits can't be checked — StarNet couldn't read its spend history, so this run was stopped." + oneClick;
+    // A damaged line stays uncertain until explicitly settled, even when a recovery estimate is available.
+    if (/line (?:of|in) the spend record is damaged/.test(low)) {
+      return "Your spending limits can't be checked — a line of StarNet's spend record is damaged, so what it recorded is unknown and this run was stopped." + (oneClick || ' Settle it in SETTINGS › SPENDING LIMITS.');
     }
     if (/could not be saved to disk/.test(low)) {
       return "Your spending limits can't be checked — StarNet couldn't save its spend history to disk, so this run was stopped. Restart StarNet to recover it; SETTINGS › SPENDING LIMITS shows the details.";
@@ -622,10 +679,19 @@
      text rides last in brackets and stays in raw. '' = the shape is not the station's (the KINDS fallback leads). */
   const TEMPLATE_SENTENCE_RE = /the chat template of .{0,240}? refused the conversation starnet sent/;
   const UNREACHABLE_NOTE_RE = /nothing is listening at .{1,160}? on this computer|the connection to .{1,160}? was refused —|the name .{1,160}? (?:did not resolve|could not be looked up)/;
+  // a silent local /v1 server's turn end (sidecar/providers/openai-compatible.js localSilenceError): "… (connect phase), so this turn ended."
+  const LOCAL_TIMEOUT_RE = /^the model server at \S+ on this (?:computer|network) .{1,240}? \((?:connect|first byte|between chunks) phase\), so this turn ended\./;
   function stationSentence(kind, raw) {
-    const s = String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim();
+    // Strip only the final diagnostic block; an earlier IPv6 address is part of the station's explanation.
+    const s = String(raw || '').replace(/\s*\[[^\[\]]*\]\s*$/, '').trim();
     const up = t => t.charAt(0).toUpperCase() + t.slice(1);
     let m = null;
+    if (kind === 'local_timeout') {
+      // the /v1 sentence is whole; the native Ollama one rides after the timeout words ("… — Ollama on this computer had …")
+      if (LOCAL_TIMEOUT_RE.test(s.toLowerCase())) return s;
+      m = / — (ollama (?:on this computer|at \S+) had [\s\S]+)$/i.exec(s);
+      return m ? up(m[1]).replace(/\s*$/, '') + ' StarNet ended this turn without sending the prompt again.' : '';
+    }
     if (kind === 'template_refusal') m = /\bthe chat template of [\s\S]+$/i.exec(s);
     else if (kind === 'unreachable') {
       m = /(?:nothing is listening at |the connection to \S+ was refused|the name \S+ (?:did not resolve|could not be looked up)|the name of the provider's server)[\s\S]*$/i.exec(s);
@@ -637,10 +703,21 @@
   const MEMORY_RE = /^(?:local model|the model server at \S+) ran out of memory\./i;
   // minted only by the openai-compatible adapter when the OLLAMA card's URL answers as another server (notOllamaError)
   const WRONG_SERVER_RE = /^The OLLAMA card's URL(?: \([^)\s]*\))? is not an Ollama server:/;
+  // Exact host readiness phrases, ahead of the backward-compatible missing-key HTTP prefix.
+  function cliReadinessKind(raw) {
+    const text = String(raw || '');
+    if (/checking local sign-in for Claude Code/.test(text)) return 'claude_cli_checking';
+    if (/local sign-in status unavailable for Claude Code/.test(text)) return 'claude_cli_status_unavailable';
+    if (/Claude Code is not installed/.test(text)) return 'claude_cli_missing';
+    if (/Claude Code is not signed in/.test(text)) return 'claude_cli_signed_out';
+    return null;
+  }
   function kindFromRaw(raw, status) {
     const low = String(raw || '').toLowerCase();
     if (MEMORY_RE.test(String(raw || ''))) return 'local_model_memory';
     if (WRONG_SERVER_RE.test(String(raw || ''))) return 'endpoint_mismatch';
+    const cliKind = cliReadinessKind(raw);
+    if (cliKind) return cliKind;
     // Harness pre-flight guards ("no API key set" / "no model selected"): a misconfig, not a fault — point at
     // Settings instead of offering a doomed retry. (Match before capdenied, which the em-dash-less strings miss.)
     if (/chatgpt.*sign-?in|sign-?in.*chatgpt|not signed in to chatgpt|codex_not_connected|codex auth|codex_auth|chatgpt subscription.*connect/.test(low)) return 'oauth';
@@ -652,6 +729,8 @@
     // an error that carried no code still reads as what it is, ahead of the bare transport words inside it
     if (TEMPLATE_SENTENCE_RE.test(low)) return 'template_refusal';
     if (UNREACHABLE_NOTE_RE.test(low)) return 'unreachable';
+    // …and a silent local server's turn end, ahead of the "timed out" words inside it (and of the overflow words an older one said)
+    if (LOCAL_TIMEOUT_RE.test(low)) return 'local_timeout';
     // MUST precede isTransportLoss: that predicate also matches `fetch failed`, and whichever runs first owns the
     // verdict. Upstream is the more specific (and provable) reading, so it wins.
     if (isUpstreamFetchFailure(low)) return 'provider_unreachable';
@@ -731,6 +810,8 @@
     // TYPED OUTCOMES: the station's own failure code (opts.code — Harness.chat's errorCode — or a code the error object carries)
     // decides the kind through CODE_TO_KIND, in place of re-classifying the words; null when it names nothing specific
     const coded = codeKind((opts && opts.code) || (err && typeof err === 'object' ? err.failureCode : ''));
+    // the station's own name for a refusal it answered (opts.stationCode, or err.stationCode from Harness.chat): STATION_CODE_TO_KIND
+    const station = stationCodeOf(err, opts), stationRefusal = stationKind(station);
     // This prefix is minted only by the Ollama adapter after a concrete allocation failure. A server on another
     // machine keeps the adapter's own sentence (it names that machine); local advice would be untrue there.
     if (MEMORY_RE.test(raw)) {
@@ -762,6 +843,11 @@
     const transport = isTransportThrow(err);
     if (transport) {
       kind = 'network';
+    } else if (STATION_GATE_CODES[station] === 1) {
+      // the station's gate refused this page (its key, or its address) before any route ran: its code is the whole answer
+      kind = stationRefusal;
+    } else if (cliReadinessKind(raw)) {
+      kind = cliReadinessKind(raw);
     } else
     // Managed-credit exhaustion (only emitted when a credits backend is wired) — a UI-level fault the sidecar
     // classifier doesn't model. Catch it before everything else so the CTA points at the STORE, not blind retry.
@@ -812,15 +898,19 @@
     } else if (/already running a task/.test(raw.toLowerCase())) {
       // the per-agent run mutex — UI-level, and the sidecar message already names the holder + doors.
       kind = 'agent_busy';
-    } else if (/sidecar http 403\b/.test(raw.toLowerCase()) || (status === 403 && /\bforbidden\b/.test(raw.toLowerCase()))) {
+    } else if (!station && (/sidecar http 403\b/.test(raw.toLowerCase()) || (status === 403 && /\bforbidden\b/.test(raw.toLowerCase())))) {
       // OUR OWN sidecar's token gate said no (stale X-StarNet-Token after a crash+respawn) — UI-level, caught
       // BEFORE delegating: the sidecar API classifier would read a bare 403 as provider `auth` and the error row
       // would offer "🔑 Add a key", the wrong door (EL-11 FIX 2). The only fix is the fresh boot token → reload.
+      // Only for a station that names no refusal: one that does said which 403 this was (the gate's code is read above).
       kind = 'stale_session';
     } else if (SPEND_UNKNOWN_RE.test(raw.toLowerCase())) {
       // StarNet's own spend ledger refused the run (UI-level: the provider classifier would call it `unknown` and
       // offer a doomed RETRY) — caught before delegating so both paths open SPENDING LIMITS.
       kind = 'spend_unknown';
+    } else if (stationRefusal) {
+      // a route's own refusal, named by its code: never re-read by the provider and status ladders below
+      kind = stationRefusal;
     } else if (coded) {
       // the station already classified this failure (sidecar/providers/errorClass.js, or the loop's own stop): its code is the
       // kind. Only the HOP of a transport timeout is the page's to tell ("fetch failed" = the station could not reach the provider).
@@ -835,6 +925,7 @@
         // the station's own sentences read the same on both ladders (re-classifying them from a bare string loses the cause)
         if (TEMPLATE_SENTENCE_RE.test(raw.toLowerCase())) kind = 'template_refusal';
         else if (UNREACHABLE_NOTE_RE.test(raw.toLowerCase())) kind = 'unreachable';
+        else if (LOCAL_TIMEOUT_RE.test(raw.toLowerCase())) kind = 'local_timeout';
         // a bare network failure ("cannot reach the sidecar") classifies as `unknown` upstream (it never reached
         // the API) — promote it to the friendlier `network` bucket so the message points at the sidecar.
         if (kind === 'unknown' && isTransportLoss(raw)) kind = 'network';
@@ -865,15 +956,27 @@
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
+    if (/^claude_cli_/.test(kind)) return { userMessage: k.msg, kind, retryable: k.retryable, action: k.action, provider: 'claude-cli', raw };
     // #158: "wait a few seconds" is only true of a few seconds: a longer stated wait is said as its own length
     if (kind === 'rate_limit') {
       const wait = statedWaitSeconds(raw);
       if (wait != null && wait >= 60) return { userMessage: 'The model provider is limiting requests and asks to wait ' + waitInWords(wait) + ' before trying again.', kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
-    // a page the station kept its key from: say why, with no RELOAD door (a reload re-runs the same check)
+    // a page the station kept its key from: say why, with no RELOAD door (a reload re-runs the same check). The gate's
+    // token_missing says so (no key rode) whether or not this page knows its reason.
     if (kind === 'stale_session') {
-      const withheld = withheldNotice();
+      const withheld = withheldNotice() || (station === 'token_missing' ? TOKEN_WITHHELD_MSG : '');
       if (withheld) return { userMessage: withheld, kind: kind, retryable: false, action: null, withheld: true, raw: raw };
+    }
+    // the station's own refusal: its sentence leads (the code it named stays in raw), no door
+    if (kind === 'station_refused') {
+      const said = stationSaid(raw, station);
+      const userMessage = !said ? k.msg : /^the station refused\b/i.test(said) ? said.charAt(0).toUpperCase() + said.slice(1) + '.' : 'The station refused this request: ' + said + '.';
+      return { userMessage: userMessage, kind: kind, retryable: k.retryable, action: k.action, stationCode: station, raw: raw };
+    }
+    if (kind === 'wrong_address') {
+      return { userMessage: station === 'forbidden_host' ? 'StarNet answers only on localhost / 127.0.0.1 — reach it through a port forward, not a hostname.' : k.msg,
+        kind: kind, retryable: k.retryable, action: k.action, stationCode: station, raw: raw };
     }
     // capdenied: name the exact power + gear parsed from the raw message, and route to BUILD MODE (the true unlock —
     // a station quest minted on this denial completes by PLACEMENT, not a SKILLS toggle).
@@ -979,7 +1082,7 @@
       return { userMessage: String(raw || '').replace(/\s*\[[\s\S]*\]\s*$/, '').trim() || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // the station's own sentence names the model/host/template (or which address did not answer): it leads, the fallback is generic
-    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate') {
+    if (kind === 'template_refusal' || kind === 'unreachable' || kind === 'tls_certificate' || kind === 'local_timeout') {
       return { userMessage: stationSentence(kind, raw) || k.msg, kind: kind, retryable: k.retryable, action: k.action, raw: raw };
     }
     // transport loss: the ONE kind whose copy names a component, so it is the one kind that owes proof. The
@@ -1002,9 +1105,11 @@
 
   /* ---- Why a STARNET account-link start failed, from facts only (link-down 2026-10-07). Every failure used to read
      "could not reach the link service", which blamed the cloud for a dead LOCAL engine and gave support nothing.
-     `info` is what the caller saw: { local:true } when the station's own POST never answered (refused, non-JSON, or
-     Harness.api's deadline), else { status, j } from the sidecar — j.reason is its stable classification of the
-     cloud failure (sidecar/index.js linkStartFailure). Lower-case lead, no trailing period (callers add their own). */
+     `info` is what the caller saw: { local:true } when the station's own POST never answered (a network failure or
+     Harness.api's deadline), else { status, j, why } from the sidecar — j.reason is its stable classification of the
+     cloud failure (sidecar/index.js linkStartFailure), and why is Harness.api.why's sentence for any other refusal (a
+     plain-text or HTML refusal is an answer too: it is never "the engine isn't answering"). Lower-case lead, no trailing
+     period (callers add their own). */
   function linkStartFailure(info) {
     const i = info || {}, j = i.j || {};
     if (i.local) return 'StarNet\'s engine on this computer isn\'t answering, so the link could not start — restart StarNet, then try again';
@@ -1016,6 +1121,7 @@
     if (j.reason === 'dns' || j.reason === 'unreachable') return 'StarNet could not reach the StarNet account service from this computer' + detail + ' — check a VPN or firewall, then try again';
     if (j.reason === 'cloud_5xx') return 'the StarNet account service is having trouble right now — try again in a minute';
     if (/^cloud_\d+$/.test(String(j.reason || ''))) return 'the StarNet account service turned the link request down (http ' + String(j.reason).slice(6) + ') — try again';
+    if (i.why) return 'the link could not start: ' + String(i.why);
     return 'could not reach the link service — try again';
   }
 
@@ -1121,6 +1227,7 @@
         // shelf inside is still called TOOLSETS); only the LABEL follows the dock button, which reads ABILITIES.
         return { label: '⇄ OPEN ABILITIES', run: () => { try { if (typeof StationUI !== 'undefined' && StationUI.openTerm) StationUI.openTerm('connectors'); } catch (_) {} } };
       case 'settings': {
+        if (/^claude_cli_/.test(verdict.kind)) return { label: '▸ OPEN CLAUDE CODE', run: () => openSettings('providers', 'claude-cli') };
         // org P03 — ONE label for the AI & MODELS door (▸ OPEN AI & MODELS), and it lands on the provider's card when
         // the error proves which provider it was. Sign-in doors keep the provider's name and press its sign-in.
         // Grok's OAuth sign-in is 403-allowlisted off for this account — the honest door is the xAI (API KEY)
@@ -1138,7 +1245,7 @@
         }
         // no_model: a provider is connected, only the model is missing — the model dock is the door (and for a model whose chat
         // template refused the conversation: another model has another template)
-        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable') return pickModelDoor();
+        if (verdict.kind === 'no_model' || verdict.kind === 'local_model_memory' || verdict.kind === 'template_refusal' || verdict.kind === 'model_unsuitable' || verdict.kind === 'local_timeout') return pickModelDoor();
         // other auth/no-key: if ChatGPT is already the connected brain, the honest door is still "reconnect"
         // (a ChatGPT adapter failure names codex itself: its auth door is the same reconnect — it has no key to fix)
         if (verdict.kind === 'auth' && (verdict.provider === 'codex' || (codexConnected() && !verdict.provider)))
@@ -1171,6 +1278,6 @@
   }
 
   return { friendlyError, actionButton, connectorDoor, connectorChipLabel, routeConsoleSearch, linkStartFailure, explainStop, stopLine, STOP_EXPLAINERS, KINDS, CAP_INFO,
-    CODE_TO_KIND, codeKind,
+    CODE_TO_KIND, codeKind, STATION_CODE_TO_KIND,
     _internals: { providerFromRaw, kindFromRaw, isTransportLoss, isTransportThrow, isUpstreamFetchFailure, isUserAbort, REASON_TO_KIND, capFromRaw, capdeniedMessage, codexConnected, transportMessage, stationSentence } };
 });

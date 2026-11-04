@@ -96,13 +96,21 @@ function safetyIdentifier(seed) {
 
    `resolveCredential` is async on purpose: a subscription's access token has to be refreshed when it nears
    expiry, and that is a network round-trip. `hasCredential` stays synchronous so `status()` can answer a
-   poll without touching the network. */
+   poll without touching the network.
+
+   A KEY GOES ONLY WHERE IT WAS SAVED (credential-store lane, S6; decision 6). The native call goes to the registry's
+   fixed realtime URL (https://api.openai.com/v1/realtime/calls), so it is offered only for a credential saved with the
+   provider's DEFAULT endpoint: an OpenAI key kept for a corporate gateway or a proxy used to be posted there anyway.
+   `nativeVoiceBlocker(provider)` (the credential store's consumerDeps().realtime, with hasCredential) answers '' when
+   native voice may use the credential, else the sentence that says why not; then status() reports composed with that
+   note and createCall refuses before any credential is resolved or sent, and composed voice serves. */
 function makeRealtimeVoice(opts) {
   opts = opts || {};
   const fetchFn = opts.fetch || globalThis.fetch;
   const legacyResolve = opts.resolveKey || (() => '');
   const resolveCredential = opts.resolveCredential || (async () => legacyResolve());
   const hasCredential = opts.hasCredential || (() => !!String(legacyResolve() || '').trim());
+  const blockerFor = typeof opts.nativeVoiceBlocker === 'function' ? opts.nativeVoiceBlocker : () => '';
   // The provider's own descriptor decides the endpoint, model and voice. Falling back to the OpenAI
   // constants keeps the older single-provider construction working for tests.
   const profileFor = opts.profileFor || (() => ({ transport: 'webrtc', url: OPENAI_REALTIME_URL, model: opts.model || DEFAULT_MODEL, voice: opts.voice || DEFAULT_VOICE }));
@@ -114,9 +122,11 @@ function makeRealtimeVoice(opts) {
                            handled around it. Still one window, still no second key.
        connected:false   — nothing is connected yet, which is a Settings problem, not a voice problem. */
   function status(provider) {
-    const lv = profileFor(provider);
+    const descriptor = profileFor(provider);
+    const blocked = descriptor ? String(blockerFor(provider) || '') : '';
+    const lv = blocked ? null : descriptor;
     const connected = !!hasCredential(provider);
-    return {
+    const out = {
       provider: provider || '',
       connected,
       mode: lv ? 'native' : 'composed',
@@ -126,6 +136,8 @@ function makeRealtimeVoice(opts) {
       transport: (lv && lv.transport) || '',
       voices: lv ? VOICES.slice() : []
     };
+    if (blocked) out.note = blocked;   // why native voice is not offered for this credential (additive)
+    return out;
   }
 
   async function createCall(sdp, provider, wantVoice) {
@@ -143,6 +155,9 @@ function makeRealtimeVoice(opts) {
     if (!lv) {
       return { status: 501, contentType: 'application/json', body: JSON.stringify({ error: 'this provider has no native voice endpoint', mode: 'composed' }) };
     }
+    // a credential saved with another endpoint never goes to the fixed realtime URL: refused before it is even resolved
+    const blocked = String(blockerFor(provider) || '');
+    if (blocked) return { status: 501, contentType: 'application/json', body: JSON.stringify({ error: blocked, mode: 'composed' }) };
     let key = '';
     try { key = String((await resolveCredential(provider)) || '').trim(); }
     catch (e) {

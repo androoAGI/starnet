@@ -135,9 +135,11 @@ const imageCall = { name: 'image_generate', args: { prompt: 'a sunrise over the 
   const driver = read('sidecar/cron-driver.js');
   const seam = driver.slice(driver.indexOf('Promise.resolve(advanceChain({'), driver.indexOf('onHop: function () { renewLease(job.id, runId); }'));
   A.ok(/unattendedGrants: \[\]/.test(seam), 'the scheduled line seam hands every hop an EMPTY grant list');
+  // Run Now's hop (like every line hop) runs through the ONE hop executor, whose runOnce hands an EMPTY grant list by construction
   const src = readSidecarSource();
-  const hop = src.slice(src.indexOf("GRANTS NEVER FLOW DOWN A LINE (2026-08-04): the unattended grant was approved"), src.indexOf("initialTaint: 'upstream agent output'\n              });"));
-  A.ok(/unattendedGrants: \[\],/.test(hop), 'the Run Now hop is handed an EMPTY grant list too');
+  const runNow = src.slice(src.indexOf('async function handleCronRun('), src.indexOf('/* ============================ AWAY WORKSHOP'));
+  A.ok(/lineRunner\.runLineJob\(\{[\s\S]{0,4000}?LineRunner\.profiles\.manual\(/.test(runNow), 'Run Now runs its line through the one hop executor');
+  A.ok(/surface: 'autonomous', reflect: true, unattendedGrants: \[\],/.test(read('sidecar/routing/line-runner.js')), 'the Run Now hop is handed an EMPTY grant list too');
 }
 
 // ---- 5. the panel (create-form tick, row badge, row key) ----

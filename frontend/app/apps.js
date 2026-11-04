@@ -21,7 +21,7 @@
   let routinesOn = true;
   let loadError = false;    // the last load failed: the window says so instead of "no apps yet"
   const refreshing = new Set();   // app ids with a REFRESH run in flight (started from this page)
-  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  const esc = s => (typeof U !== 'undefined' ? U : require('../js/util.js')).esc(s);
   const UI = () => (typeof StationUI !== 'undefined' ? StationUI : null);
   const host = () => (typeof PluginHost !== 'undefined' ? PluginHost : null);
   const notify = (msg, cls) => { const ui = UI(); if (ui && ui.notify) ui.notify(msg, cls || 'good', 'general', { transient: true }); };
@@ -130,9 +130,12 @@
     const s = a.schedule;
     if (s && s.missing) parts.push('its refresh routine was removed');
     else if (s) {
+      const next = Object.prototype.hasOwnProperty.call(s, 'nextFireAt') ? s.nextFireAt : s.nextRunAt;
       if (s.enabled === false) parts.push('refresh paused' + (routinesOn ? '' : ' · routines are OFF'));
-      else if (!routinesOn) parts.push('refreshes ' + s.display + ' — but routines are OFF');
-      else parts.push('refreshes ' + s.display + (s.nextRunAt ? ' · next ' + when(s.nextRunAt) : ''));
+      else if (s.held === 'halted') parts.push('refreshes stopped by E-STOP');
+      else if (s.held === 'degraded') parts.push('refreshes paused — scheduler storage needs recovery');
+      else if (s.held === 'off' || !routinesOn) parts.push('refreshes ' + s.display + ' — but routines are OFF');
+      else parts.push('refreshes ' + s.display + (next ? ' · next ' + when(next) : ''));
       if (s.lastStatus === 'error') parts.push('last refresh failed' + (s.lastError ? ': ' + String(s.lastError).slice(0, 90) : ''));
       else if (s.lastStatus === 'stopped') parts.push('last refresh was stopped before it finished');   // a stop is no failure (review r7)
     }

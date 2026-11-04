@@ -44,7 +44,7 @@ anything else).
 | World render | `app/world.js` (~5.6k) | canvas station: tiles, pathing, props, conveyors, CRT warp. Hero `agent` + `crew[]` bodies at Bay props (crew are real separate runs, but only the hero walks/explores) |
 | Model/bake | `app/worldmodel.js`, `app/stationbake.js` | geometry, prop defs, bake cache |
 | State spine | `app/app.js` | roster (frontend OWNS the roster; sidecar mirrors via `/api/roster`), run state, U.bus listeners |
-| COMMS | `app/chat.js`, `app/voice.js` | streaming chat window, beats, STT/TTS |
+| COMMS | `app/chat.js`, `app/voice.js`, `app/voice-state.js` | streaming chat window, beats, STT/TTS; spoken-reply handles and typed cancels |
 | Growth | `app/dossier.js`, `app/understanding.js`, `app/study.js`, `app/autonomy.js`, `app/trust.js` | commander dossier, beliefs, earned autonomy |
 | Work | `app/quests.js`, `app/goals.js`, `app/recipes.js`, `app/workstreams.js`, `app/channels.js` | quests, goal arcs, recipes, per-workstream run state |
 | Recruit | `app/recruiter.js`, `app/prospect.js`, `app/worksignal.js` | EWMA work-signal → adaptive prospects |

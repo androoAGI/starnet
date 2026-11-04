@@ -841,6 +841,7 @@
 <script src="app/authored-surface-mounts.js"></script><script src="app/propsprites.js"></script>
 <script src="app/propsearch.js"></script><!-- pure BUILD MODE palette search matcher (flat lookup across all 120 props, both tiers) -->
 <script src="app/conveyor.js"></script>
+<script src="app/line-verdict.js"></script><!-- shared work-line verdict parser: before Pipeline -->
 <script src="app/pipeline.js"></script>
 <script src="app/workflowline.js"></script><!-- pure readings of one conveyor line (run order, how-it-runs sentence, readiness, cost) from the compiled plan — the Workflow panel speaks only through it -->
 <script src="app/ghostline.js"></script><!-- GHOST PROJECTION (guided workflows Phase 3): a dashed projected crate loops an INCOMPLETE line so you watch the workflow before it exists — dedicated engine, never mixes with real telemetry -->
@@ -853,6 +854,8 @@
 <script src="app/skin-study-tone.js"></script><script src="app/skin-study-preview.js"></script>
 <script src="js/assets.js"></script>
 <script src="app/runoutcome.js"></script><!-- TYPED OUTCOMES: how a run ended, as ONE code (the sidecar requires the same module) — before harness.js, which resolves an older station's ending through it -->
+<script src="app/provider-registry.js"></script><!-- generated from the sidecar's provider registry -->
+<script src="app/provider-readiness.js"></script>
 <script src="app/harness.js"></script>
 <script src="app/userprops.js"></script>
 <script src="app/apiticket.js"></script><!-- scoped short-lived URL tickets: links/tabs/SSE/beacon never carry the master API token (sidecar/apitickets.js verifies) -->
@@ -929,6 +932,9 @@
 <script src="app/tooltip.js"></script><!-- station tooltip: adopts every [title] so the OS never paints its own bubble; self-starts, nothing to call -->
 <script src="app/typefloor.js"></script><!-- the windows' text floor: lifts any window text measured under the reading floor to it; self-starts, nothing to call -->
 <script src="app/agentid.js"></script>
+<script src="app/turnkinds.js"></script><!-- TURN IDENTITY: the one grammar of turnIds and row kinds (the sidecar requires the same module) -->
+<script src="app/turnmerge.js"></script><!-- TURN IDENTITY: the page's turn ids, minted, sent and bound (chat.js holds no id logic of its own) -->
+<script src="app/historyfit.js"></script><!-- shared page/station history fit and send admission decisions -->
 <script src="app/workstreams.js"></script>
 <script src="app/projects.js"></script>
 <script src="app/channels.js"></script>
@@ -960,6 +966,7 @@
 <script src="app/chat.js"></script>
 <script src="app/voice-stream.js"></script>
 <script src="app/speech-split.js"></script><!-- THE sentence splitter (mirror of sidecar/speech-split.js): voice.js and chat.js cut speech by it -->
+<script src="app/voice-state.js"></script><!-- the spoken reply's lifecycle (reply handles, CANCEL_CAUSES); voice.js reads it at load -->
 <script src="app/voice.js"></script>
 <script src="app/voice-live.js"></script>
 <script src="app/places.js"></script><!-- PLACES: every window/tab a Commander can be shown — station.show (the agent opens it for them) -->

@@ -177,7 +177,7 @@ const reset = () => { ROOT.children = []; const log = new El('div'); log.id = 'c
   A.ok(/fileRunSteers\(ws, runSteers, thisRunId, error \? '' : \(reply \|\| acc\)\);\s*\n\s*if \(error\) \{/.test(src), 'the run files its notes the moment it ends, before its reply is saved');
   const readBack = A.fnBody(src, 'async function reconcileServerHistory(ws, loadToken, read)');
   A.ok(readBack.length > 1000 && readBack.length < 12000, 'the read-back slice is the one function (fnBody length guard)');
-  A.ok(/let merged = first\.merged;/.test(readBack) && /merged = keyed\.map\(/.test(readBack) && /const next = placeSteerNotes\(merged\);/.test(readBack), 'reading the conversation back places the notes (on the merge it keeps, typed or redacted: qw18)');
+  A.ok(/const out = await TurnMerge\.reconcile\(ws\.history,/.test(readBack) && /const merged = out\.rows;/.test(readBack) && /const next = placeSteerNotes\(merged\);/.test(readBack), 'reading the conversation back places notes on the authoritative shared merge');
 }
 
 A.report('comms-flow.test');

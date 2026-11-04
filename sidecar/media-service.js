@@ -188,8 +188,15 @@ function makeMediaService(options) {
   const nativeStt = o.nativeStt;
   const readBody = o.readBody;
   const readBodyBuffer = o.readBodyBuffer;
+  /* THE CREDENTIALS (sidecar/credential-store.js consumerDeps().media; S6): providerRuntimeKey(provider, '') is the
+     station's own key, credentialFor(provider) the station's own credential with its endpoint and rank, and
+     endpointFor(provider, key) the endpoint saved with the key a leg is about to send. Every keyed leg dials that
+     endpoint, never a host of its own and never the endpoint of another key (a page key sent with one request gets its
+     own). Every voice provider has a default in the registry, so a leg always has one; absent these, its URL is relative
+     and fetch refuses it before a key goes anywhere. */
   const providerRuntimeKey = o.providerRuntimeKey;
-  const providerRuntimeBaseUrl = o.providerRuntimeBaseUrl;
+  const endpointFor = typeof o.endpointFor === 'function' ? o.endpointFor : () => '';
+  const credentialFor = typeof o.credentialFor === 'function' ? o.credentialFor : () => ({ key: '', baseUrl: '', rank: 'gap' });
   const normalizeProviderId = o.normalizeProviderId;
   const env = typeof o.env === 'function' ? o.env : (() => '');
   const processEnv = o.processEnv || {};
@@ -214,8 +221,11 @@ function makeMediaService(options) {
   const keyedInFlight = new Map();   // voice-cache key -> the one keyed synthesis running for that clip
   const sttModels = String(env('STT_MODELS') || 'google/gemini-3.1-flash-lite-preview,google/gemini-2.5-flash')
     .split(',').map(s => s.trim()).filter(Boolean);
-  const sttGroqBase = String(env('GROQ_BASE') || '').trim();
-  const sttOpenAiBase = String(env('OPENAI_BASE') || '').trim();
+  // the endpoint a keyed leg dials: the one saved with the key it sends, without a trailing slash ('' = none)
+  const legBase = (provider, key) => String(endpointFor(provider, key) || '').trim().replace(/\/+$/, '');
+  // STARNET_/SKYNET_GROQ_BASE and _OPENAI_BASE: the operator's own transcription endpoint, for STT alone. A deployment choice
+  // ahead of the provider's endpoint, as at trunk: dropped, a station's speech would silently leave for the public host.
+  const sttEnvBase = { groq: String(env('GROQ_BASE') || '').trim(), openai: String(env('OPENAI_BASE') || '').trim() };
   let ttsMissCount = 0;
   let evictingVoiceCache = false;
   let voiceDispatcher = null;
@@ -274,9 +284,12 @@ function makeMediaService(options) {
 
   /* One keyed synthesis. A failure is { ok:false, reason, leg }: `leg` is the typed verdict (status and body read ONCE,
      here, by SO.httpLeg), `reason` the legacy text an older desk still reads. args.signal aborts it (every request
-     waiting on it went away); args.timeoutMs caps it at what is left of the sentence's deadline. */
+     waiting on it went away); args.timeoutMs caps it at what is left of the sentence's deadline. It dials the endpoint
+     saved with args.key, which used to be https://openrouter.ai for every OpenRouter key and the STATION key's endpoint
+     for a key the page sent with this request. */
   async function ttsSynthKeyed(ttsProvider, args) {
     const { model, voice, input, text, style, key } = args;
+    const base = legBase(ttsProvider, key);
     const capMs = args.timeoutMs > 0 ? Math.min(KEYED_LEG_CAP_MS, args.timeoutMs) : KEYED_LEG_CAP_MS;
     const callOpts = init => voiceFetchOpts(args.signal ? Object.assign({ signal: args.signal }, init) : init, capMs);
     const thrown = (error, prefix) => ({
@@ -291,7 +304,6 @@ function makeMediaService(options) {
     };
     const unusable = (reason, code) => ({ ok: false, reason, leg: SO.leg(ttsProvider, code, { detail: reason }) });
     if (ttsProvider === 'gemini') {
-      const base = (providerRuntimeBaseUrl('gemini', '') || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/+$/, '');
       const nativeModel = model.replace(/^google\//, '');
       let response;
       try {
@@ -316,7 +328,6 @@ function makeMediaService(options) {
       return { ok: true, buf: pcmToWav(buf, rate, 1), outType: 'audio/wav', ext: 'wav' };
     }
     if (ttsProvider === 'openai') {
-      const base = (providerRuntimeBaseUrl('openai', '') || 'https://api.openai.com/v1').replace(/\/+$/, '');
       const payload = { model: OPENAI_TTS_MODEL, input: text, voice: OPENAI_TTS_VOICE, response_format: 'mp3' };
       if (style) payload.instructions = style;
       let response;
@@ -333,7 +344,7 @@ function makeMediaService(options) {
     const payload = { model, input, voice, response_format: 'pcm' };
     let response;
     try {
-      response = await fetchFn('https://openrouter.ai/api/v1/audio/speech', callOpts({
+      response = await fetchFn(base + '/audio/speech', callOpts({
         method: 'POST',
         headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://localhost', 'X-Title': 'STARNET' },
         body: JSON.stringify(payload)
@@ -819,22 +830,29 @@ function makeMediaService(options) {
   // One truthful capability snapshot for the classic push-to-talk button. The client cannot infer these
   // from browser APIs: desktop WebViews have MediaRecorder even when the only usable engine is native
   // Windows dictation, while the bundled local engine accepts PCM rather than the recorder's WebM/MP4.
-  // Return booleans only — never provider credentials or paths.
+  // Return booleans only — never provider credentials or paths. `cloud` counts the station's OpenRouter credential from
+  // every source (a key a browser page saved used to read false, probe P2), and so does `available`: a station whose only
+  // engine is that key can transcribe. `preferred` is the rule it always was over the credentials it always counted: a
+  // 'gap' credential (decision 1) never changes which engine the desk prefers, so a station that preferred its local or
+  // native engine, or the browser's own, keeps it and nobody's speech billing moves.
   function sttStatus() {
-    const cloud = !!(
-      providerRuntimeKey('groq', '') ||
-      providerRuntimeKey('openai', '') ||
-      (typeof o.getRuntimeKey === 'function' ? o.getRuntimeKey() : '')
-    );
+    const or = credentialFor('openrouter');
+    const primary = !!(providerRuntimeKey('groq', '') || providerRuntimeKey('openai', '') || (or.key && or.rank !== 'gap'));
+    const cloud = primary || !!or.key;
     const local = (() => { try { return !!localVoice.status().available; } catch (_) { return false; } })();
     const native = (() => { try { return !!nativeStt.status().available; } catch (_) { return false; } })();
-    const preferred = cloud ? 'cloud' : local ? 'local' : native ? 'native' : 'none';
-    return { available: preferred !== 'none', preferred, cloud, local, native };
+    const preferred = primary ? 'cloud' : local ? 'local' : native ? 'native' : 'none';
+    return { available: preferred !== 'none' || cloud, preferred, cloud, local, native };
   }
 
-  /* The STT ladder (Groq whisper → OpenAI whisper → OpenRouter audio-in chat → the local engine). A failure is
-     { ok:false, reason, outcome }: `outcome` is the typed SpeechOutcome over every leg tried; `reason` stays the LAST
-     leg's legacy text (what callers have always shown). */
+  /* The STT ladder (Groq whisper → OpenAI whisper → OpenRouter audio-in chat → the local engine → a 'gap' OpenRouter
+     credential). A failure is { ok:false, reason, outcome }: `outcome` is the typed SpeechOutcome over every leg tried;
+     `reason` stays the LAST leg's legacy text (what callers have always shown). `apiKey`: an OpenRouter key the page sent
+     with this request (openRouterPageKey), which goes where the station's own credential would have gone and to the
+     endpoint that key resolves to. Otherwise the OpenRouter leg is the station's credential (credentialFor), placed by its
+     rank: a 'primary' one (the keychain's, the branded export: what the alias covered) before the local engine, as it
+     always ran; a 'gap' one (a key a page saved, a bare OPENROUTER_API_KEY) after it, so a station whose local engine
+     transcribes keeps transcribing for free. Every leg dials the endpoint saved with the key it sends. */
   async function transcribeAudioBuffer(audioBuf, format, apiKey) {
     const lad = SO.ladder();
     let lastReason = 'no transcription';
@@ -845,7 +863,10 @@ function makeMediaService(options) {
     };
     const heard = (engine, text) => { speechStatus.record(SO.success(engine), 'stt'); return { ok: true, text: String(text || '') }; };
     if (!audioBuf || !audioBuf.length) { lad.fail(SO.leg('request', 'no_text', { detail: 'no audio' })); return failed('no audio'); }
-    const key = String(apiKey || (typeof o.getRuntimeKey === 'function' ? o.getRuntimeKey() : '') || '');
+    const pageKey = String(apiKey || '').trim();
+    const station = pageKey ? null : credentialFor('openrouter');
+    const key = pageKey || (station ? station.key : '');
+    const keyFirst = !!pageKey || (!!key && station.rank !== 'gap');
     const groqKey = providerRuntimeKey('groq', '');
     const openaiKey = providerRuntimeKey('openai', '');
     const localReady = (() => { try { return !!localVoice.status().available; } catch (_) { return false; } })();
@@ -856,26 +877,22 @@ function makeMediaService(options) {
     format = (format === 'x-wav' || format === 'wave') ? 'wav' : (format || 'webm');
     const filename = 'audio.' + format;
     const contentType = 'audio/' + format;
-    if (groqKey) {
-      const base = sttGroqBase || providerRuntimeBaseUrl('groq', '') || 'https://api.groq.com/openai/v1';
-      const result = await sttTranscribe(base, groqKey, STT_GROQ_MODEL, audioBuf, filename, contentType, 'groq');
-      if (result.ok) return heard('groq', result.text);
-      lastReason = 'groq: ' + result.reason;
+    // a Whisper leg: the operator's transcription endpoint, else the one saved with that provider's key
+    const whisper = async (engine, k, model) => {
+      const result = await sttTranscribe(sttEnvBase[engine] || legBase(engine, k), k, model, audioBuf, filename, contentType, engine);
+      if (result.ok) return heard(engine, result.text);
+      lastReason = engine + ': ' + result.reason;
       lad.fail(result.leg);
-    }
-    if (openaiKey) {
-      const base = sttOpenAiBase || providerRuntimeBaseUrl('openai', '') || 'https://api.openai.com/v1';
-      const result = await sttTranscribe(base, openaiKey, STT_OPENAI_MODEL, audioBuf, filename, contentType, 'openai');
-      if (result.ok) return heard('openai', result.text);
-      lastReason = 'openai: ' + result.reason;
-      lad.fail(result.leg);
-    }
-    if (key) {
+      return null;
+    };
+    // the OpenRouter leg: audio-in chat at the endpoint saved with `key`
+    const openRouter = async () => {
+      const base = legBase('openrouter', key);
       const audio = audioBuf.toString('base64');
       for (const model of sttModels) {
         let response;
         try {
-          response = await fetchFn('https://openrouter.ai/api/v1/chat/completions', voiceFetchOpts({
+          response = await fetchFn(base + '/chat/completions', voiceFetchOpts({
             method: 'POST',
             headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json', 'HTTP-Referer': 'https://localhost', 'X-Title': 'STARNET' },
             body: JSON.stringify({ model, messages: [{ role: 'user', content: [
@@ -894,7 +911,14 @@ function makeMediaService(options) {
         const text = String((json && json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content) || '').trim();
         return heard('openrouter', text);
       }
-    }
+      return null;
+    };
+    const viaGroq = groqKey ? await whisper('groq', groqKey, STT_GROQ_MODEL) : null;
+    if (viaGroq) return viaGroq;
+    const viaOpenAI = openaiKey ? await whisper('openai', openaiKey, STT_OPENAI_MODEL) : null;
+    if (viaOpenAI) return viaOpenAI;
+    const viaOpenRouter = key && keyFirst ? await openRouter() : null;
+    if (viaOpenRouter) return viaOpenRouter;
     if (localReady) {
       if (/^(?:wav|ogg|opus)$/i.test(format)) {
         try {
@@ -918,6 +942,8 @@ function makeMediaService(options) {
         lad.fail(SO.leg('local', 'bad_input', { detail: 'the local engine cannot decode ' + format }));
       }
     }
+    const viaGap = key && !keyFirst ? await openRouter() : null;   // a 'gap' credential only fills a gap
+    if (viaGap) return viaGap;
     return failed(lastReason);
   }
 
@@ -933,11 +959,12 @@ function makeMediaService(options) {
     }
   }
 
-  /* A page credential reaches openrouter.ai ONLY when it IS an OpenRouter key. The desk used to send its RUN provider's
-     key (Harness.getKey()) as X-OpenRouter-Key, so a browser-mode OpenAI or Anthropic station shipped that secret to
-     openrouter.ai as a Bearer token on every spoken sentence. The page now names the pair ({key, keyProvider} in a
-     JSON body, X-Speech-Key-Provider beside the raw-bytes header), as the TTS route's keyProvider already does. A
-     legacy page that names no provider is trusted only for an sk-or- key; any other pair is not used at all. */
+  /* A page credential reaches the OpenRouter leg ONLY when it IS an OpenRouter key. The desk used to send its RUN
+     provider's key (Harness.getKey()) as X-OpenRouter-Key, so a browser-mode OpenAI or Anthropic station shipped that
+     secret to openrouter.ai as a Bearer token on every spoken sentence. The page now names the pair ({key, keyProvider}
+     in a JSON body, X-Speech-Key-Provider beside the raw-bytes header), as the TTS route's keyProvider already does. A
+     legacy page that names no provider is trusted only for an sk-or- key; any other pair is not used at all. The leg
+     then dials the endpoint that key resolves to (the credential store's endpointFor), never another key's. */
   function openRouterPageKey(key, provider) {
     const k = String(key || '').trim();
     if (!k) return '';
@@ -950,7 +977,8 @@ function makeMediaService(options) {
      TTS provider it is NAMED for. A key named for a provider that has no voice (an Anthropic key), or a legacy body
      that names none, used to be re-labelled 'openrouter' and sent to openrouter.ai as a Bearer token; now an unnamed
      key is trusted only when it is an sk-or- key, and anything else is ignored (the station's own keys and the free
-     floor answer instead). */
+     floor answer instead). A page key dials the endpoint IT resolves to (ttsSynthKeyed), which used to be the endpoint of
+     the station's own key for that provider. */
   function ttsPageKey(key, provider) {
     const k = String(key || '').trim();
     if (!k) return null;

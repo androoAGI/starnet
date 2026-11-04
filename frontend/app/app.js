@@ -892,29 +892,7 @@ const App = (() => {
     return map[provider] || String(provider || 'openrouter').toUpperCase();
   }
   function normalizeProviderId(provider) {
-    const p = String(provider || 'openrouter').trim().toLowerCase();
-    if (p === 'codex' || p === 'openai-codex') return 'codex';
-    if (p === 'openai' || p === 'openai-api') return 'openai';
-    if (p === 'anthropic' || p === 'claude') return 'anthropic';
-    if (p === 'gemini' || p === 'google' || p === 'google-ai' || p === 'google-gemini') return 'gemini';
-    // grok/kimi are their OWN keyless OAuth (subscription) providers — never aliases for the API-key ones
-    // (mirrors harness.js + modeldock.js normalize; 'xai' stays the API-key Grok).
-    if (p === 'grok' || p === 'grok-oauth' || p === 'supergrok' || p === 'xai-oauth') return 'grok';
-    if (p === 'kimi' || p === 'moonshot' || p === 'kimi-code' || p === 'kimi-for-coding' || p === 'kimi-oauth') return 'kimi';
-    if (p === 'xai' || p === 'x-ai') return 'xai';
-    if (p === 'groq') return 'groq';
-    if (p === 'mistral' || p === 'mistralai') return 'mistral';
-    if (p === 'deepseek') return 'deepseek';
-    if (p === 'together' || p === 'together-ai') return 'together';
-    if (p === 'fireworks' || p === 'fireworks-ai') return 'fireworks';
-    if (p === 'perplexity' || p === 'pplx' || p === 'sonar') return 'perplexity';
-    if (p === 'cerebras') return 'cerebras';
-    // managed credits — its bearer is the linked device token, never a key the user pastes
-    if (p === 'starnet' || p === 'starnet-cloud' || p === 'managed') return 'starnet';
-    if (p === 'ollama' || p === 'ollama-local') return 'ollama';
-    if (p === 'claude-cli' || p === 'claude-code' || p === 'claude-code-cli') return 'claude-cli';
-    if (p === 'custom' || p === 'openai-compatible' || p === 'local' || p === 'vllm' || p === 'lmstudio') return 'custom';
-    return 'openrouter';
+    return SK.providers.registry.normalizeProviderId(provider || 'openrouter', '');
   }
   function providerNeedsKey(provider) {
     const p = normalizeProviderId(provider);
@@ -1798,6 +1776,14 @@ const App = (() => {
     if (Harness.sessionStale && Harness.sessionStale()) return 'the station restarted; reload this page';
     return '';
   }
+  /* #39: did the station's GATE refuse this page's key — one from before a restart that Harness's in-place recovery could not
+     replace, or none at all? Read through the ONE reading of a refused reply (Harness.classifyApiFailure: the gate's own code;
+     the bare status only from a station that names no refusal). A route's own 403 is not one. Only then is a reload this
+     page's way back: the boot path re-reads its key and re-runs every gate. */
+  function gateRefusedPage(reply) {
+    const f = Harness.classifyApiFailure ? Harness.classifyApiFailure(reply) : null;
+    return !!(f && (f.staleSession || f.tokenWithheld));
+  }
   async function loadModels(provider) {
     const p = normalizeProviderId(provider || pickedProvider);
     const countEl = el('model-count'), inp = el('in-model');
@@ -2631,9 +2617,8 @@ const App = (() => {
   function copyClaudeInstall() {
     const cmd = claudeCliInstallCommand().cmd, btn = el('btn-claude-copy');
     const done = ok => { if (!btn) return; btn.textContent = ok ? '✓ COPIED' : 'SELECT IT ABOVE'; setTimeout(() => { btn.textContent = '⧉ COPY INSTALL COMMAND'; }, 2000); };
-    // the shared clipboard helper (Clipboard API, then the execCommand fallback a locked-down WebView still allows)
-    const copy = (typeof Diag !== 'undefined' && Diag.copyText) ? Diag.copyText : (t => navigator.clipboard.writeText(t).then(() => true));
-    try { Promise.resolve(copy(cmd)).then(ok => done(ok !== false), () => done(false)); } catch (_) { done(false); }
+    // the one clipboard (Clipboard API, then the execCommand fallback a locked-down WebView still allows): COPIED only on its true
+    U.copyText(cmd).then(done);
   }
   function wireClaudeCliTile() {
     const on = (id, fn) => { const n = el(id); if (n) n.onclick = fn; };
@@ -2799,7 +2784,7 @@ const App = (() => {
     // local-engine fault, not "the link service"; a sidecar reply carries its classification of the cloud failure.
     const startFail = info => Object.assign(new Error('start failed'), { linkStart: info });
     Harness.api.post('/api/credits/link/start', { deviceName: 'StarNet Station' })
-      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j }); return r.j; },
+      .then(r => { if (generation !== _starnetLinkGeneration) return null; if (!r || !r.ok) throw startFail({ status: r && r.status, j: r && r.j, why: r ? Harness.api.why(r) : '' }); return r.j; },
         () => { throw startFail({ local: true }); })
       .then(j => {
         if (generation !== _starnetLinkGeneration) return;
@@ -3286,15 +3271,10 @@ const App = (() => {
       if (!(creditState.balanceUsd > 0)) { msg.className = 'msg bad'; msg.textContent = 'your StarNet account has no credits yet — waking your agent uses credits right away. Press ＄ ADD CREDITS above, then WAKE again.'; return false; }
       Harness.setModel(model); Harness.setProv('starnet');
     } else if (pickedProvider === 'claude-cli') {
-      const cst = (claudeCliState && claudeCliState.loggedIn) ? claudeCliState : await refreshClaudeCliStatus();
-      if (!cst || !cst.loggedIn) {
-        msg.textContent = (cst && cst.installed === false) ? 'install Claude Code first — the command is above — then sign in with Claude.' : 'sign in with Claude first — press ⏼ SIGN IN WITH CLAUDE above.';
-        return false;
-      }
+      await refreshClaudeCliStatus();   // collect local status; the common row below decides eligibility (including extra accounts)
       Harness.setModel(model); Harness.setProv('claude-cli');
       wireVia = 'your Claude sign-in';
     } else if (isOAuthProviderId(pickedProvider)) {
-      if (!oauthConnected[pickedProvider]) { msg.textContent = 'sign in with ' + OAUTH_GENESIS[pickedProvider].name + ' first, or switch to OpenRouter.'; return false; }
       Harness.setModel(model); Harness.setProv(pickedProvider);
     } else if (pickedProvider === 'openai' && !el('in-key').value.trim() && codexConnected) {
       // MERGED OPENAI CARD, ChatGPT half: a LIVE sign-in with no key TYPED rides codex. A typed key wins
@@ -3345,6 +3325,13 @@ const App = (() => {
     // wire. One real round-trip to the chosen provider+model, RIGHT NOW — not "configured", not "signed in":
     // ANSWERED. A dead wire keeps the Commander at the console with the honest reason; there is no world where
     // the ceremony silently degrades because the model never actually spoke.
+    await Harness.refreshProviderReadiness();
+    const readiness = Harness.readiness(Harness.getProv());
+    if (!readiness.unattendedReady) {
+      msg.className = 'msg bad';
+      msg.textContent = readiness.reason + (readiness.cached ? ' (cached station status)' : '') + '. check this connection before WAKE.';
+      return false;
+    }
     wakeBtnBusy(true);
     msg.textContent = 'testing the wire — one real call to ' + model + '…';
     const wire = await preflightWire();
@@ -4004,10 +3991,12 @@ const App = (() => {
       // B2 — the real-write hand-off. canWriteFiles = the cabinet:write CONSENT (PermissionsStore); hasCabinet = the
       // cabinet CAPABILITY actually placed (World.heroCaps — object=capability); BOTH required (Autopilot.canWrite).
       // writeFile = the token-gated, consent-broker-gated, checkpointed server write (/api/autonomy/write). A failed
-      // or denied write just degrades to a desk draft (the act() branch handles the fallback).
+      // or denied write just degrades to a desk draft (the act() branch handles the fallback); a refusal carries the station's
+      // own code and sentence (Harness.api), never a bare {ok:false} that reads like an empty answer.
       canWriteFiles: () => { try { return (typeof PermissionsStore !== 'undefined' && PermissionsStore.snapshot) ? (PermissionsStore.snapshot().grants || []).indexOf('cabinet:write') >= 0 : false; } catch (_) { return false; } },
       hasCabinet: () => { try { return (typeof World !== 'undefined' && World.heroCaps) ? (World.heroCaps((agent && agent.id) || 'agent') || []).some(c => (c && (c.objectType || c)) === 'cabinet') : false; } catch (_) { return false; } },   // heroCaps returns [{objectType}]: an indexOf('cabinet') never matched
-      writeFile: (req) => fetch('/api/autonomy/write', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content }) }).then(r => r.ok ? r.json() : { ok: false }).catch(() => ({ ok: false })),
+      writeFile: (req) => Harness.api.post('/api/autonomy/write', { agentId: (agent && agent.id) || 'agent', path: req.path, content: req.content })
+        .then(r => r.ok ? r.j : { ok: false, code: r.code, error: Harness.api.why(r) }, e => ({ ok: false, code: 'no_answer', error: (e && e.message) || 'the station did not answer' })),
       // leave the result on the Commander's desk: a persistent toast + the live "working" cue + a gentle COMMS beat
       // that, on accept, posts the work into the feed. If it WROTE a real file (B2) the copy says so + names the path;
       // otherwise it's a desk draft. Either way nothing is sent/published/spent.
@@ -4707,20 +4696,14 @@ const App = (() => {
      moved into the row ⋯ actions menu so it always names its exact target. The pure store
      (workstreams.js) still owns the search/export/scrub invariants; this layer only renders + downloads. */
   function sessionDownload(bundle) {
-    if (!bundle || !bundle.text) return false;
-    try {
-      const blob = new Blob([bundle.text], { type: bundle.mime || 'text/plain' });
-      const url = URL.createObjectURL(blob), a = document.createElement('a');
-      a.href = url; a.download = bundle.filename || 'starnet-conversation.txt';
-      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 0);
-      return true;
-    } catch (_) { return false; }
+    if (!bundle || !bundle.text) return Promise.resolve({ ok: false, line: 'nothing to export in this session' });
+    return U.saveFile({ name: bundle.filename || 'starnet-conversation.txt', text: bundle.text, mime: bundle.mime || 'text/plain' });
   }
   // Export ONE named session from its row menu — never an implicit "the active one".
-  function exportSession(id, format) {
+  async function exportSession(id, format) {
     const w = Workstreams.get(id), bundle = w && Workstreams.exportConversation(id, format);
-    const ok = sessionDownload(bundle); if (ok) SFX.click(); else SFX.bad();
-    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(ok ? ('exported “' + Workstreams.titleOf(w) + '” — hidden data and secrets excluded') : 'nothing to export in “' + Workstreams.titleOf(w) + '”', ok ? '' : 'warn', undefined, { transient: true });
+    const receipt = await sessionDownload(bundle); if (receipt.ok) SFX.click(); else SFX.bad();
+    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(receipt.line + (receipt.ok ? ' — hidden data and secrets excluded' : ''), receipt.ok ? '' : 'warn', undefined, { transient: true });
   }
   function renderSessionSearch() {
     const input = el('ws-search'), out = el('ws-search-results'), sessions = el('workstreams'); if (!input || !out) return;
@@ -5347,18 +5330,16 @@ const App = (() => {
     const isForget = !r.blessed;
     const endpoint = isForget ? '/api/projects/forget' : '/api/permissions/revoke';
     const body = isForget ? { root: r.root } : { key: 'path:' + r.root };
-    fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-      .then(res => res.ok ? res.json() : { ok: false })
-      .then(j => {
+    // a refusal is the station's answer, said in its own words (Harness.api.why); only no answer at all says so
+    const failure = isForget ? 'could not forget “' : 'could not revoke trust for “';
+    const say = (text, tone) => { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(text, tone); };
+    Harness.api.post(endpoint, body)
+      .then(res => {
         SFX.bad();
-        if (typeof StationUI !== 'undefined' && StationUI.notify) {
-          const success = isForget ? 'forgot “' : 'trust revoked for “';
-          const failure = isForget ? 'could not forget “' : 'could not revoke trust for “';
-          StationUI.notify((j && j.ok ? success : failure) + r.name + '”', j && j.ok ? 'warn' : 'bad');
-        }
+        const success = isForget ? 'forgot “' : 'trust revoked for “';
+        say(res.ok ? success + r.name + '”' : failure + r.name + '”: ' + Harness.api.why(res), res.ok ? 'warn' : 'bad');
         renderProjects();
-      })
-      .catch(() => { renderProjects(); });
+      }, () => { say(failure + r.name + '”: the station did not answer', 'bad'); renderProjects(); });
   }
   // ADD A PROJECT: an inline editor row at the top of the projects list — a typed absolute-path field (the honest
   // fallback everywhere) plus a 📁 browse button that opens the REAL OS folder chooser. The picker is served by the
@@ -5706,7 +5687,7 @@ const App = (() => {
       if (sub) { if (reason) sub.textContent = reason; else if (/^(degraded|station service halted)/i.test(sub.textContent)) sub.textContent = notAnswering; }
       if (reason) {
         diagnosis = { code: /owner unavailable/i.test(reason) ? 'SAVE-OWNER · WORKSPACE OWNED BY ANOTHER PROCESS' : /crash-loop/i.test(reason) ? 'SAVE-LOOP · STATION SERVICE CRASH LOOP' : 'SAVE-DEGRADED · STATION SERVICE DEGRADED', text: reason };
-        if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + diagnosis.text.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '<br>Send a screenshot of this code to support.';
+        if (code) code.innerHTML = '<b>RECOVERY CODE: ' + diagnosis.code + '</b><br>' + esc(diagnosis.text) + '<br>Send a screenshot of this code to support.';
       }
       return reason;
     };
@@ -5949,9 +5930,9 @@ const App = (() => {
         const timer = setInterval(async () => {
           try {
             const probe = await fetch('/api/save?agent=agent', { cache: 'no-store' });
-            // #39: a 403 that survives Harness's in-place token recovery means only a reload can reconnect — and the
-            // recovery itself is already done. Reload once (the timer dies here, so it can never loop).
-            if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
+            // #39: the gate's refusal of this page's key that survives Harness's in-place token recovery means only a reload
+            // can reconnect — and the recovery itself is already done. Reload once (the timer dies here, so it can never loop).
+            if (gateRefusedPage(probe)) { clearInterval(timer); location.reload(); return; }
             const body = probe.ok ? await probe.json() : null;
             if (body && body.save && body.save.agent) { clearInterval(timer); location.reload(); }
           } catch (_) {}
@@ -5968,11 +5949,8 @@ const App = (() => {
       try {
         const response = await fetch('/api/lineage/report', { cache: 'no-store' });
         if (!response.ok) throw new Error(refusedPageLine() || 'report unavailable');
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob), a = document.createElement('a');
-        a.href = url; a.download = 'starnet-recovery-report.json'; a.style.display = 'none';
-        document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-        if (status) status.textContent = '＋ redacted recovery report exported — no credentials or save contents included';
+        const receipt = await U.saveFile({ name: 'starnet-recovery-report.json', ext: 'json', text: await response.text() });
+        if (status) status.textContent = receipt.line + (receipt.ok ? ' — no credentials or save contents included' : '');
       } catch (error) {
         if (status) status.textContent = '＋ report export failed — ' + String(error && error.message || error);
       } finally { report.disabled = false; }
@@ -6044,9 +6022,9 @@ const App = (() => {
               const probe = await fetch('/api/lineage', { cache: 'no-store' });
               // #39: this poll used to swallow a 403 as "not ready yet" — but START FRESH's own restart mints a new token,
               // so the poll could never answer and the button greyed out forever after a SUCCESS. Harness now re-reads
-              // the token and replays; a 403 that still gets here means only a reload can reconnect, and the work is
-              // already done — reload once (the timer dies here, so it can never loop).
-              if (probe.status === 403) { clearInterval(timer); location.reload(); return; }
+              // the token and replays; the gate's refusal of this page's key that still gets here means only a reload can
+              // reconnect, and the work is already done — reload once (the timer dies here, so it can never loop).
+              if (gateRefusedPage(probe)) { clearInterval(timer); location.reload(); return; }
               const body = probe.ok ? await probe.json() : null;
               const next = body && body.lineage;
               if (!next) return;
@@ -6114,9 +6092,8 @@ const App = (() => {
       SFX.click(); dataStatus('exporting…');
       const r = await Backup.exportAll();
       dataStatus(r && r.ok
-        // #134: the page only HANDS the file over (where it lands is never reported back) — name it, never claim "saved"
-        ? 'handed ' + r.file + ' to your downloads — secrets excluded; ' + r.records + ' records' + (r.notes ? ' + ' + r.notes + ' memories' : '')
-        : 'export failed');
+        ? r.line + ' — secrets excluded; ' + r.records + ' records' + (r.notes ? ' + ' + r.notes + ' memories' : '')
+        : (r && r.line || 'export failed'));
     };
     const fileImport = el('file-import');
     el('btn-import').onclick = () => { SFX.click(); fileImport.value = ''; fileImport.click(); };

@@ -58,6 +58,7 @@ function sidecar(root, o) {
   const store = makeSaveStore({ fs: o.fs || fs, pathMod: path, root, clock: { now: () => Date.now() } });
   let latestRatingAt = 0;
   const sandbox = { saveStore: store, workspaceDegraded: false, growthRatings: { latestTs: () => latestRatingAt }, readBody: async req => req.body, failNote: () => {},
+    refuseBadAgentId: require('../sidecar/respond.js').refuseBadAgentId,
     observeDeletedSessions: () => [], Date, Buffer, SaveWire: require('../sidecar/save-wire.js'), SaveMerge: require('../sidecar/save-merge.js'),
     require: m => { if (m === './save-restore.js') return require('../sidecar/save-restore.js'); throw new Error('unexpected require ' + m); },
     publicWorkspaceLineage: () => ({ version: 1 }), URL };
@@ -325,12 +326,13 @@ function stationUi(cloudSave, uiStore) {
     {
       // 3e. (why the 0.14.0 boot offer was held) a copy the station could not READ this instant — locked by an antivirus scan
       // or a backup tool: EBUSY/EACCES — still holds the lost work. It used to be settled as "nothing to bring back" and was
-      // never offered again while it stayed unchanged.
+      // never offered again while it stayed unchanged. (A lock holds a file that is there: a copy not yet written reads
+      // ENOENT, so the save that writes it finds nothing locked; persist never replaces a file it could not read.)
       const root = workspace();
       let locked = true;
       const lfs = new Proxy(fs, { get(t, k) {
         if (k === 'readFileSync') return function (f) {
-          if (locked && /^agent\.save-conflict-/.test(path.basename(String(f)))) { const e = new Error('EBUSY: resource busy or locked'); e.code = 'EBUSY'; throw e; }
+          if (locked && /^agent\.save-conflict-/.test(path.basename(String(f))) && t.existsSync(String(f))) { const e = new Error('EBUSY: resource busy or locked'); e.code = 'EBUSY'; throw e; }
           return t.readFileSync.apply(t, arguments);
         };
         const v = t[k]; return typeof v === 'function' ? v.bind(t) : v;

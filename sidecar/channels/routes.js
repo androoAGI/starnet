@@ -2,7 +2,7 @@
 
    Moved out of channels/hub.js unchanged (channel-delivery-ledger, S1). One book per hub, made by makeChannelHub:
 
-     makeRouteBook() -> { routes, noteRoute, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES }
+     makeRouteBook() -> { routes, noteRoute, beginWork, isCurrentWork, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES }
        noteRoute(msg)            learn the chat's topic and the message to quote from an inbound message
        routeOpts(chatId, first)  -> { threadId?, replyTo? } | null   a send's route; first=true also spends the quote
        forgetThread(chatId, threadId?)   the topic is gone: stop aiming at it (a threadId the chat moved on from is left)
@@ -32,14 +32,29 @@ function makeRouteBook() {
   const routes = new Map();   // chatId -> { threadId, replyTo, lastMessageId }
   function noteRoute(msg) {
     const chatId = String(msg.chatId);
+    const prior = routes.get(chatId);
     const threadId = (msg.threadId == null || msg.threadId === '') ? '' : String(msg.threadId);
     // Quoting in a DM is noise — there is only one other person and nothing to disambiguate. Groups only,
     // which is also where a detached answer actually costs the reader something.
     const replyTo = (msg.chatType === 'group' && msg.messageId != null && msg.messageId !== '') ? String(msg.messageId) : '';
     const lastMessageId = (msg.messageId == null || msg.messageId === '') ? '' : String(msg.messageId);
     routes.delete(chatId);                        // re-insert so Map iteration order is least-recently-used first
-    routes.set(chatId, { threadId: threadId, replyTo: replyTo, lastMessageId: lastMessageId });
+    routes.set(chatId, { threadId: threadId, replyTo: replyTo, lastMessageId: lastMessageId,
+      workIntent: prior ? prior.workIntent : null });
     while (routes.size > MAX_ROUTES) { const k = routes.keys().next().value; routes.delete(k); }
+  }
+  // Host-private ordering proof for an awaited steer fallback. Cosmetic/status route updates
+  // preserve it; only admitted work or an explicit STOP replaces it. It is never read from an
+  // inbound payload or returned by routeOpts. Eviction leaves no proof, never a fresh permission.
+  function beginWork(chatId) {
+    const r = routes.get(String(chatId));
+    if (!r) return null;
+    r.workIntent = {};
+    return r.workIntent;
+  }
+  function isCurrentWork(chatId, token) {
+    const r = routes.get(String(chatId));
+    return !!(token && r && r.workIntent === token);
   }
 
   /* IS THIS EDIT WORTH A FRESH RUN?
@@ -75,7 +90,7 @@ function makeRouteBook() {
     if (first && r.replyTo) { out.replyTo = r.replyTo; r.replyTo = ''; }
     return (out.threadId || out.replyTo) ? out : null;
   }
-  return { routes, noteRoute, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES };
+  return { routes, noteRoute, beginWork, isCurrentWork, editIsCurrent, forgetThread, routeOpts, MAX_ROUTES };
 }
 
 module.exports = { makeRouteBook };

@@ -71,7 +71,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     if (apiToken) headers['Origin'] = B;
     const r = await fetch(B + p, { method: m, headers, body: body === undefined ? undefined : JSON.stringify(body) });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
-    return { status: r.status, body: v };
+    return { status: r.status, body: v, code: r.headers.get('x-starnet-code') };
   };
   // a raw (tokenless) call to prove the auth seam gates a route.
   const raw = (m, p, body) => fetch(B + p, { method: m, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
@@ -79,6 +79,8 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   try {
     apiToken = await bootToken(B, B);
     A.ok(apiToken.length >= 32, 'served index.html carried a high-entropy API token');
+    const retiredChain = await j('GET', '/api/routing/chain?agentId=agent&lineId=retired');
+    A.eq(retiredChain.status, 404, 'retired browser line-executor route is not exposed');
 
     const streaming = await j('POST', '/api/local-voice/stream?action=audio&id=expired');
     A.eq(streaming.status, 200, 'stream route accepts query parameters');
@@ -184,7 +186,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     // ---- (9) POST /api/workshop/remove — no-such-idea -> 404; bad agentId -> 400 ----
     const rmBadAgent = await j('POST', '/api/workshop/remove', { agentId: 'bad agent!', backlogId: 'x' });
     A.eq(rmBadAgent.status, 400, 'POST /api/workshop/remove with an invalid agentId -> 400');
-    A.eq(rmBadAgent.body.error, 'choose a valid agent', 'workshop/remove validates the agent id by name');
+    A.eq([rmBadAgent.code, rmBadAgent.body.code], ['bad_agent_id', 'bad_agent_id'], 'workshop/remove names the canonical malformed-agent refusal in header and body');
     const rmMissing = await j('POST', '/api/workshop/remove', { agentId: 'agent', backlogId: 'no-such-idea-xyz' });
     A.eq(rmMissing.status, 404, 'POST /api/workshop/remove for an unknown idea -> 404');
     A.eq(rmMissing.body.ok, false, 'workshop/remove reports ok:false when nothing was removed');
@@ -237,7 +239,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(study.status, 200, 'GET /api/study/proposals -> 200');
     A.ok(Array.isArray(study.body.proposals), 'study proposals returns a proposals array (empty on a fresh workspace)');
     const studyBad = await fetch(B + '/api/study/proposals?agent=' + encodeURIComponent('../evil'), { headers: { 'X-StarNet-Token': apiToken, Origin: B } });
-    A.eq(studyBad.status, 403, 'GET /api/study/proposals with a jail-escape agent id -> 403');
+    A.eq([studyBad.status, studyBad.headers.get('x-starnet-code'), (await studyBad.json()).code], [400, 'bad_agent_id', 'bad_agent_id'], 'GET /api/study/proposals refuses the malformed agent id before path resolution');
 
     // ---- (17) GET /api/toolsets — the placeable-capability catalog ----
     const ts = await j('GET', '/api/toolsets');
@@ -256,7 +258,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(typeof wdir.body.dir === 'string' && wdir.body.dir.length > 0, 'workspace/dir returns an absolute jailed path');
     A.ok(wdir.body.dir.indexOf(ws) >= 0, 'the returned dir is jailed under the WORKSPACES root');
     const wdirEscape = await fetch(B + '/api/workspace/dir?agent=' + encodeURIComponent('../../etc'), { headers: { 'X-StarNet-Token': apiToken, Origin: B } });
-    A.eq(wdirEscape.status, 403, 'GET /api/workspace/dir with a jail-escape agent id -> 403');
+    A.eq([wdirEscape.status, wdirEscape.headers.get('x-starnet-code'), (await wdirEscape.json()).code], [400, 'bad_agent_id', 'bad_agent_id'], 'GET /api/workspace/dir refuses the malformed agent id before path resolution');
 
   } finally {
     try { child.kill(); } catch (_) {}
