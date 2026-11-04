@@ -929,13 +929,39 @@
     return /Commander (?:explicitly )?(?:declined|denied|cancelled)|user-control denied|user denied|Do NOT retry|approval denied/i.test(text);
   }
 
+  /* THE REBUILT PROMPT STILL OPENS ON A USER TURN (context-budget-and-fold, 2026-11-04). The head pin used to guarantee
+     it (the pinned first message was a user turn), and Anthropic-style wires refuse a conversation that opens on an
+     assistant turn. With no stale pin a fold that REMOVES messages rebuilds system prefix + summary note + tail, so
+     the tail has to open on a user turn. When its first non-system message is an assistant turn (the cut fell between a
+     user message and its reply, or in the middle of a run's tool pairs):
+       - the run's own request sits inside the folded slice -> it is pinned at the head, exactly as a single-directive
+         run's is (system prefix + request + note + tail: the same stable-prefix shape, and a second fold finds it pinned
+         by identity). `keep` names it; the slice that is folded no longer holds it, so its words are not carried twice;
+       - otherwise, and the slice holds a user message -> the cut moves back to the last of them and it rides the tail
+         (moving back only enlarges the tail, so the floor planCompaction guarantees still holds).
+     A slice the move empties is "nothing foldable" (no paid call), the same answer as an empty plan; no user message
+     anywhere in the slice = nothing to open on, the plan stands. A tail that already opens on a user turn (or has no
+     non-system message) is returned as it came. Pure; returns the SAME object when nothing changes. */
+  function openOnUser(plan, request) {
+    if (!plan || !Array.isArray(plan.older) || !plan.older.length || !Array.isArray(plan.tail)) return plan;
+    const head = plan.tail.find(m => m && m.role !== 'system');
+    if (!head || head.role === 'user') return plan;
+    if (request && plan.older.indexOf(request) >= 0) return { older: plan.older.filter(m => m !== request), tail: plan.tail, keep: request };
+    let k = plan.older.length - 1;
+    while (k >= 0 && !(plan.older[k] && plan.older[k].role === 'user')) k--;
+    if (k < 0) return plan;
+    return { older: plan.older.slice(0, k), tail: plan.older.slice(k).concat(plan.tail) };
+  }
+
   async function runAgentLoop(o) {
     const messages = o.messages;
     // THIS RUN'S REQUEST (consistency audit 2026-10-11): the latest Commander message at start. In a long chat the
     // pinned "first non-system message" is an old turn, not this task, so a long agentic run could fold the request
     // itself into the verbatim section at a fair share like any chatter. A fold now carries it as the current task:
-    // whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`).
-    const runRequest = (() => { for (let i = (messages || []).length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'user') return m; } return null; })();
+    // whole, first, never dropped (compaction-fidelity collectUserMessages `pinned`). A screen-capture turn the loop built
+    // from a tool's pixels is a user-role message but never anyone's request: a recovered computer-use run ends on one,
+    // and the pin (maybeCompact) must stay on the directive that started the work.
+    const runRequest = (() => { for (let i = (messages || []).length - 1; i >= 0; i--) { const m = messages[i]; if (m && m.role === 'user' && !isScreenCapture(m)) return m; } return null; })();
     let provider = o.provider;
     const emit = o.emit;
     // COPIED, not aliased: a tool.search reveal APPENDS here, and the caller's array is built once per run and
@@ -1791,25 +1817,34 @@
       }
       let i = 0;
       while (i < working.length && working[i].role === 'system') i++;   // leading system prefix kept verbatim
-      // THE DIRECTIVE IS PINNED: the first non-system message is the task itself. It used to sit inside the
-      // foldable slice, so after one fold the agent worked from a paraphrase of its own orders. Kept byte-identical.
-      if (i < working.length && working[i].role !== 'system') i++;
-      const prefix = working.slice(0, i);
+      /* THE RUN'S OWN REQUEST IS PINNED — NOT WHATEVER HAPPENS TO BE FIRST (context-budget-and-fold, 2026-11-04). The
+         first non-system message used to be pinned unconditionally: right for a single-directive agentic run, where it IS
+         the task (an agent that folded its own orders would work from a paraphrase of them), wrong for a long chat,
+         where it is turn 1 of the conversation — kept word for word at the head of every post-fold prompt while the
+         summarizer never saw it. It is pinned now only when it IS this run's request (runRequest, by identity), byte for
+         byte as before. Anything else folds like any older turn, and its words ride the verbatim user section once. */
+      const headPinned = i < working.length && working[i] === runRequest;
+      if (headPinned) i++;
+      let prefix = working.slice(0, i);
       // the tail budget is in REAL tokens: tell the planner how many real tokens one local-ruler token is worth right
       // now (anchored/provider count over the ruler), so an estimator blind spot cannot make the whole history "fit"
       const rulerNow = rulerTokens(messages);
       const realNow = (hint && hint.realBefore > 0) ? hint.realBefore : anchor;
-      const plan = context.planCompaction(working.slice(i), { scale: rulerNow > 0 ? Math.max(1, realNow / rulerNow) : 1 });
+      let plan = context.planCompaction(working.slice(i), { scale: rulerNow > 0 ? Math.max(1, realNow / rulerNow) : 1 });
       if (!plan.older.length) return false;                               // nothing safely foldable yet (no paid call)
       /* THE RUN CONTEXT IS PINNED (lean-prompt, 2026-10-12). The per-run <run_context> note (Task Brief, runtime identity,
          quests — index.js CACHE-STABLE PREFIX) sits with the run's newest user message, which a long run folds. It used to
          close the system prompt, which no fold touches, so no fold may take it now: it leaves the folded slice and rides
          right after the summary note. The micro tier removes no message, so there it simply stays where it is. */
       // The <crew_call> note is pinned the same way (review 2026-10-12): in the system prompt no fold ever took it either.
-      const ctxNote = isRunContextNote ? (plan.older.find(isRunContextNote) || null) : null;
-      const crewNote = isCrewCallNote ? (plan.older.find(isCrewCallNote) || null) : null;
-      const carriedCtx = [ctxNote, crewNote].filter(Boolean);
-      const foldOlder = carriedCtx.length ? plan.older.filter(m => carriedCtx.indexOf(m) < 0) : plan.older;
+      let carriedCtx, foldOlder;
+      const carryContext = () => {
+        const ctxNote = isRunContextNote ? (plan.older.find(isRunContextNote) || null) : null;
+        const crewNote = isCrewCallNote ? (plan.older.find(isCrewCallNote) || null) : null;
+        carriedCtx = [ctxNote, crewNote].filter(Boolean);
+        foldOlder = carriedCtx.length ? plan.older.filter(m => carriedCtx.indexOf(m) < 0) : plan.older;
+      };
+      carryContext();
       // the pin can leave NOTHING to fold (the plan's slice was the note alone): no paid summarizer call over an empty
       // slice, no agent.compact for a fold that removes nothing — the same answer as an empty plan above
       if (!foldOlder.length) return false;
@@ -1855,6 +1890,18 @@
             emit('agent.compact', { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'micro', elided: micro.elided });
             return true;
           }
+        }
+      }
+      /* FROM HERE THE FOLD REMOVES MESSAGES (fallback, paid): the rebuilt prompt must still open on a user turn (openOnUser).
+         The micro tier above removes none, so it needed no such care — and it must keep seeing the whole slice, or a run
+         that follows a long chat would lose most of its free tier to the move. */
+      if (!headPinned) {
+        const opened = openOnUser(plan, runRequest);
+        if (opened !== plan) {
+          plan = { older: opened.older, tail: opened.tail };
+          if (opened.keep) prefix = prefix.concat([opened.keep]);
+          carryContext();
+          if (!foldOlder.length) return false;                            // the move left nothing to fold (no paid call)
         }
       }
       // ---- summarizer unavailable (breaker tripped): micro-elide + deterministic note, no LLM, never end the run ----

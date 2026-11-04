@@ -76,7 +76,10 @@ function scripted(ctx, n, requests) {
     A.ok(prevSeen.slice(1).every(p => p === GENERIC), 'the merge fold received exactly the previous prose summary');
     const notes = res.messages.filter(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content)));
     A.eq(notes.length, 1, 'one running summary note');
-    A.eq(res.messages[1].content, 'Directive: audit the config files.', 'the first directive is still pinned verbatim');
+    // the pin is the run's OWN request (the newest user message, GO) — not the chat's first message, which is turn 1 of the
+    // conversation: that one folded, and its words ride the verbatim user section exactly once (test/fold-head-pin.test.js)
+    A.eq(res.messages[1].content, GO, "the run's own request is what stays pinned verbatim");
+    A.eq(count(wire(res.messages), 'Directive: audit the config files.'), 1, 'the chat\'s first directive folded: its words ride the note\'s verbatim section once');
   }
 
   // ---- 2. the deterministic FALLBACK digest (summarizer down) carries it too ----

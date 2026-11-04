@@ -293,9 +293,9 @@ function chatFixture() {
     const ctxMgr = makeContext({ contextLimit: 10, compactAt: 0.65, keepTail: 2 });   // 8 prompt tokens > 6.5 -> compact
     let summarizedOlder = null;
     const summarize = async (older) => { summarizedOlder = older; return 'SUMMARY'; };
-    // the DIRECTIVE (first non-system message) is pinned verbatim through a fold; the two earlier turns after it
-    // are the foldable history
-    const messages = [{ role: 'user', content: 'do it' }, { role: 'user', content: 'earlier context' }, { role: 'assistant', content: 'noted' }];
+    // the DIRECTIVE (the run's own request: the only user message) is pinned verbatim through a fold; the two earlier turns
+    // after it are the foldable history
+    const messages = [{ role: 'user', content: 'do it' }, { role: 'assistant', content: 'earlier context' }, { role: 'assistant', content: 'noted' }];
     const res = await runAgentLoop({ messages, provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx2) => reg.dispatch(c, ctx2), capCtx: openCtx(), context: ctxMgr, summarize });
 
@@ -334,7 +334,7 @@ function chatFixture() {
     const provider = makeReplayProvider(fixture);
     const ctxMgr = makeContext({ contextLimit: 10, compactAt: 0.65, keepTail: 2 });
     const summarize = async () => ({ summary: 'SUMMARY', usd: 0.01, tokens: 50 });   // reports its own reconciled cost
-    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'do it' }, { role: 'user', content: 'earlier' }, { role: 'assistant', content: 'noted' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
+    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'do it' }, { role: 'assistant', content: 'earlier' }, { role: 'assistant', content: 'noted' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx2) => reg.dispatch(c, ctx2), capCtx: openCtx(), context: ctxMgr, summarize });
     A.eq(seq.filter(e => e.name === 'agent.compact').length, 1, 'compaction happened');
     A.ok(res.usd > 0.009, "the summarizer's $0.01 folded into the run total (would be ~0 without the fold; got $" + res.usd + ')');
@@ -354,7 +354,7 @@ function chatFixture() {
     const ctxMgr = makeContext({ contextLimit: 10, compactAt: 0.65, keepTail: 2 });
     let called = 0;
     const summarize = async () => { called++; return ''; };   // degraded model
-    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'do it' }, { role: 'user', content: 'earlier' }, { role: 'assistant', content: 'noted' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
+    const res = await runAgentLoop({ messages: [{ role: 'user', content: 'do it' }, { role: 'assistant', content: 'earlier' }, { role: 'assistant', content: 'noted' }], provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx2) => reg.dispatch(c, ctx2), capCtx: openCtx(), context: ctxMgr, summarize });
     A.eq(seq.filter(e => e.name === 'agent.compact').length, 0, 'empty summary -> no compaction');
     A.ok(called >= 1, 'the summarizer was attempted');
@@ -381,7 +381,7 @@ function chatFixture() {
     ] };
     const provider = makeReplayProvider(fixture);
     const ctxMgr = makeContext({ contextLimit: 10, compactAt: 0.65, keepTail: 2 });
-    const messages = [{ role: 'user', content: 'do it' }, { role: 'user', content: 'earlier' }, { role: 'assistant', content: 'noted' }];   // directive pinned; two foldable turns
+    const messages = [{ role: 'user', content: 'do it' }, { role: 'assistant', content: 'earlier' }, { role: 'assistant', content: 'noted' }];   // directive pinned; two foldable turns
     let injectCalls = 0;
     const todoNote = () => { injectCalls++; return '[Your active task list was preserved across context compaction]\n- [>] 1. keep building (in_progress)'; };
     const res = await runAgentLoop({ messages, provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
@@ -403,7 +403,7 @@ function chatFixture() {
     ] };
     const provider = makeReplayProvider(fixture);
     const ctxMgr = makeContext({ contextLimit: 10, compactAt: 0.65, keepTail: 2 });
-    const messages = [{ role: 'user', content: 'do it' }, { role: 'user', content: 'earlier' }, { role: 'assistant', content: 'noted' }];   // directive pinned; two foldable turns
+    const messages = [{ role: 'user', content: 'do it' }, { role: 'assistant', content: 'earlier' }, { role: 'assistant', content: 'noted' }];   // directive pinned; two foldable turns
     await runAgentLoop({ messages, provider, emit, cost: makeCostEngine({ priceOf: provider.priceOf }),
       model: 'replay/model', agentId: 'a', runId: 'r', tools: [], dispatch: (c, ctx2) => reg.dispatch(c, ctx2), capCtx: openCtx(), context: ctxMgr, summarize: async () => 'SUMMARY' });
     A.eq(seq.filter(e => e.name === 'agent.compact').length, 1, 'compaction still happens without todoNote');

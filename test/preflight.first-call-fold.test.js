@@ -55,7 +55,13 @@ function seeded() {
     A.ok(sent[0].est < 0.65 * WINDOW, 'the first request is under the compaction threshold (' + sent[0].est + ' est. tokens vs ' + (0.65 * WINDOW) + ')');
     A.ok(sent[0].messages.some(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content))), 'the first request carries the summary note');
     A.eq(sent[0].messages[sent[0].messages.length - 1].content, 'new question: what did turn 118 say?', 'the newest user question is sent verbatim, last');
-    A.eq(sent[0].messages[1].content.slice(0, 7), 'turn 0 ', 'the pinned first message stays at the head');
+    // the chat's FIRST message is turn 1 of a 120-turn conversation, not this run's task: it is no longer pinned at the head
+    // (the run's own request, last, is the only message that earns a pin) — it folded, and its words ride the note once
+    const head = sent[0].messages.find(m => m.role !== 'system');
+    A.eq(head && head.role, 'user', 'the rebuilt prompt still opens on a user turn');
+    A.ok(String(head.content).indexOf('turn 0 ') !== 0, 'the stale first message is not pinned at the head');
+    const folded = sent[0].messages.find(m => m.role === 'system' && /^<conversation_summary>/.test(String(m.content)));
+    A.eq(String(folded.content).split('turn 0 ').length - 1, 1, 'its words ride the summary note\'s verbatim user section exactly once');
   }
 
   // ---- 2. a history UNDER the threshold is sent untouched (the preflight never folds without need) ----
