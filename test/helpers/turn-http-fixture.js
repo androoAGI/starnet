@@ -64,7 +64,7 @@ class TurnHttpFixture {
     } });
     await this.fx.start();
     await this.json('POST', '/api/roster', { agents: [{ agentId: 'agent', name: 'TURN', system: 'Answer the supplied message.', model: 'test/model', provider: 'openrouter' }, { agentId: 'turnpeer', name: 'PEER', system: 'Answer the supplied message.', model: 'test/model', provider: 'openrouter' }] });
-    await this.json('POST', '/api/save', { schema: 'starnet.save', version: 6, agent: { id: 'agent', createdAt: 1, name: 'TURN' }, workstreams: [{ id: 's', agentId: 'agent', title: 'Property', history: [] }] });
+    await this.json('POST', '/api/save', { schema: 'starnet.save', version: require('../../frontend/app/save.js').CURRENT, _saveRevision: 0, _saveClient: 'turn-http-page', updatedAt: Date.now(), agent: { id: 'agent', createdAt: 1, name: 'TURN' }, workstreams: [{ id: 's', agentId: 'agent', title: 'Property', history: [] }], station: require('./saved-floor.js').emptyFloor() });
     await this.json('POST', '/api/remote/enable', { on: true });
     const pair = await this.json('POST', '/api/remote/pair', { name: 'Property phone' });
     this.deviceKey = await Phone.makeDeviceKey();
