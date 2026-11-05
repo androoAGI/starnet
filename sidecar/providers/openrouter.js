@@ -131,8 +131,8 @@
   function supportsExplicitCache(model) {
     return /anthropic\/|claude/i.test(String(model || ''));
   }
-  function applyCacheControl(messages, model, cacheSystemPrefix) {
-    if (!Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
+  function applyCacheControl(messages, model, cacheSystemPrefix, neverReread) {
+    if (neverReread === true || !Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
     let idx = -1;
     for (let i = 0; i < messages.length; i++) {
       if (messages[i] && messages[i].role === 'system') idx = i; else break;   // last of the LEADING system block
@@ -333,7 +333,7 @@
       // A model the catalog (or its own earlier refusal) calls text-only gets each image as a short note instead: OpenRouter
       // refuses the whole request otherwise (404 "No endpoints found that support image input"). Unknown keeps them.
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages, req.model) : req.messages;
-      const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix), stream: true, usage: { include: true } };
+      const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length)), stream: true, usage: { include: true } };
       if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
