@@ -58,8 +58,7 @@ A.eq(GoalLoop.stepOfTurn(null), null, 'nothing is not a step');
   A.eq(json.doc.messages[1].goalStep, 'ship the landing page', 'JSON names the step');
   A.eq(json.doc.messages[1].content, STEP, '…and keeps the record (what the model received)');
   A.eq(json.doc.messages[0].goalStep, undefined, 'a real turn carries no step name');
-  const back = W.parseConversationExport(json.text);
-  A.eq(back.messages.length, 3, 'the JSON still round-trips every turn');
+  A.eq(JSON.parse(json.text).messages.length, 3, 'the JSON still carries every turn');
 }
 
 /* ---------- 3. the HUD's run task ---------- */

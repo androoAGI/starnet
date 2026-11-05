@@ -36,10 +36,28 @@ const DossierStore = (() => {
   // which build their own persona and never see the frontend's system prompt — still know who they serve.
   // Fire-and-forget (a no-op if the sidecar isn't reachable), exactly like syncChannels. The browser-direct
   // runs already carry the block in their prompt, so the sidecar only uses this for the runs that compose it.
-  function pushToSidecar() {
+  /* WHAT A PUSH SAYS ABOUT WHERE IT WAS LEARNED (turn identity commit 14/16, qa/bugs/3e926b6a). The block and the beliefs snapshot carry the runs
+     their derived beliefs were learned from (sourceRunIds) and whether that list is whole (complete). The sidecar admits a complete push iff no
+     listed run was forgotten, and an incomplete one only while no delete was ever made. So a push it REFUSES (admitted:false) means a delete
+     happened that this page has not folded in: the page then (once, never in a loop) switches to composing complete beliefs only, drops the
+     beliefs the sidecar names as forgotten (a run that quoted a deleted session), and pushes again. */
+  function provenance() { return (ready() && typeof Dossier.provenance === 'function') ? Dossier.provenance(dossier) : { sourceRunIds: [], complete: false }; }
+  // `again` = this IS the re-push after a refusal: a second refusal ends the exchange (the station stays on the missing-snapshot path until the next change)
+  function pushToSidecar(again) {
     if (!ready()) return;
+    const prov = provenance();
+    const refused = (j, flag, list) => {
+      if (again || !j || j[flag] !== false) return false;
+      let changed = false;
+      if (!dossier.completeOnly) { dossier.completeOnly = true; changed = true; }
+      const gone = Array.isArray(j[list]) ? j[list] : [];
+      if (gone.length && typeof Dossier.purgeRuns === 'function' && Dossier.purgeRuns(dossier, gone, now()) > 0) changed = true;
+      if (changed) { try { onMutateFn(); } catch (_) {} try { persistFn(); } catch (_) {} }
+      return true;
+    };
     try {
-      fetch('/api/dossier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block: composeBlock() }) }).catch(() => {});
+      fetch('/api/dossier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block: composeBlock(), sourceRunIds: prov.sourceRunIds, complete: prov.complete }) })
+        .then(r => r.json()).then(j => { if (refused(j, 'admitted', 'forgotten')) pushToSidecar(true); }).catch(() => {});
     } catch (_) {}
     // NS-1: also mirror a READ-ONLY structured BELIEFS SNAPSHOT (per-dim text + timestamps) to the sidecar, so the
     // SERVER-side night-shift driver can gate ACTING with the same Autopilot.readiness() the frontend autopilot
@@ -50,10 +68,14 @@ const DossierStore = (() => {
       const dimKeys = dims().map(d => d.key);
       const snap = {};
       const known = [];
+      const only = dossier.completeOnly === true;
       for (const k of dimKeys) {
         // V3: the snapshot carries each belief's evidence WEIGHT so server-side surfaces gate on the same
         // grounded-vs-seed distinction the frontend does (weightOf infers honestly for legacy records).
-        const arr = (beliefs(k) || []).map(b => ({ text: String((b && b.text) || ''), weight: Dossier.weightOf(b), updatedAt: Number(b && b.updatedAt) || 0, createdAt: Number(b && b.createdAt) || 0 })).filter(b => b.text);
+        // A DERIVED belief carries the run it was learned from (sourceRunId); after a delete an unsourced one is left out, as in the block.
+        const arr = (beliefs(k) || []).filter(b => !only || !Dossier.derived(b) || Dossier.runIdsOf(b).length)
+          .map(b => { const run = Dossier.derived(b) ? Dossier.runIdsOf(b)[0] : null; return Object.assign({ text: String((b && b.text) || ''), weight: Dossier.weightOf(b), updatedAt: Number(b && b.updatedAt) || 0, createdAt: Number(b && b.createdAt) || 0 }, run ? { sourceRunId: run } : {}); })
+          .filter(b => b.text);
         if (arr.length) { snap[k] = arr; known.push(k); }
       }
       // V3 §6: the READY verdict rides along — the ONE shared recommendation gate, computed here (the dossier's
@@ -61,7 +83,10 @@ const DossierStore = (() => {
       // engine syncs ready:null, which every consumer treats as NOT ready (fail-closed).
       const rd = (typeof Understanding !== 'undefined' && Understanding.readiness) ? Understanding.readiness(dossier) : null;
       const readyV = rd ? { ok: !!rd.ready, reasons: Array.isArray(rd.reasons) ? rd.reasons : [] } : null;
-      fetch('/api/autonomy/posture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ beliefs: { known: known, beliefs: snap, ready: readyV } }) }).catch(() => {});
+      let complete = prov.complete;
+      for (const k of known) for (const b of snap[k]) if (b.weight === 'observed' && !b.sourceRunId) complete = false;
+      fetch('/api/autonomy/posture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ beliefs: { known: known, beliefs: snap, ready: readyV, complete } }) })
+        .then(r => r.json()).then(j => { if (refused(j, 'beliefsAdmitted', 'beliefsForgotten')) pushToSidecar(true); }).catch(() => {});
     } catch (_) {}
   }
 
@@ -77,7 +102,7 @@ const DossierStore = (() => {
   }
 
   // the durable COMMANDER block for the system prompt (durable beliefs only → cache-stable). '' when cold.
-  function composeBlock() { return ready() ? Dossier.composeBlock(dossier, {}) : ''; }
+  function composeBlock() { return ready() ? Dossier.composeBlock(dossier, {}) : ''; }   // after a delete: complete beliefs only (dossier.completeOnly)
 
   // ---- read surface (the COMMANDER panel consumes these) ----
   function summary() {
@@ -112,7 +137,16 @@ const DossierStore = (() => {
     if (dim === 'goals') { try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('quests'); } catch (_) {} }
     try { if (text && typeof StudyStore !== 'undefined' && StudyStore.declineText) StudyStore.declineText(text); } catch (_) {}
   }
+  /* purgeRuns(runIds): the Commander deleted a session - drop the beliefs the station learned from its runs (the page's copy of what the sidecar's
+     commander-dossier entry clears), compose the prompt block from complete beliefs only from now on, and push the result (a complete push the sidecar
+     admits: it names no forgotten run). A belief the Commander stated or confirmed stays whatever it was first inferred from. Returns how many went. */
+  function purgeRuns(runIds) {
+    if (!ready()) return 0;
+    const removed = Dossier.purgeRuns(dossier, runIds, now());
+    commit();
+    return removed;
+  }
   function setPinned(dim, id, pinned) { if (ready()) { Dossier.setPinned(dossier, dim, id, pinned, now()); commit(); } }
 
-  return { init, syncDocs, composeBlock, summary, beliefs, dims, serialize, upsert, forget, setPinned };
+  return { init, syncDocs, composeBlock, summary, beliefs, dims, serialize, upsert, forget, setPinned, purgeRuns };
 })();

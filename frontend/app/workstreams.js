@@ -624,7 +624,13 @@
     const title = safeTitle(w);
     // a goal step keeps its record (role + the prompt the model received) and is NAMED as one: the readable export writes it
     // as the station's line, never under "## Commander" (org P29-sys wiring)
-    const messages = visibleMessages(w).map(m => {
+    /* opts.rows = the station's DISPLAY view of this session (GET /api/transcript): the rows it will still show after any delete - a reply that quotes a
+       deleted session is not in it. The page's own copy may still hold such a row, so an export reads the display view whenever the station answered;
+       without it (an older station, a session the store never held) the page history is exported minus any row that carries a quote stamp. */
+    const shown = Array.isArray(opts.rows)
+      ? opts.rows.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim() && (!m.kind || m.kind === 'turn'))
+      : visibleMessages(w).filter(m => !(Array.isArray(m.quotes) && m.quotes.length));
+    const messages = shown.map(m => {
       const out = { role: m.role, content: scrubSecrets(m.content) };
       const step = goalStepOf(m);
       if (step != null) out.goalStep = scrubSecrets(step);
@@ -642,28 +648,35 @@
     }
     return { format: 'markdown', mime: 'text/markdown', filename: 'starnet-' + slug + '.md', text: lines.join('\n') };
   }
-  function parseConversationExport(text) {
-    let doc;
-    try { doc = JSON.parse(String(text || '')); } catch (_) { return null; }
-    if (!doc || doc.schema !== 'starnet.conversation' || doc.version !== 1 || !Array.isArray(doc.messages)) return null;
-    const messages = doc.messages.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .map(m => ({ role: m.role, content: scrubSecrets(m.content) }));
-    return { title: scrubSecrets(doc.title || 'New session'), messages, secretsIncluded: false };
+  /* what a delete of a session leaves in the page (commit 16): the runs it held (and its delegated workers' runs) and the attachment files its
+     messages name. The page purges the beliefs learned from those runs and asks the station to delete the files no other session names. */
+  function runIdsOf(id) {
+    const w = find(id); if (!w) return [];
+    const out = [];
+    for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) for (const r of (Array.isArray(x.runIds) ? x.runIds : [])) if (typeof r === 'string' && out.indexOf(r) < 0) out.push(r);
+    return out;
   }
-
+  function attachmentRefs(id) {
+    const w = find(id); if (!w) return [];
+    const out = [];
+    for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) {
+      for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+        if (a && typeof a.path === 'string' && a.path && !out.some(o => o.path === a.path && o.agent === (x.agentId || 'agent'))) out.push({ path: a.path, agent: x.agentId || 'agent' });
+      }
+    }
+    return out;
+  }
+  // does any session still in the list name this file? (a branch copy or a re-send shares one upload with the session it came from)
+  function attachmentInUse(path, agent) {
+    for (const x of ws) for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+      if (a && a.path === path && (x.agentId || 'agent') === agent) return true;
+    }
+    return false;
+  }
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
   function normalizeCheckpoint(c) {
     if (!c || (c.kind !== 'clear' && c.kind !== 'archive') || !Array.isArray(c.rows)) return null;
     return { kind: c.kind, at: +c.at || 0, rows: clone(c.rows), activeId: c.activeId || null, count: c.rows.length };
-  }
-  function clearConversation(id, opts) {
-    const w = find(id); if (!w || !w.history.length) return null;
-    opts = opts || {};
-    undoCheckpoint = normalizeCheckpoint({ kind: 'clear', at: opts.at != null ? opts.at : now(), activeId, rows: [{ id, history: clone(w.history) }] });
-    w.history = [];
-    w.lastActiveAt = opts.at != null ? opts.at : now();
-    if (id === activeId) w.lastReadAt = w.lastActiveAt;
-    return clone(undoCheckpoint);
   }
   function criteriaOf(input) {
     input = input || {};
@@ -843,7 +856,7 @@
 
   return {
     init, reset, serialize, all, list, search, setConnectorHandoff, connectorHandoff, automationOf, railGroups,
-    exportConversation, parseConversationExport, clearConversation,
+    exportConversation, attachmentRefs, attachmentInUse, runIdsOf,
     previewArchive, archivePreview, canUndo, undoLast,
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
     switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,

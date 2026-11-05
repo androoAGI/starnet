@@ -42,28 +42,19 @@ A.ok(json && json.mime === 'application/json', 'JSON export has an explicit MIME
 A.ok(!/HIDDEN-SYSTEM|LOCAL-MARKER/.test(json.text), 'JSON excludes hidden system/local rows');
 A.ok(!/sk-abcdefghijklmnopqrstuvwxyz|ABCDEFGHIJKLMNOPQRSTUV/.test(json.text), 'JSON scrubs obvious credential material');
 A.ok(/\[redacted\]/.test(json.text), 'JSON visibly marks scrubbed values');
-const parsed = W.parseConversationExport(json.text);
-A.eq(parsed.title, 'Orchid launch notes', 'JSON export round-trips its title');
-A.ok(parsed.messages.some(m => m.content === 'safe visible answer'), 'JSON export round-trips visible dialogue');
-A.ok(parsed.messages.every(m => m.role === 'user' || m.role === 'assistant'), 'round-trip contains dialogue roles only');
+const parsed = JSON.parse(json.text);   // the importer (parseConversationExport) had no caller and was removed with the clear (turn identity commit 16)
+A.eq(parsed.title, 'Orchid launch notes', 'JSON export carries its title');
+A.ok(parsed.messages.some(m => m.content === 'safe visible answer'), 'JSON export carries visible dialogue');
+A.ok(parsed.messages.every(m => m.role === 'user' || m.role === 'assistant'), 'the export contains dialogue roles only');
+// the export reads the station's DISPLAY view when it has one: a row the station no longer shows (it quotes a deleted session) is not exported
+const viaDisplay = W.exportConversation('s17', 'json', { exportedAt: 123, rows: [{ role: 'user', content: 'from the station' }, { role: 'assistant', content: 'a file chip', kind: 'deliverable' }, { role: 'assistant', content: 'station reply' }] });
+A.eq(viaDisplay.doc.messages.map(m => m.content), ['from the station', 'station reply'], 'with the display rows of the station the export is those turns only (system-kind rows are not dialogue)');
+const quoted = W.exportConversation('s17', 'json', { exportedAt: 123 });
+A.ok(quoted.doc.messages.length > 0, 'without display rows the page history is exported');
 const md = W.exportConversation('s17', 'markdown', { exportedAt: 123 });
 A.ok(md && md.mime === 'text/markdown' && /^# Orchid launch notes/m.test(md.text), 'Markdown export has heading and MIME');
 A.ok(/## Commander[\s\S]*## Agent/.test(md.text), 'Markdown labels both visible speakers');
 A.ok(!/HIDDEN-SYSTEM|LOCAL-MARKER/.test(md.text), 'Markdown excludes hidden/system rows too');
-
-/* clear checkpoints only the active transcript; another session and memory-shaped metadata stay intact */
-const otherBefore = JSON.stringify(W.get('s23'));
-const runIdsBefore = active.runIds.slice();
-const cleared = W.clearConversation('s17', { at: 777 });
-A.ok(cleared && cleared.kind === 'clear' && cleared.count > 0, 'clear creates a named recovery checkpoint');
-A.eq(active.history, [], 'clear removes the selected conversation history');
-A.eq(active.runIds, runIdsBefore, 'clear does not erase run/deliverable metadata');
-A.eq(JSON.stringify(W.get('s23')), otherBefore, 'clear never changes an unrelated session');
-const afterClearSave = JSON.parse(JSON.stringify(W.serialize()));
-W.init(afterClearSave);
-A.ok(W.canUndo(), 'clear recovery checkpoint survives serialize/restart');
-A.ok(W.undoLast(), 'undo restores the clear checkpoint after restart');
-A.ok(W.get('s17').history.some(m => m.content === 'safe visible answer'), 'undo restores the exact transcript');
 
 /* bulk preview is exact; pinned and General are protected; only previewed ids move; undo survives restart */
 const preview = W.previewArchive({ empty: true, completed: true, olderThanMs: 30 * DAY }, { now: NOW });

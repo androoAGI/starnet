@@ -1796,6 +1796,34 @@ const Chat = (() => {
     pendingAtts.splice(i, 1);
     renderAttachStrip();
   }
+  /* forgetSession(streamId, { runIds, files }) - the page's own copies of a session the Commander just deleted (turn identity commit 16, qa/bugs/3e926b6a).
+     The station forgets what it holds; this drops what only this page holds: the run records (RUN_META, which carries the directive text), the
+     SEND NOW lines kept for it (memory, the in-flight asks and the browser's disk copy), and the uploaded files its messages named that no other
+     session names - posted to the station's own delete (the sidecar entry covers the rows it knows; refs on messages from before the transcript
+     ledger exist only in this page's save). Best-effort and idempotent: a failed delete is retried by nothing, the sidecar's purge pass is the net. */
+  function forgetSession(streamId, opts) {
+    const id = String(streamId || ''), o = opts || {};
+    if (!id) return { runs: 0, lines: 0, files: 0 };
+    let runs = 0, lines = 0, files = 0;
+    const doomed = new Set((Array.isArray(o.runIds) ? o.runIds : []).map(String));
+    try { for (const [rid, meta] of Array.from(RUN_META)) if (doomed.has(rid) || (meta && meta.streamId === id)) { RUN_META.delete(rid); runs++; } } catch (_) {}
+    try {
+      lines = (sentNow.get(id) || []).length;
+      for (const n of (sentNow.get(id) || [])) { sentNowRetry.delete(n && n.id); }
+      sentNow.delete(id); sentNowChecks.delete(id); heldBack.delete(id); queued.delete(id);
+      sentNowDisk(all => { if (all && Object.prototype.hasOwnProperty.call(all, id)) { lines = Math.max(lines, (all[id] || []).length); delete all[id]; } });
+    } catch (_) {}
+    try {
+      const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
+      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
+      for (const f of (Array.isArray(o.files) ? o.files : [])) {
+        if (!f || !f.path) continue;
+        files++;
+        fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: f.agent || 'agent', path: f.path }) }).catch(() => {});
+      }
+    } catch (_) {}
+    return { runs, lines, files };
+  }
   // best-effort: prune the uploaded bytes so an attach-then-remove (or a cancelled queued message) doesn't orphan a file in the workspace
   function pruneUpload(ref) {
     if (!ref || !ref.path) return;
@@ -12111,7 +12139,7 @@ const Chat = (() => {
   // only" gate maybeStandaloneRate uses — so a pure-chat run is never bottle-offered. Used by App.runBottleInfo (R5).
   function runDidWork(id) { const w = id ? runWork.get(id) : null; return !!(w && ((w.toolsOk || 0) >= 1 || (w.delivered || 0) >= 1)); }
 
-  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
+  return { init, load, paintTitle, deliverTurns, forgetSession, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
     // the COMMS '▤ saved' row's folder / copy-path keys and their path resolver, shared with MY WORK › DELIVERABLES' FILES rows (org pass 10-14, P24)
     folderButton, copyPathButton, fullSavedPath: absoluteArtifactPath };
 })();

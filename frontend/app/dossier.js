@@ -66,6 +66,17 @@
     if (b && (b.observedAt || b.source === 'study')) return 'observed';
     return 'stated';
   }
+  /* PROVENANCE (turn identity commit 14/16, qa/bugs/3e926b6a). A belief the STATION learned from real work (a study proposal the Commander kept)
+     names the run it was learned from (sourceRunId, and the evidence run). A belief the Commander stated, confirmed or authored, and a doc seed,
+     names no session: it is not derived. A DERIVED belief with no run on record is UNSOURCED - it may have been learned from a session that is
+     since deleted, and nothing can say. */
+  function derived(b) { return !!b && weightOf(b) === 'observed'; }
+  function runIdsOf(b) {
+    const out = [];
+    const add = id => { if (typeof id === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(id) && out.indexOf(id) < 0) out.push(id); };
+    if (b) { add(b.sourceRunId); if (b.evidenceRef) add(b.evidenceRef.runId); }
+    return out;
+  }
   function clip(s) { s = String(s == null ? '' : s).trim(); return s.length > TEXT_CHARS ? s.slice(0, TEXT_CHARS) : s; }
 
   function fresh() {
@@ -219,11 +230,15 @@
   function composeBlock(dossier, opts) {
     opts = opts || {};
     const cap = Number.isFinite(opts.maxChars) ? opts.maxChars : BLOCK_CHARS;
+    // opts.completeOnly: after the first delete the block is composed from beliefs whose provenance is complete - an UNSOURCED derived belief
+    // stays in the panel but leaves every prompt (it returns when the Commander confirms or edits it: that makes it theirs, not derived)
+    const only = opts.completeOnly === true || (opts.completeOnly == null && dossier && dossier.completeOnly === true);
+    const held = key => { const all = beliefs(dossier, key); return only ? all.filter(b => !derived(b) || runIdsOf(b).length) : all; };
     // known dims in compose-PRIORITY order (pitch-critical first) so a trim never silently loses the keystone dims.
-    const known = COMPOSE_ORDER.map(k => DIMS.find(d => d.key === k)).filter(d => d && beliefs(dossier, d.key).length);
+    const known = COMPOSE_ORDER.map(k => DIMS.find(d => d.key === k)).filter(d => d && held(d.key).length);
     if (!known.length) return '';
     const head = 'WHAT YOU KNOW ABOUT YOUR COMMANDER (the station has learned this — honor it; if anything here is wrong, the Commander will correct it):';
-    const lineOf = d => '- ' + d.lead + ': ' + beliefs(dossier, d.key).map(b => b.text).join('; ');
+    const lineOf = d => '- ' + d.lead + ': ' + held(d.key).map(b => b.text).join('; ');
     let body = head + '\n' + known.map(lineOf).join('\n');
     if (body.length <= cap) return body;   // fast path: everything fits (the common case)
     // OVER BUDGET: give every KNOWN dim a fair share so a bulky doc-seeded dim can't crowd out a later one. (A single
@@ -237,6 +252,38 @@
     // last-resort hard guarantee for a pathologically small cap (e.g. a test cap below the header length).
     if (body.length > cap) body = body.slice(0, Math.max(0, cap - 1)).replace(/\s+\S*$/, '') + '…';
     return body;
+  }
+
+  /* provenance(dossier, opts) -> { sourceRunIds, complete }: what a pushed block says about where it was learned. The runs of every DERIVED belief the
+     block holds; complete when none of them is unsourced (opts.completeOnly leaves the unsourced ones out, so it is complete by construction).
+     The sidecar admits a complete push iff none of those runs was forgotten, and an incomplete one only while nothing was ever deleted. */
+  function provenance(dossier, opts) {
+    const only = !!opts && opts.completeOnly === true || (!(opts && opts.completeOnly != null) && !!dossier && dossier.completeOnly === true);
+    const ids = []; let complete = true;
+    for (const k of DIM_KEYS) for (const b of beliefs(dossier, k)) {
+      if (!derived(b)) continue;
+      const runs = runIdsOf(b);
+      if (!runs.length) { if (!only) complete = false; continue; }
+      for (const id of runs) if (ids.indexOf(id) < 0) ids.push(id);
+    }
+    if (ids.length > 256) return { sourceRunIds: ids.slice(0, 256), complete: false };
+    return { sourceRunIds: ids, complete };
+  }
+  /* purgeRuns(dossier, runIds, now) -> how many beliefs went: the DERIVED beliefs learned from a deleted session's runs. A belief the Commander
+     stated or confirmed is theirs and stays whatever it was first inferred from. The dossier remembers that a delete happened
+     (completeOnly): from then on its prompt block is composed from complete beliefs only. */
+  function purgeRuns(dossier, runIds, now) {
+    if (!dossier) return 0;
+    const gone = new Set((Array.isArray(runIds) ? runIds : []).filter(x => typeof x === 'string' && x));
+    let removed = 0;
+    for (const k of DIM_KEYS) {
+      const keep = (dossier.dims[k] || []).filter(b => !(gone.size && derived(b) && runIdsOf(b).some(id => gone.has(id))));
+      removed += (dossier.dims[k] || []).length - keep.length;
+      dossier.dims[k] = keep;
+    }
+    dossier.completeOnly = true;
+    if (removed) dossier.updatedAt = now;
+    return removed;
   }
 
   // the panel read: per-dimension counts, which dimensions are known vs still blank, and an HONEST
@@ -272,6 +319,7 @@
       for (const s of DOC_SEEDS) if (typeof raw.seedText[s.doc] === 'string') d.seedText[s.doc] = clip(raw.seedText[s.doc]);
     }
     if (Number.isFinite(raw.updatedAt) && raw.updatedAt >= 0) d.updatedAt = raw.updatedAt;
+    if (raw.completeOnly === true) d.completeOnly = true;   // a delete was made: the prompt block is composed from complete beliefs only
     if (raw.dims && typeof raw.dims === 'object') {
       for (const k of DIM_KEYS) {
         const arr = raw.dims[k]; if (!Array.isArray(arr)) continue;
@@ -305,5 +353,5 @@
     return d;
   }
 
-  return { fresh, hydrate, upsert, forget, setPinned, beliefs, seedFromDocs, composeBlock, summary, weightOf, DIMS, DIM_KEYS, WEIGHTS, BLOCK_CHARS, TEXT_CHARS };
+  return { fresh, hydrate, upsert, forget, setPinned, beliefs, seedFromDocs, composeBlock, provenance, purgeRuns, derived, runIdsOf, summary, weightOf, DIMS, DIM_KEYS, WEIGHTS, BLOCK_CHARS, TEXT_CHARS };
 });
