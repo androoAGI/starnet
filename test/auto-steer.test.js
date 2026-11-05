@@ -12,6 +12,8 @@ const { makeReplayProvider } = require('../sidecar/providers/replay.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeTranscriptStore } = require('../sidecar/transcriptstore.js');
 const { joinReplyDelta } = require('../sidecar/reply-assembler.js');
+const TurnMerge = require('../frontend/app/turnmerge.js');
+const HistoryFit = require('../frontend/app/historyfit.js');
 const source = fs.readFileSync(require.resolve('../frontend/app/chat.js'), 'utf8');
 const tick = () => new Promise(r => setImmediate(r));
 const plain = value => JSON.parse(JSON.stringify(value));
@@ -90,6 +92,17 @@ async function loopScenario({ early = false, cancel = false, late = false } = {}
     for (let i=0;i<r.messages.length;i++) if (r.messages[i].tool_calls) assert.equal(r.messages[i+1].role,'tool');
     assert(r.events.some(e => e.name==='agent.token' && e.payload.delta.includes('[steering]')));
   }
+  // TURN IDENTITY: the folded message is a steer row of its own (kind steer, the page's noteId), filed as a system row, never a station or directive row
+  {
+    const TurnKinds = require('../frontend/app/turnkinds.js');
+    const r = await loopScenario({});
+    const folded = (r.result.messages || r.messages).filter(m => m && m.steeringWire);
+    assert.equal(folded.length, 1, 'one folded mid-task message');
+    assert.deepEqual({ kind: TurnKinds.tagOf(folded[0]).kind, noteId: TurnKinds.tagOf(folded[0]).noteId }, { kind: 'steer', noteId: 'status' });
+    const filed = [], identityStore = makeTranscriptStore({ io: { readAll: () => filed, append: e => filed.push(e) }, clock: { now: () => 7 } });
+    identityStore.appendNewStrict('s2', 'a', [folded[0]], { sourceRunId: 'r', turnId: 't_0123456789abcdefghijk', kindOf: m => TurnKinds.messageKind(m, 'turn') });
+    assert.deepEqual({ role: filed[0].role, kind: filed[0].kind, noteId: filed[0].noteId, wire: filed[0].steeringWire }, { role: 'system', kind: 'steer', noteId: 'status', wire: folded[0].steeringWire });
+  }
   const stopped=await loopScenario({cancel:true}); assert.equal(stopped.result.reason,'cancelled'); assert.deepEqual(stopped.written,['outline']);
   let r=browserRig(); r.ctx.queued.set('s1',[{text:original.text,atts:[attachment]},'second']);
   await r.ctx.steerQueued('s1'); assert.equal(r.posts.length,2); assert.deepEqual({text:r.posts[0].message.text,attachments:r.posts[0].message.attachments},original); assert.equal(r.posts[1].message.text,'second');
@@ -123,7 +136,7 @@ async function loopScenario({ early = false, cancel = false, late = false } = {}
   const sending=r.ctx.steerQueued('s1'); await tick(); r.ctx.interrupted.add('s1'); r.ctx.queued.delete('s1'); r.ctx.restoreSentNow('s1','r1');
   resolve({status:200,json:async()=>({ok:true})}); await sending; assert.equal(r.posts.length,1); assert.equal(r.ctx.input.value,'first'); assert.equal(r.ctx.queued.has('s1'),false);
   // The durable transcript and streamed echo restore as one row, including a second reload.
-  const merge = new Function(A.fnBody(source,'function mergeCanonicalHistory')+';return mergeCanonicalHistory;')();
+  const merge = (l, r) => TurnMerge.legacyWithIdentity(l, r, null);
   const local=[{role:'system',sys:true,steerEcho:true,sourceRunId:'r',content:'[steering] '+wire}];
   const remote=[{role:'user',sourceRunId:'r',content:original.text,steeringWire:wire}];
   const merged=merge(local,remote); assert.equal(merged.length,1); assert.equal(merge(merged,remote).length,1);
@@ -132,7 +145,7 @@ async function loopScenario({ early = false, cancel = false, late = false } = {}
   const phone=Message.displayRows([{role:'assistant',content:'Before.\n[steering] '+wire+'\nAfter.'}]);
   assert.deepEqual(phone.map(r=>r.role),['assistant','user','assistant']);
   assert.equal(phone[1].content,original.text);
-  const outbound = new Function('SteeringMessage','HISTORY_CAP','HISTORY_WIRE_MAX_BYTES','fitHistoryBytes', A.fnBody(source,'function historyWindowFrom')+';return historyWindowFrom;')(Message,100,1000000,x=>x);
+  const outbound = new Function('SteeringMessage','HistoryFit','stationModes', A.fnBody(source,'function historyWindowFrom')+';return historyWindowFrom;')(Message,HistoryFit,{ window: 'legacy' });
   const twice=[{role:'user',sourceRunId:'r',content:'status?',steeringWire:Message.encode({text:'status?',id:'first'})},{role:'user',sourceRunId:'r',content:'status?',steeringWire:Message.encode({text:'status?',id:'second'})}];
   assert.equal(merge([],twice).length,2,'identical messages sent twice remain distinct');
   assert.equal(outbound(merged)[0].role,'user'); assert.equal(outbound(merged)[0].content,original.text);
