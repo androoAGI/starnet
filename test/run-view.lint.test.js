@@ -46,6 +46,7 @@ const ALLOWED = [
   { file: IDX, anchor: "runOf: id => runStore.latest(id), hash: text =>", reason: 'the transcript store\'s run lookup classifies rows (directive kind, internal flags) and proves a delivery hash; the rows themselves are filtered by the store\'s own predicate, and a hidden record would reclassify a visible row' },
   { file: IDX, anchor: "const rec = runStore.latest(id);\n    return !!rec && judge(rec);", reason: 'this IS the quote predicate: it reads the record\'s own quote stamp' },
   { file: IDX, anchor: "const rec = runStore.latest(id);\n  return !!rec && ForgetRegistry.viewRun(rec, runViewCtx) === null;", reason: 'this IS the registry\'s forgotten-run test (admit asks it): the run-view filter itself, applied to the record' },
+  { file: IDX, anchor: "const rec = runStore.latest(String(runId));\n  if (!rec) return false;", reason: 'this IS the fresh forgotten-run test (runForgottenFresh): it reads the stream id, time and quote stamp and returns a boolean, no words leave it' },
   { file: IDX, anchor: "const rec = runStore.latest(String(workerRunId));", reason: 'the relay reads which sessions a worker read (ids and times), to latch them on its lead' },
   { file: IDX, anchor: "deletedScope(todo, runStore.all())", reason: 'the purge input must read every run, forgotten ones included' },
   { file: IDX, anchor: "outcomeOf: runId => { const row = runStore.latest(runId);", reason: 'a hop\'s outcome only (ChannelHistory admission)' },
