@@ -9,7 +9,8 @@
 
    A snapshot record (the snapshotId is a content hash minted by the ambient git layer):
      { id, runId, turn:int, parentId:string|null, ts:int, files:int, bytes:int, label,
-       scopeId?:string, workTree?:string, gitCommit?:string }
+       scopeId?:string, workTree?:string, gitCommit?:string, links?:[{ path, kind }], linksTotal?:int }
+   links/linksTotal name the links (junctions, symlinks, mount points) checkpoint-store's capture left out of it.
    The optional scope fields bind a restore point to an explicitly-authorized external project root. They are
    ambient metadata only: the pure reducer preserves them, while checkpoint-store owns validation + access.
    The persisted index envelope (one per agent, fail-closed on load):
@@ -36,6 +37,7 @@
 
   const ENVELOPE_VERSION = 1;
   const ID_RE = /^[A-Za-z0-9_.:-]{1,128}$/;        // a git-oid-ish content id (hex, or a labelled hash)
+  const MAX_LINKS = 32;                             // links named on one record (linksTotal counts them all)
 
   function isValidId(id) { return typeof id === 'string' && ID_RE.test(id); }
 
@@ -50,7 +52,7 @@
     meta = meta || {}; ctx = ctx || {};
     const id = meta.id;
     if (!isValidId(id)) throw new Error('checkpoint: invalid snapshot id (must match ' + ID_RE + ')');
-    return {
+    const snap = {
       id: String(id),
       runId: meta.runId != null ? String(meta.runId) : '',
       turn: Number.isFinite(meta.turn) ? (meta.turn | 0) : 0,
@@ -63,6 +65,13 @@
       workTree: meta.workTree != null ? String(meta.workTree) : '',
       gitCommit: meta.gitCommit != null ? String(meta.gitCommit) : ''
     };
+    // the links the capture left out (checkpoint-store's link boundary): present only when there were any
+    const links = Array.isArray(meta.links) ? meta.links.filter(function (l) { return l && typeof l.path === 'string'; }) : [];
+    if (links.length) {
+      snap.links = links.slice(0, MAX_LINKS).map(function (l) { return { path: String(l.path), kind: String(l.kind || '') }; });
+      snap.linksTotal = Number.isFinite(meta.linksTotal) && meta.linksTotal >= links.length ? (meta.linksTotal | 0) : links.length;
+    }
+    return snap;
   }
 
   function prune(index, keep) {

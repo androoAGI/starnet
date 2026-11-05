@@ -82,7 +82,7 @@ function failingGit(verb) {
     A.ok(!exists('drafts/draft-by-commander.txt'), '(1) the post-snapshot untracked file was removed by the rewind');
 
     // ---- (3) ignore rules: the ignored file was neither snapshotted nor removed ----
-    A.eq(read('scratch.log'), 'ignored scratch\n', '(3) an ignored file survives the rewind (clean -fd without -x, as before)');
+    A.eq(read('scratch.log'), 'ignored scratch\n', '(3) an ignored file survives the rewind (a rewind runs no clean)');
     const tree = execFileSync('git', ['--git-dir', path.join(root, '.checkpoints', aid, 'git'), 'ls-tree', '-r', '--name-only', out.preRestoreId], { encoding: 'utf8', windowsHide: true });
     A.ok(tree.split('\n').indexOf('drafts/draft-by-commander.txt') >= 0, '(3) the untracked non-ignored file IS in the pre-restore snapshot');
     A.ok(tree.split('\n').indexOf('scratch.log') < 0, '(3) the ignored file is NOT in it (same ignore rules as every snapshot)');

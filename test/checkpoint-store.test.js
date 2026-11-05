@@ -13,16 +13,8 @@ const os = require('os');
 const { execFileSync } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
-
-// a real synchronous git runner (the test analogue of index.js's async execFile runner).
-function runGit(args, opts) {
-  try {
-    const stdout = execFileSync('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return Promise.resolve({ code: 0, stdout: String(stdout || ''), stderr: '' });
-  } catch (e) {
-    return Promise.resolve({ code: (e && typeof e.status === 'number') ? e.status : 1, stdout: String((e && e.stdout) || ''), stderr: String((e && e.stderr) || '') });
-  }
-}
+// the store's Git as the lane's rows start it (test/helpers/checkpoint-rows.js): not blocking, no console host beside each Git
+const { runGit } = require('./helpers/checkpoint-rows.js');
 
 (async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-cp-'));
@@ -56,28 +48,126 @@ function runGit(args, opts) {
     A.ok(s2.id !== s1.id, 'a changed workspace yields a new snapshot id');
 
     // ---- 4. restore to the baseline: edited file reverts BYTE-EXACT + the new file is removed ----
-    write('untracked-after-snapshot.txt', 'must be removed by git clean\n');
-    const cleanFailStore = makeCheckpointStore({
+    write('untracked-after-snapshot.txt', 'removed by the reset: the pre-restore capture took it\n');
+    const gitCalls = [];
+    const watchedStore = makeCheckpointStore({
       fs, pathMod: path, root, clock, keep: 5,
-      runGit: (args, opts) => args.indexOf('clean') >= 0
-        ? Promise.resolve({ code: 1, stdout: '', stderr: 'simulated clean failure' })
-        : runGit(args, opts)
+      runGit: (args, opts) => { gitCalls.push(args); return runGit(args, opts); }
     });
-    const cleanFail = await cleanFailStore.restoreDetailed(aid, s1.id);
-    A.eq(cleanFail.ok, false,
-      'restore reports failure when git clean cannot remove post-snapshot files');
-    // The pre-restore undo point (checkpoint-restore-undoable.test.js) now commits the post-snapshot file BEFORE
-    // the reset, so the reset itself removes it; what a failed clean must still guarantee is that nothing is lost:
-    // the file is recoverable from the undo point the failed restore reports.
-    A.ok(cleanFail.preRestoreId && store.list(aid).snapshots.some(s => s.id === cleanFail.preRestoreId),
-      'a failed clean still leaves a recorded pre-restore undo point holding the post-snapshot file');
-    A.ok(await store.restore(aid, cleanFail.preRestoreId), 'the undo point restores');
+    const first = await watchedStore.restoreDetailed(aid, s1.id);
+    A.eq(first.ok, true, 'restore to the baseline succeeds');
+    // The pre-restore undo point (checkpoint-restore-undoable.test.js) commits the post-snapshot file BEFORE the
+    // reset, so the reset itself removes it. A rewind runs no `git clean` (review round 5 of lane checkpoint-links:
+    // all it could still delete was a file no capture took, such as an ignored .env, gone for good).
+    A.ok(!gitCalls.some(a => a.indexOf('clean') >= 0), 'a rewind runs no git clean');
+    A.ok(!fs.existsSync(path.join(wt, 'untracked-after-snapshot.txt')), 'the post-snapshot file was removed by the reset');
+    A.ok(first.preRestoreId && store.list(aid).snapshots.some(s => s.id === first.preRestoreId),
+      'it is in the recorded pre-restore undo point');
+    A.ok(await store.restore(aid, first.preRestoreId), 'the undo point restores');
     A.ok(fs.existsSync(path.join(wt, 'untracked-after-snapshot.txt')),
-      'the post-snapshot file is back from the undo point (the incomplete restore lost nothing)');
+      'the post-snapshot file is back from the undo point (the rewind lost nothing)');
     const ok = await store.restore(aid, s1.id);
     A.ok(ok, 'restore to baseline succeeded');
     A.eq(read('report.md'), 'line one\nline two\n', 'edited file reverted byte-exact');
     A.ok(!fs.existsSync(path.join(wt, 'extra.txt')), 'file created after the baseline was removed on restore');
+
+    // ---- 4b. a file reset could not remove: an incomplete rewind, never ok ----
+    // A file reset cannot unlink (another program holds it open without delete sharing) only gets a warning from Git,
+    // which still exits 0. The runner here puts the file back right after the reset, as such a file stays: the rewind
+    // must say it did not complete, name the file, and hand back its undo point (review round 6 of lane checkpoint-links:
+    // with no clean left, nothing else noticed, and the route answered 200). Its own agent: `store` keeps 5 rows.
+    {
+      const aidS = 'st', wtS = path.join(root, aidS), later = path.join(wtS, 'later.txt');
+      fs.mkdirSync(wtS, { recursive: true });
+      fs.writeFileSync(path.join(wtS, 'base.txt'), 'v0\n');
+      const b0 = await store.snapshot(aidS, { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wtS, 'base.txt'), 'v1\n');
+      fs.writeFileSync(later, 'made after the snapshot\n');
+      const stuckStore = makeCheckpointStore({
+        fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => {
+          const r = await runGit(args, opts);
+          if (args.indexOf('reset') >= 0) fs.writeFileSync(later, 'held open by another program\n');
+          return r;
+        }
+      });
+      const stuckR = await stuckStore.restoreDetailed(aidS, b0.id);
+      A.eq(stuckR.ok, false, 'restore reports failure when reset could not remove a post-snapshot file');
+      A.eq(stuckR.reason, 'git_failed', 'as an incomplete rewind');
+      A.ok(/^"later\.txt", which the restore point lacks, could not be removed/.test(stuckR.detail || ''), 'naming the file (' + stuckR.detail + ')');
+      A.eq(fs.readFileSync(path.join(wtS, 'base.txt'), 'utf8'), 'v0\n', 'the rest of the rewind was done');
+      A.ok(stuckR.preRestoreId && store.list(aidS).snapshots.some(s => s.id === stuckR.preRestoreId),
+        'with a recorded pre-restore undo point holding the post-snapshot file');
+      A.ok(await store.restore(aidS, stuckR.preRestoreId), 'the undo point restores');
+      A.eq(fs.readFileSync(later, 'utf8') + fs.readFileSync(path.join(wtS, 'base.txt'), 'utf8'), 'made after the snapshot\nv1\n',
+        'the workspace is back as it was before the rewind (the incomplete rewind lost nothing)');
+    }
+
+    // ---- 4c. the runner's OUTPUT LIMIT: test/checkpoint-store-capped.test.js (moved there at undo review 12) ----
+
+    // ---- 4d. the round 6 checks FAIL CLOSED: a listing they need that Git cannot give refuses the rewind, untouched ----
+    // A runner that fails one Git verb (review 6.2 of lane checkpoint-links: each answer was pinned only by the route's
+    // source regex): diff-index (what the rewind writes), check-ignore (is the file in the way ignored?) and diff-tree
+    // (what reset will remove, listed before the pre-restore commit since the minors review) before anything is touched;
+    // ls-files after the reset (does the index hold a file still there?), an incomplete rewind with its undo row, never ok.
+    {
+      const failing = (verb) => makeCheckpointStore({ fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => (args.indexOf(verb) >= 0 ? { code: 128, stdout: '', stderr: 'fatal: failed on purpose' } : runGit(args, opts)) });
+      const fresh = (aidF) => { const w = path.join(root, aidF); fs.mkdirSync(w, { recursive: true }); return w; };
+      const wA = fresh('fa');
+      fs.writeFileSync(path.join(wA, 'a.txt'), 'v0\n');
+      const a0 = await store.snapshot('fa', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wA, 'a.txt'), 'v1\n');
+      fs.writeFileSync(path.join(wA, 'b.txt'), 'b\n');
+      await store.snapshot('fa', { runId: 'r1', turn: 1, label: 'fs.write' });
+      const rowsA = store.list('fa').snapshots.length;
+      const rA = await failing('--diff-filter=DT').restoreDetailed('fa', a0.id);   // the write list's diff-index alone
+      A.eq(rA.reason, 'uncaptured_check_failed', 'a rewind whose write list Git cannot give is refused (' + JSON.stringify(rA) + ')');
+      A.ok(/^Git could not list what rewinding would write/.test(rA.detail || '') && !rA.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fa').snapshots.length, fs.readFileSync(path.join(wA, 'a.txt'), 'utf8')], [rowsA, 'v1\n'], 'nothing was touched');
+      const wB = fresh('fb');
+      fs.writeFileSync(path.join(wB, '.env'), 'A\n');
+      const b0 = await store.snapshot('fb', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.unlinkSync(path.join(wB, '.env'));
+      await store.snapshot('fb', { runId: 'r1', turn: 1, label: 'fs.write' });
+      fs.writeFileSync(path.join(wB, '.env'), 'B, no capture yet\n');
+      const rowsB = store.list('fb').snapshots.length;
+      const rB = await failing('check-ignore').restoreDetailed('fb', b0.id);
+      A.eq(rB.reason, 'uncaptured_check_failed', 'a rewind that cannot ask Git whether the file in its way is ignored is refused (' + JSON.stringify(rB) + ')');
+      A.ok(/^Git could not say which files it ignores/.test(rB.detail || '') && !rB.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fb').snapshots.length, fs.readFileSync(path.join(wB, '.env'), 'utf8')], [rowsB, 'B, no capture yet\n'], 'nothing was touched');
+      const wC = fresh('fc');
+      fs.writeFileSync(path.join(wC, 'a.txt'), 'v0\n');
+      const c0 = await store.snapshot('fc', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wC, 'a.txt'), 'v1\n');
+      fs.writeFileSync(path.join(wC, 'later.txt'), 'made after the snapshot\n');
+      const rowsC = store.list('fc').snapshots.length;
+      const rC = await failing('diff-tree').restoreDetailed('fc', c0.id);
+      A.eq(rC.reason, 'uncaptured_check_failed', 'a rewind whose remove list Git cannot give is refused (' + JSON.stringify(rC) + ')');
+      A.ok(/^Git could not list what rewinding would remove/.test(rC.detail || '') && !rC.preRestoreId, 'saying so, with no undo row');
+      A.eq([store.list('fc').snapshots.length, fs.readFileSync(path.join(wC, 'a.txt'), 'utf8'), fs.existsSync(path.join(wC, 'later.txt'))], [rowsC, 'v1\n', true],
+        'nothing was touched');
+      const wD = fresh('fd'), stuck = path.join(wD, 'later.txt');
+      fs.writeFileSync(path.join(wD, 'a.txt'), 'v0\n');
+      const e0 = await store.snapshot('fd', { runId: 'r1', turn: 0, label: 'fs.write' });
+      fs.writeFileSync(path.join(wD, 'a.txt'), 'v1\n');
+      fs.writeFileSync(stuck, 'made after the snapshot\n');
+      let resetRan = false;
+      const afterReset = makeCheckpointStore({ fs, pathMod: path, root, clock, keep: 5,
+        runGit: async (args, opts) => {
+          if (resetRan && args.indexOf('ls-files') >= 0) return { code: 128, stdout: '', stderr: 'fatal: failed on purpose' };
+          const r = await runGit(args, opts);
+          if (args.indexOf('reset') >= 0) { resetRan = true; fs.writeFileSync(stuck, 'held open by another program\n'); }
+          return r;
+        } });
+      const rD = await afterReset.restoreDetailed('fd', e0.id);
+      A.eq([rD.ok, rD.reason], [false, 'git_failed'], 'a rewind that cannot check a file reset left is not ok (' + JSON.stringify(rD) + ')');
+      A.ok(/^the rewind ran, but Git could not check that the files it was to remove are gone/.test(rD.detail || ''), 'and says the rewind ran');
+      A.ok(rD.preRestoreId && store.list('fd').snapshots.some(s => s.id === rD.preRestoreId), 'with its undo row recorded');
+      A.eq(fs.readFileSync(path.join(wD, 'a.txt'), 'utf8'), 'v0\n', 'the reset itself ran');
+      A.ok(await store.restore('fd', rD.preRestoreId), 'and the undo row restores');
+      A.eq(fs.readFileSync(path.join(wD, 'a.txt'), 'utf8') + fs.readFileSync(stuck, 'utf8'), 'v1\nmade after the snapshot\n', 'the workspace is back as it was');
+    }
 
     // ---- 5. the index round-trips + records both real snapshots (lineage threaded) ----
     const idx = store.list(aid);
@@ -226,6 +316,13 @@ function runGit(args, opts) {
       A.eq((listed.snapshots || []).length, 0, 'an unreadable index serves EMPTY for the pass (fail-closed), not a rebuild');
       const after = fs.readFileSync(indexFile, 'utf8');
       A.eq(after, goodBytes, 'the good index file was NOT overwritten by the lossy git rebuild');
+    }
+    // ---- 12. a declared slow step (the r3 review of lane checkpoint-links): this file's snapshots and rewinds take it past
+    // test/slow.list's 40 s rule under load (slow.list says when; its capped-runner row 4c is test/checkpoint-store-capped.test.js
+    // since undo review 12), and the HTTP gate cuts an unlisted step off at 120 s. Listed there, a gate gives it 600 s ----
+    {
+      const slow = fs.readFileSync(path.join(__dirname, 'slow.list'), 'utf8').split(/\r?\n/).map((s) => s.trim());
+      A.ok(slow.includes('test/checkpoint-store.test.js'), 'this step is declared in test/slow.list (its rows make real snapshots and rewinds)');
     }
   } finally {
     try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}

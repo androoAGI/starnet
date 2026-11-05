@@ -156,6 +156,7 @@ test/channels.telegram.chat-truth.e2e.test.js
 test/cron.arm.test.js
 test/lifecycle-armed.http.test.js
 test/checkpoint-store.test.js
+test/checkpoint-store-capped.test.js
 test/checkpoint-maintenance.test.js
 test/checkpoint-stale-lock.test.js
 test/shell.test.js
