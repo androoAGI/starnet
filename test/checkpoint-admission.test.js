@@ -84,8 +84,8 @@ function link(target, at) { fs.symlinkSync(target, at, isWin ? 'junction' : 'dir
       try { await fam.bgWriteTool.run({ id: 'bg_1', input: 'explorer.exe .' }, ctx); why = 'SENT'; } catch (e) { why = e.message; }
       A.ok(/refused/.test(why) && !written.length, 'a screened-out line is refused (' + why.slice(0, 80) + ')');
       A.eq(checkpoints.length, 0, 'and snapshots nothing (green on trunk too, where shell.js took no checkpoint: the next rows are the pin)');
-      const sent = await fam.bgWriteTool.run({ id: 'bg_1', input: 'print(1)' }, ctx);
-      A.ok(/Sent 8 byte/.test(sent.content), 'an admitted line is sent');
+      const sent = await fam.bgWriteTool.run({ id: 'bg_1', input: 'echo hi' }, ctx);   // trunk's shell guard (repair) refuses a bare word it cannot prove is a console tool on Windows: the admitted line is a known one
+      A.ok(/Sent 7 byte/.test(sent.content), 'an admitted line is sent');
       A.eq(checkpoints.length, 1, 'after one checkpoint');
       A.eq(checkpoints[0] && [path.resolve(checkpoints[0][0]), checkpoints[0][1], checkpoints[0][2] && checkpoints[0][2].always], [path.resolve(root, 'a1'), 'shell.bg.write', true], 'of the agent workspace, labelled, taken whatever the fs.* flag says');
       await fam.bgWriteTool.run({ id: 'bg_1', eof: true }, ctx);
@@ -146,8 +146,8 @@ function link(target, at) { fs.symlinkSync(target, at, isWin ? 'junction' : 'dir
     {
       const reg = makeRegistry();
       const ran = [];
-      reg.register({ name: 'shell.bg.kill', capability: 'workbench', scope: 'write', requiresConsent: true, schema: { type: 'object', properties: {} }, run: async () => { ran.push('kill'); return 'killed'; } });
-      reg.register({ name: 'shell.bg.status', capability: 'workbench', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => { ran.push('status'); return 'status'; } });
+      reg.register({ name: 'shell.bg.kill', capability: 'workbench', impact: 'workspace-process', scope: 'write', requiresConsent: true, schema: { type: 'object', properties: {} }, run: async () => { ran.push('kill'); return 'killed'; } });
+      reg.register({ name: 'shell.bg.status', capability: 'workbench', impact: 'workspace-process', scope: 'read', requiresConsent: false, schema: { type: 'object', properties: {} }, run: async () => { ran.push('status'); return 'status'; } });
       const seams = [];
       const seam = async (call, tool) => { seams.push(call.name + ':' + tool.scope); return null; };
       await reg.dispatch({ name: 'shell.bg.kill', args: {}, id: '1' }, { agentId: 'a', emit() {}, consent: () => ({ allow: false, reason: 'no' }), beforeToolExecute: seam });
