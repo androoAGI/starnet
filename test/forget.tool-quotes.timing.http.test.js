@@ -117,7 +117,8 @@ const recall = (query, then) => ctx => ctx.made('recall_conversation') === 0 ? {
       A.eq(up.bodies.filter(x => x.at >= at && x.main).length, 0, '(3) ...and no model call was made for it');
       const again = await rig.json('POST', '/api/run-recoveries/continue', { runId: rb.runId, agentId: 'agent', recoveryToken: rb.recoveryToken, continuationId: 'timing-control-0001', mode: 'automatic' });
       A.eq(again.status, 200, '(3) control: the other one is prepared as before');
-      const interrupted = (await rig.runs()).find(r => r.runId === ra.runId);
+      // the display view hides the forgotten run now, so the record is read from the station's own run file
+      const interrupted = fs.readFileSync(path.join(rig.fx.workspace, 'runs.jsonl'), 'utf8').split('\n').map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(r => r && r.runId === ra.runId).pop();
       A.ok(interrupted && interrupted.reason === 'interrupted' && Array.isArray(interrupted.quotes) && interrupted.quotes[0] === 's3', '(3) the interrupted run\'s record names the session it read (taken from its journal)');
       A.ok(!rowsText(await rowsOf('t3')).includes(WORD.three), '(3) display: nothing of S in T');
       A.ok(rig.mentionedSince(del.at, WORD.three).length === 0, '(3) no upstream body after the restart holds S\'s word');
