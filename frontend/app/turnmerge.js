@@ -368,9 +368,38 @@ function legacyMerge(local, turns) {
      byte, when dialogue follows it; a history without one never gains one. The id merge words its own from station
      evidence (R7) and is not touched here. */
   const markerRow = r => objectRow(r) && r.truncated === true && r.role === 'system';
+  /* A MID-TASK MESSAGE THE STATION HOLDS AND THE PAGE NEVER DREW (auto-steer). The station files a folded message as a steer
+     row carrying its steeringWire (the lossless transport line, steering-message.js); the page draws it as a local steerEcho
+     row. When a reload (or a phone) finds the station's row with no echo or streamed '[steering]' line of the same wire in the
+     same run, the echo is made from the station's row. The frozen legacyMerge keeps user/assistant rows only, so this runs
+     in front of it and the station's steer rows leave its input. */
+  function steeringApi() {
+    try { if (typeof module !== 'undefined' && module.exports && typeof require === 'function') return require('./steering-message.js'); } catch (_) {}
+    return typeof globalThis !== 'undefined' && globalThis.SteeringMessage ? globalThis.SteeringMessage : null;
+  }
+  const wireOf = r => objectRow(r) && typeof r.steeringWire === 'string' ? r.steeringWire : '';
+  const sameSteerWire = (echoRow, stationRow) => {
+    const S = steeringApi(), wire = wireOf(stationRow);
+    return !!(S && wire && S.sameWire(textOf(echoRow).replace(/^\[steering\] /, ''), wire));
+  };
+  function withSteerEchoes(local, station) {
+    const S = steeringApi(), rows = Array.isArray(station) ? station : [];
+    const incoming = rows.filter(t => objectRow(t) && wireOf(t) && (t.role === 'user' || t.kind === 'steer'));
+    if (!S || !incoming.length) return { local, station };
+    const next = (Array.isArray(local) ? local : []).slice();
+    for (const t of incoming) {
+      const echo = '[steering] ' + t.steeringWire;
+      if (!next.some(m => objectRow(m) && String(m.sourceRunId || '') === String(t.sourceRunId || '') &&
+          ((m.steerEcho && (m.content === echo || S.sameWire(String(m.content || '').replace(/^\[steering\] /, ''), t.steeringWire)))
+            || (m.role === 'assistant' && (('\n' + m.content + '\n').includes('\n' + echo + '\n') || S.containsWire(m.content, t.steeringWire)))))) {
+        next.push(Object.assign({}, t, { role: 'system', sys: true, steerEcho: true, content: echo }));
+      }
+    }
+    return { local: next, station: rows.filter(t => incoming.indexOf(t) < 0) };
+  }
   function legacyWithIdentity(local, station, identity) {
-    const mine = filterLocal(local, identity), lead = markerRow(mine[0]) ? mine[0] : null;
-    const rows = demoteRows(legacyMerge(mine, station), station, identity);
+    const filtered = filterLocal(local, identity), steered = withSteerEchoes(filtered, station), mine = steered.local, lead = markerRow(mine[0]) ? mine[0] : null;
+    const rows = demoteRows(legacyMerge(mine, steered.station), steered.station, identity);
     return lead && rows.some(r => objectRow(r) && (r.role === 'user' || r.role === 'assistant')) ? [lead].concat(rows) : rows;
   }
   function compare(a, b) {
@@ -494,7 +523,8 @@ function legacyMerge(local, turns) {
       if (synthetic) { count('synthetic_status', row, synthetic.row); continue; }
       if (sameStream && kind === 'steerEcho') {
         const match = spine.find(e => streamOf(e.row, stream) === stream && e.row.kind === 'steer' && !steering.has(e) &&
-          (row.noteId ? row.noteId === e.row.noteId : runOf(row) && runOf(row) === runOf(e.row) && textOf(row).replace(/^\[steering\] /, '') === textOf(e.row).replace(/^\[steering\] /, '')));
+          ((row.noteId ? row.noteId === e.row.noteId : runOf(row) && runOf(row) === runOf(e.row) && textOf(row).replace(/^\[steering\] /, '') === textOf(e.row).replace(/^\[steering\] /, ''))
+            || (runOf(row) && runOf(row) === runOf(e.row) && sameSteerWire(row, e.row))));
         if (match) { steering.add(match); count('steer_twin', row, match.row); continue; }
       }
       if (sameStream && (legacyRow(row) || disavowed) && dialogue(row)) {

@@ -31,6 +31,7 @@
    }
    steerNoteStatus(runId, { live, memory, record }) -> the GET /api/run/steer body (memory, else the record, else none) */
 'use strict';
+const SteeringMessage = require('../frontend/app/steering-message.js');
 
 function makeSteerBuffers(opts) {
   opts = opts || {};
@@ -64,10 +65,17 @@ function makeSteerBuffers(opts) {
   }
   const texts = batch => batch.map(n => n.text);
 
-  function post(runId, text, live, noteId) {
+  function post(runId, text, live, noteId, message) {
     runId = String(runId || '');
-    text = String(text == null ? '' : text).trim();
+    const structured = message === undefined ? null : SteeringMessage.normalize(message);
+    if (message !== undefined && !structured) return { status: 400, body: { error: 'invalid mid-run message (100,000 characters and 16 attachments maximum)' } };
+    if (structured && cleanId(noteId)) structured.id = cleanId(noteId);
+    text = structured ? SteeringMessage.encode(structured) : String(text == null ? '' : text).trim();
     if (!text) return { status: 400, body: { error: 'empty steering note' } };
+    const priorId = cleanId(noteId);
+    const prior = priorId && ledger.get(runId);
+    // A retried full message may arrive after the run closed. Its applied receipt still wins.
+    if (structured && prior && prior.notes.get(priorId) === 'applied') return { status: 200, body: { ok: true, pending: 0, noteId: priorId, duplicate: true, applied: true } };
     if (!runId || !live) return { status: 404, body: { error: 'no in-flight run for that id' } };
     if (closed.has(runId)) {
       return { status: 409, body: { ok: false, applied: false, error: 'the run has already finished its work — this steering note was not applied; send it as a new message' } };
@@ -77,7 +85,7 @@ function makeSteerBuffers(opts) {
     // the same tracked note again (a page retrying its POST): it is already the run's — never buffered or folded twice
     if (id && ledger.has(runId) && ledger.get(runId).notes.has(id)) return { status: 200, body: { ok: true, pending: buf.length, noteId: id, duplicate: true } };
     if (buf.length >= maxPending) return { status: 429, body: { error: 'steer buffer full', pending: buf.length } };
-    buf.push({ text: text.slice(0, maxNoteChars), id: id });   // clamp a single note so one steer can't blow up the prompt
+    buf.push({ text: structured ? { ...structured, wire: text } : text.slice(0, maxNoteChars), id: id });   // clamp a single note so one steer can't blow up the prompt
     buffers.set(runId, buf);
     if (id) track(runId, id);
     return { status: 200, body: id ? { ok: true, pending: buf.length, noteId: id } : { ok: true, pending: buf.length } };

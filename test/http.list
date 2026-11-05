@@ -351,3 +351,4 @@ test/turn-window.http.test.js
 test/turn-window.phone.http.test.js
 test/turn-window.caller-shape.http.test.js
 test/transcript-cursor.http.test.js
+test/auto-steer.e2e.test.js

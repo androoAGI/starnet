@@ -2320,7 +2320,7 @@ function drainSteer(runId) { return steerBufs.drain(runId); }
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {
   const id = String(runId || '');
-  const out = steerBufs.post(id, text, runReachable(id));
+  const out = steerBufs.post(id, text, runReachable(id), 'channel_' + crypto.randomUUID(), { text, attachments: [] });
   return { ok: out.status === 200, status: out.status };
 }
 function closeSteer(runId) { return steerBufs.close(runId); }
@@ -25719,6 +25719,13 @@ async function runOnceCore(o) {
       },
       todoNote: () => Todo.formatForInjection(notebookStore, agentId),   // re-inject the active task plan after a compaction
       steer: typeof o.steer === 'function' ? o.steer : () => drainSteer(runId),   // live parent or generation-bound worker steering
+      prepareSteer: async note => {
+        const expanded = await attachments.expandForRun([{ role: 'user', content: note.text, attachments: note.attachments }], agentId, o.projectRoot);
+        // TAINT FOLLOWS THE BYTES, as at the run's start: only a file whose bytes were re-sent latches the bare attachment source
+        // (which decays); a reference whose bytes were not sent (a marker, an unreadable or binary file) taints nothing
+        if (attachments.resentOf(expanded).some(e => e && e.bytes === true)) execution.latchTaint(taintPolicy.ATTACHMENT_TAINT);
+        return expanded[0];
+      },
       // the parent's buffer closes as the loop ends (a worker's generation-bound steer has its own running gate)
       steerClose: typeof o.steer === 'function' ? null : () => closeSteer(runId),
       signal: signal, clock: { now: () => Date.now() }, random: Math.random,   // retry-ladder jitter source (loop.js never reads ambient randomness)
@@ -27200,12 +27207,12 @@ async function handleCancel(req, res) {
 // Bounded to STEER_MAX_PENDING pending notes per run. The success shape {ok:true, pending} is unchanged.
 async function handleRunSteer(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
-  let body; try { body = JSON.parse(await readBody(req, 1 << 16)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
+  let body; try { body = JSON.parse(await readBody(req, 1 << 20)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const runId = String(body.runId || '');
   const text = String(body.text == null ? '' : body.text).trim();
   // in flight = a host-owned run or a joined core run whose table entry still holds its stop
   // noteId: the page's own id for a SEND NOW line, so it can ask afterwards whether the run read it (GET below)
-  const out = steerBufs.post(runId, text, runReachable(runId), body.noteId);
+  const out = steerBufs.post(runId, text, runReachable(runId), body.noteId, body.message);
   json(out.status, out.body);
 }
 

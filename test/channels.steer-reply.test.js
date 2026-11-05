@@ -93,7 +93,7 @@ async function run() {
     await new Promise(r => setTimeout(r, 80));
     await Promise.all([hub.onInbound(bubble('also add a sonnet', '2')), hub.onInbound(bubble('and make it rhyme', '3'))]);
     release(); await first;
-    A.eq(steers, ['also add a sonnet and make it rhyme'], 'the batched note reaches the run on one line');
+    A.eq(steers, ['also add a sonnet\nand make it rhyme'], 'the batched note preserves its line breaks for the model');
     const last = sends[sends.length - 1];
     A.ok(!/\[steering\]/.test(last), 'no raw marker reaches the phone: ' + JSON.stringify(last));
     A.eq(last, 'answer one\n\n↪ also add a sonnet and make it rhyme\n\nanswer two', 'both answers, the note on its own line between them');
