@@ -672,6 +672,7 @@ test/interests.test.js
 test/interests.provenance.test.js
 test/forget-stores.test.js
 test/forget-registry.census.test.js
+test/forget.line-jobs.test.js
 test/scout.test.js
 test/dossier.test.js
 test/understanding.test.js
@@ -1550,6 +1551,7 @@ test/shell.win-marker.test.js
 test/summarizer.guards.test.js
 test/micro.durability.test.js
 test/checkpoint-restore-undoable.test.js
+test/checkpoint-attachments.test.js
 test/provider.codex-quota-body.test.js
 test/provider.codex-limit-truth.test.js
 test/image-spend-truth.test.js

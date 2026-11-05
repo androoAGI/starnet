@@ -570,6 +570,37 @@ function entryBootPending(job) {
   return e.ok && e.value.state === 'intent';
 }
 
-module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, refuseDecision, assertWritable: writable,
+/* FORGET (turn identity registry, entry 'line-jobs'): a job that is still waiting carries words of the chat that started it - the ask, the
+   draft under review and every product on its saved walk (the continuation), or the entry receipt of a walk that has not started. When
+   that chat is deleted, or the job's run read a deleted one, the unfinished record is ENDED with the station's existing refusal and the words
+   go: no continuation, no entry receipt, no text, no output, no hand-in. A decision on it then finds nothing waiting (line-resume.js: 'this
+   job has nothing waiting for a decision'). A running or paused record is a live walk, which the station stops by itself (stopLive) and its own
+   end writes; a FINISHED record is filed under the line and keeps what it delivered (the store's exemption for finished jobs), including a
+   complete continuation, whose publication receipts are accounting. bound(job) -> true for a job in the delete's scope.
+   Returns { state, ids }: the state with those jobs ended, and their ids. */
+function forgetUnfinished(state, bound, why, at) {
+  writable(state);
+  const ids = [], jobs = state.jobs.slice();
+  for (let i = 0; i < jobs.length; i++) {
+    const j = jobs[i];
+    if (!j || LIVE[j.status] && j.status !== 'held') continue;
+    const waiting = owns(j, 'entryAdmission') || (owns(j, 'continuation') && (j.status === 'held' || j.endedAt == null));
+    if (!waiting || !bound(j)) continue;
+    const next = Object.assign({}, j, { status: 'failed', outcome: 'failed', endedAt: num(j.endedAt) || num(at) || 1, text: '', output: '', error: str(why, 400),
+      stop: { code: 'refused', why: str(why, 400) } });
+    for (const k of ['continuation', 'continuationIssue', 'entryAdmission', 'entryIssue', 'resumeRefused', 'handedIn', 'unapproved']) delete next[k];
+    jobs[i] = normJob(next);
+    ids.push(j.id);
+  }
+  return ids.length ? { state: withJobs(state, jobs), ids } : { state, ids };
+}
+// the same, through the host's one mutator (index.js lineJobsSet): the change is computed against the fresh saved state, written and read back
+function forgetVia(mutate, bound, why, at) {
+  let ids = [];
+  mutate(cur => { const out = forgetUnfinished(cur, bound, why, at); ids = out.ids; return ids.length ? { state: out.state, job: get(out.state, ids[0]) } : null; });
+  return ids.length;
+}
+
+module.exports = { start, finish, mark, note, link, again, latest, byStream, boot, list, get, isId, normalizeAll, normJob, summary, retain, checkpoint, claimDecision, refuseDecision, assertWritable: writable, forgetUnfinished, forgetVia,
   accounting, observeAccounting, enrollAccounting, decodeEnvelope, encodeEnvelope, prepareEntry, checkpointEntry, entryBootPending, adoptEntry,
   MAX_JOBS, MAX_HELD, MAX_OUTPUT, MAX_TEXT, MAX_NOTES, ENTRIES: Object.keys(ENTRIES) };

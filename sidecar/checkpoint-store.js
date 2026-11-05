@@ -51,6 +51,10 @@
   const FANOUT_RE = /^[0-9a-f]{2}$/;                  // objects/<2 hex>: loose objects, immutable once named
   const PACK_TEMP_RE = /^(tmp_|\.tmp-\d+-pack)/;      // pack-objects' tmp_pack_/tmp_idx_/tmp_rev_… and repack's .tmp-<pid>-pack-* outputs
   const LOOSE_TEMP_RE = /^tmp_obj_/;                  // a loose object still being written
+  /* WHAT NO SNAPSHOT TAKES (turn identity commit 12, A17 iii): the agent's uploaded files (.attachments/) are the Commander's words from a chat,
+     and a delete of that chat removes them from the workspace. `git add -A` would copy them into every shadow commit (kept for 50 snapshots,
+     for an idle agent for ever), so the workspace repo's info/exclude names the directory: no new snapshot carries an attachment's bytes. */
+  const EXCLUDE_LINES = ['.attachments/'];
 
   function makeCheckpointStore(deps) {
     const d = deps || {};
@@ -187,6 +191,22 @@
         if (cur && String(cur).length) { try { JSON.parse(cur); writeFileDurable({ fs: fs, path: pathMod }, f + '.bak', cur); } catch (_) {} }
       } catch (_) {}
       writeFileDurable({ fs: fs, path: pathMod }, f, JSON.stringify(cp.toIndex(index.snapshots)));
+    }
+
+    /* ensureExclude(scope, gitDir) - the workspace repo (the agent's own folder: scope.id '') ignores EXCLUDE_LINES. A project root is the
+       Commander's own folder and is left as it is. Written at init and again on the first open of an older repo (idempotent). -> true when it
+       had to add a line (the repo may then still TRACK files from before: the caller untracks them). */
+    function ensureExclude(scope, gitDir) {
+      if (scope && scope.id) return false;
+      const file = pathMod.join(gitDir, 'info', 'exclude');
+      let cur = '';
+      try { cur = fs.readFileSync(file, 'utf8'); } catch (e) { if (!e || e.code !== 'ENOENT') failNote('checkpoint.exclude.read', e); }
+      const have = new Set(cur.split(/\r?\n/).map(function (l) { return l.trim(); }));
+      const add = EXCLUDE_LINES.filter(function (l) { return !have.has(l); });
+      if (!add.length) return false;
+      fs.mkdirSync(pathMod.dirname(file), { recursive: true });
+      fs.writeFileSync(file, cur + (cur && !/\n$/.test(cur) ? '\n' : '') + add.join('\n') + '\n');
+      return true;
     }
 
     // does this agent have a real shadow git repo on disk? (its commits are the ground truth for a rebuild.)
@@ -559,7 +579,7 @@
     }
     // wipe the shadow git-dir and re-create a single baseline commit of the CURRENT worktree, then re-stamp the
     // index to that one snapshot. Returns true on success. Fail-open (false) leaves the repo untouched on error.
-    async function reinitFromCurrentTree(aid, scope, meta) {
+    async function reinitFromCurrentTree(aid, scope, meta, label) {
       try {
         const gitDir = gitDirFor(aid, scope);
         /* BUILD THE REPLACEMENT FIRST, DESTROY SECOND. Deleting the history and only then running
@@ -580,8 +600,9 @@
           '-c', 'user.email=starnet@local', '-c', 'user.name=starnet'].concat(args),
           timeoutMs ? { cwd: workTreeFor(aid, scope), timeoutMs: timeoutMs } : { cwd: workTreeFor(aid, scope) });
         if ((await gitAt(fresh, ['init', '-q'])).code !== 0) { cleanup(); return false; }
+        try { ensureExclude(scope, fresh); } catch (e) { failNote('checkpoint.exclude.write', e); cleanup(); return false; }   // the replacement never takes an attachment
         if ((await gitAt(fresh, ['add', '-A'], maintenanceTimeoutMs)).code !== 0) { cleanup(); return false; }
-        const com = await gitAt(fresh, ['commit', '-q', '--allow-empty', '-m', 'baseline (repo re-init: size ceiling)'], maintenanceTimeoutMs);
+        const com = await gitAt(fresh, ['commit', '-q', '--allow-empty', '-m', label || 'baseline (repo re-init: size ceiling)'], maintenanceTimeoutMs);
         if (com.code !== 0) { cleanup(); return false; }
         const sha = (await gitAt(fresh, ['rev-parse', 'HEAD'])).stdout.trim();
         if (!cp.isValidId(sha)) { cleanup(); return false; }
@@ -696,6 +717,11 @@
           const ini = await git(aid, scope, ['init', '-q']);
           if (ini.code !== 0) return failed('init', ini);
         }
+        // the exclude comes before the add; a repo older than the rule may still TRACK attachments, so they leave the NEXT commit (what its history
+        // already holds is forgetAttachments' to replace)
+        let excluded = false;
+        try { excluded = ensureExclude(scope, gitDirFor(aid, scope)); } catch (e) { failNote('checkpoint.exclude.write', e); }
+        if (excluded) await git(aid, scope, ['rm', '-r', '-q', '--cached', '--ignore-unmatch', '--'].concat(EXCLUDE_LINES.map(function (l) { return l.replace(/\/$/, ''); })));
         const add = await git(aid, scope, ['add', '-A']);
         if (add.code !== 0) return failed('add', add);
         const hasHead = (await git(aid, scope, ['rev-parse', '--verify', '-q', 'HEAD'])).code === 0;
@@ -819,7 +845,25 @@
       return withAvailability(aid, await loadIndexResilient(aid));
     }
 
-    return { snapshot: serialized(snapshot), restore: serialized(restore), restoreDetailed: serialized(restoreDetailed), list: list, listResilient: serialized(listResilient), rebuild: serialized(rebuildIndexFromGit), enforceSizeCeiling: serialized(enforceSizeCeiling), health: health, isValidId: cp.isValidId };
+    /* forgetAttachments(agentId, relPaths) - a deleted chat's attachment files were removed from the workspace; a shadow commit made BEFORE the
+       exclude rule may still hold their bytes. When the agent's workspace history holds any of the paths, the repo is replaced by one baseline of
+       the current tree (reinitFromCurrentTree: built first, swapped second, the same path the size ceiling takes), so its older rollback points
+       are lost - the forget receipt says so. -> { held, reinit }. Idempotent: a repo that holds none is left alone. */
+    async function forgetAttachments(agentId, relPaths) {
+      if (!AID_RE.test(String(agentId || ''))) return { held: false, reinit: false };
+      const aid = String(agentId), scope = { id: '', workTree: defaultWorkTreeFor(aid), prefix: '' };
+      const paths = (Array.isArray(relPaths) ? relPaths : []).map(function (p) { return String(p || '').replace(/\\/g, '/'); })
+        .filter(function (p) { return p.indexOf('.attachments/') === 0 && p.indexOf('..') < 0 && p.indexOf('\0') < 0; });
+      if (!paths.length || !repoExists(aid, scope)) return { held: false, reinit: false };
+      const log = await git(aid, scope, ['log', '--all', '-1', '--format=%H', '--'].concat(paths));
+      if (!log || log.code !== 0) throw new Error('checkpoint: the shadow history of ' + aid + ' could not be searched');
+      if (!String(log.stdout || '').trim()) return { held: false, reinit: false };
+      const reinit = await reinitFromCurrentTree(aid, scope, {}, 'baseline (repo re-init: a deleted session\'s attachment)');
+      if (!reinit) throw new Error('checkpoint: the shadow history of ' + aid + ' holds a deleted session\'s attachment and could not be replaced');
+      return { held: true, reinit: true };
+    }
+
+    return { snapshot: serialized(snapshot), restore: serialized(restore), restoreDetailed: serialized(restoreDetailed), list: list, listResilient: serialized(listResilient), rebuild: serialized(rebuildIndexFromGit), enforceSizeCeiling: serialized(enforceSizeCeiling), forgetAttachments: serialized(forgetAttachments), health: health, isValidId: cp.isValidId };
   }
 
   return { makeCheckpointStore: makeCheckpointStore };

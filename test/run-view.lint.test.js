@@ -22,7 +22,7 @@ const A = require('./_assert.js');
 const { sidecarSourceFiles } = require('./helpers/source.js');
 
 const IDX = 'sidecar/index.js';
-// key -> the fifteen tagged sites. `anchor` is exact source text containing the runStore call; it must hold the tag itself, unless
+// key -> the sixteen tagged sites. `anchor` is exact source text containing the runStore call; it must hold the tag itself, unless
 // `follow` is given: then the tag must appear in `follow` within 1500 characters after the anchor.
 const TAGGED = [
   { key: 'nightfocus', anchor: "runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && runView('nightfocus', r))" },
@@ -39,6 +39,7 @@ const TAGGED = [
   { key: 'keepStyle', anchor: "const lead = runView('keepStyle', runStore.all().find(r => r && r.runId === runId));" },
   { key: 'runs', anchor: "const allRows = runStore.all().filter(r => runView('runs', r));" },
   { key: 'runs', anchor: "const page = runStore.list(agent === '*' ? null : agent, { limit: limit + 1, since, through: snapshotAt, beforeRunId });", follow: "page.slice(0, limit).filter(r => runView('runs', r))" },
+  { key: 'lineResume', anchor: "inflight: lineResumeInflight, runRow: runId => runView('lineResume', runStore.latest(runId))," },
   { key: 'insights', anchor: "const rows = agent ? runStore.list(agent, { limit: 1000 }) : runStore.all();", follow: "Outcomes.fold(rows.filter(r => runView('insights', r))," }
 ];
 

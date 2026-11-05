@@ -424,6 +424,113 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       } finally { remove(adir); }
     }
 
+    // ---------------- attachment files, the attachment-rows shape (contract A16) ----------------
+    /* attachment-rows adds rows of kind 'attachment' beside the directive's attachments[]: r.attachment = { id, name, mime, path }. A file can
+       be named ONLY through such a row, so the entry counts both forms in both loops: the live set (a branch or a re-send naming the file only
+       through an attachment row KEEPS it) and the doomed set (a deleted session naming it only through an attachment row LOSES it). */
+    {
+      const adir = temp('attach-rows');
+      try {
+        const fsp = fs.promises;
+        const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const text = name => 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64');
+        const turnFile = await att.saveAttachment('agent', 'turn.txt', text('turn'));          // named by a directive AND an attachment row of the deleted session
+        const rowOnly = await att.saveAttachment('agent', 'rowonly.txt', text('rowonly'));      // named by the deleted session ONLY through an attachment row
+        const branched = await att.saveAttachment('agent', 'branched.txt', text('branched'));   // deleted session: directive; live branch: ONLY an attachment row
+        const keepOwn = await att.saveAttachment('agent', 'keepown.txt', text('keepown'));      // another session's own attachment row
+        const exists = ref => fs.existsSync(path.join(adir, 'agent', ref.path));
+        const io = History.makeMemoryTranscriptIo();
+        const store = Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        const base = streamId => ({ sourceRunId: 'run_' + streamId, streamId, agentId: 'agent', ts: 4000, taint: null });
+        const ref = f => ({ id: path.basename(f.path, '.txt'), name: path.basename(f.path), mime: 'text/plain', path: f.path });
+        const directive = (streamId, words, files) => store.appendStrict(Object.assign(base(streamId), { role: 'user', content: words, directive: true, kind: 'turn', attachments: files }));
+        const rowFor = (streamId, f) => store.appendStrict(Object.assign(base(streamId), { role: 'system', content: '[attached: ' + path.basename(f.path) + ']', kind: 'attachment', taint: 'user attachment', attachment: ref(f) }));
+        directive('sGone', 'look at this file', [turnFile]); rowFor('sGone', turnFile);   // an AR-shaped turn: the directive and its attachment row
+        rowFor('sGone', rowOnly);
+        directive('sGone', 'and this one', [branched]);
+        rowFor('sKeep', branched);                 // a live branch that has ONLY the attachment row
+        rowFor('sKeep', keepOwn);
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        A.ok([turnFile, rowOnly, branched, keepOwn].every(exists), 'four attachment files are on disk');
+        const rows = store.view('proof', 'sGone', { complete: true });
+        A.ok(rows.some(r => r.kind === 'attachment' && r.attachment && r.attachment.path === rowOnly.path), 'the proof view of the deleted session holds the attachment row of the file only that row names');
+        A.eq(await forget('attachment-files'), 2, 'the AR-shaped turn\'s file and the file only an attachment row named are removed');
+        A.ok(!exists(turnFile) && !exists(rowOnly), 'the privacy half: a deleted session\'s file goes whether its directive or only its attachment row named it');
+        A.ok(exists(branched) && exists(keepOwn), 'the safety half: a file a live branch names ONLY through an attachment row stays, and so does another session\'s own');
+        A.eq(await forget('attachment-files'), 0, 'idempotent');
+      } finally { remove(adir); }
+    }
+
+    // ---------------- attachment files: the restore points that hold them (contract A17 iii) ----------------
+    {
+      const adir = temp('attach-checkpoints');
+      try {
+        const fsp = fs.promises;
+        const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const f = await att.saveAttachment('agent', 'plan.txt', 'data:text/plain;base64,' + Buffer.from('notes about plan').toString('base64'));
+        const g = await att.saveAttachment('agent', 'other.txt', 'data:text/plain;base64,' + Buffer.from('notes about other').toString('base64'));
+        const io = History.makeMemoryTranscriptIo();
+        const store = Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        store.appendStrict({ sourceRunId: 'run_sGone', streamId: 'sGone', agentId: 'agent', ts: 4000, taint: null, role: 'user', content: 'plan', directive: true, kind: 'turn', attachments: [f] });
+        store.appendStrict({ sourceRunId: 'run_sKeep', streamId: 'sKeep', agentId: 'agent', ts: 4000, taint: null, role: 'user', content: 'other', directive: true, kind: 'turn', attachments: [g] });
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        const calls = [], noted = [];
+        hold.checkpoints = () => ({ forgetAttachments: async (agentId, paths) => { calls.push([agentId, paths.slice().sort()]); return { held: true, reinit: agentId === 'agent' }; } });
+        hold.noteCheckpointReset = ids => noted.push(ids.slice());
+        A.eq(await forget('attachment-files'), 1, 'the deleted session\'s file is removed');
+        A.eq(calls, [['agent', [f.path]]], 'the agent\'s restore points are asked about exactly the paths the delete doomed (not another session\'s file)');
+        A.eq(noted, [['agent']], 'and the receipt names the agent whose older rollback points were reset');
+        A.eq(await forget('attachment-files'), 0, 'idempotent: nothing left to remove');
+        A.eq(calls.length, 2, 'a second pass asks again (the file may have gone in a pass that failed before its restore points were checked); the store itself is idempotent');
+        hold.checkpoints = () => ({ forgetAttachments: async () => { throw new Error('the shadow history could not be searched'); } });
+        const g2 = await att.saveAttachment('agent', 'again.txt', 'data:text/plain;base64,' + Buffer.from('again').toString('base64'));
+        store.appendStrict({ sourceRunId: 'run_sGone2', streamId: 'sGone', agentId: 'agent', ts: 4100, taint: null, role: 'user', content: 'again', directive: true, kind: 'turn', attachments: [g2] });
+        let failed = null;
+        try { await forget('attachment-files'); } catch (e) { failed = e; }
+        A.ok(failed && /could not be searched/.test(failed.message), 'a restore-point history that cannot be searched fails the pass (the delete is retried at the next boot), never a silent skip');
+        hold.checkpoints = undefined; hold.noteCheckpointReset = undefined;
+      } finally { remove(adir); }
+    }
+
+    // ---------------- conversation summaries (CB .summaries, contract A14 i) ----------------
+    {
+      const SummaryLedger = require('../sidecar/summary-ledger.js');
+      const sdir = temp('summaries');
+      try {
+        const note = text => '<conversation_summary>\n' + text + '\n</conversation_summary>';
+        const rowsOf = (streamId, n) => Array.from({ length: n }, (_, k) => ({ rowId: 100 + k * 3, streamId, role: k % 2 === 0 ? 'user' : 'assistant', content: (k % 2 === 0 ? 'ask ' : 'answer ') + k, ts: 1000 + k }));
+        // the ledger as the host builds it: its own deletedAt reads the session ledger, and its dir is the dot-prefixed one
+        const sum = SummaryLedger.makeSummaryLedger({ fs, path, dir: path.join(sdir, SummaryLedger.DIR_NAME), now: () => 4000, redact: t => t, deletedAt: id => ledger.deletedAt(id), deletedSince: at => ledger.list().some(e => e.at >= at) });
+        const put = (streamId, over) => sum.put(Object.assign({ streamId, agentId: 'agent' }, SummaryLedger.claimOf(rowsOf(streamId, 6), 6), { noteBody: note('S1 of ' + streamId), modelKey: 'm', windowTokens: 32000,
+          ownerVoice: true, taint: null, quoted: false, quotes: [], quotesAt: [], runId: 'run_' + streamId, runStartedAt: 3000 }, over || {}));
+        const own = await put('sOwnGone', {}), reader = await put('sKeep', { quotes: ['sGone'], quotesAt: [3500] }), bystander = await put('sOther', {});
+        // the deleted chat's own summary was written before its delete was learned: a ledger that does not know of the delete keeps it
+        const pre = SummaryLedger.makeSummaryLedger({ fs, path, dir: path.join(sdir, SummaryLedger.DIR_NAME), now: () => 4000, redact: t => t, deletedAt: () => 0 });
+        const gone = await pre.put(Object.assign({ streamId: 'sGone', agentId: 'agent' }, SummaryLedger.claimOf(rowsOf('sGone', 6), 6), { noteBody: note('S1 of sGone'), modelKey: 'm', windowTokens: 32000,
+          ownerVoice: true, taint: null, quoted: false, quotes: [], quotesAt: [], runId: 'run_sGone', runStartedAt: 3000 }));
+        A.ok(own.ok && reader.ok && bystander.ok && gone.ok, 'four summaries are kept: a plain one, one whose rows read the deleted session, a bystander and the deleted chat itself');
+        const late = await put('sGone', { runStartedAt: 3000 });
+        A.ok(!late.ok && late.reason === 'tombstoned', 'the ledger refuses a put for a chat deleted at or after the run began (the ledger keeps its own gate)');
+        hold.summaryLedger = () => sum;
+        const files = () => fs.readdirSync(path.join(sdir, SummaryLedger.DIR_NAME)).sort();
+        A.ok(files().includes('sKeep.json') && files().includes('sGone.json'), 'before the purge both the reader\'s and the deleted chat\'s summary files are on disk');
+        const out = await forget('conversation-summary');
+        A.eq(out.removed, 2, 'the purge counts the deleted chat record and the one that read it');
+        A.ok(!files().includes('sKeep.json') && !files().includes('sGone.json'), 'the summary that quoted the deleted session is gone (quote-forget) and so is the deleted chat\'s file');
+        A.ok(files().includes('sOwnGone.json') && files().includes('sOther.json'), 'summaries of other chats are untouched');
+        A.eq((await forget('conversation-summary')).removed, 0, 'idempotent');
+        // the write gate: the registry entry's sourceOf is what index.js asks admit() before a put
+        const entry = registry.entry('conversation-summary');
+        const src = r => entry.sourceOf(Object.assign({ streamId: 'sKeep', runId: 'run_new', fromRowId: 100, toRowId: 115, quotes: [], quotesAt: [], runStartedAt: 3000 }, r || {}));
+        A.ok(registry.admit(src({ runStartedAt: 6000 })), 'admit lets a summary of a live chat through');
+        A.ok(!registry.admit(src({ quotes: ['sGone'], quotesAt: [3500] })), 'admit refuses a summary whose covered rows read the deleted session');
+        A.ok(!registry.admit(src({ streamId: 'sGone', runStartedAt: 3000 })), 'admit refuses a summary of the deleted chat written by a run that began before the delete');
+        A.ok(!registry.admit(src({ runId: 'r_gone' })), 'admit refuses a summary written by a run of the deleted session');
+      } finally { remove(sdir); }
+    }
+
     // ---------------- group sessions ----------------
     {
       const gdir = temp('groups');

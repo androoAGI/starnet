@@ -60,6 +60,8 @@ const STORES = [
   ['AUTONOMY_POSTURE_FILE', 'entry', 'commander-posture'],
   ['overseer.js', 'entry', 'overseer'],
   ['group-sessions.js', 'entry', 'group-sessions'],
+  ['summary-ledger.js', 'entry', 'conversation-summary'],
+  ['lineJobStore', 'entry', 'line-jobs'],
   ['memory:notebook', 'entry', 'notebook-memory'],
   ['memory:pending', 'entry', 'notebook-memory'],
   ['threads-store.js', 'entry', 'notebook-memory'],
@@ -90,7 +92,6 @@ const STORES = [
   ['EXECUTION_SETTINGS_FILE', 'exempt', '', 'an execution setting the Commander chose'],
   ['RUNTIME_KNOBS_FILE', 'exempt', '', 'runtime tuning settings (numbers and switches)'],
   ['TOOLSETS_FILE', 'exempt', '', 'which tool sets are disabled (a setting)'],
-  ['ROUTING_FILE', 'exempt', '', 'the model routing plan (provider and model choices)'],
   ['STEPTEST_FILE', 'exempt', '', 'step-test state of a work line (spend and ids)'],
   ['CHANNEL_SECRETS_FILE', 'exempt', '', 'a credential store (secrets, not derived from a session)'],
   ['CODEX_TOKENS_FILE', 'exempt', '', 'a credential store (OAuth tokens)'],
@@ -106,7 +107,6 @@ const STORES = [
   ['memoryConfigStore', 'exempt', '', 'memory settings (switches and thresholds)'],
   ['lineSpendStore', 'exempt', '', 'work-line spend counters'],
   ['lineShipmentStore', 'exempt', '', 'work-line shipment receipts (ids and states, no title)'],
-  ['lineJobStore', 'exempt', '', 'work-line jobs: the ask and output of a job a line ran are filed under the line, not under a conversation session'],
   ['triggerStore', 'exempt', '', 'trigger runner configuration the Commander made'],
   ['triggerSeenStore', 'exempt', '', 'trigger runner dedup state (hashes of items already seen)'],
   ['widgetStore', 'exempt', '', 'widgets placed on the desk: delivered artifacts, kept like delivered workspace files (Q4)'],
@@ -132,6 +132,9 @@ const UNKEYED_EXEMPTIONS = [
   ['delivered-workspace-files', 'Q4: files an agent delivered into its workspace are the Commander\'s work product and stay (the deliverables entry removes the library rows that pointed at them)'],
   ['learned-skill-files', 'Q4: skill files an agent learned stay; goldens and verdict packets, which copy a run, are purged'],
   ['channel-legacy-files', 'the per-chat legacy history mirrors of the channel store (and their .bak and legacy-hops files): read only by the rollback path; the store cannot attribute a file to a stream (the hub\'s agentIdFor owns that mapping), so a delete cannot find it - a known gap, noted for a follow-up'],
+  ['station-save-bak', 'the previous committed generation of the station save (<agent>.save.json.bak): persist keeps exactly one, so a just-deleted chat can sit in it until the next save replaces it. Under the v7 format the save carries a chat as its packed run ids (the words live in the transcript, which the delete cuts), so what it holds is ids and titles, not turns; it is the only copy the station can recover a torn main from, so purging it would trade a recovery for a smaller window. Named here so it is a decision, not an oversight (a known gap, noted for a follow-up)'],
+  ['recovery-copies', 'workspace-recovery keeps the whole old station root as a sibling <root>.recovery-rollback-* until the Commander discards it, and station-recovery bundles carry every chat as text: both are recovery copies of the station AS IT WAS, including chats deleted since. They are made on the Commander\'s own command, shown to the Commander, and removed by the Commander; the delete does not reach into them (a known gap, noted for a follow-up)'],
+  ['checkpoint-shadow-repos', 'WORKSPACES/.checkpoints/<agent>/git: restore points of the agent\'s workspace. An upload (.attachments/) is excluded from every new snapshot (checkpoint-store.js info/exclude), and the repo of an agent whose history holds a deleted session\'s upload is replaced by one baseline (forgetAttachments, called by the attachment-files entry), so its older rollback points are lost. Delivered work files in it are the Commander\'s work product (Q4)'],
   ['restored-save-copies', 'a ~restored copy is a workstream row of the PAGE\'s own save (its id is not a valid stream id, so the ledger cannot stamp it); the page\'s delete purges it with the session (commit 16)']
 ];
 
@@ -391,21 +394,37 @@ function wireForgetRegistry(registry, deps) {
     sourceOf: ref => ({ streamIds: [ref && ref.streamId], at: num(ref && ref.ts) }),
     forget: async scope => {
       const store = d.transcriptStore();
+      // a file is named two ways: by a directive row's attachments[], and by a row of kind 'attachment' of its own (attachment-rows: r.attachment = { id, name, mime, path })
+      const refsOf = r => (Array.isArray(r.attachments) ? r.attachments : []).concat(r && r.kind === 'attachment' && r.attachment ? [r.attachment] : []);
       const live = new Set();
-      for (const r of store.all()) for (const a of Array.isArray(r.attachments) ? r.attachments : []) if (a && a.path) live.add(a.path);   // all() is the store's NON-forgotten rows
+      for (const r of store.all()) for (const a of refsOf(r)) if (a && a.path) live.add(a.path);   // all() is the store's NON-forgotten rows; a branch or re-send naming the file only through an attachment row keeps it
       const doomed = new Map();   // path -> agentId
       for (const [streamId, stamp] of (scope.streams || scope.at || new Map())) {
         for (const r of store.view('proof', streamId, { complete: true })) {
           if (num(r.ts) > stamp) continue;
-          for (const a of Array.isArray(r.attachments) ? r.attachments : []) if (a && typeof a.path === 'string' && !live.has(a.path)) doomed.set(a.path, r.agentId || 'agent');
+          for (const a of refsOf(r)) if (a && typeof a.path === 'string' && !live.has(a.path)) doomed.set(a.path, r.agentId || 'agent');
         }
       }
       let removed = 0;
+      const byAgent = new Map();   // agentId -> its doomed paths, whether this pass or an earlier one removed the file
       for (const [rel, agentId] of doomed) {
+        if (!byAgent.has(agentId)) byAgent.set(agentId, []);
+        byAgent.get(agentId).push(rel);
         if (!(await d.attachments().hasAttachment(agentId, rel))) continue;   // already gone: a second pass reports nothing
         const out = await d.attachments().removeAttachment(agentId, rel);
         if (out && out.ok) removed++;
       }
+      /* the agent's restore points (checkpoint-store.js): a shadow commit made before the repo ignored .attachments/ still holds the bytes. The
+         repo of an agent whose history holds a doomed path is replaced by one baseline of the current tree - its older rollback points are lost,
+         and the receipt says so (noteCheckpointReset). A repo that holds none is left alone; a repo that cannot be searched or replaced fails the pass (retried at boot). */
+      const reset = [];
+      if (typeof d.checkpoints === 'function' && d.checkpoints()) {
+        for (const [agentId, paths] of byAgent) {
+          const out = await d.checkpoints().forgetAttachments(agentId, paths);
+          if (out && out.reinit) reset.push(agentId);
+        }
+      }
+      if (reset.length && typeof d.noteCheckpointReset === 'function') d.noteCheckpointReset(reset);
       return removed;
     }
   });
@@ -416,6 +435,32 @@ function wireForgetRegistry(registry, deps) {
     name: 'group-sessions',
     sourceOf: g => ({ streamIds: [g && g.id], at: num(g && g.createdAt) }),
     forget: scope => d.groupSessions().forget(src => inScope(src, scope))
+  });
+
+  /* kept conversation summaries (.summaries/<stream>.json, summary-ledger.js): the note a paid fold wrote for a chat, with the canonical rows it
+     stands for. Source: the chat's id, the covered rows' range, the sessions those rows READ (quotes) and the time it was written. A delete of
+     the chat, or of a session its covered rows read, takes the file with every sibling; admit(src) is asked before a put (index.js persistFold),
+     and the ledger refuses a put of its own once the chat was deleted at or after the run began: both stay. */
+  entry({
+    name: 'conversation-summary',
+    sourceOf: r => ({ streamIds: [r && r.streamId], runIds: [r && r.runId], rowIds: [r && r.fromRowId, r && r.toRowId], quotes: r && r.quotes, quotesAt: r && r.quotesAt,
+      at: num(r && (r.runStartedAt || r.createdAt)) }),
+    forget: scope => { const out = d.summaryLedger().forget(scope); return { removed: out.records, files: out.files }; }
+  });
+
+  /* line jobs (line-jobs.json): a job parked at a reviewer's gate keeps, in its saved walk, the chat's words - the ask, the products, the draft
+     under review (binding.streamId, the entry run, the attempts' runs). The delete ENDS an unfinished one with the existing refusal and drops
+     the walk, so a decision on it finds nothing waiting. A finished job is filed under the line and stays (see linejobs.js forgetUnfinished). */
+  const lineJobSource = j => {
+    const c = j && (j.continuation && typeof j.continuation === 'object' ? j.continuation : j.entryAdmission && typeof j.entryAdmission === 'object' ? j.entryAdmission : null);
+    const b = c && c.binding && typeof c.binding === 'object' ? c.binding : {};
+    const runIds = [b.entryRunId].concat((c && Array.isArray(c.attempts) ? c.attempts : []).map(a => a && a.runId)).concat((j && Array.isArray(j.runs) ? j.runs : []).map(r => r && r.runId));
+    return { streamIds: [j && j.streamId, b.streamId], runIds: runIds.filter(Boolean), at: num(j && j.startedAt) };
+  };
+  entry({
+    name: 'line-jobs',
+    sourceOf: lineJobSource,
+    forget: scope => d.lineJobs().forget(j => inScope(lineJobSource(j), scope), 'the conversation this job came from was deleted, so the work waiting on a decision was dropped')
   });
 
   /* the Commander dossier block and the beliefs snapshot (commit 14, qa/bugs/3e926b6a): composed by the PAGE from beliefs, some learned from runs,

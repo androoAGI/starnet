@@ -3844,6 +3844,10 @@ wireForgetRegistry(forgetRegistry, {
   dossier: () => commanderDossier, posture: () => commanderPosture,
   awayBriefing: () => awayBriefingStore, overseer: () => overseer, subagents: () => subagents,
   saveStore: () => saveStore, transcriptStore: () => transcriptStore, attachments: () => attachments, groupSessions: () => groupSessions,
+  summaryLedger: () => summaryLedger,
+  checkpoints: () => checkpointStore,
+  noteCheckpointReset: agentIds => console.log('[session-tombstones] deleted sessions: the restore points of ' + agentIds.join(', ') + ' held an upload of a deleted session, so their older rollback points were reset to one baseline'),
+  lineJobs: () => ({ forget: (bound, why) => LineJobs.forgetVia(lineJobsSet, bound, why, Date.now()) }),
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
   nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
   workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()
@@ -14995,7 +14999,7 @@ const lineResume = LineResume.makeLineResume({
   store: { read: lineJobsRead, claim: lineJobsClaimDecision, refuse: lineJobsRefuseDecision, advance: lineJobsAdvance },
   authority: q => holdAuthority(q), runner: lineRunner, profileFor: resumeProfileFor, hold: { receiptFor: file => holdFileReceipt(file) },
   halted: () => nightshift.isHalted(nightshiftState) || cronHalted === true || processFaultQuiesced === true,
-  inflight: lineResumeInflight, runRow: runId => runStore.latest(runId), now: () => Date.now()
+  inflight: lineResumeInflight, runRow: runId => runView('lineResume', runStore.latest(runId)), now: () => Date.now()
 });
 let triggerPollTimer = setInterval(() => { triggerRunner.tickFolders().catch(swallow('triggers.folders')); }, triggerPollMs);
 triggerPollTimer.unref();
@@ -25776,6 +25780,12 @@ async function runOnceCore(o) {
       const taint = SummaryCover.taintOfFold({ covered, prevCover, runTaint: execution.rowTaint(), heldBytes: SummaryCover.heldBytes(fold.older) });
       const quoted = TrustedLearning.quotedInLearningTail(fold.older.concat(fold.tail));   // the same bounded-tail rule the run start applies to what it replays
       SummaryCover.tagNote(fold.note, { source: 'fold', rows: claim.end, toRowId: claimed.toRowId, taint, quoted });
+      // the forget registry's write gate (the ledger refuses a put after the chat's own delete too): a summary of rows that read a session deleted since is never kept
+      if (!forgetRegistry.admit(forgetRegistry.entry('conversation-summary').sourceOf({ streamId, runId, fromRowId: claimed.fromRowId, toRowId: claimed.toRowId,
+        quotes: stamp.quotes || [], quotesAt: stamp.quotesAt || [], runStartedAt: summaryRun.startedAt }))) {
+        failNote('summary.put.forgotten', new Error('kept summary refused: a session it stands for was deleted'));
+        return { reused: reusedRows, new: Math.max(0, claim.end - reusedRows) };
+      }
       const wrote = await summaryLedger.put(Object.assign({ streamId, agentId }, claimed, {
         noteBody: fold.note.content, modelKey: summaryModelKey(), windowTokens: Math.floor(ctxMgr.contextLimit), ownerVoice: !tasteWithheld,
         taint, quoted, quotes: stamp.quotes || [], quotesAt: stamp.quotesAt || [], runId, runStartedAt: summaryRun.startedAt }));
