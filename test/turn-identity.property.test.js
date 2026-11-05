@@ -24,7 +24,8 @@ const TEXTS = ['yes', 'yes', 'Done.', '日本語 🌟 café', 'use ' + SECRET, '
 // (kind deliverable), a run a SEND NOW note steered through the real buffer and loop (kind steer), a routine handing its result back to the session
 // (kind delivery). Their expectations are declared below from what each op made; the visibility of each kind is read out of TurnKinds.MATRIX.
 const OPS = ['send', 'repeatSend', 'sendSecret', 'sendFailRetry', 'idempotentResend', 'reload', 'cacheWipeLocal', 'cacheWipeBoth', 'phoneSend', 'phonePage', 'restart', 'oldClientSend', 'sendAttachImage', 'sendAttachText', 'sendAttachBinary', 'sendAttachMissing', 'captionless', 'goalContinuation', 'deskLineHop', 'routineSeed', 'interruptContinue', 'rekeyedRetry',
-  'runWithFiles', 'steerNote', 'routineSessionReturn'];
+  'runWithFiles', 'steerNote', 'routineSessionReturn',
+  'quoteRead', 'deleteSession'];
 const FILE_SETS = [['report · v2.md', 'a · b.png'], ['clip.mp3', 'notes v1.txt'], ['src/a.md'], ['clip.mp4', 'report · v2.md', 'out/chart.png']];
 const seedCount = Control.hasPrefix ? 1 : Math.max(1, Math.min(500, Number(process.env.TURNID_SEEDS) || 20));
 const stepCount = Control.steps(60);
@@ -47,6 +48,7 @@ let active = null, assertions = 0;
       const missing = Object.assign({}, notes, { id: 'missing000', path: '.attachments/missing000.txt' });
       await page.send('seed turn'); await page.load(); page.save();
       const trace = [], expected = { files: [], steers: [], returns: [] };   // what the row-kind operations declared they made (checkKinds)
+      const reads = [], gone = [];   // quoteRead: { stream, word } a run of 's' read; deleteSession: { word, calls } words that must be in no view and no later provider body
       let serial = 0;
       for (let step = 0; step < stepCount; step++) {
         const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = windowMode + '/seed' + seed + '/op' + step + '/' + op;
@@ -138,6 +140,24 @@ let active = null, assertions = 0;
               assert.equal(fx.store.view('proof', 's', { complete: true }).filter(r => r.kind === 'delivery' && r.sourceRunId === runId).length, 1, label + ': and writes nothing new');
             }
             expected.returns.push({ runId, text: shown });
+          } else if (op === 'quoteRead' || op === 'deleteSession') {
+            // quoteRead: another session says a unique word, then a run of this one reads it and says it back (the run's rows carry the quote stamp).
+            // deleteSession: the Commander deletes a session that run read (or one this stream never touched); from then on its word is in no page row,
+            // no GET /api/transcript row, no model-replay window, no page window and no provider body (turn identity commit 11, I7)
+            const read = async () => {
+              const n = ++serial, stream = 'q' + seedIndex.toString(36) + 'x' + n.toString(36), word = 'quokka' + seedIndex.toString(36) + 'x' + n.toString(36);
+              await fx.run({ agentId: 'agent', streamId: stream, messages: [{ role: 'user', content: 'remember the codeword ' + word }] }, { reply: 'noted ' + word });
+              await page.send('what did the other session say?', { reply: 'it said ' + word, quotes: [{ id: stream, at: clock() }] });
+              reads.push({ stream, word });
+              return reads[reads.length - 1];
+            };
+            if (op === 'quoteRead') await read();
+            else {
+              const target = reads.length && opRng() < 0.8 ? reads.splice(Math.floor(opRng() * reads.length), 1)[0] : await (async () => { const r = await read(); reads.pop(); return r; })();
+              assert.ok(fx.read('s', 2000).turns.some(r => String(r.content).includes(target.word)), label + ': before the delete the reply that quotes the session is shown');
+              fx.deleteSession(target.stream);
+              gone.push({ word: target.word, calls: fx.calls.length });
+            }
           } else if (op === 'rekeyedRetry') {
             const sent = await page.send('original input'); await page.load();
             const request = Object.assign({}, page.lastRequest, { messages: [{ role: 'user', content: 'different input conflicts' }], retryOf: sent.turnId });
@@ -153,6 +173,13 @@ let active = null, assertions = 0;
           const once = JSON.stringify(page.ws.history); await page.load();
           assert.equal(JSON.stringify(page.ws.history), once, label + ': cache reconciliation is idempotent');
           assert.ok(!JSON.stringify(response).includes(SECRET), label + ': raw token never appears in station readback');
+          for (const g of gone) {
+            // a deleted session's word is in none of the three views the page, the station and the provider share, nor in any provider body made since
+            assert.ok(!JSON.stringify(page.ws.history).includes(g.word), label + ': the word of a deleted session is in no page row');
+            assert.ok(!JSON.stringify(response).includes(g.word), label + ': ...nor in GET /api/transcript');
+            assert.ok(!JSON.stringify(fx.modelWindow('s').messages).includes(g.word) && !JSON.stringify(page.window()).includes(g.word), label + ': ...nor in the station window or the page window');
+            assert.ok(!JSON.stringify(fx.calls.slice(g.calls)).includes(g.word), label + ': ...nor in any provider body made after the delete');
+          }
           assertions++; A.ok(true, label);
         } catch (e) { throw Object.assign(e, { turnProperty: { seed, windowMode, trace: trace.slice() } }); }
       }

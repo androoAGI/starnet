@@ -23,6 +23,7 @@ const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 class TurnFixture {
   constructor(root, clock, options) {
     this.root = root; this.now = clock; this.serial = 0; this.records = new Map(); this.live = new Set(); this.calls = []; this.titles = [];
+    this.deleted = new Map();   // the deleted-session ledger the store and the projection read (streamId -> ms), as sessionTombstones answers them in index.js
     this.dual = Dual.make({ now: clock, hash, env: key => key === 'STARNET_TURNID_WINDOW' ? options && options.window : undefined });
     fs.mkdirSync(path.join(root, 'agent'), { recursive: true });
     this.attachments = require('../../sidecar/attachments.js')({ fsp: fs.promises, path, crypto, workspaces: root,
@@ -44,14 +45,21 @@ class TurnFixture {
     if (this.io) this.io.close();
     this.io = makeSegmentedTranscriptIo(Object.assign({ fs, path, root: path.join(this.root, 'history'), segmentBytes: 64 * 1024, onWarning: message => { this.warnings = (this.warnings || []).concat(message); }, schedule() {} }, options || {}));
     this.store = makeTranscriptStore({ io: this.io, clock: { now: this.now }, redact, hash, runOf: id => this.records.get(id),
-      live: () => this.live, pick: this.dual.pick, quotedMaterial: require('../../sidecar/trusted-learning.js').quotedMaterial });
+      live: () => this.live, pick: this.dual.pick, quotedMaterial: require('../../sidecar/trusted-learning.js').quotedMaterial,
+      deletedAt: id => this.deleted.get(String(id)) || 0, latestDeleteAt: () => Math.max(0, ...this.deleted.values()) });
     this.window = Window.make({ transcriptStore: this.store, turnDual: this.dual });
   }
   display(streamId, options) {
     const limit = options && options.limit || 200;
     return this.store.view('display', streamId, { limit });
   }
-  project(streamId, rows) { return this.dual.project(streamId, rows, { liveRunIds: this.live, isCollided: id => this.io.isCollided(id) }); }
+  project(streamId, rows) {
+    // index.js transcriptProjection: what the quote and tombstone rules hid from this read is the page's affirmative drop proof (TurnMerge R2/R4)
+    return this.dual.project(streamId, rows, { liveRunIds: this.live, isCollided: id => this.io.isCollided(id), forgottenAt: this.deleted.get(streamId) || 0,
+      forgotten: rows && rows[Symbol.for('starnet.transcript.forgotten')] || undefined });
+  }
+  // the Commander deletes a session: the ledger stamps it, and every reader (the store's rules, the projection) answers as if it were gone
+  deleteSession(streamId) { const at = this.now(); this.deleted.set(String(streamId), at); return at; }
   read(streamId, limit) { return this.project(streamId, this.display(streamId, { limit: limit || 200 })); }
   async upload(name, mime, bytes) { const out = await this.attachments.saveAttachment('agent', name, 'data:' + mime + ';base64,' + Buffer.from(bytes).toString('base64')); if (!out.ok) throw Error('fixture attachment upload failed'); return out; }
   async run(request, options) {
@@ -66,7 +74,7 @@ class TurnFixture {
     messages = await call('attachments.expandForRun(', () => this.attachments.expandForRun(messages, agentId, o.projectRoot));
     const kinds = call('const kinds = TurnKinds.ofRun(', () => Kinds.ofRun(o, { internal: !!o.internal, trigger: o.trigger || 'manual-page' }));
     const writer = call('const runTranscript = makeRunTranscript(', () => makeRunTranscript({ store: this.store, streamId: o.streamId, agentId, runId,
-      turnId: () => turnId, stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,
+      turnId: () => turnId, stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line, quotes: opts.quotes,
       onFailure: (_stage, error) => { throw error; } }));
     const reused = call('let retryDirective = TurnDirective.reuse(', () => Directive.reuse(this.store, Object.assign({}, o, { found, streamId: o.streamId, turnId, runId, agentId, rekey, messages, directive, redact, latestUserText: list => UserText.latest(list, UserText.DIRECTIVE) })));
     const words = UserText.latest(messages, UserText.DIRECTIVE);
