@@ -1003,7 +1003,8 @@ function same(got, want, label) {
         makeDeliverableStore: {
           fs: 'every deliverables row (the fault facade)', path: 'every deliverables row', workspaces: 'every deliverables row',
           writeDurable: 'the update-frozen writer (row "update freeze"; the crash rows pass a dead writer pid through it; the journal cut)',
-          onRecover: 'the recovered rows', onCorrupt: 'the host quarantine (the corrupt rows)'
+          onRecover: 'the recovered rows', onCorrupt: 'the host quarantine (the corrupt rows)',
+          admit: 'which rows are written, never how (the forget registry write-time gate; deliverable-rows.e2e and forgotten-everywhere.e2e drive it on a real station)'
         },
         makeRunJournal: {
           dir: 'every run-journal row', fs: 'every run-journal row (the fault facade)', path: 'every run-journal row',
