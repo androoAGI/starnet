@@ -71,7 +71,7 @@ for (const n of entries) {
 for (const name of ['cron-jobs', 'turn-identity-mode', 'turn-identity-soak', 'declined', 'delivered-workspace-files', 'learned-skill-files', 'run-journal'])
   A.ok(typeof exempts[name] === 'string', 'the named exemption ' + name + ' is registered with its reason');
 A.ok(/Q4/.test(exempts['cron-jobs']) && /Q5/.test(exempts.declined) && /Q4/.test(exempts['delivered-workspace-files']) && /Q4/.test(exempts['learned-skill-files']), 'the Q4 and Q5 exemptions name their decision');
-A.ok(entries.indexOf('commander-dossier') < 0 && /commit 14/.test(exempts.DOSSIER_FILE) && /commit 14/.test(exempts.AUTONOMY_POSTURE_FILE), 'the dossier and the posture beliefs are exempt only until the dossier step registers them (commit 14)');
+A.ok(entries.indexOf('commander-dossier') >= 0 && entries.indexOf('commander-posture') >= 0 && !exempts.DOSSIER_FILE && !exempts.AUTONOMY_POSTURE_FILE, 'the dossier block and the posture beliefs are registered entries (commit 14), no longer exempt');
 
 // the host builds ONE registry and ONE wiring block, and a pass runs through them
 const indexJs = files.find(f => f.rel === 'sidecar/index.js').text;

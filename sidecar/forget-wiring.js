@@ -56,6 +56,8 @@ const STORES = [
   ['quest-store.js', 'entry', 'quests'],
   ['QUESTREFRESH_FILE', 'entry', 'north-star'],
   ['awayBriefingStore', 'entry', 'away-briefing'],
+  ['DOSSIER_FILE', 'entry', 'commander-dossier'],
+  ['AUTONOMY_POSTURE_FILE', 'entry', 'commander-posture'],
   ['overseer.js', 'entry', 'overseer'],
   ['group-sessions.js', 'entry', 'group-sessions'],
   ['memory:notebook', 'entry', 'notebook-memory'],
@@ -79,8 +81,6 @@ const STORES = [
   ['BYPASS_FILE', 'exempt', '', 'a consent flag and its time'],
   ['PROJECTS_FILE', 'exempt', '', 'the project registry (folders the Commander blessed)'],
   ['GOALS_FILE', 'exempt', '', 'the Commander\'s own active goal, in the Commander\'s words'],
-  ['DOSSIER_FILE', 'exempt', '', 'pending commit 14 (forgotten-everywhere step): the dossier block is composed by the page and pushed here; the entry that clears it by sourceRunIds, with write admission, is registered there'],
-  ['AUTONOMY_POSTURE_FILE', 'exempt', '', 'pending commit 14 (forgotten-everywhere step): the posture dial plus the beliefs snapshot the page pushes; the entry that drops sourced beliefs, with write admission, is registered there'],
   ['NIGHTFOCUS_STATE_FILE', 'exempt', '', 'the night focus steer the Commander chose and its settings'],
   ['NIGHTSHIFT_STATE_FILE', 'exempt', '', 'whether the night shift is enabled and its cadence'],
   ['NIGHTSHIFT_LEARN_FILE', 'exempt', '', 'per-archetype up and down verdict tallies (counts only, no text)'],
@@ -415,6 +415,32 @@ function wireForgetRegistry(registry, deps) {
     name: 'group-sessions',
     sourceOf: g => ({ streamIds: [g && g.id], at: num(g && g.createdAt) }),
     forget: scope => d.groupSessions().forget(src => inScope(src, scope))
+  });
+
+  /* the Commander dossier block and the beliefs snapshot (commit 14, qa/bugs/3e926b6a): composed by the PAGE from beliefs, some learned from runs,
+     and pushed here for the unattended runs. Each push names the runs its derived beliefs were learned from and whether it names them all.
+     A block that names a run the delete reached goes; one that is not complete and was written at or before the delete cannot say what it was
+     learned from, and goes too. A cleared block reads as empty (the missing-snapshot path: the night shift degrades to the EARN tier) until the
+     page's complete re-push; the write gate is derivedAdmission in index.js (every push, restore and reset asks it). The posture DIAL is the
+     Commander's setting and is never touched; the snapshot loses the beliefs sourced from forgotten runs (and its readiness verdict with them). */
+  const dossierSource = m => ({ runIds: m && m.sourceRunIds, at: num(m && m.setAt) });
+  entry({
+    name: 'commander-dossier',
+    sourceOf: dossierSource,
+    forget: scope => {
+      const dossier = d.dossier(), m = dossier.meta();
+      if (!m.block) return 0;
+      if (inScope(dossierSource(m), scope) || (!m.complete && m.setAt <= latestStamp(scope))) { dossier.clear(); return 1; }
+      return 0;
+    }
+  });
+  entry({
+    name: 'commander-posture',
+    sourceOf: b => ({ runIds: b && b.sourceRunIds, at: num(b && b.at) }),
+    forget: scope => {
+      const latest = latestStamp(scope);
+      return d.posture().forget(runId => inScope({ runIds: [runId] }, scope), at => at <= latest);
+    }
   });
 
   // the exemptions: each census row that keeps a store, and the stores no pattern sees

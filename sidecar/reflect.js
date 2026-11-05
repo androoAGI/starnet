@@ -152,6 +152,12 @@
     const seen = {};
     const priorTexts = [];   // existing beliefs + already-accepted proposals, for near-dupe (paraphrase) rejection
     for (const r of (Array.isArray(opts.existing) ? opts.existing : [])) { const t = textOf(r).trim(); seen[t.toLowerCase()] = 1; if (t) priorTexts.push(t); }
+    /* opts.dedupOnly (turn identity commit 15, Q5): texts that may only SUPPRESS a proposal - the Commander's declined list once a session
+       has been deleted from this station. They feed the exact-duplicate set, the near-duplicate loop and MemTruth.relate, exactly like a
+       held belief, but they are never shown to the model (buildPrompt reads priorTexts alone: a declined text may quote a deleted
+       session) and never a replacement target (they are not records). Plain strings or { content } wrappers. */
+    const dedupTexts = [];
+    for (const r of (Array.isArray(opts.dedupOnly) ? opts.dedupOnly : [])) { const t = (typeof r === 'string' ? r : textOf(r)).trim(); if (t) { seen[t.toLowerCase()] = 1; dedupTexts.push(t); } }
 
     const existing = Array.isArray(opts.existing) ? opts.existing : [];
     /* WHICH HELD BELIEFS A CLAIM MAY REPLACE OR RESTATE: only ones this run can see — never another project's record (a run
@@ -180,6 +186,7 @@
          it is now a replacement of the newest record holding that subject, reviewed before it replaces anything. */
       const verdicts = existing.map(r => ({ r, v: reachable(r) ? MemTruth.relate(bodyText(r), content) : 'unknown' }));
       if (!replacement && verdicts.some(x => x.v === 'dupe')) continue;
+      if (!replacement && dedupTexts.some(t => MemTruth.relate(t, content) === 'dupe')) continue;
       if (!replacement) {
         const same = verdicts.filter(x => x.v === 'supersede' && x.r.id).map(x => x.r).sort((a, b) => (b.updatedAt || b.createdAt || b.ts || 0) - (a.updatedAt || a.createdAt || a.ts || 0));
         if (same.length) replacement = same[0];
@@ -191,7 +198,7 @@
       // a near-duplicate by word overlap — unless the subject key says it is a DIFFERENT fact of the same shape
       // ("the staging db is in frankfurt" vs "the production db is in frankfurt"), which is proposed, never dropped
       let near = false;
-      for (const pt of priorTexts) { if (jaccard(pt, content) >= SIM_THRESHOLD && MemTruth.relate(pt, content) !== 'distinct') { near = true; break; } }
+      for (const pt of priorTexts.concat(dedupTexts)) { if (jaccard(pt, content) >= SIM_THRESHOLD && MemTruth.relate(pt, content) !== 'distinct') { near = true; break; } }
       if (near && !replacement) continue;
       seen[key] = 1; priorTexts.push(content);
       proposals.push({

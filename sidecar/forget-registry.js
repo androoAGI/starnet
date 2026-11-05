@@ -30,7 +30,7 @@ const TurnKinds = require('../frontend/app/turnkinds.js');
 
 // Bump when a store is registered or its forget changes: session-tombstones re-runs every non-adopted purged stamp once per bump,
 // so deletes made before an upgrade stop leaking (purgedV catch-up). Adopted stamps are never re-run (I7 limit d).
-const VERSION = 1;
+const VERSION = 2;   // 2: the Commander dossier block and the beliefs snapshot are registered (commit 14)
 
 const SID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{1,79}$/;

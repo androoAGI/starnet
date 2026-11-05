@@ -65,7 +65,9 @@ for (const header of ['async function runNightshiftBeat(', 'async function runNi
 function makeHost(runs) {
   const ctx = vm.createContext({
     Autopilot, Autonomy,
-    fs: { mkdirSync() {} }, saveResilient() {}, loadResilient() { return null },
+    fs: { mkdirSync() {} }, saveResilient() {}, loadResilient() { return null }, failNote() {},
+    // the write gate for pushed beliefs (derivedAdmission, turn identity commit 14) is proved by forget.dossier.http; here a station that deleted nothing admits
+    derivedAdmission: () => ({ admitted: true, reason: '', forgotten: [] }), PROV_RUN_RE: /^[A-Za-z0-9_.:-]{1,80}$/, PROV_MAX_RUNS: 256,
     WORKSPACES: '/ws', AUTONOMY_POSTURE_FILE: '/ws/_commander.autonomy.json',
     // the one governor the host binds (billing-class.js), over a clear budget and the registry's payer
     governor: BillingClass.makeGovernor({ budget: { check: () => null }, auxTokenGate: () => ({ blocked: false }), classOfProvider: id => billing.classOf(id) }), NIGHTSHIFT_AGENT: 'agent',

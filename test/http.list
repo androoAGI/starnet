@@ -346,3 +346,4 @@ test/forget.tool-quotes.timing.http.test.js
 test/forget.tool-quotes.overflow.http.test.js
 test/forget.tool-quotes.relay.http.test.js
 test/forget.phone.http.test.js
+test/forget.dossier.http.test.js

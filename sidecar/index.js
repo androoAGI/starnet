@@ -2866,17 +2866,89 @@ function markMintDeclined(agentId, name) {
 // run still knows who it works for. Persisted as a sibling of the notebooks (outside every agent's fs jail,
 // so the agent's own fs.* tools can't read/corrupt it) → it survives a restart for a headless cron fire.
 const DOSSIER_FILE = path.join(WORKSPACES, '_commander.dossier.json');
+/* PROVENANCE OF A PUSHED, PAGE-COMPOSED BLOCK (turn identity commit 14, qa/bugs/3e926b6a). The dossier block and the beliefs snapshot are
+   composed by the page from beliefs, some of which the station LEARNED from runs. A push says which runs it was learned from (sourceRunIds)
+   and whether it names them ALL (complete). derivedAdmission() is the one write gate for both stores, on every caller (a page push, a restored
+   backup, a stale tab):
+     complete provenance  admitted iff no listed run is in the forgotten scope (forgetRegistry.admit over the runs);
+     absent or partial    admitted only while no non-adopted delete stamp exists (sessionTombstones.latestAt() === 0) - after the first delete
+                          the station cannot prove what such a block was learned from, and the page's complete re-push replaces it;
+     an unreadable ledger or registry refuses (fail closed).
+   A refusal is counted (failNote <what>.refused) and answered, never thrown. */
+const PROV_RUN_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
+const PROV_MAX_RUNS = 256;
+function provenanceOf(meta) {
+  const m = meta && typeof meta === 'object' ? meta : {};
+  const ids = [];
+  let over = false;
+  if (Array.isArray(m.sourceRunIds)) {
+    for (const id of m.sourceRunIds) {
+      if (typeof id !== 'string' || !PROV_RUN_RE.test(id) || ids.indexOf(id) >= 0) continue;
+      if (ids.length >= PROV_MAX_RUNS) { over = true; break; }
+      ids.push(id);
+    }
+  }
+  return { sourceRunIds: ids, complete: m.complete === true && Array.isArray(m.sourceRunIds) && !over };
+}
+/* a listed run is forgotten when a delete the Commander MADE reaches it: the session it ran in was deleted (freshAt - an adopted stamp, I7 limit d,
+   keeps the memory it wrote) or it quotes one. A run no record names is not forgotten (the page may hold runs of an older station). */
+function runForgottenFresh(runId) {
+  const rec = runStore.latest(String(runId));
+  if (!rec) return false;
+  const at = num => (Number.isFinite(num) ? num : 0);
+  const stamp = at(sessionTombstones.freshAt(rec.streamId));
+  if (stamp > 0 && at(rec.ts) <= stamp) return true;
+  return TurnKinds.quotesForgotten(rec, sid => sessionTombstones.freshAt(sid), () => sessionTombstones.latestAt());
+}
+function derivedAdmission(prov, what) {
+  let admitted = false, reason = 'unprovable', forgotten = [];
+  try {
+    if (prov.complete) {
+      forgotten = prov.sourceRunIds.filter(runForgottenFresh);   // named in the answer: the page drops the beliefs learned from them and pushes again
+      admitted = !forgotten.length;
+      reason = admitted ? '' : 'source-forgotten';
+    } else {
+      admitted = !(sessionTombstones.latestAt() > 0);
+      reason = admitted ? '' : 'provenance-incomplete';
+    }
+  } catch (e) { failNote(what + '.admit', e); admitted = false; reason = 'unprovable'; }
+  if (!admitted) failNote(what + '.refused', new Error(what + ' push refused: ' + reason));
+  return { admitted, reason, forgotten };
+}
 const commanderDossier = {
-  _block: '',
+  _block: '', _setAt: 0, _runIds: [], _complete: false,
   get() { return this._block; },
-  set(block) {
+  meta() { return { block: this._block, setAt: this._setAt, sourceRunIds: this._runIds.slice(), complete: this._complete }; },
+  set(block, meta) {
+    const prov = provenanceOf(meta);
     this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend composes it under dossier.js BLOCK_CHARS (1600); this is a hard safety ceiling
+    this._setAt = Date.now(); this._runIds = this._block ? prov.sourceRunIds : []; this._complete = this._block ? prov.complete : true;
+    this._persist();
+  },
+  _persist() {
     try {
       fs.mkdirSync(WORKSPACES, { recursive: true });
-      saveResilient(DOSSIER_FILE, { block: this._block });   // fsync-durable + .bak last-known-good
+      saveResilient(DOSSIER_FILE, { block: this._block, setAt: this._setAt, sourceRunIds: this._runIds, complete: this._complete });   // fsync-durable + .bak last-known-good
     } catch (e) { console.warn('[dossier] persist failed:', (e && e.message) || e); }
   },
-  load() { const o = loadResilient(DOSSIER_FILE, 'dossier'); if (o) this._block = String((o && o.block) || ''); }
+  /* offer(block, meta) -> { admitted, reason }: every caller that did not compose the block itself comes through here. An empty block (the
+     reset, the Commander turned the dossier off) says nothing about any session and is always admitted. */
+  offer(block, meta) {
+    if (!String(block == null ? '' : block).length) { this.set('', meta); return { admitted: true, reason: '', forgotten: [] }; }
+    const verdict = derivedAdmission(provenanceOf(meta), 'dossier');
+    if (verdict.admitted) this.set(block, meta);
+    return verdict;
+  },
+  // a delete reached the block's sources (or it cannot prove them): it reads as empty until the page's complete re-push
+  clear() { this._block = ''; this._runIds = []; this._complete = true; this._setAt = Date.now(); this._persist(); this._persist(); },   // written twice: the .bak holds the purged copy
+  load() {
+    const o = loadResilient(DOSSIER_FILE, 'dossier');
+    if (!o) return;
+    this._block = String((o && o.block) || '');
+    this._setAt = Number.isFinite(o.setAt) ? o.setAt : 0;   // a file from before provenance: older than any delete
+    const prov = provenanceOf(o);
+    this._runIds = prov.sourceRunIds; this._complete = prov.complete;
+  }
 };
 commanderDossier.load();
 
@@ -2953,33 +3025,70 @@ const commanderPosture = {
   // with a private variant. FAIL-CLOSED: no snapshot / no verdict / not-ok all read as NOT ready, so a cold or
   // legacy-frontend station never gets server-minted recommendations it can't justify.
   ready() { return !!(this._beliefs && this._beliefs.ready && this._beliefs.ready.ok); },
+  /* set(posture, beliefs) -> { beliefsAdmitted, reason }. The dial is the Commander's setting and is ALWAYS written. The beliefs snapshot is
+     page-composed from beliefs some of which were learned from runs: each carries a bounded sourceRunId, and the push says whether it names
+     every source (beliefs.complete). It is admitted by derivedAdmission (the dossier's rule): complete and no listed run forgotten, or
+     incomplete and no non-adopted delete yet. A refused snapshot leaves the held one in place (the forget entry clears it if it too is stale). */
   set(posture, beliefs) {
     const nextPosture = posture && typeof posture === 'object' ? Autonomy.normalize(posture) : this._posture;
-    let nextBeliefs = this._beliefs;
+    let nextBeliefs = this._beliefs, beliefsAdmitted = true, reason = '', verdictForgotten = [];
     if (beliefs && typeof beliefs === 'object') {
       // normalize the snapshot defensively: a bounded known[] + a bounded per-dim belief list (text + stamps + weight).
       const known = Array.isArray(beliefs.known) ? beliefs.known.filter(x => typeof x === 'string').slice(0, 24) : [];
       const src = (beliefs.beliefs && typeof beliefs.beliefs === 'object') ? beliefs.beliefs : {};
       const out = {};
+      const runIds = [];
       for (const dim of Object.keys(src).slice(0, 24)) {
         const arr = Array.isArray(src[dim]) ? src[dim] : [];
-        out[dim] = arr.slice(0, 40).map(b => ({
-          text: String((b && b.text) || '').slice(0, 400),
-          weight: (typeof (b && b.weight) === 'string' && ['stated', 'synth', 'observed', 'seed'].indexOf(b.weight) >= 0) ? b.weight : null,   // V3 evidence weight (null = legacy sync)
-          updatedAt: Number(b && b.updatedAt) || 0,
-          createdAt: Number(b && b.createdAt) || 0
-        })).filter(b => b.text);
+        out[dim] = arr.slice(0, 40).map(b => {
+          const sourceRunId = (typeof (b && b.sourceRunId) === 'string' && PROV_RUN_RE.test(b.sourceRunId)) ? b.sourceRunId : null;
+          if (sourceRunId && runIds.indexOf(sourceRunId) < 0 && runIds.length < PROV_MAX_RUNS) runIds.push(sourceRunId);
+          return {
+            text: String((b && b.text) || '').slice(0, 400),
+            weight: (typeof (b && b.weight) === 'string' && ['stated', 'synth', 'observed', 'seed'].indexOf(b.weight) >= 0) ? b.weight : null,   // V3 evidence weight (null = legacy sync)
+            updatedAt: Number(b && b.updatedAt) || 0,
+            createdAt: Number(b && b.createdAt) || 0,
+            ...(sourceRunId ? { sourceRunId } : {})
+          };
+        }).filter(b => b.text);
       }
       // the synced readiness verdict (V3): {ok,reasons} or null when the frontend couldn't compute one.
       const rd = (beliefs.ready && typeof beliefs.ready === 'object')
         ? { ok: !!beliefs.ready.ok, reasons: Array.isArray(beliefs.ready.reasons) ? beliefs.ready.reasons.filter(x => typeof x === 'string').slice(0, 8) : [] }
         : null;
-      nextBeliefs = { known: known, beliefs: out, ready: rd, at: Date.now() };
+      const verdict = derivedAdmission({ sourceRunIds: runIds, complete: beliefs.complete === true }, 'autonomy.beliefs');
+      beliefsAdmitted = verdict.admitted; reason = verdict.reason; verdictForgotten = verdict.forgotten;
+      if (verdict.admitted) nextBeliefs = { known: known, beliefs: out, ready: rd, at: Date.now(), complete: beliefs.complete === true, sourceRunIds: runIds };
     }
     fs.mkdirSync(WORKSPACES, { recursive: true });
     saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: nextPosture, beliefs: nextBeliefs });
     this._posture = nextPosture;
     this._beliefs = nextBeliefs;
+    return { beliefsAdmitted, reason, forgotten: verdictForgotten };
+  },
+  /* forget(isGone, stale): drop what a delete reached. A snapshot that is not complete and was written at or before the delete cannot say what it
+     was learned from: it goes whole (the night shift degrades to the EARN tier - ready() reads false - until the page's complete re-push). A
+     complete one loses only the beliefs sourced from forgotten runs, and its readiness verdict with them (the page computed it over beliefs
+     that are no longer there). The dial is never touched. Returns how many beliefs (or the whole snapshot, as 1) went. */
+  forget(isGone, stale) {
+    const b = this._beliefs;
+    if (!b || typeof b !== 'object') return 0;
+    let removed = 0, next = null;
+    if (b.complete !== true && stale(Number(b.at) || 0)) { removed = Object.keys(b.beliefs || {}).reduce((n, k) => n + ((b.beliefs[k] || []).length), 0) || 1; }
+    else {
+      const out = {};
+      for (const dim of Object.keys(b.beliefs || {})) {
+        const keep = (b.beliefs[dim] || []).filter(x => !(x && x.sourceRunId && isGone(x.sourceRunId)));
+        removed += (b.beliefs[dim] || []).length - keep.length;
+        if (keep.length) out[dim] = keep;
+      }
+      if (removed) next = { known: Object.keys(out), beliefs: out, ready: null, at: b.at, complete: b.complete === true, sourceRunIds: (b.sourceRunIds || []).filter(id => !isGone(id)) };
+      else return 0;
+    }
+    this._beliefs = next;
+    try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: this._posture, beliefs: next }); saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: this._posture, beliefs: next }); }   // twice: the .bak holds the purged copy
+    catch (e) { failNote('autonomy.beliefs.forget', e); throw e; }
+    return removed;
   },
   load() {
     const o = loadResilient(AUTONOMY_POSTURE_FILE, 'autonomy-posture');
@@ -3692,6 +3801,7 @@ wireForgetRegistry(forgetRegistry, {
   study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => saveResilient(STUDY_STATE_FILE, { v: 1, byRun: Object.fromEntries(studyByRun), latest: Object.fromEntries(latestStudyRun), lastAt: Object.fromEntries(lastStudyAt), declined: Object.fromEntries(studyDeclinedByAgent) }) },
   quests: () => questStore,
   northStar: { get: () => questRefreshState, set: x => { questRefreshState = x; }, persist: () => saveResilient(QUESTREFRESH_FILE, { v: 1, state: questRefreshState }) },
+  dossier: () => commanderDossier, posture: () => commanderPosture,
   awayBriefing: () => awayBriefingStore, overseer: () => overseer, subagents: () => subagents,
   transcriptStore: () => transcriptStore, attachments: () => attachments, groupSessions: () => groupSessions,
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
@@ -4060,7 +4170,11 @@ async function runReflection(o) {
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
     // projectRoot: a held belief in ANOTHER project is never this run's replacement target (reflect.js reachable)
-    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
+    /* commit 15 (Q5): from the first delete the Commander made, a declined text may quote a deleted session, so it only SUPPRESSES (dedupOnly:
+       exact, near and subject checks) and never reaches the aux prompt or becomes a replacement target. Before any delete it rides as before. */
+    let declinedOnly = false;
+    try { declinedOnly = sessionTombstones.latestAt() > 0; } catch (e) { failNote('reflect.declined', e); declinedOnly = true; }   // unreadable ledger: the safe side
+    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: declinedOnly ? existing : existing.concat(declinedRecs), dedupOnly: declinedOnly ? declinedRecs.map(x => x.content) : undefined, projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
     // the Commander paused (or forgot) learning while the model was answering: remember nothing from this pass
     if (!learningUnchangedSince(pz)) return;
     let proposals = (out && out.proposals) || [];
@@ -15637,7 +15751,7 @@ function collectExportSnapshot(bodySections) {
     budget: Object.assign({}, budgetOverrides),
     fallback: effectiveFallbackChain(),
     roster: roster,
-    dossier: commanderDossier.get(),
+    dossier: commanderDossier.meta(),   // block + sourceRunIds + complete: a restore is admitted by what the block was learned from
     permissions: [...grantsPermanent],
     connectors: connectors
   };
@@ -15789,6 +15903,7 @@ async function handleConfigImport(req, res) {
   const only = Array.isArray(body.only) && body.only.length ? new Set(body.only) : null;
   const want = (name) => (!only || only.has(name)) && Object.prototype.hasOwnProperty.call(parsed.sections, name);
   const applied = [];
+  const importNotes = [];
   const effectiveSecretsNeeded = (parsed.secretsNeeded || []).filter(x => x && x.kind !== 'connector');
   const sec = parsed.sections;
   let connectorPlan = null;
@@ -15820,7 +15935,11 @@ async function handleConfigImport(req, res) {
     }
     saveAgentRoster(); applied.push('roster');
   }
-  if (want('dossier') && sec.dossier) { commanderDossier.set(sec.dossier.block || ''); applied.push('dossier'); }
+  if (want('dossier') && sec.dossier) {
+    // a restored backup is a write like any other: admitted by the runs its block was learned from (an old backup that names none is incomplete)
+    const verdict = commanderDossier.offer(sec.dossier.block || '', sec.dossier);
+    if (verdict.admitted) applied.push('dossier'); else importNotes.push('The saved Commander dossier was not restored: ' + (verdict.reason === 'source-forgotten' ? 'it was learned from a session you deleted.' : 'it cannot show what it was learned from since you deleted a session. The station rebuilds it from what it knows now.'));
+  }
   if (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow)) {
     // UNION with existing grants (import never silently REVOKES a live grant); stamp provenance for new keys.
     const next = new Set([...grantsPermanent]);
@@ -15860,7 +15979,7 @@ async function handleConfigImport(req, res) {
   if (want('autonomy') && sec.autonomy) browser.autonomy = sec.autonomy;
   if (want('notifyPrefs') && sec.notifyPrefs) browser.notifyPrefs = sec.notifyPrefs;
 
-  return json(200, { ok: true, applied, secretsNeeded: effectiveSecretsNeeded, notes: parsed.notes || [], browser });
+  return json(200, { ok: true, applied, secretsNeeded: effectiveSecretsNeeded, notes: (parsed.notes || []).concat(importNotes), browser });
 }
 
 /* POST /api/config/reset { section } -> reset ONE server-side section to its environment/empty default, live.
@@ -15877,7 +15996,7 @@ async function handleConfigReset(req, res) {
       applyBudgetCaps(); break;
     case 'fallback': fallbackSaved = null; saveFallbackChain(); break;
     case 'roster': agentRoster.clear(); saveAgentRoster(); break;
-    case 'dossier': commanderDossier.set(''); break;
+    case 'dossier': commanderDossier.offer('', { complete: true }); break;
     case 'permissions': {
       // Revoke authority on disk first. If the durable replacement fails, the live grant must remain visible and
       // active; reporting success and clearing RAM would let it silently resurrect on restart.
@@ -20304,9 +20423,10 @@ async function handleDossier(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, 1 << 16)); }
   catch (e) { res.writeHead(400); return res.end('bad json'); }
-  commanderDossier.set(body && body.block);
+  // the push names the runs its derived beliefs were learned from (sourceRunIds) and whether it names them all (complete): derivedAdmission
+  const verdict = commanderDossier.offer(body && body.block, body);
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ ok: true, chars: commanderDossier.get().length }));
+  res.end(JSON.stringify({ ok: true, chars: commanderDossier.get().length, admitted: verdict.admitted, ...(verdict.admitted ? {} : { reason: verdict.reason, forgotten: verdict.forgotten }) }));
 }
 
 // POST /api/goals { goal } — GROWTH Tier 2: the browser pushes the ACTIVE goal-arc summary whenever it changes
@@ -26523,7 +26643,8 @@ async function handleAutonomyPosture(req, res) {
     : ((body.initiative || body.reach || body.leashPerDay != null) ? body : null);   // tolerate a flat posture too
   const postureWritten = !!posture;
   const resumeRequested = postureWritten && body.resumeHalt === true;
-  try { commanderPosture.set(posture, body.beliefs); }
+  let beliefsAdmitted = true, beliefsReason = '', beliefsForgotten = [];
+  try { const w = commanderPosture.set(posture, body.beliefs); beliefsAdmitted = w.beliefsAdmitted; beliefsReason = w.reason; beliefsForgotten = w.forgotten; }
   catch (e) {
     console.warn('[autonomy] posture persist failed:', (e && e.message) || e);
     return json(503, { ok: false, error: 'Autonomy could not be saved. Check available disk space and try again.' });
@@ -26575,7 +26696,7 @@ async function handleAutonomyPosture(req, res) {
   // receipt names what still waits and says "schedules can run" only when the scheduler is armed. null = unknown.
   let haltAfter = null;
   try { haltAfter = haltStatus(); } catch (e) { console.warn('[autonomy] halt read-back failed:', (e && e.message) || e); }
-  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
+  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
 }
 // GET /api/autonomy/posture — the server copy (posture summary + whether a beliefs snapshot is present). Never
 // echoes the raw beliefs texts back to the browser (it already has them); just reports presence + freshness.
