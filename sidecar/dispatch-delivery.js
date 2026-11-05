@@ -49,8 +49,7 @@ function finalizeDispatchDelivery(deps, runId, value) {
     const written = transcriptStore.appendStrict({ streamId, agentId: source.agentId,
       role: 'assistant', sourceRunId: runId, content: text, dispatchState: 'final',
       dispatchPrompt: source.deliveryPrompt, dispatchReason: final.reason, dispatchRepairRunId: final.repairRunId,
-      textLength: final.textLength, textSha256: final.textSha256, taint: source.rowTaintedBy || source.taintedBy || (repair && (repair.rowTaintedBy || repair.taintedBy)) || undefined,
-      ...quotedBy([source, repair]) });
+      textLength: final.textLength, textSha256: final.textSha256, taint: source.rowTaintedBy || source.taintedBy || (repair && (repair.rowTaintedBy || repair.taintedBy)) || undefined, ...quotedBy([source, repair]) });
     if (!written || written.content !== text || written.textLength !== text.length || written.textSha256 !== final.textSha256
         || written.sourceRunId !== runId || written.streamId !== streamId) {
       throw new Error('The full accepted dispatch answer was not durably preserved.');

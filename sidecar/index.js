@@ -30869,7 +30869,7 @@ function transcriptProjection(stream, rows, extra) {
   // forgotten: the rows of this read window the QUOTE rule hid (and the runs they came from) - the page's affirmative drop proof (TurnMerge R2/R4)
   return turnDual.project(stream, rows, Object.assign({ liveRunIds: transcriptLiveRuns,
     isCollided: rowId => transcriptIo.isCollided(rowId) }, extra, { forgottenAt: sessionTombstones.deletedAt(stream),
-    forgotten: rows && rows[Symbol.for('starnet.transcript.forgotten')] || undefined }));   // TurnView.FORGOTTEN, by its registry key: this function is evaluated alone by test/transcript-perf-paths
+    forgotten: rows && rows[Symbol.for('starnet.transcript.forgotten')] || undefined }));   // the forgotten-list symbol, by its registry key: this function is evaluated alone by test/transcript-perf-paths
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
 async function handleTurnIdentitySoak(req, res) {
