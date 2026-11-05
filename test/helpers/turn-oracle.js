@@ -44,8 +44,13 @@ function check(page, response, durable, options) {
              never holds an assistant message with a '[steering]' line inside it;
      display GET holds the row iff its MATRIX cell says display is true.
    `expected` is what the operations declared they made, independent of any writer: { files: [{ runId, path }], steers: [{ runId, text, noteId? }],
-   returns: [{ runId, text }] } (a file or a note also names the turn its run answered). A run that has left GET's window (no row of it is shown) is not asked about. */
-const KINDS = ['steer', 'deliverable', 'delivery'];
+   returns: [{ runId, text }], attachments: [{ runId, id, path, turnId }] } (a file or a note also names the turn its run answered). A run that has left
+   GET's window (no row of it is shown) is not asked about.
+   THE ATTACHMENT ROW (attachment-rows-and-taint) is the fourth kind: its MATRIX cell hides it from the display GET, from the page and from both
+   windows, so the table above holds it to exactly that (no row of the kind anywhere the page reads), and options.proof - the proof view of the
+   stream, the one reader that still sees it - holds it to what the run made: one role-system row per declared file, at its path, stamped
+   'user attachment', carrying the turn the run answered. */
+const KINDS = ['steer', 'deliverable', 'delivery', 'attachment'];
 function checkKinds(page, response, windows, expected, options) {
   const label = options && options.label || 'quiescent', M = K.MATRIX, turns = response.turns || [], ex = expected || {};
   const keyed = turns.filter(r => key(r));
@@ -88,6 +93,18 @@ function checkKinds(page, response, windows, expected, options) {
     assert.ok(tool >= 0 && at > tool && at < last, label + ': the steer row sits after the tool results and before the answer it shaped');
     assert.ok(windows.station.messages.some(m => m && m.role === 'user' && m.content === '[steering] ' + note.text), label + ': the station window replays it as a user \'[steering]\' line');
     assert.ok(windows.page.some(m => m && m.role === 'user' && m.content === '[steering] ' + note.text), label + ': and so does the page\'s own window');
+  }
+  for (const file of ex.attachments || []) {
+    if (!inGet(file.runId)) continue;
+    const proof = (options && options.proof) || [];
+    const rows = proof.filter(r => r.kind === 'attachment' && r.sourceRunId === file.runId && r.attachment && r.attachment.id === file.id);
+    assert.equal(rows.length, 1, label + ': the attachment ' + file.id + ' of ' + file.runId + ' is exactly one row in the proof view');
+    assert.deepEqual([rows[0].role, rows[0].taint, rows[0].attachment.path, rows[0].turnId], ['system', 'user attachment', file.path, file.turnId],
+      label + ': a system row stamped \'user attachment\', at the file\'s path, carrying the turn the run answered');
+    const stamp = key(rows[0]);
+    assert.ok(!turns.some(r => r.kind === 'attachment') && !(page.ws.history || []).some(r => r.kind === 'attachment'), label + ': no attachment row is in GET or in the page (the matrix hides it)');
+    assert.ok(!windows.station.ids.filter(Boolean).some(id => JSON.stringify([id.streamId, id.rowId]) === stamp) && !windows.page.some(m => m && Number.isSafeInteger(m.rowId) && JSON.stringify([m.streamId || page.ws.id, m.rowId]) === stamp),
+      label + ': and in neither window (' + K.MATRIX.attachment['model-replay'] + ')');
   }
   for (const back of ex.returns || []) {
     if (!inGet(back.runId)) continue;

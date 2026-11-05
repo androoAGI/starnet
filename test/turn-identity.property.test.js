@@ -24,7 +24,7 @@ const TEXTS = ['yes', 'yes', 'Done.', '日本語 🌟 café', 'use ' + SECRET, '
 // (kind deliverable), a run a SEND NOW note steered through the real buffer and loop (kind steer), a routine handing its result back to the session
 // (kind delivery). Their expectations are declared below from what each op made; the visibility of each kind is read out of TurnKinds.MATRIX.
 const OPS = ['send', 'repeatSend', 'sendSecret', 'sendFailRetry', 'idempotentResend', 'reload', 'cacheWipeLocal', 'cacheWipeBoth', 'phoneSend', 'phonePage', 'restart', 'oldClientSend', 'sendAttachImage', 'sendAttachText', 'sendAttachBinary', 'sendAttachMissing', 'captionless', 'goalContinuation', 'deskLineHop', 'routineSeed', 'interruptContinue', 'rekeyedRetry',
-  'runWithFiles', 'steerNote', 'routineSessionReturn',
+  'runWithFiles', 'steerNote', 'routineSessionReturn', 'attachTurn',
   'quoteRead', 'deleteSession'];
 const FILE_SETS = [['report · v2.md', 'a · b.png'], ['clip.mp3', 'notes v1.txt'], ['src/a.md'], ['clip.mp4', 'report · v2.md', 'out/chart.png']];
 const seedCount = Control.hasPrefix ? 1 : Math.max(1, Math.min(500, Number(process.env.TURNID_SEEDS) || 20));
@@ -47,7 +47,7 @@ let active = null, assertions = 0;
       const binary = await fx.upload('data.bin', 'application/octet-stream', Buffer.from([0, 1, 2, 255]));
       const missing = Object.assign({}, notes, { id: 'missing000', path: '.attachments/missing000.txt' });
       await page.send('seed turn'); await page.load(); page.save();
-      const trace = [], expected = { files: [], steers: [], returns: [] };   // what the row-kind operations declared they made (checkKinds)
+      const trace = [], expected = { files: [], steers: [], returns: [], attachments: [] };   // what the row-kind operations declared they made (checkKinds)
       const reads = [], gone = [];   // quoteRead: { stream, word } a run of 's' read; deleteSession: { word, calls } words that must be in no view and no later provider body
       let serial = 0;
       for (let step = 0; step < stepCount; step++) {
@@ -140,6 +140,12 @@ let active = null, assertions = 0;
               assert.equal(fx.store.view('proof', 's', { complete: true }).filter(r => r.kind === 'delivery' && r.sourceRunId === runId).length, 1, label + ': and writes nothing new');
             }
             expected.returns.push({ runId, text: shown });
+          } else if (op === 'attachTurn') {
+            // an ATTACHMENT TURN: one run with a file. The station writes the directive (which keeps the file's references) and ONE role-system 'attachment' row per file;
+            // the matrix hides that row from GET, the page and both windows, and the proof view holds it (checkKinds, the fourth kind)
+            const n = ++serial, up = await fx.upload('turn-' + n + '.txt', 'text/plain', 'attachment turn body ' + n);
+            const sent = await page.send('read the file ' + n, { attachments: [up] });
+            expected.attachments.push({ runId: sent.runId, id: up.id, path: up.path, turnId: sent.turnId });
           } else if (op === 'quoteRead' || op === 'deleteSession') {
             // quoteRead: another session says a unique word, then a run of this one reads it and says it back (the run's rows carry the quote stamp).
             // deleteSession: the Commander deletes a session that run read (or one this stream never touched); from then on its word is in no page row,
@@ -169,7 +175,7 @@ let active = null, assertions = 0;
           await page.load(); page.save();
           const response = fx.read('s');
           check(page, response, fx.store.history('s', { limit: 10000, proof: true }), { label });
-          checkKinds(page, response, { station: fx.modelWindow('s'), page: page.window() }, expected, { label });
+          checkKinds(page, response, { station: fx.modelWindow('s'), page: page.window() }, expected, { label, proof: fx.store.history('s', { limit: 10000, proof: true }) });
           const once = JSON.stringify(page.ws.history); await page.load();
           assert.equal(JSON.stringify(page.ws.history), once, label + ': cache reconciliation is idempotent');
           assert.ok(!JSON.stringify(response).includes(SECRET), label + ': raw token never appears in station readback');

@@ -273,10 +273,83 @@ async function attachmentTurns(root) {
   A.ok(residue >= (n / 10) * 3, label + ' boot: the page-only fields came back over the station\'s rows (' + residue + ')');
 }
 
+
+/* THE ROW KINDS OF TURN IDENTITY (commit 10, kinds round-trip). A turn that made a file, took a steering note and was followed by a routine's
+   return leaves four kinds on the station beside the dialogue: a file row (kind deliverable) and a steering note (kind steer), both role-system
+   rows the page shows (the matrix displays them) and keeps inline, and a delivery row (kind delivery), an assistant row the page seals and
+   packs like any reply. Each is read back by the rows route as the page's row; the round trip below is the save of such sessions, restored by a
+   fresh boot with the page-only fields (the residue) laid over the station's rows. */
+async function turnIdentityKinds(root) {
+  const T = Rig.tree(root), label = root + ' row kinds';
+  const n = 120, turns = 3, rng = Rig.rng(29);
+  const io = indexedIo(), live = new Set(), store = Store.makeTranscriptStore({ io, live, deletedAt: () => 0 });
+  const ids = new Map();
+  let ts = BASE_TS, serial = 0;
+  const add = (streamId, row) => { const r = io.appendDurable(Object.assign({ streamId, agentId: 'agent', ts: ++ts }, row)); ids.get(streamId).push(r.rowId); return r; };
+  for (let i = 0; i < n; i++) {
+    ids.set(sid(i), []);
+    for (let t = 0; t < turns; t++) {
+      const turnId = T.TM.newTurnId(rng), runId = 'run_' + i + '_' + t, back = 'ret_' + i + '_' + t, name = 'r' + t + '.md';
+      add(sid(i), { role: 'user', kind: 'turn', taintKnown: true, turnId, directive: true, sourceRunId: runId, content: 'question ' + t + ' about ' + i + ' lorem ipsum' });
+      add(sid(i), { role: 'system', kind: 'deliverable', turnId, sourceRunId: runId, content: 'saved ' + name, deliverable: { path: 'out/' + name, media: 'file', workspace: 'agent', root: '', name, artifactId: 'file_out_' + name } });
+      add(sid(i), { role: 'system', kind: 'steer', taintKnown: true, turnId, sourceRunId: runId, noteId: 'sn' + (++serial), content: 'make it shorter ' + t });
+      add(sid(i), { role: 'assistant', kind: 'turn', taintKnown: true, turnId, sourceRunId: runId, content: 'answer ' + t + ' lorem ipsum dolor sit amet' });
+      add(sid(i), { role: 'assistant', kind: 'delivery', turnId: 'r' + back, sourceRunId: back, content: '✦ Property routine\n\nRoutine result ' + t + ' for ' + i });
+    }
+  }
+  const routes = Rig.routes({ store, live }), tp = Rig.transport(routes);
+  const read = new Map();
+  for (let i = 0; i < n; i++) {
+    const res = { code: 0, body: null };
+    await routes.handleTranscriptRows({ body: JSON.stringify({ streams: [{ streamId: sid(i), rowIds: ids.get(sid(i)) }] }) }, res);
+    assert.equal(res.code, 200, 'the fixture read answered');
+    read.set(sid(i), res.body.streams[0].turns);
+  }
+  const kinds = {};
+  for (const turnsOf of read.values()) for (const r of turnsOf) kinds[r.kind] = (kinds[r.kind] || 0) + 1;
+  A.eq(kinds, { turn: n * turns * 2, deliverable: n * turns, steer: n * turns, delivery: n * turns }, label + ': the rows route hands the page every kind the matrix displays, once');
+  const recs = Array.from({ length: n }, (_, i) => {
+    const history = read.get(sid(i)).map(t => Object.assign({}, t));
+    if (i % 10 === 3) for (const r of history) if (r.kind === 'delivery' || r.kind === 'turn') r.stopNote = 'note ' + i + ' ' + r.rowId;   // page-only fields (residue) on packed rows
+    return { id: sid(i), title: 'Session ' + i, agentId: 'agent', kind: 'chat', lane: 'active', history, runIds: ['run_' + i], createdAt: BASE_TS + i, lastActiveAt: BASE_TS + 100000 + i, lastReadAt: BASE_TS + 100000 + i };
+  });
+  const p = Rig.page({ tree: T, tp, init: slice(recs) });
+  let ticks = 0;
+  if (p.hasSweep) while (await p.sweep() && ticks++ < 5000);
+  const doc = JSON.parse(JSON.stringify(envelope(T, p.W)));
+  let packedDelivery = 0, packedSystem = 0, inlineSystem = 0, inlineDelivery = 0;
+  for (const w of doc.workstreams) {
+    const packed = new Set(T.HR.idsOf(w.history));
+    const rec = recs.find(r => r.id === w.id);
+    if (!rec) continue;
+    for (const r of rec.history) {
+      if (r.role === 'system') { if (packed.has(r.rowId)) packedSystem++; else inlineSystem++; }
+      else if (r.kind === 'delivery') { if (packed.has(r.rowId)) packedDelivery++; else inlineDelivery++; }
+    }
+  }
+  A.eq(packedSystem, 0, label + ': a file row and a steering note are system rows: none is named by a reference (' + inlineSystem + ' kept inline)');
+  A.ok(packedDelivery >= n * turns * 0.9, label + ': the routine returns are saved as references (' + packedDelivery + ' packed, ' + inlineDelivery + ' inline of ' + n * turns + ')');
+  say(label + ' x ' + n + ' sessions of ' + turns + ' turns (' + n * turns * 5 + ' rows): ' + packedDelivery + ' routine returns packed, ' + inlineSystem + ' system rows kept inline');
+  const boot = Rig.page({ tree: T, tp: Rig.transport(routes), init: doc });
+  ticks = 0;
+  while (await boot.tick() && ticks++ < 5000);
+  A.eq(T.W.pendingHydration().length, 0, label + ' boot: every session is read back by the idle pass');
+  let wrong = 0, doubled = 0, first = '', residue = 0, back = { deliverable: 0, steer: 0, delivery: 0 };
+  for (const rec of recs) {
+    const ws = T.W.get(rec.id);
+    if (new Set(ws.history.map(x => x.rowId)).size !== ws.history.length) doubled++;
+    if (JSON.stringify(ws.history) !== JSON.stringify(rec.history)) { wrong++; if (!first) first = rec.id; }
+    for (const x of ws.history) { if (back[x.kind] !== undefined) back[x.kind]++; if (x.kind === 'delivery' && x.stopNote) residue++; }
+  }
+  A.eq([wrong, doubled], [0, 0], label + ' boot: every session\'s rows equal what the page saved (count, order, content, residue), none doubled' + (first ? ' (first wrong: ' + first + ')' : ''));
+  A.eq(back, { deliverable: n * turns, steer: n * turns, delivery: n * turns }, label + ' boot: every file row, steering note and routine return came back');
+  A.ok(residue >= (n / 10) * turns, label + ' boot: the page-only field came back over the routine returns packed in the save (' + residue + ')');
+}
+
 (async () => {
   const t0 = Date.now();
   for (const [i, root] of ROOTS.entries()) {
-    try { await scenario(root, i === 0); await attachmentTurns(root); } catch (e) { A.ok(false, root + ': the budget test threw — ' + String(e && e.stack || e).split('\n').slice(0, 6).join(' | ')); }
+    try { await scenario(root, i === 0); await attachmentTurns(root); await turnIdentityKinds(root); } catch (e) { A.ok(false, root + ': the budget test threw — ' + String(e && e.stack || e).split('\n').slice(0, 6).join(' | ')); }
   }
   const ms = Date.now() - t0;
   say('whole test: ' + ms + ' ms (' + (ms >= 40000 ? 'slow.list' : 'fast.list') + ')');

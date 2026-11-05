@@ -44,7 +44,7 @@ const SOURCE = readSidecarSource();
 const ROUTES = ['async function handleTranscriptRows(req, res)', 'function serveTranscript(req, res)', 'function transcriptProjection(stream, rows, extra)',
   'async function handleTurnIdentityRetractions(req, res)'].map(h => { const body = A.fnBody(SOURCE, h); A.ok(body.length > 200 && body.length < 6000, 'the route slice is bounded: ' + h); return body; }).join('\n');
 
-const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long', 'files', 'quoted'];
+const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long', 'files', 'kinds', 'quoted'];
 const MANY = Array.from({ length: 25 }, (_, i) => 'm' + String(i).padStart(2, '0'));   // 25 sessions: the idle pass reads 20, then 5
 const LOST_ID = 9999999;                                                                  // a row the page sealed once and the station no longer returns
 
@@ -53,7 +53,7 @@ function station(dir) {
   const open = () => History.makeSegmentedTranscriptIo({ fs, path, root: dir, segmentBytes: 700, schedule() {}, onWarning() {} });
   const put = (io, stream, role, content, extra) => io.appendDurable(Object.assign({ streamId: stream, agentId: 'agent', role, kind: 'turn', taintKnown: true, ts: ++ts, content },
     role === 'assistant' ? { sourceRunId: 'run-' + stream + '-' + ts } : null, extra || null));
-  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60, files: 0, quoted: 4 };   // (files is seeded by hand below: an attachment turn)
+  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60, files: 0, kinds: 0, quoted: 4 };   // (files and kinds are seeded by hand below: an attachment turn, the row kinds of turn identity)
   for (const m of MANY) counts[m] = 2 + (Number(m.slice(1)) % 3);
   const seed = open();
   for (let round = 0; round < 70; round++) {            // interleaved, as a station writes them
@@ -66,6 +66,14 @@ function station(dir) {
   put(seed, 'files', 'user', 'look at this file needle-files-0', { directive: true, turnId, attachments: [file] });
   put(seed, 'files', 'system', '[attached: notes.txt]', { kind: 'attachment', turnId, taint: 'user attachment', attachment: Object.assign({ size: 12, sha256: 'ab'.repeat(32) }, file) });
   put(seed, 'files', 'assistant', 'it is a notes file needle-files-1', { turnId, taint: 'user attachment' });
+  /* THE ROW KINDS OF TURN IDENTITY (commit 10): a turn that made a file (kind deliverable, role system), took a steering note (kind steer, role
+     system) and was followed by a routine's return (kind delivery, an assistant row of its own run). The route hands the page all of them as turns. */
+  const kturn = 'tr' + 'b'.repeat(23), kret = 'run-kinds-ret';
+  put(seed, 'kinds', 'user', 'make the files needle-kinds-0', { directive: true, turnId: kturn, sourceRunId: 'run-kinds' });
+  put(seed, 'kinds', 'system', 'saved r.md', { kind: 'deliverable', turnId: kturn, sourceRunId: 'run-kinds', deliverable: { path: 'out/r.md', media: 'file', workspace: 'agent', root: '', name: 'r.md', artifactId: 'file_out_r.md' } });
+  put(seed, 'kinds', 'system', 'make it shorter needle-kinds-1', { kind: 'steer', turnId: kturn, sourceRunId: 'run-kinds', noteId: 'sn-kinds' });
+  put(seed, 'kinds', 'assistant', 'done needle-kinds-2', { turnId: kturn, sourceRunId: 'run-kinds' });
+  put(seed, 'kinds', 'assistant', 'Property routine result needle-kinds-3', { kind: 'delivery', turnId: 'r' + kret, sourceRunId: kret });
   seed.close();
   // the page reads each stream the way it reconciles (the display view, through the route's projection) and keeps that copy as the SEAL
   const io1 = open(), live = new Set(), deleted = new Map();
@@ -238,6 +246,24 @@ async function scenarios(root) {
       assert.ok(!ws.history.some(r => r.kind === 'attachment' || r.attachment), 'no attachment row is among them');
       assert.equal(env.tp.rowsCalls().length, 1, 'one request read them');
       deepEq(W.serialize().workstreams.find(w => w.id === 'files').history, env.doc.workstreams.find(w => w.id === 'files').history, 'a persist now names the rows it has just read again');
+    });
+
+    // ================================================================================================================
+    await run('the ROW KINDS of turn identity read back: a routine return is packed and comes back with its page-only fields; a file row and a steering note stay inline', async () => {
+      const p = page(env), W = p.W, ws = W.get('kinds');
+      assert.equal(W.needsHydration(ws), true, 'the session is packed in the save');
+      assert.deepEqual(env.st.sealed.get('kinds').map(r => r.kind), ['turn', 'deliverable', 'steer', 'turn', 'delivery'], 'the station hands the page every kind the matrix displays, in order');
+      const saved = env.doc.workstreams.find(w => w.id === 'kinds').history, packedIds = new Set(p.HR.idsOf(saved));
+      const byKind = Object.fromEntries(env.original.kinds.map(r => [r.kind + ':' + r.role, r]));
+      assert.ok(packedIds.has(byKind['delivery:assistant'].rowId), 'the routine return is named by a reference in the save');
+      assert.ok(!packedIds.has(byKind['deliverable:system'].rowId) && !packedIds.has(byKind['steer:system'].rowId), 'the file row and the steering note are saved inline (system rows are never named by a reference)');
+      assert.ok(saved.some(el => el && el.kind === 'steer' && el.noteId === 'sn-kinds') && saved.some(el => el && el.kind === 'deliverable' && el.deliverable && el.deliverable.path === 'out/r.md'), 'and they are the rows themselves, residue and all');
+      const got = await p.api.hydrateHistory(ws, { windowMs: 8000 });
+      assert.equal(got.complete, true, 'nothing is left packed');
+      deepEq(ws.history, env.original.kinds, 'the session holds exactly the rows the page held when it saved: the return with its residue, the file row, the note');
+      assert.equal(ws.history.find(r => r.kind === 'delivery').role, 'assistant', 'the return comes back as an assistant row');
+      assert.equal(env.tp.rowsCalls().length, 1, 'one request read them');
+      deepEq(W.serialize().workstreams.find(w => w.id === 'kinds').history, saved, 'a persist now names the rows it has just read again');
     });
 
     // ================================================================================================================
