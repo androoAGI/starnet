@@ -24,7 +24,7 @@ append('old-global-internal', 'global', 'INTERNAL_GLOBAL_SENTINEL arbitrary stat
 for (let i = 0; i < 75; i++) append('internal-' + i, i % 2 ? 's' : 'global', 'INTERNAL_LATER_' + i, true);
 const brief = { id: 'tb_owner', originalRunId: 'owner', agentId: 'agent', streamId: 's', directiveRowId: directive.rowId,
   originalDirective: directive.content, completedAt: now, status: 'done' };
-const sandbox = { Map, Set, Date: { now: () => now }, TrustedLearning: Learning, transcriptStore: store, runStore: { all: () => runRows },
+const sandbox = { Map, Set, Date: { now: () => now }, TrustedLearning: Learning, transcriptStore: store, runView: (name, r) => r, runStore: { all: () => runRows },
   taskBriefStore: { list: () => [brief] }, contextpack, nightshiftRecentRuns: () => runRows.slice(-60).concat([{ runId: 'unsourced', title: 'UNSOURCED_RUN_LABEL', ts: now }]),
   commanderGoals: { get: () => ({ text: 'UNSOURCED_GOAL_LABEL' }) }, autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}),
   Recommendation: { preferenceTallies: () => ({}) }, nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [],

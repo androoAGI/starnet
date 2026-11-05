@@ -22,7 +22,8 @@
 
    makeSteerBuffers({ maxPending?, maxNoteChars?, maxClosed? }) -> {
      post(runId, text, live, noteId?) -> { status, body },   // live = the run is still registered in-flight by the host
-     drain(runId) -> string[],                       // the loop's per-iteration drain (unchanged semantics)
+     drain(runId) -> string[],                       // the per-iteration drain as texts (unchanged semantics)
+     drainNotes(runId) -> [{ text, noteId }],        // the same drain with each note's id kept ('' = none): the loop's (index.js drainSteer)
      close(runId) -> string[],                       // the loop's end: returns never-applied notes; later posts get 409
      drop(runId) -> string[],                        // host teardown: forget the run; returns leftovers (host logs the count)
      pending(runId) -> number, isClosed(runId) -> bool,
@@ -91,6 +92,17 @@ function makeSteerBuffers(opts) {
     return texts(b);
   }
 
+  // drain() with each note's own id kept: [{ text, noteId }] ('' for a note posted without one). The same drain in every other
+  // respect: what leaves the buffer is settled 'applied' in the ledger, once. The loop tags the row its folded note becomes with the
+  // id (loop.js foldSteerNotes), so the transcript's steer row and the page's SEND NOW line are one note.
+  function drainNotes(runId) {
+    const b = buffers.get(runId);
+    if (!b || !b.length) return [];
+    buffers.set(runId, []);
+    settle(runId, b, 'applied', false);
+    return b.map(n => ({ text: n.text, noteId: n.id }));
+  }
+
   function close(runId) {
     runId = String(runId || '');
     const b = buffers.get(runId) || [];
@@ -125,7 +137,7 @@ function makeSteerBuffers(opts) {
     return e ? Array.from(e.notes, ([id, state]) => ({ id: id, applied: state === 'applied' })) : [];
   }
 
-  return { post, drain, close, drop, pending, isClosed, status, ledgerOf };
+  return { post, drain, drainNotes, close, drop, pending, isClosed, status, ledgerOf };
 }
 
 /* GET /api/run/steer?runId= — which of the page's tracked notes the run read. THIS process's ledger answers first; a

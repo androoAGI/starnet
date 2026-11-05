@@ -1796,6 +1796,34 @@ const Chat = (() => {
     pendingAtts.splice(i, 1);
     renderAttachStrip();
   }
+  /* forgetSession(streamId, { runIds, files }) - the page's own copies of a session the Commander just deleted (turn identity commit 16, qa/bugs/3e926b6a).
+     The station forgets what it holds; this drops what only this page holds: the run records (RUN_META, which carries the directive text), the
+     SEND NOW lines kept for it (memory, the in-flight asks and the browser's disk copy), and the uploaded files its messages named that no other
+     session names - posted to the station's own delete (the sidecar entry covers the rows it knows; refs on messages from before the transcript
+     ledger exist only in this page's save). Best-effort and idempotent: a failed delete is retried by nothing, the sidecar's purge pass is the net. */
+  function forgetSession(streamId, opts) {
+    const id = String(streamId || ''), o = opts || {};
+    if (!id) return { runs: 0, lines: 0, files: 0 };
+    let runs = 0, lines = 0, files = 0;
+    const doomed = new Set((Array.isArray(o.runIds) ? o.runIds : []).map(String));
+    try { for (const [rid, meta] of Array.from(RUN_META)) if (doomed.has(rid) || (meta && meta.streamId === id)) { RUN_META.delete(rid); runs++; } } catch (_) {}
+    try {
+      lines = (sentNow.get(id) || []).length;
+      for (const n of (sentNow.get(id) || [])) { sentNowRetry.delete(n && n.id); }
+      sentNow.delete(id); sentNowChecks.delete(id); heldBack.delete(id); queued.delete(id);
+      sentNowDisk(all => { if (all && Object.prototype.hasOwnProperty.call(all, id)) { lines = Math.max(lines, (all[id] || []).length); delete all[id]; } });
+    } catch (_) {}
+    try {
+      const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
+      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
+      for (const f of (Array.isArray(o.files) ? o.files : [])) {
+        if (!f || !f.path) continue;
+        files++;
+        fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: f.agent || 'agent', path: f.path }) }).catch(() => {});
+      }
+    } catch (_) {}
+    return { runs, lines, files };
+  }
   // best-effort: prune the uploaded bytes so an attach-then-remove (or a cancelled queued message) doesn't orphan a file in the workspace
   function pruneUpload(ref) {
     if (!ref || !ref.path) return;
@@ -3590,8 +3618,8 @@ const Chat = (() => {
     return rail;
   }
   // a clickable COMMS row for a file the agent produced — opens it via the sidecar's jailed /api/file route
-  function fileBlobUrl(title, agentId) {
-    const url = fileUrl(title, agentId);
+  function fileBlobUrl(title, agentId, projectRoot) {
+    const url = fileUrl(title, agentId, projectRoot);
     return fetch(url, { cache: 'no-store' }).then(r => {
       if (!r.ok) throw new Error('file HTTP ' + r.status);
       return r.blob();
@@ -3712,9 +3740,9 @@ const Chat = (() => {
   }
   // wire an image thumb in the transcript: click enlarges via the jailed /api/file route (fresh blob each
   // view — the thumbnail's own object URL was already revoked after its bitmap decoded).
-  function wireLightbox(a, rel, aid, name) {
+  function wireLightbox(a, rel, aid, name, projectRoot) {
     a.href = '#';
-    a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(() => fileBlobUrl(rel, aid), name, { revoke: true }); });
+    a.addEventListener('click', ev => { ev.preventDefault(); openLightbox(() => fileBlobUrl(rel, aid, projectRoot), name, { revoke: true }); });
   }
 
   // ── "OPEN FOLDER" AFFORDANCE (Theme 4: outputs are findable) ──────────────────────────────────
@@ -3802,30 +3830,32 @@ const Chat = (() => {
     });
     return b;
   }
-  function deliverableLine(title, agentId) {
+  // a project file's address on disk: its project root + the relative path (openFile joins it the same way); any other path is itself
+  function inRoot(projectRoot, p) { return projectRoot && !/^([A-Za-z]:[\\/]|[\\/])/.test(String(p)) ? String(projectRoot).replace(/[\\/]+$/, '') + '/' + p : p; }
+  function deliverableLine(title, agentId, projectRoot) {
     noteDeliveryLanding();
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable');
     r.body.appendChild(document.createTextNode('▤ saved '));
     const a = document.createElement('a');
-    wireFileOpen(a, title, agentId);
+    wireFileOpen(a, title, agentId, projectRoot);
     a.textContent = String(title).split(/[\\/]/).pop() || title;   // show the filename, not the whole path
     a.title = title;                                               // full path on hover
     a.className = 'deliverable-link';
     r.body.appendChild(a);
-    r.body.appendChild(folderButton(agentId, title));             // reveal the exact saved location
-    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, title));
+    r.body.appendChild(folderButton(agentId, inRoot(projectRoot, title)));             // reveal the exact saved location
+    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, inRoot(projectRoot, title)));
     autoscroll();
   }
   // an image the agent generated (image_generate / the `studio` capability) — render it INLINE as a small
   // thumbnail (src = the sidecar's jailed /api/file viewer URL, served with an image content-type); clicking
   // opens the full image in a new tab. Built with DOM nodes (never innerHTML) so the title can't inject markup.
-  function imageDeliverableLine(title, agentId) {
+  function imageDeliverableLine(title, agentId, projectRoot) {
     noteDeliveryLanding();
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable'); r.d.classList.add('image');
     r.body.appendChild(document.createTextNode('▤ made '));
     const a = document.createElement('a');
     const shortName = String(title).split(/[\\/]/).pop() || title;
-    wireLightbox(a, title, agentId, shortName);   // click enlarges in-app (Esc / click-out / × to leave)
+    wireLightbox(a, title, agentId, shortName, projectRoot);   // click enlarges in-app (Esc / click-out / × to leave)
     a.className = 'deliverable-thumb';
     a.title = title;                                               // full path on hover
     const img = document.createElement('img');
@@ -3833,7 +3863,7 @@ const Chat = (() => {
     img.alt = shortName;
     a.appendChild(img);
     r.body.appendChild(a);
-    fileBlobUrl(title, agentId).then(u => {
+    fileBlobUrl(title, agentId, projectRoot).then(u => {
       img.src = u;
       // once the <img> has decoded (or failed) it no longer needs the object URL — the decoded bitmap
       // survives revocation, so the thumbnail keeps rendering. Revoke to avoid leaking one URL per image
@@ -3844,18 +3874,9 @@ const Chat = (() => {
     }).catch(() => {});
     autoscroll();
   }
-  // CLIENT-SIDE MEDIA KIND, keyed off the file extension (the reference harness's extension-keyed media model): the backend doesn't
-  // declare "this is a video" — we decide from the path, so any .mp4 an agent writes/downloads renders as a
-  // player with zero backend wiring. Unknown extensions fall through to 'file' (the plain clickable row).
-  const MEDIA_KIND_BY_EXT = {
-    png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image',
-    mp4: 'video', webm: 'video', mov: 'video', mkv: 'video', avi: 'video',
-    mp3: 'audio', m4a: 'audio', ogg: 'audio', wav: 'audio', flac: 'audio', opus: 'audio'
-  };
-  function mediaKindOf(title) {
-    const ext = String(title || '').split(/[?#]/, 1)[0].split('.').pop().toLowerCase();
-    return MEDIA_KIND_BY_EXT[ext] || 'file';
-  }
+  // CLIENT-SIDE MEDIA KIND, keyed off the file extension: the rule and its table live in TurnKinds (turn identity, commit 10), so the page's
+  // chip and the station's deliverable row decide from the one extension rule
+  function mediaKindOf(title) { return TurnKinds.mediaKindOf(title); }
   // The jailed /api/file URL for a workspace file — usable as a REAL href/src, not just inside fetch().
   // Base: on desktop the page runs
   // on the tauri.localhost origin and the shell rewrites ONLY window.fetch to the sidecar — a relative
@@ -3896,18 +3917,18 @@ const Chat = (() => {
   // (e.g. an .mkv/.avi the browser won't play), mirroring the reference harness's OpenMediaButton.
   // Always a real /api/file link (re-served with Range support), never the player's blob URL: a blob href
   // is dead on desktop (the Tauri window policy) and dies with the page.
-  function openFallback(parent, label, title, agentId) {
+  function openFallback(parent, label, title, agentId, projectRoot) {
     if (parent.querySelector('.media-fallback')) return;   // once
     const a = document.createElement('a');
     a.className = 'deliverable-link media-fallback';
-    wireFileOpen(a, title, agentId);
+    wireFileOpen(a, title, agentId, projectRoot);
     a.textContent = label; a.title = title;
     parent.appendChild(a);
   }
   // a media deliverable rendered INLINE as a seekable player. The src is the jailed /api/file route, which
   // now streams with HTTP Range so <video>/<audio> can seek without loading the whole file. preload=metadata
   // fetches just enough for a duration + scrubber. On a decode error we drop in an open-externally link.
-  function mediaPlayerLine(title, agentId, kind) {
+  function mediaPlayerLine(title, agentId, kind, projectRoot) {
     const r = row('agent'); r.d.classList.add('tool'); r.d.classList.add('deliverable'); r.d.classList.add(kind);
     const name = String(title).split(/[\\/]/).pop() || title;
     r.body.appendChild(document.createTextNode('▤ made '));
@@ -3916,16 +3937,16 @@ const Chat = (() => {
     const el = document.createElement(kind === 'audio' ? 'audio' : 'video');
     el.controls = true; el.preload = 'metadata'; el.className = 'deliverable-' + kind;
     let blobUrl = '';
-    el.addEventListener('error', () => openFallback(r.body, 'open ' + kind, title, agentId), { once: true });
+    el.addEventListener('error', () => openFallback(r.body, 'open ' + kind, title, agentId, projectRoot), { once: true });
     r.body.appendChild(el);
     // a <video>/<audio> keeps needing its object URL for the WHOLE row lifetime (seek/replay re-read it, and
     // the error fallback links to it), so we don't revoke on load here. But free any prior URL before we
     // replace it (defensive against a double-resolve leaking the first one) — the general revoke-before-
     // replace discipline every other createObjectURL site follows.
-    fileBlobUrl(title, agentId).then(u => {
+    fileBlobUrl(title, agentId, projectRoot).then(u => {
       if (blobUrl && blobUrl !== u) { try { URL.revokeObjectURL(blobUrl); } catch (_) {} }
       blobUrl = u; el.src = u;
-    }).catch(() => openFallback(r.body, 'open ' + kind, title, agentId));
+    }).catch(() => openFallback(r.body, 'open ' + kind, title, agentId, projectRoot));
     autoscroll();
   }
 
@@ -8564,9 +8585,19 @@ const Chat = (() => {
   }
   function replayDeliverableRow(d, agentId) {
     const mk = d.kind === 'file' ? mediaKindOf(d.title) : d.kind;   // the recorded kind IS the rendered kind (see onDeliverable)
-    if (mk === 'image') imageDeliverableLine(d.title, agentId);
-    else if (mk === 'video' || mk === 'audio') mediaPlayerLine(d.title, agentId, mk);
-    else deliverableLine(d.title, agentId);
+    if (mk === 'image') imageDeliverableLine(d.title, agentId, d.root);
+    else if (mk === 'video' || mk === 'audio') mediaPlayerLine(d.title, agentId, mk, d.root);
+    else deliverableLine(d.title, agentId, d.root);
+  }
+  /* A CANONICAL FILE ROW (turn identity, commit 10): the station's own record of a file a run wrote (kind 'deliverable', merged in with the
+     rest of the stream) draws its chip through the one adapter, in place. When this stream's ledger already holds that file (the chip the live
+     run drew, or an earlier replay), the ledger's copy draws it instead, and takes the row's workspace, project root and id so it opens the
+     right file; either way a file is one chip. The row's prose is never read: the path, media and owner are the adapter's. */
+  function replayFileRow(ws, row, agentId, teachOnly) {
+    const d = TurnMerge.deliverableOf(row);
+    if (!d) return;
+    const held = !!(ws && Workstreams.knownDeliverable(ws.id, d));   // true when the ledger holds the file; it then takes what this row knows
+    if (!teachOnly && !held) replayDeliverableRow(d, d.agentId || agentId);
   }
   function renderHistory(onlyTurns) {
     const h = onlyTurns || (activeWs ? activeWs.history : []);
@@ -8575,17 +8606,22 @@ const Chat = (() => {
     const delivs = onlyTurns ? [] : replayableDeliverables(activeWs);
     const delivAgent = (activeWs && activeWs.agentId) || 'agent';
     let di = 0;
+    if (activeWs) for (const m of h) if (m && m.kind === 'deliverable') replayFileRow(activeWs, m, delivAgent, true);   // a station file row teaches the ledger's copy of its file the workspace, root and id, before any chip is drawn
     // every recorded deliverable stamped at/before `ts` lands now (ts == null flushes the rest)
-    const flushDeliverablesBefore = (ts) => { while (di < delivs.length && (ts == null || (+delivs[di].t || 0) <= ts)) replayDeliverableRow(delivs[di++], delivAgent); };
+    const flushDeliverablesBefore = (ts) => { while (di < delivs.length && (ts == null || (+delivs[di].t || 0) <= ts)) { replayDeliverableRow(delivs[di], delivs[di].agentId || delivAgent); di++; } };
     try {
     for (const m of h) {
       if (m && m.truncated) {   // E3: the local history-cap marker — render it as a dim centered SYSTEM line (not a dropped record)
         if ((m.content || '').trim()) trimMarkerLine(m.content);
         continue;
       }
+      if (m && m.kind === 'deliverable') { replayFileRow(activeWs, m, delivAgent); continue; }   // the station's own row for a file a run wrote (a reload, a wiped cache, another device)
       // TIMESTAMP TRUTH (P0): pass the turn's STORED real time (m.ts), or `false` when a legacy turn carries none —
       // never `true` here (that would re-stamp replayed history with the current clock, the fabrication we're killing).
       const stamp = (m && m.ts != null) ? m.ts : false;
+      // the station's own row for a note the run read (turn identity, commit 10; a reload, a wiped cache, another device): the same
+      // mid-run Commander row the live stream drew, from the row alone. Its text is the note; the wire marker is only ever a prefix.
+      if (m && m.role === 'system' && m.kind === 'steer') { if (String(m.content == null ? '' : m.content).trim()) steerRow(m.content, stamp); continue; }
       if (m.role === 'user') {
         const shownUser = m.typed != null ? m.typed : m.content;
         const step = m.from ? null : goalStepOf(shownUser);   // a goal-loop continuation replays as the station's line, not the Commander's
@@ -9226,15 +9262,27 @@ const Chat = (() => {
       const echo = '[steering] ' + n.text;
       if (shown.indexOf('\n' + echo + '\n') >= 0) continue;   // the saved reply shows it: renderHistory draws it from there
       if (h.some(m => m && m.steerEcho && String(m.sourceRunId || '') === String(runId) && String(m.content || '') === echo)) continue;
-      h.push({ role: 'system', sys: true, steerEcho: true, content: echo, sourceRunId: runId, ts: n.ts });
+      // n.noteId: the id of the SEND NOW line whose words this echo carried (onToken, sentNowIdFor); a note the page did not send (a channel,
+      // /steer or a wake) has none, and the merge binds its echo to the station's steer row by run and words instead (TurnMerge R5)
+      h.push({ role: 'system', sys: true, steerEcho: true, content: echo, sourceRunId: runId, ts: n.ts, ...(n.noteId ? { noteId: n.noteId } : null) });
       added++;
     }
     return added;
   }
+  // the id of the SEND NOW line of this run whose words are `text`, else ''. One line per echo: a second line with the same words
+  // takes the next id (taken = the notes already read from this run's stream)
+  function sentNowIdFor(wsId, runId, text, taken) {
+    const used = new Set((Array.isArray(taken) ? taken : []).map(n => n && n.noteId).filter(Boolean));
+    const hit = (sentNow.get(wsId) || []).find(n => n && n.runId === runId && n.wire === text && !used.has(n.id));
+    return hit ? hit.id : '';
+  }
   /* A NOTE SITS WHERE THE AGENT READ IT. A filed note lands at its run's end, ahead of the turns the station's transcript
      adds when the conversation is read back, so the merge leaves it after the agent's reply to it. Each note moves to just
      after the last row of its own run stamped no later than the note (the run's middle turns carry the station's time of
-     writing, the note the time it was read). A run with no stamped row before it leaves it where it is. Pure. */
+     writing, the note the time it was read). A run with no stamped row before it leaves it where it is. The station's own steer
+     row for a note (kind 'steer', turn identity commit 10) is never moved: it sits where the run wrote it, at its own row id
+     among the station's rows, and the merge has already replaced this page's echo of the same note with it (by the note's id,
+     else by the run's words); only an echo with no station row yet is placed here. Pure. */
   function placeSteerNotes(rows) {
     const list = Array.isArray(rows) ? rows.slice() : [];
     const tsOf = r => Number(r && r.ts) || 0;
@@ -9393,6 +9441,8 @@ const Chat = (() => {
     const ofRun = m => (strict ? m.sourceRunId === e.runId : (!m.sourceRunId || m.sourceRunId === e.runId));
     return (Array.isArray(history) ? history : []).some(m => m && ofRun(m) && (
       (m.steerEcho && String(m.content || '') === echo)
+      // the station's own row for this note (it carries the line's id, or the same words from the same run)
+      || (m.role === 'system' && m.kind === 'steer' && !m.sys && ((e.id && m.noteId === e.id) || String(m.content || '').replace(/^\[steering\] /, '') === e.wire))
       || (m.role === 'assistant' && !m.sys && ('\n' + String(m.content || '') + '\n').indexOf('\n' + echo + '\n') >= 0)));
   }
   // a line the run read, filed as ONE station row after that run's dialogue (before the station's own lines about it);
@@ -9410,7 +9460,9 @@ const Chat = (() => {
       if (at < 0) { at = h.findIndex(m => m && m.sys && String(m.sourceRunId || '') === e.runId); if (at < 0) at = h.length; }
       // after the lines of the same run filed before it: several read lines keep the order they were sent in
       while (at < h.length && h[at] && h[at].steerEcho && String(h[at].sourceRunId || '') === e.runId) at++;
-      h.splice(at, 0, { role: 'system', sys: true, steerEcho: true, content: '[steering] ' + e.wire, sourceRunId: e.runId, ts: Number(e.at) || Date.now() });
+      // the line's own id rides the echo (turn identity, commit 10): the station's steer row for this note carries the same id, so the
+      // merge replaces this echo with that row (TurnMerge R5) instead of drawing the note twice
+      h.splice(at, 0, { role: 'system', sys: true, steerEcho: true, content: '[steering] ' + e.wire, sourceRunId: e.runId, ts: Number(e.at) || Date.now(), ...(e.id ? { noteId: e.id } : null) });
       added++;
     }
     if (!added) return;
@@ -10189,7 +10241,7 @@ const Chat = (() => {
         const sys = GoalLoop.judgeSystem();
         const usr = GoalLoop.judgeUser(s, reply, { now: new Date().toISOString() });
         // keepEffort: a verdict that ends the Commander's loop runs on their reasoning effort, never the cheap aux one
-        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, keepEffort: true });
+        const res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: usr }], agentId: ws.agentId || 'agent', isTask: false, placed: [], quotesStream: ws.id, internal: true, keepEffort: true });   // the verdict is composed from this session's reply: the station stamps it as a quote of the session
         raw = (res && !res.error && (!res.outcome || res.outcome === 'succeeded')) ? (res.text || '') : '';   // a succeeded verdict only (review r7)
       } catch (_) { raw = ''; }
       judged = GoalLoop.parseVerdict(raw);
@@ -11578,7 +11630,7 @@ const Chat = (() => {
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
         onRunId: (id, start) => { thisTurnId = TurnMerge.bindStart(ws.history, start, id, turnIds).turnId; liveRunTurns.set(ws.id, { turnId: thisTurnId, sourceRunId: id }); retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
-        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now() }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
+        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now(), noteId: thisRunId ? sentNowIdFor(ws.id, thisRunId, t, runSteers) : '' }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is
@@ -11618,7 +11670,7 @@ const Chat = (() => {
             }
             // the frozen 'deliverable' event carries no runId/time — synthesize from the live run + clock.
             // record the rendered media kind so a future history/replay surface can re-render the same way.
-            if (typeof Workstreams !== 'undefined') Workstreams.recordDeliverable(ws.id, { title: ev.title, kind: mk === 'file' ? ev.kind : mk, runId: Channels.runIdOf(ws.id), t: Date.now() });
+            if (typeof Workstreams !== 'undefined') Workstreams.recordDeliverable(ws.id, { title: ev.title, kind: mk === 'file' ? ev.kind : mk, runId: Channels.runIdOf(ws.id), t: Date.now(), agentId: ev.agentId !== (ws.agentId || 'agent') ? ev.agentId : undefined });   // a worker's file replays in the worker's own folder
             // POST-RUN DEDUPE: the recap card is the single artifact ledger. When the deliverable is ALREADY
             // visible in the on-screen transcript (inline row above + recap card below), the toast is a third
             // copy that also parks over the composer — suppress it. A BACKGROUND-stream deliverable isn't shown
@@ -12051,7 +12103,7 @@ const Chat = (() => {
     const before = Object.assign({}, Harness.totals());   // COPY (totals is a mutated singleton)
     let res;
     try {
-      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true });
+      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
     } catch (_) { return; }   // network/hiccup → keep the placeholder, no noise
     // fold the quiet call's REAL usage into the origin stream (same truthful-telemetry path as a normal turn)
     try { const a = Harness.totals(); Workstreams.addCost(ws.id, { tokens: a.tokens - before.tokens, usd: a.cost - before.cost, calls: a.calls - before.calls }); } catch (_) {}
@@ -12259,7 +12311,7 @@ const Chat = (() => {
 
   // the store asks for a conversation's packed rows through the same reader (Workstreams.sourceIdsOf: a purge must see every run a session holds)
   if (typeof Workstreams !== 'undefined' && Workstreams.setHydrator) Workstreams.setHydrator(ws => hydrateHistory(ws, { windowMs: 20000 }));
-  return { init, load, paintTitle, deliverTurns, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
+  return { init, load, paintTitle, deliverTurns, forgetSession, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
     // the COMMS '▤ saved' row's folder / copy-path keys and their path resolver, shared with MY WORK › DELIVERABLES' FILES rows (org pass 10-14, P24)
     folderButton, copyPathButton, fullSavedPath: absoluteArtifactPath };
 })();

@@ -7,6 +7,7 @@
 
 const { makeToolProgressGuard } = require('./tool-progress-guard.js');
 const { ATTACHMENT_TAINT } = require('./taint.js');   // the bare attachment source: the one taint stamp that decays (taint-replay.js)
+const TurnKinds = require('../frontend/app/turnkinds.js');   // QUOTES_MAX: the ONE quote capacity the rows, the journal and the run record share
 
 /* WINDOW-SCALED PER-RUN TOOL-OUTPUT CAP. The cap exists so a few big reads can't blow the context window, but
    it must sit ABOVE the compaction threshold in bytes: compaction (0.65 × window tokens) is the one event that
@@ -51,6 +52,15 @@ function makeRunExecutionState(options) {
      the refusal wording and the run record); this one exists because the attachment is the only source that decays, so it must
      never be allowed to hide a later one: a run that held the attachment and then read a page stamps its rows with the page. */
   let otherTaint = taintedBy && taintedBy !== ATTACHMENT_TAINT ? taintedBy : null;
+  /* QUOTES (turn identity commit 11): the sessions this run has READ, as { id -> the epoch of the first dispatch that read it }, under
+     the ONE run-wide capacity TurnKinds.QUOTES_MAX (32) that the row stamp, the journal and the run record share. Seeded with the run's
+     static quotes and a continuation's journal before any tool runs, then grown by latchQuotes at each read. It never shrinks. A run
+     that may hold words from a session it could not record (a relay that overflows the room, a source whose record is gone) is
+     SATURATED: it carries the marker '*' from saturatedAt, the earliest of the time it was told, its earliest latched read and the
+     moment it started, and every row it writes from then on is forgotten after ANY non-adopted delete stamped at or after that time. */
+  const quoted = new Map();
+  const startedAt = Number.isSafeInteger(opts.startedAt) && opts.startedAt >= 0 ? opts.startedAt : 0;
+  let saturatedAt = null;
   let toolBytes = 0;
   let floorSpent = 0;   // characters a spent budget delivered this turn (startToolTurn)
   let toolsOk = 0;
@@ -79,6 +89,50 @@ function makeRunExecutionState(options) {
   // The stamp DURABLE records carry (transcript rows, the run journal, a delegated worker's inherited latch): the first source that
   // is not the bare attachment stamp, else the attachment itself. Truthy exactly when taintedBy() is.
   function rowTaint() { return otherTaint || taintedBy; }
+
+  const safeAt = v => (Number.isSafeInteger(v) && v >= 0 ? v : 0);
+  const quoteId = e => (typeof e === 'string' ? e : (e && typeof e === 'object' && typeof e.id === 'string' ? e.id : ''));
+  const quoteAtOf = e => (e && typeof e === 'object' ? safeAt(e.at) : 0);
+  // saturate(at): sticks, and only ever moves EARLIER (never later than the run's start, so a delete made after the run began counts
+  // even when it precedes the saturating relay itself). Returns the saturation time.
+  function saturate(at) {
+    const next = Math.min(saturatedAt === null ? Infinity : saturatedAt, safeAt(at), startedAt || Infinity);
+    saturatedAt = Number.isFinite(next) ? next : safeAt(at);
+    return saturatedAt;
+  }
+  /* latchQuotes([{ id, at }]) -> the entries this call ADDED or moved earlier (what the journal must record). A stream keeps the
+     EARLIEST at it was ever read at. The marker '*' saturates instead. A latch that would pass the capacity saturates rather than
+     truncate: no list is ever cut. */
+  function latchQuotes(entries) {
+    const changed = [];
+    for (const e of Array.isArray(entries) ? entries : []) {
+      const id = quoteId(e), at = quoteAtOf(e);
+      if (!id) continue;
+      if (id === TurnKinds.SATURATED) { if (saturatedAt === null || at < saturatedAt) { saturate(at); changed.push({ id, at: saturatedAt }); } continue; }
+      if (quoted.has(id)) { if (at < quoted.get(id)) { quoted.set(id, at); changed.push({ id, at }); } continue; }
+      if (saturatedAt !== null) continue;   // a saturated run's stamp is the marker alone: nothing more to record
+      if (quoted.size >= TurnKinds.QUOTES_MAX) { saturate(at); changed.push({ id: TurnKinds.SATURATED, at: saturatedAt }); continue; }
+      quoted.set(id, at);
+      changed.push({ id, at });
+    }
+    return changed;
+  }
+  // [{ id, at }] in latch order, plus { id: '*', at: saturatedAt } once saturated: exactly what TurnKinds.quoteStamp turns into a row's stamp
+  function quotes() {
+    const out = [];
+    for (const [id, at] of quoted) out.push({ id, at });
+    if (saturatedAt !== null) out.push({ id: TurnKinds.SATURATED, at: saturatedAt });
+    return out;
+  }
+  /* quoteRoom(candidates) -> the candidate ids this run may read now: every stream it already holds, plus the first
+     QUOTES_MAX-minus-latched NEW ones in candidate order. A saturated run reads anything (its stamp already covers every session). */
+  function quoteRoom(candidates) {
+    const list = [], seen = new Set();
+    for (const c of Array.isArray(candidates) ? candidates : []) { const id = quoteId(c); if (id && id !== TurnKinds.SATURATED && !seen.has(id)) { seen.add(id); list.push(id); } }
+    if (saturatedAt !== null) return list;
+    let room = Math.max(0, TurnKinds.QUOTES_MAX - quoted.size);
+    return list.filter(id => quoted.has(id) || room-- > 0);
+  }
 
   function repeated(signature, maxRepeat) {
     return (failures.get(String(signature)) || 0) > Math.max(0, Number(maxRepeat) || 0);
@@ -294,6 +348,12 @@ function makeRunExecutionState(options) {
     taintedBy: () => taintedBy,
     latchTaint,
     rowTaint,
+    latchQuotes,
+    saturate,
+    quotes,
+    quoteRoom,
+    quotesSaturatedAt: () => saturatedAt,
+    isSaturated: () => saturatedAt !== null,
     repeated,
     recordResult,
     boundToolResult,

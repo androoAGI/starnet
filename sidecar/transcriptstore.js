@@ -17,7 +17,7 @@
    agent's own fs.* tools can neither read nor corrupt the record of its own conversations. Legacy
    transcript.jsonl(.1) inputs remain in place after import. It holds no key (those are stored separately).
 
-     makeTranscriptStore({ io, clock, redact?, limit?, deletedAt? }) -> {   // deletedAt: the deleted-session ledger (see below)
+     makeTranscriptStore({ io, clock, redact?, limit?, deletedAt?, latestDeleteAt? }) -> {   // deletedAt, latestDeleteAt: the deleted-session ledger (see below)
        append({ streamId, agentId, role, content }) -> entry,   // stamps ts, redacts content, appends, returns it
        history(streamId, { limit }?) -> entry[],   // CHRONOLOGICAL (oldest-first) for replay; last `limit` of that stream
        all() -> entry[],   count() -> int
@@ -251,18 +251,49 @@
        returns only a taint source, never a word of dialogue, and a copy of the history held elsewhere still carries
        whatever taint its rows had. */
     const deletedAt = typeof opts.deletedAt === 'function' ? opts.deletedAt : null;
+    /* QUOTE PROVENANCE (turn identity commit 11). opts.latestDeleteAt() -> ms is the ledger's newest NON-ADOPTED delete (0 = none):
+       the only thing the saturated stamp ['*'] reads. A row is also forgotten when it QUOTES a session deleted at or after the
+       read that put the words in it (TurnKinds.quotesForgotten: the row's quotes + quotesAt against the ledger). That rule never
+       reads row.ts, so a row drained after the delete (a held write, a text-only answer deferred to run end) is forgotten like
+       one written before it. ONE predicate: every legacy reader below, TurnView's ctx.forgotten and isForgotten are this function. */
+    const latestDeleteAt = typeof opts.latestDeleteAt === 'function' ? opts.latestDeleteAt : null;
+    function quoteForgotten(r) {
+      return !!deletedAt && !!r && Array.isArray(r.quotes) && r.quotes.length > 0 && TurnKinds.quotesForgotten(r, deletedAt, latestDeleteAt);
+    }
     function forgotten(r) {
       if (!deletedAt || !r) return false;
       const at = num(deletedAt(r.streamId));
-      return at > 0 && num(r.ts) <= at;
+      if (at > 0 && num(r.ts) <= at) return true;
+      return quoteForgotten(r);
     }
     function keep(list) { return deletedAt ? list.filter(r => !forgotten(r)) : list; }
     function viewContext() {
-      return { forgotten, runOf: opts.runOf, hash: opts.hash, projectConversation,
+      return { forgotten, quoteForgotten, runOf: opts.runOf, hash: opts.hash, projectConversation,
         isCollided: rowId => typeof io.isCollided === 'function' && io.isCollided(rowId),
         isFinalDeliveryRow: row => isFinalDeliveryRow(row, opts.hash, ((typeof opts.runOf === 'function' && opts.runOf(row.sourceRunId)) || {}).dispatchDelivery),
         rowTaint, quotedMaterial: opts.quotedMaterial, live: typeof opts.live === 'function' ? opts.live() : opts.live,
         selfTalkRuns, note: failNote };
+    }
+    /* THE POSTED WINDOW'S FORGET FLOOR (commit 11). A page or phone that posts its own copy of the history cannot be trusted to
+       have heard of a delete yet, so the host drops a posted row only on THIS store's proof: which of one stream's rowIds does
+       the predicate above forget? Each is looked up in the RAM mirror, else read by id from disk (a proof read: forgotten rows
+       included). Answers a Map(rowId -> true | false | null): true = the stored row is forgotten (tombstone or quote rule),
+       false = it is not, null = the row cannot be read at all. Never returns a row's text. */
+    function forgetVerdicts(streamId, rowIds) {
+      const out = new Map(), want = new Set(), sid = str(streamId);
+      for (const id of Array.isArray(rowIds) ? rowIds : []) if (Number.isSafeInteger(id) && id > 0) want.add(id);
+      if (!want.size || !SID_RE.test(sid)) return out;
+      const held = new Map();
+      for (const r of rows) if (r.streamId === sid && want.has(r.rowId)) held.set(r.rowId, r);
+      const missing = [...want].filter(id => !held.has(id));
+      if (missing.length && typeof io.readByIds === 'function') {
+        try {
+          const found = io.readByIds(missing);
+          if (found instanceof Map) for (const [id, row] of found) if (row && row.streamId === sid) held.set(Number(id), row);
+        } catch (error) { failNote('transcript.forget-floor', error); }
+      }
+      for (const id of want) out.set(id, held.has(id) ? forgotten(held.get(id)) : null);
+      return out;
     }
     function ownerProof(rowIds) {
       if (!TurnView || typeof io.readByIds !== 'function') return new Map();
@@ -572,6 +603,17 @@
       if (typeof e.noteId === 'string' && NOTE_ID_RE.test(e.noteId)) entry.noteId = e.noteId;
       if (typeof e.carriedBy === 'string') { const by = e.carriedBy.slice(0, 200); if (by) entry.carriedBy = by; }
       if (typeof e.importKey === 'string' && IMPORT_KEY_RE.test(e.importKey)) entry.importKey = e.importKey;
+      /* A FILE ROW'S ADDRESS (commit 10): kind 'deliverable' only; any other kind drops the field. TurnKinds.deliverableFields is the one
+         grammar (exact relative path, enum media, agent workspace, bounded root, event-style artifactId) and an invalid value is dropped
+         whole, never repaired or shortened. Only the display name is redacted; the path is an address and stays exactly as written. */
+      if (e.kind === 'deliverable') {
+        const d = TurnKinds.deliverableFields(e.deliverable);
+        if (d) {
+          try { d.name = str(redact(d.name)).slice(0, 200); }
+          catch (error) { d.name = ''; failNote('transcript.redact', error); }   // never stored unredacted
+          entry.deliverable = d;
+        }
+      }
     }
 
     function persistEntry(entry, strict) {
@@ -625,6 +667,16 @@
       const t = TurnKinds.tagOf(m);
       return t && TurnKinds.SYSTEM_KINDS.indexOf(t.kind) >= 0 ? t : null;
     }
+    /* A STEER ROW HOLDS THE NOTE, NOT THE LOOP'S WRAPPER. The loop hands the model a folded note as '<steering_note>…</steering_note>'
+       (loop.js foldSteerNotes) and tags that message steer; its row is the Commander's words alone, so a replay says
+       '[steering] <words>' once and the page's echo of the note (the same words) binds to it. Any other content is kept as it is. */
+    const STEER_WIRE = /^<steering_note>([\s\S]*)<\/steering_note>$/;
+    function rowContent(m, sysTag) {
+      const text = flattenContent(m.content);
+      if (!sysTag || sysTag.kind !== 'steer') return text;
+      const wrapped = STEER_WIRE.exec(text);
+      return wrapped ? wrapped[1] : text;
+    }
     function turnStamps(m, opts, sysTag) {
       if (!opts) return {};
       const out = {};
@@ -648,7 +700,7 @@
         markPersisted([m]);                                    // mark BEFORE the role filter so fences aren't re-checked
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) continue;
-        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
+        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
         n++;
       }
       return n;
@@ -665,7 +717,7 @@
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) { markPersisted([m]); continue; }
-        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
+        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
         markPersisted([m]);
         n++;
       }
@@ -1303,7 +1355,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten,
+      view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten, isQuoteForgotten: quoteForgotten, forgetVerdicts,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

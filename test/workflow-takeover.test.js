@@ -180,7 +180,7 @@ console.log('workflow-takeover: repeat sense (paraphrase, guards, notice, cadenc
       Date: class extends Date { static now() { return now; } },
       personalizationStore: { read: () => ({ enabled }) }, saveStore: { load: () => null, stamp: () => '', loadStamped: () => ({ doc: undefined, stamp: '' }) },
       taskBriefStore: { list: opts => h.briefs.slice(0, opts.limit) },
-      transcriptStore, runStore: { all: () => h.runs }, cronJobs: [],
+      transcriptStore, runView: (name, r) => r, runStore: { all: () => h.runs }, cronJobs: [],
       growthRatings: { list: () => [] },
       workflowTakeoverStore: { read: () => ({ v: 1, decisions: [] }), decide: (...args) => { impressions.push(args); return Promise.resolve(true); } }
     };

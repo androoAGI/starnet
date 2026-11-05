@@ -154,6 +154,13 @@ module.exports = function makeAttachments(deps) {
     try { const { abs } = await resolveInside(agentId, r); await fsp.rm(abs, { force: true }); return { ok: true }; }
     catch (e) { return { ok: false, error: 'remove failed' }; }
   }
+  // is the file still there? (the forget registry counts a removal only when there was a file to remove, so a second pass reports nothing)
+  async function hasAttachment(agentId, rel) {
+    const r = String(rel || '');
+    if (r.indexOf(ATTACH_DIR + '/') !== 0) return false;
+    try { const { abs } = await resolveInside(agentId, r); await fsp.stat(abs); return true; }
+    catch (e) { return false; }
+  }
 
   // tolerant text extractor for a user turn whose content is already an array — salvages the typed text when
   // expanding attachments. The provider adapters have their own richer content mappers.
@@ -315,7 +322,7 @@ module.exports = function makeAttachments(deps) {
 
   return {
     MAX_BYTES, IMAGE_BUDGET, TEXT_INLINE_MAX, RESEND_K, RESEND_TURNS, RESENT,
-    saveAttachment, removeAttachment, expandUserAttachments, expandForRun, selectResend, resentOf,
+    saveAttachment, removeAttachment, hasAttachment, expandUserAttachments, expandForRun, selectResend, resentOf,
     _internals: { parseDataUrl, looksTextual, textOf, IMAGE_MIME }
   };
 };

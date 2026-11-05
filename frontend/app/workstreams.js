@@ -698,10 +698,31 @@
     if (typeof reason === 'string' && reason.trim()) w.lastRunReason = clamp(reason.trim(), 80);
     return true;
   }
+  /* A FILE A RUN WROTE (the chips a reload replays). One record per file: the same run and the same exact path (TurnKinds.sameDeliverable) is
+     one file however many times it is filed, so the live chip, the station's canonical row (TurnMerge.deliverableOf) and a re-filing all
+     land on one record. A record also carries what only some of them know: the writing agent when it is not the session's (agentId), the
+     project root its relative path lives under (root) and the station's row id (rowId); a second filing adds what the first lacked.
+     true = a new record; false = the file was already filed. */
+  function adoptDeliverable(held, d) {
+    if (typeof d.agentId === 'string' && d.agentId && held.agentId == null) held.agentId = d.agentId;
+    if (typeof d.root === 'string' && d.root && held.root == null) held.root = d.root;
+    if (Number.isSafeInteger(d.rowId) && d.rowId > 0 && held.rowId == null) held.rowId = d.rowId;
+  }
   function recordDeliverable(id, d) {
     const w = find(id); if (!w || !d) return false;
-    w.deliverables.push({ title: String(d.title || ''), kind: d.kind || 'file', runId: d.runId || null, t: d.t || now() });
+    const rec = { title: String(d.title || ''), kind: d.kind || 'file', runId: d.runId || null, t: d.t || now() };
+    const held = rec.runId ? w.deliverables.find(r => TurnKinds.sameDeliverable(r, rec)) : null;
+    adoptDeliverable(held || rec, d);
+    if (held) return false;
+    w.deliverables.push(rec);
     return true;
+  }
+  // is this file (same run, same exact path) already in the stream's ledger? A hit takes the agent, root and row id the caller knows
+  function knownDeliverable(id, d) {
+    const w = find(id); if (!w || !d) return false;
+    const held = w.deliverables.find(r => TurnKinds.sameDeliverable(r, d));
+    if (held) adoptDeliverable(held, d);
+    return !!held;
   }
   // accumulate a per-stream usage delta (chat.js passes a copy-snapshotted Harness.totals() diff).
   function addCost(id, delta) {
@@ -853,7 +874,13 @@
     const title = safeTitle(w);
     // a goal step keeps its record (role + the prompt the model received) and is NAMED as one: the readable export writes it
     // as the station's line, never under "## Commander" (org P29-sys wiring)
-    const messages = visibleMessages(w).map(m => {
+    /* opts.rows = the station's DISPLAY view of this session (GET /api/transcript): the rows it will still show after any delete - a reply that quotes a
+       deleted session is not in it. The page's own copy may still hold such a row, so an export reads the display view whenever the station answered;
+       without it (an older station, a session the store never held) the page history is exported minus any row that carries a quote stamp. */
+    const shown = Array.isArray(opts.rows)
+      ? opts.rows.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string' && m.content.trim() && (!m.kind || m.kind === 'turn'))
+      : visibleMessages(w).filter(m => !(Array.isArray(m.quotes) && m.quotes.length));
+    const messages = shown.map(m => {
       const out = { role: m.role, content: scrubSecrets(m.content) };
       const step = goalStepOf(m);
       if (step != null) out.goalStep = scrubSecrets(step);
@@ -871,15 +898,31 @@
     }
     return { format: 'markdown', mime: 'text/markdown', filename: 'starnet-' + slug + '.md', text: lines.join('\n') };
   }
-  function parseConversationExport(text) {
-    let doc;
-    try { doc = JSON.parse(String(text || '')); } catch (_) { return null; }
-    if (!doc || doc.schema !== 'starnet.conversation' || doc.version !== 1 || !Array.isArray(doc.messages)) return null;
-    const messages = doc.messages.filter(m => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
-      .map(m => ({ role: m.role, content: scrubSecrets(m.content) }));
-    return { title: scrubSecrets(doc.title || 'New session'), messages, secretsIncluded: false };
+  /* what a delete of a session leaves in the page (commit 16): the runs it held (and its delegated workers' runs) and the attachment files its
+     messages name. The page purges the beliefs learned from those runs and asks the station to delete the files no other session names. */
+  function runIdsOf(id) {
+    const w = find(id); if (!w) return [];
+    const out = [];
+    for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) for (const r of (Array.isArray(x.runIds) ? x.runIds : [])) if (typeof r === 'string' && out.indexOf(r) < 0) out.push(r);
+    return out;
   }
-
+  function attachmentRefs(id) {
+    const w = find(id); if (!w) return [];
+    const out = [];
+    for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) {
+      for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+        if (a && typeof a.path === 'string' && a.path && !out.some(o => o.path === a.path && o.agent === (x.agentId || 'agent'))) out.push({ path: a.path, agent: x.agentId || 'agent' });
+      }
+    }
+    return out;
+  }
+  // does any session still in the list name this file? (a branch copy or a re-send shares one upload with the session it came from)
+  function attachmentInUse(path, agent) {
+    for (const x of ws) for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+      if (a && a.path === path && (x.agentId || 'agent') === agent) return true;
+    }
+    return false;
+  }
   function clone(v) { return JSON.parse(JSON.stringify(v)); }
   function normalizeCheckpoint(c) {
     if (!c || (c.kind !== 'clear' && c.kind !== 'archive') || !Array.isArray(c.rows)) return null;
@@ -1074,12 +1117,12 @@
 
   return {
     init, reset, serialize, all, list, search, setConnectorHandoff, connectorHandoff, automationOf, railGroups,
-    exportConversation, parseConversationExport, clearConversation,
+    exportConversation, clearConversation, attachmentRefs, attachmentInUse, runIdsOf,
     previewArchive, archivePreview, canUndo, undoLast,
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
     switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
     autoTitle, retitle, deriveTitle, needsModelTitle, isLowSignal, titleBasis,
-    finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, addCost, costOf, noteModel, modelOf,
+    finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, knownDeliverable, addCost, costOf, noteModel, modelOf,
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and
     // export already trust, so the count and the preview can never surface machine chatter.
     visibleMessages, latestVisibleMessage, hasAgent,

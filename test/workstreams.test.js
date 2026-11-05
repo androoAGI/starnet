@@ -411,7 +411,7 @@ A.eq(W.get(noRun.id).lastRunOk, null, 'a never-ran stream round-trips as unknown
 /* ---------- deleting a live stream fails closed at the destructive operation ---------- */
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
 const deleteWorkstreamSource = A.fnBody(appSource, 'function deleteWorkstream(id, groupDeleted)');
-A.ok(deleteWorkstreamSource && deleteWorkstreamSource.length < 3000, 'deleteWorkstream source is extracted exactly');
+A.ok(deleteWorkstreamSource && deleteWorkstreamSource.length < 5000, 'deleteWorkstream source is extracted exactly');
 
 function deletionHarness(busy) {
   const events = [];
@@ -422,8 +422,13 @@ function deletionHarness(busy) {
       get: id => CTX.streams.get(id),
       titleOf: w => (w && w.title) || 'New session',
       activeId: () => 'work-1',
+      runIdsOf: id => { CTX.events.push('runs:' + id); return ['run_w1']; },
+      attachmentRefs: id => [{ path: '.attachments/own.txt', agent: 'scout' }, { path: '.attachments/shared.txt', agent: 'scout' }],
+      attachmentInUse: (path, agent) => path === '.attachments/shared.txt',
       del: id => { CTX.events.push('del:' + id); return CTX.streams.delete(id); }
     };
+    const DossierStore = { purgeRuns: runIds => { CTX.events.push('dossier.purge:' + runIds.join(',')); return 0; } };
+    const Chat = { forgetSession: (id, o) => { CTX.events.push('chat.forget:' + id + ':' + o.runIds.join(',') + ':' + o.files.map(f => f.path).join(',')); return {}; } };
     const Channels = { isBusy: id => { CTX.events.push('busy:' + id); return CTX.busy; } };
     const SFX = { bad: () => CTX.events.push('sfx.bad') };
     const StationUI = { notify: (message, tone) => CTX.events.push('notify:' + tone + ':' + message) };
@@ -449,6 +454,10 @@ A.eq(idleDeletion.remove('work-1'), true, 'idle workstream deletion succeeds');
 A.ok(!idleDeletion.streams.has('work-1'), 'idle workstream is removed');
 A.eq(idleDeletion.events.filter(e => e === 'del:work-1').length, 1, 'idle path deletes exactly once');
 A.eq(idleDeletion.events.filter(e => e === 'persist').length, 1, 'idle deletion persists exactly once');
+A.ok(idleDeletion.events.indexOf('runs:work-1') < idleDeletion.events.indexOf('del:work-1'), 'the runs of the session are read BEFORE the delete takes them');
+A.eq(idleDeletion.events.filter(e => e.startsWith('dossier.purge:')), ['dossier.purge:run_w1'], 'the dossier drops the beliefs learned from the runs of the deleted session (commit 16)');
+A.eq(idleDeletion.events.filter(e => e.startsWith('chat.forget:')), ['chat.forget:work-1:run_w1:.attachments/own.txt'], 'the page drops its run records and send-now lines, and deletes only the uploads no other session names');
+A.eq(busyDeletion.events.filter(e => e.startsWith('dossier.purge:') || e.startsWith('chat.forget:')).length, 0, 'a refused delete purges nothing');
 A.eq(idleDeletion.events.filter(e => e === 'loadActiveStream').length, 1, 'deleting the open idle stream reloads General');
 
 /* A terminal reason is durable and belongs only to the most recent actual run. */

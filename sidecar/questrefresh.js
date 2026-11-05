@@ -60,6 +60,14 @@
   const DOMAINS = ['building', 'research', 'writing', 'growth', 'operations', 'creative', 'planning', 'support'];
 
   const str = (v) => (v == null ? '' : String(v));
+  /* THE SESSIONS A STAR OR A STAGED QUEST WAS INFERRED FROM (turn identity commit 12): the quote stamp rows carry - the streams (<= 32, or the
+     saturated '*') of the activity lines the cycle's prompt held, with the time each was read. The forget registry drops what quotes a deleted session. */
+  function stampOf(raw) {
+    const quotes = raw && Array.isArray(raw.quotes) ? raw.quotes.map(str).filter(Boolean).slice(0, 32) : [];
+    if (!quotes.length) return {};
+    const at = Array.isArray(raw.quotesAt) ? raw.quotesAt : [];
+    return { quotes, quotesAt: quotes.map((_, i) => (Number.isSafeInteger(at[i]) && at[i] >= 0 ? at[i] : 0)) };
+  }
   // normalized title key (the quest-store normTitle idiom) — dedup vs open slate + denylist.
   const norm = (s) => str(s).toLowerCase().replace(/\s+/g, ' ').trim();
 
@@ -78,7 +86,8 @@
       groundedIn: str(raw.groundedIn).slice(0, WHY_MAX),
       at: Number.isFinite(raw.at) ? Math.floor(raw.at) : 0,
       source: raw.source === 'goal' ? 'goal' : 'model',
-      status: raw.status === 'proposed' ? 'proposed' : (defStatus || 'adopted')
+      status: raw.status === 'proposed' ? 'proposed' : (defStatus || 'adopted'),
+      ...stampOf(raw)
     };
   }
 
@@ -98,7 +107,8 @@
         executionMode: ['agent', 'commander', 'together'].includes(q && q.executionMode) ? q.executionMode : (q && q.contract && q.contract.type === 'attest' ? 'commander' : 'agent'),
         whyNow: str(q && q.whyNow).slice(0, 300),
         groundedIn: str(q && q.groundedIn).slice(0, WHY_MAX),
-        domain: DOMAINS.indexOf(str(q && q.domain).toLowerCase()) >= 0 ? str(q.domain).toLowerCase() : null
+        domain: DOMAINS.indexOf(str(q && q.domain).toLowerCase()) >= 0 ? str(q.domain).toLowerCase() : null,
+        ...stampOf(q)
       })).filter(q => q.title && q.contract);
       if (Array.isArray(raw.declinedNorthStars)) {
         s.declinedNorthStars = raw.declinedNorthStars.map(t => norm(t)).filter(Boolean).slice(-DECLINED_NS_CAP);
@@ -108,7 +118,7 @@
       if (Array.isArray(raw.ledger)) {
         s.ledger = raw.ledger.filter(e => e && typeof e === 'object')
           .slice(-LEDGER_CAP)
-          .map(e => ({ at: Number.isFinite(e.at) ? Math.floor(e.at) : 0, outcome: str(e.outcome), reason: str(e.reason).slice(0, 200), title: str(e.title).slice(0, 60) }));
+          .map(e => ({ at: Number.isFinite(e.at) ? Math.floor(e.at) : 0, outcome: str(e.outcome), reason: str(e.reason).slice(0, 200), title: str(e.title).slice(0, 60), ...stampOf(e) }));
       }
     }
     return s;
@@ -332,8 +342,23 @@
   function note(state, entry, opts) {
     const now = Number(opts && opts.now) || 0;
     const s = normalize(state);
-    const e = { at: now, outcome: str(entry && entry.outcome), reason: str(entry && entry.reason).slice(0, 200), title: str(entry && entry.title).slice(0, 60) };
+    const e = { at: now, outcome: str(entry && entry.outcome), reason: str(entry && entry.reason).slice(0, 200), title: str(entry && entry.title).slice(0, 60), ...stampOf(entry) };
     return Object.assign({}, s, { ledger: s.ledger.concat([e]).slice(-LEDGER_CAP) });
+  }
+
+  /* drop(state, match) -> { state, removed }: the forget registry's purge. `match(item)` names what quotes a deleted session: the proposed
+     star, an adopted INFERRED star (the Commander's own goal-arc star carries no stamp and stays), staged quests and ledger notes. The
+     declined-inference denylist holds normalized text the Commander rejected and stays (a rejected direction must not come back). Pure. */
+  function drop(state, match) {
+    const s = normalize(state);
+    let removed = 0;
+    const next = Object.assign({}, s);
+    if (s.proposedNorthStar && match(s.proposedNorthStar)) { next.proposedNorthStar = null; removed++; }
+    if (s.northStar && s.northStar.source === 'model' && match(s.northStar)) { next.northStar = null; removed++; }
+    next.pendingQuests = s.pendingQuests.filter(q => !match(q));
+    next.ledger = s.ledger.filter(e => !match(e));
+    removed += (s.pendingQuests.length - next.pendingQuests.length) + (s.ledger.length - next.ledger.length);
+    return { state: removed ? next : s, removed };
   }
 
   // a cycle ATTEMPT spends the cadence whatever its outcome — the refresher tried; it must not hammer the
@@ -360,7 +385,7 @@
     if (!text) return s;
     const source = (ns && ns.source) === 'goal' ? 'goal' : 'model';
     const next = Object.assign({}, s, {
-      northStar: { text: text, groundedIn: str(ns && ns.groundedIn).slice(0, WHY_MAX), at: now, source: source, status: 'adopted' }
+      northStar: { text: text, groundedIn: str(ns && ns.groundedIn).slice(0, WHY_MAX), at: now, source: source, status: 'adopted', ...stampOf(ns) }
     });
     if (source === 'goal') next.proposedNorthStar = null;   // a real goal supersedes a pending inference
     return next;
@@ -388,7 +413,7 @@
     if (s.declinedNorthStars.indexOf(nt) >= 0) return s;                        // declined forever — never re-propose
     if (s.proposedNorthStar && norm(s.proposedNorthStar.text) === nt) return s; // same proposal already pending — keep it
     return Object.assign({}, s, {
-      proposedNorthStar: { text: text, groundedIn: str(ns && ns.groundedIn).slice(0, WHY_MAX), at: now, source: 'model', status: 'proposed' }
+      proposedNorthStar: { text: text, groundedIn: str(ns && ns.groundedIn).slice(0, WHY_MAX), at: now, source: 'model', status: 'proposed', ...stampOf(ns) }
     });
   }
 
@@ -399,7 +424,7 @@
     const s = normalize(state);
     if (!s.proposedNorthStar) return s;
     return Object.assign({}, s, {
-      northStar: { text: s.proposedNorthStar.text, groundedIn: s.proposedNorthStar.groundedIn, at: now, source: 'model', status: 'adopted' },
+      northStar: { text: s.proposedNorthStar.text, groundedIn: s.proposedNorthStar.groundedIn, at: now, source: 'model', status: 'adopted', ...stampOf(s.proposedNorthStar) },
       proposedNorthStar: null
     });
   }
@@ -426,7 +451,7 @@
   return {
     fresh, normalize, decide, progressContext, goalBinding, buildDirective, parse, parseContract, hasEvidence, slateFull,
     note, stampCycle, stampMint, setNorthStar, effectiveNorthStar, proposeNorthStar, confirmNorthStar, declineNorthStar,
-    stageQuests, pendingQuests, clearPendingQuests,
+    stageQuests, pendingQuests, clearPendingQuests, drop,
     REFRESH_EVERY_MS, CAUGHT_UP_GAP_MS, MATERIAL_CHANGE_GAP_MS, MAX_MINTS_PER_CYCLE, OPEN_GENERATED_CAP, LEDGER_CAP, DECLINED_NS_CAP, CONTRACT_TYPES,
     _internals: { norm: norm, grabFrom: grabFrom, MIN_FACT_KEY: MIN_FACT_KEY, MAX_STEPS: MAX_STEPS }
   };

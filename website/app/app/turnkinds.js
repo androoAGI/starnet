@@ -14,6 +14,10 @@
      quoteStamp(entries)              [{id, at}] (a bare string is {id, at: 0}) -> { quotes, quotesAt }: up to 32
                                       distinct ids with their read times aligned; more, or any '*', is the
                                       saturated stamp { quotes: ['*'], quotesAt: [min at] }; {} for none
+     quotesForgotten(stamp, deletedAt, latestDeleteAt)   the ONE forget rule of a quote stamp (a row's or a run record's quotes + quotesAt):
+                                      true once any quoted stream was deleted at or after its read time, or, for the saturated ['*'],
+                                      once any non-adopted delete is stamped at or after its time; never reads a row's ts (commit 11)
+     quoteEntriesOf(runs, now)        the quote entries [{id, at: now}] of a composed text: the distinct stream of every run with delivery text
      stationTime(clientTs, clientNow, now)   the station time of a client instant, from the client's own elapsed
                                       time (now - (clientNow - clientTs)), so a client clock's offset cancels
      clientTurnTime(body, now)        { turnAt, clientClock: { clientNow, at } } for a body carrying a usable
@@ -30,7 +34,19 @@
                                       'api'), else turn. rowKind 'station' | 'hop' | undefined; line 'lineId@dockId'
                                       (<= 120) when o.lineHop; kindOf(m) = messageKind(m, rowKind)
      messageKind(m, rowKind)          a drained row's kind: its tag; else 'station' for a user row (any user row a run
-                                      writes besides its directive is the station's own); else rowKind, else 'turn' */
+                                      writes besides its directive is the station's own); else rowKind, else 'turn'
+     mediaKindOf(title)               the extension rule for a file's media ('file' | 'image' | 'video' | 'audio'), the page's
+                                      own table moved here byte for byte (chat.js keeps a one-line delegate)
+     deliverableFields(d)             the ONE grammar of a deliverable row's `deliverable` field, shared by the store, the
+                                      writer and the page adapter: { path, media, workspace, root, name, artifactId } or null
+                                      (path <= 260 and exactly as written: relative, no '..', no NUL, no drive or UNC;
+                                      workspace an agent id; root '' or an absolute host folder; artifactId file_/img_ + the
+                                      path with every other character as '_'). Nothing is repaired: a bad value is null
+     deliverablePathProblem(p)        why a path cannot be a deliverable's exact path ('' when it can)
+     deliverableRootProblem(r)        why a root cannot be a deliverable's project folder ('' = none, or an absolute host folder)
+     artifactIdOf(kind, path)         the live deliverable event's id rule ('img_' for an image, else 'file_', + sanitized path)
+     sameDeliverable(a, b)            two page records ({ title, runId, root? }) are one file: the same run and the same exact path (or an
+                                      absolute title that is the other record's root + relative title) */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./pipeline.js'), require('./goalloop.js'));
@@ -101,6 +117,47 @@
     return { quotes: ids, quotesAt: ids.map(id => firstAt.get(id)) };
   }
 
+  /* QUOTE PROVENANCE, THE ONE RULE (commit 11). A quote stamp (a row's or a run record's quotes + quotesAt) names the sessions
+     whose words the writer had read when it wrote. It is forgotten once ANY of them was deleted at or after the read began
+     (deletedAt(id) >= its quotesAt: the read epoch of the first dispatch that read it, so a delete that lands while a read is in
+     flight counts), whatever the row's own time says: the rule never looks at row.ts, and a row drained after the delete is
+     forgotten like one drained before it. The saturated stamp ['*'] ("this writer may have read sessions it never recorded")
+     reads no list: it is forgotten as soon as ANY non-adopted delete is stamped at or after its time, latestDeleteAt() >= satAt.
+     A stamp with no times counts every time as 0, so any delete of a named stream forgets it. deletedAt(id) is 0 for a stream
+     never deleted; latestDeleteAt() is 0 when no non-adopted delete exists. stamp.quotesSaturatedAt (a run record's own field)
+     is the same saturated rule. Pure: the ledger is the caller's. */
+  function quotesForgotten(stamp, deletedAt, latestDeleteAt) {
+    if (!stamp || typeof stamp !== 'object') return false;
+    const quotes = Array.isArray(stamp.quotes) ? stamp.quotes : [];
+    const times = Array.isArray(stamp.quotesAt) ? stamp.quotesAt : [];
+    const when = i => (isSafeNonNeg(times[i]) ? times[i] : 0);
+    const latest = () => { try { return typeof latestDeleteAt === 'function' ? Number(latestDeleteAt()) || 0 : 0; } catch (_) { return 0; } };
+    if (isSafeNonNeg(stamp.quotesSaturatedAt)) { const l = latest(); if (l > 0 && l >= stamp.quotesSaturatedAt) return true; }
+    if (!quotes.length) return false;
+    const marker = quotes.indexOf(SATURATED);
+    if (marker >= 0) { const l = latest(); if (l > 0 && l >= when(marker)) return true; }
+    if (typeof deletedAt !== 'function') return false;
+    for (let i = 0; i < quotes.length; i++) {
+      if (i === marker || typeof quotes[i] !== 'string') continue;
+      let d = 0;
+      try { d = Number(deletedAt(quotes[i])) || 0; } catch (_) { d = 0; }
+      if (d > 0 && d >= when(i)) return true;
+    }
+    return false;
+  }
+  // The streams a composed text drew on, as quote entries: the distinct stream of every run in `runs` that has delivery text
+  // (the away briefing quotes each briefed run's session), each read at `now`. Conservative: a run with words is a quote.
+  function quoteEntriesOf(runs, now) {
+    const at = isSafeNonNeg(now) ? now : 0, seen = new Set(), out = [];
+    for (const r of Array.isArray(runs) ? runs : []) {
+      const id = r && typeof r.streamId === 'string' ? r.streamId : '';
+      if (!id || !/^[A-Za-z0-9_-]{1,64}$/.test(id) || seen.has(id)) continue;
+      if (typeof r.deliveryText !== 'string' || !r.deliveryText.trim()) continue;
+      seen.add(id); out.push({ id, at });
+    }
+    return out;
+  }
+
   // a client instant in station time: the client's own elapsed time since it (clientNow - clientTs), subtracted from
   // the station's now. Only a pair of non-negative safe integers no more than 7 days apart is used.
   function stationTime(clientTs, clientNow, now) {
@@ -150,6 +207,80 @@
     const line = x.lineHop === true && (x.lineId || x.dockId)
       ? (String(x.lineId || '') + '@' + String(x.dockId || '')).slice(0, LINE_MAX) : undefined;
     return { directiveKind, rowKind, line, kindOf: m => messageKind(m, rowKind) };
+  }
+
+  // CLIENT-SIDE MEDIA KIND, keyed off the file extension (the reference harness's extension-keyed media model): the backend doesn't
+  // declare "this is a video" — we decide from the path, so any .mp4 an agent writes/downloads renders as a
+  // player with zero backend wiring. Unknown extensions fall through to 'file' (the plain clickable row).
+  const MEDIA_KIND_BY_EXT = {
+    png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', svg: 'image', bmp: 'image',
+    mp4: 'video', webm: 'video', mov: 'video', mkv: 'video', avi: 'video',
+    mp3: 'audio', m4a: 'audio', ogg: 'audio', wav: 'audio', flac: 'audio', opus: 'audio'
+  };
+  function mediaKindOf(title) {
+    const ext = String(title || '').split(/[?#]/, 1)[0].split('.').pop().toLowerCase();
+    return MEDIA_KIND_BY_EXT[ext] || 'file';
+  }
+
+  /* A DELIVERABLE ROW'S FIELD (commit 10): the file a run wrote, as an exact, openable address. One grammar for the store (which
+     copies it), the writer (turn-delivery fileRows, which builds it) and the page (TurnMerge.deliverableOf, which adapts it).
+     Nothing is repaired to make a value fit: a path is stored exactly as the run wrote it or the row has no field at all. */
+  const DELIVERABLE_MEDIA = Object.freeze(['file', 'image', 'video', 'audio']);
+  const DELIVERABLE_PATH_MAX = 260;    // artifacts.js STR_MAX: a longer path was cut by the collector, so it is not the written one
+  const DELIVERABLE_ROOT_MAX = 4096;   // handleRun's own clamp on a project root
+  const DELIVERABLE_NAME_MAX = 200;
+  const AGENT_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;                  // fs.js safeAgentId: the jail an agent's relative files live in
+  const ARTIFACT_ID_RE = /^(?:file|img)_[A-Za-z0-9_.-]{1,260}$/;
+  const DOTDOT_RE = /(^|[\\/])\.\.([\\/]|$)/;
+
+  // why `p` cannot be a deliverable's exact path ('' = it can): relative to the run's one base (the agent's own folder, or the
+  // project root the row names), written exactly, and not able to leave that base
+  function deliverablePathProblem(p) {
+    if (typeof p !== 'string' || !p) return 'empty';
+    if (p.length > DELIVERABLE_PATH_MAX) return 'too-long';
+    if (p.indexOf('\u0000') >= 0) return 'nul';
+    if (/^[\\/]/.test(p)) return 'absolute';      // rooted, UNC (\\host, //host) and device paths alike
+    if (/^[A-Za-z]:/.test(p)) return 'drive';     // C:\x and the drive-relative C:x
+    if (DOTDOT_RE.test(p)) return 'dotdot';
+    if (/[\\/]$/.test(p)) return 'directory';
+    return '';
+  }
+  // '' (the agent's own folder) or an absolute host folder; a UNC or device path is never a project root (serveWorkspaceFile)
+  function deliverableRootProblem(r) {
+    if (r === '') return '';
+    if (typeof r !== 'string' || r.length > DELIVERABLE_ROOT_MAX || r.indexOf('\u0000') >= 0) return 'root';
+    if (/^[\\/]{2}/.test(r)) return 'root-unc';
+    if (!/^(?:[A-Za-z]:[\\/]|\/)/.test(r)) return 'root-relative';
+    if (DOTDOT_RE.test(r)) return 'root-dotdot';
+    return '';
+  }
+  function artifactIdOf(kind, path) {
+    return (kind === 'image' ? 'img_' : 'file_') + String(path == null ? '' : path).replace(/[^A-Za-z0-9_.-]/g, '_');
+  }
+  // the name is display prose only: whitespace and control characters collapse, so it can never carry a second line
+  function deliverableName(v) { return typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f\s]+/g, ' ').trim().slice(0, DELIVERABLE_NAME_MAX) : ''; }
+  function deliverableFields(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return null;
+    const root = d.root === undefined || d.root === null ? '' : d.root;
+    if (deliverablePathProblem(d.path) || deliverableRootProblem(root)) return null;
+    if (DELIVERABLE_MEDIA.indexOf(d.media) < 0) return null;
+    if (typeof d.workspace !== 'string' || !AGENT_ID_RE.test(d.workspace)) return null;
+    if (typeof d.artifactId !== 'string' || !ARTIFACT_ID_RE.test(d.artifactId)) return null;
+    return { path: d.path, media: d.media, workspace: d.workspace, root, name: deliverableName(d.name), artifactId: d.artifactId };
+  }
+  // Two page records ({ title, runId, root? }) name one file when they belong to the same run and spell the same path exactly. The
+  // single other spelling is the conversion the writer makes: an absolute title that is the other record's root + relative title.
+  function sameDeliverable(a, b) {
+    if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+    const run = String(a.runId || '');
+    if (!run || run !== String(b.runId || '')) return false;
+    const pa = typeof a.title === 'string' ? a.title : '', pb = typeof b.title === 'string' ? b.title : '';
+    if (!pa || !pb) return false;
+    if (pa === pb) return true;
+    const absolute = p => /^(?:[A-Za-z]:|[\\/])/.test(p);
+    const flat = p => { const s = p.replace(/[\\/]+/g, '/').replace(/\/$/, ''); return /^[A-Za-z]:/.test(s) ? s.toLowerCase() : s; };
+    const under = (full, rel) => rel.root && absolute(full) && !absolute(rel.title) && flat(full) === flat(String(rel.root) + '/' + rel.title.replace(/^\.\//, ''));
+    return !!(under(pa, b) || under(pb, a));
   }
 
   // Each non-boolean cell names the additional proof/context its view must supply. This is the shared
@@ -245,6 +376,7 @@
     } else if (kind === 'api') speaker = 'member';
     else if (kind === 'hop') speaker = 'agent';
     else if (kind === 'delivery' || kind === 'routine') speaker = 'routine';
+    else if (kind === 'briefing' && r.role === 'assistant') cell = 'assistant';   // the away briefing is an assistant message of its own session: naming its kind changes nothing about who reads it (replay, recall, display)
     return { kind, cell: MATRIX[cell] ? cell : 'local', speaker, legacy };
   }
   // Who wrote a row: its own agent, else its run's agent; '' when neither is recorded.
@@ -275,8 +407,9 @@
 
   return {
     TURN_ID_RE, isTurnId, runTurnId, phoneTurnId, ownMint, mintTurnId,
-    QUOTES_MAX, quoteStamp, stationTime, clientTurnTime,
+    QUOTES_MAX, SATURATED, quoteStamp, quotesForgotten, quoteEntriesOf, stationTime, clientTurnTime,
     KINDS, isKind, SYSTEM_KINDS, tag, tagOf, ofRun, messageKind,
+    mediaKindOf, DELIVERABLE_MEDIA, DELIVERABLE_PATH_MAX, DELIVERABLE_ROOT_MAX, deliverablePathProblem, deliverableRootProblem, deliverableFields, artifactIdOf, sameDeliverable,
     VIEWS, MATRIX, legacyPrompt, legacyKind, classify, replayable, foreignTools, isFinalDeliveryRow, LEGACY_FINAL_CONTENT_MAX
   };
 });

@@ -565,14 +565,20 @@ test/turn-retract.phone-refusal.test.js
 test/historyfit.gate.test.js
 test/context-budget.authority.test.js
 test/turn-dual.soak.test.js
+test/turn-dual.forget.test.js
 test/turn-soak.qa.test.js
 test/turn-window.test.js
 test/turn-window.review.test.js
 test/turn-delivery.test.js
+test/turn-delivery.files.test.js
+test/deliverable-rows.render.test.js
+test/deliverable-rows.host.lint.test.js
 test/turn-carry.proof.test.js
 test/turn-run-order.lint.test.js
 test/recall.test.js
 test/session-tombstones.test.js
+test/forget-registry.test.js
+test/run-view.lint.test.js
 test/transcript-selftalk.test.js
 test/transcript-proof-reads.test.js
 test/fs.jail.test.js
@@ -663,6 +669,9 @@ test/recruiter.test.js
 test/topicmatch.test.js
 test/prospect.test.js
 test/interests.test.js
+test/interests.provenance.test.js
+test/forget-stores.test.js
+test/forget-registry.census.test.js
 test/scout.test.js
 test/dossier.test.js
 test/understanding.test.js
@@ -981,6 +990,7 @@ test/steer-idle-honesty.test.js
 test/queued-send-now.test.js
 test/steer-history-merge.test.js
 test/steer-note-ledger.test.js
+test/steer-rows.test.js
 test/model-ack-honesty.test.js
 test/toolprops.test.js
 test/worldmodel.test.js
@@ -1763,3 +1773,5 @@ test/channels.factory-transport.test.js
 test/channels.live-status.test.js
 
 test/sound-controls.test.js
+test/dossier.forget-compose.test.js
+test/reflect.dedup-only.test.js

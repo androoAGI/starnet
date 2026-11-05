@@ -4789,7 +4789,14 @@ const App = (() => {
     const w = Workstreams.get(id);
     // a session whose rows are still packed is read back before it is written out: a file of the rows the page happens to hold would be a quiet partial copy
     if (w && Workstreams.needsHydration(w) && typeof Chat !== 'undefined' && Chat.hydrateHistory) await Chat.hydrateHistory(w, { windowMs: 20000 });
-    const unread = !!w && Workstreams.needsHydration(w), bundle = w && !unread && Workstreams.exportConversation(id, format);
+    // the station's DISPLAY view of the session (what it still shows after any delete); the page's copy is the fallback only for a session the station never held
+    let rows = null;
+    try {
+      const r = w && await fetch('/api/transcript?agent=' + encodeURIComponent(w.agentId || 'agent') + '&stream=' + encodeURIComponent(id) + '&limit=2000', { cache: 'no-store' });
+      const j = r && r.ok ? await r.json() : null;
+      if (j && Array.isArray(j.turns) && j.turns.length) rows = j.turns;
+    } catch (_) { rows = null; }
+    const unread = !!w && !rows && Workstreams.needsHydration(w), bundle = w && !unread && Workstreams.exportConversation(id, format, rows ? { rows } : undefined);
     const receipt = unread ? { ok: false, line: 'conversation history could not be restored' } : await sessionDownload(bundle); if (receipt.ok) SFX.click(); else SFX.bad();
     if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(receipt.line + (receipt.ok ? ' — hidden data and secrets excluded' : ''), receipt.ok ? '' : 'warn', undefined, { transient: true });
   }
@@ -5014,9 +5021,16 @@ const App = (() => {
       return false;
     }
     const wasActive = (id === Workstreams.activeId());
+    // what the page itself holds of this session, read BEFORE the delete takes the rows: the runs it held and the uploads its messages name
+    let doomedRuns = [], doomedFiles = [];
+    try { doomedRuns = Workstreams.runIdsOf(id); doomedFiles = Workstreams.attachmentRefs(id); } catch (e) { console.warn('[delete] could not list the derived copies of the session:', (e && e.message) || e); }
     // the Commander's Delete of a conversation: the sidecar forgets it (forget: true — qa/bugs/3e926b6a). DELETE AGENT's
     // removeByAgent and a task card's remove only hide rows.
     if (!Workstreams.del(id, { forget: true })) { SFX.bad(); return false; }
+    // commit 16: the page's own derived copies go with it - the beliefs learned from its runs (the dossier block and the snapshot are pushed
+    // again, complete), its run records and SEND NOW lines, and the uploads no other session names (the sidecar's purge pass is the net)
+    try { if (typeof DossierStore !== 'undefined' && DossierStore.purgeRuns) DossierStore.purgeRuns(doomedRuns); } catch (e) { console.warn('[delete] dossier purge failed:', (e && e.message) || e); }
+    try { if (typeof Chat !== 'undefined' && Chat.forgetSession) Chat.forgetSession(id, { runIds: doomedRuns, files: doomedFiles.filter(f => !Workstreams.attachmentInUse(f.path, f.agent)) }); } catch (e) { console.warn('[delete] session copies not dropped:', (e && e.message) || e); }
     SFX.bad();
     if (wasActive) loadActiveStream();   // deleting the OPEN stream falls back to General
     renderRail(); persist();

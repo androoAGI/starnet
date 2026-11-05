@@ -105,7 +105,44 @@ function make(d) {
     }
     return out;
   }
+  /* THE POSTED WINDOW'S FORGET FLOOR (commit 11, A2-MIG-02). A page that posts its own copy of the history may not have heard of a
+     delete yet, so before any mode and before the gate (eligible request or not) an inbound history message is dropped on the store's
+     own proof, mirroring TurnMerge R2/R4: (i) a message carrying a key is dropped when the stored row of that key is one the
+     predicate forgets (a key whose stored row cannot be read at all falls to (ii) and is counted unvouched); (ii) an id-less, or
+     unreadable-key, ASSISTANT message (reply, partial, stopped) is dropped when the run it names (sourceRunId) is quote-forgotten.
+     An id-less USER message is never dropped by the run rule: the run's own directive and the Commander's typed words predate any
+     read, and a user row is never a copy a run took by reading a session. So the window keeps exactly the keyed rows model-replay
+     keeps, and a row the store keeps is never removed. Returns the same array when nothing was dropped. */
+  function forgetFloor(messages, o) {
+    const none = { messages, dropped: 0, unvouched: 0 };
+    if (!Array.isArray(messages) || !o || !o.streamId || typeof store.forgetVerdicts !== 'function') return none;
+    const keyedHere = m => !!m && m.role !== 'system' && positiveId(m.rowId) && (!m.streamId || m.streamId === o.streamId) && m.idFrom !== 'collision';
+    const keys = messages.filter(keyedHere).map(m => m.rowId);
+    let verdicts = new Map();
+    if (keys.length) { try { verdicts = store.forgetVerdicts(o.streamId, keys); } catch (error) { note('turn.window.forgotten', error); } }
+    const ids = messages[View.ROW_IDS], kept = [], keptIds = [];
+    let dropped = 0, unvouched = 0;
+    messages.forEach((m, i) => {
+      let drop = false;
+      if (m && m.role !== 'system') {
+        const keyed = keyedHere(m), verdict = keyed ? verdicts.get(m.rowId) : undefined;
+        const proven = verdict === true || verdict === false;
+        if (verdict === true) drop = true;
+        else if (!proven && m.role === 'assistant' && m.sourceRunId && typeof d.runForgotten === 'function') {
+          try { drop = d.runForgotten(String(m.sourceRunId)) === true; } catch (error) { note('turn.window.forgotten', error); }
+        }
+        if (keyed && !proven) unvouched++;
+      }
+      if (drop) dropped++; else { kept.push(m); if (Array.isArray(ids)) keptIds.push(ids[i]); }
+    });
+    if (!dropped) return Object.assign(none, { unvouched });
+    if (Array.isArray(ids)) Object.defineProperty(kept, View.ROW_IDS, { value: keptIds, enumerable: false });
+    note('turn.window.forgotten', new Error(dropped + ' posted history row(s) quote a deleted session and were left out of the window'));
+    return { messages: kept, dropped, unvouched };
+  }
   function apply(messages, o, ctx) {
+    const floored = forgetFloor(messages, o);
+    messages = floored.messages;
     if (!eligible(o) || !ctx || !ctx.directive) return messages;
     const mode = dual.modes().window;
     if (mode === 'legacy') return messages;
@@ -115,7 +152,7 @@ function make(d) {
     const foreign = Fit.hasForeign(src, o.streamId) || src.some(row => row && row.foreign);
     const required = o.windowFrom === 'station';
     const record = data => dual.record('window', Object.assign({ caller: 'desk', streamId: o.streamId, runId: ctx.runId,
-      degraded: required && !postedHistory({ messages: src }) }, data));
+      degraded: required && !postedHistory({ messages: src }) }, data, floored.dropped ? { classes: [...(data && data.classes || []), 'forgotten'], counts: Object.assign({}, data && data.counts, { forgotten: floored.dropped }) } : null));
     try {
       const rows = store.view('model-replay', o.streamId, { form: 'pre', shape: 'prose', complete: true,
         excludeTurnId: ctx.directive.turnId, beforeRowId: ctx.reused && ctx.reused.directive && ctx.reused.directive.rowId });

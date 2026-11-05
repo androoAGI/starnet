@@ -440,8 +440,8 @@ const reflectPriorAt = reflectBody.indexOf('for (const r of (Array.isArray(opts.
 const reflectCallAt = reflectBody.indexOf('const prompt = buildPrompt(');
 A.ok(reflectPriorAt > 0 && reflectCallAt > 0 && reflectPriorAt < reflectCallAt,
   '…which is why the prior set is now assembled BEFORE the call');
-A.ok(/for \(const pt of priorTexts\)/.test(reflectBody.slice(reflectCallAt)),
-  '…and the post-hoc near-dupe check after the call walks that same priorTexts');
+A.ok(/for \(const pt of priorTexts\.concat\(dedupTexts\)\)/.test(reflectBody.slice(reflectCallAt)),
+  '…and the post-hoc near-dupe check after the call walks that same priorTexts (plus the dedup-only declined texts, which never reach the prompt)');
 /* …and behaviourally, because "the same list" is a promise about what the model is TOLD versus what is DROPPED: a
    belief this run may not replace (another project's record, a rating record) is still listed as ALREADY
    REMEMBERED, and the model restating it is still dropped; only the reachable record is offered for UPDATE. */

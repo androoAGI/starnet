@@ -7,7 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { PageModel } = require('./helpers/page-model.js');
 const { TurnFixture } = require('./helpers/turn-fixture.js');
-const { check, mulberry32, key } = require('./helpers/turn-oracle.js');
+const { check, checkKinds, mulberry32, key } = require('./helpers/turn-oracle.js');
 const Control = require('./helpers/turn-property-control.js');
 const Merge = require('../frontend/app/turnmerge.js');
 const Kinds = require('../frontend/app/turnkinds.js');
@@ -20,7 +20,13 @@ vm.runInContext(fnBody(autos, 'function seedRow(') + '\n' + fnBody(autos, 'funct
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
 const SECRET = 'ghp_' + 'AbCd1234'.repeat(5);
 const TEXTS = ['yes', 'yes', 'Done.', '日本語 🌟 café', 'use ' + SECRET, 'https://user:pass@example.test/', '-----BEGIN PRIVATE KEY-----\nFAKE\n-----END PRIVATE KEY-----', 'pick a path'];
-const OPS = ['send', 'repeatSend', 'sendSecret', 'sendFailRetry', 'idempotentResend', 'reload', 'cacheWipeLocal', 'cacheWipeBoth', 'phoneSend', 'phonePage', 'restart', 'oldClientSend', 'sendAttachImage', 'sendAttachText', 'sendAttachBinary', 'sendAttachMissing', 'captionless', 'goalContinuation', 'deskLineHop', 'routineSeed', 'interruptContinue', 'rekeyedRetry'];
+// the 22 operations of the C5 tier, then the three that leave the other canonical row kinds in the stream (commit 10): a run that wrote files
+// (kind deliverable), a run a SEND NOW note steered through the real buffer and loop (kind steer), a routine handing its result back to the session
+// (kind delivery). Their expectations are declared below from what each op made; the visibility of each kind is read out of TurnKinds.MATRIX.
+const OPS = ['send', 'repeatSend', 'sendSecret', 'sendFailRetry', 'idempotentResend', 'reload', 'cacheWipeLocal', 'cacheWipeBoth', 'phoneSend', 'phonePage', 'restart', 'oldClientSend', 'sendAttachImage', 'sendAttachText', 'sendAttachBinary', 'sendAttachMissing', 'captionless', 'goalContinuation', 'deskLineHop', 'routineSeed', 'interruptContinue', 'rekeyedRetry',
+  'runWithFiles', 'steerNote', 'routineSessionReturn',
+  'quoteRead', 'deleteSession'];
+const FILE_SETS = [['report · v2.md', 'a · b.png'], ['clip.mp3', 'notes v1.txt'], ['src/a.md'], ['clip.mp4', 'report · v2.md', 'out/chart.png']];
 const seedCount = Control.hasPrefix ? 1 : Math.max(1, Math.min(500, Number(process.env.TURNID_SEEDS) || 20));
 const stepCount = Control.steps(60);
 const initialSeed = Number(process.env.TURN_PROP_SEED) || 17429;
@@ -41,7 +47,9 @@ let active = null, assertions = 0;
       const binary = await fx.upload('data.bin', 'application/octet-stream', Buffer.from([0, 1, 2, 255]));
       const missing = Object.assign({}, notes, { id: 'missing000', path: '.attachments/missing000.txt' });
       await page.send('seed turn'); await page.load(); page.save();
-      const trace = [];
+      const trace = [], expected = { files: [], steers: [], returns: [] };   // what the row-kind operations declared they made (checkKinds)
+      const reads = [], gone = [];   // quoteRead: { stream, word } a run of 's' read; deleteSession: { word, calls } words that must be in no view and no later provider body
+      let serial = 0;
       for (let step = 0; step < stepCount; step++) {
         const op = OPS[step < OPS.length ? step : Math.floor(opRng() * OPS.length)], label = windowMode + '/seed' + seed + '/op' + step + '/' + op;
         trace.push(op);
@@ -57,10 +65,17 @@ let active = null, assertions = 0;
           else if (op === 'cacheWipeLocal') await page.reload(true);
           else if (op === 'cacheWipeBoth') { page.saved = '[]'; await page.reload(true); }
           else if (op === 'restart') { page.save(); fx.restart(); await page.reload(); }
-          else if (op === 'phoneSend') await fx.phoneSend('s', 'phone says yes');
+          else if (op === 'phoneSend') {
+            const seen = fx.read('s', 50).turns.filter(r => r.kind === 'steer' && r.content), calls = fx.calls.length;
+            await fx.phoneSend('s', 'phone says yes');
+            const phone = fx.calls.slice(calls).pop().messages;   // what the phone handed the model: no note rides inside the agent's message, and the station's notes ride as user lines
+            assert.ok(!phone.some(m => m.role === 'assistant' && /(^|\n)\[steering\] /.test(String(m.content))), label + ': the phone window holds no assistant message with a note inside it');
+            if (seen.length) assert.ok(phone.some(m => m.role === 'user' && m.content === '[steering] ' + seen[seen.length - 1].content), label + ': the phone window replays the newest note as a user line');
+          }
           else if (op === 'phonePage') {
             const first = await fx.phone.thread({ streamId: 's', limit: 3, page: true });
-            const before = fx.read('s', 2000).turns.filter(r => ['user', 'assistant'].includes(r.role) && !r.sys);
+            // the thread is prose, plus the station's file rows and steer rows as display rows (host.js keeps(true))
+            const before = fx.read('s', 2000).turns.filter(r => (['user', 'assistant'].includes(r.role) && !r.sys) || (r.role === 'system' && ((r.kind === 'deliverable' && Merge.deliverableOf(r)) || (r.kind === 'steer' && String(r.content || '').trim()))));
             await fx.phoneSend('s', 'new turn between phone pages');
             const older = await fx.phone.thread({ streamId: 's', limit: 200, page: true, beforeRowId: first.beforeRowId, before: first.turns.length });
             const joined = older.turns.concat(first.turns).map(key);
@@ -88,6 +103,61 @@ let active = null, assertions = 0;
             const next = await fx.run(body, { reply: 'continued answer' });
             assert.equal(next.turnId, first.turnId, label + ': recovery ignores conflicting posted ids');
             page.consume(next.events.map(e => JSON.stringify(e)).join('\n'), {});
+          } else if (op === 'runWithFiles') {
+            const names = FILE_SETS[Math.floor(opRng() * FILE_SETS.length)];
+            const sent = await page.send('make the files', { reply: 'Wrote the files.', files: names.map(p => ({ kind: Kinds.mediaKindOf(p) === 'image' ? 'image' : 'file', path: p })) });
+            for (const p of names) expected.files.push({ runId: sent.runId, path: p, turnId: sent.turnId });
+          } else if (op === 'steerNote') {
+            // two notes while the run works: one sent with an id (the page's SEND NOW), one without (a channel, /steer); the loop's own tokens reach the page
+            const n = ++serial, notes = [{ text: 'make it blue ' + n, noteId: 'sn' + seedIndex.toString(36) + 'x' + n.toString(36) }, { text: 'and keep it short ' + n }];
+            const tools = 1 + Math.floor(opRng() * 2), sent = await page.send('work on this', { steer: notes, lead: 'On it.', reply: 'Done ' + n, tools });
+            for (const note of notes) expected.steers.push({ runId: sent.runId, text: note.text, noteId: note.noteId, turnId: sent.turnId });
+            // before the page re-reads the station: with one tool turn the saved reply is the trunk shape (the notes inside it); the window splits it
+            const held = page.window();
+            assert.ok(!held.some(m => m.role === 'assistant' && /(^|\n)\[steering\] /.test(String(m.content))), label + ': the page window holds no assistant message with a note inside it');
+            if (tools === 1) for (const note of notes) assert.ok(held.some(m => m.role === 'user' && m.content === '[steering] ' + note.text), label + ': the saved reply is split at its notes: ' + note.text);
+          } else if (op === 'routineSessionReturn') {
+            // a routine's result handed back to this session: the row is written first; the page is connected (it folds the row, keyed at once), absent, or the disk refuses
+            const n = ++serial, runId = fx.newId(), words = 'Routine result ' + n, shown = '✦ Property routine\n\n' + words, mode = opRng();
+            if (mode < 0.15) {
+              const real = fx.io.appendDurable;
+              fx.io.appendDurable = () => { throw Object.assign(new Error('injected disk failure'), { code: 'EIO' }); };
+              let refused; try { refused = await fx.sessionReturn('s', runId, words, args => page.station(args)); } finally { fx.io.appendDurable = real; }
+              assert.equal(refused.out.ok, false, label + ': a refused write is a failed delivery');
+              assert.equal(refused.asked.length, 0, label + ': and the page is never asked');
+              assert.equal(fx.store.view('proof', 's', { complete: true }).filter(r => r.sourceRunId === runId).length, 0, label + ': nothing was written');
+            }
+            const connected = mode >= 0.15 && mode < 0.65, first = await fx.sessionReturn('s', runId, words, connected ? args => page.station(args) : null);
+            assert.equal(first.out.ok, connected, label + ': the delivery succeeds exactly when a page took it');
+            assert.equal(first.asked.length, 1, label + ': the page is asked once');
+            const rows = fx.store.view('proof', 's', { complete: true }).filter(r => r.kind === 'delivery' && r.sourceRunId === runId);
+            assert.equal(rows.length, 1, label + ': the row is written first, once, whether or not a page answered');
+            assert.deepEqual([first.asked[0].rowId, first.asked[0].turnId, first.asked[0].text], [rows[0].rowId, rows[0].turnId, shown], label + ': the command names that row');
+            if (connected) assert.ok(page.ws.history.some(r => r.rowId === rows[0].rowId && r.streamId === 's'), label + ': a connected page keyed its row at once');
+            if (opRng() < 0.4) {   // the cron asks again (the page was away, or its ack was lost): the same row, folded nowhere twice
+              const again = await fx.sessionReturn('s', runId, words, args => page.station(args));
+              assert.equal(again.asked[0].rowId, rows[0].rowId, label + ': the retry sends the same identity');
+              assert.equal(fx.store.view('proof', 's', { complete: true }).filter(r => r.kind === 'delivery' && r.sourceRunId === runId).length, 1, label + ': and writes nothing new');
+            }
+            expected.returns.push({ runId, text: shown });
+          } else if (op === 'quoteRead' || op === 'deleteSession') {
+            // quoteRead: another session says a unique word, then a run of this one reads it and says it back (the run's rows carry the quote stamp).
+            // deleteSession: the Commander deletes a session that run read (or one this stream never touched); from then on its word is in no page row,
+            // no GET /api/transcript row, no model-replay window, no page window and no provider body (turn identity commit 11, I7)
+            const read = async () => {
+              const n = ++serial, stream = 'q' + seedIndex.toString(36) + 'x' + n.toString(36), word = 'quokka' + seedIndex.toString(36) + 'x' + n.toString(36);
+              await fx.run({ agentId: 'agent', streamId: stream, messages: [{ role: 'user', content: 'remember the codeword ' + word }] }, { reply: 'noted ' + word });
+              await page.send('what did the other session say?', { reply: 'it said ' + word, quotes: [{ id: stream, at: clock() }] });
+              reads.push({ stream, word });
+              return reads[reads.length - 1];
+            };
+            if (op === 'quoteRead') await read();
+            else {
+              const target = reads.length && opRng() < 0.8 ? reads.splice(Math.floor(opRng() * reads.length), 1)[0] : await (async () => { const r = await read(); reads.pop(); return r; })();
+              assert.ok(fx.read('s', 2000).turns.some(r => String(r.content).includes(target.word)), label + ': before the delete the reply that quotes the session is shown');
+              fx.deleteSession(target.stream);
+              gone.push({ word: target.word, calls: fx.calls.length });
+            }
           } else if (op === 'rekeyedRetry') {
             const sent = await page.send('original input'); await page.load();
             const request = Object.assign({}, page.lastRequest, { messages: [{ role: 'user', content: 'different input conflicts' }], retryOf: sent.turnId });
@@ -99,9 +169,17 @@ let active = null, assertions = 0;
           await page.load(); page.save();
           const response = fx.read('s');
           check(page, response, fx.store.history('s', { limit: 10000, proof: true }), { label });
+          checkKinds(page, response, { station: fx.modelWindow('s'), page: page.window() }, expected, { label });
           const once = JSON.stringify(page.ws.history); await page.load();
           assert.equal(JSON.stringify(page.ws.history), once, label + ': cache reconciliation is idempotent');
           assert.ok(!JSON.stringify(response).includes(SECRET), label + ': raw token never appears in station readback');
+          for (const g of gone) {
+            // a deleted session's word is in none of the three views the page, the station and the provider share, nor in any provider body made since
+            assert.ok(!JSON.stringify(page.ws.history).includes(g.word), label + ': the word of a deleted session is in no page row');
+            assert.ok(!JSON.stringify(response).includes(g.word), label + ': ...nor in GET /api/transcript');
+            assert.ok(!JSON.stringify(fx.modelWindow('s').messages).includes(g.word) && !JSON.stringify(page.window()).includes(g.word), label + ': ...nor in the station window or the page window');
+            assert.ok(!JSON.stringify(fx.calls.slice(g.calls)).includes(g.word), label + ': ...nor in any provider body made after the delete');
+          }
           assertions++; A.ok(true, label);
         } catch (e) { throw Object.assign(e, { turnProperty: { seed, windowMode, trace: trace.slice() } }); }
       }

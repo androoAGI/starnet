@@ -138,7 +138,7 @@ const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
 const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
-const { makeRunJournal, DISPATCH_BOUNDARY_MODEL } = require('./run-journal.js');
+const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, quotesForgotten: journalQuotesForgotten } = require('./run-journal.js');
 const { makeAffinityIndex } = require('./agent-affinity.js');   // idle-life social graph: which agents the run log proves work together
 const RunRecovery = require('./run-recovery.js');
 const { makeSegmentedTranscriptIo } = require('./transcript-history.js');
@@ -454,6 +454,8 @@ const GoalAdvance = require('./goal-advance.js'); // USER-STUDY LOOP: pure — a
 const QuestRefresh = require('./questrefresh.js'); // QUEST V3: the standing 24h + caught-up quest-refresh engine (pure gates/directive/parse) // QUEST V2 §A: pure seam-matchers for the mechanical contract sweeps (run-bind / prop-live / fact-learned / artifact-exists)
 const { makeThreadsStore } = require('./threads-store.js');   // NS-6: durable THREAD LEDGER (ideas raised but never acted on)
 const SessionTombstones = require('./session-tombstones.js');   // the sidecar's own record of deleted sessions (qa/bugs/3e926b6a)
+const ForgetRegistry = require('./forget-registry.js');   // what a deleted session leaves behind: the run-title filter, write-time admit, the purge registry (turn identity commits 11 and 12)
+const { wireForgetRegistry } = require('./forget-wiring.js');   // which stores forget, and how
 const Recommendation = require('./recommendation-ledger.js');
 const RecommendationEval = require('./recommendation-eval.js');
 const { makeRecommendationLedger } = Recommendation; // one cross-surface recommendation/verdict lifecycle + shared utility ranker
@@ -1936,7 +1938,7 @@ const transcriptIo = makeSegmentedTranscriptIo({
 const sessionTombstones = SessionTombstones.makeSessionTombstones({ fs, path, file: path.join(WORKSPACES, 'session-tombstones.json'),
   writeDurable: writeFileDurable, now: () => Date.now(),
   onIssue: (status, info) => console.warn('[session-tombstones] ' + status + ' ' + ((info && info.file) || '')) });
-const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id),
+const transcriptStore = makeTranscriptStore({ io: transcriptIo, clock: { now: () => Date.now() }, redact, deletedAt: id => sessionTombstones.deletedAt(id), latestDeleteAt: () => sessionTombstones.latestAt(),
   runOf: id => runStore.latest(id), hash: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
   quotedMaterial: TrustedLearning.quotedMaterial, live: () => transcriptLiveRuns, pick: (...args) => turnDual.pick(...args) });
 const TURN_IDENTITY_FILE = path.join(WORKSPACES, 'turn-identity.json');
@@ -1945,7 +1947,7 @@ const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.create
   save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote,
   soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
 const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf, compactAt: RUN_CONTEXT_DEFAULTS.compactAt,
-  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields) });
+  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields), runForgotten: runId => quoteForgottenRun(runId) });
 /* A PAID FOLD'S SUMMARY IS KEPT (context-budget-and-fold, summary-ledger.js). A fold lives only in the run's message array, so
    every send of a long chat past the fold line summarized the same range again (14 paid calls and 14 different notes in 14
    sends, probed). The ledger keeps the note per stream, with the canonical rows it stands for and a digest of them, and a
@@ -1980,6 +1982,35 @@ const handleTranscriptRedact = require('./transcript-redact.js').makeTranscriptR
 const handlePromptScrub = require('./transcript-redact.js').makeTranscriptRedactRoute({ redact: (t) => PromptScrub.scrubStored(t), readBody, json: respondJson });
 // a run-history row of a deleted session, filed at or before its delete: never quoted to a model again
 function sessionRunForgotten(r) { return !!r && sessionTombstones.forgotten(r.streamId, r.ts); }
+/* RUN TITLES THROUGH ONE VIEW (turn identity commit 11, A2-REB-14). A run record carries a title, an error line and a delivery
+   preview - words of the session it ran in - and the records quote their sessions the way rows do (runStore noteIdentity:
+   quotes + quotesAt, quotesSaturatedAt). runView(name, r) is the ONE filter every reader that hands a run's words to a model or a
+   response goes through: the SAME record when it is visible, null when its session was deleted at or after it was filed, when it
+   quotes a session deleted at or after the read began, or when it is saturated and a non-adopted delete is stamped at or after its
+   saturation (ForgetRegistry.viewRun). It never copies or drops a field, so a run's outcome, failureCode and clarifying reach
+   every reader as filed. `name` is a string literal naming the site: test/run-view.lint.test.js requires every
+   runStore list/all/latest call to be tagged with one or to say why it reads ids and state only, and the count of what each site
+   hid is kept (runViewHidden) for diagnosis. */
+const runViewCtx = { deletedAt: id => sessionTombstones.deletedAt(id), latestDeleteAt: () => sessionTombstones.latestAt() };
+const runViewHidden = Object.create(null);
+function runView(name, r) {
+  const v = ForgetRegistry.viewRun(r, runViewCtx);
+  if (r && !v) runViewHidden[name] = (runViewHidden[name] || 0) + 1;
+  return v;
+}
+/* A RUN THAT QUOTED A DELETED SESSION (turn identity commit 11): the run's own quote stamp - what its record carries (runStore
+   noteIdentity: quotes + quotesAt, and quotesSaturatedAt once saturated) - against the same ledger the store reads, by the ONE rule
+   (TurnKinds.quotesForgotten). The posted-window forget floor asks it for an id-less reply a page still holds (turn-window.js). */
+function quoteForgottenRun(runId) {
+  const id = String(runId || '');
+  if (!id) return false;
+  try {
+    const live = liveQuoteRuns.get(id), judge = stamp => TurnKinds.quotesForgotten(stamp, sid => sessionTombstones.deletedAt(sid), () => sessionTombstones.latestAt());
+    if (live && judge(TurnKinds.quoteStamp(live.latched()))) return true;
+    const rec = runStore.latest(id);
+    return !!rec && judge(rec);
+  } catch (e) { failNote('turn.quotes.run', e); return false; }
+}
 const dispatchDeliveryStore = require('./dispatch-delivery.js');
 const dispatchDeliveryDeps = { runStore, transcriptStore, redact,
   hash: text => crypto.createHash('sha256').update(text, 'utf8').digest('hex'),
@@ -2292,6 +2323,72 @@ const accountAuthPending = new Map();
 // every exit; from admission the entry owns the run's stop. The reconnect snapshot, the phone, STOP and steer by id, E-STOP, the process-fault
 // quiesce and the update drain read it. Host owners admit at their own lifetime boundary; the table also owns every host stop.
 const runTable = RunTable.makeRunTable({ now: () => Date.now(), note: (tag, e) => failNote(tag, e) });
+/* LIVE QUOTE LATCHES (turn identity commit 11, A2-FP-01/02): runId -> what a live run lets the host do with the sessions it has read -
+   { parentRunId, latched() -> [{ id, at }] (the marker '*' once saturated), absorb(entries, depth) (a worker below read these: latch them
+   here, journal them, pass them up), abort() }. runOnceCore registers a run for exactly its own lifetime (a finally drops it), so the map
+   holds only runs that are running now. It is how a worker's reads reach the live runs above it (the o.parentRunId chain every team tool
+   sets - tools/builtin/orchestration.js is not touched) and how a delete finds the runs that must stop (stopQuotingRuns). */
+const liveQuoteRuns = new Map();
+const QUOTE_SID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+// a run's static quotes (o.quotes: stream ids, or { id, at }; o.quotesAt the read time of a bare id, default 0) as latch entries
+function staticQuoteEntries(o) {
+  const list = Array.isArray(o && o.quotes) ? o.quotes : [];
+  const bare = Number.isSafeInteger(o && o.quotesAt) && o.quotesAt >= 0 ? o.quotesAt : 0;
+  const out = [];
+  for (const q of list) {
+    const id = typeof q === 'string' ? q : (q && typeof q === 'object' && typeof q.id === 'string' ? q.id : '');
+    if (!QUOTE_SID_RE.test(id) && id !== TurnKinds.SATURATED) continue;
+    out.push({ id, at: q && typeof q === 'object' && Number.isSafeInteger(q.at) && q.at >= 0 ? q.at : bare });
+  }
+  return out;
+}
+// A DELEGATED WORKER'S BRIEF is composed from its lead's conversation, so the lead's stream is a quote of every row the worker writes (at 0:
+// any delete of it forgets them). Only a lead that is running now is known here, which is every lead that can dispatch a worker.
+function briefQuoteEntries(o) {
+  const lead = o && o.parentRunId ? liveQuoteRuns.get(String(o.parentRunId)) : null;
+  const id = lead && lead.streamId;
+  return id && QUOTE_SID_RE.test(id) && id !== (o.streamId || 'global') ? [{ id, at: 0 }] : [];
+}
+/* WHAT A WORKER READ, from its record (turn identity commit 11): [{ id, at }] from the live latch while it runs, else from its run record
+   (runStore noteIdentity: quotes + quotesAt; a saturated record is the marker). [] = a recorded run that read nothing; null = nothing
+   records it (the record is gone), so what it read is unknown. */
+function workerQuoteEntries(workerRunId) {
+  const live = liveQuoteRuns.get(String(workerRunId));
+  if (live) return live.latched();
+  const rec = runStore.latest(String(workerRunId));
+  if (!rec) return null;
+  const ids = Array.isArray(rec.quotes) ? rec.quotes : [], at = Array.isArray(rec.quotesAt) ? rec.quotesAt : [];
+  return ids.map((id, i) => ({ id, at: Number.isSafeInteger(at[i]) ? at[i] : 0 }));
+}
+// the tools that hand a lead the text of another run (orchestration.js: team.dispatch / spawn / subagents / resume)
+const RELAY_TOOL_RE = /^team[._](?:dispatch|spawn|subagents|resume)$/;
+// STOP a run that has read a session now deleted: the existing STOP path (the run table's joined stop, so the run ends cancelled with the
+// stopped line it always shows), and for a delegated worker the subagent manager that owns its stop. Never throws.
+function stopQuotingRun(runId) {
+  try { if (runTable.stop(runId, 'forget')) return true; } catch (e) { failNote('turn.quotes.stop', e); }
+  try {
+    const rec = subagents.list({ status: 'running' }).find(r => r && r.runId === runId);
+    if (rec) return !!(subagents.interrupt(rec.id) || {}).ok;
+  } catch (e) { failNote('turn.quotes.stop', e); }
+  return false;
+}
+/* stopLive(stamps): stamps are the deletes whose purge is not done, [{ id, at }] (session-tombstones unpurged(): adopted stamps never in
+   it). A live run is stopped when its latch holds a stamped stream read at or before the stamp (at <= stamp: the delete came after the
+   read began), or when it is saturated and any stamp is at or after its saturation time. Runs whose latch is clean keep going. */
+function stopQuotingRuns(stamps) {
+  const list = (Array.isArray(stamps) ? stamps : []).filter(s => s && typeof s.id === 'string' && Number(s.at) > 0);
+  if (!list.length || !liveQuoteRuns.size) return 0;
+  let stopped = 0;
+  for (const [runId, live] of Array.from(liveQuoteRuns)) {
+    let latched = [];
+    try { latched = live.latched(); } catch (e) { failNote('turn.quotes.stop', e); continue; }
+    const hit = latched.some(q => q.id === TurnKinds.SATURATED ? list.some(s => q.at <= s.at) : list.some(s => s.id === q.id && q.at <= s.at));
+    if (!hit) continue;
+    try { if (live.abort()) stopped++; } catch (e) { failNote('turn.quotes.stop', e); }
+  }
+  if (stopped) console.warn('[session-tombstones] stopped ' + stopped + ' live run(s) that had read a session now deleted');
+  return stopped;
+}
 // A STOP or a direction BY ID reaches a run its table entry holds a stop for (every run runOnce drives, a turn still queued behind its
 // conversation included; never a delegated worker, whose manager owns its stop and its steering) including a host owner still before its core call
 function runReachable(runId) { const id = String(runId || ''); return !!id && runTable.stoppable(id); }
@@ -2315,7 +2412,7 @@ function formatRunHolderAge(ageMs) {
 // once the run ends the entry is dropped, so a stale steer can never reach a later run.
 const STEER_MAX_PENDING = 8;      // bound the buffer so a spammed steer can't grow unbounded between iterations
 const steerBufs = makeSteerBuffers({ maxPending: STEER_MAX_PENDING, maxNoteChars: 2000 });
-function drainSteer(runId) { return steerBufs.drain(runId); }
+function drainSteer(runId) { return steerBufs.drainNotes(runId); }   // [{ text, noteId }]: the loop tags the row a folded note becomes with its id (a worker's generation-bound o.steer still returns strings)
 // A Telegram/Discord/… follow-up that lands while that chat's run is working JOINS the run (channels/hub.js LIVE STEER)
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {
@@ -2660,7 +2757,8 @@ const workshopStore = makeWorkshopStore({
 const deliverableStore = makeDeliverableStore({
   fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
   onRecover: (key, file) => console.warn('[deliverables] recovered ' + file + ' from .bak last-known-good.'),
-  onCorrupt: (key, file) => quarantineCorrupt(file, 'deliverables')
+  onCorrupt: (key, file) => quarantineCorrupt(file, 'deliverables'),
+  admit: row => forgetRegistry.admit({ runId: row.runId, at: Date.now() })   // the forget registry's write-time gate: no lifecycle row for a forgotten run
 });
 // IDEMPOTENCY LEDGER (SOP lane, 2026-08-21): every successful custom-connector WRITE is recorded under
 // (work-item scope, tool, canonical args); a byte-identical repeat inside the same scope is answered from the
@@ -2737,7 +2835,9 @@ const taskBriefStore = makeTaskBriefStore({
   fs: fs, path: path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
   onRecover: (key, file) => console.warn('[taskbrief] recovered ' + file + ' from .bak last-known-good after a torn/corrupt main.'),
   onCorrupt: (key, file) => quarantineCorrupt(file, 'taskbrief'),
-  warn: (...args) => console.warn.apply(console, args)
+  warn: (...args) => console.warn.apply(console, args),
+  // the forget registry's read-time belt: an answered question of a deleted session is never offered as an observed pattern
+  forgotten: b => forgetRegistry.forgotten({ streamIds: [b.streamId], runIds: [b.originalRunId, b.runId], rowIds: [b.directiveRowId], at: b.createdAt })
 });
 const workflowTakeoverStore = WorkflowTakeover.makeWorkflowTakeoverStore({
   fs, path, workspaces: WORKSPACES, writeDurable: writeFileDurable,
@@ -2797,17 +2897,89 @@ function markMintDeclined(agentId, name) {
 // run still knows who it works for. Persisted as a sibling of the notebooks (outside every agent's fs jail,
 // so the agent's own fs.* tools can't read/corrupt it) → it survives a restart for a headless cron fire.
 const DOSSIER_FILE = path.join(WORKSPACES, '_commander.dossier.json');
+/* PROVENANCE OF A PUSHED, PAGE-COMPOSED BLOCK (turn identity commit 14, qa/bugs/3e926b6a). The dossier block and the beliefs snapshot are
+   composed by the page from beliefs, some of which the station LEARNED from runs. A push says which runs it was learned from (sourceRunIds)
+   and whether it names them ALL (complete). derivedAdmission() is the one write gate for both stores, on every caller (a page push, a restored
+   backup, a stale tab):
+     complete provenance  admitted iff no listed run is in the forgotten scope (forgetRegistry.admit over the runs);
+     absent or partial    admitted only while no non-adopted delete stamp exists (sessionTombstones.latestAt() === 0) - after the first delete
+                          the station cannot prove what such a block was learned from, and the page's complete re-push replaces it;
+     an unreadable ledger or registry refuses (fail closed).
+   A refusal is counted (failNote <what>.refused) and answered, never thrown. */
+const PROV_RUN_RE = /^[A-Za-z0-9_.:-]{1,80}$/;
+const PROV_MAX_RUNS = 256;
+function provenanceOf(meta) {
+  const m = meta && typeof meta === 'object' ? meta : {};
+  const ids = [];
+  let over = false;
+  if (Array.isArray(m.sourceRunIds)) {
+    for (const id of m.sourceRunIds) {
+      if (typeof id !== 'string' || !PROV_RUN_RE.test(id) || ids.indexOf(id) >= 0) continue;
+      if (ids.length >= PROV_MAX_RUNS) { over = true; break; }
+      ids.push(id);
+    }
+  }
+  return { sourceRunIds: ids, complete: m.complete === true && Array.isArray(m.sourceRunIds) && !over };
+}
+/* a listed run is forgotten when a delete the Commander MADE reaches it: the session it ran in was deleted (freshAt - an adopted stamp, I7 limit d,
+   keeps the memory it wrote) or it quotes one. A run no record names is not forgotten (the page may hold runs of an older station). */
+function runForgottenFresh(runId) {
+  const rec = runStore.latest(String(runId));
+  if (!rec) return false;
+  const at = num => (Number.isFinite(num) ? num : 0);
+  const stamp = at(sessionTombstones.freshAt(rec.streamId));
+  if (stamp > 0 && at(rec.ts) <= stamp) return true;
+  return TurnKinds.quotesForgotten(rec, sid => sessionTombstones.freshAt(sid), () => sessionTombstones.latestAt());
+}
+function derivedAdmission(prov, what) {
+  let admitted = false, reason = 'unprovable', forgotten = [];
+  try {
+    if (prov.complete) {
+      forgotten = prov.sourceRunIds.filter(runForgottenFresh);   // named in the answer: the page drops the beliefs learned from them and pushes again
+      admitted = !forgotten.length;
+      reason = admitted ? '' : 'source-forgotten';
+    } else {
+      admitted = !(sessionTombstones.latestAt() > 0);
+      reason = admitted ? '' : 'provenance-incomplete';
+    }
+  } catch (e) { failNote(what + '.admit', e); admitted = false; reason = 'unprovable'; }
+  if (!admitted) failNote(what + '.refused', new Error(what + ' push refused: ' + reason));
+  return { admitted, reason, forgotten };
+}
 const commanderDossier = {
-  _block: '',
+  _block: '', _setAt: 0, _runIds: [], _complete: false,
   get() { return this._block; },
-  set(block) {
+  meta() { return { block: this._block, setAt: this._setAt, sourceRunIds: this._runIds.slice(), complete: this._complete }; },
+  set(block, meta) {
+    const prov = provenanceOf(meta);
     this._block = String(block == null ? '' : block).slice(0, 4096);   // the frontend composes it under dossier.js BLOCK_CHARS (1600); this is a hard safety ceiling
+    this._setAt = Date.now(); this._runIds = this._block ? prov.sourceRunIds : []; this._complete = this._block ? prov.complete : true;
+    this._persist();
+  },
+  _persist() {
     try {
       fs.mkdirSync(WORKSPACES, { recursive: true });
-      saveResilient(DOSSIER_FILE, { block: this._block });   // fsync-durable + .bak last-known-good
+      saveResilient(DOSSIER_FILE, { block: this._block, setAt: this._setAt, sourceRunIds: this._runIds, complete: this._complete });   // fsync-durable + .bak last-known-good
     } catch (e) { console.warn('[dossier] persist failed:', (e && e.message) || e); }
   },
-  load() { const o = loadResilient(DOSSIER_FILE, 'dossier'); if (o) this._block = String((o && o.block) || ''); }
+  /* offer(block, meta) -> { admitted, reason }: every caller that did not compose the block itself comes through here. An empty block (the
+     reset, the Commander turned the dossier off) says nothing about any session and is always admitted. */
+  offer(block, meta) {
+    if (!String(block == null ? '' : block).length) { this.set('', meta); return { admitted: true, reason: '', forgotten: [] }; }
+    const verdict = derivedAdmission(provenanceOf(meta), 'dossier');
+    if (verdict.admitted) this.set(block, meta);
+    return verdict;
+  },
+  // a delete reached the block's sources (or it cannot prove them): it reads as empty until the page's complete re-push
+  clear() { this._block = ''; this._runIds = []; this._complete = true; this._setAt = Date.now(); this._persist(); this._persist(); },   // written twice: the .bak holds the purged copy
+  load() {
+    const o = loadResilient(DOSSIER_FILE, 'dossier');
+    if (!o) return;
+    this._block = String((o && o.block) || '');
+    this._setAt = Number.isFinite(o.setAt) ? o.setAt : 0;   // a file from before provenance: older than any delete
+    const prov = provenanceOf(o);
+    this._runIds = prov.sourceRunIds; this._complete = prov.complete;
+  }
 };
 commanderDossier.load();
 
@@ -2884,33 +3056,70 @@ const commanderPosture = {
   // with a private variant. FAIL-CLOSED: no snapshot / no verdict / not-ok all read as NOT ready, so a cold or
   // legacy-frontend station never gets server-minted recommendations it can't justify.
   ready() { return !!(this._beliefs && this._beliefs.ready && this._beliefs.ready.ok); },
+  /* set(posture, beliefs) -> { beliefsAdmitted, reason }. The dial is the Commander's setting and is ALWAYS written. The beliefs snapshot is
+     page-composed from beliefs some of which were learned from runs: each carries a bounded sourceRunId, and the push says whether it names
+     every source (beliefs.complete). It is admitted by derivedAdmission (the dossier's rule): complete and no listed run forgotten, or
+     incomplete and no non-adopted delete yet. A refused snapshot leaves the held one in place (the forget entry clears it if it too is stale). */
   set(posture, beliefs) {
     const nextPosture = posture && typeof posture === 'object' ? Autonomy.normalize(posture) : this._posture;
-    let nextBeliefs = this._beliefs;
+    let nextBeliefs = this._beliefs, beliefsAdmitted = true, reason = '', verdictForgotten = [];
     if (beliefs && typeof beliefs === 'object') {
       // normalize the snapshot defensively: a bounded known[] + a bounded per-dim belief list (text + stamps + weight).
       const known = Array.isArray(beliefs.known) ? beliefs.known.filter(x => typeof x === 'string').slice(0, 24) : [];
       const src = (beliefs.beliefs && typeof beliefs.beliefs === 'object') ? beliefs.beliefs : {};
       const out = {};
+      const runIds = [];
       for (const dim of Object.keys(src).slice(0, 24)) {
         const arr = Array.isArray(src[dim]) ? src[dim] : [];
-        out[dim] = arr.slice(0, 40).map(b => ({
-          text: String((b && b.text) || '').slice(0, 400),
-          weight: (typeof (b && b.weight) === 'string' && ['stated', 'synth', 'observed', 'seed'].indexOf(b.weight) >= 0) ? b.weight : null,   // V3 evidence weight (null = legacy sync)
-          updatedAt: Number(b && b.updatedAt) || 0,
-          createdAt: Number(b && b.createdAt) || 0
-        })).filter(b => b.text);
+        out[dim] = arr.slice(0, 40).map(b => {
+          const sourceRunId = (typeof (b && b.sourceRunId) === 'string' && PROV_RUN_RE.test(b.sourceRunId)) ? b.sourceRunId : null;
+          if (sourceRunId && runIds.indexOf(sourceRunId) < 0 && runIds.length < PROV_MAX_RUNS) runIds.push(sourceRunId);
+          return {
+            text: String((b && b.text) || '').slice(0, 400),
+            weight: (typeof (b && b.weight) === 'string' && ['stated', 'synth', 'observed', 'seed'].indexOf(b.weight) >= 0) ? b.weight : null,   // V3 evidence weight (null = legacy sync)
+            updatedAt: Number(b && b.updatedAt) || 0,
+            createdAt: Number(b && b.createdAt) || 0,
+            ...(sourceRunId ? { sourceRunId } : {})
+          };
+        }).filter(b => b.text);
       }
       // the synced readiness verdict (V3): {ok,reasons} or null when the frontend couldn't compute one.
       const rd = (beliefs.ready && typeof beliefs.ready === 'object')
         ? { ok: !!beliefs.ready.ok, reasons: Array.isArray(beliefs.ready.reasons) ? beliefs.ready.reasons.filter(x => typeof x === 'string').slice(0, 8) : [] }
         : null;
-      nextBeliefs = { known: known, beliefs: out, ready: rd, at: Date.now() };
+      const verdict = derivedAdmission({ sourceRunIds: runIds, complete: beliefs.complete === true }, 'autonomy.beliefs');
+      beliefsAdmitted = verdict.admitted; reason = verdict.reason; verdictForgotten = verdict.forgotten;
+      if (verdict.admitted) nextBeliefs = { known: known, beliefs: out, ready: rd, at: Date.now(), complete: beliefs.complete === true, sourceRunIds: runIds };
     }
     fs.mkdirSync(WORKSPACES, { recursive: true });
     saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: nextPosture, beliefs: nextBeliefs });
     this._posture = nextPosture;
     this._beliefs = nextBeliefs;
+    return { beliefsAdmitted, reason, forgotten: verdictForgotten };
+  },
+  /* forget(isGone, stale): drop what a delete reached. A snapshot that is not complete and was written at or before the delete cannot say what it
+     was learned from: it goes whole (the night shift degrades to the EARN tier - ready() reads false - until the page's complete re-push). A
+     complete one loses only the beliefs sourced from forgotten runs, and its readiness verdict with them (the page computed it over beliefs
+     that are no longer there). The dial is never touched. Returns how many beliefs (or the whole snapshot, as 1) went. */
+  forget(isGone, stale) {
+    const b = this._beliefs;
+    if (!b || typeof b !== 'object') return 0;
+    let removed = 0, next = null;
+    if (b.complete !== true && stale(Number(b.at) || 0)) { removed = Object.keys(b.beliefs || {}).reduce((n, k) => n + ((b.beliefs[k] || []).length), 0) || 1; }
+    else {
+      const out = {};
+      for (const dim of Object.keys(b.beliefs || {})) {
+        const keep = (b.beliefs[dim] || []).filter(x => !(x && x.sourceRunId && isGone(x.sourceRunId)));
+        removed += (b.beliefs[dim] || []).length - keep.length;
+        if (keep.length) out[dim] = keep;
+      }
+      if (removed) next = { known: Object.keys(out), beliefs: out, ready: null, at: b.at, complete: b.complete === true, sourceRunIds: (b.sourceRunIds || []).filter(id => !isGone(id)) };
+      else return 0;
+    }
+    this._beliefs = next;
+    try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: this._posture, beliefs: next }); saveResilient(AUTONOMY_POSTURE_FILE, { v: 1, posture: this._posture, beliefs: next }); }   // twice: the .bak holds the purged copy
+    catch (e) { failNote('autonomy.beliefs.forget', e); throw e; }
+    return removed;
   },
   load() {
     const o = loadResilient(AUTONOMY_POSTURE_FILE, 'autonomy-posture');
@@ -3566,36 +3775,81 @@ function memoryAgentIds() {
   } catch (e) { failNote('session-tombstones.agents', e); }
   return Array.from(ids);
 }
-/* forgetDeletedSessionMemory() — remove what deleted sessions wrote into memory: the notebook records and pending memory
+/* THE FORGET REGISTRY (turn identity commits 11 and 12, sidecar/forget-registry.js): the one list of every durable store that holds words
+   derived from a session, each with the source it records and the forget that removes it; sidecar/forget-wiring.js registers them, the
+   block below hands it the stores. A pass over it runs once per delete stamp (and once per registry VERSION for the deletes made before an
+   upgrade, the ledger's repurge). admit(src) is the write-time gate every derived write asks first, forgotten(src) the read-time belt. */
+function runIsForgotten(runId) {
+  const id = String(runId || '');
+  if (!id) return false;
+  if (quoteForgottenRun(id)) return true;
+  const rec = runStore.latest(id);
+  return !!rec && ForgetRegistry.viewRun(rec, runViewCtx) === null;
+}
+const forgetRegistry = ForgetRegistry.make({
+  deletedAt: id => sessionTombstones.deletedAt(id), freshDeletedAt: id => sessionTombstones.freshAt(id), latestDeleteAt: () => sessionTombstones.latestAt(),
+  rowVerdict: (streamId, rowId) => { const v = transcriptStore.forgetVerdicts(streamId, [rowId]); return v.has(rowId) ? v.get(rowId) : null; },
+  runForgotten: runIsForgotten, stopLive: stopQuotingRuns, note: failNote
+});
+/* forgetDeletedSessionMemory() - remove what deleted sessions wrote into every registered store: the notebook records and pending memory
    proposals created there (by their runs, or filed under their stream), the versions their runs wrote into records
    created elsewhere (rolled back), the session quotes on a rating verdict (the verdict and the Commander's words stay),
-   and the open threads mined from them (session-tombstones.js forgetSessionMemory). Each removed record is announced as
+   the open threads mined from them (session-tombstones.js forgetSessionMemory), and everything the registry's other entries derive from
+   them (forget-wiring.js). Each removed notebook record is announced as
    memory.forget (reason 'session-deleted'): the station HUD says "memory forgotten" and an open Memory Core refreshes.
    One pass at a time; a delete that lands mid-pass runs another. A pass that fails records nothing, so the next boot
-   retries it. */
+   retries it. A pass asked for before the stores are wired (a delete found in the save at boot) waits for them: the post-init callback below runs it. */
 let sessionMemoryPurge = null;
 let sessionMemoryPurgeAgain = false;
+let forgetDeferred = false;
 function forgetDeletedSessionMemory() {
+  forgetRegistry.stopLive(sessionTombstones.unpurged());   // FIRST and synchronous (before the early return below): a live run that read a session now deleted stops before it makes another call
+  if (!forgetRegistry.ready()) { forgetDeferred = true; return Promise.resolve(); }
   if (sessionMemoryPurge) { sessionMemoryPurgeAgain = true; return sessionMemoryPurge; }
   sessionMemoryPurge = (async () => {
     do {
       sessionMemoryPurgeAgain = false;
       const todo = sessionTombstones.unpurged();
       if (!todo.length) break;
-      const counts = await SessionTombstones.forgetSessionMemory({ store: notebookStore, threads: threadsStore,
-        agentIds: memoryAgentIds(), deleted: todo, runs: runStore.all() });
-      saveStore.scrubKept(todo.map(t => t.id));   // save-pre-history-ref: the older station file kept at the v7 upgrade follows deletes (a failure retries at boot)
+      const out = await forgetRegistry.forgetAll(SessionTombstones.deletedScope(todo, runStore.all()));
       sessionTombstones.markPurged(todo);
+      const counts = (out.results['notebook-memory'] || {}).counts || { notes: 0, revisions: 0, restored: 0, verdicts: 0, pending: 0, threads: 0, forgot: [] };
       for (const f of counts.forgot.slice(0, 50)) chanEmit('memory.forget', { agentId: f.agentId, id: f.id, reason: 'session-deleted' });   // the rest are in the log line
       if (counts.notes || counts.revisions || counts.verdicts || counts.pending || counts.threads) {
         console.log('[session-tombstones] deleted sessions: forgot ' + counts.notes + ' memory record(s), ' + counts.revisions
           + ' version(s) they wrote (' + counts.restored + ' record(s) rolled back to an earlier version), the session quotes on '
           + counts.verdicts + ' rating verdict(s) (verdicts and words kept), ' + counts.pending + ' pending proposal(s), ' + counts.threads + ' thread(s)');
       }
+      const others = Object.keys(out.removed).filter(k => k !== 'notebook-memory' && out.removed[k] > 0).map(k => out.removed[k] + ' ' + k);
+      if (others.length) console.log('[session-tombstones] deleted sessions: also forgot ' + others.join(', '));
     } while (sessionMemoryPurgeAgain);
   })().catch(swallow('session-tombstones.memory')).then(() => { sessionMemoryPurge = null; });
   return sessionMemoryPurge;
 }
+// the stores the registry purges, as closures: most are built later in this file than the registry, and are read only when a pass runs
+wireForgetRegistry(forgetRegistry, {
+  now: () => Date.now(),
+  notebookStore: () => notebookStore, threadsStore: () => threadsStore, memoryAgentIds: () => memoryAgentIds(),
+  personalization: () => personalizationStore,
+  interests: { get: () => interestsState, set: s => { interestsState = s; }, persist: () => saveResilient(INTERESTS_FILE, { v: 1, state: interestsState }) },
+  scout: { get: () => scoutState, set: s => { scoutState = s; }, persist: () => saveResilient(SCOUT_FILE, { v: 1, state: scoutState }) },
+  recommendations: () => recommendationLedger,
+  verdictReview: () => verdictReview,
+  taskBriefs: () => taskBriefStore,
+  deliverables: () => deliverableStore,
+  goldens: { get: () => goldensByKey, persist: next => persistGoldens(next) },
+  study: { byRun: () => studyByRun, latest: () => latestStudyRun, persist: () => saveResilient(STUDY_STATE_FILE, { v: 1, byRun: Object.fromEntries(studyByRun), latest: Object.fromEntries(latestStudyRun), lastAt: Object.fromEntries(lastStudyAt), declined: Object.fromEntries(studyDeclinedByAgent) }) },
+  quests: () => questStore,
+  northStar: { get: () => questRefreshState, set: x => { questRefreshState = x; }, persist: () => saveResilient(QUESTREFRESH_FILE, { v: 1, state: questRefreshState }) },
+  dossier: () => commanderDossier, posture: () => commanderPosture,
+  awayBriefing: () => awayBriefingStore, overseer: () => overseer, subagents: () => subagents,
+  transcriptStore: () => transcriptStore, attachments: () => attachments, groupSessions: () => groupSessions,
+  nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
+  nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
+  workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()
+});
+// once the whole module has run (every store above exists): seal the registry, then run a pass a boot-time delete or an unfinished purge asked for
+setImmediate(() => { forgetRegistry.seal(); if (forgetDeferred || sessionTombstones.unpurged().length) forgetDeletedSessionMemory(); });
 // BOOT: the save on disk is the newest list the page wrote (none at all = a new station: an empty list). The first list
 // the ledger ever reads is ADOPTED: those deletes were made while Delete only hid the rail row, so their transcript and
 // recall are forgotten from now on but the memories they wrote are kept (never a retroactive wipe at the first boot of
@@ -3608,6 +3862,9 @@ function forgetDeletedSessionMemory() {
   const adopted = firstList && sessionTombstones.since() > 0 ? sessionTombstones.adopted().length : 0;
   if (adopted) console.log('[session-tombstones] ' + adopted + ' session(s) deleted before this build: forgotten from history and recall; the memories they wrote are kept');
   if (sessionTombstones.unpurged().length) forgetDeletedSessionSummaries();   // an unfinished purge (a crash between the stamp and the sweep) is retried here too
+  // a delete purged before the registry covered its stores is purged again, once per registry version (an adopted stamp never is)
+  try { const again = sessionTombstones.repurge(ForgetRegistry.VERSION); if (again) console.log('[session-tombstones] ' + again + ' earlier delete(s) will be purged again from the stores the forget registry now covers'); }
+  catch (e) { failNote('session-tombstones.repurge', e); }
   if (sessionTombstones.unpurged().length) forgetDeletedSessionMemory();
 }
 // the older station file kept at the v7 upgrade (savestore.js THE LAST FILE AN OLDER BUILD CAN READ) goes 30 days after the new format has read back
@@ -3961,7 +4218,11 @@ async function runReflection(o) {
     const declined = notebookStore.get('declined:' + agentId);
     const declinedRecs = Array.isArray(declined) ? declined.map(t => ({ content: String(t) })) : [];
     // projectRoot: a held belief in ANOTHER project is never this run's replacement target (reflect.js reachable)
-    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: existing.concat(declinedRecs), projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
+    /* commit 15 (Q5): from the first delete the Commander made, a declined text may quote a deleted session, so it only SUPPRESSES (dedupOnly:
+       exact, near and subject checks) and never reaches the aux prompt or becomes a replacement target. Before any delete it rides as before. */
+    let declinedOnly = false;
+    try { declinedOnly = sessionTombstones.latestAt() > 0; } catch (e) { failNote('reflect.declined', e); declinedOnly = true; }   // unreadable ledger: the safe side
+    const out = await reflect({ agentId, runId, messages }, { propose, redact, existing: declinedOnly ? existing : existing.concat(declinedRecs), dedupOnly: declinedOnly ? declinedRecs.map(x => x.content) : undefined, projectRoot: o.projectRoot || null, clock: { now: () => Date.now() }, max: 5 });
     // the Commander paused (or forgot) learning while the model was answering: remember nothing from this pass
     if (!learningUnchangedSince(pz)) return;
     let proposals = (out && out.proposals) || [];
@@ -4159,6 +4420,7 @@ async function runStudy(o) {
     // CROSS-WIRE: study() already deduped THIS agent's own studyDeclined list; drop anything the Commander declined
     // in ANOTHER surface (a mined thread / a quest title / a reflected belief / a north star) before it is stashed.
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.text)); }
+    if (proposals.length && !forgetRegistry.admit(o.src || { runId })) { console.log('[study] proposals for run=' + runId + ' dropped: its session was deleted'); proposals = []; }   // the registry's gate: a pass that began before a delete stashes nothing
     if (proposals.length) {
       // arm the cooldown ONLY when proposals actually survive — a floored/all-dedup run never blocks the next study.
       lastStudyAt.set(agentId, Date.now());
@@ -4290,6 +4552,11 @@ function persistVerdictPackets(rows, meta) {
 }
 // Commander-triggered (a rating), so the background token ceiling does not stop it; its row still counts (auxgovernor.js CEILING_KINDS).
 function launchVerdictReview(job) {
+  // the registry's write-time gate: a review armed before its session was deleted (or whose run quoted one) is finished without running
+  if (!forgetRegistry.admit({ streamId: job.streamId, runId: job.runId, rowId: job.directive && job.directive.rowId, at: Date.now() })) {
+    console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': its session was deleted');
+    return Promise.resolve(true);
+  }
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
 }
@@ -6127,12 +6394,13 @@ const overseer = require('./overseer.js').makeOverseer({ fs, path, writeDurable:
   sessionsRead: () => { const r = saveStore.loadStamped('agent'); return { doc: r.doc || {}, stamp: r.stamp }; },
   sessionsStamp: () => saveStore.stamp('agent'),
   isRunActive: id => runTable.owned(id),
+  forgotten: (id, ts) => sessionTombstones.forgotten(id, ts),   // the sidecar's ledger of deletes, past the page's 500-id list (turn identity commit 12)
   // how long one hand-off's report waits on a straggler before NOVA reports the finished part (env OVERSEER_REPORT_CEILING_MS)
   reportCeilingMs: Math.max(30000, Number(process.env.OVERSEER_REPORT_CEILING_MS) || 600000) });
 
 // Data operations work without a renderer. Focus and other visual actions still
 // require a page acknowledgement. Legacy session IDs are read from the save store.
-function overseerStation(parentStreamId, parentRunId) {
+function overseerStation(parentStreamId, parentRunId, quoteRoom) {
   return { request: async (verb, args) => {
     try {
       if (verb === 'station.sessions') {
@@ -6149,6 +6417,8 @@ function overseerStation(parentStreamId, parentRunId) {
       }
       if (verb === 'station.read_session') {
         const w = overseer.resolve(args.session);
+        // one run reads at most QUOTES_MAX other sessions (commit 11): refused BEFORE the rows are read, so none of its words are composed
+        if (typeof quoteRoom === 'function' && w.id !== parentStreamId && !quoteRoom([w.id]).includes(w.id)) return { ok: false, error: TurnDirective.QUOTE_ROOM_NOTE };
         // a goal-loop step reads as the station's 'Goal step: <goal>', never the Commander's words (overseer.js readSessionTurns)
         const rows = transcriptStore.view('recall', w.id, { limit: Math.max(1, Math.min(30, Number(args.limit) || 12)) });
         if (!Array.isArray(rows)) throw new Error('Session transcript projection unavailable');
@@ -7789,7 +8059,8 @@ const routineDelivery = makeRoutineDelivery({
     return live && live.hub && typeof live.hub.historyContext === 'function'
       ? live.hub.historyContext(chatId) : disconnectedChannelHistory(channel, chatId);
   },
-  redact: redact, runStore: runStore, egressReader: egressReader, transcriptStore: transcriptStore, stationBridge: stationBridge, now: () => Date.now()
+  redact: redact, runStore: runStore, egressReader: egressReader, transcriptStore: transcriptStore, stationBridge: stationBridge, now: () => Date.now(),
+  writeDelivery: fields => TurnDelivery.write(transcriptStore, fields)   // a session's return is written here (strict, once per session and run) BEFORE the page is asked
 });
 const { deliverCronResult, cronPreflightConfig, cronDeliveryNote } = routineDelivery;
 
@@ -8033,7 +8304,7 @@ function nightFocusInputs() {
     const meta = {}; for (const p of (projectsStore.snapshot().projects || [])) meta[p.root] = p;
     // recent user run titles → a cheap per-root "mention" frequency (which project the Commander names lately).
     let runTitles = [];
-    try { runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && !sessionRunForgotten(r)).map(r => String(r.title || '').toLowerCase()); } catch (_) { runTitles = []; }
+    try { runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && runView('nightfocus', r)).map(r => String(r.title || '').toLowerCase()); } catch (_) { runTitles = []; }
     projects = blessedRoots().map(root => {
       const m = meta[root] || {};
       const base = nightfocus.baseName(m.displayPath || root).toLowerCase();
@@ -8281,6 +8552,31 @@ function autonomyLedgerAppend(entry) {
 
 // a reason-only internal run through runOnce: no tools (no `station`/extraObjects), surface:'autonomous', assemble
 // the reply from agent.token deltas (the SAME assembler cron-driver/hub use — there is no agent.message event).
+/* A NIGHT-SHIFT PROMPT IS COMPOSED FROM SESSIONS (turn identity commit 11): the context pack's activity lines each name the row they came from
+   (activity[].src), so the streams of those rows are what the propose, do, critique and act runs quote, read at the pack's assembly time. A
+   delete of one of them forgets what those runs wrote. Spread into a run's options: { quotes, quotesAt }, or nothing when no line has a source. */
+function packQuotes(pack) {
+  const ids = [];
+  for (const a of Array.isArray(pack && pack.activity) ? pack.activity : []) {
+    const id = a && a.src && a.src.streamId;
+    if (typeof id === 'string' && QUOTE_SID_RE.test(id) && !ids.includes(id)) ids.push(id);
+  }
+  return ids.length ? { quotes: ids, quotesAt: Number.isSafeInteger(pack.assembledAt) && pack.assembledAt >= 0 ? pack.assembledAt : 0 } : {};
+}
+/* THE SESSIONS A RECORD WAS COMPOSED FROM (turn identity commit 12): a staged scout draft, a recommendation, a night-shift draft, a quest or a
+   north star is written from the pack's activity lines and the trusted interests, so it carries the quote stamp rows carry - the streams of
+   those lines read at the pack's assembly time, and of the interests' evidence at 0 (any delete of one forgets it). The registry purges by it
+   and its write-time gate (admit) refuses a write whose stamp names a session deleted since the read. {} when nothing was quoted. */
+function draftStamp(pack) {
+  const entries = [];
+  const at = Number.isSafeInteger(pack && pack.assembledAt) && pack.assembledAt >= 0 ? pack.assembledAt : 0;
+  for (const a of Array.isArray(pack && pack.trustedActivity) ? pack.trustedActivity : []) if (a && a.src && a.src.streamId) entries.push({ id: a.src.streamId, at });
+  try { for (const t of Object.values(Interests.normalize(interestsState, Date.now()).trustedTopics || {})) for (const e of t.ev) if (e.src) entries.push({ id: e.src.streamId, at: 0 }); }
+  catch (e) { failNote('forget.draft-stamp', e); }
+  return TurnKinds.quoteStamp(entries);
+}
+// packQuotes' { quotes, quotesAt: <one time> } as the canonical per-stream stamp a stored record carries (draftStamp's sibling)
+function quotedStamp(q) { return q && Array.isArray(q.quotes) ? TurnKinds.quoteStamp(q.quotes.map(id => ({ id, at: q.quotesAt }))) : {}; }
 async function nightshiftChat(o) {
   const agentId = String((o && o.agentId) || NIGHTSHIFT_AGENT);
   const ident = cronIdentityFor(agentId) || {};
@@ -8310,7 +8606,8 @@ async function nightshiftChat(o) {
       // every night directive is host-composed from stored text (focus, beliefs, activity, threads): scrubbed whole
       messages: (Array.isArray(o.messages) ? o.messages : []).map(m => (m && typeof m.content === 'string') ? Object.assign({}, m, { content: PromptScrub.scrubStored(m.content) }) : m),
       agentId: agentId, isTask: false, emit: sink, signal: o && o.signal,
-      runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast)
+      runId: runId, streamId: 'nightshift-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!(o && o.broadcast),
+      quotes: o && o.quotes, quotesAt: o && o.quotesAt   // the sessions its prompt was composed from (packQuotes)
     });
   } catch (e) { return { error: (e && e.message) || 'run failed' }; }
   finally { thoughtRun.release(); }
@@ -8329,6 +8626,8 @@ const NIGHTSHIFT_DRAFTS_FILE = path.join(WORKSPACES, 'nightshift.drafts.json');
 function loadNightshiftDrafts() { try { const o = loadResilient(NIGHTSHIFT_DRAFTS_FILE, 'nightshift-drafts'); return (o && Array.isArray(o.drafts)) ? o.drafts : []; } catch (_) { return []; } }
 let nightshiftDrafts = loadNightshiftDrafts();
 function recordNightshiftDraft(entry) {
+  // the registry's write-time gate: a draft composed from a session deleted since (or by a run that read one) is not kept
+  if (!forgetRegistry.admit(entry)) { console.log('[nightshift] draft dropped: a session it was composed from was deleted'); return false; }
   nightshiftDrafts.push(entry);
   if (nightshiftDrafts.length > 20) nightshiftDrafts = nightshiftDrafts.slice(-20);
   try { saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }); } catch (e) { console.warn('[nightshift] drafts persist failed:', (e && e.message) || e); }
@@ -8358,7 +8657,7 @@ function loadNightshiftActs() { try { const o = loadResilient(NIGHTSHIFT_ACTS_FI
 let nightshiftActs = loadNightshiftActs();
 function recordNightshiftAct(runId, archetype, threadId) {
   const rid = String(runId || ''); const arch = String(archetype || '').trim();
-  if (!rid || !arch) return;
+  if (!rid || !arch || !forgetRegistry.admit({ runId: rid })) return;
   try {
     nightshiftActs[rid] = { archetype: arch, at: Date.now(), threadId: (threadId ? String(threadId) : null) };   // NS-6: carry the cited thread so the return-card verdict can deliver/decline it
     const keys = Object.keys(nightshiftActs);
@@ -8384,6 +8683,23 @@ const SCOUT_FILE = path.join(WORKSPACES, 'scout.state.json');
 let interestsState = (() => { try { const o = loadResilient(INTERESTS_FILE, 'scout-interests'); return Interests.normalize(o && o.state, Date.now()); } catch (_) { return Interests.fresh(Date.now()); } })();
 let scoutState = (() => { try { const o = loadResilient(SCOUT_FILE, 'scout'); return Scout.normalize(o && o.state, Date.now()); } catch (_) { return Scout.fresh(Date.now()); } })();
 function persistInterests() { try { saveResilient(INTERESTS_FILE, { v: 1, state: interestsState }); } catch (e) { console.warn('[scout] interests persist failed:', (e && e.message) || e); } }
+/* THE ONE-TIME PROOF of trusted interest evidence recorded before it carried a source (turn identity commit 12, Interests.reprove): each quote
+   is looked up in the owner-evidence rows; one that a row contains takes that row as its source, one that no row contains is QUARANTINED
+   (kept on disk, read by nobody, restorable) - never deleted. Runs when an unsourced trusted quote exists, so on a station whose evidence
+   already carries sources it reads nothing. */
+function reproveTrustedInterests() {
+  const st = Interests.normalize(interestsState, Date.now());
+  const unproven = Object.values(st.trustedTopics || {}).some(t => t.ev.some(e => !e.src));
+  if (!unproven) return 0;
+  const flat = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim().toLowerCase();
+  const rows = transcriptStore.view('owner-evidence', null, { limit: 20000 }).map(r => ({ text: flat(r.content), src: { streamId: r.streamId, runId: r.sourceRunId, rowId: r.rowId } }));
+  const next = Interests.reprove(st, q => { const k = flat(q); const hit = k ? rows.find(r => r.text.includes(k)) : null; return hit ? hit.src : null; }, { now: Date.now() });
+  const held = Object.keys(next.quarantined || {}).length;
+  interestsState = next; persistInterests();
+  console.log('[scout] trusted interest evidence re-proved against the owner rows' + (held ? ': ' + held + ' topic(s) quarantined (kept, not read)' : ''));
+  return held;
+}
+setImmediate(() => { try { reproveTrustedInterests(); } catch (e) { failNote('interests.reprove', e); } });
 function persistScout() { try { saveResilient(SCOUT_FILE, { v: 1, state: scoutState }); } catch (e) { console.warn('[scout] state persist failed:', (e && e.message) || e); } }
 function scoutNote(entry) { scoutState = Scout.note(scoutState, entry, { now: Date.now() }); persistScout(); }
 // sweep aged-out undecided drafts (DRAFT_TTL_MS) before any decide()/status read, so stale drafts never
@@ -8480,6 +8796,8 @@ async function runScoutCycle(o) {
   };
   try {
     const pack = nightshiftContextPack();
+    const cycleStamp = draftStamp(pack), admitted = () => forgetRegistry.admit(cycleStamp);   // what this cycle's prompts quote: its notes and drafts carry it, and a delete since refuses them
+    const note = e => scoutNote(Object.assign({}, e, cycleStamp));
     const activity = pack.trustedActivityLines || [];   // legacy run titles may ground weak activity, never mint trusted topic history
 
     // 1) INTEREST EXTRACTION — earns itself on its own cadence (interests.shouldExtract), reads only REAL activity.
@@ -8492,10 +8810,14 @@ async function runScoutCycle(o) {
       );
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
       if (!learningUnchangedSince(pz)) return;
+      if (!admitted()) return;   // …and so does a delete of a session the prompt quoted
       const cands = Interests.parse(reply, { activityLines: activity, requireExactEvidence: true });
-      interestsState = Interests.fold(interestsState, cands, { now: Date.now(), trustedActivity: true });
+      // each trusted quote takes the source row of the activity line it came from (pack.trustedActivity, parallel to the lines); a source whose
+      // session was deleted while the pass ran is refused by the registry's write-time gate
+      interestsState = Interests.fold(interestsState, cands, { now: Date.now(), trustedActivity: true, activity: pack.trustedActivity,
+        admit: src => forgetRegistry.admit({ streamId: src.streamId, rowId: src.rowId }) });
       persistInterests();
-      scoutNote({ kind: 'interests', outcome: cands.length ? 'folded' : 'none', reason: cands.length ? cands.map(c => c.label).join(', ') : 'no specific recurring topics' });
+      note({ kind: 'interests', outcome: cands.length ? 'folded' : 'none', reason: cands.length ? cands.map(c => c.label).join(', ') : 'no specific recurring topics' });
     }
 
     // 2) MINT ATTEMPT — at most one per cycle; the pure gates decide if and which kind. A non-firing gate is
@@ -8509,7 +8831,7 @@ async function runScoutCycle(o) {
     scoutSweep();   // age out stale drafts first — an undecided-draft backlog must not wedge the gate at 'full'
     const d = Scout.decide(scoutState, { now: Date.now(), warm: warm, dossierWarm: dossierWarm });
     if (!d.fire) return;
-    if (d.coldStart) scoutNote({ kind: 'cycle', outcome: 'coldstart', reason: 'day-one mint unlocked by the commander dossier (interests not warm yet)' });
+    if (d.coldStart) note({ kind: 'cycle', outcome: 'coldstart', reason: 'day-one mint unlocked by the commander dossier (interests not warm yet)' });
     // CROSS-WIRE: the shared declined index — a recipe/class shape the Commander declined in ANOTHER surface is
     // suppressed here too (in addition to the scout's own fingerprint denylist), with an honest ledger note.
     const declinedIdx = buildDeclinedIndex(agentId);
@@ -8530,20 +8852,21 @@ async function runScoutCycle(o) {
       });
       const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive);
       if (!learningUnchangedSince(pz)) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget
+      if (!admitted()) return;   // …or a delete of a session the prompt quoted
       // grounding = the same evidence the directive showed the model — the WHY must cite it (parseRecipe guard). The
       // direction block is part of that evidence, so a WHY that cites an open quest / the north star is grounded —
       // and so is the DOSSIER (it rides the directive at dossierBlock; excluding it here silently killed any WHY
       // that honestly cited the Commander's own stated pain/ambition — the exact grounding a cold-start mint has).
       const parsed = Scout.parseRecipe(reply, { existingRecipes: existing, denylist: scoutState.denylist, gearKeys: SCOUT_CAP_KEYS, grounding: [interestsBlock, activityBlock, directionBlock, dossierBlock].filter(Boolean).join('\n') });
       scoutState = Scout.stampAttempt(scoutState, 'recipe', { now: Date.now(), coldStart: !!d.coldStart });
-      if (parsed && parsed.none) scoutNote({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
-      else if (!parsed) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
-      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) scoutNote({ kind: 'recipe', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
+      if (parsed && parsed.none) note({ kind: 'recipe', outcome: 'none', reason: 'model judged the library already serves the observed interests' });
+      else if (!parsed) note({ kind: 'recipe', outcome: 'rejected', reason: 'draft failed hard validation (malformed / broken template / near-duplicate / denylisted)' });
+      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) note({ kind: 'recipe', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
       else {
         const recId = crypto.randomUUID();
-        scoutState = Scout.stage(scoutState, { id: recId, kind: 'recipe', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint }, { now: Date.now() });
-        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'recipe', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-        scoutNote({ kind: 'recipe', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
+        scoutState = Scout.stage(scoutState, { id: recId, kind: 'recipe', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint, ...cycleStamp }, { now: Date.now() });
+        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'recipe', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+        note({ kind: 'recipe', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
       }
     } else if (d.kind === 'prospect') {
       // ARCHETYPE MATCH FIRST (recuration 2026-07-14): when the learned interests point at a dormant curated
@@ -8555,15 +8878,16 @@ async function runScoutCycle(o) {
         denylist: scoutState.denylist
       });
       if (archMatch) {
+        if (!admitted()) return;
         const draft = Scout.archetypeDraft(archMatch.archetype);
         if (declinedIdx.has(draft.name) || declinedIdx.has(draft.name + ' ' + draft.tagline)) {
           scoutState = Scout.stampAttempt(scoutState, 'prospect', { now: Date.now() });
-          scoutNote({ kind: 'prospect', outcome: 'rejected', reason: 'archetype match declined elsewhere', title: draft.name });
+          note({ kind: 'prospect', outcome: 'rejected', reason: 'archetype match declined elsewhere', title: draft.name });
         } else {
           const recId = crypto.randomUUID();
-          scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: draft, why: archMatch.why, fingerprint: archMatch.fingerprint }, { now: Date.now() });
-          recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: draft.name, target: draft.id || '', evidence: [{ id: 'learned-topic', type: 'topic', quote: archMatch.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-          scoutNote({ kind: 'prospect', outcome: 'staged', reason: archMatch.why, title: draft.name });
+          scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: draft, why: archMatch.why, fingerprint: archMatch.fingerprint, ...cycleStamp }, { now: Date.now() });
+          recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: draft.name, target: draft.id || '', evidence: [{ id: 'learned-topic', type: 'topic', quote: archMatch.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+          note({ kind: 'prospect', outcome: 'staged', reason: archMatch.why, title: draft.name });
         }
         return;
       }
@@ -8584,18 +8908,19 @@ async function runScoutCycle(o) {
       });
       const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive);
       if (!learningUnchangedSince(pz)) return;
+      if (!admitted()) return;
       const parsed = ProspectGen.parse(reply, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs, existingClasses: existing });
       scoutState = Scout.stampAttempt(scoutState, 'prospect', { now: Date.now() });
       // ProspectGen.parse has no denylist arm — enforce the dismissed-shape memory here (same 0.6 overlap rule).
       const denied = parsed && parsed.draft && scoutState.denylist.some(fp => Scout.overlap(parsed.fingerprint, fp) >= 0.6);
-      if (parsed && parsed.none) scoutNote({ kind: 'prospect', outcome: 'none', reason: 'model judged an existing class already serves the gap' });
-      else if (!parsed || denied) scoutNote({ kind: 'prospect', outcome: 'rejected', reason: denied ? 'dismissed-shape denylist' : 'draft failed hard validation (bad kit/skills, near-duplicate, or malformed)' });
-      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) scoutNote({ kind: 'prospect', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
+      if (parsed && parsed.none) note({ kind: 'prospect', outcome: 'none', reason: 'model judged an existing class already serves the gap' });
+      else if (!parsed || denied) note({ kind: 'prospect', outcome: 'rejected', reason: denied ? 'dismissed-shape denylist' : 'draft failed hard validation (bad kit/skills, near-duplicate, or malformed)' });
+      else if (declinedIdx.has(parsed.draft.name) || declinedIdx.has(parsed.draft.name + ' ' + parsed.draft.tagline)) note({ kind: 'prospect', outcome: 'rejected', reason: 'declined elsewhere', title: parsed.draft.name });
       else {
         const recId = crypto.randomUUID();
-        scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint }, { now: Date.now() });
-        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1' }, Date.now()).catch(swallow('recledger.record'));
-        scoutNote({ kind: 'prospect', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
+        scoutState = Scout.stage(scoutState, { id: recId, kind: 'prospect', draft: parsed.draft, why: parsed.why, fingerprint: parsed.fingerprint, ...cycleStamp }, { now: Date.now() });
+        recommendationLedger.record({ id: 'scout:' + recId, surface: 'scout', kind: 'prospect', title: parsed.draft.name, target: parsed.draft.id || '', evidence: [{ id: 'scout-context', type: 'context', quote: parsed.why }], readiness: { ready: commanderPosture.ready(), reasons: [] }, modelVersion: 'scout-v1', ...cycleStamp }, Date.now()).catch(swallow('recledger.record'));
+        note({ kind: 'prospect', outcome: 'staged', reason: parsed.why, title: parsed.draft.name });
       }
     }
   } catch (e) {
@@ -9115,7 +9440,7 @@ function nightshiftBeliefMap() {
 // initially clean directive cannot reappear as owner chat. The pure pack never renders an internal run title.
 // Shared by the context pack and the readiness count, so both always read the SAME projection.
 function nightshiftRecentRuns() {
-  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && !sessionRunForgotten(r) && (r.internal || (!r.taintedBy && !r.wordless && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
+  try { return (runStore.list(null, { limit: 60 }) || []).filter(r => r && runView('nightshift', r) && (r.internal || (!r.taintedBy && !r.wordless && !TrustedLearning.quotedMaterial(r.title)))).map(r => ({ title: r.title, ts: r.ts, streamId: r.streamId, reason: r.reason, internal: !!r.internal })); } catch (_) { return []; }
 }
 
 /* NS-2: the CONTEXT-PACK io — the ambient half of contextpack.js. Gathers REAL recent activity from the durable
@@ -9183,6 +9508,7 @@ function nightshiftContextPack(evidence) {
   // from the proven transcript/brief projection; retain internal run markers solely to suppress self-talk.
   pack.trustedActivityLines = pack.activityLines;
   pack.trustedActivity = pack.activity;
+  pack.assembledAt = now;   // when its lines were read: the read time of every session they quote (packQuotes)
   // the count of recent USER-INITIATED runs the pack recognized — the ACTIVITY-as-grounding evidence for readiness.
   // (nightshiftUserRunCount computes exactly this without building the rest of the pack.)
   pack.userRunCount = (pack.counts && pack.counts.runs) || 0;
@@ -9218,7 +9544,7 @@ function stationTrackRecord() {
        the memo is cleared by nothing and needs to be: it re-folds on its own within the window. */
     const now = Date.now();
     if (_trackRecordMemo.rec && (now - _trackRecordMemo.at) < 30000) return _trackRecordMemo.rec;
-    const rec = Outcomes.fold(runStore.list(null, { limit: 400 }), { now: now, verdicts: ratingVerdictMap() });
+    const rec = Outcomes.fold(runStore.list(null, { limit: 400 }).filter(r => runView('outcomes', r)), { now: now, verdicts: ratingVerdictMap() });
     _trackRecordMemo = { at: now, rec: rec };
     return rec;
   } catch (_) { return null; }
@@ -9244,7 +9570,7 @@ function commanderEvidenceContext(existingSystem, extra, evidence) {
 /* One lazy owner-evidence assembly: RAM supplies recency, recorded directive IDs require the bounded disk proof,
    and legacy briefs may add at most sixty original-run reads. Never replace an unproven ID with matching text. */
 function evidenceRows(ev) {
-  if (!ev.runs) ev.runs = runStore.all();
+  if (!ev.runs) ev.runs = runStore.all().filter(r => runView('evidence', r));
   if (!ev.transcript) {
     ev.ownerRecent = transcriptStore.view('owner-evidence', null, { limit: 400 });
     const briefs = taskBriefStore.list({ limit: 500 }), ids = new Set(briefs.map(b => b.directiveRowId).filter(id => Number.isSafeInteger(id) && id > 0));
@@ -9408,7 +9734,7 @@ async function runNightshiftBeat(opts) {
 
   // 1) PROPOSE — the directive LEADS with the focus, then the OPEN-THREADS + recent-activity blocks; the grounding
   //    veto's evidence pool = beliefs + activity + thread texts (a thread-tag citation is the preferred grounding).
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...packQuotes(pack), messages: [{ role: 'user', content: Autopilot.buildCandidateDirective({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
   const offFocus = [];
   const candidates = nightshiftUndeclined(agentId, Autopilot.parseCandidates(cRes.text, { eligible, beliefs, activity, threads, focus: foc.focus || null, onDrop: (c) => offFocus.push(c.title) }));
@@ -9420,10 +9746,15 @@ async function runNightshiftBeat(opts) {
   ledgerPriorWorkVeto(agentId, priorVeto);
   const sel = Autopilot.scoreAndSelect(priorVeto.candidates, { weights: nightshiftPreferenceWeights() });
   if (!sel.selected) return { delivered: false, reason: sel.reason };
+  // the do and critique runs are composed from the selected idea, which was composed from the pack's sessions: they quote them too. Kept on the selection
+  // itself, out of its enumerable fields, so it never rides the idea into a ledger or a file (and the critique step reads only what it is handed)
+  Object.defineProperty(sel, 'quoted', { value: packQuotes(pack), enumerable: false });
+  const quotedFrom = quotedStamp(sel.quoted);   // the stamp every record of this beat carries; a delete since the pack was read refuses the beat
+  if (!forgetRegistry.admit(quotedFrom)) return { delivered: false, reason: 'source-forgotten' };
   const draftRecId = 'nightshift-draft:' + String(opts.runId || crypto.randomUUID());
   recommendationLedger.record({ id: draftRecId, surface: 'nightshift', kind: sel.selected.archetype || 'draft', title: sel.selected.title,
     target: sel.selected.threadId || '', evidence: [{ id: sel.selected.threadId ? 'thread:' + sel.selected.threadId : 'nightshift-grounds', type: sel.selected.threadId ? 'thread' : 'context', quote: sel.selected.grounds || '' }],
-    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2' }, Date.now()).catch(swallow('recledger.record'));
+    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2', ...quotedFrom }, Date.now()).catch(swallow('recledger.record'));
   // NS-6 writeback: the selected candidate cited an open thread → mark it PICKED (it's being worked this beat).
   if (sel.selected.threadId) { try { await threadsStore.pick(sel.selected.threadId, Date.now()); } catch (_) {} }
   // CONVEYOR TRUTH (2026-07-18): the crate used to be dropped AFTER the draft landed, keyed to a runId no run.end
@@ -9435,14 +9766,14 @@ async function runNightshiftBeat(opts) {
   let beatDelivered = false;
   try {
   // 3) DO — the do directive stays on the declared focus too.
-  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
+  const dRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...sel.quoted, messages: [{ role: 'user', content: Autopilot.buildDoDirective(sel.selected, { name, focusHeader, continueFrom: sel.selected.continueOf ? { title: sel.selected.continueOf.title, where: 'desk draft' } : null }) }] });   // reason-only: no tools, so never "read its files"
   if (dRes.error) return { delivered: false, reason: dRes.error };
   let deliverable = Autopilot.parseDeliverable(dRes.text, { fallbackTitle: sel.selected.title });
   if (!deliverable) return { delivered: false, reason: 'no-deliverable' };
   // 3b) SELF-CRITIQUE
   const style = (beliefs.style || []).join('; ');
   const standingOrders = (beliefs.standing_orders || []).join('; ');
-  const qRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }] });
+  const qRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...sel.quoted, messages: [{ role: 'user', content: Autopilot.buildCritiqueDirective(deliverable, sel.selected, { style, standingOrders }) }] });
   // a review whose run ENDED without succeeding (cut, a limit, a STOP or E-STOP mid-review: nightshiftChat's outcome beside its error) is no
   // verdict — the beat stands down, never 'ship' by default (review 7.1); a review whose run raised an error ships the finished draft unreviewed, as before
   if (qRes && qRes.error && qRes.outcome) return { delivered: false, reason: qRes.error };
@@ -9453,8 +9784,8 @@ async function runNightshiftBeat(opts) {
   // 4) DELIVER — record the draft (the digest reads these) + surface to the floor via the SAME crate/beat plumbing
   //    an autonomous cron run uses, so the "while you were away" digest still works. Reach stays sandbox: nothing
   //    is sent/published/spent; in THIS lane the deliverable is a desk draft (NS-3 upgrades acts to jailed writes).
-  const entry = { title: deliverable.title, archetype: sel.selected.archetype, at: Date.now(), body: String(deliverable.body || '').slice(0, 4000), note: crit.note || '' };
-  recordNightshiftDraft(entry);
+  const entry = { title: deliverable.title, archetype: sel.selected.archetype, at: Date.now(), body: String(deliverable.body || '').slice(0, 4000), note: crit.note || '', ...quotedFrom };
+  if (recordNightshiftDraft(entry) === false) return { delivered: false, reason: 'source-forgotten' };
   // immediate visibility (2026-07-14): a draft landing while the app sits OPEN had no live surface — the
   // morning report needs an app-closure absence and the drafts nudge waits for N unseen. 'notify' is a
   // registered bare-string bus event with no other emitter; the station HUD toasts it on arrival. (The
@@ -9552,7 +9883,7 @@ async function runNightshiftActShift(opts) {
   const priorBuilds = PriorWork.promptLines(priorWork, Date.now());
   const { projectSnapshot, targetRoot } = await resolveProjectPatchTarget(foc);
 
-  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds, projectSnapshot, initiative: currentInitiative() }) }] });
+  const cRes = await nightshiftChat({ agentId, system, signal, broadcast: !!opts.broadcast, ...packQuotes(pack), messages: [{ role: 'user', content: Autopilot.buildCandidateDirectiveV2({ beliefs, activity, threads, eligible, focusHeader, priorTonight, priorBuilds, projectSnapshot, initiative: currentInitiative() }) }] });
   if (cRes.error) return { delivered: false, reason: cRes.error };
   // NS-5b: the PROJECT SNAPSHOT lines (real git status / TODO markers the harness READ) join the grounding-veto
   // evidence pool, so a candidate that grounds itself in the actual repo state (e.g. a planted TODO) survives the
@@ -9583,15 +9914,17 @@ async function runNightshiftActShift(opts) {
   //    the deliverable lands in /pending + /decide exactly like a workshop build (the return card + ship gate are
   //    keyed on a backlog item carrying builtRunId). The item id is deterministic from the runId so it can't collide.
   const runId = opts.runId || crypto.randomUUID();
+  const quotedFrom = quotedStamp(packQuotes(pack));   // what every record of this build carries; a delete since the pack was read refuses it
+  if (!forgetRegistry.admit(quotedFrom)) return { delivered: false, reason: 'source-forgotten' };
   recommendationLedger.record({ id: 'nightshift:' + runId, surface: 'nightshift', kind: sel.selected.archetype || 'build', title: sel.selected.title,
     target: sel.selected.threadId || targetRoot || '', evidence: [{ id: sel.selected.threadId ? 'thread:' + sel.selected.threadId : (targetRoot ? 'project:' + targetRoot : 'nightshift-grounds'), type: sel.selected.threadId ? 'thread' : (targetRoot ? 'project' : 'context'), quote: sel.selected.grounds || focusHeader || '' }],
-    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2' }, Date.now()).catch(swallow('recledger.record'));
+    readiness: { ready: rd.tier === 'hot', reasons: rd.tier === 'hot' ? [] : [rd.tier] }, score: sel.selected.score, modelVersion: 'autopilot-v2', ...quotedFrom }, Date.now()).catch(swallow('recledger.record'));
   const backlogId = 'ns-act-' + runId;
   const title = String(sel.selected.title || 'Autonomy build').slice(0, 200);
   const continueOf = sel.selected.continueOf || null;
   let queued = null;
   try { queued = await workshopStore.queue(agentId, { id: backlogId, title, detail: String(sel.selected.spec || ''), source: 'nightshift', grounds: String(sel.selected.grounds || ''),
-    focusRef: (foc.focus && foc.focus.ref) || '', continuesRunId: (continueOf && continueOf.runId) || undefined }, Date.now()); }
+    focusRef: (foc.focus && foc.focus.ref) || '', continuesRunId: (continueOf && continueOf.runId) || undefined, ...quotedFrom }, Date.now()); }
   catch (_) { /* a queue hiccup (e.g. a title the Commander earlier discarded) → stand down honestly */ return { delivered: false, reason: 'queue-refused' }; }
   // a title already lined up (or discarded) is NOT a new item: building anyway produced an orphan run whose
   // markBuilt found no backlog row, so it never reached the desk. Stand down instead of duplicating the work.
@@ -9619,6 +9952,7 @@ async function runNightshiftActShift(opts) {
       messages: [{ role: 'user', content: prompt }],
       agentId, isTask: true, emit: (typeof opts.emit === 'function' ? opts.emit : function () {}), signal: sig,
       runId, streamId: 'nightshift-act-' + runId, surface: 'autonomous', trigger: 'nightshift', broadcast: !!opts.broadcast,
+      ...packQuotes(pack),   // the sessions its activity came from (commit 11)
       reflect: true,   // a night shift does real work; what it learns is durable memory, not scratch (see the reflect note on /api/run)
       station: room.station   // read above, before the pick, the queued row and the claim
     });
@@ -9671,7 +10005,7 @@ async function runNightshiftActShift(opts) {
   // runNightshiftActShift). The driver's own generic outcome record stays a plain 'note' (no duplicate 'act').
   try { recordAutonomy({ ts: Date.now(), source: 'nightshift', kind: 'act', agentId, runId, reason: 'built', detail: { phase: 'act', title: manifest.title, archetype: sel.selected.archetype, artifacts: paths, continues: (continueOf && continueOf.runId) || undefined } }); } catch (_) {}
   // record the desk draft too, so the "while you were away" digest still lists this beat.
-  try { recordNightshiftDraft({ title: manifest.title, archetype: sel.selected.archetype, at: Date.now(), body: String(manifest.summary || '').slice(0, 4000), wrote: { path: paths } }); } catch (_) {}
+  try { recordNightshiftDraft({ title: manifest.title, archetype: sel.selected.archetype, at: Date.now(), body: String(manifest.summary || '').slice(0, 4000), wrote: { path: paths }, runId, ...quotedFrom }); } catch (_) {}
   return { delivered: true, reason: 'built', title: manifest.title, archetype: sel.selected.archetype, runId, backlogId, artifactPaths: paths, continuesRunId: (continueOf && continueOf.runId) || undefined };
 }
 
@@ -10886,14 +11220,14 @@ async function mintQuestRecommendations(quests, why, capturedGoal = commanderGoa
     const r = await questStore.mint({
       title: q.title, desc: q.desc, reward: q.reward, kind: 'generated', createdBy: 'system:quest-refresh',
       agentId: null, domain: q.domain, goalId: activeGoal && activeGoal.id, milestoneId: activeGoal && activeGoal.milestoneId,
-      contract: q.contract, steps: q.steps, groundedIn: q.groundedIn, executionMode: q.executionMode, whyNow: q.whyNow
+      contract: q.contract, steps: q.steps, groundedIn: q.groundedIn, executionMode: q.executionMode, whyNow: q.whyNow, quotes: q.quotes, quotesAt: q.quotesAt
     }, Date.now());
     if (r && r.ok) {
       minted++;
       await recommendationLedger.record({ id: 'quest:' + r.id, surface: 'quest', kind: 'quest', title: q.title, target: r.id,
         traits: rankedQ.traits, evidence: [{ id: 'quest-grounding', type: 'context', quote: q.groundedIn }],
         readiness: { ready: true, reasons: [] }, contextId: 'quest-refresh:' + Math.floor(Date.now() / 60000), rank: rankedQ.rank, score: rankedQ.utility,
-        scoreComponents: rankedQ.scoreComponents, modelVersion: 'quest-refresh-v4' }, Date.now()).catch(swallow('recledger.record', null));
+        scoreComponents: rankedQ.scoreComponents, modelVersion: 'quest-refresh-v4', quotes: q.quotes, quotesAt: q.quotesAt }, Date.now()).catch(swallow('recledger.record', null));
       questRefreshNote({ outcome: 'minted', reason: why + ' refresh — ' + q.groundedIn, title: q.title });
     } else questRefreshNote({ outcome: 'rejected', reason: (r && r.error) || 'the store rejected the mint', title: q.title });
   }
@@ -10992,6 +11326,7 @@ async function runQuestRefreshCycle(why) {
     const capturedGoal = commanderGoals.get();
     const capturedGoalBinding = QuestRefresh.goalBinding(capturedGoal);
     const pack = nightshiftContextPack();
+    const refreshStamp = draftStamp(pack), refreshAdmitted = () => forgetRegistry.admit(refreshStamp);   // the sessions this pass's prompt quotes: what it writes carries the stamp, and a delete since refuses it
     const activityBlock = (pack.activityLines || []).slice(0, 10).map(a => '• ' + a).join('\n');
     // RELEVANCE: the interest histogram (what the Commander keeps asking about) is already distilled by the
     // scout lane — fold it into the evidence so quests can ground in real recurring topics, not just the dossier.
@@ -11005,7 +11340,7 @@ async function runQuestRefreshCycle(why) {
     // cold-save guard below. (Completing or dismissing an open generated quest re-opens the fast path.)
     const openGenStationWide = rec.quests.filter(q => questActionable(q) && q.kind === 'generated' && q.agentId == null && (q.goalId || null) === ((capturedGoal || {}).id || null)).length;
     if (QuestRefresh.slateFull(openGenStationWide)) {
-      questRefreshNote({ outcome: 'skipped', reason: 'slate full — ' + openGenStationWide + ' open generated quests already await; complete, pause, or dismiss one to earn a fresh cycle' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'slate full — ' + openGenStationWide + ' open generated quests already await; complete, pause, or dismiss one to earn a fresh cycle' });
       return;
     }
     // PROGRESSION: the most recently completed quests feed the directive so each refresh proposes the NEXT
@@ -11043,14 +11378,14 @@ async function runQuestRefreshCycle(why) {
     // COLD-STATE HONESTY: a station that knows nothing yet has nothing to ground a quest in. Skip the model
     // call entirely and say so — a paid guess would be exactly the ungrounded busywork the doctrine forbids.
     if (!QuestRefresh.hasEvidence(evidenceCtx)) {
-      questRefreshNote({ outcome: 'skipped', reason: 'not enough is known yet (empty dossier, no goal, no activity) — the refresh waits for the station to learn more' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'not enough is known yet (empty dossier, no goal, no activity) — the refresh waits for the station to learn more' });
       return;
     }
     // Standalone auxiliary calls bypass runAgentLoop, so the governor admits this one too (REFRESH QUESTS runs past the token
     // ceiling). A manual refresh changes the cadence, not the spending authority; only an explicit budget resume does.
     const blocked = governor.admit('quest-refresh', { providerId, agentId: 'station', trigger: why === 'manual' ? 'commander' : 'background' });
     if (blocked) {
-      questRefreshNote({ outcome: 'skipped', reason: blocked.gate === 'tokens' ? 'background token ceiling reached' : blocked.unknown
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: blocked.gate === 'tokens' ? 'background token ceiling reached' : blocked.unknown
         ? 'spend history is unavailable — see SETTINGS › SPENDING LIMITS before refreshing quests'
         : 'spending cap reached (' + blocked.scope + ') — resume spending or raise the cap before refreshing quests' });
       return;
@@ -11073,9 +11408,10 @@ async function runQuestRefreshCycle(why) {
       { role: 'user', content: directive }
     ] };
     const out = await spend.stream(provider, req, cost);
+    if (!refreshAdmitted()) { questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'a session this pass read was deleted while it planned' }); return; }
 
     if (capturedGoalBinding !== QuestRefresh.goalBinding(commanderGoals.get())) {
-      questRefreshNote({ outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
+      questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'goal or next milestone changed during planning — refresh will use the new direction' });
       return;
     }
     const grounding = [evidenceCtx.goalNote, dossierBlock, activityBlock, interestsBlock, JSON.stringify(evidenceCtx.progress)].filter(Boolean).join('\n');
@@ -11094,24 +11430,24 @@ async function runQuestRefreshCycle(why) {
     const goal = capturedGoal;
     if (goal && goal.text) questRefreshState = QuestRefresh.setNorthStar(questRefreshState, { text: goal.text, groundedIn: 'the Commander\'s active goal arc', source: 'goal' }, { now: Date.now() });
     else if (parsed.northStar && parsed.northStar.text) {
-      questRefreshState = QuestRefresh.proposeNorthStar(questRefreshState, { text: parsed.northStar.text, groundedIn: 'inferred from the dossier + recent activity', source: 'model' }, { now: Date.now() });
+      questRefreshState = QuestRefresh.proposeNorthStar(questRefreshState, { text: parsed.northStar.text, groundedIn: 'inferred from the dossier + recent activity', source: 'model', ...refreshStamp }, { now: Date.now() });
       const proposed = QuestRefresh.normalize(questRefreshState).proposedNorthStar;
       if (proposed) recommendationLedger.record({ id: 'northstar:' + Recommendation.fingerprint(proposed.text), surface: 'northstar', kind: 'direction', title: proposed.text,
         target: 'pending', traits: ['direction', 'north-star'], evidence: [{ id: 'quest-refresh-context', type: 'context', quote: proposed.groundedIn }],
-        readiness: { ready: true, reasons: [] }, modelVersion: 'quest-refresh-v4' }, Date.now()).catch(swallow('recledger.record'));
+        readiness: { ready: true, reasons: [] }, modelVersion: 'quest-refresh-v4', ...refreshStamp }, Date.now()).catch(swallow('recledger.record'));
     }
     persistQuestRefresh();
 
-    if (parsed.none) { questRefreshNote({ outcome: 'none', reason: 'model judged the open slate already covers the next steps (' + why + ' pass)' }); return; }
-    if (!parsed.quests.length) { questRefreshNote({ outcome: 'rejected', reason: 'every proposed quest failed hard validation (contract / dedup / grounding)' }); return; }
+    if (parsed.none) { questRefreshNote({ ...refreshStamp, outcome: 'none', reason: 'model judged the open slate already covers the next steps (' + why + ' pass)' }); return; }
+    if (!parsed.quests.length) { questRefreshNote({ ...refreshStamp, outcome: 'rejected', reason: 'every proposed quest failed hard validation (contract / dedup / grounding)' }); return; }
     // AUTHORITY BOUNDARY: a pass that inferred a NEW north star may not turn its own guess into open quest
     // authority. Stage the batch with the proposal; confirm mints it, decline erases it.
     if (QuestRefresh.normalize(questRefreshState).proposedNorthStar) {
-      questRefreshState = QuestRefresh.stageQuests(questRefreshState, parsed.quests); persistQuestRefresh();
-      questRefreshNote({ outcome: 'staged', reason: 'quests wait for the Commander to confirm the inferred north star', title: parsed.quests[0].title });
+      questRefreshState = QuestRefresh.stageQuests(questRefreshState, parsed.quests.map(q => Object.assign({}, q, refreshStamp))); persistQuestRefresh();
+      questRefreshNote({ ...refreshStamp, outcome: 'staged', reason: 'quests wait for the Commander to confirm the inferred north star', title: parsed.quests[0].title });
       return;
     }
-    await mintQuestRecommendations(parsed.quests, why, capturedGoal);
+    await mintQuestRecommendations(parsed.quests.map(q => Object.assign({}, q, refreshStamp)), why, capturedGoal);
   } catch (e) {
     try { questRefreshNote({ outcome: 'error', reason: (e && e.message) || 'quest refresh cycle failed' }); } catch (_) {}
   } finally {
@@ -12634,7 +12970,7 @@ const remoteHost = require('./remote/host.js').makeRemoteHost({
   spriteSet: (skin) => remotePortraits.setFor(skin),
   sprites: (key) => remotePortraits.framesFor(key),
   // the run history the desk's activity feed reads (newest first)
-  runHistory: (n) => runStore.list(null, { limit: n }),
+  runHistory: (n) => (runStore.list(null, { limit: n }) || []).filter(r => runView('remote', r)),
   // the desk's own sessions (title, agent, history) live in the station save the page mirrors here
   deskSessions: () => { const save = saveStore.load('agent') || {}; return Array.isArray(save.workstreams) ? save.workstreams : []; },
   workerThreadIds: () => { try { return overseer.threads().filter(t => t.worker === true).map(t => t.id); } catch (e) { failNote('remote.worker-threads', e); return []; } },
@@ -15225,7 +15561,7 @@ function budgetUnsettledRuns() {
   return ledger.unsettledRuns().map(r => {
     const item = items.get(String(r.runId)) || {};
     let title = '';
-    try { const row = runStore.latest(r.runId); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
+    try { const row = runView('budget', runStore.latest(r.runId)); title = String((row && row.title) || ''); } catch (e) { failNote('budget.unsettled.title', e); }
     // a skill evaluation is never in run history: name it by its receipt's runId (which survives a restart), so the
     // panel does not call a finished evaluation an interrupted run of the agent
     const evaluation = item.kind === 'evaluation';
@@ -15787,7 +16123,7 @@ function collectExportSnapshot(bodySections) {
     budget: Object.assign({}, budgetOverrides),
     fallback: effectiveFallbackChain(),
     roster: roster,
-    dossier: commanderDossier.get(),
+    dossier: commanderDossier.meta(),   // block + sourceRunIds + complete: a restore is admitted by what the block was learned from
     permissions: [...grantsPermanent],
     connectors: connectors
   };
@@ -15939,6 +16275,7 @@ async function handleConfigImport(req, res) {
   const only = Array.isArray(body.only) && body.only.length ? new Set(body.only) : null;
   const want = (name) => (!only || only.has(name)) && Object.prototype.hasOwnProperty.call(parsed.sections, name);
   const applied = [];
+  const importNotes = [];
   const effectiveSecretsNeeded = (parsed.secretsNeeded || []).filter(x => x && x.kind !== 'connector');
   const sec = parsed.sections;
   let connectorPlan = null;
@@ -15970,7 +16307,11 @@ async function handleConfigImport(req, res) {
     }
     saveAgentRoster(); applied.push('roster');
   }
-  if (want('dossier') && sec.dossier) { commanderDossier.set(sec.dossier.block || ''); applied.push('dossier'); }
+  if (want('dossier') && sec.dossier) {
+    // a restored backup is a write like any other: admitted by the runs its block was learned from (an old backup that names none is incomplete)
+    const verdict = commanderDossier.offer(sec.dossier.block || '', sec.dossier);
+    if (verdict.admitted) applied.push('dossier'); else importNotes.push('The saved Commander dossier was not restored: ' + (verdict.reason === 'source-forgotten' ? 'it was learned from a session you deleted.' : 'it cannot show what it was learned from since you deleted a session. The station rebuilds it from what it knows now.'));
+  }
   if (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow)) {
     // UNION with existing grants (import never silently REVOKES a live grant); stamp provenance for new keys.
     const next = new Set([...grantsPermanent]);
@@ -16010,7 +16351,7 @@ async function handleConfigImport(req, res) {
   if (want('autonomy') && sec.autonomy) browser.autonomy = sec.autonomy;
   if (want('notifyPrefs') && sec.notifyPrefs) browser.notifyPrefs = sec.notifyPrefs;
 
-  return json(200, { ok: true, applied, secretsNeeded: effectiveSecretsNeeded, notes: parsed.notes || [], browser });
+  return json(200, { ok: true, applied, secretsNeeded: effectiveSecretsNeeded, notes: (parsed.notes || []).concat(importNotes), browser });
 }
 
 /* POST /api/config/reset { section } -> reset ONE server-side section to its environment/empty default, live.
@@ -16027,7 +16368,7 @@ async function handleConfigReset(req, res) {
       applyBudgetCaps(); break;
     case 'fallback': fallbackSaved = null; saveFallbackChain(); break;
     case 'roster': agentRoster.clear(); saveAgentRoster(); break;
-    case 'dossier': commanderDossier.set(''); break;
+    case 'dossier': commanderDossier.offer('', { complete: true }); break;
     case 'permissions': {
       // Revoke authority on disk first. If the durable replacement fails, the live grant must remain visible and
       // active; reporting success and clearing RAM would let it silently resurrect on restart.
@@ -19081,7 +19422,8 @@ async function deliverableRows() {
     jobRows.push(row);
     for (const r of (job.runs || [])) if (r && r.runId) jobOfRun.set(r.runId, row);
   }
-  for (const run of runStore.list(null, { limit: 1000 })) {
+  // typeof: test/outcome-family.census slices this function and runs it with only the names it hands in (no runView); here runView always exists
+  for (const run of runStore.list(null, { limit: 1000 }).filter(r => typeof runView !== 'function' || runView('deliverables', r))) {
     if (/^workshop-/.test(String(run.streamId || ''))) continue;
     const arts = run.artifacts || [];
     const jobRow = jobOfRun.get(run.runId);
@@ -20482,9 +20824,10 @@ async function handleDossier(req, res) {
   let body;
   try { body = JSON.parse(await readBody(req, 1 << 16)); }
   catch (e) { res.writeHead(400); return res.end('bad json'); }
-  commanderDossier.set(body && body.block);
+  // the push names the runs its derived beliefs were learned from (sourceRunIds) and whether it names them all (complete): derivedAdmission
+  const verdict = commanderDossier.offer(body && body.block, body);
   res.writeHead(200, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify({ ok: true, chars: commanderDossier.get().length }));
+  res.end(JSON.stringify({ ok: true, chars: commanderDossier.get().length, admitted: verdict.admitted, ...(verdict.admitted ? {} : { reason: verdict.reason, forgotten: verdict.forgotten }) }));
 }
 
 // POST /api/goals { goal } — GROWTH Tier 2: the browser pushes the ACTIVE goal-arc summary whenever it changes
@@ -21510,6 +21853,7 @@ function openRunAnswer(res, sink, receipt) {
 }
 
 async function handleRun(req, res) {
+  const receivedAt = Date.now();   // when the request arrived: the read time of the session a page-composed internal prompt quotes (quotesStream)
   let body;
   try { body = JSON.parse(await readBody(req, 2 << 20, res)); }
   catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }   // over-limit already answered 413
@@ -21910,6 +22254,7 @@ async function handleRun(req, res) {
       retryUserRunId: body && body.retryUserRunId,
       windowTokens: body && Number.isFinite(body.windowTokens) ? body.windowTokens : undefined, windowFrom: body && body.windowFrom === 'station' ? 'station' : undefined, windowCaller: TurnWindow.callerOf(body),
       turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
+      ...(body && typeof body.quotesStream === 'string' && QUOTE_SID_RE.test(body.quotesStream) ? { quotes: [body.quotesStream], quotesAt: receivedAt } : {}),   // an internal call the page composed from a session's words (the retitle, the goal judge) quotes that session (commit 11; additive body field, a bad id dropped)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -22397,8 +22742,90 @@ async function runOnceCore(o) {
     initialTaint: o.initialTaint ? String(o.initialTaint === true ? 'scheduled upstream context' : o.initialTaint) : attachTaint,   // a caller's own source (hub, channel, upstream, a lead's latch) wins; else the attachment source, only while its bytes are re-sent
     artifacts: makeArtifactCollector(),
     completion: makeCompletionEvidence({ authority: completionAuthority }),
-    now: () => Date.now()
+    now: () => Date.now(),
+    startedAt: runStartedAt   // a saturated run is never saturated later than it began (run-execution-state saturate)
   });
+  /* QUOTES, SEEDED BEFORE ANY TOOL CAN RUN (turn identity commit 11). The run's static quotes (a prompt composed from other sessions:
+     night shift, a worker's brief, an internal call a session asked for) and, for a recovery continuation, everything its SOURCE journal
+     says the source read, share the one latch with the reads this run makes: one capacity, and a seed past it saturates rather than
+     truncating. A source journal that cannot be read is unprovable, so the continuation starts saturated (fail closed). */
+  execution.latchQuotes(staticQuoteEntries(o).concat(briefQuoteEntries(o)));
+  if (o.recovery && o.recovery.sourceRunId) {
+    try {
+      const source = runJournal.inspect(String(o.recovery.sourceRunId));
+      execution.latchQuotes(source.quotes);
+      if (Number.isSafeInteger(source.quotesSaturatedAt)) execution.saturate(source.quotesSaturatedAt);
+    } catch (e) { failNote('turn.quotes.recovery', e); execution.saturate(runStartedAt); }
+  }
+  /* THE SESSIONS THIS RUN HAS READ (turn identity commit 11, A2-FP-01/02/R01). A tool that returns another session's words names those
+     sessions in result.quotedStreams (recall_conversation, session.peek); the dispatch closure asks latchRunQuotes(ids, epoch) for them
+     AFTER the tool ran and BEFORE the result is journaled, bounded, parked or handed to the model. epoch is read just before the
+     dispatch began, so every await between the read and this latch (the registry's park, the post_tool_call observer, a recovery
+     re-dispatch) lies after it. ONE synchronous block, no await: (1) a session deleted at or after the epoch refuses the read
+     ('deleted': it was in flight when the delete landed), (2) more sessions than the run has room for refuses it ('overflow'), else
+     (3) the streams are latched at the epoch, (4) the run record notes them, (5) the journal records them (a read's 'quotes' record
+     therefore precedes the 'tool_result' record it covers) and (6) every LIVE ancestor (the o.parentRunId chain) latches the same
+     entries, so a lead's rows from that moment carry what its worker read. A delete stamped before the block is caught by (1); one
+     stamped after finds this run in liveQuoteRuns (stopQuotingRuns). Over-forgetting is the accepted cost; a read of the run's own
+     stream is never a quote (its tombstone already covers it). A journal that cannot record the read refuses it ('journal').
+     It sits ABOVE latchRunTaint on purpose: test/api-continuation-boundary evaluates the source from latchRunTaint to the HANDED comment on its own. */
+  const noteRunQuotes = () => {
+    try { runStore.noteIdentity(runId, TurnDirective.quoteIdentityOf(execution.quotes())); } catch (e) { failNote('turn.quotes.note', e); }
+  };
+  if (execution.quotes().length) noteRunQuotes();   // the seeded quotes ride the run record whether or not the run journals (an internal run, a retitle, has no journal)
+  const journalRunQuotes = (changed) => {
+    if (!changed.length || !execution.journalStarted() || execution.journalFailed()) return true;   // a latch before the journal starts is flushed right after begin
+    const streams = changed.filter(e => e.id !== TurnKinds.SATURATED), marker = changed.find(e => e.id === TurnKinds.SATURATED);
+    try { runJournal.quotes(runId, Object.assign({}, streams.length ? { streams } : null, marker ? { saturatedAt: marker.at } : null)); return true; }
+    catch (e) { failNote('run-journal.quotes', e); return false; }
+  };
+  const parentQuoteRun = () => (o.parentRunId ? liveQuoteRuns.get(String(o.parentRunId)) : null);
+  // entries a worker BELOW this run read (or its saturation): latched here, noted, journaled, and passed on up; room that runs out saturates this run
+  const chainWorkers = new Set();   // runIds of workers that handed their reads to this run through the live chain (every read of theirs, as it happened): relaying their answer adds nothing
+  const absorbRunQuotes = (entries, depth, fromRunId) => {
+    if (fromRunId) chainWorkers.add(String(fromRunId));
+    const changed = execution.latchQuotes(entries);
+    if (!changed.length) return;
+    noteRunQuotes(); journalRunQuotes(changed);
+    const up = parentQuoteRun();
+    if (up && (depth || 0) < 8) up.absorb(changed, (depth || 0) + 1, runId);
+  };
+  /* RELAYED ANSWERS (A2-FP-02, Q25): a worker's answer is a quote of everything the worker read. While the worker ran, its reads reached
+     this run through the live chain (absorbRunQuotes, above). An answer collected AFTER that (a background worker read back by
+     team.subagents, a resume, a worker another run started) is read from the worker's record - and a worker nothing records is a worker
+     that may have read anything, so this run SATURATES: every row it writes from then on is forgotten after ANY non-adopted delete
+     stamped at or after the time it started. Only a worker row that carries an answer counts; a list of idle workers relays nothing. */
+  const relayRunQuotes = (result) => {
+    let rows = [];
+    try { const parsed = JSON.parse(String(result && result.content)); rows = Array.isArray(parsed) ? parsed : (parsed && typeof parsed === 'object' ? [parsed] : []); }
+    catch (_) { return; }
+    const workers = new Set();
+    for (const row of rows) {
+      if (!row || typeof row !== 'object') continue;
+      const answered = (typeof row.result === 'string' && row.result.trim()) || (row.structuredResult && typeof row.structuredResult === 'object');
+      if (!answered) continue;
+      for (const k of ['runId', 'repairRunId']) if (typeof row[k] === 'string' && row[k] && row[k] !== runId) workers.add(row[k]);
+    }
+    for (const worker of workers) {
+      if (chainWorkers.has(worker)) continue;
+      absorbRunQuotes(workerQuoteEntries(worker) || [{ id: TurnKinds.SATURATED, at: runStartedAt }], 0);   // read again at each relay: latching what is already held changes nothing
+    }
+  };
+  const latchRunQuotes = (ids, epoch) => {
+    const want = Array.from(new Set((Array.isArray(ids) ? ids : []).map(String).filter(id => QUOTE_SID_RE.test(id) && id !== (o.streamId || 'global'))));
+    if (!want.length) return true;
+    for (const id of want) { const at = sessionTombstones.deletedAt(id); if (at > 0 && at >= epoch) return 'deleted'; }
+    if (execution.quoteRoom(want).length < want.length) return 'overflow';
+    const changed = execution.latchQuotes(want.map(id => ({ id, at: epoch })));
+    if (changed.length) {
+      noteRunQuotes();
+      if (!journalRunQuotes(changed)) return 'journal';
+      const up = parentQuoteRun();
+      if (up) up.absorb(changed, 1, runId);
+    }
+    return true;
+  };
+  const liveQuote = { parentRunId: o.parentRunId ? String(o.parentRunId) : '', streamId: o.streamId ? String(o.streamId) : '', latched: () => execution.quotes(), absorb: absorbRunQuotes, abort: () => stopQuotingRun(runId) };
   /* DURABLE TAINT (sec-taint 09-25). A latch made after the run journal began is journaled too, so a recovery
      continuation of this run (which replays its checkpointed context, untrusted bytes included) restores the taint
      from runJournal state instead of starting clean. A latch before the journal rides the begin meta instead.
@@ -22618,6 +23045,7 @@ async function runOnceCore(o) {
   // Everything below is wrapped so the admission slot is ALWAYS released (early-return refusals above run
   // before tryEnter; every exit below — return, throw, or the normal finish — passes through leave()).
   try {
+  if (runId) liveQuoteRuns.set(String(runId), liveQuote);   // a live run a delete must be able to find (stopQuotingRuns) and a worker's reads must be able to reach (absorb)
 
   // ---- managed-credit admission (config-gated; INERT unless STARNET_CREDITS_URL is set) ----
   // A metered run (BYOK-shaped, real $ cost) reserves its per-run cap against the managed account BEFORE the
@@ -23005,7 +23433,7 @@ async function runOnceCore(o) {
   makeFsTools({ fsp, pathMod: path, root: WORKSPACES, environment: executionEnvironment, limits: { writeBytes: 1 << 20, readReturn: 24000 }, redact, pathTrust: runPathTrust, docExtract, imageWire, editDiagnostics: lspManager, spawn: childSpawn }).register(registry);   // redact: scrub secrets out of surfaced fs.search lines (§5.6); baseline-before-edit LSP feedback; spawn: lets fs.search use `rg` when the machine has it
   makeNotebookTools({ store: notebookStore, clock: { now: () => Date.now() }, redact, rank, nextTrust: memcore.nextTrust, findSimilar: memcore.findSimilar, similarity: memcore.tokenJaccard, onSaved: recordRunReceipt, sharedStanding: () => (tasteWithheld || !personalizationStore.read().enabled) ? [] : FeedbackMemory.stationStanding(notebookStore.get('notebook:' + agentId), otherAgentNotebooks(agentId)).filter(r => r.foreign) }).register(registry);   // §5.6: scrub secrets at the write boundary; rank: explicit read shares auto-recall's relevance order; nextTrust: notebook.feedback rating fold; findSimilar: near-dupe guard so the same belief can't accumulate in N phrasings; similarity: the same-subject listing; onSaved: this run's COMMS receipt
   widgetTools.register(registry);   // WIDGET RAILS Phase 2: widget.set — agent-fed rail readouts (memory capability: sandboxed local write, no consent, no network)
-  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld }).register(registry);   // H1.3: recall_conversation — agent searches its own past dialogue (transcriptstore); joins the NOTEBOOK (memory) capability · a non-owner/group run (and its workers) never reads the Commander's other workstreams
+  makeRecallTool({ transcriptStore, ownStreamOnly: () => tasteWithheld, quoteRoom: ids => execution.quoteRoom(ids) }).register(registry);   // H1.3: recall_conversation — agent searches its own past dialogue (transcriptstore); joins the NOTEBOOK (memory) capability · a non-owner/group run (and its workers) never reads the Commander's other workstreams
   makeSkillTools({
     store: skillStore,
     gate: skillGate,   // guard verdict enforcement: a withheld skill lists as withheld and refuses to load its body
@@ -23086,7 +23514,7 @@ async function runOnceCore(o) {
       : runOnce,
     roster: () => agentRoster, key: runKey, model, provider: providerId, baseUrl, reasoningEffort, subagents,
     finalizeDispatchDelivery: (id, envelope) => dispatchDeliveryStore.finalizeDispatchDelivery(dispatchDeliveryDeps, id, envelope),
-    runRecord: (id) => runStore.latest(id),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
+    runRecord: (id) => runView('orchestration', runStore.latest(id)),   // team.subagents {runId}: verify a foreground dispatch against run history (#57)
     // THE HAND-OFF: where a worker's saved files really are (existing files only), and the lead's right to read them.
     // Each name resolves against the WORKER run's one base (where.projectRoot: its run row's root, which orchestration
     // looks up; '' = its private workspace), never by probing the private workspace and then the lead's project
@@ -23165,7 +23593,8 @@ async function runOnceCore(o) {
   // uses. Same 'orchestrator' capability gate as team.* — conferred on the lead run only, so a delegated
   // worker can never open or steal the Commander's sessions. Only visual actions require a live page.
   makeStationTools({ station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
-    ? overseerStation(o.streamId, runId) : stationBridge, scanText: t => cronGuard.scanRoutinePrompt(t), now: () => Date.now(),
+    ? overseerStation(o.streamId, runId, ids => execution.quoteRoom(ids)) : stationBridge, scanText: t => cronGuard.scanRoutinePrompt(t), now: () => Date.now(),
+    quoteRoom: ids => execution.quoteRoom(ids),   // session.peek: one run reads at most QUOTES_MAX sessions (commit 11)
     // THE LENT BUILDER: a delegated run's planner refuses binds and recruits, and its builds carry its own name
     agentId, delegatedBy: o.delegatedBy || '',
     agentName: String((agentRoster.get(agentId) || {}).name || agentId),
@@ -23722,6 +24151,7 @@ async function runOnceCore(o) {
     // design: a parker that fails degrades to the plain clamp rather than failing the tool call.
     parkOutput: async (content, meta) => {
       try {
+        if (meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length) return null;   // quoted words never become a workspace file (commit 11): the plain clamp stands
         const safeTool = String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40);
         /* PROVENANCE IN THE NAME (sec-taint 09-25): bytes from an untrusted source (web / connector result), a
            tainted worker's relayed text, or anything this run parks after it was tainted are saved as
@@ -24022,6 +24452,7 @@ async function runOnceCore(o) {
     store: runTranscriptStore, hold: keySaveOffered ? () => !keySavedThisRun : null, streamId: o.streamId, agentId, runId, from: o.delegatedBy || '', dispatchState: transcriptState,
     turnId: () => runStartExtra.turnId,   // read at each write: the directive and every row of this run carry the run's turn
     stamp: true, rowKind: kinds.rowKind, directiveKind: kinds.directiveKind, line: kinds.line,   // every row names its kind
+    quotes: () => execution.quotes(),   // read at each drain: a row drained after a read carries the sessions read so far (commit 11)
     // rows written after untrusted content entered this run carry its taint source (sec-taint 09-25)
     taint: () => execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null),   // rowTaint, not taintedBy: the bare attachment stamp decays, so it must never hide a later source (taint-replay.js)
     // mid-run write failures never kill the run or reorder dialogue: the rows stay pending (and in the run journal)
@@ -24480,6 +24911,7 @@ async function runOnceCore(o) {
       // Keep the first dispatch explicit at this security boundary: the taint gate above is visibly and
       // mechanically before execution. Recovery can only repeat this call after the pure policy proves it is a
       // host-defined read with a transient failure; registry.dispatch re-runs every authority/gate/hook on retry.
+      const quoteEpoch = Date.now();   // read epoch: at or before any session this dispatch reads (commit 11); every await below lies after it
       r = await registry.dispatch(c, dctx);
       r = await recoverToolResult({
         result: r,
@@ -24496,6 +24928,12 @@ async function runOnceCore(o) {
         }
       }
       r = DomainTask.afterCall(c, r, hostScope, directDomainTask);   // NXDOMAIN on the exact host: a scope stops tools, advice only says so
+      // THE SESSIONS THIS READ DREW ON are latched (or the read refused) before the result is journaled, parked or handed to the loop
+      if (r && Array.isArray(r.quotedStreams) && r.quotedStreams.length) {
+        const verdict = latchRunQuotes(r.quotedStreams, quoteEpoch);
+        if (verdict !== true) { failNote('turn.quotes.' + verdict, new Error('a read was refused: ' + verdict)); r = TurnDirective.quoteRefusal(r, verdict); }
+      }
+      if (r && typeof r.content === 'string' && RELAY_TOOL_RE.test(realName)) relayRunQuotes(r);   // a worker's answer is its reads
       // Persist the full model-visible result before the loop advances to another call/turn. Once dispatch is
       // durable, any exception before this result boundary means the side effect is unknown and must end the run.
       if (execution.journalStarted() && !execution.journalFailed()) runJournal.toolResult(runId, {
@@ -24572,7 +25010,7 @@ async function runOnceCore(o) {
     const rereadsParked = realName === 'fs.read' && isParkedOutputPath(c.args && c.args.path);
     if (!nestedCompose) {
       if (!rereadsParked && execution.willBoundToolResult(r, runToolBytesCap()) && r && typeof r.content === 'string' && !r.parkedPath) {
-        const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget' });
+        const parked = await capCtx.parkOutput(r.content, { tool: c.name, reason: 'run-output-budget', quotedStreams: r.quotedStreams });
         if (parked && parked.path) r = Object.assign({}, r, { parkedPath: parked.path, outputChars: r.content.length });
       }
       // Bound the TOTAL model-visible tool output across a run so a few big fetches/reads cannot blow context.
@@ -25471,6 +25909,7 @@ async function runOnceCore(o) {
       });
       runJournal.checkpoint(runId, { phase: 'initial', turn: 0, messages: msgs });
       execution.startJournal();
+      if (execution.quotes().length && !journalRunQuotes(execution.quotes())) throw new Error('the sessions this run read could not be journaled');   // static quotes and a continuation's source journal, flushed once
     } catch (e) {
       refuse({ message: 'Run could not start safely because its recovery journal could not be persisted: ' + String((e && e.message) || e), failureCode: 'checkpoint_failed' });
       return;
@@ -25924,6 +26363,7 @@ async function runOnceCore(o) {
           }
         }
       }
+      try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), quotes: execution.quotes(), taint: execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
       runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
@@ -25951,8 +26391,8 @@ async function runOnceCore(o) {
           console.warn('[run-journal] retained unsettled run for review:', runId, retirement.state && retirement.state.status);
         }
       } else {
-        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.rowTaint() || (TurnDirective.labelOnly(directive) ? taintPolicy.ATTACHMENT_TAINT : null), content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, dispatchState: transcriptState });
-        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.rowTaint(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, dispatchState: transcriptState });
+        if (title && !retryDirective && !o.syntheticTrigger && !runTranscript.directiveWritten()) transcriptStore.append({ streamId: o.streamId, agentId, role: 'user', taint: execution.rowTaint() || (TurnDirective.labelOnly(directive) ? taintPolicy.ATTACHMENT_TAINT : null), content: title, from: o.delegatedBy || undefined, sourceRunId: runId, turnId: runStartExtra.turnId, kind: kinds.directiveKind, ...TurnKinds.quoteStamp(execution.quotes()), dispatchState: transcriptState });
+        if (result && Array.isArray(result.messages)) transcriptStore.appendNew(o.streamId, agentId, result.messages, { taint: execution.rowTaint(), sourceRunId: runId, turnId: runStartExtra.turnId, kindOf: kinds.kindOf, ...TurnKinds.quoteStamp(execution.quotes()), dispatchState: transcriptState });   // rows written outside the run transcript carry the run's quotes too (commit 11)
       }
     } catch (e) { failNote('run.transcript-end', e); }
     transcriptLiveRuns.delete(runId);   // H2: settled (or retained in the journal) — its rows are ordinary history now
@@ -26199,7 +26639,8 @@ async function runOnceCore(o) {
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = TurnDirective.wording(directive);   // the captured words: never the loop's screen capture or a repair prompt
-    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
+    runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
+      src: Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())) }).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
@@ -26221,7 +26662,7 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
+    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
   }
   if (_auxSpend.has('skill-curator')) {
     runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered }).catch(swallow('aux.skillcurator.envelope'));
@@ -26260,6 +26701,7 @@ async function runOnceCore(o) {
   return result;
 
   } finally {
+    if (runId && liveQuoteRuns.get(String(runId)) === liveQuote) liveQuoteRuns.delete(String(runId));   // first, so a throw below can never leave a finished run to be "stopped"
     // ANSWER HOLD still armed = this run ended (an early refusal return, a throw, a turn-0 provider error) before the
     // model read the Commander's answer: give the question back so the re-sent answer resumes the ORIGINAL task.
     // The store refuses if anything moved since (a newer brief, a proceed/ask/complete) — never a hijack.
@@ -26717,7 +27159,8 @@ async function handleAutonomyPosture(req, res) {
     : ((body.initiative || body.reach || body.leashPerDay != null) ? body : null);   // tolerate a flat posture too
   const postureWritten = !!posture;
   const resumeRequested = postureWritten && body.resumeHalt === true;
-  try { commanderPosture.set(posture, body.beliefs); }
+  let beliefsAdmitted = true, beliefsReason = '', beliefsForgotten = [];
+  try { const w = commanderPosture.set(posture, body.beliefs); beliefsAdmitted = w.beliefsAdmitted; beliefsReason = w.reason; beliefsForgotten = w.forgotten; }
   catch (e) {
     console.warn('[autonomy] posture persist failed:', (e && e.message) || e);
     return json(503, { ok: false, error: 'Autonomy could not be saved. Check available disk space and try again.' });
@@ -26769,7 +27212,7 @@ async function handleAutonomyPosture(req, res) {
   // receipt names what still waits and says "schedules can run" only when the scheduler is armed. null = unknown.
   let haltAfter = null;
   try { haltAfter = haltStatus(); } catch (e) { console.warn('[autonomy] halt read-back failed:', (e && e.message) || e); }
-  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
+  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
 }
 // GET /api/autonomy/posture — the server copy (posture summary + whether a beliefs snapshot is present). Never
 // echoes the raw beliefs texts back to the browser (it already has them); just reports presence + freshness.
@@ -27070,7 +27513,7 @@ function openAskCount() {
 }
 async function awayBriefingInputs(since, now, tzOffsetMin) {
   // a deleted session's runs are not reported back (qa/bugs/3e926b6a)
-  let runs = []; try { runs = (runStore.list(null, { limit: 500, since: Math.max(0, since - 1) }) || []).filter(r => !sessionRunForgotten(r)); } catch (_) { runs = []; }
+  let runs = []; try { runs = (runStore.list(null, { limit: 500, since: Math.max(0, since - 1) }) || []).filter(r => runView('briefing', r)); } catch (_) { runs = []; }
   // the run row keeps deliveryText only for session-scoped runs; a routine/loop's own words live in its durable
   // transcript — read the LAST assistant turn of each briefed stream (bounded) so the excerpt is the run's real output.
   // Read ONCE per stream: every iteration of a loop shares its loop- stream, so 50 overnight iterations were 50 reads
@@ -27156,8 +27599,8 @@ async function handleAwayBriefingDeliver(req, res) {
       // provenance (memory-learning-07): the briefing quotes runs' own output, so a run in its window that read untrusted
       // content makes the briefing row untrusted too; otherwise it is the station's own report (clean)
       const quoted = (inputs.runs || []).find(r => r && r.taintedBy && (Number(r.endedAt) || Number(r.ts) || 0) > since);
-      transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', taint: quoted ? 'away briefing quoting ' + String(quoted.taintedBy).slice(0, 80) : null, content: b.text });
-      const last = { at: now, since: b.since, items: b.items, counts: b.counts };
+      transcriptStore.append({ streamId: AwayBriefing.STREAM_ID, agentId: AWAY_BRIEFING_AGENT, role: 'assistant', taint: quoted ? 'away briefing quoting ' + String(quoted.taintedBy).slice(0, 80) : null, content: b.text, kind: 'briefing', ...TurnKinds.quoteStamp(TurnKinds.quoteEntriesOf(inputs.runs, now)) });   // the briefing quotes the streams of the runs it reports (commit 11): a delete of one takes the row with it
+      const last = { at: now, since: b.since, items: b.items, counts: b.counts, ...TurnKinds.quoteStamp(TurnKinds.quoteEntriesOf(inputs.runs, now)) };   // the sessions it summarised (the briefing row carries the same stamp)
       // asksWaiting: open approvals/questions on the station right now. A waiting ask outranks the report — the page keeps
       // the Commander on the conversation that needs them instead of jumping to the briefing (a reloaded page may not
       // have refiled a background worker's ask yet; the station's own list is the truth)
@@ -29684,7 +30127,7 @@ async function handleGrowthRatings(req, res) {
   const saved = (() => { try { return saveStore.load('agent') || null; } catch (_) { return null; } })();
   const epoch = Math.max(1, Math.floor(Number(saved && saved.agent && saved.agent.createdAt) || 1));
   if (Math.max(1, Math.floor(Number(body.epoch) || 1)) !== epoch) return json(409, { ok: false, error: 'station generation changed; reload before rating' });
-  const allRows = runStore.all();
+  const allRows = runStore.all().filter(r => runView('rating', r));
   const lead = allRows.find(r => r && r.runId === runId);
   if (!lead) return json(404, { ok: false, error: 'rateable run not found' });
   if (lead.internal) return json(409, { ok: false, error: 'internal run cannot be rated' });
@@ -29719,7 +30162,7 @@ async function handleGrowthRatings(req, res) {
         }
         const directive = lead.deliveryPrompt || (packet && packet.directive && packet.directive.text) || (packet && Array.isArray(packet.messages) ? latestUserText(packet.messages) : '') || lead.title || '';   // the packet's captured directive first (already safe)
         const g0 = skillGoldens.mint({ runId, agentId: lead.agentId || 'agent', directive: redact(directive), outputText }, Date.now());   // redacted whatever its source
-        if (g0) {
+        if (g0 && forgetRegistry.admit({ runId, streamId: lead.streamId, at: Date.now() })) {   // the registry's gate: no golden of a forgotten run
           const next = Object.assign({}, goldensByKey);
           for (const id of ids) { const key = String(lead.agentId || 'agent') + '\x00' + id; next[key] = skillGoldens.fold(next[key], Object.assign({}, g0, { skillId: id })); goldensMinted++; }
           persistGoldens(next);
@@ -29765,7 +30208,7 @@ async function handleGrowthRatingCorrection(req, res) {
     const saved = (() => { try { return saveStore.load('agent') || null; } catch (_) { return null; } })();
     const epoch = Math.max(1, Math.floor(Number(saved && saved.agent && saved.agent.createdAt) || 1));
     const rating = growthRatings.get(runId, epoch);
-    const lead = rating ? runStore.all().find(row => row && row.runId === runId) : null;
+    const lead = rating ? runView('feedback', runStore.all().find(row => row && row.runId === runId)) : null;
     // the chat posts the NEXT typed message (within 10 min of a short rating) as the correction; only words that read
     // as feedback on the work become permanent taste ("now summarize my inbox" is a new task, not a dislike). A chip
     // or a rating-body correction is explicit and always counts. The held review still gets the words either way.
@@ -29790,7 +30233,7 @@ async function handleTasteKeepStyle(req, res) {
   catch (_) { return json(400, { ok: false, error: 'bad json' }); }
   const runId = String(body.runId || '').trim();
   if (!runId) return json(400, { ok: false, error: 'runId required' });
-  const lead = runStore.all().find(r => r && r.runId === runId);
+  const lead = runView('keepStyle', runStore.all().find(r => r && r.runId === runId));
   if (!lead) return json(404, { ok: false, error: 'run not found' });
   if (lead.internal) return json(409, { ok: false, error: 'internal run cannot be kept' });
   // { undo: true } — PUT IT BACK / the panel's UNDO: the approval goes too (always allowed, even while learning is paused)
@@ -29860,7 +30303,7 @@ function serveRuns(req, res) {
     if (agent !== '*' && refuseBadAgentId(res, agent)) return;
     const runId = u.searchParams.get('runId') || '';
     if (runId) {
-      const allRows = runStore.all();
+      const allRows = runStore.all().filter(r => runView('runs', r));
       const rows = allRows.filter(r => r.runId === runId).filter(r => agent === '*' || r.agentId === agent);
       return json(200, { runs: rows.map(r => withRunChildren(r, allRows)) });
     }
@@ -29876,14 +30319,14 @@ function serveRuns(req, res) {
     // carries it, and each worker row carried up to 24 KB twice on every reconcile). The page sees textLength differ
     // from the missing text and reads the verified delivery projection. Old envelopes without textLength keep their
     // text, and ?runId= (withRunChildren) is unchanged.
-    const rows = page.slice(0, limit).map(r => {
+    const rows = page.slice(0, limit).filter(r => runView('runs', r)).map(r => {
       const out = withRunTruth(r), d = out.dispatchDelivery;
       if (d && d.state === 'final' && Number.isSafeInteger(d.textLength) && d.textLength > 0 && 'text' in d) {
         out.dispatchDelivery = Object.assign({}, d); delete out.dispatchDelivery.text;
       }
       return out;
     });
-    const nextCursor = page.length > limit && rows.length ? rows[rows.length - 1].runId : '';
+    const nextCursor = page.length > limit ? page[limit - 1].runId : '';   // the page's own last row, not the last one shown: a hidden row must not end the paging
     json(200, { runs: rows, nextCursor, snapshotAt });
   } catch (e) {
     // HONESTY (GROUND_UP_AUDIT P2): a store read that THROWS is a real failure, not "no history" — a
@@ -30047,12 +30490,22 @@ function scanInterruptedRuns(files) {
   };
   setImmediate(step);
 }
+// An interrupted run's journal says which sessions it read; one deleted at or after its read (or any non-adopted delete since a saturated
+// run began) forgets the run (commit 11): its recovery is neither offered, prepared nor consumed - a continuation would replay the tool
+// results that came from the deleted session. A run that began in a session since deleted (its journal names the stream and its start) is
+// forgotten too (commit 12): its journal holds that session's words, so it is never offered, prepared or continued; the file itself stays - an
+// unmatched tool intent in it is the only evidence a side effect may have happened, and the Commander resolves or discards it.
+function runRecoveryForgotten(r) {
+  if (journalQuotesForgotten(r, id => sessionTombstones.deletedAt(id), () => sessionTombstones.latestAt())) return true;
+  const meta = (r && r.meta) || {};
+  return !!meta.streamId && sessionTombstones.forgotten(String(meta.streamId), Number(meta.startedAt) || Number(r && r.firstTs) || 0);
+}
 function canContinueRunRecovery(r) {
-  if (!r || r.status !== 'resolved' || (r.continuation && r.continuation.state !== 'ready')) return false;
+  if (!r || r.status !== 'resolved' || (r.continuation && r.continuation.state !== 'ready') || runRecoveryForgotten(r)) return false;
   try { RunRecovery.continuationPlan(r); return true; } catch (_) { return false; }
 }
 function canAutoContinueRunRecovery(r) {
-  if (!r || r.status !== 'resumable' || (r.continuation && r.continuation.state !== 'ready')) return false;
+  if (!r || r.status !== 'resumable' || (r.continuation && r.continuation.state !== 'ready') || runRecoveryForgotten(r)) return false;
   try { RunRecovery.automaticContinuationPlan(r); return true; } catch (_) { return false; }
 }
 function runRecoveryOperationalState(r) {
@@ -30074,15 +30527,18 @@ function runRecoveryDto(r) {
     }));
     return out;
   };
+  // A run that read a session since deleted (or began in one) is listed as a forensic stub: an unmatched tool intent is still evidence, but its
+  // directive, routine name and checkpoint messages hold that session's words (tool results of a recall or read_session), so none is served.
+  const forgotten = runRecoveryForgotten(r);
   return {
     runId: String(r.runId || ''),
     agentId: String((r.meta && r.meta.agentId) || ''),
     streamId: String((r.meta && r.meta.streamId) || 'global'),
     startedAt: Number((r.meta && r.meta.startedAt) || 0),
-    userTitle: String((r.meta && r.meta.userTitle) || '').slice(0, 1000),
+    userTitle: forgotten ? '' : String((r.meta && r.meta.userTitle) || '').slice(0, 1000),
     trigger: String((r.meta && r.meta.trigger) || ''),
     cronJobId: String((r.meta && r.meta.cronJobId) || ''),
-    cronJobName: String((r.meta && r.meta.cronJobName) || '').slice(0, 200),
+    cronJobName: forgotten ? '' : String((r.meta && r.meta.cronJobName) || '').slice(0, 200),
     status: r.status,
     corrupt: !!r.corrupt,
     repaired: !!r.repairedFrom,
@@ -30116,7 +30572,7 @@ function runRecoveryDto(r) {
     checkpoint: {
       phase: String((r.checkpoint && r.checkpoint.phase) || ''),
       turn: Number((r.checkpoint && r.checkpoint.turn) || 0),
-      messages: Array.isArray(r.checkpoint && r.checkpoint.messages) ? r.checkpoint.messages.slice(-200).map(safeMessage) : []
+      messages: !forgotten && Array.isArray(r.checkpoint && r.checkpoint.messages) ? r.checkpoint.messages.slice(-200).map(safeMessage) : []
     }
   };
 }
@@ -30243,6 +30699,7 @@ async function handleRunRecoveryContinue(req, res) {
   if (!constantTimeTextEqual(body.recoveryToken, runRecoveryToken(current))) {
     return json(409, { error: 'recovery changed; reload before continuing' });
   }
+  if (runRecoveryForgotten(current)) return json(409, { error: 'This run read a session that has since been deleted, so it cannot be continued.' });
   let plan;
   try { plan = automatic ? RunRecovery.automaticContinuationPlan(current) : RunRecovery.continuationPlan(current); }
   catch (e) { return json(409, { error: String((e && e.message) || e) }); }
@@ -30283,6 +30740,12 @@ function consumeRunRecoveryContinuation(request, agentId, continuedRunId) {
   const c = current.continuation;
   if (!c || c.state !== 'ready' || c.continuationId !== continuationId) return { ok: false, code: 409, error: 'continuation is not ready or was already consumed' };
   if (!constantTimeTextEqual(body.continuationToken, runContinuationToken(current))) return { ok: false, code: 409, error: 'continuation token is stale' };
+  // A CONTINUATION REPLAYS THE SOURCE'S CONTEXT, TOOL RESULTS INCLUDED (turn identity commit 11): when the journal says the source read a session
+  // that was deleted at or after the read (or is saturated and any non-adopted delete is stamped since), nothing of it may be handed to a model
+  // again. Refused before the plan or the journal is touched, so nothing is spent and the interrupted run stays as it is.
+  if (runRecoveryForgotten(current)) {
+    return { ok: false, code: 409, error: 'This run read a session that has since been deleted, so it cannot be continued.' };
+  }
   let plan;
   try {
     plan = c.mode === 'automatic'
@@ -30363,7 +30826,7 @@ function serveInsights(req, res) {
        Commander's own run history (none of it is pause-gated), so the record stays visible while personalization
        is paused even though the prompts stop citing it. What a prompt may cite ≠ what the Commander may see. */
     let trackRecord = null;
-    try { const rec = Outcomes.fold(rows, { now: Date.now(), verdicts: ratingVerdictMap() }); trackRecord = { decided: rec.decided, windowMs: rec.windowMs, patterns: Outcomes.summary(rec), lines: Outcomes.lines(rec) }; } catch (_) { trackRecord = null; }
+    try { const rec = Outcomes.fold(rows.filter(r => runView('insights', r)), { now: Date.now(), verdicts: ratingVerdictMap() }); trackRecord = { decided: rec.decided, windowMs: rec.windowMs, patterns: Outcomes.summary(rec), lines: Outcomes.lines(rec) }; } catch (_) { trackRecord = null; }
     json(200, Object.assign(foldInsights(rows, { nowMs: Date.now(), bucketMs: 3600000, buckets: 24 }), { trackRecord }));
   } catch (e) { json(500, readRouteFailure('insights', e)); }   // a zeroed fold would read as "0 runs, $0" — a fabricated telemetry claim
 }
@@ -30393,8 +30856,10 @@ function transcriptRunSince(runId) {
   return at.length ? Math.min.apply(null, at) : 0;
 }
 function transcriptProjection(stream, rows, extra) {
+  // forgotten: the rows of this read window the QUOTE rule hid (and the runs they came from) - the page's affirmative drop proof (TurnMerge R2/R4)
   return turnDual.project(stream, rows, Object.assign({ liveRunIds: transcriptLiveRuns,
-    isCollided: rowId => transcriptIo.isCollided(rowId), forgottenAt: sessionTombstones.deletedAt(stream) }, extra));
+    isCollided: rowId => transcriptIo.isCollided(rowId) }, extra, { forgottenAt: sessionTombstones.deletedAt(stream),
+    forgotten: rows && rows[Symbol.for('starnet.transcript.forgotten')] || undefined }));   // TurnView.FORGOTTEN, by its registry key: this function is evaluated alone by test/transcript-perf-paths
 }
 function serveTurnIdentity(req, res) { respondJson(res, 200, turnDual.status()); }
 async function handleTurnIdentitySoak(req, res) {

@@ -31,6 +31,8 @@ const { note: failNote } = require('./failopen.js');
 const persist = require('./persist/index.js');
 // the bare attachment source, the one taint stamp that decays: analyze() must not let it hide a later source (taint-replay.js)
 const { ATTACHMENT_TAINT } = require('./taint.js');
+// the quote capacity and the one forget rule (frontend/app/turnkinds.js, the module the page and the store share)
+const TurnKinds = require('../frontend/app/turnkinds.js');
 
 const VERSION = 1;
 const MAX_STRING = 200000;
@@ -61,6 +63,32 @@ function isSecretKey(key) {
   return /^(?:password|passwd|passphrase|token|secret|api_key|authorization|cookie|credentials?|private_key)$/.test(norm)
     || /(?:^|_)(?:password|passwd|passphrase|token|secret|api_key|authorization|cookie|credentials?|private_key)(?:_|$)/.test(norm);
 }
+/* A 'quotes' RECORD (turn identity commit 11): the sessions a run has read, { streams: [{ id, at }], saturatedAt? }. A stream id is a
+   workstream id (validated, never a secret), so it is NOT run through the redactor that rewrites long token-shaped strings: a redacted
+   id would fail OPEN (a recovery that no longer recognises a deleted session). Anything that is not a valid id or time is dropped. */
+const QUOTE_SID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+const isTime = v => Number.isSafeInteger(v) && v >= 0;
+function quotesPayload(payload) {
+  const out = {}, streams = [];
+  for (const e of Array.isArray(payload && payload.streams) ? payload.streams : []) {
+    const id = e && typeof e.id === 'string' ? e.id : '';
+    if (!QUOTE_SID_RE.test(id) || streams.length >= TurnKinds.QUOTES_MAX) continue;
+    streams.push({ id, at: isTime(e.at) ? e.at : 0 });
+  }
+  if (streams.length) out.streams = streams;
+  if (payload && isTime(payload.saturatedAt)) out.saturatedAt = payload.saturatedAt;
+  return out;
+}
+/* The ONE forget verdict of a journal's quotes: the state analyze() derived (quotes [{ id, at }], quotesSaturatedAt) against the
+   deleted-session ledger, by the same rule as a row's stamp (TurnKinds.quotesForgotten). A recovery continuation replays this run's
+   context, tool results included, so it is refused once any of it came from a session deleted since the read. */
+function quotesForgotten(state, deletedAt, latestDeleteAt) {
+  if (!state) return false;
+  const stamp = TurnKinds.quoteStamp(state.quotes);
+  if (isTime(state.quotesSaturatedAt)) { stamp.quotes = ['*']; stamp.quotesAt = [state.quotesSaturatedAt]; }
+  return TurnKinds.quotesForgotten(stamp, deletedAt, latestDeleteAt);
+}
+
 function cloneSafe(value, redact, depth, key) {
   if (depth > 20) return '[depth limit]';
   // Credential containers are as sensitive as credential scalars. Check the key before branching on value type.
@@ -346,11 +374,20 @@ function analyze(records, corrupt, damage) {
   let continuation = null;
   let taintedBy = '';           // first durable taint latch (a 'taint' record) — see makeRunJournal.taint
   let otherTaint = '';          // the first one that is not the bare attachment stamp (taint.js ATTACHMENT_TAINT), which must not hide a later source
+  const quoted = new Map();     // streamId -> the earliest read epoch (the 'quotes' records)
+  let quotesSaturatedAt = null; // set once a 'quotes' record says the run could not record everything it read
   for (const r of records) {
     if (r.type === 'taint' && r.payload && r.payload.source) {
       const source = String(r.payload.source).slice(0, 200);
       if (!taintedBy) taintedBy = source;
       if (!otherTaint && source !== ATTACHMENT_TAINT) otherTaint = source;
+    }
+    if (r.type === 'quotes' && r.payload) {
+      for (const e of Array.isArray(r.payload.streams) ? r.payload.streams : []) {
+        const id = e && typeof e.id === 'string' && QUOTE_SID_RE.test(e.id) ? e.id : '', at = e && isTime(e.at) ? e.at : 0;
+        if (id && (!quoted.has(id) || at < quoted.get(id))) quoted.set(id, at);
+      }
+      if (isTime(r.payload.saturatedAt)) quotesSaturatedAt = quotesSaturatedAt === null ? r.payload.saturatedAt : Math.min(quotesSaturatedAt, r.payload.saturatedAt);
     }
     if (r.type === 'checkpoint') {
       if (r.payload && r.payload.phase === 'initial' && !baseCheckpoint) baseCheckpoint = r.payload;
@@ -409,6 +446,12 @@ function analyze(records, corrupt, damage) {
       uncertain.push(pending);
     }
   }
+  // more than the capacity can only be a saturated run: never a cut list
+  if (quoted.size > TurnKinds.QUOTES_MAX) {
+    const earliest = Math.min(...quoted.values());
+    quotesSaturatedAt = quotesSaturatedAt === null ? earliest : Math.min(quotesSaturatedAt, earliest);
+    quoted.clear();
+  }
   const terminal = finishPayload !== null;
   const transcriptAck = !!(terminal && finishPayload.transcriptAck === true);
   if (latestCheckpoint) {
@@ -455,6 +498,9 @@ function analyze(records, corrupt, damage) {
     // attachment stamp never hides a later source: a run that began holding an attachment and then read a page reports the
     // page (index.js latchRunTaint journals it), so the continuation's rows carry a stamp that does not decay.
     taintedBy: (begun !== ATTACHMENT_TAINT && begun) || otherTaint || begun || taintedBy || null,
+    // THE SESSIONS THIS RUN READ ('quotes' records, written before the tool_result record they cover): [{ id, at }] and, once the run
+    // could not record everything it read, the time it saturated. A continuation seeds its latch from these; a delete since refuses it.
+    quotes: Array.from(quoted, ([id, at]) => ({ id, at })), quotesSaturatedAt,
     firstTs: first ? Number(first.ts) || 0 : 0, lastTs: last ? Number(last.ts) || 0 : 0,
     uncertain, replayableReads, replayablePrepared, completed, recoveryAttempts,
     baseCheckpoint: baseCheckpoint || {}, deltaCheckpoint: latestCheckpoint || {},
@@ -503,7 +549,7 @@ function makeRunJournal(opts) {
     if (!runId) throw new Error('run journal runId is required');
     if (!fresh && !live.has(runId)) adopt(runId);
     const prior = live.get(runId) || { seq: 0, hash: '' };
-    const r = { v: VERSION, runId, seq: prior.seq + 1, ts: now(), type, payload: cloneSafe(payload || {}, redact, 0), prev: prior.hash };
+    const r = { v: VERSION, runId, seq: prior.seq + 1, ts: now(), type, payload: type === 'quotes' ? quotesPayload(payload) : cloneSafe(payload || {}, redact, 0), prev: prior.hash };
     r.hash = hashRecord(r);
     const line = JSON.stringify(r);
     if (fresh) io.create(runId, line); else io.append(runId, line);
@@ -648,6 +694,9 @@ function makeRunJournal(opts) {
     toolResult(runId, payload) { return record(runId, 'tool_result', payload); },
     // the run's taint latched mid-run (untrusted content entered its context); additive record type
     taint(runId, payload) { return record(runId, 'taint', payload); },
+    // the sessions this run has read ({ streams: [{ id, at }], saturatedAt? }); written BEFORE the tool_result record it covers, so a journal
+    // that holds a read's result always holds its quote (additive record type, index.js latchRunQuotes)
+    quotes(runId, payload) { return record(runId, 'quotes', payload); },
     finish(runId, payload) { return record(runId, 'finish', payload); },
     resolve(runId, payload) {
       payload = payload || {};
@@ -798,4 +847,4 @@ function makeRunJournal(opts) {
   };
 }
 
-module.exports = { makeRunJournal, makeFsIo, DISPATCH_BOUNDARY_MODEL, _internals: { parseRecords, analyze, hashRecord, runFileName, cloneSafe, writeAll, leafSignature, sameSignature } };
+module.exports = { makeRunJournal, makeFsIo, DISPATCH_BOUNDARY_MODEL, quotesForgotten, _internals: { parseRecords, analyze, hashRecord, runFileName, cloneSafe, writeAll, leafSignature, sameSignature } };

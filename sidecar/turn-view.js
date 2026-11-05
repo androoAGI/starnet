@@ -6,6 +6,11 @@ const ROW_IDS = Symbol('starnet.transcript.row-ids');
 // rows it summarized. Non-enumerable and symbol-keyed: it never reaches a wire, a JSON copy or a spread, and an elided copy
 // inherits it through the loop's carryMarkers.
 const ROW_TAG = Symbol('starnet.transcript.row-tag');
+// non-enumerable side channel on a display result: { keys: [[streamId, rowId]...], runIds: [...] } of the rows the quote rule hid.
+// A REGISTERED symbol (Symbol.for): index.js's transcriptProjection reads it by the registry key, so that function needs no TurnView in scope
+// (test/transcript-perf-paths evaluates it on its own with a fixed dependency list).
+const FORGOTTEN = Symbol.for('starnet.transcript.forgotten');
+const FORGOTTEN_KEYS_MAX = 2000, FORGOTTEN_RUNS_MAX = 200;
 const hasId = row => row && Number.isSafeInteger(row.rowId) && row.rowId > 0;
 const text = row => typeof row.content === 'string' ? row.content : '';
 
@@ -88,6 +93,16 @@ function messages(rows, c, o, accept) {
   Object.defineProperty(out, ROW_IDS, { value: ids, enumerable: false });
   return out;
 }
+// the identity block's forgotten list from the rows the quote rule hid: keys (stream + rowId) and the runs those rows came from
+function forgottenOf(hidden) {
+  const keys = [], runIds = [], seenRuns = new Set();
+  for (const row of hidden) {
+    if (keys.length < FORGOTTEN_KEYS_MAX && hasId(row)) keys.push([row.streamId, row.rowId]);
+    const run = row.sourceRunId ? String(row.sourceRunId) : '';
+    if (run && runIds.length < FORGOTTEN_RUNS_MAX && !seenRuns.has(run)) { seenRuns.add(run); runIds.push(run); }
+  }
+  return { keys, runIds };
+}
 function project(name, input, ctx, opts) {
   if (!Kinds.VIEWS.includes(name)) throw new Error('unknown transcript view: ' + name);
   const o = opts || {}, raw = (Array.isArray(input) ? input : []).filter(hasId);
@@ -96,7 +111,14 @@ function project(name, input, ctx, opts) {
   if (name === 'proof') return raw.map(row => Object.assign({}, row));
   const c = context(raw, ctx || {});
   const targets = retractions(raw, c.retractions);
-  let rows = raw.filter(row => !(typeof c.forgotten === 'function' && c.forgotten(row)) && row.kind !== 'retract' &&
+  // the rows the QUOTE rule hid (a row that quotes a session deleted since): the page's affirmative drop proof (identity.forgotten)
+  const hiddenByQuote = [];
+  const forgottenRow = row => {
+    if (typeof c.forgotten !== 'function' || !c.forgotten(row)) return false;
+    if (typeof c.quoteForgotten === 'function' && c.quoteForgotten(row)) hiddenByQuote.push(row);
+    return true;
+  };
+  let rows = raw.filter(row => !forgottenRow(row) && row.kind !== 'retract' &&
     (!targets.has(row.rowId) || (name === 'display' && targets.get(row.rowId) === 'retry' && o.hideRetry !== true)) &&
     !(o.excludeTurnId && row.turnId === o.excludeTurnId) &&
     !(Number.isSafeInteger(o.beforeRowId) && row.rowId >= o.beforeRowId) &&
@@ -116,6 +138,7 @@ function project(name, input, ctx, opts) {
   if (name === 'model-replay' && o.rows !== true) return messages(rows, c, o);
   const out = rows.map(row => Object.assign({}, row));
   if (name === 'model-replay') Object.defineProperty(out, PROJECTED_ROWS, { value: { context: c, options: o } });
+  if (name === 'display') Object.defineProperty(out, FORGOTTEN, { value: forgottenOf(hiddenByQuote), enumerable: false });
   return out;
 }
 // Channel hop admission filters one already-visible assembly. Keep its classifier context (accepted
@@ -147,4 +170,4 @@ function tag(message, value) {
   return message;
 }
 function tagOf(message) { return message && typeof message === 'object' && message[ROW_TAG] || null; }
-module.exports = { ROW_IDS, ROW_TAG, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf };
+module.exports = { ROW_IDS, FORGOTTEN, ROW_TAG, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf };

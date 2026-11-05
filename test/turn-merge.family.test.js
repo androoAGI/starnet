@@ -80,7 +80,9 @@ const rng = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return seed
   A.eq((reconcile.match(/TurnMerge\.reconcile\(/g) || []).length, 1, 'the page has exactly one shared reconciliation call');
   A.ok(!/const TYPED|const typedMerge|const finals = new Map/.test(chat), 'the page owns no duplicate content/identity merge');
   A.ok(/TurnMerge\.merge\(/.test(phone) && !/const finals = new Map/.test(phone), 'phone delegates to the same shared merge');
-  A.ok(!/TurnKinds\./.test(chat), 'chat.js holds no id logic of its own (no direct TurnKinds call; every id goes through TurnMerge)');
+  // the one allowance (commit 10): the extension rule for a file chip's media moved to TurnKinds, and the page keeps a one-line delegate to it
+  const MEDIA_DELEGATE = 'function mediaKindOf(title) { return TurnKinds.mediaKindOf(title); }';
+  A.ok(chat.split(MEDIA_DELEGATE).length === 2 && !/TurnKinds\./.test(chat.replace(MEDIA_DELEGATE, '')), 'chat.js holds no id logic of its own (no direct TurnKinds call but the media-kind delegate; every id goes through TurnMerge)');
   const send = A.fnBody(chat, 'async function send(text, opts) {');
   A.ok(send.length > 5000 && send.length < chat.length / 2, 'send() sliced');
   A.ok(/ws\.history\.push\(TurnMerge\.pendingRow\(attsIn\.length \? \{[^}]*\} : \{[^}]*\}, turnRng\)\)/.test(send), 'the optimistic user row is pushed through TurnMerge.pendingRow');

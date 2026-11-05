@@ -116,6 +116,26 @@
         return false;
       }
     }
+    /* forget(match) -> number: the forget registry's purge. A worker record keeps its lead's brief (prompt, context), its result and an event
+       tail: words of the session it was delegated from. A settled record `match(record)` names is removed whole; one still running or queued
+       keeps its place (its run, status and controller are live bookkeeping) and loses only those words. */
+    function forget(match) {
+      let n = 0;
+      const next = [];
+      for (const r of records) {
+        if (!r || !match(r)) { next.push(r); continue; }
+        if (!TERMINAL.has(r.status)) {
+          const words = r.prompt || r.context || r.result || r.reason || r.structuredResult != null || (Array.isArray(r.events) && r.events.length);
+          if (!words) { next.push(r); continue; }   // already scrubbed: a second pass takes nothing
+          next.push(Object.assign({}, r, { prompt: '', context: '', result: '', structuredResult: null, events: [], reason: '' }));
+        }
+        n++;
+      }
+      if (!n) return 0;
+      records = next;
+      save(true);
+      return n;
+    }
     function findIndex(id) { return records.findIndex(r => r && r.id === id); }
     function get(id) {
       const i = findIndex(String(id || ''));
@@ -567,7 +587,7 @@
 
     load();
     reconcileFinalizations();
-    return { list: list, get: get, activeRuns: activeRuns, start: start, steer: steer, interrupt: interrupt, interruptAll: interruptAll, resume: resume,
+    return { list: list, get: get, forget: forget, activeRuns: activeRuns, start: start, steer: steer, interrupt: interrupt, interruptAll: interruptAll, resume: resume,
       reconcileFinalizations: reconcileFinalizations, cancelChildren: cancelChildren, checkStalls: checkStalls,
       stallPolicy: function () { return { stallMs: stallMs, inToolStallMs: inToolStallMs }; },
       _internals: { records: function () { return records; }, controllers: controllers, load: load, save: save, appendEvent: appendEvent, publishFinalization: publishFinalization, drainSteer: drainSteer } };

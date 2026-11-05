@@ -111,7 +111,13 @@
   }
 
   // sanitize ONE connector config for export: keep identity/shape, drop every secret field + any auth in the url.
-  function redactConnector(c) {
+  /* the provenance of a dossier block, as the export carries it: the runs its derived beliefs were learned from and whether that list is whole. An
+   envelope from before provenance carries neither, and reads as incomplete. */
+function provenanceOf(x) {
+  const ids = Array.isArray(x && x.sourceRunIds) ? x.sourceRunIds.filter(v => typeof v === 'string' && /^[A-Za-z0-9_.:-]{1,80}$/.test(v)).slice(0, 256) : [];
+  return { sourceRunIds: ids, complete: !!x && x.complete === true && Array.isArray(x.sourceRunIds) && x.sourceRunIds.length <= 256 };
+}
+function redactConnector(c) {
     if (!isObj(c)) return null;
     const hdr = redactAllMap(c.headers || {}, 'header:');
     const env = redactAllMap(c.env || {}, 'env:');
@@ -187,7 +193,8 @@
         hasSystem: !!(a && a.system)
       })).filter(a => a.agentId);
     }
-    if (want('dossier')) sections.dossier = { block: clampStr(s.dossier, 4096) };
+    // the block plus the provenance the sidecar kept for it (turn identity commit 14): a restore is admitted by what it was learned from
+    if (want('dossier')) sections.dossier = isObj(s.dossier) ? Object.assign({ block: clampStr(s.dossier.block, 4096) }, provenanceOf(s.dossier)) : { block: clampStr(s.dossier, 4096) };
     if (want('permissions')) sections.permissions = { allow: Array.isArray(s.permissions) ? s.permissions.filter(x => typeof x === 'string').slice(0, 256) : [] };
     if (want('connectors') && Array.isArray(s.connectors)) sections.connectors = s.connectors.map(redactConnector).filter(Boolean);
     if (want('notifyPrefs') && isObj(s.notifyPrefs)) sections.notifyPrefs = s.notifyPrefs;
@@ -237,7 +244,7 @@
         role: clampStr(a.role, 120)
       } : null).filter(a => a && /^[A-Za-z0-9_-]{1,40}$/.test(a.agentId));
     }
-    if (isObj(inSec.dossier)) out.dossier = { block: clampStr(inSec.dossier.block, 4096) };
+    if (isObj(inSec.dossier)) out.dossier = Object.assign({ block: clampStr(inSec.dossier.block, 4096) }, provenanceOf(inSec.dossier));
     if (isObj(inSec.permissions) && Array.isArray(inSec.permissions.allow)) {
       // A 'path:<root>' grant is machine-specific AUTHORITY, not a preference: it blesses a folder for agent file
       // reads (pathtrust) and checkpoint restores. A config file from another machine — or one crafted to carry
