@@ -91,7 +91,7 @@ async function hostTurn(w, history, runId, n) {
 // the real host assembly of index.js over this world, in a sandbox the way recent-activity.provenance.test.js runs it
 function hostAssembly(w) {
   const sandbox = { Map, Set, Date: { now: () => 100000 }, TrustedLearning, transcriptStore: w.store, runStore: { all: () => [...w.runs.values()], list: () => [...w.runs.values()].reverse() },
-    sessionRunForgotten: () => false, taskBriefStore: { list: () => [] }, contextpack, commanderGoals: { get: () => null }, autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}),
+    sessionRunForgotten: () => false, runView: (_name, r) => r, taskBriefStore: { list: () => [] }, contextpack, commanderGoals: { get: () => null }, autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}),
     Recommendation: { preferenceTallies: () => ({}) }, nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [], redact: text => text, threadsStore: { openThreads: () => [] },
     personalizationStore: { read: () => ({ enabled: false }) }, commanderDossier: { get: () => '' }, failNote(tag, error) { throw new Error(tag + ': ' + error.message); } };
   vm.createContext(sandbox);

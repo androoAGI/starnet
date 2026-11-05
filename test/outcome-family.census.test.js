@@ -488,6 +488,8 @@ const REPORTED = {
     ["failNote('summary.not-served.' + sub.reason", NR("why a valid kept summary could not stand in for this run's window messages: the substitution's placement check")],
     ["failNote('summary.no-claim.' + claim.reason", NR("why a fold's summary was not kept: the rows it stands for could not be proven")],
     ["failNote('summary.put.' + wrote.reason", NR("why the ledger refused to write a kept summary (tombstoned / too-large / invalid)")],
+    // turn identity commit 14 (the dossier push): the answer to a pushed beliefs block says whether it was KEPT and, when not, why - the push named a run the delete reached
+    ["reason: verdict.reason, forgotten: verdict.forgotten", NR("why the dossier store did not keep a pushed block: a run its beliefs were learned from was forgotten")],
     // the run-wire-resolver lane (this lane's base since the rebase): a wire resolution's reason is why a pair was chosen or passed over
     ["now: { provider: r.provider, model: r.model }, reason: r.reason", NR("why pairCronJobWires re-paired a routine's stored pair on load (its wireMigration note)")],
     ["') stored half a pair ') + JSON.stringify(note.was)", NR("the same re-pairing note, logged once")],
