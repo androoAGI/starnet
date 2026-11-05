@@ -1911,38 +1911,57 @@ function runDashboard(station, opts) {
       const key = pic ? pic.key + '@' + av.x + ',' + av.y : '';
       if (pic && key !== avatarShown) { s += '\x1b[0m\x1b[' + (av.y + 1) + ';' + (av.x + 1) + 'H' + pic.sixel; avatarShown = key; }
     } else avatarShown = '';
-    // the FLOOR: its picture (drawn again when what it shows changes, at most four times a second: a frame is a whole room),
-    // then the name plates over it — text cells, so a plate is never part of the picture
+    // the FLOOR: its picture, every paint — the whole room the first time, after that only the patches of cells that changed
+    // (bin/lib/floor.js keeps what it drew) — then the name plates over it: text cells, so a plate is never part of the picture
     if (screen.floor) {
       const box = screen.floor;
-      const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, text: r.status.text, now: r.now }));
-      if (!floorPic || t - floorAt >= 250 || ui.still) {
-        floorAt = t;
+      const at = box.x + ',' + box.y + ',' + box.cols + 'x' + box.rows;
+      if (at !== floorShown) { floor.repaint(); floorShown = at; floorPlates = []; floorPlatesKey = ''; floorNext = 0; }   // moved or resized: whole again
+      // the terminal takes its time over pictures (Windows makes the write wait for it): after a slow one the floor rests as
+      // long again, so the dashboard spends no more than half its time on it and keys never queue behind it
+      if (floorPic && Date.now() < floorNext) { for (const p of floorPlates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } }); }
+      else {
+        const agents = model.rows(t).map(r => ({ id: r.id, name: r.name, set: feed.skinOf(r.id) || '', key: r.status.key, text: r.status.text, now: r.now }));
         floorPic = floor.frame({ lead: floorLead, agents }, t, ui.still, { cellW: term.cellW, cellH: term.cellH, cols: box.cols, rows: box.rows });
         if (!floorPic) loadFloorAssets(agents.map(a => a.set).filter(Boolean));
-      }
-      const was = floorReady;
-      floorReady = !!floorPic;
-      if (floorReady !== was) { prevRows = []; schedulePaint(); }   // the region changes hands (text ↔ picture): repaint it whole
-      if (floorPic && fv) {
-        const plates = floorPic.plates.map(p => {
-          const segs = [[' ', 'fg plate']].concat(p.segs.map(([tx, st]) => [tx, st + ' plate'])).concat([[' ', 'fg plate']]);
-          const w = segs.reduce((n, q) => n + tui.width(q[0]), 0);
-          const col = Math.max(0, Math.min(box.cols - w, p.center ? p.col - Math.floor(w / 2) : p.col));
-          return { x: box.x + col, y: box.y + p.row, w, segs, id: p.id };
-        });
-        const key = floorPic.key + '|' + plates.map(p => p.x + ',' + p.y + tui.toPlain(p.segs)).join('|') + '@' + box.x + ',' + box.y;
-        if (key !== floorShown) {
-          s += '\x1b[0m\x1b[' + (box.y + 1) + ';' + (box.x + 1) + 'H' + floorPic.sixel;
-          for (const p of plates) s += '\x1b[' + (p.y + 1) + ';' + (p.x + 1) + 'H' + tui.toAnsi(p.segs, level) + '\x1b[0m';
-          floorShown = key;
+        const was = floorReady;
+        floorReady = !!floorPic;
+        if (floorReady !== was) { prevRows = []; schedulePaint(); }   // the region changes hands (text ↔ picture): repaint it whole
+        if (floorPic && !fv) floor.repaint();   // drawn, but not put up this paint (the region was still text): whole, next paint
+        if (floorPic && fv) {
+          const plates = floorPic.plates.map(p => {
+            const segs = [[' ', 'fg plate']].concat(p.segs.map(([tx, st]) => [tx, st + ' plate'])).concat([[' ', 'fg plate']]);
+            const w = segs.reduce((n, q) => n + tui.width(q[0]), 0);
+            const col = Math.max(0, Math.min(box.cols - w, p.center ? p.col - Math.floor(w / 2) : p.col));
+            return { x: box.x + col, y: box.y + p.row, w, segs, id: p.id };
+          });
+          const pos = (row, col) => '\x1b[0m\x1b[' + (box.y + row + 1) + ';' + (box.x + col + 1) + 'H';
+          let draw = '';
+          if (floorPic.full) { if (floorPic.key !== floorFullKey) draw = pos(0, 0) + floorPic.sixel; floorFullKey = floorPic.key; }   // a still screen asks for whole frames: the same one goes once
+          else {
+            floorFullKey = '';
+            for (const p of floorPic.patches) draw += pos(p.row, p.col) + p.sixel;
+            // where a plate stood and stands no more, the picture comes back
+            const standing = new Set(plates.map(p => p.x + ',' + p.y + ',' + p.w));
+            const gone = floorPlates.filter(q => !standing.has(q.x + ',' + q.y + ',' + q.w)).map(q => ({ col: q.x - box.x, row: q.y - box.y, cols: q.w, rows: 1 }));
+            for (const p of floor.cells(gone)) draw += pos(p.row, p.col) + p.sixel;
+          }
+          const pk = plates.map(p => p.x + ',' + p.y + tui.toPlain(p.segs)).join('|');
+          if (draw || pk !== floorPlatesKey) {   // a patch may lie under a plate: the plates go back over the picture
+            s += draw;
+            floorDrew = !!draw;
+            for (const p of plates) s += '\x1b[' + (p.y + 1) + ';' + (p.x + 1) + 'H' + tui.toAnsi(p.segs, level) + '\x1b[0m';
+            floorPlatesKey = pk; floorPlates = plates;
+          }
+          for (const p of plates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
         }
-        for (const p of plates) if (p.id) lastHits.push({ x0: p.x, x1: p.x + p.w, y: p.y, act: { t: 'agent', id: p.id } });   // a plate opens its agent's chat
       }
-    } else { floorShown = ''; floorPic = null; floorReady = false; }
+    } else { floorShown = ''; floorPic = null; floorReady = false; floor.repaint(); }
     if (rows.length < prevRows.length) s += '\x1b[' + (rows.length + 1) + ';1H\x1b[J';
     prevRows = rows;
+    const w0 = Date.now();
     if (s) try { out.write(s); } catch (_) {}
+    if (floorDrew) { const took = Date.now() - w0; floorNext = took > 15 ? Date.now() + Math.min(1000, took) : 0; floorDrew = false; }
   }
   // the mouse, wherever the terminal reports it (STARNET_MOUSE=0 keeps the terminal's own selection; shift+drag selects
   // text while it is on, in most terminals)
@@ -1955,12 +1974,14 @@ function runDashboard(station, opts) {
     inp.resume();
     out.on('resize', onResize);
   }
-  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; floorShown = ''; floorPic = null; buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
+  function redrawAll() { prevRows = []; imageShown = false; avatarShown = ''; floorShown = ''; floorPic = null; floorFullKey = ''; floor.repaint(); buildImage(); try { out.write('\x1b[2J'); } catch (_) {} paint(); }
   function onResize() { redrawAll(); }
 
   // ---- the real logo, as an image -----------------------------------------------------------------------------------
   let term = {}, image = null, imageShown = false, avatarShown = '';
-  let floorPic = null, floorAt = 0, floorShown = '', floorReady = false;
+  // the FLOOR on screen: where its picture is (floorShown), the last whole frame put up, and the plates over it
+  let floorPic = null, floorShown = '', floorReady = false, floorFullKey = '', floorPlates = [], floorPlatesKey = '';
+  let floorDrew = false, floorNext = 0;   // this paint put picture up; when the floor may draw again (after a slow write)
   // ask the terminal (before the screen opens) whether it draws Sixel and how big a cell is. Replies arrive in order, so
   // DA1, which every terminal answers, goes last and closes the probe.
   function probeTerminal(ms) {
