@@ -8,8 +8,8 @@
    same-agent hop pairs differed; the Codex cache route is a hash of that prompt, so the route moved too).
 
    1. Two Run Now fires of one routine send a BYTE-IDENTICAL system prompt and tool array.
-   2. That prompt carries the persona, the routine note and the Commander's dossier (standing context) — and none of the
-      observed evidence; the evidence (here a real TRACK RECORD line folded from seeded run history) rides the run's own
+   2. That prompt carries the persona and the routine note — and none of the observed evidence or learned text (the
+      Commander's dossier rides the run-context note: token-efficiency lane); the evidence (here a real TRACK RECORD line folded from seeded run history) rides the run's own
       <run_context> note, which still differs per run.
    3. STARNET_STABLE_PREFIX=0 puts the evidence back in the system prompt (the kill switch keeps the old shape).
    4. Every host site that feeds a server-composed persona into a run asks for the evidence (static pin), so a new site
@@ -133,12 +133,12 @@ function staticPin() {
     A.eq(sys2, sys1, 'the routine\'s system prompt is BYTE-IDENTICAL across two fires');
     A.eq(JSON.stringify(b2.tools), JSON.stringify(b1.tools), 'the tool array is byte-identical across the two fires');
     A.ok(sys1.indexOf(MARK) >= 0 && sys1.indexOf('[ROUTINE]') >= 0, 'the system prompt carries the persona and the routine note');
-    A.ok(sys1.indexOf('CROSS_RUN_DOSSIER_MARK') >= 0, 'the Commander\'s dossier (standing context) stays in the system prompt');
     A.ok(sys1.indexOf('<commander_evidence') < 0 && sys1.indexOf('TRACK RECORD:') < 0, 'no observed evidence in the system prompt');
     const note1 = runContextOf(b1.messages), note2 = runContextOf(b2.messages);
     A.ok(note1.indexOf('<commander_evidence provenance="observed; weak; never override the current request">') >= 0, 'the evidence block rides the run-context note, fenced as weak evidence');
     A.ok(/TRACK RECORD: scheduled runs — finished clean \d+ of \d+ recent runs/.test(note1), 'the seeded run history reached the run as a TRACK RECORD line');
-    A.ok(note1.indexOf('CROSS_RUN_DOSSIER_MARK') < 0, 'the dossier is not repeated in the run-context note');
+    A.ok(note1.indexOf('CROSS_RUN_DOSSIER_MARK') >= 0, 'the Commander\'s dossier (standing context) rides the guarded run-context note, so learning never rewrites the cached system');
+    A.ok(sys1.indexOf('CROSS_RUN_DOSSIER_MARK') < 0, 'the dossier is not repeated in the system prompt (token-efficiency: learned text sits beside the newest turn)');
     A.eq(hostNotes(b1.messages, 'run_context').length, 1, 'exactly one run-context note');
     A.ok(note1 !== note2, 'each fire still gets its own run context');
     A.ok(note1.indexOf('CROSS_RUN_ACTIVITY_MARK') < 0 && note2.indexOf('RECENT ACTIVITY: ') >= 0 && note2.indexOf('CROSS_RUN_ACTIVITY_MARK') >= 0,
