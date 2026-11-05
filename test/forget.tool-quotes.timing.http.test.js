@@ -104,6 +104,11 @@ const recall = (query, then) => ctx => ctx.made('recall_conversation') === 0 ? {
       const list = ((await rig.json('GET', '/api/run-recoveries')).body.recoveries || []);
       const ra = list.find(r => r.runId === preA.runId), rc = list.find(r => r.streamId === 't3b'), rb = list.find(r => r.streamId === 'u1');
       A.ok(!!ra && !!rb && !!rc, '(3) all three interrupted runs are listed');
+      // the list is a reader too: a forgotten run stays listed as evidence, but serves neither S's word nor the directive that read it
+      const listText = JSON.stringify(list.filter(r => r.streamId === 't3' || r.streamId === 't3b'));
+      A.ok(!listText.includes(WORD.three) && !/numbat/i.test(listText), '(3) the recoveries list holds neither the word of S nor the directive of a run that read it');
+      A.ok(ra && rc && ra.userTitle === '' && rc.checkpoint.messages.length === 0, '(3) ...the forgotten rows are stubs (no title, no checkpoint messages)');
+      A.ok(rb && rb.userTitle !== '' && rb.checkpoint.messages.length > 0, '(3) control: the row of the run that read a live session keeps its title and checkpoint');
       A.ok(rb && rb.canAutoContinue === true, '(3) control: the run that read a session nobody deleted is continuable');
       A.ok(ra && ra.canAutoContinue !== true && rc && rc.canAutoContinue !== true, '(3) the runs that read the deleted session are not continuable');
       const asked = await rig.json('POST', '/api/run-recoveries/continue', { runId: rc.runId, agentId: 'agent', recoveryToken: rc.recoveryToken, continuationId: 'timing-threeb-0001', mode: 'automatic' });

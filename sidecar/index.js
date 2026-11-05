@@ -30002,15 +30002,18 @@ function runRecoveryDto(r) {
     }));
     return out;
   };
+  // A run that read a session since deleted (or began in one) is listed as a forensic stub: an unmatched tool intent is still evidence, but its
+  // directive, routine name and checkpoint messages hold that session's words (tool results of a recall or read_session), so none is served.
+  const forgotten = runRecoveryForgotten(r);
   return {
     runId: String(r.runId || ''),
     agentId: String((r.meta && r.meta.agentId) || ''),
     streamId: String((r.meta && r.meta.streamId) || 'global'),
     startedAt: Number((r.meta && r.meta.startedAt) || 0),
-    userTitle: String((r.meta && r.meta.userTitle) || '').slice(0, 1000),
+    userTitle: forgotten ? '' : String((r.meta && r.meta.userTitle) || '').slice(0, 1000),
     trigger: String((r.meta && r.meta.trigger) || ''),
     cronJobId: String((r.meta && r.meta.cronJobId) || ''),
-    cronJobName: String((r.meta && r.meta.cronJobName) || '').slice(0, 200),
+    cronJobName: forgotten ? '' : String((r.meta && r.meta.cronJobName) || '').slice(0, 200),
     status: r.status,
     corrupt: !!r.corrupt,
     repaired: !!r.repairedFrom,
@@ -30044,7 +30047,7 @@ function runRecoveryDto(r) {
     checkpoint: {
       phase: String((r.checkpoint && r.checkpoint.phase) || ''),
       turn: Number((r.checkpoint && r.checkpoint.turn) || 0),
-      messages: Array.isArray(r.checkpoint && r.checkpoint.messages) ? r.checkpoint.messages.slice(-200).map(safeMessage) : []
+      messages: !forgotten && Array.isArray(r.checkpoint && r.checkpoint.messages) ? r.checkpoint.messages.slice(-200).map(safeMessage) : []
     }
   };
 }

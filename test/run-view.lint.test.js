@@ -137,6 +137,19 @@ A.eq(real, [], 'every runStore list/all/latest call in the sidecar is tagged run
   A.eq(Array.from(tags).sort(), Array.from(new Set(TAGGED.map(t => t.key))).sort(), 'the tags in use are exactly the table\'s keys');
 }
 
+// the interrupted-run list is a family reader of the same forget predicate: every serializer of a journal record is the one DTO, and the DTO asks it
+{
+  const idx = files.find(f => f.rel === IDX).text;
+  const dto = idx.indexOf('function runRecoveryDto(r) {');
+  const dtoBody = idx.slice(dto, idx.indexOf('function serveRunRecoveries', dto));
+  A.ok(dto > 0 && /const forgotten = runRecoveryForgotten\(r\);/.test(dtoBody), 'runRecoveryDto asks the forget predicate');
+  for (const f of ['userTitle', 'cronJobName', 'messages']) A.ok(new RegExp(f + ':[^\n]*forgotten').test(dtoBody), 'runRecoveryDto blanks ' + f + ' for a forgotten run');
+  const serve = idx.slice(idx.indexOf('function serveRunRecoveries'), idx.indexOf('async function handleRunRecoveryResolve'));
+  A.ok(/\.map\(runRecoveryDto\)/.test(serve), 'the recoveries list serializes through runRecoveryDto');
+  const raw = idx.split('\n').filter(l => /\.checkpoint\b[^;]*\bmessages\b/.test(l) && /(json|respond)/i.test(l));
+  A.eq(raw, [], 'no route writes checkpoint messages outside the DTO');
+}
+
 // fixtures: the checker catches a new reader, a reverted site and a stale needle
 {
   const extra = files.concat([{ rel: 'sidecar/new-reader.js', text: 'const titles = runStore.list(null, { limit: 5 }).map(r => r.title);\n' }]);
