@@ -318,13 +318,14 @@ function makeFloor(feed) {
       const a = seatOf(f.from), b = seatOf(f.to); if (!a || !b) continue;
       const c = f.kind === 'task' ? [255, 180, 58] : f.kind === 'result' ? [93, 255, 168] : f.kind === 'stopped' ? [140, 150, 160] : f.kind === 'asked' ? [255, 211, 74] : f.kind === 'unfinished' ? [217, 169, 91] : [255, 107, 61];
       const at = q => [lerp(a[0], b[0], q), lerp(a[1], b[1], q) - Math.sin(q * Math.PI) * 60];
-      // the trail it leaves: a dot every 1/25 of the way, each as bright as how far along it is (dim by the sender) — a dot
-      // once dropped never changes, so a frame draws again only the new dots and the head, not the whole arc
-      const trail = []; for (let n = 0; n * 0.04 < k; n++) trail.push([...at(n * 0.04), n * 0.04]);
+      // the trail it leaves: a dot every 1/25 of the way, each as bright as how far along the flight it is (dim by the sender) —
+      // so every dot brightens as the flight goes on (the same sum as before the picture was kept: byte for byte), and a flying
+      // arc's dots are drawn again each frame; only that, the head and what else changed, never the whole room
+      const trail = []; for (let q = 0; q < k; q += 0.04) trail.push([...at(q), 0.5 * (q / Math.max(k, 0.01))]);
       const head = at(k);
       arcs.push({ trail, head, c, k });
       const id = 'f:' + f.from + '>' + f.to + '@' + f.t0, dot = (x, y, r) => [Math.floor(x * S - ox - r), Math.floor(y * S - r), Math.ceil(x * S - ox + r), Math.ceil(y * S + r)];
-      trail.forEach(([x, y], n) => els.set(id + '#' + n, { sig: Math.round(x) + ',' + Math.round(y), r: dot(x, y, 9 * S + 2) }));
+      trail.forEach(([x, y, amp], n) => els.set(id + '#' + n, { sig: Math.round(x) + ',' + Math.round(y) + ',' + amp, r: dot(x, y, 9 * S + 2) }));
       els.set(id + '#head', { sig: Math.round(head[0] * S) + ',' + Math.round(head[1] * S), r: dot(head[0], head[1], 30 * S + 2) });
     }
 
@@ -387,7 +388,7 @@ function makeFloor(feed) {
       };
       for (const [x, y, c] of lights) glow(x, y, 150, c, 1.2);
       for (const { trail, head, c, k } of arcs) {
-        for (const [x, y, q] of trail) glow(x, y, 9, c, 0.5 * q);
+        for (const [x, y, amp] of trail) glow(x, y, 9, c, amp);
         glow(head[0], head[1], 30, c, 0.9); glow(head[0], head[1], 8, [255, 255, 255], 1.2);
       }
 

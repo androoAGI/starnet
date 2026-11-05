@@ -109,6 +109,26 @@ A.ok(same.full && same.sixel === pf.frame({ lead: 'agent', agents: agents('worki
   }
   // (a few go whole on purpose: an amber light pulsing over most of a small room is no dearer sent whole)
   A.ok(bad === 0 && whole < 12 && sent > 0, 'patched, frame after frame (walks, a pulse, a handoff flying, states changing), the picture is the whole one exactly: ' + JSON.stringify({ bad, whole, sent }));
+  // the trail of a flying handoff brightens as the flight goes on (each dot is 0.5 x how far along it is, over how far the flight
+  // has gone): the same dot, near where the arc starts and far from either head, is lit more at 95% of the flight than at 50%
+  {
+    const { geom } = require('../bin/lib/floor.js');
+    const at = k => {
+      const fx = makeFloor(feed), rs = new Map();
+      for (let t = 0; t <= 12000; t += 100) fx.frame({ lead: 'agent', agents: agents('working') }, t, false, box);
+      rs.set('L', { runId: 'L', agentId: 'agent' }); rs.set('w', { runId: 'w', agentId: 'scout', parentRunId: 'L' });
+      fx.observe(rs, nameOf, () => 'done', 12100);
+      fx.frame({ lead: 'agent', agents: agents('working') }, 12100 + 1400 * k, false, box);
+      return fx;
+    };
+    const lo = at(0.5), hi = at(0.95), sh = lo._shown(), S = geom(sh.W, sh.H, box.cellH, 1, false).S;
+    const a = lo._sims.get('agent'), b = lo._sims.get('scout');
+    const dotAt = q => [a.x + (b.x - a.x) * q, (a.y - 50) + ((b.y - 50) - (a.y - 50)) * q - Math.sin(q * Math.PI) * 60];
+    const [dx, dy] = dotAt(0.2), r = Math.round(5 * S), cx = Math.round(dx * S - (sh.ox || 0)), cy = Math.round(dy * S), ih = hi._shown();
+    let lit = 0, dim = 0;
+    for (let y = cy - r; y <= cy + r; y++) for (let x = cx - r; x <= cx + r; x++) { const p = lo._shown().idx[y * sh.W + x], q = ih.idx[y * sh.W + x]; if (p !== q) lit++; else dim++; }
+    A.ok(lit > 0, 'the trail of a handoff brightens as it flies (the dot by the sender differs between 50% and 95% of the flight): ' + JSON.stringify({ lit, same: dim }));
+  }
   const dark = makeFloor(feed), sat = agents('stopped').map(a => Object.assign(a, { key: 'stopped' }));
   dark.frame({ lead: 'agent', agents: sat }, 0, false, box);
   let quiet = null; for (let t = 100; t <= 4000; t += 100) quiet = dark.frame({ lead: 'agent', agents: sat }, t, false, box);
