@@ -44,7 +44,7 @@ const SOURCE = readSidecarSource();
 const ROUTES = ['async function handleTranscriptRows(req, res)', 'function serveTranscript(req, res)', 'function transcriptProjection(stream, rows, extra)',
   'async function handleTurnIdentityRetractions(req, res)'].map(h => { const body = A.fnBody(SOURCE, h); A.ok(body.length > 200 && body.length < 6000, 'the route slice is bounded: ' + h); return body; }).join('\n');
 
-const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long', 'files'];
+const STREAMS = ['open', 'tail', 'gone', 'undone', 'forgot', 'long', 'files', 'quoted'];
 const MANY = Array.from({ length: 25 }, (_, i) => 'm' + String(i).padStart(2, '0'));   // 25 sessions: the idle pass reads 20, then 5
 const LOST_ID = 9999999;                                                                  // a row the page sealed once and the station no longer returns
 
@@ -53,11 +53,12 @@ function station(dir) {
   const open = () => History.makeSegmentedTranscriptIo({ fs, path, root: dir, segmentBytes: 700, schedule() {}, onWarning() {} });
   const put = (io, stream, role, content, extra) => io.appendDurable(Object.assign({ streamId: stream, agentId: 'agent', role, kind: 'turn', taintKnown: true, ts: ++ts, content },
     role === 'assistant' ? { sourceRunId: 'run-' + stream + '-' + ts } : null, extra || null));
-  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60, files: 0 };   // (files is seeded by hand below: an attachment turn)
+  const counts = { open: 6, tail: 4, gone: 5, undone: 4, forgot: 4, long: 60, files: 0, quoted: 4 };   // (files is seeded by hand below: an attachment turn)
   for (const m of MANY) counts[m] = 2 + (Number(m.slice(1)) % 3);
   const seed = open();
   for (let round = 0; round < 70; round++) {            // interleaved, as a station writes them
-    for (const s of Object.keys(counts)) if (round < counts[s]) put(seed, s, round % 2 ? 'assistant' : 'user', (round % 2 ? 'reply ' : 'ask ') + s + ' ' + round + ' needle-' + s + '-' + round + ' ' + 'x'.repeat(40));
+    for (const s of Object.keys(counts)) if (round < counts[s]) put(seed, s, round % 2 ? 'assistant' : 'user', (round % 2 ? 'reply ' : 'ask ') + s + ' ' + round + ' needle-' + s + '-' + round + ' ' + 'x'.repeat(40),
+      s === 'quoted' && round === 1 ? { quotes: ['forgot'], quotesAt: [ts] } : null);   // a reply composed from the 'forgot' session, read before that session is deleted
   }
   // AN ATTACHMENT TURN (attachment-rows-and-taint): the directive keeps the file's references, the file is a role-system 'attachment' row of its own
   // (a name, a path, a size and a hash: provenance, no bytes) and the answer follows. The route hands the page the turns, never the attachment row.
@@ -328,6 +329,20 @@ async function scenarios(root) {
       deepEq(W.get('undone').history, kept, 'every row but the one another window undid, which is not brought back');
       const f = await p.api.hydrateHistory(W.get('forgot'));
       assert.equal(f.complete, true); assert.equal(W.get('forgot').history.length, 0, 'a forgotten session\'s rows are not brought back'); assert.equal(W.needsHydration('forgot'), false);
+    });
+
+    // ================================================================================================================
+    await run('a row the QUOTE rule hides is answered forgotten by rows-by-id and dropped by hydration, with no unavailable note (the shared visibility projection)', async () => {
+      const p = page(env), W = p.W, quoted = env.st.sealed.get('quoted')[1];
+      assert.ok(quoted && quoted.rowId > 0, 'the sealed history holds the reply composed from the session deleted since');
+      const ask = await env.tp.fetch('/api/transcript/rows', { method: 'POST', body: JSON.stringify({ streams: [{ streamId: 'quoted', rowIds: env.st.sealed.get('quoted').map(t => t.rowId) }] }) });
+      const body = await ask.json(), answered = (body.streams && body.streams[0] && body.streams[0].forgotten) || [];
+      assert.ok(answered.includes(quoted.rowId), 'rows-by-id names the quote-hidden row as forgotten, not missing (' + JSON.stringify(body).slice(0, 200) + ')');
+      const out = await p.api.hydrateHistory(W.get('quoted'));
+      assert.equal(out.complete, true, 'a forgotten row is proven gone, not unproven');
+      deepEq(W.get('quoted').history.map(r => r.rowId), env.original.quoted.map(r => r.rowId).filter(id => id !== quoted.rowId), 'every row but the one the quote rule hides');
+      assert.ok(!p.events().includes('history-unavailable'), 'no continuity note for a row that was forgotten (' + p.events() + ')');
+      assert.equal(W.needsHydration('quoted'), false);
     });
 
     // ================================================================================================================

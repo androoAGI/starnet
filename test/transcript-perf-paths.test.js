@@ -51,6 +51,7 @@ function briefingFrom(transcriptStore, runs, runStore) {
     failNote: () => {}, workshopAgentIds: () => [], workshopStore: { read: () => ({ backlog: [] }) }, validateWorkshopManifest: async () => null,
     workshopBuiltAtOf: () => 0, nightshiftDrafts: [], cronJobs: [], loopJobs: [], currentInitiative: () => 'off', nightFocusState: null,
     overseer: { threads: () => [] },
+    runView: (name, r) => r,   // the host's run visibility projection (forget registry viewRun): nothing is hidden here
     sessionRunForgotten: () => false   // the host's deleted-session test (qa/bugs/3e926b6a): nothing deleted here
   };
   const names = Object.keys(deps);

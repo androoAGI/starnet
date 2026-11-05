@@ -1298,8 +1298,12 @@
       const around = runContext(window, { loaded: new Set() }), cut = window.findIndex(row => around.unproven.has(row.rowId));
       if (cut > 0) { window = window.slice(0, cut); more = true; }   // the run-context budget is spent: a short page, not a wrong row
       const list = window.concat(around.extra).sort(byRowId), wanted = new Set(window.map(row => row.rowId));
-      return { rows: projectView('display', list, { streamId: want }, projectionContext(list)).filter(row => wanted.has(row.rowId)),
-        last: window[window.length - 1].rowId, more };
+      const projected = projectView('display', list, { streamId: want }, projectionContext(list)), shownRows = projected.filter(row => wanted.has(row.rowId));
+      // the quote rule's affirmative drop proof (TurnView.FORGOTTEN, by its registry key) rides the page, for this window's rows only
+      const marker = projected[Symbol.for('starnet.transcript.forgotten')];
+      if (marker) Object.defineProperty(shownRows, Symbol.for('starnet.transcript.forgotten'), { enumerable: false,
+        value: { keys: (marker.keys || []).filter(k => wanted.has(k[1])), runIds: marker.runIds || [] } });
+      return { rows: shownRows, last: window[window.length - 1].rowId, more };
     }
     /* rowsByIds(streamId, rowIds) -> { rows, missing, retracted, forgotten }: exactly the rows asked for (<= 1000 ids),
        as the display view shows them, in the ORDER ASKED (an id asked twice is answered once, where it was first asked).

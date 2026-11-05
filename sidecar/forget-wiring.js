@@ -123,7 +123,8 @@ const STORES = [
 const UNKEYED_ENTRIES = {
   'subagents': 'subagents.json: the manager owns its own writer',
   'attachment-files': 'bytes under the agent workspace .attachments/ (files, not a JSON store)',
-  'personalization-revision': 'no store of its own: it bumps the revision of personalization-store.js'
+  'personalization-revision': 'no store of its own: it bumps the revision of personalization-store.js',
+  'save-pre-history-ref': '<agent>.save.pre-history-ref.json: the station save as it was before v7, kept once for a downgrade (savestore.js scrubKept); its 30 day expiry is the timer of the save store itself and does not depend on this entry'
 };
 const UNKEYED_EXEMPTIONS = [
   ['turn-identity-soak', 'turn-identity.soak.json: ids, counts and hashes only (the soak ledger), no text of a session'],
@@ -440,6 +441,19 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => {
       const latest = latestStamp(scope);
       return d.posture().forget(runId => inScope({ runIds: [runId] }, scope), at => at <= latest);
+    }
+  });
+
+  /* the older station file kept at the v7 upgrade (<agent>.save.pre-history-ref.json) is a copy of EVERY conversation, so a delete cuts the
+     deleted sessions (their records, ~restored copies, worker threads and undo rows) out of it, or removes it whole when it cannot be read or
+     written back. Source: the session ids (a stream). Idempotent: a second pass finds nothing to cut. A failure throws, so the pass records
+     nothing and the next boot retries. The 30 day expiry (savestore.expireKept) is the store's own timer and never waits on this entry. */
+  entry({
+    name: 'save-pre-history-ref',
+    sourceOf: r => ({ streamIds: [r && r.id], at: num(r && r.ts) }),
+    forget: scope => {
+      const out = d.saveStore().scrubKept(Array.from((scope.streams || scope.at || new Map()).keys()));
+      return out.sessions + out.removed;
     }
   });
 

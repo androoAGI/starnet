@@ -3843,7 +3843,7 @@ wireForgetRegistry(forgetRegistry, {
   northStar: { get: () => questRefreshState, set: x => { questRefreshState = x; }, persist: () => saveResilient(QUESTREFRESH_FILE, { v: 1, state: questRefreshState }) },
   dossier: () => commanderDossier, posture: () => commanderPosture,
   awayBriefing: () => awayBriefingStore, overseer: () => overseer, subagents: () => subagents,
-  transcriptStore: () => transcriptStore, attachments: () => attachments, groupSessions: () => groupSessions,
+  saveStore: () => saveStore, transcriptStore: () => transcriptStore, attachments: () => attachments, groupSessions: () => groupSessions,
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
   nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
   workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()

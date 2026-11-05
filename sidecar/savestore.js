@@ -317,9 +317,8 @@
        deleted — their records, the ~restored copies of them, the worker threads that were theirs and their rows in the undo
        checkpoint — out of it with an atomic rewrite (no .bak: that would keep them), and removes it whole when it cannot be read or
        written back; expireKept() removes it 30 days after it was kept, once the main has read back as v7 (a main that is still old, or
-       cannot be read, is not a new format that has read back). The sidecar's deleted-session pass calls the first (index.js
-       forgetDeletedSessionMemory: this is the 'save-pre-history-ref' forget until the forget registry takes it over); boot and a
-       12-hour timer call the second.
+       cannot be read, is not a new format that has read back). The sidecar's deleted-session pass calls the first (forget
+       registry's 'save-pre-history-ref' entry, forget-wiring.js); boot and a 12-hour timer call the second.
 
        When the copy cannot be made (the disk), the replace goes on only if the file it replaces survives it as the .bak (a hard link
        costs no space), else the save is REFUSED with the write failure's own errno — SaveWire names it, the disk for ENOSPC — and

@@ -14,6 +14,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
+const { readSidecarSource } = require('./helpers/source.js');
+const ForgetWiring = require('../sidecar/forget-wiring.js');
+const SessionTombstones = require('../sidecar/session-tombstones.js');
 
 const KEPT = 'agent.save.pre-history-ref.json';
 const SECRET = 'a-conversation-the-commander-deletes';
@@ -28,6 +31,21 @@ const envelope = (version, revision, workstreams, extra) => Object.assign({ sche
   agent: { id: 'agent', name: 'NOVA', createdAt: 5000 }, generalId: 'general', activeId: 'general', deletedIds: [], forgetIds: [], workstreams }, extra || null);
 
 (async () => {
+  /* THE FORGET REGISTRY OWNS THIS COPY (turn identity commit 12 adopted). The kept file follows a delete through the registered
+     'save-pre-history-ref' entry, not a private call in forgetDeletedSessionMemory: RED when the entry is absent or a private
+     scrubKept is the only path. */
+  {
+    const calls = [];
+    const entries = new Map(), registry = { register: e => { entries.set(e.name, e); return e.name; }, exempt() {}, names: () => Array.from(entries.keys()) };
+    ForgetWiring.wireForgetRegistry(registry, { saveStore: () => ({ scrubKept: ids => { calls.push(ids.slice()); return { files: 1, removed: 0, sessions: ids.length }; } }) });
+    assert.ok(registry.names().includes('save-pre-history-ref'), 'the kept pre-v7 copy is a registered forget entry');
+    const removed = await entries.get('save-pre-history-ref').forget(SessionTombstones.deletedScope([{ id: 'gone', at: 50 }, { id: 'gone2', at: 60 }], []));
+    assert.deepEqual(calls, [['gone', 'gone2']], 'a forget pass calls the entry once with the deleted sessions');
+    assert.equal(removed, 2, 'and counts what it cut');
+    const body = readSidecarSource();
+    assert.ok(!body.includes('saveStore.scrubKept('), 'no private scrubKept call is left beside the registry');
+    assert.ok(body.includes('forgetRegistry.forgetAll(SessionTombstones.deletedScope('), 'the deleted-session pass goes through the registry');
+  }
   const fixture = SidecarFixture.create({ prefix: 'pre-history-ref-' });
   const kept = () => path.join(fixture.workspace, KEPT);
   const readKept = () => JSON.parse(fs.readFileSync(kept(), 'utf8'));
