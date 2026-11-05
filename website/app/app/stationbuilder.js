@@ -254,6 +254,7 @@
       if (rs.deck) { const r = st.setDeck(rs.roomId, rs.deck); if (!r || !r.ok) return refuse('the floor could not be laid'); }
       if (rs.walls) { const r = st.setWalls(rs.roomId, rs.walls); if (!r || !r.ok) return refuse('the walls could not be put up'); }
       if (rs.name) { const r = st.renameRoom(rs.roomId, rs.name); if (!r || !r.ok) return refuse('the room could not be renamed'); }
+      for (const q of rs.paint || []) { const r = st.paintTiles(rs.roomId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
     }
     for (const p of spec.props || []) { const r = st.addProp({ t: p.t, x: p.x, y: p.y, w: p.w, h: p.h, r: p.r || 0, block: p.block }); if (!r || !r.ok) return refuse('a piece of furniture could not be placed'); }
     for (const a of spec.assign || []) { const r = st.assignPropAgent(a.id, a.agentId || ''); if (!r || !r.ok) return refuse('a step\'s agent could not be set'); }
@@ -1035,8 +1036,8 @@
        and walls too; its lines and agents' desks stay; a room still named for what it was takes the new style's name.
      - clear: a room: its furniture goes; its lines and agents' desks stay.
      Rooms do not move or resize: the refusal says to remove one and build it again where it should be. */
-  const EDIT_KEYS = ['remove', 'refurnish', 'clear', 'add', 'seat', 'move', 'staff', 'refit', 'rearrange'];
-  const EDIT_HOW = 'An edit is one of: { remove: a room or [rooms] }, { remove: { room, pieces } }, { remove: { line } }, { refurnish: { room, style, name } }, { clear: a room }, { add: { room, pieces } }, { seat: { agent, room } }, { move: { room, beside, side } }, { staff: { line, steps } }. Rooms do not resize: remove one and build it again the size it should be.';
+  const EDIT_KEYS = ['remove', 'refurnish', 'clear', 'add', 'seat', 'move', 'staff', 'refit', 'rearrange', 'retheme'];
+  const EDIT_HOW = 'An edit is one of: { remove: a room or [rooms] }, { remove: { room, pieces } }, { remove: { line } }, { refurnish: { room, style, name } }, { clear: a room }, { add: { room, pieces } }, { seat: { agent, room } }, { move: { room, beside, side } }, { staff: { line, steps } }, { retheme: a palette }. Rooms do not resize: remove one and build it again the size it should be.';
   const SEAT_T = /^(desk|desk2|console|consoleL|pixelrig|bench|workbench)$/, KEEP_T = /^(airlock)$/;
   // the zones a room or hallway opens onto
   function zoneNeighbours(st, id) {
@@ -1599,7 +1600,7 @@
       case 'floor': case 'walls': case 'hull': { const t = roomRef(o.room); if (!t.ok) return t; const v = {}; if (o.style != null) v.style = o.style; if (o.mat != null) v.mat = o.mat; if (!Object.keys(v).length) return refuse(op + ' needs a style and/or a mat'); const fn = op === 'floor' ? 'setDeck' : op === 'walls' ? 'setWalls' : 'setHull'; return did(st[fn](t.room.id, v), t.room.name + '\'s ' + (op === 'floor' ? 'floor' : op) + ' ' + [v.style, v.mat].filter(Boolean).join(' ')); }
       case 'paint': { const t = roomRef(o.room); if (!t.ok) return t; const tiles = (Array.isArray(o.tiles) ? o.tiles : []).map(tileOf).filter(Boolean).map(q => [q.x, q.y]); if (!tiles.length) return refuse('paint needs tiles: [[x, y], …]'); return did(st.paintTiles(t.room.id, tiles, o.style), tiles.length + ' tiles of ' + t.room.name + ' painted ' + o.style); }
       case 'style': { const t = roomRef(o.room); if (!t.ok) return t; const sid = env.RoomStyles && env.RoomStyles.resolveRoom ? env.RoomStyles.resolveRoom(o.style) : null; if (!sid) return refuse('style is one of ' + env.RoomStyles.ROOM_ORDER.join(', '));
-        const rec = env.RoomStyles.ROOMS[sid]; if (rec.deck) st.setDeck(t.room.id, rec.deck); if (rec.walls) st.setWalls(t.room.id, rec.walls); const d = dressRoom(st, env, t.room.id, sid); if (!d.ok) return d; return { ok: true, text: t.room.name + ' furnished as ' + rec.name.toLowerCase() + ' (' + (d.props.length ? piecesText(env, d.props) : 'no clear floor left') + ')' }; }
+        const rec = env.RoomStyles.ROOMS[sid]; if (rec.deck) st.setDeck(t.room.id, rec.deck); if (rec.walls) st.setWalls(t.room.id, rec.walls); const d = dressRoom(st, env, t.room.id, sid); if (!d.ok) return d; for (const q of d.paint || []) st.paintTiles(t.room.id, q.tiles, q.style); return { ok: true, text: t.room.name + ' furnished as ' + rec.name.toLowerCase() + ' (' + (d.props.length ? piecesText(env, d.props) : 'no clear floor left') + ')' }; }
       case 'place': {
         const t = String(o.t || o.piece || '');
         const sp = S && S.spec ? S.spec(t) : null;
@@ -1922,6 +1923,28 @@
     if (keys.length !== 1) return refuse(EDIT_HOW);
     if (keys[0] === 'refit') return planRefit(doc, req.refit, env);
     if (keys[0] === 'rearrange') return planRearrange(doc, req.rearrange, env);
+    /* A WHOLE STATION IN ANOTHER PALETTE, where it stands: floors, walls, hull. No piece moves, so nothing it can do changes. */
+    if (keys[0] === 'retheme') {
+      const SD = env.StationDesign || designModule(), id = SD ? SD.resolveTheme(req.retheme) : null;
+      if (!id) return refuse('There is no theme "' + String(req.retheme).slice(0, 40) + '". Themes: ' + (SD ? SD.THEME_ORDER.join(', ') : 'none on this page') + '.');
+      const th = SD.THEMES[id], cp = WM.create(clone(doc)), ops = [];
+      let roomsDressed = 0;
+      const was = (doc.meta || {}).stationPlan || {}, styles = was.styles || {}, oldAccent = was.theme && SD.THEMES[was.theme] ? SD.THEMES[was.theme].accent : null;
+      for (const r of cp.rooms()) {
+        const hall = r.kind === 'corridor', fam = !hall && styles[r.name] ? SD.FAMILY[styles[r.name]] : null;
+        const f = hall ? { deck: th.corridor, walls: th.corridor.walls } : (fam && th[fam]) || SD.themeOfKind(id, r.kind) || th.work;
+        if (!hall) roomsDressed++;
+        ops.push({ op: 'floor', room: r.id, style: f.deck.style, mat: f.deck.mat }, { op: 'walls', room: r.id, style: f.walls.style, mat: f.walls.mat }, { op: 'hull', room: r.id, mat: th.hull.mat });
+        // a whole-room floor clears what was painted on it, so what was painted goes back: the old palette's inlay in the new accent, anything else as it was
+        const paint = {}, had = r.floorPaint || {};
+        for (const k of Object.keys(had)) { const sty = had[k] === oldAccent ? th.accent : had[k]; (paint[sty] = paint[sty] || []).push(k.split(',').map(Number)); }
+        for (const sty of Object.keys(paint)) ops.push({ op: 'paint', room: r.id, style: sty, tiles: paint[sty] });
+      }
+      const pl = planRefit(doc, ops, env);
+      if (pl.ok && pl.plan.spec) pl.plan.spec.stationPlan = Object.assign({}, (doc.meta || {}).stationPlan, { theme: id });
+      if (pl.ok) pl.plan.summary = 'Dress the whole station in the ' + th.name.toUpperCase() + ' palette (' + th.about + '): the floor, walls and hull of ' + roomsDressed + ' rooms and their hallways. Nothing that stands in them moves.';
+      return pl;
+    }
     const live = WM.create(clone(doc)), main = mainRoom(live), spawnId = (live.serialize().meta || {}).spawnRoomId, before = floorFacts(live, P), RS = env.RoomStyles;
     const nameOfRoom = raw => (raw && typeof raw === 'object' && !Array.isArray(raw) ? raw.room : raw);
     let spec, summary, where, mark = null, goneRects = [], moved = null, steps = [];
@@ -2008,7 +2031,7 @@
         const dr = dressRoom(scratch, env, room.id, sid);
         if (!dr.ok) return dr;
         if (!dr.props.length) return refuse(room.name + ' has no clear floor left for ' + rec.name + ' (its lines and agents\' desks stay where they are).');
-        spec = { kind: 'edit', removeProps: old.map(p => p.id), restyle: { roomId: room.id, deck: rec.deck, walls: rec.walls, name: name && name !== room.name ? name : null }, props: dr.props };
+        spec = { kind: 'edit', removeProps: old.map(p => p.id), restyle: { roomId: room.id, deck: rec.deck, walls: rec.walls, name: name && name !== room.name ? name : null, paint: dr.paint }, props: dr.props };
         summary = 'Refurnish ' + room.name + ' as ' + rec.name.replace(/^(a|an) /i, m => m.toLowerCase()) + ': ' + (old.length ? 'its ' + old.length + (old.length === 1 ? ' piece' : ' pieces') + ' of furniture are cleared (' + shortList(env, old) + '), and it' : 'it')
           + ' is furnished as ' + rec.name.toLowerCase() + ', floor and walls too (' + shortList(env, dr.props) + ')' + (spec.restyle.name ? '; renamed ' + spec.restyle.name : '') + '. ' + lostGear(env, old.filter(p => !dr.props.some(q => q.t === p.t))) + 'Its workflow lines and agents\' desks stay; one UNDO in Build mode brings it back as it was.';
         where = 'the refurnishing of ' + room.name;
@@ -2336,7 +2359,9 @@
     }
     // else wherever each fits, the top row then the bottom
     const out = [];
-    for (const y of [R.y1, R.y2 - 1]) {
+    // against a wall first, as ever; a composed room's walls can be full, so then any clear row of its floor
+    const rows = [R.y1, R.y2 - 1]; for (let y = R.y2 - 2; y > R.y1; y--) rows.push(y);
+    for (const y of rows) {
       for (let x = R.x1 + 1; x + sp.w - 1 <= R.x2 - 1 && out.length < n; x++) {
         if (!deskOk(x, y)) continue;
         const a = probe.addProp({ t: 'desk', x, y, w: sp.w, h: sp.h, r: 0, block: true });
@@ -2477,9 +2502,21 @@
       + (!free.length ? elsewhere() : ''), { free, smaller });
   }
 
+  // furniture beside a stretch of wall or just inside it, which would crowd a door there
+  function doorCrowded(st, bx, from, to, side) {
+    return st.props().some(p => {
+      if (p.block === false) return false;
+      const px2 = p.x + (p.w || 1) - 1, py2 = p.y + (p.h || 1) - 1;
+      if (side === 'east') return px2 >= bx.x2 - 2 && p.x <= bx.x2 && p.y <= to + 1 && py2 >= from - 1;
+      if (side === 'west') return p.x <= bx.x1 + 2 && px2 >= bx.x1 && p.y <= to + 1 && py2 >= from - 1;
+      if (side === 'south') return py2 >= bx.y2 - 2 && p.y <= bx.y2 && p.x <= to + 1 && px2 >= from - 1;
+      return p.y <= bx.y1 + 2 && py2 >= bx.y1 && p.x <= to + 1 && px2 >= from - 1;
+    });
+  }
+
   /* A HALLWAY BETWEEN TWO ROOMS that face each other across a gap: straight, as wide as the presets' own, in the middle of
      the stretch both rooms face, sliding along it to find clear wall at both ends. */
-  function hallBetween(st, A, Bm, hangs) {
+  function hallBetween(st, A, Bm, hangs, roomy) {
     const a = bboxOf(A), b = bboxOf(Bm);
     const yo1 = Math.max(a.y1, b.y1), yo2 = Math.min(a.y2, b.y2), xo1 = Math.max(a.x1, b.x1), xo2 = Math.min(a.x2, b.x2);
     const pair = A.name + ' and ' + Bm.name;
@@ -2493,7 +2530,9 @@
     if (gap < 2) return refuse(pair + ' are one tile apart, and a hallway is at least two tiles long.');
     if (gap > 160) return refuse(pair + ' are ' + gap + ' tiles apart; a hallway runs at most 160.');
     const o1 = horiz ? yo1 : xo1, o2 = horiz ? yo2 : xo2, w = Math.min(horiz ? HALL_W.east : HALL_W.south, o2 - o1 + 1), centre = o1 + ((o2 - o1 + 1 - w) >> 1);
-    const offs = [centre]; for (let d = 1; d <= o2 - o1; d++) offs.push(centre - d, centre + d);
+    const offs0 = [centre]; for (let d = 1; d <= o2 - o1; d++) offs0.push(centre - d, centre + d);
+    // asked for room, a door first looks for wall with no furniture beside it or just inside it, and only then settles for clear wall
+    const offs = !roomy ? offs0 : offs0.filter(h => !doorCrowded(st, fb, h, h + w - 1, horiz ? 'east' : 'south') && !doorCrowded(st, sb, h, h + w - 1, horiz ? 'west' : 'north')).concat(offs0);
     let why = '';
     for (const h1 of offs) {
       if (h1 < o1 || h1 + w - 1 > o2) continue;
@@ -2734,6 +2773,8 @@
       if (part.hall) {
         const r = st.placeHallway({ rect: part.hall }); if (!r || !r.ok) return refuse('the hallway could not be laid there' + (r && r.msg ? ' (' + r.msg + ')' : '')); hallId = r.id;
         if (part.hallDeck) { const d = st.setDeck(hallId, part.hallDeck); if (!d || !d.ok) return refuse('the hallway floor could not be laid'); }
+        if (part.hallHull) { const d = st.setHull(hallId, part.hallHull); if (!d || !d.ok) return refuse('the hull could not be clad'); }
+        if (part.hallWalls) { const d = st.setWalls(hallId, part.hallWalls); if (!d || !d.ok) return refuse('the hallway walls could not be put up'); }
         for (const p of part.hallProps || []) { const r = st.addProp({ t: p.t, x: p.x, y: p.y, w: p.w, h: p.h, r: p.r || 0, block: p.block }); if (!r || !r.ok) return refuse('the hallway could not be dressed'); }
       }
       if (part.room) {
@@ -2741,6 +2782,7 @@
         if (!r || !r.ok) return refuse('the room could not be added there' + (r && r.msg ? ' (' + r.msg + ')' : ''));
         roomId = r.id;
         if (part.room.walls) { const w = st.setWalls(roomId, part.room.walls); if (!w || !w.ok) return refuse('the walls could not be put up'); }
+        if (part.room.hull) { const w = st.setHull(roomId, part.room.hull); if (!w || !w.ok) return refuse('the hull could not be clad'); }
       }
       // lines first (the layout each was planned with was laid on exactly this floor), then the furniture
       const lines = [], mine = [];
@@ -2763,8 +2805,14 @@
         if (!r || !r.ok) return refuse('a piece of furniture could not be placed there' + (r && r.msg ? ' (' + r.msg + ')' : ''));
         mine.push(r.id);
       }
+      if (part.restyle) {
+        const q = part.restyle;
+        for (const [fn, v] of [[st.setDeck, q.deck], [st.setWalls, q.walls], [st.setHull, q.hull]]) if (v) { const r = fn(roomId, v); if (!r || !r.ok) return refuse('the room could not be restyled'); }
+      }
+      // the inlay after the floor it lies on: a whole-room floor clears what was painted
+      for (const q of part.paint || []) { const r = st.paintTiles(roomId || hallId, q.tiles, q.style); if (!r || !r.ok) return refuse('the floor inlay could not be laid'); }
       ids.push(...mine);
-      parts.push({ roomId, hallId, lines, ids: mine });
+      parts.push({ roomId, hallId, lines, ids: mine, restyled: !!part.restyle });
     }
     return { ok: true, ids, parts, roomId: parts.length ? parts[0].roomId : null, lines: [].concat(...parts.map(p => p.lines)) };
   }
@@ -2790,10 +2838,16 @@
       }
       if (o && part.hallId && !part.roomId) {
         const hr = probe.rooms().find(r => r.id === part.hallId), H = hr && hr.rects[0];
-        if (H && !g.path(o.x - g.origin.tx, o.y - g.origin.ty, ((H.x1 + H.x2) >> 1) - g.origin.tx, ((H.y1 + H.y2) >> 1) - g.origin.ty)) return refuse('that hallway could not be walked into');
+        // its middle, or (a square's middle holds its centrepiece) the clear floor nearest it
+        if (H) {
+          const mx = (H.x1 + H.x2) >> 1, my = (H.y1 + H.y2) >> 1;
+          let goal = [mx, my], best = Infinity;
+          if (!g.walkable(mx - g.origin.tx, my - g.origin.ty)) for (let yy = H.y1; yy <= H.y2; yy++) for (let xx = H.x1; xx <= H.x2; xx++) { const d = Math.abs(xx - mx) + Math.abs(yy - my); if (d < best && g.walkable(xx - g.origin.tx, yy - g.origin.ty)) { best = d; goal = [xx, yy]; } }
+          if (!g.path(o.x - g.origin.tx, o.y - g.origin.ty, goal[0] - g.origin.tx, goal[1] - g.origin.ty)) return refuse('that hallway could not be walked into');
+        }
       }
       // an empty room must still be one the crew can walk into
-      if (o && part.roomId && !part.ids.length) {
+      if (o && part.roomId && !part.ids.length && !part.restyled) {   // a restyled room has its furniture: its centre may well be taken
         const rm = probe.rooms().find(r => r.id === part.roomId), R = rm && rm.rects[0];
         if (R && !g.path(o.x - g.origin.tx, o.y - g.origin.ty, ((R.x1 + R.x2) >> 1) - g.origin.tx, ((R.y1 + R.y2) >> 1) - g.origin.ty)) return refuse('that room could not be walked into');
       }
@@ -2811,7 +2865,14 @@
     if (extra.length) return refuse('StarNet computes every tile itself, so these fields are not accepted: ' + extra.slice(0, 8).join(', ') + '. ' + HOW);
     const reqRooms = req.rooms == null ? [] : req.rooms, reqHalls = req.hallways == null ? [] : req.hallways;
     if (!Array.isArray(reqRooms) || reqRooms.length > 24 || !Array.isArray(reqHalls) || reqHalls.length > 24 || !(reqRooms.length + reqHalls.length)) return refuse(HOW);
-    const notes = [], live = WM.create(clone(doc)), before = floorFacts(live, P);
+    const laidAs = (doc.meta || {}).stationPlan;
+    let growNote = null;
+    if (laidAs && PLAN_GROWS.has(laidAs.pattern) && reqRooms.length && !reqHalls.length && reqRooms.every(q => q && typeof q === 'object' && !Array.isArray(q) && Object.keys(q).every(k => k === 'name' || k === 'style' || k === 'size' || k === 'lines' || k === 'zones'))) {
+      const g = planLayout(doc, { layout: { rooms: reqRooms } }, env);
+      if (g.ok) return g;
+      growNote = 'This station is a ' + laidAs.pattern + ', but ' + String(g.error || 'no place on it fitted').slice(0, 160) + ' So these rooms go where they fit best.';
+    }
+    const notes = growNote ? [growNote] : [], live = WM.create(clone(doc)), before = floorFacts(live, P);
     let probe = WM.create(clone(doc));
     const spec = { kind: 'build', parts: [], recruits: [] }, rooms = [], usedNames = {};
     for (let i = 0; i < reqRooms.length; i++) {
@@ -2862,7 +2923,7 @@
         if (dr && !dr.props.length) return refuse(T.name + ' has no clear floor left for ' + rec.name + '.');
         const acc = accentsFor(cp, env, T.id, zones, rec);
         probe = cp;
-        spec.parts.push({ hall: null, room: null, roomId: T.id, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []) });
+        spec.parts.push({ hall: null, room: null, roomId: T.id, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []), paint: dr ? dr.paint : undefined });
         f.recruits.forEach(rc => spec.recruits.push(Object.assign({ part: spec.parts.length - 1 }, rc)));
         rooms.push({ part: spec.parts.length - 1, name: T.name, existing: true, R, view: f.view, placed: null, dressed: dr ? { style: rstyle, props: dr.props } : null, accents: acc });
         continue;
@@ -2910,10 +2971,10 @@
         if (roomSpec.walls) cp.setWalls(a.id, roomSpec.walls);
         const f = fillRoom(cp, env, a.id, cand.rect, zones, lines, need, name, 0);
         if (!f.ok) { if (!why || f.tooSmall) why = f; if (f.tooSmall) { small = true; break; } continue; }
-        const dr = rec ? dressRoom(cp, env, a.id, rstyle) : null;
+        const dr = rec ? dressRoom(cp, env, a.id, rstyle, { variant: (env.StationDesign || designModule() || { hash: () => 0 }).hash(name) % 3 }) : null;
         if (dr && !dr.ok) { why = why || dr; continue; }
         const acc = accentsFor(cp, env, a.id, zones, rec);
-        const part = Object.assign({ hall: cand.hall, room: Object.assign({}, roomSpec, { rect: cand.rect }), roomId: null, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []) }, gridHallTrim(WM, env, probe, cand, kind));
+        const part = Object.assign({ hall: cand.hall, room: Object.assign({}, roomSpec, { rect: cand.rect }), roomId: null, lines: f.lines, props: f.props.concat(dr ? dr.props : [], acc || []), paint: dr ? dr.paint : undefined }, gridHallTrim(WM, env, probe, cand, kind));
         const t = tryBuild(doc, { kind: 'build', parts: spec.parts.concat([part]) }, env, before);
         if (!t.ok) { why = why || t; continue; }
         got = { cand, f, part, cp, dr, acc }; break;
@@ -3018,9 +3079,11 @@
        concourse  a wide corridor from one side of the hub, rooms on short halls down both sides, a big room at the far end
      Nothing is placed by the model. Added beside what stands (every check of a build holds), or with replace: true the
      whole station is laid out again around the hub (backed up for RESTORE PREVIOUS, like a preset swap). */
-  const LAYOUT_KEYS = ['pattern', 'around', 'side', 'rooms'];
+  const LAYOUT_KEYS = ['pattern', 'around', 'side', 'rooms', 'theme', 'from'];
   const LAYOUT_ROOM_KEYS = ['name', 'style', 'size', 'lines', 'zones'];
-  const PATTERNS = { diamond: 'diamond', ring: 'diamond', loop: 'diamond', circle: 'diamond', hub: 'diamond', star: 'diamond', cross: 'diamond', grid: 'diamond', concourse: 'concourse', corridor: 'concourse', spine: 'concourse', hallway: 'concourse', street: 'concourse', main: 'concourse' };
+  const PATTERNS = { court: 'court', courtyard: 'court', plaza: 'court', piazza: 'court', square: 'court', forum: 'court', atrium: 'court', terrace: 'terrace', terraces: 'terrace', terraced: 'terrace', stepped: 'terrace', steps: 'terrace', staircase: 'terrace', ziggurat: 'terrace', diamond: 'diamond', ring: 'diamond', loop: 'diamond', circle: 'diamond', hub: 'diamond', star: 'diamond', cross: 'diamond', grid: 'diamond', concourse: 'concourse', corridor: 'concourse', spine: 'concourse', hallway: 'concourse', street: 'concourse', main: 'concourse',
+    axis: 'axis', longship: 'axis', ship: 'axis', gallery: 'axis', enfilade: 'enfilade', suite: 'enfilade', chain: 'enfilade', train: 'enfilade', sequence: 'enfilade',
+    colony: 'colony', organic: 'colony', cluster: 'colony', hive: 'colony', sprawl: 'colony', campus: 'campus', pods: 'campus', islands: 'campus', archipelago: 'campus', pinwheel: 'pinwheel', spiral: 'pinwheel', windmill: 'pinwheel', vortex: 'pinwheel' };
   const AUTO_NAME = { lounge: 'LOUNGE', cozy: 'DEN', games: 'ARCADE', library: 'LIBRARY', quarters: 'QUARTERS', garden: 'GARDEN', cafe: 'CAFE', desks: 'OFFICE',
     meeting: 'MEETING ROOM', lab: 'LAB', workshop: 'WORKSHOP', comms: 'COMMS', storage: 'STORES', gym: 'GYM', works: 'CONVEYOR HALL' };
   const CORRIDOR_DECK = { style: 'onyx', mat: 'runner' };
@@ -3055,6 +3118,38 @@
      the middle facing it; plants take the corners; accents stand along the side walls. Every doorway keeps a clear lane
      three tiles deep, nothing lands on a belt, and a piece nobody could walk up to is taken back out. Answers the pieces
      placed, in the order they were placed (a lamp after its table), for the build to lay again exactly. */
+  /* NO SEALED FLOOR: a run of furniture can wall off a few tiles nobody can ever stand on (behind a row, in a corner). The piece
+     placed last beside such a pocket comes back out, with what stands on it, until the room's floor is one walkable piece. */
+  function openPockets(st, placed, R) {
+    for (let pass = 0; pass < 8; pass++) {
+      const g = st.projectGeometry(), ox = g.origin.tx, oy = g.origin.ty, seen = new Set(), parts = [];
+      for (let y = R.y1; y <= R.y2; y++) for (let x = R.x1; x <= R.x2; x++) {
+        const k = x + ',' + y;
+        if (seen.has(k) || !g.walkable(x - ox, y - oy)) continue;
+        const part = [], todo = [[x, y]]; seen.add(k);
+        while (todo.length) {
+          const [a, b] = todo.pop(); part.push([a, b]);
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const u = a + dx, v = b + dy, q = u + ',' + v;
+            if (u < R.x1 || u > R.x2 || v < R.y1 || v > R.y2 || seen.has(q) || !g.walkable(u - ox, v - oy)) continue;
+            seen.add(q); todo.push([u, v]);
+          }
+        }
+        parts.push(part);
+      }
+      if (parts.length < 2) return;
+      parts.sort((a, b) => b.length - a.length);
+      const sealed = parts.slice(1).flat();
+      const beside = p => p.block && sealed.some(([x, y]) => x >= p.x - 1 && x <= p.x + p.w && y >= p.y - 1 && y <= p.y + p.h);
+      let drop = null;
+      for (let i = placed.length - 1; i >= 0; i--) if (beside(placed[i])) { drop = placed[i]; break; }
+      if (!drop) return;
+      for (const q of placed) if (q !== drop && !q.block && q.x >= drop.x && q.x < drop.x + drop.w && q.y >= drop.y && q.y < drop.y + drop.h) { st.removeProp(q.id); q.gone = true; }
+      st.removeProp(drop.id); drop.gone = true;
+      for (let i = placed.length - 1; i >= 0; i--) if (placed[i].gone) placed.splice(i, 1);
+    }
+  }
+  const designModule = () => { if (typeof StationDesign !== 'undefined') return StationDesign; try { return typeof require === 'function' ? require('./stationdesign.js') : null; } catch (_) { return null; } };
   // corner plants for a room made only of styled zones (no whole-room recipe, no line: a line's half keeps its floor)
   const ACCENTS = { corners: ['tallplant', 'plant', 'plant', 'tallplant'] };
   function accentsFor(st, env, roomId, zones, rec) {
@@ -3062,8 +3157,10 @@
     const d = dressRoom(st, env, roomId, ACCENTS);
     return d.ok && d.props.length ? d.props : null;
   }
-  function dressRoom(st, env, roomId, styleId) {
-    const RS = env.RoomStyles, S = env.PropSprites, rec = styleId && typeof styleId === 'object' ? styleId : RS && RS.ROOMS ? RS.ROOMS[styleId] : null;
+  function dressRoom(st, env, roomId, styleId, opts) {
+    const RS = env.RoomStyles, S = env.PropSprites, DM = env.StationDesign || designModule();
+    // a recipe with no whole-room style behind it (the main room's) has its pieces and no floor of its own
+    const rec = styleId && typeof styleId === 'object' ? styleId : (RS && RS.ROOMS && RS.ROOMS[styleId]) || (DM && DM.RECIPES[styleId] ? {} : null);
     if (!rec) return refuse('there is no room style "' + styleId + '"');
     const rm = st.rooms().find(r => r.id === roomId); if (!rm) return refuse('the room is missing');
     const R = rm.rects[0], W = R.x2 - R.x1 + 1, H = R.y2 - R.y1 + 1;
@@ -3071,6 +3168,7 @@
     for (const d of doors) {
       onWall[d.dy > 0 ? 'north' : d.dy < 0 ? 'south' : d.dx > 0 ? 'west' : 'east']++;
       for (let k = 0; k < 3; k++) reserve.add((d.x + d.dx * k) + ',' + (d.y + d.dy * k));
+      for (const s of [-1, 1]) for (let k = 0; k < 2; k++) reserve.add((d.x + d.dx * k + d.dy * s) + ',' + (d.y + d.dy * k + d.dx * s));
     }
     // the feature wall is the south one when the only door is north, unless the centrepiece holds a couch: it is drawn from
     // behind facing north, so mirrored it would turn its back on the TV
@@ -3145,6 +3243,29 @@
       run(groups.right, R.x2 - 1, -1);
       return depth;
     };
+    /* A STYLE WITH A RECIPE IS COMPOSED (stationdesign.js): groups, a rhythm on the back wall, the empty floor filled, light and an
+       inlay. A room with no recipe (the conveyor hall, a room of accents) dresses as it always has. */
+    const SD = env.StationDesign || designModule(), recipe = SD && !(styleId && typeof styleId === 'object') ? (SD.variantOf ? SD.variantOf(styleId, (opts && opts.variant) || 0) : SD.RECIPES[styleId]) : null;
+    if (recipe) {
+      const existing = st.props().filter(p => st.roomAt(p.x, p.y) === roomId);
+      const made = SD.compose({ R, S, doors, occ, belts, reserve, add, blocks, placed, existing, twinOf, recipe: opts && opts.accent ? Object.assign({}, recipe, { accent: opts.accent }) : recipe, seed: SD.hash(rm.name) });
+      (rec.corners || []).forEach((t, i) => {
+        const s = S.spec(t), c = [[R.x1, R.y1, 1, 1], [R.x2, R.y1, -1, 1], [R.x1, R.y2, 1, -1], [R.x2, R.y2, -1, -1]][i]; if (!s || !c) return;
+        add(t, c[2] > 0 ? c[0] : c[0] - s.w + 1, c[3] > 0 ? c[1] : c[1] - s.h + 1, 0);
+      });
+      pruneUnreachable(st, placed);
+      openPockets(st, placed, R);
+      // what the style promises to work at survives all of that: a lab keeps its desk, wherever it can still be walked up to
+      if (recipe.must && !st.props().some(p => st.roomAt(p.x, p.y) === roomId && recipe.must.needs.indexOf(p.t) >= 0)) {
+        const t = recipe.must.needs[0], sp = S.spec(t); let got = false;
+        for (let y = R.y1; sp && !got && y + sp.h - 1 <= R.y2; y++) for (let x = R.x1; !got && x + sp.w - 1 <= R.x2; x++) {
+          if (blocks(sp, x, y) || !add(t, x, y, 0)) continue;
+          const last = placed[placed.length - 1]; pruneUnreachable(st, placed);
+          if (placed.indexOf(last) >= 0) got = true; else for (let yy = y; yy < y + sp.h; yy++) for (let xx = x; xx < x + sp.w; xx++) occ.delete(xx + ',' + yy);
+        }
+      }
+      return { ok: true, props: placed.map(({ id, gone, ...p }) => p), centre: !!made.hero, featureWall: 'north', paint: made.paint };
+    }
     const featureWall = flip ? 'south' : 'north';
     const depth = lineWall(rec.feature, featureWall);
     if (rec.front) lineWall(rec.front, flip ? 'north' : 'south');
@@ -3475,6 +3596,379 @@
     return { ok: true, halls, rooms };
   }
 
+  /* THE OTHER ARCHITECTURES (2026-11-01; Andrew: "other styles besides the big hallway surrounding the first room"). Each answers what the
+     diamond and the concourse answer, { halls, rooms }, and planLayout's checks run on all of them alike. Rooms are placed on a scratch
+     copy, so a place that does not fit is simply not taken, and hallBetween finds clear wall at both ends of every link. */
+  function growKit(scratch, hub, hangs) {
+    const halls = [], rooms = [];
+    const lenOf = r => Math.max(r.x2 - r.x1, r.y2 - r.y1) + 1;
+    const rectOf = (q, B, dx, dy, gap, slide) => {
+      const cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1, sl = slide || 0;
+      if (dx) { const x1 = dx > 0 ? B.x2 + 1 + gap : B.x1 - gap - q.w, y1 = cy - ((q.h - 1) >> 1) + sl; return { x1, y1, x2: x1 + q.w - 1, y2: y1 + q.h - 1 }; }
+      const y1 = dy > 0 ? B.y2 + 1 + gap : B.y1 - gap - q.h, x1 = cx - ((q.w - 1) >> 1) + sl;
+      return { x1, y1, x2: x1 + q.w - 1, y2: y1 + q.h - 1 };
+    };
+    const standing = (q, rect) => {
+      if (!scratch.canPlaceRoom([rect], 'hab').ok || neighbourOf(scratch, rect, [])) return null;
+      const a = scratch.addRoom({ kind: 'hab', name: q.name, rect });
+      return a && a.ok ? scratch.rooms().find(r => r.id === a.id) : null;
+    };
+    const link = (A, Bm) => {
+      const hb = hallBetween(scratch, A, Bm, hangs, true); if (!hb.ok) return null;
+      const h = scratch.placeHallway({ rect: hb.rect }); if (!h || !h.ok) return null;
+      const e = { rect: hb.rect, id: h.id }; if (lenOf(hb.rect) >= 6) e.dress = true;
+      halls.push(e); return e;
+    };
+    // a room and the hallway that joins it to what it hangs from, or neither
+    const attach = (q, parent, rect, side) => {
+      const r = standing(q, rect); if (!r) return null;
+      if (!link(parent, r)) { scratch.removeRoom(r.id); return null; }
+      rooms.push({ i: q.i, rect, side, id: r.id });
+      return r;
+    };
+    const corridor = (rect, dress) => {
+      if (!scratch.canPlaceHallway([rect]).ok) return null;
+      const h = scratch.placeHallway({ rect }); if (!h || !h.ok) return null;
+      const e = { rect, id: h.id }; if (dress) e.dress = true;
+      halls.push(e);
+      return scratch.rooms().find(r => r.id === h.id);
+    };
+    return { halls, rooms, rectOf, attach, corridor, link, standing };
+  }
+  const SIDE_NAME = (dx, dy) => dx > 0 ? 'east' : dx < 0 ? 'west' : dy > 0 ? 'south' : 'north';
+
+  // AXIS: the main room amidships, a long corridor out of both ends, rooms down both sides
+  function axisGeometry(B, side, want) {
+    const vertical = side === 'north' || side === 'south', ends = vertical ? ['north', 'south'] : ['east', 'west'];
+    const a = want.filter((_, k) => k % 2 === 0), b = want.filter((_, k) => k % 2 === 1);
+    const gA = concourseGeometry(B, ends[0], a); if (!gA.ok) return gA;
+    const gB = b.length ? concourseGeometry(B, ends[1], b) : { ok: true, halls: [], rooms: [] }; if (!gB.ok) return gB;
+    return { ok: true, halls: gA.halls.concat(gB.halls), rooms: gA.rooms.concat(gB.rooms) };
+  }
+  // ENFILADE: no corridor at all. One room opens into the next, in a line that doubles back when it has run three rooms
+  function enfiladeGeometry(scratch, hub, want, hangs) {
+    const K = growKit(scratch, hub, hangs);
+    let cur = hub, dir = 1, run = 0;
+    const HB0 = bboxOf(hub), far = r => { const b = bboxOf(r); return Math.abs(b.x1 + b.x2 - HB0.x1 - HB0.x2) + Math.abs(b.y1 + b.y2 - HB0.y1 - HB0.y2); };
+    // a line that stands goes on from its far end; a fresh one starts at the main room
+    let starts = scratch.rooms().filter(r => r.kind !== 'corridor').sort((a, b) => far(b) - far(a));
+    for (const q of want) {
+      const on = [[dir, 0, 'along'], [0, 1, 'turn'], [0, -1, 'turn'], [-dir, 0, 'back']], order = run >= 3 ? [on[1], on[2], on[0], on[3]] : on;
+      let got = null;
+      for (const from of starts || [cur]) {
+        for (const [dx, dy, how] of order) {
+          const r = K.attach(q, from, K.rectOf(q, bboxOf(from), dx, dy, 3), SIDE_NAME(dx, dy));
+          if (!r) continue;
+          got = r; cur = from;
+          if (how === 'along') run++; else if (how === 'back') { dir = -dir; run = 1; } else { dir = -dir; run = 0; }
+          break;
+        }
+        if (got) break;
+      }
+      starts = null;
+      if (!got) return refuse('The line of rooms could not go on from ' + (cur.name || 'its last room') + ' for ' + q.name + '. Try fewer or smaller rooms.');
+      cur = got;
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // COLONY: grown, not planned: each room buds off one that stands, near the middle, never quite in line. The same names grow the same colony
+  function colonyGeometry(scratch, hub, want, hangs) {
+    const K = growKit(scratch, hub, hangs), HB = bboxOf(hub), hx = (HB.x1 + HB.x2) / 2, hy = (HB.y1 + HB.y2) / 2;
+    let seed = 7; for (const q of want) for (const c of String(q.name)) seed = (seed * 31 + c.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    const nodes = scratch.rooms().filter(r => r.kind !== 'corridor');   // a colony that stands goes on growing from every room of it
+    for (const q of want.slice().sort((a, b) => b.w * b.h - a.w * a.h)) {
+      const tries = [];
+      for (const n of nodes) {
+        const b = bboxOf(n);
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (const f of [-0.3, 0.3, 0]) {
+          const along = dx ? Math.min(q.h, b.y2 - b.y1 + 1) : Math.min(q.w, b.x2 - b.x1 + 1), rect = K.rectOf(q, b, dx, dy, 3 + Math.floor(rnd() * 2), Math.round(along * f));
+          const d = Math.hypot((rect.x1 + rect.x2) / 2 - hx, (rect.y1 + rect.y2) / 2 - hy);
+          tries.push({ n, rect, dx, dy, score: d + rnd() * 16 });
+        }
+      }
+      tries.sort((a, b) => a.score - b.score);
+      let got = null;
+      for (const t of tries) { got = K.attach(q, t.n, t.rect, SIDE_NAME(t.dx, t.dy)); if (got) break; }
+      if (!got) return refuse('The colony found no place to grow ' + q.name + '. Try fewer or smaller rooms.');
+      nodes.push(got);
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // CAMPUS: separate pods standing apart, each a small plaza with rooms round it, on a long bridge from the main room
+  function campusGeometry(scratch, hub, want, hangs) {
+    if (want.length > 12) return refuse('A campus holds 12 rooms in four pods (' + want.length + ' were asked).');
+    const K = growKit(scratch, hub, hangs), B = bboxOf(hub), cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1;
+    const count = Math.min(4, Math.max(want.length > 1 ? 2 : 1, Math.ceil(want.length / 2))), pods = Array.from({ length: count }, () => []);
+    // rooms whose names begin alike (BIOCHEM LAB, BIOCHEM DESKS) share a pod while it has room; otherwise each goes to the emptiest pod
+    const word = q => String(q.name).trim().toUpperCase().split(/\s+/)[0], counts = {};
+    for (const q of want) counts[word(q)] = (counts[word(q)] || 0) + 1;
+    const home = {};
+    want.slice().sort((a, b) => b.w * b.h - a.w * a.h).forEach(q => {
+      const w = word(q), own = counts[w] > 1 && !/^(THE|A|AN)$/.test(w) ? home[w] : null;
+      const pod = own && own.length < 3 ? own : pods.reduce((a, b) => b.length < a.length ? b : a);
+      pod.push(q); home[w] = pod;
+    });
+    const SIDES4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    // a pod no room went to is not built: a plaza and bridge to nothing is a corridor that leads nowhere
+    const filled = pods.filter(p => p.length);
+    filled.forEach((pod, n) => { pod.sideIndex = n; });
+    for (const pod of filled) {
+      const [dx, dy] = SIDES4[pod.sideIndex];
+      let done = false;
+      for (const bridge of [12, 16, 22, 30]) {
+        const h0 = K.halls.length, r0 = K.rooms.length, made = [];
+        const plaza = dx ? { x1: dx > 0 ? B.x2 + 1 + bridge : B.x1 - bridge - 8, x2: dx > 0 ? B.x2 + bridge + 8 : B.x1 - bridge - 1, y1: cy - 3, y2: cy + 2 }
+          : { y1: dy > 0 ? B.y2 + 1 + bridge : B.y1 - bridge - 6, y2: dy > 0 ? B.y2 + bridge + 6 : B.y1 - bridge - 1, x1: cx - 4, x2: cx + 3 };
+        const pz = K.corridor(plaza, true);
+        let ok = !!pz && !!K.link(hub, pz);
+        const around = dx ? [[dx, 0], [0, -1], [0, 1]] : [[0, dy], [-1, 0], [1, 0]];
+        // the room at the far end stands close; the rooms either side stand further out, clear of its corners, however tall it is
+        pod.forEach((q, k) => {
+          if (!ok) return;
+          const [ax, ay] = around[k];
+          let r = null;
+          for (const gap of k ? [5, 8, 12, 16] : [3]) { r = K.attach(q, pz, K.rectOf(q, plaza, ax, ay, gap), SIDE_NAME(ax, ay)); if (r) break; }
+          if (r) made.push(r); else ok = false;
+        });
+        if (ok) { done = true; break; }
+        for (const e of K.halls.splice(h0)) scratch.removeRoom(e.id);
+        for (const e of K.rooms.splice(r0)) scratch.removeRoom(e.id);
+      }
+      if (!done) return refuse('A pod of the campus does not fit round ' + hub.name + '. Try fewer or smaller rooms.');
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // PINWHEEL: four corridors leave the main room off-centre and each carries its rooms to one side, so the plan turns
+  function pinwheelGeometry(scratch, hub, want, hangs) {
+    if (want.length > 12) return refuse('A pinwheel holds 12 rooms on its four arms (' + want.length + ' were asked).');
+    const K = growKit(scratch, hub, hangs), B = bboxOf(hub), tw = HALL_W.east, vw = HALL_W.south;
+    const arms = [[], [], [], []]; want.forEach((q, k) => arms[k % 4].push(q));
+    const free = (wall, a, b) => !doorwayBlocked(scratch, wall, B, a, b, true, hangs);
+    const pick = (wall, from, to, w) => {
+      const step = from <= to ? 1 : -1, all = [];
+      for (let v = from; step > 0 ? v <= to : v >= to; v += step) if (free(wall, v, v + w - 1)) all.push(v);
+      const roomy = all.find(v => !doorCrowded(scratch, B, v, v + w - 1, wall));
+      return roomy != null ? roomy : all.length ? all[0] : null;
+    };
+    const fail = q => refuse('The pinwheel has no place for ' + q.name + ' round ' + hub.name + '. Try fewer or smaller rooms.');
+    // a corridor runs just far enough to meet its last room, so its door falls at the corridor's end and nothing dead-ends beyond it
+    const along = (qs, k) => { const size = q => k ? q.w : q.h; return qs.slice(0, -1).reduce((n, q) => n + size(q) + 3, 2) + 2 + (k ? tw : vw); };
+    // east: rooms south of the arm, walking east
+    if (arms[0].length) {
+      const y = pick('east', B.y1, B.y2 - tw + 1, tw); if (y == null) return fail(arms[0][0]);
+      const L = along(arms[0], true), rect = { x1: B.x2 + 1, y1: y, x2: B.x2 + L, y2: y + tw - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[0][0]);
+      let x = B.x2 + 3;
+      for (const q of arms[0]) { const y1 = y + tw + 3; if (!K.attach(q, a, { x1: x, y1, x2: x + q.w - 1, y2: y1 + q.h - 1 }, 'east')) return fail(q); x += q.w + 3; }
+    }
+    // south: rooms west of the arm, walking south
+    if (arms[1].length) {
+      const ax = pick('south', B.x2 - vw + 1, B.x1, vw); if (ax == null) return fail(arms[1][0]);
+      const L = along(arms[1], false), rect = { x1: ax, y1: B.y2 + 1, x2: ax + vw - 1, y2: B.y2 + L }, a = K.corridor(rect, true); if (!a) return fail(arms[1][0]);
+      let y = B.y2 + 3;
+      for (const q of arms[1]) { const x2 = ax - 4; if (!K.attach(q, a, { x1: x2 - q.w + 1, y1: y, x2, y2: y + q.h - 1 }, 'south')) return fail(q); y += q.h + 3; }
+    }
+    // west: rooms north of the arm, walking west
+    if (arms[2].length) {
+      const y = pick('west', B.y2 - tw + 1, B.y1, tw); if (y == null) return fail(arms[2][0]);
+      const L = along(arms[2], true), rect = { x1: B.x1 - L, y1: y, x2: B.x1 - 1, y2: y + tw - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[2][0]);
+      let x2 = B.x1 - 3;
+      for (const q of arms[2]) { const y2 = y - 4; if (!K.attach(q, a, { x1: x2 - q.w + 1, y1: y2 - q.h + 1, x2, y2 }, 'west')) return fail(q); x2 -= q.w + 3; }
+    }
+    // north: rooms east of the arm, walking north
+    if (arms[3].length) {
+      const ax = pick('north', B.x1, B.x2 - vw + 1, vw); if (ax == null) return fail(arms[3][0]);
+      const L = along(arms[3], false), rect = { x1: ax, y1: B.y1 - L, x2: ax + vw - 1, y2: B.y1 - 1 }, a = K.corridor(rect, true); if (!a) return fail(arms[3][0]);
+      let y2 = B.y1 - 3;
+      for (const q of arms[3]) { const x1 = ax + vw + 3; if (!K.attach(q, a, { x1, y1: y2 - q.h + 1, x2: x1 + q.w - 1, y2 }, 'north')) return fail(q); y2 -= q.h + 3; }
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  // COURT: one big open square off the main room, and everything opens onto it: the biggest room across it, the rest along its two long sides
+  function courtGeometry(scratch, hub, want, hangs, side) {
+    if (want.length > 9) return refuse('A court holds 9 rooms round its square (' + want.length + ' were asked).');
+    const K = growKit(scratch, hub, hangs), B = bboxOf(hub), cx = (B.x1 + B.x2) >> 1, cy = (B.y1 + B.y2) >> 1;
+    const order = want.slice().sort((a, b) => b.w * b.h - a.w * a.h), head = order[0], rest = order.slice(1), A = [], Z = [];
+    rest.forEach((q, k) => (k % 2 ? Z : A).push(q));
+    const free = dir => { const dx = dir === 'east' ? 1 : dir === 'west' ? -1 : 0, dy = dir === 'south' ? 1 : dir === 'north' ? -1 : 0; return !neighbourOf(scratch, K.rectOf({ w: 12, h: 12 }, B, dx, dy, 3), []); };
+    const sides = side ? [side] : ['east', 'south', 'west', 'north'].filter(free);
+    for (const dir of sides.length ? sides : ['east']) {
+      const horiz = dir === 'east' || dir === 'west', sign = dir === 'east' || dir === 'south' ? 1 : -1;
+      const run = list => list.reduce((n, q) => n + (horiz ? q.w : q.h) + 3, -3);
+      const length = Math.max(18, run(A), run(Z)), breadth = 12, gap = 4;
+      const near = (horiz ? (sign > 0 ? B.x2 : B.x1) : (sign > 0 ? B.y2 : B.y1)) + sign * (gap + 1);
+      const far = near + sign * (length - 1), lo = Math.min(near, far), hi = Math.max(near, far);
+      const rect = horiz ? { x1: lo, x2: hi, y1: cy - (breadth >> 1), y2: cy + (breadth >> 1) - 1 } : { y1: lo, y2: hi, x1: cx - (breadth >> 1), x2: cx + (breadth >> 1) - 1 };
+      const h0 = K.halls.length, r0 = K.rooms.length;
+      const sq = K.corridor(rect, true);
+      if (sq) K.halls[K.halls.length - 1].court = true;
+      let ok = !!sq && !!K.link(hub, sq);
+      const sqB = rect;
+      const rowInto = (list, wing) => {
+        let at = 0;
+        for (const q of list) {
+          if (!ok) return;
+          const sz = horiz ? q.w : q.h, across = horiz ? q.h : q.w, start = lo + at;
+          const r = horiz
+            ? { x1: start, x2: start + q.w - 1, y1: wing < 0 ? sqB.y1 - 3 - across : sqB.y2 + 4, y2: wing < 0 ? sqB.y1 - 4 : sqB.y2 + 3 + across }
+            : { y1: start, y2: start + q.h - 1, x1: wing < 0 ? sqB.x1 - 3 - across : sqB.x2 + 4, x2: wing < 0 ? sqB.x1 - 4 : sqB.x2 + 3 + across };
+          if (!K.attach(q, sq, r, horiz ? SIDE_NAME(0, wing) : SIDE_NAME(wing, 0))) ok = false;
+          at += sz + 3;
+        }
+      };
+      if (ok) { const dx = horiz ? sign : 0, dy = horiz ? 0 : sign; if (!K.attach(head, sq, K.rectOf(head, sqB, dx, dy, 3), SIDE_NAME(dx, dy))) ok = false; }
+      rowInto(A, -1); rowInto(Z, 1);
+      if (ok) return { ok: true, halls: K.halls, rooms: K.rooms };
+      for (const e of K.halls.splice(h0)) scratch.removeRoom(e.id);
+      for (const e of K.rooms.splice(r0)) scratch.removeRoom(e.id);
+    }
+    return refuse('The court does not fit beside ' + hub.name + '. Try fewer or smaller rooms.');
+  }
+  /* GROWING A PLAN THAT STANDS: its corridors take new rooms. A court's only along its square, a campus's round its plazas, the rest along any
+     corridor, nearest the main room first; a room may hang past a corridor's end as long as a door still meets it. */
+  const PLAN_GROWS = new Set(['axis', 'enfilade', 'colony', 'campus', 'pinwheel', 'court', 'terrace']);
+  function growOnCorridors(scratch, hub, want, hangs, pattern) {
+    const K = growKit(scratch, hub, hangs), HB = bboxOf(hub), minThick = pattern === 'court' ? 10 : pattern === 'campus' ? 6 : 3;
+    const off = b => Math.abs(b.x1 + b.x2 - HB.x1 - HB.x2) + Math.abs(b.y1 + b.y2 - HB.y1 - HB.y2);
+    const halls = scratch.rooms().filter(r => r.kind === 'corridor' && r.rects.length === 1).filter(r => { const b = bboxOf(r), w = b.x2 - b.x1 + 1, h = b.y2 - b.y1 + 1; return Math.min(w, h) >= minThick && Math.max(w, h) >= 6; }).sort((a, b) => off(bboxOf(a)) - off(bboxOf(b)));
+    if (!halls.length) return refuse('no corridor of it can take another room');
+    const gaps = pattern === 'campus' ? [3, 5, 8, 12] : [3];
+    for (const q of want) {
+      let got = null;
+      for (const c of halls) {
+        const b = bboxOf(c), horiz = b.x2 - b.x1 >= b.y2 - b.y1;
+        for (const wing of [-1, 1]) for (const gap of gaps) for (let u = horiz ? b.x1 : b.y1; !got && u <= (horiz ? b.x2 : b.y2) - 3; u += 2) {
+          const rect = horiz
+            ? { x1: u, x2: u + q.w - 1, y1: wing < 0 ? b.y1 - gap - q.h : b.y2 + 1 + gap, y2: wing < 0 ? b.y1 - gap - 1 : b.y2 + gap + q.h }
+            : { y1: u, y2: u + q.h - 1, x1: wing < 0 ? b.x1 - gap - q.w : b.x2 + 1 + gap, x2: wing < 0 ? b.x1 - gap - 1 : b.x2 + gap + q.w };
+          got = K.attach(q, c, rect, horiz ? SIDE_NAME(0, wing) : SIDE_NAME(wing, 0));
+        }
+        if (!got) for (const s of [1, -1]) { if (!got) got = K.attach(q, c, K.rectOf(q, b, horiz ? s : 0, horiz ? 0 : s, 3), horiz ? SIDE_NAME(s, 0) : SIDE_NAME(0, s)); }
+        if (got) break;
+      }
+      // every corridor full: it buds off the room nearest the main room that has a side free
+      if (!got) for (const r of scratch.rooms().filter(x => x.kind !== 'corridor' && x.id !== hub.id).sort((a, b) => off(bboxOf(a)) - off(bboxOf(b)))) {
+        for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { if (!got) got = K.attach(q, r, K.rectOf(q, bboxOf(r), dx, dy, 3), SIDE_NAME(dx, dy)); }
+        if (got) break;
+      }
+      if (!got) return refuse('no place on it fits ' + q.name + '.');
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  /* A MAIN ROOM'S DOORS BREATHE. A station laid out again keeps the main room's pieces, but a piece now crowding a new door moves along the wall,
+     the way a Commander would. A machine on a line, or a table with something standing on it, stays where it is. */
+  function clearHubDoors(st, env, hubId) {
+    const moves = [], g0 = st.projectGeometry(), doors = doorTiles(st, g0, hubId), hangs = hangsOf(env);
+    if (!doors.length) return moves;
+    const belts = st.serialize().belts || {}, MACHINE = /^(bay|intake|outbox|filter|merger|splitter|joiner|loop)$/;
+    const gapTo = (x, y, p, d) => Math.max(x - d.x, 0, d.x - (x + (p.w || 1) - 1)) + Math.max(y - d.y, 0, d.y - (y + (p.h || 1) - 1));
+    const crowds = (x, y, p) => doors.find(d => gapTo(x, y, p, d) <= 1);
+    const SEATED = /desk|console|bench|terminal|workstation/;
+    // what the room could reach before a move it must still reach after: every piece walked up to, every door, no doorway landing taken
+    const reachNow = () => {
+      const g = st.projectGeometry(), o = spawnTile(st.serialize(), g), land = landingTiles(st, g, hubId), out = new Set();
+      if (!o) return null;
+      for (const q of st.props()) {
+        if (st.roomAt(q.x, q.y) !== hubId || q.block === false) continue;
+        let onLanding = false;
+        for (let yy = q.y; yy < q.y + (q.h || 1); yy++) for (let xx = q.x; xx < q.x + (q.w || 1); xx++) if (land.has(xx + ',' + yy)) onLanding = true;
+        if (!onLanding && sideReachable(g, o, q)) out.add('p' + q.id);
+      }
+      doors.forEach((dd, i) => { if (g.path(o.x - g.origin.tx, o.y - g.origin.ty, dd.x - g.origin.tx, dd.y - g.origin.ty)) out.add('d' + i); });
+      return out;
+    };
+    let base = reachNow();
+    const sound = id => { if (!base) return true; const now = reachNow(); if (!now.has('p' + id)) return false; for (const k of base) if (!now.has(k)) return false; base = now; return true; };
+    // a move keeps the piece inside the main room: never out through a doorway into what it opens on
+    const staysIn = (p, dx, dy) => { for (let y = p.y + dy; y < p.y + dy + (p.h || 1); y++) for (let x = p.x + dx; x < p.x + dx + (p.w || 1); x++) if (st.roomAt(x, y) !== hubId) return false; return true; };
+    for (const p of st.props().filter(q => q.block !== false && st.roomAt(q.x, q.y) === hubId && crowds(q.x, q.y, q))) {
+      if (MACHINE.test(p.t)) continue;
+      let onBelt = false; for (let x = p.x - 1; x <= p.x + (p.w || 1) && !onBelt; x++) for (let y = p.y - 1; y <= p.y + (p.h || 1) && !onBelt; y++) if (belts[x + ',' + y]) onBelt = true;
+      if (onBelt) continue;
+      const carrying = st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + (p.w || 1) && q.y >= p.y && q.y < p.y + (p.h || 1));
+      if (carrying) continue;
+      const d = crowds(p.x, p.y, p), hung = hangs && hangs(p.t), alongX = hung || d.dy !== 0;
+      // along the door's wall first; a piece that stood against a wall goes somewhere it still does, so the move never leaves it floating
+      const HB0 = bboxOf(st.rooms().find(r => r.id === hubId)), walled = (x, y) => x === HB0.x1 || y === HB0.y1 || x + (p.w || 1) - 1 === HB0.x2 || y + (p.h || 1) - 1 === HB0.y2;
+      const tries = [];
+      for (let step = 2; step <= 10; step++) for (const sign of [1, -1]) for (const ax of hung ? [true] : [alongX, !alongX]) tries.push([ax ? step * sign : 0, ax ? 0 : step * sign, ax === alongX ? 0 : 1]);
+      const wasWalled = walled(p.x, p.y);
+      // a piece that stood against a wall may go to any free place along the walls, not only along its own line
+      if (wasWalled && !hung) for (let y = HB0.y1; y <= HB0.y2; y++) for (let x = HB0.x1; x <= HB0.x2; x++) {
+        const dx = x - p.x, dy = y - p.y;
+        if ((dx || dy) && (dx && dy) && Math.abs(dx) + Math.abs(dy) <= 16 && walled(x, y)) tries.push([dx, dy, 2]);
+      }
+      tries.sort((a, b) => ((wasWalled && !walled(p.x + a[0], p.y + a[1])) - (wasWalled && !walled(p.x + b[0], p.y + b[1]))) || (a[2] - b[2]) || (Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1])));
+      for (const [dx, dy] of tries) {
+        if (!staysIn(p, dx, dy) || crowds(p.x + dx, p.y + dy, p)) continue;
+        const r = st.moveProp(p.id, dx, dy);
+        if (!r || !r.ok) continue;
+        const q = st.propById ? st.propById(p.id) : p, seatKept = !SEATED.test(p.t) || st.roomAt(q.x, q.y + (q.h || 1)) === hubId;
+        if (seatKept && sound(p.id)) { moves.push({ id: p.id, dx, dy }); break; }
+        st.moveProp(p.id, -dx, -dy);
+      }
+    }
+    // a piece standing alone a tile or two off the wall goes back against it, the way the review would ask
+    const HB = bboxOf(st.rooms().find(r => r.id === hubId));
+    const here = () => st.props().filter(q => st.roomAt(q.x, q.y) === hubId);
+    for (const p of here().filter(q => q.block !== false && !MACHINE.test(q.t) && !SEATED.test(q.t) && !q.agentId && (q.w || 1) * (q.h || 1) < 8)) {
+      const w = p.w || 1, h = p.h || 1, near = here().some(q => q.id !== p.id && q.block !== false && !(q.x > p.x + w + 1 || q.x + (q.w || 1) < p.x - 1 || q.y > p.y + h + 1 || q.y + (q.h || 1) < p.y - 1));
+      const walled = p.x - 1 <= HB.x1 - 1 || p.y - 1 <= HB.y1 - 1 || p.x + w >= HB.x2 + 1 || p.y + h >= HB.y2 + 1;
+      if (near || walled || st.props().some(q => q.id !== p.id && q.x >= p.x && q.x < p.x + w && q.y >= p.y && q.y < p.y + h)) continue;
+      const options = [[HB.x1 - p.x, 0], [HB.x2 - w + 1 - p.x, 0], [0, HB.y1 - p.y], [0, HB.y2 - h + 1 - p.y]].filter(([dx, dy]) => Math.abs(dx + dy) <= 8).sort((a, b) => Math.abs(a[0] + a[1]) - Math.abs(b[0] + b[1]));
+      for (const [dx, dy] of options) {
+        if (!staysIn(p, dx, dy) || crowds(p.x + dx, p.y + dy, p)) continue;
+        const r = st.moveProp(p.id, dx, dy);
+        if (!r || !r.ok) continue;
+        if (sound(p.id)) { moves.push({ id: p.id, dx, dy }); break; }
+        st.moveProp(p.id, -dx, -dy);
+      }
+    }
+    return moves;
+  }
+  // TERRACE: rooms stepping away from the main room in two diagonal flights, along then across, each overlapping the last by little more than its door
+  function terraceGeometry(scratch, hub, want, hangs) {
+    const K = growKit(scratch, hub, hangs), flights = [{ cur: hub, n: 0, s: 1, name: 'south-east' }, { cur: hub, n: 0, s: -1, name: 'north-west' }], lap = 5;
+    // a terrace that stands goes on from the far end of each flight
+    const sum = r => { const b = bboxOf(r); return b.x1 + b.x2 + b.y1 + b.y2; }, standingRooms = scratch.rooms().filter(r => r.kind !== 'corridor');
+    if (standingRooms.length > 1) { const by = standingRooms.slice().sort((a, b) => sum(a) - sum(b)); flights[0].cur = by[by.length - 1]; flights[1].cur = by[0]; }
+    const start = standingRooms.length > 1 && sum(flights[1].cur) === sum(hub) ? 1 : 0;
+    for (let k = 0; k < want.length; k++) {
+      const q = want[k], f = flights[(k + start) % 2], b = bboxOf(f.cur);
+      let got = null;
+      for (const across of f.n % 2 === 1 ? [true, false] : [false, true]) for (const gap of [3, 5, 8]) {
+        if (got) break;
+        const x1 = across ? (f.s > 0 ? b.x2 - lap + 1 : b.x1 + lap - q.w) : (f.s > 0 ? b.x2 + 1 + gap : b.x1 - gap - q.w);
+        const y1 = across ? (f.s > 0 ? b.y2 + 1 + gap : b.y1 - gap - q.h) : (f.s > 0 ? b.y2 - lap + 1 : b.y1 + lap - q.h);
+        got = K.attach(q, f.cur, { x1, y1, x2: x1 + q.w - 1, y2: y1 + q.h - 1 }, f.name);
+      }
+      if (!got) return refuse('The terrace could not step on from ' + (f.cur.name || 'its last room') + ' for ' + q.name + '. Try fewer or smaller rooms.');
+      f.cur = got; f.n++;
+    }
+    return { ok: true, halls: K.halls, rooms: K.rooms };
+  }
+  /* NO PLAN NAMED and no palette to say one: what the rooms are for chooses. The ring stays for those who ask for it. */
+  const WORK_STYLES = new Set(['desks', 'lab', 'workshop', 'works', 'comms', 'meeting']);
+  function planForRooms(rooms) {
+    const n = rooms.length, work = rooms.filter(q => q.lines.length || q.zones.length || WORK_STYLES.has(q.style)).length;
+    if (n <= 3) return 'enfilade';
+    if (n > 9) return 'colony';
+    if (work >= n * 0.7) return n >= 6 ? 'campus' : 'axis';
+    if (work <= n * 0.25) return 'colony';
+    return 'court';
+  }
+  const ARCH_HEAD = {
+    court: (h, n) => 'A COURT off ' + h + ': one big open square, with ' + n + ' rooms opening onto it. ',
+    terrace: (h, n) => 'A TERRACE from ' + h + ': ' + n + ' rooms stepping away in two diagonal flights. ',
+    axis: (h, n) => 'An AXIS through ' + h + ': a long corridor out of both ends, with ' + n + ' rooms down its sides. ',
+    enfilade: (h, n) => 'An ENFILADE from ' + h + ': ' + n + ' rooms opening one into the next through short passages, with no long corridor. ',
+    colony: (h, n) => 'A COLONY grown out of ' + h + ': ' + n + ' rooms of different sizes, each budding off one that stands. ',
+    campus: (h, n) => 'A CAMPUS around ' + h + ': pods of rooms round small plazas, ' + n + ' rooms in all, on long bridges. ',
+    pinwheel: (h, n) => 'A PINWHEEL around ' + h + ': four off-centre corridors carrying ' + n + ' rooms to one side, so the plan turns. ',
+  };
+  // an open plan's rooms are not all one size: what a room is for says how big it wants to be
+  const ROOM_SHAPE = { storage: [12, 9], quarters: [14, 10], gym: [14, 12], garden: [18, 14], library: [16, 12], cafe: [20, 12], lounge: [18, 12], meeting: [14, 10], comms: [14, 10], cozy: [14, 10], games: [20, 12], lab: [18, 12], workshop: [18, 12], desks: [18, 12] };
+
   // a layout's rooms, checked: a style (or lines, or zones), a size, a name
   function parseLayoutRooms(list, env, live, notes, usedNames) {
     const RS = env.RoomStyles, HOW = 'layout.rooms is a list of 1 to ' + DIAMOND_ROOMS + ' rooms, each { name, style, size, lines } (style: ' + RS.ROOM_ORDER.join(', ') + ').';
@@ -3516,7 +4010,7 @@
       if (given && taken(name)) return refuse('A room is already called ' + name + '. Give this one another name.');
       for (let k = 2; !given && taken(name) && k < 50; k++) name = (style ? AUTO_NAME[style] : 'ROOM').slice(0, 21) + ' ' + k;
       usedNames[norm(name)] = 1;
-      const big = style === 'works' || lines.length > 0 || w * h >= 24 * 14;
+      const big = style === 'works' || lines.length > 0 || w * h >= 24 * 14 || !!(sz.size && (w > CELL[0] || h > CELL[1]));
       out.push({ i, name, style, zones, lines, w, h, big, need, exact: !!sz.size });
     }
     return { ok: true, rooms: out };
@@ -3764,15 +4258,31 @@
   function planLayout(doc, req, env) {
     const WM = env.WorldModel, P = env.Pipeline, RS = env.RoomStyles;
     if (!RS || !RS.ROOMS) return refuse('the room styles are not loaded on this page');
-    const HOW = 'Send { "layout": { "pattern": "ring" or "concourse", "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
+    const HOW = 'Send { "layout": { "pattern": diamond, concourse, axis, enfilade, colony, campus, pinwheel, court or terrace, "theme": a palette, "from": a prebuild, "rooms": [ { name, style, size, lines } ] } }, and "replace": true to lay out the whole station again around its main room.';
     const extra = Object.keys(req).filter(k => k !== 'layout' && k !== 'replace');
     if (extra.length) return refuse('A layout plans the whole floor, so leave out: ' + extra.slice(0, 6).join(', ') + '. ' + HOW);
-    const L = req.layout;
+    let L = req.layout;
     if (!L || typeof L !== 'object' || Array.isArray(L)) return refuse(HOW);
     const bad = Object.keys(L).filter(k => LAYOUT_KEYS.indexOf(k) < 0);
     if (bad.length) return refuse('StarNet computes every tile itself, so a layout does not take: ' + bad.slice(0, 6).join(', ') + '. It takes: ' + LAYOUT_KEYS.join(', ') + '.');
-    const pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? 'diamond' : null);
-    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre) or concourse (a wide corridor with rooms down both sides and a big room at the end).');
+    const SD = env.StationDesign || designModule();
+    const laidAs = (doc.meta || {}).stationPlan || {}, inherits = L.theme == null && !req.replace && !!laidAs.theme && !!SD;
+    const themeId = inherits ? laidAs.theme : L.theme != null && SD ? SD.resolveTheme(L.theme) : null;
+    if (L.theme != null && !themeId) return refuse('There is no theme "' + String(L.theme).slice(0, 40) + '". Themes: ' + (SD ? SD.THEME_ORDER.join(', ') : 'none on this page') + '.');
+    const theme = themeId ? SD.THEMES[themeId] : null;
+    const recOf = sid => { const r = sid ? RS.ROOMS[sid] : null; return r && themeId ? SD.themed(r, sid, themeId) : r; };
+    // a prebuild is a starting point: its rooms, with its lines and their instructions, then any rooms the design adds
+    if (L.from != null) {
+      const T = env.StationTemplates, list = T && T.catalog ? T.catalog : [], pr = SD ? list.find(c => norm(c.id) === norm(L.from) || norm(c.name) === norm(L.from)) : null;
+      if (!pr) return refuse('There is no prebuild "' + String(L.from).slice(0, 40) + '". Prebuilds: ' + (list.map(c => c.id).join(', ') || 'none on this page') + '.');
+      const more = Array.isArray(L.rooms) ? L.rooms : [], names = new Set(more.map(r => norm(r && r.name)));
+      L = Object.assign({}, L, { rooms: SD.prebuildRooms(T, pr.id).filter(r => !names.has(norm(r.name))).concat(more) });
+      if (!L.rooms.length) return refuse(pr.name + ' is just the main room: name the rooms to add with it.');
+    }
+    // no plan named: a station laid out afresh in a palette takes that palette's own architecture, so the ring is one choice among several
+    let pattern = PATTERNS[norm(L.pattern)] || (L.pattern == null ? (theme && req.replace && theme.plan) || (!req.replace && laidAs.pattern) || 'diamond' : null);
+    const chooses = L.pattern == null && req.replace === true && !theme;
+    if (!pattern) return refuse('pattern is diamond (rooms on an even grid all round the main room, a corridor loop at its centre), concourse (a wide corridor with rooms down both sides and a big room at the end), axis (a corridor out of both ends of the main room), enfilade (rooms opening one into the next through short passages), colony (grown, of different sizes), campus (pods of rooms on long bridges), pinwheel (four off-centre corridors, so the plan turns), court (rooms opening onto one big square) or terrace (rooms stepping away on two diagonals).');
     if (req.replace != null && typeof req.replace !== 'boolean') return refuse('replace is true (lay out the whole station again) or left out (add the layout beside what stands).');
     const replace = req.replace === true;
     const sd = sideOf(L.side); if (!sd.ok) return sd;
@@ -3797,8 +4307,10 @@
     const live = WM.create(clone(base)), notes = [], usedNames = {};
     if (pattern === 'diamond' && L.side != null) notes.push('A diamond goes all the way round its room, so side was left out.');
     const pr = parseLayoutRooms(L.rooms, env, live, notes, usedNames); if (!pr.ok) return pr;
+    if (chooses) { pattern = planForRooms(pr.rooms); notes.push('No plan was named, so these rooms chose a ' + pattern + '. Send pattern to choose another.'); }
     // on the diamond every room but a big one is the grid's own size, so the station reads as one consistent plan
-    if (pattern === 'diamond') for (const q of pr.rooms) if (!q.big) { q.w = CELL[0]; q.h = CELL[1]; }
+    if (pattern === 'diamond') for (const q of pr.rooms) if (!q.big && !q.exact) { q.w = CELL[0]; q.h = CELL[1]; }
+    if (pattern === 'enfilade' || pattern === 'colony' || pattern === 'campus' || pattern === 'court' || pattern === 'terrace') for (const q of pr.rooms) if (!q.big && !q.exact && !q.lines.length && !q.zones.length && ROOM_SHAPE[q.style]) { q.w = ROOM_SHAPE[q.style][0]; q.h = ROOM_SHAPE[q.style][1]; }
     if (replace && pr.rooms.some(r => [].concat(...r.lines.map(l => l.staff || []), ...r.zones.map(z => z.staff || [])).some(s => s && /^(new|recruit)/i.test(String(s.agent || ''))))) return refuse('A layout that replaces the station cannot recruit; staff the lines with the crew you have, or recruit after it is built.');
     const hub = live.rooms().find(r => r.id === hubQ.room.id), B = bboxOf(hub);
     // a concourse that stands grows: its rooms go down it, in its next places, never into a second concourse
@@ -3814,21 +4326,26 @@
     }
     const before = floorFacts(live, P);
     // the geometry: the ring round the hub, or the concourse off the side asked (else the first side it fits)
-    const dirs = pattern === 'diamond' ? [null] : sd.side ? [sd.side] : SIDES.slice().sort((a, b) => { const free = s => placementsOn(live, hub, s, 12, 8, 3, null, 'hab').list.length ? 0 : 1; return free(a) - free(b); });
+    const growing = !replace && laidAs.pattern === pattern && (pattern === 'axis' || pattern === 'court' || pattern === 'campus' || pattern === 'pinwheel') && live.rooms().some(r => r.kind !== 'corridor' && r.id !== hub.id);
+    const dirs = pattern !== 'concourse' ? [null] : sd.side ? [sd.side] : SIDES.slice().sort((a, b) => { const free = s => placementsOn(live, hub, s, 12, 8, 3, null, 'hab').list.length ? 0 : 1; return free(a) - free(b); });
     let laid = null, why = null;
     for (const dir of dirs) {
-      const geo = pattern === 'diamond' ? diamondGeometry(WM.create(clone(base)), hub.id, pr.rooms, hangsOf(env)) : concourseGeometry(B, dir, pr.rooms);
-      if (!geo.ok) return geo;
+      const onScratch = fn => { const sc = WM.create(clone(base)); return fn(sc, sc.rooms().find(r => r.id === hub.id), pr.rooms, hangsOf(env)); };
+      const geo = growing ? onScratch((a, b, c, d) => growOnCorridors(a, b, c, d, pattern)) : pattern === 'diamond' ? diamondGeometry(WM.create(clone(base)), hub.id, pr.rooms, hangsOf(env))
+        : pattern === 'axis' ? axisGeometry(B, sd.side, pr.rooms)
+        : pattern === 'enfilade' ? onScratch(enfiladeGeometry) : pattern === 'colony' ? onScratch(colonyGeometry) : pattern === 'campus' ? onScratch(campusGeometry) : pattern === 'pinwheel' ? onScratch(pinwheelGeometry) : pattern === 'terrace' ? onScratch(terraceGeometry) : pattern === 'court' ? onScratch((a, b, c, d) => courtGeometry(a, b, c, d, sd.side))
+        : concourseGeometry(B, dir, pr.rooms);
+      if (!geo.ok) return replace || pattern === 'diamond' || pattern === 'concourse' ? geo : refuse(String(geo.error || '').replace(/\s*Try fewer or smaller rooms\.?$/, '') + ' Use replace: true to lay out the whole station again around ' + hub.name + ' as a ' + pattern + '.');
       const probe = WM.create(clone(base)), hallIds = [], roomIds = {};
       let fail = null;
       for (const h of geo.halls) {
         const c = probe.canPlaceHallway([h.rect]);
         if (!c.ok) { fail = /^overlaps /.test(c.msg || '') ? c.msg.replace(/^overlaps /, '') + ' is in the way' : (c.msg || 'a corridor does not fit'); break; }
         const a = probe.placeHallway({ rect: h.rect }); if (!a || !a.ok) { fail = 'a corridor could not be laid'; break; }
-        probe.setDeck(a.id, CORRIDOR_DECK); hallIds.push(a.id);
+        probe.setDeck(a.id, theme ? theme.corridor : CORRIDOR_DECK); if (theme) probe.setWalls(a.id, theme.corridor.walls); hallIds.push(a.id);
       }
       for (const r of fail ? [] : geo.rooms) {
-        const q = pr.rooms.find(x => x.i === r.i), rec = q.style ? RS.ROOMS[q.style] : null;
+        const q = pr.rooms.find(x => x.i === r.i), rec = recOf(q.style);
         const c = probe.canPlaceRoom([r.rect], (rec && rec.kind) || 'hab');
         if (!c.ok) { fail = /^overlaps /.test(c.msg || '') ? c.msg.replace(/^overlaps /, '') + ' is in the way of ' + q.name : (c.msg || q.name + ' does not fit'); break; }
         const a = probe.addRoom({ kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined });
@@ -3842,16 +4359,19 @@
         const other = neighbourOf(probe, r.rect, [...mine]);
         if (other) { fail = pr.rooms.find(x => x.i === r.i).name + ' would stand against ' + other; break; }
       }
-      if (fail) { why = why || (pattern === 'diamond' ? 'The diamond around ' + hub.name + ' could not be laid (' + fail + ').' : 'A concourse ' + dir + ' of ' + hub.name + ' does not fit (' + fail + ').'); continue; }
+      if (fail) { why = why || (pattern === 'diamond' ? 'The diamond around ' + hub.name + ' could not be laid (' + fail + ').' : ARCH_HEAD[pattern] ? 'The ' + pattern + ' around ' + hub.name + ' could not be laid (' + fail + ').' : 'A concourse ' + dir + ' of ' + hub.name + ' does not fit (' + fail + ').'); continue; }
       laid = { geo, probe, hallIds, roomIds, dir };
       break;
     }
     if (!laid) return refuse(why + (replace ? '' : ' Use replace: true to lay out the whole station again around ' + hub.name + (pattern === 'diamond' ? '.' : ', or the diamond pattern.')));
     // fill every room (lines first, then its style or zones), then dress the corridors
-    const probe = laid.probe, parts = [], recruits = [], view = [];
-    laid.geo.halls.forEach((h, j) => parts.push({ hall: h.rect, hallDeck: CORRIDOR_DECK, room: null, roomId: null, lines: [], props: [], dress: h.dress ? h.outer || null : undefined, hallId: laid.hallIds[j] }));
+    const probe = laid.probe, parts = [], recruits = [], view = [], seenStyle = {};
+    // the next room of a style differs from the last; a room added later starts from its own name, since what stood before it is not recorded by style
+    const isAddition = !replace && live.rooms().some(r => r.kind !== 'corridor' && r.id !== hub.id);
+    const variantFor = q => { const n = seenStyle[q.style] = (seenStyle[q.style] || 0) + 1; return n - 1 + (isAddition && SD ? SD.hash(q.name) % 3 : 0); };
+    laid.geo.halls.forEach((h, j) => parts.push({ hall: h.rect, hallDeck: theme ? theme.corridor : CORRIDOR_DECK, hallHull: theme ? theme.hull : undefined, hallWalls: theme ? theme.corridor.walls : undefined, room: null, roomId: null, lines: [], props: [], dress: h.dress ? h.outer || null : undefined, court: !!h.court, hallId: laid.hallIds[j] }));
     for (const r of laid.geo.rooms) {
-      const q = pr.rooms.find(x => x.i === r.i), id = laid.roomIds[r.i], rec = q.style ? RS.ROOMS[q.style] : null;
+      const q = pr.rooms.find(x => x.i === r.i), id = laid.roomIds[r.i], rec = recOf(q.style);
       let lines = [], props = [], fillView = [];
       if (q.lines.length || q.zones.length) {
         const f = fillRoom(probe, env, id, r.rect, q.zones, q.lines, q.zones.length && !q.need.one ? { fx: 0.5, fy: 0.5, one: false } : { fx: 1, fy: 1, one: true }, q.name, 0);
@@ -3860,14 +4380,29 @@
         f.recruits.forEach(rc => recruits.push(Object.assign({ part: parts.length }, rc)));
       }
       let dressed = null;
-      if (rec) { dressed = dressRoom(probe, env, id, q.style); if (!dressed.ok) return dressed; props = props.concat(dressed.props); }
+      if (rec) { dressed = dressRoom(probe, env, id, q.style, Object.assign({ variant: variantFor(q) }, theme ? { accent: theme.accent } : null)); if (!dressed.ok) return dressed; props = props.concat(dressed.props); }
       const accents = q.lines.length || q.zones.length ? accentsFor(probe, env, id, q.zones, rec) : null;
       if (accents) props = props.concat(accents);
-      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined }, roomId: null, lines, props });
+      parts.push({ hall: null, room: { kind: (rec && rec.kind) || 'hab', name: q.name, rect: r.rect, floorStyle: rec ? rec.deck.style : undefined, floorMat: rec ? rec.deck.mat : undefined, walls: rec ? rec.walls : undefined, hull: theme ? theme.hull : undefined }, roomId: null, lines, props, paint: dressed ? dressed.paint : undefined });
       view.push({ q, r, part: parts.length - 1, fillView, dressed, accents });
     }
-    for (const p of parts) if (p.dress !== undefined) { const d = dressHall(probe, env, p.hallId, p.dress); p.props = d.props; }
-    for (const p of parts) { delete p.dress; delete p.hallId; }
+    for (const p of parts) if (p.dress !== undefined) {
+      const c = p.court ? dressRoom(probe, env, p.hallId, 'court', theme ? { accent: theme.accent } : null) : null;
+      if (c && !c.ok) return c;
+      const d = dressHall(probe, env, p.hallId, p.dress);
+      p.props = (c ? c.props : []).concat(d.props);
+      if (c && c.paint && c.paint.length) p.paint = c.paint;
+    }
+    for (const p of parts) { delete p.dress; delete p.hallId; delete p.court; }
+    // the main room joins the palette: its floor, walls and hull, nothing that stands in it
+    // a station laid out afresh dresses its main room too, round what works there: nothing there moves
+    // ...once: replace keeps the main room's pieces, so a room already holding its heart is not dressed over itself
+    const hubHasHeart = probe.props().some(p => probe.roomAt(p.x, p.y) === hub.id && (p.t === 'holotable' || p.t === 'bigscreen'));
+    const hubDress = req.replace && SD && !hubHasHeart ? dressRoom(probe, env, hub.id, 'bridge', theme ? { accent: theme.accent } : null) : null;
+    if ((theme && !inherits) || (hubDress && hubDress.ok && hubDress.props.length)) {
+      const f = theme && !inherits ? SD.themeOfKind(themeId, 'bridge') : null;
+      parts.push({ hall: null, room: null, roomId: hub.id, lines: [], props: hubDress && hubDress.ok ? hubDress.props : [], paint: hubDress && hubDress.ok ? hubDress.paint : undefined, restyle: f ? { deck: f.deck, walls: f.walls, hull: theme.hull } : undefined });
+    }
     const spec = { kind: 'build', parts, recruits };
     const sr = seatRecruits(probe, env, spec, pi => { const p = parts[pi]; return p.room ? probe.roomAt(p.room.rect.x1, p.room.rect.y1) : null; });
     if (!sr.ok) return sr;
@@ -3901,6 +4436,8 @@
         }
       }
     }
+    const desksMoved = moves.length, doorMoves = replace ? clearHubDoors(fp, env, hub.id) : [];
+    moves.push(...doorMoves);
     // the card: the pattern, then each room where it sits and what is in it
     const built = t.built, crewIds = (env.crew || []).map(a => a && a.id).filter(Boolean), lines = [], steps = [];
     const short = props => { const txt = piecesText(env, props), parts2 = txt.split(', '); return parts2.length > 7 ? parts2.slice(0, 6).join(', ') + ' and more' : txt; };
@@ -3923,20 +4460,24 @@
       return v.q.name + ' ' + at + size + ': ' + bits.join('; ') + pieces;
     });
     const wasRooms = live0.rooms().filter(x => x.kind !== 'corridor').length - 1, wasProps = live0.props().length - live.props().length;
-    const head = pattern === 'diamond'
+    const head = isAddition && ARCH_HEAD[pattern] && laidAs.pattern === pattern ? view.length + (view.length === 1 ? ' more room' : ' more rooms') + ' on the ' + pattern.toUpperCase() + ' around ' + hub.name + '. ' : ARCH_HEAD[pattern] ? ARCH_HEAD[pattern](hub.name, view.length) : pattern === 'diamond'
       ? (laid.geo.ring ? 'A DIAMOND around ' + hub.name + ': a corridor loop round it with a hallway in from each side, and ' + view.length + ' rooms on an even grid round the loop, each on its own planted, lit hallway. '
         : view.length + (view.length === 1 ? ' room' : ' rooms') + ' on the diamond grid around ' + hub.name + ', each in the next free place of the grid, on its own planted, lit hallway. ')
       : 'A CONCOURSE ' + laid.dir + ' from ' + hub.name + ': a wide corridor, planted and lit, and ' + view.length + (view.length === 1 ? ' room. ' : ' rooms. ');
     const blocking = [].concat(...lines.map(l => l.blocking.map(b => (lines.length > 1 ? (l.label || l.plain) + ': ' : '') + b)));
-    const summary = head + (view.length > 4 && pattern === 'diamond' ? 'Every room is 18 × 11 unless it says. ' : '') + roomText.join('. ') + '.'
-      + (replace ? ' It replaces everything beyond ' + hub.name + ' (' + wasRooms + (wasRooms === 1 ? ' room' : ' rooms') + ' and ' + wasProps + ' props); ' + hub.name + ', agents and conversations stay, and every agent keeps a desk' + (reseated.length ? ' (' + moves.length + (moves.length === 1 ? ' desk moves' : ' desks move') + ' to ' + reseated.join(', ') + ')' : '') + '. Your current layout is backed up: RESTORE PREVIOUS in Build → Presets brings it back.' : '')
+    const summary = (theme ? 'In the ' + theme.name.toUpperCase() + ' palette (' + theme.about + '). ' : '') + head + (view.length > 4 && pattern === 'diamond' ? 'Every room is 18 × 11 unless it says. ' : '') + roomText.join('. ') + '.'
+      + (replace ? ' It replaces everything beyond ' + hub.name + ' (' + wasRooms + (wasRooms === 1 ? ' room' : ' rooms') + ' and ' + wasProps + ' props); ' + hub.name + ', agents and conversations stay, and every agent keeps a desk' + (reseated.length ? ' (' + desksMoved + (desksMoved === 1 ? ' desk moves' : ' desks move') + ' to ' + reseated.join(', ') + ')' : '') + '. Your current layout is backed up: RESTORE PREVIOUS in Build → Presets brings it back.' + (doorMoves.length ? ' ' + doorMoves.length + (doorMoves.length === 1 ? ' piece' : ' pieces') + ' in ' + hub.name + ' shift, to clear its new doors or stand against a wall.' : '') : '')
       + (lines.length ? ' ' + (blocking.length ? 'Still to do after building: ' + blocking.join('; ') + '.' : 'Its lines will be ready to run.') : '');
     const fpd = fp.serialize();
     const preview = previewOf(WM, doc, fpd, [], null);
     const roomsOut = view.map(v => ({ name: v.q.name, style: v.q.style || null, where: v.r.side, existing: false }));
     const plan = { floorSig: sigOf(doc), resultSig: sigOf(fpd), summary, notes, steps, rooms: roomsOut, hallways: [], lines, preview, line: null,
-      where: (pattern === 'diamond' ? 'the diamond around ' : 'a concourse ' + laid.dir + ' of ') + hub.name, layout: { pattern, replace } };
+      where: (ARCH_HEAD[pattern] ? 'the ' + pattern + ' around ' : pattern === 'diamond' ? 'the diamond around ' : 'a concourse ' + laid.dir + ' of ') + hub.name, layout: { pattern, replace } };
     plan.spec = replace ? { kind: 'relayout', stripped, build: spec, pattern, moves } : spec;
+    const styles = Object.assign({}, replace ? {} : laidAs.styles);
+    for (const v of view) if (v.q.style) styles[v.q.name] = v.q.style;
+    // a station laid out afresh is its plan; one added to keeps the plan it was laid out in, unless it had none
+    plan.spec.stationPlan = { pattern: replace || !laidAs.pattern ? pattern : laidAs.pattern, theme: themeId || (replace ? undefined : laidAs.theme), styles };
     if (replace) plan.preset = { id: 'layout-' + pattern, name: 'your new ' + pattern.toUpperCase() + ' layout' };
     return { ok: true, plan };
   }
@@ -3971,7 +4512,8 @@
   }
   // one room tile by tile: every piece with its id, every belt, the doorways, and the room drawn
   function roomDetail(st, env, ref) {
-    const t = roomNamed(st, ref); if (!t.ok) return t;
+    let t = roomNamed(st, ref);
+    if (!t.ok) { const h = st.rooms().find(r => r.kind === 'corridor' && norm(r.name) === norm(ref)); if (!h) return t; t = { ok: true, room: h }; }
     const r = t.room, B = bboxOf(r), S = env.PropSprites, g = st.projectGeometry(), belts = st.serialize().belts || {};
     const here = st.props().filter(p => st.roomAt(p.x, p.y) === r.id);
     const pieces = here.map(p => { const o = { id: p.id, t: p.t, name: pieceName(env, p.t), x: p.x, y: p.y, w: p.w || 1, h: p.h || 1 }; if (p.r) o.r = p.r; if (p.m) o.m = 1; if (sideFacing(S, p.t) != null) o.faces = facingOf(S, p) === 1 ? 'west' : 'east'; if (p.agentId) o.agent = nameOf(env, p.agentId); if (p.role) o.role = p.role; if (p.label) o.label = p.label; if (p.brief) o.brief = String(p.brief).slice(0, 120); if (p.hands) o.hands = p.hands; if (p.sendTo) o.sendTo = p.sendTo; if (p.limits) o.budget = { perDay: p.limits.maxUsdPerDay, perJob: p.limits.maxUsdPerMessage, stages: p.limits.maxHops }; if (p.projectRoot) o.folder = String(p.projectRoot).replace(/\\/g, '/').split('/').pop(); for (const k of ['routes', 'def', 'maxIter', 'when', 'done', 'esc', 'onSpent', 'timeoutMin', 'connectorId', 'pluginId']) if (p[k] != null) o[k] = p[k]; if (p.block === false) o.walkOver = true; return o; });
@@ -3990,6 +4532,7 @@
   function mapOf(doc, env, opts) {
     const WM = env && env.WorldModel, P = env && env.Pipeline;
     if (!WM || !doc) return refuse('the station builder is not loaded on this page');
+    if (opts && opts.guide) { const gd = designGuide(env); return gd ? { ok: true, map: gd } : refuse('the design guide is not loaded on this page'); }
     if (opts && opts.catalog) return env.PropSprites ? { ok: true, map: catalogOf(env) } : refuse('the piece catalog is not loaded on this page');
     if (opts && opts.room != null) return env.PropSprites ? roomDetail(WM.create(clone(doc)), env, opts.room) : refuse('the piece catalog is not loaded on this page');
     const st = WM.create(clone(doc)), all = st.rooms(), rooms = all.filter(r => r.kind !== 'corridor'), halls = all.filter(r => r.kind === 'corridor');
@@ -4021,7 +4564,7 @@
     for (let y = y1; y <= y2; y += step) { let row = ''; for (let x = x1; x <= x2; x += step) { const id = st.roomAt(x, y); row += !id ? ' ' : letter[id] || '+'; } rows.push(row.replace(/\s+$/, '')); }
     // every hallway by name (the name a refusal gives it) and what it joins, so the lead can take one up or route round it
     const nowhere = new Set(strandedHalls(st));
-    const hallList = halls.map(h => { const B = bboxOf(h); return Object.assign({ name: h.name, x: B.x1, y: B.y1, w: B.x2 - B.x1 + 1, h: B.y2 - B.y1 + 1, joins: rooms.filter(o => touching(h, o)).map(o => o.name) }, nowhere.has(h.id) ? { leadsNowhere: true } : {}); });
+    const hallList = halls.map(h => { const B = bboxOf(h); return Object.assign({ name: h.name, x: B.x1, y: B.y1, w: B.x2 - B.x1 + 1, h: B.y2 - B.y1 + 1, joins: rooms.filter(o => touching(h, o)).map(o => o.name), furniture: st.props().filter(p => st.roomAt(p.x, p.y) === h.id).length }, nowhere.has(h.id) ? { leadsNowhere: true } : {}); });
     return { ok: true, map: { main: main ? main.name : null, rooms: out, hallways: halls.length, halls: hallList,
       sizes: 'small 12 × 8, medium 18 × 11, large 24 × 14, giant 36 × 20',
       reading: 'x grows east, y grows south; north is the back wall (the top of the drawing). roomForANewRoom lists the sizes that fit on each side of a room, joined by a hallway.',
@@ -4082,6 +4625,11 @@
         : pl.spec.kind === 'rearrange' ? (() => { const x = rearrangeOnto(st, env, pl.spec.opts || {}); return x.ok ? { ok: true, ids: [] } : x; })() : buildInto(st, pl.spec, WM);
       if (!b.ok) return b;
       if (sigOf(st.serialize()) !== pl.resultSig) return refuse('The build did not match its plan, so nothing was changed. Plan it again.');
+      // what the station now is, so what is added later follows it: re-laid on the diamond grid, it is a diamond
+      if (st.setStationPlan) {
+        const now = pl.spec.kind === 'rearrange' ? Object.assign({}, (st.serialize().meta || {}).stationPlan, { pattern: 'diamond' }) : pl.spec.stationPlan;
+        if (now) st.setStationPlan(now);
+      }
       // recruits come AFTER the exact-match check (their ids are minted now), inside the same undo step: each one's desk
       // and its seat on the step are floor edits UNDO takes back; the agent itself is not (DELETE AGENT in its Dossier)
       for (const rc of recruits) {
@@ -4134,5 +4682,29 @@
       lineKey: rd.comp ? rd.comp.key : null, ready: rd.ready, blocking: rd.blocking, recruited };
   }
 
-  return { strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };
+  /* THE DESIGN REVIEW of any floor, or of a plan on a copy, before anything is built. Advice for the model: it refuses nothing. */
+  function reviewOf(st, env, opts) {
+    const SD = env.StationDesign || designModule(); if (!SD || !env.PropSprites) return null;
+    const g = st.projectGeometry();
+    return SD.critique(st, env, id => doorTiles(st, g, id), opts);
+  }
+  const briefOf = (r, env) => { const SD = (env && env.StationDesign) || designModule(); return r && SD ? SD.brief(r) : null; };
+  function review(doc, env, opts) { try { return briefOf(reviewOf(env.WorldModel.create(clone(doc)), env, opts), env); } catch (_) { return null; } }
+  function reviewPlan(doc, plan, env) {
+    try {
+      if (!plan || !plan.spec || plan.spec.kind === 'undo') return null;
+      const probe = env.WorldModel.create(clone(doc));
+      // recruits come from the page, so the copy is judged without them; a desk more or less does not change a verdict
+      const a = apply(probe, plan.spec.recruits && plan.spec.recruits.length ? Object.assign({}, plan, { spec: Object.assign({}, plan.spec, { recruits: [] }) }) : plan, env);
+      return a && a.ok ? briefOf(reviewOf(probe, env), env) : null;
+    } catch (_) { return null; }
+  }
+  function designGuide(env) {
+    const SD = (env && env.StationDesign) || designModule(), T = env && env.StationTemplates;
+    const RS = env && env.RoomStyles;
+    return SD ? { principles: SD.GUIDE, architectures: SD.ARCHITECTURES, themes: SD.themeMenu(),
+      rooms: { how: 'The main room stays as the hub of every plan, so design it in. Each other room is { name, style, size }. size is "large" or { w, h } in tiles (an ordinary room is about 18 x 11). A room that runs agent work takes lines instead of a style. With from, the prebuild\'s rooms and lines are kept, and rooms you name are added. On a campus, rooms whose names begin alike share a pod. Added later with no place asked, a room follows the plan and palette. A couch faces south only, so stand it north of its table.', styles: RS && RS.roomMenu ? RS.roomMenu().map(r => ({ id: r.id, about: r.about })) : [] },
+      prebuilds: T && T.catalog ? T.catalog.map(c => ({ id: c.id, name: c.name, about: c.description })) : [] } : null;
+  }
+  return { review, reviewPlan, designGuide, strandedHalls, MENU, STEP_KEYS, ROOM_MENU, STYLE_MENU, DESIGN_MENU, ZONE_KEYS, ROOM_KEYS, LINE_KEYS, LAYOUT_KEYS, LAYOUT_ROOM_KEYS, AREAS, SIZES, EDIT_KEYS, catalog, resolveLine, plan, planNext, planRoom, planRestyle, planEdit, planUndo, planDesign, planBuild, planLayout, mapOf, lineRef, roomPlacements, dressRoom, shapeGraph, areaOf, apply, receipt, sigOf };
 });

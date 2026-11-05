@@ -273,6 +273,20 @@ const WorldModel = (() => {
        along with every ordinary hue. */
     white:    { base: '#f2f0ea', label: 'WHITE' },
     onyx:     { base: '#0e0e12', label: 'ONYX' },
+    /* JEWEL TONES (2026-11-01): the station designer's palettes washed out, since every swatch above is dark and low in chroma and
+       the warm lamp pass pulls them all toward the same brown (neon's orchid floor rendered bronze). Same value band, about twice the
+       chroma. Nothing defaults to them. */
+    royal:    { base: '#252a6a', label: 'ROYAL' },
+    sapphire: { base: '#153c6a', label: 'SAPPHIRE' },
+    plum:     { base: '#45205e', label: 'PLUM' },
+    magenta:  { base: '#5e1c52', label: 'MAGENTA' },
+    jade:     { base: '#114a48', label: 'JADE' },
+    oxblood:  { base: '#561a1f', label: 'OXBLOOD' },
+    copper:   { base: '#5c3118', label: 'COPPER' },
+    honey:    { base: '#5b4018', label: 'HONEY' },
+    // pale stone for palettes that promise it (Brutalist's concrete): ASH reads as dark earth under the lamps
+    concrete: { base: '#8c8a84', label: 'CONCRETE' },
+    limestone: { base: '#b8b1a3', label: 'LIMESTONE' },
   };
 
   /* the deck MATERIAL catalog — the second floor axis, orthogonal to colour.
@@ -1884,6 +1898,8 @@ const WorldModel = (() => {
       }
       return clone(moveMemo.v);
     }
+    // the plan and palette the station was laid out in, so what is added later can follow them. Advice to the builder: nothing on the floor reads it
+    function setStationPlan(v) { doc.meta.stationPlan = v ? clone(v) : undefined; if (!v) delete doc.meta.stationPlan; return { ok: true }; }
     function moveProp(id, dTx, dTy, o) {
       const p = propById(id);
       if (!p) return fail('NOT_FOUND', 'no such prop');
@@ -5030,7 +5046,7 @@ const WorldModel = (() => {
       },
       // mutations
       addRoom, placeHallway, removeRoom, moveRoom, moveRooms, resizeRoom, setRoomKind, setFloor, setMaterial, setDeck, setWalls, setHull, paintTiles, renameRoom,
-      addProp, removeProp, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
+      addProp, removeProp, setStationPlan, moveProp, moveProps, canMoveProp, canMoveProps, rotateProp, faceProp, mirrorProp, assignPropAgent, assignDesk, ensureWorkstation, configureJunction, swapJoinerMerger, setSplitDivide, bindConnector, bindPlugin, placePluginTerminal, setDoorState, setPropProject, setPropBrief, setPropRole, setPropHands, setPropLabel, setPropLimits, setSendTo, sendToRefusal, sendToChoices, lineLetter, lineName, lineNameAt, lineNameKey, lineNameTaken, oldHandoffBelts, convertHandoffBelt,
       setBelt, removeBelt, removeBelts, placeBeltRun, connectBelt, connectionPreview, hookedBelts, stampBlueprint, insertBayBetween, canInsertBayBetween, transact, lineGraph, applyLineLayout, blueprintGraph,
       // agent-bay binding queries
       propsByType, propsByAgent, pipelineEdges, setPipelineEdges, addPipelineEdge, removePipelineEdge, agentRoomId, bayObjects,
