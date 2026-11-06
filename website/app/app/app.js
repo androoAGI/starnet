@@ -4792,8 +4792,8 @@ const App = (() => {
     // the station's DISPLAY view of the session (what it still shows after any delete); the page's copy is the fallback only for a session the station never held
     let rows = null;
     try {
-      const r = w && await fetch('/api/transcript?agent=' + encodeURIComponent(w.agentId || 'agent') + '&stream=' + encodeURIComponent(id) + '&limit=2000', { cache: 'no-store' });
-      const j = r && r.ok ? await r.json() : null;
+      const r = w && await Harness.api.get('/api/transcript?agent=' + encodeURIComponent(w.agentId || 'agent') + '&stream=' + encodeURIComponent(id) + '&limit=2000');
+      const j = r || null;
       if (j && Array.isArray(j.turns) && j.turns.length) rows = j.turns;
     } catch (_) { rows = null; }
     const unread = !!w && !rows && Workstreams.needsHydration(w), bundle = w && !unread && Workstreams.exportConversation(id, format, rows ? { rows } : undefined);

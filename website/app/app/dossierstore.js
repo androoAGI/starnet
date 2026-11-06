@@ -56,8 +56,8 @@ const DossierStore = (() => {
       return true;
     };
     try {
-      fetch('/api/dossier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ block: composeBlock(), sourceRunIds: prov.sourceRunIds, complete: prov.complete }) })
-        .then(r => r.json()).then(j => { if (refused(j, 'admitted', 'forgotten')) pushToSidecar(true); }).catch(() => {});
+      Harness.api.post('/api/dossier', { block: composeBlock(), sourceRunIds: prov.sourceRunIds, complete: prov.complete })
+        .then(r => { if (r.ok && refused(r.j, 'admitted', 'forgotten')) pushToSidecar(true); }).catch(() => {});
     } catch (_) {}
     // NS-1: also mirror a READ-ONLY structured BELIEFS SNAPSHOT (per-dim text + timestamps) to the sidecar, so the
     // SERVER-side night-shift driver can gate ACTING with the same Autopilot.readiness() the frontend autopilot
@@ -85,8 +85,8 @@ const DossierStore = (() => {
       const readyV = rd ? { ok: !!rd.ready, reasons: Array.isArray(rd.reasons) ? rd.reasons : [] } : null;
       let complete = prov.complete;
       for (const k of known) for (const b of snap[k]) if (b.weight === 'observed' && !b.sourceRunId) complete = false;
-      fetch('/api/autonomy/posture', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ beliefs: { known: known, beliefs: snap, ready: readyV, complete } }) })
-        .then(r => r.json()).then(j => { if (refused(j, 'beliefsAdmitted', 'beliefsForgotten')) pushToSidecar(true); }).catch(() => {});
+      Harness.api.post('/api/autonomy/posture', { beliefs: { known: known, beliefs: snap, ready: readyV, complete } })
+        .then(r => { if (r.ok && refused(r.j, 'beliefsAdmitted', 'beliefsForgotten')) pushToSidecar(true); }).catch(() => {});
     } catch (_) {}
   }
 

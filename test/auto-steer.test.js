@@ -30,6 +30,8 @@ function browserRig(response) {
     localStorage: { getItem: k => disk.get(k), setItem: (k,v) => disk.set(k,v) },
     fetch: async (url, options) => { const body = JSON.parse(options.body); posts.push(body); return response ? response(body, posts.length) : { status: 200, json: async () => ({ ok: true }) }; }
   });
+  // the page's one JSON client, over the same stub fetch: { ok, status, j } as harness.js's readReply gives it
+  ctx.Harness = { api: { post: async (url, body) => { const r = await ctx.fetch(url, { method: 'POST', body: JSON.stringify(body) }); let j = null; try { j = await r.json(); } catch (_) {} const status = Number(r.status) || 0; return { ok: status >= 200 && status < 300 && !!j && typeof j === 'object' && j.ok !== false, status, j }; } } };
   const names = ['steerQueued','qText','qAtts','keepSentNow','sentNowDisk','sentNowOverdue','dropSentNow','forgetSentNow',
     'markSentNowLanded','restoreSentNow','giveBack','settleSentNow','releaseSentNow'];
   vm.runInContext(names.map(n => A.fnBody(source, (n === 'steerQueued' ? 'async function ' : 'function ') + n)).join('\n'),ctx);

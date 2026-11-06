@@ -26,7 +26,7 @@ function problems(src) {
   if (!/\} catch \(e\) \{ failNote\('turn\.files', e\); \}/.test(line)) out.push('the call is not guarded on its own line');
   if (!line.includes('note: deliverableNotes.get(runId)') || line.includes('deliverableNotes.take')) out.push('the note is not read with get');
   if (!line.includes('artifacts: execution.artifactList()') || !line.includes('agentId, runId') || !line.includes('turnId: runStartExtra.turnId') || !line.includes("root: o.projectRoot || ''")) out.push('the call is not fed the run\'s own ledger, agent, turn and root');
-  if (!/taint: execution\.taintedBy\(\) \|\| /.test(line)) out.push('the row\'s taint is not the run\'s');
+  if (!/taint: execution.rowTaint\(\) \|\| /.test(line)) out.push('the row\'s taint is not the run\'s');
   const skip = line.slice(line.indexOf("failNote('turn.files.skipped'"), line.indexOf('} } catch'));
   if (!skip.startsWith("failNote('turn.files.skipped'") || /\.path\b/.test(skip)) out.push('a skipped artifact is not counted by reason only');
   if (src.split('deliverableNotes.take(runId)').length - 1 !== 1) out.push('the note is not taken exactly once');

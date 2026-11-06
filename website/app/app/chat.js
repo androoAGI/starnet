@@ -1814,12 +1814,10 @@ const Chat = (() => {
       sentNowDisk(all => { if (all && Object.prototype.hasOwnProperty.call(all, id)) { lines = Math.max(lines, (all[id] || []).length); delete all[id]; } });
     } catch (_) {}
     try {
-      const tok = (typeof Harness !== 'undefined' && Harness.apiToken) ? String(Harness.apiToken() || '') : '';
-      const headers = { 'Content-Type': 'application/json' }; if (tok) headers['X-StarNet-Token'] = tok;
       for (const f of (Array.isArray(o.files) ? o.files : [])) {
         if (!f || !f.path) continue;
         files++;
-        fetch('/api/attachments', { method: 'POST', headers, body: JSON.stringify({ op: 'delete', agent: f.agent || 'agent', path: f.path }) }).catch(() => {});
+        Harness.api.post('/api/attachments', { op: 'delete', agent: f.agent || 'agent', path: f.path }).catch(() => {});
       }
     } catch (_) {}
     return { runs, lines, files };
@@ -9133,9 +9131,9 @@ const Chat = (() => {
         for (let attempt = 0; attempt < 2 && !response; attempt++) {
           if (!(sentNow.get(id) || []).includes(note) || interrupted.has(id)) break;
           try {
-            const r = await fetch('/api/run/steer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ runId: rid, noteId: note.id, message }) });
-            response = { status: r.status, body: await r.json() };
+            const r = await Harness.api.post('/api/run/steer', { runId: rid, noteId: note.id, message });
+            if (r.j === null) throw new Error('unreadable reply');   // no verdict was read: the delivery stays ambiguous
+            response = { status: r.status, body: r.j };
           } catch (_) { ambiguous = true; /* a failed transport is not a delivery verdict */ }
         }
         if (!(sentNow.get(id) || []).includes(note)) break; // Stop already returned it

@@ -89,6 +89,7 @@ function realStore() {
     Dossier, Understanding,
     fetch: (url, opts) => { posts.push({ url: url, body: opts && opts.body ? JSON.parse(opts.body) : null }); return Promise.resolve({ ok: true, json: () => Promise.resolve({}) }); }
   });
+  ctx.Harness = { api: { post: async (url, body) => { const r = await ctx.fetch(url, { method: 'POST', body: JSON.stringify(body) }); const j = await r.json(); return { ok: !!r.ok && !(j && j.ok === false), status: 200, j }; } } };   // the page's one JSON client over the same stub fetch, as harness.js readReply gives it
   const store = vm.runInContext(dossierStoreSrc + '\nDossierStore', ctx);
   store.init({});
   const snapshot = () => { const last = posts.filter(p => p.url === '/api/autonomy/posture' && p.body && p.body.beliefs).pop(); return last ? last.body.beliefs : null; };

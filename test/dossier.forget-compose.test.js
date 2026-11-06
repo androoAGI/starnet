@@ -24,6 +24,8 @@ const calls = [];
 let answer = () => ({ ok: true, admitted: true, beliefsAdmitted: true });
 const sandbox = { Dossier, console, setTimeout, Date, JSON, Promise,
   fetch: (url, init) => { const body = JSON.parse(init.body); calls.push({ url, body }); return Promise.resolve({ json: () => Promise.resolve(answer(url, body)) }); } };
+// the page's one JSON client, over the same stub fetch: { ok, status, j } as harness.js's readReply gives it
+sandbox.Harness = { api: { post: async (url, body) => { const r = await sandbox.fetch(url, { method: 'POST', body: JSON.stringify(body) }); const j = await r.json(); return { ok: !!j && j.ok !== false, status: 200, j }; } } };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'dossierstore.js'), 'utf8') + '\nthis.DossierStore = DossierStore;', sandbox);
 const Store = sandbox.DossierStore;
@@ -93,7 +95,7 @@ const pushes = route => calls.filter(c => c.url === route);
     return { ok: true, beliefsAdmitted: !(body.beliefs.complete === false || Object.values(body.beliefs.beliefs).some(l => l.some(b => b.sourceRunId === 'run_q'))), beliefsForgotten: ['run_q'] };
   };
   const Fresh = (() => {
-    const ctx = { Dossier, console, setTimeout, Date, JSON, Promise, fetch: sandbox.fetch };
+    const ctx = { Dossier, console, setTimeout, Date, JSON, Promise, fetch: sandbox.fetch, Harness: sandbox.Harness };
     vm.createContext(ctx);
     vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'dossierstore.js'), 'utf8') + '\nthis.DossierStore = DossierStore;', ctx);
     return ctx.DossierStore;
