@@ -1,13 +1,3 @@
-## IN PROGRESS — Automatic conversation steering — 2026-11-03
-
-Owner: `agent/auto-steer-1103`, isolated worktree `C:/Users/andro/gen-trees/auto-steer-1103`.
-User requested ordinary mid-task sends to steer automatically and status answers to preserve ongoing work.
-Implementation includes lossless text/files, ordered delivery, receipt recovery, bounded same-run continuation,
-user-history replay, and the generated website mirror. Focused regression, HTTP/restart and dev-seeded
-COMMS browser proofs pass with a local scripted provider. Real-model semantics and installed builds remain
-unverified. Complete fast/HTTP gates and integration remain pending; no release is claimed.
-Evidence: [live receipt](../qa/evidence/auto-steer-1103/live-proof.json).
-
 ## IN PROGRESS — Customer-driven release polish — 2026-10-11
 
 Owner: `agent/session-handoff-1011` (StarNet customer-driven release coordination). This is the current queue. Historical entries below do not establish present ownership, defects or readiness.
