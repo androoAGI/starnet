@@ -829,6 +829,7 @@
   /* What Storage.getCookies returns → what Storage.setCookies takes. A cookie with no expiry stays one; a host-only cookie
      (no leading dot, __Host- among them) stays host-only, which Chromium reads from the domain's shape. */
   const SEED_COOKIES_MS = 15000;
+  const STARTUP_TAB_MS = 8000;
   function cookieParams(list) {
     const out = [];
     for (const c of (Array.isArray(list) ? list : [])) {
@@ -877,6 +878,7 @@
        deps.seedCookies copies the saved sign-ins into this browser before its first page. null = not known yet: that
        counts as holding them, so browser.eval stays refused until the seed has really come back empty. */
     let seededSignIns = null;
+    let launchedAt = 0;
     const holdsSavedSignIns = () => typeof deps.seedCookies === 'function' && seededSignIns !== 0;
     async function seedSavedSignIns() {
       if (typeof deps.seedCookies !== 'function') return;
@@ -1461,6 +1463,7 @@
         args.push('--headless=new', '--hide-scrollbars', '--mute-audio');
       }
       args.push('about:blank');
+      launchedAt = Date.now();
       proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
       procClosePromise = new Promise(resolve => {
         // how it exited rides the launch error (procError): "exited before CDP ownership" alone never said why (user report, 10-28)
@@ -1589,6 +1592,14 @@
                      for it is what made this path block. */
                    // Receiving this event from the browser endpoint is itself proof that popup adoption
                    // is armed, even while setAutoAttach's acknowledgement is still in flight.
+                   /* EDGE'S STARTUP PAGE. Measured on Edge: a hidden browser on the durable profile, whose last exit reads as a
+                      crash (cleanStart), opens its MSN new-tab page beside the first tab, and the agent then saw and loaded a tab
+                      nobody asked for. Nobody can open a tab in a hidden browser, and a page's own popup has an opener, so a tab
+                      with none in the first seconds after launch is the browser's own. */
+                   if (!headed && attachPort === null && onPersistent() && !info.openerId && Date.now() - launchedAt < STARTUP_TAB_MS) {
+                     Promise.resolve(cdp.send('Target.closeTarget', { targetId: info.targetId })).catch(e => failNote('browser.startup-tab', e));
+                     return;
+                   }
                    prepareAdoptedPage(sid, info.targetId, viaBrowser);
                   return;
                 }
