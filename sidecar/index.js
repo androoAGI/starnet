@@ -3847,7 +3847,11 @@ wireForgetRegistry(forgetRegistry, {
   summaryLedger: () => summaryLedger,
   checkpoints: () => checkpointStore,
   noteCheckpointReset: agentIds => console.log('[session-tombstones] deleted sessions: the restore points of ' + agentIds.join(', ') + ' held an upload of a deleted session, so their older rollback points were reset to one baseline'),
-  lineJobs: () => ({ forget: (bound, why) => LineJobs.forgetVia(lineJobsSet, bound, why, Date.now()) }),
+  lineJobs: () => ({ forget: (bound, why) => {
+    try { return LineJobs.forgetVia(lineJobsSet, bound, why, Date.now()); }
+    // a store holding data the station cannot rewrite losslessly (a future version, a duplicate record) is preserved as it is by design: the purge says so and goes on
+    catch (e) { if (e && (e.code === 'ELINE_CONTINUATION_READONLY' || e.code === 'ELINE_ENTRY_READONLY')) { failNote('forget.line-jobs.readonly', e); return 0; } throw e; }
+  } }),
   nightDrafts: { get: () => nightshiftDrafts, set: list => { nightshiftDrafts = list; }, persist: () => saveResilient(NIGHTSHIFT_DRAFTS_FILE, { v: 1, drafts: nightshiftDrafts }) },
   nightActs: { get: () => nightshiftActs, persist: () => saveResilient(NIGHTSHIFT_ACTS_FILE, { v: 1, acts: nightshiftActs }) },
   workshop: () => workshopStore, workshopAgentIds: () => workshopAgentIds()

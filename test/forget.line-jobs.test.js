@@ -121,7 +121,17 @@ function registryFor(env, streamId, runs) {
     A.ok(!/filed under the line, not under a conversation session/.test(wiring), 'the old exemption text is gone');
     const index = readSidecarIndex();
     A.ok(index.includes("runRow: runId => runView('lineResume', runStore.latest(runId))"), 'the held job\'s resume reads its run through runView: a forgotten run refuses the resume');
-    A.ok(/lineJobs: \(\) => \(\{ forget: \(bound, why\) => LineJobs\.forgetVia\(lineJobsSet,/.test(index), 'the host hands the entry the verified job writer (lineJobsSet)');
+    A.ok(/lineJobs: \(\) => \(\{ forget: \(bound, why\) => \{\s*try \{ return LineJobs\.forgetVia\(lineJobsSet,/.test(index), 'the host hands the entry the verified job writer (lineJobsSet)');
+    A.ok(/ELINE_CONTINUATION_READONLY[^\n]*ELINE_ENTRY_READONLY[^\n]*failNote\('forget\.line-jobs\.readonly'/.test(index), 'a store the station cannot rewrite losslessly is preserved and said so, not retried for ever');
+  }
+
+  // ---- 7. a store the station will not rewrite (a duplicate or future-version record, preserved by design) refuses the purge with the code the host answers ----
+  {
+    const dup = { id: 'job-dup0000001', line: 'a', status: 'held', continuation: { version: 99 } };
+    const state = J.normalizeAll({ jobs: [dup, dup] });
+    let code = null;
+    try { J.forgetUnfinished(state, () => true, 'gone', 1); } catch (e) { code = e && e.code; }
+    A.eq(code, 'ELINE_CONTINUATION_READONLY', 'the pure purge never rewrites a store that must be preserved; the host notes it and the pass goes on');
   }
 
   A.report('forget.line-jobs');
