@@ -21,6 +21,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (sanitize, errorClass, outputContinuation, recoveryPolicy, loopBreaker) {
   'use strict';
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
+const computeQueue = (typeof require === 'function') ? require('./compute-queue.js') : null;
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   // fold-fidelity helpers (verbatim user section, usage anchor, provider-reported window). Node-only like failopen;
   // absent (a browser build that never runs the loop) = compaction stays off rather than folding unfaithfully.
@@ -108,6 +109,26 @@
   // intact (tools are never dropped; provider-compatibility law), so a model that MEANT to act re-emits the
   // call properly next turn, and an echo of data continues without it. The `<function>` variant is gated on
   // a name= attribute at a block boundary so prose like "use <function> in JS" is preserved.
+
+  // DEEPSEEK THINK EXTRACTION: DeepSeek models emit <think>...</think> blocks inline in the text.
+  // We extract them into reasoning and remove them from the actionable terminal commands.
+  const DEEPSEEK_THINK_RE = /<think>([\s\S]*?)<\/think>/gi;
+  function extractDeepSeekThink(text) {
+    let t = String(text == null ? '' : text);
+    let reasoning = [];
+    let found = false;
+    let match;
+    // We need to match globally and collect all think blocks.
+    const re = /<think>([\s\S]*?)<\/think>/gi;
+    while ((match = re.exec(t)) !== null) {
+        reasoning.push(match[1]);
+        found = true;
+    }
+    if (!found) return null;
+    t = t.replace(re, '');
+    return { text: t.replace(/\n{3,}/g, '\n\n').trim(), reasoning };
+  }
+
   const TEXT_MARKUP_RES = [
     /<tool_call>[\s\S]*?<\/tool_call>/gi,
     /<tool_calls>[\s\S]*?<\/tool_calls>/gi,
@@ -2063,6 +2084,12 @@
           if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
           if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
+
+      // Asynchronous Concurrency & Agent Queueing
+      if (computeQueue && provider.isOllamaModel && provider.isOllamaModel(model)) {
+        await computeQueue.acquireCompute(runId);
+      }
+
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note); continue; }   // the adapter's wait facts, not stream output (#99)
@@ -2397,6 +2424,22 @@
       // TEXT TOOL-CALL MARKUP: a zero-wire-call turn whose TEXT carries tool-call markup is neither a final
       // answer nor a call to execute (echoed markup = data; see scrubTextToolCallMarkup). Strip it from the
       // kept turn; the stop branch below nudges the model to make a REAL call.
+
+      // DEEPSEEK THINK EXTRACTION
+      const thinkExtracted = extractDeepSeekThink(acc.text);
+      if (thinkExtracted) {
+        acc.text = thinkExtracted.text;
+        // Merge into existing reasoning or create new
+        if (!acc.reasoning) acc.reasoning = [];
+        // We push them as text parts for simplicity, or we can just append
+        for (const r of thinkExtracted.reasoning) {
+            acc.reasoning.push({ type: 'redacted_thinking', data: r }); // Assuming we want it in reasoning
+            // OR if it expects a string:
+            // if we need to emit it to the inspector:
+            emit('agent.token', { agentId, runId, delta: '\n[thought] ' + r + '\n' });
+        }
+      }
+
       let textMarkup = false;
       if (calls.length === 0) {
         const scrubbed = scrubTextToolCallMarkup(acc.text);

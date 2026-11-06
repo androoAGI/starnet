@@ -172,8 +172,8 @@
     "ajv": "8.20.0",
     "kokoro-js": "^1.2.1",
     "node-pty": "^1.1.0",
-    "ogg-opus-decoder": "^1.7.3",
-    "undici": "^6.28.1"
+    "ogg-opus-decoder": "^1.7.5",
+    "undici": "^6.29.1"
   },
   "overrides": {
     "adm-zip": "0.6.1",

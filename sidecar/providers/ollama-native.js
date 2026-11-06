@@ -120,6 +120,18 @@
     const req = { model: b.model, messages: toNativeMessages(b.messages), stream: true, truncate: false };
     if (Array.isArray(b.tools) && b.tools.length) req.tools = b.tools;
     const options = {};
+
+    // Map response_format to format for Ollama native
+    if (b.response_format) {
+      if (b.response_format.type === 'json_object') {
+        req.format = 'json';
+        // Note: Ollama format currently supports 'json' string or a JSON schema object
+        if (b.response_format.schema) {
+            req.format = b.response_format.schema;
+        }
+      }
+    }
+
     if (o.numCtx > 0) options.num_ctx = Math.floor(o.numCtx);
     if (b.max_tokens > 0) options.num_predict = Math.floor(b.max_tokens);
     if (Object.keys(options).length) req.options = options;
