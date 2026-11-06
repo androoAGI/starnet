@@ -26,6 +26,7 @@ const SessionTombstones = require('./session-tombstones.js');
 const Interests = require('./interests.js');
 const Scout = require('./scout.js');
 const QuestRefresh = require('./questrefresh.js');
+const SteeringMessage = require('../frontend/app/steering-message.js');
 
 const { inScope } = ForgetRegistry;
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
@@ -394,8 +395,10 @@ function wireForgetRegistry(registry, deps) {
     sourceOf: ref => ({ streamIds: [ref && ref.streamId], at: num(ref && ref.ts) }),
     forget: async scope => {
       const store = d.transcriptStore();
-      // a file is named two ways: by a directive row's attachments[], and by a row of kind 'attachment' of its own (attachment-rows: r.attachment = { id, name, mime, path })
-      const refsOf = r => (Array.isArray(r.attachments) ? r.attachments : []).concat(r && r.kind === 'attachment' && r.attachment ? [r.attachment] : []);
+      // a file is named by a directive row's attachments[], by a row of kind 'attachment' of its own (attachment-rows: r.attachment = { id, name, mime, path }), or by a steer row's wire (below)
+      // a third way (auto-steer): a message sent mid-run names its files only inside the steer row's held wire (steeringWire), never in attachments[]
+      const wiredOf = r => { const m = r && typeof r.steeringWire === 'string' ? SteeringMessage.decode(r.steeringWire) : null; return m ? m.attachments : []; };
+      const refsOf = r => (Array.isArray(r.attachments) ? r.attachments : []).concat(r && r.kind === 'attachment' && r.attachment ? [r.attachment] : [], wiredOf(r));
       const live = new Set();
       for (const r of store.all()) for (const a of refsOf(r)) if (a && a.path) live.add(a.path);   // all() is the store's NON-forgotten rows; a branch or re-send naming the file only through an attachment row keeps it
       const doomed = new Map();   // path -> agentId

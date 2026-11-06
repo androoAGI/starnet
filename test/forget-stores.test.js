@@ -462,6 +462,38 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       } finally { remove(adir); }
     }
 
+    // ---------------- attachment files, a message sent mid-run (auto-steer) ----------------
+    /* A steer row names its files only inside its held wire (steeringWire = SteeringMessage.encode({ text, attachments, id })): no attachments[]
+       and no attachment row. The entry reads that wire in both loops: a deleted session's steered file goes, a live session's steer keeps its own. */
+    {
+      const adir = temp('attach-steer');
+      try {
+        const fsp = fs.promises;
+        const SteeringMessage = require('../frontend/app/steering-message.js');
+        const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const text = name => 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64');
+        const steered = await att.saveAttachment('agent', 'steered.txt', text('steered'));     // sent mid-run in the deleted session
+        const kept = await att.saveAttachment('agent', 'steerkeep.txt', text('steerkeep'));   // sent mid-run in a live session
+        const exists = ref => fs.existsSync(path.join(adir, 'agent', ref.path));
+        const io = History.makeMemoryTranscriptIo();
+        const store = Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        const TurnKinds = require('../frontend/app/turnkinds.js');
+        // the row the loop's folded message becomes (auto-steer.test.js files it the same way): role system, kind steer, the wire held
+        const steer = (streamId, f, id) => {
+          const m = { role: 'user', content: 'look at this', steeringWire: SteeringMessage.encode({ text: 'look at this', id, attachments: [{ id: path.basename(f.path), name: path.basename(f.path), path: f.path, mediaType: 'text/plain', kind: 'file' }] }) };
+          TurnKinds.tag(m, 'steer', { noteId: id });
+          store.appendNewStrict(streamId, 'agent', [m], { sourceRunId: 'run_' + streamId, turnId: 't_0123456789abcdefghijk', kindOf: x => TurnKinds.messageKind(x, 'turn') });
+        };
+        steer('sGone', steered, 'n_gone'); steer('sKeep', kept, 'n_keep');
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        A.ok(store.view('proof', 'sGone', { complete: true }).some(r => typeof r.steeringWire === 'string'), 'the proof view of the deleted session holds the steer row with its wire');
+        A.eq(await forget('attachment-files'), 1, 'the file only the deleted session\'s steer named is removed');
+        A.ok(!exists(steered) && exists(kept), 'a deleted session\'s mid-run file goes; a live session\'s own stays');
+        A.eq(await forget('attachment-files'), 0, 'idempotent');
+      } finally { remove(adir); }
+    }
+
     // ---------------- attachment files: the restore points that hold them (contract A17 iii) ----------------
     {
       const adir = temp('attach-checkpoints');
