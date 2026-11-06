@@ -195,7 +195,7 @@ const BASELINE = {
   'attachments.js': [1, 'own writer (attachments): an exclusive-create upload temp, synced, renamed into place'],
   'backupfile.js': [1, 'own writer: an exclusive-create (wx) backup copy, never a replace'],
   'browser-install.js': [2, 'directory activation: the staged browser install renamed live, then its current-version pointer'],
-  'checkpoint-store.js': [12, 'directory activation: the git-dir reinit swap and its rollback (6); the bundle fallback writer when durable-write cannot load (2); scratch handed to Git inside the shadow git-dir, rewritten before every capture and never read back as a store (lane checkpoint-links, 4): the NUL pathspec file, info/exclude, the attributes pin and its due marker'],
+  'checkpoint-store.js': [13, 'directory activation: the git-dir reinit swap and its rollback (6); the bundle fallback writer when durable-write cannot load (2); scratch handed to Git inside the shadow git-dir, rewritten before every capture and never read back as a store (lane checkpoint-links, 4): the NUL pathspec file, info/exclude, the attributes pin and its due marker; and the one info/exclude line ensureExclude appends for the workspace repo (turn identity C12: .attachments/), a Git ignore file derived from a constant that the link walk keeps on every rewrite and that holds no session data (batch 6 integration, +1)'],
   'cli-link.js': [1, "append-only: the CLI's PATH line appended to the user's shell profile"],
   'computer-control.js': [3, 'directory activation: an extracted helper swapped in, with its backup and rollback'],
   'connector-vault.js': [2, 'own writer (connector vault): the verified exclusive recovery copy of each credential file, and its restore'],
