@@ -126,6 +126,16 @@ test/run-streams.test.js
 test/run-stream-pool.test.js
 test/checkpoint.test.js
 test/checkpoint-default-on.test.js
+test/checkpoint-links.test.js
+test/checkpoint-undo-closure.test.js
+test/checkpoint-undo.test.js
+test/checkpoint-undo-gitlinks.test.js
+test/checkpoint-undo-reads.test.js
+test/checkpoint-undo-older.test.js
+test/checkpoint-undo-case.test.js
+test/checkpoint-undo-folders.test.js
+test/checkpoint-undo-held.test.js
+test/checkpoint-admission.test.js
 test/rewind-health.test.js
 test/module-scope-shadowing.test.js
 test/source-text-integrity.test.js

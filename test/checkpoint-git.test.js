@@ -4,7 +4,9 @@ const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { spawn } = require('node:child_process');
 const { makeCheckpointGitRunner } = require('../sidecar/checkpoint-git.js');
-const root = fs.mkdtempSync(path.join(os.tmpdir(),'starnet-checkpoint-git-'));
+const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
+const { makeClock } = require('../shared/clock-rng.js');
+const root =fs.mkdtempSync(path.join(os.tmpdir(),'starnet-checkpoint-git-'));
 const heartbeat = path.join(root,'heartbeat.txt');
 const worker = path.join(root,'worker.cjs');
 const launcher = path.join(root,'launcher.cjs');
@@ -58,6 +60,29 @@ const run = makeCheckpointGitRunner({spawn,file:process.execPath,timeoutMs:1200,
     A.ok(Date.now()-t0<10000,'the shorter per-call bound is honoured, not the 15 s default');
     const missing=await makeCheckpointGitRunner({spawn,file:path.join(root,'absent-executable')})([],{cwd:root});
     A.ok(missing.code!==0,'missing executable resolves fail-open error');
+    // undo review 7: 1 is an answer of Git's own (check-ignore: none ignored; grep: no line), so a launch that failed never answers it
+    A.eq(missing.code,-1,'a launch that failed answers -1, as a timeout does, never an exit code a Git command gives');
+    // undo review 7's family: a station started from a Git hook or script inherits what points Git at another repository, or turns
+    // every pathspec literal. The runner drops those; the person's config files stay. Then one rewind through it, under that
+    // switch: its .gitignore glob, which only a pathspec lists, refuses it as it does without the switch. This file runs one
+    // thing at a time, so process.env can hold them for these two calls
+    const inherited={GIT_INDEX_FILE:'another-index',GIT_OBJECT_DIRECTORY:'another-objects',GIT_LITERAL_PATHSPECS:'1',GIT_CONFIG_GLOBAL:path.join(root,'no-such-config')};
+    Object.assign(process.env,inherited);
+    try {
+      const seen=await run(['-e',"process.stdout.write(JSON.stringify(['GIT_INDEX_FILE','GIT_OBJECT_DIRECTORY','GIT_LITERAL_PATHSPECS','GIT_CONFIG_GLOBAL'].map(n=>process.env[n]||'')))"],{cwd:root});
+      A.eq(seen.stdout,JSON.stringify(['','','',inherited.GIT_CONFIG_GLOBAL]),'Git never inherits what points it at another repository or changes every pathspec; the person\'s config file stays');
+      const wsRoot=path.join(root,'ws'),wt=path.join(wsRoot,'a'),put=(f,b)=>{fs.mkdirSync(path.dirname(f),{recursive:true});fs.writeFileSync(f,b);};
+      const gitRunner=makeCheckpointGitRunner({spawn,clock:{now:()=>Date.now()},timeoutMs:60000});
+      const store=makeCheckpointStore({fs,pathMod:path,root:wsRoot,runGit:gitRunner,clock:makeClock(1700000000000),keep:50});
+      put(path.join(wt,'app.js'),'v0\n');
+      const t=await store.snapshot('a',{runId:'r',turn:0,label:'T: no .gitignore'});
+      put(path.join(wt,'.gitignore'),'*.log\n');put(path.join(wt,'app.js'),'v1\n');
+      await store.snapshot('a',{runId:'r',turn:1,label:'S1: a glob rule'});
+      put(path.join(wt,'x.log'),'the person\'s ignored log, in no restore point\n');put(path.join(wt,'app.js'),'v2\n');
+      const r=await store.restoreDetailed('a',t.id);
+      A.eq([r.ok,r.reason,!!r.preRestoreId],[false,'uncaptured_check_failed',false],'a rewind that changes a glob rule is refused under GIT_LITERAL_PATHSPECS too ('+JSON.stringify(r)+')');
+      A.eq(fs.readdirSync(wt).sort(),['.gitignore','app.js','x.log'],'and the workspace is as it was');
+    } finally { for (const n of Object.keys(inherited)) delete process.env[n]; }
     const source=readSidecarSource();
     A.ok(source.includes("require('./checkpoint-git.js').makeCheckpointGitRunner"),'real sidecar wires supervised checkpoint runner');
     const bounded = makeCheckpointGitRunner({spawn,file:process.execPath,maxBytes:128});

@@ -4,6 +4,16 @@
 'use strict';
 const { runProcess } = require('./environment.js');
 const { StringDecoder } = require('node:string_decoder');
+/* What a process's environment can set for another repository or for every pathspec (git rev-parse --local-env-vars, and the
+   pathspec switches): a station started from a Git hook or script inherits them, and they would reach a shadow repo's calls past
+   its --git-dir (GIT_INDEX_FILE, GIT_OBJECT_DIRECTORY) and past every literal pathspec its checks ask by (GIT_LITERAL_PATHSPECS:
+   no .gitignore listed, no rule refused, undo review 7's family). The person's own config files stay (the store pins what it must). */
+const GIT_ENV_OF_ANOTHER_REPO = /^GIT_(?:DIR|WORK_TREE|IMPLICIT_WORK_TREE|INDEX_FILE|OBJECT_DIRECTORY|ALTERNATE_OBJECT_DIRECTORIES|COMMON_DIR|GRAFT_FILE|SHALLOW_FILE|NO_REPLACE_OBJECTS|REPLACE_REF_BASE|NAMESPACE|PREFIX|CONFIG|CONFIG_PARAMETERS|CONFIG_COUNT|LITERAL_PATHSPECS|GLOB_PATHSPECS|NOGLOB_PATHSPECS|ICASE_PATHSPECS|ATTR_SOURCE)$/i;
+function checkpointGitEnv() {
+  const env = {};
+  for (const name of Object.keys(process.env)) if (!GIT_ENV_OF_ANOTHER_REPO.test(name)) env[name] = process.env[name];
+  return env;
+}
 function makeCheckpointGitRunner(deps) {
   const d = deps || {};
   return async function runGitCheckpoint(args, opts) {
@@ -36,14 +46,18 @@ function makeCheckpointGitRunner(deps) {
       const result = await runProcess({ spawn, file: d.file || 'git', args, timeoutMs,
         maxBytes, captureFullOut: false, clock: d.clock, ledger: d.ledger, ledgerCmd: d.file || 'git',
         signal: controller.signal,
-        spawnOptions: { cwd: opts && opts.cwd || d.cwd, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] } });
+        spawnOptions: { cwd: opts && opts.cwd || d.cwd, env: checkpointGitEnv(), windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] } });
       stdout = (stdout + decOut.end()).slice(0, maxBytes);
       stderr = (stderr + decErr.end()).slice(0, maxBytes);
       if (result.timedOut) stderr += '\ncheckpoint Git process tree timed out';
       if (overflow) stderr += '\ncheckpoint Git output limit exceeded';
       else if (result.aborted) stderr += '\ncheckpoint Git process tree aborted';
       return { code: overflow ? -1 : result.exitCode, stdout, stderr, truncated: overflow, timedOut: result.timedOut, aborted: result.aborted };
-    } catch (e) { return { code: 1, stdout, stderr: stderr + String(e && e.message || e) }; }
+    } catch (e) {
+      // a launch that failed (spawn threw, or emitted 'error'): -1, as runProcess answers a timeout or an abort, never an exit code a
+      // Git command gives. check-ignore's 1 means none ignored and grep's no line at all: this answered 1 (undo review 7)
+      return { code: -1, stdout, stderr: stderr + String(e && e.message || e) };
+    }
     finally { if (externalSignal) externalSignal.removeEventListener('abort', abort); }
   };
 }

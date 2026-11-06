@@ -463,7 +463,13 @@ const REPORTED = {
     ["(r.reason ? (' (' + String(r.reason)", NR("a recovery attempt's classifier reason")]
   ],
   'sidecar/group-sessions.js': [["sample: text(fields.sample, 2400), reason: text(fields.reason, 600),", NR("a participant's Task Brief question's suggested-answer reason")]],
+  'sidecar/checkpoint-store.js': [
+    ["restore point skipped: the folder could not be checked for links", NR("a restore point skipped because its folder could not be scanned for links")],
+    ["reason: 'link_check_failed', detail:", NR("a rewind refused because the destination could not be scanned for links; a restore result")]
+  ],
   'sidecar/index.js': [
+    ["out.reason === 'link_in_path'", NR("a rewind refused for a link on its destination: the restore endpoint's answer")],
+    ["out.reason === 'uncaptured_in_path'", NR("a rewind refused for a file no restore point holds: the restore endpoint's answer")],
     ["credits link self-heal declined: ' + r.reason", NR("the credits link's self-heal refusal")],
     ["'[subagents] worker ' + w.id", NR("a worker stall's receipt ('stalled: …')")],
     ["reason: e.reason || (e.kind === 'outcome' ? (e.delivered ? 'delivered' : 'stood-down')", NR("a night-shift autonomy event's skip / defer reason; its outcome rows say delivered or stood-down")],
