@@ -4,18 +4,17 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**33** open (open+claimed) of 457 total — 0 P0 · 2 P1 · 31 P2
+**31** open (open+claimed) of 457 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **123** · source fixed: **101** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
+User/owner reports: **123** · source fixed: **103** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
-| [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | token-efficiency | open | unverified | unconfirmed |
-| [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | prose-classifier-authority | claimed | unverified | unconfirmed |
 | [Checkpoint maintenance bypass and orphan Git pack processes](bugs/8bdf73bb-checkpoint-maintenance-bypass-and-orphan-git-pac.md) | checkpoint-maintenance | fixed | unverified | unconfirmed |
 | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | delegated-capabilities | fixed | verified | unconfirmed |
+| [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | prose-classifier-authority | fixed | unverified | unconfirmed |
 | [Customer reports an ONCE routine absent from Active Routines](bugs/c2a6c3c8-once-routine-reported-missing.md) | durability-and-visibility | fixed | unverified | unconfirmed |
 | [Persisted E-STOP cannot be resumed from the desktop control](bugs/8f911536-persisted-e-stop-cannot-be-resumed-from-the-desk.md) | emergency-stop | fixed | unverified | unconfirmed |
 | [Repeated promises without tool actions can end with done and no blocker explanation](bugs/b6f04205-repeated-promises-without-tool-actions-can-end-w.md) | premature-stops | fixed | unverified | unconfirmed |
@@ -37,6 +36,7 @@ User/owner reports: **123** · source fixed: **101** · installer verified: **6*
 | [Follow station default retains managed model pin and blocks BYOK delegation](bugs/0e3d3914-follow-station-default-retains-managed-model-pin.md) | execution-configuration | fixed | unverified | unconfirmed |
 | [Funded working station still displays a zero-credit warning](bugs/72af29f4-funded-station-false-zero-warning.md) | recovery-truth | fixed | unverified | unconfirmed |
 | [Gemini rejects the turn after a tool call loses its signature](bugs/0d63e5d1-gemini-loses-tool-signature.md) | tool-history | fixed | unverified | unconfirmed |
+| [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | token-efficiency | fixed | unverified | unconfirmed |
 | [Linked StarNet credits cannot authorize image generation](bugs/a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md) | managed-media | fixed | unverified | unconfirmed |
 | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | recovery-truth | fixed | unverified | unconfirmed |
 | [Local model small talk carries excessive context and produces prolonged replies](bugs/a76b93c4-local-model-small-talk-overload.md) | local-model-conversation-latency | fixed | unverified | unconfirmed |
@@ -145,8 +145,6 @@ User/owner reports: **123** · source fixed: **101** · installer verified: **6*
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
-| P1 | open | providers | [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | agent/token-efficiency-1103 | — |
-| P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P1 | fixed | autonomy | [Ambiguous permission and routine acknowledgements report unproven changes](bugs/95d13aaf-ambiguous-permission-and-routine-acknowledgement.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
@@ -162,6 +160,7 @@ User/owner reports: **123** · source fixed: **101** · installer verified: **6*
 | P1 | fixed | autonomy | [cron-store's armAt never receives the host defaultTz, so a tz-less cron routine's FIRST nextRunAt is UTC-anchored while every later advance uses local — the mar](bugs/f47a1e3a-cron-store-s-armat-never-receives-the-host-defau.md) | sweep/autonomy | 226cec3c |
 | P1 | fixed | autonomy | [Cron writes bypass a live lock after contention](bugs/0506aabf-cron-writes-bypass-a-live-lock-after-contention.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | release-0112-finalprep-0911 | 44c6b4952cd1e468f7caaf4d7ead804dc280cc40 |
+| P1 | fixed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | 52f213958 |
 | P1 | fixed | autonomy | [Exhausted line daily cap permits another entry run](bugs/f60170b7-exhausted-line-daily-cap-permits-another-entry-r.md) | conveyor-finish-1012 | 43e48a086 |
 | P1 | fixed | autonomy | [Failed scheduled routines rearm in UTC instead of host timezone](bugs/cdb44116-failed-scheduled-routines-rearm-in-utc-instead-o.md) | agent/cron-reliability-0921 | 0f881f44afde73e79de13f0117cf0dd9f2771ff9 |
 | P1 | fixed | autonomy | [Idle empty quest slate re-buys a paid planning call every hour](bugs/d986f0a1-idle-empty-quest-slate-re-buys-a-paid-planning-c.md) | sweep/autonomy | cba0e52f5 |
@@ -234,6 +233,7 @@ User/owner reports: **123** · source fixed: **101** · installer verified: **6*
 | P1 | fixed | providers | [A refused provider key rotates onto a key pool saved for another layer's key](bugs/f22f0548-key-pool-rotates-behind-another-layers-key.md) | agent/credential-store-1031 | 22ce8eec1 |
 | P1 | fixed | providers | [A keyed voice leg, web_search's rung and Live Voice send a key to an endpoint it was not saved with](bugs/88f0b2ce-keyed-voice-leg-sends-key-to-unsaved-endpoint.md) | agent/credential-store-1031 | eadd2da4b |
 | P1 | fixed | providers | [Late model catalog response overwrites a newer provider selection](bugs/1600dcf0-late-model-catalog-reverts-new-provider-choice.md) | audit-0112-0910 | 59b5f2462 |
+| P1 | fixed | providers | [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | agent/token-efficiency-1103 | 2dedb2b8a |
 | P1 | fixed | providers | [Linked StarNet credits cannot authorize image generation](bugs/a9374d2c-linked-starnet-credits-cannot-authorize-image-ge.md) | managed-image-repair-0909 | 05fbfbd28 |
 | P1 | fixed | providers | [Linked account warning confuses provider quota with disconnection](bugs/6c54d22e-linked-state-confused-with-quota.md) | reliability-followup | 756ebec88 |
 | P1 | fixed | providers | [Local model small talk carries excessive context and produces prolonged replies](bugs/a76b93c4-local-model-small-talk-overload.md) | release-0120-prep-0915 | 5acf4640f |
@@ -601,8 +601,8 @@ User/owner reports: **123** · source fixed: **101** · installer verified: **6*
 | Surface | Open |
 | --- | --- |
 | channels | 1 |
-| autonomy | 6 |
-| providers | 8 |
+| autonomy | 5 |
+| providers | 7 |
 | safecell | 3 |
 | sessions | 1 |
 | skills | 0 |

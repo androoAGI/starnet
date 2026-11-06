@@ -4,10 +4,10 @@ slug: delegated-workers-cut-short-by-brief-wording
 title: Delegated workers cut to 3 tools and 45s by brief wording
 surface: autonomy
 severity: P1
-status: claimed
+status: fixed
 found: 2026-10-15
 lane: domain-task-advisory
-fix:
+fix: 52f213958
 origin: customer
 report: https://github.com/androoAGI/starnet-releases/issues/5
 affected: 0.13.3 as reported; the prose gates it hit still ship in 0.14.2
@@ -53,7 +53,7 @@ Cause, at 0b8441064. runOnceCore classified the latest user message of every tas
 
 ## Verdict
 
-_Filled in when the bug leaves the backlog: what was true, and why it is closed._
+Prose classifiers no longer grant, withhold or budget tools: a one-host brief keeps web_search and the team tools, a delegated worker keeps its ordinary turns, tool calls and wall clock, and DomainTask now only advises. Fixed by lane domain-task-advisory, merged at 52f213958 and shipped in 0.15.0. Proof on the release tree (agent/release-0150): test/domain-task.metamorphic.e2e.test.js 27/27 (lead, worker, dispatched worker and routine surfaces) and test/domain-task.metamorphic.test.js 57/57 (81 one-host briefs over dispatch, background dispatch, spawn and resume), both red at 0b8441064.
 
 ## Change
 
