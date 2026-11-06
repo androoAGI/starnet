@@ -7,9 +7,9 @@
    reporter on 0.13.2 measured a read of 0 and a write of about 35k tokens on the first message after it.
 
    split() cuts the persona where the first learned block starts. runOnce keeps the stable half in cacheSystemPrefix and places
-   the learned half straight after it, so the model still reads every byte, on every provider: stable + learned === persona.
-   claude-cli puts it after __SYSTEM_PROMPT_DYNAMIC_BOUNDARY__, Anthropic and OpenRouter after the prefix's cache anchor, and
-   Codex leaves it out of the cache route hash.
+   the complete learned half in the guarded run_context note beside the newest user turn. The earlier repair put it after the
+   prefix's cache anchor but still inside the system message: a preference change then invalidated ALL conversation history
+   after that system tail. Every provider now keeps the whole system unchanged while still receiving every learned byte.
 
    The persona stays one string because every path that carries it (COMMS, the roster, channels, voice, a roster saved by an
    older version) keeps working with no new field. A Commander doc that quotes a head at a paragraph start only moves its own
@@ -24,7 +24,7 @@ const LEARNED_HEADS = Object.freeze([
   '<active_goal provenance="commander-confirmed">'      // the same, when a goal is active and the dossier is empty
 ]);
 
-/* WHERE THE TAIL SITS. It now follows the tool notes and the capabilities block, so stored belief text reads after the ground truth,
+/* WHERE THE TAIL SITS. The current turn's host note follows the tool notes and the capabilities block, so stored belief text reads after the ground truth,
    which is the place later instructions tend to win. Nothing else keeps it out of the prefix: anything ahead of those blocks is
    inside it. So it stays there and opens with this constant line: learned text never adds a capability, and a learned restriction
    ("never push to main") still binds, so the line must not discount it. Only a persona with learned text carries it, in the tail, so

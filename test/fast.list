@@ -1788,3 +1788,5 @@ test/channels.live-status.test.js
 test/sound-controls.test.js
 test/dossier.forget-compose.test.js
 test/reflect.dedup-only.test.js
+test/aux-cache-policy.test.js
+test/aux-admission.test.js

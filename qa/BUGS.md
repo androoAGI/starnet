@@ -4,14 +4,15 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**32** open (open+claimed) of 456 total — 0 P0 · 1 P1 · 31 P2
+**33** open (open+claimed) of 457 total — 0 P0 · 2 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **122** · source fixed: **101** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **116**.
+User/owner reports: **123** · source fixed: **101** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
+| [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | token-efficiency | open | unverified | unconfirmed |
 | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | prose-classifier-authority | claimed | unverified | unconfirmed |
 | [Checkpoint maintenance bypass and orphan Git pack processes](bugs/8bdf73bb-checkpoint-maintenance-bypass-and-orphan-git-pac.md) | checkpoint-maintenance | fixed | unverified | unconfirmed |
 | [Delegated specialist lacks connected MCP tools](bugs/acd9ecb4-delegated-specialist-lacks-connected-mcp-tools.md) | delegated-capabilities | fixed | verified | unconfirmed |
@@ -144,6 +145,7 @@ User/owner reports: **122** · source fixed: **101** · installer verified: **6*
 | P0 | fixed | safecell | [The Permissions panel's normalizeGrants regex drops every path: and mcp: standing grant — the ledger prints "No standing approvals yet" while the backend holds](bugs/7274ff21-the-permissions-panel-s-normalizegrants-regex-dr.md) | sweep/safecell | 6afeb9ee |
 | P0 | fixed | sessions | [An attachment-bearing user turn is dropped from the durable transcript and the PREVIOUS turn is written in its place — the string-only scan at index.js:11299 fa](bugs/e7dcb889-an-attachment-bearing-user-turn-is-dropped-from.md) | sweep/sessions | 6afeb9ee |
 | P0 | fixed | skills | [skill.view's hydrate-then-bump stores the RENDERED SKILL.md as the skill's body, so every view→persist cycle re-appends '## Setup' and '## Support Files' — unbo](bugs/c70f8965-skill-view-s-hydrate-then-bump-stores-the-render.md) | sweep/skills | 598ab4a4 |
+| P1 | open | providers | [Learned context and concurrent housekeeping waste provider tokens](bugs/e25cb44c-learned-context-and-concurrent-housekeeping-wast.md) | agent/token-efficiency-1103 | — |
 | P1 | claimed | autonomy | [Delegated workers cut to 3 tools and 45s by brief wording](bugs/dd379d02-delegated-workers-cut-short-by-brief-wording.md) | domain-task-advisory | — |
 | P1 | fixed | autonomy | [A routine run killed between fire and settlement leaves the routine reporting the previous run's ok and absent from its own history](bugs/0de13603-a-routine-run-killed-between-fire-and-settlement.md) | sweep/autonomy | 124feb5b0 |
 | P1 | fixed | autonomy | [Agent loop pause leaves cancelled iteration running and lease held](bugs/c66e8c39-agent-loop-pause-leaves-cancelled-iteration-runn.md) | agent/seam-audit-0912-b | b5c5cba75 |
@@ -600,7 +602,7 @@ User/owner reports: **122** · source fixed: **101** · installer verified: **6*
 | --- | --- |
 | channels | 1 |
 | autonomy | 6 |
-| providers | 7 |
+| providers | 8 |
 | safecell | 3 |
 | sessions | 1 |
 | skills | 0 |
