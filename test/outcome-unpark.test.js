@@ -220,19 +220,20 @@ async function postLoop(kind, opts) {
     'runFailureReview', 'runBackgroundSkillReview', 'verdictReview', 'failReviewingNow', 'skillReviewingNow', 'auxProvider', '_auxFailModel', '_auxFailEffort',
     '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId',
     'TurnDirective', 'directive', 'redact', 'liveServiceKeys', 'runTranscript', 'retryDirective', '_keyGone',   // the packet's directive and credential-presence gate are owned by the surrounding run
-    'automaticAux', 'skillNudge', 'persistSkillNudge'];
+    'automaticAux', 'skillNudge', 'persistSkillNudge', 'forgetRegistry', 'TurnKinds'];
   const auxRun = new Function(...AUX_NAMES, slice("if (_auxSpend.has('failure-review')) {", "if (_auxSpend.has('study')) {") +
     slice("if (_auxSpend.has('skill-review')) {", "if (_auxSpend.has('skill-curator')) {"));
   const aux = (result, o, spend) => {
     const g = gates(result, o), got = { failure: null, skill: null, stash: null };
     const settle = () => ({ catch: () => ({ finally: f => f() }) });
     auxRun(new Set(spend), g.done, g.fail, g.leadOc, Object.assign({ messages: [] }, result), 'agent', 'r-aux', {},
-      { failureStage: () => '', failureCode: () => '', toolTraceList: () => [], recoveryAttempts: () => [], uncertainMutations: () => [] },
+      { failureStage: () => '', failureCode: () => '', toolTraceList: () => [], recoveryAttempts: () => [], uncertainMutations: () => [], quotes: () => [] },
       () => '', true, false,
       a => { got.failure = a; return settle(); }, a => { got.skill = a; return settle(); }, { stash: (id, p) => { got.stash = p; return true; } },
       new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1',
       require('../sidecar/turn-directive.js'), null, t => t, () => [], { directiveRow: () => null }, null, false,
-      (route, kind, agent, run, work) => work(), new Map(), () => {});
+      (route, kind, agent, run, work) => work(), new Map(), () => {},
+      { admit: () => true }, require('../frontend/app/turnkinds.js'));
     return got;
   };
   const late = aux({ reason: 'done' }, { lateError: LATE }, ['failure-review']);
