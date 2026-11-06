@@ -161,6 +161,22 @@ try {
   A.eq([ids(goneRows.rows), goneRows.forgotten, goneRows.missing], [ids(goneNew), ids(goneOld), []], 'by id, the old rows are named forgotten and never returned');
   A.ok(!JSON.stringify([gonePage, goneRows]).includes('FORGOTTEN_SENTINEL'), 'no forgotten word leaves the store');
 
+  // ---- a row that QUOTES a deleted session is forgotten, not missing: the packed-row sort of the by-id reads counts the quote term (4b-2) ----
+  const seedQuote = open('quoter', 65536);
+  const quoteRows = [
+    { content: 'QUOTING_ROW', quotes: ['gone'], quotesAt: [DELETE_AT - 50], ts: DELETE_AT + 10 },
+    { content: 'PLAIN_ROW', ts: DELETE_AT + 11 },
+    { content: 'LATER_READ_ROW', quotes: ['gone'], quotesAt: [DELETE_AT + 500], ts: DELETE_AT + 12 }
+  ].map(extra => seedQuote.appendDurable(Object.assign({ streamId: 'quoter', agentId: 'agent', role: 'assistant', kind: 'turn', taintKnown: true }, extra)));
+  seedQuote.close();
+  const quoteStore = storeOver(open('quoter', 65536));
+  const quoteWant = ids(quoteRows);
+  const byQuote = quoteStore.rowsByIds('quoter', quoteWant);
+  A.eq([ids(byQuote.rows), byQuote.forgotten, byQuote.missing], [[quoteRows[1].rowId, quoteRows[2].rowId], [quoteRows[0].rowId], []], 'by id, a row that quotes a session deleted after the read is named forgotten (not missing), and one whose read began after the delete is the page\'s own');
+  const byQuoteBatch = quoteStore.rowsByIdsBatch([{ streamId: 'quoter', rowIds: quoteWant }]);
+  A.eq([byQuoteBatch[0].forgotten, byQuoteBatch[0].missing], [[quoteRows[0].rowId], []], 'the batch read sorts the same way: a packed row whose session was quote-read and then deleted comes back in forgotten, so the chat is not stuck as history-unavailable');
+  A.ok(!JSON.stringify([byQuote, byQuoteBatch]).includes('QUOTING_ROW'), 'no quoting word leaves the store');
+
   // ---- a run still writing is not visible, and the cursor never passes it -----------------------------------------------------
   const seedRun = open('run', 65536);
   const runRows = [['a', 'done-run', 'user'], ['b1', 'live1', 'user'], ['b2', 'live1', 'assistant'], ['c', 'done-run', 'assistant']].map(([label, runId, role], i) =>
