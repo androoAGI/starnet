@@ -2424,7 +2424,7 @@ function drainSteer(runId) { return steerBufs.drainNotes(runId); }   // [{ text,
 // through the SAME buffer and the same in-flight test POST /api/run/steer uses — instead of aborting the task.
 function channelSteerRun(runId, text) {
   const id = String(runId || '');
-  const out = steerBufs.post(id, text, runReachable(id), 'channel_' + crypto.randomUUID(), { text, attachments: [] });
+  const out = steerBufs.post(id, text, runReachable(id));   // plain text, so the loop folds it as a <steering_note> (a structured message is the desk page's own path)
   return { ok: out.status === 200, status: out.status };
 }
 function closeSteer(runId) { return steerBufs.close(runId); }
