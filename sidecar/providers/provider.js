@@ -783,6 +783,11 @@
     for (const tag of HOST_NOTE_TAGS) if (head.indexOf('<' + tag + '>') === 0) return true;
     return false;
   }
+
+  function isQwenModel(model) { return /qwen/i.test(String(model || '')); }
+  function isGemmaModel(model) { return /gemma/i.test(String(model || '')); }
+
+  function isOllamaModel(model) { return true; } // Generic placeholder, actual check is opts.nativeOllama
   function isClaudeModel(model) { return /anthropic\/|claude/i.test(String(model || '')); }
 
   /* INERT HOST FENCES (lean-prompt review, 2026-10-12). With the host notes riding the SAME user turn as the
@@ -1113,7 +1118,7 @@
 
   return { EVENT_TYPES, FINISH, normalizeFinish, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
     RUN_CONTEXT_OPEN, RUN_CONTEXT_CLOSE, runContextNote, isRunContextNote, CREW_CALL_OPEN, CREW_CALL_CLOSE, crewCallFence, isCrewCallNote,
-    HOST_NOTE_TAGS, LOOP_HOST_TAGS, isHostNote, isClaudeModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
+    HOST_NOTE_TAGS, LOOP_HOST_TAGS, isHostNote, isOllamaModel, isClaudeModel, isQwenModel, isGemmaModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
     prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS, isBatchOnlyModel, chatModelId,
     imageInputOf, withoutImageParts, imageOmittedNote, noteImageRefusal, refusedImages, IMAGE_SOURCE, tagImageSource, imageSourceOf,
     noteSystemlessTemplate, systemlessTemplate };

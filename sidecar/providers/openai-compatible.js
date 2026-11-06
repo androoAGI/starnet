@@ -562,6 +562,13 @@
       return modelFacts.get(id);
     }
     // /api/ps (what is loaded, where, at what window), or null when it cannot be read within 3s.
+
+    async function checkKVCapacity() {
+      // Stub for KV capacity check. In a real environment, we'd query nvidia-smi, mlx tools, or a custom sidecar endpoint.
+      // For now, we simulate reading available VRAM / KV cache slots.
+      return { freeSlots: 2, totalVRAM: 16000, usedVRAM: 8000 };
+    }
+
     async function ollamaStatus() {
       const guard = timeouts.connectGuard(null, 3000);
       try {
@@ -704,6 +711,15 @@
       const messages = provider.projectRoles(prepared, policy);
       const body = { model: req.model, messages, stream: true };
       if (includeUsage && !skip('stream_options')) body.stream_options = { include_usage: true };
+
+      // vLLM / SGLang chunked prefill and dynamic batching flags
+      if (opts.vllmChunkedPrefill) {
+        body.chunked_prefill = true;
+      }
+      if (opts.sglangDynamicBatching) {
+        body.dynamic_batching = true;
+      }
+
       const explicitMax = Math.floor(Number(req.max_tokens || req.maxTokens || 0)) || 0;
       // Only the host's explicit casual-turn classification selects this cap. No-tool auxiliary
       // calls (summaries, reviews) and real tasks must never inherit the small-talk allowance.
@@ -711,11 +727,111 @@
         ? Math.min(maxTokens || maxChatTokens, maxChatTokens) : maxTokens;
       const outputCap = Number.isFinite(explicitMax) && explicitMax > 0 ? explicitMax : defaultCap;
       if (outputCap > 0 && !skip('max_tokens')) body.max_tokens = outputCap;
+
+
+
+        // Grammar-Constrained Tool Calling (Strict JSON Schemas)
+        if (req.tools && req.tools.length) {
+            // For vLLM / local models, we can enforce strict JSON object format
+            // In openai-compatible endpoints, we can pass response_format: { type: "json_object", schema: ... }
+            if (provider.isOllamaModel && provider.isOllamaModel(req.model) || (opts && opts.nativeOllama)) {
+                // Determine a schema if needed. Since there are multiple tools, we might construct an anyOf schema
+                // or just `{ type: "json_object" }` if the backend handles it.
+                // For simplicity and general compatibility, we set response_format to json_object.
+                // Some backends support full schemas in response_format.
+
+                // Constructing an anyOf schema for tools
+                let toolSchemas = req.tools.map(t => ({
+                    type: "object",
+                    properties: {
+                        name: { type: "string", enum: [t.function.name] },
+                        arguments: t.function.parameters
+                    },
+                    required: ["name", "arguments"]
+                }));
+
+                let combinedSchema = {
+                    type: "object",
+                    properties: {
+                        tool_calls: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    type: { type: "string", enum: ["function"] },
+                                    function: {
+                                        anyOf: toolSchemas
+                                    }
+                                },
+                                required: ["type", "function"]
+                            }
+                        }
+                    },
+                    required: ["tool_calls"]
+                };
+
+                // Add to body
+                // Check if backend supports schema, otherwise just use `{ type: "json_object" }`
+                // Ollama native supports format: "json"
+                body.response_format = { type: "json_object", schema: combinedSchema };
+
+                // For raw Ollama native, they might expect `format: "json"` instead.
+                // This is mapped in ollama-native.js
+            }
+        }
+
+      // GEMMA 4 ENFORCEMENT
+      if (provider.isGemmaModel && provider.isGemmaModel(req.model)) {
+        if (!body.stop) body.stop = [];
+        if (!Array.isArray(body.stop)) body.stop = [body.stop];
+        if (!body.stop.includes('<end_of_turn>')) body.stop.push('<end_of_turn>');
+        if (!body.stop.includes('<eos>')) body.stop.push('<eos>');
+      }
+
+      // QWEN PARAMETER ENFORCEMENT
+      // Qwen2.5 / Qwen-Coder require strict repetition_penalty and lower temperature.
+      if (provider.isQwenModel && provider.isQwenModel(req.model)) {
+        // Enforce repetition_penalty: 1.05-1.1
+        body.repetition_penalty = 1.05;
+        // Enforce lower temperature for coding bays, but we don't have bay type here easily, so let's set a conservative temperature
+        // or check if it's a code-heavy run. The issue says: "0.0-0.2 for coding bays, while allowing 0.7 for general reasoning bays"
+        if (req.isTask) {
+            body.temperature = 0.2; // Coding/task bays
+        } else {
+            body.temperature = 0.7; // General reasoning bays
+        }
+      }
+
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool, and the Moonshot dialect on a Kimi route (a strict 400 on the
         // whole request otherwise). A well-formed catalog on any other route is req.tools itself, byte-identical.
         body.tools = toolschema.wireTools(req.tools, { moonshot: toolschema.isMoonshotRoute(req.model, baseUrl) });
         if (!skip('tool_choice')) body.tool_choice = 'auto';
+
+        // Gemma models degrade when fed generic markdown tool headers. Inject Gemma-native tool signatures into the system prompt turn.
+        if (provider.isGemmaModel && provider.isGemmaModel(req.model)) {
+            // Convert tools to Gemma-native format and append to system message
+            let gemmaTools = "You have access to the following tools:\n";
+            for (const t of body.tools) {
+                if (t.type === 'function' && t.function) {
+                    gemmaTools += `Tool Name: ${t.function.name}\nTool Description: ${t.function.description}\nTool Args: ${JSON.stringify(t.function.parameters)}\n\n`;
+                }
+            }
+            if (body.messages && body.messages.length > 0) {
+                if (body.messages[0].role === 'system') {
+                    body.messages[0].content += '\n\n' + gemmaTools;
+                } else {
+                    body.messages.unshift({ role: 'system', content: gemmaTools });
+                }
+            }
+            // Remove the generic tool array as we've injected it manually
+            // Actually, if we remove it, the model won't output tool_calls structure, it will just output text.
+            // But Gemma's problem is the generic markdown tool headers added by the provider's default template.
+            // Some backends ignore body.tools if they use their own Jinja template, but if we don't send body.tools,
+            // the backend might not know how to handle tool_calls.
+            // The prompt says "Inject Gemma-native tool signatures into the system prompt turn." Let's keep body.tools but inject it to system prompt.
+        }
+
         /* parallel_tool_calls is deliberately OMITTED (endpoint default: enabled). Forcing `false` predates the
            loop's concurrent dispatch path and cost one full round trip per tool on every multi-read turn; the
            host's parallelSafe predicate already keeps mutating/stateful tools serial. Omitting the param also

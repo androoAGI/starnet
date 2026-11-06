@@ -57,6 +57,35 @@ function parseTable(text) {
 // one snapshot is bounded by this (callers size their own budgets from it — see shellbg.killBudgetMs)
 const DEFAULT_TABLE_TIMEOUT_MS = 15000;
 
+function makePosixProcessTable(execFile, opts) {
+  opts = opts || {};
+  if (typeof execFile !== 'function') throw new Error('makePosixProcessTable requires execFile');
+  const timeoutMs = Number(opts.timeoutMs) > 0 ? Number(opts.timeoutMs) : DEFAULT_TABLE_TIMEOUT_MS;
+  const selfPid = opts.selfPid != null ? Number(opts.selfPid) : ((typeof process !== 'undefined' && Number(process.pid)) || 0);
+  return function snapshot() {
+    return new Promise((resolve, reject) => {
+      const done = (err, stdout) => {
+        if (err) return reject(new Error('process table query failed: ' + String((err && err.message) || err).slice(0, 300)));
+        const rows = [];
+        for (const line of String(stdout || '').split('\n')) {
+          const m = /^\s*(\d+)\s+(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s*$/.exec(line);
+          if (m) {
+            const pid = Number(m[1]), ppid = Number(m[2]), created = Date.parse(m[3]);
+            if (pid > 0) rows.push({ pid, ppid: ppid > 0 ? ppid : 0, created: Number.isNaN(created) ? 0 : created });
+          }
+        }
+        if (!rows.length) return reject(new Error('process table query returned no rows'));
+        if (selfPid > 0 && !rows.some(r => r.pid === selfPid)) return reject(new Error('process table has no row for this process — refusing to trust it'));
+        resolve(rows);
+      };
+      try {
+        execFile('ps', ['-A', '-o', 'pid=,ppid=,lstart='],
+          { encoding: 'utf8', timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024 }, done);
+      } catch (e) { reject(e); }
+    });
+  };
+}
+
 function makeWin32ProcessTable(execFile, opts) {
   opts = opts || {};
   if (typeof execFile !== 'function') throw new Error('makeWin32ProcessTable requires execFile');
@@ -151,4 +180,4 @@ async function confirmGone(o) {
   return { gone: false, unknown: false, survivors: survivors };
 }
 
-module.exports = { makeWin32ProcessTable, ownedTree, survivorsOf, confirmGone, DEFAULT_TABLE_TIMEOUT_MS, _internals: { parseTable, WIN_TABLE_SCRIPT, MAX_TREE } };
+module.exports = { makeWin32ProcessTable, makePosixProcessTable, ownedTree, survivorsOf, confirmGone, DEFAULT_TABLE_TIMEOUT_MS, _internals: { parseTable, WIN_TABLE_SCRIPT, MAX_TREE } };

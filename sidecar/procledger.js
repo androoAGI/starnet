@@ -37,7 +37,7 @@
 
   const WIN = (typeof process !== 'undefined' && process.platform) === 'win32';
   const MAX_ENTRIES = 100;
-  const { makeWin32ProcessTable, ownedTree, confirmGone } = require('./proctree.js');
+  const { makeWin32ProcessTable, makePosixProcessTable, ownedTree, confirmGone } = require('./proctree.js');
   const { note: trackFailNote } = require('./failopen.js');
   // An unpinned receipt's floor: startedAt is stamped just AFTER spawn returns, so the root (and a child it launched
   // at once) can be created slightly before it. Pinned receipts use the exact creation time instead.
@@ -98,12 +98,15 @@
   function makePosixProbe(execFile) {
     return (pids) => new Promise((resolve) => {
       if (!pids.length) return resolve(new Map());
-      execFile('ps', ['-o', 'pid=,command=', '-p', pids.map(Number).join(',')], { encoding: 'utf8', timeout: 15000 }, (err, stdout) => {
+      execFile('ps', ['-o', 'pid=,lstart=,command=', '-p', pids.map(Number).join(',')], { encoding: 'utf8', timeout: 15000 }, (err, stdout) => {
         const out = new Map();
         if (err) return resolve(out);
         for (const line of String(stdout || '').split('\n')) {
-          const m = /^\s*(\d+)\s+(.*)$/.exec(line);
-          if (m) out.set(Number(m[1]), { cmd: m[2], created: null });   // posix start-time parsing is fiddly; fall back to cmd-match only
+          const m = /^\s*(\d+)\s+([A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d+\s+\d{2}:\d{2}:\d{2}\s+\d{4})\s+(.*)$/.exec(line);
+          if (m) {
+            const created = Date.parse(m[2]);
+            out.set(Number(m[1]), { cmd: m[3], created: Number.isNaN(created) ? null : created });
+          }
         }
         resolve(out);
       });
@@ -140,7 +143,7 @@
        ledger can never read — let alone kill from — the host's real process list. */
     const processTable = (deps.processTable !== undefined)
       ? (typeof deps.processTable === 'function' ? deps.processTable : null)
-      : ((deps.probe || deps.killTree || !isWin || typeof execFile !== 'function') ? null : makeWin32ProcessTable(execFile));
+      : ((deps.probe || deps.killTree || typeof execFile !== 'function') ? null : (isWin ? makeWin32ProcessTable(execFile) : makePosixProcessTable(execFile)));
     const confirmOpts = deps.confirm || {};
     // never walk into (or kill) ourselves or the process that launched us
     const protectPids = Array.isArray(deps.protectPids) ? deps.protectPids.map(Number)
@@ -443,12 +446,7 @@
      not pay a probe each; one that outlives it is pinned then, and touched every touchMs while its handle is held
      so children it starts later stay inside the provable window. A receipt that never got pinned still falls back
      to the (redacted) command-line match at the next boot. Every timer is unref'd. */
-  /* TODO(posix-fg-receipts): on POSIX a foreground receipt gets NO identity pin and NO orphan walk.
-     makePosixProbe returns created:null (start-time parsing not implemented), so pinIdentity() never pins and the
-     next boot's sweep falls back to matching the REDACTED command line; and processTable is Windows-only, so the
-     descendants of a POSIX root that already exited are never walked (only a still-live group leader is killed by
-     makeKillTree's -pid). Closing it needs a POSIX start-time source (ps -o lstart= / /proc/<pid>/stat field 22)
-     for the pin, plus a POSIX process table (pid, ppid, start) so ownedTree/orphanWindow can run there too. */
+  /* FOREGROUND RECEIPTS: POSIX foreground receipt gets identity pinning (ps -o lstart=) and orphan walk (ps -A -o pid=,ppid=,lstart=). */
   function trackChild(ledger, pid, o) {
     o = o || {};
     pid = Number(pid);
