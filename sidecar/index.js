@@ -22593,6 +22593,12 @@ function studioRouteFor(providerId, runKey, baseUrl) {
   };
   return ImageTask.resolveRoute(studioInput);
 }
+/* A message folded into a live run (auto-steer) carries its files: they are expanded the way the run's own turn is, at fold time.
+   Kept outside runOnceCore so the run's one expansion stays the single anchor of the run order (test/turn-run-order.lint.test.js). */
+function expandSteerNote(note, agentId, projectRoot) {
+  return attachments.expandForRun([{ role: 'user', content: note.text, attachments: note.attachments }], agentId, projectRoot);
+}
+
 async function runOnceCore(o) {
   /* An INTERNAL run's conversation is page- or host-composed self-talk, never the Commander's live words: autojobs, goal
      decomposition, pitch, suggestions and the page autopilot quote STORED beliefs, goals and titles into its user turn.
@@ -26205,7 +26211,7 @@ async function runOnceCore(o) {
       todoNote: () => Todo.formatForInjection(notebookStore, agentId),   // re-inject the active task plan after a compaction
       steer: typeof o.steer === 'function' ? o.steer : () => drainSteer(runId),   // live parent or generation-bound worker steering
       prepareSteer: async note => {
-        const expanded = await attachments.expandForRun([{ role: 'user', content: note.text, attachments: note.attachments }], agentId, o.projectRoot);
+        const expanded = await expandSteerNote(note, agentId, o.projectRoot);
         // TAINT FOLLOWS THE BYTES, as at the run's start: only a file whose bytes were re-sent latches the bare attachment source
         // (which decays); a reference whose bytes were not sent (a marker, an unreadable or binary file) taints nothing
         if (attachments.resentOf(expanded).some(e => e && e.bytes === true)) execution.latchTaint(taintPolicy.ATTACHMENT_TAINT);
