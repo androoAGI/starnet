@@ -2499,7 +2499,8 @@ const Chat = (() => {
   function contextEstimateMessages(messages) { return HistoryFit.contextEstimateMessages(messages); }
   // the outbound window: the messages actually POSTed as `messages`. Drops local-only markers, caps turns, then
   // caps UTF-8 bytes. The local transcript is untouched; only stale wire history yields to a giant new paste.
-  function historyWindowFrom(history) { return HistoryFit.windowRows(history, { window: stationModes.window }); }
+  // Full mid-task messages are user dialogue, even when their saved display row is a steering echo (auto-steer).
+  function historyWindowFrom(history) { return HistoryFit.windowRows(typeof SteeringMessage !== 'undefined' ? SteeringMessage.displayRows(history) : history, { window: stationModes.window }); }
   function fitHistoryTokens(messages, maxTokens) { return HistoryFit.fitHistoryTokens(messages, maxTokens); }
   function windowModelOf(ws, history) {
     const model = { limit: 0, selected: '', window: stationModes.window };
@@ -3049,7 +3050,10 @@ const Chat = (() => {
   function steerRow(text, stamp) {
     const r = row('user', { stamp: stamp, brief: 'COMMANDER · MID-RUN' });
     r.d.classList.add('steer-echo');
-    r.body.textContent = String(text == null ? '' : text).replace(/^\[steering\] /, '');
+    const wire = String(text == null ? '' : text).replace(/^\[steering\] /, '');
+    const message = typeof SteeringMessage !== 'undefined' ? SteeringMessage.decode(wire) : null;
+    r.body.textContent = message ? message.text : wire;
+    if (message && message.attachments.length) renderUserAttachments(r.d, message.attachments);
     return r;
   }
   // render a SENT user turn's attachments: images as clickable thumbnails, other files as openable chips — both
@@ -8980,14 +8984,16 @@ const Chat = (() => {
     localLine('⚠ The station did not confirm it saw this approval card (' + ((v && v.error) || 'no answer') + '). Answer it now — an unseen prompt auto-denies on a timer.');
   }
 
-  // TYPE-AHEAD — a message typed while the stream is busy is QUEUED, not dropped, and auto-sent in order as the
-  // stream frees. (A concurrent run on a DIFFERENT stream is still one switch away — this is the same-stream
-  // follow-up case.) The pills above the input show what's pending; ✕ cancels one before it sends.
-  function enqueue(text, atts) {
+  // Mid-task messages wait here until this conversation's run can receive them. Ordinary sends auto-steer;
+  // explicit /queue entries wait for the next run. The pills show pending delivery and allow cancellation.
+  const autoSteerBusy = new Set();
+  const autoSteerWait = new Map();
+  function enqueue(text, atts, afterRun) {
     if (!activeWs) return;
     const id = activeWs.id;
-    const arr = queued.get(id) || []; arr.push(atts && atts.length ? { text: text || '', atts: atts.slice() } : text); queued.set(id, arr);
+    const arr = queued.get(id) || []; arr.push(afterRun ? { text: text || '', atts: (atts || []).slice(), afterRun: true } : atts && atts.length ? { text: text || '', atts: atts.slice() } : text); queued.set(id, arr);
     renderQueued();
+    steerQueued(id);
     if (typeof SFX !== 'undefined' && SFX.press) SFX.press();
   }
   // a queued entry is its text, or { text, atts } when it was queued with photos/files (they send WITH it, never after).
@@ -9041,7 +9047,7 @@ const Chat = (() => {
     }
     if (isBusy()) {
       enqueue(value);
-      return { ok: true, state: 'queued', workstreamId: activeWs.id };
+      return { ok: true, state: 'pending', workstreamId: activeWs.id };
     }
     send(value);
     return { ok: true, state: 'started', workstreamId: activeWs.id };
@@ -9060,18 +9066,17 @@ const Chat = (() => {
       // the pill clips the text (.queued-text max-width), so its tip carries the whole message — then what the pill DOES: it
       // sends after this run, or its send now key hands it to the run working now. The tip card keeps 400 chars (tooltip.js
       // MAX_LEN): the message gives way, the hint never does. (Same shape as the org pass P27 tip, naming SEND NOW.)
-      const QHINT = 'sends after this run · send now hands it to the running task', room = 400 - QHINT.length - 5;
+      const QHINT = 'waiting for delivery · joins the running task at its next step', room = 400 - QHINT.length - 5;
       pill.setAttribute('data-tip', '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' + QHINT);
       const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = t;
       const x = document.createElement('button'); x.className = 'queued-x'; x.type = 'button'; x.textContent = '✕';
       x.setAttribute('aria-label', 'Cancel queued message');
       if (uploading) { const id = activeWs.id; x.onclick = () => { restoreQueued(id, e); afterQueueMove(id); }; x.setAttribute('aria-label', 'Take this message back to the message box'); }   // nothing is lost, and a stalled file can be removed there
       else x.onclick = () => { const a = queued.get(activeWs.id) || []; const gone = a.splice(i, 1)[0]; qAtts(gone).forEach(pruneUpload); a.length ? queued.set(activeWs.id, a) : queued.delete(activeWs.id); renderQueued(); };
-      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'next';
+      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = e && e.afterRun ? 'next' : 'waiting';
       pill.appendChild(tag); pill.appendChild(label);
       if (atts.length) {
-        /* QUEUED WITH FILES (Andrew 10-31): the files ride this message. A steering note is one line of text, so a message
-           with files has no send now key — it goes as the next turn, files and all; the pill says how many it carries. */
+        // Files belong to this message. Uploads settle before automatic delivery; later messages keep their order.
         const imgs = atts.filter(a => a && a.kind === 'image').length;
         const what = imgs === atts.length ? (imgs === 1 ? '1 photo' : imgs + ' photos') : (atts.length === 1 ? '1 file' : atts.length + ' files');
         const files = document.createElement('span'); files.className = 'queued-files';
@@ -9080,12 +9085,7 @@ const Chat = (() => {
         files.appendChild(g); files.appendChild(document.createTextNode((uploading ? 'uploading ' : '') + what));
         pill.appendChild(files);
         const room = 400 - 60;
-        pill.setAttribute('data-tip', (t ? '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' : '') + (uploading ? 'goes when its ' + what + ' finish uploading · ✕ takes it back to the message box' : 'sends after this run, with its ' + what));
-      } else {
-        const now = document.createElement('button'); now.className = 'queued-now'; now.type = 'button'; now.textContent = 'send now';
-        now.setAttribute('data-tip', 'Hand this to the run that is working now: the agent reads it before its next step, instead of after the run finishes');
-        now.onclick = () => sendQueuedNow(activeWs.id, i, t);
-        pill.appendChild(now);
+        pill.setAttribute('data-tip', (t ? '“' + (t.length > room ? t.slice(0, room - 1) + '…' : t) + '” · ' : '') + (uploading ? 'goes when its ' + what + ' finish uploading · ✕ takes it back to the message box' : 'joins the running task with its ' + what));
       }
       pill.appendChild(x);
       strip.appendChild(pill);
@@ -9095,18 +9095,87 @@ const Chat = (() => {
        then shows it as the Commander's own MID-RUN message. A 200 proves only that the run holds it, so that is all it says. */
     const held = (typeof sentNow !== 'undefined' && activeWs && sentNow.get(activeWs.id)) || [];
     for (const n of held) {
-      if (!n.accepted || n.landed) continue;
+      if (n.landed) continue;
       const pill = document.createElement('span'); pill.className = 'queued-pill sent';
-      pill.setAttribute('data-tip', 'Sent into the live run — the agent reads it before its next step');
-      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = 'sent';
+      pill.setAttribute('data-tip', n.accepted ? 'Received by the running task — waiting for its next step' : 'Waiting for a delivery receipt from the station');
+      const tag = document.createElement('span'); tag.className = 'queued-tag'; tag.textContent = n.accepted ? 'received' : n.uncertain ? 'unconfirmed' : 'sending';
       const label = document.createElement('span'); label.className = 'queued-text'; label.textContent = n.text;
-      const when = document.createElement('span'); when.className = 'queued-when'; when.textContent = 'read at its next step';
+      const when = document.createElement('span'); when.className = 'queued-when'; when.textContent = n.accepted ? 'read at its next step' : 'awaiting receipt';
       pill.appendChild(tag); pill.appendChild(label); pill.appendChild(when);
       strip.appendChild(pill);
     }
     const grew = strip.offsetHeight - h0;
     if (atEnd && grew > 0) log.scrollTop += (heldCard && log.contains(heldCard)) ? Math.min(grew, Math.max(0, topInLog(heldCard) - 8)) : grew;
   }
+  // Ordinary sends join this conversation's confirmed run. Serialize POSTs so rapid messages and
+  // uploads retain send order. The existing note ledger owns acknowledgement, Stop and reload recovery.
+  async function steerQueued(id) {
+    if (autoSteerBusy.has(id) || interrupted.has(id) || !Channels.isBusy(id)) return;
+    const rid = Channels.runIdOf(id);
+    if (!rid || autoSteerWait.get(id) === rid) return;
+    const ws = activeWs && activeWs.id === id ? activeWs : (typeof Workstreams !== 'undefined' && Workstreams.get ? Workstreams.get(id) : null);
+    if (!ws || ws.conversationMode === 'group' || pendingAskFor(ws)) return;
+    autoSteerBusy.add(id);
+    try {
+      while (Channels.isBusy(id) && Channels.runIdOf(id) === rid && !interrupted.has(id)) {
+        const arr = queued.get(id) || [], entry = arr[0];
+        if (!arr.length || (entry && (entry.uploads || entry.afterRun))) break;
+        const message = SteeringMessage.normalize({ text: qText(entry), attachments: qAtts(entry) });
+        if (!message) { autoSteerWait.set(id, rid); break; }
+        arr.shift(); arr.length ? queued.set(id, arr) : queued.delete(id);
+        message.id = 'sn' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+        const note = { id: message.id,
+          runId: rid, text: message.text, wire: SteeringMessage.encode(message), entry, accepted: false, landed: false };
+        sentNow.set(id, (sentNow.get(id) || []).concat([note]));
+        keepSentNow(id, note); renderQueued();
+        let response = null, ambiguous = false;
+        // A lost acknowledgement may follow a successful POST: retry the SAME id, never a new message.
+        for (let attempt = 0; attempt < 2 && !response; attempt++) {
+          if (!(sentNow.get(id) || []).includes(note) || interrupted.has(id)) break;
+          try {
+            const r = await fetch('/api/run/steer', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ runId: rid, noteId: note.id, message }) });
+            response = { status: r.status, body: await r.json() };
+          } catch (_) { ambiguous = true; /* a failed transport is not a delivery verdict */ }
+        }
+        if (!(sentNow.get(id) || []).includes(note)) break; // Stop already returned it
+        if (response && response.body && response.body.ok) {
+          note.accepted = true;
+          if (response.body.applied === true) note.landed = true;
+          if (Channels.runIdOf(id) !== rid || !Channels.isBusy(id)) settleSentNow(id, rid, '');
+          renderQueued();
+          continue;
+        }
+        if (note.landed) { note.accepted = true; continue; } // streamed receipt outranks a failed POST reply
+        if (!ambiguous && response && [400, 404, 409, 413, 429].includes(response.status)) {
+          forgetSentNow(id, note);
+          queued.set(id, [entry].concat(queued.get(id) || []));
+          autoSteerWait.set(id, rid);
+          // A drain echo can race the 429 response. Retry this definitely-unaccepted entry after
+          // backpressure even if that echo arrived before the wait flag was set.
+          if (response.status === 429) setTimeout(() => {
+            if (!interrupted.has(id) && Channels.isBusy(id) && Channels.runIdOf(id) === rid) {
+              autoSteerWait.delete(id); return steerQueued(id);
+            }
+          }, 1000);
+          if (activeWs && activeWs.id === id) localLine(response.status === 429
+            ? 'This message is waiting for room in the running task.'
+            : 'The running task could not take this message — it stays queued for the next turn.');
+        } else {
+          note.uncertain = true;
+          autoSteerWait.set(id, rid);
+          if (activeWs && activeWs.id === id) localLine('Message delivery is unconfirmed. The station will check its receipt before sending it again.');
+          if (!Channels.isBusy(id) || Channels.runIdOf(id) !== rid) { releaseSentNow(id, rid, ''); reconcileSentNow(ws); }
+        }
+        renderQueued();
+        break;
+      }
+    } finally {
+      autoSteerBusy.delete(id);
+      if (!Channels.isBusy(id)) flushQueued(id);
+    }
+  }
+
   /* SEND NOW — a queued follow-up STEERS the live run instead of waiting for it to end (Andrew 2026-10-14). The
      pill leaves the queue while the POST is in flight (so flushQueued can't also send it as a new turn); it goes
      back to the FRONT of the queue on any refusal — run not confirmed yet (no runId), the loop already closed its
@@ -9198,7 +9267,7 @@ const Chat = (() => {
   function keepSentNow(id, note) {
     sentNowDisk(all => {
       const list = (Array.isArray(all[id]) ? all[id] : []).filter(e => e && e.id !== note.id);
-      list.push({ id: note.id, runId: note.runId, text: note.text, wire: note.wire, at: Date.now() });
+      list.push({ id: note.id, runId: note.runId, text: note.text, wire: note.wire, ...(note.entry !== undefined ? { entry: note.entry } : {}), at: Date.now() });
       all[id] = list;   // never trimmed here: a line past the cap goes back in the message box (sentNowOverdue)
     });
     sentNowOverdue(id);
@@ -9218,7 +9287,7 @@ const Chat = (() => {
     for (const e of loose) { if (over <= 0) break; if (!out.has(e.id)) { out.add(e.id); over--; } }
     const back = loose.filter(e => out.has(e.id));
     if (!back.length) return;
-    const texts = back.map(e => (typeof e.text === 'string' ? e.text : '')).filter(t => t.trim()), n = texts.length;
+    const texts = back.map(e => e.entry === undefined ? e.text : e.entry).filter(t => typeof t === 'string' ? t.trim() : t), n = texts.length;
     if (!n) return dropSentNow(id, back.map(e => e.id));   // no words to give back (a damaged entry): nothing a person typed is lost
     giveBack(id, texts, n === 1 ? 'The station never said whether the agent read your send-now message — it is back in the message box.'
       : 'The station never said whether the agent read ' + n + ' of your send-now messages — they are back in the message box.', back.map(e => e.id));
@@ -9303,7 +9372,7 @@ const Chat = (() => {
     const list = sentNow.get(id); if (!list || !list.length) return;
     const re = /(?:^|\n)\[steering\] ([^\n]*)/g; let m, read = false;
     while ((m = re.exec(String(delta || '')))) {
-      const n = list.find(x => !x.landed && x.runId === runId && x.wire === m[1]);
+      const n = list.find(x => !x.landed && x.runId === runId && (x.wire === m[1] || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(x.wire, m[1]))));
       if (n) { n.landed = true; read = true; }
     }
     if (read && activeWs && activeWs.id === id) renderQueued();   // its SENT pill leaves: the transcript shows it now
@@ -9321,7 +9390,7 @@ const Chat = (() => {
     if (activeWs && activeWs.id === id) renderQueued();   // its SENT pills leave the strip with the run
     dropSentNow(id, mine.filter(n => lost.indexOf(n) < 0).map(n => n.id));   // read: settled with the stopped turn
     if (!lost.length) return;
-    giveBack(id, lost.map(n => n.text), lost.length === 1 ? 'The run stopped before the agent read your send-now message — it is back in the message box.'
+    giveBack(id, lost.map(n => n.entry === undefined ? n.text : n.entry), lost.length === 1 ? 'The run stopped before the agent read your send-now message — it is back in the message box.'
       : 'The run stopped before the agent read ' + lost.length + ' of your send-now messages — they are back in the message box.', lost.map(n => n.id));
   }
   // words a stop gives back go into THEIR session's message box: now if it is on screen, else when you return (returnHeld).
@@ -9331,7 +9400,11 @@ const Chat = (() => {
     if (!(activeWs && activeWs.id === id)) { heldBack.set(id, (heldBack.get(id) || []).concat([{ texts: texts, line: line, ids: ids || [] }])); return; }
     if (!input) return;
     const typed = String(input.value || '').trim();
-    input.value = texts.concat(typed ? [typed] : []).join('\n');
+    for (const entry of texts) if (entry && Array.isArray(entry.atts) && typeof pendingAtts !== 'undefined') {
+      for (const ref of entry.atts) if (!pendingAtts.some(a => a.ref && a.ref.path === ref.path)) pendingAtts.push({ status: 'ready', ref, name: ref.name, kind: ref.kind });
+    }
+    if (typeof renderAttachStrip === 'function') renderAttachStrip();
+    input.value = texts.map(t => typeof t === 'string' ? t : String(t && t.text || '')).concat(typed ? [typed] : []).join('\n');
     autoGrowInput();
     localLine(line);
     dropSentNow(id, ids);
@@ -9348,12 +9421,14 @@ const Chat = (() => {
   function settleSentNow(id, runId, acc) {
     const list = sentNow.get(id) || [], ran = String(acc || '');
     const unread = list.filter(n => n.runId === runId && n.accepted && !n.landed && ran.indexOf('[steering] ' + n.wire + '\n') < 0);
-    const rest = list.filter(n => n.runId !== runId || !n.accepted);
+    const unknown = list.filter(n => n.runId === runId && n.uncertain && !n.landed);
+    const rest = list.filter(n => n.runId !== runId || (!n.accepted && !n.uncertain));
     rest.length ? sentNow.set(id, rest) : sentNow.delete(id);
-    dropSentNow(id, list.filter(n => rest.indexOf(n) < 0).map(n => n.id));   // settled here: read, or a queued pill again
+    dropSentNow(id, list.filter(n => rest.indexOf(n) < 0 && unknown.indexOf(n) < 0).map(n => n.id));   // settled here: read, or a queued pill again
     if (activeWs && activeWs.id === id) renderQueued();   // a SENT pill of the ended run never outlives it
+    if (unknown.length && typeof Workstreams !== 'undefined' && Workstreams.get) reconcileSentNow(Workstreams.get(id));
     if (!unread.length) return;
-    queued.set(id, unread.map(n => n.text).concat(queued.get(id) || []));
+    queued.set(id, unread.map(n => n.entry === undefined ? n.text : n.entry).concat(queued.get(id) || []));
     renderQueued();
     if (activeWs && activeWs.id === id) localLine(unread.length === 1 ? 'The run ended before the agent read your send-now message — it goes as your next message.'
       : 'The run ended before the agent read ' + unread.length + ' of your send-now messages — they go as your next messages.');
@@ -9403,9 +9478,9 @@ const Chat = (() => {
     for (const e of lines) if (still.has(e.id)) by[sentNowVerdict(e, answers.get(e.runId), cur.history)].push(e);
     if (by.read.length) { dropSentNow(id, by.read.map(e => e.id)); showSentNowRead(cur, by.read); }
     const n = by.back.length, u = by.unsure.length;
-    if (n) giveBack(id, by.back.map(e => e.text), n === 1 ? 'The run ended before the agent read your send-now message — it is back in the message box.'
+    if (n) giveBack(id, by.back.map(e => e.entry === undefined ? e.text : e.entry), n === 1 ? 'The run ended before the agent read your send-now message — it is back in the message box.'
       : 'The run ended before the agent read ' + n + ' of your send-now messages — they are back in the message box.', by.back.map(e => e.id));
-    if (u) giveBack(id, by.unsure.map(e => e.text), u === 1 ? 'The station has no record that the agent read your send-now message before its run ended — it is back in the message box.'
+    if (u) giveBack(id, by.unsure.map(e => e.entry === undefined ? e.text : e.entry), u === 1 ? 'The station has no record that the agent read your send-now message before its run ended — it is back in the message box.'
       : 'The station has no record that the agent read ' + u + ' of your send-now messages before their run ended — they are back in the message box.', by.unsure.map(e => e.id));
     // a line the station still cannot decide a day after it was sent stops waiting: back in the box, saying no answer came
     const stale = by.wait.filter(e => Date.now() - Number(e.at) > 24 * 3600 * 1000);
@@ -9440,9 +9515,11 @@ const Chat = (() => {
     const echo = '[steering] ' + e.wire;
     const ofRun = m => (strict ? m.sourceRunId === e.runId : (!m.sourceRunId || m.sourceRunId === e.runId));
     return (Array.isArray(history) ? history : []).some(m => m && ofRun(m) && (
-      (m.steerEcho && String(m.content || '') === echo)
-      // the station's own row for this note (it carries the line's id, or the same words from the same run)
-      || (m.role === 'system' && m.kind === 'steer' && !m.sys && ((e.id && m.noteId === e.id) || String(m.content || '').replace(/^\[steering\] /, '') === e.wire))
+      (m.steerEcho && (String(m.content || '') === echo || (typeof SteeringMessage !== 'undefined' && SteeringMessage.sameWire(String(m.content || '').replace(/^\[steering\] /, ''), e.wire))))
+      || (typeof SteeringMessage !== 'undefined' && SteeringMessage.containsWire(m.content, e.wire))
+      // the station's own row for this note (it carries the line's id, or the same words from the same run, or the same full message)
+      || (m.role === 'system' && m.kind === 'steer' && !m.sys && ((e.id && m.noteId === e.id) || String(m.content || '').replace(/^\[steering\] /, '') === e.wire
+        || (typeof SteeringMessage !== 'undefined' && typeof m.steeringWire === 'string' && SteeringMessage.sameWire(m.steeringWire, e.wire))))
       || (m.role === 'assistant' && !m.sys && ('\n' + String(m.content || '') + '\n').indexOf('\n' + echo + '\n') >= 0)));
   }
   // a line the run read, filed as ONE station row after that run's dialogue (before the station's own lines about it);
@@ -9474,12 +9551,14 @@ const Chat = (() => {
   // a stream just freed (or was switched back to while idle) — send its next queued follow-up. Guarded to the
   // DISPLAYED stream so send()'s DOM writes always target the visible log; a backgrounded queue waits for return.
   function flushQueued(id) {
+    if (id && typeof Channels !== 'undefined' && Channels.isBusy(id)) { steerQueued(id); return; }
     if (!id || !activeWs || activeWs.id !== id) return;
     if (crewJoining.has(id)) return;   // the chat is becoming a group: a turn sent now would run under the change (the teardown drains when they have joined)
     // this chat became a group while a message with files waited: nothing here can send it (a kickoff keeps the group busy and its
     // turns end elsewhere), so its words and files go back to the composer, which sends to the group. Last first, to keep the order.
     if (activeWs.conversationMode === 'group') (queued.get(id) || []).filter(e => e && !e.uploads && qAtts(e).length).reverse().forEach(e => restoreQueued(id, e));
-    if (isBusy()) return;
+    if (isBusy()) { steerQueued(id); return; }
+    if (autoSteerBusy.has(id)) return;
     const arr = queued.get(id); if (!arr || !arr.length) return;
     if (arr[0] && arr[0].uploads) return;   // its files are still uploading: it and everything behind it wait, in order (uploadsSettled drains)
     const next = arr.shift(); arr.length ? queued.set(id, arr) : queued.delete(id);
@@ -10293,7 +10372,7 @@ const Chat = (() => {
     if (!activeWs) return localLine('No active workstream.');
     const text = String(args || '').trim();
     if (text) {
-      if (isBusy()) { enqueue(text); localLine('Queued one follow-up for this stream.'); }
+      if (isBusy()) { enqueue(text, [], true); localLine('Queued one follow-up for this stream.'); }
       else send(text);
       return;
     }
@@ -11630,7 +11709,7 @@ const Chat = (() => {
         placed: (typeof World !== 'undefined' && World.heroCaps) ? World.heroCaps(ws.agentId || 'agent') : [],   // THE MOAT: this run's TOOL reach = the agent's REAL placed props (dish→web · cabinet→files · workbench→terminal · …); compute is the freebie
         stationPlaced: (typeof World !== 'undefined' && World.stationCaps) ? World.stationCaps() : [],   // Class Loadouts (shared-gear): station-wide gear for SKILL availability — a desk-only specialist still gets its class skills when the STATION has the gear (tools stay room-scoped via `placed`)
         onRunId: (id, start) => { thisTurnId = TurnMerge.bindStart(ws.history, start, id, turnIds).turnId; liveRunTurns.set(ws.id, { turnId: thisTurnId, sourceRunId: id }); retirePriorRatings(ws.id); thisRunId = id; if (retryDirectiveTurn && !retryDirectiveTurn.sourceRunId) retryDirectiveTurn.sourceRunId = id; if (starterId) StarterStore.started(starterId, id); runStartedAt = Date.now(); try { RUN_META.set(id, { streamId: ws.id, focusVersion: runFocusVersion, isTask: !!isTask, title: (ws && ws.title) || '', directive: String(text || ''), correctionOf: correctionOf, intentOfferText: intentOfferText, fromRecipe: fromRecipe, recipeId: recipeId, agentId: ws.agentId || 'agent', rec: recClaimRun(id, ws.agentId || 'agent') }); if (RUN_META.size > 60) RUN_META.delete(RUN_META.keys().next().value); } catch (_) {} Channels.setRunId(ws.id, id, Date.now()); if (walkedToDesk && Channels.setStatus) Channels.setStatus(ws.id, 'working…'); if (isActiveWs(ws)) { syncStatus(); renderPresence(); } if (typeof Workstreams !== 'undefined') { Workstreams.appendRun(ws.id, id); if (typeof App !== 'undefined' && App.refreshRail) App.refreshRail(); } },
-        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now(), noteId: thisRunId ? sentNowIdFor(ws.id, thisRunId, t, runSteers) : '' }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
+        onToken: d => { acc += d; Channels.appendToken(ws.id, d); if (d && d.indexOf('[steering] ') >= 0) { for (const t of steerEchoesOf(d)) runSteers.push({ text: t, ts: Date.now(), noteId: thisRunId ? sentNowIdFor(ws.id, thisRunId, t, runSteers) : '' }); if (thisRunId) markSentNowLanded(ws.id, thisRunId, d); autoSteerWait.delete(ws.id); steerQueued(ws.id); } if (isActiveWs(ws)) { if (activeLiveRow) activeLiveRow.append(d); if (!isTask) World.say(acc); } if (willSpeak) pushSpeech(false); App.refreshUsage(); },
         onTerminalReset: () => { clearTimeout(speechTimer); speechTimer = null; speechPendingSince = 0; acc = ''; spokenIdx = 0; Channels.setAcc(ws.id, ''); },
         onUsage: (u) => { if (u && u.model) ranModel = u.model; App.refreshUsage(); },
         // COMMS-PREMIUM: the Channels store still records the pre-formatted STRING (replay/switch-survival is

@@ -23,6 +23,7 @@
      station      { name, payload }               the station floor's own redacted feed (SSE tee) */
 'use strict';
 const SchedulerState = require('../scheduler-state.js');
+const SteeringMessage = require('../../frontend/app/steering-message.js');
 
 const { note } = require('../failopen.js');
 const { withVoiceStyle } = require('./voice-style.js');
@@ -145,7 +146,7 @@ function makeRemoteHost(d) {
       projection.turns = projection.turns.filter(row => !retracted.has(row.rowId));
       projection.identity = Object.assign({ streamId }, projection.identity, { retracted: proof.retracted });
     }
-    const all = mergeCanonical(local, projection.turns, projection.identity).filter(keeps(more)).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
+    const all = SteeringMessage.displayRows(mergeCanonical(local, projection.turns, projection.identity)).filter(keeps(more)).map(r => Object.assign({}, r, { content: redactText(r.content) }, typeof r.typed === 'string' ? { typed: redactText(r.typed) } : null));
     return Number(limit) > 0 ? all.slice(-Number(limit)) : all;
   }
   const lastUserLine = (turns) => { for (let i = turns.length - 1; i >= 0; i--) if (turns[i].role === 'user') return clip(turns[i].content.replace(/\s+/g, ' ').trim(), 140); return ''; };

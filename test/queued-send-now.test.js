@@ -23,17 +23,17 @@ const css = fs.readFileSync(path.join(__dirname, '../frontend/css/app.css'), 'ut
 const render = /function\s+renderQueued\s*\(\)\s*\{([\s\S]*?)\n  \}/.exec(src);
 A.ok(render, 'renderQueued exists in chat.js');
 const rb = render ? render[1] : '';
-A.ok(/className = 'queued-now'/.test(rb), 'every queued pill gets a queued-now key');
-A.ok(/sendQueuedNow\(/.test(rb), 'the key calls sendQueuedNow');
+A.ok(!/className = 'queued-now'/.test(rb), 'ordinary sends need no separate steering key');
+A.ok(/steerQueued\(id\)/.test(A.fnBody(src, 'function enqueue')), 'ordinary enqueue automatically attempts live delivery');
 {
   // the pill's tip names what it does now that the key exists: it sends after this run, or send now hands it to the run.
   // Run the tip line for real: the clipped pill's whole message reads in the tip, and the hint survives the 400-char cap.
   const line = rb.slice(rb.indexOf('      const QHINT'), rb.indexOf("const label = document.createElement('span')"));
   A.ok(line.length > 40 && !/pill\.title\s*=/.test(rb), 'the pill tip is a station data-tip (no native title)');
   const tipOf = t => { let tip = null; new Function('pill', 't', line)({ setAttribute: (k, v) => { if (k === 'data-tip') tip = v; } }, t); return tip; };
-  A.eq(tipOf('use the blue folder'), '“use the blue folder” · sends after this run · send now hands it to the running task', 'the tip names SEND NOW, not a slash command');
+  A.eq(tipOf('use the blue folder'), '“use the blue folder” · waiting for delivery · joins the running task at its next step', 'the tip names SEND NOW, not a slash command');
   const ht = tipOf('x'.repeat(2000));
-  A.ok(ht.length <= 400 && /…” · sends after this run · send now hands it to the running task$/.test(ht), 'a message past the tip cap gives way, never the hint');
+  A.ok(ht.length <= 400 && /…” · waiting for delivery · joins the running task at its next step$/.test(ht), 'a message past the tip cap gives way, never the hint');
 }
 
 const fn = /function\s+sendQueuedNow\s*\(id, i, text\)\s*\{([\s\S]*?)\n  \}/.exec(src);
@@ -58,14 +58,14 @@ A.ok(/\.catch\(\(\) => back\(/.test(body), 'a network failure re-queues too');
 // (Andrew 10-26): the strip shows the line SENT, with no key, until the run reads it (run for real below).
 A.ok(/j && j\.ok/.test(body), 'success is read from the sidecar body, not just the HTTP status');
 A.ok(/note\.accepted = true;\s*\n\s*if \(Channels\.runIdOf\(id\) === rid\) return renderQueued\(\);/.test(body), 'an accepted line repaints the strip; it prints no line');
-A.ok(/className = 'queued-pill sent'/.test(rb) && /before its next step/.test(rb) && /'read at its next step'/.test(rb), 'the SENT row promises only the next step');
+A.ok(/className = 'queued-pill sent'/.test(rb) && /waiting for its next step/.test(rb) && /'read at its next step'/.test(rb), 'the SENT row promises only the next step');
 
 // Enter while busy still QUEUES (Andrew's call: send now is opt-in per pill)
 const soq = /function\s+sendOrQueue\s*\(text\)\s*\{([\s\S]*?)\n  \}/.exec(src);
 A.ok(soq && /if \(isBusy\(\)\) \{\s*enqueue\(value\)/.test(soq[1]), 'Enter while busy still queues');
 
 A.ok(/\.queued-now\s*\{[^}]*border: 1px solid var\(--ph-dim\)/.test(css), 'the key is skinned station hardware (no OS paint)');
-A.ok(/now\.setAttribute\('data-tip', /.test(rb) && !/now\.title\s*=/.test(rb), 'the key\'s tip is a station data-tip too, like its pill');
+A.ok(!/now\.title\s*=/.test(rb), 'no native tooltip is added');
 
 /* ── RUN IT (0.13.5 review): the real sendQueuedNow + its helpers in a sandbox ──
    · a multi-line pill reaches the run as ONE line: the loop echoes the note as '\n[steering] <note>\n' and every reader of
@@ -248,42 +248,42 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const strip = Object.assign(mk('div'), { innerHTML: '', offsetHeight: 0 });
     Object.defineProperty(strip, 'innerHTML', { set() { strip.children = []; }, get() { return ''; } });
     const sentNow = new Map();
-    const ctx = vm.createContext({ document: { createElement: mk, createTextNode: t => ({ text: t }) }, el: id => id === 'chat-queued' ? strip : null,
+    const ctx = vm.createContext({ autoSteerBusy: new Set(), steerQueued: () => {},  document: { createElement: mk, createTextNode: t => ({ text: t }) }, el: id => id === 'chat-queued' ? strip : null,
       log: { scrollTop: 0, contains: () => false }, heldCard: null, activeWs: { id: 'ws1' }, queued: new Map([['ws1', ['use the blue folder']]]), sentNow,
       nearBottom: () => false, topInLog: () => 0, sendQueuedNow: () => {}, SVG_IMAGE: '<svg/>', SVG_FILE: '<svg/>', pruneUpload: () => {} });
     vm.runInContext(rq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n' + A.fnBody(src, 'function qFiles') + '\n;this.__rq = renderQueued;', ctx);
     const rows = () => strip.children.map(p => [p.className, p.children.map(c => c.className + ':' + c.text).join(' ')]);
     ctx.__rq();
-    A.eq(rows(), [['queued-pill', 'queued-tag:next queued-text:use the blue folder queued-now:send now queued-x:✕']], 'a queued line: NEXT, its words, a SEND NOW key, a cancel key');
+    A.eq(rows(), [['queued-pill', 'queued-tag:waiting queued-text:use the blue folder queued-x:✕']], 'a queued line: NEXT, its words, a SEND NOW key, a cancel key');
     ctx.queued.delete('ws1'); sentNow.set('ws1', [{ id: 'sn1', text: 'use the blue folder', accepted: true, landed: false }]);
     ctx.__rq();
-    A.eq(rows(), [['queued-pill sent', 'queued-tag:sent queued-text:use the blue folder queued-when:read at its next step']], 'held by the run: SENT, no key — it says only what the 200 proves');
+    A.eq(rows(), [['queued-pill sent', 'queued-tag:received queued-text:use the blue folder queued-when:read at its next step']], 'held by the run: SENT, no key — it says only what the 200 proves');
     sentNow.get('ws1')[0].landed = true;
     ctx.__rq();
     A.eq(rows(), [], 'read: the row leaves (the transcript shows it now)');
     sentNow.set('ws1', [{ id: 'sn2', text: 'x', accepted: false, landed: false }]);
     ctx.__rq();
-    A.eq(rows(), [], 'still in flight (not accepted yet): no SENT claim');
+    A.eq(rows(), [['queued-pill sent', 'queued-tag:sending queued-text:x queued-when:awaiting receipt']], 'in flight shows sending, not received');
     /* QUEUED WITH PHOTOS (Andrew 10-31): the photos ride the queued message — the pill counts them and has no SEND NOW key
        (a steering note is one line of text: it could never carry them), and its tip says they send after this run. */
     sentNow.delete('ws1');
     const img = n => ({ id: 'a' + n, name: 'shot' + n + '.png', path: 'attachments/shot' + n + '.png', mediaType: 'image/png', kind: 'image' });
     ctx.queued.set('ws1', [{ text: 'what is wrong here', atts: [img(1), img(2)] }, 'plain one']);
     ctx.__rq();
-    A.eq(rows(), [['queued-pill', 'queued-tag:next queued-text:what is wrong here queued-files: queued-x:✕'],
-      ['queued-pill', 'queued-tag:next queued-text:plain one queued-now:send now queued-x:✕']], 'a message queued with photos: NEXT, its words, its photos, a cancel key — no SEND NOW');
+    A.eq(rows(), [['queued-pill', 'queued-tag:waiting queued-text:what is wrong here queued-files: queued-x:✕'],
+      ['queued-pill', 'queued-tag:waiting queued-text:plain one queued-x:✕']], 'a message queued with photos: NEXT, its words, its photos, a cancel key — no SEND NOW');
     const fp = strip.children[0].children[2];
     A.eq(fp.children.map(c => c.className || c.text), ['glyph', '2 photos'], 'the pill counts the photos it carries');
-    A.eq(strip.children[0].attrs['data-tip'], '“what is wrong here” · sends after this run, with its 2 photos', 'its tip says the photos send with it after this run');
+    A.eq(strip.children[0].attrs['data-tip'], '“what is wrong here” · joins the running task with its 2 photos', 'its tip says the photos send with it after this run');
     ctx.queued.set('ws1', [{ text: '', atts: [Object.assign(img(3), { kind: 'file', name: 'log.txt' })] }]);
     ctx.__rq();
-    A.eq(strip.children[0].attrs['data-tip'], 'sends after this run, with its 1 file', 'a files-only queued message names the file, with no empty quote');
+    A.eq(strip.children[0].attrs['data-tip'], 'joins the running task with its 1 file', 'a files-only queued message names the file, with no empty quote');
   }
   {
     // the queue drains a queued-with-photos message as ONE turn carrying its photos — never the words now and the photos later
     const fq = A.fnBody(src, 'function flushQueued');
     const sent = [];
-    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, crewJoining: new Set(), isBusy: () => false, renderQueued: () => {}, send: (...a) => sent.push(a),
+    const ctx = vm.createContext({ autoSteerBusy: new Set(), steerQueued: () => {},  activeWs: { id: 'ws1' }, crewJoining: new Set(), isBusy: () => false, renderQueued: () => {}, send: (...a) => sent.push(a),
       queued: new Map([['ws1', [{ text: 'look at these', atts: [{ id: 'a1', kind: 'image' }] }, 'then this']]]) });
     vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
     ctx.__fq('ws1');
@@ -296,7 +296,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const fq = A.fnBody(src, 'function flushQueued');
     const load = (activeId, result) => {
       const calls = { restored: [], rendered: 0 };
-      const ctx = vm.createContext({ activeWs: { id: activeId }, crewJoining: new Set(), isBusy: () => false, send: () => result, queued: new Map([['ws1', [{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']]]),
+      const ctx = vm.createContext({ autoSteerBusy: new Set(), steerQueued: () => {},  activeWs: { id: activeId }, crewJoining: new Set(), isBusy: () => false, send: () => result, queued: new Map([['ws1', [{ text: 'look', atts: [{ id: 'a1' }] }, 'then this']]]),
         renderQueued: () => { calls.rendered++; }, restoreQueued: id => calls.restored.push(id) });
       vm.runInContext(fq + '\n' + A.fnBody(src, 'function qText') + '\n' + A.fnBody(src, 'function qAtts') + '\n;this.__fq = flushQueued;', ctx);
       return { ctx, calls };
@@ -334,7 +334,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const rig = (opts = {}) => {
       const h = { queued: new Map(), sent: [], handoffs: [], lines: [], pruned: [], revoked: [], kicks: [], busy: opts.busy !== false, input: { value: '' } };
       h.ws1 = { id: 'ws1' }; h.ws2 = { id: 'ws2' };
-      const ctx = vm.createContext({ input: h.input, activeWs: h.ws1, focusVersion: 0, queued: h.queued, crewJoining: new Set(), GoalLoop: {}, kickGoal: ws => h.kicks.push(ws.id), console, pendingAtts: [],
+      const ctx = vm.createContext({ autoSteerBusy: new Set(), steerQueued: () => {},  input: h.input, activeWs: h.ws1, focusVersion: 0, queued: h.queued, crewJoining: new Set(), GoalLoop: {}, kickGoal: ws => h.kicks.push(ws.id), console, pendingAtts: [],
         URL: { revokeObjectURL: url => h.revoked.push(url) }, isBusy: () => h.busy,
         recordSent() {}, closeSlash() {}, autoGrowInput() {}, renderQueued() {}, renderAttachStrip() {}, stepOfferAside() {}, composerContextIssue: () => null, pendingAskFor: () => false,
         pruneUpload: ref => h.pruned.push(ref), localLine: line => h.lines.push(line),
@@ -581,7 +581,7 @@ const ok200 = { status: 200, json: () => Promise.resolve({ ok: true }) };
     const body = A.fnBody(src, 'function sendQueuedNow');
     const held = { text: 'first', atts: [], uploads: [{ status: 'uploading' }] };
     const lines = [], q = new Map([['ws1', [held, 'behind it']]]);
-    const ctx = vm.createContext({ activeWs: { id: 'ws1' }, queued: q, localLine: l => lines.push(l), renderQueued() {}, flushQueued() {}, steerWire: t => t, forgetSentNow: () => true,
+    const ctx = vm.createContext({ autoSteerBusy: new Set(), steerQueued: () => {},  activeWs: { id: 'ws1' }, queued: q, localLine: l => lines.push(l), renderQueued() {}, flushQueued() {}, steerWire: t => t, forgetSentNow: () => true,
       Channels: { isBusy: () => false, runIdOf: () => null } });
     vm.runInContext(body + '\n;this.__now = sendQueuedNow;', ctx);
     ctx.__now('ws1', 1, 'behind it');

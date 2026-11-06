@@ -1,0 +1,23 @@
+{
+  "provider": "local scripted fixture; no live model inference tested",
+  "runId": "74c9ae06-eba4-41f3-9375-cfd262c4c4dc",
+  "before": {
+    "busy": true,
+    "buttons": 0,
+    "received": "RECEIVED\nHow's it going?\nread at its next step\nRECEIVED\nUse this reference. Keep the original report objective.\nread at its next step"
+  },
+  "after": {
+    "runStarts": 1,
+    "reason": "done",
+    "report": "AUTO_STEER_REPORT completed after the progress answer.\nReference evidence incorporated.",
+    "rows": [
+      "How's it going?",
+      "Use this reference.\nKeep the original report objective."
+    ]
+  },
+  "reloaded": [
+    "How's it going?",
+    "Use this reference.\nKeep the original report objective."
+  ],
+  "exceptions": []
+}

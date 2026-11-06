@@ -235,6 +235,7 @@ test/plugin-author.test.js
 test/apps.test.js
 test/loop.replay.test.js
 test/loop.steer.test.js
+test/auto-steer.test.js
 test/loop.verify-on-stop.test.js
 test/loop.acceptance-on-stop.test.js
 test/loop.parallel-tools.test.js

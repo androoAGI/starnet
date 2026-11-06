@@ -23,7 +23,7 @@
    makeSteerBuffers({ maxPending?, maxNoteChars?, maxClosed? }) -> {
      post(runId, text, live, noteId?) -> { status, body },   // live = the run is still registered in-flight by the host
      drain(runId) -> string[],                       // the per-iteration drain as texts (unchanged semantics)
-     drainNotes(runId) -> [{ text, noteId }],        // the same drain with each note's id kept ('' = none): the loop's (index.js drainSteer)
+     drainNotes(runId) -> [{ text, noteId }] (a full message: { text, attachments, id, wire, noteId }),        // the same drain with each note's id kept ('' = none): the loop's (index.js drainSteer)
      close(runId) -> string[],                       // the loop's end: returns never-applied notes; later posts get 409
      drop(runId) -> string[],                        // host teardown: forget the run; returns leftovers (host logs the count)
      pending(runId) -> number, isClosed(runId) -> bool,
@@ -32,6 +32,7 @@
    }
    steerNoteStatus(runId, { live, memory, record }) -> the GET /api/run/steer body (memory, else the record, else none) */
 'use strict';
+const SteeringMessage = require('../frontend/app/steering-message.js');
 
 function makeSteerBuffers(opts) {
   opts = opts || {};
@@ -65,10 +66,17 @@ function makeSteerBuffers(opts) {
   }
   const texts = batch => batch.map(n => n.text);
 
-  function post(runId, text, live, noteId) {
+  function post(runId, text, live, noteId, message) {
     runId = String(runId || '');
-    text = String(text == null ? '' : text).trim();
+    const structured = message === undefined ? null : SteeringMessage.normalize(message);
+    if (message !== undefined && !structured) return { status: 400, body: { error: 'invalid mid-run message (100,000 characters and 16 attachments maximum)' } };
+    if (structured && cleanId(noteId)) structured.id = cleanId(noteId);
+    text = structured ? SteeringMessage.encode(structured) : String(text == null ? '' : text).trim();
     if (!text) return { status: 400, body: { error: 'empty steering note' } };
+    const priorId = cleanId(noteId);
+    const prior = priorId && ledger.get(runId);
+    // A retried full message may arrive after the run closed. Its applied receipt still wins.
+    if (structured && prior && prior.notes.get(priorId) === 'applied') return { status: 200, body: { ok: true, pending: 0, noteId: priorId, duplicate: true, applied: true } };
     if (!runId || !live) return { status: 404, body: { error: 'no in-flight run for that id' } };
     if (closed.has(runId)) {
       return { status: 409, body: { ok: false, applied: false, error: 'the run has already finished its work — this steering note was not applied; send it as a new message' } };
@@ -78,7 +86,7 @@ function makeSteerBuffers(opts) {
     // the same tracked note again (a page retrying its POST): it is already the run's — never buffered or folded twice
     if (id && ledger.has(runId) && ledger.get(runId).notes.has(id)) return { status: 200, body: { ok: true, pending: buf.length, noteId: id, duplicate: true } };
     if (buf.length >= maxPending) return { status: 429, body: { error: 'steer buffer full', pending: buf.length } };
-    buf.push({ text: text.slice(0, maxNoteChars), id: id });   // clamp a single note so one steer can't blow up the prompt
+    buf.push({ text: structured ? { ...structured, wire: text } : text.slice(0, maxNoteChars), id: id });   // clamp a single note so one steer can't blow up the prompt
     buffers.set(runId, buf);
     if (id) track(runId, id);
     return { status: 200, body: id ? { ok: true, pending: buf.length, noteId: id } : { ok: true, pending: buf.length } };
@@ -100,7 +108,7 @@ function makeSteerBuffers(opts) {
     if (!b || !b.length) return [];
     buffers.set(runId, []);
     settle(runId, b, 'applied', false);
-    return b.map(n => ({ text: n.text, noteId: n.id }));
+    return b.map(n => (n.text && typeof n.text === 'object' ? Object.assign({}, n.text, { noteId: n.id }) : { text: n.text, noteId: n.id }));   // a full mid-run message (steering-message.js) keeps its attachments and wire; the loop reads its page id from noteId
   }
 
   function close(runId) {

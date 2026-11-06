@@ -541,6 +541,7 @@
         content: content,
         ts: typeof e.importKey === 'string' && IMPORT_KEY_RE.test(e.importKey) && isSafeNonNeg(e.ts) ? e.ts : num(e.ts) || clock.now()
       };
+      if (e.role === 'user' && typeof e.steeringWire === 'string') entry.steeringWire = str(redact(e.steeringWire)).slice(0, 700000);
       // H1.1: optional structured fields so a RESUME can rebuild the EXACT OpenAI-format turn — an assistant's
       // tool_calls and a tool result's tool_call_id. Redacted like content; absent fields => byte-identical to before.
       if (e.toolCalls != null) {
@@ -647,7 +648,7 @@
       for (let i = Math.max(0, num(fromIndex)); i < messages.length; i++) {
         const m = messages[i];
         if (!m || !ROLES.has(m.role) || m.role === 'system') continue;
-        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), toolCalls: m.tool_calls, toolCallId: m.tool_call_id });
+        append({ streamId: streamId, agentId: agentId, role: m.role, content: flattenContent(m.content), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id });
         n++;
       }
       return n;
@@ -661,11 +662,14 @@
     /* TURN STAMPS ON A DRAIN (turn-identity). opts.turnId / line / quotes / quotesAt ride every row written;
        opts.kindOf(m) gives each row its kind. Only with kindOf, a system message tagged with a SYSTEM kind
        (TurnKinds.tag: a folded steer note, …) is a row of its own, stored as role 'system' with that kind and noteId;
-       every other system message stays a skipped fence, exactly as without kindOf. Returns null for a skipped one. */
+       every other system message stays a skipped fence, exactly as without kindOf. Returns null for a skipped one.
+       A mid-task user message folded into the model's context (loop.js foldSteerNotes) is a user-role message tagged
+       'steer': it is filed as that steer row too (role system, its noteId), keeping its steeringWire for the display. */
     function systemRowTag(m, opts) {
-      if (!opts || typeof opts.kindOf !== 'function' || !TurnKinds || m.role !== 'system') return null;
+      if (!opts || typeof opts.kindOf !== 'function' || !TurnKinds || (m.role !== 'system' && m.role !== 'user')) return null;
       const t = TurnKinds.tagOf(m);
-      return t && TurnKinds.SYSTEM_KINDS.indexOf(t.kind) >= 0 ? t : null;
+      if (!t || TurnKinds.SYSTEM_KINDS.indexOf(t.kind) < 0) return null;
+      return m.role === 'user' && t.kind !== 'steer' ? null : t;
     }
     /* A STEER ROW HOLDS THE NOTE, NOT THE LOOP'S WRAPPER. The loop hands the model a folded note as '<steering_note>…</steering_note>'
        (loop.js foldSteerNotes) and tags that message steer; its row is the Commander's words alone, so a replay says
@@ -700,7 +704,7 @@
         markPersisted([m]);                                    // mark BEFORE the role filter so fences aren't re-checked
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) continue;
-        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
+        append(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id, taint: taint, sourceRunId: opts && opts.sourceRunId, dispatchState: opts && opts.dispatchState }, turnStamps(m, opts, sysTag)));
         n++;
       }
       return n;
@@ -717,7 +721,7 @@
         if (!m || typeof m !== 'object' || m[PERSISTED]) continue;
         const sysTag = systemRowTag(m, opts);
         if (!ROLES.has(m.role) || (m.role === 'system' && !sysTag)) { markPersisted([m]); continue; }
-        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
+        appendStrict(Object.assign({ streamId: streamId, agentId: agentId, role: m.role, content: rowContent(m, sysTag), steeringWire: m.steeringWire, toolCalls: m.tool_calls, toolCallId: m.tool_call_id, sourceRunId: opts.sourceRunId, dispatchState: opts.dispatchState, taint: opts.taint || null }, turnStamps(m, opts, sysTag)));
         markPersisted([m]);
         n++;
       }
@@ -752,7 +756,9 @@
     function messageIdentity(m) {
       if (m.role === 'tool') return 'tool\u0000' + str(m.tool_call_id).slice(0, 200);
       if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) return 'calls\u0000' + callIdsKey(m.tool_calls.map(c => c && c.id));
-      return str(m.role) + '\u0000' + buildEntry({ content: flattenContent(m.content) }).content;
+      // a user message tagged 'steer' is stored as a system row (turnFields), so it is vouched for as one
+      const tag = m.role === 'user' && TurnKinds ? TurnKinds.tagOf(m) : null;
+      return (tag && tag.kind === 'steer' ? 'system' : str(m.role)) + '\u0000' + buildEntry({ content: flattenContent(m.content) }).content;
     }
     function markRecorded(messages, recordedRows) {
       if (!Array.isArray(messages)) return 0;

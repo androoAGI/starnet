@@ -361,3 +361,4 @@ test/forget.tool-quotes.relay.http.test.js
 test/forget.phone.http.test.js
 test/forget.dossier.http.test.js
 test/forgotten-everywhere.e2e.test.js
+test/auto-steer.e2e.test.js

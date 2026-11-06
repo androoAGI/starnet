@@ -1795,7 +1795,7 @@
         const steerIntent = {};
         liveRun.steerIntent = steerIntent;
         let steered = false;
-        try { const r = await steerRun(liveRun.runId, note); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
+        try { const r = await steerRun(liveRun.runId, String(msg.text || '')); steered = !!(r && r.ok); letPrevFinish = !steered && !!r && r.status === 409; }
         catch (e) { failNote('channels.hub.steer', e); steered = false; }
         const afterSteer = inflight.get(chatId);
         if (steered) {

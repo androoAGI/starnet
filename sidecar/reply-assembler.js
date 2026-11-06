@@ -18,6 +18,7 @@
 
    Pure: no I/O, no clock. */
 'use strict';
+const SteeringMessage = require('../frontend/app/steering-message.js');
 
 /* A STEERING NOTE IS NOT PROSE (bug e903a199, 2026-10-23). The loop echoes a folded note as one token delta,
    '\n[steering] <note>\n' (loop.js foldSteerNotes, and the NOT-applied notice at the run's end). COMMS draws that line
@@ -35,7 +36,7 @@ function steerNoteWire(text) { return String(text == null ? '' : text).replace(/
 function joinReplyDelta(buf, delta) {
   const b = String(buf == null ? '' : buf), d = String(delta == null ? '' : delta);
   const m = STEER_ECHO_RE.exec(d);
-  if (m) return (b.trim() ? b.replace(/\s+$/, '') + '\n\n' : '') + '↪ ' + steerNoteWire(m[1]) + '\n\n';
+  if (m) { const note = SteeringMessage.decode(m[1]); return (b.trim() ? b.replace(/\s+$/, '') + '\n\n' : '') + '↪ ' + steerNoteWire(note ? note.text + (note.attachments.length ? ' [attached: ' + note.attachments.map(a => a.name || 'file').join(', ') + ']' : '') : m[1]) + '\n\n'; }
   if (AFTER_STEER_RE.test(b)) return b + d.replace(/^\s+/, '');
   return b + d;
 }

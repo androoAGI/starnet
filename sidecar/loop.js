@@ -25,6 +25,7 @@
   // fold-fidelity helpers (verbatim user section, usage anchor, provider-reported window). Node-only like failopen;
   // absent (a browser build that never runs the loop) = compaction stays off rather than folding unfaithfully.
   const fidelity = (typeof require === 'function') ? require('./compaction-fidelity.js') : null;
+  const SteeringMessage = (typeof require === 'function') ? require('../frontend/app/steering-message.js') : null;
   // the per-run <run_context> note's predicate (providers/provider.js owns the fence) — compaction pins that note
   const isRunContextNote = (typeof require === 'function') ? require('./providers/provider.js').isRunContextNote : null;
   // ... and the <crew_call> note (review 2026-10-12): it left the run-context note to trail the newest user message
@@ -1123,10 +1124,26 @@
     // Commander watches land. Shared by the top-of-loop drain and the finish-line extension so the two can't drift.
     // a drained note is its text, or { text, noteId } when the host kept the page's id for it (index.js drainSteer)
     const steerNoteText = (note) => String(note && typeof note === 'object' ? (note.text == null ? '' : note.text) : (note == null ? '' : note));
-    function foldSteerNotes(notes) {
+    let steerReplyPending = false;
+    const steerPolicy = 'A user message arrived during your ongoing task. Preserve the original objective unless the user explicitly cancels or changes it. Answer status questions briefly using observed progress, then keep working on the task in this same run. A progress answer is not task completion. Apply corrections and additional requirements to the remaining work. If delegated workers are affected, inspect their current state and steer the relevant workers; do not restart or broadcast to unrelated workers. Never claim a running action was cancelled unless the tool confirms it.';
+    async function foldSteerNotes(notes) {
       let n = 0;
       if (!Array.isArray(notes)) return 0;
       for (const note of notes) {
+        if (note && typeof note === 'object' && Array.isArray(note.attachments) && SteeringMessage && SteeringMessage.normalize(note)) {
+          const message = typeof o.prepareSteer === 'function' ? await o.prepareSteer(note) : { role: 'user', content: note.text };
+          const wire = SteeringMessage.encode(note);
+          messages.push({ role: 'system', content: '<mid_task_message>' + steerPolicy + '</mid_task_message>' });
+          // TURN IDENTITY: the folded message is a steer row of its own (kind 'steer', its noteId), never a station or directive row
+          const folded = { ...message, steeringWire: wire };
+          const structuredId = note.noteId || note.id;
+          if (TurnKinds) TurnKinds.tag(folded, 'steer', structuredId ? { noteId: structuredId } : undefined);
+          messages.push(folded);
+          emit('agent.token', { agentId, runId, delta: '\n[steering] ' + wire + '\n' });
+          steerReplyPending = true;
+          n++;
+          continue;
+        }
         const t = steerNoteText(note).trim();
         if (!t) continue;
         // surface the note in the live transcript as an agent.token delta (a registered event) so the
@@ -2236,7 +2253,7 @@
       if (steer) {
         let notes = null;
         try { notes = steer(); } catch (_) { notes = null; }
-        foldSteerNotes(notes);
+        await foldSteerNotes(notes);
       }
       /* HOOKS — pre_llm_call. Same message-boundary safety argument as steering above: the prior iteration's
          tool results are already appended and paired, so an injected note can neither split a tool_call from
@@ -2952,20 +2969,30 @@
             && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && (turns < maxIters || graceEnabled)) {
           let late = null;
           try { late = steer(); } catch (e) { failNote('loop.steer.finalDrain', e); late = null; }
-          if (Array.isArray(late) && late.some(n => steerNoteText(n).trim())) {
+          if (Array.isArray(late) && late.some(n => steerNoteText(n).trim() || (n && typeof n === 'object' && Array.isArray(n.attachments) && n.attachments.length))) {
             steerExtUsed++;
             if (continuationParts.length) {   // settle a length-continued answer into ONE turn before the note follows it
               collapseContinuation(assistant);
               continuationParts.length = 0; continuationPrompts.length = 0; continuationText = '';
             }
-            foldSteerNotes(late);
+            await foldSteerNotes(late);
             continue;
           }
+        }
+        // A tool-free progress reply must not silently end the task it interrupted. One continuation
+        // opportunity per delivered batch; normal completion, budget, cancellation and loop guards still win.
+        if (steerReplyPending && (toolTurnsRun > 0 || o.isTask === true) && !signal.aborted && !graceUsed
+            && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && turns < maxIters) {
+          steerReplyPending = false;
+          if (continuationParts.length) { collapseContinuation(assistant); continuationParts.length = 0; continuationPrompts.length = 0; continuationText = ''; }
+          messages.push({ role: 'system', content: '<resume_after_message>The mid-task reply has been delivered. Continue any unfinished work on the original objective with the latest user updates. If the objective is already complete, explicitly cancelled, or genuinely blocked, finish with that truthful outcome; do not invent more work.</resume_after_message>' });
+          continue;
         }
         if (continuationParts.length) collapseContinuation(assistant);
         return end(empty && !continuedTextExists ? 'empty' : 'done');
       }
 
+      steerReplyPending = false;   // tool use already continues the task after the message
       // (6) EXECUTE — needs a dispatcher (M1.2+)
       if (!dispatch) {
         for (const c of calls) messages.push(toolResultMsg(c.id, true, 'no tool dispatcher configured'));
