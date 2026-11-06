@@ -878,7 +878,7 @@
        deps.seedCookies copies the saved sign-ins into this browser before its first page. null = not known yet: that
        counts as holding them, so browser.eval stays refused until the seed has really come back empty. */
     let seededSignIns = null;
-    let launchedAt = 0;
+    let startupTabs = false;   // the first seconds after a launch: a tab with no opener is the browser's own
     const holdsSavedSignIns = () => typeof deps.seedCookies === 'function' && seededSignIns !== 0;
     async function seedSavedSignIns() {
       if (typeof deps.seedCookies !== 'function') return;
@@ -1277,12 +1277,11 @@
       }
       const pf = P.join(d, 'Preferences');
       try {
-        if (!FS.existsSync(pf)) {
-          // the durable profile's first run ended before Chromium wrote this file: its first sign-in lasts all the same
-          if (FS.existsSync(P.join(d, 'Network', 'Cookies')) && onPersistent()) FS.writeFileSync(pf, JSON.stringify({ profile: { exit_type: 'Crashed', exited_cleanly: true } }));
-          return;
-        }
-        const j = JSON.parse(FS.readFileSync(pf, 'utf8'));
+        // no file: the durable profile's first run ended before Chromium wrote it, and its first sign-in lasts all the same.
+        // A brand new profile has no cookies yet and is left for Chromium to set up.
+        const fresh = !FS.existsSync(pf);
+        if (fresh && !(onPersistent() && FS.existsSync(P.join(d, 'Network', 'Cookies')))) return;
+        const j = fresh ? { profile: {} } : JSON.parse(FS.readFileSync(pf, 'utf8'));
         /* A SIGN-IN LASTS (Etsy report, 2026-11-06: "it keeps on signing me out"). Measured on Chrome 155: a login cookie
            with no expiry (a site's "stay signed in" left unticked) is on disk after any exit and is DELETED at the next
            start, unless the last exit reads as a crash. This function used to mark every exit clean, so each relaunch signed
@@ -1463,7 +1462,8 @@
         args.push('--headless=new', '--hide-scrollbars', '--mute-audio');
       }
       args.push('about:blank');
-      launchedAt = Date.now();
+      startupTabs = true;
+      { const t = setTimeout(() => { startupTabs = false; }, STARTUP_TAB_MS); if (t && t.unref) t.unref(); }
       proc = spawn(chromePath, args, { stdio: 'ignore', windowsHide: !headed });
       procClosePromise = new Promise(resolve => {
         // how it exited rides the launch error (procError): "exited before CDP ownership" alone never said why (user report, 10-28)
@@ -1596,7 +1596,7 @@
                       crash (cleanStart), opens its MSN new-tab page beside the first tab, and the agent then saw and loaded a tab
                       nobody asked for. Nobody can open a tab in a hidden browser, and a page's own popup has an opener, so a tab
                       with none in the first seconds after launch is the browser's own. */
-                   if (!headed && attachPort === null && onPersistent() && !info.openerId && Date.now() - launchedAt < STARTUP_TAB_MS) {
+                   if (!headed && attachPort === null && onPersistent() && !info.openerId && startupTabs) {
                      Promise.resolve(cdp.send('Target.closeTarget', { targetId: info.targetId })).catch(e => failNote('browser.startup-tab', e));
                      return;
                    }

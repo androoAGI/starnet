@@ -210,7 +210,7 @@ async function askToClose(port) {
   if (!url) throw new Error('no browser endpoint on port ' + port);
   await new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
-    const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('Browser.close was not answered')); }, GENTLE_STEP_MS);
+    const timer = setTimeout(() => { try { ws.close(); } catch (e) { failNote('browser.orphans.close', e); } reject(new Error('Browser.close was not answered')); }, GENTLE_STEP_MS);
     const done = fn => arg => { clearTimeout(timer); fn(arg); };
     ws.addEventListener('open', () => ws.send(JSON.stringify({ id: 1, method: 'Browser.close' })));
     ws.addEventListener('message', done(resolve));
