@@ -826,6 +826,24 @@
     close() { try { this.ws.close(); } catch (_) {} }
   }
 
+  /* What Storage.getCookies returns → what Storage.setCookies takes. A cookie with no expiry stays one; a host-only cookie
+     (no leading dot, __Host- among them) stays host-only, which Chromium reads from the domain's shape. */
+  const SEED_COOKIES_MS = 15000;
+  function cookieParams(list) {
+    const out = [];
+    for (const c of (Array.isArray(list) ? list : [])) {
+      if (!c || typeof c.name !== 'string' || !c.domain) continue;
+      const one = { name: c.name, value: String(c.value == null ? '' : c.value), domain: String(c.domain), path: String(c.path || '/'), secure: !!c.secure, httpOnly: !!c.httpOnly };
+      if (c.sameSite) one.sameSite = c.sameSite;
+      if (c.priority) one.priority = c.priority;
+      if (c.sourceScheme) one.sourceScheme = c.sourceScheme;
+      if (Number(c.sourcePort) > 0) one.sourcePort = Number(c.sourcePort);
+      if (c.partitionKey) one.partitionKey = c.partitionKey;
+      if (c.session !== true && Number(c.expires) > 0) one.expires = Number(c.expires);
+      out.push(one);
+    }
+    return out;
+  }
   function makeCdpDriver(deps) {
     deps = deps || {};
     const fetchImpl = deps.fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
@@ -854,6 +872,38 @@
     let heldFallback = null, heldFallbackDir = null, heldFailure = null;
     // the durable station profile is in play only until a held-profile fallback moved this browser off it
     const onPersistent = () => !!deps.profileIsPersistent && !heldFallback;
+    /* SAVED SIGN-INS ON A TEMPORARY PROFILE (Etsy report, 2026-11-06: "it keeps on signing me out and my agent keeps on
+       asking me to sign in"). A run that loses the durable profile to the open station browser used to browse signed out.
+       deps.seedCookies copies the saved sign-ins into this browser before its first page. null = not known yet: that
+       counts as holding them, so browser.eval stays refused until the seed has really come back empty. */
+    let seededSignIns = null;
+    const holdsSavedSignIns = () => typeof deps.seedCookies === 'function' && seededSignIns !== 0;
+    async function seedSavedSignIns() {
+      if (typeof deps.seedCookies !== 'function') return;
+      let list = [];
+      let timer;
+      try {
+        list = await Promise.race([Promise.resolve().then(() => deps.seedCookies()), new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('reading the saved sign-ins took too long')), SEED_COOKIES_MS); })]);
+      } catch (e) { failNote('browser.seed-cookies.read', e); }
+      finally { clearTimeout(timer); }
+      const cookies = cookieParams(list);
+      let applied = 0;
+      if (cookies.length) {
+        try { await cdp.send('Storage.setCookies', { cookies }); applied = cookies.length; }
+        catch (_) {
+          // the whole batch is refused for one bad cookie: every other sign-in still goes in
+          for (const one of cookies) { try { await cdp.send('Storage.setCookies', { cookies: [one] }); applied++; } catch (e) { failNote('browser.seed-cookies.one', new Error(String((e && e.message) || e).slice(0, 200))); } }
+        }
+      }
+      seededSignIns = applied;
+    }
+    /* The durable profile's cookies, for the host to seed another browser. Never a tool: no agent can reach this. */
+    async function exportCookies() {
+      if (!onPersistent()) return [];
+      await connect();
+      const r = await cdp.send('Storage.getCookies', {});
+      return (r && Array.isArray(r.cookies)) ? r.cookies : [];
+    }
     // Page-realm safety/settle state must be readable by the driver, but fixed product-named globals
     // are an avoidable signature. Opaque per-profile slots preserve the contract without publishing
     // `__STARNET_*` on every site.
@@ -1225,10 +1275,22 @@
       }
       const pf = P.join(d, 'Preferences');
       try {
-        if (!FS.existsSync(pf)) return;
+        if (!FS.existsSync(pf)) {
+          // the durable profile's first run ended before Chromium wrote this file: its first sign-in lasts all the same
+          if (FS.existsSync(P.join(d, 'Network', 'Cookies')) && onPersistent()) FS.writeFileSync(pf, JSON.stringify({ profile: { exit_type: 'Crashed', exited_cleanly: true } }));
+          return;
+        }
         const j = JSON.parse(FS.readFileSync(pf, 'utf8'));
-        if (j && j.profile && (j.profile.exit_type !== 'Normal' || j.profile.exited_cleanly !== true)) {
-          j.profile.exit_type = 'Normal'; j.profile.exited_cleanly = true;
+        /* A SIGN-IN LASTS (Etsy report, 2026-11-06: "it keeps on signing me out"). Measured on Chrome 155: a login cookie
+           with no expiry (a site's "stay signed in" left unticked) is on disk after any exit and is DELETED at the next
+           start, unless the last exit reads as a crash. This function used to mark every exit clean, so each relaunch signed
+           people out, even of a browser they had closed properly. On the durable profile the exit now always reads as a crash.
+           Nothing comes back from that: the saved tabs are gone (above) and --hide-crash-restore-bubble covers the prompt.
+           Measured, the alternatives do not work: --restore-last-session reopens every old tab (1, 2, 3 across relaunches)
+           and session.restore_on_startup=1 in Preferences has no effect. */
+        const wanted = onPersistent() ? 'Crashed' : 'Normal';
+        if (j && j.profile && (j.profile.exit_type !== wanted || j.profile.exited_cleanly !== true)) {
+          j.profile.exit_type = wanted; j.profile.exited_cleanly = true;
           FS.writeFileSync(pf, JSON.stringify(j));
         }
       } catch (e) { failNote('browser.clean-start.prefs', e); }
@@ -1659,6 +1721,7 @@
               try { await cdp.send('Browser.setDownloadBehavior', Object.assign({ eventsEnabled: true }, behavior)); }
               catch (_) { try { await cdp.send('Page.setDownloadBehavior', behavior); } catch (_) {} }
             }
+            await seedSavedSignIns();   // before anything can load: the first page is already signed in
             /* browser.intercept — every request paused here matched a blocked-type Fetch pattern, so the
                only job is to fail it fast. The reply goes to the SESSION THE EVENT CAME FROM (second
                handler arg): answering on the active session would leave a background tab's paused request
@@ -2930,7 +2993,7 @@
     // actually on the user's screen. Headless mode, or a headless-only binary fallback in
     // a headed request, both read as not visible.
     function visible() { return headed; }
-    return { chooserEventCount: () => chooserEvents, navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
+    return { chooserEventCount: () => chooserEvents, navigate, snapshot, click, type, press, hover, drag, selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, tabs, waitForTabCount, selectTab, closeTab, inspect, evalPublic, waitFor, pdf, intercept, emulate, usingPersistentProfile: onPersistent, holdsSavedSignIns, exportCookies, profileFallback: () => heldFallback, testInput, testEval, testState, scroll, back, getText, challengeStatus, handleDialog, screenshot, streamStart, streamStop, humanInput, pageInfo, setDownloadDir, alive, ownedPid, bringToFront, close, consoleLog: readConsoleLog, networkLog: () => netLog.map(r => Object.assign({}, r)), lastDialog: () => dialog, lastResponse: () => lastResponse, tabEpoch: () => tabEpoch, visible, headed, headlessFallback: wantHeaded && binIsHeadlessOnly, attachedPort: () => attachedPort, allowLocal, profileDir, lastOrphanSweep: () => lastOrphanSweep };
   }
 
   function makeBrowserSession(deps) {
@@ -2974,10 +3037,13 @@
       // cleanupProfile:false is load-bearing — the durable profile must never ride the ephemeral rm on close.
       if (acquirePersistent()) return { profileDir: deps.persistentProfile.dir, cleanupProfile: false, profileIsPersistent: true };
       // The STATION's shared browser (browser-view.js) holds the profile while it is open, which can be for a long time.
-      // A run that loses to IT browses on its own temporary profile (signed out, and its handoff says `remembered:
-      // false` truthfully) rather than erroring or closing the browser the Commander is using. Against another RUN the
-      // old rule stands: wait, then refuse — two runs never silently swap account identity.
-      if (deps.persistentProfile && !attachedToUserBrowser && typeof deps.persistentProfile.fallback === 'function' && deps.persistentProfile.fallback()) return { profileIsPersistent: false };
+      // A run that loses to IT browses on its own temporary profile with a COPY of the saved sign-ins (seedCookies: what
+      // it signs in to there is not kept, and its handoff says `remembered: false` truthfully) rather than erroring or
+      // closing the browser the Commander is using. Against another RUN the old rule stands: wait, then refuse — two runs
+      // never silently swap account identity.
+      if (deps.persistentProfile && !attachedToUserBrowser && typeof deps.persistentProfile.fallback === 'function' && deps.persistentProfile.fallback()) {
+        return typeof deps.persistentProfile.seedCookies === 'function' ? { profileIsPersistent: false, seedCookies: deps.persistentProfile.seedCookies } : { profileIsPersistent: false };
+      }
       if (deps.persistentProfile && !attachedToUserBrowser) throw new Error('the station browser profile is in use by another agent run — retry after it finishes; saved logins were not replaced');
       return { profileIsPersistent: false };
     }
@@ -3000,6 +3066,23 @@
         });
       }
       } finally { if (reported) deps.onProfileWait(false); }
+    }
+    /* THE SAVED SIGN-INS, for a run on a temporary profile (index.js seedCookies). This session holds the durable profile:
+       ask its browser, or, when the Commander closed the window and the lease stayed with this session, read the profile in
+       a short-lived hidden browser so the closed window never signs an agent out. One read at a time. */
+    let peekingCookies = null;
+    function savedCookies() {
+      if (!leaseHeld || injected || attachedToUserBrowser) return Promise.resolve([]);
+      const d = driver;
+      if (d && (typeof d.alive !== 'function' || d.alive())) return typeof d.exportCookies === 'function' ? d.exportCookies() : Promise.resolve([]);
+      if (peekingCookies) return peekingCookies;
+      const pid = d && typeof d.ownedPid === 'function' ? () => d.ownedPid() : null;
+      const peek = makeDriver(Object.assign({}, deps, { profileDir: deps.persistentProfile.dir, cleanupProfile: false, profileIsPersistent: true, headed: false }, d ? { reclaimProfile: true, reclaimPid: pid } : {}));
+      peekingCookies = (async () => {
+        try { return await peek.exportCookies(); }
+        finally { try { await peek.close({ keepProfile: true }); } catch (e) { failNote('browser.saved-cookies.close', e); } }
+      })().finally(() => { peekingCookies = null; });
+      return peekingCookies;
     }
     function releasePersistent() {
       const pp = deps.persistentProfile;
@@ -3599,6 +3682,11 @@
       if (d && typeof d.usingPersistentProfile === 'function' && d.usingPersistentProfile()) {
         return { ok: false, reason: 'this run is using the signed-in station profile' };
       }
+      // a temporary profile holding a copy of the saved sign-ins: the credentials are here too
+      if (d && typeof d.holdsSavedSignIns === 'function' && d.holdsSavedSignIns()) return { ok: false, reason: 'this run is using your saved sign-ins' };
+      if (!d && !attachedToUserBrowser && deps.persistentProfile && typeof deps.persistentProfile.seedCookies === 'function' && typeof deps.persistentProfile.fallback === 'function' && deps.persistentProfile.fallback()) {
+        return { ok: false, reason: 'this run is using your saved sign-ins' };
+      }
       return { ok: true };
     }
     async function evalPublic(expression) {
@@ -3842,7 +3930,7 @@
       const d = driver || null;
       return d && typeof d.attachedPort === 'function' ? d.attachedPort() : null;
     }
-    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, uploadStage, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, close, visible, headlessFallback, profileNote, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
+    return { waitForProfile, reset, navigate, snapshot, click, type, press, hover, drag, select: selectOption, viewport, forward, upload, clearUpload, uploadDocAlive, clearStagedInputs, uploadStage, tabs, selectTab, closeTab, inspect, evalPublic, evalAllowed, wait, find, pdf, intercept, emulate, attach, detach, attachedToUser: () => attachedToUserBrowser, testInput, testEval, testState, testSnapshot, scroll, back, getText, challengeStatus, consoleLog, networkLog, dialog, vision, screenshot, login, handoffSurface, freeze, thaw, frozen, handTo, hasDriver, savedCookies, close, visible, headlessFallback, profileNote, attachedPort, lastResponse, _internals: { refs, version: () => version, navEpoch: () => navEpoch, localMode: () => localMode, localOrigin: () => localOrigin, leaseHeld: () => leaseHeld } };
   }
 
   function makeBrowserTools(deps) {

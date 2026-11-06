@@ -20,7 +20,8 @@
 
    THE PROFILE LEASE. The durable profile is a single-owner lease. The station browser holds it while open and NEVER
    gives it up to another run (Andrew: it "constantly closes" — a browser closing under you is the bug): a run that
-   loses to it browses on a temporary profile instead (index.js browserProfileLeaseFor → fallback). A VISIBLE station
+   loses to it browses on a temporary profile with a copy of the saved sign-ins (index.js browserProfileLeaseFor →
+   fallback, seedCookies). A VISIBLE station
    browser never idles out (the Commander may be using the window directly, which the station cannot see): it closes
    when they close it. Only a headless one (STARNET_BROWSER_HEADLESS) closes after half an hour unused. If the window
    is closed or Chrome dies, the next use starts it again on the same profile (browser.js reviveIfDead).
@@ -267,6 +268,11 @@ function makeBrowserViews(deps) {
   /* A SIGN-IN hands the wheel to the Commander. browser.login (station path) opens the page and then the run waits
      for their Done — the agent does nothing meanwhile — so their clicks and keys must reach the page (they are the
      one typing the password). Opened by the session's onLoginOpen, closed by onLoginClose or when the run lets go. */
+  // the durable profile's sign-ins, for a run on a temporary profile. Nothing here reaches an agent: the host seeds them
+  function savedCookies() {
+    const st = station;
+    return st && typeof st.session.savedCookies === 'function' ? st.session.savedCookies() : Promise.resolve([]);
+  }
   function signInOpen(info) { if (station && station.driver) station.signIn = { host: String((info && info.host) || ''), runId: station.driver.runId }; return !!(station && station.signIn); }
   function signInClose() { if (station) station.signIn = null; }
   /* THE COMMANDER'S HANDS ARE NEVER REFUSED (Andrew 2026-10-02: "the whole point was for it to be interactive inside
@@ -490,7 +496,7 @@ function makeBrowserViews(deps) {
     if (station) { station.driver = null; await closeStation(); }
   }
 
-  return { sessionForRun, releaseRun, registerRun, unregisterRun, open, nav, input, front, warm, frame, list, setMode, settings, signInOpen, signInClose, close: closeStation, closeAll, reset,
+  return { sessionForRun, savedCookies, releaseRun, registerRun, unregisterRun, open, nav, input, front, warm, frame, list, setMode, settings, signInOpen, signInClose, close: closeStation, closeAll, reset,
     _internals: { runs, chans, station: () => station } };
 }
 

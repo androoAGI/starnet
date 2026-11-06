@@ -12,6 +12,8 @@
        the executable name: the Commander's own Chrome/Edge — same binary, other profile — can never match.
      · A process on that profile that descends from THIS sidecar (the browser it launched, and its helpers) is
        ours and alive: never touched here. Only processes whose ancestry does not reach this sidecar are orphans.
+     · An orphan browser is asked to close over its own DevTools port FIRST, and killed only if it does not. A kill
+       loses every cookie from the last 30 s (Chromium writes them in batches): a sign-in just before a restart.
      · Kills are CONFIRMED by listing again. A survivor is reported, never assumed gone.
      · Profile locks are removed only once no process at all runs on the profile.
      · A failed/timed-out process listing kills nothing and says so.
@@ -187,7 +189,53 @@ function profileHeld(profileDir, o) {
   catch (_) { return { held: false, how: 'SingletonLock owner gone' }; }
 }
 
-/* THE SWEEP. List → end every ORPHAN on this profile by its own pid (browser roots first) → list again to
+/* ASK BEFORE KILLING (Etsy report, 2026-11-06). Measured on Chrome 155: a browser force-killed 1 s after a sign-in comes
+   back with NO cookies from it, persistent ones included; Browser.close writes them out. The port comes from the command
+   line of a process already proven to run on this exact profile. Bounded: a stuck browser costs a few seconds, then the
+   kill. Returns how many browsers exited. */
+const GENTLE_STEP_MS = 1500;
+const GENTLE_EXIT_MS = 3000;
+function debugPortOf(cmd) {
+  const m = /--remote-debugging-port=(\d{2,5})(?!\d)/.exec(String(cmd || ''));
+  return m ? Number(m[1]) : 0;
+}
+async function askToClose(port) {
+  const ctl = new AbortController();
+  const stop = setTimeout(() => ctl.abort(), GENTLE_STEP_MS);
+  let url;
+  try {
+    const v = await (await fetch('http://127.0.0.1:' + port + '/json/version', { signal: ctl.signal })).json();
+    url = v && v.webSocketDebuggerUrl;
+  } finally { clearTimeout(stop); }
+  if (!url) throw new Error('no browser endpoint on port ' + port);
+  await new Promise((resolve, reject) => {
+    const ws = new WebSocket(url);
+    const timer = setTimeout(() => { try { ws.close(); } catch (_) {} reject(new Error('Browser.close was not answered')); }, GENTLE_STEP_MS);
+    const done = fn => arg => { clearTimeout(timer); fn(arg); };
+    ws.addEventListener('open', () => ws.send(JSON.stringify({ id: 1, method: 'Browser.close' })));
+    ws.addEventListener('message', done(resolve));
+    // Chromium may drop the socket as it closes, before it answers: the exit check below is the proof either way
+    ws.addEventListener('close', done(resolve));
+    ws.addEventListener('error', done(reject));
+  });
+}
+async function closeGently(browsers, o) {
+  o = o || {};
+  const ask = o.ask || askToClose;
+  const alive = o.alive || pidAlive;
+  const wait = o.sleep || (ms => new Promise(r => { const t = setTimeout(r, ms); if (t && t.unref) t.unref(); }));
+  const asked = [];
+  for (const b of (Array.isArray(browsers) ? browsers : [])) {
+    const port = debugPortOf(b && b.cmd);
+    if (!port) continue;
+    try { await ask(port); asked.push(b.pid); }
+    catch (e) { failNote('browser.orphans.close', e); }
+  }
+  for (let waited = 0; asked.some(pid => alive(pid)) && waited < GENTLE_EXIT_MS; waited += 100) await wait(100);
+  return asked.filter(pid => !alive(pid)).length;
+}
+
+/* THE SWEEP. List → ask every orphan BROWSER to close → end every ORPHAN left on this profile by its own pid (browser roots first) → list again to
    confirm → clear the locks if nothing at all remains on the profile. Never touches a process descended from this
    sidecar. Returns a receipt the caller can show verbatim:
      { ok, listed, found, killed:[pid], survivors:[pid], ours:[pid], locks:{removed,failed}, error }
@@ -208,7 +256,18 @@ async function sweep(o) {
   receipt.found = before.orphans.length;
   receipt.ours = before.ours.map(p => p.pid);
   const roots = before.orphans.filter(p => p.browser).concat(before.orphans.filter(p => !p.browser));
-  for (const p of roots) {
+  // a real table asks for real; a test that injects its own table injects this too, so nothing real is ever reached
+  const gentle = o.closeGently || (o.listProcesses ? null : closeGently);
+  let toKill = roots;
+  if (gentle && roots.some(p => p.browser)) {
+    try {
+      if (await gentle(roots.filter(p => p.browser), { sleep: wait })) {
+        const left = new Set(classify(await list(), profileDir, { selfPid, platform }).orphans.map(p => p.pid));
+        toKill = roots.filter(p => left.has(p.pid));
+      }
+    } catch (e) { failNote('browser.orphans.close', e); }
+  }
+  for (const p of toKill) {
     try { await kill(p.pid); } catch (e) { failNote('browser.orphans.kill', e); /* confirmed below */ }
   }
   let after = before;
@@ -295,4 +354,4 @@ function describeSweep(r) {
   return bits.join('; ');
 }
 
-module.exports = { LOCK_FILES, profileArg, sameDir, normDir, profileProcesses, classify, makeProcessLister, makeProcessListerSync, makeKiller, clearStaleLocks, profileHeld, sweep, sweepSync, describeSweep };
+module.exports = { LOCK_FILES, debugPortOf, closeGently, profileArg, sameDir, normDir, profileProcesses, classify, makeProcessLister, makeProcessListerSync, makeKiller, clearStaleLocks, profileHeld, sweep, sweepSync, describeSweep };

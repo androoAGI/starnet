@@ -872,8 +872,8 @@ const RUNTIME_KNOBS_FILE = path.join(WORKSPACES, 'runtime.knobs.json');
    signed-in. Placed as a DOTTED sibling of the agent jails: fs-tool agentIds are sanitized to [A-Za-z0-9_-],
    so no agent workspace can ever resolve into it (cookie jar stays out of model reach). Chrome cannot share
    a user-data-dir across processes, so a single-owner in-process lease guards it — sufficient because one
-   sidecar per WORKSPACES dir is a hard invariant (see durable-store law). Runs that lose the race quietly
-   fall back to their ephemeral per-run profile (browsing works, just signed out). */
+   sidecar per WORKSPACES dir is a hard invariant (see durable-store law). A run that loses to the open station
+   browser falls back to its ephemeral per-run profile holding a copy of the saved sign-ins (seedCookies). */
 const BROWSER_PROFILE_DIR = path.join(WORKSPACES, '.browser-profile');
 let browserProfileHolder = null;   // runId of the run whose browser currently owns the durable profile
 const browserProfileWaiters = new Set();
@@ -883,6 +883,8 @@ function browserProfileLeaseFor(runId) {
     acquire: () => { if (browserProfileHolder && browserProfileHolder !== runId) return false; browserProfileHolder = runId; return true; },
     // lost to the STATION's shared browser (open for the Commander): browse on a temporary profile, never close theirs
     fallback: () => browserProfileHolder === 'station-browser' && runId !== 'station-browser',
+    // …signed in as the station is: without this the agent asked for a sign-in the Commander had already made (Etsy report, 11-06)
+    seedCookies: () => browserViews.savedCookies(),
     release: () => { if (browserProfileHolder === runId) browserProfileHolder = null; }
   };
 }
@@ -6185,7 +6187,17 @@ lspManager = makeLspManager({ spawn: childSpawn, fs, fsp, pathMod: path, env: pr
 const inputGuard = makeInputGuard({ log: (m) => console.log(m) });
 if (require.main === module) {
   // real host boot only (unit tests require() this file and must not probe/kill or touch the real cursor state)
-  procLedger.sweep().then(s => {
+  /* A browser the last sidecar left running is asked to close BEFORE the ledger force-kills it: that kill lost every
+     cookie from its last 30 s, so a sign-in followed by a restart was gone (measured, 2026-11-06). */
+  (async () => {
+    try {
+      const orphans = require('./tools/builtin/browser-orphans.js');
+      if (orphans.profileHeld(BROWSER_PROFILE_DIR).held) {
+        const receipt = await orphans.sweep({ profileDir: BROWSER_PROFILE_DIR });
+        if (receipt.found || receipt.error) console.log('[browser] boot: ' + orphans.describeSweep(receipt));
+      }
+    } catch (e) { failNote('browser.boot-close', e); }
+  })().then(() => procLedger.sweep()).then(s => {
     if (!s.examined) return;
     console.log('[proc-ledger] boot sweep: examined=' + s.examined + ' killed=' + s.killed + ' orphaned=' + s.orphaned + ' orphansKilled=' + s.orphansKilled
       + ' gone=' + s.gone + ' survived=' + s.survived + (s.survived ? ' (pids ' + s.survivors.map(x => x.pid).join(',') + ')' : '')
