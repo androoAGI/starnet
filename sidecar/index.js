@@ -455,7 +455,7 @@ const QuestRefresh = require('./questrefresh.js'); // QUEST V3: the standing 24h
 const { makeThreadsStore } = require('./threads-store.js');   // NS-6: durable THREAD LEDGER (ideas raised but never acted on)
 const SessionTombstones = require('./session-tombstones.js');   // the sidecar's own record of deleted sessions (qa/bugs/3e926b6a)
 const ForgetRegistry = require('./forget-registry.js');   // what a deleted session leaves behind: the run-title filter, write-time admit, the purge registry (turn identity commits 11 and 12)
-const { wireForgetRegistry } = require('./forget-wiring.js');   // which stores forget, and how
+const { wireForgetRegistry, namedElsewhere } = require('./forget-wiring.js');   // which stores forget, and how; what still names an upload
 const Recommendation = require('./recommendation-ledger.js');
 const RecommendationEval = require('./recommendation-eval.js');
 const { makeRecommendationLedger } = Recommendation; // one cross-surface recommendation/verdict lifecycle + shared utility ranker
@@ -3854,6 +3854,7 @@ wireForgetRegistry(forgetRegistry, {
   summaryLedger: () => summaryLedger,
   checkpoints: () => checkpointStore,
   noteCheckpointReset: agentIds => console.log('[session-tombstones] deleted sessions: the restore points of ' + agentIds.join(', ') + ' held an upload of a deleted session, so their older rollback points were reset to one baseline'),
+  noteAttachmentsKept: (count, why) => console.log('[session-tombstones] deleted sessions: kept ' + count + ' upload(s) the transcript cannot rule out (' + why + ')'),
   lineJobs: () => ({ forget: (bound, why) => {
     try { return LineJobs.forgetVia(lineJobsSet, bound, why, Date.now()); }
     // a store holding data the station cannot rewrite losslessly (a future version, a duplicate record) is preserved as it is by design: the purge says so and goes on
@@ -29741,8 +29742,43 @@ async function handleAttachmentUpload(req, res) {
   catch (e) { if (res.headersSent) return; return json(400, { ok: false, error: 'bad json' }); }
   const agent = String((body && body.agent) || 'agent');
   if (refuseBadAgentId(res, agent)) return;
-  // op:'delete' prunes an attachment the Commander removed from the composer before sending (no orphan bytes).
-  if (body && body.op === 'delete') { const d = await attachments.removeAttachment(agent, String((body && body.path) || '')); return json(d.ok ? 200 : 400, d); }
+  /* op:'delete' with `paths` and the session's id: the uploads of a session the Commander just deleted (frontend/app/chat.js forgetSession).
+     The page names only files no session it holds names, but it cannot see a packed session's rows (save v7), so the station removes only the
+     files nothing else names (forget-wiring.js namedElsewhere, the deleted session itself left out). A proof that cannot be made removes
+     nothing: the files stay (a pass of the forget registry removes the ones the deleted session's own transcript rows name). The session is
+     a stream id or a restored copy of one (sidecar/save-restore.js mints "<id>~restored" .. "<id>~restored20", and a copy of a copy when a
+     restored save already held one); the page posts at most 500 paths at a time, and a longer list is refused whole, never cut short. */
+  const proofNote = why => (kept, about) => failNote(why, new Error('kept ' + kept.length + ' upload(s): ' + about));
+  if (body && body.op === 'delete' && Array.isArray(body.paths)) {
+    const session = typeof body.streamId === 'string' ? body.streamId : '';
+    if (!/^[A-Za-z0-9_-]{1,64}(?:~restored\d{0,2}){0,8}$/.test(session)) return json(400, { ok: false, error: 'a session delete names its session' });
+    const paths = Array.from(new Set(body.paths.filter(p => typeof p === 'string' && p)));
+    if (paths.length > 500) return json(400, { ok: false, error: 'a session delete takes at most 500 paths a post' });
+    let named;
+    try { named = namedElsewhere({ store: transcriptStore, saveStore, paths, except: [session], onDoubt: proofNote('attachments.delete.doubt') }); }
+    catch (e) { failNote('attachments.delete.in-use', e); return json(200, { ok: true, removed: 0, kept: paths.length, proved: false }); }
+    let removed = 0;
+    for (const rel of paths) {
+      if (named.has(rel)) continue;
+      const d = await attachments.removeAttachment(agent, rel);
+      if (d && d.ok) removed++;
+    }
+    return json(200, { ok: true, removed, kept: named.size, proved: true });
+  }
+  /* op:'delete' with one `path` prunes an attachment the Commander removed from the composer before sending (no orphan bytes): a fresh
+     upload nothing names, so it goes. The same proof runs first, nothing left out, so a page built before the session delete took `paths`
+     (a tab left open across the update) can no longer remove a file a live session names; the registry's pass removes a deleted session's
+     own files once its delete lands. */
+  if (body && body.op === 'delete') {
+    const rel = String((body && body.path) || '');
+    if (rel.indexOf('.attachments/') !== 0) return json(400, { ok: false, error: 'not an attachment path' });
+    let named;
+    try { named = namedElsewhere({ store: transcriptStore, saveStore, paths: [rel], onDoubt: proofNote('attachments.delete.doubt') }); }
+    catch (e) { failNote('attachments.delete.in-use', e); return json(200, { ok: true, removed: false, kept: true, proved: false }); }
+    if (named.has(rel)) return json(200, { ok: true, removed: false, kept: true, proved: true });
+    const d = await attachments.removeAttachment(agent, rel);
+    return json(d.ok ? 200 : 400, d);
+  }
   const r = await attachments.saveAttachment(agent, String((body && body.name) || 'file'), body && body.dataUrl);
   if (r.ok) return json(200, r);
   if (r.code === 403) res.setHeader('X-StarNet-Code', 'path_refused');

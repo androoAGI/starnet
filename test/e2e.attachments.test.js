@@ -150,11 +150,19 @@ async function drain(res) { const rd = res.body.getReader(); const dec = new Tex
       A.ok(sent.every(r => (r.messages || []).every(m => !(m && Object.prototype.hasOwnProperty.call(m, 'attachments')))), 'no raw attachments key reaches the provider');
     } finally { fs.rmSync(proj, { recursive: true, force: true }); }
 
-    // 6. DELETE the attachment (composer remove-before-send) prunes the workspace file.
-    const del = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ op: 'delete', agent: 'e2e', path: ref.path }) });
+    // 6. DELETE an attachment removed from the composer before sending: a fresh upload nothing names, so the workspace file is pruned. A
+    // file a sent message names stays (the station proves a file unused before it removes it: forget-wiring.js namedElsewhere).
+    const fileAt = p => fetch(B + '/api/file?agent=e2e&path=' + encodeURIComponent(p), { headers: { 'X-StarNet-Token': token, Origin: B } });   // the master token rides the header, never the URL (2026-09-25)
+    const upDraft = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ agent: 'e2e', name: 'draft.png', dataUrl: 'data:image/png;base64,' + PNG_B64 }) });
+    const draft = await upDraft.json();
+    A.ok(draft.ok && draft.path && draft.path !== ref.path, 'a second upload is its own file: ' + JSON.stringify(draft));
+    const del = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ op: 'delete', agent: 'e2e', path: draft.path }) });
     A.eq(del.status, 200, 'POST /api/attachments {op:delete} -> 200');
-    const after = await fetch(B + '/api/file?agent=e2e&path=' + encodeURIComponent(ref.path), { headers: { 'X-StarNet-Token': token, Origin: B } });   // the master token rides the header, never the URL (2026-09-25)
-    A.eq(after.status, 404, 'the deleted attachment is gone (404)');
+    A.eq((await fileAt(draft.path)).status, 404, 'the deleted attachment is gone (404)');
+    const held = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ op: 'delete', agent: 'e2e', path: ref.path }) });
+    const heldBody = await held.json();
+    A.eq([held.status, heldBody.removed, heldBody.kept], [200, false, true], 'a one-file delete of a file a sent message names keeps it: ' + JSON.stringify(heldBody));
+    A.eq((await fileAt(ref.path)).status, 200, '...and it is still there (200)');
   } finally {
     await fixture.dispose();
     try { mock.server.close(); } catch (_) {}

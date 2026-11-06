@@ -62,6 +62,7 @@ test/image-unknown-cost-cap.e2e.test.js
 test/resolve-task.e2e.test.js
 test/e2e.workspace-lease.test.js
 test/e2e.attachments.test.js
+test/attachment-delete-in-use.http.test.js
 test/e2e.summon.test.js
 test/e2e.dispatch-session.test.js
 test/selftalk-transcript.http.test.js

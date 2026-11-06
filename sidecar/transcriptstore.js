@@ -20,7 +20,8 @@
      makeTranscriptStore({ io, clock, redact?, limit?, deletedAt?, latestDeleteAt? }) -> {   // deletedAt, latestDeleteAt: the deleted-session ledger (see below)
        append({ streamId, agentId, role, content }) -> entry,   // stamps ts, redacts content, appends, returns it
        history(streamId, { limit }?) -> entry[],   // CHRONOLOGICAL (oldest-first) for replay; last `limit` of that stream
-       all() -> entry[],   count() -> int
+       all() -> entry[],   count() -> int,   // all() is the RAM mirror: the newest rows only
+       eachRow(visit, { claims }?) -> { doubted, unread }   // every durable row once; a claim a damaged line or a missing segment may hold comes back doubted (throws TRANSCRIPT_UNVOUCHED only while the disk cannot be vouched for)
      } */
 'use strict';
 (function (root, factory) {
@@ -1025,6 +1026,28 @@
       if (!Array.isArray(found) || found.length !== durable) throw unvouched('durable row count changed during the read');
       return found.map(row => Object.assign({}, row));
     }
+    /* eachRow(visit, { claims }?) - EVERY DURABLE ROW ONCE, a deleted session's rows among them (the caller asks isForgotten), for the
+       one pass that must prove a fact about the whole history: forget-wiring.js attachment-files keeps an upload that any live row still
+       names, and the RAM mirror (all()) holds only the newest rows. The visitor reads each row and never keeps or changes it. Returns
+       { doubted, unread } from the io: the claims a damaged line or a segment gone for good may hold, which the caller keeps. Throws
+       TRANSCRIPT_UNVOUCHED when the io cannot walk the history at all: no whole-history reader, or a view it cannot vouch for now. A
+       visitor's own error is its caller's, never the history's: it propagates as itself. */
+    function eachRow(visit, o) {
+      if (typeof visit !== 'function') throw new Error('eachRow needs a visitor');
+      if (typeof io.eachRow !== 'function') throw unvouched('the whole-history reader is unavailable');
+      let own = null;
+      const guarded = row => { try { visit(row); } catch (error) { own = { error }; throw error; } };
+      let out;
+      try { out = io.eachRow(guarded, o && Array.isArray(o.claims) ? o.claims : []); }
+      catch (error) {
+        if (own) throw own.error;
+        if (error && error.code === 'TRANSCRIPT_UNVOUCHED') throw error;
+        failNote('transcript.eachRow', error);
+        throw unvouched((error && error.message) || 'the whole-history read failed');
+      }
+      const list = v => (Array.isArray(v) ? v.slice() : []);
+      return { doubted: list(out && out.doubted), unread: list(out && out.unread) };
+    }
     function projectionContext(list) {
       const context = viewContext(), ids = list.map(row => row.rowId).filter(id => Number.isSafeInteger(id) && id > 0);
       if (ids.length && typeof io.retractionsFor === 'function') {
@@ -1365,7 +1388,7 @@
 
     return {
       append, appendStrict, appendTurns, appendNew, appendNewStrict, markPersisted, markRecorded, history, reconstruct, taintOf, search, streams, around,
-      view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten, isQuoteForgotten: quoteForgotten, forgetVerdicts,
+      view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten, isQuoteForgotten: quoteForgotten, forgetVerdicts, eachRow,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
       _internals: { normStream, SID_RE }

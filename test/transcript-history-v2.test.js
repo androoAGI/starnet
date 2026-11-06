@@ -364,4 +364,56 @@ function ioAt(base, extra) {
     A.eq(recoverPendingDeliveries(Object.assign({ onFailure: e => { throw e; } }, deps)), 0, 'no pending delivery is left to recover');
   } finally { remove(dir); }
 }
+// eachRow (forget-wiring namedElsewhere): every durable row once, across segments and a restart. A claim the walk cannot rule out comes
+// back doubted (the caller keeps that file) instead of failing the walk: one a damaged line names (a torn or garbled row may be a live one),
+// or every claim when a listed segment is gone for good. A closed segment never changes, so a refusal would come back at every pass. A
+// segment that cannot be read at the moment fails the walk (the pass is retried), and a visitor's own error is its own.
+{
+  const dir = temp('history-eachrow');
+  try {
+    let io = ioAt(dir);
+    let store = makeTranscriptStore({ io, clock: { now: () => 1 } });
+    for (let i = 0; i < 30; i++) store.append({ streamId: 's' + (i % 3), role: 'user', content: 'row ' + i + ' ' + 'x'.repeat(40) });
+    A.ok(io.status().segments.length > 2, 'the rows span several segments');
+    io = ioAt(dir);
+    store = makeTranscriptStore({ io, clock: { now: () => 2 } });
+    const seen = [];
+    A.eq(store.eachRow(r => seen.push(r.content), { claims: ['.attachments/x.txt'] }), { doubted: [], unread: [] }, 'a whole, healthy history doubts nothing');
+    A.eq(seen.length, 30, 'eachRow visits every durable row after a restart, far past the per-stream RAM mirror');
+    A.eq(seen[0].slice(0, 6), 'row 0 ', 'oldest segment first');
+    let own = null;
+    try { store.eachRow(() => { throw new Error('a visitor bug'); }); } catch (e) { own = e; }
+    A.eq([own && own.message, own && own.code], ['a visitor bug', undefined], 'a visitor that throws propagates its own error, never an unvouched history');
+    const segPath = n => path.join(dir, 'history', 'segment-' + String(n).padStart(6, '0') + '.jsonl');
+    fs.appendFileSync(segPath(io.status().activeSegment), '{"streamId":"s1","attachments":[{"path":".attachments/a b.txt"\n');
+    io = ioAt(dir);
+    store = makeTranscriptStore({ io, clock: { now: () => 3 } });
+    let count = 0;
+    const torn = store.eachRow(() => { count++; }, { claims: ['.attachments/a b.txt', '.attachments/other.txt'] });
+    A.eq(torn, { doubted: ['.attachments/a b.txt'], unread: [] }, 'a damaged line doubts the claim it names, and only that one');
+    A.eq(count, 30, 'and every good row is still visited');
+    // a closed segment that cannot be read at the moment (locked, busy) fails the walk: the pass is retried, never settled on a guess
+    const closed = io.status().segments.map(s => s.number).filter(n => n !== io.status().activeSegment);
+    let busy = false;
+    const busyFs = Object.assign({}, fs, { readFileSync: (p, ...rest) => {
+      if (busy && closed.some(n => path.resolve(String(p)) === path.resolve(segPath(n)))) throw Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+      return fs.readFileSync(p, ...rest);
+    } });
+    io = ioAt(dir, { fs: busyFs });
+    store = makeTranscriptStore({ io, clock: { now: () => 4 } });
+    busy = true;
+    let locked = null;
+    try { store.eachRow(() => {}, { claims: ['.attachments/x.txt'] }); } catch (e) { locked = e; }
+    A.eq(locked && locked.code, 'TRANSCRIPT_UNVOUCHED', 'a segment that cannot be read at the moment fails the walk (' + (locked && locked.message) + ')');
+    busy = false;
+    // a closed segment gone for good: every claim is doubted, the segments still there are still walked, and the walk returns
+    fs.rmSync(segPath(closed[0]));
+    io = ioAt(dir);
+    store = makeTranscriptStore({ io, clock: { now: () => 5 } });
+    count = 0;
+    const gone = store.eachRow(() => { count++; }, { claims: ['.attachments/x.txt', '.attachments/y.txt'] });
+    A.eq(gone, { doubted: ['.attachments/x.txt', '.attachments/y.txt'], unread: [closed[0]] }, 'a missing segment doubts every claim and names itself');
+    A.ok(count > 0 && count < 30, 'the segments still there are still walked (' + count + ' rows)');
+  } finally { remove(dir); }
+}
 A.report('transcript-history-v2.test');

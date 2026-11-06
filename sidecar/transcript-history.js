@@ -1125,6 +1125,34 @@ function makeSegmentedTranscriptIo(opts) {
     for (const meta of manifest.segments) if (hasOwn(meta.streams, sid)) n += num(meta.streams[sid] && meta.streams[sid].count);
     return n;
   }
+  /* EVERY ROW ON DISK, ONCE (forget-wiring.js namedElsewhere: a deleted session's upload is removed only when no live row of any stream
+     still names it). visit(row) for every parsed row of every listed segment, oldest segment first. The row is the cached parse itself:
+     the visitor reads it and never keeps or changes it. Returns { doubted, unread }: the `claims` (strings, matched as a row's JSON writes
+     them) this walk cannot rule out, which the caller treats as named. A damaged line (a torn or garbled row may be a live one) doubts the
+     claims it names, and a listed segment that is gone for good (unread: its numbers) doubts every claim. Neither fails the walk: a closed
+     segment never changes, so a refusal would come back at every pass and no delete would settle again. Throws TRANSCRIPT_UNVOUCHED, and
+     the caller proves nothing, only while this view cannot vouch for the disk for now: boot degraded, the active segment changed outside
+     this process (both until a restart), or a segment that cannot be read at the moment (locked, busy). */
+  function eachRow(visit, claims) {
+    const refuse = message => Object.assign(new Error('transcript history cannot be vouched for: ' + message), { code: 'TRANSCRIPT_UNVOUCHED' });
+    if (degraded || unvouched) throw refuse(degraded ? 'initialization degraded' : 'the active segment changed outside this process');
+    const asked = Array.from(new Set((Array.isArray(claims) ? claims : []).filter(c => typeof c === 'string' && c)));
+    const written = asked.map(c => [c, JSON.stringify(c).slice(1, -1)]);
+    const doubted = new Set(), unread = [];
+    for (const meta of manifest.segments.slice()) {
+      let seg;
+      try { seg = segmentRows(meta.number, false).seg; }
+      catch (e) {
+        if (!(e && (e.code === 'ENOENT' || e.code === 'ENOTDIR'))) throw refuse('segment ' + meta.number + ' cannot be read now: ' + ((e && (e.code || e.message)) || e));
+        unread.push(meta.number);
+        for (const c of asked) doubted.add(c);
+        continue;
+      }
+      for (const line of seg.bad) for (const [c, w] of written) if (!doubted.has(c) && line.includes(w)) doubted.add(c);
+      for (const row of seg.rows) visit(row);
+    }
+    return { doubted: Array.from(doubted), unread };
+  }
   function readById(rowId) {
     const id = num(rowId);
     if (!id) return null;
@@ -1262,6 +1290,7 @@ function makeSegmentedTranscriptIo(opts) {
     search,
     streams,
     streamRows,
+    eachRow,
     around,
     readById,
     readByIds,
@@ -1324,6 +1353,8 @@ function makeMemoryTranscriptIo(opts) {   // opts: { clock } (see above)
     retractionsFor(rowIds) { return this.readByIds(rowIds); },
     isCollided(rowId) { return (idCounts.get(rowId) || 0) > 1; },
     streamRows(streamId) { const sid = str(streamId); let n = 0; for (const r of stored) if (r.streamId === sid) n++; return n; },
+    // every stored row once, as the segmented io's eachRow (a copy here; nothing in memory is damaged or unreadable, so nothing is doubted)
+    eachRow(visit) { for (const row of stored) visit(publicRow(row)); return { doubted: [], unread: [] }; },
     // the cursor read of the segmented io (see pageAfter above), over the same rows: oldest first, past the cursor
     pageAfter(streamId, afterRowId, options) {
       const sid = str(streamId), after = Math.max(0, Math.floor(num(afterRowId))), limit = Math.max(1, Math.floor(num(options && options.limit)) || 400);

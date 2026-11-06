@@ -59,6 +59,9 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       runForgotten: runId => scope.runIds.has(runId), note: noise });
     const deps = { now: () => clock, notebookStore: () => null, threadsStore: () => null, memoryAgentIds: () => [], personalization: () => ({ markForgotten: async () => {} }) };
     const hold = {};   // each section adds the dep its entry reads
+    // the station save the attachment proof reads: by default a new station (no save, no kept copy of one), which holds no page-only copy
+    const newStation = () => ({ loadState: () => ({ status: 'absent' }), hasRecoveryCopy: () => false });
+    hold.saveStore = newStation;
     wireForgetRegistry(registry, new Proxy(deps, { get: (target, key) => (key in target ? target[key] : hold[key]) }));
     registry.seal();
     const forget = async name => registry.entry(name).forget(scope);
@@ -491,6 +494,113 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.eq(await forget('attachment-files'), 1, 'the file only the deleted session\'s steer named is removed');
         A.ok(!exists(steered) && exists(kept), 'a deleted session\'s mid-run file goes; a live session\'s own stays');
         A.eq(await forget('attachment-files'), 0, 'idempotent');
+      } finally { remove(adir); }
+    }
+
+    // ---------------- attachment files a live chat still names outside the RAM mirror, or only in the page's save ----------------
+    /* The in-use proof reads every durable row (store.eachRow), not only the newest rows the RAM mirror holds, and the sessions of the page's
+       own save: a /branch copy's turns live only there in this release (shadow mode never writes them to the transcript). A file either one
+       names stays; the deleted session's own file goes. When the proof cannot be made, nothing is removed and the pass fails (retried at boot). */
+    {
+      const adir = temp('attach-live');
+      try {
+        const fsp = fs.promises;
+        const att = makeAttachments({ fsp, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const upload = name => att.saveAttachment('agent', name, 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64'));
+        const old = await upload('old.txt'), branched = await upload('branched.txt'), own = await upload('own.txt');
+        const exists = ref => fs.existsSync(path.join(adir, 'agent', ref.path));
+        const io = History.makeMemoryTranscriptIo();
+        const store = Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, ramMax: 4, ramPerStream: 3, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        let n = 0;
+        const say = (streamId, words, files, ts) => store.appendStrict({ sourceRunId: 'run_live_' + (++n), streamId, agentId: 'agent', role: 'user', content: words, ts, taint: null, directive: true, kind: 'turn', attachments: files });
+        say('sKeep', 'the old file, said long ago', [old], 3000);
+        for (let i = 0; i < 6; i++) say('sKeep', 'later words ' + i, [], 3100 + i);   // the old row leaves the RAM mirror
+        say('sGone', 'the file the branch copied', [branched], 3800);
+        say('sGone', 'the old file again, and my own', [old, own], 3950);
+        const names = (rows, f) => rows.some(r => r.streamId === 'sKeep' && (r.attachments || []).some(a => a.path === f.path));
+        A.ok(!names(store.all(), old), 'the live chat\'s row naming the old file is outside the RAM mirror');
+        const durable = [];
+        store.eachRow(r => durable.push(r));
+        A.ok(names(durable, old) && durable.length === 9, 'the row is durable, and eachRow hands over every durable row');
+        // the page's save: sBranch is a /branch copy of sGone's first turn (the page's alone); sGone itself is still listed in a stale save
+        const doc = { workstreams: [
+          { id: 'sBranch', agentId: 'agent', history: [{ role: 'user', content: 'the file the branch copied', ts: 3800, attachments: [branched] }] },
+          { id: 'sGone', agentId: 'agent', history: [{ role: 'user', content: 'the old file again, and my own', ts: 3950, attachments: [old, own] }] }
+        ] };
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        hold.saveStore = () => ({ loadState: agentId => (agentId === 'agent' ? { status: 'ok', doc } : { status: 'absent' }) });
+        A.eq(await forget('attachment-files'), 1, 'only the deleted session\'s own file is removed');
+        A.ok(exists(old), 'a file a live chat named long ago (outside the RAM mirror) stays');
+        A.ok(exists(branched), 'a file a /branch copy names only in the page\'s save stays');
+        A.ok(!exists(own), 'the deleted session\'s own file goes, though a stale save still lists the deleted session');
+        A.eq(await forget('attachment-files'), 0, 'idempotent');
+        // the proof cannot be made: nothing is removed and the pass fails, so the delete is retried at the next boot
+        const late = await upload('late.txt');
+        say('sGone', 'one more file', [late], 4100);
+        hold.saveStore = () => ({ loadState: () => ({ status: 'corrupt' }) });
+        let failed = null;
+        try { await forget('attachment-files'); } catch (e) { failed = e; }
+        A.ok(failed && /station save could not be read/.test(failed.message) && exists(late), 'an unreadable save keeps the file and fails the pass, never a guess');
+        hold.saveStore = () => ({ loadState: () => ({ status: 'ok', doc }) });
+        const blindIo = Object.assign({}, io);
+        delete blindIo.eachRow;   // an io with no whole-history reader
+        hold.transcriptStore = () => Store.makeTranscriptStore({ io: blindIo, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        failed = null;
+        try { await forget('attachment-files'); } catch (e) { failed = e; }
+        A.ok(failed && failed.code === 'TRANSCRIPT_UNVOUCHED' && exists(late), 'a transcript that cannot hand over every row keeps the file and fails the pass');
+        hold.transcriptStore = () => store;
+        A.eq(await forget('attachment-files'), 1, 'once the proof can be made, the retried pass removes the file');
+        A.ok(!exists(late) && exists(old) && exists(branched), 'and only that file');
+        // a file the transcript cannot rule out (a damaged line may name it, or a segment is gone for good) is kept, and the pass settles
+        // instead of failing at every boot: a closed segment never changes, so a refusal would come back at every pass
+        const torn = await upload('torn.txt'), mine = await upload('mine.txt');
+        say('sGone', 'two more files', [torn, mine], 4200);
+        const kept = [];
+        hold.noteAttachmentsKept = (count, why) => kept.push([count, why]);
+        const doubtIo = Object.assign({}, io, { eachRow: (visit, claims) => { io.eachRow(visit, claims); return { doubted: (claims || []).filter(c => c === torn.path), unread: [] }; } });
+        hold.transcriptStore = () => Store.makeTranscriptStore({ io: doubtIo, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        A.eq(await forget('attachment-files'), 1, 'the pass settles and removes what nothing may name');
+        A.ok(exists(torn) && !exists(mine) && exists(old) && exists(branched), 'it keeps the file a damaged line may name, and the shared ones');
+        A.eq(kept, [[1, 'a damaged transcript line may name them']], 'the station log says how many it kept and why');
+        hold.transcriptStore = () => store;
+        hold.noteAttachmentsKept = undefined;
+        // a pass whose deleted sessions named no file reads nothing more, so a blind store cannot fail it
+        const quiet = History.makeMemoryTranscriptIo();
+        const quietStore = Store.makeTranscriptStore({ io: quiet, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        quietStore.appendStrict({ sourceRunId: 'run_quiet', streamId: 'sGone', agentId: 'agent', role: 'user', content: 'no files here', ts: 4000, taint: null, directive: true, kind: 'turn' });
+        delete quiet.eachRow;
+        hold.transcriptStore = () => quietStore;
+        hold.saveStore = () => ({ loadState: () => ({ status: 'corrupt' }) });
+        A.eq(await forget('attachment-files'), 0, 'a deleted session that named no file needs no whole-history read and no save');
+        hold.saveStore = newStation;
+        // the proof itself (also the page's own delete, POST /api/attachments with paths): a packed run's residue names files, and `except`
+        // leaves out a session whose delete has not reached the ledger yet
+        const { namedElsewhere } = require('../sidecar/forget-wiring.js');
+        const packedDoc = { workstreams: [
+          { id: 'sPacked', history: [{ $ref: '1,1', res: { 1: { attachments: [{ path: '.attachments/packed.txt' }] } } }, { role: 'user', content: 'x', attachments: [{ path: '.attachments/inline.txt' }] }] },
+          { id: 'sLeaving', history: [{ role: 'user', content: 'y', attachments: [{ path: '.attachments/leaving.txt' }] }] }
+        ] };
+        const emptyStore = Store.makeTranscriptStore({ io: History.makeMemoryTranscriptIo(), clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        const named = namedElsewhere({ store: emptyStore, saveStore: { loadState: () => ({ status: 'ok', doc: packedDoc }) },
+          paths: ['.attachments/packed.txt', '.attachments/inline.txt', '.attachments/leaving.txt', '.attachments/none.txt'], except: ['sLeaving'] });
+        A.eq(Array.from(named).sort(), ['.attachments/inline.txt', '.attachments/packed.txt'], 'a packed run\'s residue and an inline message name their files; an excepted session and nothing name none');
+        // the save's own answers: 'recovered' (the station's authoritative copy) is read like 'ok'; 'absent' is a new station only while no
+        // copy of a save sits beside it (a quarantined save the page has not written over yet may hold a /branch copy); no save store proves nothing
+        const ask = saveStore => namedElsewhere({ store: emptyStore, saveStore, paths: ['.attachments/packed.txt', '.attachments/none.txt'] });
+        const code = fn => { try { fn(); return 'none'; } catch (e) { return e && e.code; } };
+        A.eq(Array.from(ask({ loadState: () => ({ status: 'recovered', doc: packedDoc }), hasRecoveryCopy: () => true })), ['.attachments/packed.txt'], 'a recovered save is read like a clean one');
+        A.eq(code(() => ask({ loadState: () => ({ status: 'absent' }), hasRecoveryCopy: () => true })), 'FORGET_UNPROVEN', 'an absent save beside a kept copy proves nothing until the page writes again');
+        A.eq(code(() => ask({ loadState: () => ({ status: 'absent' }) })), 'FORGET_UNPROVEN', 'a store that cannot say whether a copy is kept proves nothing either');
+        A.eq(ask({ loadState: () => ({ status: 'absent' }), hasRecoveryCopy: () => false }).size, 0, 'a new station, with no save and no copy, holds no page-only copy');
+        A.eq(code(() => ask(null)), 'FORGET_UNPROVEN', 'no save store at all proves nothing');
+        // a claim the transcript walk doubts counts as named, the caller hears which and why, and the other claims are still proved
+        const heard = [];
+        const doubtingIo = Object.assign(History.makeMemoryTranscriptIo(), { eachRow: (visit, claims) => ({ doubted: (claims || []).filter(c => c === '.attachments/torn.txt'), unread: [] }) });
+        const doubtingStore = Store.makeTranscriptStore({ io: doubtingIo, clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        const doubtedNames = namedElsewhere({ store: doubtingStore, saveStore: newStation(), paths: ['.attachments/torn.txt', '.attachments/free.txt'], onDoubt: (paths, why) => heard.push([paths, why]) });
+        A.eq(Array.from(doubtedNames), ['.attachments/torn.txt'], 'a doubted claim is named; the others are not');
+        A.eq(heard, [[['.attachments/torn.txt'], 'a damaged transcript line may name them']], 'and the caller hears which and why');
       } finally { remove(adir); }
     }
 

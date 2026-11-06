@@ -36,6 +36,68 @@ const stampSource = r => ({ quotes: r && r.quotes, quotesAt: r && r.quotesAt, qu
 const settle = persist => { persist(); persist(); };
 const latestStamp = scope => { let l = 0; for (const w of (scope.streams || scope.at || new Map()).values()) if (w > l) l = w; return l; };
 
+/* WHAT NAMES AN UPLOAD (a file under the agent workspace's .attachments/). A directive row's attachments[]; a row of kind 'attachment' of
+   its own (attachment-rows: r.attachment = { id, name, mime, path }); a steer row's held wire (auto-steer: a message sent mid-run names its
+   files only inside steeringWire, never in attachments[]). A page message names its files the same ways. */
+const wiredOf = r => { const m = r && typeof r.steeringWire === 'string' ? SteeringMessage.decode(r.steeringWire) : null; return (m && m.attachments) || []; };
+const refsOf = r => (r && Array.isArray(r.attachments) ? r.attachments : []).concat(r && r.kind === 'attachment' && r.attachment ? [r.attachment] : [], wiredOf(r));
+
+/* namedElsewhere({ store, saveStore, paths, except?, onDoubt? }) -> Set: the paths of `paths` that something live still names, or may.
+   Three callers: the attachment-files entry below (a deleted session's uploads), the page's own delete of a deleted session's uploads
+   (index.js POST /api/attachments with `paths` and the session's id), which cannot see a packed session's rows (save v7), and the
+   composer's one-file delete. Live is:
+     - a row of a live session anywhere in the transcript: every durable row (store.eachRow), not only the newest rows the RAM mirror
+       holds, and the RAM mirror itself (a fail-open write can sit there alone). A path the walk cannot rule out (a damaged line names it,
+       or a segment is gone for good) counts as named and onDoubt(paths, why) hears it: that file stays, and the rest are still proved;
+     - a message of a session in the page's own save, a packed run's residue included: a /branch copy is the page's alone in this release
+       (its copied turns are never written to the transcript), so a file it shares with the deleted session is named only there.
+   A deleted session's rows and messages from before its delete name nothing (store.isForgotten), and neither does anything of a stream in
+   `except` (a session whose delete has not reached the ledger yet). Throws, so the caller removes nothing, while that cannot be proved:
+   the transcript cannot be walked now, or the save cannot be read (unreadable, corrupt, quarantined and not yet written again, or no save
+   store at all). Not seen (a known gap): a /branch copy that so far lives only in another window's memory, not yet pushed to the station. */
+function namedElsewhere(o) {
+  const store = o.store, named = new Set();
+  const wanted = new Set((Array.isArray(o.paths) ? o.paths : []).filter(p => typeof p === 'string' && p));
+  const except = new Set((Array.isArray(o.except) ? o.except : []).filter(s => typeof s === 'string' && s));
+  const unnamed = () => Array.from(wanted).filter(p => !named.has(p));
+  const note = r => { for (const a of refsOf(r)) if (a && typeof a.path === 'string' && wanted.has(a.path)) named.add(a.path); };
+  const live = r => !!r && !except.has(r.streamId) && !store.isForgotten(r);
+  const unproven = why => Object.assign(new Error(why + ', so no upload is proved unused'), { code: 'FORGET_UNPROVEN' });
+  if (!wanted.size) return named;
+  for (const r of store.all()) if (live(r)) note(r);
+  if (unnamed().length) {
+    const walk = store.eachRow(r => { if (live(r)) note(r); }, { claims: unnamed() });
+    const doubted = (walk && Array.isArray(walk.doubted) ? walk.doubted : []).filter(p => wanted.has(p) && !named.has(p));
+    for (const p of doubted) named.add(p);
+    if (doubted.length && typeof o.onDoubt === 'function') o.onDoubt(doubted, walk.unread && walk.unread.length ? 'transcript segment ' + walk.unread.join(', ') + ' is gone' : 'a damaged transcript line may name them');
+  }
+  if (!unnamed().length) return named;
+  if (!o.saveStore) throw unproven('the station save is not wired');
+  const saved = o.saveStore.loadState('agent');
+  if (saved && saved.status === 'absent') {
+    // no save at all is a new station, which holds no page-only copy, unless a copy of a save sits beside it (a quarantined or lost primary
+    // the page has not written again yet): that copy may hold a /branch copy, so nothing is proved until the page writes
+    let kept = true;
+    try { kept = typeof o.saveStore.hasRecoveryCopy === 'function' ? o.saveStore.hasRecoveryCopy('agent') !== false : true; } catch (_) { kept = true; }
+    if (!kept) return named;
+    throw unproven('the station save is missing beside a kept copy of it');
+  }
+  // 'recovered': the primary was bad and its clean .bak is the station's authoritative copy (the boot reads it the same way)
+  if (!saved || (saved.status !== 'ok' && saved.status !== 'recovered') || !saved.doc || typeof saved.doc !== 'object') {
+    throw unproven('the station save could not be read (' + ((saved && saved.status) || 'no answer') + ')');
+  }
+  for (const w of (Array.isArray(saved.doc.workstreams) ? saved.doc.workstreams : [])) {
+    if (!w || typeof w !== 'object' || typeof w.id !== 'string' || except.has(w.id) || !Array.isArray(w.history)) continue;
+    for (const el of w.history) {
+      if (!el || typeof el !== 'object') continue;
+      // a packed run (save v7, historyref.js) keeps each row's page-only fields as residue: res = { <index>: fields }
+      const messages = typeof el.$ref === 'string' ? (el.res && typeof el.res === 'object' ? Object.values(el.res) : []) : [el];
+      for (const m of messages) if (m && typeof m === 'object' && !store.isForgotten({ streamId: w.id, ts: num(m.ts) })) note(m);
+    }
+  }
+  return named;
+}
+
 /* THE CENSUS TABLE. Every durable store the sidecar writes - each saveResilient(<NAME>_FILE), each makeDurableJsonStore / makeDomainStore
    (named by its const in index.js, by its file elsewhere) and each memory-store key prefix - is a row here: it is purged by a registered entry,
    or kept ON PURPOSE with the reason. test/forget-registry.census.test.js scans the whole sidecar for those stores and fails on one that has no
@@ -386,27 +448,31 @@ function wireForgetRegistry(registry, deps) {
     forget: scope => d.subagents().forget(r => inScope({ streamIds: [r.parentStreamId, r.streamId], runIds: [r.runId, r.parentRunId], at: num(r.startedAt || r.updatedAt) }, scope))
   });
 
-  /* attachment files: the bytes the agent's file tools can read under its workspace's .attachments/. A deleted session's directive rows name
-     them (attachments[].path, read through the PROOF view, which still sees forgotten rows). Each ref no row of a live stream also names is
-     removed through the attachments module's own removeAttachment; a file a branch copy or a re-send shares with a live session stays. Refs on
-     pre-upgrade rows exist only in the page's own save - the page's delete posts those (commit 16). */
+  /* attachment files: the bytes the agent's file tools can read under its workspace's .attachments/. A deleted session's rows name them
+     (refsOf, read through the PROOF view, which still sees forgotten rows). A named file is removed, through the attachments module's own
+     removeAttachment, only when nothing live still names it (namedElsewhere above: every durable row of a live session, the RAM mirror, and
+     every session of the page's own save, where a /branch copy lives), so a re-send or a branch keeps the file it shares. A file the
+     transcript cannot rule out (a damaged line may name it, or a segment is gone for good) is kept, and the pass goes on and settles. While
+     the proof cannot be made at all (the transcript cannot be walked now, the save cannot be read), the pass fails and keeps every file;
+     the delete is retried at the next boot or delete. Refs on pre-upgrade rows exist only in the page's own save - the page's delete posts
+     those (commit 16). */
   entry({
     name: 'attachment-files',
     sourceOf: ref => ({ streamIds: [ref && ref.streamId], at: num(ref && ref.ts) }),
     forget: async scope => {
       const store = d.transcriptStore();
-      // a file is named by a directive row's attachments[], by a row of kind 'attachment' of its own (attachment-rows: r.attachment = { id, name, mime, path }), or by a steer row's wire (below)
-      // a third way (auto-steer): a message sent mid-run names its files only inside the steer row's held wire (steeringWire), never in attachments[]
-      const wiredOf = r => { const m = r && typeof r.steeringWire === 'string' ? SteeringMessage.decode(r.steeringWire) : null; return m ? m.attachments : []; };
-      const refsOf = r => (Array.isArray(r.attachments) ? r.attachments : []).concat(r && r.kind === 'attachment' && r.attachment ? [r.attachment] : [], wiredOf(r));
-      const live = new Set();
-      for (const r of store.all()) for (const a of refsOf(r)) if (a && a.path) live.add(a.path);   // all() is the store's NON-forgotten rows; a branch or re-send naming the file only through an attachment row keeps it
       const doomed = new Map();   // path -> agentId
       for (const [streamId, stamp] of (scope.streams || scope.at || new Map())) {
         for (const r of store.view('proof', streamId, { complete: true })) {
           if (num(r.ts) > stamp) continue;
-          for (const a of refsOf(r)) if (a && typeof a.path === 'string' && !live.has(a.path)) doomed.set(a.path, r.agentId || 'agent');
+          for (const a of refsOf(r)) if (a && typeof a.path === 'string') doomed.set(a.path, r.agentId || 'agent');
         }
+      }
+      // the reads run only when the deleted sessions named a file at all
+      if (doomed.size) {
+        const saveStore = typeof d.saveStore === 'function' ? d.saveStore() : null;
+        const onDoubt = (kept, why) => { if (typeof d.noteAttachmentsKept === 'function') d.noteAttachmentsKept(kept.length, why); };
+        for (const p of namedElsewhere({ store, saveStore, paths: Array.from(doomed.keys()), onDoubt })) doomed.delete(p);
       }
       let removed = 0;
       const byAgent = new Map();   // agentId -> its doomed paths, whether this pass or an earlier one removed the file
@@ -514,4 +580,4 @@ function wireForgetRegistry(registry, deps) {
   return registry;
 }
 
-module.exports = { wireForgetRegistry, STORES, UNKEYED_ENTRIES, UNKEYED_EXEMPTIONS };
+module.exports = { wireForgetRegistry, namedElsewhere, STORES, UNKEYED_ENTRIES, UNKEYED_EXEMPTIONS };

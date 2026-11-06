@@ -1800,7 +1800,9 @@ const Chat = (() => {
      The station forgets what it holds; this drops what only this page holds: the run records (RUN_META, which carries the directive text), the
      SEND NOW lines kept for it (memory, the in-flight asks and the browser's disk copy), and the uploaded files its messages named that no other
      session names - posted to the station's own delete (the sidecar entry covers the rows it knows; refs on messages from before the transcript
-     ledger exist only in this page's save). Best-effort and idempotent: a failed delete is retried by nothing, the sidecar's purge pass is the net. */
+     ledger exist only in this page's save). One post per agent names the session: the page cannot see a packed session's rows (save v7), so the
+     station removes only the files nothing else names (sidecar/forget-wiring.js namedElsewhere). Best-effort and idempotent: a failed delete is
+     retried by nothing, the sidecar's purge pass is the net. */
   function forgetSession(streamId, opts) {
     const id = String(streamId || ''), o = opts || {};
     if (!id) return { runs: 0, lines: 0, files: 0 };
@@ -1814,10 +1816,17 @@ const Chat = (() => {
       sentNowDisk(all => { if (all && Object.prototype.hasOwnProperty.call(all, id)) { lines = Math.max(lines, (all[id] || []).length); delete all[id]; } });
     } catch (_) {}
     try {
+      const byAgent = new Map();
       for (const f of (Array.isArray(o.files) ? o.files : [])) {
         if (!f || !f.path) continue;
         files++;
-        Harness.api.post('/api/attachments', { op: 'delete', agent: f.agent || 'agent', path: f.path }).catch(() => {});
+        const agent = f.agent || 'agent';
+        if (!byAgent.has(agent)) byAgent.set(agent, []);
+        byAgent.get(agent).push(f.path);
+      }
+      // the station takes up to 500 paths a post, so a session with more uploads goes in parts
+      for (const [agent, paths] of byAgent) {
+        for (let i = 0; i < paths.length; i += 500) Harness.api.post('/api/attachments', { op: 'delete', agent, paths: paths.slice(i, i + 500), streamId: id }).catch(() => {});
       }
     } catch (_) {}
     return { runs, lines, files };
