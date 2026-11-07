@@ -91,6 +91,18 @@ const { spawnSync } = require('node:child_process');
     A.eq(same(C.adoptStationSchemaV2(v1, v2), v2), true, 'station schema 1 -> 2 with an empty links list is the expected migration');
     A.eq(same(C.adoptStationSchemaV2(v1, { local: { station: { version: 2, props: [], links: [] } } }), { local: { station: { version: 2, props: [], links: [] } } }), false, 'a station that lost a prop still fails');
     A.eq(same(C.adoptStationSchemaV2(v1, { local: { station: { version: 2, props: [{ id: 'd' }], links: [{ from: 'a', to: 'b' }] } } }), { local: { station: { version: 2, props: [{ id: 'd' }], links: [{ from: 'a', to: 'b' }] } } }), false, 'invented links still fail');
+    // the save schema 6 -> 7 step: the version, and the legacy mark on a kept row, and nothing else
+    const row = { role: 'user', content: 'keep me' };
+    const s6 = { local: { version: 6, workstreams: [{ id: 'w', history: [row] }] } };
+    const s7 = (rows, version) => ({ local: { version: version || 7, workstreams: [{ id: 'w', history: rows }] } });
+    const marked = { ...row, legacy: true };
+    A.eq(same(C.adoptSaveV7(s6, s7([marked])), s7([marked])), true, 'save 6 -> 7 with the legacy mark on a kept row is the expected migration');
+    A.eq(same(C.adoptSaveV7(s6, s7([row])), s7([row])), true, 'save 6 -> 7 with an unmarked row is expected too');
+    const changed = { role: 'user', content: 'changed', legacy: true };
+    A.eq(same(C.adoptSaveV7(s6, s7([changed])), s7([changed])), false, 'a row whose text changed across 6 -> 7 still fails');
+    A.eq(same(C.adoptSaveV7(s6, s7([])), s7([])), false, 'a row lost across 6 -> 7 still fails');
+    A.eq(same(C.adoptSaveV7(s6, s7([marked, marked])), s7([marked, marked])), false, 'a row gained across 6 -> 7 still fails');
+    A.eq(same(C.adoptSaveV7(s6, s7([marked], 8)), s7([marked], 8)), false, 'a version step other than 6 -> 7 is not this migration');
     const suits = /const SUITS = (\[[^\]]+\])/.exec(fs.readFileSync(path.join(__dirname, '../frontend/app/app.js'), 'utf8'));
     A.ok(suits, 'app.js still declares the crew SUITS palette');
     A.eq(suits ? JSON.parse(suits[1].replace(/'/g, '"')) : null, C.CREW_SUITS.slice(), 'verifier palette matches the app crew SUITS');

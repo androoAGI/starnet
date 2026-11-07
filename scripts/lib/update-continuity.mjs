@@ -62,6 +62,27 @@ export function adoptStationSchemaV2(before, after) {
   return out;
 }
 
+// The save's schema 6 -> 7 step (0.15, frontend/app/save.js CURRENT): the version number moves to 7, and a kept history row
+// that no turn identity binds yet is marked legacy (frontend/app/turnmerge.js). A copy of `before` that takes exactly that
+// step, row by row: a row whose text or any other field changed, or a row lost or gained, still fails the comparison.
+export function adoptSaveV7(before, after) {
+  const out = structuredClone(before);
+  for (const key of ['local', 'durable']) {
+    const prior = out && out[key], next = after && after[key];
+    if (!prior || !next || prior.version !== 6 || next.version !== 7) continue;
+    prior.version = 7;
+    for (const stream of Array.isArray(prior.workstreams) ? prior.workstreams : []) {
+      const match = stream && Array.isArray(next.workstreams) && next.workstreams.find(candidate => candidate && candidate.id === stream.id);
+      if (!match || !Array.isArray(stream.history) || !Array.isArray(match.history)) continue;
+      stream.history.forEach((row, i) => {
+        const seen = match.history[i];
+        if (row && seen && seen.legacy === true && row.legacy === undefined) row.legacy = true;
+      });
+    }
+  }
+  return out;
+}
+
 export function stableJson(value) {
   if (Array.isArray(value)) return '[' + value.map(stableJson).join(',') + ']';
   if (value && typeof value === 'object') {
