@@ -155,8 +155,11 @@ try {
 
   // ---- ⛔ a run the Commander is NOT watching (a direct /api/run: a routine, a phone turn) moves nothing ----
   await evalJS(cdp, `(() => { document.querySelectorAll('.term .term-x, .term [aria-label^="Close"]').forEach(b => { try { b.click(); } catch (_) {} }); return true; })()`);
-  await sleep(800);
+  // a window's close is not instant (a fixed 800 ms lost that race on a CI run), so SETTINGS has to be gone before "none appeared" can mean anything
+  const settingsOpen = async () => ((await evalJS(cdp, SCREEN)) || []).some(w => /^SETTINGS/.test(w.title));
+  for (let i = 0; i < 100 && await settingsOpen(); i++) await sleep(100);
   const cleared = ((await evalJS(cdp, SCREEN)) || []).length;
+  check('premise: the earlier SETTINGS window has closed', !(await settingsOpen()), cleared + ' windows left');
   mock.results = []; mock.phase = MARK + '-UNWATCHED';
   mock.script = [{ name: 'tool_search', args: { query: 'open a window to show the Commander' } }, { name: 'station_show', args: { place: 'settings' } }];
   const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: base };
