@@ -4,7 +4,7 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**31** open (open+claimed) of 457 total — 0 P0 · 0 P1 · 31 P2
+**31** open (open+claimed) of 461 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
@@ -286,6 +286,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P1 | fixed | safecell | [The Projects rail's ADD doorway records a NON-canonical path grant, so blessing a folder reached through a junction/symlink reports success and grants nothing](bugs/cf0cd4cd-the-projects-rail-s-add-doorway-records-a-non-ca.md) | sweep/safecell | 226cec3c |
 | P1 | fixed | safecell | [Token overlap attests inverted memory as owner instruction](bugs/ecd03ee7-token-overlap-attests-inverted-memory-as-owner-i.md) | agent/provider-triage-1011 | 05618ec62 |
 | P1 | fixed | safecell | [Windows shell quoting and executable spellings bypass the desktop guard](bugs/ed2cd4c0-windows-shell-quoting-and-executable-spellings-b.md) | agent/shell-guard-repair-1103 | a21bc3e84997c8ccffb83910bd909199ab908f34 |
+| P1 | fixed | sessions | [A damaged transcript line among a deleted chat's rows stopped the upload pass from settling](bugs/907bc357-a-damaged-transcript-line-among-a-deleted-chat-s.md) | release-0150 | b53565c2987ee82a773f3ccac4ceb28a0c38b952 |
 | P1 | fixed | sessions | [A deleted session keeps reaching the model: its words ride every later run's RECENT ACTIVITY and recall_conversation returns it](bugs/3e926b6a-a-deleted-session-keeps-reaching-the-model-its-w.md) | sweep/sessions | 5314b6c25 |
 | P1 | fixed | sessions | [A locked deliverables library reads as empty for the whole session, and its torn-journal copy keeps only the last incident](bugs/06a5fb9e-a-locked-deliverables-library-reads-as-empty-for.md) | agent/persist-module-1103 | d05241c24 |
 | P1 | fixed | sessions | [A locked run journal is moved aside as corrupt, so its run drops out of the run list](bugs/c836f3f7-a-locked-run-journal-is-moved-aside-as-corrupt-s.md) | agent/persist-module-1103 | d05241c24 |
@@ -466,6 +467,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P2 | fixed | providers | [The ledger's `unmetered` flag is a stamped verdict with zero readers — every ledger USD aggregate (/api/budget, day/global caps) counts subscription dollars tha](bugs/4007eb1f-the-ledger-s-unmetered-flag-is-a-stamped-verdict.md) | sweep/providers | fdbb12a2 |
 | P2 | fixed | release | [A checkout's /api/version reports pkg when git describe is slow](bugs/78b4b3c5-a-checkout-s-api-version-reports-pkg-when-git-de.md) | agent/version-describe-1031 | 99d31510e 4ce9d200b f884cced3 c7c5a99f1 52e94d6cb fa2df07a7 |
 | P2 | fixed | release | [A refused update download shows the bare minisign/reqwest error text and never says nothing was installed](bugs/5a215a68-a-refused-update-download-shows-the-bare-minisig.md) | sweep/release | eeb5cf20f |
+| P2 | fixed | release | [A short-lived process on the old engine's recycled PID gave a false WORKSPACE_BUSY at start](bugs/b295999b-a-short-lived-process-on-the-old-engine-s-recycl.md) | release-0150 | b53565c2987ee82a773f3ccac4ceb28a0c38b952 |
 | P2 | fixed | release | [Browser probe request timers survive completed requests](bugs/4a518eb8-browser-probe-request-timers-survive-completed-r.md) | reliability-audit-0919 | 9cdfc0ba5 |
 | P2 | fixed | release | [Desktop bundles include development-only native dependencies](bugs/037ec5d2-desktop-bundles-include-development-only-native.md) | reliability-audit-0919 | a711f6ea2 |
 | P2 | fixed | release | [Desktop overlay version disagrees with sidecar diagnostics](bugs/65587128-desktop-overlay-version-disagrees-with-sidecar-d.md) | agent/release-0112-audit-0910 | bed625bdd |
@@ -497,6 +499,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P2 | fixed | sessions | [A project forgotten under its open home polls a 404 forever while saying reconnecting](bugs/82537ce6-a-project-forgotten-under-its-open-home-polls-a.md) | sweep/sessions | 121374d64 |
 | P2 | fixed | sessions | [A task whose run was stopped reads FINISHED - RESULT READY on the board](bugs/47e83241-a-task-whose-run-was-stopped-reads-finished-resu.md) | sweep/sessions | 898cdd327 |
 | P2 | fixed | sessions | [A torn store with no usable backup is overwritten with no copy of its bytes](bugs/d50f704b-a-torn-store-with-no-usable-backup-is-overwritte.md) | agent/persist-module-1103 | 9d4f5ff13 b1b0be499 cb6ff28fa |
+| P2 | fixed | sessions | [About 600 uploads for one agent overran the restore-point search and the forget ledger never settled](bugs/98d36a49-about-600-uploads-for-one-agent-overran-the-rest.md) | release-0150 | b53565c2987ee82a773f3ccac4ceb28a0c38b952 |
 | P2 | fixed | sessions | [Agent work rating fails with a generic not saved message](bugs/1fc69e6a-agent-work-rating-fails-with-a-generic-not-saved.md) | agent/rating-repair-0908 | a55a1ed07 |
 | P2 | fixed | sessions | [Background worker responses leave answered prompts pending](bugs/402ce8f7-background-worker-response-pending.md) | thread-ux-review-1011 | 049e6ff7e7c92b7b0f38ab34ce1eeb9ae30c7833 |
 | P2 | fixed | sessions | [COMMS starters suggest arbitrary tasks and lose session context](bugs/e84d1dfd-comms-starters-suggest-arbitrary-tasks-and-lose.md) | agent/useful-starters-0906 | 33d995fed |
@@ -523,6 +526,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P2 | fixed | sessions | [Shared query refresh cannot retire a stalled predecessor](bugs/c095c750-shared-query-refresh-cannot-retire-a-stalled-pre.md) | agent/seam-audit-0912-b | b5c5cba75 |
 | P2 | fixed | sessions | [Stalled finite JSON mutations never release their callers](bugs/38aad6db-stalled-finite-json-mutations-never-release-thei.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |
 | P2 | fixed | sessions | [The fast gate's save-quota-writethrough Q3 precondition flakes when two saves land in one millisecond](bugs/c9c58539-the-fast-gate-s-save-quota-writethrough-q3-preco.md) | sweep/sessions | 0151a2b74 |
+| P2 | fixed | sessions | [The page could not see a packed chat's uploads, so deleting it unopened kept the upload](bugs/4eb4ea38-the-page-could-not-see-a-packed-chat-s-uploads-s.md) | release-0150 | b53565c2987ee82a773f3ccac4ceb28a0c38b952 |
 | P2 | fixed | sessions | [The phone's routine list shows a live green dot and cadence while scheduling is OFF or E-STOPped](bugs/96dcbade-the-phone-s-routine-list-shows-a-live-green-dot.md) | sweep/autonomy | 1b374f9ba |
 | P2 | fixed | sessions | [The START FRESH marker is written in place, so a crash mid-write leaves a torn receipt that refuses every re-seed](bugs/e055f56e-the-start-fresh-marker-is-written-in-place-so-a.md) | agent/persist-module-1103 | d05241c24 |
 | P2 | fixed | sessions | [Spoken approvals clear sibling waits before confirmation](bugs/35c720c1-voice-approval-sibling-settlement.md) | thread-ux-review-1011 | fcd8007ca473d52488986537e304370c37f7f9a0 |
