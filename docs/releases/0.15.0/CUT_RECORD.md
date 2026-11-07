@@ -34,7 +34,7 @@ The record of how v0.15.0 was cut, gated and published. Drafted during the final
 | StarNet_0.15.0_aarch64.dmg | 7c833196832e227a240bfbd9899fe66d52404c8c11edd2d4f27505614dc7f6c4 |
 | StarNet_0.15.0_x64.dmg | bd3043be5a6b2fcf26f5b80ff680ebfdd001aa83b3ceb02989e5aa2ac8beb1cd |
 
-**latest.json** (digest e622d1c64020412e3ce41125e0d29efbf48f0fe3df9eb828335d85cbe4baa89b) has version 0.15.0 and the platforms windows-x86_64, darwin-aarch64 and darwin-x86_64, each URL pinned to `/download/v0.15.0/` and each signature equal to its `.sig` asset. Its pub_date is 2026-11-07T08:39:55.650Z. Its `notes` equal the tagged RELEASE_NOTES.md without the file's final newline, and the release body equals the file (checked on the draft before Publish, `draft-review.js`).
+**latest.json** (digest e622d1c64020412e3ce41125e0d29efbf48f0fe3df9eb828335d85cbe4baa89b) has version 0.15.0 and the platforms windows-x86_64, darwin-aarch64 and darwin-x86_64, each URL pinned to `/download/v0.15.0/` and each signature equal to its `.sig` asset. Its pub_date is 2026-11-07T08:39:55.650Z. Its `notes` equal the tagged RELEASE_NOTES.md without the file's final newline, and the release body equals the file (checked on the draft before Publish, `draft-review.js`). After Publish the notes' opening was replaced at Andrew's request (§10, "Notes summary"): the live latest.json is now digest 66de9b65af5dd3b56655bb9f618e537ff2142793b1ce47495450e1ed8e0c4c6a, the same file with only `notes` changed.
 
 ## 2. What changed late
 
@@ -243,13 +243,14 @@ All rest on one go, given 2026-11-06 after Andrew's own test: "Do one last quick
 |---|---|
 | verify-host | **ALL CHECKS PASSED** (`<logs>/verify-host-v0.15.0.txt`): version 0.15.0, the three platforms, non-empty signatures, https URLs pinned to /download/v0.15.0/, every asset reachable (HTTP 200) |
 | Public canary | 42357042717: SUCCESS on every job (§3.2) |
-| Rollback | Not triggered. If it is ever needed: `gh release edit v0.15.0 -R androoAGI/starnet-releases --prerelease`, then `gh release edit v0.14.2 -R androoAGI/starnet-releases --latest`, then check that releases/latest names v0.14.2. Never edit v0.15.0's notes or latest.json |
+| Rollback | Not triggered. If it is ever needed: `gh release edit v0.15.0 -R androoAGI/starnet-releases --prerelease`, then `gh release edit v0.14.2 -R androoAGI/starnet-releases --latest`, then check that releases/latest names v0.14.2. Never edit v0.15.0's notes or latest.json to roll back. The one edit since Publish, the notes summary below, changed text only, at Andrew's request |
 | Source mirror | 42357418696 success: v0.15.0 Latest on androoAGI/starnet (08:55:50Z) |
 | Floors after Publish | 42357420606: update-host green; web-search still red (§6) |
 | Website restamp | **d95089f04** on `agent/release-0150` (parent TIP): 0.14.2 → 0.15.0 in website/index.html (#ver-badge, span.ver, #ver-foot), website/pricing.html (#ver-foot) and website/site.js (FALLBACK_VERSION), a byte-exact swap. website-deploy-staging and website-app-sync pass |
 | Website deploy | `npm run website:stage`, then `npx wrangler pages deploy website-deploy --project-name starnet-site --branch main --commit-hash d95089f04…`: production deployment **ecb52d13** (source d95089f). starnetos.com, www.starnetos.com, /pricing and site.js show v0.15.0 and no 0.14.2 (read at writing). The previous production deployment was ca6c04c8 (0.14.2) |
 | Issue #122 | Replied at 08:56:47Z (issuecomment-6704758128): fixed in v0.15.0, with what changed and what the tests cover. Left open: closing it was not part of the go |
-| This record | Committed by pathspec as `docs/releases/0.15.0/CUT_RECORD.md` on `agent/release-0150`, on top of d95089f04, and the branch pushed (no workflow runs on `agent/*` pushes) |
+| Notes summary | Later on 2026-11-07, Andrew asked for the top of the notes to be "a summary of what the new update is", then for "just a basic description". Three plain sentences (469 characters) replaced the opening paragraph. The governor line was narrowed to "One governor admits nine kinds of paid call": it said "every paid call", but image reading books its cost after the call and never asks the governor. Nothing else in the notes changed. Commits on `agent/release-0150`: ffdb4dd65 with relock b0ddf4e75 (a first, longer draft), then bdc0174d8 with relock b721d4ea2 (the published text); claims PASS. Published 20:55:42Z–20:55:49Z after Andrew chose "Everywhere": the release body; latest.json, the same file with only `notes` replaced (e622d1c6… → **66de9b65…**; version, pub_date and URLs unchanged, each signature still equal to its `.sig`, the updater URL serving it, the other 8 assets untouched); and the source mirror's body, rebuilt by scripts/source-release-mirror.mjs (installers unchanged, action noop). verify-host: ALL CHECKS PASSED again (`<logs>/verify-host-v0.15.0-notes-edit.txt`). The app's update panel shows the first 520 characters: the summary and the "Upgrading, and going back" heading. The tag's RELEASE_NOTES.md keeps the shipped opening |
+| This record | Committed by pathspec as `docs/releases/0.15.0/CUT_RECORD.md` on `agent/release-0150`, on top of d95089f04, and the branch pushed (no workflow runs on `agent/*` pushes). The notes-summary row was added afterwards |
 | Merge-back | §11 |
 
 ## 11. Merge-back
@@ -260,7 +261,7 @@ All rest on one go, given 2026-11-06 after Andrew's own test: "Do one last quick
 
 ## 12. Status at writing
 
-v0.15.0 is published and public, verified by verify-host and the public canary. The source mirror, the website and the #122 reply are done. This record lands with the branch push; the local fast-forward of trunk follows it, and its result is in the cut log. Open: the trunk push (Andrew's go), the second offline key copy (Andrew's), and the follow-ups in §9.
+v0.15.0 is published and public, verified by verify-host and the public canary. The source mirror, the website and the #122 reply are done. This record lands with the branch push; the local fast-forward of trunk follows it, and its result is in the cut log. Open: the trunk push (Andrew's go), the second offline key copy (Andrew's), and the follow-ups in §9. Later the same day the notes' opening became a plain summary, at Andrew's request (§10, "Notes summary").
 
 ## Appendix A. Readiness outputs, verbatim
 
