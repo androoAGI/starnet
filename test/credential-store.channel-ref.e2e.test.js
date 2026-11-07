@@ -556,7 +556,10 @@ function station(label, up, tg, env) {
         const same = await add({ key: K.addTwo });
         A.eq([same.status, same.body.error], [500, 'could not prove the agent bot configuration was saved; nothing was started'], 'read-only: a re-add with K2 cannot prove its record saved, and says nothing was started');
         A.eq([holders(s.ws, K.addOne), holders(s.ws, K.addTwo)], [OWN_FILES, []], 'read-only, the same provider: K1 is still in the channel file, both copies, and K2 is in no file (86ff765db: K2 replaced K1)');
+        // POSIX: a bot's run writes in that folder, so it opens for the message (on Windows only the record's own file is locked)
+        if (process.platform !== 'win32') fs.chmodSync(path.dirname(secrets), 0o755);
         A.eq(await s.dm('READ-ONLY-SAME'), [['/or/', K.addOne]], 'read-only, the same provider: the bot still runs on K1');
+        if (process.platform !== 'win32') fs.chmodSync(path.dirname(secrets), 0o555);
         // a provider switch: the agent moves to CUSTOM, and the re-add names CUSTOM, K2 and an endpoint
         A.eq((await s.roster({ bot: 'custom' })).status, 200, 'read-only: the agent moves to CUSTOM');
         const switched = await add({ provider: 'custom', model: LOCAL, key: K.addTwo, baseUrl: up.base + '/switch/v1' });

@@ -390,7 +390,8 @@ function makeOwnedGit(host) {
    descendant could outlive the station (found by the first Linux CI run of V11 and V12, 2026-11-06).
    The answer is execFile's: cb(error, stdout, stderr) once the child's stdio closed. error.code is the exit code or a
    Node code (ENOENT, ERR_CHILD_PROCESS_STDIO_MAXBUFFER, whose stdout stays what fitted); an exit error carries killed and
-   signal; opts.encoding, opts.timeout and opts.maxBuffer hold. stdin is ignored: nothing launched here reads it. An absent
+   signal; opts.encoding, opts.timeout and opts.maxBuffer hold, and a kill closes the pipes as execFile's does, so a child of
+   git that holds them does not hold back the answer. stdin is ignored: nothing launched here reads it. An absent
    env stays absent, so the station's guarded spawn still fills in its own. */
 function spawnExecFile(spawn) {
   return (file, args, opts, cb) => {
@@ -402,8 +403,15 @@ function spawnExecFile(spawn) {
     const kept = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 };
     let failure = null, killed = false, timer = null, answered = false;
     const child = spawn(file, args, launch);
-    const killIt = () => { killed = true; try { child.kill('SIGTERM'); } catch (_) { /* already gone */ } };
-    const answer = (code, signal) => {
+    let answer = null;
+    const killIt = () => {
+      killed = true;
+      if (child.stdout) child.stdout.destroy();
+      if (child.stderr) child.stderr.destroy();
+      try { child.kill('SIGTERM'); }
+      catch (e) { failure = failure || e; answer(null, null); }
+    };
+    answer = (code, signal) => {
       if (answered) return;
       answered = true;
       if (timer !== null) clearTimeout(timer);

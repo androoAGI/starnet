@@ -787,8 +787,7 @@ scenario('V15 spawnExecFile answers as execFile does, and its detached child rea
     A.ok(leader, 'V15 POSIX: a detached launch leads its own process group (execFile drops the option)');
     A.eq(held.error && held.error.signal, 'SIGTERM', 'V15 POSIX: the group signal ended it, and its answer says so');
   }
-  const index = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-  A.ok(/makeOwnedGit\(\{\s*platform: process\.platform, spawn: /.test(index), 'V15 the sidecar gives makeOwnedGit its guarded spawn, so POSIX git leads its group');
+  A.ok(/makeOwnedGit\(\{\s*platform: process\.platform, spawn: \(file, args, opts\) => stationChildProcess\.spawn\(/.test(require('./helpers/source.js').readSidecarSource()), 'V15 the sidecar gives makeOwnedGit its guarded spawn, so POSIX git leads its group');
 });
 
 // ---- V12 a shutdown waits for its kill to land (final review 1 of f884cced3: the win32 taskkill race) ----
