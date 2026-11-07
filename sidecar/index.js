@@ -3854,7 +3854,8 @@ wireForgetRegistry(forgetRegistry, {
   summaryLedger: () => summaryLedger,
   checkpoints: () => checkpointStore,
   noteCheckpointReset: agentIds => console.log('[session-tombstones] deleted sessions: the restore points of ' + agentIds.join(', ') + ' held an upload of a deleted session, so their older rollback points were reset to one baseline'),
-  noteAttachmentsKept: (count, why) => console.log('[session-tombstones] deleted sessions: kept ' + count + ' upload(s) the transcript cannot rule out (' + why + ')'),
+  noteAttachmentsKept: (count, why) => console.log('[session-tombstones] deleted sessions: kept ' + count + ' upload(s): ' + why),
+  noteUploadsUnread: count => console.log('[session-tombstones] deleted sessions: ' + count + ' may hold transcript rows that can no longer be read, so an upload only those rows name stays'),
   lineJobs: () => ({ forget: (bound, why) => {
     try { return LineJobs.forgetVia(lineJobsSet, bound, why, Date.now()); }
     // a store holding data the station cannot rewrite losslessly (a future version, a duplicate record) is preserved as it is by design: the purge says so and goes on

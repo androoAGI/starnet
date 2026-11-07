@@ -124,7 +124,11 @@ function makeWorkspaceOwner(deps) {
     if (!holder.valid) return predatesBoot(lockMtime(lockfile));
     if (predatesBoot(holder.startedAt)) return true;
     if (!pidAlive(holder.pid)) return true;
-    return pidReused(holder);
+    if (pidReused(holder)) return true;
+    // A probe takes a second or more (it starts powershell), so a short-lived process that had the holder's recycled PID when kill(0) looked can
+    // be gone when it answers: Get-Process cannot find the PID kill(0) just called alive (a T0 run refused its own boot on this, exit 73). Ask
+    // kill(0) once more. Only ESRCH answers false and a live holder never answers ESRCH, so this is the same proof as the first look.
+    return !!lastIdentity && lastIdentity.verdict === 'unknown' && !pidAlive(holder.pid);
   }
   const filename = String(d.filename || '.starnet-workspace-owner.json');
   if (!fs || typeof fs.openSync !== 'function' || typeof fs.renameSync !== 'function') {

@@ -45,6 +45,78 @@ const hermeticEnv = () => {
 };
 const until = async (fn, label, ms = 20000) => { const end = Date.now() + ms; for (;;) { const v = await fn(); if (v) return v; if (Date.now() > end) throw new Error('timed out: ' + label); await new Promise(r => setTimeout(r, 100)); } };
 
+/* ONE TORN LINE CANNOT STOP THE PASS (0.15.0's late privacy review, reproduced on a real sidecar). A killed append leaves a fragment in the segment
+   that holds an old chat's row, and later rows push that row out of the RAM mirror. The whole read of that chat's rows then refuses at every pass,
+   because a closed segment never changes. RED before the fix: the attachment-files entry threw before it removed anything, the ledger never settled
+   and every later delete's uploads waited behind it, across restarts. The page's own post is left out on purpose: an old chat's row is packed and
+   not read back, so the page may hold no ref, and the pass is the net. */
+async function tornLineScenario(mock) {
+  const fs = require('node:fs'), path = require('node:path');
+  const fixture = SidecarFixture.create({ prefix: 'starnet-attach-torn-', timeoutMs: 30000, env: Object.assign(hermeticEnv(), { SKYNET_OPENROUTER_BASE: mock.base }) });
+  const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
+  try {
+    await fixture.start();
+    const json = (method, route, body) => fixture.json(method, route, body);
+    const upload = async name => {
+      const r = await json('POST', '/api/attachments', { agent: 'agent', name, dataUrl: 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64') });
+      A.ok(r.status === 200 && r.body && r.body.ok, 'upload ' + name + ': ' + JSON.stringify(r.body));
+      return { id: r.body.id, name, path: r.body.path, mediaType: 'text/plain', kind: 'file' };
+    };
+    const present = async ref => (await fetch(fixture.baseUrl + '/api/file?agent=agent&path=' + encodeURIComponent(ref.path), { headers: { 'X-StarNet-Token': fixture.token, Origin: fixture.baseUrl } })).status === 200;
+    const say = async (streamId, content, files) => {
+      const res = await fetch(fixture.baseUrl + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': fixture.token, Origin: fixture.baseUrl },
+        body: JSON.stringify({ key: 'sk-or-v1-e2e-fake', model: 'test/model', agentId: 'agent', streamId, messages: [{ role: 'user', content, attachments: files }] }) });
+      A.eq(res.status, 200, 'the run in ' + streamId + ' streams 200');
+      await res.text();
+    };
+    let revision = 0;
+    const save = async (workstreams, extra) => {
+      const r = await json('POST', '/api/save', Object.assign({ agent: { id: 'agent', name: 'NOVA', createdAt: 1 }, updatedAt: Date.now(), _saveRevision: revision, workstreams }, extra || {}));
+      A.eq(r.status === 200 && r.body && r.body.ok, true, 'the save lands: ' + JSON.stringify(r.body).slice(0, 200));
+      revision = (r.body && (r.body.saveRevision || r.body.revision)) || revision + 1;
+    };
+    // polled while the station writes: a file can vanish or be swapped under the walk, and the next poll reads it again
+    const purged = id => {
+      try {
+        const file = walk(fixture.workspace).find(f => /session-tombstones\.json$/.test(f));
+        if (!file) return false;
+        const doc = JSON.parse(fs.readFileSync(file, 'utf8')), row = ((doc && doc.value) || doc).streams[id];
+        return !!row && row.at > 0 && row.purged >= row.at;
+      } catch (e) { return false; }
+    };
+    const oldFile = await upload('old.txt');
+    await say('ws_old', 'the old chat and its file', [oldFile]);
+    await save([{ id: 'ws_old', title: 'Old', history: [] }]);
+    await fixture.stop();
+    // while it is down: the fragment at the end of the active segment (with the newline the next append isolates it with), then 3100 later rows
+    // in the next segment, more than the RAM mirror holds
+    const manifestFile = walk(fixture.workspace).find(f => /transcript-history-v2[\\/]manifest\.json$/.test(f));
+    const hist = path.dirname(manifestFile), manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    const active = fs.readdirSync(hist).filter(n => /^segment-\d+\.jsonl$/.test(n)).sort().pop(), activeNo = Number(/\d+/.exec(active)[0]);
+    fs.appendFileSync(path.join(hist, active), '{"streamId":"ws_noise","role":"assistant","content":"half a ro\n');
+    let rowId = Math.max(Number(manifest.nextRowId) || 1, 2000), ts = Date.now();
+    const lines = [];
+    for (let i = 0; i < 3100; i++) lines.push(JSON.stringify({ rowId: rowId++, streamId: 'ws_busy' + (i % 6), agentId: 'agent', ts: ts++, kind: 'turn', role: i % 2 ? 'assistant' : 'user', content: 'later words ' + i, sourceRunId: 'run_busy_' + (i >> 1), taintKnown: true }));
+    fs.writeFileSync(path.join(hist, 'segment-' + String(activeNo + 1).padStart(6, '0') + '.jsonl'), lines.join('\n') + '\n');
+    await fixture.start();
+    await save([], { forgetIds: ['ws_old'], deletedIds: ['ws_old'] });
+    await until(async () => !(await present(oldFile)), 'the old chat\'s upload goes, with a torn line beside its row');
+    await until(() => purged('ws_old'), 'the ledger settles for the old chat');
+    A.ok(true, 'a torn line beside a deleted chat\'s row: its upload goes and the ledger settles');
+    const newFile = await upload('new.txt');
+    await say('ws_new', 'a new chat and its file', [newFile]);
+    await save([{ id: 'ws_new', title: 'New', history: [] }], { forgetIds: ['ws_old'], deletedIds: ['ws_old'] });
+    await save([], { forgetIds: ['ws_old', 'ws_new'], deletedIds: ['ws_old', 'ws_new'] });
+    await until(async () => !(await present(newFile)), 'a later delete is not held behind the torn line');
+    await until(() => purged('ws_new'), 'the ledger settles for the later delete too');
+    A.ok(true, 'a later delete is not held behind the torn line');
+    await fixture.restart();
+    A.ok(!(await present(oldFile)) && !(await present(newFile)) && purged('ws_old') && purged('ws_new'), 'across a restart both files stay gone and both deletes stay settled');
+  } finally {
+    await fixture.dispose();
+  }
+}
+
 (async () => {
   const mock = await startMockOpenRouter();
   const fixture = SidecarFixture.create({ prefix: 'starnet-attach-in-use-', timeoutMs: 30000, env: Object.assign(hermeticEnv(), { SKYNET_OPENROUTER_BASE: mock.base }) });
@@ -134,6 +206,8 @@ const until = async (fn, label, ms = 20000) => { const end = Date.now() + ms; fo
     A.eq([stale.status, stale.body.removed, stale.body.kept, stale.body.proved], [200, false, true, true], 'a one-file delete of a file a live session names keeps it: ' + JSON.stringify(stale.body));
     A.ok(await present(live), '...and it is still there');
     A.eq((await json('POST', '/api/attachments', { op: 'delete', agent: 'agent', path: 'notes/secret.md' })).status, 400, 'a path outside .attachments/ is refused');
+    await fixture.dispose();
+    await tornLineScenario(mock);
   } finally {
     await fixture.dispose();
     try { mock.server.close(); } catch (_) {}

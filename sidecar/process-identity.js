@@ -22,7 +22,8 @@
               comparison could misjudge a live holder after an NTP step. Linux therefore compares the exact tick
               value the holder stamped from /proc/self/stat: (pid, start ticks) names one process within a boot.
    Every failure (no such process, access denied, missing tool, timeout, unparseable output, other platform)
-   returns { ok: false, reason }. Callers must read that as UNKNOWN, i.e. still a live owner.
+   returns { ok: false, reason }. Callers must read that as UNKNOWN, i.e. still a live owner, unless kill(0) then proves the PID gone
+   (workspace-owner.js holderDead).
 
    makeProcessIdentity({ platform?, spawnSync?, readFileSync?, env?, timeoutMs? }) ->
      probe(pid) -> { ok: true, startedAt?: epochMs, startTicks?: string, executable?: string,

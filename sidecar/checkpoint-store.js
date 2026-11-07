@@ -3991,9 +3991,16 @@
       const paths = (Array.isArray(relPaths) ? relPaths : []).map(function (p) { return String(p || '').replace(/\\/g, '/'); })
         .filter(function (p) { return p.indexOf('.attachments/') === 0 && p.indexOf('..') < 0 && p.indexOf('\0') < 0; });
       if (!paths.length || !repoExists(aid, scope)) return { held: false, reinit: false };
-      const log = await git(aid, scope, ['log', '--all', '-1', '--format=%H', '--'].concat(paths));
-      if (!log || log.code !== 0) throw new Error('checkpoint: the shadow history of ' + aid + ' could not be searched');
-      if (!String(log.stdout || '').trim()) return { held: false, reinit: false };
+      // one search per batch: about 600 uploads on one command line pass Windows' limit (spawn ENAMETOOLONG), and a pass that fails here fails again at every retry, so the ledger never settles
+      let held = false;
+      for (let i = 0; i < paths.length && !held;) {
+        const batch = [];
+        for (let len = 0; i < paths.length && (!batch.length || len < 6000); i++) { batch.push(paths[i]); len += paths[i].length + 1; }
+        const log = await git(aid, scope, ['log', '--all', '-1', '--format=%H', '--'].concat(batch));
+        if (!log || log.code !== 0) throw new Error('checkpoint: the shadow history of ' + aid + ' could not be searched');
+        held = !!String(log.stdout || '').trim();
+      }
+      if (!held) return { held: false, reinit: false };
       const reinit = await reinitFromCurrentTree(aid, scope, {}, 'baseline (repo re-init: a deleted session\'s attachment)');
       if (!reinit) throw new Error('checkpoint: the shadow history of ' + aid + ' holds a deleted session\'s attachment and could not be replaced');
       return { held: true, reinit: true };

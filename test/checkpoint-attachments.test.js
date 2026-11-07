@@ -21,7 +21,9 @@ const { execFileSync } = require('child_process');
 const { makeClock } = require('../shared/clock-rng.js');
 const { makeCheckpointStore } = require('../sidecar/checkpoint-store.js');
 
+let longestCommand = 0;
 function runGit(args, opts) {
+  longestCommand = Math.max(longestCommand, args.join(' ').length);
   try {
     const stdout = execFileSync('git', args, { cwd: (opts && opts.cwd) || process.cwd(), windowsHide: true, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
     return Promise.resolve({ code: 0, stdout: String(stdout || ''), stderr: '' });
@@ -91,6 +93,20 @@ function runGit(args, opts) {
     A.eq(await store.forgetAttachments(aid, ['.attachments/quokka.txt']), { held: false, reinit: false }, 'a second call finds nothing and replaces nothing');
     A.eq(await store.forgetAttachments(aid, ['.attachments/never-saved.txt']), { held: false, reinit: false }, 'a path no commit ever held replaces nothing');
     A.eq((await git(['rev-parse', 'HEAD'])).stdout.trim(), head, 'the head did not move');
+
+    // ---- 3b. hundreds of uploads do not fit on one command line ----
+    /* RED before: every path went on one `git log`. About 600 uploads for one agent passed Windows' limit (spawn ENAMETOOLONG), the search failed, and
+       the forget pass failed with it at every retry, so the ledger never settled. */
+    const many = Array.from({ length: 1000 }, (_, i) => '.attachments/' + String(i).padStart(8, '0') + '-1111-4111-8111-111111111111.jpg');
+    longestCommand = 0;
+    A.eq(await store.forgetAttachments(aid, many), { held: false, reinit: false }, '1000 paths no commit holds are searched and replace nothing');
+    A.ok(longestCommand > 0 && longestCommand < 30000, 'no single search passes the command-line limit: ' + longestCommand + ' characters');
+    A.eq((await git(['rev-parse', 'HEAD'])).stdout.trim(), head, 'and the head did not move');
+    fs.rmSync(path.join(gitDir, 'info', 'exclude'));
+    await git(['add', '-f', '--', '.attachments']);
+    A.eq((await git(['-c', 'user.email=a@b', '-c', 'user.name=a', 'commit', '-q', '-m', 'snapshot (before the rule)'])).code, 0, 'an older commit holds an upload again');
+    A.eq(await store.forgetAttachments(aid, many.concat(['.attachments/quokka.txt'])), { held: true, reinit: true }, 'a path in the last batch is found and the repo is replaced');
+    A.eq((await git(['log', '--all', '--format=%H', '--', '.attachments/quokka.txt'])).stdout.trim(), '', 'no commit holds that upload any more');
     A.eq(await store.forgetAttachments('nobody', ['.attachments/x.txt']), { held: false, reinit: false }, 'an agent with no repo is left alone');
 
     // ---- 4. only uploads are searched for ----

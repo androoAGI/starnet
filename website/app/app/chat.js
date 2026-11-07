@@ -1800,7 +1800,7 @@ const Chat = (() => {
      The station forgets what it holds; this drops what only this page holds: the run records (RUN_META, which carries the directive text), the
      SEND NOW lines kept for it (memory, the in-flight asks and the browser's disk copy), and the uploaded files its messages named that no other
      session names - posted to the station's own delete (the sidecar entry covers the rows it knows; refs on messages from before the transcript
-     ledger exist only in this page's save). One post per agent names the session: the page cannot see a packed session's rows (save v7), so the
+     ledger exist only in this page's save). One post per agent names the session: the page cannot see the rows behind a packed session (save v7), so the
      station removes only the files nothing else names (sidecar/forget-wiring.js namedElsewhere). Best-effort and idempotent: a failed delete is
      retried by nothing, the sidecar's purge pass is the net. */
   function forgetSession(streamId, opts) {

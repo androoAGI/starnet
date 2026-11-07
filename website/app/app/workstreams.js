@@ -906,11 +906,24 @@
     for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) for (const r of (Array.isArray(x.runIds) ? x.runIds : [])) if (typeof r === 'string' && out.indexOf(r) < 0) out.push(r);
     return out;
   }
+  // the files a session's messages name, as this page holds them: its rows and a packed run's residue. A packed run is not in x.history until it
+  // is read back, and a row from before 0.15 names its files only in that residue (the transcript row behind it names none)
+  function attachmentsOf(x) {
+    const out = [];
+    const add = m => { for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) out.push(a); };
+    for (const m of (Array.isArray(x.history) ? x.history : [])) add(m);
+    for (const el of (Array.isArray(x.historyRef) ? x.historyRef : [])) {
+      if (!isPacked(el)) continue;
+      add(el);   // a stub holds its row's residue on itself
+      if (el.res && typeof el.res === 'object') for (const k of Object.keys(el.res)) add(el.res[k]);
+    }
+    return out;
+  }
   function attachmentRefs(id) {
     const w = find(id); if (!w) return [];
     const out = [];
     for (const x of ws) if (x.id === id || (x.worker === true && x.parentStreamId === id)) {
-      for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+      for (const a of attachmentsOf(x)) {
         if (a && typeof a.path === 'string' && a.path && !out.some(o => o.path === a.path && o.agent === (x.agentId || 'agent'))) out.push({ path: a.path, agent: x.agentId || 'agent' });
       }
     }
@@ -918,7 +931,7 @@
   }
   // does any session still in the list name this file? (a branch copy or a re-send shares one upload with the session it came from)
   function attachmentInUse(path, agent) {
-    for (const x of ws) for (const m of (Array.isArray(x.history) ? x.history : [])) for (const a of (Array.isArray(m && m.attachments) ? m.attachments : [])) {
+    for (const x of ws) for (const a of attachmentsOf(x)) {
       if (a && a.path === path && (x.agentId || 'agent') === agent) return true;
     }
     return false;

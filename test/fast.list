@@ -469,6 +469,8 @@ test/history-hydrate.seam.test.js
 test/packed-history.writers.test.js
 test/history-seal.property.test.js
 test/history-seal.sweep.test.js
+test/workstreams-packed-uploads.test.js
+test/seed-ready-expr.test.js
 test/save-envelope-budget.test.js
 test/backup-packed-export.test.js
 test/backup-secrets.test.js

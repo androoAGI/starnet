@@ -604,6 +604,90 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
       } finally { remove(adir); }
     }
 
+    // ---------------- attachment files: a damaged history cannot stop the pass ----------------
+    // A damaged line or a lost segment among a deleted session's rows refuses the whole read of them at every pass (a closed segment never
+    // changes). RED before: the entry threw before it removed anything, the ledger never settled, and every later delete waited behind it.
+    {
+      const adir = temp('attach-damaged');
+      try {
+        const att = makeAttachments({ fsp: fs.promises, path, crypto: require('node:crypto'), workspaces: adir, resolveInside: async (agentId, rel) => ({ base: path.join(adir, agentId), abs: path.join(adir, agentId, rel) }) });
+        const upload = name => att.saveAttachment('agent', name, 'data:text/plain;base64,' + Buffer.from('notes about ' + name).toString('base64'));
+        const exists = ref => fs.existsSync(path.join(adir, 'agent', ref.path));
+        const root = path.join(adir, 'history');
+        const ioAt = () => History.makeSegmentedTranscriptIo({ fs, path, root, segmentBytes: 2000, recentPerStream: 1200, onWarning: () => {} });
+        const storeOn = io => Store.makeTranscriptStore({ io, clock: { now: () => 4000 }, ramMax: 4, ramPerStream: 3, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        let io = ioAt(), store = storeOn(io), n = 0, filler = 0;
+        const say = (streamId, words, files, ts) => store.appendStrict({ sourceRunId: 'run_torn_' + (++n), streamId, agentId: 'agent', role: 'user', content: words, ts, taint: null, directive: true, kind: 'turn', attachments: files });
+        const reboot = () => { if (io.close) io.close(); io = ioAt(); store = storeOn(io); hold.transcriptStore = () => store; };
+        const segment = no => path.join(root, 'segment-' + String(no).padStart(6, '0') + '.jsonl');
+        const later = () => { for (let i = 0; i < 40; i++) { filler++; say('sBusy' + (filler % 6), 'filler ' + filler + ' ' + 'x'.repeat(120), [], 3000 + filler); } };   // across chats: one chat alone stops at its own RAM cap, and the old row stays in RAM
+        const tear = text => { if (io.close) io.close(); fs.appendFileSync(segment(io.status().activeSegment), text); reboot(); };
+        const kept = [], unread = [];
+        hold.transcriptStore = () => store;
+        hold.attachments = () => att;
+        hold.saveStore = newStation;
+        hold.noteAttachmentsKept = (count, why) => kept.push([count, why]);
+        hold.noteUploadsUnread = count => unread.push(count);
+        const own = await upload('own.txt');
+        say('sGone', 'my file', [own], 3000);
+        tear('{"streamId":"sNoise","role":"assistant","content":"half a ro');   // the fragment a killed append leaves
+        later();
+        reboot();
+        let refused = null;
+        try { store.view('proof', 'sGone', { complete: true }); } catch (e) { refused = e; }
+        A.eq(refused && refused.code, 'TRANSCRIPT_UNVOUCHED', 'premise: the damaged line refuses the whole read of the deleted session\'s rows');
+        A.eq(await forget('attachment-files'), 1, 'the pass settles and removes the file of the row that still parses');
+        A.ok(!exists(own), 'the deleted session\'s own file goes');
+        A.eq(unread, [1], 'and the log hears that a session may hold rows that can no longer be read');
+        A.eq(kept, [], 'a damaged line that names no asked file keeps nothing');
+        A.eq(await forget('attachment-files'), 0, 'idempotent');
+        // a damaged line that names a file keeps that file and only that one
+        const torn = await upload('torn.txt'), free = await upload('free.txt');
+        say('sGone', 'two more files', [torn, free], 4000);
+        tear('{"streamId":"sKeep","attachments":[{"path":"' + torn.path + '"');
+        later();
+        reboot();
+        kept.length = 0;
+        A.eq(await forget('attachment-files'), 1, 'the pass settles and removes what nothing may name');
+        A.ok(exists(torn) && !exists(free), 'it keeps the file a damaged line may name, and only that one');
+        A.eq(kept, [[1, 'a damaged transcript line may name them']], 'the log says how many it kept and why');
+        // a segment gone for good among the deleted session's rows: nothing can be proved unused, and the pass still settles
+        const lost = await upload('lost.txt'), survivor = await upload('survivor.txt');
+        const lostNo = io.status().activeSegment;
+        say('sGone', 'in the segment that will be lost', [lost], 4200);
+        while (io.status().activeSegment === lostNo) later();
+        say('sGone', 'in a segment that survives', [survivor], 4300);
+        later();
+        if (io.close) io.close();
+        fs.rmSync(segment(lostNo));
+        reboot();
+        kept.length = 0;
+        A.eq(await forget('attachment-files'), 0, 'a lost segment doubts every asked file, so nothing goes');
+        A.ok(exists(lost) && exists(survivor), 'both files stay');
+        A.ok(kept.length === 1 && /transcript segment \d+ is gone/.test(kept[0][1]), 'and the log says why: ' + JSON.stringify(kept));
+        // a history that cannot be walked now still fails the pass, so it retries; any other error is not swallowed
+        const unvouched = () => { throw Object.assign(new Error('segment 1 cannot be read now: EBUSY'), { code: 'TRANSCRIPT_UNVOUCHED' }); };
+        hold.transcriptStore = () => ({ view: unvouched, eachRow: unvouched });
+        let failed = null;
+        try { await forget('attachment-files'); } catch (e) { failed = e; }
+        A.eq(failed && failed.code, 'TRANSCRIPT_UNVOUCHED', 'a walk refused for now fails the pass, so nothing is lost to a busy segment');
+        hold.transcriptStore = () => ({ view: () => { throw new Error('not a history refusal'); } });
+        failed = null;
+        try { await forget('attachment-files'); } catch (e) { failed = e; }
+        A.eq(failed && failed.message, 'not a history refusal', 'any other error from the read is not read as a damaged history');
+        // a file that cannot be removed (another program holds it open) is counted, and the pass settles
+        const mem = Store.makeTranscriptStore({ io: History.makeMemoryTranscriptIo(), clock: { now: () => 4000 }, deletedAt: id => ledger.deletedAt(id), latestDeleteAt: () => ledger.latestAt() });
+        mem.appendStrict({ sourceRunId: 'run_held', streamId: 'sGone', agentId: 'agent', role: 'user', content: 'a held file', ts: 4000, taint: null, directive: true, kind: 'turn', attachments: [{ path: '.attachments/held.txt' }] });
+        hold.transcriptStore = () => mem;
+        hold.attachments = () => ({ hasAttachment: async () => true, removeAttachment: async () => ({ ok: false, error: 'remove failed' }) });
+        kept.length = 0;
+        A.eq(await forget('attachment-files'), 0, 'a file that cannot be removed is not counted as removed');
+        A.eq(kept, [[1, 'they could not be removed, another program may have them open']], 'the log says how many stayed and why');
+        hold.noteAttachmentsKept = undefined;
+        hold.noteUploadsUnread = undefined;
+      } finally { remove(adir); }
+    }
+
     // ---------------- attachment files: the restore points that hold them (contract A17 iii) ----------------
     {
       const adir = temp('attach-checkpoints');

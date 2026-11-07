@@ -197,10 +197,23 @@ try {
   A.eq(blockedUnknown.code, 'WORKSPACE_BUSY', 'an unreadable process start time is treated as a live owner');
   A.eq(blockedUnknown.identity && blockedUnknown.identity.verdict, 'unknown', 'the refusal says the identity could not be proven');
   A.eq(blockedUnknown.identity && blockedUnknown.identity.reason, 'EACCES', 'and why');
+  // the PID kill(0) called alive is gone when the probe answers: a short-lived process had the holder's recycled PID (T0, exit 73). The look after
+  // the probe is the same proof as the first, so the boot goes on; while kill(0) still finds it (above) it stays busy, and EPERM is not ESRCH
+  const GONE = { ok: false, reason: 'Get-Process : Cannot find a process with the process identifier 43138.' };
+  let probedGone = false;
+  const refusedThenGone = contender(50629, {}, null, { pidAlive: () => !probedGone, processIdentity: { probe: () => { probedGone = true; return GONE; }, self: () => null } });
+  const stillBusy = contender(50630, { 43138: GONE }).acquire(REUSE_ROOT);
+  A.eq(stillBusy.code, 'WORKSPACE_BUSY', 'a probe that finds nothing while kill(0) still answers alive stays busy');
+  A.eq(fs.existsSync(reuseLock), true, '...and the claim is untouched');
   const throwingProbe = contender(50628, {}, null, { processIdentity: { probe: () => { throw new Error('probe exploded'); }, self: () => null } });
   const blockedThrow = throwingProbe.acquire(REUSE_ROOT);
   A.eq(blockedThrow.code, 'WORKSPACE_BUSY', 'a throwing identity probe is an unknown identity: still busy, boot not aborted');
   A.eq(blockedThrow.identity && blockedThrow.identity.reason, 'probe exploded', 'the probe failure is named');
+  const goneAcquired = refusedThenGone.acquire(REUSE_ROOT);
+  A.eq(goneAcquired.ok, true, 'the holder\'s PID gone by the time the probe answers is proof: the boot goes on');
+  refusedThenGone.release();
+  resetReuseRoot();
+  stampHolder(43138, 'gone-holder-again');
   const { describeIdentity } = require('../sidecar/workspace-owner.js');
   A.eq(describeIdentity(blockedLive.identity), 'PID 43137 started 2026-10-15T08:30:48.970Z; its claim was stamped ' +
     '2026-10-15T08:30:50.470Z — not provably a different process, treated as a live owner', 'the boot refusal line states the evidence it had');

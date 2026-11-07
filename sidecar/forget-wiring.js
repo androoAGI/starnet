@@ -198,7 +198,7 @@ const UNKEYED_EXEMPTIONS = [
   ['station-save-bak', 'the previous committed generation of the station save (<agent>.save.json.bak): persist keeps exactly one, so a just-deleted chat can sit in it until the next save replaces it. Under the v7 format the save carries a chat as its packed run ids (the words live in the transcript, which the delete cuts), so what it holds is ids and titles, not turns; it is the only copy the station can recover a torn main from, so purging it would trade a recovery for a smaller window. Named here so it is a decision, not an oversight (a known gap, noted for a follow-up)'],
   ['recovery-copies', 'workspace-recovery keeps the whole old station root as a sibling <root>.recovery-rollback-* until the Commander discards it, and station-recovery bundles carry every chat as text: both are recovery copies of the station AS IT WAS, including chats deleted since. They are made on the Commander\'s own command, shown to the Commander, and removed by the Commander; the delete does not reach into them (a known gap, noted for a follow-up)'],
   ['checkpoint-shadow-repos', 'WORKSPACES/.checkpoints/<agent>/git: restore points of the agent\'s workspace. An upload (.attachments/) is excluded from every new snapshot (checkpoint-store.js info/exclude), and the repo of an agent whose history holds a deleted session\'s upload is replaced by one baseline (forgetAttachments, called by the attachment-files entry), so its older rollback points are lost. Delivered work files in it are the Commander\'s work product (Q4)'],
-  ['restored-save-copies', 'a ~restored copy is a workstream row of the PAGE\'s own save (its id is not a valid stream id, so the ledger cannot stamp it); the page\'s delete purges it with the session (commit 16)']
+  ['restored-save-copies', 'a ~restored copy is a workstream row of the PAGE\'s own save (its id is not a valid stream id, so the ledger cannot stamp it); the page\'s delete purges it with the session (commit 16). A file a run in the copy sent stays: that run\'s rows are filed under the global stream, and they name it']
 ];
 
 function wireForgetRegistry(registry, deps) {
@@ -452,7 +452,8 @@ function wireForgetRegistry(registry, deps) {
      (refsOf, read through the PROOF view, which still sees forgotten rows). A named file is removed, through the attachments module's own
      removeAttachment, only when nothing live still names it (namedElsewhere above: every durable row of a live session, the RAM mirror, and
      every session of the page's own save, where a /branch copy lives), so a re-send or a branch keeps the file it shares. A file the
-     transcript cannot rule out (a damaged line may name it, or a segment is gone for good) is kept, and the pass goes on and settles. While
+     transcript cannot rule out (a damaged line may name it, or a segment is gone for good) is kept, and the pass goes on and settles, also when
+     such a line or segment sits among the deleted session's own rows (a file only those rows named cannot be found, and stays). While
      the proof cannot be made at all (the transcript cannot be walked now, the save cannot be read), the pass fails and keeps every file;
      the delete is retried at the next boot or delete. Refs on pre-upgrade rows exist only in the page's own save - the page's delete posts
      those (commit 16). */
@@ -462,11 +463,25 @@ function wireForgetRegistry(registry, deps) {
     forget: async scope => {
       const store = d.transcriptStore();
       const doomed = new Map();   // path -> agentId
+      const doom = r => { for (const a of refsOf(r)) if (a && typeof a.path === 'string') doomed.set(a.path, r.agentId || 'agent'); };
+      const refused = new Map();   // streamId -> stamp: the deleted sessions a whole read of their own rows refused
       for (const [streamId, stamp] of (scope.streams || scope.at || new Map())) {
-        for (const r of store.view('proof', streamId, { complete: true })) {
-          if (num(r.ts) > stamp) continue;
-          for (const a of refsOf(r)) if (a && typeof a.path === 'string') doomed.set(a.path, r.agentId || 'agent');
+        let rows;
+        try { rows = store.view('proof', streamId, { complete: true }); }
+        catch (error) {
+          if (!error || error.code !== 'TRANSCRIPT_UNVOUCHED') throw error;
+          refused.set(streamId, stamp);
+          continue;
         }
+        for (const r of rows) if (num(r.ts) <= stamp) doom(r);
+      }
+      /* A damaged line or a lost segment among a session's rows refuses that read at every pass, because a closed segment never changes. Failing
+         the pass on it would stop the ledger settling, and every later delete's uploads would wait behind it. The walk reads every row that still
+         parses; it throws only while the history cannot be vouched for now (boot degraded, a locked segment), and that pass retries. A file that
+         only an unreadable row named cannot be found: it stays, and the log says so. */
+      if (refused.size) {
+        store.eachRow(r => { if (refused.has(r.streamId) && num(r.ts) <= refused.get(r.streamId)) doom(r); });
+        if (typeof d.noteUploadsUnread === 'function') d.noteUploadsUnread(refused.size);
       }
       // the reads run only when the deleted sessions named a file at all
       if (doomed.size) {
@@ -474,15 +489,16 @@ function wireForgetRegistry(registry, deps) {
         const onDoubt = (kept, why) => { if (typeof d.noteAttachmentsKept === 'function') d.noteAttachmentsKept(kept.length, why); };
         for (const p of namedElsewhere({ store, saveStore, paths: Array.from(doomed.keys()), onDoubt })) doomed.delete(p);
       }
-      let removed = 0;
+      let removed = 0, stuck = 0;
       const byAgent = new Map();   // agentId -> its doomed paths, whether this pass or an earlier one removed the file
       for (const [rel, agentId] of doomed) {
         if (!byAgent.has(agentId)) byAgent.set(agentId, []);
         byAgent.get(agentId).push(rel);
         if (!(await d.attachments().hasAttachment(agentId, rel))) continue;   // already gone: a second pass reports nothing
         const out = await d.attachments().removeAttachment(agentId, rel);
-        if (out && out.ok) removed++;
+        if (out && out.ok) removed++; else stuck++;
       }
+      if (stuck && typeof d.noteAttachmentsKept === 'function') d.noteAttachmentsKept(stuck, 'they could not be removed, another program may have them open');
       /* the agent's restore points (checkpoint-store.js): a shadow commit made before the repo ignored .attachments/ still holds the bytes. The
          repo of an agent whose history holds a doomed path is replaced by one baseline of the current tree - its older rollback points are lost,
          and the receipt says so (noteCheckpointReset). A repo that holds none is left alone; a repo that cannot be searched or replaced fails the pass (retried at boot). */

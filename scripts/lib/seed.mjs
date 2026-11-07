@@ -79,17 +79,17 @@ export async function waitUp(url, tries = 60) {
 // In-game readiness signal: the dev hook is set AND #screen-game is the active screen. This is
 // what defeats the cold-boot race (a fresh sidecar's FIRST page load can transiently show the
 // title screen with dev=false). We poll, reloading periodically, until the floor is truly up.
+// The game screen only. A fallback on "the dock is visible" answered ready as soon as a new document was parsed: its stylesheets are still
+// loading then, so #bottombar lays out and CDP's evaluate is not held back by them (comms-owner looked at #screen-boot through that gap).
 export const READY_EXPR = `(() => { try {
   if (!window.__STARNET_DEV__) return false;
   const g = document.getElementById('screen-game');
-  if (g && g.classList.contains('active')) return true;
-  // fallback: dock visible and the title CTA is not
-  const dock = document.getElementById('bottombar');
-  const begin = document.getElementById('btn-begin');
-  return !!(dock && dock.offsetParent !== null && !(begin && begin.offsetParent !== null));
+  return !!(g && g.classList.contains('active'));
 } catch (e) { return false; } })()`;
 
-export async function waitDevReady(cdp, evalJS, { tries = 24, url, reloadEvery = 5 } = {}) {
+// A reload restarts a boot in progress, so reloadEvery has to outlast a slow one: comms-owner records boots of 6.1 s on a loaded machine, and at 5 s
+// such a boot never finished.
+export async function waitDevReady(cdp, evalJS, { tries = 24, url, reloadEvery = 15 } = {}) {
   for (let i = 0; i < tries; i++) {
     const ok = await evalJS(cdp, READY_EXPR).catch(() => false);
     if (ok) return true;
