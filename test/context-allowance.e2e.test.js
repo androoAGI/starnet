@@ -54,7 +54,7 @@ function startProvider(nextCalls) {
 }
 
 function floodTurn(turn, count) {
-  return Array.from({ length: count }, (_, i) => ({ id: 'flood_' + turn + '_' + i, name: 'shell_exec', args: { cmd: 'type flood-' + turn + '-' + i + '.txt' } }));
+  return Array.from({ length: count }, (_, i) => ({ id: 'flood_' + turn + '_' + i, name: 'shell_exec', args: { cmd: (process.platform === 'win32' ? 'type' : 'cat') + ' flood-' + turn + '-' + i + '.txt' } }));
 }
 
 async function runScenario(name, env, turns, files, inspect) {

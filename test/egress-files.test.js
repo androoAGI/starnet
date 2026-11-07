@@ -615,6 +615,9 @@ function plant(linkAt, target) {
       const reader9 = () => makeEgressReader({ fsp, pathMod: path, workspaces: WS, stagingRoot: SR9, guard: (abs, o2) => core.guard(abs, o2),
         hardenStagingDir: async d => { locked.push(path.resolve(d)); },
         stagingOwner: { acl: async paths => { asked.push(paths.map(p => path.resolve(p))); return answer(paths); } } });
+      // Windows only: POSIX reads no descriptor (stagingOwner is { uid } there and every upload checks the mode), and a folder
+      // replaced there can get its inode back, so a new identity cannot be made for this block to prove (first Linux CI run)
+      if (isWin) {
       const r9 = reader9();
       const g9 = await r9.read(ctx9.paths, 'r9.txt', { stage: { dir: SRA9 } });
       A.ok(g9.ok, 'm6: a root and agent folder proven ours stage (' + (g9.ok ? 'ok' : g9.error) + ')');
@@ -643,6 +646,7 @@ function plant(linkAt, target) {
         .read(ctx9.paths, 'r9.txt', { stage: { dir: path.join(BASE, 'r9b-staging', 'alpha') } }));
       A.ok(!g9e.ok && /could not be locked to you \(EPERM; r9b-staging/.test(g9e.error) && /Check that you may change that folder's permissions, or remove it, then try again/.test(g9e.error) && noHostPath(g9e),
         'm7: a staging folder that cannot be locked refuses with what to do: ' + (g9e.ok ? 'STAGED' : g9e.error));
+      }
 
       // THE REAL THING (Windows): the default reader locks, reads and proves a folder in a TEMP other accounts may write
       if (isWin) {

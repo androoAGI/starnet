@@ -33,7 +33,7 @@ async function scenario(foreignFirst) {
         requests.push({ response: res, runId: match && match[1], words: lastUserWords(body.messages) });
       });
     });
-    const request = fx.fx.request.bind(fx.fx), stop = fx.fx.stop.bind(fx.fx);
+    const request = fx.fx.request.bind(fx.fx), crash = fx.fx.crash.bind(fx.fx);
     const foreignWords = 'FOREIGN_INTERPOSED_DIRECTIVE';
     function observe(response, append) {
       const original = response.body.getReader.bind(response.body);
@@ -65,7 +65,7 @@ async function scenario(foreignFirst) {
       armed = true;
       return observe(await request(route, options), text => { targetRaw += text; });
     };
-    fx.fx.stop = async () => {
+    fx.fx.crash = async () => {
       if (armed) {
         armed = false; observedStop = true;
         const events = completeEvents(targetRaw), own = events.find(e => e.name === 'agent.run.start')?.payload;
@@ -83,7 +83,7 @@ async function scenario(foreignFirst) {
           A.ok(!!foreignEnd && RunOutcome.ofEnd(foreignEnd.payload).ok, label + ': unrelated run completes normally instead of satisfying the hold');
         }
       }
-      return stop();
+      return crash();
     };
     try { await fx.interruptAndContinue(); } catch (error) { failure = error; console.log('INTERRUPTION_ERROR ' + (error.stack || error)); }
     A.ok(observedStop, label + ': actual helper reached the observed stop boundary');

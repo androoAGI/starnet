@@ -44,6 +44,7 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
    never asked for, and those would eat scripted turns). Same shape as comms-send.e2e.test.js. */
 function startMockOpenRouter(script) {
   const requests = [];
+  const hold = { until: null };   // set: the mock answers no provider call until this settles
   function decide(body) {
     const msgs = (body && body.messages) || [];
     if (msgs.some(m => m && m.role === 'tool')) return { text: 'done' };
@@ -60,9 +61,10 @@ function startMockOpenRouter(script) {
       if (req.url.indexOf('/chat/completions') >= 0) {
         let body = '';
         req.on('data', d => { body += d; });
-        req.on('end', () => {
+        req.on('end', async () => {
           let parsed = null;
           try { parsed = JSON.parse(body); requests.push(parsed); } catch (_) {}
+          if (hold.until) await hold.until;
           const turn = decide(parsed);
           if (turn.status) {
             res.writeHead(turn.status, { 'Content-Type': 'application/json' });
@@ -83,7 +85,7 @@ function startMockOpenRouter(script) {
       }
       res.writeHead(404); res.end();
     });
-    server.listen(0, HOST, () => resolve({ server, requests, base: 'http://' + HOST + ':' + server.address().port + '/api/v1' }));
+    server.listen(0, HOST, () => resolve({ server, requests, hold, base: 'http://' + HOST + ':' + server.address().port + '/api/v1' }));
   });
 }
 
@@ -328,9 +330,15 @@ function twoStageFloor() {
     A.ok(!sse.events.some(e => e.name === 'workitem.superseded' && e.payload && e.payload.workitemId === early.j.workitemId), 'clean early stop is not falsely labeled as a supersede');
 
     /* ---- 4. ONE in flight per station ---- */
+    // the first sample stays on the wire until the second post has its answer: a fixed sleep raced a fast host, where the whole
+    // first sample delivered before the second post arrived (first Linux CI run)
+    let letGo = null;
+    mock.hold.until = new Promise(r => { letGo = r; });
+    const asked = mock.requests.length;
     const p1 = post({});
-    await sleep(30);   // let the first post claim the lock in its synchronous slice
+    for (let i = 0; i < 1000 && mock.requests.length === asked; i++) await sleep(20);
     const p2 = await post({});
+    mock.hold.until = null; letGo();
     A.eq(p2.status, 409, 'a second sample while one is riding -> 409');
     A.ok(/already riding/.test(String((p2.j || {}).error || '')), 'the refusal says a sample is already riding: ' + (p2.j || {}).error);
     const r1 = await p1;

@@ -27763,7 +27763,7 @@ function handleRunSteerStatus(req, res) {
 let _versionCache = null;
 // the git child's kill matches its launch (VD4CE-01): POSIX detached + its process group, win32 taskkill /T
 const versionGit = require('./version-source.js').makeOwnedGit({
-  platform: process.platform, execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
+  platform: process.platform, spawn: (file, args, opts) => stationChildProcess.spawn(file, args, opts), execFile: (file, args, opts, cb) => stationChildProcess.execFile(file, args, opts, cb),
   signal: (pid, sig) => process.kill(pid, sig), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t),
   note: failNote
 });

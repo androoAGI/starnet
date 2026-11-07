@@ -30,10 +30,10 @@ function removeTree(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
 }
 
-async function terminate(child, timeoutMs) {
+async function terminate(child, timeoutMs, signal) {
   if (!child || child.exitCode !== null || child.signalCode) return;
   const exited = new Promise(resolve => child.once('exit', resolve));
-  try { child.kill(); } catch (_) {}
+  try { child.kill(signal); } catch (_) {}
   await Promise.race([exited, sleep(timeoutMs || 1500)]);
   if (processAlive(child.pid)) {
     try { child.kill('SIGKILL'); } catch (_) {}
@@ -175,6 +175,14 @@ class SidecarFixture {
     const child = this.child;
     this.child = null;
     await terminate(child, 1500);
+  }
+
+  // A CRASH, not a stop. On POSIX stop() is SIGTERM: the sidecar's graceful shutdown ends and books every run, which leaves nothing
+  // to recover. On Windows both end the process outright. A scenario about an interrupted run calls this one.
+  async crash() {
+    const child = this.child;
+    this.child = null;
+    await terminate(child, 1500, 'SIGKILL');
   }
 
   async request(route, options) {

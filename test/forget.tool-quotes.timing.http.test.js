@@ -91,7 +91,7 @@ const recall = (query, then) => ctx => ctx.made('recall_conversation') === 0 ? {
       const types = mine.text.split('\n').filter(Boolean).map(l => { try { return JSON.parse(l).type; } catch (_) { return ''; } });
       const qAt = types.indexOf('quotes');
       A.ok(qAt > 0 && types[qAt - 1] === 'tool_dispatch' && types[qAt + 1] === 'tool_result', '(3) its journal holds a quotes record, and it sits between the read\'s dispatch and the tool_result record it covers: ' + types.join(','));
-      await rig.stop();
+      await rig.crash();
       await Promise.race([Promise.all([a.done, b.done, c.done]), sleep(3000)]);
       await rig.resume();
       // one continuation is PREPARED while S still exists (the Commander said yes, then deleted S before the run was started)
@@ -193,7 +193,7 @@ const recall = (query, then) => ctx => ctx.made('recall_conversation') === 0 ? {
       A.ok(journal && !journal.text.includes(WORD.five), '(5) no line of the run\'s journal holds it');
       A.ok(!rowsText(await rowsOf('t5')).includes(WORD.five), '(5) no row holds it');
       // kill at the held call and restart: the continuation, offered or refused, and every view hold no word
-      await rig.stop(); await Promise.race([t.done, sleep(3000)]);
+      await rig.crash(); await Promise.race([t.done, sleep(3000)]);
       await rig.resume();
       const recs = ((await rig.json('GET', '/api/run-recoveries')).body.recoveries || []);
       const rec = recs.find(r => JSON.stringify(r).includes('(five)'));

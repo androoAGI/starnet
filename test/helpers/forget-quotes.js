@@ -96,6 +96,7 @@ async function station(prefix, options) {
   rig.pushRoster = async () => { if (o.crew) await rig.json('POST', '/api/roster', { agents: o.crew }); };   // the page pushes its crew on every connect; a restarted station has none until it does
   rig.start = async () => { await fx.start(); await rig.json('POST', '/api/memory/config', { reflectEnabled: false }); await rig.pushRoster(); return rig; };
   rig.stop = () => fx.stop();
+  rig.crash = () => fx.crash();
   rig.resume = async () => { await fx.start(); await rig.pushRoster(); };
   rig.restart = async () => { await fx.restart(); await rig.pushRoster(); };
   rig.json = (method, route, body) => fx.json(method, route, body);

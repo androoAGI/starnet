@@ -107,7 +107,7 @@ const killedBy = (p) => p.then(r => { throw new Error('expected a killed command
       ESC + '[32mBUILD OK' + ESC + '[0m' + '\n' +
       ESC + ']0;window title' + BEL + ESC + '[2KPROGRESS' + ESC + '[1A' + '\n' +
       'array[32m] and a [0m literal' + '\n');
-    const rAnsi = await tool.run({ cmd: 'type ansi.txt' }, ctx());
+    const rAnsi = await tool.run({ cmd: (process.platform === 'win32' ? 'type' : 'cat') + ' ansi.txt' }, ctx());
     A.ok(rAnsi.content.indexOf('BUILD OK') >= 0, 'the actual text survives the strip');
     A.ok(rAnsi.content.indexOf(ESC) < 0, 'no raw ESC byte reaches the model');
     A.ok(!/\[32m\b|\[0m\b/.test(rAnsi.content.split('array')[0]), 'the colour codes are gone, not just the ESC');

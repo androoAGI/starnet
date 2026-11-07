@@ -77,6 +77,9 @@ const K = {
 };
 const TOKEN = '123456:CHANNEL-REF-BOT-TOKEN', MODEL = 'test/model', LOCAL = 'local-model';
 const OWN_FILES = ['.secrets/channel-credentials.json', '.secrets/channel-credentials.json.bak'];
+// a record that cannot be replaced: on POSIX a rename ignores the file's own mode, so its folder is read-only too
+const lockRecord = f => { fs.chmodSync(f, 0o444); if (process.platform !== 'win32') fs.chmodSync(path.dirname(f), 0o555); };
+const unlockRecord = f => { if (process.platform !== 'win32') fs.chmodSync(path.dirname(f), 0o755); fs.chmodSync(f, 0o644); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function waitFor(pred, label, ms) {
   const until = Date.now() + (ms || 30000);
@@ -548,7 +551,7 @@ function station(label, up, tg, env) {
       A.eq((await s.fx.json('POST', '/api/roster', { agents: [{ agentId: 'bot', name: 'BOT', system: 'a new identity', provider: 'openrouter', model: MODEL }], updatedAt: Date.now() })).status, 200,
         'read-only: the agent\'s identity is edited');
       const secrets = path.join(s.ws, 'channels', 'secrets.json');
-      fs.chmodSync(secrets, 0o444);   // secrets.json cannot be written, as a read-only file, an antivirus lock or a full disk leaves it
+      lockRecord(secrets);   // secrets.json cannot be written, as a read-only file, an antivirus lock or a full disk leaves it
       try {
         const same = await add({ key: K.addTwo });
         A.eq([same.status, same.body.error], [500, 'could not prove the agent bot configuration was saved; nothing was started'], 'read-only: a re-add with K2 cannot prove its record saved, and says nothing was started');
@@ -559,7 +562,7 @@ function station(label, up, tg, env) {
         const switched = await add({ provider: 'custom', model: LOCAL, key: K.addTwo, baseUrl: up.base + '/switch/v1' });
         A.eq(switched.status, 500, 'read-only: a re-add that switches provider cannot prove its record saved either: ' + switched.text.slice(0, 200));
         A.eq([holders(s.ws, K.addOne), holders(s.ws, K.addTwo)], [OWN_FILES, []], 'read-only, a provider switch: K1 is still in the channel file, both copies, and K2 is in no file (86ff765db: a restart then left neither)');
-      } finally { fs.chmodSync(secrets, 0o644); }
+      } finally { unlockRecord(secrets); }
       A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'read-only: the agent moves back');
       await s.fx.restart();
       await waitFor(() => /telegram bot @ref_bot auto-started/.test(s.fx.output()), 'read-only: the agent-bound bot auto-starts');

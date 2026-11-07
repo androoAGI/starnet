@@ -318,7 +318,8 @@ function makeVersionSource(deps, config) {
 
 /* THE GIT CHILD IS OWNED AS A TREE, AND ITS KILL MATCHES ITS LAUNCH (Codex VD4CE-01). makeOwnedGit(host) gives the
    execFile and kill the host injects into makeVersionSource.
-     POSIX: git is launched detached, so it leads its OWN process group, and kill() signals that group (-pid) with
+     POSIX: git is launched detached (through spawnExecFile below when the host gives spawn: child_process.execFile
+       drops `detached`), so it leads its OWN process group, and kill() signals that group (-pid) with
        SIGTERM (git removes its lock files on SIGTERM; SIGKILL would leave a stale index.lock). Only when the group
        cannot be signalled (noted) does it fall back to git itself. The child is never unref'd: it stays
        referenced, its close is still awaited, and stop() still kills it. Before this, a plain execFile child sat
@@ -340,6 +341,7 @@ function makeOwnedGit(host) {
   const win = h.platform === 'win32';
   const note = (tag, err) => { if (typeof h.note === 'function') h.note(tag, err); };
   const timers = typeof h.setTimer === 'function' && typeof h.clearTimer === 'function';
+  const launch = (!win && typeof h.spawn === 'function') ? spawnExecFile(h.spawn) : h.execFile;
   const why = (e) => String((e && (e.code != null ? e.code : e.message)) || 'error').slice(0, 80);
   function alone(child, reason) {
     try { if (child && typeof child.kill === 'function') child.kill('SIGTERM'); }
@@ -370,7 +372,7 @@ function makeOwnedGit(host) {
     o.windowsHide = true;
     if (win) delete o.detached; else o.detached = true;   // POSIX: the leader of its own process group
     let child = null, done = false, timedOut = false, timer = null;
-    child = h.execFile(file, args, o, (error, stdout, stderr) => {
+    child = launch(file, args, o, (error, stdout, stderr) => {
       done = true;
       if (timer !== null) { h.clearTimer(timer); timer = null; }
       if (error && timedOut) error.killed = true;   // as execFile's own timeout reads: the note says "timed out"
@@ -382,4 +384,58 @@ function makeOwnedGit(host) {
   return { execFile, kill };
 }
 
-module.exports = { makeVersionSource, makeOwnedGit, DEFAULTS, RESOLVING };
+/* execFile'S ANSWER, ON spawn, FOR A LAUNCH THAT MUST REALLY BE DETACHED. Node's child_process.execFile passes spawn only
+   cwd, env, gid, shell, signal, uid, windowsHide and windowsVerbatimArguments, so `detached: true` through it does nothing:
+   git stayed in the station's process group, the -pid kill above missed with ESRCH, the fallback killed git alone, and a
+   descendant could outlive the station (found by the first Linux CI run of V11 and V12, 2026-11-06).
+   The answer is execFile's: cb(error, stdout, stderr) once the child's stdio closed. error.code is the exit code or a
+   Node code (ENOENT, ERR_CHILD_PROCESS_STDIO_MAXBUFFER, whose stdout stays what fitted); an exit error carries killed and
+   signal; opts.encoding, opts.timeout and opts.maxBuffer hold. stdin is ignored: nothing launched here reads it. An absent
+   env stays absent, so the station's guarded spawn still fills in its own. */
+function spawnExecFile(spawn) {
+  return (file, args, opts, cb) => {
+    const o = opts || {};
+    const launch = { detached: !!o.detached, windowsHide: !!o.windowsHide, stdio: ['ignore', 'pipe', 'pipe'] };
+    if (o.cwd) launch.cwd = o.cwd;
+    if (o.env) launch.env = o.env;
+    const limit = Number(o.maxBuffer) > 0 ? Number(o.maxBuffer) : 1024 * 1024;
+    const kept = { stdout: [], stderr: [] }, size = { stdout: 0, stderr: 0 };
+    let failure = null, killed = false, timer = null, answered = false;
+    const child = spawn(file, args, launch);
+    const killIt = () => { killed = true; try { child.kill('SIGTERM'); } catch (_) { /* already gone */ } };
+    const answer = (code, signal) => {
+      if (answered) return;
+      answered = true;
+      if (timer !== null) clearTimeout(timer);
+      const read = (name) => Buffer.concat(kept[name]).toString(o.encoding || 'utf8');
+      const stdout = read('stdout'), stderr = read('stderr');
+      if (!failure && code === 0 && !signal) { cb(null, stdout, stderr); return; }
+      const cmd = [file].concat(args || []).join(' ');
+      const error = failure || Object.assign(new Error('Command failed: ' + cmd + '\n' + stderr), { code, killed: child.killed || killed, signal: signal || null });
+      error.cmd = cmd;
+      cb(error, stdout, stderr);
+    };
+    const collect = (name) => (chunk) => {
+      const room = limit - size[name];
+      if (room > 0) kept[name].push(chunk.length > room ? chunk.subarray(0, room) : chunk);
+      size[name] += chunk.length;
+      if (size[name] > limit && !failure) {
+        failure = Object.assign(new RangeError(name + ' maxBuffer length exceeded'), { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER' });
+        killIt();
+      }
+    };
+    if (child.stdout) child.stdout.on('data', collect('stdout'));
+    if (child.stderr) child.stderr.on('data', collect('stderr'));
+    child.on('error', (e) => {
+      failure = failure || e;
+      if (child.stdout) child.stdout.destroy();
+      if (child.stderr) child.stderr.destroy();
+      answer(null, null);
+    });
+    child.on('close', answer);
+    if (Number(o.timeout) > 0) timer = setTimeout(killIt, Number(o.timeout));
+    return child;
+  };
+}
+
+module.exports = { makeVersionSource, makeOwnedGit, spawnExecFile, DEFAULTS, RESOLVING };

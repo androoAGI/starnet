@@ -183,7 +183,10 @@ const pages = {
           }
         }
         if (held) console.log('[teardown] scratch removed after ' + Math.round((Date.now() - from) / 1000) + ' s: ' + held.code + ' on ' + held.path);
-      } else fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 24, retryDelay: 200 });
+      } else {
+        try { fs.rmSync(scratch, { recursive: true, force: true, maxRetries: 24, retryDelay: 200 }); }
+        catch (e) { if (e.code !== 'ENOTEMPTY') throw e; console.log('[teardown] Chrome still writes ' + e.path + ' after a minute: this scratch stays in the temp folder'); }
+      }
     }
   }
   A.report('browser-upload-chooser.e2e');

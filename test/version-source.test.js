@@ -48,6 +48,7 @@
         (once), and gracefulShutdown exits only after it, inside afterBrowser's 2500 ms bound. A real child station
         that stops and exits the way gracefulShutdown does leaves no git child or grandchild running: before the
         settle it exited at once, which ended its own taskkill, and the win32 grandchild lived on;
+     V15 spawnExecFile, the launch POSIX git really takes: execFile's answer on spawn, and a detached child that leads a group;
      V7 the composed /api/version surface (computeVersionSurface sliced from the sidecar) holds V4-V6 and keeps the
         BUILD_SHA / BUILD_DIRTY env stamps exactly as before; the sidecar wires the stat probe, the redactor, the
         owned git launch and kill (makeOwnedGit), the boot kick and the shutdown stop. */
@@ -512,7 +513,7 @@ scenario('V14 real git: no .git/index.lock and no index write, and the verdict d
   for (const k of Object.keys(env)) if (/^GIT_/i.test(k)) delete env[k];   // a hook's GIT_DIR / GIT_INDEX_FILE must not redirect it
   const git = (args) => cp.execFileSync('git', args, { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim();
   const host = VS.makeOwnedGit({
-    platform: process.platform, execFile: (f, a, o, cb) => cp.execFile(f, a, Object.assign({ env }, o), cb),
+    platform: process.platform, spawn: (f, a, o) => cp.spawn(f, a, Object.assign({ env }, o)), execFile: (f, a, o, cb) => cp.execFile(f, a, Object.assign({ env }, o), cb),
     signal: (pid, sig) => process.kill(pid, sig), setTimer: (fn, ms) => setTimeout(fn, ms), clearTimer: (t) => clearTimeout(t), note: () => {}
   });
   const indexFile = path.join(root, '.git', 'index');
@@ -735,6 +736,7 @@ scenario('V11 the git child is killed as the tree its launch made, on each platf
   const launched = [];
   const realOg = VS.makeOwnedGit({
     platform: process.platform,
+    spawn: (file, args, o) => { const ch = cp.spawn(process.execPath, ['-e', kid], o); launched.push(ch.pid); return ch; },   // POSIX, as the sidecar wires it
     execFile: (file, args, o, cb) => {
       if (file === 'taskkill') return cp.execFile(file, args, o, cb);
       const ch = cp.execFile(process.execPath, ['-e', kid], o, cb);
@@ -758,6 +760,35 @@ scenario('V11 the git child is killed as the tree its launch made, on each platf
     await waitReal(() => left.every(pid => !alivePid(pid)), 5000);   // a process still dying holds its cwd (win32 EBUSY)
     try { fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (e) { console.log('cleanup ' + dir + ': ' + e.message); }
   }
+});
+
+// ---- V15 the POSIX launch: execFile's answer on spawn, because execFile drops `detached` (first Linux CI run, 2026-11-06) ----
+scenario('V15 spawnExecFile answers as execFile does, and its detached child really leads a group', async () => {
+  const run = VS.spawnExecFile(cp.spawn);
+  const go = (script, o) => new Promise((res) => {
+    run(process.execPath, ['-e', script], Object.assign({ windowsHide: true, encoding: 'utf8', maxBuffer: 1 << 20 }, o), (error, stdout, stderr) => res({ error, stdout, stderr }));
+  });
+  const fine = await go("process.stdout.write('out'); process.stderr.write('err');");
+  A.eq([fine.error, fine.stdout, fine.stderr], [null, 'out', 'err'], 'V15 a clean exit answers null and both streams, decoded');
+  const bad = await go("process.stderr.write('why'); process.exit(3);");
+  A.eq([bad.error && bad.error.code, bad.error && bad.error.killed, bad.error && bad.error.signal, bad.stderr], [3, false, null, 'why'], 'V15 a failed exit answers its code, not killed, with its stderr');
+  const gone = await new Promise((res) => run(path.join(os.tmpdir(), 'no-such-program-' + process.pid), [], { windowsHide: true }, (error, stdout) => res({ error, stdout })));
+  A.eq([gone.error && gone.error.code, gone.stdout], ['ENOENT', ''], 'V15 a program that cannot start answers ENOENT');
+  const big = await go("process.stdout.write('x'.repeat(5000)); setInterval(function(){},1000);", { maxBuffer: 100 });
+  A.eq([big.error && big.error.code, big.stdout.length], ['ERR_CHILD_PROCESS_STDIO_MAXBUFFER', 100], 'V15 past maxBuffer: killed, the Node code, and the stdout that fitted (the -dirty verdict reads it)');
+  const slow = await go('setInterval(function(){},1000);', { timeout: 200 });
+  A.ok(slow.error && slow.error.killed === true, 'V15 past its timeout a child is killed and reads killed');
+  if (process.platform !== 'win32') {
+    let leader = false;
+    const held = await new Promise((res) => {
+      const ch = run(process.execPath, ['-e', 'setInterval(function(){},1000);'], { detached: true }, (error) => res({ error }));
+      setTimeout(() => { try { process.kill(-ch.pid, 0); leader = true; process.kill(-ch.pid, 'SIGTERM'); } catch (_) { ch.kill('SIGKILL'); } }, 150);
+    });
+    A.ok(leader, 'V15 POSIX: a detached launch leads its own process group (execFile drops the option)');
+    A.eq(held.error && held.error.signal, 'SIGTERM', 'V15 POSIX: the group signal ended it, and its answer says so');
+  }
+  const index = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  A.ok(/makeOwnedGit\(\{\s*platform: process\.platform, spawn: /.test(index), 'V15 the sidecar gives makeOwnedGit its guarded spawn, so POSIX git leads its group');
 });
 
 // ---- V12 a shutdown waits for its kill to land (final review 1 of f884cced3: the win32 taskkill race) ----
@@ -833,6 +864,7 @@ scenario('V12 the shutdown kill is a settle the station waits for, inside its bo
     "var cp = require('child_process'), fs = require('fs'), path = require('path');",
     'var VS = require(' + JSON.stringify(path.join(__dirname, '..', 'sidecar', 'version-source.js')) + ');',
     'var og = VS.makeOwnedGit({ platform: process.platform,',
+    '  spawn: function (file, args, o) { var ch = cp.spawn(process.execPath, ["-e", ' + JSON.stringify(kid) + '], o); fs.writeFileSync(' + JSON.stringify(kidPidFile) + ', String(ch.pid)); return ch; },',
     "  execFile: function (file, args, o, cb) { if (file === 'taskkill') return cp.execFile(file, args, o, cb);",
     '    var ch = cp.execFile(process.execPath, ["-e", ' + JSON.stringify(kid) + '], o, cb); fs.writeFileSync(' + JSON.stringify(kidPidFile) + ', String(ch.pid)); return ch; },',
     '  signal: function (pid, sig) { return process.kill(pid, sig); }, setTimer: function (fn, ms) { return setTimeout(fn, ms); }, clearTimer: function (t) { clearTimeout(t); }, note: function () {} });',

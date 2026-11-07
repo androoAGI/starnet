@@ -534,7 +534,8 @@ const linkPaths = (x) => ((x && x.links) || []).map((l) => l.path).sort();
       fs.writeFileSync(path.join(gitDirOf(aid), 'info', 'exclude'), '');
       await gitRun(['--git-dir', gitDirOf(aid), '--work-tree', wt, '-c', 'core.autocrlf=false', 'add', '-A'], { cwd: wt });
       const legacy = await gitRun(['--git-dir', gitDirOf(aid), 'ls-files']);
-      A.ok(/node_modules\/mylib\/index\.js/.test(legacy), 'fixture: the shadow index tracks files behind the junction, as a pre-fix capture left it');
+      // a junction is a folder to Git, so `add -A` walked it; POSIX Git records a symlink as the link itself and never walks it
+      A.ok((isWin ? /node_modules\/mylib\/index\.js/ : /^node_modules\/mylib$/m).test(legacy), 'fixture: the shadow index tracks ' + (isWin ? 'files behind the junction, as a pre-fix capture left it' : 'the link itself, all POSIX Git ever records'));
       const r = await store.restoreDetailed(aid, s0.id);
       A.eq(r && r.reason, 'link_in_path', 'rewinding while the index tracks files behind the junction is refused (they would be deleted through it)');
       A.ok(r && /"node_modules\/mylib" is a link/.test(r.detail || ''), 'naming the link (' + (r && r.detail) + ')');

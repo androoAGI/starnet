@@ -127,7 +127,7 @@ async function until(fixture, predicate, label, timeoutMs) {
     const preCrash = (await fixture.json('GET', '/api/loops')).body;
     A.eq(preCrash.loops[0].recent[0].outcome, 'running', 'precondition: the durable ledger says the pass is running');
 
-    await fixture.stop();
+    await fixture.crash();
     await fixture.start();
     A.eq(loopCalls(restartObjective), callsBeforeCrash, 'sidecar restart itself does not replay a provider call');
 

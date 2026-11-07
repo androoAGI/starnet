@@ -208,6 +208,7 @@ const frameOf = (r, name) => {
     let fired = null;
     for (let i = 0; i < 24 && !fired; i++) { await sleep(500); row = await loopRow(); if (row && row.iterationCount >= 1) fired = row; }
     A.ok(fired && !fired.failStreak && fired.enabled !== false, 'the file is back: the very next tick fires the loop, with no resume — ' + JSON.stringify(fired && { n: fired.iterationCount, f: fired.failStreak, s: fired.state }));
+    for (let i = 0; i < 40 && calls.length <= mark2; i++) await sleep(250);   // an iteration counts when it starts; its call follows
     A.ok(calls.length > mark2, 'and that iteration is a call on the wire');
   } finally {
     await fx.dispose().catch(() => {});

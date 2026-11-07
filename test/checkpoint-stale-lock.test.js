@@ -168,7 +168,7 @@ const noted = tag => failopen.counts()[tag] || 0;
     // an agent that cloned a repo into its workspace: add prints an unrelated warning first, then the real failure
     answer = { code: 128, stdout: '', stderr: 'warning: adding embedded git repository: vendor/lib\nhint: You\'ve added another git repository inside your current repository.\nhint: Clones of the outer repository will not contain the contents of\nfatal: Unable to create \'' + path.join(gitDirOf(aid), 'index.lock') + '\': Permission denied\n' };
     A.eq(await fake.snapshot(aid, { label: 'embedded' }), null, 'a failed add after an embedded-repo warning returns null');
-    A.ok(/Unable to create '<checkpoint repo>[\\/]index\.lock': Permission denied/.test(fake.health(aid).lastFailure.reason) && !/embedded/.test(fake.health(aid).lastFailure.reason),
+    A.ok(/Unable to create '[\\/]?<checkpoint repo>[\\/]index\.lock': Permission denied/.test(fake.health(aid).lastFailure.reason) && !/embedded/.test(fake.health(aid).lastFailure.reason),
       'the reason is Git\'s fatal line, not the warning before it: ' + fake.health(aid).lastFailure.reason);
     answer = { code: 1, stdout: '', stderr: 'warning: something unrelated\nthe disk is full\n' };
     A.eq(await fake.snapshot(aid, { label: 'plain' }), null, 'a failed add with no error:/fatal: line returns null');

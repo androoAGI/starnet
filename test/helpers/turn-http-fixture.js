@@ -195,7 +195,7 @@ class TurnHttpFixture {
       return held && this.held === held.response && !held.response.destroyed && held.runId === own.runId && held.token === token &&
         events.some(e => e.name === 'agent.token' && e.payload?.runId === own.runId && String(e.payload.delta).includes(token)) && own;
     }, 'interrupted source owns held provider response and partial token');
-    this.phone.close(); await this.fx.stop(); await reading;
+    this.phone.close(); await this.fx.crash(); await reading;
     this.page.consume(raw.slice(0, raw.lastIndexOf('\n')), sent); await this.fx.start(); this.connectPhone();
     const records = await this.json('GET', '/api/run-recoveries'), source = records.recoveries.find(r => r.runId === start.runId);
     try { assert.ok(source && source.canAutoContinue, 'real interrupted run is continuable'); }

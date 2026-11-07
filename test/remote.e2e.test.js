@@ -74,7 +74,7 @@ function startMockModel() {
         };
         const shellScript = (tag, done) => {
           if (tools.length === 0) return call('b_' + tag, 'brief_proceed', { objective: 'Run the ' + tag + ' proof' });
-          if (!tools.some(m => /SHELL_OK_/.test(JSON.stringify(m))) && tools.length < 3) return call('s_' + tag, 'shell_exec', { cmd: 'echo SHELL_OK_' + tag + '> ' + tag + '-proof.txt && type ' + tag + '-proof.txt' });
+          if (!tools.some(m => /SHELL_OK_/.test(JSON.stringify(m))) && tools.length < 3) return call('s_' + tag, 'shell_exec', { cmd: 'echo SHELL_OK_' + tag + '> ' + tag + '-proof.txt && ' + (process.platform === 'win32' ? 'type ' : 'cat ') + tag + '-proof.txt' });
           return say(done);
         };
         if (/remote shell proof/i.test(text)) return shellScript('remote', 'REMOTE_SHELL_DONE');

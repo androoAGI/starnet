@@ -469,8 +469,10 @@ async function waitFor(pred, label) {
       fs.mkdirSync(path.dirname(channelRecordFile), { recursive: true });
       fs.writeFileSync(channelRecordFile, JSON.stringify({ telegram: { provider: 'openrouter', model: MODELS.openrouter, key: K.ifQ, enabled: false } }));
       await s.fx.start();
+      // on POSIX a rename ignores the file's own mode, so its folder is read-only too
       fs.chmodSync(channelRecordFile, 0o444);
-      s.restoreSecrets = () => fs.chmodSync(channelRecordFile, 0o644);
+      if (process.platform !== 'win32') fs.chmodSync(path.dirname(channelRecordFile), 0o555);
+      s.restoreSecrets = () => { if (process.platform !== 'win32') fs.chmodSync(path.dirname(channelRecordFile), 0o755); fs.chmodSync(channelRecordFile, 0o644); };
       const adopted = await s.push({ provider: 'openrouter', key: K.ifQ });
       A.eq(adopted.body && adopted.body.configured, true, 'queued: the station adopts the channel key as its primary');
       A.eq(JSON.parse(fs.readFileSync(channelRecordFile, 'utf8')).telegram.credential.ref, 'channel', 'queued: the failed conversion leaves the saved record naming its retained channel version');
