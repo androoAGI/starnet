@@ -128,4 +128,10 @@ A.ok(!/background-blend-mode:[^;]*multiply/.test(css), 'no circuit-trace patch a
 A.ok(/#left :is\(#workstreams, #projects, #crew\) :is\(\.ws-row, \.crew-row\) \{ border-radius: 9px/.test(css),
   'rail rows are moulded glass slots (rounded), never square tiles');
 A.ok(/--vx-slot:/.test(css) && /--vx-gloss:/.test(css), 'list entries are glass slots and the chosen one is the gloss slot');
+// ---- luminous glass (Andrew 2026-11-08: "more gorgeous like these … 2010s y2k future winamp style"): the screens are deep
+// tinted glass with a gloss sweep, the body is liquid chrome, the fat housing corners carry lit lenses ----
+A.ok(/--vx-glass-deep:\s*linear-gradient\([^;]*var\(--ph\)/.test(css), 'the glass holds the theme hue (deep tinted glass, never flat black)');
+A.ok(/#left, #chat-panel\)::before \{[^}]*var\(--vx-glass-sweep\)[^}]*var\(--vx-glass-deep\)/.test(css), 'CREW and COMMS glass carry the gloss sweep over the tinted body');
+A.ok(/#left::after \{[^}]*var\(--vx-lens\)/.test(css) && /#chat-panel::after \{[^}]*var\(--vx-lens\)/.test(css), 'the fat housing corners carry lit lenses');
+A.ok(/#topbar::before \{[^}]*content: ''/.test(css) && !/logo/i.test(css), 'the logo sits in an LCD well cut into the rail, never by styling the logo itself');
 A.report('vector-identity');

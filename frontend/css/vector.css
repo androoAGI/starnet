@@ -1181,3 +1181,114 @@ html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left :is(#workstreams
 html body.vx:not(.hud-mode) #screen-game #left .crew-portrait { border-radius: 7px; overflow: hidden; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel :is(.cmsg-starter-refresh, .gd-agent-toggle) { border-radius: 999px; corner-shape: round; padding-inline: 14px; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel .gd-agent-toggle { padding-inline: 4px; border-radius: 10px; }
+
+/* ============ 16 · LUMINOUS GLASS — the refs glow: deep tinted glass, gloss sweeps, lensed bosses, lit conduits ============ */
+html body.vx:not(.hud-mode) {
+  /* the glass body: the theme hue held deep inside dark glass (the playlist editor's blue, the DVD menu's green) */
+  --vx-glass-deep: linear-gradient(180deg, color-mix(in srgb, var(--ph) 17%, #02070a) 0%, color-mix(in srgb, var(--ph) 8%, #010305) 42%, color-mix(in srgb, var(--ph) 6%, #010305) 70%, color-mix(in srgb, var(--ph) 14%, #02060a) 100%);
+  /* the gloss: one hard curved reflection across the top-left of the glass (the Xbox player's screen, the drone's LCD) */
+  --vx-glass-sweep: radial-gradient(ellipse 160% 70% at 0% -30%, rgba(255, 255, 255, .13) 0, rgba(255, 255, 255, .05) 45%, transparent 45.4%);
+  --vx-lens: radial-gradient(circle, #fff 0 1px, color-mix(in srgb, var(--vx-core) 70%, #fff) 1.8px, var(--vx-core) 3px, rgba(var(--ph-rgb), .5) 5px, transparent 7px);
+}
+
+/* the housings: a fat two-tier chrome bezel, bosses with lit lenses in the fat corners */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::after {
+  inset: -4px; background-origin: border-box;
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)) drop-shadow(0 0 1px rgba(0, 0, 0, .9));
+}
+html body.vx:not(.hud-mode) #screen-game #left::after {
+  background: var(--vx-lens) 1px 1px / 28px 28px no-repeat, var(--vx-lens) right 1px bottom 1px / 28px 28px no-repeat; background-origin: border-box;
+  background-clip: border-box;
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel::after {
+  background: var(--vx-lens) right 1px top 1px / 28px 28px no-repeat, var(--vx-lens) left 1px bottom 1px / 28px 28px no-repeat; background-origin: border-box;
+  background-clip: border-box;
+}
+
+/* the glass: deep hue, a curved gloss, a hue bloom rising from the lower lip, a dark vignette */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::before {
+  inset: 8px;
+  background:
+    var(--vx-glass-sweep),
+    radial-gradient(ellipse 110% 22% at 50% 100%, rgba(var(--ph-rgb), .2), transparent 72%),
+    radial-gradient(ellipse 130% 40% at 50% 0%, rgba(var(--ph-rgb), .12), transparent 70%),
+    radial-gradient(ellipse 125% 95% at 50% 45%, transparent 56%, rgba(0, 0, 0, .55) 100%),
+    var(--vx-grain-tube),
+    var(--vx-glass-deep);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--ph-rgb), .6),
+    inset 0 0 0 2px rgba(0, 0, 0, .7),
+    inset 0 0 34px rgba(var(--ph-rgb), .2),
+    inset 0 12px 24px rgba(0, 0, 0, .8);
+}
+html body.vx:not(.hud-mode) #screen-game #left::before { border-radius: 20px 4px 20px 4px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel::before { border-radius: 4px 20px 4px 20px; }
+html body.vx:not(.hud-mode) .term:not(.pw)::before {
+  inset: 7px;
+  background:
+    var(--vx-glass-sweep),
+    radial-gradient(ellipse 110% 26% at 50% 100%, rgba(var(--ph-rgb), .16), transparent 72%),
+    radial-gradient(ellipse 125% 95% at 50% 45%, transparent 58%, rgba(0, 0, 0, .5) 100%),
+    var(--vx-grain-tube),
+    var(--vx-glass-deep);
+}
+html body.vx:not(.hud-mode) .term:not(.pw)::after { inset: -3px; filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)); }
+
+/* the conduits between the screens: glass tubes with a lit core in chrome collars (the energy tubes of the chrome skins) */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
+  background:
+    linear-gradient(90deg, transparent 2px, rgba(255, 255, 255, .5) 3px, transparent 4.5px) center / 9px 100% no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), 0) 0, rgba(var(--ph-rgb), .55) 30%, color-mix(in srgb, var(--vx-core) 55%, #fff) 50%, rgba(var(--ph-rgb), .55) 70%, rgba(var(--ph-rgb), 0)) center / 5px 100% no-repeat,
+    linear-gradient(90deg, #050608, #2a3038 18%, #0b0e11 50%, #2a3038 82%, #050608) center / 9px 100% no-repeat;
+  filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .35));
+}
+
+/* list plates (the DVD menu's stacked clip slots): translucent hue glass with a lit rim, never a dark box */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects, #crew) :is(.ws-row, .crew-row):not(.sel):not(.selected),
+html body.vx:not(.hud-mode) #screen-game #chat-panel .cmsg-starter {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, 0) 48%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .2), rgba(var(--ph-rgb), .07) 55%, rgba(var(--ph-rgb), .13)) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .5), inset 0 1px 0 rgba(255, 255, 255, .18), 0 2px 5px rgba(0, 0, 0, .55) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel .cmsg-starter:is(:hover, :focus-visible) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 50%), linear-gradient(180deg, rgba(var(--ph-rgb), .38), rgba(var(--ph-rgb), .16)) !important;
+  box-shadow: inset 0 0 0 1px var(--vx-core), 0 0 14px rgba(var(--ph-rgb), .35) !important;
+}
+/* the bezel reaches out past the screen's box into the gutters: clip with a margin instead of hiding (no scroll container) */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) { overflow: clip; overflow-clip-margin: 6px; }
+
+/* the body is LIQUID CHROME (the skins are chrome first, glass second): a bright specular crown, a dark waist, a lower
+   reflection band. The screens and rails sit in it like inlays */
+html body.vx:not(.hud-mode) #screen-game.active {
+  background:
+    radial-gradient(ellipse 50% 18% at 22% 0%, rgba(255, 255, 255, .3), transparent 70%),
+    radial-gradient(ellipse 40% 16% at 80% 100%, rgba(255, 255, 255, .16), transparent 70%),
+    radial-gradient(ellipse 22% 60% at 0% 50%, rgba(255, 255, 255, .14), transparent 70%),
+    radial-gradient(ellipse 22% 60% at 100% 50%, rgba(255, 255, 255, .1), transparent 70%),
+    var(--vx-grain),
+    linear-gradient(180deg, #6d7682 0%, #3a414a 14%, #1c2127 40%, #262c33 62%, #4a525c 86%, #22272d 100%);
+}
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) {
+  --vx-metal-hi: #c9d0d8; --vx-metal: #343b44; --vx-metal-lo: #0e1114;
+  box-shadow: 0 0 0 1px #050608, inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -2px 3px rgba(0, 0, 0, .6), 0 4px 8px rgba(0, 0, 0, .6);
+}
+/* the readouts on the rails sit in recessed LCD wells cut into the chrome (the skins' time + title windows) */
+html body.vx:not(.hud-mode) #screen-game #topbar :is(.tb-stats),
+html body.vx:not(.hud-mode) #screen-game #topbar::before,
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-right {
+  border-radius: 14px; corner-shape: round;
+  background:
+    radial-gradient(ellipse 120% 70% at 30% 0%, rgba(255, 255, 255, .08), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 14%, #020504), color-mix(in srgb, var(--ph) 5%, #010302) 60%, color-mix(in srgb, var(--ph) 12%, #020504));
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .45), inset 0 0 14px rgba(var(--ph-rgb), .18),
+    0 0 0 2px #0a0c0f, 0 1px 0 2px rgba(255, 255, 255, .45);
+}
+html body.vx:not(.hud-mode) #screen-game #topbar::before { content: ''; position: absolute; inset: 8px auto 8px 14px; width: 188px; pointer-events: none; }
+html body.vx:not(.hud-mode) #screen-game #topbar .tb-stats { margin-block: 7px; padding-inline: 10px; }
+
+/* dock keys: dark capsules seated in bright chrome collars, legends lit */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp,
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(0, 0, 0, .7), 0 0 0 1px #050608, 0 0 0 3px #aab3be, 0 0 0 4px #050608, 0 3px 5px rgba(0, 0, 0, .6);
+}
