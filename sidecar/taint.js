@@ -162,6 +162,11 @@
   // whole tool is gone. The action is echoed only when it is a plain word: it is model-written text. Pure.
   function lockoutLead(tool, call) {
     const name = String((call && call.name) || (tool && tool.name) || 'this tool');
+    // GHSA-2hpj #6: a request that ATTACHES workspace files is what is refused, not web_request itself: say so, so the
+    // model does not give up the API calls that still continue
+    if (isWebRequest(tool, call) && requestCarriesFiles(call)) {
+      return 'This "' + name + '" call attaches workspace files (a ${file:…} reference or multipart parts), which a run that read outside content does not send without a fresh confirmation.';
+    }
     const open = openActionsWhenTainted(tool);
     if (!open.length) return '"' + name + '" is no longer available on this run.';
     const raw = call && call.args && typeof call.args.action === 'string' ? call.args.action.trim() : '';
@@ -186,7 +191,10 @@
     // ...and never for a fresh-consent tool (station.power): a run that read a page asks before it widens the leash
     // ...and never for a host process (shell.exec, verify.run; GHSA-2hpj #2): text the run read must not drive this
     // computer's terminal with no prompt. A watched run confirms that one call; an unattended one is refused.
-    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true && impactOfTool(tool) !== 'workspace-process') return { allow: true, needsConfirmation: false, oneShot: false };
+    // ...and never for a web_request that attaches workspace files (GHSA-2hpj #6): text the run read must not pick a file for
+    // the host to read and send. A watched run confirms that one call; an unattended one is refused.
+    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true && impactOfTool(tool) !== 'workspace-process'
+      && !(isWebRequest(tool, opts.call) && requestCarriesFiles(opts.call))) return { allow: true, needsConfirmation: false, oneShot: false };
     if (opts.surface !== 'interactive' || opts.hasPrompt !== true) return { allow: false, needsConfirmation: false, oneShot: false };
     if (opts.decision == null) return { allow: false, needsConfirmation: true, oneShot: false };
     const allow = /^(?:once|session|always|full)$/i.test(String(opts.decision || ''));
@@ -202,7 +210,14 @@
      So the run tracks a scope: { origin, keys } while every untrusted byte it has read came from web_request responses
      of ONE https origin (plus this run's own parked copies of them), else { broad: true }. Pure; the host owns state.
      Anything else that taints — a page, a browser read, a connector, an attachment, another origin, a key not already
-     used there, a taint the run started with or inherited — makes the scope broad and the old lock applies unchanged. */
+     used there, a taint the run started with or inherited — makes the scope broad and the old lock applies unchanged.
+     ONE ORIGIN IS NOT ONE PRINCIPAL (GHSA-2hpj #6, 2026-11-08). On a multi-tenant API (GitHub, Drive, a marketplace) an
+     issue body the run read can name another account's repo on the same host, and the Commander's key works there too.
+     So the scope also keeps what the run chose BEFORE any untrusted byte could steer it: the method and the path folder of
+     the request whose response first scoped it ({ origin, keys, method, prefix }). A continuation must use that method,
+     stay under that folder, and attach no files: a ${file:…} reference or a multipart part makes the HOST read a workspace
+     file the model never saw and send it, so injected text could choose one. Anything else (a PUT after a GET, another
+     folder, an upload) needs a fresh confirmation in a watched run and is refused unattended, as before 10-12. */
   const KEY_REF = /\$\{([A-Z][A-Z0-9_]*)\}/g;
   function requestOrigin(call) {
     try {
@@ -219,6 +234,25 @@
     return Array.from(out).sort();
   }
   function isWebRequest(tool, call) { return String((tool && tool.name) || (call && call.name) || '').replace(/\./g, '_') === 'web_request'; }
+  // Does this request make the host read workspace files and send them? web.js resolves ${file:…} in the body and reads
+  // every multipart part's file (a value-only multipart counts too: one rule, no part parsing). Pure.
+  const FILE_REF = /\$\{file:/;
+  function requestCarriesFiles(call) {
+    const a = (call && call.args) || {};
+    if (Array.isArray(a.multipart)) return true;
+    return a.body != null && FILE_REF.test(String(a.body));
+  }
+  function requestMethod(call) { return String((call && call.args && call.args.method) || 'GET').trim().toUpperCase(); }
+  // The request's path as the URL parser normalises it (web.js sends that same URL), or '' when it cannot be compared:
+  // an encoded slash, backslash or dot is decoded by some servers after a prefix check would have passed (..%2F..%2Fother).
+  function requestPath(call) {
+    try {
+      const p = new URL(String((call && call.args && call.args.url) || '')).pathname || '/';
+      return /%(?:2f|5c|2e)|\\/i.test(p) ? '' : p;
+    } catch (_) { return ''; }
+  }
+  // A path's folder: everything through its last '/'. /v1/shops/1/products/9.json -> /v1/shops/1/products/
+  function pathFolder(p) { return p.slice(0, p.lastIndexOf('/') + 1) || '/'; }
   // fs.read / fs.search of a park THIS run made: its bytes are this run's own (same-scope) results, not new content.
   function ownPark(tool, call, runId) {
     const name = String((tool && tool.name) || '');
@@ -238,18 +272,33 @@
     // web_request may have followed a cross-origin redirect, and failed/replayed results may have no proof.
     if (!origin || opts.responseOrigin !== origin) return { broad: true };
     const keys = requestKeys(call);
-    if (!scope) return { origin, keys };
+    if (!scope) {
+      // the first proven API read: its request was chosen before any untrusted byte reached the run
+      const path = requestPath(call);
+      return path ? { origin, keys, method: requestMethod(call), prefix: pathFolder(path) } : { broad: true };
+    }
     if (scope.origin !== origin || !keys.every(k => scope.keys.indexOf(k) >= 0)) return { broad: true };
     return scope;
   }
-  // May this call skip the post-taint confirmation? Only a web_request back to the scoped origin, spending no key
-  // the run had not already sent there. Never for an untrusted ENTRY (webhook/forward/attachment-started run).
+  // May this call skip the post-taint confirmation? Only a web_request back to the scoped origin, with the scoped method,
+  // under the scoped folder, attaching no files and spending no key the run had not already sent there. Never for an
+  // untrusted ENTRY (webhook/forward/attachment-started run).
   function sameOriginContinuation(scope, tool, call, opts) {
     opts = opts || {};
     if (!scope || scope.broad || opts.untrustedEntry === true || !isWebRequest(tool, call)) return false;
     if (requestOrigin(call) !== scope.origin) return false;
+    if (requestCarriesFiles(call)) return false;
+    if (typeof scope.method !== 'string' || requestMethod(call) !== scope.method) return false;
+    const path = requestPath(call);
+    if (!path || typeof scope.prefix !== 'string' || !scope.prefix || path.indexOf(scope.prefix) !== 0) return false;
     return requestKeys(call).every(k => scope.keys.indexOf(k) >= 0);
   }
+  // What still goes through without a card, in words for the lockout, so the model can stay inside it. '' unless scoped. Pure.
+  function continuationHint(scope) {
+    if (!scope || scope.broad || typeof scope.method !== 'string' || typeof scope.prefix !== 'string') return '';
+    return 'Calls that still go through on this run without a confirmation: ' + scope.method + ' requests under '
+      + scope.origin + scope.prefix + ' with the keys already sent there and no attached files.';
+  }
 
-  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
+  return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, continuationHint, requestCarriesFiles, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
 });

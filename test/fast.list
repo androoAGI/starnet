@@ -957,6 +957,7 @@ test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js
 test/api-continuation-boundary.test.js
+test/taint-api-continuation-scope.test.js
 test/taint-lineage.test.js
 test/taint-refusal-copy.test.js
 test/taint-entry-origin.test.js
