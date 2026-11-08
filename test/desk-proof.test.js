@@ -89,9 +89,10 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     r.end = b => { r.body = String(b || ''); };
     return r;
   }
+  const IN_PROC = Symbol('in-process');   // index.js's IN_PROCESS_REQUEST: a JS property only callOwnRoute sets
   function gateWith(CLIENT_TOKEN, deskProof) {
-    return new Function('apiauth', 'API_TOKEN', 'CLIENT_TOKEN', 'deskProof', 'respondFail',
-      wordsSrc + '\n' + gateSrc + '\nreturn deskGate;')(apiauth, 'API-TOKEN-' + 'x'.repeat(40), CLIENT_TOKEN, deskProof, respond.fail);
+    return new Function('apiauth', 'API_TOKEN', 'CLIENT_TOKEN', 'deskProof', 'respondFail', 'IN_PROCESS_REQUEST',
+      wordsSrc + '\n' + gateSrc + '\nreturn deskGate;')(apiauth, 'API-TOKEN-' + 'x'.repeat(40), CLIENT_TOKEN, deskProof, respond.fail, IN_PROC);
   }
   const API = 'API-TOKEN-' + 'x'.repeat(40), CLIENT = 'CLIENT-TOKEN-' + 'y'.repeat(40);
   {
@@ -116,6 +117,19 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     res = fakeRes();
     A.eq(gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': c2.id } }, res, 'bypass-on', '', {}), true, 'approved: the change passes');
     A.eq(res.status, 0, 'and the gate wrote nothing');
+    // fix-sec2 review 9: the station's own tools (callOwnRoute, no token) get a challenge to put to the desk, not desk_only…
+    res = fakeRes();
+    const own = { headers: {} }; own[IN_PROC] = true;
+    A.eq(gate(own, res, 'grant', 'fs.write', {}), false, 'an in-process call does not pass on its own');
+    A.eq(res.headers['X-StarNet-Code'], 'desk_confirm_required', 'an in-process call is handed a challenge to confirm at the desk');
+    const c3 = JSON.parse(res.body).deskConfirm;
+    res = fakeRes();
+    const own2 = { headers: { 'x-starnet-desk-proof': c3.id } }; own2[IN_PROC] = true;
+    A.eq(gate(own2, res, 'grant', 'fs.write', {}), false, 'and it still needs the shell\'s approval');
+    // …and nothing a request can carry marks a call as in-process
+    res = fakeRes();
+    A.eq(gate({ headers: { 'x-starnet-token': CLIENT, 'in_process_request': 'true', 'starnet.inprocessrequest': '1' } }, res, 'bypass-on', '', {}), false, 'a header never marks a call as in-process');
+    A.eq(res.headers['X-StarNet-Code'], 'desk_only', 'the client key stays desk_only');
   }
   {
     const proof = D.makeDeskProof({ now: () => 1, randomBytes: rnd });

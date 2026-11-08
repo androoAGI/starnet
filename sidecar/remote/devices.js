@@ -39,7 +39,9 @@ const PAIR_MAX_TRIES = 5;
 const MAX_DEVICES = 16;
 const NAME_MAX = 40;
 
-function cleanName(s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, NAME_MAX) || 'Phone'; }
+// cut by code point (fix-sec2, review 12): a name cut through an emoji left a lone surrogate the desktop's confirmation
+// dialog could never be handed, so that phone could never be approved
+function cleanName(s) { return require('../deskproof.js').cutPoints(String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f<>]/g, '').trim(), NAME_MAX).trim() || 'Phone'; }
 
 function makeDevices(deps) {
   const fs = deps.fs, pathMod = deps.path, file = deps.file, C = deps.crypto;

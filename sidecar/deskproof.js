@@ -42,10 +42,27 @@ const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'g
 
 // The shell refuses words with control characters (a dialog must show what was approved, nothing hidden), so the
 // station never issues any: everything but \n becomes a space, runs of blank lines collapse, and the text is capped.
+// The cap counts code points, as the shell does (main.rs desk_confirm_words_ok), and never splits one: a lone surrogate
+// (a name cut through an emoji) cannot cross to the shell as JSON, so that confirmation could never be given (fix-sec2,
+// review 12). One already lone in the input becomes U+FFFD.
+function wholeText(s) {
+  const t = String(s == null ? '' : s);
+  let out = '';
+  for (let i = 0; i < t.length; i++) {
+    const c = t.charCodeAt(i);
+    if (c >= 0xD800 && c <= 0xDBFF && i + 1 < t.length && t.charCodeAt(i + 1) >= 0xDC00 && t.charCodeAt(i + 1) <= 0xDFFF) { out += t[i] + t[i + 1]; i++; }
+    else if (c >= 0xD800 && c <= 0xDFFF) out += '\uFFFD';
+    else out += t[i];
+  }
+  return out;
+}
+// cutPoints(s, max) -> at most `max` code points of s, never half of one
+function cutPoints(s, max) { return Array.from(wholeText(s)).slice(0, Math.max(0, Number(max) || 0)).join(''); }
 function cleanWords(s, max) {
-  const t = String(s == null ? '' : s).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ')
+  const t = wholeText(s).replace(/\r\n?/g, '\n').replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/g, ' ')
     .replace(/\n{3,}/g, '\n\n').trim();
-  return t.length > max ? t.slice(0, Math.max(0, max - 1)).trimEnd() + '…' : t;
+  const cps = Array.from(t);
+  return cps.length > max ? cps.slice(0, Math.max(0, max - 1)).join('').trimEnd() + '…' : t;
 }
 function shortCode(id) { return String(id || '').replace(/^dc_/, '').replace(/[^A-Za-z0-9]/g, '').slice(-6).toUpperCase(); }
 function constEq(a, b) {
@@ -120,4 +137,4 @@ function makeDeskProof(deps) {
   return { mode: () => (desktop ? 'desktop' : 'page'), issue, approve, consume, _open: open };
 }
 
-module.exports = { makeDeskProof, cleanWords, shortCode, TTL_MS, MAX_OPEN, ACTIONS, CAPS, ID_RE };
+module.exports = { makeDeskProof, cleanWords, cutPoints, wholeText, shortCode, TTL_MS, MAX_OPEN, ACTIONS, CAPS, ID_RE };

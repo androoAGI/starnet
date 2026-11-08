@@ -1184,6 +1184,11 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
     drop: (name) => { try { fs.unlinkSync(authoritySealLastFile(name)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
   },
   current: (name) => readJsonIfPresent(path.join(WORKSPACES, path.basename(String(name)))),
+  // a restore from a recovery bundle names the files it brought (station-recovery.js; fix-sec2 review 10)
+  restored: {
+    read: () => readJsonIfPresent(path.join(WORKSPACES, authoritySealMod.RESTORED_NAME)),
+    drop: () => { try { fs.unlinkSync(path.join(WORKSPACES, authoritySealMod.RESTORED_NAME)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
+  },
   log: (line) => console.warn('[authority-seal] ' + line)
 });
 // The two resilient stores are saved twice when sealed at the upgrade: the first save moves the old unsealed main to
@@ -16651,7 +16656,8 @@ function ipcTokenOk(req) {
    backup), raising an agent to full access, Remote on, a pairing code, approving a phone, or letting a phone use the desk's
    own permissions. Under the desktop shell the confirmation is the shell's native dialog, reported with the IPC token;
    a bare sidecar (browser mode) confirms in the page. */
-const deskProof = require('./deskproof.js').makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now() });
+const deskProofMod = require('./deskproof.js');
+const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now() });
 // What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
 // shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).
 function deskWords(action, d) {
@@ -16687,7 +16693,9 @@ function deskWords(action, d) {
    (desk_confirm_required { deskConfirm }) that its fetch wrapper confirms and replays once (frontend/app/harness.js).
    Call it AFTER the body is read and BEFORE anything changes. */
 function deskGate(req, res, action, scope, details) {
-  if (CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN)) {
+  // an in-process call (callOwnRoute: a station.power tool after its own card) is the station itself, never the client
+  // key: it is handed a challenge like the page, which only the desk can confirm (callOwnRouteAtDesk, fix-sec2 review 9)
+  if (CLIENT_TOKEN && !(req && req[IN_PROCESS_REQUEST] === true) && !apiauth.apiTokenOk(req, API_TOKEN)) {
     respondFail(res, 403, 'desk_only', 'This change can only be made in the StarNet window, where it asks you to confirm.', { deskOnly: true });
     return false;
   }
@@ -20774,7 +20782,7 @@ async function handleRoster(req, res) {
   if (raised.length) {
     const asked = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
     if (raised.some(id => asked.has(id)) || req.headers['x-starnet-desk-proof']) {
-      const names = raised.map(id => { const row = incomingRows.find(x => String((x && x.agentId) || '') === id) || {}; return '"' + String(row.name || id).slice(0, 40) + '"'; });
+      const names = raised.map(id => { const row = incomingRows.find(x => String((x && x.agentId) || '') === id) || {}; return '"' + deskProofMod.cutPoints(String(row.name || id), 40) + '"'; });
       if (!deskGate(req, res, 'approval-full', raised.slice().sort().join(','), { names: names.join(', '), count: raised.length })) return;
     } else {
       clamped = raised;
@@ -20906,7 +20914,7 @@ async function handleAgentApproval(req, res) {
   // no page: raising to FULL needs the desk's confirmation (GHSA-2hpj #1). Under the desktop shell a terminal holds only the
   // client key, so it is told to use the StarNet window (with the app open, the page above confirms it there); a bare
   // station's terminal (`starnet` with no app) confirms the typed /yolo itself (bin/lib/dashboard.js). Lowering never asks.
-  if (mode === 'full' && cur.approvalMode !== 'full' && !deskGate(req, res, 'approval-full', agentId, { names: '"' + String(cur.name || agentId).slice(0, 40) + '"', count: 1 })) return;
+  if (mode === 'full' && cur.approvalMode !== 'full' && !deskGate(req, res, 'approval-full', agentId, { names: '"' + deskProofMod.cutPoints(String(cur.name || agentId), 40) + '"', count: 1 })) return;
   // no page: nothing was awaited since `cur` was read. The roster takes it either way (taking power away is never refused:
   // the station's runs ask first from now). Taking it away also goes into the app's save, the copy the app hydrates its
   // crew from and pushes back when it opens; `save` says whether it took it, so the caller never reports as lasting a
@@ -23857,7 +23865,7 @@ async function runOnceCore(o) {
   // Commander — page-owned ones over the same bridge as above, server-owned ones through this sidecar's OWN route table
   // in-process (callOwnRoute), so a change from chat runs exactly the validators and stores its button runs.
   makeStationControlTools({ station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
-    ? overseerStation(o.streamId, runId) : stationBridge, route: callOwnRoute, surface, ownerTrusted,
+    ? overseerStation(o.streamId, runId) : stationBridge, route: callOwnRouteAtDesk(stationBridge, { streamId: o.streamId || '', runId }), surface, ownerTrusted,
     providerReady: pid => { const id = normalizeProviderId(pid); return providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')); }
   }).register(registry);
   // routine.create/list: the lead can schedule real StarNet ROUTINES through the same cron store the panel uses.
@@ -29789,11 +29797,16 @@ async function handleClaudeCliAuth(req, res, verb) {
    plain stream carrying the JSON body (readBody needs only data/end events); the response is captured instead of sent.
    It sits past the HTTP edge (Host/Origin/token): the caller is a host-registered tool whose catalog builds every path
    and body itself — no model-chosen path ever reaches this. */
-function callOwnRoute(method, url, body) {
+// marks a request callOwnRoute built in-process: a property no HTTP request can carry (deskGate reads it)
+const IN_PROCESS_REQUEST = Symbol('starnet.inProcessRequest');
+function callOwnRoute(method, url, body, extraHeaders) {
   const { Readable } = require('node:stream');
   const payload = body === undefined ? '' : JSON.stringify(body);
   const req = Readable.from(payload ? [Buffer.from(payload, 'utf8')] : []);
   req.method = method; req.url = url; req.headers = { 'content-type': 'application/json', host: '127.0.0.1' };
+  // only the desk proof's two headers ride along (callOwnRouteAtDesk): never a key, never a host or origin
+  for (const k of ['x-starnet-desk-proof', 'x-starnet-desk-code']) if (extraHeaders && extraHeaders[k]) req.headers[k] = String(extraHeaders[k]).slice(0, 200);
+  req[IN_PROCESS_REQUEST] = true;
   return new Promise(resolve => {
     let status = 200, settled = false;
     const chunks = [];
@@ -29813,6 +29826,32 @@ function callOwnRoute(method, url, body) {
     Promise.resolve().then(() => dispatchRoute(req, res))
       .catch(e => finish({ status: 500, json: { error: 'the station failed: ' + ((e && e.message) || e) } }));
   });
+}
+/* AN APPROVED station.power CHANGE STILL MEETS THE DESK (fix-sec2, review 9). fullpower.set, permission.grant and the other
+   escalations a lead makes for the Commander call the route a click calls, in-process. Since GHSA-2hpj #1 those routes
+   answer with a desk challenge, and the in-process call had no way to meet it: every such change failed even after the
+   Commander approved its card. Now the challenge goes to the Commander's StarNet window over the station bridge (verb
+   station.desk_confirm, frontend/app/stationcommands.js), which confirms it exactly as a click on that setting would: the
+   desktop shell's native dialog, or in a browser the station's code. The window reports only that it asked; the proof is
+   the challenge itself, which the station consumes on the replay (a page that merely claims "confirmed" proves nothing).
+   No window, no answer in time, or a no: the change is refused with the reason, and nothing changed. */
+const DESK_BRIDGE_WAIT_MS = 110000;   // inside the challenge's own two minutes, and inside station.power's tool timeout
+function callOwnRouteAtDesk(bridge, origin) {
+  return async function (method, url, body) {
+    const r = await callOwnRoute(method, url, body);
+    const c = r && r.status === 403 && r.json && r.json.code === 'desk_confirm_required' && r.json.deskConfirm;
+    if (!c || !bridge || typeof bridge.request !== 'function') return r;
+    let asked;
+    try { asked = await bridge.request('station.desk_confirm', { challenge: c, origin: origin || null }, { timeoutMs: DESK_BRIDGE_WAIT_MS }); }
+    catch (e) { asked = { ok: false, error: String((e && e.message) || e) }; }
+    const said = asked && asked.ok ? asked.result : null;
+    if (!said || said.confirmed !== true) {
+      const why = asked && asked.unattended ? 'no StarNet window answered, so nobody at the desk could confirm it'
+        : (asked && !asked.ok && asked.error) ? String(asked.error).slice(0, 200) : 'the Commander did not confirm it at the desk';
+      return { status: 403, json: { ok: false, code: 'desk_not_confirmed', error: String(c.title || 'this change').replace(/^StarNet — /, '') + ': ' + why + '; nothing changed' } };
+    }
+    return callOwnRoute(method, url, body, { 'x-starnet-desk-proof': c.id, 'x-starnet-desk-code': said.code ? String(said.code) : '' });
+  };
 }
 // a short, human-readable summary of WHAT a consent prompt is approving — the file path for fs.* (what the user
 // actually cares about), else the compact args. Never echoes secrets (redact() also runs on the emitted event).

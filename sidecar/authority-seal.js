@@ -19,6 +19,8 @@
      keep     (name) -> path | null: keep a copy of a refused file's bytes (once per file per process).
      lastSealed { read(name) -> value | undefined, write(name, value), drop(name) }: the <name>.sealed-last store (F1).
      current  (name) -> the file's value on disk now | undefined: what an unkeyed StarNet is about to overwrite (F1).
+     restored { read() -> { files: [names] } | undefined, drop() }: the record a restore from a recovery bundle leaves
+              (station-recovery.js RESTORED_NAME; fix-sec2 review 10). See adoptRestored below.
    -> { keyed, seal(name, value), open(name, value), boot(files), notices(), clampRoster(raw) }
 
    boot(files: [{ name, read, write, wrap? }]) runs once, before any reader. With a valid marker: nothing to do but the
@@ -53,6 +55,7 @@ const LABEL = 'starnet/authority-seal/v1';
 const FIELD = '__seal';
 const MARKER_NAME = 'authority-seal.json';
 const LAST_SUFFIX = '.sealed-last';
+const RESTORED_NAME = 'authority-restored.json';
 const NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
 
 // What the safe default means for each file, in the words the page shows.
@@ -175,6 +178,7 @@ function makeAuthoritySeal(opts) {
   const log = typeof o.log === 'function' ? o.log : () => {};
   const lastSealed = o.lastSealed && typeof o.lastSealed.read === 'function' && typeof o.lastSealed.write === 'function' ? o.lastSealed : null;
   const current = typeof o.current === 'function' ? o.current : null;
+  const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
   let markerOk = false;
   let sealedWorkspace = false;   // unkeyed only: the marker says a keyed StarNet seals these files (boot)
   const list = [];             // notices, oldest first
@@ -246,7 +250,8 @@ function makeAuthoritySeal(opts) {
   function reconcile(files) {
     const done = [];
     if (!lastSealed) return done;
-    const drop = name => { try { if (typeof lastSealed.drop === 'function') lastSealed.drop(name); } catch (_) {} };
+    // a copy that cannot be removed stays a cap: it can only lower the file again, never raise it
+    const drop = name => { try { if (typeof lastSealed.drop === 'function') lastSealed.drop(name); } catch (e) { log('could not remove the sealed copy of ' + name + ': ' + String((e && (e.code || e.message)) || e)); } };
     for (const f of (Array.isArray(files) ? files : [])) {
       let cap;
       try { cap = lastSealed.read(f.name); } catch (_) { continue; }
@@ -271,7 +276,44 @@ function makeAuthoritySeal(opts) {
     return done;
   }
 
+  /* A RESTORED STATION IS NOT A CHANGED ONE (fix-sec2, review 10). A recovery bundle carries agent.roster.json as sealed on
+     the computer that made it and hooks.json with its credential values taken out, and the restore (bin/station-recovery,
+     no key) cannot seal anything. On another computer, or after the redaction, the seal failed and the first boot said
+     "changed outside StarNet", dropped every hook and every agent's Full Access. The restore now leaves a record naming the
+     two; the first keyed boot takes each one that does not open under this key as a restore: the roster keeps its agents,
+     each asking first (an approval made on another computer does not travel, like FULL BYPASS and the approval files the
+     bundle leaves out), and hooks.json keeps its hooks, each still waiting for approval here. Both are sealed, the record
+     is dropped, and one notice says so. A forged record gains nothing: what it admits is the ask-first roster and hooks
+     that run only once approved at the desk. A file that opens under this key is left exactly as it is. */
+  function adoptRestored(files) {
+    if (!key || !restored) return [];
+    let rec;
+    try { rec = restored.read(); } catch (_) { return []; }
+    if (rec === undefined || rec === null) return [];
+    const listed = new Set(plainObject(rec) && Array.isArray(rec.files) ? rec.files.map(String) : []);
+    const adopted = [];
+    for (const f of (Array.isArray(files) ? files : [])) {
+      if (!listed.has(f.name) || (f.name !== 'agent.roster.json' && f.name !== 'hooks.json')) continue;
+      let v;
+      try { v = f.read(); } catch (_) { continue; }
+      if (v === undefined || v === null || !verify(f.name, v)) continue;
+      const raw = strip(v);
+      const value = f.name === 'agent.roster.json' ? clampRoster(raw) : (typeof f.wrap === 'function' ? f.wrap(raw) : raw);
+      if (!plainObject(value)) continue;
+      try { f.write(seal(f.name, value)); adopted.push(f.name); }
+      catch (e) { log('could not seal the restored ' + f.name + ': ' + String((e && (e.code || e.message)) || e)); }
+    }
+    // a record that cannot be removed only reseals, clamped, a listed file that fails its seal again
+    try { if (typeof restored.drop === 'function') restored.drop(); } catch (e) { log('could not remove ' + RESTORED_NAME + ': ' + String((e && (e.code || e.message)) || e)); }
+    if (adopted.length) notice({ kind: 'restored', sealed: adopted.slice(),
+      text: 'Restored from a recovery bundle: ' + adopted.join(' and ') + ' sealed for this computer.' +
+        (adopted.indexOf('agent.roster.json') >= 0 ? ' Every agent asks first until you give Full Access again here.' : '') +
+        (adopted.indexOf('hooks.json') >= 0 ? ' Each hook waits for your approval.' : '') });
+    return adopted;
+  }
+
   function boot(files) {
+    adoptRestored(files);
     if (!key) {
       // as before: nothing sealed or checked. Only a workspace the desktop app sealed is told what that means here.
       let sealedHere = false;
@@ -331,4 +373,4 @@ function keepCopy(fs, file) {
   return r && r.ok ? r.to : null;
 }
 
-module.exports = { makeAuthoritySeal, keepCopy, clampRoster, lowerOf, canonical, strip, LABEL, FIELD, MARKER_NAME, LAST_SUFFIX, NAMES, CONSEQUENCE };
+module.exports = { makeAuthoritySeal, keepCopy, clampRoster, lowerOf, canonical, strip, LABEL, FIELD, MARKER_NAME, LAST_SUFFIX, RESTORED_NAME, NAMES, CONSEQUENCE };

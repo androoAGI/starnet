@@ -269,8 +269,9 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     if (doc && doc.armed === true) reauthentication.push({ kind: 'approval', id: 'cron.armed.json', reason: 'Routines are off after a restore. Turn them on again in SCHEDULES when you have read them.', fields: ['armed'] });
     return { data: DISARMED(), redacted, reauthentication };
   } else if (p === 'hooks.json') {
-    // its commands stay (each is inert until approved again); what a hook was handed in env does not
-    value = sanitizeObject(doc, [], redacted);
+    // its commands stay (each is inert until approved again); what a hook was handed in env does not. Its seal does not
+    // either: it is this computer's, and the redaction below changes what it covered (authority-seal.js adoptRestored)
+    value = sanitizeObject(require('./authority-seal.js').strip(doc), [], redacted);
     if (redacted.length) reauthentication.push({ kind: 'hook', id: 'hooks.json', reason: 'Hook credential values are intentionally excluded.', fields: redacted.slice() });
   } else if (p === 'channels/secrets.json') {
     value = sanitizeObject(doc, [], redacted);
@@ -404,6 +405,10 @@ const AUTHORITY_FILES = new Map([
   // with no file the dial reads Autonomy.fresh() and the dossier verdict reads not ready: both are the safe default
   ['_commander.autonomy.json', 'How much your agents may do on their own is back at its default after a restore. Set it again if you want more.']
 ]);
+const SEAL_BOOKKEEPING = /^(?:authority-seal\.json|authority-restored\.json|[^/]+\.json\.sealed-last|[^/]+\.json\.unsealed-\d+)$/i;
+const RESTORED_NAME = 'authority-restored.json';
+// the sealed permission files a restore brings, for the first keyed boot to adopt (authority-seal.js adoptRestored)
+const RESTORED_AUTHORITY = ['agent.roster.json', 'hooks.json'];
 // credential files by their well-known names, wherever they sit: an agent's .env is not a deliverable
 const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pfx|p12|ppk))$/i;
 const CREDENTIAL_ROW = 'credential file left out by its name';
@@ -446,6 +451,9 @@ function classifyPolicy(rel, st) {
   if (EPHEMERAL_TOP.has(top)) return { action: 'skip', reason: 'ephemeral browser/runtime profile; sign-in must be re-established' };
   if (SYSTEM_SECRET_TOP.has(top)) return { action: 'skip', reason: 'system-managed credential material is intentionally excluded', reauth: { kind: top === '.secrets' ? 'credential-store' : 'provider', id: top, reason: 'Reauthentication required on the restored profile.' } };
   if (AUTHORITY_FILES.has(p.toLowerCase())) return { action: 'skip', reason: 'an approval made on this station does not travel', reauth: { kind: 'approval', id: p.toLowerCase(), reason: AUTHORITY_FILES.get(p.toLowerCase()) } };
+  // the permission files' seal record, their sealed and refused copies, and a restore's own record are this computer's
+  // (sidecar/authority-seal.js): a seal made with this computer's key does not travel (fix-sec2, review 10)
+  if (SEAL_BOOKKEEPING.test(p)) return { action: 'skip', reason: 'the permission seal\'s bookkeeping belongs to the computer that made it' };
   if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: CREDENTIAL_ROW, reauth: credentialReauth(p) };
   // these names are StarNet's own bookkeeping only among its own stores: agent/thesis.bak and draft.tmp.md are someone's work
   const store = budgetTier(p) < 2;
@@ -1157,6 +1165,10 @@ function restore(opts) {
       if (dest !== stage && !dest.startsWith(stage + path.sep)) throw new Error('unsafe restore path: ' + dir);
       fs.mkdirSync(dest, { recursive: true });
     }
+    // the permission files this restore brought: the station's first keyed boot seals them for this computer, the roster
+    // asking first and every hook waiting for approval (authority-seal.js adoptRestored; fix-sec2 review 10)
+    const broughtAuthority = RESTORED_AUTHORITY.filter(name => restored.some(r => r.path === name));
+    if (broughtAuthority.length) writeFlushed(fs, path.join(stage, RESTORED_NAME), Buffer.from(JSON.stringify({ version: 1, files: broughtAuthority }, null, 2) + '\n'));
     if (typeof o.beforeActivate === 'function') o.beforeActivate({ stage, target, rollback });
     if (fs.existsSync(target)) {
       if (!o.replaceExisting) throw new Error('restore target is not clean; pass replaceExisting to retain it as a rollback generation');

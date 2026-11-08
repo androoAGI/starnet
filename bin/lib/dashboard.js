@@ -343,6 +343,8 @@ function runDashboard(station, opts) {
     mine.set(id, { req, agentId, kind: 'run', streamId });
     paint();
   }
+  // the station asked for its desk confirmation (desk_confirm_required) or said only its window may (desk_only)
+  function deskRefusal(r) { return !!(r && r.status === 403 && r.json && (r.json.code === 'desk_confirm_required' || r.json.code === 'desk_only')); }
   async function answer(key) {
     const q = model.front();
     if (!q) return;
@@ -358,8 +360,24 @@ function runDashboard(station, opts) {
     // y once · a always (this kind of action from now on, as the app's card offers it) · n deny
     const decision = key === 'y' ? 'once' : key === 'a' ? 'always' : 'deny';
     ui.keyFlash = { k: key, until: now() + 700 };
-    const r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
-    if (r.ok && r.json && r.json.ok) model.apply('permission.response', { promptId: q.promptId, decision: r.json.decision || decision, via: 'terminal' }, now());
+    let r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
+    /* ALWAYS NEEDS THE DESK (GHSA-2hpj #1; fix-sec2, review 8). A standing answer is confirmed at the desk; a terminal can only
+       carry that confirmation for a station it started itself (its console is the terminal's own). Otherwise the card is
+       not left waiting: this call is allowed ONCE and the terminal says how to make it standing. */
+    let downgraded = false;
+    if (decision === 'always' && deskRefusal(r)) {
+      const ch = r.json.deskConfirm;
+      const code = ch && ch.mode === 'page' && client.deskCodeFor ? client.deskCodeFor(ch.id) : '';
+      if (code) r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' }, { deskProof: ch.id, deskCode: code });
+      if (deskRefusal(r) || !(r.ok && r.json && r.json.ok)) {
+        r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: 'once', via: 'terminal' });
+        downgraded = true;
+      }
+    }
+    if (r.ok && r.json && r.json.ok) {
+      model.apply('permission.response', { promptId: q.promptId, decision: r.json.decision || (downgraded ? 'once' : decision), via: 'terminal' }, now());
+      if (downgraded) flash('allowed ONCE: ALWAYS is confirmed in the StarNet window (Settings › Permissions), not from a terminal');
+    }
     else if (r.ok && r.json && r.json.gone) { model.apply('permission.response', { promptId: q.promptId, decision: 'deny', stopped: true }, now()); flash('that ask is no longer waiting — it was answered elsewhere or its run ended'); }
     else flash('the station did not take that answer' + (r.error ? ' (' + r.error + ')' : r.status ? ' (HTTP ' + r.status + ')' : ''));
     paint();
