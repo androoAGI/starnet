@@ -27,6 +27,7 @@ mod sidecar_output;
 mod sidecar_reap;
 mod sidecar_startup;
 mod terminal_session;
+mod update_staging;
 mod webview_recovery;
 mod window_visibility;
 
@@ -4845,6 +4846,39 @@ async fn starnet_update_check(
     })
 }
 
+/// macOS update staging (customer report 2026-11-07, "cross device link"; the why is in update_staging.rs). When
+/// StarNet.app and $TMPDIR are on different volumes, point tempfile's process-wide default temp dir at a folder beside
+/// the bundle: tauri-plugin-updater builds its two macOS temp dirs with `tempfile::Builder::tempdir()`, and this crate's
+/// tempfile is the plugin's (one tempfile 3.x in Cargo.lock), so both of its renames stay on one volume. Returns the
+/// folder to tidy after the install. Err is a sentence for the person: nothing has been downloaded or changed.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn prepare_update_staging() -> Result<Option<PathBuf>, String> {
+    let Some(bundle) = std::env::current_exe()
+        .ok()
+        .and_then(|exe| update_staging::bundle_of(&exe))
+    else {
+        return Ok(None);
+    };
+    let system_temp = std::env::temp_dir();
+    let staging = update_staging::plan(
+        &bundle,
+        &system_temp,
+        &update_staging::same_volume,
+        &|dir: &Path| std::fs::create_dir_all(dir),
+    )?;
+    if let update_staging::Staging::Beside(dir) = staging {
+        // set once per process; a retry finds it already set to this same folder
+        let _ = tempfile::env::override_temp_dir(&dir);
+    }
+    // an override from an earlier attempt names a folder tidied since that attempt: make it again
+    let effective = tempfile::env::temp_dir();
+    if effective != system_temp {
+        let _ = std::fs::create_dir_all(&effective);
+        return Ok(Some(effective));
+    }
+    Ok(None)
+}
+
 /// Download, verify, and install the pending update. On Windows the updater exits
 /// the app as the installer starts; on other desktop platforms we restart after a
 /// successful install so the user lands on the new version.
@@ -4854,6 +4888,11 @@ async fn starnet_update_install(
     pending_update: State<'_, PendingUpdate>,
     on_event: Channel<UpdateInstallEvent>,
 ) -> Result<(), String> {
+    // macOS: keep the plugin's staging on StarNet.app's own volume, or refuse up front (update_staging.rs). Runs before
+    // the pending update is taken, so a refusal leaves it in place for the next try.
+    #[cfg(target_os = "macos")]
+    let staging_dir = prepare_update_staging()?;
+
     let update = {
         let mut guard = pending_update
             .0
@@ -4879,6 +4918,12 @@ async fn starnet_update_install(
             },
         )
         .await;
+
+    // the plugin's temp dirs have removed themselves by now: the folder is empty, and remove_dir never recurses
+    #[cfg(target_os = "macos")]
+    if let Some(dir) = &staging_dir {
+        let _ = std::fs::remove_dir(dir);
+    }
 
     if let Err(e) = install_result {
         if let Ok(mut guard) = pending_update.0.lock() {
