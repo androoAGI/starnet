@@ -984,6 +984,7 @@ test/desk-one-per-agent.test.js
 test/recruit-identity-ui.test.js
 test/subagents.test.js
 test/orchestration.test.js
+test/delegation-refusal-177.test.js
 test/builder-lend.test.js
 test/crew-call.test.js
 test/crew-diet.test.js

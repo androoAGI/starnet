@@ -13265,7 +13265,9 @@ const ROUTES = [
       // the ledger's own explanation of a refused or failed worker (the crew-cap or sign-in sentence, a run's error) for
       // the card's hover tip and NEEDS YOU, as `failure` and only when there is one. This polled route never carries a
       // worker's `result` (heavy, and a timeout's or rejected answer's result is partial work, never a reason).
-      ...((w.status === 'refused' || (w.status === 'error' && (w.reason === 'error' || w.reason === 'refused'))) ? { failure: String(w.result || '').slice(0, 400) } : {})
+      ...((w.status === 'refused' || (w.status === 'error' && (w.reason === 'error' || w.reason === 'refused'))) ? { failure: String(w.result || '').slice(0, 400) } : {}),
+      // #177: a worker the run host refused before it ran carries the host's code too, so the card says the real cause, not a guess
+      ...(w.reason === 'refused' && w.failureCode ? { failureCode: String(w.failureCode).slice(0, 80) } : {})
     })) }); }
     catch (e) { respondJson(res, 503, { error: e.message }); }
   } },

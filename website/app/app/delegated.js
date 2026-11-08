@@ -113,6 +113,18 @@ const Delegated = (() => {
     const s = String(r || '').trim();
     return WHY[s] || WHY[s.split(':')[0].trim()] || (s.length > 40 ? '' : s.replace(/[_-]+/g, ' '));
   }
+  /* #177: a worker the run host refused before it ran names the host's own cause (its ledger record keeps the code as
+     `failureCode` and the sentence as `failure`): "couldn't start: This agent is being deleted…". The old guess "too many
+     running, or a sign-in is needed" stays only for a record filed without a code. The sentence's first clause, clipped;
+     the whole of it stays the row's hover tip. */
+  function whyOfWorker(w) {
+    const reason = String((w && w.reason) || '').trim();
+    if (reason !== 'refused' || !w.failureCode) return whyOf(reason);
+    let said = String(w.failure || '').replace(/\s+/g, ' ').replace(/^(?:worker|subagent) could not (?:re)?start:\s*/i, '').trim();
+    said = said.split(/\.\s/)[0].replace(/[.\s]+$/, '');
+    if (said.length > 90) said = said.slice(0, 89) + '…';
+    return said ? 'couldn\'t start: ' + said : whyOf(reason);
+  }
   // the sidecar's own explanation of a bad end, for a hover tip: a refusal's or an error's sentence (the ledger's result;
   // a timeout's or a rejected answer's result is the worker's partial work, never a reason) or a long free-text reason
   // the status line leaves out (the liveness check's receipt). Clipped, never invented. /api/overseer workers[] carry
@@ -194,7 +206,7 @@ const Delegated = (() => {
     if (said && said.outcome === 'asked') return { cls: 'asked', live: 'asked a question', t: '' };
     if (said && UNFINISHED_LIVE[said.outcome]) return { cls: 'unfinished', live: UNFINISHED_LIVE[said.outcome], t: '', tip: w ? tipOf(w) : '' };
     if (w && w.status === 'done') return { cls: 'done', live: 'done', t: w.completedAt && w.startedAt ? clock(w.completedAt - w.startedAt) : '' };
-    if (w && (w.status === 'error' || w.status === 'refused')) return { cls: 'failed', live: 'failed' + (w.reason && w.reason !== 'error' && whyOf(w.reason) ? ' · ' + whyOf(w.reason) : ''), t: '', tip: tipOf(w) };
+    if (w && (w.status === 'error' || w.status === 'refused')) return { cls: 'failed', live: 'failed' + (w.reason && w.reason !== 'error' && whyOfWorker(w) ? ' · ' + whyOfWorker(w) : ''), t: '', tip: tipOf(w) };
     // review 9: a worker a restart or the liveness check cut off (status 'stale') is INTERRUPTED (RunOutcome.ofWorker) — its own state, word and
     // lamp (the warn tone, RunOutcome.look): it was cls 'stopped' with no halt, the red lamp, "stopped …" and a red "1 stopped" batch
     const wOc = w && typeof RunOutcome !== 'undefined' && RunOutcome.ofWorker ? RunOutcome.ofWorker(w) : null;
@@ -690,6 +702,6 @@ const Delegated = (() => {
   }
 
   if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', wire);
-  return { presentFor, repaint, batches, stateOf, reveal, hosts, staleLine, whyOf, tipOf, _internals: { workerRunOf, anchorFor, lineHtml, opened, closed, seen, receipts, foldReceipt, askOf, hydrate, loadReceipt, savedFiles, linkMentions } };
+  return { presentFor, repaint, batches, stateOf, reveal, hosts, staleLine, whyOf, whyOfWorker, tipOf, _internals: { workerRunOf, anchorFor, lineHtml, opened, closed, seen, receipts, foldReceipt, askOf, hydrate, loadReceipt, savedFiles, linkMentions } };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports = Delegated;

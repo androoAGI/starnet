@@ -83,7 +83,8 @@ const NeedsYou = (() => {
     if (oc === 'stopped') return 'stopped before it finished';
     if (oc === 'asked') return 'asked a question';
     if (oc !== 'failed') return 'did not finish — ' + RunOutcome.line({ outcome: oc });
-    const why = w.reason && w.reason !== 'error' && D && D.whyOf ? D.whyOf(w.reason) : '';
+    // #177: a worker refused before it ran says the run host's cause (Delegated.whyOfWorker), never the old guess
+    const why = w.reason && w.reason !== 'error' && D && D.whyOf ? (D.whyOfWorker ? D.whyOfWorker(w) : D.whyOf(w.reason)) : '';
     return 'failed' + (why ? ': ' + why : '');
   }
 

@@ -96,6 +96,42 @@
       try { ctx.emit('crew.tool_step', step); } catch (_) {}
     };
   }
+  /* A WORKER THAT COULD NOT START SAYS WHY (#177). The run host ends every up-front refusal with one balanced receipt on the
+     run's own emit (RunTable.refuseRun: a start, an agent.run.error carrying its sentence, failureCode and transient flag, an
+     end with no turns) and returns nothing. Every empty return here read "the concurrent-agent cap was full, or a provider
+     sign-in is needed" and was retried, so a worker refused for a sign-in, a balance, a model that cannot run tasks or a
+     recovery journal that could not be saved was described wrongly and sent again for nothing. watchRefusal hands the run an
+     emit that keeps that receipt (matched by the run's own id) and passes every event on unchanged; refusalOf reads it back:
+     the host's own sentence, its code, and whether trying again can help. A run stopped while it waited its turn in its
+     session ends 'cancelled' with no error: it was stopped, not refused. A host that leaves no receipt keeps the old reading. */
+  function watchRefusal(sink, runId) {
+    const seen = { error: null, end: '' }, id = String(runId || '');
+    const emit = (name, payload) => {
+      if (id && payload && String(payload.runId || '') === id) {
+        if (name === 'agent.run.error' && !seen.error) seen.error = payload;
+        else if (name === 'agent.run.end') seen.end = String(payload.reason || '');
+      }
+      return typeof sink === 'function' ? sink(name, payload) : undefined;
+    };
+    return { emit, seen };
+  }
+  function refusalOf(seen) {
+    const e = seen && seen.error;
+    const said = e && e.message != null ? String(e.message).replace(/\s+/g, ' ').trim().slice(0, 600) : '';
+    if (said) return { said, failureCode: String(e.failureCode || '').slice(0, 80), transient: e.transient === true };
+    if (seen && seen.end === 'cancelled') return { stopped: true };
+    return null;
+  }
+  // the row of a worker the run host refused before it ran: its own words and code (never the old guess), and whether a
+  // retry can help. null = no receipt: the caller keeps its old row.
+  function refusedRow(agentId, refusal, lead) {
+    if (!refusal) return null;
+    if (refusal.stopped) return { agentId, reason: 'cancelled', result: lead + ': it was stopped while it waited for its turn in that session', usd: 0 };
+    const row = { agentId, reason: 'refused', transient: refusal.transient, usd: 0,
+      result: lead + ': ' + refusal.said + (refusal.transient ? ' (this can pass on its own; dispatching it again later may work)' : ' (dispatching it again will not help until that is fixed)') };
+    if (refusal.failureCode) row.failureCode = refusal.failureCode;
+    return row;
+  }
   // a delegated worker's added kit, on top of the autonomous full office (compute/web/files/memory/studio/jukebox):
   // the WORKBENCH (terminal). Paired with the SHARED lead consent broker, writes follow the lead's APPROVAL posture.
   // Commands do NOT in ASK mode: a worker runs surface:'autonomous', so the run authority withholds shell.exec /
@@ -1076,6 +1112,7 @@
           // its slice and the dispatch's clocks pause while the run's spend pool holds its call (poolHoldClock); a background
           // worker's stall clock does too (o2.stall: its subagent handle), while the call's own clocks never watch it
           const watched = watchedPool(ctx, o2.background === true ? null : family, slice, o2.stall);
+          const receipt = watchRefusal(o2.emit || childEmit, workerRunId);   // #177: the host's own reason if it refuses this run
           try {
             const conn = connectorOptions(ctx);
             result = await runOnce({
@@ -1091,7 +1128,7 @@
               system: workerSystem((job.ident && job.ident.system) || ''),
               messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
               agentId: job.agentId, isTask: true,
-              emit: o2.emit || childEmit,      // lifecycle/cost ride the lead/global stream -> the floor lights the worker
+              emit: receipt.emit,              // lifecycle/cost ride the lead/global stream -> the floor lights the worker (o2.emit || childEmit)
               signal: ac ? ac.signal : parentSignal,   // own controller when this worker has a wall clock (see above)
               runId: workerRunId, trigger: 'directive', surface: 'autonomous',
               parentRunId: ctx && ctx.runId, delegatedBy: (ctx && ctx.agentId) || '',
@@ -1132,7 +1169,7 @@
             if (child) child.detach();
           }
           if (timedOut) return finish(timeoutRow(result));   // keep whatever partial text the aborted run did produce
-          if (!result) return finish({ agentId: job.agentId, reason: 'refused', result: 'worker could not start — the station\'s concurrent-agent cap was full at that instant, or a provider sign-in is needed. A parallel dispatch already runs in waves sized to the free capacity and retries a refusal once, so a refusal that survives means the cap is genuinely saturated: raise MAX_CONCURRENT_AGENTS in SETTINGS, or dispatch these workers in a follow-up call.', usd: 0 });
+          if (!result) return finish(refusedRow(job.agentId, refusalOf(receipt.seen), 'worker could not start') || { agentId: job.agentId, reason: 'refused', result: 'worker could not start — the station\'s concurrent-agent cap was full at that instant, or a provider sign-in is needed. A parallel dispatch already runs in waves sized to the free capacity and retries a refusal once, so a refusal that survives means the cap is genuinely saturated: raise MAX_CONCURRENT_AGENTS in SETTINGS, or dispatch these workers in a follow-up call.', usd: 0 });
           const firstText = lastAssistant(result.messages) || '(the worker returned no text)';
           const contract = await enforceStructured(job.resultSchema, firstText, async (errors) => {
             const spent = Number(result.usd) || 0;
@@ -1224,7 +1261,7 @@
               const r = await runWorker(job, { runId: h.runId, signal: h.signal, emit: h.emit, steer: h.steer, background: true, stall: h });
               return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd || 0,
                 structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
-                taintedBy: r.taintedBy || '' };
+                taintedBy: r.taintedBy || '', failureCode: r.failureCode || '' };   // #177: a refused worker's record keeps the host's code
             });
           });
           const startedRows = started.map(startedHandle).concat(overflowRows());
@@ -1269,9 +1306,12 @@
         /* ONE RETRY PASS for a refusal. A 'refused' row means the admission gate was full at that instant — a
            sibling wave, another agent's run, or a cron beat holding the last slot. Waves make that rare instead of
            systematic, but a race can still lose one, and a refused worker did NO work and cost NOTHING, so
-           retrying it is free. `out` is built in job order, so out[i] pairs with jobs[i] (overflow is appended after). */
+           retrying it is free. `out` is built in job order, so out[i] pairs with jobs[i] (overflow is appended after).
+           #177: only a refusal that can pass is retried: the host marks a full gate, a sign-in it may still refresh or a
+           balance check that did not answer transient; a model that cannot run tasks, a sign-in that needs the Commander or
+           a recovery journal that could not be saved refuses the same way again, so it is reported at once. */
         for (let i = 0; i < out.length && i < jobs.length; i++) {
-          if (out[i].reason !== 'refused') continue;
+          if (out[i].reason !== 'refused' || out[i].transient === false) continue;
           const left = hasClock ? dispatchBudgetMs - (now() - startedAt - heldTotal - family.heldMs()) : Math.floor(dispatchBudgetMs / jobs.length);
           if (left <= 0) break;
           const retryHandoff = (!args.parallel && i > 0) ? await earlierHandoff(out.slice(0, i)) : null;
@@ -1386,6 +1426,8 @@
             let result;
             const contractedPrompt = openingMessage(prompt, task.context, task.resultSchema);
             const watched = clonePool(h);
+            // #177: the host's own reason if it refuses this clone (the durable record + the lead stream still get every event)
+            const receipt = watchRefusal((n, p) => { try { h.emit(n, p); } catch (_) {} childEmit(n, p); }, h.runId);
             try {
               result = await runOnce({
               ...projectOptions(ctx), ...connectorOptions(ctx), ...watched.options,
@@ -1394,7 +1436,7 @@
                                                             // composes its own caps for its (narrowed) toolset
                 messages: [{ role: 'user', content: contractedPrompt }],
                 agentId: ephemeralId, isTask: true,
-                emit: (n, p) => { try { h.emit(n, p); } catch (_) {} childEmit(n, p); },   // durable record + lead stream
+                emit: receipt.emit,                         // durable record + lead stream
                 signal: h.signal, runId: h.runId,
                 parentRunId: ctx && ctx.runId, delegatedBy: (ctx && ctx.agentId) || '',
                 trigger: 'directive', surface: 'autonomous',
@@ -1423,8 +1465,10 @@
               settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: r.usd, taintedBy: r.taintedBy || '' };
             }
             if (!result) {
-              const r = { label, agentId: ephemeralId, reason: 'refused', result: 'subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once.', usd: 0 };
-              settle(r); return { status: 'error', reason: 'refused', result: r.result, usd: 0 };
+              const typed = refusedRow(ephemeralId, refusalOf(receipt.seen), 'subagent could not start');
+              const r = typed ? Object.assign({ label }, typed)
+                : { label, agentId: ephemeralId, reason: 'refused', result: 'subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once.', usd: 0 };
+              settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: 0, failureCode: r.failureCode || '' };
             }
             const firstText = lastAssistant(result.messages) || '(the subagent returned no text)';
             const contract = await enforceStructured(task.resultSchema, firstText, async (errors) => {
@@ -1649,6 +1693,7 @@
         const contractedPrompt = openingMessage(rec.prompt || '', handoffContext(rec.context), rec.resultSchema);
         // its stall clock stops while the run's spend pool holds its call (watchedPool: the liveness sweep covers it too)
         const watched = watchedPool(ctx, null, null, h);
+        const receipt = watchRefusal(h.emit, h.runId);   // #177: the host's own reason if it refuses the restart
         try {
           result = await runOnce({
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...watched.options,
@@ -1662,7 +1707,7 @@
             dispatchDelivery: { state: 'pending' },
             sessionPrompt: rec.streamId ? rec.prompt : undefined,
             agentId: rec.agentId, isTask: true,
-            emit: h.emit, signal: h.signal, runId: h.runId,
+            emit: receipt.emit, signal: h.signal, runId: h.runId,
             parentRunId: ctx && ctx.runId, delegatedBy: (ctx && ctx.agentId) || '',
             trigger: 'directive', surface: 'autonomous',
             consent: ctx && ctx.consent,
@@ -1680,7 +1725,10 @@
         } catch (e) {
           return finish({ status: 'error', reason: 'error', result: 'worker run failed: ' + ((e && e.message) || e), usd: 0 });
         } finally { watched.end(); }
-        if (!result) return finish({ status: 'error', reason: 'refused', result: 'worker could not restart', usd: 0 });
+        if (!result) {
+          const typed = refusedRow(rec.agentId, refusalOf(receipt.seen), 'worker could not restart');
+          return finish(typed ? Object.assign({ status: 'error' }, typed) : { status: 'error', reason: 'refused', result: 'worker could not restart', usd: 0 });
+        }
         const firstText = lastAssistant(result.messages) || '(the worker returned no text)';
         const contract = await enforceStructured(rec.resultSchema, firstText, async (errors) => {
           const spent = Number(result.usd) || 0;

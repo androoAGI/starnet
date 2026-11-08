@@ -153,6 +153,8 @@
         resultSchema: r.resultSchema || null, structuredResult: r.structuredResult == null ? null : r.structuredResult,
         builder: r.builder === true, bounded: r.bounded === true, onlyHost: r.onlyHost || '',
         validation: r.validation || null, repairRunId: r.repairRunId || '',
+        // #177: a worker the run host refused before it ran keeps the host's code ('' otherwise); its sentence is `result`
+        failureCode: r.failureCode || '',
         // the worker run's host-proven untrusted-content taint ('' = clean). team.subagents relays it with the
         // result text so the polling lead latches it too (sec-taint 09-25)
         taintedBy: r.taintedBy || '',
@@ -317,6 +319,7 @@
         structuredResult: old && old.structuredResult != null ? clone(old.structuredResult) : null,
         validation: old && old.validation ? clone(old.validation) : null,
         repairRunId: '',
+        failureCode: '',   // a new generation's refusal code is its own (#177)
         artifacts: old && Array.isArray(old.artifacts) ? old.artifacts.slice(-40) : [],
         steerHistory: old && Array.isArray(old.steerHistory) ? old.steerHistory.slice(-40) : [],
         finalization: null
@@ -386,6 +389,9 @@
           structuredResult: result && result.structuredResult != null ? clone(result.structuredResult) : null,
           validation: result && result.validation ? clone(result.validation) : null,
           repairRunId: (result && result.repairRunId) || '',
+          // #177: the run host's code for a worker it refused before it ran (orchestration.js refusedRow), so the card and the
+          // subagent_stop hook name the real cause instead of the generic "could not start"
+          failureCode: result && typeof result.failureCode === 'string' ? result.failureCode.slice(0, 80) : '',
           taintedBy: result && typeof result.taintedBy === 'string' ? result.taintedBy.slice(0, 200) : '',
           artifacts: result && Array.isArray(result.artifacts) ? result.artifacts.slice(-40) : ((cur && cur.artifacts) || []),
           completedAt: now(),

@@ -568,6 +568,7 @@ const REPORTED = {
     ["reason: effective.reason || 'error',", "the worker row's raw end word: markWorkerOutcome stamps a non-success outcome on the row (row.outcome) a few lines below, and workerOk / deliveryReasonOf / workerReason read it"],
     ["settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: 0 };", "a worker whose run threw or the host stopped: status 'error' with the stop's own reason (hostStopRow), never 'done'"],
     ["settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: r.usd, taintedBy", "the same host-stopped worker"],
+    ["settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: 0, failureCode", "a clone the run host refused before it ran (#177): status 'error' with refusedRow's reason ('refused', or 'cancelled' for a run stopped while queued) and the host's own code, never 'done'"],
     ["out.dispatchDelivery = { state: row.dispatchDelivery.state, reason: row.dispatchDelivery.reason", "the dispatch delivery's reason (deliveryReasonOf, outcome-aware); the row's outcome is picked beside it"]
   ],
   'sidecar/tools/builtin/browser.js': [
