@@ -155,16 +155,25 @@ const iso = cron._internals.iso;
 {
   const mkStuck = () => {
     let js = store.createJob([], { id: 'ra', schedule: cron.parseSchedule('every 1h', T0) }, { now: T0 });
-    js = store.markRun(js, 'ra', { runId: 'r', status: 'error', error: 'net', transient: true }, { now: T0 + HOUR, backoffMs: 90000 });
+    js = store.markRun(js, 'ra', { runId: 'r', status: 'error', error: 'net', transient: true, idempotencyScope: 'cron:ra:1' }, { now: T0 + HOUR, backoffMs: 90000 });
     A.ok(store.getJob(js, 'ra').retryAnchorAt, 'fixture: a retry anchor is stamped');
+    A.eq(store.getJob(js, 'ra').occurrenceScope, 'cron:ra:1', 'fixture: the occurrence scope is kept (GHSA-2hpj #9)');
     return js;
   };
   let js = store.updateJob(mkStuck(), 'ra', { schedule: cron.parseSchedule('every 15m', T0 + HOUR) }, { now: T0 + HOUR + 60000 });
   A.eq(store.getJob(js, 'ra').retryAnchorAt, null, 'a schedule EDIT clears the retry anchor');
+  A.eq(store.getJob(js, 'ra').occurrenceScope, null, 'and the occurrence scope');
   js = store.resumeJob(store.pauseJob(mkStuck(), 'ra'), 'ra', { now: T0 + HOUR + 60000 });
   A.eq(store.getJob(js, 'ra').retryAnchorAt, null, 'pause -> RESUME clears the retry anchor');
+  A.eq(store.getJob(js, 'ra').occurrenceScope, null, 'and the occurrence scope');
   js = store.triggerJob(mkStuck(), 'ra', { now: T0 + HOUR + 60000 });
   A.eq(store.getJob(js, 'ra').retryAnchorAt, null, 'a manual TRIGGER clears the retry anchor');
+  A.eq(store.getJob(js, 'ra').occurrenceScope, null, 'and the occurrence scope');
+  // a second transient keeps the FIRST fire's scope, whatever the retry reports; a settlement drops it
+  js = store.markRun(mkStuck(), 'ra', { runId: 'r2', status: 'error', error: 'net', transient: true, idempotencyScope: 'cron:ra:2' }, { now: T0 + HOUR + 100000, backoffMs: 90000 });
+  A.eq(store.getJob(js, 'ra').occurrenceScope, 'cron:ra:1', 'a later retry keeps the occurrence scope of the first fire');
+  js = store.markRun(js, 'ra', { runId: 'r3', status: 'ok', reason: 'done' }, { now: T0 + HOUR + 400000 });
+  A.eq(store.getJob(js, 'ra').occurrenceScope, null, 'a settled occurrence drops its scope');
 }
 
 // ---- 10. transient retries are BOUNDED: after maxRetries it finalizes ----

@@ -345,6 +345,7 @@
         }
         if (next.enabled) next.nextRunAt = armAt(next.schedule, null, now, ctx && ctx.defaultTz);   // re-anchor at now
         next.retryAnchorAt = null;   // the OLD schedule's retry anchor must never phase-lock the new cadence
+        next.occurrenceScope = null;
       }
       if (['agentId', 'model', 'provider', 'deliver', 'origin'].some(k => Object.prototype.hasOwnProperty.call(patch, k))) {
         next.blockedConfig = null;
@@ -371,7 +372,7 @@
         // auto-disable reason is cleared (otherwise one more failure would re-pause it instantly).
         // The pre-pause retry anchor goes with it — a resumed job advances from ITS re-anchored
         // nextRunAt, never the grid of the failure it was paused during.
-        consecutiveFailures: 0, disabledReason: null, disabledAt: null, retryAnchorAt: null, retryCount: 0
+        consecutiveFailures: 0, disabledReason: null, disabledAt: null, retryAnchorAt: null, retryCount: 0, occurrenceScope: null
       });
     });
   }
@@ -397,7 +398,7 @@
       if (job.schedule && job.schedule.kind === 'once' && job.lastRunAt) return job;   // settled one-shot: never re-armable
       // a manual trigger owns the next fire completely — a stale retry anchor advancing from an old grid
       // after the triggered run settles would phase-shift the schedule the Commander just touched.
-      return Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null });
+      return Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null, occurrenceScope: null });
     });
   }
 
@@ -809,6 +810,8 @@
         // permanently (+backoff per transient). The first transient of this occurrence stamps the anchor
         // (nextRunAt still holds the advance-before-run value); later retries keep the original.
         next.retryAnchorAt = job.retryAnchorAt || job.nextRunAt || null;
+        // GHSA-2hpj #9: and the occurrence's idempotency scope, from its FIRST fire, so a retry never re-sends what it already sent
+        next.occurrenceScope = job.occurrenceScope || (typeof result.idempotencyScope === 'string' && result.idempotencyScope ? result.idempotencyScope.slice(0, 200) : null);
         // RAMPED BACKOFF (2026-10-01): 1×, 3×, 9× the base (90s → 4.5m → 13.5m by default). A fixed 90s burned
         // all three retries inside ~5 minutes — shorter than most provider blips and network drops it exists for.
         next.nextRunAt = iso(now + backoffMs * Math.pow(3, Math.min(job.retryCount || 0, 3)));
@@ -836,6 +839,7 @@
       if (askedWhilePaused) next.finalization.pausedAtStart = true;   // a RUN NOW pressed on the paused routine: its result goes out (header)
       next.retryCount = 0;
       next.retryAnchorAt = null;   // the occurrence is settled — the retry re-anchor must not outlive it
+      next.occurrenceScope = null; // ...nor its idempotency scope: the next occurrence may send again
       // CONSECUTIVE-FAILURE COUNTER (durable): terminal failures in a row; any ok/silent settlement resets it.
       next.consecutiveFailures = ok ? 0 : stopped ? (Number(job.consecutiveFailures) || 0) : ((Number(job.consecutiveFailures) || 0) + 1);
       next.lastRunAt = iso(now);

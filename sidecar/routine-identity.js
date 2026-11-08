@@ -19,14 +19,20 @@
        lane needs no second enum widening. */
 'use strict';
 
-function routineRunIdentity(job, firedAt) {
+function routineRunIdentity(job, firedAt, occurrenceScope) {
   const j = job || {};
+  // A RETRY IS THE SAME OCCURRENCE (GHSA-2hpj #9). The backoff re-arms nextRunAt, so a retry fires at a new time; keyed
+  // on that time, every retry minted a new scope and re-sent the connector writes the first attempt already made. The
+  // driver hands back the scope the occurrence's first fire used (cron-store keeps it while retries remain), and it is
+  // honoured only when it is this job's own.
+  const own = 'cron:' + String(j.id) + ':';
+  const kept = typeof occurrenceScope === 'string' && occurrenceScope.indexOf(own) === 0 && occurrenceScope.length <= 200 ? occurrenceScope : '';
   const out = {
     cronJobId: j.id,
     cronJobName: j.name || '',
     // IDEMPOTENCY SCOPE: the same fire retried/resumed must not re-send a connector write, but the NEXT fire of the same
     // routine legitimately may — so the scope is job + the fire's time (a Run Now press is its own fire)
-    idempotencyScope: 'cron:' + String(j.id) + ':' + String(firedAt == null ? '' : firedAt)
+    idempotencyScope: kept || (own + String(firedAt == null ? '' : firedAt))
   };
   // provenance spine (R3 meta bag -> durable run row): undefined for a plain routine
   const recipeId = j.meta && j.meta.recipeId;
