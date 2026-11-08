@@ -15,7 +15,17 @@
 
    Caps are SOFT: hitting one ends the current run with reason 'budget' (the loop's existing terminal
    reason) and emits a threshold; the Commander clicks "resume", which bumps that scope's override for
-   the session so work continues. Any cap may be null/Infinity = ungoverned. */
+   the session so work continues. Any cap may be null/Infinity = ungoverned.
+
+   THE SHIPPED SOFT RAIL OVER UNKNOWN HISTORY (GHSA-2hpj-9wm7-rvg5 #8, 2026-11-08). The $25/day rail nobody chose used to
+   record the dispatch receipt and proceed WITHOUT evaluating any total while history was unknown, so one interrupted
+   run (a crash, a force quit, a restart mid-run) left BYOK runs and routines with no dollar ceiling until it was settled
+   by hand. check() now takes who is watching (opts.attended, host-minted by the caller; absent = nobody):
+     - work nobody watches (a routine, a line, a loop, the night shift, a background pass, a worker whose lead has no
+       live card channel) PAUSES until the history is whole, with the way to settle it (verdict paused: true);
+     - a run someone watches keeps going against a FLOOR: recorded spend + this session's live spend + every open item at
+       its bound, else at its COUNT AS figure (the ledger's assumption, never $0). Over the cap it stops like any cap.
+   A cap the Commander chose stays strict exactly as before, and RESUME stays closed while history is unknown. */
 'use strict';
 (function (root, factory) {
   const api = factory();
@@ -83,7 +93,8 @@
     /* STRICT vs SOFT scopes (authorized 2026-09-23 default). Any chosen cap refuses while spend history is
        uncertain, including an item with an estimate or a recorded per-run cap: neither proves what was charged.
        Bounds remain recovery information until the Commander explicitly settles them. A shipped-soft-only rail
-       proceeds with unknown history, and no governed cap introduces no history refusal. */
+       pauses unwatched work and counts watched work against a floor while history is unknown (GHSA-2hpj #8, the header),
+       and no governed cap introduces no history refusal. */
     const strictScope = (typeof opts.strictScope === 'function') ? opts.strictScope : () => true;
 
     const overrides = { run: 0, agent: 0, day: 0, global: 0 };
@@ -112,6 +123,13 @@
       return true;
     }
     function boundUsd(item) { return item && item.bound && num(item.bound.usd) > 0 ? num(item.bound.usd) : null; }
+    // What an open item counts for on the soft rail while it is unsettled (GHSA-2hpj #8): its bound, else the COUNT AS figure
+    // the ledger offers for it (the assumption: the largest single charge on record, never under its floor). Never $0.
+    function floorOf(item) {
+      const b = boundUsd(item);
+      if (b != null) return b;
+      return item && item.countAs && num(item.countAs.usd) > 0 ? num(item.countAs.usd) : 0;
+    }
     function unknownState(now, agentId) {
       if (!unknown()) return null;
       const h = accounting();
@@ -121,10 +139,11 @@
       if (!Array.isArray(items)) return { listed: false };
       const per = {};
       for (const scope of ['agent', 'day', 'global']) {
-        const p = { items: 0, unbounded: 0, countedUsd: 0, countAsUsd: null };
+        const p = { items: 0, unbounded: 0, countedUsd: 0, countAsUsd: null, floorUsd: 0 };
         for (const item of items) {
           if (!item || !itemIn(scope, item, now, agentId)) continue;
           p.items++;
+          p.floorUsd += floorOf(item);
           const b = boundUsd(item);
           if (b != null) p.countedUsd += b;
           else { p.unbounded++; if (p.countAsUsd == null && item.countAs && num(item.countAs.usd) > 0) p.countAsUsd = num(item.countAs.usd); }
@@ -168,10 +187,27 @@
       return t;
     }
 
+    // announce each fresh warn/cap crossing on the run's own bus, once per (run, scope, level)
+    function emitCrossings(ev, runId, emit) {
+      if (!emit) return;
+      for (const scope of THRESHOLD_SCOPES) {   // never emit the 'agent' scope — not in the frozen budget.threshold enum
+        const s = ev.scopes[scope];
+        if (!s) continue;
+        const level = s.frac >= 1 ? 'cap' : (s.frac >= warnFrac ? 'warn' : null);
+        if (!level) continue;
+        const key = (runId == null ? '' : String(runId)) + ':' + scope + ':' + level;   // per-run de-dup
+        if (emitted.has(key)) continue;
+        emitted.add(key);
+        try { emit('budget.threshold', { scope, usd: s.usd, cap: s.cap }); } catch (_) {}
+      }
+    }
+
     // Consulted by the loop's guards each turn BEFORE any paid call. Records this run's live spend, emits any
     // fresh warn/cap crossings via the per-run `emit`, and returns null to proceed or { scope, usd, cap } to stop.
     // receiptMeta (optional, object or getter) rides into the dispatch receipt — see ledger.beginRun.
-    function check(runId, agentId, spentThisRun, now, emit, receiptMeta) {
+    // opts.attended (host-minted by the caller): someone is watching this work right now. Absent means nobody is: it only
+    // matters on the soft rail while history is unknown (GHSA-2hpj #8, the header above).
+    function check(runId, agentId, spentThisRun, now, emit, receiptMeta, checkOpts) {
       now = num(now) || clock.now();
       noteLive(runId, spentThisRun);
       if (runId != null && agentId != null && String(agentId) !== '') liveAgentOf.set(String(runId), String(agentId));
@@ -188,23 +224,31 @@
           return { scope: strict, unknown: true, code: 'spend_history_unavailable', cause,
             ...(countAsUsd != null ? { countAsUsd } : {}), exit: unknownExit(cause, strict, countAsUsd) };
         }
-        // Only the unchosen soft rail is governed: retain the dispatch receipt and proceed with unknown history.
+        // Only the unchosen soft rail is governed (GHSA-2hpj #8): nobody watching -> pause until the history is whole;
+        // someone watching -> keep counting, against the recorded spend plus every open item at its floor.
+        const cause = unknownCause(), u = unknownState(now, agentId);
+        const first = u && u.listed && u.items.find(item => item && item.countAs && num(item.countAs.usd) > 0);
+        const countAsUsd = first ? num(first.countAs.usd) : null;
+        if (!(checkOpts && checkOpts.attended === true)) {
+          return { scope: governed, unknown: true, paused: true, code: 'spend_history_unavailable', cause,
+            ...(countAsUsd != null ? { countAsUsd } : {}), exit: unknownExit(cause, governed, countAsUsd) };
+        }
+        const t = totals(now, agentId), floor = {};
+        if (u && u.listed) for (const scope of ['agent', 'day', 'global']) if (t[scope] != null && u.per[scope]) { floor[scope] = u.per[scope].floorUsd; t[scope] += floor[scope]; }
+        const soft = evaluate(baseCaps, t, overrides);
+        emitCrossings(soft, runId, emit);
+        if (soft.blocked) {
+          const s = soft.scopes[soft.blocked];
+          // RESUME adds no headroom over unknown history (resume() below), and a limit raised in SETTINGS becomes a chosen,
+          // strict one that refuses until the history is whole: the way on is settling it (or setting the limit to 0)
+          return Object.assign({ scope: soft.blocked, usd: s.usd, cap: s.cap, exit: unknownExit(cause, soft.blocked, countAsUsd) },
+            num(floor[soft.blocked]) > 0 ? { unknownUsd: floor[soft.blocked] } : {});
+        }
         if (runId != null && ledger && typeof ledger.beginRun === 'function') ledger.beginRun(runId, agentId, receiptMeta);
         return null;
       }
       const ev = evaluate(baseCaps, totals(now, agentId), overrides);
-      if (emit) {
-        for (const scope of THRESHOLD_SCOPES) {   // never emit the 'agent' scope — not in the frozen budget.threshold enum
-          const s = ev.scopes[scope];
-          if (!s) continue;
-          const level = s.frac >= 1 ? 'cap' : (s.frac >= warnFrac ? 'warn' : null);
-          if (!level) continue;
-          const key = (runId == null ? '' : String(runId)) + ':' + scope + ':' + level;   // per-run de-dup
-          if (emitted.has(key)) continue;
-          emitted.add(key);
-          try { emit('budget.threshold', { scope, usd: s.usd, cap: s.cap }); } catch (_) {}
-        }
-      }
+      emitCrossings(ev, runId, emit);
       if (ev.blocked) { const s = ev.scopes[ev.blocked]; return { scope: ev.blocked, usd: s.usd, cap: s.cap }; }
       if (runId != null && ledger && typeof ledger.beginRun === 'function' && !ledger.beginRun(runId, agentId, receiptMeta)) {
         if (!softOnly) { const cause = unknownCause(); return { unknown: true, code: 'spend_history_unavailable', cause, exit: unknownExit(cause, strict) }; }

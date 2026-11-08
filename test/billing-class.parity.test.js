@@ -181,9 +181,9 @@ const goldenPart = loopPart.then(async () => {
     'const providerFallbacks = [];\n' + fbAdmit.replace(/continue;$/, 'return null;') + '\n' + fbPush + '\nreturn providerFallbacks[0];');
   // the governor the host binds (index.js: budget, auxTokenGate, billing.classOf), over a budget that counts its checks
   const governed = (b, gate) => { const budget = { n: 0, check() { this.n++; return null; } }; return { budget, governor: BillingClass.makeGovernor({ budget, auxTokenGate: gate || (() => ({ blocked: false })), classOfProvider: id => b.classOf(id) }) }; };
-  const runBudgetOf = new Function('governor', 'activeProviderId', 'agentId', 'runId', 'emit', 'runReceiptMeta', 'spendPool',
+  const runBudgetOf = new Function('governor', 'activeProviderId', 'agentId', 'runId', 'emit', 'runReceiptMeta', 'spendPool', 'spendAttended',
     through("  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run',", '}) };') + '\nreturn runBudget;');
-  const crossOf = id => { const g = governed(plain); runBudgetOf(g.governor, id, 'a', 'r', null, () => ({}), { admit: () => null, withdraw() {} }).check(0, 0); return g.budget.n === 1; };
+  const crossOf = id => { const g = governed(plain); runBudgetOf(g.governor, id, 'a', 'r', null, () => ({}), { admit: () => null, withdraw() {} }, () => false).check(0, 0); return g.budget.n === 1; };
   const bookOf = new Function('name', 'providerUnmetered', 'spendPool', 'runId', 'payload', line("      if (name === 'agent.cost' && !providerUnmetered) spendPool.booked(runId, Number(payload.usd) || 0);") + '\nreturn spendPool.n;');
   const auxStopOf = new Function('result', '_auxCandidates', 'governor', 'activeProviderId', 'agentId', line("  const _auxStop = (result && result.reason === 'budget')") + '\nreturn _auxStop;');
   const auxOf = id => { const g = governed(plain); auxStopOf({ reason: 'done' }, ['reflection'], g.governor, id, 'a'); return g.budget.n === 1; };
@@ -375,7 +375,17 @@ const governorPart = ledgerPart.then(async () => {
     A.eq(g.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', pool: pool(hold) }), hold, 'run: the pool\'s hold is the answer, unchanged');
     A.eq([order.splice(0), g.seen.checks.length], [['pool'], 0], 'run: a held call never asks the pools');
     const stopped = g.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', spentUsd: 0.5, emit: 'EMIT', receiptMeta: 'META', pool: pool(null) });
-    A.eq([order.splice(0), stopped.gate, g.seen.checks[0]], [['pool', 'withdraw'], 'dollars', ['r', 'a', 0.5, undefined, 'EMIT', 'META']], 'run: the pools get the run, its spend, its bus and its receipt; their stop withdraws the reservation');
+    A.eq([order.splice(0), stopped.gate, g.seen.checks[0]], [['pool', 'withdraw'], 'dollars', ['r', 'a', 0.5, undefined, 'EMIT', 'META', { attended: false }]], 'run: the pools get the run, its spend, its bus, its receipt and who watches it (nobody, unless the caller says so); their stop withdraws the reservation');
+    // GHSA-2hpj #8: who is watching reaches the pools - a caller's word for a foreground kind, the Commander's trigger for a background one
+    {
+      const w = rig();
+      w.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', attended: true });
+      w.governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', attended: 'yes' });
+      w.governor.admit('aux', { providerId: 'openrouter', agentId: 'a', attended: true });
+      w.governor.admit('aux', { providerId: 'openrouter', agentId: 'a', trigger: 'commander' });
+      w.governor.admit('nightshift', { providerId: 'openrouter', agentId: 'a' });
+      A.eq(w.seen.checks.map(c => c[6] && c[6].attended), [true, false, false, true, false], 'attended: only a literal true counts; a background kind needs the Commander\'s trigger; the night shift is nobody\'s');
+    }
     A.eq([rig({ throwCheck: true }).governor.admit('run', { providerId: 'openrouter', agentId: 'a', runId: 'r', pool: pool(null) }).gate, order.splice(0)], ['check', ['pool', 'withdraw']], 'run: a throwing check after the reservation withdraws it and refuses');
     A.eq([rig().governor.admit('run', { providerId: 'codex', agentId: 'a', runId: 'r', pool: pool(null) }), order.splice(0)], [null, []], 'run: a plan run never meets the pools and never reserves in them');
   }

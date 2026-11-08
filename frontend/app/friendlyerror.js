@@ -653,7 +653,7 @@
   /* StarNet's OWN spend-ledger refusal (sidecar/loop.js stopForSpend → failureCode spend_history_unavailable; every
      cause's sentence says "the spending limits you set can't be checked"), the failure code itself, and the older
      "spend history is unavailable" wording. Local by construction — never a provider's billing. */
-  const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
+  const SPEND_UNKNOWN_RE = /spending limits you set can['’]t be checked|pauses unattended work|spend[_ ]history[_ ](?:is[_ ])?unavailable/;
   // the spend_unknown headline, per cause — the loop's sentence names it; each keeps the SPENDING LIMITS door. The loop's
   // sentence ends with the way out it names for that cause (sidecar/budget.js unknownExit): a one-click one (COUNT AS, or
   // setting that limit to 0) is kept word for word, so the headline never offers less than the refusal did.
@@ -661,6 +661,13 @@
     const low = String(raw || '').toLowerCase();
     const exit = (/can['’]t be checked\.\s+(.+)$/i.exec(String(raw || '')) || [])[1] || '';
     const oneClick = /\bCOUNT AS\b|\bto 0\b/.test(exit) ? ' ' + exit.trim() : '';
+    // GHSA-2hpj #8: the shipped daily limit (one nobody set) pauses unattended work while spend history is incomplete
+    // (sidecar/loop.js, budget.js paused). Not "your limits": say it paused, and keep the way to settle.
+    if (/pauses unattended work/.test(low)) {
+      const restart = /could not be saved to disk/.test(low);
+      return "StarNet paused this unattended run: its spend history is incomplete, so the daily spending limit can't count what was spent." +
+        (restart ? ' Restart StarNet to recover it.' : (oneClick || ' Settle it in SETTINGS › SPENDING LIMITS.'));
+    }
     if (/interrupted before its spend was recorded|earlier call has no settled charge/.test(low)) {
       return "Your spending limits can't be checked — an earlier call has an unsettled charge, so this run was stopped." + (oneClick || ' Settle that run in SETTINGS › SPENDING LIMITS.');
     }

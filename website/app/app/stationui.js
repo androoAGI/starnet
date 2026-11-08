@@ -7423,7 +7423,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           ? 'Spend history unavailable — it could not be saved to disk, so your spending limits can’t be checked. Restart StarNet to recover it.'
           : (acc.readError === 'UNSETTLED_SPEND' && open)
             ? 'Spend history unavailable — ' + missing +
-              '. Limits you chose refuse paid calls until this is settled; the shipped soft rail stays unenforced. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
+              // GHSA-2hpj #8 (sidecar/budget.js): the shipped daily limit keeps counting, at each item's estimate, and pauses unattended work
+              '. Limits you chose refuse paid calls until this is settled; the shipped daily limit counts it at its estimate and pauses routines and other unattended work until then. Settle ' + (open === 1 ? 'it' : 'each') + ' below.' + floor
             : 'Spend history unavailable — the spend record could not be read, so your spending limits can’t be checked. Restart StarNet; if this stays, the spend files in your workspaces folder are damaged.';
       } else if (spendEl) {
         const today = fmtUsd(st && st.spentToday), life = fmtUsd(st && st.lifetime);
