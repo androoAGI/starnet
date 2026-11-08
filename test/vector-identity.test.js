@@ -5,8 +5,8 @@
    - the curved radius scales are zeroed in ONE place each (the family is closed by tokens, not per-surface patches), and
      window interiors square by structure (empty inline lights keep their round), never by [class] text;
    - the logo keeps no glow (Andrew's call) — the sheet never touches it;
-   - world.js's phosphor feed is the truth law in code: one 'color' blend, gated on body.vx, drawn AFTER the environment
-     and BEFORE every state signal, with the live-work layer moved after it while the feed is on. */
+   - the world keeps its own colours: no phosphor grade in world.js and no colour filter on the station view (Andrew
+     2026-11-08: the identity is the dashboard's, never a filter on the world). */
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -61,36 +61,14 @@ A.ok(css.includes('#screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):
 // ---- the logo keeps no glow ----
 A.ok(!/logo/i.test(css), 'vector.css never targets the logo (no glow, no drop-shadow: Andrew\'s call)');
 
-// ---- world.js: the phosphor feed obeys the truth law ----
+// ---- the world keeps its own colours (Andrew 2026-11-08: "it should only apply to the dashboard not add filters to
+// the world itself"). The identity is chrome around the station view, never a tint or filter on it ----
 const world = read('frontend/app/world.js');
-const grade = A.fnBody(world, 'function drawPhosphorGrade(');
-A.ok(/globalCompositeOperation\s*=\s*'color'/.test(grade), 'the feed is one colour blend (luminance kept, hue = the theme)');
-A.ok(/phosphorFeedOn\(\)/.test(grade), 'the grade is gated by phosphorFeedOn()');
-const feedOn = A.fnBody(world, 'function phosphorFeedOn(');
-A.ok(/classList\.contains\('vx'\)/.test(feedOn) && /CRT\.mono/.test(feedOn), 'the feed is on only with body.vx and a CRT.mono strength');
-
-// drawScene() is the draw order. Sliced from its declaration to the next top-level one (fnBody's brace scan can stop
-// early in a body this size: its regex-literal hazard), with a length guard so a mis-slice can't pass
-const frameAt = world.indexOf('\n  function drawScene(');
-const frame = world.slice(frameAt, world.indexOf('\n  function ', frameAt + 20));
-A.ok(frameAt > 0 && frame.length > 4000 && frame.length < world.length / 4, 'drawScene() sliced whole (' + frame.length + ' chars)');
-const at = (needle) => frame.indexOf(needle);
-const gradeAt = at('drawPhosphorGrade(now)');
-A.ok(gradeAt > 0, 'drawScene() draws the phosphor feed');
-A.ok(at("reviewMark('lighting')") > 0 && at("reviewMark('lighting')") < gradeAt, 'the feed is drawn after the lighting (the environment is whole)');
-for (const signal of ['drawDeskFlashes(now)', 'drawRunClocks(now)', 'drawWorkGlyphs(now)', 'drawActivityPlates(now)', 'drawAwaitTag(now)',
-  'drawRoutingNags(now)', 'drawBayLamps(now)', 'drawLinePlates(now)', 'drawBubble(now)', 'drawNameplate(now']) {
-  const i = at(signal);
-  A.ok(i > gradeAt, signal + ' (a state signal) is drawn AFTER the phosphor feed, in its own colour');
-}
-// the live-work layer: before the lightmap without the feed, after the feed with it
-const liveFn = frame.slice(at('const drawLiveWork = () => {'), at('if (!phosphorFeed) drawLiveWork();'));
-for (const signal of ['convey.drawBoxes(', 'ghost.draw(', 'drawSummonLinks(now)', 'drawHandoffBoxes(now)', 'drawSendCrates()', 'drawQueueJam(now)', 'drawShippedPallet(now)']) {
-  A.ok(liveFn.includes(signal), signal + ' rides the live-work layer');
-  A.eq(frame.split(signal).length - 1, 1, signal + ' is drawn from one place only');
-}
-A.ok(at('if (!phosphorFeed) drawLiveWork();') < at("reviewMark('lighting')"), 'without the feed the live-work layer keeps its place under the lightmap');
-const afterGrade = at('if (phosphorFeed) drawLiveWork();');
-A.ok(afterGrade > gradeAt && afterGrade < at('drawDeskFlashes(now)'), 'with the feed the live-work layer draws right after it');
+A.ok(!/drawPhosphorGrade|phosphorFeed|CRT\.mono/.test(world), 'world.js paints no phosphor grade: the station renders in true colour');
+A.ok(!/classList\.contains\('vx'\)/.test(world), 'world.js never reads body.vx: the dashboard identity cannot change the world');
+const viewRules = (css.match(/[^{}]*#stage-wrap[^{}]*\{[^}]*\}/g) || []).join(' ');
+A.ok(viewRules.length > 0, 'vector.css frames the station view');
+A.ok(!/(^|[^-])filter\s*:(?!\s*(none|drop-shadow))/m.test(viewRules) && !/mix-blend-mode/.test(viewRules),
+  'vector.css puts no colour filter or blend on the station view (frame lines only)');
 
 A.report('vector-identity');

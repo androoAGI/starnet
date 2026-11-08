@@ -62,9 +62,6 @@ const World = (() => {
      to CPU on divergence, so they must never drift apart. */
   const CRT = { scan: 0.38, pitch: 1, fade: 0.25, glow: 0.13, curve: 0.09, vig: 0.30, over: 1.20, dust: 0.5, aberr: 0.2, grain: 0.16, bloom: 0.25, emit: 0.9, mask: 0, bleed: 0, roll: 0 };   // 2026-09-03 'old TV' pass (Andrew: "90s Bandersnatch vibes"): pitch-2 lines, an RGB phosphor mask, colour bleed, more bow + vignette, a faint rolling sync bar. mask/bleed/roll = drawCRT   // bloom = phosphor bloom strength (drawBloom) · emit = prop light-source strength (drawPropLights)
   CRT.film = 0;
-  // VECTOR identity (2026-11-08): how far the feed's ENVIRONMENT takes the theme's phosphor hue (0 = true colour,
-  // 1 = a monochrome phosphor monitor). Only while body.vx is on; see drawPhosphorGrade for what it never touches.
-  CRT.mono = 0.8;
   if (typeof WorldRenderer !== 'undefined' && WorldRenderer.enabled()) Object.assign(CRT, WorldRenderer.PHOSPHOR);
   let _warpCv = null, _warpCtx = null;   // the barrel-warp snapshot buffer — see drawCurve()
   let _lut = null, _lutKey = '', _outImg = null;   // CPU per-pixel barrel-warp inverse-map LUT + output buffer — see buildLUT()/drawCurveCPU()
@@ -7526,11 +7523,6 @@ const World = (() => {
     } finally { if (strainBodies) SPRITES.setStrained(false); }
     // a LAYOUT-ONLY still (a community map's picture) shows the station as built: none of this station's live work
     const liveWork = !(stillPass && stillPass.layoutOnly);
-    // VECTOR: under the phosphor feed the live-work layer draws AFTER the grade, not before the lightmap. Its colour says
-    // things (a delegation line ends in its run's outcome colour, a send tag turns red when its line has failures, the
-    // shipped pallet glows green), and the grade would wash that into the theme's hue (drawPhosphorGrade's ORDER law)
-    const phosphorFeed = phosphorFeedOn();
-    const drawLiveWork = () => {
     if (convey && liveWork) convey.drawBoxes(ctx, now, T);   // boxes ride on top of the belts
     if (ghost && liveWork) {
       // the projection + its WOULD-captions (NAG_FONT size). A caption never prints over a line's plate (2026-09-28 retest:
@@ -7550,8 +7542,6 @@ const World = (() => {
     drawQueueJam(now);   // the live backlog as a physical jam of waiting crates at the INTAKE (world-space, under the lightmap)
     drawShippedPallet(now);   // SHIPPED TODAY: completed jobs stack as product crates at the OUTBOX (server-truth count)
     }
-    };
-    if (!phosphorFeed) drawLiveWork();
 
     reviewMark('entities');
     const nextLight = sceneRenderer && sceneRenderer.drawLight(ctx, propLights, { ambient: StationBake.LIGHT.ambient, emission: CRT.emit });
@@ -7567,8 +7557,6 @@ const World = (() => {
     reviewMark('lighting');
     drawNavLights(now);   // small running lights on validated exterior armour mounts
     if (!(sceneRenderer && sceneRenderer.drawAtmosphere(ctx, { dust: CRT.dust }))) drawDust(now);
-    drawPhosphorGrade(now);   // VECTOR: the environment becomes a phosphor feed — strictly BEFORE every state signal below
-    if (phosphorFeed) drawLiveWork();   // the live-work layer, in its own colours, over the feed
     if (liveWork) drawDeskFlashes(now);   // G0.4/G0.8: red distress strobe over a desk whose run just died (additive, with the glows)
     drawAwakenLight(now);   // the soul kindling: ignition spark + a growing halo + motes (world-space additive, awakening only)
     // the AWAKENING veil — now a SPOTLIGHT on the newborn (center light, corners dark) that warms cold->dawn,
@@ -8687,30 +8675,6 @@ const World = (() => {
     const rgba = (c, a) => 'rgba(' + c.join(',') + ',' + a + ')';
     plateInk = { ph: rgba(ph, 1), dim: rgba(ph, 0.62), faint: rgba(ph, 0.35), bright: rgba(br, 0.95), glow: rgba(ph, 0.9) };
     return plateInk;
-  }
-  /* PHOSPHOR FEED (VECTOR identity, Andrew 2026-11-08: the station should look like his vector-CRT references, where
-     every picture on the console is drawn in one phosphor). One 'color' blend over the frame drawn so far keeps each
-     pixel's LUMINANCE and gives it the theme's hue: sky, hull, deck, props, crew and light read as one monitor feed.
-     ORDER IS THE TRUTH LAW: it runs after the environment and BEFORE every state signal — the live-work layer
-     (belt crates, projections, delegation links and boxes, crates in flight, the queue jam, the shipped pallet: frame()
-     moves it after the grade while the feed is on), the dead-run distress strobe, run clocks, tool glyphs, activity
-     plates, wait tags, routing nags, bay lamps, glances, bubbles and nameplates — so anything that SAYS something keeps
-     its own colour. What the grade does take is light and paint: a lit screen still brightens its deck (luminance is
-     kept), only its hue joins the feed. BUILD MODE draws its own canvas (true colour, where deck paint is chosen).
-     Off unless the identity is on (body.vx); CRT.mono is the strength (crtlab: mono). */
-  function phosphorFeedOn() { return CRT.mono > 0.001 && document.body.classList.contains('vx'); }
-  function drawPhosphorGrade(now) {
-    if (!phosphorFeedOn()) return;
-    const k = CRT.mono;
-    const ink = plateTheme(now);
-    ctx.save();
-    try {
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalCompositeOperation = 'color';
-      ctx.globalAlpha = Math.min(1, k);
-      ctx.fillStyle = ink.ph;
-      ctx.fillRect(0, 0, cv.width, cv.height);
-    } finally { ctx.restore(); }
   }
   // word-wrap to at most n lines of w monospace chars; the last line keeps the overflow (fadeText fades it)
   function wrapChars(t, w, n) {

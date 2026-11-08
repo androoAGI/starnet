@@ -223,7 +223,6 @@
     sliders.push(buildSlider(body, crt, 'bleed', 0, 0.6, 0.02));   // horizontal colour bleed (beam spread)
     sliders.push(buildSlider(body, crt, 'roll', 0, 0.5, 0.02));    // the faint rolling sync bar
     sliders.push(buildSlider(body, crt, 'emit', 0, 2, 0.05));      // prop light sources — screens/cores/lamps put colour on the deck (drawPropLights)
-    sliders.push(buildSlider(body, crt, 'mono', 0, 1, 0.02));      // VECTOR phosphor feed — the environment takes the theme hue (world.js drawPhosphorGrade; body.vx only)
 
     // The glass aperture — how much of the panel the picture actually gets to use. Independent of `curve`
     // above: raising `clear` gives back real estate without touching the bulge at all.
