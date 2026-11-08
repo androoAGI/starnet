@@ -109,4 +109,8 @@ A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected 
 
 A.ok(css.includes('.ws-row.sel:not(.attn) *:not(.ws-dot)') && !/\.ws-row\.sel:not\(\.attn\) \* \{/.test(css),
   'inverse video never inks the row state dot: a failed/working mark keeps its true colour on a selected row');
+// ---- no grids (Andrew 2026-11-08: "not a fan of the grid at all tbh"): the tubes carry circuit traces instead, theme-coloured ----
+A.ok(!/1px, transparent 1px\)/.test(css), 'vector.css draws no grid lines anywhere (no 1px-line tiles)');
+A.ok(/#left::before \{[^}]*background-blend-mode:[^;]*multiply/.test(css), 'CREW carries the circuit-trace patch, multiplied over the theme colour (the hue drives it)');
+A.ok(/--vx-slot:/.test(css) && /--vx-gloss:/.test(css), 'list entries are glass slots and the chosen one is the gloss slot');
 A.report('vector-identity');
