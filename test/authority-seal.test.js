@@ -132,6 +132,7 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.ok(seal.notices().some(x => x.kind === 'marker-missing'), 'the missing marker is noticed');
     A.ok(marker.writes === 1, 'the marker is written again');
     A.eq(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).why, 'unsealed', 'so an unsealed bypass planted beside sealed files is refused');
+    A.eq(seal.open('agent.roster.json', d.files['agent.roster.json']).why, 'stale', 'and without the record of floors no sealed copy opens either (review 4c)');
   }
   {
     // the marker sealed by another key (credential-store entry reset, or edited): not an upgrade
@@ -143,7 +144,7 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(d.writes.length, 0, 'nothing is re-sealed under a foreign marker');
     A.ok(seal.notices().some(x => x.kind === 'marker-mismatch'), 'the foreign marker is noticed');
     const unreadable = make(KEY, { marker: { read: () => { throw new Error('EBUSY'); }, write: () => {} } });
-    A.eq(unreadable.seal.boot(d.list).mode, 'enforce', 'an unreadable marker is not an upgrade either');
+    A.eq(unreadable.seal.boot(d.list).mode, 'held', 'an unreadable marker is not an upgrade either: the boot is held');
   }
   {
     // nothing to migrate: no marker until the first sealed write (a stationless boot writes nothing)
@@ -471,6 +472,7 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     // the wiring: index.js hands the seal the .sealed-last store and the on-disk reader; the page says "not sealed"
     A.ok(/lastSealed: \{\s*read: \(name\) => readJsonIfPresent\(authoritySealLastFile\(name\)\)/.test(IDX), 'index.js gives the seal its .sealed-last store');
     A.ok(/current: \(name\) => readJsonIfPresent\(path\.join\(WORKSPACES, path\.basename\(String\(name\)\)\)\)/.test(IDX), 'and the on-disk reader');
+    A.ok(/evidence: \(\) => \{[\s\S]{0,200}path\.join\(WORKSPACES, name\) \+ '\.bak', authoritySealLastFile\(name\)\]/.test(IDX), 'and each file\'s .bak and .sealed-last copy as traces of sealing (review 4c)');
     const st = read('frontend/app/stationui.js');
     A.ok(/snap\.loaded && snap\.sealed === false \? '<p class="pg-floor pg-unsealed">/.test(st), 'the Permissions glance says when the files are not sealed');
     global.Permissions = require('../frontend/app/permissions.js');
@@ -602,6 +604,94 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const b4 = d4.station(KEY);
     A.eq(b4.boot(d4.list).reconciled, [], 'a stale sealed copy is no cap');
     A.eq(b4.open('permissions.bypass.json', d4.files['permissions.bypass.json']).why, 'unsealed', 'so the planted FULL BYPASS is refused');
+  }
+
+  // ---- 10. review 4c (fix-sec2): a missing marker is not a fresh install ----
+  {
+    // the review's chain: the marker deleted and every file's seal stripped. A sealed .bak (or .sealed-last) is a trace.
+    const mk = memMarker();
+    const app = S.makeAuthoritySeal({ key: KEY, now: () => 1000, marker: mk });
+    const sealedBak = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: false }));
+    const d = disk({ 'permissions.bypass.json': { version: 1, on: true }, 'agent.roster.json': { version: 1, agents: [{ agentId: 'x', approvalMode: 'full' }] } });
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 2000, marker: memMarker(), evidence: () => [sealedBak] });
+    const r = st.boot(d.list);
+    A.eq(r.mode, 'enforce', 'no marker, stripped files, a sealed .bak: not an upgrade');
+    A.eq(d.writes.length, 0, 'nothing is sealed as it is');
+    A.eq(st.open('permissions.bypass.json', d.files['permissions.bypass.json']).why, 'unsealed', 'the stripped FULL BYPASS is refused');
+    A.eq(st.open('agent.roster.json', d.files['agent.roster.json']).why, 'unsealed', 'the stripped roster is refused (every agent asks first)');
+    A.eq(st.open('permissions.bypass.json', sealedBak).why, 'stale', 'and the sealed .bak, put back, does not open: the record of floors is gone');
+    const n = st.notices().find(x => x.kind === 'marker-missing');
+    A.ok(n && /record of what was last taken away/.test(n.text) && /none of them is used/.test(n.text), 'the page says why (' + (n && n.text) + ')');
+    const st2 = S.makeAuthoritySeal({ key: KEY, now: () => 2000, marker: memMarker() });
+    st2.boot(disk({ 'permissions.bypass.json': sealedBak }).list);
+    st2.open('permissions.bypass.json', sealedBak);
+    const sn = st2.notices().find(x => x.kind === 'stale');
+    A.ok(sn && /cannot be checked against the record/.test(sn.text), 'a sealed file refused for want of the record says so, not "put back"');
+    // what StarNet writes from now on opens, above the new floor
+    const fresh = roundTrip(st.seal('permissions.bypass.json', { version: 1, on: true }));
+    A.ok(st.open('permissions.bypass.json', fresh).ok, 'a value StarNet seals after the reset opens');
+  }
+  {
+    // the floors after a reset sit above the clock and above every generation seen (a .sealed-last from the future)
+    const ahead = S.makeAuthoritySeal({ key: KEY, now: () => 9e9, marker: memMarker() });
+    const future = roundTrip(ahead.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] }));
+    const d = disk({ 'agent.roster.json': future });
+    const mk = memMarker();
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 10, marker: mk });
+    st.boot(d.list);
+    A.eq(st.open('agent.roster.json', future).why, 'stale', 'a sealed file from the future is under the reset floor');
+    A.ok(mk.value && mk.value.floors['agent.roster.json'] > future[S.FIELD].g, 'the new marker records floors above it');
+    // the next boot reads the new marker: still refused, and what StarNet wrote since opens
+    const written = roundTrip(st.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'ask' }] }));
+    const next = S.makeAuthoritySeal({ key: KEY, now: () => 20, marker: mk });
+    A.eq(next.boot([{ name: 'agent.roster.json', read: () => written, write: () => {} }]).mode, 'enforce', 'the next boot verifies the new marker');
+    A.eq(next.open('agent.roster.json', future).why, 'stale', 'the old copy stays refused');
+    A.ok(next.open('agent.roster.json', written).ok, 'the current one opens');
+  }
+  {
+    // a foreign or damaged marker: the same reset (no copy from before opens); an unreadable one holds the boot
+    const mine = S.makeAuthoritySeal({ key: KEY, now: () => 5, marker: memMarker() });
+    const sealedRoster = roundTrip(mine.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] }));
+    const foreign = make(OTHER);
+    foreign.seal.seal('hooks.json', { hooks: [] });
+    const d = disk({ 'agent.roster.json': sealedRoster });
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 50, marker: foreign.marker });
+    st.boot(d.list);
+    A.eq(st.open('agent.roster.json', sealedRoster).why, 'stale', 'a foreign marker: a roster this key sealed earlier is not taken as current');
+    A.ok(st.notices().some(x => x.kind === 'marker-mismatch' && /record of what was last taken away/.test(x.text)), 'and the page says why');
+    const broken = S.makeAuthoritySeal({ key: KEY, now: () => 50, marker: { read: () => JSON.parse('{oops'), write: () => {} } });
+    broken.boot(disk({ 'agent.roster.json': sealedRoster }).list);
+    A.eq(broken.open('agent.roster.json', sealedRoster).why, 'stale', 'a damaged (unparseable) marker resets the same way');
+    // unreadable (a lock): held. Readers get defaults, nothing is saved, the marker is not rewritten
+    let wrote = 0;
+    const lockedMk = { read: () => { throw Object.assign(new Error('busy'), { code: 'EBUSY' }); }, write: () => { wrote++; } };
+    const h = S.makeAuthoritySeal({ key: KEY, now: () => 50, marker: lockedMk });
+    A.eq(h.boot(disk({ 'agent.roster.json': sealedRoster }).list).mode, 'held', 'a marker that cannot be read holds the boot');
+    A.eq(h.open('agent.roster.json', sealedRoster).why, 'held', 'every present file reads as its default');
+    A.ok(h.open('permissions.bypass.json', undefined).ok, 'an absent one is its default anyway');
+    let threw = null;
+    try { h.seal('permissions.bypass.json', { version: 1, on: false }); } catch (e) { threw = e; }
+    A.ok(threw && /cannot save permission changes right now/.test(threw.message) && /EBUSY/.test(threw.message) && /Restart StarNet/.test(threw.message), 'and a save is refused, saying why (' + (threw && threw.message) + ')');
+    A.eq(wrote, 0, 'the record is not rewritten while it cannot be read');
+    A.ok(h.held && h.notices().some(x => x.kind === 'held' && /antivirus, backup or sync/.test(x.text)), 'the page says what holds it and what to do');
+  }
+  {
+    // the honest limit: no marker and no trace anywhere is the upgrade (the Rust side would close this; see the header)
+    const d = disk({ 'permissions.bypass.json': { version: 1, on: true } });
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 1, marker: memMarker(), evidence: () => [{ version: 1, on: false }, null, 'junk'] });
+    A.eq(st.boot(d.list).mode, 'migrated', 'no marker and no seal anywhere StarNet looks: the one-time upgrade (unsealed copies are no trace)');
+    const throwing = S.makeAuthoritySeal({ key: KEY, now: () => 1, marker: memMarker(), evidence: () => { throw new Error('EACCES'); }, log: () => {} });
+    A.eq(throwing.boot(disk({ 'permissions.bypass.json': { version: 1, on: true } }).list).mode, 'migrated', 'a look that fails finds no trace (logged), as before');
+    // a restore into a fresh folder: what it brought is adopted, and is no reason to refuse the rest twice
+    const home = S.makeAuthoritySeal({ key: KEY, now: () => 100, marker: memMarker() });
+    const files = { 'agent.roster.json': roundTrip(home.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] })) };
+    let rec = { files: ['agent.roster.json'] };
+    const fl = [{ name: 'agent.roster.json', read: () => files['agent.roster.json'], write: v => { files['agent.roster.json'] = roundTrip(v); } }];
+    const st2 = S.makeAuthoritySeal({ key: KEY, now: () => 200, marker: memMarker(), restored: { read: () => rec, drop: () => { rec = undefined; } } });
+    st2.boot(fl);
+    const got = st2.open('agent.roster.json', files['agent.roster.json']);
+    A.ok(got.ok && got.value.agents[0].approvalMode === 'ask', 'restored into a folder with no marker: the roster is sealed here, asking first');
+    A.ok(!st2.notices().some(x => /^marker-/.test(x.kind)), 'and that alone is not reported as a missing marker');
   }
 
   A.report('authority-seal.test');

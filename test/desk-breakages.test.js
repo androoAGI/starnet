@@ -145,12 +145,20 @@ const IDX = read('sidecar/index.js');
     const n = st.seal.notices();
     A.ok(n.some(x => x.kind === 'restored' && /Restored from a recovery bundle/.test(x.text) && /asks first/.test(x.text)), 'one notice says what the restore means');
     A.ok(!n.some(x => x.kind === 'unsealed' || x.kind === 'mismatch' || x.kind === 'marker-missing'), 'nothing reads as changed outside StarNet');
-    // the same computer: the roster opens under this key and keeps its Full Access
-    const here = S.makeAuthoritySeal({ key: KEY, marker: { read: () => undefined, write: () => {} } });
+    // the same computer, into the workspace that has its marker: the roster opens under this key and keeps its Full Access
+    const homeMk = { value: undefined, read() { return this.value; }, write(v) { this.value = roundTrip(v); } };
+    const here = S.makeAuthoritySeal({ key: KEY, now: () => 5, marker: homeMk });
     const files2 = { 'agent.roster.json': roundTrip(here.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] })) };
     const st2 = station(files2, { version: 1, files: ['agent.roster.json'] });
+    st2.mk.value = roundTrip(homeMk.value);
     st2.seal.boot(st2.list);
     A.eq(st2.seal.open('agent.roster.json', files2['agent.roster.json']).value.agents[0].approvalMode, 'full', 'restored on the computer that sealed it, the roster is left as it is');
+    // ... but into a folder without that marker (the bundle never carries it), nothing shows the copy is current (review
+    // 4c): it is adopted asking first, like a roster from another computer
+    const files2b = { 'agent.roster.json': roundTrip(files2['agent.roster.json']) };
+    const st2b = station(files2b, { version: 1, files: ['agent.roster.json'] });
+    st2b.seal.boot(st2b.list);
+    A.eq(st2b.seal.open('agent.roster.json', files2b['agent.roster.json']).value.agents[0].approvalMode, 'ask', 'restored into a folder with no marker, the roster asks first');
     // a forged record admits nothing that gives power
     const files3 = { 'permissions.bypass.json': { version: 1, on: true }, 'hooks-allowed.json': { x: { event: 'pre', command: 'evil' } }, 'agent.roster.json': { version: 1, agents: [{ agentId: 'z', approvalMode: 'full' }] } };
     const st3 = station(files3, { version: 1, files: S.NAMES.slice() });

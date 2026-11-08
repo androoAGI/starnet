@@ -1194,6 +1194,15 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
     drop: (name) => { try { fs.unlinkSync(authoritySealLastFile(name)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
   },
   current: (name) => readJsonIfPresent(path.join(WORKSPACES, path.basename(String(name)))),
+  // where a trace of sealing survives when the marker is gone (review 4c): each file's .bak and .sealed-last copy
+  evidence: () => {
+    const out = [];
+    for (const name of authoritySealMod.NAMES) for (const file of [path.join(WORKSPACES, name) + '.bak', authoritySealLastFile(name)]) {
+      try { const v = readJsonIfPresent(file); if (v !== undefined) out.push(v); }
+      catch (e) { failNote('authority-seal.evidence', e); }
+    }
+    return out;
+  },
   // a restore from a recovery bundle names the files it brought (station-recovery.js; fix-sec2 review 10)
   restored: {
     read: () => readJsonIfPresent(path.join(WORKSPACES, authoritySealMod.RESTORED_NAME)),

@@ -65,7 +65,23 @@
    (marker first, then the file) means a crash in between leaves the file under its floor: it reads as its safe default,
    never as the power the user was taking away. Honest limit: the floor lives in the marker, a file in the same
    workspace; a process that saved an old marker AND old files can put both back. Holding the floors (or a counter) in
-   the OS credential store beside the key would close that; it needs the desktop shell's Rust side (see 4c). */
+   the OS credential store beside the key would close that; it needs the desktop shell's Rust side (see 4c).
+
+   A MISSING MARKER IS NOT A FRESH INSTALL (fix-sec2 review 4c, 2026-11-08). Deleting authority-seal.json and stripping
+   the seal from each file made the next keyed boot look like the one-time upgrade, which sealed whatever the files then
+   said. Now the upgrade runs only when there is no marker AND no trace of sealing anywhere StarNet looks: no seal on any
+   authority file, nor on their .bak or .sealed-last copies (opts.evidence). With a trace, a missing marker, or one that
+   does not verify (another key, or edited), means the record of what was last taken away is gone: every floor is set
+   above every generation seen and above the clock, so no copy sealed before now opens. Each file reads as its safe
+   default until StarNet writes it again, the page says why, and the marker is written afresh. A marker that cannot be
+   READ (a lock held by antivirus or backup, not damage) holds this boot instead (held): every reader gets its default
+   and nothing is saved, and the next start tries again, so a passing lock never costs the user their settings.
+   Honest limit (what only the Rust side can add): a process that deletes the marker AND every trace (the files' seals,
+   their .bak and .sealed-last copies) still looks like an install that never sealed. The desktop shell could keep a
+   record in the OS credential store beside the key ("this key has sealed, at floors F"), written by the sidecar
+   through an IPC call; then a missing marker would be detectable whatever the workspace holds, and the floors would
+   survive a replayed marker. A same-user process can still write the credential store, so that raises the bar
+   (it must target the store too) rather than closing it. Not done here: it needs a Rust change this lane cannot build. */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -212,6 +228,9 @@ function makeAuthoritySeal(opts) {
   const lastSealed = o.lastSealed && typeof o.lastSealed.read === 'function' && typeof o.lastSealed.write === 'function' ? o.lastSealed : null;
   const current = typeof o.current === 'function' ? o.current : null;
   const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
+  const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
+  let held = '';                 // why this boot keeps every authority file at its default and saves none (4c, 4d)
+  let floorsReset = false;       // the marker was missing or foreign: every floor was set above what exists (4c)
   let markerOk = false;
   let sealedAt = 0;
   let sealedWorkspace = false;   // unkeyed only: the marker says a keyed StarNet seals these files (boot)
@@ -283,6 +302,7 @@ function makeAuthoritySeal(opts) {
   // this throws and the caller saves nothing (its own failure path: the change is reported, state unchanged).
   function seal(name, value) {
     name = String(name);
+    if (held) throw new Error(held);
     if (!key) { keepLastSealed(name); return value; }
     if (!plainObject(value)) return value;
     const body = strip(value);
@@ -303,6 +323,7 @@ function makeAuthoritySeal(opts) {
   // An absent file (undefined / null) is ok: it already reads as its default.
   function open(name, value) {
     name = String(name);
+    if (held) return (value === undefined || value === null) ? { ok: true, value: value, absent: true } : { ok: false, why: 'held' };
     if (!key) return { ok: true, value: strip(value), unkeyed: true };
     if (value === undefined || value === null) { known.delete(name); return { ok: true, value: value, absent: true }; }
     const why = verify(name, value);
@@ -313,7 +334,9 @@ function makeAuthoritySeal(opts) {
       try { keptAt = keep(name) || null; } catch (_) { keptAt = null; }
       broken.set(name, notice({
         kind: why, name: name, keptAt: keptAt,
-        text: why === 'stale'
+        text: why === 'stale' && floorsReset
+          ? name + ' cannot be checked against the record of what was last taken away (' + MARKER_NAME + ' was missing or did not match), so ' + (CONSEQUENCE[name] || 'it is not used.')
+          : why === 'stale'
           ? name + ' is an older copy than the last change that took power away (it was put back, from a backup or its .bak), so ' + (CONSEQUENCE[name] || 'it is not used.')
           : name + ' was changed outside StarNet (' + (why === 'unsealed' ? 'it has no seal' : 'its seal does not match') + '), so ' +
             (CONSEQUENCE[name] || 'it is not used.') + (keptAt ? ' A copy of it was kept as ' + keptAt + '.' : '')
@@ -397,6 +420,32 @@ function makeAuthoritySeal(opts) {
     }
   }
 
+  // A trace of sealing outside the marker (4c): a seal on any authority file or on one of its other copies. -> { any, maxG }
+  function traces(present) {
+    let any = false, maxG = 0;
+    const look = v => {
+      if (!plainObject(v)) return;
+      const s = plainObject(v[FIELD]) ? v[FIELD] : (plainObject(v.__seals) ? v.__seals : null);
+      if (!s) return;
+      any = true;
+      const g = genOf(s);
+      if (g && g > maxG) maxG = g;
+    };
+    for (const x of present) look(x.v);
+    let more = [];
+    try { more = evidence() || []; } catch (e) { log('could not look for other sealed copies: ' + String((e && (e.code || e.message)) || e)); }
+    for (const v of (Array.isArray(more) ? more : [])) look(v);
+    return { any, maxG };
+  }
+  // the record of what was last taken away is gone: no copy sealed before now may open (4c)
+  function resetFloors(names, maxG) {
+    let top = maxG || 0;
+    for (const k of Object.keys(lastG)) if (lastG[k] > top) top = lastG[k];
+    const base = Math.max((Math.floor(Number(now())) || 0) + 1, top + 1);
+    for (const n of names) { floors[n] = base; seen(n, base); }
+    floorsReset = true;
+  }
+
   function boot(files) {
     files = Array.isArray(files) ? files : [];
     if (!key) {
@@ -409,28 +458,38 @@ function makeAuthoritySeal(opts) {
       return { mode: 'unkeyed', sealed: [], failed: [] };
     }
     seedGens(files);
-    let m, markerBad = false;
-    try { m = marker.read(); } catch (_) { markerBad = true; }
-    const markerValid = m !== undefined && !markerBad && !verify(MARKER_NAME, m);
+    let m, markerErr = null;
+    try { m = marker.read(); } catch (e) { markerErr = e || new Error('unreadable'); }
+    if (markerErr && !(markerErr instanceof SyntaxError || markerErr.name === 'SyntaxError')) {
+      // could not be read (a lock, not damage): this boot neither trusts the files nor rewrites the record
+      const why = String(markerErr.code || markerErr.message || markerErr).slice(0, 80);
+      held = 'StarNet cannot save permission changes right now: it could not read ' + MARKER_NAME + ' (' + why + '), the record of which permission files are current. Restart StarNet to try again.';
+      notice({ kind: 'held', text: 'StarNet could not read ' + MARKER_NAME + ' (' + why + '), so until it restarts FULL BYPASS is off, every agent asks first, no hooks or plugins run, standing permissions are off, and permission changes are not saved. Another program (antivirus, backup or sync) may be holding the file: restart StarNet to try again.' });
+      return { mode: 'held', sealed: [], failed: [] };
+    }
+    const markerValid = !markerErr && m !== undefined && !verify(MARKER_NAME, m);
     const present = [];
     for (const f of files) {
       let v;
       try { v = f.read(); } catch (_) { continue; }
       if (v !== undefined && v !== null) present.push({ f: f, v: v });
     }
-    const sealedIn = xs => xs.some(x => plainObject(x.v) && Object.prototype.hasOwnProperty.call(x.v, FIELD));
+    const names = files.map(f => f.name);
+    let lost = '';                          // 'mismatch' | 'missing': the record of floors is gone (4c)
     if (markerValid) { markerOk = true; adoptMarker(m); }   // the floors first: a restore or a sealed copy is judged against them (4b)
-    // a restore is taken before anything else (a restored, sealed file is what tells the rest is not an upgrade)
+    else if (m !== undefined || markerErr) lost = 'mismatch';
+    else { const t = traces(present); if (t.any) { lost = 'missing'; resetFloors(names, t.maxG); } }
+    if (lost === 'mismatch') resetFloors(names, traces(present).maxG);
+    // a restore is taken before anything else (it is sealed above the new floors, so it is current)
     const adopted = adoptRestored(files);
     if (markerValid) return { mode: 'enforce', sealed: [], failed: [], reconciled: reconcile(files) };
-    if (m !== undefined || markerBad) {
-      notice({ kind: 'marker-mismatch', text: MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited). Each permission file is checked as it is; any that do not match are not used.' });
+    if (lost) {
       writeMarker({ force: true });
-      return { mode: 'enforce', sealed: [], failed: [] };
-    }
-    if (sealedIn(present.filter(x => adopted.indexOf(x.f.name) < 0))) {   // a sealed file the restore did not bring
-      notice({ kind: 'marker-missing', text: MARKER_NAME + ' is missing although the permission files are sealed. Nothing was re-sealed; each file is checked as it is.' });
-      writeMarker();
+      const restoredOnly = lost === 'missing' && adopted.length && !present.some(x => adopted.indexOf(x.f.name) < 0 && plainObject(x.v) && plainObject(x.v[FIELD]));
+      if (!restoredOnly) notice({ kind: 'marker-' + lost, text: (lost === 'mismatch'
+        ? MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited).'
+        : MARKER_NAME + ' is missing, although these permission files were sealed.') +
+        ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here. Nothing was re-sealed.' });
       return { mode: 'enforce', sealed: [], failed: [] };
     }
     if (adopted.length) return { mode: 'enforce', sealed: [], failed: [] };   // a restore into a fresh folder: the rest answers for itself
@@ -454,6 +513,7 @@ function makeAuthoritySeal(opts) {
 
   return {
     get keyed() { return !!key; },
+    get held() { return held; },
     seal: seal, open: open, boot: boot, clampRoster: clampRoster,
     notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}, n.dropped ? { dropped: n.dropped.slice() } : {}))
   };
