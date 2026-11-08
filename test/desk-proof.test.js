@@ -31,7 +31,9 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   // ---- 1. the module ----
   {
     const c = clockAt(1000);
-    const page = D.makeDeskProof({ now: c.now, randomBytes: rnd });
+    const notes = [];
+    const page = D.makeDeskProof({ now: c.now, randomBytes: rnd, announce: n => notes.push(n) });
+    const codeOf = id => { const n = notes.filter(x => x.kind === 'code' && x.id === id).pop(); return n ? n.code : ''; };
     A.eq(page.mode(), 'page', 'no shell token: page mode');
     A.eq(D.makeDeskProof({ desktop: true, ipcToken: '', now: c.now }).mode(), 'page', 'desktop without an IPC token is still page mode (nothing could approve)');
     const ch = page.issue({ action: 'bypass-on', scope: '', title: 'StarNet — turn on FULL BYPASS', summary: 'Turn it on?', verb: 'Turn on' });
@@ -41,8 +43,19 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.eq(page.consume(ch.id, 'grant', '').ok, false, 'a challenge for another action is refused');
     A.eq(page.consume(ch.id, 'bypass-on', '').reason, 'gone', '…and that burned it: a proof is never tried twice');
     const ch2 = page.issue({ action: 'bypass-on', scope: '' });
-    A.eq(page.consume(ch2.id, 'bypass-on', '').ok, true, 'page mode: a fresh, matching challenge passes');
-    A.eq(page.consume(ch2.id, 'bypass-on', '').ok, false, '…once');
+    // fix-sec2 review 2: the desk code, shown only where the station's own console is, never in the challenge
+    A.ok(D.CODE_RE.test(codeOf(ch2.id)), 'page mode: the station shows a six-digit desk code for each challenge');
+    A.eq(ch2.codeWhere, 'station-console', 'the challenge says where to look for it');
+    A.ok(!Object.keys(ch2).some(k => ch2[k] === codeOf(ch2.id)) && !('secret' in ch2), 'the challenge never carries the code');
+    A.eq(page.consume(ch2.id, 'bypass-on', '').reason, 'code-missing', 'page mode: the id alone no longer passes…');
+    const ch2b = page.issue({ action: 'bypass-on', scope: '' });
+    A.eq(page.consume(ch2b.id, 'bypass-on', '', codeOf(ch2b.id)).ok, true, '…the id with its desk code does');
+    A.eq(page.consume(ch2b.id, 'bypass-on', '', codeOf(ch2b.id)).ok, false, '…once');
+    const ch2c = page.issue({ action: 'bypass-on', scope: '' });
+    A.eq(page.consume(ch2c.id, 'bypass-on', '', codeOf(ch2b.id)).reason, 'wrong-code', 'another challenge\'s code is wrong');
+    A.ok(notes.some(n => n.kind === 'wrong' && n.wrong === 1 && n.label === ch2c.code), 'and the console says a wrong code was typed');
+    const ch2d = page.issue({ action: 'bypass-on', scope: '' });
+    A.eq(page.consume(ch2d.id, 'bypass-on', '', ' ' + codeOf(ch2d.id).slice(0, 3) + ' ' + codeOf(ch2d.id).slice(3) + ' ').ok, true, 'spaces typed in a code are ignored');
     const ch3 = page.issue({ action: 'grant', scope: 'cabinet:write' });
     c.t += D.TTL_MS + 1;
     A.eq(page.consume(ch3.id, 'grant', 'cabinet:write').reason, 'gone', 'an expired challenge is gone');
@@ -52,6 +65,36 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.eq(page.approve({ id: ch2.id }, 'x').reason, 'no-desktop', 'page mode has no shell approval route');
     for (let i = 0; i < D.MAX_OPEN + 10; i++) page.issue({ action: 'remote-pair' });
     A.ok(page._open.size <= D.MAX_OPEN, 'a flood of challenges evicts the oldest, never grows memory');
+  }
+  {
+    // a guesser: five wrong codes and the station takes no authority change until it restarts
+    const notes = [];
+    const page = D.makeDeskProof({ now: () => 1, randomBytes: rnd, announce: n => notes.push(n) });
+    let last = null;
+    for (let i = 0; i < D.MAX_WRONG_CODES; i++) {
+      const ch = page.issue({ action: 'grant', scope: 'x' });
+      const right = notes.filter(x => x.kind === 'code' && x.id === ch.id).pop().code;
+      last = page.consume(ch.id, 'grant', 'x', right === '000000' ? '000001' : '000000');
+    }
+    A.eq(last.reason, 'locked', 'the fifth wrong code locks the station');
+    A.ok(page.locked() && notes.some(n => n.kind === 'locked'), 'locked() says so, and so does the console');
+    const after = page.issue({ action: 'grant', scope: 'x' });
+    A.ok(after.locked === true && !notes.some(n => n.kind === 'code' && n.id === after.id), 'a locked station shows no more codes');
+    A.eq(page.consume(after.id, 'grant', 'x', '123456').reason, 'locked', 'and spends nothing');
+    // no console to show a code on: nothing can be confirmed in the page
+    const blind = D.makeDeskProof({ now: () => 1, randomBytes: rnd });
+    const bc = blind.issue({ action: 'grant', scope: 'x' });
+    A.eq(bc.codeWhere, '', 'a station that shows its code nowhere says so');
+    A.eq(blind.consume(bc.id, 'grant', 'x', '123456').reason, 'no-code-shown', 'and no code is ever right');
+    const failing = D.makeDeskProof({ now: () => 1, randomBytes: rnd, announce: () => { throw new Error('console closed'); } });
+    const fc = failing.issue({ action: 'grant', scope: 'x' });
+    A.eq(failing.consume(fc.id, 'grant', 'x', '123456').reason, 'no-code-shown', 'a code that could not be shown confirms nothing');
+    // a desktop station never shows a code (its confirmation is the shell's dialog)
+    const desk = D.makeDeskProof({ desktop: true, ipcToken: 'IPC', now: () => 1, randomBytes: rnd, announce: n => notes.push(n) });
+    const n0 = notes.length;
+    const dch = desk.issue({ action: 'grant', scope: 'x' });
+    A.ok(notes.length === n0 && !('codeWhere' in dch), 'desktop mode shows no desk code');
+    A.eq(desk.locked(), false, 'and never locks');
   }
   {
     const c = clockAt(5000);
@@ -132,14 +175,32 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.eq(res.headers['X-StarNet-Code'], 'desk_only', 'the client key stays desk_only');
   }
   {
-    const proof = D.makeDeskProof({ now: () => 1, randomBytes: rnd });
+    const shown = [];
+    const proof = D.makeDeskProof({ now: () => 1, randomBytes: rnd, announce: n => shown.push(n) });
     const gate = gateWith('', proof);
     let res = fakeRes();
     A.eq(gate({ headers: { 'x-starnet-token': API } }, res, 'remote-pair', '', {}), false, 'browser mode: asked to confirm in the page');
     const c = JSON.parse(res.body).deskConfirm;
     A.eq(c.mode, 'page', 'browser mode: a page challenge');
+    const code = shown.filter(n => n.id === c.id).pop().code;
+    A.ok(res.body.indexOf(code) < 0 || JSON.parse(res.body).deskConfirm.id.indexOf(code) >= 0, 'the 403 body never carries the desk code');
     res = fakeRes();
-    A.eq(gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': c.id } }, res, 'remote-pair', '', {}), true, 'browser mode: the confirmed replay passes');
+    A.eq(gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': c.id } }, res, 'remote-pair', '', {}), false, 'browser mode: the id alone (two requests with the page token) no longer passes');
+    A.ok(/confirmation code/.test(JSON.parse(res.body).error), 'and says the code is needed');
+    const c2 = JSON.parse(res.body).deskConfirm;
+    res = fakeRes();
+    A.eq(gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': c2.id, 'x-starnet-desk-code': shown.filter(n => n.id === c2.id).pop().code } }, res, 'remote-pair', '', {}), true, 'browser mode: the replay with the code the console showed passes');
+    for (let i = 0; i < D.MAX_WRONG_CODES; i++) {
+      res = fakeRes(); gate({ headers: { 'x-starnet-token': API } }, res, 'remote-pair', '', {});
+      const ci = JSON.parse(res.body).deskConfirm;
+      const right = shown.filter(n => n.id === ci.id).pop().code;
+      res = fakeRes(); gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': ci.id, 'x-starnet-desk-code': right === '999999' ? '999998' : '999999' } }, res, 'remote-pair', '', {});
+    }
+    A.eq(res.headers['X-StarNet-Code'], 'forbidden', 'five wrong codes: refused outright');
+    A.ok(JSON.parse(res.body).deskLocked === true && /until it restarts/.test(JSON.parse(res.body).error), 'and the station says it takes no permission change until it restarts');
+    res = fakeRes();
+    A.eq(gate({ headers: { 'x-starnet-token': API } }, res, 'remote-pair', '', {}), false, 'locked: no new challenge either');
+    A.ok(!/deskConfirm/.test(res.body), 'nothing to confirm');
   }
 
   // ---- 3. every authority route asks before it changes anything ----
@@ -204,13 +265,22 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.ok(out === res && (await out.json()).code === 'desk_confirm_required', 'a "no" in the shell hands the refusal back untouched');
   }
   {
-    let asked = 0;
-    const dc = make({ desktop: false, invoke: null, win: { confirm: () => { asked++; return true; } } });
+    let asked = 0, said = '';
+    const dc = make({ desktop: false, invoke: null, win: { confirm: () => { asked++; return true; }, prompt: (m) => { asked++; said = m; return ' 123 456 '; } } });
     const res = challengeRes(DESK);
     A.ok(await dc.settle(res, () => Promise.resolve(new Response('x'))) === res && asked === 0, 'a desktop challenge is never confirmed in-page');
-    const out = await dc.settle(challengeRes(Object.assign({}, DESK, { mode: 'page' })), id => Promise.resolve(new Response('ok:' + id)));
-    A.eq(await out.text(), 'ok:' + DESK.id, 'browser mode: the in-page confirm replays with the proof');
+    const PAGE = Object.assign({}, DESK, { mode: 'page', codeWhere: 'station-console' });
+    const out = await dc.settle(challengeRes(PAGE), (id, code) => Promise.resolve(new Response('ok:' + id + ':' + code)));
+    A.eq(await out.text(), 'ok:' + DESK.id + ':123456', 'browser mode: the page asks for the desk code and replays with the proof and the code');
     A.eq(asked, 1, 'asked once');
+    A.ok(/6-digit code the station printed in the terminal/.test(said) && said.indexOf(DESK.code) >= 0, 'naming where the code is and which confirmation it is for');
+    const noCode = make({ desktop: false, invoke: null, win: { prompt: () => 'abc' } });
+    const r2 = challengeRes(PAGE);
+    A.ok(await noCode.settle(r2, () => { throw new Error('must not replay'); }) === r2, 'no six digits typed: nothing is replayed');
+    let asked2 = 0;
+    const blind = make({ desktop: false, invoke: null, win: { prompt: () => { asked2++; return '123456'; } } });
+    const r3 = challengeRes(Object.assign({}, PAGE, { codeWhere: '' }));
+    A.ok(await blind.settle(r3, () => { throw new Error('must not replay'); }) === r3 && asked2 === 0, 'a station that shows its code nowhere is not asked for one');
   }
   {
     const dc = make({ desktop: true, invoke: () => Promise.resolve(), win: null });
@@ -219,8 +289,69 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const res = challengeRes(DESK);
     A.ok(await dc.settle(res, null) === res, 'an unreplayable body is never confirmed (nothing to replay)');
   }
-  A.ok(/\.then\(res => deskConfirm\.settle\(res, \(replayable && deskAgain != null\) \? id => rawFetch\(deskAgain, withApiToken\(withDeskProof\(init, id\), apiToken \|\| t\)\) : null\)\)\);/.test(harness),
+  A.ok(/\.then\(res => deskConfirm\.settle\(res, \(replayable && deskAgain != null\) \? \(id, code\) => rawFetch\(deskAgain, withApiToken\(withDeskProof\(init, id, code\), apiToken \|\| t\)\) : null\)\)\);/.test(harness),
     'the hardened fetch routes every /api answer through the desk confirmation, replaying with the proof and the current key');
+
+  // ---- 6. where a bare station shows its desk code (fix-sec2, review 2) ----
+  {
+    const aStart = IDX.indexOf('const DESK_CODE_TO_PARENT = ');
+    const aEnd = IDX.indexOf('const deskProofMod = require(');
+    A.ok(aStart > 0 && aEnd > aStart, 'index.js defines announceDeskCode');
+    const lift = (toParent, proc) => new Function('ENV', 'process', IDX.slice(aStart, aEnd) + '\nreturn announceDeskCode;')(k => (k === 'DESK_CODE_IPC' && toParent ? '1' : ''), proc);
+    const note = { kind: 'code', id: 'dc_' + 'q'.repeat(20), label: 'QQQQQQ', title: 'StarNet — turn on FULL BYPASS', verb: 'Turn on', code: '424242', expiresAt: 9 };
+    const err = [], sent = [];
+    lift(false, { stderr: { write: s => err.push(s) }, send: m => sent.push(m), connected: true })(note);
+    A.ok(err.length === 1 && /Type code 424242 in the StarNet page that asks for confirmation QQQQQQ/.test(err[0]) && /turn on FULL BYPASS/.test(err[0]) && sent.length === 0, 'a bare station prints the code, the change and its label on its own console');
+    A.ok(/Never type it anywhere else or give it to an agent/.test(err[0]), 'and warns it is for the page only');
+    const err2 = [], sent2 = [];
+    lift(true, { stderr: { write: s => err2.push(s) }, send: m => sent2.push(m), connected: true })(note);
+    A.ok(err2.length === 0 && sent2.length === 1 && sent2[0].type === 'starnet.desk-code' && sent2[0].id === note.id && sent2[0].code === '424242', 'a station the terminal started sends it over the IPC channel only');
+    const err3 = [];
+    lift(true, { stderr: { write: s => err3.push(s) }, connected: false })(note);
+    A.eq(err3.length, 1, 'no channel: the console');
+    A.ok(/announce: DESKTOP_SHELL \? null : announceDeskCode/.test(IDX), 'under the desktop shell (its console is a log file) no code is ever shown');
+    A.ok(/deskProof\.consume\(presented, action, scope, req\.headers\['x-starnet-desk-code'\]\)/.test(IDX), 'deskGate spends the proof with the typed code');
+    A.ok(/X-StarNet-Desk-Proof,X-StarNet-Desk-Code/.test(A.fnBody(IDX, 'function applyApiCors(')), 'CORS lets the code header through');
+    // the `starnet` terminal's side
+    const cli = require('../bin/starnet.js');
+    const cliSrc = read('bin/starnet.js');
+    A.ok(/STARNET_DESK_CODE_IPC: '1'/.test(cliSrc) && /child\.on\('message', m => \{ book\.take\(m\); \}\);/.test(cliSrc) && /client\.deskCodeFor = book\.codeFor;/.test(cliSrc), 'a station the terminal spawns sends its codes to that terminal\'s book');
+    A.ok(/if \(o\.deskProof && o\.deskCode\) headers\['x-starnet-desk-code'\] = String\(o\.deskCode\);/.test(cliSrc), 'the terminal\'s replay carries the code');
+    let t = 0;
+    const timers = [];
+    const book = cli.makeDeskCodeBook({ now: () => t, setTimeout: (fn, ms) => { timers.push({ fn, at: t + ms }); } });
+    const run = () => { const due = timers.filter(x => x.at <= t); for (const x of due) { timers.splice(timers.indexOf(x), 1); x.fn(); } };
+    const ask = (id, w) => { const pr = book.codeFor(id, w); run(); return pr; };
+    const shownNotes = [];
+    book.onNote((text, kind) => shownNotes.push([kind, text]));
+    A.eq(book.take({ type: 'other' }), false, 'other IPC messages are not the book\'s');
+    book.take({ type: 'starnet.desk-code', kind: 'code', id: 'dc_A', code: '111111', expiresAt: 100, text: 'Type code 111111' });
+    A.eq(await book.codeFor('dc_A'), '111111', 'the dashboard gets the code of its own challenge');
+    A.eq(await ask('dc_A', 0), '', 'once');
+    t = 2000; run();
+    A.eq(shownNotes.length, 0, 'a code the dashboard used is not shown');
+    const late = book.codeFor('dc_B', 2000);
+    book.take({ type: 'starnet.desk-code', kind: 'code', id: 'dc_B', code: '222222', expiresAt: 9000, text: 'B' });
+    A.eq(await late, '222222', 'a note that arrives after the HTTP answer is waited for');
+    const never = book.codeFor('dc_C', 500);
+    t = 2600; run();
+    A.eq(await never, '', 'no note in time: no code');
+    book.take({ type: 'starnet.desk-code', kind: 'code', id: 'dc_D', code: '333333', expiresAt: 9000, text: 'Type code 333333 in the page' });
+    t = 4200; run();
+    A.ok(shownNotes.some(([k, x]) => k === 'code' && /333333/.test(x)), 'a code nobody here claimed is shown to the person, for a page that asks');
+    book.take({ type: 'starnet.desk-code', kind: 'wrong', text: 'A wrong confirmation code was typed' });
+    A.ok(shownNotes.some(([k]) => k === 'wrong'), 'a wrong-code note is shown at once');
+    book.take({ type: 'starnet.desk-code', kind: 'code', id: 'dc_E', code: '12345', text: 'x' });
+    A.eq(await ask('dc_E', 0), '', 'a malformed code is never kept');
+    t = 20000;
+    book.take({ type: 'starnet.desk-code', kind: 'code', id: 'dc_F', code: '444444', expiresAt: 19000, text: 'x' });
+    A.eq(await ask('dc_F', 0), '', 'an expired code is never used');
+    // the dashboard
+    const dash = read('bin/lib/dashboard.js');
+    A.ok(/await client\.deskCodeFor\(ch\.id\) : '';\s*if \(code\) r = await client\.request\('POST', '\/api\/consent'/.test(dash), 'ALWAYS from the terminal carries its own station\'s code');
+    A.ok(/deskProof: held\.id, deskCode: typed/.test(dash) && /type \/yolo on <code> with the 6-digit code the station printed/.test(dash), 'a station started elsewhere: /yolo on <code> with the code its console printed');
+    A.ok(/client\.onDeskNote\(\(text, kind\) => sayHere\('desk', \[text\]/.test(dash), 'the dashboard shows the codes its station sends');
+  }
 
   A.report();
 })().catch(e => { console.error(e); process.exit(1); });

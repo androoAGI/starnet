@@ -233,9 +233,11 @@ const Harness = (() => {
      desk_confirm_required and a one-time challenge the station issued for exactly that change (sidecar/deskproof.js). The
      page confirms it ONCE and replays the request with X-StarNet-Desk-Proof. In the desktop app the SHELL shows the station's
      own words in a native dialog and reports the yes itself (main.rs starnet_desk_confirm) — no page script and no local
-     process can produce that; in a browser the page asks in-page and names the challenge's code (the station cannot tell a
-     browser from another local process there). A no, a dialog that failed, or a body that cannot be replayed hands the
-     caller the refusal exactly as it came. Self-contained (DESKTOP, invoke and window injected) so a test can lift it. */
+     process can produce that; in a browser the page asks for the six-digit DESK CODE the station printed only in its own
+     terminal (sidecar/deskproof.js; fix-sec2, review 2) and replays with it (X-StarNet-Desk-Code). A no, a dialog that
+     failed, or a body that cannot be replayed hands the caller the refusal exactly as it came. Self-contained (DESKTOP,
+     invoke and window injected) so a test can lift it.
+     confirmAtDesk(c) -> true (desktop: the shell confirmed) | { yes: true, code } (browser: the code typed) | false */
   function deskConfirmation(o) {
     function challengeOf(res) {
       if (!res || res.status !== 403 || typeof res.clone !== 'function') return Promise.resolve(null);
@@ -252,28 +254,34 @@ const Harness = (() => {
           .then(() => o.invoke('starnet_desk_confirm', { id: String(c.id), title: String(c.title || ''), summary: String(c.summary || ''), verb: String(c.verb || '') }))
           .then(() => true, () => false);
       }
+      // a station that shows its code nowhere (or stopped taking codes) cannot be confirmed here: say no without asking
+      if (!c.codeWhere || c.locked) return Promise.resolve(false);
       try {
-        const ask = o.win && typeof o.win.confirm === 'function' ? o.win.confirm.bind(o.win) : null;
+        const ask = o.win && typeof o.win.prompt === 'function' ? o.win.prompt.bind(o.win) : null;
         if (!ask) return Promise.resolve(false);
-        return Promise.resolve(!!ask(String(c.title || 'StarNet — confirm') + '\n\n' + String(c.summary || 'Confirm this change?')
-          + '\n\nConfirmation ' + String(c.code || '') + '. Choose OK to ' + String(c.verb || 'confirm').toLowerCase() + '.'));
+        const typed = ask(String(c.title || 'StarNet — confirm') + '\n\n' + String(c.summary || 'Confirm this change?')
+          + '\n\nTo ' + String(c.verb || 'confirm').toLowerCase() + ', type the 6-digit code the station printed in the terminal it runs in'
+          + ' (confirmation ' + String(c.code || '') + '). StarNet never asks for this code in chat.', '');
+        const code = String(typed == null ? '' : typed).replace(/\s+/g, '');
+        return Promise.resolve(/^\d{6}$/.test(code) ? { yes: true, code } : false);
       } catch (_) { return Promise.resolve(false); }
     }
-    // res: the station's answer; replay(proofId) -> the same request again carrying that proof (null: not replayable)
+    // res: the station's answer; replay(proofId, code) -> the same request again carrying that proof (null: not replayable)
     function settle(res, replay) {
       if (typeof replay !== 'function') return Promise.resolve(res);
       return challengeOf(res).then(c => {
         if (!c) return res;
-        return confirmAtDesk(c).then(yes => (yes ? replay(c.id) : res));
+        return confirmAtDesk(c).then(out => (out === true ? replay(c.id, '') : (out && out.yes === true) ? replay(c.id, String(out.code || '')) : res));
       });
     }
     return { settle, challengeOf, confirmAtDesk };
   }
   const deskConfirm = deskConfirmation({ desktop: DESKTOP, invoke: (cmd, args) => invoke(cmd, args), win: typeof window !== 'undefined' ? window : null });
-  function withDeskProof(init, id) {
+  function withDeskProof(init, id, code) {
     init = Object.assign({}, init || {});
     const headers = new Headers(init.headers || {});
     headers.set('X-StarNet-Desk-Proof', String(id));
+    if (code) headers.set('X-StarNet-Desk-Code', String(code));
     init.headers = headers;
     return init;
   }
@@ -524,7 +532,7 @@ const Harness = (() => {
       }, e => {
         if (!(e && e.name === 'AbortError')) noteStationReply(false);   // no answer at all (a caller's abort is not one)
         throw e;
-      }).then(res => deskConfirm.settle(res, (replayable && deskAgain != null) ? id => rawFetch(deskAgain, withApiToken(withDeskProof(init, id), apiToken || t)) : null)));
+      }).then(res => deskConfirm.settle(res, (replayable && deskAgain != null) ? (id, code) => rawFetch(deskAgain, withApiToken(withDeskProof(init, id, code), apiToken || t)) : null)));
     };
     window.__STARNET_FETCH_HARDENED__ = true;
   }

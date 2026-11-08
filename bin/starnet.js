@@ -201,8 +201,10 @@ function makeClient(host, port) {
     return new Promise(resolve => {
       const headers = { 'Origin': base, 'Accept': 'application/json, text/plain, */*' };
       if (token && !o.noToken) headers['x-starnet-token'] = token;
-      // a desk confirmation's proof (GHSA-2hpj #1): only a bare station issues one a terminal may replay (dashboard /yolo)
+      // a desk confirmation's proof (GHSA-2hpj #1): only a bare station issues one a terminal may replay (dashboard /yolo),
+      // with the desk code that station showed only at its console or over our own IPC channel (fix-sec2, review 2)
       if (o.deskProof) headers['x-starnet-desk-proof'] = String(o.deskProof);
+      if (o.deskProof && o.deskCode) headers['x-starnet-desk-code'] = String(o.deskCode);
       let payload = null;
       if (body != null) { payload = Buffer.from(JSON.stringify(body), 'utf8'); headers['Content-Type'] = 'application/json'; headers['Content-Length'] = payload.length; }
       let req;
@@ -240,6 +242,57 @@ function makeClient(host, port) {
   }
   return { base, host, port, request, health, discoverToken, setToken: (t) => { token = String(t || ''); }, token: () => token };
 }
+/* THE DESK CODES OF A STATION WE STARTED (fix-sec2, review 2; sidecar/deskproof.js). A bare station shows each confirmation's
+   six-digit code only at its own console; one this terminal spawned sends it here instead, over the IPC channel only the two
+   processes share (STARNET_DESK_CODE_IPC=1). The book keeps each code by its challenge id until it expires, so the dashboard
+   can confirm ITS OWN challenge (the 'a' key, /yolo) when the person at this terminal asked for that change. A code nobody
+   here claims within NOTE_AFTER_MS is shown to the person (onNote: the dashboard's line, else stderr), so a page that asks
+   for it can be answered; wrong-code and lock notes are shown at once.
+     codeFor(id, waitMs?) -> Promise<code | ''>   (the note and the HTTP answer travel apart: it waits for the note) */
+function makeDeskCodeBook(deps) {
+  const d = deps || {};
+  const clock = typeof d.now === 'function' ? d.now : () => Date.now();
+  const later = typeof d.setTimeout === 'function' ? d.setTimeout : (fn, ms) => { const t = setTimeout(fn, ms); if (t && t.unref) t.unref(); return t; };
+  const NOTE_AFTER_MS = 1500;
+  const codes = new Map(), waiting = new Map();
+  let listener = null;
+  const show = (text, kind) => { if (!text) return; if (listener) listener(text, kind); else log('starnet: ' + text); };
+  function take(m) {
+    if (!m || m.type !== 'starnet.desk-code') return false;
+    const text = String(m.text || '').slice(0, 600);
+    if (m.kind === 'code' && typeof m.id === 'string' && /^\d{6}$/.test(String(m.code || ''))) {
+      for (const [k, v] of codes) if (v.expiresAt <= clock()) codes.delete(k);
+      while (codes.size >= 32) codes.delete(codes.keys().next().value);
+      const row = { code: String(m.code), expiresAt: Number(m.expiresAt) || clock() + 120000, claimed: false };
+      codes.set(m.id, row);
+      const w = waiting.get(m.id);
+      if (w) { waiting.delete(m.id); w(); }
+      later(() => { if (!row.claimed) show(text, 'code'); }, NOTE_AFTER_MS);
+      return true;
+    }
+    show(text, m.kind);
+    return true;
+  }
+  function claim(id) {
+    const v = codes.get(id);
+    if (!v || v.expiresAt <= clock()) return '';
+    codes.delete(id);   // one use, as the station's challenge
+    v.claimed = true;
+    return v.code;
+  }
+  function codeFor(id, waitMs) {
+    const key = String(id || '');
+    const now1 = claim(key);
+    if (now1 || !key) return Promise.resolve(now1);
+    return new Promise(resolve => {
+      let done = false;
+      const finish = () => { if (done) return; done = true; waiting.delete(key); resolve(claim(key)); };
+      waiting.set(key, finish);
+      later(finish, Math.max(0, Number(waitMs) >= 0 ? Number(waitMs) : 2000));
+    });
+  }
+  return { take, codeFor, onNote: fn => { listener = typeof fn === 'function' ? fn : null; } };
+}
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -258,7 +311,8 @@ async function spawnSidecar(ws, env, onLine) {
   const childEnv = Object.assign({}, env, {
     STARNET_WORKSPACES: ws, SKYNET_WORKSPACES: ws,
     STARNET_PORT: String(port), SKYNET_PORT: String(port),
-    STARNET_API_TOKEN: token, SKYNET_API_TOKEN: token
+    STARNET_API_TOKEN: token, SKYNET_API_TOKEN: token,
+    STARNET_DESK_CODE_IPC: '1', SKYNET_DESK_CODE_IPC: '1'   // its desk codes come to this terminal (makeDeskCodeBook)
   });
   // an ipc channel so stopChild can ask for the sidecar's GRACEFUL shutdown (Windows has no SIGTERM)
   const child = spawn(process.execPath, [SIDECAR], { cwd: REPO, env: childEnv, stdio: ['ignore', 'pipe', 'pipe', 'ipc'] });
@@ -276,6 +330,10 @@ async function spawnSidecar(ws, env, onLine) {
   child.on('exit', (code, sig) => { exited = { code, sig }; });
   const client = makeClient('127.0.0.1', port);
   client.setToken(token);
+  const book = makeDeskCodeBook();
+  child.on('message', m => { book.take(m); });
+  client.deskCodeFor = book.codeFor;
+  client.onDeskNote = book.onNote;
   const deadline = Date.now() + 45000;
   while (Date.now() < deadline) {
     if (exited) throw new Error('the station exited during boot (code ' + exited.code + ')\n' + tail.join('\n'));
@@ -770,4 +828,4 @@ if (require.main === module) {
     e => { log('starnet: ' + ((e && e.stack) || e)); process.exit(core.EXIT.RUN_FAILED); });
 }
 
-module.exports = { desktopWorkspaces, bareWorkspaces, defaultWorkspace, discoverDesktop, findAppExe, readTail, makeClient, bootstrapWorkspace, resolveStation, stopChild, STOP_GRACE_MS, SIDECAR_SHUTDOWN_DEADLINE_MS, _core: core };
+module.exports = { desktopWorkspaces, bareWorkspaces, defaultWorkspace, discoverDesktop, findAppExe, readTail, makeClient, makeDeskCodeBook, bootstrapWorkspace, resolveStation, stopChild, STOP_GRACE_MS, SIDECAR_SHUTDOWN_DEADLINE_MS, _core: core };

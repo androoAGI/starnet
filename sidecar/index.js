@@ -595,7 +595,7 @@ function applyApiCors(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');   // PATCH: /api/routing/triggers/:id (line triggers)
   // accept the legacy token header too (old Tauri shell); X-Speech-Deadline-Ms: a sentence's deadline budget (media-service.js)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms,X-StarNet-Desk-Proof');   // the desk proof: deskGate
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms,X-StarNet-Desk-Proof,X-StarNet-Desk-Code');   // the desk proof: deskGate
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
   // X-StarNet-Code names a failure (respond.js CODES): hidden, the desktop page could not tell a stale key from any 403.
@@ -16655,9 +16655,33 @@ function ipcTokenOk(req) {
    AUTHORITY change: FULL BYPASS on, a FULL ACCESS or ALWAYS answer, a standing grant (the Permissions panel or a restored
    backup), raising an agent to full access, Remote on, a pairing code, approving a phone, or letting a phone use the desk's
    own permissions. Under the desktop shell the confirmation is the shell's native dialog, reported with the IPC token;
-   a bare sidecar (browser mode) confirms in the page. */
+   a bare sidecar (browser mode) confirms in the page with the DESK CODE below. */
+/* THE DESK CODE (fix-sec2, review 2). A bare station (npm start, the `starnet` terminal's own, a pm2 deploy, a source build)
+   has no shell to show a dialog, and it cannot tell its page from any other local process holding the page token. So each
+   of its confirmations needs six digits shown only where the person running the station looks: this process's own console
+   (stderr; nothing in this station reads it back or serves it), or, for a station the `starnet` terminal started
+   (STARNET_DESK_CODE_IPC=1 and its IPC channel), that terminal over the channel only the two processes share. The code never
+   rides in an API body. Under the desktop shell the console is a log file, so a station there with no shell proof shows
+   no code at all and its page confirmations cannot be given (fail closed). A same-user process that can read this
+   console's buffer, a log file it is redirected to (pm2's), or this process's memory can still read the code: that is
+   the same-user residual that only an OS sandbox for agent-run commands closes. */
+const DESK_CODE_TO_PARENT = ENV('DESK_CODE_IPC') === '1';
+function announceDeskCode(note) {
+  const n = note || {};
+  const line = n.kind === 'code'
+    ? 'Confirm at the desk: ' + String(n.title || '').replace(/^StarNet — /, '') + ' (' + String(n.verb || 'Confirm') + '). Type code '
+      + n.code + ' in the StarNet page that asks for confirmation ' + n.label + '. It works once, for two minutes. Never type it anywhere else or give it to an agent.'
+    : n.kind === 'wrong' ? 'A wrong confirmation code was typed for ' + n.label + ' (' + n.wrong + ' of ' + n.max + '; after ' + n.max + ' this station takes no permission change until it restarts).'
+      : 'Confirmation codes: ' + n.max + ' wrong codes were typed, so this station takes no permission change until it restarts.';
+  if (DESK_CODE_TO_PARENT && typeof process.send === 'function' && process.connected) {
+    process.send({ type: 'starnet.desk-code', kind: n.kind, id: n.id || '', label: n.label || '', code: n.code || '', title: n.title || '', verb: n.verb || '', expiresAt: n.expiresAt || 0, text: line });
+    return;
+  }
+  process.stderr.write('\n  [StarNet] ' + line + '\n\n');
+}
 const deskProofMod = require('./deskproof.js');
-const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now() });
+const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now(),
+  announce: DESKTOP_SHELL ? null : announceDeskCode });
 // What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
 // shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).
 function deskWords(action, d) {
@@ -16700,11 +16724,21 @@ function deskGate(req, res, action, scope, details) {
     return false;
   }
   const presented = String(req.headers['x-starnet-desk-proof'] || '').trim();
-  if (presented && deskProof.consume(presented, action, scope).ok) return true;
+  const spent = presented ? deskProof.consume(presented, action, scope, req.headers['x-starnet-desk-code']) : null;
+  if (spent && spent.ok) return true;
+  // page mode: too many wrong desk codes. Nothing is handed out again until the station restarts (deskproof.js)
+  if (deskProof.locked()) {
+    respondFail(res, 403, 'forbidden', 'Too many wrong confirmation codes were typed, so this station takes no permission change until it restarts.', { deskLocked: true });
+    return false;
+  }
   const words = deskWords(action, details);
   const challenge = deskProof.issue({ action, scope, title: words.title, summary: words.summary, verb: words.verb });
-  respondFail(res, 403, 'desk_confirm_required', presented ? 'That confirmation was not for this change, or it ran out. Confirm it again.'
-    : 'Confirm this change first: ' + challenge.title.replace(/^StarNet — /, '') + '.', { deskConfirm: challenge });
+  const why = !presented ? 'Confirm this change first: ' + challenge.title.replace(/^StarNet — /, '') + '.'
+    : spent.reason === 'wrong-code' ? 'That confirmation code was wrong. Confirm it again with the new code.'
+      : spent.reason === 'code-missing' ? 'This station needs the confirmation code it printed in its terminal. Confirm it again.'
+        : 'That confirmation was not for this change, or it ran out. Confirm it again.';
+  const where = challenge.mode === 'page' && !challenge.codeWhere ? ' This station shows its confirmation codes nowhere (it runs under the desktop app without its proof), so this change cannot be confirmed here.' : '';
+  respondFail(res, 403, 'desk_confirm_required', why + where, { deskConfirm: challenge });
   return false;
 }
 // POST /api/desk/approve { id, title, summary, verb } — the desktop shell's report (main.rs starnet_desk_confirm) that a

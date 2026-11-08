@@ -15,19 +15,27 @@
      2. desktop ('desktop' mode): the page asks the shell to confirm; the shell shows the title/summary/verb in a
         blocking native dialog and, on yes, POSTs /api/desk/approve { id, title, summary, verb } with the IPC token.
         The words must equal the ones the station issued, so a page cannot show one thing and approve another;
-        browser only ('page' mode, no desktop shell): the page shows an in-page confirm naming the action and the
-        challenge's short code — the station cannot tell a browser from another local process there, so this mode
-        is a fresh, bound, single-use click and no more (SECURITY.md: same-user processes are the residual risk);
-     3. the page replays the request with X-StarNet-Desk-Proof: <id>; the route consumes the challenge (single use,
-        same action, same scope, unexpired, approved by the shell in desktop mode) before it changes anything.
+        browser only ('page' mode, no desktop shell): the station cannot tell a browser from another local process,
+        so a click proves nothing there. Each page challenge carries a DESK CODE, six digits the station prints only
+        in its own console (the terminal it runs in, or over the IPC channel to the `starnet` terminal that started
+        it) and never puts in any API body. The page asks the person to type it (fix-sec2, review 2);
+     3. the page replays the request with X-StarNet-Desk-Proof: <id> (and X-StarNet-Desk-Code in page mode); the route
+        consumes the challenge (single use, same action, same scope, unexpired, approved by the shell in desktop mode,
+        the right code in page mode) before it changes anything. A wrong code burns the challenge, and after
+        MAX_WRONG_CODES wrong codes a page-mode station takes no authority change until it restarts.
 
-     const d = makeDeskProof({ desktop, ipcToken, now, randomBytes? })
+     const d = makeDeskProof({ desktop, ipcToken, now, randomBytes?, announce? })
      d.mode()                                    -> 'desktop' | 'page'
      d.issue({ action, scope, title, summary, verb }) -> public challenge (never a secret)
      d.approve({ id, title, summary, verb }, presentedIpcToken) -> { ok, reason? }   (desktop mode only)
-     d.consume(id, action, scope)                -> { ok, reason? }   single use; a mismatch burns the challenge
+     d.consume(id, action, scope, code?)         -> { ok, reason? }   single use; a mismatch burns the challenge
+     d.locked()                                  -> true once MAX_WRONG_CODES wrong codes were typed (page mode)
+     announce(note)                              page mode: shows the code where only the person at the station sees it.
+                                                 note = { kind: 'code', id, label, title, verb, code, expiresAt }
+                                                      | { kind: 'wrong', label, wrong, max } | { kind: 'locked', max }.
+                                                 With no announce, a page challenge can never be confirmed.
      cleanWords(s, max)                          -> the dialog-safe text (no control characters but \n, capped)
-     shortCode(id)                               -> the code a page shows beside an in-page confirm
+     shortCode(id)                               -> the public label that matches a prompt to its printed code
 
    Pure apart from the injected clock and random source; no I/O. */
 'use strict';
@@ -39,6 +47,8 @@ const ID_RE = /^dc_[A-Za-z0-9_-]{16,64}$/;
 const CAPS = Object.freeze({ title: 120, summary: 1200, verb: 40, scope: 2000, action: 64 });
 const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'grant', 'grant-import', 'approval-full',
   'remote-enable', 'remote-pair', 'device-activate', 'device-desk-permissions']);
+const CODE_RE = /^\d{6}$/;
+const MAX_WRONG_CODES = 5;              // a guesser gets five tries in a station's lifetime (one in 200,000), then nothing
 
 // The shell refuses words with control characters (a dialog must show what was approved, nothing hidden), so the
 // station never issues any: everything but \n becomes a space, runs of blank lines collapse, and the text is capped.
@@ -78,15 +88,30 @@ function makeDeskProof(deps) {
   const randomBytes = d.randomBytes || nodeCrypto.randomBytes;
   const ipcToken = String(d.ipcToken || '');
   const desktop = d.desktop === true && !!ipcToken;   // no shell token, no desktop proof: a bare sidecar is 'page' mode
+  const announce = !desktop && typeof d.announce === 'function' ? d.announce : null;
   const open = new Map();
+  let wrongCodes = 0;
+  function tell(note) {
+    if (!announce) return false;
+    try { announce(note); return true; } catch (_) { return false; }   // a code nobody was shown confirms nothing
+  }
+  // six uniform digits (rejection sampling keeps every code equally likely)
+  function deskCode() {
+    let n = 0;
+    for (let i = 0; i < 16; i++) { n = Buffer.from(randomBytes(4)).readUInt32BE(0); if (n < 4294000000) break; }
+    return String(n % 1000000).padStart(6, '0');
+  }
 
   function sweep() {
     const t = now();
     for (const [k, c] of open) if (c.expiresAt <= t) open.delete(k);
   }
+  // never the desk code: `code` is the public label the printed code is shown beside; codeWhere says where to look
   function publicView(c) {
-    return { id: c.id, action: c.action, mode: desktop ? 'desktop' : 'page', title: c.title, summary: c.summary, verb: c.verb,
+    const v = { id: c.id, action: c.action, mode: desktop ? 'desktop' : 'page', title: c.title, summary: c.summary, verb: c.verb,
       code: shortCode(c.id), expiresAt: c.expiresAt };
+    if (!desktop) { v.codeWhere = c.shown ? 'station-console' : ''; if (wrongCodes >= MAX_WRONG_CODES) v.locked = true; }
+    return v;
   }
   function issue(o) {
     const q = o || {};
@@ -101,8 +126,13 @@ function makeDeskProof(deps) {
       summary: cleanWords(q.summary || '', CAPS.summary),
       verb: cleanWords(q.verb || 'Confirm', CAPS.verb),
       expiresAt: now() + TTL_MS,
-      approved: false
+      approved: false,
+      secret: '', shown: false
     };
+    if (!desktop && wrongCodes < MAX_WRONG_CODES) {
+      c.secret = deskCode();
+      c.shown = tell({ kind: 'code', id, label: shortCode(id), title: c.title, verb: c.verb, code: c.secret, expiresAt: c.expiresAt });
+    }
     open.set(id, c);
     return publicView(c);
   }
@@ -123,7 +153,7 @@ function makeDeskProof(deps) {
     c.approved = true;
     return { ok: true };
   }
-  function consume(id, action, scope) {
+  function consume(id, action, scope, code) {
     const key = String(id || '');
     if (!ID_RE.test(key)) return { ok: false, reason: key ? 'bad-id' : 'missing' };
     sweep();
@@ -131,10 +161,20 @@ function makeDeskProof(deps) {
     if (!c) return { ok: false, reason: 'gone' };
     open.delete(key);   // single use, whatever the outcome: a proof is never tried twice
     if (c.action !== String(action || '') || c.scope !== String(scope == null ? '' : scope).slice(0, CAPS.scope)) return { ok: false, reason: 'mismatch' };
-    if (desktop && c.approved !== true) return { ok: false, reason: 'not-approved' };
+    if (desktop) return c.approved === true ? { ok: true } : { ok: false, reason: 'not-approved' };
+    // page mode: the code the station showed only at its own console (fix-sec2, review 2)
+    if (wrongCodes >= MAX_WRONG_CODES) return { ok: false, reason: 'locked' };
+    if (!c.shown || !c.secret) return { ok: false, reason: 'no-code-shown' };
+    const typed = String(code == null ? '' : code).replace(/\s+/g, '');
+    if (!typed) return { ok: false, reason: 'code-missing' };
+    if (!CODE_RE.test(typed) || !constEq(c.secret, typed)) {
+      wrongCodes++;
+      tell(wrongCodes >= MAX_WRONG_CODES ? { kind: 'locked', max: MAX_WRONG_CODES } : { kind: 'wrong', label: shortCode(c.id), wrong: wrongCodes, max: MAX_WRONG_CODES });
+      return { ok: false, reason: wrongCodes >= MAX_WRONG_CODES ? 'locked' : 'wrong-code' };
+    }
     return { ok: true };
   }
-  return { mode: () => (desktop ? 'desktop' : 'page'), issue, approve, consume, _open: open };
+  return { mode: () => (desktop ? 'desktop' : 'page'), issue, approve, consume, locked: () => !desktop && wrongCodes >= MAX_WRONG_CODES, _open: open };
 }
 
-module.exports = { makeDeskProof, cleanWords, cutPoints, wholeText, shortCode, TTL_MS, MAX_OPEN, ACTIONS, CAPS, ID_RE };
+module.exports = { makeDeskProof, cleanWords, cutPoints, wholeText, shortCode, TTL_MS, MAX_OPEN, MAX_WRONG_CODES, ACTIONS, CAPS, ID_RE, CODE_RE };
