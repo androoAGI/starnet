@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "9517bab836b22391986a7ca935a9ad38f514c25d",
+    "sourceCommit": "95a48142e9655fea985749ce355f837b24dc9e3e",
     "pathSetSha256": "d849d3b31da6f2722288a632ec2c696aa54886f298c849c2e1ff8309b1bffa18",
     "files": [
       {
@@ -1828,8 +1828,8 @@
       },
       {
         "path": "frontend/css/vector.css",
-        "bytes": 99814,
-        "sha256": "ae518389bdcf38debe4017e8e877e5b35ea3a8a5b18d29be451e1333d9fc971a"
+        "bytes": 110164,
+        "sha256": "7fa264758c91fe2c91a5b559c0c83aea986c9896577ba8e100b88741e82c89e4"
       },
       {
         "path": "frontend/css/warroom.css",
