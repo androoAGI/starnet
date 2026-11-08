@@ -98,7 +98,68 @@ const ModelPicker = (() => {
 
     const es = effortSel(root);
     if (es) { const item = list.find(m => optValue(m) === sel.value) || (current.model ? { id: current.model, provider: current.provider } : {}); fillEfforts(es, item, current.effort); }
+    // the credits door is decided after the list is filled: a newer populate of the same picker wins the race
+    const gen = root._mpGen = (root._mpGen || 0) + 1;
+    try { await syncCreditsDoor(root, sel, gen); } catch (_) {}
     return list;
+  }
+
+  /* NOT LINKED YET, SAID WHERE THE USER LOOKS (customer, 11-06: bought $25 of StarNet Credits, then "StarNet does not
+     appear as a model or provider option when configuring an agent"). It did not: the catalog has a STARNET group only
+     once this station is linked to the StarNet account (computeCatalog drops a provider that is not configured), and
+     buying credits on the website does not link a station; linking is a one-time step on the StarNet card in
+     Settings › AI & MODELS. So while this station could link and has not, the list leads with a STARNET CREDITS row
+     that says so, and a button beside the list lands on that card (StationUI.focusProvider), whose ↗ LINK STATION
+     starts the pairing. "Could link" is the sidecar's own /api/credits/linkable answer, the one that decides whether
+     Settings draws the StarNet card at all, so the button never points at a card that is not there. A linked station,
+     a build with no StarNet cloud, or a failed check shows nothing new. */
+  function starnetConfigured() {
+    try { return typeof Harness !== 'undefined' && !!(Harness.configured && Harness.configured('starnet')); } catch (_) { return false; }
+  }
+  async function starnetLinkable() {
+    if (typeof Harness === 'undefined' || !Harness.api || typeof Harness.api.get !== 'function') return false;
+    try { const j = await Harness.api.get('/api/credits/linkable'); return !!(j && j.available === true); } catch (_) { return false; }
+  }
+  async function syncCreditsDoor(root, sel, gen) {
+    const show = !starnetConfigured() && await starnetLinkable();
+    if (root._mpGen !== gen) return;   // a newer populate rebuilt this picker while the check was out
+    if (show && sel && !sel.querySelector('.mp-credits-hint')) {
+      const og = document.createElement('optgroup');
+      og.className = 'mp-credits-hint';
+      og.label = 'STARNET CREDITS';
+      const o = document.createElement('option');
+      o.value = '__link'; o.disabled = true;
+      o.textContent = 'not linked to this station yet: press LINK STARNET CREDITS';
+      og.appendChild(o);
+      const first = sel.firstChild;   // the inherit option stays first
+      sel.insertBefore(og, first ? first.nextSibling : null);
+    }
+    const host = doorHost(root);
+    if (!host) return;
+    let door = host.querySelector('.mp-credits');
+    if (!show) { if (door) door.hidden = true; return; }
+    if (!door) {
+      door = document.createElement('button');
+      door.type = 'button';
+      door.className = 'mp-credits bb sm';
+      door.textContent = '◆ LINK STARNET CREDITS';
+      door.title = 'StarNet models appear here once this station is linked to your StarNet account. Buying credits does not link it: open the StarNet card in Settings › AI & MODELS and press LINK STATION (one time).';
+      door.addEventListener('click', (ev) => { try { ev.preventDefault(); ev.stopPropagation(); } catch (_) {} openCreditsLink(); });
+      host.appendChild(door);
+    }
+    door.hidden = false;
+  }
+  // Land on the StarNet card in Settings › AI & MODELS (its ↗ LINK STATION starts the pairing); bare Settings otherwise.
+  function openCreditsLink() {
+    if (typeof StationUI === 'undefined') return;
+    try { if (StationUI.focusProvider) { StationUI.focusProvider('starnet'); return; } } catch (_) {}
+    try { if (StationUI.openTerm) StationUI.openTerm('settings', 'providers'); } catch (_) {}
+  }
+  function doorHost(root) {
+    const wrap = (root && root.querySelector && root.matches && root.matches('.mp-wrap')) ? root
+               : (root && root.querySelector) ? root.querySelector('.mp-wrap') : null;
+    const host = wrap || root;
+    return host && host.querySelector ? host : null;
   }
 
   // Open Settings on the PROVIDERS (key entry) section — the same door friendlyerror routes no-key/auth errors to.
@@ -135,7 +196,7 @@ const ModelPicker = (() => {
     const sel = modelSel(root);
     const val = sel ? sel.value : '';
     let model = '', provider = '';
-    if (val && val !== '__loading' && val !== '__none') { const i = val.indexOf(SEP); if (i >= 0) { provider = val.slice(0, i); model = val.slice(i + 1); } else { model = val; } }
+    if (val && val !== '__loading' && val !== '__none' && val !== '__link') { const i = val.indexOf(SEP); if (i >= 0) { provider = val.slice(0, i); model = val.slice(i + 1); } else { model = val; } }
     const es = effortSel(root);
     return { model: model, provider: provider, effort: (es ? es.value : '') };
   }
@@ -149,7 +210,7 @@ const ModelPicker = (() => {
     });
     if (es) es.addEventListener('change', () => { if (cb) cb(read(root)); });
   }
-  function itemFromValue(val) { if (!val || val === '__loading' || val === '__none') return {}; const i = val.indexOf(SEP); return (i >= 0) ? { id: val.slice(i + 1), provider: val.slice(0, i) } : { id: val }; }
+  function itemFromValue(val) { if (!val || val === '__loading' || val === '__none' || val === '__link') return {}; const i = val.indexOf(SEP); return (i >= 0) ? { id: val.slice(i + 1), provider: val.slice(0, i) } : { id: val }; }
 
   return { shellHTML, populate, read, onChange, fillEfforts };
 })();
