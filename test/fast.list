@@ -1254,6 +1254,7 @@ test/google-relay-guard.test.js
 test/gmail-app-password.test.js
 test/gmail-headers-parser.test.js
 test/mail-parse-redos.test.js
+test/mail-body-extraction.test.js
 test/connector-vault.test.js
 test/mcp.catalog.test.js
 test/mcp.oauth.test.js

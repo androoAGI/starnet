@@ -108,7 +108,7 @@ const SUMMARY_ITEMS = '(UID X-GM-MSGID X-GM-THRID FLAGS INTERNALDATE RFC822.SIZE
 function summarize(attrs) {
   const hk = attrKey(attrs, 'BODY[HEADER'), tk = attrKey(attrs, 'BODY[TEXT]');
   const head = hk ? buf(attrs[hk]) : Buffer.alloc(0);
-  const parsed = mail.parseMessage(Buffer.concat([head, Buffer.from('\r\n'), tk ? buf(attrs[tk]) : Buffer.alloc(0)]), { maxText: 2000 });
+  const parsed = mail.parseMessage(Buffer.concat([head, Buffer.from('\r\n'), tk ? buf(attrs[tk]) : Buffer.alloc(0)]), { maxText: 2000, preferPlain: true });
   return {
     id: hexId(attrs['X-GM-MSGID']), threadId: hexId(attrs['X-GM-THRID']),
     date: parsed.headers.date || String(attrs.INTERNALDATE || ''), from: parsed.headers.from, to: parsed.headers.to,
@@ -212,7 +212,8 @@ function makeGmailImapTransport(opts) {
       id: hexId(attrs['X-GM-MSGID']) || messageId, threadId: hexId(attrs['X-GM-THRID']),
       labels: Array.isArray(attrs['X-GM-LABELS']) ? attrs['X-GM-LABELS'].map(l => (Buffer.isBuffer(l) ? l.toString('utf8') : String(l))) : [],
       unread: !flagsOf(attrs).some(f => /^\\Seen$/i.test(f)),
-      ...parsed.headers, body: parsed.text, bodyTruncated: parsed.textTruncated || size > READ_CAP,
+      // bodySource: which part the body is (a plain part that only says "view this email in your browser" loses to the HTML)
+      ...parsed.headers, body: parsed.text, bodySource: parsed.textSource, bodyTruncated: parsed.textTruncated || size > READ_CAP,
       attachments: parsed.attachments, size
     };
   }

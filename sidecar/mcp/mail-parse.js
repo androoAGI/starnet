@@ -2,7 +2,7 @@
 /* sidecar/mcp/mail-parse.js — a small, bounded RFC 5322 / MIME reader for mail fetched over IMAP.
 
    Enough to turn a raw message into what an agent needs: decoded headers (RFC 2047 encoded words), the readable
-   text (text/plain preferred, else text/html reduced to text), and an attachment inventory (name, type, size —
+   text (the plain part, unless it is empty or the HTML part clearly says more: see pickText), and an attachment inventory (name, type, size —
    never the bytes). Tolerates truncated input (a capped fetch) and caps recursion depth and part count. */
 
 const MAX_DEPTH = 8;
@@ -91,21 +91,30 @@ function decodeBody(buf, encoding) {
    240 KB of "<" took 18 s, and up to the 4 MiB read cap is over an hour — synchronous, so the whole sidecar (E-STOP, every run,
    every route) froze when an agent read one crafted email. Same text out: a <script>/<style>/<head> with its closing tag goes
    whole; one with no closing tag is just a tag; <br> and the end of a block are line breaks; any other tag is a space; "<>" and a
-   "<" with no ">" after it stay text. A closing-tag search is remembered per name, so a run of opening tags never rescans. */
+   "<" with no ">" after it stay text. A closing-tag search is remembered per name, so a run of opening tags never rescans.
+   WHAT A NEWSLETTER SAYS (customer, 11-04..11-08: "some emails return almost nothing except links or footer text"): an
+   <img>'s alt text is what the picture says, so it is kept (an image-only mail had no words at all without it); an HTML
+   comment goes whole, so an Outlook-only <!--[if mso]> block no longer leaks a second copy or half a comment; the end of a
+   table, list, quote or section is a line break. The comment-end search is remembered the same way, so it stays linear. */
 function stripTags(src) {
   const s = String(src), lower = s.toLowerCase(), n = s.length, out = [], closeAt = Object.create(null);
-  const closeOf = (name, from) => {
-    const c = closeAt[name];
+  const findFrom = (needle, from) => {
+    const c = closeAt[needle];
     if (c && (c.at < 0 || c.at >= from)) return c.at;
-    const at = lower.indexOf('</' + name, from);
-    closeAt[name] = { at };
+    const at = lower.indexOf(needle, from);
+    closeAt[needle] = { at };
     return at;
   };
+  const closeOf = (name, from) => findFrom('</' + name, from);
   let i = 0;
   while (i < n) {
     const lt = s.indexOf('<', i);
     if (lt < 0) { out.push(s.slice(i)); break; }
     out.push(s.slice(i, lt));
+    if (s.startsWith('<!--', lt)) {
+      const end = findFrom('-->', lt + 4);
+      if (end >= 0) { out.push(' '); i = end + 3; continue; }
+    }
     const gt = s.indexOf('>', lt + 1);
     if (gt < 0) { out.push(s.slice(lt)); break; }
     if (gt === lt + 1) { out.push('<>'); i = gt + 1; continue; }
@@ -115,16 +124,54 @@ function stripTags(src) {
       const end = closeOf(name, gt + 1), endGt = end < 0 ? -1 : s.indexOf('>', end);
       if (endGt >= 0) { out.push(' '); i = endGt + 1; continue; }
     }
-    out.push(name === 'br' ? '\n' : (closing && /^(p|div|tr|li|h[1-6])$/.test(name)) ? '\n' : ' ');
+    if (!closing && name === 'img') {
+      const alt = /\salt\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i.exec(s.slice(lt, gt));
+      const said = alt ? (alt[1] != null ? alt[1] : alt[2] != null ? alt[2] : alt[3]).trim() : '';
+      out.push(said ? ' ' + said + ' ' : ' ');
+      i = gt + 1;
+      continue;
+    }
+    out.push(name === 'br' ? '\n' : (closing && /^(p|div|tr|li|h[1-6]|table|ul|ol|blockquote|section|article|header|footer|center)$/.test(name)) ? '\n' : ' ');
     i = gt + 1;
   }
   return out.join('');
 }
+// The named entities mail actually uses (typography, currency, accented letters, and the zero-width spacers newsletters pad
+// their preview line with). Matched case-sensitively, as HTML does, except the five ASCII ones, which mail writes in any case.
+const ENTITY = (() => {
+  const t = { rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', sbquo: '‚', bdquo: '„', prime: '′', Prime: '″', mdash: '—', ndash: '–',
+    minus: '−', hellip: '…', bull: '•', middot: '·', copy: '©', reg: '®', trade: '™', euro: '€', pound: '£', yen: '¥', cent: '¢',
+    curren: '¤', deg: '°', times: '×', divide: '÷', plusmn: '±', micro: 'µ', para: '¶', sect: '§', dagger: '†', Dagger: '‡',
+    laquo: '«', raquo: '»', lsaquo: '‹', rsaquo: '›', rarr: '→', larr: '←', uarr: '↑', darr: '↓', harr: '↔', check: '✓',
+    iexcl: '¡', iquest: '¿', frac12: '½', frac14: '¼', frac34: '¾', sup1: '¹', sup2: '²', sup3: '³', ordf: 'ª', ordm: 'º',
+    szlig: 'ß', aelig: 'æ', AElig: 'Æ', oelig: 'œ', OElig: 'Œ', eth: 'ð', ETH: 'Ð', thorn: 'þ', THORN: 'Þ', yuml: 'ÿ',
+    ensp: ' ', emsp: ' ', thinsp: ' ', hairsp: ' ', numsp: ' ', puncsp: ' ', zwnj: '', zwj: '', shy: '', lrm: '', rlm: '',
+    ZeroWidthSpace: '', NoBreak: '' };
+  const marks = { acute: '́', grave: '̀', circ: '̂', uml: '̈', tilde: '̃', ring: '̊', cedil: '̧', slash: '̸' };
+  for (const [mark, comb] of Object.entries(marks)) for (const base of 'aeiouyncAEIOUYNC') {
+    const ch = (base + comb).normalize('NFC');
+    if (ch.length === 1) t[base + mark] = ch;
+  }
+  t.oslash = 'ø'; t.Oslash = 'Ø';
+  return t;
+})();
+const ENTITY_ANY_CASE = { nbsp: ' ', amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+function decodeEntities(text) {
+  return String(text).replace(/&(?:#(\d{1,8})|#[xX]([0-9a-fA-F]{1,7})|([a-zA-Z][a-zA-Z0-9]{1,31}));/g, (all, dec, hex, name) => {
+    if (name) {
+      if (Object.prototype.hasOwnProperty.call(ENTITY, name)) return ENTITY[name];
+      const lc = name.toLowerCase();
+      return Object.prototype.hasOwnProperty.call(ENTITY_ANY_CASE, lc) ? ENTITY_ANY_CASE[lc] : all;
+    }
+    const cp = dec != null ? Number(dec) : parseInt(hex, 16);
+    if (!(cp > 0 && cp <= 0x10FFFF) || (cp >= 0xD800 && cp <= 0xDFFF)) return ' ';
+    return String.fromCodePoint(cp);
+  });
+}
 function htmlToText(html) {
-  return stripTags(html)
-    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
-    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
-    .replace(/&#(\d+);/g, (_, n) => { try { return String.fromCodePoint(Number(n)); } catch (e) { return ' '; } })
+  return decodeEntities(stripTags(html))
+    // the padding a newsletter puts after its preview line (zero-width joiners, soft hyphens, grapheme joiners) says nothing
+    .replace(/[­͏᠎​-‏⁠﻿]/g, '').replace(/[  -   　]/g, ' ')
     .replace(/[ \t\f\v]+/g, ' ').replace(/\n\s*\n\s*\n+/g, '\n\n').trim();
 }
 
@@ -172,7 +219,24 @@ function walk(buf, state, depth) {
   state.attachments.push({ filename: filename || '(unnamed)', mimeType: ct.value, size: decoded.length });
 }
 
-/* parseMessage(buf, { maxText }) -> { headers: {from,to,cc,subject,date,messageId,replyTo}, text, textTruncated, attachments } */
+/* WHICH PART IS THE MESSAGE. The plain part used to win whenever there was one, even an empty one. A newsletter's plain part is
+   often a stub ("View this email in your browser: https://…", then the footer) or a cut-down summary, while the HTML part holds
+   the message, so an agent read the stub, and textTruncated said false because nothing had been cut. The plain part still wins
+   when it carries about as much as the HTML (every ordinary mail); the HTML wins when the plain part is empty, or when the HTML
+   reads clearly more: at least half again as many letters and digits, and 150 more, not counting web addresses. A capped preview
+   (preferPlain: the list's 6 KB slice can end inside the HTML's <style>) keeps the plain part whenever it has text. */
+function substance(text) {
+  return String(text || '').replace(/\b(?:https?:\/\/|mailto:|www\.)\S+/gi, ' ').replace(/[^\p{L}\p{N}]+/gu, '').length;
+}
+function pickText(plain, html, preferPlain) {
+  if (!plain) return html ? 'text/html' : '';
+  if (!html || preferPlain) return 'text/plain';
+  const p = substance(plain), h = substance(html);
+  return (h >= p * 1.5 && h - p >= 150) ? 'text/html' : 'text/plain';
+}
+
+/* parseMessage(buf, { maxText, preferPlain }) -> { headers: {from,to,cc,subject,date,messageId,replyTo}, text, textSource,
+   textTruncated, attachments }. textSource names the part the text came from ('text/plain', 'text/html', or '' for none). */
 function parseMessage(raw, opts) {
   const maxText = Math.max(200, Number(opts && opts.maxText) || 100000);
   const buf = Buffer.isBuffer(raw) ? raw : Buffer.from(String(raw || ''), 'utf8');
@@ -180,14 +244,16 @@ function parseMessage(raw, opts) {
   const hs = parseHeaders(head);
   const state = { plain: [], html: [], attachments: [], parts: 0 };
   walk(buf, state, 0);
-  let text = state.plain.length ? state.plain.join('\n\n') : htmlToText(state.html.join('\n'));
-  text = text.replace(/\r\n/g, '\n').trim();
+  const plain = state.plain.join('\n\n').replace(/\r\n/g, '\n').trim();
+  const html = state.html.length ? htmlToText(state.html.join('\n')).replace(/\r\n/g, '\n').trim() : '';
+  const textSource = pickText(plain, html, !!(opts && opts.preferPlain));
+  let text = textSource === 'text/html' ? html : plain;
   const textTruncated = text.length > maxText;
   if (textTruncated) text = text.slice(0, maxText);
   const h = n => decodeWords(header(hs, n));
   return {
     headers: { from: h('from'), to: h('to'), cc: h('cc'), replyTo: h('reply-to'), subject: h('subject'), date: h('date'), messageId: h('message-id') },
-    text, textTruncated, attachments: state.attachments.slice(0, 100)
+    text, textSource, textTruncated, attachments: state.attachments.slice(0, 100)
   };
 }
 
