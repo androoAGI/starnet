@@ -24,7 +24,7 @@
    shell-injection vector through a crafted command string. A Commander who genuinely wants a pipeline puts it
    in a script and points the hook at the script — the same trade the reference harness makes.
 
-   makeShellHooks({ spawn, fsp, pathMod, hooksFile, allowFile, cwd, clock?, onError? })
+   makeShellHooks({ spawn, fsp, pathMod, hooksFile, allowFile, cwd, clock?, onError?, seal? })
      -> { load, install, allow, listPending, _internals } */
 'use strict';
 (function (root, factory) {
@@ -88,9 +88,18 @@
     const nowMs = (deps.clock && typeof deps.clock.now === "function") ? () => Number(deps.clock.now()) || 0 : () => 0;
     const spineBoundMs = timeoutMs + KILL_SETTLE_MS + SPINE_SLACK_MS;
 
+    /* THE SEAL (GHSA-2hpj #3). With deps.seal (sidecar/authority-seal.js, keyed from the OS credential store) both
+       files carry a seal StarNet writes, and one changed outside StarNet reads as its default (no hooks, nothing
+       approved): a process that can write the workspace cannot approve a hook by writing hooks-allowed.json. */
+    const sealer = (deps.seal && typeof deps.seal.open === 'function' && typeof deps.seal.seal === 'function') ? deps.seal : null;
+    const sealed = (file, value) => sealer ? sealer.seal(P.basename(file), value) : value;
     async function readJson(file, fallback) {
       if (!file) return fallback;
-      try { return JSON.parse(await fsp.readFile(file, 'utf8')); } catch (_) { return fallback; }
+      let raw;
+      try { raw = JSON.parse(await fsp.readFile(file, 'utf8')); } catch (_) { return fallback; }
+      if (!sealer) return raw;
+      const opened = sealer.open(P.basename(file), raw);
+      return opened.ok ? opened.value : fallback;
     }
 
     /* load() -> { hooks: [{event, command, name}], errors: [] }
@@ -132,7 +141,7 @@
         return { ok: false, error: 'that exact hook already exists' };
       }
       list.push({ event, command, name });
-      try { await fsp.writeFile(hooksFile, JSON.stringify({ hooks: list }, null, 2), 'utf8'); }
+      try { await fsp.writeFile(hooksFile, JSON.stringify(sealed(hooksFile, { hooks: list }), null, 2), 'utf8'); }
       catch (e) { return { ok: false, error: 'could not write the hooks file: ' + ((e && e.message) || e) }; }
       await allow(event, command);
       return { ok: true, event, command, name };
@@ -145,7 +154,7 @@
       const list = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.hooks) ? raw.hooks : []);
       const next = list.filter(h => !(h && String(h.event) === ev && String(h.command).trim() === cmd));
       if (next.length === list.length) return false;
-      try { await fsp.writeFile(hooksFile, JSON.stringify({ hooks: next }, null, 2), 'utf8'); }
+      try { await fsp.writeFile(hooksFile, JSON.stringify(sealed(hooksFile, { hooks: next }), null, 2), 'utf8'); }
       catch (e) { onError({ hook: 'hooks-file', error: (e && e.message) || String(e) }); return false; }
       await revoke(ev, cmd);          // leave no orphan approval behind for a future hook to inherit
       return true;
@@ -158,7 +167,7 @@
     async function allow(event, command) {
       const cur = (await readJson(allowFile, {})) || {};
       cur[keyOf(event, command)] = { event, command, allowedAt: deps.clock ? deps.clock.now() : 0 };
-      try { await fsp.writeFile(allowFile, JSON.stringify(cur, null, 2), 'utf8'); return true; }
+      try { await fsp.writeFile(allowFile, JSON.stringify(sealed(allowFile, cur), null, 2), 'utf8'); return true; }
       catch (e) { onError({ hook: 'allowlist', error: (e && e.message) || String(e) }); return false; }
     }
     /* UN-APPROVE. A consent gate with no way back is not a gate, it is a one-way door — and the Commander
@@ -169,7 +178,7 @@
       const k = keyOf(event, command);
       if (!(k in cur)) return false;                    // already not allowed — honest false, not a fake success
       delete cur[k];
-      try { await fsp.writeFile(allowFile, JSON.stringify(cur, null, 2), 'utf8'); return true; }
+      try { await fsp.writeFile(allowFile, JSON.stringify(sealed(allowFile, cur), null, 2), 'utf8'); return true; }
       catch (e) { onError({ hook: 'allowlist', error: (e && e.message) || String(e) }); return false; }
     }
     async function listPending() {

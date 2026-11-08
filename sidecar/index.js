@@ -1155,6 +1155,45 @@ try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
 // quarantineCorrupt (first-free <file>.corrupt-<n>), loadResilient (an unreadable load is noted) and saveResilient (the
 // last-known-good replace through the update-frozen writer) are sidecar/persist's host, the composition its tests build.
 const { quarantineCorrupt, readResilient, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });
+/* AUTHORITY SEAL (GHSA-2hpj #3) — sidecar/authority-seal.js. The five files that say what this station may do without
+   asking (FULL BYPASS, the roster's Full Access, hooks and their approvals, plugin approvals) carry an HMAC keyed from
+   the OS credential store (connector-vault deriveKey; the raw key never leaves the vault). One changed outside StarNet
+   reads as its safe default and GET /api/permissions carries the notice the page shows. boot() runs here, before any
+   of them is read: the first keyed boot after the upgrade seals what is there, once. Without a credential-store key
+   (a bare station, or the desktop when the store was unreachable) nothing is sealed or checked, as before. */
+const authoritySealMod = require('./authority-seal.js');
+const AUTHORITY_SEAL_FILE = path.join(WORKSPACES, authoritySealMod.MARKER_NAME);
+function readJsonIfPresent(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; }
+}
+const authoritySeal = authoritySealMod.makeAuthoritySeal({
+  key: connectorVault.deriveKey(authoritySealMod.LABEL),
+  now: () => Date.now(),
+  marker: {
+    read: () => readJsonIfPresent(AUTHORITY_SEAL_FILE),
+    write: (value) => { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, AUTHORITY_SEAL_FILE, JSON.stringify(value, null, 2) + '\n'); }
+  },
+  keep: (name) => authoritySealMod.keepCopy(fs, path.join(WORKSPACES, name)),
+  log: (line) => console.warn('[authority-seal] ' + line)
+});
+// The two resilient stores are saved twice when sealed at the upgrade: the first save moves the old unsealed main to
+// .bak, the second makes the .bak the sealed copy, so a later recovery from .bak is not refused as unsealed.
+const authoritySealBoot = authoritySeal.boot(authoritySealMod.NAMES.map(name => {
+  const file = path.join(WORKSPACES, name);
+  const resilient = name === 'permissions.bypass.json' || name === 'agent.roster.json';
+  return {
+    name: name,
+    wrap: name === 'hooks.json' ? (v => Array.isArray(v) ? { hooks: v } : v) : undefined,
+    read: resilient ? () => loadResilient(file, 'authority-seal') : () => readJsonIfPresent(file),
+    write: resilient ? (v => { saveResilient(file, v); saveResilient(file, v); }) : (v => writeFileDurable({ fs: fs, path: path }, file, JSON.stringify(v, null, 2)))
+  };
+}));
+// the value a reader may obey, or undefined (its default) when the seal is missing or wrong
+function authorityOpen(name, raw) {
+  const opened = authoritySeal.open(name, raw);
+  return opened.ok ? opened.value : undefined;
+}
 // Explicit credential deletion has a stricter contract than an ordinary resilient update. The normal writer
 // intentionally snapshots the old main into .bak; during remove/reset that old value is exactly the credential
 // the user asked us to forget. Write the sanitized envelope to BOTH copies directly and read both back before
@@ -2532,7 +2571,10 @@ function replaceAgentRoster(list) {
 }
 function loadAgentRoster() {
   try {
-    const raw = loadResilient(AGENT_ROSTER_FILE, 'roster');   // last-known-good recovery; never silent-wipe
+    const stored = loadResilient(AGENT_ROSTER_FILE, 'roster');   // last-known-good recovery; never silent-wipe
+    // GHSA-2hpj #3: a roster whose seal is missing or wrong keeps its agents and loses their Full Access (clampRoster)
+    const opened = authoritySeal.open('agent.roster.json', stored);
+    const raw = opened.ok ? opened.value : authoritySealMod.clampRoster(stored);
     if (raw) {
       replaceAgentRoster(raw && raw.agents);
       // P1.1: adopt the stored envelope's updatedAt as the anti-clobber baseline. A LEGACY { version:1, agents }
@@ -2572,7 +2614,7 @@ function saveAgentRoster(updatedAt) {
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
     if (!stationLife.station()) { agentRosterHeld = true; agentRosterUpdatedAt = nextUpdatedAt; return true; }   // nothing to fail: see agentRosterHeld
-    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
+    saveResilient(AGENT_ROSTER_FILE, authoritySeal.seal('agent.roster.json', { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents }));   // fsync-durable + .bak last-known-good; sealed (GHSA-2hpj #3)
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
@@ -4779,13 +4821,14 @@ const FULL_ACCESS = /^(1|true|yes|on)$/i.test(String(ENV('FULL_ACCESS') || '').t
    Persist-before-commit: a torn write leaves the previous state standing (never a phantom bypass). */
 const BYPASS_FILE = path.join(WORKSPACES, 'permissions.bypass.json');
 function loadMasterBypass() {
-  try { const raw = loadResilient(BYPASS_FILE, 'permissions-bypass'); return !!(raw && raw.on === true); }
+  // GHSA-2hpj #3: an unsealed or mismatched file reads as OFF (authorityOpen -> undefined), and the page is told why
+  try { const raw = authorityOpen('permissions.bypass.json', loadResilient(BYPASS_FILE, 'permissions-bypass')); return !!(raw && raw.on === true); }
   catch (e) { return false; }   // unreadable -> OFF (fail-closed, the safe default)
 }
 let masterBypassFlag = loadMasterBypass();
 const masterBypassOn = () => masterBypassFlag;
 function setMasterBypass(on) {
-  saveResilient(BYPASS_FILE, { version: 1, on: !!on, setAt: Date.now() });   // throws -> caller reports, state unchanged
+  saveResilient(BYPASS_FILE, authoritySeal.seal('permissions.bypass.json', { version: 1, on: !!on, setAt: Date.now() }));   // throws -> caller reports, state unchanged
   masterBypassFlag = !!on;
 }
 // permanent allowlist of danger-class keys (capability:scope) the user has blessed forever. Lives BESIDE
@@ -5126,7 +5169,7 @@ const HOOKS_ALLOW_FILE = path.join(WORKSPACES, 'hooks-allowed.json');
 const hookSpine = makeHooks({ onError: (e) => console.warn('[hooks] ' + (e && e.hook) + ' on ' + (e && e.event) + ': ' + (e && e.error)) });
 const shellHooks = makeShellHooks({
   spawn: childSpawn, fsp, pathMod: path, hooksFile: HOOKS_FILE, allowFile: HOOKS_ALLOW_FILE,
-  cwd: WORKSPACES, clock: { now: () => Date.now() },
+  cwd: WORKSPACES, clock: { now: () => Date.now() }, seal: authoritySeal,   // GHSA-2hpj #3: both files sealed
   onError: (e) => console.warn('[hooks] ' + (e && e.hook) + ': ' + (e && e.error))
 });
 /* PLUGINS — the packaged form of the same idea (sidecar/plugins.js). Scoped SURFACE: the only thing a plugin
@@ -5170,6 +5213,7 @@ const pluginLoader = makePluginLoader({
   guard: skillGuard, clock: { now: () => Date.now() },
   template: require('./plugin-template.js').templateFiles,   // "Create a plugin" writes a hook AND a kit-built window
   runtime: pluginRuntime,                                     // plugin code runs in its own process, never in the sidecar
+  seal: authoritySeal,                                        // GHSA-2hpj #3: plugins-allowed.json is sealed
   onError: (e) => console.warn('[plugins] ' + (e && e.plugin) + ': ' + (e && e.error))
 });
 let pluginsLoaded = { loaded: [], pending: [], errors: [] };
@@ -27019,7 +27063,9 @@ function handlePermissionsList(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // additive: the master FULL BYPASS switch + whether the boot env forces it (so the panel can say WHY the
   // toggle is pinned on rather than rendering a switch that appears to do nothing).
-  res.end(JSON.stringify(Object.assign({}, snap, { masterBypass: masterBypassOn(), envFullAccess: FULL_ACCESS })));
+  // additive (GHSA-2hpj #3): whether the permission files are sealed, and any notice the page should show once
+  res.end(JSON.stringify(Object.assign({}, snap, { masterBypass: masterBypassOn(), envFullAccess: FULL_ACCESS,
+    authoritySeal: { keyed: authoritySeal.keyed, mode: authoritySealBoot.mode, notices: authoritySeal.notices() } })));
 }
 // POST /api/permissions/bypass { on } — flip the master FULL BYPASS switch. Turning it ON needs the desk's confirmation
 // (deskGate, GHSA-2hpj #1): a token is not a click, and any local process that read the page held one. Turning it OFF

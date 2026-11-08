@@ -21,7 +21,7 @@
      <plugins>/<id>/plugin.json   { "name": "...", "version": "1.0.0", "description": "...", "main": "index.js" }
      <plugins>/<id>/index.js      module.exports = { register(api) { api.on('pre_tool_call', fn) } }
 
-   makePluginLoader({ fsp, pathMod, dir, allowFile, requireModule, hash, guard?, clock?, onError })
+   makePluginLoader({ fsp, pathMod, dir, allowFile, requireModule, hash, guard?, clock?, onError, seal? })
      -> { discover, load, allow, listPending, _internals } */
 'use strict';
 (function (root, factory) {
@@ -369,11 +369,20 @@
       return true;
     }
 
-    const allowedMap = async () => (await readJson(allowFile, {})) || {};
+    /* THE SEAL (GHSA-2hpj #3): with deps.seal the allowlist carries a seal StarNet writes; one changed outside StarNet
+       reads as empty (every plugin waits for approval again), so writing plugins-allowed.json approves nothing. */
+    const sealer = (deps.seal && typeof deps.seal.open === 'function' && typeof deps.seal.seal === 'function') ? deps.seal : null;
+    const sealed = value => sealer ? sealer.seal(P.basename(allowFile), value) : value;
+    const allowedMap = async () => {
+      const raw = (await readJson(allowFile, {})) || {};
+      if (!sealer) return raw;
+      const opened = sealer.open(P.basename(allowFile), raw);
+      return (opened.ok && opened.value) || {};
+    };
     async function allow(id, digest) {
       const cur = await allowedMap();
       cur[String(id)] = { digest: String(digest), allowedAt: deps.clock ? deps.clock.now() : 0 };
-      try { await fsp.writeFile(allowFile, JSON.stringify(cur, null, 2), 'utf8'); return true; }
+      try { await fsp.writeFile(allowFile, JSON.stringify(sealed(cur), null, 2), 'utf8'); return true; }
       catch (e) { onError({ plugin: id, error: (e && e.message) || String(e) }); return false; }
     }
     // UN-APPROVE — the other half of the gate. Dropping the entry is enough: load() only registers a plugin
@@ -382,7 +391,7 @@
       const cur = await allowedMap();
       if (!(String(id) in cur)) return false;
       delete cur[String(id)];
-      try { await fsp.writeFile(allowFile, JSON.stringify(cur, null, 2), 'utf8'); return true; }
+      try { await fsp.writeFile(allowFile, JSON.stringify(sealed(cur), null, 2), 'utf8'); return true; }
       catch (e) { onError({ plugin: id, error: (e && e.message) || String(e) }); return false; }
     }
     async function listPending() {

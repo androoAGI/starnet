@@ -63,8 +63,10 @@
     // forward-slash-rooted forms: `/S`, `/c` etc. are overwhelmingly option flags (robocopy /S) and `/c/Users` is a
     // normalized cwd form, so there is no safe way to tell a root path from a flag — backslash-rooted only.
     { re: /(^|[\s"'`=(])\\(?![\\])/, why: 'drive-root paths (\\…) are not allowed — use paths inside your workspace', names: ['\\…'] },
-    // unnamed: not a path form; the refusal itself names it
-    { re: /\.checkpoints|permissions\.allow|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
+    // unnamed: not a path form; the refusal itself names it. The authority files (GHSA-2hpj #3: FULL BYPASS, the roster,
+    // hooks and their approvals, plugin approvals, the seal record) are named too: a stopgap beside their seal, which is
+    // what actually refuses a changed one (sidecar/authority-seal.js); this text check only stops the plain spelling.
+    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks(?:-allowed)?\.json|plugins-allowed|authority-seal\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
   ].map(function (r) { return Object.freeze({ re: r.re, why: r.why, names: Object.freeze(r.names) }); }));
   function escapesWorkspace(cmd) {
     for (const rule of FLOOR_RULES) if (rule.re.test(cmd)) return rule.why;

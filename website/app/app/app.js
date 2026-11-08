@@ -1520,6 +1520,18 @@ const App = (() => {
   /* THE STATION KEPT THESE AGENTS ASK-FIRST (GHSA-2hpj #1): a raise it was never asked to confirm (a page booting from a save
      that says FULL ACCESS the station does not hold), or one the Commander did not confirm at the desk. This page's copy
      says so too, so the dossier never shows FULL ACCESS that the runs do not have. */
+  /* THE PERMISSION FILES' SEAL (GHSA-2hpj #3): GET /api/permissions carries the station's notices about it (sealed
+     once on the upgrade; a file changed outside StarNet and not obeyed). Each one is shown once per page. */
+  const shownSealNotices = new Set();
+  function showSealNotices(r) {
+    const notices = r && r.authoritySeal && Array.isArray(r.authoritySeal.notices) ? r.authoritySeal.notices : [];
+    for (const n of notices) {
+      const id = String(n && n.kind) + '|' + String(n && n.name || '') + '|' + String(n && n.at || '');
+      if (!n || typeof n.text !== 'string' || !n.text || shownSealNotices.has(id)) continue;
+      shownSealNotices.add(id);
+      if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, 400), n.kind === 'migrated' ? 'info' : 'warn');
+    }
+  }
   function settleRefusedRaise(ids, why) {
     const names = [];
     for (const id of (ids || [])) {
@@ -4028,7 +4040,7 @@ const App = (() => {
         return result;
       },
       api: {
-        load: () => Harness.api.get('/api/permissions'),
+        load: () => Harness.api.get('/api/permissions').then(r => { showSealNotices(r); return r; }),
         grant: key => Harness.api.post('/api/permissions/grant', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission grant failed' }),
         revoke: key => Harness.api.post('/api/permissions/revoke', { key }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'permission revoke failed' }),
         bypass: on => Harness.api.post('/api/permissions/bypass', { on: on === true }).then(r => r.ok ? r.j : { ok: false, reason: (r.j && r.j.reason) || 'bypass switch failed' })
