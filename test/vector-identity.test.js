@@ -102,7 +102,8 @@ for (const [sel, label] of [['.bb-menu::before', 'dock menu face'], ['.bb-menu::
 }
 
 // ---- the alien device (Andrew 2026-11-08: "like it was designed by aliens"): every screen sits in a moulded chrome
-// housing, baked to PNG (a lit SVG slices wrong as a border-image), the brow carries the chrome eye ----
+// housing, baked to PNG (a lit SVG slices wrong as a border-image). Andrew rejected the brow eye crest and the circuit-trace
+// patches (2026-11-08: "I do not like everything I circled here"): neither may come back ----
 const fsx = require('fs'), pathx = require('path');
 for (const [sel, label] of [['#left::after', 'CREW'], ['#chat-panel::after', 'COMMS'], ['.term:not(.pw)::after', 'every window'],
   ['#stage-wrap::after', 'the station view']]) {
@@ -111,8 +112,8 @@ for (const [sel, label] of [['#left::after', 'CREW'], ['#chat-panel::after', 'CO
   A.ok(m, label + ' sits in a moulded housing (a 9-slice PNG border-image)');
   if (m) A.ok(fsx.existsSync(pathx.join(__dirname, '..', 'frontend', 'css', m[1])), label + ' housing file ' + m[1] + ' ships next to the sheet');
 }
-const brow = css.split('#topbar::before {').slice(1).map(r => r.slice(0, r.indexOf('}'))).find(r => r.includes('vx/crest.png'));
-A.ok(brow && /var\(--vx-core\)/.test(brow), 'the brow carries the chrome eye, its lens lit in the theme hue');
+A.ok(!/vx\/crest\.png/.test(css) && !fsx.existsSync(pathx.join(__dirname, '..', 'frontend', 'css', 'vx', 'crest.png')),
+  'no brow eye crest (Andrew rejected it): the sheet never draws it and the art does not ship');
 A.ok(!/#stage-wrap::after \{[^}]*(mix-blend|[^-]filter\s*:)/.test(css), 'the station view housing is a frame only (no filter, no blend on the world)');
 A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.comms-presence\.resolved\.tone-warn \{ --hz: var\(--warn/.test(css),
   'the hazard plate wears the run\'s true state colour (bad = red, warn = amber), never the theme hue');
@@ -120,8 +121,11 @@ A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected 
 
 A.ok(css.includes('.ws-row.sel:not(.attn) *:not(.ws-dot)') && !/\.ws-row\.sel:not\(\.attn\) \* \{/.test(css),
   'inverse video never inks the row state dot: a failed/working mark keeps its true colour on a selected row');
-// ---- no grids (Andrew 2026-11-08: "not a fan of the grid at all tbh"): the tubes carry circuit traces instead, theme-coloured ----
+// ---- no grids (Andrew 2026-11-08: "not a fan of the grid at all tbh") and no circuit traces (rejected the same day): the
+// screens are plain glass ----
 A.ok(!/1px, transparent 1px\)/.test(css), 'vector.css draws no grid lines anywhere (no 1px-line tiles)');
-A.ok(/#left::before \{[^}]*background-blend-mode:[^;]*multiply/.test(css), 'CREW carries the circuit-trace patch, multiplied over the theme colour (the hue drives it)');
+A.ok(!/background-blend-mode:[^;]*multiply/.test(css), 'no circuit-trace patch anywhere: CREW and COMMS are plain glass (Andrew rejected the traces)');
+A.ok(/#left :is\(#workstreams, #projects, #crew\) :is\(\.ws-row, \.crew-row\) \{ border-radius: 9px/.test(css),
+  'rail rows are moulded glass slots (rounded), never square tiles');
 A.ok(/--vx-slot:/.test(css) && /--vx-gloss:/.test(css), 'list entries are glass slots and the chosen one is the gloss slot');
 A.report('vector-identity');
