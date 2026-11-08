@@ -140,4 +140,12 @@ A.ok(/#bottombar \.bb-group::before \{[^}]*content: ''/.test(css), 'a chrome sea
 A.ok(/#bottombar \.bb-group\.has-active > \.bb-grp::after \{[^}]*var\(--gold\)/.test(css),
   'a dock group with an open window lights its LED in the state colour (the restyle keeps .has-active visible)');
 A.ok(/#bottombar \.bb-group\.open > \.bb-grp \{[^}]*translateY/.test(css), 'an open dock group reads as a pressed, lit key');
+// ---- key bars + control decks (Andrew 2026-11-08: "change the sessions, projects and new as well, and improve the panels"):
+// the rail tabs and window tab rows sit on a chrome seat with the chosen tab pressed and lit (keyed on the SAME state hooks the
+// app sets, so the restyle can never show a different tab as chosen); the composer is a chrome deck around a recessed well ----
+A.ok(/#left \.ws-head :is\(\.ws-view, \.ws-head-acts\) \{[^}]*background: var\(--vx-seat\)/.test(css), 'the rail tabs and + NEW sit on chrome seats');
+A.ok(/#left \.ws-head \.ws-tab\.on \{[^}]*var\(--vx-cap-on\)/.test(css), 'the chosen rail tab (.on) is the pressed, lit cap');
+A.ok(/\.fam-tabs > \.fam-tab\.on, \.q-view-tabs > button\[aria-selected="true"\], \.utility-tabs > button\[aria-pressed="true"\], \.fm-tabs > \.fm-tab\.on\) \{[^}]*var\(--vx-cap-on\)/.test(css),
+  'window tab rows light the chosen tab from the app’s own state (.on / aria-selected / aria-pressed)');
+A.ok(/#chat-inputrow \.chat-editline \{[^}]*var\(--vx-well\)/.test(css), 'the COMMS composer text sits in a recessed well inside a chrome deck');
 A.report('vector-identity');

@@ -1372,3 +1372,119 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group:not([data-group="c
 }
 /* the bottom rail's light pipe starts past the wider transport bar and the add key */
 html body.vx:not(.hud-mode) #screen-game #bottombar { --vx-pipe-l: 548px; }
+
+/* ============ 18 · KEY BARS + CONTROL DECKS — the rail tabs and the panels' controls speak the transport-bar language: chrome
+   seats, glossy smoked-glass caps with a hard reflection line, the chosen cap pressed and lit; fields are recessed LCD wells, the
+   COMMS composer is a chrome control deck with round keys (the skins' playlist button strips, the drone's keypad) ============ */
+html body.vx:not(.hud-mode) {
+  --vx-seat: linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 2px), linear-gradient(180deg, #eef2f6 0, #a7b0bb 18%, #59626d 42%, #23282e 56%, #3c444d 72%, #9aa3ae 92%, #5d6670 100%);
+  --vx-seat-shadow: 0 2px 4px rgba(0, 0, 0, .7), 0 0 0 1px #050608;
+  --vx-cap: linear-gradient(180deg, rgba(255, 255, 255, .3) 0, rgba(255, 255, 255, .12) 44%, transparent 45%), radial-gradient(ellipse 90% 70% at 50% 120%, rgba(var(--ph-rgb), .45), transparent 70%), linear-gradient(180deg, #3a434d 0, #1a1f25 44%, #050607 46%, #0b0e11 80%, #1d242b 100%);
+  --vx-cap-hot: linear-gradient(180deg, rgba(255, 255, 255, .38) 0, rgba(255, 255, 255, .14) 44%, transparent 45%), radial-gradient(ellipse 100% 80% at 50% 115%, rgba(var(--ph-rgb), .8), transparent 75%), linear-gradient(180deg, color-mix(in srgb, #3a434d 75%, var(--ph)) 0, color-mix(in srgb, #1a1f25 80%, var(--ph)) 44%, color-mix(in srgb, #050607 80%, var(--ph)) 46%, color-mix(in srgb, #11151a 70%, var(--ph)) 100%);
+  --vx-cap-on: linear-gradient(180deg, rgba(255, 255, 255, .45) 0, rgba(255, 255, 255, .16) 44%, transparent 45%), linear-gradient(180deg, color-mix(in srgb, var(--vx-core) 70%, #fff) 0, var(--ph) 55%, color-mix(in srgb, var(--ph) 70%, #000) 100%);
+  --vx-cap-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(var(--ph-rgb), .35), inset 0 0 0 1px rgba(0, 0, 0, .6), 0 0 0 1px #040506;
+  --vx-cap-on-shadow: inset 0 2px 4px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(0, 0, 0, .5), 0 0 0 1px #040506, 0 0 12px rgba(var(--ph-rgb), .55);
+  --vx-well: radial-gradient(ellipse 120% 80% at 30% 0%, rgba(255, 255, 255, .06), transparent 60%), linear-gradient(180deg, color-mix(in srgb, var(--ph) 4%, #000) 0, color-mix(in srgb, var(--ph) 9%, #020504) 100%);
+  --vx-well-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .4), 0 1px 0 rgba(255, 255, 255, .16), 0 -1px 0 rgba(0, 0, 0, .6);
+  --vx-knob: radial-gradient(circle at 38% 28%, #f4f7fa 0, #a9b2bd 26%, #4a525c 60%, #1c2126 82%, #6d7682 100%);
+  --vx-knob-hot: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 60%, #a9b2bd) 30%, color-mix(in srgb, var(--ph) 60%, #1c2126) 70%, #6d7682 100%);
+}
+
+/* ---- the rail head: SESSIONS | PROJECTS on one chrome seat, + NEW on its own ---- */
+html body.vx:not(.hud-mode) #screen-game #left .ws-head { padding-top: 10px; padding-bottom: 6px; align-items: center; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-view, .ws-head-acts) {
+  display: inline-flex; flex: none; gap: 4px; padding: 4px; border-radius: 999px;
+  background: var(--vx-seat); box-shadow: var(--vx-seat-shadow);
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-tab, .ws-head-acts > button) {
+  border: 0 !important; border-radius: 6px; height: 28px; padding-inline: 13px;
+  background: var(--vx-cap) !important; box-shadow: var(--vx-cap-shadow) !important;
+  color: var(--vx-core) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75) !important;
+  clip-path: none !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:first-child { border-radius: 999px 6px 6px 999px; padding-left: 16px; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:last-child { border-radius: 6px 999px 999px 6px; padding-right: 16px; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-head-acts > button { border-radius: 999px; padding-inline: 15px; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-tab, .ws-head-acts > button):is(:hover, :focus-visible) {
+  background: var(--vx-cap-hot) !important; color: color-mix(in srgb, var(--vx-core) 55%, #fff) !important; text-shadow: 0 0 8px rgba(var(--ph-rgb), 1) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab.on {
+  background: var(--vx-cap-on) !important; box-shadow: var(--vx-cap-on-shadow) !important;
+  color: #020604 !important; text-shadow: none !important; transform: translateY(1px);
+}
+
+/* ---- fields are recessed LCD wells ---- */
+html body.vx:not(.hud-mode) #screen-game #left :is(.ws-rail-search, .crew-search-wrap),
+html body.vx:not(.hud-mode) .term:not(.pw) :is(input[type="search"], input[type="text"]:not([readonly]), input:not([type]):not([readonly]), textarea:not([readonly])) {
+  background: var(--vx-well) !important; box-shadow: var(--vx-well-shadow) !important; border-color: transparent !important;
+}
+
+/* ---- COMMS: round chrome keys in the id bar, the portrait in a chrome bezel ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents) {
+  width: 27px; height: 27px; border: 0 !important; border-radius: 50% !important;
+  background: var(--vx-knob) !important; color: #06100a !important;
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents) svg { filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .45)); }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents):is(:hover, :focus-visible) { background: var(--vx-knob-hot) !important; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-portrait {
+  border-radius: 9px; background: var(--vx-well);
+  box-shadow: 0 0 0 1px #050608, 0 0 0 3px #9aa3ae, 0 0 0 4px #050608, inset 0 0 8px rgba(var(--ph-rgb), .35);
+}
+
+/* ---- the composer is a chrome control deck: a recessed glass well for the text, a strip of glossy keys under it ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow {
+  margin: 0 10px 10px; padding: 6px 8px 4px; border: 0 !important; border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .55) 0, rgba(255, 255, 255, 0) 2px),
+    linear-gradient(180deg, #9aa3ae 0, #59626d 18%, #2a3037 50%, #1c2126 70%, #3c444d 100%);
+  box-shadow: 0 0 0 1px #050608, 0 3px 6px rgba(0, 0, 0, .65);
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-editline {
+  border: 0 !important; border-radius: 10px; background: var(--vx-well); box-shadow: var(--vx-well-shadow);
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-tools { border: 0 !important; background: none !important; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow :is(#chat-attach, #voice-toggle, #voice-live, #chat-mic) {
+  border: 0 !important; border-radius: 50% !important; background: var(--vx-cap) !important; box-shadow: var(--vx-cap-shadow) !important;
+  color: var(--vx-core) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow :is(#chat-attach, #voice-toggle, #voice-live, #chat-mic):is(:hover, :focus-visible) { background: var(--vx-cap-hot) !important; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow #model-dock-toggle {
+  border: 0 !important; border-radius: 999px !important; background: var(--vx-well) !important; box-shadow: var(--vx-well-shadow) !important;
+}
+/* send is the deck's big lit key */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow #chat-send {
+  width: 30px; height: 30px; border: 0 !important; border-radius: 50% !important;
+  background: var(--vx-cap-on) !important; color: #020604 !important;
+  box-shadow: 0 0 0 1px #040506, 0 0 0 3px #9aa3ae, 0 0 0 4px #050608, 0 0 12px rgba(var(--ph-rgb), .5) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow #chat-send:is(:hover, :focus-visible) { filter: brightness(1.15); }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-head-acts { margin-right: 5px; }
+
+/* ---- window tab rows are key bars too: a chrome seat, glossy caps, the chosen tab pressed and lit (the same state hooks the
+   inverse-video rule reads: .on / aria-selected / aria-pressed / .active) ---- */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) {
+  gap: 4px !important; padding: 4px; border: 0 !important; border-radius: 999px !important;
+  background: var(--vx-seat); box-shadow: var(--vx-seat-shadow);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button {
+  border: 0 !important; border-radius: 6px !important; margin: 0;
+  background: var(--vx-cap) !important; box-shadow: var(--vx-cap-shadow) !important;
+  color: var(--vx-core) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75) !important; clip-path: none !important;
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:first-child { border-radius: 999px 6px 6px 999px !important; }
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:last-child { border-radius: 6px 999px 999px 6px !important; }
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:is(:hover, :focus-visible) {
+  background: var(--vx-cap-hot) !important; color: color-mix(in srgb, var(--vx-core) 55%, #fff) !important;
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs > .fam-tab.on, .q-view-tabs > button[aria-selected="true"], .utility-tabs > button[aria-pressed="true"], .fm-tabs > .fm-tab.on) {
+  background: var(--vx-cap-on) !important; box-shadow: var(--vx-cap-on-shadow) !important;
+  color: #020604 !important; text-shadow: none !important;
+}
+/* the windows' call-to-action keys are glossy caps */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es-cta) {
+  border: 0 !important; border-radius: 999px !important;
+  background: var(--vx-cap); box-shadow: var(--vx-cap-shadow), 0 0 0 3px rgba(154, 163, 174, .55), 0 0 0 4px #050608;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es-cta):is(:hover, :focus-visible) { background: var(--vx-cap-hot); }
