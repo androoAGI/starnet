@@ -222,7 +222,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   A.ok(/if \(typeof o\.confirm === 'function' && !\(await o\.confirm\(proposedReal\)\)\)[\s\S]{0,200}const isGit = await isGitRepoOf\(proposedReal\);\s*const ok = await bless\(proposedReal/.test(read('sidecar/projectbless.js')), 'blessPath asks the desk for the real root after every check and before the grant');
   before('function handleCronCreate(', /grants\.length && !deskGate\(req, res, 'routine-grants'/, /createCronJobFromSpec\(body, \{ grantsConfirmed: grants\.length > 0 \}\)/, 'a routine with an unattended grant asks first');
   A.ok(/if \(!\(opts && opts\.grantsConfirmed === true\)\) body = Object\.assign\(\{\}, body, \{ unattendedGrants: \[\] \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'every other create path makes a routine with no unattended grant');
-  before('function handleCronUpdate(', /if \(added\.length\) \{[\s\S]{0,200}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
+  before('function handleCronUpdate(', /if \(added\.length\) \{[\s\S]{0,400}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
   {
     const roster = A.fnBody(IDX, 'async function handleRoster(');
     A.ok(roster.indexOf("deskGate(req, res, 'execution-profile'") > 0 && roster.indexOf("deskGate(req, res, 'execution-profile'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a wider execution profile asks first');

@@ -102,7 +102,7 @@ const call = (name, args) => ({ id: 'c1', name, args: args || {}, argsRaw: JSON.
     const host = require('./helpers/source.js').readSidecarSource();
     A.ok(/const writerTaint = execution\.rowTaint\(\) \|\| execution\.taintedBy\(\)/.test(host) && host.includes('cronStore.setNotepad(jobs, id, bounded, { now: Date.now(), taint: writerTaint })'),
       'the host stamps the WRITING run\'s own taint (host-proven, never model-supplied) on the note');
-    A.ok(host.includes("return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || null };"), 'and hands it to the reader');
+    A.ok(host.includes("return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || (authoritySeal.held && job.notepad ? CRON_NOTEPAD_UNCHECKED : null) };"), 'and hands it to the reader (or, while the seal cannot check it, a stamp of its own)');
   }
 
   // ---- list: reads the same server-owned job snapshot shape the ROUTINES panel renders ----

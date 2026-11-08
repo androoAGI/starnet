@@ -106,7 +106,7 @@ const imageCall = { name: 'image_generate', args: { prompt: 'a sunrise over the 
   A.ok(/studioGrant: \(call, tool\) => !askedBy\.getStore\(\) && !execution\.taintedBy\(\) && unattendedGrants\.indexOf\('studio'\) >= 0,/.test(src),
     'the images grant is read off the run\'s host-sourced grants, lifted by taint, and never covers a delegated worker');
   A.ok(!/studioGrant:[^\n]*ownerTrusted/.test(src), 'it is not widened to other postures (Full Access / an owner DM pass by their own tiers)');
-  A.ok(/surface === 'interactive' \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
+  A.ok(/\(surface === 'interactive' \|\| authoritySeal\.held\) \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
     'the grant list itself is the same host-only source the terminal/connector grants use');
   // the refusal only speaks for a routine's OWN run, and names the switch that exists
   // (run-wire-resolver lane) a routine's own run is its scheduled fire OR its Run Now ('manual'): isRoutineTrigger reads both

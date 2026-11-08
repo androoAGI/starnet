@@ -81,7 +81,23 @@
    record in the OS credential store beside the key ("this key has sealed, at floors F"), written by the sidecar
    through an IPC call; then a missing marker would be detectable whatever the workspace holds, and the floors would
    survive a replayed marker. A same-user process can still write the credential store, so that raises the bar
-   (it must target the store too) rather than closing it. Not done here: it needs a Rust change this lane cannot build. */
+   (it must target the store too) rather than closing it. Not done here: it needs a Rust change this lane cannot build.
+
+   THREE MORE FILES CARRY AUTHORITY (fix-sec2 review 4a, 2026-11-08). The review found three the first pass left plain:
+     - permissions.allow.json: every standing "always allow" and every trusted project folder (path:<root>). Sealed as a
+       whole file like the five; refused, it reads as empty (nothing pre-allowed, no trusted folder).
+     - .secrets/remote.json: the phones allowed to reach this station. A row with no `pending` field reads as approved,
+       so a hand-written phone skipped the desk. Sealed as a whole file; refused, the station keeps its own identity and
+       every phone waits for approval at the desk again, asking first, with remote access off.
+     - cron.jobs.json: each routine's unattendedGrants and its notepad's taint stamp. This file is rewritten on every
+       scheduler tick, so it is sealed in PARTS (sealParts / openParts): one MAC per granted routine over what its grants
+       are bound to (agent, prompt, script, workdir, toolsets) and one per clean notepad, all under one generation kept
+       in the envelope's __seals. A part that fails loses only what it claimed: that routine's grants, or the notepad
+       counts as outside content. Without a key the record is carried as it was read, so a later keyed boot still
+       verifies every routine the keyless station did not change.
+   A workspace sealed before these three existed (its marker has no `covers`, or does not list one) seals each of them
+   once as it is, at its first keyed boot, the same one-time upgrade the five had; `covers` in the sealed marker then
+   lists it, so the upgrade cannot be asked for again. */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -91,7 +107,12 @@ const FIELD = '__seal';
 const MARKER_NAME = 'authority-seal.json';
 const LAST_SUFFIX = '.sealed-last';
 const RESTORED_NAME = 'authority-restored.json';
-const NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
+const LEGACY_NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
+// sealed as whole files (review 4a added the last two)
+const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remote.json']));
+// sealed in parts by their owner (index.js), not as one value
+const PART_NAMES = Object.freeze(['cron.jobs.json']);
+const ALL_NAMES = Object.freeze(NAMES.concat(PART_NAMES));
 
 // What the safe default means for each file, in the words the page shows.
 const CONSEQUENCE = Object.freeze({
@@ -99,7 +120,10 @@ const CONSEQUENCE = Object.freeze({
   'agent.roster.json': 'every agent asks first. Give Full Access again where you want it.',
   'hooks.json': 'its hooks are not loaded. Add them again in SETTINGS.',
   'hooks-allowed.json': 'every hook waits for your approval again.',
-  'plugins-allowed.json': 'every plugin waits for your approval again.'
+  'plugins-allowed.json': 'every plugin waits for your approval again.',
+  'permissions.allow.json': 'every standing permission and every trusted project folder is off. Give them again in PERMISSIONS.',
+  'remote.json': 'remote access is off and every paired phone waits for your approval at the desk again, asking first.',
+  'cron.jobs.json': 'those routines run without their unattended grants, and a notepad counts as outside content. Grant them again in SCHEDULES.'
 });
 
 const plainObject = v => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -187,6 +211,39 @@ function lowerOf(name, value, cap, nowMs) {
     }
     return { value: Object.assign({}, plainObject(value) ? value : {}, { hooks }), dropped };
   }
+  if (name === 'permissions.allow.json') {
+    const v = plainObject(value) ? value : {};
+    const had = new Set(Array.isArray(c.allow) ? c.allow.filter(k => typeof k === 'string') : []);
+    const allow = [];
+    for (const k of (Array.isArray(v.allow) ? v.allow : []).filter(x => typeof x === 'string')) {
+      if (had.has(k)) allow.push(k);
+      else dropped.push(k.indexOf('path:') === 0 ? 'the trusted folder ' + k.slice(5, 85) : 'the standing permission ' + k.slice(0, 80));
+    }
+    const meta = {};
+    const m = plainObject(v.meta) ? v.meta : {};
+    for (const k of allow) if (plainObject(m[k])) meta[k] = m[k];
+    return { value: Object.assign({}, v, { version: 1, allow, meta }), dropped };
+  }
+  if (name === 'remote.json') {
+    const v = plainObject(value) ? value : {};
+    const capRows = new Map((Array.isArray(c.devices) ? c.devices : []).filter(plainObject).map(d => [String(d.id || ''), d]));
+    const devices = (Array.isArray(v.devices) ? v.devices : []).filter(plainObject).map(d => {
+      const was = capRows.get(String(d.id || ''));
+      const label = '"' + String(d.name || d.id || 'phone').slice(0, 40) + '"';
+      const out = Object.assign({}, d);
+      if (!was || String(was.publicKey) !== String(d.publicKey)) {
+        if (d.pending !== true || d.askFirst !== true) dropped.push('the phone ' + label);
+        out.pending = true; out.askFirst = true;
+        return out;
+      }
+      if (d.pending !== true && was.pending === true) { out.pending = true; dropped.push('the approval of the phone ' + label); }
+      if (d.askFirst !== true && was.askFirst === true) { out.askFirst = true; dropped.push('the phone ' + label + ' acting without asking'); }
+      return out;
+    });
+    const enabled = v.enabled === true && c.enabled === true;
+    if (v.enabled === true && !enabled) dropped.push('remote access on');
+    return { value: Object.assign({}, v, { devices, enabled }), dropped };
+  }
   if (name === 'hooks-allowed.json' || name === 'plugins-allowed.json') {
     const v = plainObject(value) ? value : {};
     const out = {};
@@ -212,6 +269,15 @@ function lowers(name, prev, next, nowMs) {
   return !r || r.dropped.length > 0;
 }
 
+// What a refused or restored remote.json keeps: the station's own identity, and its phones, each waiting for the desk.
+function clampRemote(raw) {
+  const v = plainObject(raw) ? raw : {};
+  return Object.assign({}, strip(v), {
+    devices: (Array.isArray(v.devices) ? v.devices : []).filter(plainObject).map(d => Object.assign({}, d, { pending: true, askFirst: true })),
+    enabled: false
+  });
+}
+
 // The generation a seal carries: 0 for a seal from before generations, null for one that is not a whole number.
 function genOf(s) {
   if (!plainObject(s) || s.g === undefined) return 0;
@@ -230,6 +296,7 @@ function makeAuthoritySeal(opts) {
   const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
   const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
   let held = '';                 // why this boot keeps every authority file at its default and saves none (4c, 4d)
+  const migrating = new Set();   // names sealed once as they are this boot: not yet in the marker's covers (4a)
   let floorsReset = false;       // the marker was missing or foreign: every floor was set above what exists (4c)
   let markerOk = false;
   let sealedAt = 0;
@@ -260,7 +327,7 @@ function makeAuthoritySeal(opts) {
     if (!sealedAt) sealedAt = now();
     const fl = {};
     for (const k of Object.keys(floors).sort()) if (floorOf(k)) fl[k] = floors[k];
-    const body = { version: 1, sealedAt: sealedAt, floors: fl };
+    const body = { version: 1, sealedAt: sealedAt, floors: fl, covers: ALL_NAMES.filter(n => !migrating.has(n)) };
     try { marker.write(Object.assign({}, body, { [FIELD]: { v: 1, mac: macOf(MARKER_NAME, body, 0) } })); markerOk = true; }
     catch (e) {
       const why = String((e && (e.code || e.message)) || e);
@@ -271,6 +338,9 @@ function makeAuthoritySeal(opts) {
   // the floors a verified marker carries (a marker from before generations has none)
   function adoptMarker(m) {
     sealedAt = Number(m.sealedAt) || 0;
+    // a marker from before covers sealed the first five; any name it does not list is sealed once as it is (4a)
+    const covers = Array.isArray(m.covers) ? m.covers.map(String) : LEGACY_NAMES.slice();
+    for (const n of ALL_NAMES) if (covers.indexOf(n) < 0) migrating.add(n);
     const fl = plainObject(m.floors) ? m.floors : {};
     for (const k of Object.keys(fl)) if (Number.isSafeInteger(fl[k]) && fl[k] > 0) { floors[k] = fl[k]; seen(k, fl[k]); }
   }
@@ -384,6 +454,7 @@ function makeAuthoritySeal(opts) {
      bundle leaves out), and hooks.json keeps its hooks, each still waiting for approval here. Both are sealed, the record
      is dropped, and one notice says so. A forged record gains nothing: what it admits is the ask-first roster and hooks
      that run only once approved at the desk. A file that opens under this key is left exactly as it is. */
+  const RESTORABLE = ['agent.roster.json', 'hooks.json', 'permissions.allow.json'];
   function adoptRestored(files) {
     if (!key || !restored) return [];
     let rec;
@@ -392,12 +463,15 @@ function makeAuthoritySeal(opts) {
     const listed = new Set(plainObject(rec) && Array.isArray(rec.files) ? rec.files.map(String) : []);
     const adopted = [];
     for (const f of (Array.isArray(files) ? files : [])) {
-      if (!listed.has(f.name) || (f.name !== 'agent.roster.json' && f.name !== 'hooks.json')) continue;
+      if (!listed.has(f.name) || RESTORABLE.indexOf(f.name) < 0) continue;
       let v;
       try { v = f.read(); } catch (_) { continue; }
       if (v === undefined || v === null || !verify(f.name, v)) continue;
       const raw = strip(v);
-      const value = f.name === 'agent.roster.json' ? clampRoster(raw) : (typeof f.wrap === 'function' ? f.wrap(raw) : raw);
+      // permissions.allow.json: a restore carries none of its approvals (station-recovery empties it); sealed empty here
+      const value = f.name === 'agent.roster.json' ? clampRoster(raw)
+        : f.name === 'permissions.allow.json' ? { version: 1, allow: [], meta: {} }
+        : (typeof f.wrap === 'function' ? f.wrap(raw) : raw);
       if (!plainObject(value)) continue;
       try { f.write(seal(f.name, value)); adopted.push(f.name); }
       catch (e) { log('could not seal the restored ' + f.name + ': ' + String((e && (e.code || e.message)) || e)); }
@@ -405,7 +479,7 @@ function makeAuthoritySeal(opts) {
     // a record that cannot be removed only reseals, clamped, a listed file that fails its seal again
     try { if (typeof restored.drop === 'function') restored.drop(); } catch (e) { log('could not remove ' + RESTORED_NAME + ': ' + String((e && (e.code || e.message)) || e)); }
     if (adopted.length) notice({ kind: 'restored', sealed: adopted.slice(),
-      text: 'Restored from a recovery bundle: ' + adopted.join(' and ') + ' sealed for this computer.' +
+      text: 'Restored from a recovery bundle: ' + adopted.join(', ') + ' sealed for this computer.' +
         (adopted.indexOf('agent.roster.json') >= 0 ? ' Every agent asks first until you give Full Access again here.' : '') +
         (adopted.indexOf('hooks.json') >= 0 ? ' Each hook waits for your approval.' : '') });
     return adopted;
@@ -446,6 +520,59 @@ function makeAuthoritySeal(opts) {
     floorsReset = true;
   }
 
+  /* RECORDS SEALED IN PARTS (review 4a; cron.jobs.json). parts: { key: value } — only what claims power (a routine's
+     grants with what they are bound to, a notepad that says it is clean). The record { v, g, macs } rides in the file.
+       sealParts(name, parts, { lowering }) -> record | null (unkeyed: the caller carries the record it read). lowering
+         (the caller knows: grants removed, a granted routine deleted) moves the floor first, as seal() does.
+       openParts(name, record, parts) -> null (unkeyed: obey as is) | { migrating } (sealed once as it is: obey) |
+         { held } (obey nothing that needs the seal) | { ok: [keys that verify], stale }
+       refused(name, text): the one notice for a file whose parts failed (until StarNet seals it again). */
+  const partMac = (name, k, g, value) => crypto.createHmac('sha256', key).update('v1\n' + String(name) + '#' + String(k) + '\ng' + g + '\n' + canonical(value)).digest('hex');
+  function sealParts(name, parts, o) {
+    name = String(name);
+    if (held) throw new Error(held);
+    if (!key) return null;
+    const g = nextGen(name);
+    const wasMigrating = migrating.delete(name);
+    if ((o && o.lowering === true) || !known.has(name)) {
+      const was = floors[name];
+      floors[name] = g;
+      try { writeMarker({ force: true, strict: true }); }
+      catch (e) { if (was === undefined) delete floors[name]; else floors[name] = was; if (wasMigrating) migrating.add(name); throw e; }
+    } else writeMarker({ force: wasMigrating });
+    known.set(name, true);
+    seen(name, g);
+    broken.delete(name);
+    const macs = {};
+    for (const k of Object.keys(parts || {}).sort()) macs[k] = partMac(name, k, g, parts[k]);
+    return { v: 1, g: g, macs: macs };
+  }
+  function openParts(name, rec, parts) {
+    name = String(name);
+    if (held) return { held: true };
+    if (!key) return null;
+    if (migrating.has(name)) return { migrating: true };
+    const g = plainObject(rec) && rec.v === 1 ? genOf(rec) : 0;
+    const macs = plainObject(rec) && plainObject(rec.macs) ? rec.macs : {};
+    const ok = [];
+    const fresh = g !== null && g > 0 && g >= floorOf(name);
+    if (fresh) {
+      for (const k of Object.keys(parts || {})) {
+        const mac = macs[k];
+        if (typeof mac !== 'string' || !/^[a-f0-9]{64}$/.test(mac)) continue;
+        if (crypto.timingSafeEqual(Buffer.from(partMac(name, k, g, parts[k]), 'hex'), Buffer.from(mac, 'hex'))) ok.push(k);
+      }
+      seen(name, g);
+    }
+    known.set(name, true);
+    return { ok: ok, stale: g !== null && g > 0 && !fresh };
+  }
+  function refused(name, text) {
+    name = String(name);
+    if (broken.has(name)) return;
+    broken.set(name, notice({ kind: 'parts', name: name, text: String(text) }));
+  }
+
   function boot(files) {
     files = Array.isArray(files) ? files : [];
     if (!key) {
@@ -482,7 +609,28 @@ function makeAuthoritySeal(opts) {
     if (lost === 'mismatch') resetFloors(names, traces(present).maxG);
     // a restore is taken before anything else (it is sealed above the new floors, so it is current)
     const adopted = adoptRestored(files);
-    if (markerValid) return { mode: 'enforce', sealed: [], failed: [], reconciled: reconcile(files) };
+    if (markerValid) {
+      const reconciled = reconcile(files);
+      // a file this marker does not cover yet (added after the workspace was sealed): sealed once as it is (4a)
+      const sealedNow = [], failedNow = [];
+      for (const x of present) {
+        if (!migrating.has(x.f.name)) continue;
+        migrating.delete(x.f.name);
+        if (plainObject(x.v) && plainObject(x.v[FIELD])) continue;   // already sealed: it answers for itself
+        const value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
+        if (!plainObject(value)) { failedNow.push(x.f.name); continue; }
+        known.set(x.f.name, null);
+        try { x.f.write(seal(x.f.name, value)); sealedNow.push(x.f.name); }
+        catch (e) { failedNow.push(x.f.name); }
+      }
+      for (const f of files) migrating.delete(f.name);   // absent: nothing to seal, covered from now on
+      writeMarker({ force: true });
+      if (sealedNow.length || failedNow.length) notice({ kind: 'migrated', sealed: sealedNow.slice(), failed: failedNow.slice(),
+        text: 'StarNet now also seals ' + (sealedNow.length ? sealedNow.join(', ') : 'nothing more') + ', once, on this upgrade' +
+          (failedNow.length ? '; ' + failedNow.join(', ') + ' could not be sealed and will not be used' : '') +
+          '. A change made to ' + (sealedNow.length > 1 ? 'them' : 'it') + ' outside StarNet is not obeyed from now on.' });
+      return { mode: 'enforce', sealed: sealedNow, failed: failedNow, reconciled: reconciled, migrating: Array.from(migrating) };
+    }
     if (lost) {
       writeMarker({ force: true });
       const restoredOnly = lost === 'missing' && adopted.length && !present.some(x => adopted.indexOf(x.f.name) < 0 && plainObject(x.v) && plainObject(x.v[FIELD]));
@@ -492,8 +640,10 @@ function makeAuthoritySeal(opts) {
         ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here. Nothing was re-sealed.' });
       return { mode: 'enforce', sealed: [], failed: [] };
     }
-    if (adopted.length) return { mode: 'enforce', sealed: [], failed: [] };   // a restore into a fresh folder: the rest answers for itself
-    if (!present.length) return { mode: 'enforce', sealed: [], failed: [] };   // the marker comes with the first sealed write
+    // no marker and no trace: the upgrade (or a new station). What is sealed in parts is sealed by its owner, once, as it is.
+    for (const n of PART_NAMES) migrating.add(n);
+    if (adopted.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // a restore into a fresh folder: the rest answers for itself
+    if (!present.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // the marker comes with the first sealed write
     const sealed = [], failed = [];
     for (const x of present) {
       const value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
@@ -508,12 +658,13 @@ function makeAuthoritySeal(opts) {
         (sealed.length ? sealed.join(', ') : 'nothing') + ' once, on this upgrade' +
         (failed.length ? '; ' + failed.join(', ') + ' could not be sealed and will not be used' : '') +
         '. A change made to them outside StarNet is not obeyed from now on.' });
-    return { mode: 'migrated', sealed: sealed, failed: failed };
+    return { mode: 'migrated', sealed: sealed, failed: failed, migrating: Array.from(migrating) };
   }
 
   return {
     get keyed() { return !!key; },
     get held() { return held; },
+    sealParts: sealParts, openParts: openParts, refused: refused,
     seal: seal, open: open, boot: boot, clampRoster: clampRoster,
     notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}, n.dropped ? { dropped: n.dropped.slice() } : {}))
   };
@@ -526,4 +677,4 @@ function keepCopy(fs, file) {
   return r && r.ok ? r.to : null;
 }
 
-module.exports = { makeAuthoritySeal, keepCopy, clampRoster, lowerOf, canonical, strip, LABEL, FIELD, MARKER_NAME, LAST_SUFFIX, RESTORED_NAME, NAMES, CONSEQUENCE };
+module.exports = { makeAuthoritySeal, keepCopy, clampRoster, clampRemote, lowerOf, canonical, strip, LABEL, FIELD, MARKER_NAME, LAST_SUFFIX, RESTORED_NAME, NAMES, LEGACY_NAMES, PART_NAMES, CONSEQUENCE };

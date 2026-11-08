@@ -209,7 +209,7 @@ function runOnceOptions(scenario, h) {
 /* ---- the runOnce cut ---------------------------------------------------------------------------------------- */
 // Anchors in sidecar/index.js. Each cut is [first line, last line] inclusive, both matched on a trimmed line start.
 const CUTS = [
-  ['const ownerTrusted = !!o.ownerTrusted;', 'const unattendedGrants = surface === \'interactive\''],
+  ['const ownerTrusted = !!o.ownerTrusted;', 'const unattendedGrants = (surface === \'interactive\' || authoritySeal.held)'],
   ['const remoteDesktopAuthorized = ownerTrusted && computerControl.available();', 'const remoteDesktopAuthorized = ownerTrusted && computerControl.available();'],
   ['const hostPowerWithheld = hostPowerWithheldFor(o);', 'const trigger = o.trigger || \'directive\';'],
   ['// ---- capabilities: each placed object IS a capability grant', '// QUEST V2 §A'],
@@ -296,6 +296,7 @@ async function runOnceMatrix(root, scenario, opts) {
   try { projectToolsMod = req(root, 'sidecar/capability/project-tools.js'); } catch (_) { projectToolsMod = null; }
   const ctx = {
     o, agentId: AGENT, surface: o.surface === 'interactive' ? 'interactive' : 'autonomous', isTask: !!o.isTask,
+    authoritySeal: { held: '' },   // the authority seal holds nothing in the census (fix-sec2 review 4a: a held seal withholds every grant)
     console: { log: noop, warn: noop, error: noop }, JSON, Object, Array, Set, Map, String, Number, Boolean, Promise, RegExp, Error,
     process: { env: h.deferralOff ? { SKYNET_TOOL_SEARCH: '0' } : {} },
     // host state the cut reads

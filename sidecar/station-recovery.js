@@ -408,7 +408,8 @@ const AUTHORITY_FILES = new Map([
 const SEAL_BOOKKEEPING = /^(?:authority-seal\.json|authority-restored\.json|[^/]+\.json\.sealed-last|[^/]+\.json\.unsealed-\d+)$/i;
 const RESTORED_NAME = 'authority-restored.json';
 // the sealed permission files a restore brings, for the first keyed boot to adopt (authority-seal.js adoptRestored)
-const RESTORED_AUTHORITY = ['agent.roster.json', 'hooks.json'];
+// (permissions.allow.json arrives emptied, see sanitizeManagedJson: it is sealed empty, not reported as changed; review 4a)
+const RESTORED_AUTHORITY = ['agent.roster.json', 'hooks.json', 'permissions.allow.json'];
 // credential files by their well-known names, wherever they sit: an agent's .env is not a deliverable
 const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pfx|p12|ppk))$/i;
 const CREDENTIAL_ROW = 'credential file left out by its name';

@@ -1179,7 +1179,9 @@ function readJsonIfPresent(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; }
 }
-const authoritySealLastFile = name => path.join(WORKSPACES, path.basename(String(name)) + authoritySealMod.LAST_SUFFIX);
+// where each sealed file lives: the phones' file sits in .secrets (review 4a), the rest beside the jail
+const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKSPACES, '.secrets', 'remote.json') : path.join(WORKSPACES, path.basename(String(name)));
+const authoritySealLastFile = name => authorityFileOf(name) + authoritySealMod.LAST_SUFFIX;
 const authoritySeal = authoritySealMod.makeAuthoritySeal({
   key: connectorVault.deriveKey(authoritySealMod.LABEL),
   now: () => Date.now(),
@@ -1187,17 +1189,21 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
     read: () => readJsonIfPresent(AUTHORITY_SEAL_FILE),
     write: (value) => { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, AUTHORITY_SEAL_FILE, JSON.stringify(value, null, 2) + '\n'); }
   },
-  keep: (name) => authoritySealMod.keepCopy(fs, path.join(WORKSPACES, name)),
+  keep: (name) => authoritySealMod.keepCopy(fs, authorityFileOf(name)),
   lastSealed: {
     read: (name) => readJsonIfPresent(authoritySealLastFile(name)),
     write: (name, value) => writeFileDurable({ fs: fs, path: path }, authoritySealLastFile(name), JSON.stringify(value, null, 2) + '\n'),
     drop: (name) => { try { fs.unlinkSync(authoritySealLastFile(name)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
   },
-  current: (name) => readJsonIfPresent(path.join(WORKSPACES, path.basename(String(name)))),
-  // where a trace of sealing survives when the marker is gone (review 4c): each file's .bak and .sealed-last copy
+  current: (name) => readJsonIfPresent(authorityFileOf(name)),
+  // where a trace of sealing survives when the marker is gone (review 4c): each file's .bak and .sealed-last copy, and
+  // the routine store with its .bak (sealed in parts, review 4a)
   evidence: () => {
     const out = [];
-    for (const name of authoritySealMod.NAMES) for (const file of [path.join(WORKSPACES, name) + '.bak', authoritySealLastFile(name)]) {
+    const files = [];
+    for (const name of authoritySealMod.NAMES) files.push(authorityFileOf(name) + '.bak', authoritySealLastFile(name));
+    files.push(path.join(WORKSPACES, 'cron.jobs.json'), path.join(WORKSPACES, 'cron.jobs.json.bak'));
+    for (const file of files) {
       try { const v = readJsonIfPresent(file); if (v !== undefined) out.push(v); }
       catch (e) { failNote('authority-seal.evidence', e); }
     }
@@ -1213,8 +1219,17 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
 // The two resilient stores are saved twice when sealed at the upgrade: the first save moves the old unsealed main to
 // .bak, the second makes the .bak the sealed copy, so a later recovery from .bak is not refused as unsealed.
 const authoritySealBoot = authoritySeal.boot(authoritySealMod.NAMES.map(name => {
-  const file = path.join(WORKSPACES, name);
-  const resilient = name === 'permissions.bypass.json' || name === 'agent.roster.json';
+  const file = authorityFileOf(name);
+  const resilient = name === 'permissions.bypass.json' || name === 'agent.roster.json' || name === 'permissions.allow.json';
+  if (name === 'remote.json') {
+    // the phones' file is the remote module's resilient store (durable-store), sealed through it at the upgrade too
+    const { readJsonResilient: readRemote, writeJsonResilient: writeRemote } = require('./durable-store.js');
+    return {
+      name: name,
+      read: () => { const r = readRemote({ fs: fs }, file); if (r.status === 'unreadable') throw r.err || new Error('unreadable'); return r.value; },
+      write: v => { writeRemote({ fs: fs, path: path }, file, v); writeRemote({ fs: fs, path: path }, file, v); }
+    };
+  }
   return {
     name: name,
     wrap: name === 'hooks.json' ? (v => Array.isArray(v) ? { hooks: v } : v) : undefined,
@@ -4867,9 +4882,10 @@ function setMasterBypass(on) {
 // permanent allowlist of danger-class keys (capability:scope) the user has blessed forever. Lives BESIDE
 // the notebook store (sibling of the fs jail) so the agent's own fs.* tools can neither read nor rewrite it.
 const ALLOWLIST_FILE = path.join(WORKSPACES, 'permissions.allow.json');
+// fix-sec2 review 4a: the file is sealed (authority-seal.js); one changed outside StarNet reads as empty
 function loadAllowlist() {
   try {
-    const raw = loadResilient(ALLOWLIST_FILE, 'permissions');   // recover blessed grants from .bak on a torn main
+    const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));   // recover blessed grants from .bak on a torn main
     return new Set((raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string'));
   } catch (e) { return new Set(); }   // unrecoverable -> nothing pre-allowed (fail-closed, the safe default)
 }
@@ -4878,7 +4894,7 @@ function loadAllowlist() {
 // for still-held keys are kept, so a hand-edited/legacy file can't inject junk provenance.
 function loadAllowMeta() {
   try {
-    const raw = loadResilient(ALLOWLIST_FILE, 'permissions');
+    const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));
     const m = raw && raw.meta && typeof raw.meta === 'object' ? raw.meta : {};
     const out = {};
     for (const k of Object.keys(m)) {
@@ -4904,7 +4920,8 @@ function persistAllowlist(nextAllow, nextMeta) {   // throws on failure -> the b
     metaToWrite = {};
     for (const k of nextAllow) metaToWrite[k] = grantMeta[k] || { grantedAt: nowMs };
   }
-  const value = { version: 1, allow: nextAllow, meta: metaToWrite };
+  // sealed (review 4a); a removal moves the file's floor first (4b). Throws when it cannot be sealed: nothing changes.
+  const value = authoritySeal.seal('permissions.allow.json', { version: 1, allow: nextAllow, meta: metaToWrite });
   const nextSet = new Set(nextAllow);
   const removesAuthority = Array.from(grantsPermanent).some(k => !nextSet.has(k));
   if (removesAuthority) {
@@ -7623,6 +7640,66 @@ const cronPersistence = require('./persist/index.js');
    the Commander acknowledges it or restores the quarantined file and restarts. Sticky for the process. */
 let cronDegraded = null;
 let cronJobs = [];
+/* THE ROUTINES' AUTHORITY IS SEALED IN PARTS (fix-sec2 review 4a; authority-seal.js sealParts/openParts). A routine's
+   unattendedGrants let it use the terminal, accounts or the studio with nobody watching, and its notepad's missing taint
+   stamp says a clean run wrote it; both sat in cron.jobs.json as plain JSON a same-user process could write. Each granted
+   routine carries a MAC over its grants and what they are bound to (agent, prompt, script, workdir, toolsets), each clean
+   notepad one over its text, all under one generation in the envelope's __seals. A part that fails loses only its claim:
+   the grants are dropped, the notepad counts as outside content. Without a key the record read is carried unchanged.
+   While the seal holds (it cannot check anything this boot) the routines are not rewritten: they run without grants and
+   their notepads count as outside content (runOnce, getRoutineNotepad), and adding a grant is refused. */
+const CRON_NOTEPAD_UNSEALED = 'routine notepad changed outside StarNet';
+const CRON_NOTEPAD_UNCHECKED = 'routine notepad StarNet could not check (its permission seal is not available)';
+let cronSealsRead = null;              // the __seals record as last read: what a keyless save carries
+let cronGrantsSealed = new Map();      // routine id -> its grants as last read or sealed (removing one moves the floor)
+function cronAuthorityParts(jobs) {
+  const parts = {};
+  for (const j of (Array.isArray(jobs) ? jobs : [])) {
+    if (!j || typeof j !== 'object' || typeof j.id !== 'string') continue;
+    const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.map(String) : [];
+    if (grants.length) parts['grant:' + j.id] = { grants, agentId: j.agentId == null ? null : String(j.agentId), prompt: j.prompt == null ? null : String(j.prompt),
+      script: j.script == null ? null : j.script, workdir: j.workdir == null ? null : String(j.workdir), noAgent: j.noAgent === true,
+      enabledToolsets: Array.isArray(j.enabledToolsets) ? j.enabledToolsets : null };
+    if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint) parts['notepad:' + j.id] = { notepad: j.notepad };
+  }
+  return parts;
+}
+const cronGrantKey = j => (Array.isArray(j && j.unattendedGrants) ? j.unattendedGrants.map(String) : []).sort().join(',');
+// raw: the envelope as read; jobs: its validated jobs. -> the jobs a reader may obey
+function cronOpenAuthority(raw, jobs) {
+  cronSealsRead = raw && typeof raw === 'object' && raw.__seals && typeof raw.__seals === 'object' && !Array.isArray(raw.__seals) ? raw.__seals : null;
+  const r = authoritySeal.openParts('cron.jobs.json', cronSealsRead, cronAuthorityParts(jobs));
+  let out = jobs;
+  if (r && Array.isArray(r.ok)) {
+    const ok = new Set(r.ok);
+    const lost = [];
+    let notepads = 0;
+    out = jobs.map(j => {
+      if (!j || typeof j !== 'object') return j;
+      let next = j;
+      if (Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !ok.has('grant:' + j.id)) { next = Object.assign({}, next, { unattendedGrants: [] }); lost.push('"' + String(j.name || j.id).slice(0, 40) + '"'); }
+      if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint && !ok.has('notepad:' + j.id)) { next = Object.assign({}, next, { notepadTaint: CRON_NOTEPAD_UNSEALED }); notepads++; }
+      return next;
+    });
+    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', 'cron.jobs.json was changed outside StarNet' + (r.stale ? ' (an older copy was put back)' : '') + ', so ' +
+      (lost.length ? 'the routine' + (lost.length > 1 ? 's ' : ' ') + lost.slice(0, 6).join(', ') + (lost.length > 6 ? ' and ' + (lost.length - 6) + ' more' : '') + ' run' + (lost.length > 1 ? '' : 's') + ' without unattended grants (grant them again in SCHEDULES)' : '') +
+      (lost.length && notepads ? ', and ' : '') + (notepads ? notepads + ' routine notepad' + (notepads > 1 ? 's count' : ' counts') + ' as outside content' : '') + '.');
+  }
+  cronGrantsSealed = new Map((Array.isArray(out) ? out : []).filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
+  return out;
+}
+// the record a save writes: sealed fresh with a key; the record read, carried, without one or while the seal holds
+function cronSealRecord(jobs) {
+  if (authoritySeal.held || !authoritySeal.keyed) return cronSealsRead;
+  const now = new Map((Array.isArray(jobs) ? jobs : []).filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
+  let lowering = false;
+  for (const [id, was] of cronGrantsSealed) {
+    if (!was) continue;
+    const is = now.has(id) ? now.get(id).split(',').filter(Boolean) : [];
+    if (was.split(',').some(g => is.indexOf(g) < 0)) { lowering = true; break; }   // a grant removed, or a granted routine deleted
+  }
+  return authoritySeal.sealParts('cron.jobs.json', cronAuthorityParts(jobs), { lowering });
+}
 // A3: how many stored routines the last load had to repair, and which ones were already logged (a failed boot
 // persist re-applies the repair on every load; it is logged once per routine, not once per load).
 let cronToolsetsRepairedOnLoad = 0;
@@ -7666,7 +7743,9 @@ function loadCronJobs() {
       console.error('[cron] ' + CRON_FILE + ' exists but is unreadable (' + ((r.err && r.err.code) || r.err) + ') — keeping the in-memory list, not treating as empty.');
       if (Array.isArray(cronJobs)) return cronJobs;
     }
-    const loaded = cronStore.loadEnvelope((r.status === 'ok' || r.status === 'recovered') ? r.value : undefined).jobs;
+    const readValue = (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
+    // review 4a: checked as read, before any load-time repair changes a field the seal covers
+    const loaded = cronOpenAuthority(readValue, cronStore.loadEnvelope(readValue).jobs);
     /* A3 (#58): a routine saved before 0.13.2 can carry a toolset list the old pattern filter broke — [] from the
        'WEB & BROWSER' label, 'web_request' kept as an unknown family — and every fire path reads the stored list raw
        while no UI or routine.manage edits it, so re-saving was never a way out. Repair it HERE, on every load
@@ -7734,6 +7813,10 @@ function pairCronJobWires(jobs) {
   return { jobs: out, changed };
 }
 cronJobs = loadCronJobs();
+// review 4a: a routine store this workspace never sealed (the upgrade) is sealed now, as it is, so it is not obeyed unsealed for long
+if (Array.isArray(authoritySealBoot.migrating) && authoritySealBoot.migrating.indexOf('cron.jobs.json') >= 0 && cronJobs.length) {
+  try { saveCronJobs(); } catch (e) { failNote('authority-seal.cron.upgrade', e); }
+}
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
 // healed list from disk. A failed write is not fatal: the repair re-applies on every load until one lands.
 if (cronToolsetsRepairedOnLoad) {
@@ -7780,6 +7863,9 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   if (cronDegraded && intended.jobs.length === 0 && !_cronWriteOverride) {
     throw new Error('cron store is degraded (quarantined ' + (cronDegraded.quarantinePath || 'unknown') + '); refusing to persist an empty routine list — restore the file or POST /api/cron/degraded/clear to accept the loss');
   }
+  // review 4a: the routines' grants and clean notepads ride sealed (throws when a removal cannot be recorded: nothing saved)
+  const sealRecord = cronSealRecord(intended.jobs);
+  if (sealRecord) intended.__seals = sealRecord;
   const proofText = JSON.stringify(intended);
   try { cronStore.assertPublicationEnvelope(intended); } catch (error) { throw holdCronPublication(error); }
   const primaryProof = cronStore.hasPublicationMetadata(intended) || (prior.kind === 'ok' && cronStore.hasPublicationMetadata(prior.value));
@@ -7800,6 +7886,8 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   });
   if (!saved.ok) throw new Error('cron durable read-back failed after ' + saved.attempts + ' attempt(s): ' + saved.error);
   cronJobs = intended.jobs;   // publish host-derived intake observations only after the same durable read-back
+  cronSealsRead = sealRecord || null;
+  cronGrantsSealed = new Map(intended.jobs.filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
 }
 
 /* ---- G4.6: persisted "is the scheduler armed?" flag, so a one-click ENABLE in the UI arms the timer WITHOUT
@@ -12917,7 +13005,9 @@ const remoteCrypto = require('./remote/crypto.js');
 const remoteDevices = require('./remote/devices.js').makeDevices({
   fs, path, crypto: remoteCrypto, file: path.join(WORKSPACES, '.secrets', 'remote.json'),
   now: () => Date.now(), newId: () => crypto.randomUUID(),
-  tighten: () => { if (process.platform !== 'win32') { try { fs.chmodSync(path.join(WORKSPACES, '.secrets', 'remote.json'), 0o600); } catch (e) { failNote('remote.index.fs.chmodSync', e); } } }
+  tighten: () => { if (process.platform !== 'win32') { try { fs.chmodSync(path.join(WORKSPACES, '.secrets', 'remote.json'), 0o600); } catch (e) { failNote('remote.index.fs.chmodSync', e); } } },
+  // fix-sec2 review 4a: the phones' file is sealed; one changed outside StarNet keeps the station and holds every phone
+  seal: { seal: v => authoritySeal.seal('remote.json', v), open: v => authoritySeal.open('remote.json', v) }
 });
 const remoteSessions = require('./remote/session.js').makeSessions({ devices: remoteDevices, crypto: remoteCrypto, now: () => Date.now(), newId: () => crypto.randomUUID() });
 // hoisted on purpose: the approvals registry (defined far above) announces changes through this
@@ -18273,7 +18363,7 @@ function handleCronDegradedClear(req, res) {
           if (!primary.value || !Array.isArray(primary.value.jobs) || validated.jobs.length !== primary.value.jobs.length) {
             throw cronStore.publicationError('The saved routine primary cannot be restored without dropping records');
           }
-          cronJobs = validated.jobs;
+          cronJobs = cronOpenAuthority(primary.value, validated.jobs);   // review 4a: checked like any load
         });
         if (!checked.ran) return json(409, { error: 'The routine store is busy; retry the confirmation' });
       } catch (error) { holdCronPublication(error); return json(409, { error: (error && error.message) || 'The saved routine publication is still unavailable' }); }
@@ -18332,6 +18422,7 @@ function handleCronCreate(req, res) {
     // fix-sec2 review 3: an unattended grant lets the routine use the terminal (or accounts, or the studio) with nobody
     // watching on every fire, so it is confirmed at the desk for exactly this routine's words
     const grants = Array.from(normalizeUnattendedGrants(body.unattendedGrants)).sort();
+    if (grants.length && authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
     if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(body, grants), routineGrantWords(body, grants))) return;
     const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0 });
     /* ARM ON CREATE (routine reliability, 2026-10-01): the panel used to save a routine and then toast "saved, but
@@ -18536,6 +18627,7 @@ function handleCronUpdate(req, res) {
         : (Object.prototype.hasOwnProperty.call(patch, 'unattendedGrants') ? normalizeUnattendedGrants(patch.unattendedGrants) : held);
       const added = [...wanted].filter(g => !held.has(g)).sort();
       if (added.length) {
+        if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
         const spec = Object.assign({}, current, patch);
         if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, added), routineGrantWords(spec, added))) return;
       }
@@ -23113,7 +23205,8 @@ async function runOnceCore(o) {
      output or Full Access. Interactive runs ignore it entirely: THE MOAT (floor-real placement) governs there,
      and auto-granting a WORKBENCH would hand over a power the Commander never put on the floor. Absent on every
      other caller, so every non-cron surface stays byte-identical. */
-  const unattendedGrants = surface === 'interactive' ? [] : Array.from(normalizeUnattendedGrants(o.unattendedGrants));
+  // while the authority seal holds (it cannot check cron.jobs.json, review 4a/4d) no routine runs with its grants
+  const unattendedGrants = (surface === 'interactive' || authoritySeal.held) ? [] : Array.from(normalizeUnattendedGrants(o.unattendedGrants));
   /* UNTRUSTED-CONTENT TAINT (2026-07-25) — the structural half of the tool-result injection defence.
      Fencing tells the model that fetched text is data; it cannot MAKE the model obey. So the host removes the
      payoff instead of trying to detect the payload: once content the Commander did not author has entered this
@@ -24161,7 +24254,7 @@ async function runOnceCore(o) {
     getRoutineNotepad: async (id) => {
       const job = cronStore.getJob(cronJobs, String(id || ''));
       if (!job) throw new Error('scheduled routine no longer exists');
-      return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || null };
+      return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || (authoritySeal.held && job.notepad ? CRON_NOTEPAD_UNCHECKED : null) };
     },
     setRoutineNotepad: async (id, text) => {
       id = String(id || '');

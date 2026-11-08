@@ -25,7 +25,10 @@
      · Revoke deletes the row. A revoked-but-present row is one forgotten check away from working again.
      · A NEW phone is pending and asks first (GHSA-2hpj #7). Knowing the code is not enough: the phone gets no session
        until someone at the desk approves it there, seeing its fingerprint (activate). A row from before this rule has
-       no `pending` and stays as it was. */
+       no `pending` and stays as it was.
+     · With deps.seal (fix-sec2 review 4a; sidecar/authority-seal.js, keyed from the OS credential store) the file
+       carries a seal StarNet writes. One changed outside StarNet (a hand-written row with no `pending`, an askFirst
+       switched off) keeps the station's own identity and holds every phone: pending, asking first, remote access off. */
 'use strict';
 
 const { note } = require('../failopen.js');
@@ -50,6 +53,7 @@ function makeDevices(deps) {
   const newId = deps.newId;
   const randomBytes = deps.randomBytes || require('crypto').randomBytes;
   const tighten = typeof deps.tighten === 'function' ? deps.tighten : () => {};
+  const sealer = deps.seal && typeof deps.seal.seal === 'function' && typeof deps.seal.open === 'function' ? deps.seal : null;
   let state = null;          // loaded lazily
   let stationCache = null;   // { id, privateKey:KeyObject, publicRaw }
   const pairings = new Map();
@@ -58,7 +62,11 @@ function makeDevices(deps) {
     if (state) return state;
     const r = readJsonResilient({ fs }, file);
     if (r.status === 'unreadable') throw new Error('remote devices file is unreadable — refusing to replace it');
-    const v = (r.value && typeof r.value === 'object') ? r.value : {};
+    let v = (r.value && typeof r.value === 'object') ? r.value : {};
+    if (sealer && r.value !== undefined && r.value !== null) {
+      const opened = sealer.open(r.value);
+      v = opened && opened.ok ? ((opened.value && typeof opened.value === 'object') ? opened.value : {}) : require('../authority-seal.js').clampRemote(v);
+    }
     state = {
       v: 1,
       station: v.station && v.station.privateKey ? v.station : null,
@@ -71,7 +79,7 @@ function makeDevices(deps) {
   function persist(next) {
     const res = saveJsonVerified({
       mkdir: () => fs.mkdirSync(pathMod.dirname(file), { recursive: true }),
-      save: () => writeJsonResilient({ fs, path: pathMod }, file, next),
+      save: () => writeJsonResilient({ fs, path: pathMod }, file, sealer ? sealer.seal(next) : next),
       load: () => readJsonResilient({ fs }, file).value,
       proof: (rb) => !!rb && JSON.stringify(rb.devices || []) === JSON.stringify(next.devices)
         && ((rb.station && rb.station.publicKey) || null) === ((next.station && next.station.publicKey) || null)

@@ -633,8 +633,11 @@ function craft(base, mutate) {
   const flushed = [];
   const flushFs = Object.assign({}, fs, { fsyncSync(fd) { flushed.push(fd); return fs.fsyncSync(fd); } });
   const flushBundle = cap(seed(fresh('flush')));
-  Recovery.restore({ bundle: flushBundle, targetRoot: fresh('flush-target'), fs: flushFs });
-  A.eq(flushed.length, flushBundle.files.length, 'every restored file is flushed');
+  const flushTarget = fresh('flush-target');
+  Recovery.restore({ bundle: flushBundle, targetRoot: flushTarget, fs: flushFs });
+  // and the record of the sealed files it brought, for the first keyed boot (authority-seal.js adoptRestored; fix-sec2 4a)
+  const flushRecord = fs.existsSync(path.join(flushTarget, 'workspaces', 'authority-restored.json')) || fs.existsSync(path.join(flushTarget, 'authority-restored.json')) ? 1 : 0;
+  A.eq(flushed.length, flushBundle.files.length + flushRecord, 'every restored file is flushed (' + flushRecord + ' restore record)');
   const lateTarget = fresh('late');
   A.throws(() => Recovery.restore({ bundle: flushBundle, targetRoot: lateTarget, beforeActivate() { seed(lateTarget); } }), 'a folder that appears during staging is not replaced');
   A.ok(fs.existsSync(path.join(lateTarget, 'agent.save.json')), 'and stays');
