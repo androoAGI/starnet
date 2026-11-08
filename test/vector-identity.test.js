@@ -107,4 +107,6 @@ A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.
   'the hazard plate wears the run\'s true state colour (bad = red, warn = amber), never the theme hue');
 A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected row is inverse video (black type on the lit slot)');
 
+A.ok(css.includes('.ws-row.sel:not(.attn) *:not(.ws-dot)') && !/\.ws-row\.sel:not\(\.attn\) \* \{/.test(css),
+  'inverse video never inks the row's state dot: a failed/working mark keeps its true colour on a selected row');
 A.report('vector-identity');

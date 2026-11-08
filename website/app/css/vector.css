@@ -903,7 +903,9 @@ html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel:not(.att
   border-color: var(--vx-node) !important;
   box-shadow: 0 0 12px rgba(var(--ph-rgb), .55) !important;
 }
-html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel:not(.attn) * { color: #020604 !important; text-shadow: none !important; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel:not(.attn) *:not(.ws-dot) { color: #020604 !important; text-shadow: none !important; }
+/* the row's state dot keeps its TRUE colour (failed red, working amber…): it sits in a black well cut into the lit slot */
+html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel:not(.attn) .ws-dot { background: #020604; box-shadow: 0 0 0 2px #020604; }
 html body.vx:not(.hud-mode) .term.sn-menu .con-rail-item:not(.con-toptab):is(.active, [aria-selected="true"]) *,
 html body.vx:not(.hud-mode) .term:not(.pw) .con-toptabs .con-toptab:is(.active, [aria-selected="true"]) * { color: #020604 !important; text-shadow: none !important; }
 
