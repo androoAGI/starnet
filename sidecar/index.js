@@ -547,6 +547,16 @@ function ENV(suffix) { const k = 'STARNET_' + suffix; return (k in process.env) 
 
 const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
+/* THE PER-LAUNCH SECRETS LEAVE THE ENVIRONMENT AS SOON AS THEY ARE READ (fix-sec2, review 1). The shell hands the page token
+   and its own IPC token (the one that approves a desk confirmation) to this process as environment variables. Read once
+   here, they are deleted from process.env, so nothing that snapshots it later (a worker, a child spawned without
+   child-env.js, a diagnostics dump) can carry them, and on Windows the live environment block no longer holds them.
+   Honest limit: Linux /proc/<pid>/environ and macOS KERN_PROCARGS2 show the environment this process STARTED with, which
+   deleting does not change, and any same-user process can read this process's memory. Only a hand-off over a pipe
+   (the shell writing them to stdin) keeps them out of the start-up environment; that needs the Rust side and is not
+   done here. */
+const IPC_TOKEN = String(ENV('IPC_TOKEN') || '');
+for (const k of ['STARNET_API_TOKEN', 'SKYNET_API_TOKEN', 'STARNET_IPC_TOKEN', 'SKYNET_IPC_TOKEN']) delete process.env[k];
 // DEV fast-path (the `npm run dev:seed` launcher sets this): when on, the served index.html carries a small
 // boot payload (window.__STARNET_DEV__ = {model, prov}) so a fresh browser origin auto-resumes the server-
 // seeded save with no connect screen / awakening. Holds NO secret — the API key stays in the credential store. Never
@@ -563,7 +573,7 @@ const DESKTOP_SHELL = /^(1|true|yes|on)$/i.test(String(ENV('DESKTOP_SHELL') || '
    ACCESS / ALWAYS answers, standing grants, Remote, pairing, approving a phone; sidecar/deskproof.js) stay out of its reach.
    Every other route takes either key. A bare sidecar (browser mode, tests, the CLI's own station) has no other way to hand
    its page a key, so it serves API_TOKEN as before and its desk confirmation is an in-page one. */
-const DESK_SHELL_PROOF = DESKTOP_SHELL && !!String(ENV('IPC_TOKEN') || '').trim();
+const DESK_SHELL_PROOF = DESKTOP_SHELL && !!IPC_TOKEN.trim();
 const CLIENT_TOKEN = DESK_SHELL_PROOF ? crypto.randomBytes(32).toString('hex') : '';
 // #119: only the desktop app, or a test in its own sandbox, may clean up in a profile's Downloads. Read once and removed,
 // so a test or tool started from inside the app does not inherit the permission.
@@ -1266,7 +1276,7 @@ const engineKeys = engineCredential.makeEngineKeys({
    The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const CHANNEL_CREDENTIALS_FILE = path.join(WORKSPACES, '.secrets', 'channel-credentials.json');
-const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
+const SHELL_PUSHES_PROVIDER_CONFIG = !!IPC_TOKEN.trim();
 const PROVIDER_IDS = Object.freeze(listProviderProfiles({ includeInactive: true, public: false }).map(p => p.id));   // the registry's, fixed
 const credStore = credentialStore.makeCredentialStore({
   profile: getProviderProfile,
@@ -16646,7 +16656,7 @@ function setProviderRuntimeConfig(provider, patch, report) { return credStore.pu
    !== leaks match-prefix length through response timing; hash both sides to fixed width first so
    timingSafeEqual never throws on length mismatch and the comparison cost is length-independent. */
 function ipcTokenOk(req) {
-  const token = String(ENV('IPC_TOKEN') || '');
+  const token = IPC_TOKEN;   // the per-launch IPC token, read once at start (it is no longer in process.env)
   if (!token) return false;
   const given = String(req.headers['x-starnet-token'] || req.headers['x-skynet-token'] || '');
   const a = crypto.createHash('sha256').update(given, 'utf8').digest();
@@ -16683,7 +16693,7 @@ function announceDeskCode(note) {
   process.stderr.write('\n  [StarNet] ' + line + '\n\n');
 }
 const deskProofMod = require('./deskproof.js');
-const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now(),
+const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: IPC_TOKEN, now: () => Date.now(),
   announce: DESKTOP_SHELL ? null : announceDeskCode });
 // What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
 // shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).

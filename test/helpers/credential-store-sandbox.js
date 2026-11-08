@@ -198,7 +198,10 @@ function trunkImpl(o) {
 function wiredSource() {
   const text = readSidecarSource();
   const adoption = between(text, 'const SPAWN_CREDENTIALS = credentialStore.adoptSpawnCredentials(', '\n});', 'the adoption of the shell\'s spawn keys');
-  const block = between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", 'credStore.loadKeptEndpoints();', 'the credential store construction');
+  // index.js reads the shell's IPC token once, near its top, and deletes it from process.env (fix-sec2 review 1); the
+  // block below reads that constant, so the lifted copy reads it the same way from the station's env
+  const block = "const IPC_TOKEN = String(ENV('IPC_TOKEN') || '');\n" +
+    between(text, "const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');", 'credStore.loadKeptEndpoints();', 'the credential store construction');
   const fns = HERE_FUNCS.concat(['providerRuntimeKey', 'providerRuntimeKeyPool', 'providerRuntimeBaseUrl', 'setProviderRuntimeConfig', 'engineKeyPresence',
     'channelKeyIsStationHeld', 'desktopEndpointsHeld', 'providerEndpointNotHandedOver', 'engineCredentialError']).map(n => lift(text, n));
   return { adoption, block, fns };

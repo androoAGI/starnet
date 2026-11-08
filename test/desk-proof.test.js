@@ -265,7 +265,23 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   // ---- 4. the keys and the shell ----
   const serve = A.fnBody(IDX, 'async function serveStatic(');
   A.ok(/'window\.__STARNET_API_TOKEN__=' \+ JSON\.stringify\(CLIENT_TOKEN \|\| API_TOKEN\)/.test(serve), 'GET / serves CLIENT_TOKEN under the desktop shell (API_TOKEN only for a bare station)');
-  A.ok(/const DESK_SHELL_PROOF = DESKTOP_SHELL && !!String\(ENV\('IPC_TOKEN'\)/.test(IDX) && /const CLIENT_TOKEN = DESK_SHELL_PROOF \? crypto\.randomBytes\(32\)/.test(IDX), 'a client key exists exactly when the shell can confirm');
+  A.ok(/const DESK_SHELL_PROOF = DESKTOP_SHELL && !!IPC_TOKEN\.trim\(\)/.test(IDX) && /const CLIENT_TOKEN = DESK_SHELL_PROOF \? crypto\.randomBytes\(32\)/.test(IDX), 'a client key exists exactly when the shell can confirm');
+  // fix-sec2 review 1: the per-launch secrets are read once and leave process.env before anything else can snapshot it
+  {
+    const at = IDX.indexOf("const IPC_TOKEN = String(ENV('IPC_TOKEN') || '');");
+    const del = IDX.indexOf("for (const k of ['STARNET_API_TOKEN', 'SKYNET_API_TOKEN', 'STARNET_IPC_TOKEN', 'SKYNET_IPC_TOKEN']) delete process.env[k];");
+    A.ok(at > 0 && del > at && del - at < 200 && IDX.indexOf('const API_TOKEN = String(ENV(\'API_TOKEN\')') < at, 'the page token and the IPC token are read, then deleted from process.env');
+    const idxOnly = read('sidecar/index.js');
+    A.eq((idxOnly.match(/ENV\('IPC_TOKEN'\)|ENV\('API_TOKEN'\)/g) || []).length, 2, 'nothing reads them from the environment again');
+    // the same three lines, run: the variables are gone and the values kept
+    const env = { STARNET_API_TOKEN: 'a', SKYNET_IPC_TOKEN: 'i', OTHER: 'o' };
+    const from = idxOnly.indexOf("const API_TOKEN = String(ENV('API_TOKEN')");
+    const to = idxOnly.indexOf('\n', idxOnly.indexOf("for (const k of ['STARNET_API_TOKEN'")) + 1;
+    const run = new Function('process', 'crypto', "function ENV(suffix) { const k = 'STARNET_' + suffix; return (k in process.env) ? process.env[k] : process.env['SKYNET_' + suffix]; }\n" +
+      idxOnly.slice(from, to) + '\nreturn [API_TOKEN, IPC_TOKEN];');
+    A.eq(run({ env }, require('crypto')), ['a', 'i'], 'the values are kept');
+    A.eq(Object.keys(env), ['OTHER'], 'and the variables are gone');
+  }
   A.ok(/!stationTokenOk\(req\) && !stationTicketOk\(req\)\) return refuseAtGate/.test(IDX), 'the gate takes either key (no route lost its key)');
   A.eq(apiauth.requiresApiToken({ method: 'POST', url: '/api/desk/approve', headers: {} }), false, '/api/desk/approve is page-token exempt…');
   A.ok(/async function handleDeskApprove\(req, res\) \{\s*if \(!ipcTokenOk\(req\)\)/.test(IDX), '…and guarded by the IPC token');
