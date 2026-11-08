@@ -64,24 +64,29 @@ function open(name, segmentBytes) {
     const manifestFile = old._internals.manifestFile, manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
     for (const meta of manifest.segments) { delete meta.retracts; delete meta.retractsHash; }
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+    const closedOld = manifest.segments.filter(meta => meta.number !== manifest.activeSegment).length;
+    A.ok(closedOld > 8, 'the fixture has more old closed segments than one proof read used to parse: ' + closedOld);
     const cold = open('old-summaries', 256), coldStore = Store.makeTranscriptStore({ io: cold, ramPerStream: 1, ramMax: 1 });
     reads.length = 0;
+    /* #178: the first proof after an upgrade parses every old closed segment ONCE (each strictly, as the bounded repair
+       did) and persists the summaries, so the very first read is vouched instead of refusing until enough reads went by. */
     const firstContext = cold.retractionsFor([target.rowId]);
-    A.ok(reads.length <= 8, 'first cold context read is bounded before any summary has hydrated: ' + reads.length);
-    A.eq(firstContext.proofComplete, false, 'one bounded read does not falsely vouch for every old summary');
+    A.ok(reads.length <= closedOld + 1, 'the one-time summary pass reads each old segment once, plus the active one: ' + reads.length);
+    A.eq(firstContext.proofComplete, true, 'the first proof after the upgrade is complete');
+    A.eq(firstContext.retractions.get(target.rowId), 'undo', 'and it keeps the actual later retract');
+    const persisted = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+    A.ok(persisted.segments.filter(meta => meta.number !== persisted.activeSegment).every(meta => meta.retracts && meta.retracts.v === 1 && typeof meta.retractsHash === 'string'),
+      'the summaries it built are written to the manifest, so no later read or boot pays for them again');
     reads.length = 0;
-    let failure; try { coldStore.view('display', 's', { limit: 1 }); } catch (error) { failure = error; }
-    A.eq(failure && failure.code, 'TRANSCRIPT_UNVOUCHED', 'unknown old summaries refuse authority while bounded hydration is incomplete');
-    // The tail itself may read rows; the dedicated context call below measures its own strict eight-read budget.
-    let complete = false, proof, attempts = 0;
-    while (!complete && attempts++ < 5) {
-      reads.length = 0; proof = cold.retractionsFor([target.rowId]);
-      A.ok(reads.length <= 8, 'each general context hydration reads at most eight segments: ' + reads.length);
-      complete = proof.proofComplete;
-    }
-    A.eq(complete, true, 'validated closed summaries make bounded incremental progress');
-    A.eq(proof.retractions.get(target.rowId), 'undo', 'completed context retains the actual later retract');
+    const again = cold.retractionsFor([target.rowId]);
+    A.ok(again.proofComplete === true && reads.length <= 1, 'the next proof reads only the active segment: ' + reads.length);
     A.ok(!coldStore.view('display', 's', { limit: 100 }).some(row => row.rowId === target.rowId), 'hydration never restores the retracted target');
+    cold.close();
+    const reopened = open('old-summaries', 256);
+    reads.length = 0;
+    const afterBoot = reopened.retractionsFor([target.rowId]);
+    A.ok(afterBoot.proofComplete === true && afterBoot.retractions.get(target.rowId) === 'undo' && reads.length <= 1,
+      'after a restart the persisted summaries vouch at once, reading only the active segment: ' + reads.length);
     const { recallTool } = require('../sidecar/tools/builtin/recall.js').makeRecallTool({ transcriptStore: { view() { const error = new Error('unknown'); error.code = 'TRANSCRIPT_UNVOUCHED'; throw error; } } });
     const browse = await recallTool.run({}, { streamId: 's' }), around = await recallTool.run({ around: 10 }, { streamId: 's' });
     A.eq(browse.summary, 'history listing incomplete', 'recall browse distinguishes unknown from an empty station');

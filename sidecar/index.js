@@ -31004,7 +31004,10 @@ async function handleTurnIdentityRetractions(req, res) {
   catch (_) { return respondJson(res, 400, { error: 'bad json' }); }
   const result = transcriptStore.cacheRetractions(body && body.streamId, body && body.rowIds);
   if (result.state === 'invalid') return respondJson(res, 400, { error: 'invalid stream or row ids' });
-  if (result.state !== 'done') return respondJson(res, 503, { error: 'Cached transcript identity could not be proved.', code: 'TRANSCRIPT_UNVOUCHED' });
+  if (result.state !== 'done') {
+    readRouteFailure('turn-identity.retractions', new Error('cached transcript identity could not be proved'));   // shows in the diagnostics (#178)
+    return respondJson(res, 503, { error: 'Cached transcript identity could not be proved.', code: 'TRANSCRIPT_UNVOUCHED' });
+  }
   if (result.retracted && (Array.isArray(result.retracted) ? result.retracted.length : result.retracted)) forgetStreamSummaries(body.streamId);
   return respondJson(res, 200, { streamId: body.streamId, retracted: result.retracted });
 }
@@ -31026,8 +31029,9 @@ async function handleTranscriptRows(req, res) {
       missing: one.missing, retracted: one.retracted, forgotten: one.forgotten })) });
   } catch (error) {
     if (error && error.code === 'TRANSCRIPT_BAD_REQUEST') return respondJson(res, 400, { error: error.message });
+    const failure = readRouteFailure('transcript.rows', error);   // noted either way, so a refusal shows in the diagnostics (#178)
     if (error && error.code === 'TRANSCRIPT_UNVOUCHED') return respondJson(res, 503, { error: 'The station could not prove these rows.', code: 'TRANSCRIPT_UNVOUCHED' });
-    return respondJson(res, 500, readRouteFailure('transcript.rows', error));
+    return respondJson(res, 500, failure);
   }
 }
 function serveTranscript(req, res) {
@@ -31054,7 +31058,12 @@ function serveTranscript(req, res) {
       ? transcriptStore.view('model-replay', stream, { limit, shape: 'prose', form: 'pre', rows: true })
       : transcriptStore.view('display', stream, { limit, run: sourceRunId, delivery: !!finalDelivery, since: transcriptRunSince(sourceRunId) });
     json(200, transcriptProjection(stream, turns));
-  } catch (e) { json(500, readRouteFailure('transcript', e)); }   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
+  } catch (e) {
+    const failure = readRouteFailure('transcript', e);   // noted either way: the diagnostics count every read this route could not answer
+    // history the station cannot vouch for YET is a 503 with its code, as /rows answers it, not a broken store's 500 (#178)
+    if (e && e.code === 'TRANSCRIPT_UNVOUCHED') return json(503, { error: 'The station could not prove this history yet.', code: 'TRANSCRIPT_UNVOUCHED' });
+    json(500, failure);   // broken ≠ empty: every reader gates on r.ok (autosessions/chat/returnstore)
+  }
 }
 
 // A disconnected conversation keeps the same constructor-owned namespace. Custom/per-job hubs have

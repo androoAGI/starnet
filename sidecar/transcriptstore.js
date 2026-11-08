@@ -69,6 +69,7 @@
      Nothing in production passes them yet. */
   const TURN_FIELDS_ATTACH_MAX = 16;
   const TARGETS_MAX = 500;
+  const CACHE_PROOF_ROUNDS = 16;   // proof reads one cached-row check may make (each parses at most eight segments)
   const NOTE_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
   const IMPORT_KEY_RE = /^lg:[A-Za-z0-9_-]{1,40}:[0-9]{1,10}:[a-f0-9]{12}$/;
   const ATTACH_LIMITS = [['id', 64], ['name', 200], ['path', 300], ['mediaType', 100], ['kind', 20]];
@@ -1075,15 +1076,33 @@
       }
       const ids = [...streams.keys()];
       if (!ids.length) return { state: 'done', retracted: [] };
-      let proof;
-      try { proof = typeof io.readByIds === 'function' ? io.readByIds(ids) : null; }
-      catch (error) { failNote('transcript.retract.cache', error); return { state: 'unknown' }; }
-      if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return { state: 'unknown' };
+      if (typeof io.readByIds !== 'function') return { state: 'unknown' };
+      /* One proof read parses at most eight segments, so a cache whose rows are spread over more of them got "unknown"
+         on every ask and its history never loaded (#178). Ask again for only the rows the last read did not reach, each
+         round a complete proof of its own, until every row is read or a round reaches nothing new: at most
+         CACHE_PROOF_ROUNDS reads, so a request still parses a bounded number of segments. */
+      const found = new Map(), retractions = new Map();
+      let pending = ids;
+      for (let round = 0; pending.length && round < CACHE_PROOF_ROUNDS; round++) {
+        let proof;
+        try { proof = io.readByIds(pending); }
+        catch (error) { failNote('transcript.retract.cache', error); return { state: 'unknown' }; }
+        if (!(proof instanceof Map) || proof.proofComplete !== true || !(proof.retractions instanceof Map)) return { state: 'unknown' };
+        for (const id of pending) {
+          const row = proof.get(id);
+          if (row && row.streamId !== streams.get(id)) return { state: 'unknown' };   // another stream's row: no authority, and no further reads
+          if (row) found.set(id, row);
+          if (proof.retractions.has(id)) retractions.set(id, proof.retractions.get(id));
+        }
+        const next = pending.filter(id => !proof.has(id));
+        if (next.length === pending.length) break;
+        pending = next;
+      }
       for (const id of ids) {
-        const row = proof.get(id);
+        const row = found.get(id);
         if (!row || row.streamId !== streams.get(id) || (typeof io.isCollided === 'function' && io.isCollided(id))) return { state: 'unknown' };
       }
-      return { state: 'done', retracted: ids.filter(id => proof.retractions.get(id) === 'undo').map(rowId => ({ streamId: streams.get(rowId), rowId })) };
+      return { state: 'done', retracted: ids.filter(id => retractions.get(id) === 'undo').map(rowId => ({ streamId: streams.get(rowId), rowId })) };
     }
     // A mutation needs a complete target set, not findTurn's useful but possibly partial window.
     // One bounded suffix must reach the original directive. An assistant-only undo instead requires

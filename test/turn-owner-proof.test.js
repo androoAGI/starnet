@@ -61,8 +61,10 @@ try {
   A.eq(bounded.reads.length, 8, 'one strict disk read per accepted segment, at most eight per assembly');
   A.eq(new Set(bounded.reads).size, 8, 'same segment is never repeatedly parsed for each requested id');
 
-  // A pre-summary history may need more disk reads to prove that no later retract names a target.
-  // The proof budget is a hard ceiling: inability to establish that absence is not an empty retract set.
+  // A pre-summary history needs more disk reads to prove that no later retract names a target. #178: those reads used to
+  // be capped per proof, so a store with more old segments than the cap proved nothing for many reads after the upgrade
+  // (and by-id proofs never at all). Each old segment is now parsed ONCE, strictly, and its summary persisted; the rows a
+  // proof returns keep their own eight-segment ceiling, and a summary that cannot be built is still never an empty set.
   const oldSummary = fixture('old-summary', 256), oldIds = [];
   for (let i = 0; i < 9; i++) oldIds.push(append(oldSummary.store, { content: 'old index ' + i + ' ' + 'x'.repeat(300) }).rowId);
   oldSummary.io.close();
@@ -72,7 +74,23 @@ try {
   fs.writeFileSync(manifestFile, JSON.stringify(manifest));
   const reopened = History.makeSegmentedTranscriptIo({ fs, path, root: path.join(root, 'old-summary'), segmentBytes: 256, schedule() {} });
   opened.push(reopened);
-  A.eq(makeStore(reopened).ownerProof(oldIds).size, 0, 'unvouched old retract summaries beyond the shared budget produce no owner proof');
+  A.eq(makeStore(reopened).ownerProof(oldIds).size, 8, 'old retract summaries are built on the first proof, which then proves rows up to its own eight-segment ceiling');
+  A.ok(JSON.parse(fs.readFileSync(manifestFile, 'utf8')).segments.every(meta => meta.number === reopened.status().activeSegment || (meta.retracts && meta.retracts.v === 1)),
+    'and the summaries it built are persisted');
+  // the same history with one old segment damaged in place (same size: nothing at boot notices), one the proof's own row
+  // reads do not reach: its summary cannot be built, and that is still never an empty retract set
+  const damaged = fixture('damaged-summary', 256), damagedIds = [];
+  for (let i = 0; i < 9; i++) damagedIds.push(append(damaged.store, { content: 'damaged index ' + i + ' ' + 'x'.repeat(300) }).rowId);
+  damaged.io.close();
+  const damagedManifestFile = damaged.io._internals.manifestFile, damagedManifest = JSON.parse(fs.readFileSync(damagedManifestFile, 'utf8'));
+  for (const meta of damagedManifest.segments) delete meta.retracts;
+  fs.writeFileSync(damagedManifestFile, JSON.stringify(damagedManifest));
+  const unreached = damagedManifest.segments.find(meta => damagedIds[7] >= meta.minRowId && damagedIds[7] <= meta.maxRowId);
+  const unreachedFile = damaged.io._internals.segFile(unreached.number), unreachedBytes = fs.readFileSync(unreachedFile, 'utf8');
+  fs.writeFileSync(unreachedFile, '!' + unreachedBytes.slice(1));
+  const damagedOpen = History.makeSegmentedTranscriptIo({ fs, path, root: path.join(root, 'damaged-summary'), segmentBytes: 256, schedule() {}, onWarning() {} });
+  opened.push(damagedOpen);
+  A.eq(makeStore(damagedOpen).ownerProof(damagedIds).size, 0, 'an old summary that cannot be vouched leaves no owner proof');
 
   const batch = fixture('one-segment', 65536), batchIds = [];
   for (let i = 0; i < 3; i++) batchIds.push(append(batch.store, { content: 'same segment owner ' + i }).rowId);
