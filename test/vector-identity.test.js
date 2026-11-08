@@ -93,16 +93,27 @@ A.ok(viewRules.length > 0, 'vector.css frames the station view');
 A.ok(!/(^|[^-])filter\s*:(?!\s*(none|drop-shadow))/m.test(viewRules) && !/mix-blend-mode/.test(viewRules),
   'vector.css puts no colour filter or blend on the station view (frame lines only)');
 
-// ---- the deeper pass (Andrew 2026-11-08: "I need to dive deeper in … This is the look and aesthetic"): CREW, COMMS,
-// every window and the dock menus are cut HUD plates (9-slice SVG masks: a fill and a lit line), selection is inverse
-// video, a failed run is a hazard plate in the TRUE state colour ----
-for (const [sel, label] of [['#left::before', 'CREW face'], ['#left::after', 'CREW line'], ['#chat-panel::before', 'COMMS face'],
-  ['#chat-panel::after', 'COMMS line'], ['.term:not(.pw)::before', 'window face'], ['.term:not(.pw)::after', 'window line'],
-  ['.bb-menu::before', 'dock menu face'], ['.bb-menu::after', 'dock menu line']]) {
+// ---- the deeper pass (Andrew 2026-11-08: "I need to dive deeper in … This is the look and aesthetic"): the dock menus
+// are cut HUD plates (9-slice SVG masks: a fill and a lit line), selection is inverse video, a failed run is a hazard
+// plate in the TRUE state colour ----
+for (const [sel, label] of [['.bb-menu::before', 'dock menu face'], ['.bb-menu::after', 'dock menu line']]) {
   const rules = css.split(sel + ' {').slice(1).map(r => r.slice(0, r.indexOf('}')));
   A.ok(rules.some(r => /-webkit-mask-box-image: url\("data:image\/svg\+xml,/.test(r)), label + ' is a cut HUD plate (9-slice SVG mask)');
 }
-A.ok(/:is\(#left, #chat-panel\)::after \{[^}]*background: var\(--vx-core\)/.test(css), 'the plate lines are painted by the theme hue, never a baked colour');
+
+// ---- the alien device (Andrew 2026-11-08: "like it was designed by aliens"): every screen sits in a moulded chrome
+// housing, baked to PNG (a lit SVG slices wrong as a border-image), the brow carries the chrome eye ----
+const fsx = require('fs'), pathx = require('path');
+for (const [sel, label] of [['#left::after', 'CREW'], ['#chat-panel::after', 'COMMS'], ['.term:not(.pw)::after', 'every window'],
+  ['#stage-wrap::after', 'the station view']]) {
+  const rules = css.split(sel + ' {').slice(1).map(r => r.slice(0, r.indexOf('}')));
+  const m = rules.map(r => r.match(/border-image: url\("(vx\/[\w-]+\.png)"\)/)).find(Boolean);
+  A.ok(m, label + ' sits in a moulded housing (a 9-slice PNG border-image)');
+  if (m) A.ok(fsx.existsSync(pathx.join(__dirname, '..', 'frontend', 'css', m[1])), label + ' housing file ' + m[1] + ' ships next to the sheet');
+}
+const brow = css.split('#topbar::before {').slice(1).map(r => r.slice(0, r.indexOf('}'))).find(r => r.includes('vx/crest.png'));
+A.ok(brow && /var\(--vx-core\)/.test(brow), 'the brow carries the chrome eye, its lens lit in the theme hue');
+A.ok(!/#stage-wrap::after \{[^}]*(mix-blend|[^-]filter\s*:)/.test(css), 'the station view housing is a frame only (no filter, no blend on the world)');
 A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.comms-presence\.resolved\.tone-warn \{ --hz: var\(--warn/.test(css),
   'the hazard plate wears the run\'s true state colour (bad = red, warn = amber), never the theme hue');
 A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected row is inverse video (black type on the lit slot)');
