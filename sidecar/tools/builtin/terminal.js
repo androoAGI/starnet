@@ -68,7 +68,8 @@ function makeTerminalTools(deps) {
   }
   function safety(command, cwd, ctx, exactCwd) {
     if (remoteOwner(ctx)) return null;
-    const escaped = Shell.escapesWorkspace(command);
+    // StarNet's own hooks.json by its resolved path (fix-sec2 F2), from where this terminal runs
+    const escaped = Shell.escapesWorkspace(command) || Shell.authorityFileRisk(command, { cwd, root: ROOT, pathMod: P, fs, isWin });
     if (escaped) return { kind: 'workspace', reason: escaped };
     // a new terminal's program is searched for in the environment its PTY is given (manager.start gets envFor); text typed later proves nothing
     return Shell.commandSafetyRisk(command, { cwd, exactCwd: exactCwd === true, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin, env: exactCwd === true ? envFor(ctx && ctx.surface) : undefined });

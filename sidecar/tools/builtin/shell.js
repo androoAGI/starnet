@@ -66,10 +66,91 @@
     // unnamed: not a path form; the refusal itself names it. The authority files (GHSA-2hpj #3: FULL BYPASS, the roster,
     // hooks and their approvals, plugin approvals, the seal record) are named too: a stopgap beside their seal, which is
     // what actually refuses a changed one (sidecar/authority-seal.js); this text check only stops the plain spelling.
-    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks(?:-allowed)?\.json|plugins-allowed|authority-seal\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
+    // The one GENERIC name among them, hooks.json, is not here (fix-sec2 F2): plenty of projects have their own, so it
+    // is refused only where it names StarNet's own data directory, by its resolved path (authorityFileRisk below).
+    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks-allowed\.json|plugins-allowed|authority-seal\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
   ].map(function (r) { return Object.freeze({ re: r.re, why: r.why, names: Object.freeze(r.names) }); }));
   function escapesWorkspace(cmd) {
     for (const rule of FLOOR_RULES) if (rule.re.test(cmd)) return rule.why;
+    return null;
+  }
+
+  /* STARNET'S OWN hooks.json, BY ITS RESOLVED PATH (fix-sec2 F2, 2026-11-08). The authority stopgap (GHSA-2hpj #3) named
+     hooks.json in the text floor above, which refused every command that so much as mentioned a project's own hooks.json
+     (git hooks managers, editor and CI configs use the name). StarNet's file is <data directory>/hooks.json (and its
+     .sealed-last copy), so that is what is refused now: every word of the command that names hooks.json is resolved
+     (against the command's real working folder, and against every other path the command names, which covers
+     `cd <dir> && …`, `git -C <dir>` and the like; ~, $HOME, %USERPROFILE%, $env:LOCALAPPDATA and kin expanded) and
+     refused when it lands on the data directory's file by its name or real path. A word the check cannot resolve (a
+     variable it does not know, a command substitution) is refused as before, and so is every mention when the caller
+     cannot say where the command runs. This stays a stopgap: the seal is what refuses a changed hooks.json.
+       authorityFileRisk(cmd, { cwd, root, pathMod, fs?, isWin?, env?, home? }) -> refusal text | null */
+  const AUTHORITY_WHY = 'that path is a protected harness control file';
+  const GENERIC_AUTHORITY_RE = /hooks\.json/i;
+  const GENERIC_AUTHORITY_NAMES = ['hooks.json', 'hooks.json.sealed-last'];
+  const ENV_PATH_VARS = ['HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'PWD'];
+  function commandWords(cmd) {
+    // quote-aware enough for paths: "a b", 'a b' and bare runs; separators, redirections and `=` end a word
+    const out = [];
+    const re = /"([^"]*)"|'([^']*)'|([^\s"'=;&|<>()]+)/g;
+    let m;
+    while ((m = re.exec(cmd))) out.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+    return out;
+  }
+  function authorityFileRisk(cmd, o) {
+    cmd = String(cmd == null ? '' : cmd);
+    if (!GENERIC_AUTHORITY_RE.test(cmd)) return null;
+    o = o || {};
+    const P = o.pathMod, root = o.root ? String(o.root) : '', cwd = o.cwd ? String(o.cwd) : '';
+    if (!P || !root || !cwd) return AUTHORITY_WHY;   // nowhere to resolve against: the plain name is refused, as before
+    const isWin = o.isWin == null ? WIN : o.isWin === true;
+    const fold = function (s) { return isWin ? String(s).toLowerCase() : String(s); };
+    const env = o.env || (typeof process !== 'undefined' && process.env) || {};
+    const home = String(o.home || env.HOME || env.USERPROFILE || '');
+    const envOf = function (name) {
+      if (/^home$/i.test(name) && home) return home;
+      const k = Object.keys(env).find(function (x) { return isWin ? x.toUpperCase() === name.toUpperCase() : x === name; });
+      return k ? String(env[k]) : null;
+    };
+    const known = ENV_PATH_VARS.join('|');
+    function expand(w) {
+      let s = String(w);
+      if (/^~(?=$|[\\/])/.test(s)) { if (!home) return null; s = home + s.slice(1); }
+      let bad = false;
+      const sub = function (_, name) { const v = envOf(name); if (v == null) bad = true; return v == null ? '' : v; };
+      s = s.replace(new RegExp('\\$\\{(' + known + ')\\}|\\$(' + known + ')(?![A-Za-z0-9_])', isWin ? 'gi' : 'g'), function (m0, a, b) { return sub(m0, a || b); })
+        .replace(new RegExp('%(' + known + ')%', 'gi'), sub)
+        .replace(new RegExp('\\$env:(' + known + ')(?![A-Za-z0-9_])', 'gi'), sub);
+      if (bad || /[$`]|%[A-Za-z_][A-Za-z0-9_]*%|^~/.test(s)) return null;   // a variable or substitution it cannot resolve
+      return normalizeWinCwd(P, s, isWin);
+    }
+    const resolveFrom = function (base, w) { return P.isAbsolute(w) ? P.resolve(w) : P.resolve(base, w); };
+    const targets = new Set();
+    const roots = [P.resolve(root)];
+    try { if (o.fs && typeof o.fs.realpathSync === 'function') roots.push(o.fs.realpathSync(root)); } catch (_) {}
+    for (const r of roots) for (const n of GENERIC_AUTHORITY_NAMES) targets.add(fold(P.join(r, n)));
+    const hits = function (abs) {
+      if (targets.has(fold(abs))) return true;
+      // by the real path too: a link in the project that points into the data directory
+      try { if (o.fs && typeof o.fs.realpathSync === 'function') return targets.has(fold(P.join(o.fs.realpathSync(P.dirname(abs)), P.basename(abs)))); } catch (_) {}
+      return false;
+    };
+    const words = commandWords(cmd);
+    const named = [], bases = [P.resolve(cwd)];
+    let unresolved = false;
+    for (const w of words) {
+      const x = expand(w);
+      if (GENERIC_AUTHORITY_RE.test(w)) { if (x == null) return AUTHORITY_WHY; named.push(x); continue; }
+      if (x == null) { unresolved = true; continue; }
+      bases.push(resolveFrom(cwd, x));   // any word may be a folder the command moves to; only the data directory matters
+    }
+    // a word it cannot resolve may be the folder a hooks.json is relative to (cd $X && …) or the head of its own path
+    // ($(dirname x)/hooks.json splits into two words): either way the check cannot say where it lands
+    if (unresolved) return AUTHORITY_WHY;
+    for (const w of named) {
+      if (P.isAbsolute(w)) { if (hits(P.resolve(w))) return AUTHORITY_WHY; continue; }
+      for (const b of bases) if (hits(P.resolve(b, w))) return AUTHORITY_WHY;
+    }
     return null;
   }
   // "`..`, C:\… and \…": every named form, in the floor's own order
@@ -1669,6 +1750,9 @@
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
+        // StarNet's own hooks.json, by its resolved path (fix-sec2 F2): a project's own hooks.json is the project's
+        const authorityDeny = remoteOwner ? null : authorityFileRisk(cmd, { cwd: hostCwd, root: ROOT, pathMod: P, fs: fs, isWin: isWin });
+        if (authorityDeny) throw new Error('refused: ' + authorityDeny);
         const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
@@ -2013,10 +2097,10 @@
 
     return {
       execTool: execTool, bgStatusTool: bgStatusTool, bgReadTool: bgReadTool, bgWriteTool: bgWriteTool, bgKillTool: bgKillTool, bgWaitTool: bgWaitTool,
-      _internals: { escapesWorkspace: escapesWorkspace, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, killTree: killTree, safeAgentId: safeAgentId, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, unrestrictedHost: unrestrictedHost },
+      _internals: { escapesWorkspace: escapesWorkspace, authorityFileRisk: authorityFileRisk, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, killTree: killTree, safeAgentId: safeAgentId, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, unrestrictedHost: unrestrictedHost },
       register: function (reg) { reg.register(execTool); reg.register(bgStatusTool); reg.register(bgReadTool); reg.register(bgWriteTool); reg.register(bgKillTool); reg.register(bgWaitTool); return reg; }
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, authorityFileRisk: authorityFileRisk, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
 });

@@ -277,10 +277,62 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
   {
     const Shell = require('../sidecar/tools/builtin/shell.js');
     const why = 'that path is a protected harness control file';
-    for (const cmd of ['type permissions.bypass.json', 'echo {} > agent.roster.json', 'cat hooks.json', 'copy x hooks-allowed.json', 'Set-Content plugins-allowed.json {}', 'del authority-seal.json', 'cat PERMISSIONS.BYPASS.JSON'])
+    for (const cmd of ['type permissions.bypass.json', 'echo {} > agent.roster.json', 'copy x hooks-allowed.json', 'Set-Content plugins-allowed.json {}', 'del authority-seal.json', 'cat PERMISSIONS.BYPASS.JSON'])
       A.eq(Shell.escapesWorkspace(cmd), why, 'the floor refuses: ' + cmd);
-    for (const cmd of ['ls -la', 'cat README.md', 'node build.js', 'git log'])
-      A.eq(Shell.escapesWorkspace(cmd), null, 'the floor still lets through: ' + cmd);
+    for (const cmd of ['ls -la', 'cat README.md', 'node build.js', 'git log', 'cat hooks.json'])
+      A.eq(Shell.escapesWorkspace(cmd), null, 'the text floor lets through: ' + cmd);
+  }
+  // ---- 7b. F2 (fix-sec2): hooks.json is refused only where it is StarNet's own, by its resolved path ----
+  {
+    const Shell = require('../sidecar/tools/builtin/shell.js');
+    const why = 'that path is a protected harness control file';
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'f2-'));
+    const DATA = path.join(tmp, 'StarNet', 'workspaces');              // the data directory (WORKSPACES)
+    const JAIL = path.join(DATA, 'agent1');                            // an agent's private workspace inside it
+    const PROJ = path.join(tmp, 'proj');                               // a project folder elsewhere
+    for (const d of [JAIL, PROJ, path.join(PROJ, '.claude')]) fs.mkdirSync(d, { recursive: true });
+    const isWin = process.platform === 'win32';
+    const env = { HOME: tmp, USERPROFILE: tmp, LOCALAPPDATA: tmp };
+    const risk = (cmd, cwd) => Shell.authorityFileRisk(cmd, { cwd, root: DATA, pathMod: path, fs, isWin, env, home: tmp });
+    const sep = path.sep;
+    // a project's own hooks.json: let through
+    for (const [cmd, cwd] of [['cat hooks.json', PROJ], ['cat .claude' + sep + 'hooks.json', PROJ], ['git add hooks.json', PROJ], ['node gen.js --out=hooks.json', PROJ],
+      ['cat hooks.json', JAIL], ['type "my hooks.json"', PROJ], ['grep -n event hooks.json src/hooks.json', PROJ], ['cat ~' + sep + 'proj' + sep + 'hooks.json', PROJ]])
+      A.eq(risk(cmd, cwd), null, 'a project\'s own hooks.json is not refused: ' + cmd);
+    A.eq(risk('npm test', PROJ), null, 'a command that does not name hooks.json is not looked at');
+    // StarNet's own: refused, however it is spelled
+    const abs = path.join(DATA, 'hooks.json');
+    for (const [cmd, cwd] of [
+      ['cat "' + abs + '"', PROJ],
+      ['cat ' + abs.replace(/\\/g, '/'), PROJ],
+      ['cat ' + abs.toUpperCase(), PROJ],
+      ['cat hooks.json', DATA],
+      ['cd "' + DATA + '" && echo {} > hooks.json', PROJ],
+      ['git -C ' + DATA + ' diff hooks.json', PROJ],
+      ['cat ~' + sep + 'StarNet' + sep + 'workspaces' + sep + 'hooks.json', PROJ],
+      [isWin ? 'type %LOCALAPPDATA%\\StarNet\\workspaces\\hooks.json' : 'cat $HOME/StarNet/workspaces/hooks.json', PROJ],
+      ['Get-Content $env:LOCALAPPDATA' + sep + 'StarNet' + sep + 'workspaces' + sep + 'hooks.json', PROJ],
+      ['cp x ' + path.join(DATA, 'hooks.json.sealed-last'), PROJ],
+      ['cat $SOMEWHERE/hooks.json', PROJ],
+      ['cd $SOMEWHERE && cat hooks.json', PROJ],
+      ['cat $(dirname x)/hooks.json', PROJ],
+      ['cat `pwd`/hooks.json', PROJ]])
+      A.eq(risk(cmd, cwd), why, 'StarNet\'s own hooks.json is refused: ' + cmd);
+    // by its real path: a link in the project that points into the data directory
+    let linked = false;
+    try { fs.symlinkSync(DATA, path.join(PROJ, 'sn'), isWin ? 'junction' : 'dir'); linked = true; } catch (_) {}
+    if (linked) A.eq(risk('cat sn' + sep + 'hooks.json', PROJ), why, 'a link into the data directory is followed to its real path');
+    // without a place to resolve against, the plain name is refused as before
+    A.eq(Shell.authorityFileRisk('cat hooks.json', {}), why, 'no cwd or root: every mention is refused, as before');
+    A.eq(Shell.authorityFileRisk('cat hooks.json', { cwd: PROJ, pathMod: path }), why, 'no data directory named: refused');
+    // the three callers ask it, from where the command runs
+    const shellSrc = read('sidecar/tools/builtin/shell.js');
+    A.ok(/const authorityDeny = remoteOwner \? null : authorityFileRisk\(cmd, \{ cwd: hostCwd, root: ROOT,/.test(shellSrc), 'shell.exec asks it with its working folder and the data directory');
+    A.ok(/shell\.authorityFileRisk\(cmd, \{ cwd: hostCwd, root: ROOT,/.test(read('sidecar/tools/builtin/verify.js')), 'verify.run asks it');
+    A.ok(/Shell\.escapesWorkspace\(command\) \|\| Shell\.authorityFileRisk\(command, \{ cwd, root: ROOT,/.test(read('sidecar/tools/builtin/terminal.js')), 'the terminal asks it');
+    try { if (linked) fs.unlinkSync(path.join(PROJ, 'sn')); } catch (_) { try { fs.rmdirSync(path.join(PROJ, 'sn')); } catch (_) {} }
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 
   // ---- 8. F1 (fix-sec2): a StarNet without the key on a workspace the app sealed ----
