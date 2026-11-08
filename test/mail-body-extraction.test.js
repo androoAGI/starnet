@@ -109,9 +109,14 @@ const STUB_PLAIN = 'View this email in your browser: https://shop.example/view/8
     A.eq(mail.htmlToText('it&rsquo;s &#x2019;&#8217; &AMP; &eacute;&Eacute;&ntilde; &euro;5 &unknown; &amp;lt;b&amp;gt;'), 'it’s ’’ & éÉñ €5 &unknown; &lt;b&gt;', 'named, hex and decimal entities; an unknown one stays; &amp;lt; is decoded once');
     A.eq(mail.htmlToText('a<!-- x > y -->b<!---->c'), 'a b c', 'a comment goes whole, even with a ">" inside');
     A.eq(mail.htmlToText('<ul><li>one</li><li>two</li></ul><blockquote>q</blockquote>after'), 'one\n two\n\n q\nafter', 'lists and quotes end their lines');
-    for (const [label, html] of [['"<!--" x 1M', '<!--'.repeat(1000000)], ['"<img alt=\\"" x 400k', '<img alt="'.repeat(400000) + '>'], ['"<img alt=x>" x 400k', '<img alt=x>'.repeat(400000)], ['"&amp;" x 800k', '&amp;'.repeat(800000)]]) {
-      const t0 = Date.now(); mail.htmlToText(html); const ms = Date.now() - t0;
-      A.ok(ms < 2000, label + ' parses in ' + ms + ' ms');
+    // A ReDoS guard: what matters is that doubling the input roughly doubles the time (a quadratic parse quadruples it).
+    // A fixed wall-clock bound failed on a box at 100% CPU (2-4 s for the 800k case) although the parse is linear, so
+    // compare each input against half of itself, best of two runs each, plus a generous absolute backstop.
+    const best = (html) => { let b = Infinity; for (let k = 0; k < 2; k++) { const t0 = Date.now(); mail.htmlToText(html); b = Math.min(b, Date.now() - t0); } return b; };
+    for (const [label, unit, tail, n] of [['"<!--"', '<!--', '', 1000000], ['"<img alt=\\""', '<img alt="', '>', 400000], ['"<img alt=x>"', '<img alt=x>', '', 400000], ['"&amp;"', '&amp;', '', 800000]]) {
+      const half = best(unit.repeat(n / 2) + tail), full = best(unit.repeat(n) + tail);
+      A.ok(full <= 3 * half + 250, label + ' x ' + n + ' scales linearly (' + half + ' ms for half, ' + full + ' ms for all)');
+      A.ok(full < 15000, label + ' x ' + n + ' parses in ' + full + ' ms');
     }
   }
 
