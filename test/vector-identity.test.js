@@ -108,5 +108,5 @@ A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.
 A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected row is inverse video (black type on the lit slot)');
 
 A.ok(css.includes('.ws-row.sel:not(.attn) *:not(.ws-dot)') && !/\.ws-row\.sel:not\(\.attn\) \* \{/.test(css),
-  'inverse video never inks the row's state dot: a failed/working mark keeps its true colour on a selected row');
+  'inverse video never inks the row state dot: a failed/working mark keeps its true colour on a selected row');
 A.report('vector-identity');
