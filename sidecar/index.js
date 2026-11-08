@@ -1160,13 +1160,16 @@ const { quarantineCorrupt, readResilient, loadResilient, saveResilient } = requi
    the OS credential store (connector-vault deriveKey; the raw key never leaves the vault). One changed outside StarNet
    reads as its safe default and GET /api/permissions carries the notice the page shows. boot() runs here, before any
    of them is read: the first keyed boot after the upgrade seals what is there, once. Without a credential-store key
-   (a bare station, or the desktop when the store was unreachable) nothing is sealed or checked, as before. */
+   (a bare station, or the desktop when the store was unreachable) nothing is sealed or checked, as before; over a
+   workspace the app sealed, such a StarNet keeps the last sealed copy (<name>.sealed-last) before it overwrites a file,
+   and the next keyed boot takes back what it saved where it only takes power away (fix-sec2 F1, authority-seal.js). */
 const authoritySealMod = require('./authority-seal.js');
 const AUTHORITY_SEAL_FILE = path.join(WORKSPACES, authoritySealMod.MARKER_NAME);
 function readJsonIfPresent(file) {
   try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
   catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; }
 }
+const authoritySealLastFile = name => path.join(WORKSPACES, path.basename(String(name)) + authoritySealMod.LAST_SUFFIX);
 const authoritySeal = authoritySealMod.makeAuthoritySeal({
   key: connectorVault.deriveKey(authoritySealMod.LABEL),
   now: () => Date.now(),
@@ -1175,6 +1178,12 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
     write: (value) => { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, AUTHORITY_SEAL_FILE, JSON.stringify(value, null, 2) + '\n'); }
   },
   keep: (name) => authoritySealMod.keepCopy(fs, path.join(WORKSPACES, name)),
+  lastSealed: {
+    read: (name) => readJsonIfPresent(authoritySealLastFile(name)),
+    write: (name, value) => writeFileDurable({ fs: fs, path: path }, authoritySealLastFile(name), JSON.stringify(value, null, 2) + '\n'),
+    drop: (name) => { try { fs.unlinkSync(authoritySealLastFile(name)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
+  },
+  current: (name) => readJsonIfPresent(path.join(WORKSPACES, path.basename(String(name)))),
   log: (line) => console.warn('[authority-seal] ' + line)
 });
 // The two resilient stores are saved twice when sealed at the upgrade: the first save moves the old unsealed main to

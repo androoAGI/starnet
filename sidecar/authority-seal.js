@@ -10,22 +10,41 @@
    gets the safe default (bypass off, every agent ask-first, no hooks, nothing approved), a copy of its bytes is kept
    beside it, and the station says so in one sentence the page shows.
 
-   makeAuthoritySeal({ key, now, marker: { read, write }, keep?, log? })
+   makeAuthoritySeal({ key, now, marker: { read, write }, keep?, log?, lastSealed?, current? })
      key      Buffer | null — the derived seal key; null (a bare station, or the desktop without its credential store)
               means unkeyed: nothing is sealed or checked, exactly as before (boot reports mode 'unkeyed').
      marker   read() -> value | undefined (absent), throws when unreadable; write(value). The sealed record that this
               station has been sealing (authority-seal.json). It turns the one-time upgrade into a one-time event: once
               it exists, an unsealed file is a changed file, never an old one.
      keep     (name) -> path | null: keep a copy of a refused file's bytes (once per file per process).
+     lastSealed { read(name) -> value | undefined, write(name, value), drop(name) }: the <name>.sealed-last store (F1).
+     current  (name) -> the file's value on disk now | undefined: what an unkeyed StarNet is about to overwrite (F1).
    -> { keyed, seal(name, value), open(name, value), boot(files), notices(), clampRoster(raw) }
 
-   boot(files: [{ name, read, write, wrap? }]) runs once, before any reader. With a valid marker: nothing to do. With no
-   marker and no sealed file: this is the upgrade — every present file is sealed as it is (wrap first, e.g. a legacy
-   array hooks.json becomes { hooks }) and the marker is written; a notice names what was sealed. With no marker but a
-   sealed file present, or a marker that does not verify: not an upgrade (the marker was removed or the key changed),
-   so nothing is re-sealed and each file answers for itself. Honest limit: a same-user process that deletes the marker
-   AND rewrites every authority file unsealed looks exactly like an install that never sealed; and an OS credential
-   store readable by any same-user process (Windows Credential Manager) holds the key such a process could use. */
+   boot(files: [{ name, read, write, wrap? }]) runs once, before any reader. With a valid marker: nothing to do but the
+   reconcile below. With no marker and no sealed file: this is the upgrade — every present file is sealed as it is (wrap
+   first, e.g. a legacy array hooks.json becomes { hooks }) and the marker is written; a notice names what was sealed.
+   With no marker but a sealed file present, or a marker that does not verify: not an upgrade (the marker was removed or
+   the key changed), so nothing is re-sealed and each file answers for itself. Honest limit: a same-user process that
+   deletes the marker AND rewrites every authority file unsealed looks exactly like an install that never sealed; and an
+   OS credential store readable by any same-user process (Windows Credential Manager) holds the key such a process could
+   use. A seal binds content, not freshness: an older sealed copy of a file (its .bak among them) still opens.
+
+   A STARNET WITHOUT THE KEY ON A SEALED WORKSPACE (fix-sec2 F1, 2026-11-08). The desktop app runs unkeyed when the OS
+   credential store does not answer at launch (connector-vault `fallback`), and a bare station (`npm start`, the CLI's
+   own, a pm2 deploy) has no key at all. Both go on saving the roster, hooks and approvals, unsealed, and the app's next
+   keyed boot refused all of it as "changed outside StarNet" and dropped every agent's Full Access. Now:
+     - unkeyed, over a workspace the marker says was sealed, seal() first keeps the file as it is on disk, when it still
+       carries a seal, as <name>.sealed-last: the newest copy the key approved (an older one is replaced, an unsealed
+       file never is);
+     - the next keyed boot with a valid marker reconciles each file that has such a copy and fails its own seal: the
+       file is taken where it TAKES POWER AWAY and capped by the sealed copy where it would ADD power (lowerOf: FULL
+       BYPASS on, an agent's Full Access or a wider execution profile, a hook, a hook or plugin approval), sealed, written
+       back, and the copy dropped; one notice names what was not taken. A file with no sealed copy, or a copy that does
+       not verify, is refused exactly as before. The cap is a copy the key sealed, so a process without the key gains
+       nothing it could not already get by putting an older sealed copy back;
+     - a station with no key over a workspace nobody sealed stays as it was (nothing sealed or checked), and says so
+       once in its log and on the Permissions page (GET /api/permissions authoritySeal.keyed false). */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -33,6 +52,7 @@ const crypto = require('node:crypto');
 const LABEL = 'starnet/authority-seal/v1';
 const FIELD = '__seal';
 const MARKER_NAME = 'authority-seal.json';
+const LAST_SUFFIX = '.sealed-last';
 const NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
 
 // What the safe default means for each file, in the words the page shows.
@@ -81,6 +101,71 @@ function clampRoster(raw) {
   };
 }
 
+/* lowerOf(name, value, cap, nowMs) -> { value, dropped: [what was not taken] } | null (a file it has no rule for).
+   The meet of an unsealed file and the last copy the key sealed: everything in `value` that takes power away is kept,
+   and nothing in it gives more power than `cap` gave. Both arrive without their seal field. */
+const NARROW_PROFILES = Object.freeze(['station-gear', 'safe-cell']);   // the default envelope and the narrower Safe Cell
+const hookKey = h => String(h && h.event) + '\u0000' + String(h && h.command).trim();
+function lowerOf(name, value, cap, nowMs) {
+  const dropped = [];
+  const c = plainObject(cap) ? cap : {};
+  if (name === 'permissions.bypass.json') {
+    const v = plainObject(value) ? value : {};
+    const on = v.on === true && c.on === true;
+    if (v.on === true && !on) dropped.push('FULL BYPASS on');
+    return { value: Object.assign({}, v, { version: 1, on: on }), dropped };
+  }
+  if (name === 'agent.roster.json') {
+    const rows = plainObject(value) && Array.isArray(value.agents) ? value.agents : (Array.isArray(value) ? value : []);
+    const capRows = new Map((Array.isArray(c.agents) ? c.agents : []).filter(plainObject).map(r => [String(r.agentId || ''), r]));
+    const agents = rows.filter(plainObject).map(row => {
+      const was = capRows.get(String(row.agentId || '')) || null;
+      const label = '"' + String(row.name || row.agentId || 'agent').slice(0, 40) + '"';
+      const out = Object.assign({}, row);
+      if (row.approvalMode === 'full' && !(was && was.approvalMode === 'full')) { out.approvalMode = 'ask'; dropped.push('Full Access for ' + label); }
+      if (Object.prototype.hasOwnProperty.call(row, 'executionProfile')) {
+        const same = was && canonical(was.executionProfile) === canonical(row.executionProfile);
+        if (!same && NARROW_PROFILES.indexOf(String(row.executionProfile)) < 0) {
+          delete out.executionProfile;
+          dropped.push('the "' + String(row.executionProfile).slice(0, 40) + '" execution profile for ' + label);
+        }
+      }
+      return out;
+    });
+    const out = { version: 1, agents };
+    const stamp = plainObject(value) ? Number(value.updatedAt) : NaN;
+    if (Number.isFinite(stamp) && stamp > 0 && stamp <= nowMs) out.updatedAt = stamp;   // never a stamp from the future
+    const rev = plainObject(value) ? Number(value.saveRevision) : NaN;
+    if (Number.isInteger(rev) && rev > 0) out.saveRevision = rev;
+    return { value: out, dropped };
+  }
+  if (name === 'hooks.json') {
+    const list = Array.isArray(value) ? value : (plainObject(value) && Array.isArray(value.hooks) ? value.hooks : []);
+    const had = new Set((Array.isArray(c.hooks) ? c.hooks : (Array.isArray(cap) ? cap : [])).filter(plainObject).map(hookKey));
+    const hooks = [];
+    for (const h of list.filter(plainObject)) {
+      if (had.has(hookKey(h))) hooks.push(h);
+      else dropped.push('the hook "' + String(h.command || '').slice(0, 60) + '"');
+    }
+    return { value: Object.assign({}, plainObject(value) ? value : {}, { hooks }), dropped };
+  }
+  if (name === 'hooks-allowed.json' || name === 'plugins-allowed.json') {
+    const v = plainObject(value) ? value : {};
+    const out = {};
+    for (const k of Object.keys(v)) {
+      const row = v[k], was = c[k];
+      const same = plainObject(row) && plainObject(was) && (name === 'plugins-allowed.json'
+        ? String(row.digest) === String(was.digest)
+        : String(row.event) === String(was.event) && String(row.command) === String(was.command));
+      if (same) out[k] = row;
+      else dropped.push(name === 'plugins-allowed.json' ? 'the approval of plugin "' + String(k).slice(0, 40) + '"'
+        : 'the approval of hook "' + String(plainObject(row) ? row.command : k).slice(0, 60) + '"');
+    }
+    return { value: out, dropped };
+  }
+  return null;
+}
+
 function makeAuthoritySeal(opts) {
   const o = opts || {};
   const key = Buffer.isBuffer(o.key) && o.key.length >= 32 ? Buffer.from(o.key) : null;
@@ -88,7 +173,10 @@ function makeAuthoritySeal(opts) {
   const marker = o.marker || {};
   const keep = typeof o.keep === 'function' ? o.keep : () => null;
   const log = typeof o.log === 'function' ? o.log : () => {};
+  const lastSealed = o.lastSealed && typeof o.lastSealed.read === 'function' && typeof o.lastSealed.write === 'function' ? o.lastSealed : null;
+  const current = typeof o.current === 'function' ? o.current : null;
   let markerOk = false;
+  let sealedWorkspace = false;   // unkeyed only: the marker says a keyed StarNet seals these files (boot)
   const list = [];             // notices, oldest first
   const broken = new Map();    // name -> the notice for a refused file (one per file until it is sealed again)
 
@@ -114,9 +202,21 @@ function makeAuthoritySeal(opts) {
     return crypto.timingSafeEqual(want, Buffer.from(s.mac, 'hex')) ? '' : 'mismatch';
   }
 
+  // Unkeyed over a sealed workspace: before this StarNet overwrites a file it cannot seal, keep the copy the key last
+  // sealed (only while the file on disk still carries a seal: the first overwrite keeps it, later ones leave it be).
+  function keepLastSealed(name) {
+    if (key || !sealedWorkspace || !lastSealed || !current) return;
+    let cur;
+    try { cur = current(String(name)); } catch (_) { return; }
+    if (!plainObject(cur) || !plainObject(cur[FIELD])) return;
+    try { lastSealed.write(String(name), cur); }
+    catch (e) { log('could not keep the sealed copy of ' + name + ': ' + String((e && (e.code || e.message)) || e)); }
+  }
+
   // seal(name, value) -> the value to write. Unkeyed: the value unchanged (a bare station writes what it always did).
   function seal(name, value) {
-    if (!key || !plainObject(value)) return value;
+    if (!key) { keepLastSealed(name); return value; }
+    if (!plainObject(value)) return value;
     writeMarker();                          // the first sealed write of a station that had nothing to migrate
     broken.delete(String(name));            // a file StarNet writes again is whole again
     const body = strip(value);
@@ -142,18 +242,49 @@ function makeAuthoritySeal(opts) {
     return { ok: false, why: why };
   }
 
+  // keyed, valid marker: take back what an unkeyed StarNet saved (see the header). -> [names reconciled]
+  function reconcile(files) {
+    const done = [];
+    if (!lastSealed) return done;
+    const drop = name => { try { if (typeof lastSealed.drop === 'function') lastSealed.drop(name); } catch (_) {} };
+    for (const f of (Array.isArray(files) ? files : [])) {
+      let cap;
+      try { cap = lastSealed.read(f.name); } catch (_) { continue; }
+      if (cap === undefined || cap === null) continue;
+      if (verify(f.name, cap)) continue;                 // not a copy this key sealed: no cap, the file answers for itself
+      let v;
+      try { v = f.read(); } catch (_) { continue; }
+      if (v === undefined || v === null || !verify(f.name, v)) { drop(f.name); continue; }   // gone, or whole again: spent
+      const raw = strip(v);
+      const low = lowerOf(f.name, typeof f.wrap === 'function' ? f.wrap(raw) : raw, strip(cap), now());
+      if (!low) continue;
+      try { f.write(seal(f.name, low.value)); }
+      catch (e) { log('could not reseal ' + f.name + ': ' + String((e && (e.code || e.message)) || e)); continue; }
+      drop(f.name);
+      done.push(f.name);
+      notice({ kind: 'reconciled', name: f.name, dropped: low.dropped.slice(0, 20),
+        text: f.name + ' was saved by a StarNet that could not seal it (the credential store did not answer, or a StarNet without the app). ' +
+          (low.dropped.length ? 'What that change took away is kept; what it added is not used: ' + low.dropped.slice(0, 6).join(', ') +
+            (low.dropped.length > 6 ? ' and ' + (low.dropped.length - 6) + ' more' : '') + '. Give it again here if you want it.'
+            : 'It is kept as it is and sealed again.') });
+    }
+    return done;
+  }
+
   function boot(files) {
     if (!key) {
       // as before: nothing sealed or checked. Only a workspace the desktop app sealed is told what that means here.
       let sealedHere = false;
       try { sealedHere = marker.read && marker.read() !== undefined; } catch (_) { sealedHere = true; }
-      if (sealedHere) notice({ kind: 'unkeyed-sealed', text: 'These permission files were sealed by the StarNet app, but this StarNet has no credential-store key. They are read as they are, and a change made here is not obeyed by the app until it is made there again.' });
+      sealedWorkspace = sealedHere;
+      if (sealedHere) notice({ kind: 'unkeyed-sealed', text: 'These permission files were sealed by the StarNet app, but this StarNet has no credential-store key. They are read as they are. When the app opens them again it keeps what a change made here takes away, and does not use what one adds (FULL BYPASS, Full Access, a hook or an approval) until you give it there.' });
+      else log('unkeyed: this station has no credential-store key, so its permission files are not sealed (any program running as this user can change them)');
       return { mode: 'unkeyed', sealed: [], failed: [] };
     }
     let m, markerBad = false;
     try { m = marker.read(); } catch (_) { markerBad = true; }
     if (m !== undefined || markerBad) {
-      if (!markerBad && !verify(MARKER_NAME, m)) { markerOk = true; return { mode: 'enforce', sealed: [], failed: [] }; }
+      if (!markerBad && !verify(MARKER_NAME, m)) { markerOk = true; const reconciled = reconcile(files); return { mode: 'enforce', sealed: [], failed: [], reconciled }; }
       notice({ kind: 'marker-mismatch', text: MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited). Each permission file is checked as it is; any that do not match are not used.' });
       writeMarker();
       return { mode: 'enforce', sealed: [], failed: [] };
@@ -189,7 +320,7 @@ function makeAuthoritySeal(opts) {
   return {
     get keyed() { return !!key; },
     seal: seal, open: open, boot: boot, clampRoster: clampRoster,
-    notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}))
+    notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}, n.dropped ? { dropped: n.dropped.slice() } : {}))
   };
 }
 
@@ -200,4 +331,4 @@ function keepCopy(fs, file) {
   return r && r.ok ? r.to : null;
 }
 
-module.exports = { makeAuthoritySeal, keepCopy, clampRoster, canonical, strip, LABEL, FIELD, MARKER_NAME, NAMES, CONSEQUENCE };
+module.exports = { makeAuthoritySeal, keepCopy, clampRoster, lowerOf, canonical, strip, LABEL, FIELD, MARKER_NAME, LAST_SUFFIX, NAMES, CONSEQUENCE };

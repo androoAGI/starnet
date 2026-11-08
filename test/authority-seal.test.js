@@ -283,5 +283,153 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
       A.eq(Shell.escapesWorkspace(cmd), null, 'the floor still lets through: ' + cmd);
   }
 
+  // ---- 8. F1 (fix-sec2): a StarNet without the key on a workspace the app sealed ----
+  // One shared "disk": the authority files, their .sealed-last copies and the marker, seen by a keyed and an unkeyed seal.
+  function shared() {
+    const files = {}, last = {}, mk = memMarker();
+    const lastSealed = { read: n => last[n] === undefined ? undefined : roundTrip(last[n]), write: (n, v) => { last[n] = roundTrip(v); }, drop: n => { delete last[n]; } };
+    const current = n => files[n] === undefined ? undefined : roundTrip(files[n]);
+    const list = S.NAMES.map(name => ({ name, wrap: name === 'hooks.json' ? (v => Array.isArray(v) ? { hooks: v } : v) : undefined,
+      read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    const station = key => S.makeAuthoritySeal({ key, now: () => 5000, marker: mk, keep: n => n + '.unsealed-1', lastSealed, current });
+    return { files, last, mk, list, station };
+  }
+  {
+    // the finding, verified: without a sealed copy an unkeyed StarNet's save is refused by the app's next keyed boot
+    const d = shared();
+    const app = d.station(KEY);
+    d.files['agent.roster.json'] = roundTrip(app.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA', approvalMode: 'full' }] }));
+    A.ok(d.mk.value, 'the app sealed the workspace (marker written)');
+    const old = S.makeAuthoritySeal({ key: null, now: () => 1, marker: d.mk });   // a pre-fix unkeyed StarNet: keeps no copy
+    old.boot(d.list);
+    d.files['agent.roster.json'] = roundTrip(old.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA 2', approvalMode: 'full' }] }));
+    const next = d.station(KEY);
+    A.eq(next.boot(d.list).reconciled, [], 'no sealed copy: nothing to reconcile');
+    A.eq(next.open('agent.roster.json', d.files['agent.roster.json']).why, 'unsealed', 'so the unkeyed save is refused, as before (the F1 finding)');
+  }
+  {
+    const d = shared();
+    const app = d.station(KEY);
+    d.files['agent.roster.json'] = roundTrip(app.seal('agent.roster.json', { version: 1, updatedAt: 4000, agents: [
+      { agentId: 'a', name: 'NOVA', approvalMode: 'full', executionProfile: 'station-gear' },
+      { agentId: 'b', name: 'ORBIT', approvalMode: 'ask', executionProfile: 'station-gear' },
+      { agentId: 'd', name: 'DUSK', approvalMode: 'full', executionProfile: 'this-computer' }] }));
+    d.files['permissions.bypass.json'] = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: true, setAt: 1 }));
+    d.files['hooks.json'] = roundTrip(app.seal('hooks.json', { hooks: [{ event: 'pre', command: 'node a.js' }, { event: 'post', command: 'node b.js' }] }));
+    d.files['hooks-allowed.json'] = roundTrip(app.seal('hooks-allowed.json', { 'pre\u0000node a.js': { event: 'pre', command: 'node a.js' } }));
+    d.files['plugins-allowed.json'] = roundTrip(app.seal('plugins-allowed.json', { p1: { digest: 'aaa' }, p2: { digest: 'bbb' } }));
+    // the desktop app boots without its key (the store did not answer), or a bare station opens the same workspace
+    const bare = d.station(null);
+    A.eq(bare.boot(d.list).mode, 'unkeyed', 'unkeyed over a sealed workspace');
+    A.ok(bare.notices().some(n => n.kind === 'unkeyed-sealed' && /takes away/.test(n.text) && /does not use what one adds/.test(n.text)), 'the unkeyed StarNet says what the app will do with its changes');
+    A.ok(bare.open('agent.roster.json', d.files['agent.roster.json']).ok, 'it reads the sealed files as they are (never refuses its own workspace)');
+    const roster1 = { version: 1, updatedAt: 4500, agents: [
+      { agentId: 'a', name: 'NOVA PRIME', approvalMode: 'full', executionProfile: 'this-computer' },   // renamed; profile widened
+      { agentId: 'b', name: 'ORBIT', approvalMode: 'full', executionProfile: 'safe-cell' },            // raised; narrowed to Safe Cell
+      { agentId: 'c', name: 'NEW', approvalMode: 'full' },                                              // new, full
+      { agentId: 'd', name: 'DUSK', approvalMode: 'ask', executionProfile: 'this-computer' }] };       // lowered
+    d.files['agent.roster.json'] = roundTrip(bare.seal('agent.roster.json', roster1));
+    A.ok(d.last['agent.roster.json'] && d.last['agent.roster.json'][S.FIELD], 'before overwriting, the unkeyed StarNet kept the sealed copy');
+    const firstCopy = JSON.stringify(d.last['agent.roster.json']);
+    d.files['agent.roster.json'] = roundTrip(bare.seal('agent.roster.json', Object.assign({}, roster1, { updatedAt: 4600 })));
+    A.eq(JSON.stringify(d.last['agent.roster.json']), firstCopy, 'a second unsealed save keeps the sealed copy it had (never an unsealed one)');
+    d.files['permissions.bypass.json'] = roundTrip(bare.seal('permissions.bypass.json', { version: 1, on: false, setAt: 2 }));
+    d.files['hooks.json'] = roundTrip(bare.seal('hooks.json', { hooks: [{ event: 'pre', command: 'node a.js' }, { event: 'pre', command: 'node new.js' }] }));
+    d.files['hooks-allowed.json'] = roundTrip(bare.seal('hooks-allowed.json', { 'pre\u0000node a.js': { event: 'pre', command: 'node a.js' }, 'pre\u0000node new.js': { event: 'pre', command: 'node new.js' } }));
+    d.files['plugins-allowed.json'] = roundTrip(bare.seal('plugins-allowed.json', { p1: { digest: 'aaa' }, p2: { digest: 'CHANGED' }, p3: { digest: 'ccc' } }));
+    A.ok(S.NAMES.every(n => !(S.FIELD in d.files[n])), 'the unkeyed StarNet wrote all five unsealed');
+    // the app's next keyed boot
+    const back = d.station(KEY);
+    const r = back.boot(d.list);
+    A.eq(r.mode, 'enforce', 'a valid marker: enforce');
+    A.eq(r.reconciled.slice().sort(), S.NAMES.slice().sort(), 'every file the unkeyed StarNet saved is reconciled');
+    A.ok(S.NAMES.every(n => back.open(n, d.files[n]).ok), 'and written back sealed: each opens');
+    A.eq(Object.keys(d.last), [], 'the sealed copies are spent');
+    const roster = back.open('agent.roster.json', d.files['agent.roster.json']).value;
+    const row = id => roster.agents.find(x => x.agentId === id);
+    A.eq(row('a'), { agentId: 'a', name: 'NOVA PRIME', approvalMode: 'full' }, 'NOVA keeps the Full Access it had sealed and its rename; the wider profile is not taken');
+    A.eq(row('b'), { agentId: 'b', name: 'ORBIT', approvalMode: 'ask', executionProfile: 'safe-cell' }, 'ORBIT\'s raise is not taken; its move into the Safe Cell is');
+    A.eq(row('c'), { agentId: 'c', name: 'NEW', approvalMode: 'ask' }, 'a new agent is kept, asking first');
+    A.eq(row('d'), { agentId: 'd', name: 'DUSK', approvalMode: 'ask', executionProfile: 'this-computer' }, 'a lowering is kept (DUSK asks first), with the profile it had sealed');
+    A.eq(roster.updatedAt, 4600, 'the unkeyed StarNet\'s own (past) freshness stamp is kept');
+    A.eq(back.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on, false, 'FULL BYPASS turned off there stays off');
+    A.eq(back.open('hooks.json', d.files['hooks.json']).value.hooks, [{ event: 'pre', command: 'node a.js' }], 'a removed hook stays removed; an added one is not loaded');
+    A.eq(Object.keys(back.open('hooks-allowed.json', d.files['hooks-allowed.json']).value), ['pre\u0000node a.js'], 'an added hook approval is not used');
+    A.eq(back.open('plugins-allowed.json', d.files['plugins-allowed.json']).value, { p1: { digest: 'aaa' } }, 'a plugin approved there, or approved at another digest, waits again');
+    const rn = back.notices().find(n => n.kind === 'reconciled' && n.name === 'agent.roster.json');
+    A.ok(rn && /could not seal it/.test(rn.text) && /Full Access for "ORBIT"/.test(rn.text) && /Full Access for "NEW"/.test(rn.text) && /this-computer/.test(rn.text), 'the notice names what was not taken (' + (rn && rn.text) + ')');
+    A.ok(!back.notices().some(n => n.kind === 'unsealed' || n.kind === 'mismatch'), 'nothing reads as "changed outside StarNet"');
+    const bn = back.notices().find(n => n.kind === 'reconciled' && n.name === 'permissions.bypass.json');
+    A.ok(bn && /kept as it is/.test(bn.text), 'a change that only took power away is simply kept');
+    // a later keyed boot has nothing to do
+    A.eq(d.station(KEY).boot(d.list).reconciled, [], 'reconciled once');
+  }
+  {
+    // a raise made without the key: FULL BYPASS on is not taken
+    const d = shared();
+    const app = d.station(KEY);
+    d.files['permissions.bypass.json'] = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: false }));
+    const bare = d.station(null); bare.boot(d.list);
+    d.files['permissions.bypass.json'] = roundTrip(bare.seal('permissions.bypass.json', { version: 1, on: true }));
+    const back = d.station(KEY); back.boot(d.list);
+    A.eq(back.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on, false, 'FULL BYPASS turned on without the key stays off');
+    A.ok(back.notices().some(n => n.kind === 'reconciled' && /FULL BYPASS on/.test(n.text)), 'and the notice says so');
+  }
+  {
+    // what a process without the key can do: no sealed copy, a forged copy, a foreign copy, a future stamp
+    const d = shared();
+    const app = d.station(KEY);
+    d.files['permissions.bypass.json'] = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: false }));
+    d.files['hooks-allowed.json'] = { evil: { event: 'pre', command: 'evil' } };                                   // planted, no copy
+    d.last['permissions.bypass.json'] = { version: 1, on: true, [S.FIELD]: { v: 1, mac: 'a'.repeat(64) } };         // forged copy
+    d.files['permissions.bypass.json'] = { version: 1, on: true };
+    d.last['agent.roster.json'] = roundTrip(S.makeAuthoritySeal({ key: OTHER, marker: memMarker() }).seal('agent.roster.json', { version: 1, agents: [{ agentId: 'x', approvalMode: 'full' }] }));
+    d.files['agent.roster.json'] = { version: 1, agents: [{ agentId: 'x', approvalMode: 'full' }] };
+    const back = d.station(KEY);
+    A.eq(back.boot(d.list).reconciled, [], 'a forged or foreign sealed copy caps nothing');
+    A.eq(back.open('permissions.bypass.json', d.files['permissions.bypass.json']).why, 'unsealed', 'so the planted FULL BYPASS is refused as before');
+    A.eq(back.open('hooks-allowed.json', d.files['hooks-allowed.json']).why, 'unsealed', 'a planted file with no sealed copy is refused as before');
+    A.eq(back.open('agent.roster.json', d.files['agent.roster.json']).why, 'unsealed', 'a roster capped by another key\'s copy is refused');
+    // a sealed copy beside a file that is whole again is spent, and changes nothing
+    const d2 = shared();
+    const a2 = d2.station(KEY);
+    d2.files['permissions.bypass.json'] = roundTrip(a2.seal('permissions.bypass.json', { version: 1, on: false }));
+    d2.last['permissions.bypass.json'] = roundTrip(a2.seal('permissions.bypass.json', { version: 1, on: true }));
+    const b2 = d2.station(KEY);
+    A.eq(b2.boot(d2.list).reconciled, [], 'a sealed file is not reconciled');
+    A.ok(!d2.last['permissions.bypass.json'], 'its stale copy is dropped');
+    A.eq(b2.open('permissions.bypass.json', d2.files['permissions.bypass.json']).value.on, false, 'and the sealed file stands');
+    const low = S.lowerOf('agent.roster.json', { version: 1, updatedAt: 9e15, agents: [] }, { agents: [] }, 5000);
+    A.ok(!('updatedAt' in low.value), 'a stamp from the future is not taken');
+    A.eq(S.lowerOf('cron.jobs.json', {}, {}, 1), null, 'a file with no rule is never reconciled');
+  }
+  {
+    // a station with no key over a workspace nobody sealed: as before, said once in the log, never a refusal
+    const d = shared();
+    const logged = [];
+    const bare = S.makeAuthoritySeal({ key: null, now: () => 1, marker: d.mk, lastSealed: { read: () => undefined, write: () => { throw new Error('no copy expected'); } }, current: () => ({ [S.FIELD]: { v: 1 } }), log: l => logged.push(l) });
+    A.eq(bare.boot(d.list).mode, 'unkeyed', 'a bare station is unkeyed');
+    A.ok(logged.some(l => /not sealed/.test(l)), 'its log says the files are not sealed');
+    A.eq(bare.notices().length, 0, 'and the page gets no toast on every boot');
+    const v = { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] };
+    A.ok(bare.seal('agent.roster.json', v) === v, 'it writes what it always wrote (and keeps no copy: nothing was sealed)');
+    A.ok(bare.open('agent.roster.json', v).ok, 'and reads its own files back');
+  }
+  {
+    // the wiring: index.js hands the seal the .sealed-last store and the on-disk reader; the page says "not sealed"
+    A.ok(/lastSealed: \{\s*read: \(name\) => readJsonIfPresent\(authoritySealLastFile\(name\)\)/.test(IDX), 'index.js gives the seal its .sealed-last store');
+    A.ok(/current: \(name\) => readJsonIfPresent\(path\.join\(WORKSPACES, path\.basename\(String\(name\)\)\)\)/.test(IDX), 'and the on-disk reader');
+    const st = read('frontend/app/stationui.js');
+    A.ok(/snap\.loaded && snap\.sealed === false \? '<p class="pg-floor pg-unsealed">/.test(st), 'the Permissions glance says when the files are not sealed');
+    global.Permissions = require('../frontend/app/permissions.js');
+    const { PermissionsStore } = require('../frontend/app/permissionsstore.js');
+    for (const [seal, want] of [[{ keyed: false }, false], [{ keyed: true }, true], [undefined, null]]) {
+      PermissionsStore.init({ api: { load: async () => ({ grants: [], grantable: [], authoritySeal: seal }) }, getPosture: () => ({}), applyPreset: () => {}, load: false });
+      A.eq((await PermissionsStore.refresh()).sealed, want, 'the store carries authoritySeal.keyed as sealed (' + JSON.stringify(seal) + ')');
+    }
+    const Shell = require('../sidecar/tools/builtin/shell.js');
+    A.ok(Shell.escapesWorkspace('copy x agent.roster.json.sealed-last'), 'the shell floor covers the sealed copies too');
+  }
+
   A.report('authority-seal.test');
 })().catch(e => { console.error(e); process.exit(1); });

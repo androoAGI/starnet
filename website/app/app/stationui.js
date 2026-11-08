@@ -9505,7 +9505,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         glanceWrap.innerHTML =
           '<p class="pg-line">' + esc(head) + '</p>' +
           ((bypassOn || noPrompt) ? '<p class="pg-floor">FULL POWER is host-wide: it may use protected files, arbitrary commands, visible apps, and screen/input control. Full Power applies watched or unattended.' +
-            (bypassOn && !snap.envFullAccess ? ' Turn the whole-station override off under <b>Advanced</b> below.' : '') + '</p>' : '');
+            (bypassOn && !snap.envFullAccess ? ' Turn the whole-station override off under <b>Advanced</b> below.' : '') + '</p>' : '') +
+          // a station with no credential-store key does not seal its permission files (GHSA-2hpj #3): said here, plainly
+          (snap.loaded && snap.sealed === false ? '<p class="pg-floor pg-unsealed">This station has no credential-store key, so its permission files are not sealed: a program running as you could change who has Full Access. The StarNet app seals them.</p>' : '');
       };
       /* ── THE POSTURE FRONT DOOR ────────────────────────────────────────────────────────────────────
          A posture is a SHORTCUT FOR SETTING VALUES, never a badge. It highlights only when every one of
