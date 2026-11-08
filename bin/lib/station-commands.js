@@ -81,7 +81,21 @@ async function answerCommand(opts, station, io) {
   }
   const q = open[0];
   const decision = opts.cmd === 'deny' ? 'deny' : opts.session ? 'session' : 'once';
-  const r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
+  let r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
+  /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): a terminal confirms it only for a station it started (its desk code
+     comes over their IPC channel, bin/starnet.js makeDeskCodeBook); otherwise the ask is allowed once, and the terminal says so */
+  let downgraded = false;
+  const deskRefused = x => !!(x && x.status === 403 && x.json && (x.json.code === 'desk_confirm_required' || x.json.code === 'desk_only'));
+  if (decision === 'session' && deskRefused(r)) {
+    const ch = r.json.deskConfirm;
+    const code = ch && ch.mode === 'page' && typeof station.client.deskCodeFor === 'function' ? await station.client.deskCodeFor(ch.id) : '';
+    if (code) r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' }, { deskProof: ch.id, deskCode: code });
+    if (deskRefused(r) || !(r.ok && r.json && r.json.ok)) {
+      r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: 'once', via: 'terminal' });
+      downgraded = true;
+    }
+  }
+  if (downgraded && r.ok && r.json && r.json.ok) io.err('starnet: "for this session" is confirmed in the StarNet window, so this was allowed once\n');
   const name = (model.state.agents.get(q.agentId) || { name: q.agentId }).name;
   const what = q.tool + (q.summary ? ' ' + oneLine(clean(q.summary), 100) : '');
   if (r.ok && r.json && r.json.ok) {

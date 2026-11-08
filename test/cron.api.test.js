@@ -20,6 +20,8 @@ const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
+// an unattended grant is confirmed at the desk with the code the station prints on its console (fix-sec2 review 3)
+const desk = require('./helpers/desk-code.js').makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -51,6 +53,7 @@ function boot(port, workspaces, attemptsLeft) {
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout; output:\n' + out)); } }, 30000).unref();
@@ -70,12 +73,13 @@ function boot(port, workspaces, attemptsLeft) {
     apiToken = await bootToken(B(), B());
   }
   await refreshToken();
-  const j = async (m, p, body) => {
-    const headers = { 'Content-Type': 'application/json' };
+  const j = async (m, p, body, extra) => {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes are token-gated too now
     const r = await fetch(B() + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
-    return { status: r.status, body: v };
+    const res = { status: r.status, body: v };
+    return extra ? res : desk.confirm(res, h => j(m, p, body, h));
   };
 
   try {

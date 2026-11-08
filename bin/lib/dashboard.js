@@ -402,7 +402,15 @@ function runDashboard(station, opts) {
     ui.keyFlash = { k: key, until: now() + 700 };
     if (key !== 'y') return flash('not trusted · the crew works in its own workspace', 'dim', 5000);
     paint();
-    const r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000 });
+    let r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000 });
+    /* TRUSTING A FOLDER NEEDS THE DESK (fix-sec2 review 3): for a station this terminal started, the 'y' is confirmed with the
+       desk code that station sent here; otherwise the folder is trusted in the StarNet window (or the page) that asks. */
+    if (deskRefusal(r)) {
+      const ch = r.json.deskConfirm;
+      const code = ch && ch.mode === 'page' && typeof client.deskCodeFor === 'function' ? await client.deskCodeFor(ch.id) : '';
+      if (code) r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000, deskProof: ch.id, deskCode: code });
+      if (deskRefusal(r)) return flash('not trusted yet: trust ' + folderLib.shortPath(t.root, 50) + ' under PROJECTS in the StarNet window, where it asks you to confirm', 'am', 9000);
+    }
     if (r.ok && r.status === 200 && r.json && r.json.ok && r.json.root) {
       setProject(String(r.json.root));
       flash('trusted · the crew works in ' + folderLib.shortPath(r.json.root, 60) + ' (it is under PROJECTS in the app too)', 'ok', 6000);

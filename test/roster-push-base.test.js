@@ -31,7 +31,7 @@ const src = ['function settleRefusedRaise(ids, why)', 'function pushRoster()', '
     liveAgents: () => crew, stationDefaultWire: () => ({ provider: 'openrouter' }), rosterRole: () => 'r', executionProfileOf: () => 'standard', rosterTrack: () => '',
     agents: new Map(crew.map(a => [a.id, a])), agent: crew[0], persist: () => true
   });
-  vm.runInContext('let lastRosterPush = Promise.resolve(); let rosterPushFailed = false; let rosterRefusal = null; let rosterAccepted = new Map(); const pendingRaise = new Set();\n' + src +
+  vm.runInContext('let lastRosterPush = Promise.resolve(); let rosterPushFailed = false; let rosterRefusal = null; let rosterAccepted = new Map(); const pendingRaise = new Set(); const pendingProfileRaise = new Set(); const NARROW_EXECUTION_PROFILES = ["station-gear", "safe-cell"];\n' + src +
     '\nthis.api = { pushRoster, rosterRefusalWords, setAgentApproval };', ctx);
   const api = ctx.api;
 

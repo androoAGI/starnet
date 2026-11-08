@@ -12,6 +12,8 @@ const end = source.indexOf('// POST /api/cron/remove', start);
   const before = { id: 'routine', agentId: 'agent', attachToSession: false, origin: { sessionId: 'old-session' } };
   const afterConcurrentEdit = { ...before, origin: null };
   const ctx = vm.createContext({ Date, cronJobs: [before], CRON_HOST_TZ: 'UTC',
+    // fix-sec2 review 3: the route reads which unattended grants an edit adds (none here, so no desk confirmation)
+    normalizeUnattendedGrants: require('../sidecar/inputpolicy.js').normalizeUnattendedGrants,
     cronStore: { getJob: jobs => jobs[0], updateJob: () => { writes++; throw new Error('must not persist invalid state'); } },
     readBody: async () => JSON.stringify({ id: 'routine', patch: { attachToSession: true } }),
     withCronWrite: async fn => fn([afterConcurrentEdit]) });

@@ -5119,7 +5119,10 @@ function noteChannelConsentSettled(promptId, decision) {
 }
 function channelConsentOutcome(runId, promptId) { return channelConsentSettled.get(String(promptId == null ? '' : promptId)) || ''; }
 function channelResolveConsent(runId, promptId, decision) {
-  const d = (decision === 'once' || decision === 'session' || decision === 'always' || decision === 'full') ? decision : 'deny';
+  /* A CHAT CANNOT GIVE A STANDING ANSWER (fix-sec2 F3 / review 6). ALWAYS and FULL ACCESS outlive the card, so they are
+     confirmed at the desk (GHSA-2hpj #1), which a Telegram tap is not. A chat answers as a phone does: once, for this
+     session, or no. The keyboard no longer offers ALWAYS (channels/hub.js); a tap on an older keyboard is taken as once. */
+  const d = (decision === 'always' || decision === 'full') ? 'once' : (decision === 'once' || decision === 'session') ? decision : 'deny';
   const pend = channelPendingByRun.get(String(runId == null ? '' : runId));
   const finish = pend && pend.get(String(promptId == null ? '' : promptId));
   if (!finish) return false;
@@ -16708,6 +16711,21 @@ function deskWords(action, d) {
       summary: 'Let the phone "' + o.name + '" use this station?\n\nIts fingerprint is ' + o.fingerprint + '. Check that your phone shows the same one, and approve only a phone you just paired yourself. It starts out asking before every step.' };
     case 'device-desk-permissions': return { title: 'StarNet — phone permissions', verb: 'Allow',
       summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
+    // fix-sec2, review 3, 6 and 7
+    case 'consent-session': return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
+      summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
+    case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: 'Allow unattended',
+      summary: 'Let the routine "' + o.name + '" (' + o.agentName + ') ' + o.grants + ' with nobody watching, every time it runs?\n\nIt keeps this until you remove it in Routines.' };
+    case 'telegram-owner-pair': return { title: 'StarNet — pair a Telegram owner', verb: 'Make a pairing code',
+      summary: 'Make a one-time code that makes a Telegram account the OWNER of this station’s bot?\n\nThe owner can give your agents work from Telegram and answer their permission requests there.' };
+    case 'project-bless': return { title: 'StarNet — trust a project folder', verb: 'Trust this folder',
+      summary: 'Trust the folder ' + o.root + '?\n\nYour agents may read and change everything in it without asking you about each file, until you remove it under Projects.' };
+    case 'hook-allow': return { title: 'StarNet — approve a hook', verb: 'Approve hook',
+      summary: 'Run this command on every "' + o.event + '" event, as you, with no prompt?\n\n' + o.command };
+    case 'plugin-allow': return { title: 'StarNet — approve a plugin', verb: 'Approve plugin',
+      summary: 'Approve the plugin "' + o.name + '" and run its code inside StarNet?\n\nOnly this exact code (' + o.digest + ') is approved; any change to it needs your approval again.' };
+    case 'execution-profile': return { title: 'StarNet — widen what an agent can reach', verb: 'Allow',
+      summary: 'Let ' + o.names + '?\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
     default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
   }
 }
@@ -18292,7 +18310,11 @@ function handleCronCreate(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   readBody(req, 1 << 16).then(async raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
-    const out = await createCronJobFromSpec(body);
+    // fix-sec2 review 3: an unattended grant lets the routine use the terminal (or accounts, or the studio) with nobody
+    // watching on every fire, so it is confirmed at the desk for exactly this routine's words
+    const grants = Array.from(normalizeUnattendedGrants(body.unattendedGrants)).sort();
+    if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(body, grants), routineGrantWords(body, grants))) return;
+    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0 });
     /* ARM ON CREATE (routine reliability, 2026-10-01): the panel used to save a routine and then toast "saved, but
        the scheduler is off — this won't run" — a routine the Commander just made never firing is the most common
        way a routine "doesn't work". body.arm:true (sent by the CREATE form, same default as routine.create's
@@ -18313,8 +18335,24 @@ function handleCronCreate(req, res) {
 /* createCronJobFromSpec(body) — the CREATE path, extracted so POST /api/cron and the /routine slash action mint
    routines through the identical validation, mint gate and locked write. Returns { status, body } shaped exactly
    like the HTTP response the route used to build inline. Never throws. */
-async function createCronJobFromSpec(body) {
+// fix-sec2 review 3: what an unattended grant on a routine is confirmed for, and the words the desk shows
+function routineGrantScope(spec, grants) {
+  const s = spec || {};
+  return crypto.createHash('sha256').update(JSON.stringify([String(s.agentId || ''), grants, String(s.name || ''), String(s.prompt || ''),
+    String(s.script || ''), String(s.workdir || '')])).digest('hex');
+}
+const ROUTINE_GRANT_WORDS = { workbench: 'use the terminal (run commands on this computer)', connectors: 'use your connected accounts', studio: 'make images in the studio' };
+function routineGrantWords(spec, grants) {
+  const s = spec || {};
+  const rec = agentRoster.get(String(s.agentId || ''));
+  return { name: deskProofMod.cutPoints(String(s.name || 'untitled'), 60), agentName: deskProofMod.cutPoints(String((rec && rec.name) || s.agentId || 'an agent'), 40),
+    grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and ') };
+}
+async function createCronJobFromSpec(body, opts) {
   body = body || {};
+  // an unattended grant only rides a create the desk confirmed (handleCronCreate); every other caller (the /routine slash
+  // action, an app's refresh routine, a line's schedule) makes a routine with none, as the chain-grants law says
+  if (!(opts && opts.grantsConfirmed === true)) body = Object.assign({}, body, { unattendedGrants: [] });
   const out = (status, obj) => ({ status: status, body: obj });
   const takeoverId = body.meta && body.meta.workflowTakeoverId;
   const widgetId = body.meta && body.meta.widgetId;
@@ -18470,6 +18508,19 @@ function handleCronUpdate(req, res) {
        NOW, read inside the lock. The row's ▣ ALLOW IMAGES sends it. A page sending its rendered list instead could
        re-add a grant that was dropped since that row was drawn (an agent rewriting the task clears them all). */
     const addGrants = Array.isArray(body.addGrants) ? body.addGrants.map(g => String(g == null ? '' : g).trim()).filter(Boolean) : [];
+    // fix-sec2 review 3: a grant this routine does not hold yet is confirmed at the desk (removing one never asks)
+    {
+      const current = cronStore.getJob(cronJobs, id) || {};
+      const held = new Set(normalizeUnattendedGrants(current.unattendedGrants));
+      const wanted = addGrants.length
+        ? new Set([...normalizeUnattendedGrants(Array.isArray(patch.unattendedGrants) ? patch.unattendedGrants : (current.unattendedGrants || []))].concat([...normalizeUnattendedGrants(addGrants)]))
+        : (Object.prototype.hasOwnProperty.call(patch, 'unattendedGrants') ? normalizeUnattendedGrants(patch.unattendedGrants) : held);
+      const added = [...wanted].filter(g => !held.has(g)).sort();
+      if (added.length) {
+        const spec = Object.assign({}, current, patch);
+        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, added), routineGrantWords(spec, added))) return;
+      }
+    }
     try {
       // G4.3: the full edit (updateJob + optional pause/resume) is ONE re-read-modify-write under the lock,
       // so it cannot clobber a concurrent advance and the pause/resume sees the just-updated job.
@@ -20378,6 +20429,10 @@ async function handleHooksCreate(req, res) {
   catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }
   const event = String((body && body.event) || '').trim();
   if (hookSpine.events().indexOf(event) < 0) return json(400, { error: 'unknown event — pick one of: ' + hookSpine.events().join(', ') });
+  /* fix-sec2 review 3: creating here also approves it (see above), so the desk confirms the command first. The keystrokes
+     are the Commander's in the app, but the page token alone is anyone's who can read the page. */
+  const hookCommand = String((body && body.command) || '').trim();
+  if (hookCommand && !deskGate(req, res, 'hook-allow', event + '\n' + hookCommand, { event, command: deskProofMod.cutPoints(hookCommand, 900) })) return;
   const r = await shellHooks.create({ event, command: (body && body.command) || '', name: (body && body.name) || '' });
   if (!r.ok) return json(400, { error: r.error });
   try { await reloadExtensions(); }
@@ -20582,6 +20637,8 @@ async function handlePluginsAllow(req, res) {
   const match = found.plugins.find(p => p.id === id);
   if (!match) return json(404, { error: 'no such plugin installed: ' + id });
   if (match.digest !== digest) return json(409, { error: 'this plugin changed since you read it — re-read /api/plugins and approve the current code', digest: match.digest });
+  // fix-sec2 review 3: approved code runs inside the station; the desk confirms this exact digest
+  if (!deskGate(req, res, 'plugin-allow', id + '@' + digest, { name: deskProofMod.cutPoints(String(match.name || id), 60), digest: digest.slice(0, 16) })) return;
   if (!(await pluginLoader.allow(id, digest))) return json(500, { error: 'could not persist the approval' });
   // Same in-place rebuild as the hooks route, and the same ordering: plugins first, then shell hooks.
   try {
@@ -20624,6 +20681,8 @@ async function handleHooksAllow(req, res) {
   try { cfg = await shellHooks.load(); } catch (_) { cfg = { hooks: [] }; }
   const match = cfg.hooks.find(h => h.event === event && h.command === command);
   if (!match) return json(404, { error: 'no such hook in hooks.json — this route approves a configured hook, it never adds one' });
+  // fix-sec2 review 3: an approved hook runs this command as the user on every such event; the desk confirms this exact pair
+  if (!deskGate(req, res, 'hook-allow', event + '\n' + command, { event, command: deskProofMod.cutPoints(command, 900) })) return;
   if (!(await shellHooks.allow(event, command))) return json(500, { error: 'could not persist the approval' });
   // Re-install so the newly-approved hook is live immediately, with no restart. The spine is cleared IN PLACE
   // rather than replaced: it was captured by reference at boot (by the dispatch ctx and by every in-flight
@@ -20812,11 +20871,43 @@ async function handleRoster(req, res) {
     const id = String((a && a.agentId) || '');
     if (a && a.approvalMode === 'full' && !(previousRoster.get(id) && previousRoster.get(id).approvalMode === 'full')) raised.push(id);
   }
+  /* A WIDER EXECUTION PROFILE IS A RAISE TOO (fix-sec2 review 7). THIS COMPUTER reaches host paths, a trusted project the
+     approved folders, Remote SSH another machine; Station Gear and Safe Cell are the narrow ones. A push that asks for
+     it (raiseProfile: [ids], sent by the dossier's profile picker) is confirmed at the desk; any other push keeps the
+     profile the station holds (named in `profileClamped`). Narrowing is never refused. One confirmation covers a push
+     that asks for both raises. */
+  const rowOf = id => incomingRows.find(x => String((x && x.agentId) || '') === id) || {};
+  const nameOf = id => '"' + deskProofMod.cutPoints(String(rowOf(id).name || id), 40) + '"';
+  const profileOf = row => executionProfiles.normalizeId(row && row.executionProfile);
+  const widened = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+    if (NARROW_EXECUTION_PROFILES.indexOf(profileOf(a)) < 0 && !(prev && prev.executionProfile === profileOf(a))) widened.push(id);
+  }
+  let profileClamped = [];
+  if (widened.length) {
+    const askedProfile = new Set((Array.isArray(body.raiseProfile) ? body.raiseProfile : []).map(String));
+    const askedRaise = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
+    const askingRaise = raised.length && (raised.some(id => askedRaise.has(id)) || req.headers['x-starnet-desk-proof']);
+    if (widened.some(id => askedProfile.has(id)) || req.headers['x-starnet-desk-proof']) {
+      // the profile is confirmed here; a Full Access raise in the same push is confirmed with it (one dialog, both named)
+      const profiles = widened.map(id => nameOf(id) + ' use the ' + executionProfiles.resolve(profileOf(rowOf(id)), {}).label + ' profile');
+      if (askingRaise) profiles.unshift('FULL ACCESS for ' + raised.map(nameOf).join(', '));
+      const scope = widened.map(id => id + '=' + profileOf(rowOf(id))).sort().join(',') + (askingRaise ? '|full:' + raised.slice().sort().join(',') : '');
+      if (!deskGate(req, res, 'execution-profile', scope, { names: profiles.join(', and ') })) return;
+      if (askingRaise) raised.length = 0;   // confirmed with the profile above
+    } else {
+      profileClamped = widened;
+      const keep = new Set(profileClamped);
+      incomingRows = incomingRows.map(a => (a && keep.has(String(a.agentId || '')))
+        ? Object.assign({}, a, { executionProfile: (previousRoster.get(String(a.agentId)) || {}).executionProfile || 'station-gear' }) : a);
+    }
+  }
   let clamped = [];
   if (raised.length) {
     const asked = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
     if (raised.some(id => asked.has(id)) || req.headers['x-starnet-desk-proof']) {
-      const names = raised.map(id => { const row = incomingRows.find(x => String((x && x.agentId) || '') === id) || {}; return '"' + deskProofMod.cutPoints(String(row.name || id), 40) + '"'; });
+      const names = raised.map(nameOf);
       if (!deskGate(req, res, 'approval-full', raised.slice().sort().join(','), { names: names.join(', '), count: raised.length })) return;
     } else {
       clamped = raised;
@@ -20834,7 +20925,7 @@ async function handleRoster(req, res) {
     agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
-  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}, clamped.length ? { clamped } : {}));
+  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}, clamped.length ? { clamped } : {}, profileClamped.length ? { profileClamped, profilesHeld: Object.fromEntries(profileClamped.map(id => [id, (agentRoster.get(id) || {}).executionProfile || 'station-gear'])) } : {}));
 }
 
 // POST /api/agent/delete { agentId } — DOSSIER › DELETE AGENT. Removes a summoned agent from the SERVER roster
@@ -20931,6 +21022,10 @@ function saveApprovalMode(agentId, mode) {
   try { seedSaveMemos('agent', doc); } catch (e) { failNote('agent.approval.seed-memos', e); }
   return { save: 'patched' };
 }
+// fix-sec2 review 7: Full Access raises a terminal or client relays to the open window (each one a native dialog)
+const RELAYED_RAISE_MAX = 3, RELAYED_RAISE_WINDOW_MS = 10 * 60 * 1000, RELAYED_RAISE_GAP_MS = 30 * 1000;
+const relayedRaiseTimes = [];
+const NARROW_EXECUTION_PROFILES = Object.freeze(['station-gear', 'safe-cell']);   // as authority-seal.js NARROW_PROFILES
 async function handleAgentApproval(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
@@ -20941,6 +21036,16 @@ async function handleAgentApproval(req, res) {
   const mode = body.mode === 'full' ? 'full' : body.mode === 'ask' ? 'ask' : '';
   if (!mode) return json(400, { error: 'approval is "ask" or "full"' });
   if (pageListening()) {
+    /* NOT A DIALOG MACHINE (fix-sec2 review 7). Raising here makes the open window ask the Commander to confirm Full Access
+       in a native dialog nobody at the desk asked for. Anything holding the page key could repeat that until a tired
+       Commander clicks yes, so a raise relayed to the window is rate limited (lowering never is). */
+    if (mode === 'full' && cur.approvalMode !== 'full') {
+      const t = Date.now();
+      while (relayedRaiseTimes.length && relayedRaiseTimes[0] <= t - RELAYED_RAISE_WINDOW_MS) relayedRaiseTimes.shift();
+      if (relayedRaiseTimes.length >= RELAYED_RAISE_MAX || (relayedRaiseTimes.length && t - relayedRaiseTimes[relayedRaiseTimes.length - 1] < RELAYED_RAISE_GAP_MS))
+        return respondFail(res, 429, 'rate_limited', 'Full Access was asked for from outside the StarNet window too often just now. Give it in the agent\'s dossier, or ask again in a few minutes.');
+      relayedRaiseTimes.push(t);
+    }
     const out = await stationBridge.request('station.control', { action: 'agent.approval', agent: agentId, mode });
     if (out && out.ok) return json(200, { ok: true, agentId, mode, via: 'page' });
     return json(409, pageRefusal(out, agentId));
@@ -27045,7 +27150,10 @@ async function handleConsent(req, res) {
   // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
   // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
   // standing answer only ever approves this call, below, so it never asks).
-  if (finish && finish.freshConsent !== true && (decision === 'always' || decision === 'full')) {
+  // fix-sec2 review 3: 'session' too. It allows every later request of the same kind for the rest of the session, so it is
+  // a standing answer within that session (a surface that cannot confirm at the desk answers 'once' instead: acp/core.js,
+  // bin/lib/station-commands.js). The phone answers its own way (the Remote approval path), never through this route.
+  if (finish && finish.freshConsent !== true && (decision === 'always' || decision === 'full' || decision === 'session')) {
     const row = finish.askRow || {};
     const rec = agentId ? agentRoster.get(String(agentId)) : null;
     if (!deskGate(req, res, 'consent-' + decision, String(body.runId || '') + '\n' + String(body.promptId || ''),
@@ -27241,8 +27349,12 @@ async function handleProjectDiscover(req, res) {
 async function handleProjectBless(req, res) {
   const sendJson = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }
-  let r; try { r = await projectBless.blessPath({ path: body && body.path, surface: 'interactive' }); }
-  catch (e) { return sendJson(400, { ok: false, reason: 'bless failed: ' + (e && e.message || e) }); }
+  // fix-sec2 review 3: a trusted folder is a standing path grant, confirmed at the desk for the exact root it resolves to
+  let answered = false;
+  const confirm = (root) => { const ok = deskGate(req, res, 'project-bless', String(root), { root: String(root) }); answered = !ok; return ok; };
+  let r; try { r = await projectBless.blessPath({ path: body && body.path, surface: 'interactive', confirm }); }
+  catch (e) { if (answered || res.headersSent) return; return sendJson(400, { ok: false, reason: 'bless failed: ' + (e && e.message || e) }); }
+  if (answered) return;   // deskGate answered (the challenge, or desk_only)
   sendJson(r && r.ok ? 200 : 400, r || { ok: false, reason: 'bless failed' });
 }
 
@@ -28590,6 +28702,8 @@ async function handleTelegramOwnerPair(req, res) {
   const cur = (channelSecrets && channelSecrets.telegram) || {};
   if (!channelToken('telegram', '', cur)) return json(409, { error: 'connect the Telegram bot before pairing an owner' });
   if (cur.ownerId) return json(409, { error: 'an owner is already paired; revoke it locally before pairing a different account' });
+  // fix-sec2 review 3: the code makes a Telegram account the bot's owner (owner-trusted runs, answers to permission cards)
+  if (!deskGate(req, res, 'telegram-owner-pair', '', {})) return;
   const pairing = issueTelegramOwnerPairing(cur);
   if (!pairing.ok) return json(500, { error: pairing.error });
   json(200, { code: pairing.code, expiresAt: pairing.expiresAt, persisted: true });

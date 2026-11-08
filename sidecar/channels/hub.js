@@ -538,7 +538,7 @@
           options: [
             { label: '✅ Allow once', value: 'once' },
             { label: '✅ Allow for this session', value: 'session' },
-            { label: '♾️ Always allow', value: 'always' },
+            // no ALWAYS: a standing answer is confirmed at the desk (GHSA-2hpj #1; fix-sec2 F3), never from a chat
             { label: '❌ Deny', value: 'deny' }
           ],
           meta: { runId: runId, promptId: promptId }

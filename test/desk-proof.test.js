@@ -212,7 +212,41 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   before('async function handlePermissionsBypass(', /if \(want && !masterBypassOn\(\) && !deskGate\(req, res, 'bypass-on'/, /setMasterBypass\(want\)/, 'FULL BYPASS on asks first; off never asks');
   before('async function handlePermissionsGrant(', /deskGate\(req, res, 'grant', grantKey/, /grantManager\.grant\(/, 'a new standing grant asks first');
   before('async function handleConsent(', /deskGate\(req, res, 'consent-' \+ decision/, /persistAgentFullAccess\(agentId\)/, 'FULL ACCESS / ALWAYS answers ask before anything resolves');
-  A.ok(/finish\.freshConsent !== true && \(decision === 'always' \|\| decision === 'full'\)/.test(A.fnBody(IDX, 'async function handleConsent(')), 'only standing answers ask (once/session/deny never do)');
+  A.ok(/finish\.freshConsent !== true && \(decision === 'always' \|\| decision === 'full' \|\| decision === 'session'\)/.test(A.fnBody(IDX, 'async function handleConsent(')), 'standing answers and for-the-session answers ask (once and deny never do; fix-sec2 review 3)');
+  // fix-sec2 review 3, 6, 7: the authority changes the first pass left on the page token alone
+  before('async function handleTelegramOwnerPair(', /deskGate\(req, res, 'telegram-owner-pair'/, /issueTelegramOwnerPairing\(cur\)/, 'a Telegram owner pairing code asks first');
+  before('async function handleHooksAllow(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ command/, /shellHooks\.allow\(event, command\)/, 'approving a hook asks first, for that exact command');
+  before('async function handleHooksCreate(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ hookCommand/, /shellHooks\.create\(/, 'creating (and so approving) a hook asks first');
+  before('async function handlePluginsAllow(', /deskGate\(req, res, 'plugin-allow', id \+ '@' \+ digest/, /pluginLoader\.allow\(id, digest\)/, 'approving plugin code asks first, for that exact digest');
+  before('async function handleProjectBless(', /deskGate\(req, res, 'project-bless', String\(root\)/, /projectBless\.blessPath\(/, 'trusting a folder asks first (inside blessPath, for the root it resolves to)');
+  A.ok(/if \(typeof o\.confirm === 'function' && !\(await o\.confirm\(proposedReal\)\)\)[\s\S]{0,200}const isGit = await isGitRepoOf\(proposedReal\);\s*const ok = await bless\(proposedReal/.test(read('sidecar/projectbless.js')), 'blessPath asks the desk for the real root after every check and before the grant');
+  before('function handleCronCreate(', /grants\.length && !deskGate\(req, res, 'routine-grants'/, /createCronJobFromSpec\(body, \{ grantsConfirmed: grants\.length > 0 \}\)/, 'a routine with an unattended grant asks first');
+  A.ok(/if \(!\(opts && opts\.grantsConfirmed === true\)\) body = Object\.assign\(\{\}, body, \{ unattendedGrants: \[\] \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'every other create path makes a routine with no unattended grant');
+  before('function handleCronUpdate(', /if \(added\.length\) \{[\s\S]{0,200}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
+  {
+    const roster = A.fnBody(IDX, 'async function handleRoster(');
+    A.ok(roster.indexOf("deskGate(req, res, 'execution-profile'") > 0 && roster.indexOf("deskGate(req, res, 'execution-profile'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a wider execution profile asks first');
+    A.ok(/profileClamped = widened;[\s\S]{0,300}executionProfile: \(previousRoster\.get\(String\(a\.agentId\)\) \|\| \{\}\)\.executionProfile \|\| 'station-gear'/.test(roster), 'a push that does not ask keeps the profile the station holds');
+    const approval = A.fnBody(IDX, 'async function handleAgentApproval(');
+    A.ok(approval.indexOf('relayedRaiseTimes.length >= RELAYED_RAISE_MAX') > 0 && approval.indexOf('relayedRaiseTimes.length >= RELAYED_RAISE_MAX') < approval.indexOf("stationBridge.request('station.control', { action: 'agent.approval'"), 'a Full Access raise relayed to the window is rate limited before the window is asked');
+    // channelResolveConsent, lifted and run: a chat never gives a standing answer
+    const crc = A.fnBody(IDX, 'function channelResolveConsent(');
+    const got = [];
+    const resolve = new Function('channelPendingByRun', crc + '\nreturn channelResolveConsent;')(new Map([['r', new Map([['p', d => got.push(d)]])]]));
+    for (const d of ['always', 'full', 'session', 'once', 'nonsense']) resolve('r', 'p', d);
+    A.eq(got, ['once', 'once', 'session', 'once', 'deny'], 'a chat\'s ALWAYS or FULL ACCESS is taken as once (fix-sec2 F3)');
+    A.ok(!/Always allow/.test(read('sidecar/channels/hub.js')), 'and the chat keyboard no longer offers it');
+  }
+  {
+    const acp = read('sidecar/acp/core.js');
+    A.ok(/if \(decision !== 'session' \|\| !r \|\| r\.status !== 403[\s\S]{0,300}decision: 'once' \}\)/.test(acp), 'an editor\'s "for this session" that meets the desk is allowed once');
+    const sc = read('bin/lib/station-commands.js');
+    A.ok(/if \(decision === 'session' && deskRefused\(r\)\)[\s\S]{0,700}decision: 'once', via: 'terminal'/.test(sc), '`starnet allow --session` that meets the desk is allowed once, and says so');
+    const dash = read('bin/lib/dashboard.js');
+    A.ok(/if \(deskRefusal\(r\)\) \{[\s\S]{0,400}'\/api\/projects\/bless', \{ path: t\.root \}, \{ timeoutMs: 10000, deskProof: ch\.id, deskCode: code \}/.test(dash), 'the terminal\'s TRUST THIS FOLDER confirms with its own station\'s code, else points at the window');
+    const app = read('frontend/app/app.js');
+    A.ok(/raiseProfile\.length \? \{ raiseProfile \} : \{\}/.test(app) && /pendingProfileRaise\.add\(a\.id\)/.test(app), 'the dossier\'s profile picker asks for a wider profile by name');
+  }
   before('async function handleRoster(', /deskGate\(req, res, 'approval-full'/, /replaceAgentRoster\(incomingRows\)/, 'a roster raise asks first');
   A.ok(/clamped = raised;[\s\S]{0,200}approvalMode: 'ask'/.test(A.fnBody(IDX, 'async function handleRoster(')), 'a roster push that does not ask for a raise keeps those agents ask-first');
   before('async function handleAgentApproval(', /mode === 'full' && cur\.approvalMode !== 'full' && !deskGate\(req, res, 'approval-full'/, /agentRoster\.set\(agentId, Object\.assign\(\{\}, cur, \{ approvalMode: mode \}\)\)/, '/yolo with no page asks first');
@@ -291,6 +325,20 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   }
   A.ok(/\.then\(res => deskConfirm\.settle\(res, \(replayable && deskAgain != null\) \? \(id, code\) => rawFetch\(deskAgain, withApiToken\(withDeskProof\(init, id, code\), apiToken \|\| t\)\) : null\)\)\);/.test(harness),
     'the hardened fetch routes every /api answer through the desk confirmation, replaying with the proof and the current key');
+
+  // blessPath with a desk that says no grants nothing; a yes is asked for the root that is granted
+  {
+    const { makeProjectBless } = require('../sidecar/projectbless.js');
+    const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'bless-desk-'));
+    const granted = [], asked = [];
+    const pb = makeProjectBless({ fsp: fs.promises, pathMod: path, detectRoot: async p => p, normalizeRoot: p => path.resolve(p),
+      hardlineReason: () => null, bless: async (root) => { granted.push(root); return true; }, isGitRepoOf: async () => false, now: () => 1 });
+    const no = await pb.blessPath({ path: dir, surface: 'interactive', confirm: root => { asked.push(root); return false; } });
+    A.ok(no.ok === false && no.code === 'unconfirmed' && granted.length === 0, 'a folder the desk did not confirm is not trusted');
+    const yes = await pb.blessPath({ path: dir, surface: 'interactive', confirm: async root => { asked.push(root); return true; } });
+    A.ok(yes.ok === true && granted.length === 1 && asked[1] === granted[0], 'a confirmed folder is trusted, and the desk was shown the root that was granted');
+    try { fs.rmdirSync(dir); } catch (_) { /* a temp folder left behind is harmless */ }
+  }
 
   // ---- 6. where a bare station shows its desk code (fix-sec2, review 2) ----
   {

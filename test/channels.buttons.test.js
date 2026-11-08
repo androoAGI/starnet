@@ -365,18 +365,18 @@ async function run() {
     await waitFor(() => { const e = reg.peekChat('555', 'consent'); return !!(e && e.messageId); });
     A.eq(lastRun.surface, 'interactive', 'an opted-in chat runs interactive so the broker can pause and ask');
     const kb = lastKeyboard(sends);
-    A.eq(kb.length, 4, 'four decisions offered');
-    A.eq(kb.map(r => r[0].text), ['✅ Allow once', '✅ Allow for this session', '♾️ Always allow', '❌ Deny'], 'the buttons are the broker\'s own vocabulary');
+    A.eq(kb.length, 3, 'three decisions offered (fix-sec2 F3: ALWAYS is confirmed at the desk, never from a chat)');
+    A.eq(kb.map(r => r[0].text), ['✅ Allow once', '✅ Allow for this session', '❌ Deny'], 'the buttons are the broker\'s own vocabulary');
     const promptText = sends.find(s => s.opts && s.opts.reply_markup).t;
     A.ok(/fs\.write/.test(promptText), 'the ask names the tool');
     A.ok(/denied and the run moves on/.test(promptText), 'and states what silence means');
 
-    // tap "Always allow"
-    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[2][0].callback_data, callbackId: 'cb9', messageId: 'consent-msg' });
+    // tap "Allow for this session"
+    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[1][0].callback_data, callbackId: 'cb9', messageId: 'consent-msg' });
     await inflight;
-    A.eq(decision, 'always', 'the tap resolves the REAL waiter with the decision the button carried');
-    A.ok(/Always allow/.test(acks[0].text), 'the tap is acknowledged with the decision');
-    A.ok(/▸ ♾️ Always allow/.test(edits[0].t), 'the consent message is stamped and its buttons stripped');
+    A.eq(decision, 'session', 'the tap resolves the REAL waiter with the decision the button carried');
+    A.ok(/Allow for this session/.test(acks[0].text), 'the tap is acknowledged with the decision');
+    A.ok(/▸ ✅ Allow for this session/.test(edits[0].t), 'the consent message is stamped and its buttons stripped');
     A.eq(sends[sends.length - 1].t, 'wrote it', 'the run continued and delivered its reply');
   }
 
@@ -529,7 +529,8 @@ async function run() {
     await running;
     A.eq(decision, 'once', 'the run really got the allow');
     const kb = lastKeyboard(sends);
-    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[3][0].callback_data, callbackId: 'late', messageId: 'm1' });
+    // (Deny is the third button since fix-sec2 F3 took ALWAYS off the chat keyboard)
+    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[2][0].callback_data, callbackId: 'late', messageId: 'm1' });
     A.eq(edits.length, 1, 'the permission message is stamped once');
     const stamp = edits[0].text.split('\n').pop();   // the outcome line under the original ask
     A.ok(!/DENIED|expired/i.test(stamp), 'the PERMANENT record never says DENIED for an ask that was allowed: ' + stamp);
@@ -694,7 +695,7 @@ async function run() {
     A.ok(/permission request/.test(waitingReply) && /Tap Allow or Deny/.test(waitingReply) && !/picks this up at its next step/.test(waitingReply),
       'the reply says the run is paused on the open approval and how to answer it: ' + waitingReply);
     const kb = lastKeyboard(sends);
-    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[3][0].callback_data, callbackId: 'cbG', messageId: 'consent-msg' });
+    await hub.onCallback({ chatId: '555', userId: 'u1', data: kb[2][0].callback_data, callbackId: 'cbG', messageId: 'consent-msg' });
     await waitFor(() => typeof releaseRun === 'function');
     await hub.onInbound(dm('also add a title'));
     const afterReply = sends[sends.length - 1].t;

@@ -97,6 +97,10 @@
       if (rhr) return { ok: false, code: 'hardline', reason: rhr };
 
       if (!bless) return { ok: false, code: 'unwired', reason: 'project trust is not wired to persist a grant — denied' };
+      // o.confirm(root) -> true once the Commander confirmed trusting exactly this root at the desk (the HTTP route's
+      // deskGate; fix-sec2 review 3). Asked only after every check above, so the desk is shown the root that is granted.
+      if (typeof o.confirm === 'function' && !(await o.confirm(proposedReal)))
+        return { ok: false, code: 'unconfirmed', reason: 'trusting ' + proposedReal + ' was not confirmed at the desk' };
       const isGit = await isGitRepoOf(proposedReal);
       const ok = await bless(proposedReal, { isGitRepo: isGit, now: now() });
       if (!ok) return { ok: false, code: 'persist', reason: 'could not persist project trust — denied: ' + proposedReal };

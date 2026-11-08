@@ -605,7 +605,10 @@ const App = (() => {
     if (!a || EXECUTION_PROFILE_IDS.indexOf(id) < 0) return Promise.resolve(false);
     const before = executionProfileOf(a);
     a.executionProfile = id;
+    // a wider profile is a raise the station confirms at the desk (fix-sec2 review 7): this push asks for it by name
+    if (NARROW_EXECUTION_PROFILES.indexOf(id) < 0 && id !== before) pendingProfileRaise.add(a.id);
     return Promise.resolve(pushRoster()).then(ok => {
+      if (ok && executionProfileOf(a) !== id) return false;   // the station kept the profile it holds (profileClamped)
       if (!ok) { a.executionProfile = before; persist(); return false; }
       persist();
       return true;
@@ -1517,6 +1520,9 @@ const App = (() => {
   // agents this page means to RAISE to full access on its next roster push although the station never saw them ask-first
   // (onboarding's FULL ACCESS pick: the first push has no accepted row to compare with). GHSA-2hpj #1: see pushRoster.
   const pendingRaise = new Set();
+  // fix-sec2 review 7: rows whose wider execution profile the next push asks the desk to confirm (setAgentExecutionProfile)
+  const pendingProfileRaise = new Set();
+  const NARROW_EXECUTION_PROFILES = ['station-gear', 'safe-cell'];
   /* THE STATION KEPT THESE AGENTS ASK-FIRST (GHSA-2hpj #1): a raise it was never asked to confirm (a page booting from a save
      that says FULL ACCESS the station does not hold), or one the Commander did not confirm at the desk. This page's copy
      says so too, so the dossier never shows FULL ACCESS that the runs do not have. */
@@ -1531,6 +1537,19 @@ const App = (() => {
       shownSealNotices.add(id);
       if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, 400), n.kind === 'migrated' ? 'info' : 'warn');
     }
+  }
+  // a wider profile a roster push did not ask for: the station kept its own, and so does this page (fix-sec2 review 7)
+  function settleClampedProfiles(body, rows) {
+    const names = [];
+    for (const id of body.profileClamped) {
+      const a = agents.get(String(id)) || (agent && agent.id === id ? agent : null);
+      const held = (body.profilesHeld && typeof body.profilesHeld[String(id)] === 'string') ? body.profilesHeld[String(id)] : 'station-gear';
+      if (a) { a.executionProfile = held; names.push(a.name || a.id); }
+      try { const row = JSON.parse(rows.get(String(id))); row.executionProfile = held; rows.set(String(id), JSON.stringify(row)); } catch (_) { /* not a row this push carried */ }
+    }
+    if (!names.length) return;
+    persist();
+    if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(names.join(', ') + ' keep' + (names.length === 1 ? 's' : '') + ' the narrower profile — a wider one is chosen in the dossier, where StarNet asks you to confirm it.', 'warn');
   }
   function settleRefusedRaise(ids, why) {
     const names = [];
@@ -1596,7 +1615,9 @@ const App = (() => {
       const wasFull = id => { const row = rosterAccepted.get(id); try { return !!row && JSON.parse(row).approvalMode === 'full'; } catch (_) { return false; } };
       const raise = list.filter(r => r.approvalMode === 'full' && (pendingRaise.has(r.agentId) || (rosterAccepted.has(r.agentId) && !wasFull(r.agentId)))).map(r => r.agentId);
       pendingRaise.clear();
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base, raise.length ? { raise } : {})) })
+      const raiseProfile = list.filter(r => NARROW_EXECUTION_PROFILES.indexOf(r.executionProfile) < 0 && pendingProfileRaise.has(r.agentId)).map(r => r.agentId);
+      pendingProfileRaise.clear();
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base, raise.length ? { raise } : {}, raiseProfile.length ? { raiseProfile } : {})) })
         .then(async r => {
           // the station's own name for its refusal (X-StarNet-Code): an unconfirmed raise is the desk's answer, never a lost station
           let deskCode = '';
@@ -1625,6 +1646,7 @@ const App = (() => {
             for (const id of body.clamped) { try { const row = JSON.parse(rows.get(String(id))); row.approvalMode = 'ask'; rows.set(String(id), JSON.stringify(row)); } catch (_) {} }
             settleRefusedRaise(body.clamped, 'Full Access is turned on in the dossier, where StarNet asks you to confirm it.');
           }
+          if (body && Array.isArray(body.profileClamped) && body.profileClamped.length) settleClampedProfiles(body, rows);
           if (rosterPushFailed) { rosterPushFailed = false; try { console.info('[roster] sidecar roster sync recovered.'); } catch (_) {} }
           return true;
         })
