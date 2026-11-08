@@ -483,5 +483,126 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.ok(Shell.escapesWorkspace('copy x agent.roster.json.sealed-last'), 'the shell floor covers the sealed copies too');
   }
 
+  // ---- 9. review 4b (fix-sec2): an older sealed copy is not the current one ----
+  {
+    let t = 10000;
+    const mk = memMarker();
+    const app = S.makeAuthoritySeal({ key: KEY, now: () => t, marker: mk });
+    const on = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: true, setAt: 1 }));
+    A.ok(Number.isSafeInteger(on[S.FIELD].g) && on[S.FIELD].g >= 10000, 'a seal carries its generation');
+    A.ok(app.open('permissions.bypass.json', on).ok, 'and opens');
+    const forged = Object.assign({}, on, { [S.FIELD]: Object.assign({}, on[S.FIELD], { g: on[S.FIELD].g + 5 }) });
+    A.eq(app.open('permissions.bypass.json', forged).why, 'mismatch', 'the generation is bound into the MAC (moving it breaks the seal)');
+    A.eq(app.open('permissions.bypass.json', Object.assign({}, on, { [S.FIELD]: Object.assign({}, on[S.FIELD], { g: 1.5 }) })).why, 'mismatch', 'a generation that is not a whole number is refused');
+    const writesBefore = mk.writes;
+    t = 10001;
+    const off = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: false, setAt: 2 }));   // FULL BYPASS switched off
+    A.ok(mk.writes > writesBefore && mk.value.floors['permissions.bypass.json'] === off[S.FIELD].g, 'switching FULL BYPASS off moves its floor in the sealed marker');
+    A.ok(app.open('permissions.bypass.json', off).ok, 'the current file opens');
+    const stale = app.open('permissions.bypass.json', on);   // the .bak (the main before the last write), copied back
+    A.eq(stale.why, 'stale', 'the older sealed { on: true } (its .bak, put back) is refused: stale');
+    A.ok(app.notices().some(n => n.kind === 'stale' && /older copy than the last change that took power away/.test(n.text) && /FULL BYPASS is off/.test(n.text)), 'the page is told it was an older copy put back');
+    // a later station reads the floor from the marker: the same copy stays refused after a restart (or a recovery from .bak)
+    const next = S.makeAuthoritySeal({ key: KEY, now: () => 20000, marker: mk });
+    const files = { 'permissions.bypass.json': off };
+    A.eq(next.boot([{ name: 'permissions.bypass.json', read: () => files['permissions.bypass.json'], write: v => { files['permissions.bypass.json'] = roundTrip(v); } }]).mode, 'enforce', 'the next boot enforces');
+    A.eq(next.open('permissions.bypass.json', on).why, 'stale', 'after a restart the old copy is still refused (the floor is in the marker)');
+    A.ok(next.open('permissions.bypass.json', off).ok, 'and the current one opens');
+    // adding power does not move the floor: the .bak of a raise is the older, lower file, and still opens (torn-write recovery)
+    const floorBefore = mk.value.floors['permissions.bypass.json'];
+    const onAgain = roundTrip(next.seal('permissions.bypass.json', { version: 1, on: true, setAt: 3 }));
+    A.eq(mk.value.floors['permissions.bypass.json'], floorBefore, 'a raise does not move the floor');
+    A.ok(next.open('permissions.bypass.json', off).ok && next.open('permissions.bypass.json', onAgain).ok, 'so the .bak of a raise (lower than the file) still opens');
+    A.ok(onAgain[S.FIELD].g > off[S.FIELD].g, 'and a new generation is above every one the station saw, whatever the clock says');
+  }
+  {
+    // the roster: an agent lowered, then its older copy put back
+    const mk = memMarker();
+    const app = S.makeAuthoritySeal({ key: KEY, now: () => 500, marker: mk });
+    const full = roundTrip(app.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA', approvalMode: 'full' }, { agentId: 'b', name: 'ORBIT', approvalMode: 'ask' }] }));
+    const renamed = roundTrip(app.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA 2', approvalMode: 'full' }, { agentId: 'b', name: 'ORBIT', approvalMode: 'ask' }] }));
+    A.ok(app.open('agent.roster.json', full).ok, 'a rename moves no floor: the copy before it still opens');
+    const lowered = roundTrip(app.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA 2', approvalMode: 'ask' }, { agentId: 'b', name: 'ORBIT', approvalMode: 'ask' }] }));
+    A.eq(app.open('agent.roster.json', renamed).why, 'stale', 'after NOVA loses Full Access, the copy where it had it is stale');
+    A.eq(app.open('agent.roster.json', full).why, 'stale', 'and so is every copy before that');
+    A.ok(app.open('agent.roster.json', lowered).ok, 'the lowered roster opens');
+    const removed = roundTrip(app.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'b', name: 'ORBIT', approvalMode: 'ask' }] }));
+    A.ok(app.open('agent.roster.json', removed).ok, 'removing an agent seals');
+    for (const [name, a, b] of [
+      ['hooks.json', { hooks: [{ event: 'pre', command: 'x' }] }, { hooks: [] }],
+      ['hooks-allowed.json', { k: { event: 'pre', command: 'x' } }, {}],
+      ['plugins-allowed.json', { p: { digest: 'd' } }, {}]]) {
+      const first = roundTrip(app.seal(name, a));
+      app.seal(name, b);
+      A.eq(app.open(name, first).why, 'stale', 'taking away in ' + name + ' leaves the earlier copy stale');
+    }
+  }
+  {
+    // the floor is written before the file: a marker that cannot be written refuses the lowering; a crash in between
+    // leaves the file under its floor (its safe default), never the power being taken away
+    let fail = false;
+    const mk = memMarker();
+    const failing = { read: () => mk.read(), write: v => { if (fail) throw Object.assign(new Error('disk full'), { code: 'ENOSPC' }); mk.write(v); } };
+    const app = S.makeAuthoritySeal({ key: KEY, now: () => 100, marker: failing });
+    const on = roundTrip(app.seal('permissions.bypass.json', { version: 1, on: true }));
+    fail = true;
+    let threw = null;
+    try { app.seal('permissions.bypass.json', { version: 1, on: false }); } catch (e) { threw = e; }
+    A.ok(threw && /could not record this change in authority-seal\.json \(ENOSPC\), so it was not saved/.test(threw.message), 'a lowering whose floor cannot be recorded is refused with a plain message (' + (threw && threw.message) + ')');
+    A.ok(app.open('permissions.bypass.json', on).ok, 'and the floor did not move (nothing changed)');
+    A.ok(app.seal('permissions.bypass.json', { version: 1, on: true, setAt: 9 }), 'a write that takes nothing away needs no marker write');
+    fail = false;
+    app.seal('permissions.bypass.json', { version: 1, on: false });   // floor recorded ... and then the process dies before the file is written
+    const after = S.makeAuthoritySeal({ key: KEY, now: () => 200, marker: mk });
+    after.boot([{ name: 'permissions.bypass.json', read: () => on, write: () => {} }]);
+    A.eq(after.open('permissions.bypass.json', on).why, 'stale', 'a crash between the floor and the file: the old file reads as its default (FULL BYPASS off)');
+  }
+  {
+    // the first seals (no generation) and the first marker (no floors) still open; a restore or a sealed copy under the
+    // floor is not taken as current; a station whose clock went back still seals above what is on disk
+    const legacyMac = (name, body) => require('crypto').createHmac('sha256', KEY).update('v1\n' + name + '\n' + S.canonical(body)).digest('hex');
+    const body = { version: 1, on: false };
+    const legacy = Object.assign({}, body, { [S.FIELD]: { v: 1, mac: legacyMac('permissions.bypass.json', body) } });
+    const mBody = { version: 1, sealedAt: 1 };
+    const mk = memMarker();
+    mk.value = Object.assign({}, mBody, { [S.FIELD]: { v: 1, mac: legacyMac(S.MARKER_NAME, mBody) } });
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => 50, marker: mk });
+    const disk = { 'permissions.bypass.json': legacy, 'agent.roster.json': undefined };
+    const fl = Object.keys(disk).map(name => ({ name, read: () => disk[name], write: v => { disk[name] = roundTrip(v); } }));
+    A.eq(st.boot(fl).mode, 'enforce', 'a marker from before generations still verifies');
+    A.ok(st.open('permissions.bypass.json', legacy).ok, 'and a seal from before generations still opens (generation 0, no floor yet)');
+    // clock set back: the file on disk carries a generation above the clock
+    const ahead = S.makeAuthoritySeal({ key: KEY, now: () => 9e9, marker: memMarker() });
+    const future = roundTrip(ahead.seal('permissions.bypass.json', { version: 1, on: true }));
+    const mk2 = memMarker();
+    const back = S.makeAuthoritySeal({ key: KEY, now: () => 7, marker: mk2 });
+    const d2 = { 'permissions.bypass.json': future };
+    back.boot([{ name: 'permissions.bypass.json', read: () => d2['permissions.bypass.json'], write: v => { d2['permissions.bypass.json'] = roundTrip(v); } }]);
+    const lowered = roundTrip(back.seal('permissions.bypass.json', { version: 1, on: false }));
+    A.ok(lowered[S.FIELD].g > future[S.FIELD].g, 'a station whose clock is behind still seals above the generation on disk');
+    A.eq(back.open('permissions.bypass.json', future).why, 'stale', 'so the copy it lowered is stale');
+    // a recovery bundle's roster sealed here, but older than the floor: adopted (clamped), not taken as current
+    const mk3 = memMarker();
+    const home = S.makeAuthoritySeal({ key: KEY, now: () => 300, marker: mk3 });
+    const bundled = roundTrip(home.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA', approvalMode: 'full' }] }));
+    home.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', name: 'NOVA', approvalMode: 'ask' }] });
+    const d3 = { 'agent.roster.json': bundled };
+    let rec = { files: ['agent.roster.json'] };
+    const restoredSt = S.makeAuthoritySeal({ key: KEY, now: () => 400, marker: mk3, restored: { read: () => rec, drop: () => { rec = undefined; } } });
+    restoredSt.boot([{ name: 'agent.roster.json', read: () => d3['agent.roster.json'], write: v => { d3['agent.roster.json'] = roundTrip(v); } }]);
+    const got = restoredSt.open('agent.roster.json', d3['agent.roster.json']);
+    A.ok(got.ok && got.value.agents[0].approvalMode === 'ask', 'a restored roster older than the floor is adopted asking first, never taken as current');
+    // a .sealed-last copy under the floor caps nothing (F1's cap is the newest copy the key approved, not any)
+    const d4 = shared();
+    const a4 = d4.station(KEY);
+    const onCopy = roundTrip(a4.seal('permissions.bypass.json', { version: 1, on: true }));
+    d4.files['permissions.bypass.json'] = roundTrip(a4.seal('permissions.bypass.json', { version: 1, on: false }));
+    d4.last['permissions.bypass.json'] = onCopy;              // a process puts the old sealed copy where F1 keeps its cap
+    d4.files['permissions.bypass.json'] = { version: 1, on: true };   // and writes the file unsealed
+    const b4 = d4.station(KEY);
+    A.eq(b4.boot(d4.list).reconciled, [], 'a stale sealed copy is no cap');
+    A.eq(b4.open('permissions.bypass.json', d4.files['permissions.bypass.json']).why, 'unsealed', 'so the planted FULL BYPASS is refused');
+  }
+
   A.report('authority-seal.test');
 })().catch(e => { console.error(e); process.exit(1); });

@@ -46,7 +46,26 @@
        not verify, is refused exactly as before. The cap is a copy the key sealed, so a process without the key gains
        nothing it could not already get by putting an older sealed copy back;
      - a station with no key over a workspace nobody sealed stays as it was (nothing sealed or checked), and says so
-       once in its log and on the Permissions page (GET /api/permissions authoritySeal.keyed false). */
+       once in its log and on the Permissions page (GET /api/permissions authoritySeal.keyed false).
+
+   AN OLDER SEALED COPY IS NOT THE CURRENT ONE (fix-sec2 review 4b, 2026-11-08). A seal bound only a file's name and
+   content, so any copy the key ever sealed opened forever: after FULL BYPASS was switched off, permissions.bypass.json.bak
+   (persist/replace.js keeps the previous main) was a sealed { on: true }; copied over the main file, or the main file
+   broken so loadResilient recovered from .bak, FULL BYPASS came back at the next boot. The same for the roster after an
+   agent lost Full Access. Now:
+     - each seal carries a generation g (a number that only grows: the clock in ms, and always above every generation this
+       station has seen for the file), bound into the MAC, so a seal cannot be moved to another generation;
+     - a write that TAKES POWER AWAY (lowerOf below finds something the previous value gave that the new one does not:
+       FULL BYPASS off, an agent's Full Access or wide profile removed, a hook, an approval or a grant removed) first
+       raises the file's floor in the sealed marker to the new generation, then the file is written;
+     - open() refuses a copy whose generation is under its floor ('stale'): the reader gets the safe default, as for an
+       edited file, and the page says it was an older copy put back.
+   A write that only adds power or changes nothing that matters does not move the floor, so a .bak older than it still
+   opens (that is the torn-write recovery the .bak exists for, and it gives no more than the current file). The order
+   (marker first, then the file) means a crash in between leaves the file under its floor: it reads as its safe default,
+   never as the power the user was taking away. Honest limit: the floor lives in the marker, a file in the same
+   workspace; a process that saved an old marker AND old files can put both back. Holding the floors (or a counter) in
+   the OS credential store beside the key would close that; it needs the desktop shell's Rust side (see 4c). */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -169,6 +188,20 @@ function lowerOf(name, value, cap, nowMs) {
   return null;
 }
 
+// lowers(name, prev, next) -> true when `next` takes away power `prev` gave (a file with no rule: always true, the safe
+// side: its floor moves). prev null: nothing was sealed before it (the upgrade), so there is nothing to take away.
+function lowers(name, prev, next, nowMs) {
+  if (prev === null) return false;
+  const r = lowerOf(name, prev, next, nowMs);
+  return !r || r.dropped.length > 0;
+}
+
+// The generation a seal carries: 0 for a seal from before generations, null for one that is not a whole number.
+function genOf(s) {
+  if (!plainObject(s) || s.g === undefined) return 0;
+  return Number.isSafeInteger(s.g) && s.g > 0 ? s.g : null;
+}
+
 function makeAuthoritySeal(opts) {
   const o = opts || {};
   const key = Buffer.isBuffer(o.key) && o.key.length >= 32 ? Buffer.from(o.key) : null;
@@ -180,11 +213,19 @@ function makeAuthoritySeal(opts) {
   const current = typeof o.current === 'function' ? o.current : null;
   const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
   let markerOk = false;
+  let sealedAt = 0;
   let sealedWorkspace = false;   // unkeyed only: the marker says a keyed StarNet seals these files (boot)
   const list = [];             // notices, oldest first
   const broken = new Map();    // name -> the notice for a refused file (one per file until it is sealed again)
+  const floors = {};           // name -> the lowest generation that still opens (review 4b), kept in the sealed marker
+  const lastG = {};            // name -> the highest generation this station has seen or issued for the file
+  const known = new Map();     // name -> the value last opened or sealed (null: nothing sealed before), to tell a lowering
 
-  const macOf = (name, value) => crypto.createHmac('sha256', key).update('v1\n' + String(name) + '\n' + canonical(strip(value))).digest('hex');
+  // A seal with a generation binds it: 'v1\n' name '\n' 'g' g '\n' canonical content. Without one (g 0): the first form.
+  const macOf = (name, value, g) => crypto.createHmac('sha256', key).update('v1\n' + String(name) + '\n' + (g > 0 ? 'g' + g + '\n' : '') + canonical(strip(value))).digest('hex');
+  const floorOf = name => (Number.isSafeInteger(floors[name]) && floors[name] > 0 ? floors[name] : 0);
+  const nextGen = name => Math.max(Math.floor(Number(now())) || 0, (lastG[name] || 0) + 1, floorOf(name) + 1);
+  const seen = (name, g) => { if (Number.isSafeInteger(g) && g > (lastG[name] || 0)) lastG[name] = g; };
   function notice(n) {
     const row = Object.assign({ at: now() }, n);
     list.push(row);
@@ -192,18 +233,38 @@ function makeAuthoritySeal(opts) {
     log(row.text);
     return row;
   }
-  function writeMarker() {
-    if (!key || markerOk) return;
-    const body = { version: 1, sealedAt: now() };
-    try { marker.write(Object.assign({}, body, { [FIELD]: { v: 1, mac: macOf(MARKER_NAME, body) } })); markerOk = true; }
-    catch (e) { log('could not write ' + MARKER_NAME + ': ' + String((e && (e.code || e.message)) || e)); }
+  // writeMarker({ force, strict }): written once when the station starts sealing, and again whenever a floor moves
+  // (force). strict: a failure throws, so a write that takes power away is not made without its floor.
+  function writeMarker(w) {
+    const o = w || {};
+    if (!key || (markerOk && !o.force)) return;
+    if (!sealedAt) sealedAt = now();
+    const fl = {};
+    for (const k of Object.keys(floors).sort()) if (floorOf(k)) fl[k] = floors[k];
+    const body = { version: 1, sealedAt: sealedAt, floors: fl };
+    try { marker.write(Object.assign({}, body, { [FIELD]: { v: 1, mac: macOf(MARKER_NAME, body, 0) } })); markerOk = true; }
+    catch (e) {
+      const why = String((e && (e.code || e.message)) || e);
+      log('could not write ' + MARKER_NAME + ': ' + why);
+      if (o.strict) throw new Error('StarNet could not record this change in ' + MARKER_NAME + ' (' + why + '), so it was not saved. Try again.');
+    }
   }
+  // the floors a verified marker carries (a marker from before generations has none)
+  function adoptMarker(m) {
+    sealedAt = Number(m.sealedAt) || 0;
+    const fl = plainObject(m.floors) ? m.floors : {};
+    for (const k of Object.keys(fl)) if (Number.isSafeInteger(fl[k]) && fl[k] > 0) { floors[k] = fl[k]; seen(k, fl[k]); }
+  }
+  // '' | 'unsealed' | 'mismatch' | 'stale' (a copy the key sealed, older than the file's floor)
   function verify(name, value) {
     if (!plainObject(value) || !plainObject(value[FIELD])) return 'unsealed';
     const s = value[FIELD];
     if (s.v !== 1 || typeof s.mac !== 'string' || !/^[a-f0-9]{64}$/.test(s.mac)) return 'mismatch';
-    const want = Buffer.from(macOf(name, value), 'hex');
-    return crypto.timingSafeEqual(want, Buffer.from(s.mac, 'hex')) ? '' : 'mismatch';
+    const g = genOf(s);
+    if (g === null) return 'mismatch';
+    const want = Buffer.from(macOf(name, value, g), 'hex');
+    if (!crypto.timingSafeEqual(want, Buffer.from(s.mac, 'hex'))) return 'mismatch';
+    return g < floorOf(String(name)) ? 'stale' : '';
   }
 
   // Unkeyed over a sealed workspace: before this StarNet overwrites a file it cannot seal, keep the copy the key last
@@ -218,29 +279,44 @@ function makeAuthoritySeal(opts) {
   }
 
   // seal(name, value) -> the value to write. Unkeyed: the value unchanged (a bare station writes what it always did).
+  // Keyed: a write that takes power away moves the file's floor first (review 4b); when the marker cannot record it,
+  // this throws and the caller saves nothing (its own failure path: the change is reported, state unchanged).
   function seal(name, value) {
+    name = String(name);
     if (!key) { keepLastSealed(name); return value; }
     if (!plainObject(value)) return value;
-    writeMarker();                          // the first sealed write of a station that had nothing to migrate
-    broken.delete(String(name));            // a file StarNet writes again is whole again
     const body = strip(value);
-    return Object.assign({}, body, { [FIELD]: { v: 1, mac: macOf(name, body) } });
+    const g = nextGen(name);
+    if (!known.has(name) || lowers(name, known.get(name), body, now())) {
+      const was = floors[name];
+      floors[name] = g;
+      try { writeMarker({ force: true, strict: true }); }
+      catch (e) { if (was === undefined) delete floors[name]; else floors[name] = was; throw e; }
+    } else writeMarker();                   // the first sealed write of a station that had nothing to migrate
+    broken.delete(name);                    // a file StarNet writes again is whole again
+    known.set(name, body);
+    seen(name, g);
+    return Object.assign({}, body, { [FIELD]: { v: 1, mac: macOf(name, body, g), g: g } });
   }
 
-  // open(name, value) -> { ok, value } (the value without its seal) | { ok: false, why: 'unsealed' | 'mismatch' }.
+  // open(name, value) -> { ok, value } (the value without its seal) | { ok: false, why: 'unsealed' | 'mismatch' | 'stale' }.
   // An absent file (undefined / null) is ok: it already reads as its default.
   function open(name, value) {
+    name = String(name);
     if (!key) return { ok: true, value: strip(value), unkeyed: true };
-    if (value === undefined || value === null) return { ok: true, value: value, absent: true };
-    const why = verify(String(name), value);
-    if (!why) return { ok: true, value: strip(value) };
-    if (!broken.has(String(name))) {
+    if (value === undefined || value === null) { known.delete(name); return { ok: true, value: value, absent: true }; }
+    const why = verify(name, value);
+    if (!why) { known.set(name, strip(value)); seen(name, genOf(value[FIELD])); return { ok: true, value: strip(value) }; }
+    known.delete(name);                     // not a value StarNet can compare with: its next write moves the floor
+    if (!broken.has(name)) {
       let keptAt = null;
-      try { keptAt = keep(String(name)) || null; } catch (_) { keptAt = null; }
-      broken.set(String(name), notice({
-        kind: why, name: String(name), keptAt: keptAt,
-        text: String(name) + ' was changed outside StarNet (' + (why === 'unsealed' ? 'it has no seal' : 'its seal does not match') + '), so ' +
-          (CONSEQUENCE[name] || 'it is not used.') + (keptAt ? ' A copy of it was kept as ' + keptAt + '.' : '')
+      try { keptAt = keep(name) || null; } catch (_) { keptAt = null; }
+      broken.set(name, notice({
+        kind: why, name: name, keptAt: keptAt,
+        text: why === 'stale'
+          ? name + ' is an older copy than the last change that took power away (it was put back, from a backup or its .bak), so ' + (CONSEQUENCE[name] || 'it is not used.')
+          : name + ' was changed outside StarNet (' + (why === 'unsealed' ? 'it has no seal' : 'its seal does not match') + '), so ' +
+            (CONSEQUENCE[name] || 'it is not used.') + (keptAt ? ' A copy of it was kept as ' + keptAt + '.' : '')
       }));
     }
     return { ok: false, why: why };
@@ -256,7 +332,7 @@ function makeAuthoritySeal(opts) {
       let cap;
       try { cap = lastSealed.read(f.name); } catch (_) { continue; }
       if (cap === undefined || cap === null) continue;
-      if (verify(f.name, cap)) continue;                 // not a copy this key sealed: no cap, the file answers for itself
+      if (verify(f.name, cap)) continue;                 // not a copy this key sealed, or one under the floor (4b): no cap
       let v;
       try { v = f.read(); } catch (_) { continue; }
       if (v === undefined || v === null || !verify(f.name, v)) { drop(f.name); continue; }   // gone, or whole again: spent
@@ -312,8 +388,17 @@ function makeAuthoritySeal(opts) {
     return adopted;
   }
 
+  // what generation each file on disk carries now, so a new seal is always above it (a clock set back included)
+  function seedGens(files) {
+    for (const f of files) {
+      let v;
+      try { v = f.read(); } catch (_) { continue; }
+      if (plainObject(v) && plainObject(v[FIELD])) seen(f.name, genOf(v[FIELD]));
+    }
+  }
+
   function boot(files) {
-    adoptRestored(files);
+    files = Array.isArray(files) ? files : [];
     if (!key) {
       // as before: nothing sealed or checked. Only a workspace the desktop app sealed is told what that means here.
       let sealedHere = false;
@@ -323,30 +408,38 @@ function makeAuthoritySeal(opts) {
       else log('unkeyed: this station has no credential-store key, so its permission files are not sealed (any program running as this user can change them)');
       return { mode: 'unkeyed', sealed: [], failed: [] };
     }
+    seedGens(files);
     let m, markerBad = false;
     try { m = marker.read(); } catch (_) { markerBad = true; }
-    if (m !== undefined || markerBad) {
-      if (!markerBad && !verify(MARKER_NAME, m)) { markerOk = true; const reconciled = reconcile(files); return { mode: 'enforce', sealed: [], failed: [], reconciled }; }
-      notice({ kind: 'marker-mismatch', text: MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited). Each permission file is checked as it is; any that do not match are not used.' });
-      writeMarker();
-      return { mode: 'enforce', sealed: [], failed: [] };
-    }
+    const markerValid = m !== undefined && !markerBad && !verify(MARKER_NAME, m);
     const present = [];
-    for (const f of (Array.isArray(files) ? files : [])) {
+    for (const f of files) {
       let v;
       try { v = f.read(); } catch (_) { continue; }
       if (v !== undefined && v !== null) present.push({ f: f, v: v });
     }
-    if (present.some(x => plainObject(x.v) && Object.prototype.hasOwnProperty.call(x.v, FIELD))) {
+    const sealedIn = xs => xs.some(x => plainObject(x.v) && Object.prototype.hasOwnProperty.call(x.v, FIELD));
+    if (markerValid) { markerOk = true; adoptMarker(m); }   // the floors first: a restore or a sealed copy is judged against them (4b)
+    // a restore is taken before anything else (a restored, sealed file is what tells the rest is not an upgrade)
+    const adopted = adoptRestored(files);
+    if (markerValid) return { mode: 'enforce', sealed: [], failed: [], reconciled: reconcile(files) };
+    if (m !== undefined || markerBad) {
+      notice({ kind: 'marker-mismatch', text: MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited). Each permission file is checked as it is; any that do not match are not used.' });
+      writeMarker({ force: true });
+      return { mode: 'enforce', sealed: [], failed: [] };
+    }
+    if (sealedIn(present.filter(x => adopted.indexOf(x.f.name) < 0))) {   // a sealed file the restore did not bring
       notice({ kind: 'marker-missing', text: MARKER_NAME + ' is missing although the permission files are sealed. Nothing was re-sealed; each file is checked as it is.' });
       writeMarker();
       return { mode: 'enforce', sealed: [], failed: [] };
     }
+    if (adopted.length) return { mode: 'enforce', sealed: [], failed: [] };   // a restore into a fresh folder: the rest answers for itself
     if (!present.length) return { mode: 'enforce', sealed: [], failed: [] };   // the marker comes with the first sealed write
     const sealed = [], failed = [];
     for (const x of present) {
       const value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
       if (!plainObject(value)) { failed.push(x.f.name); continue; }
+      known.set(x.f.name, null);            // nothing was sealed before the upgrade: no floor to move
       try { x.f.write(seal(x.f.name, value)); sealed.push(x.f.name); }
       catch (e) { failed.push(x.f.name); }
     }
