@@ -37,6 +37,11 @@ on:
   push:
     tags: ['v*']
 
+# Least privilege (GHSA-2hpj): the workflow token only reads this repo. Releases go to the releases repo
+# through RELEASES_TOKEN, never through this token.
+permissions:
+  contents: read
+
 jobs:
   # -------------------------------------------------------------------------------------------
   # Job 1 — gate: nothing builds unless the fast test suite is green.
@@ -49,14 +54,14 @@ jobs:
       # planning authority reads BLOCKED ("source commit unreadable"), failing the gate on a
       # green trunk (proven on the v0.6.3 train, runs 29787452203/29788984615). Same reason
       # the build job already fetches full history for its provenance gate.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           # A manual recovery run executes the repaired workflow from trunk, but every
           # release assertion and build input must still come from the immutable tag.
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -168,20 +173,20 @@ jobs:
       # default shallow checkout (fetch-depth 1, no tags) makes describe fall back to the bare short SHA, so the
       # gate's `describe == tag` check fails and the train produces ZERO artifacts (what stalled v0.4.0). Do NOT
       # shrink this back to a shallow checkout — it feeds the gate real git data, it does not weaken the gate.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.rust-target }}
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
           key: ${{ matrix.target }}
@@ -606,7 +611,7 @@ jobs:
 
       - name: Upload Windows published-upgrade receipt
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-published-upgrade-proof-${{ matrix.target }}
           path: windows-published-upgrade-proof.json
@@ -754,7 +759,7 @@ jobs:
 
       - name: Upload macOS notarization input
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           if-no-files-found: error
@@ -766,7 +771,7 @@ jobs:
 
       - name: Upload Windows distributable artifacts
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -789,11 +794,11 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           path: notarization-input
@@ -809,7 +814,7 @@ jobs:
           dmg=$(find notarization-input -type f -name '*.dmg' | head -1)
           bash scripts/notarize-macos-finalize.sh notarization-input/notary-submission.json "$dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -826,12 +831,12 @@ jobs:
     if: ${{ !cancelled() && needs.build.result == 'success' && needs.notarize-macos.result == 'success' }}
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Download notarized Intel macOS distributable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: starnet-darwin-x64
           path: intel-distributable
@@ -846,7 +851,7 @@ jobs:
           bash scripts/verify-macos-intel-installed.sh "$dmg" intel-macos-installed-acceptance.json
 
       - name: Upload Intel installed-app receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: intel-macos-installed-acceptance
           if-no-files-found: error
@@ -859,11 +864,11 @@ jobs:
     needs: [build, notarize-macos, intel-macos-installed-acceptance]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -886,7 +891,7 @@ jobs:
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
           echo "::notice::building release train for v$V"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: starnet-*
           path: dist
@@ -910,7 +915,7 @@ jobs:
           node scripts/verify-update-host.mjs --manifest release/latest.json
           --require-platforms windows-x86_64,darwin-aarch64,darwin-x86_64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-manifest
           if-no-files-found: error
@@ -947,7 +952,7 @@ jobs:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
@@ -960,13 +965,13 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: starnet-*
           path: dist
           merge-multiple: true
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-manifest
           path: release

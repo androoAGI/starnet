@@ -42,6 +42,11 @@ on:
   # No tag trigger: v* tags run release-train.yml (the shipping path). This workflow is for
   # manual test builds / shareable pre-releases only.
 
+# Least privilege (GHSA-2hpj): the workflow token only reads this repo. Releases go to the releases repo
+# through RELEASES_TOKEN, never through this token.
+permissions:
+  contents: read
+
 jobs:
   build:
     strategy:
@@ -70,9 +75,9 @@ jobs:
             rust-target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -83,11 +88,11 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file \
             libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.rust-target }}
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
           key: ${{ matrix.target }}
@@ -216,7 +221,7 @@ jobs:
       # a retry; the app is never rebuilt or submitted again.
       - name: Upload macOS notarization input
         if: runner.os == 'macOS' && hashFiles('notary-submission.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           if-no-files-found: error
@@ -231,7 +236,7 @@ jobs:
 
       - name: Upload distributable artifacts
         if: runner.os != 'macOS' || hashFiles('notary-submission.json') == ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -260,13 +265,13 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # Missing input means this was an intentionally unsigned internal build. The
       # download is allowed to fail and the remaining steps skip cleanly.
       - name: Download submitted DMG
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           path: notarization-input
@@ -285,7 +290,7 @@ jobs:
 
       - name: Upload notarized distributable
         if: hashFiles('notarization-input/notary-submission.json') != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -299,10 +304,10 @@ jobs:
     if: ${{ !cancelled() }}
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Download Intel macOS distributable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: starnet-darwin-x64
           path: intel-distributable
@@ -317,7 +322,7 @@ jobs:
           bash scripts/verify-macos-intel-installed.sh "$dmg" intel-macos-installed-acceptance.json
 
       - name: Upload Intel installed-app receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: intel-macos-installed-acceptance
           if-no-files-found: error
@@ -328,9 +333,9 @@ jobs:
     needs: [build, notarize-macos, intel-macos-installed-acceptance]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: starnet-*
           path: dist
