@@ -127,13 +127,20 @@
     const resolveFrom = function (base, w) { return P.isAbsolute(w) ? P.resolve(w) : P.resolve(base, w); };
     const targets = new Set();
     const roots = [P.resolve(root)];
-    try { if (o.fs && typeof o.fs.realpathSync === 'function') roots.push(o.fs.realpathSync(root)); } catch (_) {}
+    // the real path of p, or null when there is none to read (a path that does not exist yet is the common case, and the
+    // literal spelling is still compared, so a miss here never lets a name through)
+    const realOrNull = function (p) {
+      if (!o.fs || typeof o.fs.realpathSync !== 'function') return null;
+      try { return o.fs.realpathSync(p); } catch (_) { return null; }
+    };
+    const realRoot = realOrNull(root);
+    if (realRoot) roots.push(realRoot);
     for (const r of roots) for (const n of GENERIC_AUTHORITY_NAMES) targets.add(fold(P.join(r, n)));
     const hits = function (abs) {
       if (targets.has(fold(abs))) return true;
       // by the real path too: a link in the project that points into the data directory
-      try { if (o.fs && typeof o.fs.realpathSync === 'function') return targets.has(fold(P.join(o.fs.realpathSync(P.dirname(abs)), P.basename(abs)))); } catch (_) {}
-      return false;
+      const realDir = realOrNull(P.dirname(abs));
+      return !!realDir && targets.has(fold(P.join(realDir, P.basename(abs))));
     };
     const words = commandWords(cmd);
     const named = [], bases = [P.resolve(cwd)];
