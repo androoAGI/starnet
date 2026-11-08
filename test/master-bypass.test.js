@@ -37,11 +37,13 @@ const hardline = (call) => (call && call.args && /(^|\/)\.env$/.test(call.args.p
   A.ok(!r.allow && r.hardline === true, 'FULL BYPASS never reaches past the hardline floor');
 }
 
-// ---- 2b. explicit Full Power outranks the restricted-mode hardline ----
+// ---- 2b. the hardline floor sits above explicit Full Power too (GHSA-2hpj #2) ----
 {
   const consent = makeConsentBroker({ bypass: () => true, unrestrictedHost: () => true, hardline: hardline, surface: 'autonomous' });
   const r = consent({ name: 'fs.write', args: { path: '.env' } }, WRITE);
-  A.ok(r.allow && r.reason === 'full-power', 'Full Power reaches protected host files without a niche exception');
+  A.ok(!r.allow && r.hardline === true, 'Full Power never reaches past the hardline floor (.env)');
+  const ok = consent(writeCall, WRITE);
+  A.ok(ok.allow && ok.reason === 'full-power', 'Full Power still allows everything the floor does not name, with no prompt');
 }
 
 // ---- 3. a throwing bypass predicate fails CLOSED ----

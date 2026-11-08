@@ -6311,7 +6311,8 @@ const executionEnvironment = makeExecutionRouter({
   defaultBackendId: configuredExecutionBackend,
   profileForAgent: (agentId) => ((agentRoster.get(String(agentId || '')) || {}).executionProfile || 'station-gear'),
   // Full Power means this computer, not "all permissions inside a container/SSH profile". Keep the stored
-  // profile intact for revocation, but route every host-authorized command to the local backend while active.
+  // profile intact for revocation, and route host-authorized commands to the local backend while active, except a
+  // SAFE CELL agent's: the router refuses those with a clear message instead of moving it (GHSA-2hpj #2).
   forceLocalForAgent: (agentId) => FULL_ACCESS || masterBypassOn()
     || ((agentRoster.get(String(agentId || '')) || {}).approvalMode === 'full')
 });

@@ -15,6 +15,10 @@
 'use strict';
 const { swallow } = require('./failopen.js');
 
+// GHSA-2hpj #2: the words a Safe Cell agent's command is refused with while Full Power is on
+const FULL_POWER_SAFE_CELL = "This agent's profile is SAFE CELL and Full Access is on. StarNet does not move a Safe Cell agent onto this computer: " +
+  "turn Full Access (and FULL BYPASS) off to run it in the cell, or change its execution profile to THIS COMPUTER.";
+
 function makeExecutionRouter(deps) {
   deps = deps || {};
   const environments = deps.environments || {};
@@ -63,13 +67,28 @@ function makeExecutionRouter(deps) {
     const id = String(agentId || 'agent');
     try {
       if (environments.local && forceLocalForAgent(id) === true) {
-        return { id: 'local', requested: 'local', matched: true, reason: null, profileId: String(profileForAgent(id) || 'station-gear'), forcedLocal: true, availability: 'ready' };
+        const profileId = String(profileForAgent(id) || 'station-gear');
+        /* SAFE CELL IS NEVER MOVED (GHSA-2hpj #2). Full Power used to carry a Safe Cell agent onto this computer without
+           a word: the cell the Commander chose for it was gone while the profile still said SAFE CELL. Now its commands
+           are refused, with the two ways out named; the backend stays the cell's, so nothing reports this computer. */
+        if (profileId === 'safe-cell') return { id: 'docker', requested: 'docker', matched: true, reason: FULL_POWER_SAFE_CELL, profileId: profileId, fullPowerConflict: true, availability: 'refused' };
+        return { id: 'local', requested: 'local', matched: true, reason: null, profileId: profileId, forcedLocal: true, availability: 'ready' };
       }
     } catch (_) {}
     return resolveBackend(profileForAgent(id), id);
   }
   function backendIdFor(agentId) { return resolutionFor(agentId).id; }
   function sandboxError(res) {
+    if (res.fullPowerConflict) {
+      const c = new Error(FULL_POWER_SAFE_CELL + ' The command was NOT run.');
+      c.code = 'sandbox_unavailable';
+      c.conflict = 'full-power';
+      c.requested = res.requested;
+      c.reason = res.reason;
+      c.profileId = res.profileId;
+      c.precondition = { code: 'sandbox_unavailable', requiredState: 'safe_cell_without_full_power', requiredAction: 'turn_off_full_access_or_change_execution_profile' };
+      return c;
+    }
     const label = res.profileId === 'safe-cell' ? 'SAFE CELL' : res.profileId === 'remote-ssh' ? 'REMOTE SSH' : res.profileId;
     const fix = res.requested === 'docker' ? "Start Docker, or change the agent's execution profile."
       : res.requested === 'ssh' ? "Configure an SSH target, or change the agent's execution profile."
@@ -88,7 +107,7 @@ function makeExecutionRouter(deps) {
   // The requested sandbox is not there at all (or would silently become the host): every execute-class
   // call rejects up front. Nothing is spawned.
   function refusingProxy(real, res) {
-    const key = 'refuse|' + res.requested + '|' + res.profileId;
+    const key = 'refuse|' + res.requested + '|' + res.profileId + (res.fullPowerConflict ? '|full-power' : '');
     if (refusingCache.has(key)) return refusingCache.get(key);
     const proxy = Object.create(real);
     // Sync methods (spawnStdio) throw; promise-returning ones reject. Nothing is ever spawned.
@@ -129,12 +148,14 @@ function makeExecutionRouter(deps) {
   // NOT refused here — the honest proxy must attempt it so a sandbox that comes up later is honored.
   function refusalFor(agentId) {
     const res = resolutionFor(agentId);
+    if (res.fullPowerConflict) return sandboxError(res);   // under either fallback policy: it is a choice, not an outage
     if (fallbackPolicy !== 'refuse' || res.forcedLocal || res.matched !== false || res.id === res.requested) return null;
     return sandboxError(res);
   }
   function forAgent(agentId) {
     const res = resolutionFor(agentId);
     const real = environments[res.id] || environments[defaultBackendId];
+    if (res.fullPowerConflict) return refusingProxy(real, res);
     if (fallbackPolicy !== 'refuse' || res.forcedLocal || res.requested === 'local') return real;
     if (res.matched === false && res.id !== res.requested) return refusingProxy(real, res);
     if (res.requested !== 'local' && res.requested !== defaultBackendId) return honestProxy(real, res.id, res.profileId);
@@ -151,9 +172,10 @@ function makeExecutionRouter(deps) {
       effectiveBackend,
       requestedBackend: res.requested,
       backendMatched: res.matched !== false,
-      mismatchReason: res.matched === false ? res.reason : null,
+      mismatchReason: res.matched === false ? res.reason : (res.fullPowerConflict ? res.reason : null),
       sandboxFallback: fallbackPolicy,
-      refusing: res.matched === false && fallbackPolicy === 'refuse'
+      refusing: (res.matched === false && fallbackPolicy === 'refuse') || !!res.fullPowerConflict,
+      ...(res.fullPowerConflict ? { fullPowerConflict: true } : {})
     });
   }
   function describe() {

@@ -113,10 +113,18 @@ A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interact
   { allow: true, needsConfirmation: false, oneShot: true }, 'even Always collapses to this exact post-taint call');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, decision: 'deny' }),
   { allow: false, needsConfirmation: false, oneShot: false }, 'denial remains fail-closed');
+// GHSA-2hpj #2: Full Access keeps zero prompts for everything EXCEPT a host process after taint: text the run read must
+// not drive this computer's terminal unasked. A watched run confirms that one call; an unattended one is refused.
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true }),
-  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint without asking — full means zero permission prompts');
+  { allow: false, needsConfirmation: true, oneShot: false }, 'Full Access does not lift the execute lock after taint: a watched run confirms the one shell call');
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true, decision: 'once' }),
+  { allow: true, needsConfirmation: false, oneShot: true }, 'and that confirmation runs exactly this call');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
-  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint on unattended task surfaces too');
+  { allow: false, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run that read outside content is refused the shell');
+A.eq(taint.postTaintBoundary(VERIFY, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
+  { allow: false, needsConfirmation: false, oneShot: false }, 'verify.run (a host process too) is held the same way');
+A.eq(taint.postTaintBoundary(WEB_REQ, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
+  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access still survives taint without asking for a tool that is not a host process');
 A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false }),
   { allow: true, needsConfirmation: false, oneShot: false }, 'ordinary jailed file analysis remains usable');
 

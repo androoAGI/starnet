@@ -24,8 +24,11 @@ const MCP = { name: 'mcp__notes__write', capability: 'mcp:notes', scope: 'execut
 
 // ---- 1. policy ----
 {
-  const owner = taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true });
+  const owner = taint.postTaintBoundary(MCP, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true });
   A.eq(owner, { allow: true, needsConfirmation: false, oneShot: false }, 'an owner-typed tainted run on Full Access keeps the override');
+  // GHSA-2hpj #2: ...except for a host process: no Full Access lifts the shell lock after taint
+  A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
+    { allow: false, needsConfirmation: false, oneShot: false }, 'an owner-typed tainted run on Full Access is still refused the shell unattended');
   const trig = taint.postTaintBoundary(SHELL, { taintedBy: 'line trigger payload', surface: 'autonomous', hasPrompt: false, fullAccess: true, untrustedEntry: true });
   A.eq(trig, { allow: false, needsConfirmation: false, oneShot: false }, 'a payload-started run on Full Access loses the terminal while tainted');
   A.eq(taint.postTaintBoundary(MCP, { taintedBy: 'forwarded message', surface: 'autonomous', hasPrompt: false, fullAccess: true, untrustedEntry: true }).allow, false,

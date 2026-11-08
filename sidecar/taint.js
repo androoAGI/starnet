@@ -181,7 +181,9 @@
     // typed the job at all, so "zero prompts" would hand the payload's author the terminal. Owner-typed runs keep
     // the override exactly as before, including one that later read a web page.
     // ...and never for a fresh-consent tool (station.power): a run that read a page asks before it widens the leash
-    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true) return { allow: true, needsConfirmation: false, oneShot: false };
+    // ...and never for a host process (shell.exec, verify.run; GHSA-2hpj #2): text the run read must not drive this
+    // computer's terminal with no prompt. A watched run confirms that one call; an unattended one is refused.
+    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true && impactOfTool(tool) !== 'workspace-process') return { allow: true, needsConfirmation: false, oneShot: false };
     if (opts.surface !== 'interactive' || opts.hasPrompt !== true) return { allow: false, needsConfirmation: false, oneShot: false };
     if (opts.decision == null) return { allow: false, needsConfirmation: true, oneShot: false };
     const allow = /^(?:once|session|always|full)$/i.test(String(opts.decision || ''));

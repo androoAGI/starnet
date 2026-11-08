@@ -214,12 +214,13 @@
 
     function consent(call, tool) {
       const scope = scopeOf(tool);
-      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet policy floors.
-      // Input/schema validity, OS permissions and downstream service prerequisites still report normally.
-      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
-      // 1. HARDLINE — unreachable past any flag.
+      // 1. HARDLINE — unreachable past any flag, Full Power included (GHSA-2hpj #2: it used to run after the full-power
+      // return below, so any Full Access skipped the .env/.git floor its own comment promised).
       const hr = hardline ? hardline(call, tool) : null;
       if (hr) return { allow: false, scope: scope, hardline: true, reason: String(hr) + ANTI_RETRY };
+      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet's other policy tiers.
+      // Input/schema validity, OS permissions and downstream service prerequisites still report normally.
+      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
       // 2. BYPASS — boot Full Access, live master bypass, or persisted per-agent Full Access.
       if (bypassNow()) return { allow: true, scope: scope, reason: 'full-access' };
       // 2.4 UNATTENDED TERMINAL GRANT — checked BEFORE the exec lockout because opening that lockout for exactly

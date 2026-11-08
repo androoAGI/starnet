@@ -90,7 +90,7 @@
     if (/(^|[\\/])\.env(\.|:|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.env)';
     if (/(^|[\\/])\.git([\\/:]|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.git)';
     const cred = credentialFloor(probe);
-    if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — only Full Power reaches it';
+    if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — no setting reaches it, Full Power included';
     return null;
   }
 
@@ -173,10 +173,15 @@
       // policy restrictions, not path syntax validity or the distinction between this computer and a share.
       if (raw.indexOf('\0') >= 0) throw new Error('illegal path (NUL): ' + raw);
       if (/^[\\/]{2}/.test(raw)) throw new Error('network paths (UNC) are not local computer paths: ' + raw);
-      // Host-wide Full Power intentionally bypasses project blessings, protected-file policy, cross-agent
-      // workspace ownership and symlink containment. The OS remains the authority on whether the path exists
-      // and whether this user can read or write it.
+      // Host-wide Full Power intentionally bypasses project blessings, cross-agent workspace ownership and symlink
+      // containment. It does NOT bypass the floors (GHSA-2hpj #2): .env, .git and credential files stay refused, on
+      // the path as named and on the real target a link resolves to. The OS remains the authority on the rest.
       if (unrestrictedHost) {
+        const fhr = hardlineReason(raw, norm);
+        if (fhr) throw new Error(fhr);
+        const freal = await realpathDeepest(norm);
+        const frhr = hardlineReason(freal, freal);
+        if (frhr) throw new Error(frhr + ' (reached via ' + norm + ')');
         return { base: (P.parse(norm).root || P.dirname(norm)), abs: norm, unrestrictedHost: true };
       }
       const hr = hardlineReason(raw, norm);
