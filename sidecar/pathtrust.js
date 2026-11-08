@@ -163,6 +163,16 @@
       const prompt = typeof o.prompt === 'function' ? o.prompt : null;
       const fullAccess = o.fullAccess === true;
       const unrestrictedHost = o.unrestrictedHost === true;
+      /* A RUN THAT READ OUTSIDE CONTENT DOES NOT WRITE THE HOST UNASKED (fix-sec2, review 5). This Computer and Full
+         Power let a run reach every host path with no card. After the run read a web page, a connector or another
+         untrusted source (o.tainted, the host's latch), that would let the page's author write a Startup entry, a
+         LaunchAgent, ~/.bashrc or StarNet's own data (a routine's terminal grant) with no prompt. So a tainted WRITE
+         gets no host-wide pass: its own workspace and the trusted projects still flow; anything else asks a watched run
+         for this one access (never a standing grant), and is refused to an unattended one. Reads are unchanged. */
+      let taintedWrite = false;
+      if (scope === 'write' && o.tainted != null) {
+        try { taintedWrite = typeof o.tainted === 'function' ? !!o.tainted() : o.tainted === true; } catch (_) { taintedWrite = true; }
+      }
       // WHO caused this I/O, for recency metadata only (never an authority input): an explicit host-minted flag wins,
       // otherwise a watched interactive run is the user's and everything else is the agent's.
       const userTouch = (o.userTouch === true || o.userTouch === false) ? o.userTouch : surface === 'interactive';
@@ -176,7 +186,7 @@
       // Host-wide Full Power intentionally bypasses project blessings, cross-agent workspace ownership and symlink
       // containment. It does NOT bypass the floors (GHSA-2hpj #2): .env, .git and credential files stay refused, on
       // the path as named and on the real target a link resolves to. The OS remains the authority on the rest.
-      if (unrestrictedHost) {
+      if (unrestrictedHost && !taintedWrite) {
         const fhr = hardlineReason(raw, norm);
         if (fhr) throw new Error(fhr);
         const freal = await realpathDeepest(norm);
@@ -242,8 +252,12 @@
       if (sessionRoots) for (const R of sessionRoots) if (R && pathInside(real, R)) return { base: R, abs: norm };
 
       // 2. not blessed. In ASK mode only a watched, prompt-wired run may approve a new root. Full Access is
-      // already the operator's authority for every non-hardline path, so it must never manufacture a prompt.
-      if (!fullAccess && (surface !== 'interactive' || !prompt))
+      // already the operator's authority for every non-hardline path, so it must never manufacture a prompt
+      // (except for a tainted write, above: it asks a watched run, and an unattended one is refused).
+      const hostWide = (fullAccess || unrestrictedHost) && !taintedWrite;
+      if (taintedWrite && (surface !== 'interactive' || !prompt))
+        throw new Error('this run read outside content, so it cannot write outside its workspace and trusted projects without asking: ' + norm);
+      if (!hostWide && (surface !== 'interactive' || !prompt))
         throw new Error('path is outside the agent workspace and no project root grant covers it: ' + norm +
           ' — an autonomous run cannot bless a new folder; grant it from a watched session first.');
 
@@ -258,7 +272,7 @@
 
       // Full Access is live and revocable, so do not silently convert it into a permanent path grant. While the
       // posture remains full every access flows here without asking; revoking it restores the ordinary path card.
-      if (fullAccess) return { base: proposedReal, abs: norm, fullAccess: true };
+      if (hostWide) return { base: proposedReal, abs: norm, fullAccess: true };
 
       /* BLESS THE REAL PATH. The header calls the grant key "realpath (canonical)", but normalizeRoot is only
          P.resolve — so a root reached through a symlinked ancestor (~/code -> /mnt/data/code, the ordinary
@@ -268,6 +282,12 @@
          one prompt that widens the agent's filesystem reach. The PROMPT still names the path the Commander
          recognizes; only the recorded key is canonical. */
       const decision = await prompt(proposed, { path: norm, scope: scope });
+      // a tainted write: any yes allows this one access and records nothing (a standing grant made after the taint
+      // would outlive it)
+      if (taintedWrite) {
+        if (/^(?:once|session|always|full)$/.test(String(decision || ''))) return { base: proposedReal, abs: norm, oneShot: true };
+        throw new Error('access to ' + norm + ' was denied');
+      }
       /* "always" AND "full" both RECORD the standing root grant. "full" used to fall through to the one-time
          branch below on the reasoning that "a directory bless is never a side effect of a blanket capability
          grant" — which is still true and still enforced, because this module does not interpret the agent's

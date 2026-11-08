@@ -23797,7 +23797,10 @@ async function runOnceCore(o) {
     // This Computer widens the path envelope without changing approval posture: ASK still prompts before
     // mutations, while reads of non-protected host paths no longer need a second project-root card.
     fullAccess: unrestrictedHostNow() || executionProfile.filesystemScope === 'host-paths-except-hard-floor',
-    unrestrictedHost: unrestrictedHostNow()
+    unrestrictedHost: unrestrictedHostNow(),
+    // fix-sec2 review 5: once the run read outside content (its own latch, or one it inherited), a write gets no
+    // host-wide pass: outside its workspace and the trusted projects it asks a watched run, and an unattended one is refused
+    tainted: () => !!(execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()))
   });
   /* ONE PATH OBJECT PER RUN (run-paths lane, sidecar/run-paths.js). Every tool reads ctx.paths, so a relative path means
      the same folder to fs.*, shell, terminal, verify, media and browser.upload, and every receipt names a path the next
