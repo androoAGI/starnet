@@ -519,11 +519,14 @@ html body.vx:not(.hud-mode) .term:not(.pw) .bb:is(.active, .sel, .on, [aria-pres
 }
 /* WINDOW INTERIORS: one rule squares every boxed surface inside a window. The window sheets hard-code their own radii
    (hundreds of literal values across ~30 sheets), so per-surface patches would never close the family. What is round
-   because it is a LIGHT or a MECHANISM keeps its round: dots, lamps, LEDs, rings, knobs, spinners, avatars, toggles and
-   switches are excluded by name, and every window was diffed (each element's roundness with body.vx on vs off) to
-   prove it. The :not() chain is also what lets this outweigh the sheets' class-level rules (each :not weighs a class).
-   A surface given a cut below opts out by name (.prov-card) */
-html body.vx:not(.hud-mode) .term:not(.pw) *:not([class*="dot"]):not([class*="lamp"]):not([class*="led"]):not([class*="ring"]):not([class*="knob"]):not([class*="spin"]):not([class*="avatar"]):not([class*="toggle"]):not([class*="switch"]):not(.prov-card) {
+   because it is a LIGHT or a MECHANISM keeps its round, found by STRUCTURE, never by class-name text: a light (dot, lamp,
+   LED, spinner, knob) is an EMPTY inline element drawn purely in CSS, and a toggle is a checkbox/radio input or the one
+   span-built switch track (.sk-sw-track). No [class*=…] selectors: they make every class change pay a restyle (locked by
+   test/comms-system-run-end.test.js). Anchored on #screen-game #terms, where every window lives, so it also outweighs the
+   sheets' id-scoped skins (.sn-menu #sk-lib .sk-card). Swept live, 13 windows x 46 tabs, each element's roundness with
+   body.vx on vs off: nothing left rounded, every light and toggle kept. A surface given a cut below opts out by name
+   (.prov-card) */
+html body.vx:not(.hud-mode) #screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):empty):not(:is(input[type=checkbox], input[type=radio], .sk-sw-track, .prov-card)) {
   border-radius: 0;
 }
 html body.vx:not(.hud-mode) .settings-console :is(.bb, .set-theme, .ov-vchip) { border-radius: 0; }

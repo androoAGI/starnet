@@ -2,7 +2,8 @@
    Locks the VECTOR identity (Andrew 2026-11-08: vector-phosphor screens in a dark-chrome chassis):
    - frontend/css/vector.css is the LAST stylesheet, and <body> boots with `vx`, so the identity is on before first paint;
    - every rule in vector.css is scoped under body.vx (the identity is one class away from off, never a leak);
-   - the curved radius scales are zeroed in ONE place each (the family is closed by tokens, not per-surface patches);
+   - the curved radius scales are zeroed in ONE place each (the family is closed by tokens, not per-surface patches), and
+     window interiors square by structure (empty inline lights keep their round), never by [class] text;
    - the logo keeps no glow (Andrew's call) — the sheet never touches it;
    - world.js's phosphor feed is the truth law in code: one 'color' blend, gated on body.vx, drawn AFTER the environment
      and BEFORE every state signal, with the live-work layer moved after it while the feed is on. */
@@ -51,6 +52,11 @@ A.eq(atRules, ['@supports (corner-shape: bevel)'], 'the only at-rule is the corn
 for (const token of ['--sn-r-card', '--sn-r-key', '--sn-r-row', '--sn-r-chip', '--r-sm', '--r', '--r-lg']) {
   A.ok(new RegExp(token + ':\\s*0px;').test(css), token + ' is zeroed under the identity');
 }
+
+// ---- window interiors square by STRUCTURE: no class-name text matching (every class change would pay a restyle) ----
+A.ok(!/\[class/.test(css), 'vector.css never keys on [class] text');
+A.ok(css.includes('#screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):empty)'),
+  'window interiors square everything but empty inline lights, anchored where every window lives');
 
 // ---- the logo keeps no glow ----
 A.ok(!/logo/i.test(css), 'vector.css never targets the logo (no glow, no drop-shadow: Andrew\'s call)');
