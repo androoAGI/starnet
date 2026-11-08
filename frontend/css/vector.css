@@ -1,0 +1,576 @@
+/* VECTOR — StarNet's identity (Andrew 2026-11-08: "this is the exact look, this is the exact identity for how
+   starnet should look"). Sixteen references, one machine: vector-phosphor screens — the blue grid and dots, the
+   red/green/amber vector CRTs, the wireframe city and head, the neon circuit traces, the synchro-test terminal with
+   its hairline frames and square nodes — set into a sculpted dark-chrome chassis like the biomechanical media-player
+   skins and the airbrushed machine walls. Glass panels become SCREENS; the bar and the dock become HARDWARE.
+
+   The vocabulary (every rule below is one of these):
+     · SCREEN   — a black tube face with grain, framed by a neon double line (white-hot core, saturated edges, a
+                  black gap, a second thinner line), square nodes on the corners, a machined 45° cut on the outer
+                  corners, a soft bloom thrown onto the chassis
+     · HARDWARE — dark gunmetal tinted by the phosphor (blue steel at blue, bronze at amber, green steel at green),
+                  molded like a tube with low highlights, ribbed grilles and rivets; recessed LCD wells for readouts;
+                  keycaps for keys
+     · LIGHT    — only light sources glow: vector strokes, nodes, lamps, CRT type. Keys and rows change STATE on
+                  hover (fill, edge, lit bar), never bloom (Andrew's matte law). The logo keeps no glow (his call).
+     · TYPE     — VT323 only (the law); titles are white-hot type with a red/cyan beam fringe
+   Layout, sizes, features and copy are untouched: this sheet only repaints existing surfaces. The phosphor colour is
+   still the theme (Appearance), so the red, green and amber vector consoles in the references are one hue away.
+   Square fallback: where `corner-shape` is unsupported the cut corners stay square (never rounded). */
+
+body.vx {
+  --vx-black: #000106;
+  --vx-line: rgba(var(--ph-rgb), .95);
+  --vx-line-mid: rgba(var(--ph-rgb), .58);
+  --vx-line-dim: rgba(var(--ph-rgb), .32);
+  --vx-hair: rgba(var(--ph-rgb), .16);
+  --vx-core: rgb(var(--ph-bright-rgb));
+  --vx-node: color-mix(in srgb, rgb(var(--ph-bright-rgb)) 62%, #fff);
+  --vx-fringe: -1px 0 rgba(255, 36, 96, .38), 1px 0 rgba(36, 224, 255, .38);
+  --vx-title-glow: var(--vx-fringe), 0 0 6px rgba(var(--ph-rgb), .9), 0 0 16px rgba(var(--ph-rgb), .45);
+  --vx-well: color-mix(in srgb, var(--ink) 30%, #000);
+  /* the neon double line: border = white-hot core; these shadows = its saturated edges, the gap, the second line,
+     the light it throws inward and the bloom it throws onto the chassis */
+  --vx-frame:
+    inset 0 0 0 1px rgba(var(--ph-rgb), .9),
+    inset 0 0 0 4px var(--vx-black),
+    inset 0 0 0 5px rgba(var(--ph-rgb), .5),
+    inset 0 0 20px rgba(var(--ph-rgb), .06),
+    0 0 0 1px rgba(var(--ph-rgb), .9),
+    0 0 8px 1px rgba(var(--ph-rgb), .55),
+    0 0 26px 3px rgba(var(--ph-rgb), .2);
+  /* film grain for steel (under the type, never over it) */
+  --vx-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .11 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* the tube face's grain: phosphor-tinted and faint, so the black stays black (the first pass lifted it to grey) */
+  --vx-grain-tube: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .7 0 0 0 0 1 0 0 0 .045 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* hardware: gunmetal with the phosphor folded into the steel */
+  --vx-metal-hi: color-mix(in srgb, var(--ph) 12%, #313947);
+  --vx-metal: color-mix(in srgb, var(--ph) 8%, #171c26);
+  --vx-metal-lo: color-mix(in srgb, var(--ph) 5%, #07090e);
+  --vx-rivet: radial-gradient(circle, rgba(255, 255, 255, .22) 0 1px, color-mix(in srgb, var(--ph) 10%, #3a4250) 1.5px 2.5px, rgba(0, 0, 0, .8) 3px 3.6px, transparent 4px);
+  --vx-cut: 18px;
+  --vx-n: 6px;
+}
+
+/* ============================================================
+   1 · THE CHASSIS — what shows between the screens
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game.active {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -8%, rgba(var(--ph-rgb), .18), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 108%, rgba(var(--ph-rgb), .12), transparent 70%),
+    var(--vx-grain),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .45) 0 2px, rgba(255, 255, 255, .05) 2px 3px, transparent 3px 7px),
+    linear-gradient(180deg, var(--vx-metal) 0%, var(--vx-metal-lo) 46%, var(--vx-metal-lo) 60%, var(--vx-metal) 100%);
+}
+
+/* ============================================================
+   2 · SCREENS — CREW and COMMS are vector terminals
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) {
+  background:
+    radial-gradient(ellipse 130% 45% at 50% 0%, rgba(var(--ph-rgb), .08), transparent 64%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 58%, rgba(0, 0, 0, .7) 100%),
+    var(--vx-grain-tube),
+    var(--vx-black);
+  border: 1px solid var(--vx-core);
+  border-radius: 0;
+  box-shadow: var(--vx-frame);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #left { border-radius: var(--vx-cut) 0 0 var(--vx-cut); corner-shape: bevel; }
+  html body.vx:not(.hud-mode) #screen-game #chat-panel { border-radius: 0 var(--vx-cut) var(--vx-cut) 0; corner-shape: bevel; }
+}
+/* the glass vignette layer goes: the tube face above is the whole surface */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::before { background: none; box-shadow: none; }
+/* square nodes on the frame's square corners (the machined cuts carry none) */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::after {
+  content: ''; display: block; position: absolute; inset: 0; z-index: 7; pointer-events: none;
+  border: 0; border-radius: 0; box-shadow: none; opacity: 1;
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 0 / var(--vx-n) var(--vx-n) no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / var(--vx-n) var(--vx-n) no-repeat;
+  filter: drop-shadow(0 0 2px rgba(var(--ph-rgb), 1)) drop-shadow(0 0 6px rgba(var(--ph-rgb), .7));
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel::after {
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / var(--vx-n) var(--vx-n) no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 100% / var(--vx-n) var(--vx-n) no-repeat;
+}
+
+/* panel titles: white-hot type on a lit, scan-sliced tab over a vector rule that ends in nodes */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 {
+  position: relative;
+  border-radius: 0; border-bottom: 0;
+  padding-left: 30px;
+  color: var(--vx-node);
+  letter-spacing: 4px;
+  text-shadow: var(--vx-title-glow);
+  background:
+    linear-gradient(var(--vx-line), var(--vx-line)) left 10px bottom 0 / calc(100% - 20px) 1px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) left 8px bottom -2px / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) right 8px bottom -2px / 5px 5px no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .42) 0 1px, transparent 1px 3px) left 6px top 6px / calc(100% - 12px) calc(100% - 9px) no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .5), rgba(var(--ph-rgb), .2) 30%, rgba(var(--ph-rgb), .06) 62%, transparent 88%) left 6px top 6px / calc(100% - 12px) calc(100% - 9px) no-repeat;
+  box-shadow: none;
+}
+/* the title's lead mark: a lit square in a hairline box, drawn (VT323 has no ■ — a glyph would fall back) */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3::before {
+  content: ''; display: block; position: absolute; left: 13px; top: 18px; width: 7px; height: 7px;
+  background: var(--vx-node);
+  box-shadow: 0 0 6px rgba(var(--ph-rgb), 1), 0 0 0 2px rgba(0, 0, 0, .9), 0 0 0 3px var(--vx-line-mid);
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum { color: color-mix(in srgb, var(--vx-core) 70%, transparent); letter-spacing: 2px; text-shadow: none; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 :is(#comms-title, #chat-status) { color: inherit; }
+
+/* ============================================================
+   3 · THE STATION VIEW — a vector monitor set into the chassis
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game:not(.cinema) #stage-wrap {
+  border-radius: 0;
+  background: #000;
+  box-shadow:
+    0 0 0 1px var(--vx-core),
+    0 0 0 2px rgba(var(--ph-rgb), .9),
+    0 0 9px 2px rgba(var(--ph-rgb), .5),
+    0 0 30px 5px rgba(var(--ph-rgb), .18),
+    inset 0 0 46px rgba(0, 0, 0, .9);
+}
+html body.vx:not(.hud-mode) #screen-game:not(.cinema) #stage-wrap::before { border-radius: 0; }
+/* the tube's second line (inside: the seams outside belong to the conduits) + nodes on its four corners */
+html body.vx:not(.hud-mode) #screen-game:not(.cinema) #stage-wrap::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / var(--vx-n) var(--vx-n) no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 0 / var(--vx-n) var(--vx-n) no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 100% / var(--vx-n) var(--vx-n) no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / var(--vx-n) var(--vx-n) no-repeat;
+  box-shadow: inset 0 0 0 3px rgba(0, 0, 0, .92), inset 0 0 0 4px rgba(var(--ph-rgb), .5);
+}
+
+/* ============================================================
+   3b · CONDUITS — the two seams between the screens are ribbed biomech hoses (the resize handles they already are:
+   the grip still lights on hover, the hose is only their casing)
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
+  background:
+    linear-gradient(90deg, rgba(0, 0, 0, .85), rgba(255, 255, 255, .16) 40%, rgba(255, 255, 255, .03) 62%, rgba(0, 0, 0, .9)) center / 5px 100% no-repeat,
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, .95) 0 1px, var(--vx-metal-hi) 1px 2px, var(--vx-metal) 2px 4px, var(--vx-metal-lo) 4px 5px) center / 5px 100% no-repeat;
+}
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) .col-resizer-grip { width: 3px; border-radius: 0; }
+/* the viewfinder marks (Andrew 10-02: thin lines at the corners, no words) — now lit vector strokes */
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-hud::after {
+  --cm: var(--vx-node); --cl: 30px; --ct: 2px;
+  inset: 14px;
+  filter: drop-shadow(0 0 2px rgba(var(--ph-rgb), 1)) drop-shadow(0 0 7px rgba(var(--ph-rgb), .65));
+}
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-cine {
+  right: 28px; bottom: 28px; border-radius: 0;
+  color: var(--vx-core); border: 1px solid var(--vx-line-mid);
+  background: rgba(0, 0, 0, .65); box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-cine:is(:hover, :focus-visible) { border-color: var(--vx-line); background: rgba(var(--ph-rgb), .16); }
+
+/* ============================================================
+   4 · CREW — agent cards are lit menu slots
+   ============================================================ */
+/* one radius scale ran the dashboard (pipglass THE CURVED DASHBOARD: card 10 · key 8 · row 6 · chip 4); the vector
+   console is cut, not rounded, so the scale goes to 0 here and every surface that reads it squares at once. The cuts
+   are drawn per surface below with corner-shape: bevel (where it's unsupported they stay square, never rounded) */
+html body.vx:not(.hud-mode) { --sn-r-card: 0px; --sn-r-key: 0px; --sn-r-row: 0px; --sn-r-chip: 0px; }
+
+html body.vx:not(.hud-mode) #screen-game #crew .crew-row {
+  border-radius: 0; border: 1px solid transparent; background: transparent; box-shadow: none;
+}
+html body.vx:not(.hud-mode) #screen-game #crew .crew-row:is(:hover, :focus-visible):not(.selected):not(.filtering):not(.asking) {
+  background: linear-gradient(90deg, rgba(var(--ph-rgb), .16), rgba(var(--ph-rgb), .03) 70%);
+  border-color: var(--vx-line-dim); box-shadow: none;
+}
+/* the selected slot: a scan-sliced lit fill, the frame line and a lit bar at its lead edge */
+html body.vx:not(.hud-mode) #screen-game #crew .crew-row:is(.selected, .filtering):not(.asking) {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .42), rgba(var(--ph-rgb), .14) 50%, rgba(var(--ph-rgb), .04));
+  border-color: var(--vx-line);
+  box-shadow: inset 3px 0 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .25);
+}
+/* a wait keeps its gold (the row's colour is the signal) */
+html body.vx:not(.hud-mode) #screen-game #crew .crew-row.asking { border-color: rgba(var(--gold-rgb), .8); box-shadow: inset 3px 0 0 var(--gold); }
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #crew .crew-row { border-radius: 0 14px 0 0; corner-shape: bevel; }
+}
+/* the portrait sits in a black well with a lit edge */
+html body.vx:not(.hud-mode) #screen-game #crew .crew-portrait {
+  border-radius: 0; background: var(--vx-well);
+  border: 1px solid var(--vx-line);
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, .95), inset 0 0 0 1px #000, 0 0 6px rgba(var(--ph-rgb), .35);
+}
+html body.vx:not(.hud-mode) #screen-game #crew .crew-name { text-shadow: 0 0 7px currentColor; letter-spacing: 2px; }
+html body.vx:not(.hud-mode) #screen-game #crew :is(.crew-status, .crew-clock) { letter-spacing: 1.5px; }
+
+/* the CREW head's keys (find, fold): square black keys on a dim edge; hover and an open finder light them */
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide,
+html body.vx:not(.hud-mode) #screen-game #left #crew-search-close {
+  border-radius: 0; border: 1px solid var(--vx-line-dim); background: rgba(0, 0, 0, .6); color: var(--ph);
+  box-shadow: inset 0 0 0 1px #000;
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-search-toggle[aria-expanded="true"],
+html body.vx:not(.hud-mode) #screen-game #left #crew-search-close:is(:hover, :focus-visible) {
+  border-color: var(--vx-line); color: var(--vx-node); background: rgba(var(--ph-rgb), .16);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide { border-radius: 7px 0 7px 0; corner-shape: bevel; }
+}
+
+/* ============================================================
+   5 · SESSIONS / PROJECTS — terminal tabs, a command-line search, rows on the grid
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game #left .ws-head {
+  background:
+    linear-gradient(var(--vx-line-mid), var(--vx-line-mid)) left 10px top 0 / calc(100% - 20px) 1px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) left 8px top -2px / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) right 8px top -2px / 5px 5px no-repeat;
+}
+/* the tabs and + NEW: dark keys standing on the strip's rule. (Two rules, not one :is(): an :is() holding an id
+   weighs as an id, and the open tab's rule below has to outweigh the resting tab's) */
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab,
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(#ws-new, #ws-addproject) {
+  border-radius: 0; background: rgba(0, 0, 0, .55); border: 1px solid var(--vx-line-dim);
+  color: var(--ph); box-shadow: none; letter-spacing: 2px; text-shadow: 0 0 5px rgba(var(--ph-rgb), .5);
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:is(:hover, :focus-visible):not(.on),
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(#ws-new, #ws-addproject):is(:hover, :focus-visible) {
+  border-color: var(--vx-line); color: var(--vx-core); background: rgba(var(--ph-rgb), .12);
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab.on {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .45), rgba(var(--ph-rgb), .16));
+  border-color: var(--vx-core); color: var(--vx-node);
+  text-shadow: var(--vx-title-glow);
+  box-shadow: inset 0 -2px 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .3);
+}
+@supports (corner-shape: bevel) {
+  /* one :is() with the ids on purpose: the curved scale's tab rule is id-weighted the same way */
+  html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-tab, #ws-new, #ws-addproject) { border-radius: 10px 0 0 0; corner-shape: bevel; }
+}
+/* the search fields are recessed command lines */
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search) {
+  border-radius: 0; background: var(--vx-well); border: 1px solid var(--vx-line-dim);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, .9), inset 0 0 0 1px #000; color: var(--vx-core);
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search):focus {
+  border-color: var(--vx-line); outline: 0;
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, .9), inset 0 0 0 1px #000, 0 0 8px rgba(var(--ph-rgb), .3);
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(.ws-rail-search label, .crew-search-wrap)::before { color: var(--vx-node); text-shadow: 0 0 7px rgba(var(--ph-rgb), 1); }
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search) { border-radius: 0 0 10px 0; corner-shape: bevel; }
+}
+/* the rows: square (the compact list hard-sets 8px, so its own selector is mirrored), a lit slot when open */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row,
+html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left #workstreams > .ws-row { border-radius: 0; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row:is(:hover, :focus-visible):not(.sel):not(.attn) {
+  background: linear-gradient(90deg, rgba(var(--ph-rgb), .14), rgba(var(--ph-rgb), .02) 75%);
+  border-color: var(--vx-line-dim); box-shadow: none;
+}
+html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel:not(.attn),
+html body.vx:not(.hud-mode) #screen-game #left #projects > .ws-row.proj-row:is(.project-selected, [aria-current="page"]) {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .36), rgba(var(--ph-rgb), .1) 60%, rgba(var(--ph-rgb), .02));
+  border-color: var(--vx-line);
+  box-shadow: inset 3px 0 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .22);
+}
+html body.vx:not(.hud-mode) #screen-game #left #workstreams .ws-row.sel.attn { box-shadow: inset 3px 0 0 var(--gold); }
+
+/* ============================================================
+   6 · COMMS — the transcript is a gridded readout, the composer a command line
+   ============================================================ */
+html body.vx:not(.hud-mode) #chat-panel #chat-log {
+  background:
+    linear-gradient(rgba(var(--ph-rgb), .05) 1px, transparent 1px) 0 0 / 34px 34px,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .05) 1px, transparent 1px) 0 0 / 34px 34px;
+}
+html body.vx:not(.hud-mode) #chat-panel #comms-idbar { background: transparent; }
+html body.vx:not(.hud-mode) #chat-panel .comms-portrait {
+  border-radius: 0; background: var(--vx-well); border: 1px solid var(--vx-line);
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, .95), 0 0 6px rgba(var(--ph-rgb), .35);
+}
+/* starter slots: hairline frames with nodes, like the readout panels */
+html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter {
+  border-radius: 0;
+  border: 1px solid var(--vx-line-mid);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .1), rgba(0, 0, 0, .6) 60%);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter:is(:hover, :focus-visible) {
+  border-color: var(--vx-core);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .34), rgba(var(--ph-rgb), .08) 70%);
+  box-shadow: inset 3px 0 0 var(--vx-node);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter { border-radius: 0 12px 0 12px; corner-shape: bevel; }
+}
+html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter-title { color: var(--vx-core); letter-spacing: 2px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode) #chat-panel .cmsg-empty-line { color: var(--vx-node); letter-spacing: 2px; text-shadow: var(--vx-title-glow); }
+/* the speech rails (rails, never bubbles): each rail is a lit vector line throwing a little light on its own side, and
+   the speaker's name is a lit tag */
+html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg.agent > .body {
+  border-left-color: var(--vx-line);
+  background: linear-gradient(90deg, rgba(var(--ph-rgb), .2), transparent 16px), var(--pg-dither, none);
+}
+html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg.user > .body {
+  border-right-color: currentColor;
+  background: linear-gradient(270deg, color-mix(in srgb, currentColor 20%, transparent), transparent 16px), var(--pg-dither, none);
+}
+html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg > .cmsg-head .who { letter-spacing: 2px; text-shadow: 0 0 5px color-mix(in srgb, currentColor 55%, transparent); }
+/* the composer: a recessed command line */
+html body.vx:not(.hud-mode) #chat-panel #chat-inputrow {
+  border-radius: 0; background: var(--vx-well);
+  border: 1px solid var(--vx-line);
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, .9), inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-line-dim), 0 0 8px rgba(var(--ph-rgb), .3);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #chat-panel #chat-inputrow { border-radius: 12px 0 12px 0; corner-shape: bevel; }
+}
+html body.vx:not(.hud-mode) #chat-panel #chat-inputrow:focus-within { border-color: var(--vx-node); }
+html body.vx:not(.hud-mode) #chat-panel .chat-editline { border-radius: 0; background: transparent; border-color: transparent; }
+html body.vx:not(.hud-mode) #chat-panel .chat-editline .prompt { color: var(--vx-node); text-shadow: 0 0 7px rgba(var(--ph-rgb), 1); }
+html body.vx:not(.hud-mode) #chat-panel #chat-input { color: var(--vx-core); caret-color: var(--vx-node); }
+
+/* ============================================================
+   7 · THE TOP BAR + THE DOCK — molded steel rails
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game #topbar,
+html body.vx:not(.hud-mode) #screen-game #bottombar {
+  border-radius: 0;
+  border: 1px solid #000;
+  background:
+    var(--vx-rivet) left 9px center / 9px 9px no-repeat,
+    var(--vx-rivet) right 9px center / 9px 9px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03) 14%, transparent 42%, rgba(0, 0, 0, .16) 58%, rgba(0, 0, 0, .38) 100%),
+    var(--vx-grain),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .03) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, var(--vx-metal-hi), var(--vx-metal) 48%, var(--vx-metal-lo));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .16),
+    inset 0 -1px 0 rgba(0, 0, 0, .75),
+    0 0 0 1px rgba(0, 0, 0, .7),
+    0 4px 12px rgba(0, 0, 0, .65);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html body.vx:not(.hud-mode) #screen-game #topbar::before,
+html body.vx:not(.hud-mode) #screen-game #bottombar::before { background: none; box-shadow: none; }
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #topbar { border-radius: 0 0 var(--vx-cut) var(--vx-cut); corner-shape: bevel; }
+  html body.vx:not(.hud-mode) #screen-game #bottombar { border-radius: var(--vx-cut) var(--vx-cut) 0 0; corner-shape: bevel; }
+}
+/* a light pipe along each rail's working edge: the lit strip the media-player skins run under their displays */
+html body.vx:not(.hud-mode) #screen-game #topbar::after,
+html body.vx:not(.hud-mode) #screen-game #bottombar::after {
+  content: ''; display: block; position: absolute; left: 40px; right: 40px; height: 2px; pointer-events: none;
+  border: 0; border-radius: 0; opacity: 1;
+  background: linear-gradient(90deg, transparent, var(--vx-line) 8%, var(--vx-node) 50%, var(--vx-line) 92%, transparent);
+  box-shadow: 0 0 6px 1px rgba(var(--ph-rgb), .85), 0 0 16px rgba(var(--ph-rgb), .4);
+}
+html body.vx:not(.hud-mode) #screen-game #topbar::after { bottom: 4px; top: auto; }
+html body.vx:not(.hud-mode) #screen-game #bottombar::after { top: 4px; bottom: auto; }
+/* the readouts sit in recessed LCD wells */
+html body.vx:not(.hud-mode) #topbar :is(.tb-stat, .tb-connection) {
+  border-radius: 0;
+  border: 1px solid #000;
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .34) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 90% 130% at 50% 0%, rgba(var(--ph-rgb), .2), transparent 72%),
+    var(--vx-well);
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, .95), inset 0 0 0 1px var(--vx-line-dim), 0 1px 0 rgba(255, 255, 255, .1);
+}
+html body.vx:not(.hud-mode) #topbar :is(.tb-val, #status-pill) { color: var(--vx-node); text-shadow: 0 0 7px rgba(var(--ph-rgb), .95); }
+html body.vx:not(.hud-mode) #topbar .tb-lbl { color: var(--vx-line-mid); letter-spacing: 2px; }
+
+/* the dock's keys: molded keycaps on the console plate, lit legends */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp {
+  border-radius: 0;
+  border: 1px solid #000;
+  background: linear-gradient(180deg, var(--vx-metal-hi), var(--vx-metal) 58%, var(--vx-metal-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .55), 0 1px 0 rgba(255, 255, 255, .05), 0 2px 4px rgba(0, 0, 0, .5);
+  color: var(--ph); letter-spacing: 2.5px;
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp:is(:hover, :focus-visible) {
+  color: var(--vx-node);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vx-metal-hi) 82%, var(--ph)), var(--vx-metal) 58%, var(--vx-metal-lo));
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.open > .bb-grp {
+  color: var(--vx-node);
+  background: linear-gradient(180deg, var(--vx-metal-lo), var(--vx-metal) 70%);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .85), inset 0 -2px 0 var(--vx-line), 0 1px 0 rgba(255, 255, 255, .05);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp { border-radius: 9px 0 9px 0; corner-shape: bevel; }
+}
+/* the widget + keys: keycaps like the dock's */
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add {
+  border-radius: 0; border: 1px solid #000; color: var(--ph);
+  background: linear-gradient(180deg, var(--vx-metal-hi), var(--vx-metal) 58%, var(--vx-metal-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -2px 0 rgba(0, 0, 0, .55), 0 2px 4px rgba(0, 0, 0, .5);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add:is(:hover, :focus-visible) {
+  color: var(--vx-node);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--vx-metal-hi) 82%, var(--ph)), var(--vx-metal) 58%, var(--vx-metal-lo));
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add { border-radius: 7px 0 7px 0; corner-shape: bevel; }
+}
+/* the CTX gauge: a segmented LCD bar */
+html body.vx:not(.hud-mode) #bottombar .ctx-gauge .ctx-cells {
+  border-radius: 0; height: 7px;
+  box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent), inset 0 0 0 1px rgba(0, 0, 0, .5);
+}
+
+/* ============================================================
+   8 · THE COACH CARD — a readout panel, not a bubble
+   ============================================================ */
+html body.vx:not(.hud-mode) #nav-coach {
+  border-radius: 0; background: var(--vx-black);
+  border: 1px solid var(--vx-core);
+  box-shadow: var(--vx-frame);
+}
+
+/* ============================================================
+   9 · WINDOWS — every station window is a screen rising from the dock
+   ============================================================ */
+/* the base radius scale (style.css: sm 3 · 7 · lg 11) squares with the dashboard's */
+html body.vx:not(.hud-mode) { --r-sm: 0px; --r: 0px; --r-lg: 0px; }
+
+html body.vx:not(.hud-mode) .term:not(.pw) {
+  border-radius: 0;
+  border: 1px solid var(--vx-core);
+  background:
+    radial-gradient(ellipse 130% 40% at 50% 0%, rgba(var(--ph-rgb), .08), transparent 64%),
+    var(--vx-grain-tube),
+    var(--vx-black);
+  box-shadow: var(--vx-frame), 0 18px 50px rgba(0, 0, 0, .75);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) .term:not(.pw) { border-radius: var(--vx-cut) var(--vx-cut) 0 0; corner-shape: bevel; }
+}
+html body.vx:not(.hud-mode) .term:not(.pw) > .term-chrome { border-radius: 0; }
+/* the title: the panels' lit, scan-sliced tab over a vector rule with nodes */
+html body.vx:not(.hud-mode) .term:not(.pw) .term-head {
+  border-radius: 0; border-bottom: 0; box-shadow: none;
+  background:
+    linear-gradient(var(--vx-line), var(--vx-line)) left 10px bottom 0 / calc(100% - 20px) 1px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) left 8px bottom -2px / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) right 8px bottom -2px / 5px 5px no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .42) 0 1px, transparent 1px 3px) left 6px top 6px / calc(100% - 12px) calc(100% - 9px) no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .45), rgba(var(--ph-rgb), .18) 30%, rgba(var(--ph-rgb), .05) 62%, transparent 88%) left 6px top 6px / calc(100% - 12px) calc(100% - 9px) no-repeat;
+}
+html body.vx:not(.hud-mode) .term:not(.pw) .term-title { color: var(--vx-node); letter-spacing: 4px; text-shadow: var(--vx-title-glow); border-radius: 0; }
+/* the window keys (minimize, maximize, close): square black keys on a dim edge */
+html body.vx:not(.hud-mode) .term:not(.pw) .term-head :is(.gd-window-button, .term-x) {
+  border-radius: 0; border: 1px solid var(--vx-line-dim); background: rgba(0, 0, 0, .6); color: var(--ph); box-shadow: inset 0 0 0 1px #000;
+}
+html body.vx:not(.hud-mode) .term:not(.pw) .term-head :is(.gd-window-button, .term-x):is(:hover, :focus-visible) {
+  border-color: var(--vx-line); color: var(--vx-node); background: rgba(var(--ph-rgb), .18);
+}
+/* the console windows' section rail: a darker strip, its sections lit menu slots */
+html body.vx:not(.hud-mode) .term:not(.pw) .con-rail { background: rgba(0, 0, 0, .45); border-color: var(--vx-hair); }
+html body.vx:not(.hud-mode) .term.sn-menu .con-rail-item:not(.con-toptab) { border-radius: 0; border: 1px solid transparent; background: transparent; box-shadow: none; }
+html body.vx:not(.hud-mode) .term.sn-menu .con-rail-item:not(.con-toptab):is(:hover, :focus-visible):not(.active):not([aria-selected="true"]) {
+  background: linear-gradient(90deg, rgba(var(--ph-rgb), .16), rgba(var(--ph-rgb), .03) 70%); border-color: var(--vx-line-dim);
+}
+html body.vx:not(.hud-mode) .term.sn-menu .con-rail-item:not(.con-toptab):is(.active, [aria-selected="true"]) {
+  color: var(--vx-node);
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .42), rgba(var(--ph-rgb), .12) 60%, rgba(var(--ph-rgb), .03));
+  border-color: var(--vx-line);
+  box-shadow: inset 3px 0 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .22);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .8);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.con-search-in, .con-search input) {
+  border-radius: 0; background: var(--vx-well); border: 1px solid var(--vx-line-dim); box-shadow: inset 0 0 14px rgba(0, 0, 0, .9);
+}
+/* keys inside windows: dark keys on a dim edge, lit on hover; a pressed / chosen key is lit */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.bb, .settings-jumps > button) {
+  border-radius: 0; border-color: var(--vx-line-dim); background: rgba(0, 0, 0, .55); box-shadow: inset 0 0 0 1px #000;
+  color: var(--ph);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.bb, .settings-jumps > button):is(:hover, :focus-visible):not(:disabled) {
+  border-color: var(--vx-line); color: var(--vx-node); background: rgba(var(--ph-rgb), .16);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) .bb:is(.active, .sel, .on, [aria-pressed="true"]) {
+  border-color: var(--vx-line); color: var(--vx-node);
+  background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(var(--ph-rgb), .4), rgba(var(--ph-rgb), .14));
+  box-shadow: inset 0 -2px 0 var(--vx-node);
+}
+/* WINDOW INTERIORS: one rule squares every boxed surface inside a window. The window sheets hard-code their own radii
+   (hundreds of literal values across ~30 sheets), so per-surface patches would never close the family. What is round
+   because it is a LIGHT or a MECHANISM keeps its round: dots, lamps, LEDs, rings, knobs, spinners, avatars, toggles and
+   switches are excluded by name, and every window was diffed (each element's roundness with body.vx on vs off) to
+   prove it. The :not() chain is also what lets this outweigh the sheets' class-level rules (each :not weighs a class).
+   A surface given a cut below opts out by name (.prov-card) */
+html body.vx:not(.hud-mode) .term:not(.pw) *:not([class*="dot"]):not([class*="lamp"]):not([class*="led"]):not([class*="ring"]):not([class*="knob"]):not([class*="spin"]):not([class*="avatar"]):not([class*="toggle"]):not([class*="switch"]):not(.prov-card) {
+  border-radius: 0;
+}
+html body.vx:not(.hud-mode) .settings-console :is(.bb, .set-theme, .ov-vchip) { border-radius: 0; }
+/* panels inside windows: hairline readout frames with square nodes */
+html body.vx:not(.hud-mode) .settings-console :is(.settings-group, .prov-card) {
+  border-radius: 0; border: 1px solid var(--vx-line-dim); box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+html body.vx:not(.hud-mode) .settings-console .settings-group {
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 0 / 5px 5px no-repeat,
+    rgba(0, 0, 0, .4);
+}
+html body.vx:not(.hud-mode) .settings-console .prov-card { background: linear-gradient(90deg, rgba(var(--ph-rgb), .07), rgba(0, 0, 0, .5) 60%); }
+html body.vx:not(.hud-mode) .settings-console .prov-card:is(:hover, :focus-within) { border-color: var(--vx-line-mid); }
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) .settings-console .prov-card { border-radius: 0 12px 0 12px; corner-shape: bevel; }
+}
+
+/* ============================================================
+   10 · DOCK MENUS + TIPS — small screens on the dock, readout cards for tips
+   ============================================================ */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu {
+  border-radius: 0; border: 1px solid var(--vx-core);
+  background: var(--vx-grain-tube), var(--vx-black);
+  box-shadow: var(--vx-frame), 0 14px 40px rgba(0, 0, 0, .75);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu { border-radius: 12px 12px 0 0; corner-shape: bevel; }
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb { border-radius: 0; border: 1px solid transparent; background: transparent; box-shadow: none; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) {
+  border-color: var(--vx-line);
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .38), rgba(var(--ph-rgb), .1) 60%, rgba(var(--ph-rgb), .02));
+  box-shadow: inset 3px 0 0 var(--vx-node);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb-i {
+  border-radius: 0; background: var(--vx-well); border: 1px solid var(--vx-line-mid); box-shadow: inset 0 0 8px rgba(0, 0, 0, .9);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) .bb-i { border-color: var(--vx-line); color: var(--vx-node); }
+/* the station's tooltip and the dock's tip: a readout card — black, a lit hairline, a node on its lead corner */
+html body.vx:not(.hud-mode) .station-tip,
+html body.vx:not(.hud-mode) > .hint-bubble.dock-tip {
+  border-radius: 0; border: 1px solid var(--vx-line); color: var(--vx-core);
+  background: linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat, var(--vx-black);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair), 0 0 10px rgba(var(--ph-rgb), .3), 0 6px 18px rgba(0, 0, 0, .7);
+}

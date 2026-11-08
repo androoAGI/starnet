@@ -1298,6 +1298,7 @@ test/widgets.test.js
 test/widgetfeed.test.js
 test/terminal-resize.test.js
 test/glass-interactions.test.js
+test/vector-identity.test.js
 test/backdrop-preview.test.js
 test/backdrop-bake.test.js
 test/spacebg-void-strings.test.js
