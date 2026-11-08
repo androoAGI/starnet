@@ -8,7 +8,7 @@
      -> { reason, retryable, shouldRotateCredential, shouldFallback, shouldCompress, statusCode, unsupportedPart, message }
 
    Reasons: auth · billing · rate_limit · quota_exhausted · overloaded · server_error · timeout ·
-            context_overflow · output_cap · call_too_expensive · model_not_found · content_policy_blocked ·
+            context_overflow · output_cap · call_too_expensive · call_timeout · model_not_found · content_policy_blocked ·
             format_error · tls_certificate · local_memory · local_timeout · local_error · endpoint_mismatch ·
             template_refusal · unreachable · unknown.
 
@@ -57,6 +57,10 @@
        own price and may fit, so it is worth taking. No fold: shortening the conversation is the Commander's call, not a
        silent summary. As format_error it read "Something went wrong — try again" (GitHub #53 follow-up, 2026-10-27). */
     call_too_expensive:     { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
+    /* The StarNet credit relay ended this call at its PER-CALL TIME LIMIT (a final SSE error event, code `call_timeout`; 30
+       minutes by default). What the model wrote until then was billed. Resending the whole call would bill the same work a
+       second time, so no retry and no fallback: the run ends there, keeping what was written, and says so. */
+    call_timeout:           { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
     model_not_found:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
     content_policy_blocked: { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
     format_error:           { retryable: false, shouldRotateCredential: false, shouldFallback: false, shouldCompress: false },
@@ -310,7 +314,7 @@
      Vendor wordings: OpenRouter/StarNet "no endpoints found that support image input"; DeepSeek "unknown variant
      `image_url`"; OpenAI's own text-only models (o1-mini, o3-mini, gpt-3.5-turbo, whose /v1/models states no
      modalities, so the image is sent) 400 "Invalid content type. image_url is only supported by certain models." */
-  const IMAGE_INPUT_REFUSED_RE = /no endpoints found that support image input|(?:does not|doesn'?t|cannot|can'?t) (?:support|accept|take|handle) (?:image|vision)|image input (?:is )?(?:not supported|unsupported)|(?:images?|vision) (?:input )?(?:is |are )?not supported (?:by|for|on) (?:this|the) model|unknown variant `image_url`|image_url is only supported by certain models/;
+  const IMAGE_INPUT_REFUSED_RE = /no endpoints found that support image input|\bimage_input_unsupported\b|(?:does not|doesn'?t|cannot|can'?t) (?:support|accept|take|handle) (?:image|vision)|image input (?:is )?(?:not supported|unsupported)|(?:images?|vision) (?:input )?(?:is |are )?not supported (?:by|for|on) (?:this|the) model|unknown variant `image_url`|image_url is only supported by certain models/;
   function isImageInputRefusal(text) { return IMAGE_INPUT_REFUSED_RE.test(String(text || '').toLowerCase()); }
   const IMAGE_INPUT_FIX = ' — this model cannot take image input: pick a vision model in the COMMS model dock (or remove the image), then send again.';
   /* A 403 THAT NAMES THE UPSTREAM PROVIDER is that provider refusing THIS request, never our credential (xai-403-1023:
@@ -333,11 +337,19 @@
      answers a request without that part. Never set for "No endpoints found for <model>", "matching your data policy",
      "No allowed providers", a region or an upstream 403: those refuse every request to that model. Surfaced as the
      classification's `unsupportedPart` fact (the failure review keys on it: its plain text request has no such part). */
-  const UNSUPPORTED_PART_RE = /no endpoints found that (?:support|can handle)\b/;
+  const UNSUPPORTED_PART_RE = /no endpoints found that (?:support|can handle)\b|\bimage_input_unsupported\b/;
   // the StarNet credit relay's per-call ceiling refusal (starnet-cloud src/app.js THE CREDIT RESERVATION)
   const CALL_TOO_EXPENSIVE_RE = /could cost more than the \$\d+(?:\.\d+)? starnet allows for one call/;
   function isCallTooExpensive(code, low) {
     return String(code || '').toLowerCase() === 'call_too_expensive' || CALL_TOO_EXPENSIVE_RE.test(low);
+  }
+  /* STARNET'S OWN MODEL SUPPLY IS OUT (the relay's 503 `supply_unavailable`: its upstream balance or key limit ran out, an
+     upstream 402 / key-limit 403 remapped). Not the Commander's balance (that is the relay's own 402): a busy moment on
+     StarNet's side, retried with backoff like any overload, and never billing (its words mention credits only to say they
+     are untouched). */
+  const SUPPLY_UNAVAILABLE_RE = /\bsupply_unavailable\b|starnet'?s model supply is (?:temporarily )?out/;
+  function isSupplyUnavailable(code, low) {
+    return String(code || '').toLowerCase() === 'supply_unavailable' || SUPPLY_UNAVAILABLE_RE.test(low);
   }
   const TOOL_GEN_FAILED_RE = /tool_use_failed|failed to call a function|tool call validation failed/;
   function classify400(low, code, ctx) {
@@ -509,6 +521,10 @@
     // The adapter proved the URL answers as a different kind of server (openai-compatible.js notOllamaError).
     if (err && err.endpointMismatch === true) return 'endpoint_mismatch';
     if (isLocalError(err, status, extractBody(err), low)) return 'local_error';
+    // 0b. the StarNet relay's own typed verdicts, whatever status carried them: its supply ran out (an overload on StarNet's
+    //     side, never the Commander's billing), and its per-call time limit ended this call (billed; never resent)
+    if (isSupplyUnavailable(code, low)) return 'overloaded';
+    if (String(code || '').toLowerCase() === 'call_timeout' || /\bcall_timeout\b/.test(low)) return 'call_timeout';
     /* 1. content / policy (most specific intent) — but a TRANSPORT status wins over a text match.
        This ran against the whole message before the status was consulted, so any retryable failure whose
        text merely CONTAINED one of these words was rewritten as a fatal policy block: a 503 naming
@@ -609,7 +625,8 @@
     const body = extractBody(err);
     const code = extractCode(body, err);
     const message = extractMessage(err, body);
-    const low = String(message).toLowerCase();
+    // the relay's typed image refusal (400 `image_input_unsupported`) reads as the image refusal its words may not spell out
+    const low = String(message).toLowerCase() + (String(code || '').toLowerCase() === 'image_input_unsupported' && !/\bimage_input_unsupported\b/.test(String(message).toLowerCase()) ? ' [code image_input_unsupported]' : '');
     const reason = pickReason(status, code, low, err, ctx);
     const f = REASONS[reason] || REASONS.unknown;
     const localUnreachable = reason === 'unreachable' && unreachableIsLocal(err);   // one retry here; a public host: the ladder
@@ -624,6 +641,9 @@
         + ' — this machine does not trust the provider\'s certificate. Behind a corporate proxy or an antivirus HTTPS scanner, '
         + 'point NODE_EXTRA_CA_CERTS at its root certificate and restart StarNet; for a self-hosted endpoint, give it a valid certificate. ['
         + message + ']';
+    } else if (reason === 'call_timeout') {
+      text = 'StarNet stopped this call at its time limit for one call; what the model wrote until then is kept and was billed. '
+        + 'It was not sent again, because that would bill the same work twice: ask for the rest as a smaller step. [' + message + ']';
     } else if (reason === 'model_not_found' && IMAGE_INPUT_REFUSED_RE.test(low)) {
       // the provider's words stay first (the UI routes on the adapter label + status); the fix rides after them
       text += IMAGE_INPUT_FIX;

@@ -33,6 +33,8 @@
     endpoint_mismatch: 1,
     // the StarNet relay refused one call's price: its message names the two fixes (fresh chat, cheaper model)
     call_too_expensive: 1,
+    // ...and the relay's per-call time limit ended the call: its message says what was kept and billed, and a resend repeats it
+    call_timeout: 1,
     // harness stops whose own message is the fix and a plain resend repeats them (2026-10-11): a tool call too big for
     // the model's output limit (ask in smaller parts / switch model), and a Commander hook that blocks the run
     output_limit: 1, hook_blocked: 1,

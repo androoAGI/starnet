@@ -50,7 +50,7 @@
      keeps the two in step) and the loop's own provider stops. A code here means the MODEL PROVIDER failed the call, not
      StarNet: an ACP editor or a phone must never read "the run failed inside StarNet" for a provider's rate limit. */
   const PROVIDER_CODES = new Set(['auth', 'billing', 'rate_limit', 'quota_exhausted', 'overloaded', 'server_error', 'timeout',
-    'context_overflow', 'output_cap', 'call_too_expensive', 'model_not_found', 'content_policy_blocked', 'format_error',
+    'context_overflow', 'output_cap', 'call_too_expensive', 'call_timeout', 'model_not_found', 'content_policy_blocked', 'format_error',
     'tls_certificate', 'local_error', 'local_memory', 'local_timeout', 'endpoint_mismatch', 'template_refusal', 'unreachable',
     'unknown', 'provider_stalled', 'provider_failure']);
   /* Did the provider ANSWER (and refuse) — or did nothing usable answer at all? The Live Doctor's two failure states

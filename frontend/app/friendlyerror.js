@@ -139,6 +139,9 @@
        relay's own code (starnet-cloud src/app.js, outside this repo) may auto-reload a zero balance before it prices the
        call. The relay refusing the call is all the copy says. */
     call_too_expensive: { retryable: false, action: 'settings', msg: "This conversation could now cost more per message than StarNet allows for one call on this model, so StarNet refused the call. Start a fresh chat, or pick a cheaper model from the model dock in COMMS." },
+    /* The StarNet relay ended the call at its per-call time limit (a final stream error, code call_timeout): what the model wrote
+       is kept and was billed, and a resend would bill the same work again, so the station did not resend it. */
+    call_timeout:       { retryable: false, action: null, msg: "StarNet stopped this reply at its time limit for one call. What the model wrote until then is kept and was billed; it was not sent again, which would bill the same work twice. Ask for the rest as a smaller step." },
     content_policy_blocked: { retryable: false, action: null, msg: 'The model declined that request on safety grounds — try rephrasing it.' },
     // JUKEBOX is placed (the Spotify tools ARE granted) but Spotify's OAuth session isn't connected yet — the
     // real second half of the unlock chain. The door is TOOLSETS (its JUKEBOX row carries ▶ CONNECT SPOTIFY —
@@ -224,7 +227,7 @@
   const REASON_TO_KIND = {
     auth: 'auth', billing: 'billing', rate_limit: 'rate_limit', quota_exhausted: 'quota_exhausted', overloaded: 'provider_server_error',
     server_error: 'provider_server_error', timeout: 'timeout', context_overflow: 'context_overflow',
-    model_not_found: 'model_not_found', call_too_expensive: 'call_too_expensive', content_policy_blocked: 'content_policy_blocked',
+    model_not_found: 'model_not_found', call_too_expensive: 'call_too_expensive', call_timeout: 'call_timeout', content_policy_blocked: 'content_policy_blocked',
     format_error: 'unknown', endpoint_mismatch: 'endpoint_mismatch', unknown: 'unknown',
     template_refusal: 'template_refusal', unreachable: 'unreachable', tls_certificate: 'tls_certificate', local_memory: 'local_model_memory',
     local_timeout: 'local_timeout'
@@ -610,7 +613,7 @@
      it (OpenRouter 404 "No endpoints found that support image input", 2026-10-23). Not "that model isn't available":
      the model is fine, the image is what it refused, and a vision model is the fix. OpenAI's own text-only models say
      "image_url is only supported by certain models" (400). */
-  const IMAGE_INPUT_RE = /no endpoints found that support image input|(?:does not|doesn'?t|cannot|can'?t) (?:support|accept|take|handle) (?:image|vision)|image input (?:is )?(?:not supported|unsupported)|(?:images?|vision) (?:input )?(?:is |are )?not supported (?:by|for|on) (?:this|the) model|unknown variant `image_url`|image_url is only supported by certain models/;
+  const IMAGE_INPUT_RE = /no endpoints found that support image input|\bimage_input_unsupported\b|(?:does not|doesn'?t|cannot|can'?t) (?:support|accept|take|handle) (?:image|vision)|image input (?:is )?(?:not supported|unsupported)|(?:images?|vision) (?:input )?(?:is |are )?not supported (?:by|for|on) (?:this|the) model|unknown variant `image_url`|image_url is only supported by certain models/;
   const IMAGE_INPUT_MSG = "This model can't see images — pick a vision model from the model dock in COMMS, then send again.";
   /* mirrored from errorClass.js (ACCOUNT_MODEL_REFUSED_RE) — keep the two in step: the ChatGPT Codex backend refuses a model
      this account may not run ("The 'gpt-6-astra' model is not supported when using Codex with a ChatGPT account.", 2026-10-27),
@@ -624,6 +627,12 @@
      openai-compatible adapter, or OpenRouter's "Provider returned error") is that provider refusing this request — the
      router accepted our key (a rejected key is a 401 naming nobody). xai-403-1023. */
   const UPSTREAM_NAMED_RE = /provider returned error|[\[;] ?provider [^\];]+\]/;
+  /* STARNET'S OWN MODEL SUPPLY IS OUT (the relay's 503 supply_unavailable; errorClass.js SUPPLY_UNAVAILABLE_RE — keep the two in
+     step): never the Commander's balance (that stays the relay's 402), whatever words or status carried it. */
+  const SUPPLY_RE = /\bsupply_unavailable\b|starnet'?s model supply is (?:temporarily )?out/;
+  const SUPPLY_MSG = "StarNet's model supply is temporarily out; your credits are untouched. Try again in a few minutes.";
+  // the relay's per-call time limit (a final stream error, code call_timeout), or the station's own sentence for it
+  const CALL_TIMEOUT_RE = /\bcall_timeout\b|stopped this call at its time limit for one call/;
   // the StarNet credit relay's per-call price ceiling (sidecar/providers/errorClass.js — keep the two in step)
   const CALL_TOO_EXPENSIVE_RE = /could cost more than the \$\d+(?:\.\d+)? starnet allows for one call|\bcall_too_expensive\b/;
   // quote the ceiling the relay named (it is configurable there), never a number of our own; claim nothing about what
@@ -731,6 +740,9 @@
     if (UNREACHABLE_NOTE_RE.test(low)) return 'unreachable';
     // …and a silent local server's turn end, ahead of the "timed out" words inside it (and of the overflow words an older one said)
     if (LOCAL_TIMEOUT_RE.test(low)) return 'local_timeout';
+    // the StarNet relay's own typed verdicts, ahead of the status and the "credits" / "time" words inside them
+    if (SUPPLY_RE.test(low)) return 'provider_server_error';
+    if (CALL_TIMEOUT_RE.test(low)) return 'call_timeout';
     // MUST precede isTransportLoss: that predicate also matches `fetch failed`, and whichever runs first owns the
     // verdict. Upstream is the more specific (and provable) reading, so it wins.
     if (isUpstreamFetchFailure(low)) return 'provider_unreachable';
@@ -956,6 +968,10 @@
       kind = 'quota_exhausted';
     }
     const k = KINDS[kind] || KINDS.unknown;
+    // StarNet's own model supply ran out (the relay's supply_unavailable): its own words, never "your account is out of credit"
+    if (SUPPLY_RE.test(raw.toLowerCase()) && (kind === 'provider_server_error' || kind === 'server_error' || kind === 'billing' || kind === 'unknown')) {
+      return { userMessage: SUPPLY_MSG, kind: 'provider_server_error', retryable: true, action: null, provider: 'starnet', raw: raw };
+    }
     if (/^claude_cli_/.test(kind)) return { userMessage: k.msg, kind, retryable: k.retryable, action: k.action, provider: 'claude-cli', raw };
     // #158: "wait a few seconds" is only true of a few seconds: a longer stated wait is said as its own length
     if (kind === 'rate_limit') {

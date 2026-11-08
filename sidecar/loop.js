@@ -2376,7 +2376,9 @@
             if (runaway) continue;
             waiting.mark();
             if (ev.type === 'generation') { noteGeneration(ev.id); continue; }   // reconciliation metadata, not billed usage or visible output
-            if (ev.type === 'waiting') { adapterWait = ev; waiting.note(ev.phase, ev.note, ev); continue; }   // the adapter's wait facts, not stream output (#99)
+            // the adapter's wait facts, not stream output (#99); only a streaming-phase note heads a tool call's "N KB written" line
+            // (a note from before the stream opened, like "sent without the images", describes the request, not the call)
+            if (ev.type === 'waiting') { if (ev.phase === 'streaming') adapterWait = ev; waiting.note(ev.phase, ev.note, ev); continue; }
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
             if (ev.type === 'text') {

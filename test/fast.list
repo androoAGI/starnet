@@ -1556,6 +1556,7 @@ test/loop.grace-no-tools.test.js
 test/loop.batch-dedupe.test.js
 test/errorclass.overflow-phrasings.test.js
 test/call-too-expensive.test.js
+test/credits-route-1108.test.js
 test/loop.prestream-outage-ladder.test.js
 test/loop.overflow.anthropic.test.js
 test/overflow-named-cause.test.js

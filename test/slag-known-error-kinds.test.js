@@ -42,6 +42,8 @@ const BUCKET = {
   output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', local_timeout: 'NAMED', endpoint_mismatch: 'NAMED',
   // the StarNet relay refused one call's price (2026-10-27): a resend is refused the same way; its message names the fixes
   call_too_expensive: 'NAMED',
+  // the StarNet relay's per-call time limit ended the call (2026-11-08): kept and billed; a resend bills the same work again
+  call_timeout: 'NAMED',
   // typed-outcomes (2026-10-29): a refused chat template / an untrusted TLS certificate name their fix; nothing answering at the
   // provider's address clears once that server is started
   template_refusal: 'NAMED', tls_certificate: 'NAMED', unreachable: 'RETRY',

@@ -13,7 +13,9 @@
      3. The OpenRouter adapter and the OpenAI-compatible adapter (the StarNet managed route) send NO image part to a
         text-only model, keep them for a vision model, and keep them for a model the catalog says nothing about.
      4. The 404 itself: one request (no retry), non-retryable, a message that names the fix — and the adapter
-        remembers it, so the next request to that model goes without the image instead of failing again.
+        remembers it, so the next request to that model goes without the image instead of failing again. On the StarNet
+        managed route (2026-11-08) the FIRST refusal no longer reaches the Commander at all: the same request is sent again
+        once without the image, the wait line says so, and the model is told the image was not sent.
      5. The Commander's copy on BOTH friendlyerror paths (browser mirror and node) names the fix: a vision model. */
 'use strict';
 const { readSidecarSource, sidecarTopLevelFunction } = require('./helpers/source');
@@ -162,9 +164,36 @@ async function drain(p, req) {
     }
   }
 
-  // ---- 4. the 404 itself (a model the catalog says nothing about), on both adapters ----
+  // ---- 4a. the managed route: the first refusal is answered by ONE resend without the image, inside the same request ----
+  for (const [label, refusal] of [['404', { status: 404, body: IMAGE_404 }],
+    ['relay 400', { status: 400, body: { error: { message: 'This model does not accept images.', type: 'invalid_request_error', code: 'image_input_unsupported' } } }]]) {
+    const posts = [], events = [];
+    const model = 'vendor/refuses-managed-' + label.replace(/\W+/g, '-');
+    const p = makeOpenAICompatibleProvider({ key: 'fixture-only', baseUrl: 'https://managed.refuse.test/v1', fetch: fakeFetch(posts, body => imagePartsIn(body) ? refusal : null) });
+    let err = null;
+    try { for await (const ev of p.stream({ model, messages: convo() })) events.push(ev); } catch (e) { err = e; }
+    A.ok(!err, 'managed ' + label + ': the turn goes through (' + (err && err.message) + ')');
+    A.eq(posts.length, 2, 'managed ' + label + ': the refused request, then ONE resend');
+    A.eq([imagePartsIn(posts[0]), imagePartsIn(posts[1])], [1, 0], 'managed ' + label + ': the resend carries no image part');
+    A.ok(/image omitted/i.test(textIn(posts[1])), 'managed ' + label + ': the model is told the image was not sent');
+    const note = events.find(e => e.type === 'waiting' && /cannot see images/.test(e.note || ''));
+    A.ok(!!note, 'managed ' + label + ': the wait line tells the Commander (' + (note && note.note) + ')');
+    A.eq(events.filter(e => e.type === 'text').map(e => e.delta).join(''), 'ok', 'managed ' + label + ': and the reply comes');
+    if (typeof p.supportsImages === 'function') A.eq(p.supportsImages(model), false, 'managed ' + label + ': the adapter now knows this model is text-only');
+    posts.length = 0;
+    const again = await drain(p, { model, messages: convo() });
+    A.ok(!again && posts.length === 1 && imagePartsIn(posts[0]) === 0, 'managed ' + label + ': the next request goes once, without the image');
+  }
+  {
+    // a refusal of a request that carried no image is not resent: nothing could change
+    const posts = [];
+    const p = makeOpenAICompatibleProvider({ key: 'fixture-only', baseUrl: 'https://managed.refuse.test/v1', fetch: fakeFetch(posts, () => ({ status: 404, body: IMAGE_404 })) });
+    const err = await drain(p, { model: 'vendor/no-image', messages: [{ role: 'user', content: 'hello' }] });
+    A.ok(err && posts.length === 1, 'managed: a refusal with no image to drop surfaces after one request (' + posts.length + ')');
+  }
+
+  // ---- 4. the 404 itself (a model the catalog says nothing about), on the direct OpenRouter adapter ----
   for (const [label, make] of [
-    ['managed', fetch => makeOpenAICompatibleProvider({ key: 'fixture-only', baseUrl: 'https://managed.refuse.test/v1', fetch })],
     ['openrouter', fetch => makeOpenRouterProvider({ key: 'sk-or-v1-fixture', baseUrl: 'https://or.refuse.test/api/v1', fetch })]
   ]) {
     const posts = [];
@@ -329,9 +358,13 @@ async function drain(p, req) {
     const posts = [];
     const p = makeOpenAICompatibleProvider({ key: 'fixture-only', baseUrl: 'https://openai.refuse.test/v1', fetch: fakeFetch(posts, body => imagePartsIn(body) ? { status: 400, body: OPENAI_400 } : null) });
     A.eq(p.supportsImages('o3-mini'), null, 'openai wording: capability unknown before the refusal (the image is sent)');
-    const err = await drain(p, { model: 'o3-mini', messages: convo() });
-    A.ok(err, 'openai wording: the refusal surfaces');
-    A.eq(posts.length, 1, 'openai wording: ONE request, no retry ladder (got ' + posts.length + ')');
+    // 2026-11-08: the adapter answers the refusal itself, inside the same request: ONE resend without the image, never a ladder
+    const first = await drain(p, { model: 'o3-mini', messages: convo() });
+    A.ok(!first, 'openai wording: the turn goes through (' + (first && first.message) + ')');
+    A.eq(posts.length, 2, 'openai wording: the refused request and ONE resend, no retry ladder (got ' + posts.length + ')');
+    A.eq(imagePartsIn(posts[1]), 0, 'openai wording: the resend carries no image part');
+    // the refusal's own words, as the adapter words them when a refusal does surface (a request with nothing to drop)
+    const err = Object.assign(new Error('openai-compatible http 400 - [type invalid_request_error] ' + OPENAI_400.error.message), { status: 400, body: OPENAI_400 });
     const cls = classifyApiError(err, { model: 'o3-mini' });
     A.eq([cls.reason, cls.retryable], ['model_not_found', false], 'openai wording: classified as the image refusal, not retryable (got ' + cls.reason + ')');
     A.ok(/vision/i.test(cls.message), 'openai wording: the run error names the fix (' + cls.message + ')');

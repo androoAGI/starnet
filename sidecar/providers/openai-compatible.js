@@ -929,6 +929,8 @@
       let res;
       try { res = await pending; }
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }
+      // the model refused the images and the request went again without them (requestWithRetry): say so while it answers
+      if (res && res.imagesDropped) yield { type: 'waiting', phase: 'first_byte', note: String(req.model || 'this model') + ' cannot see images, so your message was sent without them' };
       // A LOCAL /v1 stream says its idle ceiling once the headers are in (the wait line's "gives up after … of silence") —
       // only when a silence would end the turn (alone there, or the busy re-send spent: review M3); else no limit
       if (localCall && !(wire && wire.native) && (localCall.busyResent || !otherLocalCalls(baseUrl, localCall))) yield { type: 'waiting', phase: 'streaming', note: '', limitMs: timeouts.idleMs(), limitKind: 'silence' };
@@ -1132,7 +1134,7 @@
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
       let waited = 0;
-      let healedEffort = false, healedReasoning = false, healedTemplate = false;   // each request self-heals each of these at most once
+      let healedEffort = false, healedReasoning = false, healedTemplate = false, healedLowCredit = false, healedImages = false;   // each request self-heals each of these at most once
       for (let attempt = 0; ; attempt++) {
         if (signal && signal.aborted) throw abortError();
         let res;
@@ -1194,6 +1196,7 @@
         if (res.ok && res.body) {
           if (native) noteOllamaWindow(nativeBase, body.model, wire.numCtx);
           if (healedTemplate) provider.noteSystemlessTemplate(baseUrl, body.model);   // proven: this template takes no system role
+          if (healedImages) { try { res.imagesDropped = true; } catch (_) {} }   // the stream says so on the wait line (wireStreamOnce)
           return res;
         }
         const upstreamError = await responseErrorDetail(res, signal, native ? nativeBase + '/api/chat' : baseUrl + chatPath);
@@ -1252,6 +1255,17 @@
         // params. Strip the named param and retry immediately (remembered per model, so later turns in the
         // run never pay the extra round-trip). Does not consume a transient-retry attempt.
         if (dropUnsupportedParam(body, res.status, detail)) { attempt--; continue; }
+        /* LOW-CREDIT SELF-HEAL (402) on the StarNet Credits route, as on direct OpenRouter (lifted from bfc635062, alone): a call
+           holds its whole output ceiling against the balance, so a funded-but-small wallet is refused though the reply needs a
+           fraction of it (walk 11-06: a buyer with $0.37 stopped dead). Keyed on the relay's OWN balance refusal (error.code
+           `insufficient_credits`, which names the ceiling it can afford: "can only afford N max_tokens"), never on an upstream
+           402's words: the relay answers those as 503 `supply_unavailable` now. ONCE, at 90% of N; under 1024 the wallet is
+           genuinely empty and the honest 402 stands. */
+        if (res.status === 402 && !healedLowCredit && String(upstreamError.code || '').toLowerCase() === 'insufficient_credits') {
+          const m = /can only afford (\d+)/i.exec(String(detail));
+          const afford = m ? Math.floor(Number(m[1]) * 0.9) : 0, field = body.max_completion_tokens != null ? 'max_completion_tokens' : 'max_tokens', cur = Number(body[field] || 0);
+          if (afford >= 1024 && (!cur || afford < cur)) { healedLowCredit = true; body[field] = afford; attempt--; continue; }
+        }
         // A vendor API rejecting a slash-prefixed id as an unknown/invalid model means a ROUTED-catalog id
         // (StarNet managed / OpenRouter, e.g. "openai/gpt-…") reached a direct vendor endpoint. Without this
         // line the user sees only the vendor's bare "invalid model ID" and has no path back (2026-08-25
@@ -1269,7 +1283,18 @@
           }
         }
         // the model refused image input: text-only for this process, so the next request to it goes without the image
-        if (errorClass.isImageInputRefusal(detail)) provider.noteImageRefusal(baseUrl, body.model);
+        const imageRefused = res.status !== 401 && res.status !== 408 && res.status !== 429 && !(res.status >= 500 && res.status < 600)
+          && (errorClass.isImageInputRefusal(detail) || String(upstreamError.code || '').toLowerCase() === 'image_input_unsupported');
+        if (imageRefused) provider.noteImageRefusal(baseUrl, body.model);
+        /* AN IMAGE THE MODEL CANNOT SEE NEVER FAILS THE TURN (the managed route's 404 "No endpoints found that support image
+           input", the relay's 400 `image_input_unsupported`, a vendor's own words): the FIRST refusal per model used to reach the
+           Commander as an error, and a resend still carried the image. This request is sent again ONCE, now, with each image
+           replaced by a note telling the model it was not sent; the wait line tells the Commander (wireStreamOnce). Does not
+           consume a transient-retry attempt. A refusal of a request that carried no image goes on as before. */
+        if (imageRefused && !healedImages && Array.isArray(body.messages)) {
+          const stripped = provider.withoutImageParts(body.messages, body.model);
+          if (stripped !== body.messages) { healedImages = true; body.messages = stripped; attempt--; continue; }
+        }
         const err = new Error(errLabel + ' http ' + res.status + ' - ' + detail);
         err.status = res.status;
         err.headers = res.headers;
