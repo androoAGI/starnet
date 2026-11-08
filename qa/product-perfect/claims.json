@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bdc0174d80195005a5217ef24cf92a9f7dbc6c3f",
+    "sourceCommit": "dbb8acbfd23fcbceab70f6e593014bfde40a9704",
     "pathSetSha256": "8394eca9e4974a998b07e0619201f84827ddf7781133ca7c179f8deba46fc595",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 483199,
-        "sha256": "021f06f9a43a0d08ba21a896f43958aff96a2a2ffbf89f8542341dca371a26ec"
+        "bytes": 484096,
+        "sha256": "d7d2bca52285decb8eb3b5b58a9732b8312b1a5cd562783d6f6c8f6b7b10f0b4"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1004863,
-        "sha256": "a267fd64f8ea21268f62fbb51495c45f33abac2572d5fa1d8fbe53348a5663ca"
+        "bytes": 1006466,
+        "sha256": "1fcff73f3e2b2fe5740b9de7689a73681ef5c757fac2cbd909fe7e6271fabf08"
       },
       {
         "path": "frontend/app/steering-message.js",
