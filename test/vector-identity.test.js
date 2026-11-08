@@ -93,4 +93,18 @@ A.ok(viewRules.length > 0, 'vector.css frames the station view');
 A.ok(!/(^|[^-])filter\s*:(?!\s*(none|drop-shadow))/m.test(viewRules) && !/mix-blend-mode/.test(viewRules),
   'vector.css puts no colour filter or blend on the station view (frame lines only)');
 
+// ---- the deeper pass (Andrew 2026-11-08: "I need to dive deeper in … This is the look and aesthetic"): CREW, COMMS,
+// every window and the dock menus are cut HUD plates (9-slice SVG masks: a fill and a lit line), selection is inverse
+// video, a failed run is a hazard plate in the TRUE state colour ----
+for (const [sel, label] of [['#left::before', 'CREW face'], ['#left::after', 'CREW line'], ['#chat-panel::before', 'COMMS face'],
+  ['#chat-panel::after', 'COMMS line'], ['.term:not(.pw)::before', 'window face'], ['.term:not(.pw)::after', 'window line'],
+  ['.bb-menu::before', 'dock menu face'], ['.bb-menu::after', 'dock menu line']]) {
+  const rules = css.split(sel + ' {').slice(1).map(r => r.slice(0, r.indexOf('}')));
+  A.ok(rules.some(r => /-webkit-mask-box-image: url\("data:image\/svg\+xml,/.test(r)), label + ' is a cut HUD plate (9-slice SVG mask)');
+}
+A.ok(/:is\(#left, #chat-panel\)::after \{[^}]*background: var\(--vx-core\)/.test(css), 'the plate lines are painted by the theme hue, never a baked colour');
+A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.comms-presence\.resolved\.tone-warn \{ --hz: var\(--warn/.test(css),
+  'the hazard plate wears the run\'s true state colour (bad = red, warn = amber), never the theme hue');
+A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected row is inverse video (black type on the lit slot)');
+
 A.report('vector-identity');
