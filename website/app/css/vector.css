@@ -969,3 +969,14 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb:is(:hover, :foc
 }
 html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) :is(b, small, .bb-i, .bb-tx) { color: #020604 !important; text-shadow: none !important; }
 html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) .bb-i { border-color: #020604 !important; background: transparent !important; box-shadow: none !important; }
+/* one highlight at a time: while the pointer is in the menu, the slot under it is the lit one (the keyboard-focused
+   slot falls back to an outlined slot, so focus still shows) */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu:hover .bb:focus-visible:not(:hover) {
+  background:
+    linear-gradient(90deg, rgba(var(--ph-rgb), .5), rgba(var(--ph-rgb), .12) 60%, transparent) left 14px bottom 0 / calc(100% - 14px) 1px no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .1), rgba(var(--ph-rgb), .02) 70%, transparent) !important;
+  outline: 1px dashed var(--vx-line); outline-offset: -3px;
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu:hover .bb:focus-visible:not(:hover) b { color: var(--vx-node) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .8) !important; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu:hover .bb:focus-visible:not(:hover) small { color: color-mix(in srgb, var(--ph) 75%, transparent) !important; text-shadow: none !important; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-menu:hover .bb:focus-visible:not(:hover) .bb-i { color: var(--ph) !important; border-color: var(--vx-line) !important; }
