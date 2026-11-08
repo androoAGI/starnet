@@ -468,6 +468,7 @@ const REPORTED = {
     ["reason: 'link_check_failed', detail:", NR("a rewind refused because the destination could not be scanned for links; a restore result")]
   ],
   'sidecar/index.js': [
+    ["if (!r.ok) return respondFail(res, r.reason === 'gone' ? 404 : 409", NR("a desk confirmation refused (deskproof.js approve: gone / words-differ / forbidden), not a run's end (GHSA-2hpj #1)")],
     ["out.reason === 'link_in_path'", NR("a rewind refused for a link on its destination: the restore endpoint's answer")],
     ["out.reason === 'uncaptured_in_path'", NR("a rewind refused for a file no restore point holds: the restore endpoint's answer")],
     ["credits link self-heal declined: ' + r.reason", NR("the credits link's self-heal refusal")],
