@@ -64,13 +64,15 @@ function pathOf(url) { const u = String(url || ''); const i = u.indexOf('?'); re
    EXCEPT a small set that provably cannot carry the header:
      /api/key              : guarded by its OWN per-launch IPC_TOKEN (the desktop key push)
      /api/channels/token   : guarded by its OWN per-launch IPC_TOKEN (the desktop channel-token push)
+     /api/desk/approve     : guarded by its OWN per-launch IPC_TOKEN (the desktop shell's native confirmation of an
+                             authority change, index.js deskGate — GHSA-2hpj #1)
      /api/health           : liveness probe
      /api/spotify/callback : an OAuth redirect — a top-level browser navigation, no place to put a header
      /api/connectors/oauth/callback : same — the MCP-connector OAuth redirect; the CSRF `state` param (matched
                              against the in-memory pending map) is its fence, exactly like the Spotify callback
    NOT exempt, but header-less: GET/HEAD /api/file (link/tab open), GET /api/channels/events (EventSource) and
    POST /api/save (unload beacon) may present a ?ticket= scoped to exactly that request — see ticketOk below. */
-const TOKEN_EXEMPT = new Set(['/api/key', '/api/channels/token', '/api/health', '/api/spotify/callback', '/api/connectors/oauth/callback']);
+const TOKEN_EXEMPT = new Set(['/api/key', '/api/channels/token', '/api/desk/approve', '/api/health', '/api/spotify/callback', '/api/connectors/oauth/callback']);
 function requiresApiToken(req) {
   if (!req || req.method === 'OPTIONS') return false;
   const p = pathOf(req.url);

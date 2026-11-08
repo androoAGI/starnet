@@ -556,6 +556,15 @@ const DEV_MODE = /^(1|true|yes|on)$/i.test(String(ENV('DEV') || '').trim());
 // parent process), so only then do channel bot tokens live in the keychain instead of plaintext secrets.json.
 // The bare sidecar (npm start / tests / headless deploy) never sets this and HONESTLY keeps the plaintext path.
 const DESKTOP_SHELL = /^(1|true|yes|on)$/i.test(String(ENV('DESKTOP_SHELL') || '').trim());
+/* TWO KEYS UNDER THE DESKTOP SHELL (GHSA-2hpj-9wm7-rvg5 #1, 2026-11-08). The desktop app page receives API_TOKEN from the
+   shell's init script (main.rs webview_init_script), never from GET /. So under the shell, the page this sidecar SERVES
+   carries CLIENT_TOKEN instead: the `starnet` CLI and the MCP/ACP bridges keep reading it there, and so can any command an
+   agent runs, but CLIENT_TOKEN can never ask for a desk confirmation (deskGate), so the AUTHORITY changes (FULL BYPASS, FULL
+   ACCESS / ALWAYS answers, standing grants, Remote, pairing, approving a phone; sidecar/deskproof.js) stay out of its reach.
+   Every other route takes either key. A bare sidecar (browser mode, tests, the CLI's own station) has no other way to hand
+   its page a key, so it serves API_TOKEN as before and its desk confirmation is an in-page one. */
+const DESK_SHELL_PROOF = DESKTOP_SHELL && !!String(ENV('IPC_TOKEN') || '').trim();
+const CLIENT_TOKEN = DESK_SHELL_PROOF ? crypto.randomBytes(32).toString('hex') : '';
 // #119: only the desktop app, or a test in its own sandbox, may clean up in a profile's Downloads. Read once and removed,
 // so a test or tool started from inside the app does not inherit the permission.
 const SWEEP_BACKUP_TEMPS = ENV('SWEEP_BACKUP_TEMPS') === '1';
@@ -569,6 +578,15 @@ const apiauth = require('./apiauth.js');
 const apitickets = require('./apitickets.js');
 const TICKET_GUARD = apitickets.replayGuard(4096);   // single-use registry for the once-only ticket kinds (sse, save)
 const { isAllowedApiOrigin, isAllowedHost, requiresApiToken, TAURI_ORIGINS } = apiauth;
+// Either station key on the header: API_TOKEN (the app page), or CLIENT_TOKEN (what GET / serves under the desktop shell).
+// Only deskGate tells them apart; every other route is reachable with either, exactly as it was with the one key.
+function stationTokenOk(req) { return apiauth.apiTokenOk(req, API_TOKEN) || (!!CLIENT_TOKEN && apiauth.apiTokenOk(req, CLIENT_TOKEN)); }
+// a page mints its link/stream tickets from the key it holds (frontend/app/apiticket.js), so a ticket is good under either
+function stationTicketOk(req) { return apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD) || (!!CLIENT_TOKEN && apiauth.ticketOk(req, CLIENT_TOKEN, Date.now(), TICKET_GUARD)); }
+function stationTicketVerify(ticket, kind, scope) {
+  const v = apitickets.verify(API_TOKEN, ticket, kind, scope, { now: Date.now() });
+  return (v.ok || !CLIENT_TOKEN) ? v : apitickets.verify(CLIENT_TOKEN, ticket, kind, scope, { now: Date.now() });
+}
 function applyApiCors(req, res) {
   const origin = String(req.headers.origin || '');
   if (origin && isAllowedApiOrigin(origin, PORT, req.headers.host)) {
@@ -577,7 +595,7 @@ function applyApiCors(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');   // PATCH: /api/routing/triggers/:id (line triggers)
   // accept the legacy token header too (old Tauri shell); X-Speech-Deadline-Ms: a sentence's deadline budget (media-service.js)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms,X-StarNet-Desk-Proof');   // the desk proof: deskGate
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
   // X-StarNet-Code names a failure (respond.js CODES): hidden, the desktop page could not tell a stale key from any 403.
@@ -5178,7 +5196,7 @@ function reloadExtensions() {
 }
 const servePluginUi = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   // who may FRAME a plugin page: the station itself (browser mode) and the desktop shell's app origins
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' ')
 });
@@ -5239,7 +5257,7 @@ const apps = makeApps({
 });
 const serveAppUi = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' '),
   prefix: '/app-ui/', scopeFor: (id, digest) => apitickets.scopeApp(id, digest), resolve: (id) => apps.record(id),
   goneMessage: 'this app changed — reopening it shows the new version',
@@ -5270,7 +5288,7 @@ async function draftRecord(id) {
 }
 const servePluginDraft = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' '),
   prefix: '/plugin-draft/', scopeFor: (id, digest) => apitickets.scopeDraft(id, digest), resolve: draftRecord,
   // A DRAFT never reaches the network: scripts and styles only from its own ticketed files (plus inline), no
@@ -12526,7 +12544,7 @@ const server = http.createServer((req, res) => {
   // EventSource: GET /api/channels/events; the unload save beacon: POST /api/save) a ?ticket= minted for exactly that
   // resource (apiauth.ticketOk). The MASTER token is never accepted from a query string (it leaked into browser history,
   // Referer and copied links).
-  if (isApi && requiresApiToken(req) && !apiauth.apiTokenOk(req, API_TOKEN) && !apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return refuseAtGate(req, res, 'forbidden token');
+  if (isApi && requiresApiToken(req) && !stationTokenOk(req) && !stationTicketOk(req)) return refuseAtGate(req, res, 'forbidden token');
   const mutationTicket = updatePreparation.beginRequest(req.method, req.url);
   if (!mutationTicket.ok) {
     res.writeHead(423, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -13154,6 +13172,8 @@ async function handleRemoteViewCrew(req, res) {
 async function handleRemoteEnable(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
   const on = b.on === true;
+  // switching Remote ON opens a way in from outside this computer: the desk confirms it (GHSA-2hpj #1); OFF never asks
+  if (on && !remoteDevices.enabled() && !deskGate(req, res, 'remote-enable', '', { relay: REMOTE_RELAY_URL || (REMOTE_LAN_ON ? 'the local network' : '') })) return;
   const saved = remoteDevices.setEnabled(on);
   if (!saved.ok) return respondJson(res, 500, { ok: false, error: 'could not save the Remote switch (' + saved.error + ')' });
   try {
@@ -13167,6 +13187,7 @@ async function handleRemotePair(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { b = {}; }
   if (!remoteDevices.enabled()) return respondJson(res, 409, { ok: false, error: 'switch Remote on first' });
   if (!remoteRelay && !remoteLan.info().listening) return respondJson(res, 409, { ok: false, error: 'this build has no relay set up yet, so a phone has no way to reach this station' });
+  if (!deskGate(req, res, 'remote-pair', '', {})) return;   // a pairing code is a way in: the desk confirms it (GHSA-2hpj #1)
   let p; try { p = remoteDevices.startPairing({ name: b.name }); } catch (e) { return respondJson(res, 500, { ok: false, error: (e && e.message) || String(e) }); }
   const urls = remoteLanUrls();
   // what the phone needs, in one blob; carried in a URL FRAGMENT so it never reaches a server log. The relay URL
@@ -13180,6 +13201,9 @@ async function handleRemotePair(req, res) {
 // POST /api/remote/device { deviceId, askFirst } — this phone asks before every gated step (true) or works with the desk's permissions
 async function handleRemoteDevice(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
+  // letting a phone work with the desk's own permissions (askFirst off) is a lasting grant: the desk confirms it (GHSA-2hpj #1)
+  const devRow = remoteDevices.list().find(d => d.id === String(b.deviceId || ''));
+  if (devRow && b.askFirst !== true && devRow.askFirst === true && !deskGate(req, res, 'device-desk-permissions', devRow.id, { name: devRow.name, fingerprint: devRow.fingerprint })) return;
   const r = remoteDevices.setAskFirst(String(b.deviceId || ''), b.askFirst === true);
   if (!r.ok) return respondJson(res, r.error === 'no such device' ? 404 : 500, { ok: false, error: r.error });
   respondJson(res, 200, remoteSnapshot());
@@ -13307,6 +13331,7 @@ const ROUTES = [
   { m: ['GET', 'POST', 'DELETE'], exact: '/api/personalization', h: handlePersonalization },
   { m: 'POST', exact: '/api/summon/ack', h: handleSummonAck },
   { m: 'POST', exact: '/api/key', h: handleSetKey },
+  { m: 'POST', exact: '/api/desk/approve', h: handleDeskApprove },   // the desktop shell's native confirmation (deskGate)
   { m: 'POST', exact: '/api/channels/token', h: handleSetChannelToken },
   { m: 'POST', exact: '/api/channels/telegram/connect', h: handleChannelConnect },
   { m: 'POST', exact: '/api/channels/telegram/sync', h: handleChannelSync },
@@ -14150,7 +14175,7 @@ function handleChannelEvents(req, res) {
   });
   try { res.write('retry: 3000\n\n'); } catch (_) {}        // EventSource auto-reconnects after 3s if dropped
   // the header token passed the gate → a Node client; otherwise the gate passed on an SSE ticket → a page (ssePages)
-  const isPage = !apiauth.apiTokenOk(req, API_TOKEN);
+  const isPage = !stationTokenOk(req);
   sse.add(res);
   if (!sse.resume(res, req.headers['last-event-id'] || new URL(req.url, 'http://localhost').searchParams.get('cursor'))) return;
   if (isPage) ssePages.add(res);
@@ -16301,6 +16326,11 @@ async function handleConfigImport(req, res) {
   const importNotes = [];
   const effectiveSecretsNeeded = (parsed.secretsNeeded || []).filter(x => x && x.kind !== 'connector');
   const sec = parsed.sections;
+  // a backup that would ADD standing grants needs the desk's confirmation before ANY section applies (GHSA-2hpj #1)
+  if (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow)) {
+    const fresh = [...new Set(sec.permissions.allow.filter(k => typeof k === 'string' && !grantsPermanent.has(k)))].sort();
+    if (fresh.length && !deskGate(req, res, 'grant-import', fresh.join(','), { count: fresh.length, list: fresh.slice(0, 12).map(k => '  • ' + k).join('\n') + (fresh.length > 12 ? '\n  • and ' + (fresh.length - 12) + ' more' : '') })) return;
+  }
   let connectorPlan = null;
   if (want('connectors') && Array.isArray(sec.connectors)) {
     connectorPlan = prepareConnectorImport(sec.connectors);
@@ -16548,6 +16578,71 @@ function ipcTokenOk(req) {
   const a = crypto.createHash('sha256').update(given, 'utf8').digest();
   const b = crypto.createHash('sha256').update(token, 'utf8').digest();
   return crypto.timingSafeEqual(a, b);
+}
+
+/* THE DESK PROOF (GHSA-2hpj-9wm7-rvg5 #1, 2026-11-08; sidecar/deskproof.js). The page token alone no longer makes an
+   AUTHORITY change: FULL BYPASS on, a FULL ACCESS or ALWAYS answer, a standing grant (the Permissions panel or a restored
+   backup), raising an agent to full access, Remote on, a pairing code, approving a phone, or letting a phone use the desk's
+   own permissions. Under the desktop shell the confirmation is the shell's native dialog, reported with the IPC token;
+   a bare sidecar (browser mode) confirms in the page. */
+const deskProof = require('./deskproof.js').makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: String(ENV('IPC_TOKEN') || ''), now: () => Date.now() });
+// What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
+// shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).
+function deskWords(action, d) {
+  const o = d || {};
+  const who = o.agentName ? '"' + o.agentName + '"' : 'this agent';
+  switch (action) {
+    case 'bypass-on': return { title: 'StarNet — turn on FULL BYPASS', verb: 'Turn on FULL BYPASS',
+      summary: 'Turn on FULL BYPASS for every agent?\n\nEvery agent, on every surface (chat, Telegram, routines, the night shift), will run commands, change files and use your connected accounts without asking you first, until you turn it off in Settings › Permissions.' };
+    case 'consent-full': return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
+      summary: 'Give ' + who + ' FULL ACCESS?\n\nIt will run every tool, command and file change without asking you, in this task and every later one, until you set it back to ask first.' + (o.tool ? '\n\nIt is asking to use: ' + o.tool : '') };
+    case 'consent-always': return { title: 'StarNet — always allow', verb: 'Always allow',
+      summary: 'Always allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
+    case 'grant': return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
+      summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
+    case 'grant-import': return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
+      summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list + '\n\nRestore ' + (o.count === 1 ? 'it' : 'them') + '? Agents will use ' + (o.count === 1 ? 'it' : 'them') + ' without asking.' };
+    case 'approval-full': return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
+      summary: 'Give FULL ACCESS to ' + o.names + '?\n\n' + (o.count === 1 ? 'It' : 'They') + ' will run every tool, command and file change without asking you, until you set ' + (o.count === 1 ? 'it' : 'them') + ' back to ask first.' };
+    case 'remote-enable': return { title: 'StarNet — turn on Remote', verb: 'Turn on Remote',
+      summary: 'Turn on StarNet Remote?\n\nThis station will connect out to ' + (o.relay || 'its relay') + ' so the phones you pair and approve here can reach it from anywhere.' };
+    case 'remote-pair': return { title: 'StarNet — pair a phone', verb: 'Make a pairing code',
+      summary: 'Make a one-time code to pair a new phone with this station?\n\nA phone that uses it stays switched off until you approve it here, at this computer.' };
+    case 'device-activate': return { title: 'StarNet — approve a phone', verb: 'Approve phone',
+      summary: 'Let the phone "' + o.name + '" use this station?\n\nIts fingerprint is ' + o.fingerprint + '. Check that your phone shows the same one, and approve only a phone you just paired yourself. It starts out asking before every step.' };
+    case 'device-desk-permissions': return { title: 'StarNet — phone permissions', verb: 'Allow',
+      summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
+    default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
+  }
+}
+/* deskGate(req, res, action, scope, details) -> true when the request carries a good desk proof for exactly this change
+   (consumed: single use). Otherwise it answers and returns false: CLIENT_TOKEN (what GET / serves under the shell) is told
+   the change belongs to the StarNet window (desk_only, no challenge); the app page is handed a fresh challenge
+   (desk_confirm_required { deskConfirm }) that its fetch wrapper confirms and replays once (frontend/app/harness.js).
+   Call it AFTER the body is read and BEFORE anything changes. */
+function deskGate(req, res, action, scope, details) {
+  if (CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN)) {
+    respondFail(res, 403, 'desk_only', 'This change can only be made in the StarNet window, where it asks you to confirm.', { deskOnly: true });
+    return false;
+  }
+  const presented = String(req.headers['x-starnet-desk-proof'] || '').trim();
+  if (presented && deskProof.consume(presented, action, scope).ok) return true;
+  const words = deskWords(action, details);
+  const challenge = deskProof.issue({ action, scope, title: words.title, summary: words.summary, verb: words.verb });
+  respondFail(res, 403, 'desk_confirm_required', presented ? 'That confirmation was not for this change, or it ran out. Confirm it again.'
+    : 'Confirm this change first: ' + challenge.title.replace(/^StarNet — /, '') + '.', { deskConfirm: challenge });
+  return false;
+}
+// POST /api/desk/approve { id, title, summary, verb } — the desktop shell's report (main.rs starnet_desk_confirm) that a
+// person said yes in its native dialog showing exactly these words. Token-exempt like /api/key: guarded by the
+// per-launch IPC token, which no page and no child process holds (child-env.js strips it from every child).
+async function handleDeskApprove(req, res) {
+  if (!ipcTokenOk(req)) return respondFail(res, 403, 'forbidden', 'forbidden');
+  const b = await readJsonBody(req, readBody, 8192, res);
+  if (!b) return respondFail(res, 400, 'bad_json', 'bad json');
+  const r = deskProof.approve({ id: b.id, title: b.title, summary: b.summary, verb: b.verb }, apiauth.headerToken(req));
+  if (!r.ok) return respondFail(res, r.reason === 'gone' ? 404 : 409, r.reason === 'gone' ? 'not_found' : 'conflict', 'desk confirmation refused (' + r.reason + ')');
+  return respondJson(res, 200, { ok: true });
 }
 
 /* desktop key push: the parent shell sets live BYOK/provider config here (token-gated), so changing a
@@ -20010,7 +20105,7 @@ const WORKSHOP_RUN_PREFIX = '/workshop-run/';
 async function serveWorkshopRun(req, res) {
   const reqPath = String(req.url || '').split('?')[0];
   const ticketed = apitickets.splitRunTicket(reqPath);                 // { ticket, rest } | null
-  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) return refuseAtGate(req, res, 'forbidden token');
+  if (!ticketed && !stationTokenOk(req)) return refuseAtGate(req, res, 'forbidden token');
   let abs;
   try {
     const rawPath = decodeURIComponent(ticketed ? WORKSHOP_RUN_PREFIX + ticketed.rest : reqPath);
@@ -20025,7 +20120,7 @@ async function serveWorkshopRun(req, res) {
     if (ticketed) {
       // the ticket is bound to (agentId, runId) — the VERIFIER derives both from the path, never from the ticket
       const runId = rel.slice(0, rel.indexOf('/'));
-      const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'run', apitickets.scopeRun(agentId, runId), { now: Date.now() });
+      const v = stationTicketVerify(ticketed.ticket, 'run', apitickets.scopeRun(agentId, runId));
       if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     }
     ({ abs } = await fsJail.resolveInside(agentId, 'workshop/' + rel));  // throws on '..'/absolute/symlink/bad agentId
@@ -20084,7 +20179,7 @@ async function serveWorkspaceView(req, res) {
     if (refuseBadAgentId(res, agentId)) return;
     const parts = (dir ? dir.split('/') : []).concat(tail.join('/').split('/'));
     if (parts.some(s => !s || s.charAt(0) === '.' || s.indexOf('\\') >= 0)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
-    const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'view', apitickets.scopeView(agentId, dir), { now: Date.now() });
+    const v = stationTicketVerify(ticketed.ticket, 'view', apitickets.scopeView(agentId, dir));
     if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     ({ abs } = await fsJail.resolveInside(agentId, parts.join('/')));
   } catch (e) {
@@ -20597,7 +20692,31 @@ async function handleRoster(req, res) {
   const previousRoster = new Map(agentRoster);
   const previousRaw = new Map(agentRosterRaw);
   const previousUpdatedAt = agentRosterUpdatedAt, previousSaveRevision = agentRosterSaveRevision;
-  replaceAgentRoster(rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents);
+  /* RAISING AN AGENT TO FULL ACCESS NEEDS THE DESK (GHSA-2hpj-9wm7-rvg5 #1). A row that turns an agent the station holds
+     as ask-first (or a new agent) into approvalMode 'full' is a raise. A push that ASKS for it (raise: [ids], sent by the
+     page's own setAgentApproval / onboarding / /yolo) must carry a desk proof for exactly those agents (deskGate: the
+     page's fetch wrapper confirms and replays). Any other push (a page booting from its save, a stale tab, a save some
+     process wrote) cannot raise anyone: those rows are kept ask-first and named in `clamped`, and the page puts its own
+     copy back. Lowering is never refused. */
+  let incomingRows = rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents;
+  const raised = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || '');
+    if (a && a.approvalMode === 'full' && !(previousRoster.get(id) && previousRoster.get(id).approvalMode === 'full')) raised.push(id);
+  }
+  let clamped = [];
+  if (raised.length) {
+    const asked = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
+    if (raised.some(id => asked.has(id)) || req.headers['x-starnet-desk-proof']) {
+      const names = raised.map(id => { const row = incomingRows.find(x => String((x && x.agentId) || '') === id) || {}; return '"' + String(row.name || id).slice(0, 40) + '"'; });
+      if (!deskGate(req, res, 'approval-full', raised.slice().sort().join(','), { names: names.join(', '), count: raised.length })) return;
+    } else {
+      clamped = raised;
+      const keep = new Set(clamped);
+      incomingRows = incomingRows.map(a => (a && keep.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
+    }
+  }
+  replaceAgentRoster(incomingRows);
   if (hasBase) agentRosterSaveRevision = Math.max(ceiling, baseRevision);
   if (!saveAgentRoster(hasStamp ? (rosterMerge ? Math.max(incomingUpdatedAt, agentRosterUpdatedAt) : incomingUpdatedAt) : undefined)) {
     // POST /api/roster replaces the whole live roster, so a rejected durable replace must also roll RAM back.
@@ -20607,7 +20726,7 @@ async function handleRoster(req, res) {
     agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
-  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}));
+  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}, clamped.length ? { clamped } : {}));
 }
 
 // POST /api/agent/delete { agentId } — DOSSIER › DELETE AGENT. Removes a summoned agent from the SERVER roster
@@ -20718,6 +20837,10 @@ async function handleAgentApproval(req, res) {
     if (out && out.ok) return json(200, { ok: true, agentId, mode, via: 'page' });
     return json(409, pageRefusal(out, agentId));
   }
+  // no page: raising to FULL needs the desk's confirmation (GHSA-2hpj #1). Under the desktop shell a terminal holds only the
+  // client key, so it is told to use the StarNet window (with the app open, the page above confirms it there); a bare
+  // station's terminal (`starnet` with no app) confirms the typed /yolo itself (bin/lib/dashboard.js). Lowering never asks.
+  if (mode === 'full' && cur.approvalMode !== 'full' && !deskGate(req, res, 'approval-full', agentId, { names: '"' + String(cur.name || agentId).slice(0, 40) + '"', count: 1 })) return;
   // no page: nothing was awaited since `cur` was read. The roster takes it either way (taking power away is never refused:
   // the station's runs ask first from now). Taking it away also goes into the app's save, the copy the app hydrates its
   // crew from and pushes back when it opens; `save` says whether it took it, so the caller never reports as lasting a
@@ -26809,6 +26932,15 @@ async function handleConsent(req, res) {
   // a background worker's ask outlives its lead's turn (askHuman): once that run's meta is gone, the ask row still names
   // the lead whose broker it rides — the same agent a "full" answer would have granted while the lead was live
   const agentId = (meta && meta.agentId) || (finish && finish.detached && finish.askRow && finish.askRow.agentId) || undefined;
+  // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
+  // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
+  // standing answer only ever approves this call, below, so it never asks).
+  if (finish && finish.freshConsent !== true && (decision === 'always' || decision === 'full')) {
+    const row = finish.askRow || {};
+    const rec = agentId ? agentRoster.get(String(agentId)) : null;
+    if (!deskGate(req, res, 'consent-' + decision, String(body.runId || '') + '\n' + String(body.promptId || ''),
+      { agentName: (rec && rec.name) || agentId || '', tool: row.tool || '', scope: row.scope || '' })) return;
+  }
   let persisted = true;
   // a fresh-consent card (station.power, plugin.submit) answers THIS call only: the broker grants any yes once, so a
   // standing answer (full, always, session) is applied and echoed as 'once', and no surface confirms a grant never made
@@ -26889,12 +27021,13 @@ function handlePermissionsList(req, res) {
   // toggle is pinned on rather than rendering a switch that appears to do nothing).
   res.end(JSON.stringify(Object.assign({}, snap, { masterBypass: masterBypassOn(), envFullAccess: FULL_ACCESS })));
 }
-// POST /api/permissions/bypass { on } — flip the master FULL BYPASS switch. The click IS the consent: this
-// route is reachable only through the token-gated loopback API (a human in settings), never from a tool.
-// Fail-closed: a torn durable write returns ok:false and the previous state stands.
+// POST /api/permissions/bypass { on } — flip the master FULL BYPASS switch. Turning it ON needs the desk's confirmation
+// (deskGate, GHSA-2hpj #1): a token is not a click, and any local process that read the page held one. Turning it OFF
+// never asks. Fail-closed: a torn durable write returns ok:false and the previous state stands.
 async function handlePermissionsBypass(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
   const want = body && body.on === true;
+  if (want && !masterBypassOn() && !deskGate(req, res, 'bypass-on', '', {})) return;
   try { setMasterBypass(want); }
   catch (e) {
     res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -26908,6 +27041,10 @@ async function handlePermissionsBypass(req, res) {
 // (returns 400 ok:false) if the durable write throws, so the grant never silently "takes" without persisting.
 async function handlePermissionsGrant(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
+  // a NEW standing grant the catalog allows needs the desk's confirmation (GHSA-2hpj #1); a refused key is refused below
+  const grantKey = String((body && body.key) || '');
+  const grantable = (grantManager.snapshot() || {}).grantable || [];
+  if (grantable.indexOf(grantKey) >= 0 && !grantsPermanent.has(grantKey) && !deskGate(req, res, 'grant', grantKey, { key: grantKey })) return;
   const r = grantManager.grant(body && body.key);
   res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(r));
@@ -31958,7 +32095,7 @@ async function serveStatic(req, res) {
       const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort });
       // the app page gets a per-response script nonce (CSP below), so its one inline boot script runs and nothing else inline does
       if (isAppPage) scriptNonce = crypto.randomBytes(16).toString('base64');
-      let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(API_TOKEN) + ';'
+      let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(CLIENT_TOKEN || API_TOKEN) + ';'
         : 'window.__STARNET_TOKEN_WITHHELD__=' + JSON.stringify(peer.reason) + ';');
       if (!peer.ok) noteTokenWithheld(peer);
       // DEV fast-path: hand the page a model + provider hint so a fresh origin auto-resumes the seeded

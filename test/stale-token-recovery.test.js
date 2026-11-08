@@ -32,7 +32,8 @@ const staleTokenRecovery = new Function(factorySrc + '\nreturn staleTokenRecover
 // producer so a format change there cannot silently blind the recovery.
 // The boot script now opens with a per-response CSP nonce (<script nonce="…">) and carries the token only for the
 // same-user owner (peerOwnerCheck); the recovery's TOKEN_RE matches the assignment itself, whatever the tag carries.
-A.ok(sidecar.includes("'window.__STARNET_API_TOKEN__=' + JSON.stringify(API_TOKEN) + ';'"),
+// GHSA-2hpj #1: under the desktop shell the served page carries the client key (CLIENT_TOKEN); a bare station still serves API_TOKEN
+A.ok(sidecar.includes("'window.__STARNET_API_TOKEN__=' + JSON.stringify(CLIENT_TOKEN || API_TOKEN) + ';'"),
   'serveStatic still injects window.__STARNET_API_TOKEN__=<json>; into the page');
 A.ok(sidecar.includes("(scriptNonce ? '<script nonce=\"' + scriptNonce + '\">' : '<script>')"),
   'serveStatic opens the boot script with its per-response nonce');

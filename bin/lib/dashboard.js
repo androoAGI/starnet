@@ -1529,7 +1529,13 @@ function runDashboard(station, opts) {
     const want = raw ? /^(1|true|yes|on|full|yolo)$/.test(raw) : a.approvalMode !== 'full';
     const mode = want ? 'full' : 'ask', now2 = want ? 'run without prompts' : 'ask first';
     if ((a.approvalMode === 'full' ? 'full' : 'ask') === mode) return sayHere('/yolo', ['Approval mode unchanged for ' + a.name + ': ' + now2 + '.']);
-    const r = await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000 });
+    let r = await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000 });
+    /* GIVING FULL ACCESS NEEDS THE DESK'S CONFIRMATION (GHSA-2hpj #1). With the StarNet app open the app asks; under the
+       desktop app with no window this terminal is told to use the window. A bare station (no desktop app: `starnet`'s own,
+       a source build) confirms in the page that asked, and here the typed /yolo is that confirmation: the terminal replays
+       its one-time challenge once. A 'desktop' challenge is never replayed from here: only the app's own dialog can. */
+    const ch = r && r.status === 403 && r.json && r.json.code === 'desk_confirm_required' && r.json.deskConfirm;
+    if (ch && ch.mode === 'page' && ch.id) r = await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000, deskProof: ch.id });
     const u = unconfirmed(r, a);
     if (u) {
       if (u.gone) return sayHere('/yolo', [u.line], false);

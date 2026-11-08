@@ -64,6 +64,8 @@ const CODES = Object.freeze({
   refused: 400,             // a refusal with no more specific name; an unlisted 4xx (401, 416, 422) keeps its own status
   forbidden: 403,
   wrong_owner: 403,
+  desk_confirm_required: 403,   // an authority change needs a fresh desk confirmation (index.js deskGate); the body carries the challenge
+  desk_only: 403,              // an authority change refused to the served page's client key: it is made in the StarNet window
   path_refused: 403,
   ticket_refused: 403,
   not_found: 404,

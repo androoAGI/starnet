@@ -4468,6 +4468,56 @@ async fn starnet_reveal_path(
     Ok(())
 }
 
+/// THE DESK PROOF (GHSA-2hpj-9wm7-rvg5 #1). The sidecar refuses an AUTHORITY change (FULL BYPASS on, a FULL ACCESS or
+/// ALWAYS answer, a standing grant, raising an agent to full access, Remote on, a pairing code, approving a phone) until
+/// this shell reports that a person confirmed it here: a renderer click or a page token is not a host gesture (the law
+/// confirm_host_launch keeps). The page passes the challenge the sidecar issued (sidecar/deskproof.js); this command shows
+/// its words in a blocking native dialog and, only on yes, reports them back with the per-launch IPC token
+/// (POST /api/desk/approve), which no page and no child process holds. The sidecar accepts the approval only for the
+/// exact words it issued, so a page cannot show one thing and approve another. Nothing is cached: the next change asks again.
+#[tauri::command]
+async fn starnet_desk_confirm(
+    id: String,
+    title: String,
+    summary: String,
+    verb: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    desk_confirm_words_ok(&id, &title, &summary, &verb)?;
+    if !confirm_host_launch(&app, &title, &summary, &verb) {
+        return Err(format!("desk confirmation {HOST_GESTURE_DECLINED}"));
+    }
+    let body = serde_json::json!({
+        "id": id,
+        "title": title,
+        "summary": summary,
+        "verb": verb,
+    })
+    .to_string();
+    post_sidecar_json(&state, "/api/desk/approve", &body, "desk confirmation")
+}
+
+/// The challenge a page hands over must look like one the sidecar issues: an id of its shape, and words with no control
+/// character but a line break, within the sidecar's caps. Anything else is refused before any dialog shows.
+fn desk_confirm_words_ok(id: &str, title: &str, summary: &str, verb: &str) -> Result<(), String> {
+    let id_ok = id.len() >= 19
+        && id.len() <= 67
+        && id.starts_with("dc_")
+        && id[3..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    let clean = |s: &str, max: usize| {
+        !s.trim().is_empty()
+            && s.chars().count() <= max
+            && !s.chars().any(|c| c.is_control() && c != '\n')
+    };
+    if !id_ok || !clean(title, 120) || !clean(summary, 1200) || !clean(verb, 40) {
+        return Err("that confirmation is not one StarNet issued".to_string());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod artifact_open_tests {
     use super::{resolve_artifact_path, safe_native_artifact_extension, strip_verbatim};
@@ -5526,6 +5576,7 @@ fn main() {
             harness_clear_credits_token,
             starnet_open_artifact,
             starnet_reveal_path,
+            starnet_desk_confirm,
             open_external_url,
             starnet_toggle_fullscreen,
             starnet_set_keep_awake,

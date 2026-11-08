@@ -592,6 +592,7 @@ const App = (() => {
     if (r.degraded) return 'This station’s data was written by a newer StarNet — update the app.';
     if (r.behind) return 'Another window saved newer station changes first; try again in a moment.';
     if (r.stale) return 'Another window sent a newer crew list first; try again in a moment.';
+    if (r.desk) return r.desk === 'desk_only' ? 'Full Access is turned on in the StarNet window, where it asks you to confirm.' : 'Full Access was not confirmed.';
     return 'The station refused it' + (r.error ? ' (' + r.error.slice(0, 120) + ')' : '') + '.';
   }
 
@@ -1513,6 +1514,24 @@ const App = (() => {
   // the rows of this page's last ACCEPTED roster push (agentId -> its JSON): a page behind the station sends which rows it
   // changed since, so the station merges them row by row instead of refusing it (sidecar handleRoster, mergeRosterRows)
   let rosterAccepted = new Map();
+  // agents this page means to RAISE to full access on its next roster push although the station never saw them ask-first
+  // (onboarding's FULL ACCESS pick: the first push has no accepted row to compare with). GHSA-2hpj #1: see pushRoster.
+  const pendingRaise = new Set();
+  /* THE STATION KEPT THESE AGENTS ASK-FIRST (GHSA-2hpj #1): a raise it was never asked to confirm (a page booting from a save
+     that says FULL ACCESS the station does not hold), or one the Commander did not confirm at the desk. This page's copy
+     says so too, so the dossier never shows FULL ACCESS that the runs do not have. */
+  function settleRefusedRaise(ids, why) {
+    const names = [];
+    for (const id of (ids || [])) {
+      const a = agents.get(String(id)) || (agent && agent.id === id ? agent : null);
+      if (a && a.approvalMode === 'full') { a.approvalMode = 'ask'; names.push(a.name || a.id); }
+    }
+    if (!names.length) return;
+    persist();
+    if (typeof StationUI === 'undefined') return;
+    if (StationUI.setRoster) StationUI.setRoster(liveAgents());
+    if (StationUI.notify) StationUI.notify(names.join(', ') + (names.length === 1 ? ' still asks' : ' still ask') + ' first — ' + why, 'warn');
+  }
   /* S3 — MAKE THE METERS LOAD-BEARING (without gating anything).
      Until now every reader of an agent's stats was a display surface: the level chip, the dossier, /whoami.
      Nothing in the station ACTED on them, so a TRUSTED veteran and a stranger were identical to delegation —
@@ -1558,8 +1577,25 @@ const App = (() => {
       const rows = new Map(list.map(r => [r.agentId, JSON.stringify(r)]));
       const rosterBase = { known: Array.from(rosterAccepted.keys()), changed: list.filter(r => rosterAccepted.get(r.agentId) !== rows.get(r.agentId)).map(r => r.agentId) };
       const base = (typeof CloudSave !== 'undefined' && CloudSave.revision && CloudSave.writerId) ? { saveRevision: CloudSave.revision(), saveClient: CloudSave.writerId(), rosterBase } : {};
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base)) })
+      /* RAISING AN AGENT TO FULL ACCESS (GHSA-2hpj #1): a row this page last pushed ask-first and now pushes FULL ACCESS (or one
+         onboarding picked FULL ACCESS for) is a raise this page asks for by name (`raise`); the station refuses it until the
+         Commander confirms it at the desk, which the hardened fetch (harness.js) shows and replays. A push that names no raise
+         cannot raise anyone: the station keeps those agents ask-first and names them in `clamped` (settleRefusedRaise). */
+      const wasFull = id => { const row = rosterAccepted.get(id); try { return !!row && JSON.parse(row).approvalMode === 'full'; } catch (_) { return false; } };
+      const raise = list.filter(r => r.approvalMode === 'full' && (pendingRaise.has(r.agentId) || (rosterAccepted.has(r.agentId) && !wasFull(r.agentId)))).map(r => r.agentId);
+      pendingRaise.clear();
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base, raise.length ? { raise } : {})) })
         .then(async r => {
+          // the station's own name for its refusal (X-StarNet-Code): an unconfirmed raise is the desk's answer, never a lost station
+          let deskCode = '';
+          try { deskCode = String((r && r.headers && typeof r.headers.get === 'function' && r.headers.get('X-StarNet-Code')) || ''); } catch (_) { deskCode = ''; }
+          if (deskCode === 'desk_confirm_required' || deskCode === 'desk_only') {
+            let refusal = null;
+            try { refusal = await r.clone().json(); } catch (_) { refusal = null; }
+            rosterRefusal = { desk: deskCode, error: String((refusal && refusal.error) || '') };
+            settleRefusedRaise(raise, rosterRefusalWords());
+            throw new Error('roster refused: desk confirmation');
+          }
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);
           // EL-11 FIX 1: the sidecar answers REFUSALS as HTTP 200 { ok:false, ... } (degraded workspace /
           // stale stamp) — Response.ok alone never proves the roster landed. Parse the body; ok:false is a
@@ -1573,6 +1609,10 @@ const App = (() => {
             throw new Error('roster refused: ' + (body.error || (body.stale ? 'stale push' : 'unknown')));
           }
           rosterAccepted = rows; rosterRefusal = null;
+          if (body && Array.isArray(body.clamped) && body.clamped.length) {
+            for (const id of body.clamped) { try { const row = JSON.parse(rows.get(String(id))); row.approvalMode = 'ask'; rows.set(String(id), JSON.stringify(row)); } catch (_) {} }
+            settleRefusedRaise(body.clamped, 'Full Access is turned on in the dossier, where StarNet asks you to confirm it.');
+          }
           if (rosterPushFailed) { rosterPushFailed = false; try { console.info('[roster] sidecar roster sync recovered.'); } catch (_) {} }
           return true;
         })
@@ -3497,6 +3537,7 @@ const App = (() => {
               approvalMode: (pickedApproval === 'full' ? 'full' : 'ask'), executionProfile: (pickedApproval === 'full' ? 'this-computer' : 'trusted-project'), purpose: null, onboarded: false, createdAt: newCommanderEpoch };   // legacy approval choice seeds an honest host profile; the two axes are independently changeable in the dossier
     agentDocs(agent);                              // seed identity.md (overseer-aware) / purpose.md / operating-manual.md
     registerHero(agent);   // found the multi-agent registry with the hero BEFORE composing — rosterClause reads the registry, and a same-session re-wake must not see the prior crew
+    if (agent.approvalMode === 'full') pendingRaise.add(agent.id);   // the first roster push asks the desk to confirm the FULL ACCESS pick (GHSA-2hpj #1)
     agent.systemPrompt = composeSystemPrompt(agent);
     Harness.resetTotals();
     Workstreams.reset();   // a fresh General stream for the new agent

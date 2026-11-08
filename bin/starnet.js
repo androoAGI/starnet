@@ -201,6 +201,8 @@ function makeClient(host, port) {
     return new Promise(resolve => {
       const headers = { 'Origin': base, 'Accept': 'application/json, text/plain, */*' };
       if (token && !o.noToken) headers['x-starnet-token'] = token;
+      // a desk confirmation's proof (GHSA-2hpj #1): only a bare station issues one a terminal may replay (dashboard /yolo)
+      if (o.deskProof) headers['x-starnet-desk-proof'] = String(o.deskProof);
       let payload = null;
       if (body != null) { payload = Buffer.from(JSON.stringify(body), 'utf8'); headers['Content-Type'] = 'application/json'; headers['Content-Length'] = payload.length; }
       let req;

@@ -228,6 +228,55 @@ const Harness = (() => {
     init.headers = headers;
     return init;
   }
+  /* THE DESK CONFIRMATION (GHSA-2hpj-9wm7-rvg5 #1). An AUTHORITY change (FULL BYPASS on, a FULL ACCESS or ALWAYS answer, a
+     standing grant, raising an agent to full access, Remote on, a pairing code, approving a phone) is refused with 403
+     desk_confirm_required and a one-time challenge the station issued for exactly that change (sidecar/deskproof.js). The
+     page confirms it ONCE and replays the request with X-StarNet-Desk-Proof. In the desktop app the SHELL shows the station's
+     own words in a native dialog and reports the yes itself (main.rs starnet_desk_confirm) — no page script and no local
+     process can produce that; in a browser the page asks in-page and names the challenge's code (the station cannot tell a
+     browser from another local process there). A no, a dialog that failed, or a body that cannot be replayed hands the
+     caller the refusal exactly as it came. Self-contained (DESKTOP, invoke and window injected) so a test can lift it. */
+  function deskConfirmation(o) {
+    function challengeOf(res) {
+      if (!res || res.status !== 403 || typeof res.clone !== 'function') return Promise.resolve(null);
+      let code = '';
+      try { code = String((res.headers && typeof res.headers.get === 'function' && res.headers.get('X-StarNet-Code')) || ''); } catch (_) { code = ''; }
+      if (code !== 'desk_confirm_required') return Promise.resolve(null);
+      let copy; try { copy = res.clone(); } catch (_) { return Promise.resolve(null); }   // the caller keeps an unread body
+      return Promise.resolve(copy.json()).then(j => (j && j.deskConfirm && typeof j.deskConfirm.id === 'string' && j.deskConfirm.id) ? j.deskConfirm : null, () => null);
+    }
+    function confirmAtDesk(c) {
+      if (c.mode === 'desktop') {
+        if (!o.desktop || typeof o.invoke !== 'function') return Promise.resolve(false);   // only the shell can confirm a desktop challenge
+        return Promise.resolve()
+          .then(() => o.invoke('starnet_desk_confirm', { id: String(c.id), title: String(c.title || ''), summary: String(c.summary || ''), verb: String(c.verb || '') }))
+          .then(() => true, () => false);
+      }
+      try {
+        const ask = o.win && typeof o.win.confirm === 'function' ? o.win.confirm.bind(o.win) : null;
+        if (!ask) return Promise.resolve(false);
+        return Promise.resolve(!!ask(String(c.title || 'StarNet — confirm') + '\n\n' + String(c.summary || 'Confirm this change?')
+          + '\n\nConfirmation ' + String(c.code || '') + '. Choose OK to ' + String(c.verb || 'confirm').toLowerCase() + '.'));
+      } catch (_) { return Promise.resolve(false); }
+    }
+    // res: the station's answer; replay(proofId) -> the same request again carrying that proof (null: not replayable)
+    function settle(res, replay) {
+      if (typeof replay !== 'function') return Promise.resolve(res);
+      return challengeOf(res).then(c => {
+        if (!c) return res;
+        return confirmAtDesk(c).then(yes => (yes ? replay(c.id) : res));
+      });
+    }
+    return { settle, challengeOf, confirmAtDesk };
+  }
+  const deskConfirm = deskConfirmation({ desktop: DESKTOP, invoke: (cmd, args) => invoke(cmd, args), win: typeof window !== 'undefined' ? window : null });
+  function withDeskProof(init, id) {
+    init = Object.assign({}, init || {});
+    const headers = new Headers(init.headers || {});
+    headers.set('X-StarNet-Desk-Proof', String(id));
+    init.headers = headers;
+    return init;
+  }
   function ensureApiToken() {
     if (!apiToken && typeof window !== 'undefined' && window.__STARNET_API_TOKEN__) apiToken = String(window.__STARNET_API_TOKEN__);
     if (apiToken) return Promise.resolve(apiToken);
@@ -334,6 +383,12 @@ const Harness = (() => {
     if (station ? station === 'token_stale' : (status === 403 && s.sessionStale !== false)) {
       return { code: 'stale_session', status, terminal: true, staleSession: true, tokenWithheld: '', stationCode: station,
         message: 'the station restarted — reload the page to reconnect' };
+    }
+    // an authority change the Commander did not confirm at the desk (deskConfirm), or one the served page's client key may
+    // not make at all (GHSA-2hpj #1): the route's own answer, never a restart
+    if (station === 'desk_confirm_required' || station === 'desk_only') {
+      return { code: station, status, terminal: true, staleSession: false, tokenWithheld: '', stationCode: station,
+        message: station === 'desk_only' ? 'this change is made in the StarNet window, where it asks you to confirm' : 'this change was not confirmed' };
     }
     if (status === 403) {
       return { code: 'forbidden', status, terminal: true, staleSession: false, tokenWithheld: '', stationCode: station,
@@ -460,13 +515,16 @@ const Harness = (() => {
       try { if (isReq) again = u.clone(); } catch (_) { again = null; }
       const body = init && init.body;
       const replayable = again != null && !(body && typeof body.getReader === 'function');
+      // …and one more for a desk confirmation's replay (deskConfirm), which may follow a stale-token replay
+      let deskAgain = u;
+      try { if (isReq) deskAgain = u.clone(); } catch (_) { deskAgain = null; }
       return ensureApiToken().then(t => rawFetch(u, withApiToken(init, t)).then(res => {
         noteStationReply(true);   // #137: the first answer after a silence re-syncs the desktop endpoints
         return staleToken.settle(res, t, replayable ? fresh => rawFetch(again, withApiToken(init, fresh)) : null);
       }, e => {
         if (!(e && e.name === 'AbortError')) noteStationReply(false);   // no answer at all (a caller's abort is not one)
         throw e;
-      }));
+      }).then(res => deskConfirm.settle(res, (replayable && deskAgain != null) ? id => rawFetch(deskAgain, withApiToken(withDeskProof(init, id), apiToken || t)) : null)));
     };
     window.__STARNET_FETCH_HARDENED__ = true;
   }
