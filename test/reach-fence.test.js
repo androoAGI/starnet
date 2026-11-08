@@ -68,8 +68,15 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
   const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
   A.ok(/function reachFencedId\(id\) \{ return id === 'trusted-project'; \}/.test(ui), 'the dossier copy keys on the same single fenced id as fencesHost');
   const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
-  A.ok(/if \(full && executionProfileOf\(a\) === 'trusted-project'\) return '\\n\\nAUTHORITY — FULL POWER INSIDE YOUR PROJECT FOLDERS/.test(app),
+  A.ok(/if \(full && String\(a\.executionProfile \|\| ''\) === 'trusted-project'\) return '\\n\\nAUTHORITY — FULL POWER INSIDE YOUR PROJECT FOLDERS/.test(app),
     'a fenced agent\'s system clause never tells it it has the whole computer');
+  // …and the CLI composes the same clause from the lifted function (bin/lib/app-modules.js), which must not crash on it
+  const AppModules = require('../bin/lib/app-modules.js');
+  const composer = AppModules.load().composer;
+  const fencedPrompt = composer.compose({ id: 'forge', name: 'FORGE', approvalMode: 'full', executionProfile: 'trusted-project' }, {});
+  const hostPrompt = composer.compose({ id: 'ultron', name: 'ULTRON', approvalMode: 'full', executionProfile: 'this-computer' }, {});
+  A.ok(/FULL POWER INSIDE YOUR PROJECT FOLDERS/.test(fencedPrompt) && !/authorized the whole local computer/.test(fencedPrompt), 'the CLI-composed prompt of a fenced agent carries the fenced clause');
+  A.ok(/authorized the whole local computer/.test(hostPrompt), 'the CLI-composed prompt of a THIS COMPUTER agent keeps the whole-computer clause');
 
   A.report('reach-fence.test');
 })().catch(e => { console.log('FAIL: reach-fence.test threw — ' + (e && e.stack || e)); process.exit(1); });
