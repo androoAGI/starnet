@@ -81,6 +81,9 @@ const UNKNOWN    = { name: 'third_party.effect', capability: 'custom', scope: 'e
 A.ok(taint.isUntrustedSource(WEB_READ), 'web results taint');
 A.ok(taint.isUntrustedSource(BROWSER_TXT), 'browser page reads taint (capId web)');
 A.ok(taint.isUntrustedSource(MCP_READ) && taint.isUntrustedSource(MCP_WRITE), 'connector results taint');
+// a plugin tool's result is text the Commander did not write, like a connector's (GHSA-2hpj quick fix)
+A.ok(taint.isUntrustedSource({ name: 'plugin_weather__forecast', capability: 'plugin:weather', scope: 'read', impact: 'external-unknown' }), 'plugin tool results taint');
+A.ok(!taint.allowedWhenTainted({ name: 'plugin_weather__post', capability: 'plugin:weather', scope: 'execute', impact: 'external-unknown' }), 'and a tainted run cannot call a plugin tool (external-unknown stays locked)');
 A.ok(!taint.isUntrustedSource(FS_READ), 'local file reads do NOT taint in v1 (stated boundary)');
 A.ok(taint.isUntrustedSource(FS_READ, { args: { path: '.attachments/poisoned.txt' } }), 'a parked user document taints when read');
 A.ok(taint.isUntrustedSource(FS_READ, { args: { path: 'notes/.attachments\\poisoned.txt' } }), 'attachment provenance works with either path separator');

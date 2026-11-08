@@ -43,6 +43,9 @@
 
   const impactOfTool = inputpolicy.impactOfTool;
   const CONNECTOR_CAP = /^mcp:/;
+  // A plugin tool (plugin-tools.js, capability plugin:<id>) returns whatever the plugin's code fetched or made up: text
+  // the Commander did not write, exactly like a connector's. Its result taints the run (GHSA-2hpj quick fix).
+  const PLUGIN_CAP = /^plugin:/;
   /* THE ATTACHMENT SOURCE (attachment decay, 2026-11-04). The exact string a run is tainted with while a Commander's
      attachment BYTES are in its context (index.js runOnceCore: attachments.resentOf reports bytes:true). It is also the
      stamp the rows that run writes carry, and it is the ONLY stamp that decays: transcriptStore.taintOf and
@@ -75,7 +78,7 @@
   // Does this tool's RESULT bring content the Commander did not author into the context?
   function isUntrustedSource(tool, call) {
     const cap = String((tool && tool.capability) || '');
-    if (cap === 'web' || CONNECTOR_CAP.test(cap)) return true;
+    if (cap === 'web' || CONNECTOR_CAP.test(cap) || PLUGIN_CAP.test(cap)) return true;
     // Attachments are parked inside the ordinary workspace jail so the existing fs tools can read them. The
     // jail proves WHERE the bytes live, not WHO authored them. Treat a read from that provenance-stamped folder
     // like the upload that created it; otherwise a poisoned document can bypass the web/MCP taint boundary.
