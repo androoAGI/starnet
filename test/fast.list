@@ -561,6 +561,7 @@ test/turn-view.matrix.test.js
 test/turn-owner-proof.test.js
 test/transcript-view.test.js
 test/transcript-view.bounds.test.js
+test/history-upgrade-178.test.js
 test/transcript-cursor-read.test.js
 test/owner-proof-disk.test.js
 test/owner-evidence.collision.test.js

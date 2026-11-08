@@ -28,8 +28,16 @@ try {
     turnId: 'sparse_turn_001', directive: i === 0, sourceRunId: 'old-run' }).rowId);
   long.io.close();
   const sparse = open('sparse'); reads.length = 0;
-  A.eq(sparse.store.cacheRetractions('s', ids).state, 'unknown', 'target IDs spanning more than eight segments remain unproven');
-  A.ok(reads.length <= 8, 'a sparse cache cannot force unbounded proof reads');
+  /* #178: a cache spanning more than eight segments used to stay unproven for good, so its history never loaded. Each
+     proof read still parses at most eight segments; the check asks again for only the rows a read did not reach. */
+  A.eq(sparse.store.cacheRetractions('s', ids), { state: 'done', retracted: [] }, 'target IDs spanning more than eight segments are proven by a second bounded read');
+  A.ok(reads.length > 8 && reads.length <= 16, 'two proof reads of at most eight segments each: ' + reads.length);
+  const vast = open('vast'), many = [];
+  for (let i = 0; i < 120; i++) many.push(vast.store.appendStrict({ streamId: 's', role: 'assistant', content: 'v'.repeat(4300), sourceRunId: 'vast-run' }).rowId);
+  vast.io.close();
+  const vastCold = open('vast'); reads.length = 0;
+  A.eq(vastCold.store.cacheRetractions('s', many).state, 'unknown', 'a cache spanning more segments than the round budget remains unproven');
+  A.ok(reads.length <= 16 * 8, 'a sparse cache cannot force unbounded proof reads: ' + reads.length);
   const count = sparse.io.streamRows('s'); reads.length = 0;
   A.eq(sparse.store.retract({ streamId: 's', turnId: 'sparse_turn_001', reason: 'retry' }).state, 'unknown', 'a bounded suffix that cannot reach the directive does not retract a partial attempt');
   A.ok(reads.length <= 8, 'mutation selection has a separate explicit eight-segment ceiling');
