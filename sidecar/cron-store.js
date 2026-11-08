@@ -730,11 +730,15 @@
     });
   }
 
+  // ctx.taint: the WRITING run's taint source (host-proven), or none. A note a tainted run wrote carries it, and the run that
+  // reads it back inherits it (GHSA-2hpj #5): otherwise a page read today could steer tomorrow's untainted fire. A write
+  // replaces the whole note, so a clean write clears the stamp.
   function setNotepad(jobs, id, text, ctx) {
     ctx = ctx || {};
     return mapJob(jobs, id, (job) => Object.assign({}, job, {
       notepad: String(text == null ? '' : text).slice(0, 8000),
-      notepadUpdatedAt: iso(ctx.now || 0)
+      notepadUpdatedAt: iso(ctx.now || 0),
+      notepadTaint: typeof ctx.taint === 'string' && ctx.taint.trim() ? ctx.taint.trim().slice(0, 200) : null
     }));
   }
 

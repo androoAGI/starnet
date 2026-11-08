@@ -436,8 +436,12 @@ const iso = cron._internals.iso;
   A.eq(jobs[0].blockedConfig.alertedAt, firstAlert, 'the same configuration fingerprint preserves one alert receipt');
   jobs = store.clearBlockedConfig(jobs, 'g7');
   A.eq(jobs[0].blockedConfig, null, 'valid configuration clears the block');
+  // GHSA-2hpj #5: a note keeps its writer's taint; a clean write replaces the note and clears it
+  jobs = store.setNotepad(jobs, 'g7', 'from a page', { now: T0 + 3, taint: 'web_fetch' });
+  A.eq(jobs[0].notepadTaint, 'web_fetch', 'a note written by a tainted run carries the taint');
   jobs = store.setNotepad(jobs, 'g7', 'x'.repeat(9000), { now: T0 + 3 });
   A.eq(jobs[0].notepad.length, 8000, 'job notepad is hard-bounded');
+  A.eq(jobs[0].notepadTaint, null, 'a clean write clears the taint with the old note');
   jobs = store.markRun(jobs, 'g7', { runId: 'g7-run', status: 'ok', reason: 'done', output: 'changed', monitorHash: 'sha256:new' }, { now: T0 + HOUR });
   A.eq(jobs[0].monitorHash, 'sha256:new', 'only a successful settlement commits the observed source hash');
   const loaded = store.loadEnvelope(JSON.stringify(store.toEnvelope(jobs))).jobs[0];

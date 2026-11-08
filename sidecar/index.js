@@ -23979,16 +23979,18 @@ async function runOnceCore(o) {
       await withCronWrite(jobs => cronStore.triggerJob(jobs, id, { now: Date.now(), defaultTz: CRON_HOST_TZ }));
       return cronStore.getJob(cronJobs, id);
     },
+    // GHSA-2hpj #5: the note carries the taint of the run that wrote it, and the tool result hands it to the reader's latch
     getRoutineNotepad: async (id) => {
       const job = cronStore.getJob(cronJobs, String(id || ''));
       if (!job) throw new Error('scheduled routine no longer exists');
-      return String(job.notepad || '');
+      return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || null };
     },
     setRoutineNotepad: async (id, text) => {
       id = String(id || '');
       if (!cronStore.getJob(cronJobs, id)) throw new Error('scheduled routine no longer exists');
       const bounded = String(text == null ? '' : text).slice(0, 8000);
-      await withCronWrite(jobs => cronStore.setNotepad(jobs, id, bounded, { now: Date.now() }));
+      const writerTaint = execution.rowTaint() || execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) || null;
+      await withCronWrite(jobs => cronStore.setNotepad(jobs, id, bounded, { now: Date.now(), taint: writerTaint }));
       const saved = cronStore.getJob(cronJobs, id);
       return !!(saved && String(saved.notepad || '') === bounded);
     },
