@@ -112,7 +112,10 @@ function makeRunAuthority(opts) {
   };
   // Master bypass and per-agent Full Access are the two scopes of the same host-minted Full Power
   // authority. It is never derived from model-controlled text or tool output.
-  const unrestrictedHostNow = () => masterBypass || fullAccessNow();
+  // THE REACH FENCE (execution-profiles.js fencesHost): a TRUSTED PROJECT agent keeps Full Power's approval half
+  // (trustedNow below) but never its whole-host half, so screen/input control still needs the desktop lease.
+  const hostFenced = opts.hostFenced === true;
+  const unrestrictedHostNow = () => !hostFenced && (masterBypass || fullAccessNow());
   const trustedNow = () => ownerTrusted || masterBypass || fullAccessNow();
   // This bit is minted by the desktop host only when a locally paired Telegram owner reaches this run. It is
   // deliberately separate from ownerTrusted: a bare sidecar or ordinary web session cannot turn an identity
@@ -165,13 +168,15 @@ function makeRunAuthority(opts) {
   function authorize(call, tool) {
     const impact = impactOfTool(tool);
     const agentFullAccess = fullAccessNow();
-    const unrestrictedHost = masterBypass || agentFullAccess;
+    const unrestrictedHost = !hostFenced && (masterBypass || agentFullAccess);
     const trusted = ownerTrusted || masterBypass || agentFullAccess;
     if (impact === IMPACTS.PHYSICAL_INPUT || impact === IMPACTS.VISIBLE_DESKTOP) {
       if (unrestrictedHost) return { ok: true, impact, surface, isTask, isolated, masterBypass: masterBypass || undefined, fullAccess: agentFullAccess || undefined, unrestrictedHost: true };
       return remoteDesktopAuthorized
         ? { ok: true, impact, surface: 'interactive', isTask, isolated, ownerTrusted: true, remoteDesktopAuthorized: true }
-        : { ok: false, impact, reason: impact + ' requires Full Power or an authenticated remote-owner desktop lease' };
+        : { ok: false, impact, reason: (hostFenced && (masterBypass || agentFullAccess))
+          ? impact + ' is outside this agent\'s TRUSTED PROJECT reach, which Full Power does not widen: the Commander can switch its reach to THIS COMPUTER or use an authenticated remote-owner desktop lease'
+          : impact + ' requires Full Power or an authenticated remote-owner desktop lease' };
     }
     if (impact === IMPACTS.EXTERNAL_UNKNOWN) {
       if (trusted) return { ok: true, impact, surface, isTask, isolated, ownerTrusted: ownerTrusted || undefined, masterBypass: masterBypass || undefined, fullAccess: agentFullAccess || undefined };

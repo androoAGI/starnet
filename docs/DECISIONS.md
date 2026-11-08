@@ -48,6 +48,14 @@ many of these — they win on any wording conflict.
   caps, checkpoints, truthful telemetry, OS account privileges, elevation prompts, credentials,
   unavailable hardware, and disconnected external services remain real engineering/runtime facts,
   not StarNet permission denials. ASK and narrower execution modes remain restricted as labeled.
+  - **Amended 2026-11-08 (Andrew, "build fence") — THE REACH FENCE.** Full Power is two halves: APPROVAL
+    (never stop to ask) and REACH (the whole host). An agent whose reach is **TRUSTED PROJECT** keeps the
+    approval half and never gets the reach half, under per-agent Full Access AND the station-wide bypass:
+    no cards inside its workspace and approved project folders, a path outside them asks on a watched run and
+    is refused on an unattended one, the terminal keeps the workspace floor, the hardline floor stays, and
+    screen/input control needs the desktop lease. Every other reach is unchanged (Full Power = whole computer).
+    One predicate decides it everywhere: `sidecar/execution-profiles.js` `reachesWholeHost` / `fencesHost`.
+    Asked for by a user running unattended "departments" who wanted no approvals but not their whole PC.
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't
   prove. Object = capability: a prop in the world is a real grant, not decoration. Tool
   surface must never exceed wired reality.

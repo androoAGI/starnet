@@ -7,15 +7,19 @@ const profiles = require('../execution-profiles.js');
 function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {}, fullAccess = false, masterBypass = false, lead = false, backendId = 'local' } = {}) {
   agent = agent || {};
   const source = fullAccess ? 'environment' : masterBypass ? 'station' : agent.approvalMode === 'full' ? 'agent' : null;
-  const unrestricted = !!source;
   const profile = profiles.resolve(agent.executionProfile, { approvalMode: agent.approvalMode, backendId });
+  // Full Power's APPROVAL half (no prompts) vs its REACH half (the whole host): a TRUSTED PROJECT agent gets only the
+  // first (execution-profiles.js reachesWholeHost), so its rows stay the profile's grants and the switches still bind.
+  const fullPower = !!source;
+  const unrestricted = profiles.reachesWholeHost(profile, fullPower);
   const onFloor = new Set(placed);
   const projected = new Set(profile.capabilityObjects);
   return {
     authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source,
+      fenced: fullPower && !unrestricted,
       context: lead ? 'interactive lead' : 'capability grants',
       profile: profile.id, profileLabel: profile.label, filesystemLabel: unrestricted ? 'Whole local computer' : profile.filesystemLabel,
-      approvalLabel: unrestricted ? 'FULL ACCESS — no StarNet approval prompts' : 'ASK — standing grants apply',
+      approvalLabel: fullPower ? 'FULL ACCESS — no StarNet approval prompts' + (unrestricted ? '' : ' inside ' + profile.label + ' reach') : 'ASK — standing grants apply',
       revoke: source === 'environment' ? 'Clear SKYNET_FULL_ACCESS in the launch environment and restart.' : source === 'station' ? 'Turn off the station master bypass in Settings → Permissions; individual Full Access agents stay unrestricted.' : source === 'agent' ? 'Set this agent to ASK in its dossier.' : 'Revoke standing grants in Settings → Permissions.' },
     toolsets: toolsetRows(registry).map(r => {
       const enabled = disabled[r.id] !== false;

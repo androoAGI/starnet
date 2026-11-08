@@ -112,7 +112,9 @@ const APPROVAL =
   'APPROVAL MODE — each agent has a consent posture. In APPROVAL (“ask”) mode the Commander gets a ' +
   'one-click prompt the first time the agent tries a write / shell / network action; FULL POWER authorizes ' +
   'the whole local computer without asking, including host files, arbitrary commands, visible apps, and ' +
-  'screen/input control when the native desktop driver is available. So if an ASK-mode action is “stuck,” look at the approval in COMMS — it may be ' +
+  'screen/input control when the native desktop driver is available — except an agent whose reach is TRUSTED ' +
+  'PROJECT: Full Power then never asks inside its approved project folders, and everything else on the computer stays ' +
+  'out of reach (a watched run asks to approve a new folder; an unattended one is refused). So if an ASK-mode action is “stuck,” look at the approval in COMMS — it may be ' +
   'waiting on a decision. Just CALL your tools when ready; the prompt is automatic. Do not refuse in chat ' +
   'or claim you cannot act because of permissions.\n';
 const CONNECTING =
