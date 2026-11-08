@@ -13253,6 +13253,17 @@ async function handleRemoteDevice(req, res) {
   if (!r.ok) return respondJson(res, r.error === 'no such device' ? 404 : 500, { ok: false, error: r.error });
   respondJson(res, 200, remoteSnapshot());
 }
+// POST /api/remote/activate { deviceId } — the desk approves a newly paired phone (GHSA-2hpj #7). Until then the phone
+// has no session. The desk confirmation shows its name and fingerprint; the phone starts out asking first.
+async function handleRemoteActivate(req, res) {
+  let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
+  const devRow = remoteDevices.list().find(d => d.id === String(b.deviceId || ''));
+  if (!devRow) return respondJson(res, 404, { ok: false, error: 'no such device' });
+  if (devRow.pending === true && !deskGate(req, res, 'device-activate', devRow.id, { name: devRow.name, fingerprint: devRow.fingerprint })) return;
+  const r = remoteDevices.activate(devRow.id);
+  if (!r.ok) return respondJson(res, r.error === 'no such device' ? 404 : 500, { ok: false, error: r.error });
+  respondJson(res, 200, remoteSnapshot());
+}
 // POST /api/remote/revoke { deviceId } — forget a phone; its live sessions end at once
 async function handleRemoteRevoke(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
@@ -13466,6 +13477,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/remote/enable', h: handleRemoteEnable },  // the switch (persisted); opens/closes the LAN door
   { m: 'POST', exact: '/api/remote/pair', h: handleRemotePair },      // one-time pairing code for ONE phone (10 min)
   { m: 'POST', exact: '/api/remote/revoke', h: handleRemoteRevoke },
+  { m: 'POST', exact: '/api/remote/activate', h: handleRemoteActivate },   // approve a newly paired phone at the desk (GHSA-2hpj #7)
   { m: 'POST', exact: '/api/remote/device', h: handleRemoteDevice },    // one phone: ALWAYS ASK, or the desk's own permissions  // forget a phone; its sessions end at once
   { m: 'POST', exact: '/api/budget/caps', h: handleBudgetCaps },
   { m: 'POST', exact: '/api/budget/resume', h: handleBudgetResume },

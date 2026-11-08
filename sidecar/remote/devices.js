@@ -12,6 +12,7 @@
      d.startPairing({ name? })                -> { pairingId, code, stationId, stationPub, fingerprint, expiresAt }
      d.completePairing({ pairingId, publicKey, name, proof }) -> { ok, device } | { ok:false, error }
      d.revoke(id) -> bool     d.touch(id)     d.setEnabled(bool) / d.enabled()
+     d.activate(id)                           -> { ok } | { ok:false, error }   the desk approved a pending phone
      d.issueRelayToken(id)                    -> { ok, token }   the phone's pass to knock at the relay (only its hash is kept)
      d.relayTokenHashes()                     -> [hash]          what the station tells the relay to admit
 
@@ -21,7 +22,10 @@
        (crypto.pairingProof), so a sniffed completion can't be replayed to register a different key.
      · Every write is read back before it counts (saveJsonVerified). A pairing that didn't reach disk is
        reported as failed, never as "paired".
-     · Revoke deletes the row. A revoked-but-present row is one forgotten check away from working again. */
+     · Revoke deletes the row. A revoked-but-present row is one forgotten check away from working again.
+     · A NEW phone is pending and asks first (GHSA-2hpj #7). Knowing the code is not enough: the phone gets no session
+       until someone at the desk approves it there, seeing its fingerprint (activate). A row from before this rule has
+       no `pending` and stays as it was. */
 'use strict';
 
 const { note } = require('../failopen.js');
@@ -90,9 +94,9 @@ function makeDevices(deps) {
     return stationCache;
   }
 
-  function publicRow(d) { return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt || null, fingerprint: C.fingerprint(d.publicKey), askFirst: d.askFirst === true }; }
+  function publicRow(d) { return { id: d.id, name: d.name, createdAt: d.createdAt, lastSeenAt: d.lastSeenAt || null, fingerprint: C.fingerprint(d.publicKey), askFirst: d.askFirst === true, pending: d.pending === true }; }
   function list() { return load().devices.map(publicRow); }
-  function get(id) { const d = load().devices.find(x => x.id === String(id || '')); return d ? { id: d.id, name: d.name, publicKey: d.publicKey } : null; }
+  function get(id) { const d = load().devices.find(x => x.id === String(id || '')); return d ? { id: d.id, name: d.name, publicKey: d.publicKey, pending: d.pending === true } : null; }
 
   function sweepPairings() { const t = now(); for (const [k, p] of pairings) if (p.expiresAt <= t || p.used) pairings.delete(k); }
 
@@ -123,7 +127,8 @@ function makeDevices(deps) {
     const s = load();
     if (s.devices.some(d => d.publicKey === pub)) { p.used = true; return { ok: false, error: 'this phone is already paired' }; }
     if (s.devices.length >= MAX_DEVICES) return { ok: false, error: 'too many paired devices — remove one on the desktop first' };
-    const device = { id: 'dev_' + newId().replace(/-/g, '').slice(0, 16), name, publicKey: pub, createdAt: now(), lastSeenAt: null };
+    // pending + askFirst: switched off until the desk approves it, and then asking before every gated step (GHSA-2hpj #7)
+    const device = { id: 'dev_' + newId().replace(/-/g, '').slice(0, 16), name, publicKey: pub, createdAt: now(), lastSeenAt: null, askFirst: true, pending: true };
     const res = persist(Object.assign({}, s, { devices: s.devices.concat([device]) }));
     if (!res.ok) return { ok: false, error: 'the pairing could not be saved on this computer (' + res.error + ') — nothing was paired' };
     p.used = true;
@@ -139,6 +144,21 @@ function makeDevices(deps) {
     const s = load();
     if (!s.devices.some(d => d.id === String(id || ''))) return { ok: false, error: 'no such device' };
     const devices = s.devices.map(d => d.id === String(id) ? Object.assign({}, d, { askFirst: on === true }) : d);
+    const res = persist(Object.assign({}, s, { devices }));
+    return res.ok ? { ok: true } : { ok: false, error: res.error };
+  }
+  // The desk approved this phone (index.js gates the route with a desk confirmation that shows its fingerprint).
+  function activate(id) {
+    const s = load();
+    const d = s.devices.find(x => x.id === String(id || ''));
+    if (!d) return { ok: false, error: 'no such device' };
+    if (d.pending !== true) return { ok: true };
+    const devices = s.devices.map(x => {
+      if (x.id !== d.id) return x;
+      const out = Object.assign({}, x);
+      delete out.pending;
+      return out;
+    });
     const res = persist(Object.assign({}, s, { devices }));
     return res.ok ? { ok: true } : { ok: false, error: res.error };
   }
@@ -177,7 +197,7 @@ function makeDevices(deps) {
   function enabled() { return load().enabled === true; }
   function setEnabled(on) { const s = load(); const res = persist(Object.assign({}, s, { enabled: on === true })); return res.ok ? { ok: true } : { ok: false, error: res.error }; }
 
-  return { stationKeys, list, get, startPairing, completePairing, revoke, askFirst, setAskFirst, touch, enabled, setEnabled, issueRelayToken, relayTokenHashes, tokenHashOf, _pairings: pairings };
+  return { stationKeys, list, get, startPairing, completePairing, activate, revoke, askFirst, setAskFirst, touch, enabled, setEnabled, issueRelayToken, relayTokenHashes, tokenHashOf, _pairings: pairings };
 }
 
 module.exports = { makeDevices, CODE_ALPHABET, PAIR_TTL_MS, PAIR_MAX_TRIES };

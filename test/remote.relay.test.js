@@ -202,6 +202,8 @@ function wsClose(url) {
     A.ok(typeof paired.relayToken === 'string' && paired.relayToken.length >= 32, 'the phone got its relay pass');
     const raw = fs.readFileSync(path.join(dir, '.secrets', 'remote.json'), 'utf8');
     A.ok(raw.indexOf(paired.relayToken) < 0, 'the station stores only a hash of the pass');
+    // GHSA-2hpj #7: a new phone has no session until the desk approves it (remote.core.test.js proves the refusal)
+    A.eq([devices.list().find(d => d.id === paired.deviceId).pending, devices.activate(paired.deviceId).ok], [true, true], 'paired pending, then approved at the desk');
 
     // connect with the pass; sealed calls + events
     const c = Phone.connectRelay({ relay: base, stationPub: st.publicRaw, deviceId: paired.deviceId, relayToken: paired.relayToken, key });
@@ -245,6 +247,7 @@ function wsClose(url) {
     const p2 = devices.startPairing({});
     const key2 = await Phone.makeDeviceKey();
     const paired2 = await Phone.pairRelay({ relay: base, stationPub: st.publicRaw, pairingId: p2.pairingId, code: p2.code, name: 'Tablet', key: key2 });
+    devices.activate(paired2.deviceId);
     const c2 = Phone.connectRelay({ relay: base, stationPub: st.publicRaw, deviceId: paired2.deviceId, relayToken: paired2.relayToken, key: key2 });
     A.eq((await c2.call('ping')).ok, true, 'second phone linked');
     // a paired phone cannot say hello as ANOTHER paired phone (its relay pass belongs to its own device)

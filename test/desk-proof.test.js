@@ -144,6 +144,13 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   before('async function handleRemoteEnable(', /if \(on && !remoteDevices\.enabled\(\) && !deskGate\(req, res, 'remote-enable'/, /remoteDevices\.setEnabled\(on\)/, 'Remote on asks first; off never asks');
   before('async function handleRemotePair(', /deskGate\(req, res, 'remote-pair'/, /remoteDevices\.startPairing\(/, 'a pairing code asks first');
   before('async function handleRemoteDevice(', /deskGate\(req, res, 'device-desk-permissions'/, /remoteDevices\.setAskFirst\(/, 'a phone on the desk\'s permissions asks first');
+  // GHSA-2hpj #7: a newly paired phone is approved at the desk, which shows its name and fingerprint
+  before('async function handleRemoteActivate(', /devRow\.pending === true && !deskGate\(req, res, 'device-activate', devRow\.id, \{ name: devRow\.name, fingerprint: devRow\.fingerprint \}\)/, /remoteDevices\.activate\(devRow\.id\)/, 'approving a new phone asks at the desk first');
+  A.ok(IDX.includes("{ m: 'POST', exact: '/api/remote/activate', h: handleRemoteActivate }"), 'the approve route is registered');
+  {
+    const panel = read('frontend/app/remote-devices.js');
+    A.ok(/data-approve=/.test(panel) && /api\('\/api\/remote\/activate', \{ deviceId: id \}\)/.test(panel) && /WAITING FOR YOUR APPROVAL/.test(panel), 'the REMOTE panel shows a pending phone with an APPROVE button');
+  }
   before('async function handleConfigImport(', /deskGate\(req, res, 'grant-import'/, /applyBudgetCaps\(\)|want\('budget'\)/, 'a backup that adds grants asks before any section applies');
 
   // ---- 4. the keys and the shell ----

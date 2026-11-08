@@ -105,12 +105,35 @@ async function rejects(p, re, msg) {
     A.eq(devices.completePairing({ pairingId: p2.pairingId, publicKey: k.publicRaw, name: 'x', proof: proof2 }).ok, false, 'a code expires after 10 minutes');
   }
   const deviceId = devices.list()[0].id;
-  // a phone works with the desk's permissions until it is set to ALWAYS ASK (kept across restarts)
-  A.eq(devices.askFirst(deviceId), false, 'a new phone works with the desk permissions');
+  // GHSA-2hpj #7: a new phone is PENDING (no session until the desk approves it) and asks first
+  A.eq([devices.list()[0].pending, devices.askFirst(deviceId)], [true, true], 'a new phone is pending and asks first');
+  {
+    const sessions = makeSessions({ devices, crypto: C, now, newId });
+    const r = sessions.hello({ v: C.VERSION, deviceId, eph: phoneKey.publicRaw, nonce: C.newNonce() });
+    A.ok(!r.ok && /waiting for approval/.test(r.error) && !r.welcome, 'a pending phone gets no welcome, and is told to ask at the desk');
+  }
+  A.eq(devices.activate('dev_nobody').ok, false, 'an unknown phone cannot be approved');
+  A.eq(devices.activate(deviceId).ok, true, 'the desk approves it');
+  A.eq(devices.list()[0].pending, false, 'and it is no longer pending');
+  A.eq(makeDevices({ fs, path, file, crypto: C, now, newId }).list()[0].pending, false, 'the approval survives a restart');
+  A.eq(devices.activate(deviceId).ok, true, 'approving twice is harmless');
+  A.eq(devices.askFirst(deviceId), true, 'an approved phone still asks first until the desk says otherwise');
+  // a phone works with the desk's permissions once ALWAYS ASK is unticked (kept across restarts)
+  A.eq(devices.setAskFirst(deviceId, false).ok && devices.askFirst(deviceId), false, 'a phone can be set to work with the desk permissions');
   A.eq(devices.setAskFirst(deviceId, true).ok, true, 'a phone can be set to always ask');
   A.eq(devices.askFirst(deviceId) && devices.list()[0].askFirst, true, 'and the device list says so');
   A.eq(devices.setAskFirst(deviceId, false).ok && devices.askFirst(deviceId), false, 'and back');
   A.eq(devices.setAskFirst('dev_nobody', true).ok, false, 'an unknown phone cannot be set');
+  {
+    // a phone paired before this rule (no `pending` on its row) stays as it was
+    const legacyFile = path.join(path.dirname(file), 'legacy-remote.json');
+    const legacyRaw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    legacyRaw.devices = legacyRaw.devices.map(d => { const o = Object.assign({}, d); delete o.pending; delete o.askFirst; return o; });
+    fs.writeFileSync(legacyFile, JSON.stringify(legacyRaw));
+    const legacy = makeDevices({ fs, path, file: legacyFile, crypto: C, now, newId });
+    A.eq([legacy.list()[0].pending, legacy.askFirst(deviceId)], [false, false], 'an existing phone is not made pending by the upgrade');
+    A.ok(makeSessions({ devices: legacy, crypto: C, now, newId }).hello({ v: C.VERSION, deviceId, eph: phoneKey.publicRaw, nonce: C.newNonce() }).ok === true, 'an existing phone can still say hello');
+  }
 
   /* ---------- 3. sessions: stranger refused, replay refused, revoke ends sessions ---------- */
   {
@@ -175,6 +198,9 @@ async function rejects(p, re, msg) {
     const paired = await Phone.pair({ base, pairingId: p.pairingId, code: p.code, name: 'Tablet', key: k2 });
     A.ok(/^dev_/.test(paired.deviceId), 'pairing over HTTP returns a device id');
     await rejects(Phone.pair({ base, pairingId: p.pairingId, code: p.code, name: 'Tablet', key: k2 }), /expired|already/, 'the same code cannot pair twice over HTTP');
+    // GHSA-2hpj #7: until the desk approves it, the paired phone gets no session over HTTP either
+    await rejects(Phone.connect({ base, deviceId: paired.deviceId, stationPub: p.stationPub, key: k2 }).call('status'), /waiting for approval/, 'a pending phone cannot open a session over HTTP');
+    A.eq(devices.activate(paired.deviceId).ok, true, 'the desk approves the tablet');
 
     const client = Phone.connect({ base, deviceId: paired.deviceId, stationPub: p.stationPub, key: k2 });
     const s1 = await client.call('status');
