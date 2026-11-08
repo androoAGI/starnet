@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "bdc0174d80195005a5217ef24cf92a9f7dbc6c3f",
-    "pathSetSha256": "8394eca9e4974a998b07e0619201f84827ddf7781133ca7c179f8deba46fc595",
+    "sourceCommit": "71567e01da756715ab4219b968c549237f23a781",
+    "pathSetSha256": "d849d3b31da6f2722288a632ec2c696aa54886f298c849c2e1ff8309b1bffa18",
     "files": [
       {
         "path": "INSTALL.md",
@@ -418,8 +418,8 @@
       },
       {
         "path": "frontend/app/crtlab.js",
-        "bytes": 25180,
-        "sha256": "ffc874435e24d05122fef0e0c43a84bc3edb7fb183930ff45982c0c6bb563a52"
+        "bytes": 25354,
+        "sha256": "e34e2c69ae46d97527330a68fef58de369de028ff0699126e79fdacc9eff7870"
       },
       {
         "path": "frontend/app/ctxgauge.js",
@@ -1543,8 +1543,8 @@
       },
       {
         "path": "frontend/app/world.js",
-        "bytes": 979688,
-        "sha256": "6a227492519f81b420e98224ea3ba23d6cf3c9c25ec09f5d1b27c3fa60c6b922"
+        "bytes": 982292,
+        "sha256": "7bd02cf4525a79f004566c18bd07e07462f63be14b7d7993f42749bac5ea0283"
       },
       {
         "path": "frontend/app/worldlab.js",
@@ -1827,6 +1827,11 @@
         "sha256": "8ac5f3e2f9e7831353a2c5789eb369254b6825ddab0ddafd5246934905a18bbb"
       },
       {
+        "path": "frontend/css/vector.css",
+        "bytes": 38001,
+        "sha256": "84a54ce46b279698b8f8d12de1ec7e51337d66a04ae53dc7df31e4608e141fa5"
+      },
+      {
         "path": "frontend/css/warroom.css",
         "bytes": 4383,
         "sha256": "cfd22080740db1256cc3090f344ed7fcd98499c31c98d5cb88778f506f04ad86"
@@ -1903,8 +1908,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 101227,
-        "sha256": "859dd9024bcbf0a3f9f32151de2c10ee1829cb555ad0fb36af2462a96758863f"
+        "bytes": 101434,
+        "sha256": "c0a39aa4b377d4c574388d686f368b708e361d02dfba4541efdad5fffbc6d03d"
       },
       {
         "path": "frontend/js/arcade.js",
