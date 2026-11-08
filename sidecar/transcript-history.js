@@ -691,6 +691,9 @@ function makeSegmentedTranscriptIo(opts) {
     }
     for (const row of rows) { const s = streams[str(row.streamId) || 'global']; if (s) notePreview(s, row); }
     index.streams = streams;
+    // an index written before retract rows existed has no summary: keep the one the manifest already vouches for, so
+    // upsertMeta does not drop it and send the next proof read back to the segment file (#178)
+    if (!(index.retracts && index.retracts.v === 1) && meta && summaryVouched(meta)) index.retracts = meta.retracts;
     return index;
   }
   function upgradeStalePreviews() {
@@ -1161,6 +1164,54 @@ function makeSegmentedTranscriptIo(opts) {
     const row = readRows(meta.number).find(r => num(r.rowId) === id) || null;
     return row ? publicRow(row) : null;
   }
+  // A closed segment's retract summary is trusted only when it is whole, well formed and matches its checksum.
+  function summaryVouched(meta) {
+    const summary = meta && meta.retracts;
+    return !!meta && !meta.unreadable && !meta.corruptLines && !!summary && summary.v === 1 && Array.isArray(summary.targets)
+      && summary.targets.every(pair => Array.isArray(pair) && pair.length === 2 && Number.isSafeInteger(pair[0]) && pair[0] > 0 && ['undo', 'retry'].includes(pair[1]))
+      && typeof meta.retractsHash === 'string' && meta.retractsHash === indexHash(summary);
+  }
+  function retractSummaryOf(rows) {
+    const summary = { v: 1, targets: [] };
+    for (const row of rows) if (row.kind === 'retract' && Array.isArray(row.targets))
+      for (const id of row.targets) if (Number.isSafeInteger(id) && id > 0) summary.targets.push([id, row.reason === 'retry' ? 'retry' : 'undo']);
+    return summary;
+  }
+  /* OLD CLOSED SEGMENTS GET THEIR RETRACT SUMMARY ONCE (#178). A segment closed before retract rows existed (0.14.x) has
+     no summary in the manifest, and a proof read cannot trust "no summary" as "no retracts". The proof used to parse at
+     most eight segments a call and kept what it learned only in memory, so a store with more than eight such segments
+     answered "history could not be restored" on its first reads after the upgrade, and the by-id reads (a saved history
+     read back, the cached-row check) never learned anything and refused for good. Every closed segment still missing a
+     summary is now parsed once, in full and strictly (a damaged or unreadable segment is never vouched, as before), and
+     the manifest is written so no later read or boot pays for it again. A segment that cannot be vouched (damaged lines,
+     or its file is gone) is not re-read by this pass for the rest of the process; the proof below still treats it as
+     unknown. A read that failed for another reason (a file locked for a moment) is tried again on the next proof. */
+  const summaryRefused = new Set();
+  const summaryChecked = new WeakSet();   // closed metas this pass already found vouched (upsertMeta replaces a meta, never edits one)
+  function hydrateRetractSummaries() {
+    let changed = false;
+    for (const meta of manifest.segments) {
+      const n = meta.number;
+      if (n === manifest.activeSegment || summaryChecked.has(meta) || meta.unreadable || num(meta.corruptLines) > 0 || summaryRefused.has(n)) continue;
+      if (summaryVouched(meta)) { summaryChecked.add(meta); continue; }
+      let seg;
+      try { seg = readSegmentFile(n); }
+      catch (error) {
+        if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) summaryRefused.add(n);
+        warning('retract summary for segment ' + n + ' unavailable: ' + ((error && error.message) || error));
+        continue;
+      }
+      if (seg.bad.length) { summaryRefused.add(n); warning('retract summary for segment ' + n + ' unavailable: ' + seg.bad.length + ' unreadable line(s)'); continue; }
+      const summary = retractSummaryOf(seg.rows);
+      meta.retracts = summary; meta.retractsHash = indexHash(summary);
+      summaryChecked.add(meta);
+      changed = true;
+    }
+    if (changed) {
+      try { saveManifest(); }
+      catch (error) { warning('retract summaries kept in memory only (manifest write failed): ' + ((error && error.message) || error)); }
+    }
+  }
   // Owner-evidence proofs read each requested segment at most once and never substitute the RAM mirror.
   // An assembly may touch at most eight segments; missing, corrupt, collided or excess proofs stay absent.
   function readByIds(rowIds, options) {
@@ -1169,6 +1220,7 @@ function makeSegmentedTranscriptIo(opts) {
     let complete = !(degraded || unvouched || unsafe);
     const finish = () => { Object.defineProperties(out, { proofComplete: { value: complete }, retractions: { value: targets } }); return out; };
     if (!complete) return finish();
+    hydrateRetractSummaries();
     for (const id of Array.isArray(rowIds) ? rowIds : []) {
       if (!Number.isSafeInteger(id) || id <= 0 || (!contextOnly && collisionRanges.some(c => id >= c.lo && id <= c.hi))) continue;
       const meta = manifest.segments.find(s => id >= num(s.minRowId) && id <= num(s.maxRowId));
@@ -1195,20 +1247,16 @@ function makeSegmentedTranscriptIo(opts) {
     for (const meta of manifest.segments) {
       let rows = parsed.get(meta.number);
       const summary = meta.retracts;
-      const vouched = !meta.unreadable && !meta.corruptLines && summary && summary.v === 1 && Array.isArray(summary.targets)
-        && summary.targets.every(pair => Array.isArray(pair) && pair.length === 2 && Number.isSafeInteger(pair[0]) && pair[0] > 0 && ['undo', 'retry'].includes(pair[1]))
-        && typeof meta.retractsHash === 'string' && meta.retractsHash === indexHash(summary);
+      const vouched = summaryVouched(meta);
       if (!parsed.has(meta.number) && vouched) { for (const [id, reason] of summary.targets) add(id, reason); continue; }
       if (!parsed.has(meta.number)) rows = read(meta.number);
       if (!rows) { complete = false; continue; }
-      // Ordinary views may repair an old/missing summary from a complete fresh parse. Each call still
-      // reads at most eight segments; successful closed summaries let later calls advance through old
-      // histories. Remaining unknown summaries keep this read unvouched, never equivalent to no retracts.
+      // Ordinary views may repair an old/missing summary from a complete fresh parse (hydrateRetractSummaries above
+      // already did so for every closed segment it could vouch for). Remaining unknown summaries keep this read
+      // unvouched, never equivalent to no retracts.
       if (contextOnly && meta.number !== manifest.activeSegment && !vouched) {
-        const summary = { v: 1, targets: [] };
-        for (const row of rows) if (row.kind === 'retract' && Array.isArray(row.targets))
-          for (const id of row.targets) if (Number.isSafeInteger(id) && id > 0) summary.targets.push([id, row.reason === 'retry' ? 'retry' : 'undo']);
-        meta.retracts = summary; meta.retractsHash = indexHash(summary);
+        const repaired = retractSummaryOf(rows);
+        meta.retracts = repaired; meta.retractsHash = indexHash(repaired);
       }
       for (const row of rows) if (row.kind === 'retract' && Array.isArray(row.targets))
         for (const id of row.targets) if (Number.isSafeInteger(id) && id > 0) add(id, row.reason === 'retry' ? 'retry' : 'undo');

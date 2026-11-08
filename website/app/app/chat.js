@@ -2062,7 +2062,10 @@ const Chat = (() => {
           noteContinuity(ws, 'send-station-window'); return { degraded: true };
         }
         noteContinuity(ws, 'send-held-history-unavailable');
-        throw Object.assign(new Error('Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
+        // the station answered (a 5xx): the connection is fine, so do not tell the Commander to wait for it (#178)
+        throw Object.assign(new Error(read && read.serverFailed
+          ? 'Conversation history could not be restored: the station answered but could not read it just now. Your message is kept; try sending again in a moment.'
+          : 'Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
       }
       noteContinuity(ws, 'send-history-retry');
       if (pause) await untilAborted(new Promise(resolve => setTimeout(resolve, pause)), signal);
@@ -2203,8 +2206,12 @@ const Chat = (() => {
     const cacheIds = rows => [...new Set(rows.filter(row => row && row.idFrom !== 'collision' &&
       (!row.streamId || row.streamId === ws.id) && Number.isSafeInteger(row.rowId) && row.rowId > 0).map(row => row.rowId))];
     const provedIds = new Set(cacheIds(ws.history || []));
-    // rows hydrateHistory has just read from the station are proved by that very read: only the page's own cached rows are asked about
-    const askIds = readBack ? [...provedIds].filter(id => !readBack.ids.has(id)) : [...provedIds];
+    // rows hydrateHistory has just read from the station are proved by that very read: only the page's own cached rows are asked about.
+    // So are the rows this GET returned: the display view never shows an undone row, so a row it returned was not undone (#178: asking
+    // about every cached row sent the station after rows spread over more segments than one proof may read, and it refused every open)
+    const returned = new Set(turns.filter(t => t && t.idFrom !== 'collision' && Number.isSafeInteger(t.rowId) && t.rowId > 0 &&
+      (!t.streamId || t.streamId === ws.id)).map(t => t.rowId));
+    const askIds = [...provedIds].filter(id => !returned.has(id) && !(readBack && readBack.ids.has(id)));
     if (reachable && askIds.length) {
       const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), Math.max(1000, windowMs - (Date.now() - startedAt)));
       try {
