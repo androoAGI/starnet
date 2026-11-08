@@ -4806,6 +4806,17 @@ const Chat = (() => {
     } else if (p.tool === 'browser.login.done') {
       mk('Done — I\'ve logged in', 'once', 'primary', '✓ done', false);
       mk('Cancel', 'deny', 'deny', '✕ cancelled', true);
+    } else if (p.outsideContent === true) {
+      // AFTER OUTSIDE CONTENT (taint.js postTaintBoundary): this chat read an email, a page or a connector result, and the
+      // station approves each later call of this kind once, whatever the answer. Customer report 11-08: the card offered
+      // Always on every Gmail read ("Always stops asking…") and then asked again for the next email. So no Always here.
+      const agentName = (p && p.workerAgentId) ? askerName(p, ws) : name;
+      mk('Approve once', 'once', 'primary', '✓ approved once', false, 'Allow just this one');
+      mk('Full access', 'full', 'danger', '✓ full access', false, 'Give ' + agentName + ' full access: it stops asking before most actions, until you change it back');
+      mk('Deny', 'deny', 'deny', '✕ denied', true);
+      const why = document.createElement('span'); why.className = 'consent-hint';
+      why.textContent = 'This chat has read outside content (an email, a web page or a connector result), so StarNet asks before each ' + toolWordsOf(String(p.tool || '')) + ' here, and Always cannot skip that';
+      btns.appendChild(why);
     } else if (p.tool === 'station.power' || p.tool === 'plugin.submit') {
       // widening the station's leash and installing a plugin are answered fresh every time (freshConsent tools,
       // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access

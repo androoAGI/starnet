@@ -189,6 +189,20 @@ async function ready(c) { await c.updates.init(); await c.updates.check(true, 't
     await ready(net); const cut = await net.updates.install();
     A.ok(/^The update download did not finish\. Nothing was installed/.test(cut.error), 'a dropped download says nothing was installed: ' + cut.error);
     A.eq(net.isPreparedFrozen(), false, 'and the station is writable again');
+    // customer report 2026-11-07 (macOS 0.14.2): the updater's backup rename crossed volumes; Rust io::Error Display text
+    const xdev = makeCase({ installError: 'Cross-device link (os error 18)' });
+    await ready(xdev); const moved = await xdev.updates.install();
+    A.ok(/^StarNet could not replace itself where it is installed/.test(moved.error), 'a cross-volume install says what happened: ' + moved.error);
+    A.ok(/Nothing was installed; your current StarNet is unchanged\./.test(moved.error), 'and that the current app is untouched');
+    A.ok(/Applications folder/.test(moved.error), 'and what to do about it');
+    A.ok(/\(Cross-device link \(os error 18\)\)$/.test(moved.error), 'the raw updater text stays as the detail');
+    A.eq(xdev.isPreparedFrozen(), false, 'and the station is writable again');
+    const rofs = makeCase({ installError: 'Read-only file system (os error 30)' });
+    await ready(rofs); A.ok(/^StarNet could not replace itself/.test((await rofs.updates.install()).error), 'a read-only disk reads the same way');
+    // the shell's own up-front refusal (update_staging.rs) is already a sentence, and it says "downloaded": never re-worded
+    const own = 'StarNet can\'t update itself from where it is running: macOS opened it from a temporary read-only copy, because it was started from the disk image or the Downloads folder. Nothing was downloaded or changed. Quit StarNet, drag it into your Applications folder, open it from there, and install the update again.';
+    const trans = makeCase({ installError: own });
+    await ready(trans); A.eq((await trans.updates.install()).error, own, 'the native refusal reaches the card as written');
   }
   {
     // the forward-version gate has no Update Center: it opens the same manual installer through this export

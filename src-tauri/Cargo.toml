@@ -31,6 +31,10 @@ sha2 = "0.10"
 uuid = { version = "1", features = ["v4"] }
 # Redacting what the sidecar prints before it reaches sidecar.log (sidecar_output.rs). Already in the tree via tauri.
 regex = "1"
+# macOS update staging (update_staging.rs): tempfile::env::override_temp_dir moves tauri-plugin-updater's temp dirs onto
+# StarNet.app's own volume. Must stay the SAME tempfile 3.x the updater plugin links (one entry in Cargo.lock), or the
+# override would set a different crate's default.
+tempfile = "3.20"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Power", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_UI_WindowsAndMessaging"] }

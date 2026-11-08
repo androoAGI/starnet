@@ -572,6 +572,57 @@
     return n;
   }
 
+  /* ROUTINE RUNS ARE RECEIPTS, NOT CONVERSATIONS (customer report 2026-11-08, macOS 0.15.0). Every routine fire became a
+     'cron-<runId>' session in the window save (autosessions.js), so a routine that fires often filled the browser's storage:
+     10,000 script checks were 10,000 records beside 71 conversations, and the storage warning kept coming back. Each fire's
+     transcript stays on the station, its routine's RUN HISTORY lists it, and OPEN there brings its session back (ReturnStore
+     openWork), so the window save keeps only the newest ROUTINE_KEEP fires of each routine.
+     A routine session the Commander made their own is never pruned: one they spoke in (a run of theirs is in runIds, or a row
+     they typed that never started a run), pinned, renamed, turned in, anchored to a project, holding deliverables or a goal, a
+     group chat, the open one, or one the caller names in `keep` (a run still going). Nothing else is ever touched: General, an
+     ordinary conversation, a worker's thread of a kept session. A pruned session is not a delete: no tombstone (the boot
+     backfill keeps to the same newest-fires rule instead, autosessions.js), nothing forgotten, its transcript stays on the
+     station. Its delegated workers' threads were that run's record: they go with it. -> the pruned ids */
+  const ROUTINE_KEEP = 10;
+  const CRON_PREFIX = 'cron-';
+  function isRoutineReceipt(w) {
+    if (!w || typeof w.id !== 'string' || w.id.indexOf(CRON_PREFIX) !== 0 || w.id === generalId || w.id === activeId) return false;
+    const auto = automationOf(w);
+    if (!auto || auto.kind !== 'routine') return false;
+    if (w.pinned || w.titleAuto === false || w.lane === 'shipped' || w.projectRoot || w.worker === true || w.parentStreamId) return false;
+    if (w.conversationMode === 'group' || w.goalLoop || w.pendingJoin || (Array.isArray(w.deliverables) && w.deliverables.length)) return false;
+    const runId = w.id.slice(CRON_PREFIX.length), fireTurn = TurnKinds && TurnKinds.runTurnId ? TurnKinds.runTurnId(runId) : '';
+    if ((Array.isArray(w.runIds) ? w.runIds : []).some(r => r !== runId && r !== w.id)) return false;   // a run of the Commander's
+    // a row the Commander typed that never started a run: no run of its own, no station row id, not the fire's seed
+    return !(Array.isArray(w.history) ? w.history : []).some(m => m && m.role === 'user' && !m.sourceRunId && !m.rowId && !(fireTurn && m.turnId === fireTurn));
+  }
+  function pruneRoutineSessions(opts) {
+    opts = opts || {};
+    const per = Number.isInteger(opts.perRoutine) && opts.perRoutine > 0 ? opts.perRoutine : ROUTINE_KEEP;
+    const keep = new Set(Array.isArray(opts.keep) ? opts.keep.map(String) : []);
+    const groups = new Map();
+    for (const w of ws) {
+      const auto = String(w.id).indexOf(CRON_PREFIX) === 0 ? automationOf(w) : null;
+      if (!auto || auto.kind !== 'routine') continue;
+      const key = auto.id || '';
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(w);
+    }
+    const out = [];
+    groups.forEach(rows => {
+      if (rows.length <= per) return;
+      const newest = rows.slice().sort((a, b) => (+b.lastActiveAt || +b.createdAt || 0) - (+a.lastActiveAt || +a.createdAt || 0));
+      for (const w of newest.slice(per)) if (!keep.has(w.id) && isRoutineReceipt(w)) out.push(w.id);
+    });
+    if (!out.length) return out;
+    const gone = new Set(out);
+    for (let grew = true; grew;) { grew = false; for (const w of ws) if (w.worker === true && !gone.has(w.id) && gone.has(w.parentStreamId)) { gone.add(w.id); grew = true; } }
+    for (let i = ws.length - 1; i >= 0; i--) if (gone.has(ws[i].id)) ws.splice(i, 1);
+    gone.forEach(id => dropSeals(id));
+    delegatedAgents = null;
+    return out;
+  }
+
   // ---------- goal steps (org P29-sys wiring) ----------
   // A goal-loop continuation rides history as a user-role turn, but the Commander never typed it. GoalLoop.stepOfTurn is
   // the ONE predicate every reader shares (a browser global; the sibling pure module under node). Every reader here that
@@ -1134,6 +1185,7 @@
     previewArchive, archivePreview, canUndo, undoLast,
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
     switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
+    pruneRoutineSessions, isRoutineReceipt, ROUTINE_KEEP,
     autoTitle, retitle, deriveTitle, needsModelTitle, isLowSignal, titleBasis,
     finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, knownDeliverable, addCost, costOf, noteModel, modelOf,
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and

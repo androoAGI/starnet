@@ -509,7 +509,7 @@ const VoiceLive = (() => {
     const ask = askParts(p, ws);
     return (ask.what ? (ask.who ? ask.who + ' needs approval to ' : 'Approval needed to ') + ask.what
       : 'Approval needed: ' + (p.tool || 'an action') + (p.argsSummary ? ' — ' + String(p.argsSummary).slice(0, 120) : '')) +
-      (ONCE_ONLY.has(p.tool) || p.workerAgentId ? '. Say approve or deny.' : '. Say approve, always allow, or deny.');
+      (ONCE_ONLY.has(p.tool) || p.workerAgentId || p.outsideContent === true ? '. Say approve or deny.' : '. Say approve, always allow, or deny.');
   }
   // a brief.ask is a question, not a grade: say the question and only the answers voice can give — the card's one-tap
   // options, which chipCommand presses — never approve/always/deny (approvalCommand leaves brief.ask alone)
@@ -586,7 +586,8 @@ const VoiceLive = (() => {
     else if (/^(?:always allow|approve always|always approve)$/.test(lower)) decision = 'always';
     else if (/^(?:deny|deny it|do not allow|don't allow|reject)$/.test(lower)) decision = 'deny';
     if (!decision) return false;
-    const onceOnly = decision === 'always' && ONCE_ONLY.has(pending.tool);
+    // (an ask after outside content approves this call only, whatever the answer: chat.js's card offers no Always either)
+    const onceOnly = decision === 'always' && (ONCE_ONLY.has(pending.tool) || pending.outsideContent === true);
     if (onceOnly) decision = 'once';
     if (decision === 'always' && pending.workerAgentId) {   // the worker's row grants this request only — so does voice
       speakLocal('A delegated worker\'s request can only be approved once or denied. Say approve, or deny.');

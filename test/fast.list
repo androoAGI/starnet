@@ -844,6 +844,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/managed-model-93.test.js
+test/modelpicker-credits-door.test.js
 test/batch-models.test.js
 test/model-catalog-truth.test.js
 test/agent-model-select.test.js
@@ -925,6 +926,7 @@ test/cron.clock-rewind.test.js
 test/cron.durability.test.js
 test/cron.lock.test.js
 test/cron-session-hydration.test.js
+test/routine-receipts.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js
@@ -1255,6 +1257,7 @@ test/google-relay-guard.test.js
 test/gmail-app-password.test.js
 test/gmail-headers-parser.test.js
 test/mail-parse-redos.test.js
+test/mail-body-extraction.test.js
 test/connector-vault.test.js
 test/mcp.catalog.test.js
 test/mcp.oauth.test.js
@@ -1705,6 +1708,7 @@ test/rc-final-seams.test.js
 test/run-context.compaction.test.js
 test/comms-stop-queue-tips.test.js
 test/consent-timer-hint.test.js
+test/consent-outside-content.test.js
 test/needs-you-one-list.test.js
 test/delegated-needsyou-escape.test.js
 test/needs-you-bell-settle.test.js

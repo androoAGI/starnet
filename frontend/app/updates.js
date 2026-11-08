@@ -64,6 +64,15 @@ const Updates = (() => {
     if (/signature|different key|minisign|base64|invalid symbol/i.test(raw)) {
       return 'Update refused: the download did not match the signed StarNet release.' + kept + ' (' + raw + ')';
     }
+    // the shell's own up-front macOS refusal (update_staging.rs) is already the whole sentence: never re-word it
+    if (/^StarNet can't update itself/.test(raw)) return raw;
+    // macOS: the updater moves StarNet.app with a rename, which cannot cross disks (EXDEV, os error 18) or work on a
+    // read-only one (EROFS, os error 30). The shell stages beside the app now (update_staging.rs); these are the words
+    // for a case it could not stage.
+    if (/cross-device link|os error 18\b|EXDEV|read-only file system|os error 30\b|EROFS/i.test(raw)) {
+      return 'StarNet could not replace itself where it is installed (it is on a different or read-only disk).' + kept +
+        ' Quit StarNet, drag it into your Applications folder, open it from there, and install the update again, or use DOWNLOAD LATEST MANUALLY. (' + raw + ')';
+    }
     if (/download|request|response body|connect|timed? ?out|network|status: \d{3}/i.test(raw)) {
       return 'The update download did not finish.' + kept + ' Check the connection, then press INSTALL UPDATE again. (' + raw + ')';
     }

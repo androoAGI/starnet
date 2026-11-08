@@ -203,7 +203,7 @@ const AutoSessions = ((TurnMerge) => {
       const map = Object.create(null);
       for (const j of jobs) {
         if (!j || !j.id) continue;
-        map[j.id] = { id: j.id, name: String(j.name || '').trim(), agentId: String(j.agentId || 'agent'), prompt: String(j.prompt || ''),
+        map[j.id] = { id: j.id, name: String(j.name || '').trim(), agentId: String(j.agentId || 'agent'), prompt: String(j.prompt || ''), noAgent: j.noAgent === true,
           fires: firesOfRecord(j), inFlight: j.inFlight === true, inFlightRunId: j.inFlightRunId ? String(j.inFlightRunId) : '' };   // its fires' outcomes (settleOf), and the fire running now (stillFiring)
       }
       routines = map;
@@ -262,6 +262,7 @@ const AutoSessions = ((TurnMerge) => {
     if (hasCh()) Channels.end(id);   // clear the busy/running channel state
     // if this session is the one on screen, re-render it so the folded output is visible immediately.
     if (hasChat() && Workstreams.activeId && Workstreams.activeId() === id) Chat.load(ws);
+    pruneReceipts();
     refreshRail();
     persist();
   }
@@ -357,6 +358,27 @@ const AutoSessions = ((TurnMerge) => {
   function stopReconcilePoll() { if (reconcilePoll) { clearInterval(reconcilePoll); reconcilePoll = null; } }
 
   // ---- boot backfill: sessions for cron runs that finished while the browser was CLOSED ---------
+  /* WHICH FIRES A BOOT MAY BRING BACK (customer report 2026-11-08: a cleaned-up save had 72 routine records imported again on
+     the next start). Only each routine's newest ROUTINE_KEEP fires, counted with the sessions the save already holds for it and
+     the ones the Commander deleted: a fire the window save pruned (Workstreams.pruneRoutineSessions) or a delete left behind
+     stays on the station, where its routine's RUN HISTORY opens it. -> Set of the stream ids not in the save that may form */
+  function fireSlots(runs) {
+    const keepN = (hasWS() && Number.isInteger(Workstreams.ROUTINE_KEEP) && Workstreams.ROUTINE_KEEP > 0) ? Workstreams.ROUTINE_KEEP : 10;
+    const keyOf = run => String((run && run.cronJobId) || '');
+    const held = (hasWS() && typeof Workstreams.all === 'function' ? Workstreams.all() : [])
+      .filter(w => w && validStream(w.id)).map(w => ({ key: String((w.automation && w.automation.id) || ''), ts: +w.lastActiveAt || +w.createdAt || 0 }));
+    const fresh = runs.filter(run => run && validStream(run.streamId) && !(hasWS() && Workstreams.get(run.streamId)))
+      .sort((a, b) => (+b.ts || 0) - (+a.ts || 0));
+    const taken = Object.create(null), out = new Set();
+    for (const run of fresh) {
+      const key = keyOf(run), ts = +run.ts || 0;
+      const newer = held.filter(h => h.key === key && h.ts > ts).length + (taken[key] || 0);
+      if (newer >= keepN) continue;
+      taken[key] = (taken[key] || 0) + 1;   // a deleted fire holds its place too: what the Commander removed does not let an older one back
+      if (!(hasWS() && typeof Workstreams.isDeleted === 'function' && Workstreams.isDeleted(run.streamId))) out.add(run.streamId);
+    }
+    return out;
+  }
   async function backfill(options) {
     if (backfilling || !hasWS()) return;
     backfilling = true;
@@ -379,6 +401,7 @@ const AutoSessions = ((TurnMerge) => {
         const want = String(sid).slice(STREAM_PREFIX.length);
         if (!byStream[sid] || String(run.runId || '') === want) byStream[sid] = run;
       }
+      const slots = fireSlots(Object.keys(byStream).map(k => byStream[k]));
       const seen = Object.create(null);
       for (const run of Object.keys(byStream).map(k => byStream[k])) {
         const sid = run && run.streamId;
@@ -405,12 +428,17 @@ const AutoSessions = ((TurnMerge) => {
         // its routine's record still names an earlier fire, so the row is no settlement — a reload mid-line settled it ok and cleared busy.
         // Its session stays (or, the page closed, forms) busy; the live cron.result or the busy reconcile settles it.
         const fireJob = job || routineFor((existing && existing.automation && existing.automation.id) || '');   // a line hop's row names no routine
+        // a fire older than its routine's newest ROUTINE_KEEP (pruned, deleted, or never here) stays on the station: RUN HISTORY opens it
+        if (!existing && !slots.has(sid)) continue;
         if (!fireOf(runId) && stillFiring(fireJob, runId)) {
+          if (!existing && fireJob && fireJob.noAgent) continue;   // a script check still running: no session (receipts, below)
           if (!existing || !(hasReadableOutput(existing.history) || packedRows(existing))) beginSession(runId, fireJob);
           continue;
         }
         const defining = String(run.runId || '') === runId;
         const settle = settleOf(existing, runId, defining ? run : null);   // the fire's outcome, else the defining row's
+        // a script-only check that did not fail is a receipt (its routine's RUN HISTORY), never a new session
+        if (!existing && fireJob && fireJob.noAgent && settle.outcome !== 'failed') continue;
         if (existing && (hasReadableOutput(existing.history) || packedRows(existing))) {
           // Transcript dedupe is not metadata dedupe: upgrade saved cron streams with real provenance/outcome.
           if (defining || settle.byFire) {
@@ -434,6 +462,7 @@ const AutoSessions = ((TurnMerge) => {
         foldTurns(ws, loaded.turns, settle.outcome, settle.why, loaded.fetchOk, run.ts);   // run.ts = real end time, never boot time
         if (hasCh()) Channels.end(sid);   // a backfilled run is DONE → clear any wedged busy/running state
       }
+      pruneReceipts();
       refreshRail();
       persist();
     } finally { backfilling = false; }
@@ -442,11 +471,22 @@ const AutoSessions = ((TurnMerge) => {
   // ---- App bridges (fail-soft: the module still forms sessions even if a bridge is missing) -----
   function refreshRail() { try { if (hasApp() && App.refreshRail) App.refreshRail(); } catch (_) {} }
   function persist() { try { if (hasApp() && App.persist) App.persist(); } catch (_) {} }
+  // the window save keeps the newest fires of each routine (Workstreams.pruneRoutineSessions); a run still going is never pruned
+  function pruneReceipts() {
+    try {
+      if (!hasWS() || typeof Workstreams.pruneRoutineSessions !== 'function') return;
+      const busy = hasCh() && Channels.busyIds ? Channels.busyIds() : [];
+      Workstreams.pruneRoutineSessions({ keep: busy });
+    } catch (_) {}
+  }
 
   // ---- U.bus wiring (read-only) ----------------------------------------------------------------
   function onFire(p) {
     if (!p || !p.runId) return;
     let job = routineFor(p.jobId);
+    // a SCRIPT-ONLY check (noAgent) is a receipt, not a conversation (customer report 2026-11-08: 10,000 checks were 10,000
+    // sessions): no busy row per fire. Its routine's RUN HISTORY holds every fire; a failed one forms its session (onResult).
+    if (job && job.noAgent) return;
     if (!job && p.jobId) {
       // unknown routine → refresh the catalogue, then (re)seed the session's title once names arrive.
       loadRoutines().then(() => { const j = routineFor(p.jobId); const ws = Workstreams.get && Workstreams.get(streamOf(p.runId)); if (j && ws && (ws.title === 'Routine' || !ws.title)) { ws.title = j.name || 'Routine'; if (ws.agentId === 'agent' && j.agentId) ws.agentId = j.agentId; if (!ws.history.length && !packedRows(ws) && j.prompt) ws.history.push(seedRow(p.runId, j.prompt)); refreshRail(); persist(); } });
@@ -471,6 +511,12 @@ const AutoSessions = ((TurnMerge) => {
       // the fire ended — 'cancelled' is a stop ('cancelled (stale-lease)' / '(paused: …)' ride after it), never "⚠ Routine failed — cancelled"
       else if (!p.runOutcome && typeof RunOutcome !== 'undefined' && RunOutcome.resolve({ reason: String(p.reason || '').split(' (')[0] }).outcome === 'stopped') outcome = 'stopped';
     }
+    // a script-only check (onFire): a fire that did not fail stays a receipt; a failure forms its session, titled, so it can be read
+    const job = routineFor(p.jobId);
+    if (job && job.noAgent && hasWS() && !Workstreams.get(streamOf(p.runId))) {
+      if (outcome !== 'failed') return;
+      beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job));
+    }
     return completeSession(p.runId, outcome, p.reason);
   }
 
@@ -487,7 +533,7 @@ const AutoSessions = ((TurnMerge) => {
   }
   function reset() { routines = null; stopReconcilePoll(); }   // a fresh Commander re-reads the catalogue; sessions are cleared by Workstreams.reset()
 
-  return { init, reset, _internals: { onResult, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
+  return { init, reset, _internals: { onFire, onResult, fireSlots, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
 })(typeof module !== 'undefined' && module.exports ? require('./turnmerge.js') : globalThis.TurnMerge);
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { AutoSessions };
