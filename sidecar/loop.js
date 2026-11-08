@@ -1443,6 +1443,32 @@
       try { const t = Number(clock.now()); return isFinite(t) ? t : 0; }
       catch (e) { failNote('loop.wait.clock', e); return 0; }
     }
+    /* A RUNAWAY TOOL CALL ENDS (the #178 report's last run: "cancelled with the model stream open but nothing shown yet for
+       8m 31s (writing todo arguments)"). Streamed tool arguments show the Commander nothing, and every chunk resets the
+       provider's idle watchdog, so one call whose arguments never ended (a model repeating itself inside a todo list) ran,
+       and billed, until someone cancelled it. One call's streamed arguments now stop at TOOL_ARGS_MAX_CHARS, and, with the
+       injected clock on a hosted model, after TOOL_ARGS_MAX_MS of streaming (a local runtime can be slow enough to need
+       longer for a real file, so only the size counts there). The attempt is aborted, so the provider stops generating;
+       the call is never run, and the run ends saying which tool, how much and how long, never a retry of the same
+       runaway. While a call's arguments stream, the wait line says how much has been written. limits.toolArgsMaxChars /
+       limits.toolArgsMaxMs override the ceilings (a non-positive value turns one off). */
+    const ceilingOf = (v, dflt) => (typeof v === 'number' && !isNaN(v)) ? (v > 0 ? v : Infinity) : dflt;
+    const TOOL_ARGS_MAX_CHARS = ceilingOf(limits.toolArgsMaxChars, 1024 * 1024);
+    const TOOL_ARGS_MAX_MS = ceilingOf(limits.toolArgsMaxMs, 10 * 60 * 1000);
+    const TOOL_ARGS_NOTE_STEP = 32 * 1024;   // the wait line's "N KB written" moves in these steps
+    const hasClock = !!(clock && typeof clock.now === 'function');
+    // A per-attempt abort, linked to the run's: aborting it stops this one provider call and leaves the run running. A run
+    // signal that is no event target (a caller's plain { aborted } object) is handed on as it always was, and cannot abort.
+    function attemptAbort(parent) {
+      if (typeof AbortController !== 'function' || !parent || typeof parent.addEventListener !== 'function') return { signal: parent, abortable: false, abort() {}, release() {} };
+      const ctl = new AbortController(), follow = () => { try { ctl.abort(); } catch (_) {} };
+      if (parent.aborted) follow();
+      else parent.addEventListener('abort', follow, { once: true });
+      return { signal: ctl.signal, abortable: true, abort: follow,
+        release() { if (typeof parent.removeEventListener === 'function') parent.removeEventListener('abort', follow); } };
+    }
+    function sizeText(chars) { return chars >= 1024 * 1024 ? (chars / (1024 * 1024)).toFixed(1) + ' MB' : Math.max(1, Math.round(chars / 1024)) + ' KB'; }
+    function spanText(ms) { const s = Math.max(0, Math.round(ms / 1000)); return s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's'; }
     // One wait: `beatNow` emits a first heartbeat immediately (a retried attempt going out — see its call site).
     function startWaiting(phase, beatNow) {
       if (!waitTicker) return NO_WAIT;
@@ -2331,8 +2357,11 @@
            line is replaced the moment the retry actually goes out instead of lingering until the next tick. */
         const waiting = startWaiting('first_byte', retrySent);
         retrySent = false;
+        const attempt = attemptAbort(signal);   // a runaway tool call (below) stops this call alone
+        const argsStream = new Map();           // tool index -> { name, chars, startedAt, noted } while its arguments stream
+        let runaway = null, adapterWait = null;
         try {
-          const req = { model, messages: wireMessages(), tools, signal, stream: true };   // stale screen captures -> placeholders
+          const req = { model, messages: wireMessages(), tools, signal: attempt.signal, stream: true };   // stale screen captures -> placeholders
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
@@ -2342,9 +2371,12 @@
           if (localBusyResent) req.localBusyResent = true;            // this rung is a busy local server's one re-send
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
+            // a runaway call was aborted: drain what the adapter already holds (its next read sees the abort, cancels the
+            // response body and ends the stream), never act on it
+            if (runaway) continue;
             waiting.mark();
             if (ev.type === 'generation') { noteGeneration(ev.id); continue; }   // reconciliation metadata, not billed usage or visible output
-            if (ev.type === 'waiting') { waiting.note(ev.phase, ev.note, ev); continue; }   // the adapter's wait facts, not stream output (#99)
+            if (ev.type === 'waiting') { adapterWait = ev; waiting.note(ev.phase, ev.note, ev); continue; }   // the adapter's wait facts, not stream output (#99)
             if (ev.type === 'billing') { if (ev.perCall === false) billedPerCall = false; continue; }   // the adapter's billing fact for this call, not stream output (80de2a75)
             if (!sawStreamEvent) { sawStreamEvent = true; waiting.phase('streaming'); }
             if (ev.type === 'text') {
@@ -2366,15 +2398,49 @@
               else streamedTextChunks.push(delta);
             }
             else if (ev.type === 'reasoning') { if (ev.block) acc.reasoning.push(ev.block); }
-            else if (ev.type === 'tool_start') { acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming'); }
-            else if (ev.type === 'tool_args') { if (acc.toolCalls[ev.index]) acc.toolCalls[ev.index].args += (ev.chunk || ''); waiting.resume('streaming'); }
+            else if (ev.type === 'tool_start') {
+              acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming');
+              argsStream.set(ev.index, { name: String(ev.name || 'tool'), chars: 0, startedAt: hasClock ? waitClock() : null, noted: 0 });
+            }
+            else if (ev.type === 'tool_args') {
+              const chunk = String(ev.chunk || '');
+              if (acc.toolCalls[ev.index]) acc.toolCalls[ev.index].args += chunk;
+              waiting.resume('streaming');
+              const call = acc.toolCalls[ev.index] ? argsStream.get(ev.index) : null;
+              if (call) {
+                call.chars += chunk.length;
+                const tookMs = call.startedAt != null ? Math.max(0, waitClock() - call.startedAt) : 0;
+                const timed = call.startedAt != null && !(provider && provider.localRuntime);
+                if (call.chars > TOOL_ARGS_MAX_CHARS || (timed && tookMs > TOOL_ARGS_MAX_MS)) {
+                  runaway = { name: call.name, chars: call.chars, ms: tookMs, bySize: call.chars > TOOL_ARGS_MAX_CHARS };
+                  if (!attempt.abortable) break;   // nothing to abort the call with: stop reading it
+                  attempt.abort();
+                  continue;
+                }
+                const step = Math.floor(call.chars / TOOL_ARGS_NOTE_STEP);
+                if (step > call.noted) {
+                  call.noted = step;
+                  const base = adapterWait && adapterWait.note ? String(adapterWait.note) : 'writing ' + call.name + ' arguments';
+                  waiting.note('streaming', base + ' · ' + sizeText(call.chars) + ' written', adapterWait);
+                }
+              }
+            }
             else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
             else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; }   // A3: remember WHY the turn stopped
-            // 'tool_done' needs no action here
+            else if (ev.type === 'tool_done') argsStream.delete(ev.index);   // its arguments are whole: no longer streaming
           }
           streamClosed = !signal.aborted;
         } catch (e) { streamErr = e; }
-        finally { waiting.stop(); }
+        finally { waiting.stop(); attempt.release(); }
+        if (runaway && !signal.aborted) {
+          // never retried: the same prompt tends to run away the same way, and every attempt is billed while it streams
+          fatal = { reason: 'tool_args_runaway', retryable: false,
+            message: 'stopped the model: it ' + (runaway.bySize
+              ? 'wrote more than ' + sizeText(TOOL_ARGS_MAX_CHARS) + ' of arguments for one `' + runaway.name + '` call'
+              : 'kept writing the arguments of one `' + runaway.name + '` call for ' + spanText(runaway.ms) + ' (' + sizeText(runaway.chars) + ')')
+              + ' without finishing them. A call that size is almost always the model repeating itself, so it was not run. Send the request again, or ask for a smaller step.' };
+          break;
+        }
         // a call that bills nothing per call (claude-cli on a subscription sign-in) cost nothing when cut: never a floor
         if (signal.aborted && sawStreamEvent && !streamClosed && billedPerCall) streamCut = true;
         if (!streamErr) {

@@ -247,6 +247,7 @@ test/loop.provider-recovery.test.js
 test/loop.failure-recovery.test.js
 test/loop.stop-means-stop.test.js
 test/loop.stream-cut.test.js
+test/loop.tool-args-runaway.test.js
 test/output-continuation.test.js
 test/compaction.test.js
 test/compaction-summarizer.test.js
