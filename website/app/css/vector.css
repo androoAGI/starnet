@@ -1292,3 +1292,83 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp,
 html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), inset 0 -1px 0 rgba(0, 0, 0, .7), 0 0 0 1px #050608, 0 0 0 3px #aab3be, 0 0 0 4px #050608, 0 3px 5px rgba(0, 0, 0, .6);
 }
+
+/* ============ 17 · TRANSPORT CLUSTER — the dock keys are one moulded transport bar (the players' play/stop/eject strips,
+   the drone's keypad): a chrome seat runs under the whole row, each key is a domed smoked-glass cap seated in it, legends lit
+   in the hue. A group with an open window keeps its true state: its LED lights in the --gold state colour (never hidden by the restyle) ============ */
+/* the seat: one continuous liquid-chrome bar under the row, pill-ended at both ends */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group::before {
+  content: ''; position: absolute; inset: -6px 0; z-index: -1; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .9) 0, rgba(255, 255, 255, 0) 2px),
+    linear-gradient(180deg, #eef2f6 0, #a7b0bb 18%, #59626d 42%, #23282e 56%, #3c444d 72%, #9aa3ae 92%, #5d6670 100%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, .7), 0 0 0 1px #050608;
+  clip-path: inset(-6px 0);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"]::before { left: -5px; border-radius: 999px 0 0 999px; clip-path: inset(-6px 0 -6px -6px); }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"]::before { right: -5px; border-radius: 0 999px 999px 0; clip-path: inset(-6px -6px -6px 0); }
+
+/* the caps: domed smoked glass, a bright specular crescent on the crown, a dark seam to the seat */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp {
+  margin-inline: 3px; padding-inline: 14px 22px;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .3) 0, rgba(255, 255, 255, .12) 44%, transparent 45%),
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgba(var(--ph-rgb), .45), transparent 70%),
+    linear-gradient(180deg, #3a434d 0, #1a1f25 44%, #050607 46%, #0b0e11 80%, #1d242b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(var(--ph-rgb), .35), inset 0 0 0 1px rgba(0, 0, 0, .6), 0 0 0 1px #040506, 0 1px 0 1px rgba(255, 255, 255, .25);
+  color: var(--vx-core);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+  transition: background .12s, box-shadow .12s, transform .08s;
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"] > .bb-grp { border-radius: 999px 7px 7px 999px; padding-left: 18px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp { border-radius: 7px 999px 999px 7px; padding-right: 26px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp .bb-gi { filter: drop-shadow(0 0 3px rgba(var(--ph-rgb), .8)); }
+/* the LED: dark until the group has an open window (.has-active), then lit in the --gold state colour */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp::after {
+  content: ''; position: absolute; right: 9px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #4a525c, #0b0d10 70%);
+  box-shadow: 0 0 0 1px #000, 0 1px 0 1px rgba(255, 255, 255, .12);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp::after { right: 13px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.has-active > .bb-grp::after {
+  background: radial-gradient(circle at 35% 30%, #fff, var(--gold) 45%, color-mix(in srgb, var(--gold) 60%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 6px var(--gold), 0 0 12px rgba(var(--gold-rgb), .55);
+}
+/* hover: the cap lights from inside */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp:is(:hover, :focus-visible) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .38) 0, rgba(255, 255, 255, .14) 44%, transparent 45%),
+    radial-gradient(ellipse 100% 80% at 50% 115%, rgba(var(--ph-rgb), .8), transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, #2b323a 75%, var(--ph)) 0, color-mix(in srgb, #13171b 80%, var(--ph)) 48%, color-mix(in srgb, #07090b 80%, var(--ph)) 60%, color-mix(in srgb, #11151a 70%, var(--ph)) 100%);
+  color: color-mix(in srgb, var(--vx-core) 55%, #fff);
+  text-shadow: 0 0 8px rgba(var(--ph-rgb), 1);
+}
+/* open (its menu is up): the cap is pressed into the seat and glows solid */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.open > .bb-grp {
+  transform: translateY(1px);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .45) 0, rgba(255, 255, 255, .16) 44%, transparent 45%),
+    linear-gradient(180deg, color-mix(in srgb, var(--vx-core) 70%, #fff) 0, var(--ph) 55%, color-mix(in srgb, var(--ph) 70%, #000) 100%);
+  color: #020604; text-shadow: none;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(0, 0, 0, .5), 0 0 0 1px #040506, 0 0 14px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.open > .bb-grp .bb-gi { filter: none; }
+/* the add key: a round chrome button standing off the bar */
+html body.vx:not(.hud-mode) #screen-game #bottombar .widget-rail .wg-add {
+  margin-left: 10px;
+  background: radial-gradient(circle at 38% 28%, #f4f7fa 0, #a9b2bd 26%, #4a525c 60%, #1c2126 82%, #6d7682 100%);
+  color: #06100a; text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .widget-rail .wg-add:is(:hover, :focus-visible) {
+  background: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 60%, #a9b2bd) 30%, color-mix(in srgb, var(--ph) 60%, #1c2126) 70%, #6d7682 100%);
+}
+/* a polished chrome rib stands between neighbouring caps */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group:not([data-group="crew"])::after {
+  content: ''; position: absolute; left: -2px; top: 1px; bottom: 1px; width: 4px; z-index: -1; pointer-events: none; border-radius: 2px;
+  background: linear-gradient(90deg, #1b1f24, #e9eef3 50%, #1b1f24);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .55);
+}
+/* the bottom rail's light pipe starts past the wider transport bar and the add key */
+html body.vx:not(.hud-mode) #screen-game #bottombar { --vx-pipe-l: 548px; }

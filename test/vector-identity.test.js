@@ -134,4 +134,10 @@ A.ok(/--vx-glass-deep:\s*linear-gradient\([^;]*var\(--ph\)/.test(css), 'the glas
 A.ok(/#left, #chat-panel\)::before \{[^}]*var\(--vx-glass-sweep\)[^}]*var\(--vx-glass-deep\)/.test(css), 'CREW and COMMS glass carry the gloss sweep over the tinted body');
 A.ok(/#left::after \{[^}]*var\(--vx-lens\)/.test(css) && /#chat-panel::after \{[^}]*var\(--vx-lens\)/.test(css), 'the fat housing corners carry lit lenses');
 A.ok(/#topbar::before \{[^}]*content: ''/.test(css) && !/logo/i.test(css), 'the logo sits in an LCD well cut into the rail, never by styling the logo itself');
+// ---- the dock keys are one transport bar (Andrew 2026-11-08: "improve the bottom left buttons … lets make that look perfect"),
+// and the restyle never hides the group's real state: a group with an open window (.has-active) lights its LED ----
+A.ok(/#bottombar \.bb-group::before \{[^}]*content: ''/.test(css), 'a chrome seat runs under the dock keys (one transport bar)');
+A.ok(/#bottombar \.bb-group\.has-active > \.bb-grp::after \{[^}]*var\(--gold\)/.test(css),
+  'a dock group with an open window lights its LED in the state colour (the restyle keeps .has-active visible)');
+A.ok(/#bottombar \.bb-group\.open > \.bb-grp \{[^}]*translateY/.test(css), 'an open dock group reads as a pressed, lit key');
 A.report('vector-identity');
