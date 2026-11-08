@@ -22117,6 +22117,7 @@ async function handleRun(req, res) {
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
         if (detached) Object.assign(row, { background: true, runId, streamId: streamId || '' });
+        if (fields && fields.outsideContent === true) row.outsideContent = true;   // additive: the card offers no Always (promptConsent)
         say('permission.prompt', row);
         observer.publish('permission.prompt', row, { runId, agentId, streamId: streamId || '' });   // a watching terminal sees the ask too
         // STARNET REMOTE: index the prompt so a paired phone can answer it too. A phone answer resolves the same
@@ -22125,6 +22126,7 @@ async function handleRun(req, res) {
         const orig = pending.get(promptId);
         if (orig) { orig.askRow = row; if (detached) orig.detached = true; }   // the snapshot + the page-closed note read these
         if (orig && fields && fields.fresh) orig.freshConsent = true;   // handleConsent: a "full" here approves this call only
+        if (orig && fields && fields.outsideContent === true) orig.outsideContent = true;   // handleConsent: an "always" here approves this call only
         // an answer from the TERMINAL (POST /api/consent { via:'terminal' }) settles a card the page still shows: tell the page
         // on this run's own stream, the way a phone answer does, so the desk never keeps live keys on a settled ask
         if (orig) orig.announce = (decision) => { announced = true; answeredVia = 'terminal'; try { say('permission.response', { promptId, decision, via: 'terminal' }); } catch (e) { failNote('consent.terminalResponse', e); } };
@@ -22161,10 +22163,13 @@ async function handleRun(req, res) {
       return v;
     });
   }
-  function promptConsent(call, tool) {
+  function promptConsent(call, tool, ask) {
     // an unanswered COMMS card is not a refusal: the broker's 'timeout' result says so (the card still gets expired:true)
     // …and one withdrawn by a stop or teardown is not one either ('cancelled': the broker's withdrawn result, never "you declined")
-    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true) }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
+    // ask.outsideContent: the post-taint one-call confirmation (dispatch, TAINT ENFORCEMENT), where an Always answer approves
+    // this call only; the card says so instead of offering Always (customer report 11-08: Gmail asked again for every email)
+    const outsideContent = !!(ask && ask.outsideContent === true) && !(tool && tool.freshConsent === true);
+    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true), outsideContent }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
   }
   // NS-5: the "work in <root>? always/once/no" channel — the SAME permission.prompt mechanism, so the browser's
   // existing consent card answers it (Always = record a standing path grant; Approve once = this access only;
@@ -24122,7 +24127,7 @@ async function runOnceCore(o) {
     connectorAuthority: {
       project: tool => !signal?.aborted && userControlAuthority.project(tool),
       authorize: (call, tool) => signal?.aborted ? { ok: false, reason: 'delegating run cancelled' } : userControlAuthority.authorize(call, tool),
-      prompt: typeof prompt === 'function' ? (call, tool) => signal?.aborted ? 'deny' : prompt(call, tool) : null,
+      prompt: typeof prompt === 'function' ? (call, tool, ask) => signal?.aborted ? 'deny' : prompt(call, tool, ask) : null,
       fullAccess: () => !signal?.aborted && unrestrictedHostNow(),
       // host-minted, never tool-supplied: a worker delegated from a non-owner channel run stays below Full Power
       withholdHostPower: hostPowerWithheld,
@@ -24737,7 +24742,7 @@ async function runOnceCore(o) {
       if (heldFirst) return toolBudgetStopFor(c) || heldFirst;
       let decision = 'deny', humanAnswered = false;
       // a delegated worker's post-taint / connector confirmation names the worker too (the page answers it on its row)
-      const askEffect = () => effectPrompt(c, liveTool);
+      const askEffect = () => effectPrompt(c, liveTool, { outsideContent: true });   // the card says Always cannot carry past this boundary
       try { decision = await (o.delegatedBy ? askedBy.run({ agentId, runId, streamId: streamId || '', signal }, askEffect) : askEffect()); humanAnswered = true; } catch (_) {}
       postTaint = revokedByTaint.boundary(liveTool, {
         taintedBy: taintSource, surface: effectSurface, hasPrompt: true, decision,
@@ -26810,6 +26815,10 @@ async function handleConsent(req, res) {
   // the lead whose broker it rides — the same agent a "full" answer would have granted while the lead was live
   const agentId = (meta && meta.agentId) || (finish && finish.detached && finish.askRow && finish.askRow.agentId) || undefined;
   let persisted = true;
+  // the post-taint one-call confirmation (dispatch TAINT ENFORCEMENT) approves this call whatever the answer: an "always" or
+  // "session" there is echoed as 'once', so no surface (voice, phone, desk) says "always allowed" and then asks again.
+  // "full" keeps its meaning: it is the agent's standing Full Access, which the boundary already reads (postTaintBoundary)
+  if (finish && finish.outsideContent === true && /^(always|session)$/.test(decision)) decision = 'once';
   // a fresh-consent card (station.power, plugin.submit) answers THIS call only: the broker grants any yes once, so a
   // standing answer (full, always, session) is applied and echoed as 'once', and no surface confirms a grant never made
   if (finish && finish.freshConsent === true && /^(full|always|session)$/.test(decision)) decision = 'once';
