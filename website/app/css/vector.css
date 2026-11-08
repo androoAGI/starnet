@@ -577,3 +577,253 @@ html body.vx:not(.hud-mode) > .hint-bubble.dock-tip {
   background: linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat, var(--vx-black);
   box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair), 0 0 10px rgba(var(--ph-rgb), .3), 0 6px 18px rgba(0, 0, 0, .7);
 }
+
+/* ============================================================
+   11 · THE GLASS TOKENS — closed once. The dashboard's sheets paint their faces, cards, keys and lit tabs through a
+   handful of shared tokens (glass-demo / pipglass); under VECTOR each one becomes the console's own surface, so every
+   surface that reads a token joins the identity at once instead of being patched one by one.
+   ============================================================ */
+html body.vx:not(.hud-mode) {
+  --gd-face: radial-gradient(ellipse 130% 40% at 50% 0%, rgba(var(--ph-rgb), .06), transparent 64%), var(--vx-black);
+  --gd-light: transparent;
+  --gd-edge: var(--vx-line-dim);
+  --gd-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+  --gd-hover: linear-gradient(90deg, rgba(var(--ph-rgb), .2), rgba(var(--ph-rgb), .05) 70%);
+  --cg-card: linear-gradient(180deg, rgba(var(--ph-rgb), .05), transparent 40%), rgba(0, 0, 0, .55);
+  --cg-glass: rgba(0, 0, 0, .55);
+  --vx-lit: repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px), linear-gradient(180deg, rgba(var(--ph-rgb), .42), rgba(var(--ph-rgb), .14));
+  --menu-glass: var(--vx-lit);
+  --quest-glass: var(--vx-lit);
+  --utility-glass: var(--vx-lit);
+}
+
+/* ============================================================
+   12 · WINDOW INTERIORS — tabs are console keys, cards are readout panels
+   ============================================================ */
+/* every window title opens with the panels' lit lead mark (drawn: VT323 has no ■) */
+html body.vx:not(.hud-mode) .term:not(.pw) .term-title::before {
+  content: ''; display: inline-block; width: 7px; height: 7px; margin: 0 12px 0 4px; vertical-align: middle;
+  background: var(--vx-node);
+  box-shadow: 0 0 6px rgba(var(--ph-rgb), 1), 0 0 0 2px rgba(0, 0, 0, .9), 0 0 0 3px var(--vx-line-mid);
+}
+/* tab strips: no tray, just the vector rule they stand on */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs, .con-toptabs) {
+  border: 0; border-radius: 0; box-shadow: none;
+  background:
+    linear-gradient(var(--vx-line-mid), var(--vx-line-mid)) left 0 bottom 0 / 100% 1px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) left 0 bottom -2px / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) right 0 bottom -2px / 5px 5px no-repeat;
+}
+/* the tabs: dark keys on a dim edge (the session tabs' recipe) */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs .fam-tab, .q-view-tabs button, .utility-tabs button, .fm-tabs .fm-tab, .con-toptabs .con-toptab) {
+  border: 1px solid var(--vx-line-dim); border-radius: 0; background: rgba(0, 0, 0, .55); box-shadow: none;
+  color: var(--ph); letter-spacing: 2px; text-shadow: 0 0 5px rgba(var(--ph-rgb), .5);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs .fam-tab, .q-view-tabs button, .utility-tabs button, .fm-tabs .fm-tab, .con-toptabs .con-toptab):is(:hover, :focus-visible) {
+  border-color: var(--vx-line); color: var(--vx-core); background: rgba(var(--ph-rgb), .12);
+}
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs .fam-tab.on, .q-view-tabs button[aria-selected="true"], .utility-tabs button[aria-pressed="true"], .fm-tabs .fm-tab.on, .con-toptabs .con-toptab:is(.active, [aria-selected="true"])) {
+  border-color: var(--vx-core); color: var(--vx-node); background: var(--vx-lit);
+  text-shadow: var(--vx-title-glow);
+  box-shadow: inset 0 -2px 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .3);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs .fam-tab, .q-view-tabs button, .utility-tabs button, .fm-tabs .fm-tab, .con-toptabs .con-toptab) { border-radius: 10px 0 0 0; corner-shape: bevel; }
+}
+/* the cards: readout panels — black, a second hairline inside the edge, square nodes on two corners. Background and
+   inner line only: each card keeps its own border colour, so a gold wait or a red failure edge still says so */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.cc-card, .kb-col, .cf-group, .cd-sec, .ag-item, .ag-hero, .ag-mission, .ag-growth-hero, .ag-achievements, .ag-reflection-panel, .ag-next-challenge, .q-return-card, .fm-route, .fm-mission, .platform-guide, .ch-preferences, .cd-overview, .cd-brief, .cd-record, .wh-source-settings, .perm-master, .perm-glance, .perm-agent, .perm-fold, .ob-stage, .ds-off) {
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    linear-gradient(180deg, rgba(var(--ph-rgb), .06), transparent 42%),
+    rgba(0, 0, 0, .55);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+/* small cells and stat wells: recessed LCD wells like the top bar's readouts */
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.perk, .cf-card, .cf, .cd-stat, .stat-cell, .ns-cell, .cd-rec, .bp-streak, .bp-chal, .q-journal-count, .key-row, .gx-well, .fb-empty, .dlv-head-strip, .cc-filters, .ob-addr, .ag-level-badge, .ag-portrait-well, .fm-note, .diag-pre) {
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 90% 120% at 50% 0%, rgba(var(--ph-rgb), .1), transparent 72%),
+    var(--vx-well);
+  box-shadow: inset 0 2px 7px rgba(0, 0, 0, .9);
+}
+
+/* ============================================================
+   13 · THE FULL SCREENS — onboarding, resume, recovery: the same console, before the station is up
+   ============================================================ */
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage).active {
+  background:
+    radial-gradient(ellipse 70% 50% at 50% -8%, rgba(var(--ph-rgb), .18), transparent 70%),
+    var(--vx-grain),
+    repeating-linear-gradient(90deg, rgba(0, 0, 0, .45) 0 2px, rgba(255, 255, 255, .05) 2px 3px, transparent 3px 7px),
+    linear-gradient(180deg, var(--vx-metal) 0%, var(--vx-metal-lo) 46%, var(--vx-metal-lo) 60%, var(--vx-metal) 100%);
+}
+/* the panel is one big screen: tube face, the neon double line, nodes on its corners (the four brackets) */
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-panel {
+  --ov-well: var(--vx-well);
+  border: 1px solid var(--vx-core); border-radius: 0;
+  background:
+    radial-gradient(ellipse 120% 40% at 50% 0%, rgba(var(--ph-rgb), .08), transparent 64%),
+    radial-gradient(ellipse 120% 90% at 50% 50%, transparent 60%, rgba(0, 0, 0, .6) 100%),
+    var(--vx-grain-tube),
+    var(--vx-black);
+  box-shadow: var(--vx-frame);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-panel > .cc-bracket {
+  display: block; width: var(--vx-n); height: var(--vx-n); border: 0; border-radius: 0; background: var(--vx-node); z-index: 3;
+  box-shadow: 0 0 6px rgba(var(--ph-rgb), 1);
+}
+/* head + foot: the head is the screen's lit title band; the foot is a steel rail with rivets and a light pipe */
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-head {
+  border-bottom: 0;
+  background:
+    linear-gradient(var(--vx-line), var(--vx-line)) left 16px bottom 0 / calc(100% - 32px) 1px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) left 14px bottom -2px / 5px 5px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) right 14px bottom -2px / 5px 5px no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .12), transparent);
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-title-row h2 {
+  color: var(--vx-node); letter-spacing: 3px; text-shadow: var(--vx-title-glow);
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-foot {
+  position: relative; border: 0; border-top: 1px solid #000;
+  background:
+    var(--vx-rivet) left 10px center / 9px 9px no-repeat,
+    var(--vx-rivet) right 10px center / 9px 9px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, .12), rgba(255, 255, 255, .03) 14%, transparent 42%, rgba(0, 0, 0, .16) 58%, rgba(0, 0, 0, .38) 100%),
+    var(--vx-grain),
+    linear-gradient(180deg, var(--vx-metal-hi), var(--vx-metal) 48%, var(--vx-metal-lo));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), 0 -4px 12px rgba(0, 0, 0, .5);
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-foot::before {
+  content: ''; position: absolute; left: 40px; right: 40px; top: 4px; height: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--vx-line) 8%, var(--vx-node) 50%, var(--vx-line) 92%, transparent);
+  box-shadow: 0 0 6px 1px rgba(var(--ph-rgb), .85), 0 0 16px rgba(var(--ph-rgb), .4);
+}
+/* everything boxed on these screens is cut square (lights and toggles keep their shape, found by structure) */
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-panel *:not(:is(span, i, b, em):empty):not(:is(input[type=checkbox], input[type=radio])) {
+  border-radius: 0;
+}
+/* the step tabs: the session tabs' keys */
+html body.vx:not(.hud-mode) #screen-connect .ov-setup-nav {
+  border: 0; border-radius: 0; box-shadow: none;
+  background: linear-gradient(var(--vx-line-mid), var(--vx-line-mid)) left 0 bottom 0 / 100% 1px no-repeat;
+}
+html body.vx:not(.hud-mode) #screen-connect .ov-setup-nav button {
+  border: 1px solid var(--vx-line-dim); background: rgba(0, 0, 0, .55); color: var(--ph); letter-spacing: 2px; box-shadow: none;
+}
+html body.vx:not(.hud-mode) #screen-connect .ov-setup-nav button:is(:hover, :focus-visible) { border-color: var(--vx-line); color: var(--vx-core); background: rgba(var(--ph-rgb), .12); }
+html body.vx:not(.hud-mode) #screen-connect .ov-setup-nav button[aria-current] {
+  border-color: var(--vx-core); color: var(--vx-node); background: var(--vx-lit);
+  text-shadow: var(--vx-title-glow); box-shadow: inset 0 -2px 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .3);
+}
+/* the hero column: the portrait stands on a vector pad over the console grid */
+html body.vx:not(.hud-mode) #screen-connect .ov-hero {
+  background:
+    linear-gradient(rgba(var(--ph-rgb), .05) 1px, transparent 1px) 0 0 / 34px 34px,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .05) 1px, transparent 1px) 0 0 / 34px 34px,
+    rgba(0, 0, 0, .35);
+  border-color: var(--vx-line-dim);
+}
+html body.vx:not(.hud-mode) #screen-connect .ov-platform {
+  background: radial-gradient(ellipse 50% 50% at 50% 50%, transparent 56%, var(--vx-line) 58%, rgba(var(--ph-rgb), .3) 64%, transparent 70%);
+  filter: drop-shadow(0 0 6px rgba(var(--ph-rgb), .8));
+}
+html body.vx:not(.hud-mode) #screen-connect .ov-np-name { color: var(--vx-node); letter-spacing: 4px; text-shadow: var(--vx-title-glow); }
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-leadtag, .ov-gallery-head, .ov-step) { letter-spacing: 2px; }
+html body.vx:not(.hud-mode) #screen-connect .skin-thumb { background: var(--vx-well); border: 1px solid var(--vx-hair); box-shadow: inset 0 0 8px rgba(0, 0, 0, .9); }
+html body.vx:not(.hud-mode) #screen-connect .skin-thumb:hover { border-color: var(--vx-line-mid); }
+html body.vx:not(.hud-mode) #screen-connect .skin-thumb.sel { border-color: var(--vx-core); background: rgba(var(--ph-rgb), .16); box-shadow: inset 0 0 0 1px #000, 0 0 8px rgba(var(--ph-rgb), .45); }
+/* inputs: recessed command lines */
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-name-field, #in-key, #in-model, #in-base-url, .ov-model-selection) {
+  background: var(--vx-well); border: 1px solid var(--vx-line-dim);
+  box-shadow: inset 0 0 14px rgba(0, 0, 0, .9), inset 0 0 0 1px #000;
+}
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-name-field, #in-key, #in-model, #in-base-url, .ov-model-selection):focus-within {
+  border-color: var(--vx-line); box-shadow: inset 0 0 14px rgba(0, 0, 0, .9), inset 0 0 0 1px #000, 0 0 8px rgba(var(--ph-rgb), .3);
+}
+html body.vx:not(.hud-mode) #screen-connect #in-name { color: var(--vx-core); caret-color: var(--vx-node); }
+/* segmented pickers (voice, reasoning): a strip of dark keys, the chosen one lit */
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-vchips, .ov-segmented) { background: rgba(0, 0, 0, .45); border: 1px solid var(--vx-line-dim); box-shadow: inset 0 0 10px rgba(0, 0, 0, .8); }
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-vchip, .ov-segmented button) { letter-spacing: 1.5px; }
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-vchip.sel, .ov-segmented button[aria-pressed='true']) {
+  border-color: var(--vx-core); color: var(--vx-node); background: var(--vx-lit);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .8); box-shadow: inset 0 -2px 0 var(--vx-node);
+}
+/* choice cards + provider tiles: readout panels; the chosen one a lit slot with its lead bar */
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-card, .prov-grid .prov) {
+  border: 1px solid var(--vx-line-dim);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .08), rgba(0, 0, 0, .55) 60%);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-card, .prov-grid .prov):is(:hover, :focus-visible) {
+  border-color: var(--vx-line);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), .2), rgba(var(--ph-rgb), .04) 70%);
+  box-shadow: inset 3px 0 0 var(--vx-line);
+}
+html body.vx:not(.hud-mode) #screen-connect :is(.ov-card, .prov-grid .prov).sel {
+  border-color: var(--vx-core); color: var(--vx-node);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .38), rgba(var(--ph-rgb), .1) 60%, rgba(var(--ph-rgb), .02));
+  box-shadow: inset 3px 0 0 var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .25);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-connect :is(.ov-card, .prov-grid .prov) { border-radius: 0 12px 0 12px; corner-shape: bevel; }
+}
+/* the StarNet start: the screen's hero slot — a full neon frame */
+html body.vx:not(.hud-mode) #screen-connect .prov-hero {
+  border: 1px solid var(--vx-core);
+  background:
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, .3) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 80% 120% at 0% 0%, rgba(var(--ph-rgb), .24), transparent 70%),
+    var(--vx-black);
+  box-shadow: var(--vx-frame);
+}
+html body.vx:not(.hud-mode) #screen-connect .prov-hero-prefix { color: var(--vx-node); letter-spacing: 4px; text-shadow: var(--vx-title-glow); }
+html body.vx:not(.hud-mode) #screen-connect .prov-hero-arrow { border: 1px solid var(--vx-line); background: rgba(0, 0, 0, .6); box-shadow: inset 0 0 0 1px #000; }
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) #screen-connect .prov-hero { border-radius: var(--vx-cut) 0 var(--vx-cut) 0; corner-shape: bevel; }
+}
+/* keys: dark keys on a dim edge; the go keys (WAKE, CONNECT, UPDATE, CONTINUE) are lit keycaps */
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) :is(.btn, .btn-sm) {
+  border: 1px solid var(--vx-line-dim); background: rgba(0, 0, 0, .55); color: var(--ph); letter-spacing: 2px; box-shadow: inset 0 0 0 1px #000;
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) :is(.btn, .btn-sm):is(:hover, :focus-visible):not(:disabled) {
+  border-color: var(--vx-line); color: var(--vx-node); background: rgba(var(--ph-rgb), .16);
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .btn-xl {
+  border: 1px solid var(--vx-core); color: var(--vx-node); letter-spacing: 3px;
+  background: var(--vx-lit);
+  text-shadow: 0 0 7px rgba(var(--ph-rgb), .9);
+  box-shadow: inset 0 0 0 1px #000, inset 0 -2px 0 var(--vx-node), 0 0 12px rgba(var(--ph-rgb), .35);
+}
+html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .btn-xl:is(:hover, :focus-visible):not(:disabled) {
+  color: #fff; box-shadow: inset 0 0 0 1px #000, inset 0 -2px 0 #fff, 0 0 18px rgba(var(--ph-rgb), .55);
+}
+@supports (corner-shape: bevel) {
+  html body.vx:not(.hud-mode) :is(#screen-connect, #screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .btn-xl { border-radius: 9px 0 9px 0; corner-shape: bevel; }
+}
+/* the recovery notices: readout panels */
+html body.vx:not(.hud-mode) :is(#screen-future, #screen-recovery, #screen-unreachable, #screen-lineage) .ov-recovery {
+  border: 1px solid var(--vx-line-mid);
+  background:
+    linear-gradient(var(--vx-node), var(--vx-node)) 0 0 / 4px 4px no-repeat,
+    linear-gradient(var(--vx-node), var(--vx-node)) 100% 100% / 4px 4px no-repeat,
+    rgba(0, 0, 0, .55);
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px var(--vx-hair);
+}
+/* the colour swatches: square chips; the chosen one carries a lit node frame */
+html body.vx:not(.hud-mode) #screen-connect .phosphor-swatches .swatch { border-radius: 0; box-shadow: inset 0 0 0 1px #000; }
+html body.vx:not(.hud-mode) #screen-connect .phosphor-swatches .swatch.sel { box-shadow: inset 0 0 0 2px #000, 0 0 0 1px var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .7); }

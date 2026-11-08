@@ -37,9 +37,21 @@ const preludes = [];
 }
 const selectorLists = preludes.filter(p => p && !p.startsWith('@'));
 A.ok(selectorLists.length > 60, 'vector.css parsed into rules (' + selectorLists.length + ')');
+// split a selector list on its top-level commas only (a comma inside :is(…) / :not(…), nested or not, stays)
+const splitTop = (list) => {
+  const out = []; let depth = 0, start = 0;
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth--;
+    else if (c === ',' && depth === 0) { out.push(list.slice(start, i)); start = i + 1; }
+  }
+  out.push(list.slice(start));
+  return out;
+};
 const unscoped = [];
 for (const list of selectorLists) {
-  for (const sel of list.split(/,(?![^(]*\))/).map(s => s.trim()).filter(Boolean)) {
+  for (const sel of splitTop(list).map(s => s.trim()).filter(Boolean)) {
     if (!/(^|\s)(html\s+)?body\.vx\b/.test(sel)) unscoped.push(sel);
   }
 }
@@ -60,6 +72,16 @@ A.ok(css.includes('#screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):
 
 // ---- the logo keeps no glow ----
 A.ok(!/logo/i.test(css), 'vector.css never targets the logo (no glow, no drop-shadow: Andrew\'s call)');
+
+// ---- fully committed (Andrew 2026-11-08: "i want it to be actually fully committed"): the shared glass tokens are
+// closed under body.vx once, and the screens before the station is up wear the same console ----
+for (const tok of ['--gd-face', '--gd-light', '--gd-edge', '--cg-card', '--cg-glass', '--menu-glass', '--quest-glass', '--utility-glass']) {
+  A.ok(new RegExp('html body\\.vx:not\\(\\.hud-mode\\) \\{[^}]*' + tok + ':').test(css), tok + ' is redefined once under body.vx (every surface that reads it joins the identity)');
+}
+for (const screen of ['#screen-connect', '#screen-future', '#screen-recovery', '#screen-unreachable', '#screen-lineage']) {
+  A.ok(css.includes(screen) && /\.ov-panel \{[^}]*--vx-frame/.test(css), screen + ' is a framed VECTOR screen');
+}
+A.ok(/\.term:not\(\.pw\) \.term-title::before/.test(css), 'every window title carries the lit lead mark');
 
 // ---- the world keeps its own colours (Andrew 2026-11-08: "it should only apply to the dashboard not add filters to
 // the world itself"). The identity is chrome around the station view, never a tint or filter on it ----
