@@ -61,8 +61,19 @@ function permitted(name, row, classification, c, o) {
   return false;
 }
 const PROJECTED_ROWS = Symbol('turn-view.projected-rows');
+/* THE ROW'S OWN WORD ON A REPLAYED MESSAGE (W1.8, sidecar/cross-run-replay.js). A message this shaper builds in the 'pairs' shape is
+   an earlier run's turn, replayed: the CLI resume seed, the queued re-seed and channel history all come through here. A resumed
+   history has no tool origin (loop.js toolOrigin is per run), so what a later edit of it needs rides the message itself,
+   non-enumerable and symbol-keyed like ROW_TAG (never on a wire, a JSON copy or a spread): the row it stands on, the tool its
+   paired call named (a result), and the row's provenance as stored (taint, taintKnown, the sessions its run had quoted). */
+const REPLAYED = Symbol('starnet.transcript.replayed');
+function replayTag(message, row, tool) {
+  Object.defineProperty(message, REPLAYED, { value: Object.freeze({ streamId: row.streamId, rowId: row.rowId, role: message.role, tool: tool || '',
+    taint: row.taint ? String(row.taint) : null, taintKnown: row.taintKnown === true, quoted: Array.isArray(row.quotes) && row.quotes.length > 0 }),
+  enumerable: false, configurable: true, writable: true });
+}
 function messages(rows, c, o, accept) {
-  const out = [], ids = [];
+  const out = [], ids = [], callNames = new Map();
   for (const row of rows) {
     const classification = Kinds.classify(row, c);
     if (typeof accept === 'function' && !accept(row, classification)) continue;
@@ -81,9 +92,11 @@ function messages(rows, c, o, accept) {
       if (o.shape === 'pairs' && row.toolCalls && classification.cell !== 'dispatch-final' && !resultsGone) {
         try { const calls = JSON.parse(row.toolCalls); if (Array.isArray(calls) && calls.length) message.tool_calls = calls; }
         catch (error) { if (typeof c.note === 'function') c.note('turn-view.tool-calls', error); }
+        for (const call of message.tool_calls || []) if (call && call.id != null) callNames.set(String(call.id), (call.function && call.function.name) || '');
       }
     } else if (role === 'tool' && o.shape === 'pairs') message = { role, content, tool_call_id: String(row.toolCallId || '') };
     if (!message) continue;
+    if (o.shape === 'pairs') replayTag(message, row, role === 'tool' ? callNames.get(message.tool_call_id) : '');
     out.push(message); ids.push({ streamId: row.streamId, rowId: row.rowId });
   }
   // Preserve reconstruct's pairing boundary: no orphaned leading result or unfinished trailing call.
@@ -170,4 +183,6 @@ function tag(message, value) {
   return message;
 }
 function tagOf(message) { return message && typeof message === 'object' && message[ROW_TAG] || null; }
-module.exports = { ROW_IDS, FORGOTTEN, ROW_TAG, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf };
+// the replay provenance a 'pairs' view put on a message (REPLAYED above), or null: a message no transcript view shaped
+function replayedOf(message) { return message && typeof message === 'object' && message[REPLAYED] || null; }
+module.exports = { ROW_IDS, FORGOTTEN, ROW_TAG, REPLAYED, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf, replayedOf };
