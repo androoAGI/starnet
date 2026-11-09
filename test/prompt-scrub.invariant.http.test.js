@@ -43,6 +43,7 @@ const http = require('node:http');
 const net = require('node:net');
 const { spawn } = require('node:child_process');
 const FK = require('./helpers/fake-keys.js');
+const { zeroLearningWindows, THREAD_MINE_WINDOW_ZERO } = require('./helpers/learning-windows.js');
 
 const root = path.resolve(__dirname, '..');
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-prompt-scrub-'));
@@ -114,6 +115,9 @@ const mock = http.createServer((req, res) => {
 
 // ---------- Phase A: legacy raw rows, on disk before boot ----------
 const NOW = Date.now(), HOUR = 3600000;
+// every learning window 0 (+ thread mining's in the env below): each eligible run reaches its own reflection, study and thread
+// mining, as before W1.4 armed a window on every attempt, so I1 reads the passes of the later runs too (I5 checks ASK2's)
+zeroLearningWindows(WS);
 const cutTitle = (lead, k, bodyChars) => (lead + ' ' + k.value).slice(0, lead.length + 1 + k.prefix.length + bodyChars);
 const LEGACY_TITLES = [
   'LEGACY-1 openai ' + K.OPENAI.value + ' list my models',
@@ -177,7 +181,7 @@ function hermeticEnv(port, mockPort) {
     SKYNET_EDGE_TTS: '0', SKYNET_EDGE_TTS_PROBE: '0', SKYNET_REFLECT: '0', SKYNET_SKILL_REVIEW: '0',
     SKYNET_AUX_BUDGET: '0',   // (review r2) the aux governor off: every gated post-run pass spends, thread mining included
     HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: '127.0.0.1,localhost', NODE_USE_ENV_PROXY: '1'
-  });
+  }, THREAD_MINE_WINDOW_ZERO);
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function boot(mockPort) {
@@ -326,6 +330,10 @@ const TYPED = {};   // phase -> the key ids its own words typed
   A.ok(toolMsg('LOOP', /Post the daily standup to Slack with bot token \[redacted-key\]/), 'I5: loop.list\'s result reached the model, its stored objective scrubbed');
   A.ok(toolMsg('SUBA', /Call the billing API with key \[redacted-key\]/), 'I5: team.subagents\' result reached the model, its stored prompt scrubbed');
   A.ok(chat.some(c => c.phase === 'AJ' && /Every model call goes through OpenAI with key \[redacted-key\]/.test(JSON.stringify(c.body))), 'I5: the page\'s autojobs internal run kept its words, its belief key scrubbed');
+  // I5 (W1.4): the run that continues ASK1's brief (whose words held a key) reached its own learning passes, so I1 read them too
+  const ask2Passes = chat.filter(c => c.phase === 'ASK2').map(sysOf);
+  const ask2Ran = { reflection: /reflecting right after finishing a task/, study: /durable profile of your Commander/, threadmine: /You surface ideas the Commander raised/ };
+  A.eq(Object.keys(ask2Ran).filter(k => !ask2Passes.some(s => ask2Ran[k].test(s))), [], 'I5: ASK2\'s reflection, study and thread-mining passes reached the model (the learning windows are 0)');
   // I2
   const later = chat.filter(c => c.seq > panelSeq);
   const text = c => JSON.stringify(c.body);

@@ -15,6 +15,7 @@ const { WITHHELD } = require('../sidecar/mcp/google-relay-guard.js');
 const imapGmail = require('../sidecar/mcp/transport.gmail-imap.js');
 const { mcpToolName } = require('../sidecar/mcp/translate.js');
 const { startFakeImap } = require('./helpers/fake-gmail.js');
+const { zeroLearningWindows } = require('./helpers/learning-windows.js');
 
 const MAIL = 'Synthetic message for acceptance testing.';   // what the synthetic Gmail returns (google-signin-preload.cjs)
 const GMAIL_READ = 'mcp__gmail__read_message';
@@ -75,6 +76,9 @@ let nextTool = GMAIL_READ;                                       // which tool t
   };
   const names = b => (b.tools || []).map(t => t.function && t.function.name);
   try {
+    // every learning window 0: each eligible run reaches its own reflection and study (since W1.4 an attempt arms its window
+    // whatever it kept), so the run-end passes of BOTH StarNet Managed runs are on the relay the checks below read
+    zeroLearningWindows(fixture.workspace);
     await fixture.start();
     let row;
     for (let i = 0; i < 50; i++) {
@@ -142,6 +146,16 @@ let nextTool = GMAIL_READ;                                       // which tool t
       assert.ok(!JSON.stringify(b).includes(IMAP_PASS), 'the app password never reaches the StarNet relay');
     }
     assert.ok(sentImap.some(b => JSON.stringify(b.messages).includes('never sent to StarNet Managed')), 'the relay sees the withheld notice in its place');
+    // the run-end learning passes run behind the reply: once the second managed run's have reached the relay, nothing the
+    // relay ever received carries the mail, the IMAP mail or the app password (the per-run checks above end with each reply)
+    const learning = b => /reflecting right after finishing a task|durable profile of your Commander/.test(JSON.stringify(b.messages || []));
+    for (let i = 0; i < 100 && !relay.slice(beforeImap).some(learning); i++) await new Promise(r => setTimeout(r, 100));
+    assert.ok(relay.slice(beforeImap).some(learning), 'the second managed run\'s learning passes reached the relay (' + relay.filter(learning).length + ' in all)');
+    await new Promise(r => setTimeout(r, 500));
+    for (const b of relay) {
+      const wire = JSON.stringify(b);
+      assert.ok(!wire.includes(MAIL) && !wire.includes(IMAP_MAIL) && !wire.includes(IMAP_PASS), 'no relay request, run-end passes included, carries the mail or the app password');
+    }
     console.log('google-relay-guard.e2e: PASS (own-key run reads Gmail; StarNet Managed gets no Gmail tools and only the withheld notice; same for app-password Gmail over IMAP)');
   } finally { await fakeImap.close(); await fixture.dispose(); server.closeAllConnections(); await new Promise(r => server.close(r)); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

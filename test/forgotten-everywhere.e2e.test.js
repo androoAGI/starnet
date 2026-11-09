@@ -29,6 +29,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { runContextOf, recallOf } = require('./helpers/host-notes.js');
+const { zeroLearningWindows } = require('./helpers/learning-windows.js');
 
 const HOST = '127.0.0.1';
 const S = 'ws_quokka', T = 'ws_keep', W = 'ws_old', K = 'ws_fresh';
@@ -120,8 +121,11 @@ function hermeticEnv(base) {
     A.eq(ledger.adopted().map(e => e.id), [W], 'setup: the ledger holds an adopted stamp for the old session');
     fs.writeFileSync(ws('runs.jsonl'), JSON.stringify({ runId: 'run_wombat_1', agentId: 'agent', streamId: W, ts: now - 30000, reason: 'done', directive: 'plan the wombat habitat' }) + '\n');
 
+    // every learning window 0, so every run may reflect AND study: the passes after the delete are part of this proof, and since
+    // W1.4 an attempt arms its window whatever it kept (POST /api/memory/config takes reflection's window only, never study's)
+    zeroLearningWindows(fixture.workspace);
     await fixture.start();
-    A.eq((await json('POST', '/api/memory/config', { reflectCooldownMs: 0, studyCooldownMs: 0 })).status, 200, 'the aux cooldowns are off (every run may reflect and study)');
+    A.eq((await json('GET', '/api/memory/config')).body.reflectCooldownMs, 0, 'the aux cooldowns are off (every run may reflect and study): memory.config.json was read at boot');
 
     // ---- 1. S says "quokka" everywhere; T reads it; K is the plain control ----
     const upload = async (name, body) => (await json('POST', '/api/attachments', { agent: 'agent', name, dataUrl: 'data:text/plain;base64,' + Buffer.from(body).toString('base64') })).body;
@@ -210,6 +214,11 @@ function hermeticEnv(base) {
     const afterBodies = () => up.state.calls.slice(callsBefore).filter(c => !c.auxiliary).map(c => c.body);
     const bodyText = b => (b.messages || []).map((m, i, all) => (i === all.map(x => x.role).lastIndexOf('user') ? (runContextOf([m]) + recallOf([m])) : text(m.content) + JSON.stringify(m.tool_calls || ''))).join('\n');
     await wait(1500);   // the aux passes run behind the reply
+    // ...and the two this proof names must have run after the delete, or the leak check below reads nothing of them
+    const passOf = c => { const s = text(c.body.messages && c.body.messages[0] && c.body.messages[0].content); return /reflecting right after/.test(s) ? 'reflection' : /durable profile of your Commander/.test(s) ? 'study' : 'other'; };
+    const passesAfter = () => up.state.calls.slice(callsBefore).filter(c => c.auxiliary).map(passOf);
+    const bothRan = await until(() => passesAfter().includes('reflection') && passesAfter().includes('study'), 'a reflection and a study pass after the delete', 15000).catch(() => false);
+    A.ok(bothRan, 'NON-VACUOUS: a reflection AND a study pass reached the model after the delete, so the leak check reads both (' + passesAfter().join('+') + ')');
     const everything = up.state.calls.slice(callsBefore);
     const leaked = everything.filter(c => WORD.test(c.auxiliary ? JSON.stringify(c.body.messages) : bodyText(c.body)));
     A.eq(leaked.map(c => (c.auxiliary ? 'aux ' : 'run ') + (JSON.stringify(c.body.messages).match(/.{0,60}(quokka|uniqueword|Wallaby).{0,60}/i) || [''])[0]), [], 'no upstream body after the delete - main run or aux pass - holds a word of S');
