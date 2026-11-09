@@ -630,7 +630,9 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         hold.noteUploadsUnread = count => unread.push(count);
         const own = await upload('own.txt');
         say('sGone', 'my file', [own], 3000);
-        tear('{"streamId":"sNoise","role":"assistant","content":"half a ro');   // the fragment a killed append leaves
+        // a damaged line in the middle: the bytes an older build left when a killed append's fragment was isolated by the next row
+        // (a torn LAST line is set aside at boot now, so it refuses nothing: test/transcript-torn-tail-recovery.test.js)
+        tear('{"streamId":"sNoise","role":"assistant","content":"half a ro\n');
         later();
         reboot();
         let refused = null;
@@ -641,7 +643,8 @@ const noise = (tag, e) => { throw new Error(tag + ': ' + (e && e.message)); };
         A.eq(unread, [1], 'and the log hears that a session may hold rows that can no longer be read');
         A.eq(kept, [], 'a damaged line that names no asked file keeps nothing');
         A.eq(await forget('attachment-files'), 0, 'idempotent');
-        // a damaged line that names a file keeps that file and only that one
+        // a damaged line that names a file keeps that file and only that one. This one is a torn LAST line: the reboot sets it aside
+        // out of the segment, and its kept copy still doubts what it names, so a delete is never surer than before
         const torn = await upload('torn.txt'), free = await upload('free.txt');
         say('sGone', 'two more files', [torn, free], 4000);
         tear('{"streamId":"sKeep","attachments":[{"path":"' + torn.path + '"');

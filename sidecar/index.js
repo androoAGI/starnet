@@ -31057,7 +31057,12 @@ function serveTranscript(req, res) {
     const turns = u.searchParams.get('view') === 'model-replay'
       ? transcriptStore.view('model-replay', stream, { limit, shape: 'prose', form: 'pre', rows: true })
       : transcriptStore.view('display', stream, { limit, run: sourceRunId, delivery: !!finalDelivery, since: transcriptRunSince(sourceRunId) });
-    json(200, transcriptProjection(stream, turns));
+    const reply = transcriptProjection(stream, turns);
+    // an unfinished last line of this conversation that the station set aside (a crash mid-save; transcript-history.js
+    // setAsideTornTail): named by its kept file, so the page says so once, quietly. Absent otherwise: the reply is unchanged.
+    const setAside = typeof transcriptStore.setAside === 'function' ? transcriptStore.setAside(stream) : [];
+    if (setAside.length) reply.setAside = setAside.map(x => ({ id: x.file, bytes: x.bytes }));
+    json(200, reply);
   } catch (e) {
     const failure = readRouteFailure('transcript', e);   // noted either way: the diagnostics count every read this route could not answer
     // history the station cannot vouch for YET is a 503 with its code, as /rows answers it, not a broken store's 500 (#178)
