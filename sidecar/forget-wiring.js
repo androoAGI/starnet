@@ -149,6 +149,7 @@ const STORES = [
   ['NIGHTFOCUS_STATE_FILE', 'exempt', '', 'the night focus steer the Commander chose and its settings'],
   ['NIGHTSHIFT_STATE_FILE', 'exempt', '', 'whether the night shift is enabled and its cadence'],
   ['NIGHTSHIFT_LEARN_FILE', 'exempt', '', 'per-archetype up and down verdict tallies (counts only, no text)'],
+  ['NIGHTSHIFT_STUCK_FILE', 'exempt', '', 'the futile-beat marker: a hash of what the last duplicate beat read and the ids of the build it waits on (no session text)'],
   ['DISCOVERY_FILE', 'exempt', '', 'project discovery findings read from the Commander\'s folders on disk, not from a session'],
   ['SCHEMA_VERSION_FILE', 'exempt', '', 'the workspace schema version stamp'],
   ['BROWSER_SETTINGS_FILE', 'exempt', '', 'a browser setting the Commander chose'],

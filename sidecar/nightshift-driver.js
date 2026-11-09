@@ -15,10 +15,12 @@
      deps.lastActivity()             -> int ms           // lastUserActivityAt (index.js tracks it)
      deps.isHalted()                 -> bool             // the E-STOP is engaged (index.js: no live run + a halt flag)
      deps.concurrencyFree(agentId)   -> bool             // the same-agent run mutex is free for this agent
-     deps.precheck({ agentId })      -> { ok, reason } | bool | undefined   // OPTIONAL (NS-2): a PURELY-LOCAL readiness/
+     deps.precheck({ agentId })      -> { ok, reason, why? } | bool | undefined   // OPTIONAL (NS-2): a PURELY-LOCAL readiness/
      //   eligibility gate that needs NO model call. When present and it returns not-ok, the beat stands down BEFORE the
      //   leash is spent (the cold-leash fix) — a stand-down that no model call could have avoided must not cost budget.
      //   Absent/undefined → treated as ok (NS-1 behavior: spend at accept-time, the pipeline decides). See applyTick.
+     //   `why` (optional): a few primitives naming WHAT the stand-down is about (the futile-beat skip names the build it
+     //   waits on). It rides the decline row and statusDecision, and a different subject is a new decline edge.
      deps.beat({ agentId, signal }) -> Promise<{ delivered, reason, title?, archetype? }>   // the ported act pipeline
      deps.newAbort()                 -> AbortController
      deps.now()                      -> int ms           // wall clock for beat-COMPLETION timestamps
@@ -71,10 +73,26 @@
     let currentAbort = null;               // the in-flight beat's AbortController (for the E-STOP hook)
     let lastDecline = null;                // { key, binding, at, held } — the last LOGGED decline (edge-trigger memory)
 
+    // a precheck's `why`: at most four primitive fields (strings clipped), or null — never a nested object in a ledger row
+    function whyOf(v) {
+      if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+      const out = {};
+      let n = 0;
+      for (const k of Object.keys(v)) {
+        const val = v[k];
+        if (n >= 4 || val == null || typeof val === 'object' || typeof val === 'function') continue;
+        out[String(k).slice(0, 40)] = typeof val === 'string' ? val.slice(0, 200) : val;
+        n++;
+      }
+      return n ? out : null;
+    }
+    function whyKey(why) { return why ? Object.keys(why).sort().map(function (k) { return k + '=' + String(why[k]); }).join('&') : ''; }
+
     // ledger a decline iff its reason changed since the last logged one, or the same reason has held for
-    // declineRepeatMs. Returns true when written. A suppressed tick only counts toward the held tally.
+    // declineRepeatMs. Returns true when written. A suppressed tick only counts toward the held tally. The reason is
+    // the binding, whether it held before the spend, and what it is about (a hold on ANOTHER build is a new reason).
     function logDecline(nowMs, entry, force) {
-      const key = String(entry.binding) + '|' + (entry.preSpend ? 1 : 0);
+      const key = String(entry.binding) + '|' + (entry.preSpend ? 1 : 0) + '|' + whyKey(entry.why);
       const fresh = force || !lastDecline || lastDecline.key !== key || !(nowMs >= lastDecline.at) || (nowMs - lastDecline.at) >= declineRepeatMs;
       if (!fresh) { lastDecline.held += 1; return false; }
       const out = Object.assign({}, entry);
@@ -116,7 +134,8 @@
         const notOk = (pr === false) || (pr && typeof pr === 'object' && pr.ok === false);
         if (notOk) {
           const reason = (pr && typeof pr === 'object' && pr.reason) ? String(pr.reason) : 'readiness';
-          return Object.assign({}, decision, { fire: false, binding: reason || 'readiness' });
+          const why = whyOf(pr && pr.why);
+          return Object.assign({}, decision, { fire: false, binding: reason || 'readiness' }, why ? { why: why } : {});
         }
       } catch (_) {
         return Object.assign({}, decision, { fire: false, binding: 'precheck-error' });
@@ -150,9 +169,9 @@
       // binding 'readiness' — instead of NS-1's wart where the unit was burned on a stand-down needing no model call.
       // Anything that PASSES the precheck still spends at accept-time below (a beat that reached a model call and then
       // stood down DID cost the budget — the anti-runaway guarantee stays intact). Absent precheck → always ok.
-      let preOk = true, preReason = 'readiness';
+      let preOk = true, preReason = 'readiness', preWhy = null;
       if (decision.fire && precheck) {
-        try { const pr = precheck({ agentId: agentId }); if (pr === false) { preOk = false; } else if (pr && typeof pr === 'object' && pr.ok === false) { preOk = false; preReason = String(pr.reason || 'readiness') || 'readiness'; } }
+        try { const pr = precheck({ agentId: agentId }); if (pr === false) { preOk = false; } else if (pr && typeof pr === 'object' && pr.ok === false) { preOk = false; preReason = String(pr.reason || 'readiness') || 'readiness'; preWhy = whyOf(pr.why); } }
         catch (_) {
           // An unreadable safety gate is not permission for unattended work. Stand down without spending and
           // expose the failure through status + ledger so the next tick can retry it honestly.
@@ -168,7 +187,9 @@
       // Declines are final now, so ledger them immediately. A would-be beat is ledgered ONLY after its durable
       // leash/accounting write succeeds below; otherwise the morning report would claim an unaccounted act.
       if (!fireNow) {
-        logDecline(nowMs, { ts: nowMs, kind: 'decline', binding: binding, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: (decision.fire && !preOk) || undefined });
+        const entry = { ts: nowMs, kind: 'decline', binding: binding, agentId: agentId, beatsLeft: decision.beatsLeft, away: decision.away, preSpend: (decision.fire && !preOk) || undefined };
+        if (preWhy) entry.why = preWhy;
+        logDecline(nowMs, entry);
         return { fired: false, binding: binding, decision: decision };
       }
 
