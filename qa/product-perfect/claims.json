@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "61f56487ed914e16f7ea966bd7e69919fe8861d5",
+    "sourceCommit": "188271d06a271b4f3af5fecf03a2bcb60db33dd6",
     "pathSetSha256": "8394eca9e4974a998b07e0619201f84827ddf7781133ca7c179f8deba46fc595",
     "files": [
       {
@@ -263,8 +263,8 @@
       },
       {
         "path": "frontend/app/autonomystore.js",
-        "bytes": 8491,
-        "sha256": "7642595a957e1c557d2e099a9437533e62e85813052b5c54c0619b23bea5b8f2"
+        "bytes": 8970,
+        "sha256": "4b1e7fef4aab30ae714335be10fb77dffb376e1ecaa04544fb963296cff29e58"
       },
       {
         "path": "frontend/app/autopilot.js",
@@ -753,8 +753,8 @@
       },
       {
         "path": "frontend/app/nightreport.js",
-        "bytes": 31134,
-        "sha256": "ffa65bc35787f74d305e74ebf74ea904046490963f7aa953749e623b116cfc72"
+        "bytes": 36080,
+        "sha256": "2c66122ee4599c83ed1aaf1d854602c672ef58991c52f25a2d7edb0268e8cc19"
       },
       {
         "path": "frontend/app/nightreportstore.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1004863,
-        "sha256": "a267fd64f8ea21268f62fbb51495c45f33abac2572d5fa1d8fbe53348a5663ca"
+        "bytes": 1005053,
+        "sha256": "a11892472e5d6498d45f460ceee29ff1b323bebce8069efe599ef959830f8d31"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1473,8 +1473,8 @@
       },
       {
         "path": "frontend/app/windows/routines.js",
-        "bytes": 83842,
-        "sha256": "25d967c8b5c9a1aefb02f0262125b6ef9156d7c647ab8d228ecd811a4ce854a3"
+        "bytes": 84846,
+        "sha256": "9d31a7133530a921c48c156b09aecb882a4283775cb035716103b590c7b604e3"
       },
       {
         "path": "frontend/app/windows/trophies.js",
