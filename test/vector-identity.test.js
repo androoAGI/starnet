@@ -4,7 +4,8 @@
    - every rule in vector.css is scoped under body.vx (the identity is one class away from off, never a leak);
    - the curved radius scales are zeroed in ONE place each (the family is closed by tokens, not per-surface patches), and
      window interiors square by structure (empty inline lights keep their round), never by [class] text;
-   - the logo keeps no glow (Andrew's call) — the sheet never touches it;
+   - the mark keeps its own letterforms and mask (style.css): VECTOR only lights it (Andrew 2026-11-08 lifted the old
+     no-glow call: "should be glowing and look digital inside of it");
    - the world keeps its own colours: no phosphor grade in world.js and no colour filter on the station view (Andrew
      2026-11-08: the identity is the dashboard's, never a filter on the world). */
 'use strict';
@@ -70,8 +71,8 @@ A.ok(!/\[class/.test(css), 'vector.css never keys on [class] text');
 A.ok(css.includes('#screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):empty)'),
   'window interiors square everything but empty inline lights, anchored where every window lives');
 
-// ---- the logo keeps no glow ----
-A.ok(!/logo/i.test(css), 'vector.css never targets the logo (no glow, no drop-shadow: Andrew\'s call)');
+// ---- the mark is lit, never reshaped (Andrew 2026-11-08: "should be glowing and look digital inside of it") ----
+A.ok(!/\.logo-img \{[^}]*mask/.test(css), 'vector.css lights the mark but never swaps its mask (the letterforms are the master art\'s own)');
 
 // ---- fully committed (Andrew 2026-11-08: "i want it to be actually fully committed"): the shared glass tokens are
 // closed under body.vx once, and the screens before the station is up wear the same console ----
@@ -132,7 +133,7 @@ A.ok(/--vx-slot:/.test(css) && /--vx-gloss:/.test(css), 'list entries are glass 
 A.ok(/--vx-glass-deep:\s*linear-gradient\([^;]*var\(--ph\)/.test(css), 'the glass holds the theme hue (deep tinted glass, never flat black)');
 A.ok(/#left, #chat-panel\)::before \{[^}]*var\(--vx-glass-sweep\)[^}]*var\(--vx-glass-deep\)/.test(css), 'CREW and COMMS glass carry the gloss sweep over the tinted body');
 A.ok(/#left::after \{[^}]*var\(--vx-lens\)/.test(css) && /#chat-panel::after \{[^}]*var\(--vx-lens\)/.test(css), 'the fat housing corners carry lit lenses');
-A.ok(/#topbar::before \{[^}]*content: ''/.test(css) && !/logo/i.test(css), 'the logo sits in an LCD well cut into the rail, never by styling the logo itself');
+A.ok(/#topbar::before \{[^}]*content: ''/.test(css), 'the mark sits in an LCD well cut into the rail');
 // ---- the dock keys are one transport bar (Andrew 2026-11-08: "improve the bottom left buttons … lets make that look perfect"),
 // and the restyle never hides the group's real state: a group with an open window (.has-active) lights its LED ----
 A.ok(/#bottombar \.bb-group::before \{[^}]*content: ''/.test(css), 'a chrome seat runs under the dock keys (one transport bar)');
@@ -187,4 +188,13 @@ A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*data:image\/svg\+xml/.
 A.ok(/\.cam-hud::after \{[^}]*--cm: #c9d0d8/.test(css), 'the viewfinder marks are chrome, not lit HUD green (the marks themselves stay)');
 A.ok(/\.cam-cine \{[^}]*border-radius: 999px/.test(css), 'CINEMA is a silver pill key');
 A.ok(/#left \.ws-head \{ background: none; \}/.test(css), 'no green hairlines over the rail head');
+// ---- the lit mark, the finder, the clean rails (Andrew 2026-11-08: "starnet logo top left needs to be immensely improved",
+// "the search bar needs to be better, and get rid of the line on the top and bottom thats in the middle of the bar") ----
+A.ok(/#logo \{\s*filter: drop-shadow\(0 0 1px rgba\(var\(--ph-rgb\)/.test(css), 'the mark glows in its own hue');
+A.ok(/#logo::before \{[^}]*data:image\/svg\+xml[^}]*opacity: \.34/.test(css), 'the mark\'s display shows a faint field of digits');
+const rails = (css.match(/\(#topbar, #bottombar\) \{\s*background:[^}]*\}/g) || []).pop() || '';
+A.ok(rails && !/vx-pipe/.test(rails), 'the rails\' last background carries no light pipe across the middle');
+A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important; box-shadow: none !important; \}/.test(css), 'the finder row is not a second frame around the finder');
+A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
+A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 A.report('vector-identity');

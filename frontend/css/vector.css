@@ -1860,3 +1860,87 @@ html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
 /* the command line: the prompt mark sits on the text's line */
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-editline { align-items: center; min-height: 0; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-editline .prompt { height: auto; align-self: center; }
+
+/* ============ 22 · THE LIT MARK, THE FINDER, THE CLEAN RAILS — the STARNET mark glows in its own hue and is scanned like a
+   display, over a faint field of the master art's own digits (Andrew 11-08: "should be glowing and look digital inside of
+   it"; this lifts the earlier no-glow call); the session finder is a bezelled LCD well with a lit lens; the light pipes
+   across the middle of both rails are gone (Andrew 11-08: "get rid of the line on the top and bottom") ============ */
+
+/* ---- the mark: a bright scanned core, a tight halo and a soft bloom ---- */
+html body.vx:not(.hud-mode) #logo {
+  filter: drop-shadow(0 0 1px rgba(var(--ph-rgb), 1)) drop-shadow(0 0 5px rgba(var(--ph-rgb), .8)) drop-shadow(0 0 12px rgba(var(--ph-rgb), .45));
+}
+html body.vx:not(.hud-mode) #logo .logo-img {
+  background: repeating-linear-gradient(180deg, color-mix(in srgb, var(--vx-core) 45%, #fff) 0 2px, color-mix(in srgb, var(--ph) 80%, #000) 2px 3px);
+}
+/* the screen behind it: the master art is drawn in digits, so the display shows a faint field of them, lit at the centre */
+html body.vx:not(.hud-mode) #logo::before {
+  content: ''; position: absolute; inset: -7px -12px; z-index: -1; pointer-events: none; border-radius: 12px;
+  background: color-mix(in srgb, var(--vx-core) 70%, #fff);
+  -webkit-mask: radial-gradient(ellipse 60% 75% at 50% 50%, #000 0, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .15) 100%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='45' viewBox='0 0 70 45'%3E%3Cg font-family='Consolas%2Cmonospace' font-size='8' font-weight='700' fill='%23fff' letter-spacing='-.2'%3E%3Ctext x='0.0' y='8'%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='2.5' y='17'%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='0.0' y='26'%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3C/text%3E%3Ctext x='2.5' y='35'%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='0.0' y='44'%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3C/text%3E%3C/g%3E%3C/svg%3E") 0 0 / 70px 45px repeat;
+  -webkit-mask-composite: source-in;
+  mask: radial-gradient(ellipse 60% 75% at 50% 50%, #000 0, rgba(0, 0, 0, .7) 60%, rgba(0, 0, 0, .15) 100%), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='45' viewBox='0 0 70 45'%3E%3Cg font-family='Consolas%2Cmonospace' font-size='8' font-weight='700' fill='%23fff' letter-spacing='-.2'%3E%3Ctext x='0.0' y='8'%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='2.5' y='17'%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='0.0' y='26'%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3C/text%3E%3Ctext x='2.5' y='35'%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3C/text%3E%3Ctext x='0.0' y='44'%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='1'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.8'%3E0%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.55'%3E1%3C/tspan%3E%3Ctspan fill-opacity='.35'%3E0%3C/tspan%3E%3C/text%3E%3C/g%3E%3C/svg%3E") 0 0 / 70px 45px repeat;
+  mask-composite: intersect;
+  opacity: .34;
+}
+html body.vx:not(.hud-mode) #screen-game #topbar::before {
+  background:
+    repeating-linear-gradient(180deg, rgba(0, 0, 0, .28) 0 1px, transparent 1px 3px),
+    radial-gradient(ellipse 70% 80% at 50% 50%, rgba(var(--ph-rgb), .12), transparent 75%),
+    radial-gradient(ellipse 120% 70% at 30% 0%, rgba(255, 255, 255, .08), transparent 60%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 14%, #020504), color-mix(in srgb, var(--ph) 5%, #010302) 60%, color-mix(in srgb, var(--ph) 12%, #020504));
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .5), inset 0 0 18px rgba(var(--ph-rgb), .3),
+    0 0 0 2px #07090c, 0 0 0 3px #8d96a1, 0 1px 0 3px #eef2f6, 0 0 0 4px #20252b;
+}
+
+/* ---- the finder: an LCD well in a chrome bezel, a lit lens at its lead, a quiet prompt ---- */
+html body.vx:not(.hud-mode) #screen-game #left .ws-rail-search { padding: 6px 17px 8px; }
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search) {
+  height: 36px; padding-left: 38px; letter-spacing: 1px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 0 16px rgba(var(--ph-rgb), .1),
+    0 0 0 2px #07090c, 0 0 0 3px #6b747f, 0 1px 0 3px #c9d0d8, 0 0 0 4px #20252b;
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search)::placeholder { color: rgba(var(--ph-rgb), .5); }
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search):focus {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .7), inset 0 0 16px rgba(var(--ph-rgb), .18),
+    0 0 0 2px #07090c, 0 0 0 3px color-mix(in srgb, var(--ph) 55%, #8d96a1), 0 1px 0 3px #eef2f6, 0 0 0 4px #20252b, 0 0 12px 4px rgba(var(--ph-rgb), .3);
+}
+html body.vx:not(.hud-mode) #screen-game #left .ws-rail-search label::before {
+  content: ''; left: 14px; top: 50%; width: 16px; height: 16px; margin-top: -8px; z-index: 1;
+  background: color-mix(in srgb, var(--vx-core) 60%, #fff);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .9));
+}
+
+/* ---- the rails run clean: chrome moulding and rivets, no light pipe across the middle ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) {
+  background:
+    var(--vx-rivet) left 9px center / 9px 9px no-repeat,
+    var(--vx-rivet) right 9px center / 9px 9px no-repeat,
+    linear-gradient(180deg, rgba(255, 255, 255, .38) 0, rgba(255, 255, 255, .12) 7%, rgba(255, 255, 255, 0) 22%, rgba(0, 0, 0, .4) 48%, rgba(0, 0, 0, .18) 60%, rgba(255, 255, 255, .14) 78%, rgba(0, 0, 0, .55) 100%),
+    var(--vx-grain),
+    linear-gradient(180deg, color-mix(in srgb, var(--vx-metal-hi) 80%, #8a93a3), var(--vx-metal) 50%, var(--vx-metal-hi) 80%, var(--vx-metal-lo));
+}
+/* the row around the finder is no well of its own (the field's well-wide !important rule framed it, a second frame around
+   the bezel), so the finder is the only edge */
+html body.vx:not(.hud-mode) #screen-game #left :is(.ws-rail-search, .crew-search-wrap) { background: none !important; box-shadow: none !important; }
+/* the crew finder is the same instrument: the lens at its lead, its close key a round chrome knob seated inside the housing */
+html body.vx:not(.hud-mode) #screen-game #left .crew-search-wrap { padding: 6px 17px 8px; gap: 9px; align-items: center; }
+html body.vx:not(.hud-mode) #screen-game #left .crew-search-wrap::before {
+  content: ''; left: 31px; top: 50%; width: 16px; height: 16px; margin-top: -9px; z-index: 1;
+  background: color-mix(in srgb, var(--vx-core) 60%, #fff);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .9));
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew-search { flex: 1 1 auto; min-width: 0; }
+html body.vx:not(.hud-mode) #screen-game #left #crew-search-close {
+  flex: none; width: 27px; height: 27px; padding: 0; border: 0; border-radius: 50%; corner-shape: round;
+  display: inline-grid; place-items: center; font-size: 14px; line-height: 1;
+  background: radial-gradient(circle at 38% 28%, #fff 0, #c9d0d8 22%, #7c8692 58%, #3a414a 84%, #8d96a1 100%);
+  color: #0b1014; text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+  box-shadow: 0 0 0 1px #050608, 0 0 0 3px #2a3037, 0 1px 0 3px rgba(255, 255, 255, .55), 0 2px 4px 3px rgba(0, 0, 0, .45);
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew-search-close:is(:hover, :focus-visible) {
+  background: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 45%, #c9d0d8) 26%, color-mix(in srgb, var(--ph) 45%, #59626d) 62%, #3a414a 86%, #8d96a1 100%);
+  border: 0; color: #020604;
+}
