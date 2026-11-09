@@ -4678,8 +4678,9 @@ const Chat = (() => {
       workerAgentId: ev.workerAgentId || '', workerRunId: ev.workerRunId || '', workerStreamId: ev.workerStreamId || '', askedAt: ev.askedAt || Date.now() },
       // a tainted write's card keeps its file and source, and a fresh ask stays once-or-deny, when it is drawn again (review2 #12; breakage 9)
       ev.file ? { file: ev.file, taintedBy: ev.taintedBy || '', standing: ev.standing || '' } : {}, ev.fresh === true ? { fresh: true } : {},
-      // a command: its card offers no Always (GHSA-2hpj #4), also after a reload
-      ev.exactCommand === true ? { exactCommand: true } : {});
+      // a command: its card offers no Always (GHSA-2hpj #4), and no "This session" for one too long to show whole (final
+      // review B8), also after a reload
+      ev.exactCommand === true ? { exactCommand: true } : {}, ev.tooLongForSession === true ? { tooLongForSession: true } : {});
   }
   // who is asking: a delegated worker's ask names the worker (the sidecar stamps workerAgentId), never the lead
   function askerName(p, ws) {
@@ -4787,6 +4788,8 @@ const Chat = (() => {
       if (received && applyElsewhere) applyElsewhere(received);
       if (decision === 'full' && !res.fullSaved) { doneLabel = '✕ full access was not saved'; isDeny = true; }
       else if (decision !== 'full' && res.appliedDecision === 'deny' && decision !== 'deny') { doneLabel = '✕ approval was not applied'; isDeny = true; }
+      // the station approved this call only (final review B8: a command too long to show whole is never approved for the session)
+      else if (decision === 'session' && res.appliedDecision === 'once') doneLabel = '✓ approved once' + (res.answer && res.answer.tooLongForSession === true ? ' (too long to approve for the session)' : '');
       btns.remove(); keepFocus(r.d); releaseCard(r.d);
       const tag = document.createElement('span');
       tag.className = 'consent-result' + (isDeny ? ' err' : '');
@@ -4812,19 +4815,23 @@ const Chat = (() => {
     } else if (p.tool === 'browser.login.done') {
       mk('Done — I\'ve logged in', 'once', 'primary', '✓ done', false);
       mk('Cancel', 'deny', 'deny', '✕ cancelled', true);
-    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true) {
+    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true || !!(p.file || p.taintedBy)) {
       // widening the station's leash and installing a plugin are answered fresh every time (freshConsent tools,
       // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access. Any ask the station
-      // marks fresh too: a write by a run that read outside content (fix-sec2 breakage 9)
+      // marks fresh too: a write by a run that read outside content (fix-sec2 breakage 9), and so any card naming what it read
       mk('Approve once', 'once', 'primary', '✓ approved once', false);
       mk('Deny', 'deny', 'deny', '✕ denied', true);
     } else {
       const agentName = (p && p.workerAgentId) ? askerName(p, ws) : name;
       // a command (GHSA-2hpj #4) has no Always: the station approves a command one at a time. Full access stays the
-      // agent's posture; a terminal's "for this session" answer covers this exact command, and the card settles so
+      // agent's posture. "This session" (final review B7) runs this exact command, with these exact settings, again without
+      // asking until the session ends; the station confirms it at the desk, in a dialog that shows the whole command and
+      // says what it covers. A command too long to show whole there is never offered it (B8), and the card still settles in
+      // these words when another surface answers "for this session"
       const command = isCommandAsk(p);
       mk('Approve once', 'once', 'primary', '✓ approved once', false, command ? 'Run just this command. The next command asks again' : 'Allow just this one');
       if (!command) mk('Always', 'always', '', '✓ always allowed', false, 'Allow this kind of action from now on, without asking');
+      else if (p.tooLongForSession !== true) mk('This session', 'session', '', '✓ approved for this session (this exact command)', false, 'Run this exact command again without asking until this session ends. Only these exact settings: a different folder, time limit or background setting asks again. You confirm it first');
       else labels.session = '✓ approved for this session (this exact command)';
       mk('Full access', 'full', 'danger', '✓ full access', false, 'Give ' + agentName + ' full access: it stops asking before most actions, until you change it back');
       mk('Deny', 'deny', 'deny', '✕ denied', true);

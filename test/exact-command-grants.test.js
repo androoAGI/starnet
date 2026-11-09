@@ -208,6 +208,53 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.ok(/const command = isCommandAsk\(p\);/.test(card) && /if \(!command\) mk\('Always'/.test(card) && /labels\.session = '✓ approved for this session \(this exact command\)'/.test(card), 'the default card drops Always for a command and settles a session answer in its words');
     A.eq(read('website/app/app/chat.js'), chat, 'the website embed carries the same card');
 
+    // final review B7: the real card, rendered. A command offers "This session" (the station confirms it at the desk); a fresh
+    // card, a card naming outside content, and a command too long to show whole in that confirmation (B8) never do
+    {
+      const extract = (text, a, b) => { const i = text.indexOf(a); A.ok(i >= 0, 'chat.js has ' + a.trim()); return text.slice(i, text.indexOf(b, i)); };
+      const cardCtx = {}; vm.createContext(cardCtx); vm.runInContext(extract(chat, 'function glance(', '  function clarifyRow('), cardCtx);
+      const render = (p, reply) => {
+        const Channels = require('../frontend/app/channels.js'); Channels.reset();
+        const nodes = [], sent = [];
+        const element = () => ({ children: [], querySelectorAll() { return this.children.filter(n => n.className && n.className.includes('consent-')); }, dataset: {}, classList: { add() {}, remove() {} },
+          appendChild(n) { this.children.push(n); }, addEventListener() {}, setAttribute() {}, remove() { this.removed = true; }, focus() {} });
+        const ws = { id: 'cmd-card' };
+        Channels.begin(ws.id, 10); Channels.setRunId(ws.id, 'lead'); Channels.setPending(ws.id, p, 100);
+        const ctx = { Channels, Date: { now: () => 200 }, name: 'NOVA', input: null,
+          document: { createElement: element, createTextNode: textContent => ({ textContent }) },
+          row: () => { const r = { d: element(), body: element() }; nodes.push(r); return r; },
+          actionPhrase: cardCtx.actionPhrase, consentInspect: cardCtx.consentInspect, appendConsentDetails: () => {},
+          Harness: { consent: async (_run, _prompt, decision) => { sent.push(decision); return reply ? reply(decision) : { ok: true, decision }; } },
+          U: { bus: { on() {}, off() {}, emit() {} } },
+          isActiveWs: () => false, renderPresence() {}, syncStatus() {}, status() {}, autoscroll() {}, revealCard() {}, releaseCard() {}, keepFocus() {}, announcedPrompt: () => true, askAnswerers: new Map() };
+        vm.createContext(ctx);
+        vm.runInContext(extract(chat, '  const settledPromptNotices = new Set();', "  // the channel's record"), ctx);
+        vm.runInContext(extract(chat, '  const openConsentCards = new Map();', '  // EL-11 FIX 1a:'), ctx);
+        ctx.permissionRow(p, ws);
+        const body = nodes[0].body;
+        const btns = body.children.find(n => n.className === 'consent-btns');
+        const keys = btns.children.filter(b => /^consent-btn/.test(b.className || ''));
+        return { keys, names: keys.map(b => b.textContent), sent, result: () => (body.children.find(n => /^consent-result/.test(n.className || '')) || {}).textContent };
+      };
+      const cmd = { promptId: 'c1', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', exactCommand: true };
+      let c = render(cmd);
+      A.eq(c.names, ['Approve once', 'This session', 'Full access', 'Deny'], 'B7: a command card offers "This session" beside once, Full access and deny (no Always)');
+      const sessionKey = c.keys[1];
+      A.ok(/this exact command/.test(sessionKey.title) && /these exact settings: a different folder, time limit or background setting asks again/.test(sessionKey.title) && /confirm it first/.test(sessionKey.title),
+        'B7/B9: its key says what it covers, in one plain line: ' + sessionKey.title);
+      await sessionKey.onclick();
+      A.eq([c.sent, c.result()], [['session'], '✓ approved for this session (this exact command)'], 'B7: it sends "session" (the page\'s desk confirmation runs in the fetch wrapper) and settles in its own words');
+      c = render(cmd, () => ({ ok: true, decision: 'once', tooLongForSession: true }));
+      await c.keys[1].onclick();
+      A.eq(c.result(), '✓ approved once (too long to approve for the session)', 'B8: a session answer the station applied once says so, never "for this session"');
+      A.eq(render(Object.assign({}, cmd, { tooLongForSession: true })).names, ['Approve once', 'Full access', 'Deny'], 'B8: a command too long to show whole offers no "This session"');
+      A.eq(render(Object.assign({}, cmd, { fresh: true })).names, ['Approve once', 'Deny'], 'B7: a fresh command card stays once or deny');
+      A.eq(render({ promptId: 't1', tool: 'path.trust', scope: 'write', argsSummary: 'C:/proj', file: 'C:/proj/run.js', taintedBy: 'a web page', standing: '' }).names, ['Approve once', 'Deny'],
+        'B7: a card naming outside content stays once or deny, even without its fresh stamp');
+      A.eq(render({ promptId: 'f1', tool: 'fs.write', scope: 'write', argsSummary: 'notes.md' }).names, ['Approve once', 'Always', 'Full access', 'Deny'], 'B7: any other card is unchanged');
+      A.eq(render({ promptId: 'c2', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"ls"}' }).names, ['Approve once', 'This session', 'Full access', 'Deny'], 'B7: an unstamped shell ask (an older save) is a command card too');
+    }
+
     // the phone: "this task" on anything that runs is applied once, and the reply says what was applied
     const { makeApprovals } = require('../sidecar/remote/approvals.js');
     const reg = makeApprovals({ now: () => 1 });
