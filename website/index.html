@@ -167,19 +167,21 @@
         <a class="btn btn-primary dl-btn" data-asset="x64-setup.exe" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">[ .EXE INSTALLER ]</a>
         <div class="dl-note">Open the installer and follow its steps. If SmartScreen warns, inspect the publisher before proceeding.</div>
       </article>
-      <article class="dl-card" data-os="mac-arm">
+      <article class="dl-card" data-os="mac-arm" id="dl-mac-arm">
         <div class="dl-os">MACOS &middot; APPLE SILICON</div>
-        <div class="dl-req">M1 or later</div>
+        <div class="dl-req">M1 or later &middot; macOS 11+</div>
         <a class="btn btn-primary dl-btn" data-asset="aarch64.dmg" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">[ .DMG ]</a>
         <div class="dl-note">Open the disk image and drag StarNet into Applications. If macOS reports a trust failure, contact support.</div>
+        <div class="dl-note">macOS says it&rsquo;s &ldquo;not supported on this type of Mac&rdquo;? That&rsquo;s an Intel Mac: get the <a href="#dl-mac-intel">Intel build</a>.</div>
       </article>
-      <article class="dl-card" data-os="mac-intel">
+      <article class="dl-card" data-os="mac-intel" id="dl-mac-intel">
         <div class="dl-os">MACOS &middot; INTEL</div>
-        <div class="dl-req">Intel-based Macs</div>
+        <div class="dl-req">Intel-based Macs &middot; macOS 11+</div>
         <a class="btn btn-primary dl-btn" data-asset="x64.dmg" href="https://github.com/androoAGI/starnet-releases/releases/latest" target="_blank" rel="noopener">[ .DMG ]</a>
-        <div class="dl-note">Not sure which Mac you have? Apple menu &rarr; About This Mac &mdash; "Intel" means this one. Stop and report any Gatekeeper trust failure.</div>
+        <div class="dl-note">Not sure which Mac you have? Apple menu &rarr; About This Mac: &ldquo;Chip Apple M&hellip;&rdquo; = Apple Silicon, &ldquo;Processor &hellip; Intel&rdquo; = Intel. Stop and report any Gatekeeper trust failure.</div>
       </article>
     </div>
+    <p class="dl-which" id="dl-mac-which" hidden>Your browser doesn&rsquo;t say which chip this Mac has, so both Mac builds are marked. Apple menu &rarr; About This Mac: &ldquo;Chip Apple M&hellip;&rdquo; = Apple Silicon, &ldquo;Processor &hellip; Intel&rdquo; = Intel.</p>
     <div class="source-run" data-reveal>
       <div class="source-run-head">// prefer to run from source? node 18+ is all you need</div>
       <pre><code id="src-cmd">git clone https://github.com/androoAGI/starnet.git
@@ -243,6 +245,7 @@ cd starnet &amp;&amp; npm install &amp;&amp; npm start</code></pre>
   <div class="footer-fine">MIT license &middot; <span id="ver-foot">v0.15.0</span> &middot; &copy; <span id="year">2026</span> StarNet &middot; no telemetry, no tracking &mdash; <a href="legal/privacy.html">we collect nothing</a></div>
 </footer>
 
+<script src="platform.js?v=20261108"></script>
 <script src="site.js?v=20260913-brand-nav"></script>
 <script src="station-chapters.js?v=20261019"></script>
 <script src="station-demo.js?v=20261019"></script>

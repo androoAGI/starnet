@@ -280,7 +280,7 @@
 .home .bezel.live figcaption span{ font:400 16px/1.35 'VT323',monospace; letter-spacing:.8px; }
 .home .section-tag, .home .mf-kicker{ font:400 16px 'VT323',monospace; letter-spacing:2px; }
 .home .dl-sub{ font:400 20px/1.45 'VT323',monospace; letter-spacing:.4px; color:#cfc6b6; }
-.home .dl-note, .home .source-run-note, .home .dl-honesty{ font:400 17px/1.4 'VT323',monospace; letter-spacing:.4px; color:rgba(236,224,207,.6); }
+.home .dl-note, .home .source-run-note, .home .dl-honesty, .home .dl-which{ font:400 17px/1.4 'VT323',monospace; letter-spacing:.4px; color:rgba(236,224,207,.6); }
 .home .faq details p{ font:400 19px/1.5 'VT323',monospace; letter-spacing:.4px; color:#cfc6b6; }
 .home .site-doc-paths .eyebrow{ font:400 15px 'VT323',monospace; letter-spacing:3px; }
 .home .site-doc-paths h3{ font:400 26px/1.15 'VT323',monospace; letter-spacing:1.5px; color:var(--amber-b); text-shadow:0 0 10px rgba(255,157,47,.35); margin:14px 0 10px; }

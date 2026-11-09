@@ -97,6 +97,13 @@ ticket. This warning is therefore a trust failure, not an expected first-run ste
 report the release tag, asset name, Mac architecture, macOS version, and exact warning. Do not
 clear quarantine or use an unsigned-app override for a purported public release.</p>
 
+<h2 id="macos-not-supported-on-this-type-of-mac">macOS: "not supported on this type of Mac"</h2>
+<p>That is the Apple Silicon build (<code>aarch64.dmg</code>) on an Intel Mac. It is not damaged and
+nothing needs to be overridden: delete it and download the Intel build (<code>x64.dmg</code>) from the
+same release. To check which Mac you have: Apple menu &rarr; <b>About This Mac</b>. "Chip Apple M…"
+means Apple Silicon; "Processor … Intel" means Intel. Both Mac builds need macOS 11 (Big Sur) or later
+with Safari 16.4 or later.</p>
+
 <h2 id="updates">Updates</h2>
 <p>The built-in updater (System &rarr; Updates) supports Windows and both Mac architectures and
 verifies every update against a key baked into the app. This is independent of Authenticode,

@@ -45,7 +45,10 @@ body.glass-demo #left #workstreams .ws-row:focus-visible { outline: 1px solid va
 .glass-demo #chat-log { background: rgba(0,0,0,.1); box-shadow: none; }
 .glass-demo #chat-panel #chat-inputrow { background: var(--gd-face); border-color: var(--gd-edge); box-shadow: var(--gd-shadow); }
 .glass-demo #chat-panel .chat-editline { background: rgba(0,0,0,.3); border-color: var(--gd-edge); }
-.glass-demo .term-scrim { background: rgba(0,0,0,.12); backdrop-filter: none; }
+/* -webkit- too (Mac report 11-08): style.css gives the scrim BOTH spellings of its blur, and a Mac web engine before
+   Safari 18 only reads the prefixed one, so `backdrop-filter: none` alone left every Mac re-blurring the whole window
+   behind any open window, every frame the floor drew. Windows never had that blur; now neither does the Mac. */
+.glass-demo .term-scrim { background: rgba(0,0,0,.12); -webkit-backdrop-filter: none; backdrop-filter: none; }
 body.glass-demo .term:not(.pw) {
   background: var(--gd-face); border: 1px solid var(--gd-edge);
   box-shadow: inset 0 1px 0 var(--gd-light), 0 14px 44px rgba(0,0,0,.55);
