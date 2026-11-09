@@ -2176,6 +2176,50 @@ html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group > .bb-grp::be
 html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group > .bb-grp::after { box-shadow: 0 0 0 1px #000; }
 html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group.has-active > .bb-grp::after { box-shadow: 0 0 0 1px #000, 0 0 4px 1px var(--gold), 0 0 12px 3px rgba(var(--gold-rgb), .7); }
 
+/* ---- the dock menus: a slab of glass in the same lit tube, each entry a ghost key (no plate, no hatch, no slanted slots) ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu {
+  width: 344px; padding: 15px 14px 11px; border-radius: 22px 22px 9px 9px !important; corner-shape: round;
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, .7), 0 0 18px rgba(var(--ph-rgb), .22) !important;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu::before {
+  -webkit-mask-box-image: none; border-radius: 22px 22px 9px 9px;
+  background:
+    radial-gradient(ellipse 90% 50% at 50% 0%, rgba(255, 255, 255, .07), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 12%, #030506), color-mix(in srgb, var(--ph) 4%, #010202) 60%, color-mix(in srgb, var(--ph) 9%, #020304));
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu::after {
+  -webkit-mask-box-image: none; border-radius: 22px 22px 9px 9px; background: none;
+  box-shadow: var(--vxb-tube), inset 0 0 12px rgba(var(--ph-rgb), .4), inset 0 0 34px rgba(var(--ph-rgb), .14);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb { border-radius: 12px; clip-path: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb:not(:hover):not(:focus-visible),
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu:hover .bb:focus-visible:not(:hover) {
+  background:
+    radial-gradient(ellipse 80% 90% at 50% 130%, rgba(var(--ph-rgb), .3), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, .07), rgba(255, 255, 255, 0) 46%) !important;
+  border: 1px solid transparent !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .34), 0 0 0 1px #000 !important;
+  clip-path: none;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb.active:not(:hover):not(:focus-visible) {
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .9), inset 0 0 16px rgba(var(--ph-rgb), .3), 0 0 0 1px #000 !important;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) {
+  background: var(--vxb-gel-hot) !important; border: 1px solid transparent !important;
+  box-shadow: var(--vxb-gel-shadow), 0 0 14px rgba(var(--ph-rgb), .5) !important;
+  clip-path: none;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) :is(b, small, .bb-i, .bb-tx) {
+  color: #fff !important; text-shadow: 0 1px 2px rgba(0, 0, 0, .85), 0 0 8px rgba(var(--ph-rgb), .9) !important;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb-i {
+  border-radius: 50%; border-color: transparent; background: var(--vxb-orb); box-shadow: var(--vxb-orb-shadow);
+  color: color-mix(in srgb, var(--vx-core) 60%, #fff);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-menu .bb:is(:hover, :focus-visible) .bb-i {
+  border-color: transparent !important; background: var(--vxb-orb-hot) !important; box-shadow: var(--vxb-orb-shadow) !important;
+}
+
 /* ---- the rail head, the finder, the portraits, the composer: glass and rims, no silver ---- */
 html body.vx:not(.hud-mode).vx-b #screen-game #left .ws-head :is(.ws-view, .ws-head-acts),
 html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel #chat-inputrow { filter: none; }
@@ -2208,3 +2252,11 @@ html body.vx:not(.hud-mode).vx-b .term:not(.pw) .term-head :is(.gd-window-button
   color: color-mix(in srgb, var(--vx-core) 60%, #fff);
 }
 html body.vx:not(.hud-mode).vx-b .term:not(.pw) .term-head :is(.gd-window-button, .term-x):is(:hover, :focus-visible) { background: var(--vxb-orb-hot); color: #fff; }
+
+/* ---- tips: a bead of dark glass with a lit rim (no square card, no corner node) ---- */
+html body.vx:not(.hud-mode).vx-b .station-tip,
+html body.vx:not(.hud-mode).vx-b > .hint-bubble.dock-tip {
+  border-radius: 10px; border-color: transparent; color: #f2fff5;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ph) 14%, #030506), color-mix(in srgb, var(--ph) 5%, #010202));
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .7), inset 0 1px 0 rgba(255, 255, 255, .18), 0 0 0 1px #000, 0 0 12px rgba(var(--ph-rgb), .35), 0 6px 18px rgba(0, 0, 0, .7);
+}
