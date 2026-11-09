@@ -31,6 +31,8 @@ const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 const SERVE = path.resolve(__dirname, '..', 'sidecar', 'acp', 'serve.js');
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+// poll until pred() holds or ms pass; the caller asserts the state itself afterwards
+async function waitFor(pred, ms) { const until = Date.now() + ms; while (!pred() && Date.now() < until) await sleep(50); }
 
 /* Content-driven mock provider — a queue desyncs, because a real run also makes reflection/aux calls this test
    never asked for. See test/routine-manage.e2e.test.js for the same note. */
@@ -343,6 +345,7 @@ function makeAcpClient(port, onPermission) {
         sessionId: sessionId, prompt: [{ type: 'text', text: 'work slowly (cancel probe)' }]
       }, 60000);
       await sleep(1200);
+      await waitFor(() => mock.inflight() >= 1, 30000);   // bounded: a loaded machine can start the run late (5b below)
       A.ok(mock.inflight() >= 1, 'the run is genuinely in flight when the cancel is sent');
       client.notify('session/cancel', { sessionId: sessionId });
       const r = await inflight;
@@ -368,7 +371,12 @@ function makeAcpClient(port, onPermission) {
       const runA = client.send('session/prompt', { sessionId: a, prompt: [{ type: 'text', text: 'work slowly (alpha)' }] }, 90000);
       await sleep(900);
       const runB = client.send('session/prompt', { sessionId: b, prompt: [{ type: 'text', text: 'work slowly (beta)' }] }, 90000);
-      await sleep(1600);
+      /* Wait (bounded) for the provider to hold BOTH completions before the cancel; a fixed sleep was a wall-clock guess.
+         A run's start reads its owner-evidence proof from the transcript synchronously, and on a loaded Windows machine
+         that one file open was measured blocking 2.5-3.3 s (the antivirus scanning the segment the other run had just
+         appended to), so run B reached the provider after the old 1.6 s look. The proof is unchanged: nothing is
+         cancelled until both runs are provably in flight. */
+      await waitFor(() => mock.inflight() >= 2, 30000);
       A.eq(mock.inflight(), 2, 'both runs are genuinely in flight (the provider is holding two completions)');
 
       client.notify('session/cancel', { sessionId: a });          // cancel ONLY session A
