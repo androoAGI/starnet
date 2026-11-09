@@ -5,6 +5,9 @@
        third-party message must instead enter a fresh, tainted run. Hold run #1 through the first follow-up,
        prove no false supersede, then forward a task on the SAME chat and assert the genuine supersede event
        and prior work-item id on SSE. A harmless canned shell call proves the forwarded-content lock on wire.
+       Since final review #1 (b28a62913) the owner's DM to an ask-first agent asks in the chat, so the forwarded
+       run first settles its Task Brief, then its shell call reaches the owner only as a fresh permission card;
+       nobody answers it, it times out, and the provider hears the taint lock with its forwarded-message source.
      · workshop.decided (finding cf61a8e9; shared/events.js:140, emit sidecar/index.js:~6749) — emit-only
        telemetry when the Commander decides a pending deliverable. Driven deterministically via the 'later'
        decision (no manifest/disk needed): POST /api/workshop/decide {decision:'later'} emits it on the bus.
@@ -57,6 +60,15 @@ function startMockOpenRouter() {
           const forwardedTask = lastUser && userWords(lastUser) === FORWARDED_TASK;
           res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
           if (forwardedTask && !msgs.some(m => m && m.role === 'tool' && m.tool_call_id === 'atlas_taint_probe')) {
+            // A task-shaped run settles its Task Brief before consequential work (a call that would open a card is held
+            // for the brief first), so the probe below reaches the content trust boundary itself.
+            const briefOffered = ((parsed && parsed.tools) || []).some(t => t && t.function && t.function.name === 'brief_proceed');
+            if (briefOffered && !msgs.some(m => m && m.role === 'tool' && m.tool_call_id === 'atlas_brief')) {
+              res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'atlas_brief', type: 'function', function: { name: 'brief_proceed', arguments: '{"objective":"Research the release notes"}' } }] } }] }) + '\n\n');
+              res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) + '\n\n');
+              res.end('data: [DONE]\n\n');
+              return;
+            }
             // Safe even if a regression dispatches it: echo only. The assertion requires the genuine taint refusal.
             res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'atlas_taint_probe', type: 'function', function: { name: 'shell_exec', arguments: '{"cmd":"echo ATLAS_TAINT_MUST_NOT_EXECUTE"}' } }] } }] }) + '\n\n');
             res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) + '\n\n');
@@ -100,6 +112,8 @@ function startMockTelegram() {
         return;
       }
       if (method === 'sendMessage') { sends.push(body); return respond(res, { ok: true, result: { message_id: ++messageId } }); }
+      // the station stamps a permission card when it settles (the forwarded run's card times out, unanswered)
+      if (method === 'editMessageText' || method === 'answerCallbackQuery') return respond(res, { ok: true, result: true });
       respond(res, { ok: false, error_code: 404, description: 'unknown method' });
     });
     server.listen(0, HOST, () => resolve({
@@ -164,7 +178,9 @@ async function waitUntil(fn, ms, label) { const deadline = Date.now() + ms; whil
     SKYNET_OPENROUTER_KEY: 'sk-or-v1-events-fake', STARNET_OPENROUTER_KEY: 'sk-or-v1-events-fake',
     SKYNET_DEFAULT_MODEL: 'test/model', STARNET_DEFAULT_MODEL: 'test/model',
     SKYNET_TELEGRAM_TOKEN: 'TESTTOKEN', STARNET_TELEGRAM_TOKEN: 'TESTTOKEN',
-    SKYNET_TELEGRAM_API_BASE: tg.base, STARNET_TELEGRAM_API_BASE: tg.base
+    SKYNET_TELEGRAM_API_BASE: tg.base, STARNET_TELEGRAM_API_BASE: tg.base,
+    // the forwarded run's permission card goes unanswered: it is denied at the shortest limit the station allows
+    SKYNET_CONSENT_TIMEOUT_MS: '5000', STARNET_CONSENT_TIMEOUT_MS: '5000'
   };
   const { child, port } = await boot(await allocatePort(), env, 20);
   // an owner code is an authority change (review2 #1): confirmed with the code this station printed
@@ -233,8 +249,13 @@ async function waitUntil(fn, ms, label) { const deadline = Date.now() + ms; whil
       return last && userWords(last) === FORWARDED_TASK;
     });
     const probeResult = () => forwardedRequests().flatMap(r => r.messages || []).find(m => m && m.role === 'tool' && m.tool_call_id === 'atlas_taint_probe');
-    await waitUntil(() => !!probeResult(), 12000, 'the forwarded run returns its taint refusal to the provider');
+    // the card times out after the station's 5 s minimum (env above), so allow it that and a loaded machine's start
+    await waitUntil(() => !!probeResult(), 45000, 'the forwarded run returns its taint refusal to the provider');
     A.ok(!forwardedRequests().some(r => loopNotes(r.messages, 'steering_note').some(n => n.includes(FORWARDED_TASK))), 'forwarded content reaches a new user turn, never an owner steering note');
+    // final review #1 (b28a62913): the owner's DM to an ask-first agent asks in the chat, so the forwarded run's shell call
+    // reached the owner only as a fresh permission card naming the command; nobody answered it, and it did not run
+    const probeCard = tg.sends.find(s => String(s.chat_id) === String(CHAT) && s.reply_markup && /Permission needed/.test(String(s.text || '')));
+    A.ok(probeCard && /ATLAS_TAINT_MUST_NOT_EXECUTE/.test(String(probeCard.text || '')), 'the forwarded shell call reaches the owner only as a fresh permission card naming the command');
     A.ok(/BLOCKED: "shell[._]exec" is no longer available on this run/.test(String(probeResult().content)), 'the harmless shell probe is refused by the real content trust boundary');
     A.ok(/started with outside content.*forwarded message/.test(String(probeResult().content)), 'the provider sees the real forwarded-message taint provenance');
     await waitUntil(() => chatReplies().some(s => String(s.text || '').includes(FORWARDED_ANSWER)), 8000, 'the forwarded replacement answer is delivered');
