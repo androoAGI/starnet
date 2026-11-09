@@ -781,7 +781,7 @@
       const failed = Array.isArray(f.failed) ? f.failed : [], held = Array.isArray(f.held) ? f.held : [];
       if (!failed.length && held.length) {
         return 'The previous call' + (held.length > 1 ? 's (' + held.join(', ') + ') were' : ' (' + held[0] + ') was')
-          + ' held by the Task Brief gate, not failed: nothing ran. Settle the brief with brief_proceed (or ask the one material question with brief_ask), then make the same call again. If you end here instead, say plainly that it did not run.';
+          + ' held by the Task Brief gate, not failed: nothing ran. Settle the brief with brief_proceed (or ask the one material question with brief_ask), then make the same call' + (held.length > 1 ? 's' : '') + ' again. If you end here instead, say plainly that ' + (held.length > 1 ? 'they' : 'it') + ' did not run.';
       }
       return 'The previous path failed (' + (failed.join(', ') || 'the previous tool') + '), but one failed tool is not proof that the Commander\'s task is impossible. Do not end by handing avoidable setup work to the Commander. Inspect the exact error, then make an ACTUAL alternate call now using a different query, arguments, strategy, or tool.'
         + (f.search ? ' Use tool_search when a deferred capability or alternate tool may exist; do not claim a tool is absent before searching.' : '')

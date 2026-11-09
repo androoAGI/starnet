@@ -199,6 +199,8 @@ const NOTHING_RAN = 'and are ending without running anything against it.';
     A.ok(!/The previous path failed/.test(t), 'B1 a held call is never called failed: ' + t.slice(0, 220));
     A.ok(/\bheld\b/.test(t) && /fs_write/.test(t) && /nothing ran/.test(t), 'B1 ...it says the call was held and nothing ran');
     A.ok(/make the same call again/.test(t), 'B1 ...and that the same call is still to be made (the hold\'s own instruction)');
+    const two = typeof _internals.nudgePremise === 'function' ? _internals.nudgePremise('failure_recovery', { failed: [], held: ['fs_write', 'shell_exec'] }) : '';
+    A.ok(/^The previous calls \(fs_write, shell_exec\) were held by the Task Brief gate, not failed: nothing ran\./.test(two) && /make the same calls again/.test(two) && /that they did not run/.test(two), 'B1 two held calls are named together: ' + two.slice(0, 160));
 
     // B3. a mixed batch: the failed call is named as failed, the held one is not
     const mixed = await run([batch(['r1', 'fs_read', { path: 'config.yaml' }], ['w1', 'fs_write', { path: 'note.txt', content: 'x' }]), say('Could not do it.'), say('Could not.'), say('Could not.')], { held: ['w1'], readFails: true });
