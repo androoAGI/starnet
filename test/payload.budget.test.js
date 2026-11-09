@@ -131,12 +131,22 @@ const HOST = '127.0.0.1';
    floor, an OpenRouter key on the mock): 95,184 -> 87,340 fixed-prefix bytes (system 29,774 unchanged; 83 -> 70 tools,
    65,410 -> 57,566 tool bytes, of which -491 is brief_ask saying its per-question field descriptions once). prefixBytes'
    budget is the cost audit's target, 87,500; the others are measurement + ~0.3% (chars) / ~0.6% (tool bytes). claude-cli
-   sends the same call as one --system-prompt-file: 91,700 -> 84,558 bytes, budget measurement + ~0.3%. */
+   sends the same call as one --system-prompt-file: 91,700 -> 84,558 bytes, budget measurement + ~0.3%.
+   THE BRIEF IN THE SAME RESPONSE, STACKED 2026-11-09 (agent/cost-stack: W1.2 brief-same-response on top of W1.3). W1.2 tells
+   the lead to send brief_proceed in the SAME response as its first write, listed first, so a consequential task message no
+   longer pays one extra full-context request to settle the Task Brief. Its words ride only the comms-task call (the probe
+   rows above carry neither the COMMS persona nor the Task Brief tools): the fork.js Task Brief doctrine +121 system chars,
+   brief_proceed's description +111 tool bytes. Each lane was green alone (W1.2's tree has no comms-task row); stacked,
+   comms-task measured 32,140 chars / 57,677 tool bytes / 87,572 prefix bytes against 32,115 / 57,900 / 87,500. Intended
+   growth: +232 bytes a call buys back a whole request per consequential message. The comms-task system and prefix budgets
+   move by exactly that growth (+121, +232), so each keeps W1.3's headroom; the prefix now sits 72 bytes over the audit's
+   87,500, for a later prefix diet to win back. claude-cli 84,558 -> 84,790 bytes and lead-with-crew 55,893 -> 56,033 tool
+   bytes (W1.11: team.subagents' wait and timeoutMs) stay inside their budgets. */
 const BUDGET = {
   'default-new-install': { systemChars: 22282, tools: 66, toolBytes: 51300 },
   'fully-granted-floor': { systemChars: 22502, tools: 66, toolBytes: 51300 },
   'lead-with-crew': { systemChars: 25422, tools: 71, toolBytes: 56230 },
-  'comms-task': { systemChars: 32115, tools: 70, toolBytes: 57900, prefixBytes: 87500 }
+  'comms-task': { systemChars: 32236, tools: 70, toolBytes: 57900, prefixBytes: 87732 }
 };
 // the comms-task call on the claude-cli route, where the tool schemas are text inside the system prompt file (bytes)
 const CLI_BUDGET = { systemBytes: 84810 };
