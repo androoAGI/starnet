@@ -8499,9 +8499,10 @@ function ledgerPriorWorkVeto(agentId, vet) {
 }
 /* ---- THE FUTILE-BEAT SKIP (cost fix W1.6) — the rule lives in sidecar/unattended-admission.js; this is the host's half.
    A build beat that ended 'duplicate-backlog' against a BUILT, undecided backlog item is remembered with the fingerprint
-   of what it read (futileBeatFingerprint). The pre-spend gate (nightshiftPrecheck) then holds every later beat as
+   of what it read (futileBeatFingerprint). The pre-spend gate (nightshiftPrecheck) then holds every later BUILD beat as
    'awaiting-verdict' — no model call, no leash unit — while that fingerprint is unchanged and the item still waits on
-   the Commander's verdict in the live backlog. Any change re-admits at once; a beat the Commander fires by hand never
+   the Commander's verdict in the live backlog and on the desk. A beat that would run as a reason-only draft is never
+   held, and one that runs forgets the marker. Any change re-admits at once; a beat the Commander fires by hand never
    asks. Persisted, so a restart does not buy one more futile beat. Ids and a hash only, no session text. */
 const NIGHTSHIFT_STUCK_FILE = path.join(WORKSPACES, 'nightshift.stuck.json');
 function loadNightshiftStuck() {
@@ -8509,19 +8510,29 @@ function loadNightshiftStuck() {
   catch (_) { return {}; }
 }
 let nightshiftStuck = loadNightshiftStuck();   // agentId -> { fp, runId, backlogId, at }
+// a marker a restart carried over is re-proved against the desk once, off the boot path (proveFutileDesk)
+setImmediate(() => { for (const aid of Object.keys(nightshiftStuck)) proveFutileDesk(aid, nightshiftStuck[aid]); });
 
 // what a project focus's scan reads that a cheap read can prove: a git project's HEAD commit (a commit, checkout or pull
 // moves it), read from .git without spawning git; a project that is not a git repo shows the scan only its top-level names.
-// An uncommitted edit alone does not move it (the scan's `git status` is a spawn per call, too heavy for every tick).
-// A file that is absent reads as '' — absence is an answer here (no gitfile, no loose ref), not a failure to report.
+// The repo is the one the scan's `git -C <root>` reads: the root's own .git, or the nearest one above it (a focus on a
+// folder inside a repo). An uncommitted edit alone does not move it (the scan's `git status` is a spawn per call, too heavy
+// for every tick). A file that is absent reads as '' — absence is an answer here (no gitfile, no loose ref), not a failure.
 function readSmallText(p) {
   try { return fs.readFileSync(p, 'utf8'); } catch (_) { return ''; }
 }
 function projectHeadOf(root) {
-  let gitDir = path.join(root, '.git');
-  const link = /^gitdir:\s*(.+?)\s*$/m.exec(readSmallText(gitDir));   // a linked worktree: .git is a file naming its git dir
-  if (link) gitDir = path.resolve(root, link[1]);
-  const head = readSmallText(path.join(gitDir, 'HEAD')).trim();
+  let top = path.resolve(root), dotGit = '';
+  for (let i = 0; i < 40 && !dotGit; i++) {
+    if (fs.existsSync(path.join(top, '.git'))) { dotGit = path.join(top, '.git'); break; }
+    const up = path.dirname(top);
+    if (up === top) break;
+    top = up;
+  }
+  let gitDir = dotGit;
+  const link = dotGit ? /^gitdir:\s*(.+?)\s*$/m.exec(readSmallText(dotGit)) : null;   // a linked worktree: .git is a file naming its git dir
+  if (link) gitDir = path.resolve(top, link[1]);
+  const head = gitDir ? readSmallText(path.join(gitDir, 'HEAD')).trim() : '';
   if (head) {
     const ref = /^ref:\s*(\S+)/.exec(head);
     if (!ref) return head.slice(0, 64);   // detached
@@ -8541,23 +8552,34 @@ function projectHeadOf(root) {
      work + backlog — the prior-work list the beat's veto runs on and the raw queue its dedup runs on (a verdict, a new task,
                       a build landing or being picked up all move them); activity — the newest owner runs (a new message);
      context        — goal, dossier beliefs, open threads; focus — the declared focus and the steer; project — a project
-                      focus's HEAD commit (projectHeadOf); posture + engine — the dial's rungs and the model it would call.
-   The beat's own side effects stay out: its runs are internal streams and its refused queue writes nothing.
+                      focus's HEAD commit (projectHeadOf); posture + engine — the dial's rungs and the model it would call;
+     persona        — the system text its calls run with (an agent edit, its learned tail, the dossier and goal it carries;
+                      cache-stable by design, so it moves only when they do);
+     verdicts       — what the Commander answered that reaches its prompt through the evidence note: run ratings (append-only
+                      and first-wins, so their count moves on every new like or dislike), their newest answers to
+                      recommendations (the beat's own impression stays 'shown' and is left out), and the learning switch.
+   The beat's own side effects stay out: its runs are internal streams, its refused queue writes nothing, its impression is
+   'shown'. Left out on purpose: the learned interest weights (they decay with the clock alone, and are learned from the
+   owner runs read above), the page-synced work signal (the page re-sends it after every run end, the beat's own included),
+   the track record and the learn weights (the beat's own records move them), and a project's uncommitted edits (the scan's
+   `git status` is a spawn per call, too heavy for every check).
    Returns null when a read throws: an unproven reading never holds a beat. */
 function futileBeatFingerprint(agentId) {
   try {
     const str = v => (v == null ? '' : String(v));
     const focus = (nightFocusState && nightFocusState.focus) || null;
     const steer = (nightFocusState && nightFocusState.steer) || null;
-    const owner = [];
-    for (const r of runStore.list(null, { limit: 400 }) || []) {
-      if (owner.length >= 20) break;
-      if (r && runView('nightshift', r) && !isInternalRun(r)) owner.push([str(r.runId), Number(r.ts) || 0]);
-    }
+    const owner = (runStore.list(null, { limit: 400 }) || []).filter(r => r && runView('nightshift', r) && !isInternalRun(r)).slice(0, 20).map(r => [str(r.runId), Number(r.ts) || 0]);
     const snap = commanderPosture.beliefs() || {};
     const beliefs = {};
     for (const dim of Object.keys(snap.beliefs || {})) beliefs[dim] = (snap.beliefs[dim] || []).map(b => str(b && b.text));
     const sum = commanderPosture.summary() || {};
+    const ident = cronIdentityFor(agentId) || {};
+    let rated = -1;
+    try { rated = growthRatings.count(); } catch (_) { rated = -1; }   // an unreadable ratings ledger reads alike at every check (the beat's track record reads none)
+    const answered = recommendationLedger.read().entries.filter(e => e && e.state !== 'shown' && e.state !== 'opened')
+      .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)).slice(0, 20).map(e => [str(e.id), str(e.state)]);
+    const learning = personalizationStore.read() || {};
     return UnattendedAdmission.fingerprint({
       work: nightPriorWork(agentId, focus).map(p => [p.status, p.runId, p.backlogId || '', p.title]),
       backlog: workshopStore.backlogOf(agentId).map(b => [str(b.id), str(b.title).toLowerCase().replace(/\s+/g, ' ').trim(), str(b.builtRunId), str(b.buildingRunId)]).sort(),
@@ -8566,24 +8588,52 @@ function futileBeatFingerprint(agentId) {
       focus: [str(focus && focus.kind), str(focus && focus.ref), str(steer && steer.ref)],
       project: (focus && focus.kind === 'project' && focus.ref) ? [str(focus.ref), !!isBlessedRoot(focus.ref), isBlessedRoot(focus.ref) ? projectHeadOf(focus.ref) : ''] : null,
       posture: [str(sum.initiative), str(sum.reach)],
-      engine: [str(cronProviderFor({ agentId })), str(cronModelFor({ agentId }))]
+      engine: [str(cronProviderFor({ agentId })), str(cronModelFor({ agentId }))],
+      persona: (ident.system && String(ident.system)) || str(cronSystemFor(agentId)),
+      verdicts: { rated, answered, learning: [learning.enabled !== false, Number(learning.revision) || 0] }
     });
   } catch (e) { failNote('nightshift.futile.fingerprint', e); return null; }
 }
 
+// THE BEAT'S MODE — one predicate, read by the beat itself (runNightshiftBeat), by the pre-spend gate's held-floor check
+// and the futile-beat hold (nightshiftPrecheck), and by status (buildMode): a beat is a real jailed BUILD only when the
+// dial builds unattended AND the away-workshop grant is on; anything else runs as a reason-only draft, which names no
+// room and queues nothing, so it is never held on the saved floor and can never be the futile beat.
+function nightshiftBeatBuilds(agentId, posture) {
+  const p = posture || commanderPosture.summary() || {};
+  return !!(p.buildsUnattended && workshopOf(agentId));
+}
+
+// THE DESK, as the hold may claim it: /api/workshop/pending lists a built item only when validateWorkshopManifest proves
+// its deliverable on disk. That proof is async, so it runs once when the futile beat settles (settleFutileBeat retracts
+// the hold when it fails); between beats this sync read re-checks the deliverable is still there, so a build whose run
+// dir is gone is never claimed to be waiting on the desk. The path is the one that proof resolves (the agent's jail).
+function futileDeskHas(agentId, runId) {
+  const id = String(runId || '');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return false;
+  let dir = '';
+  try { dir = path.join(WORKSPACES, fsJail.safeAgentId(agentId), 'workshop', id); }
+  catch (e) { failNote('nightshift.futile.desk-path', e); return false; }   // an agent id the jail refuses has no desk to claim
+  return fs.existsSync(path.join(dir, 'deliverable.json'));
+}
+
 // the pre-spend question (nightshiftPrecheck, and status through it): would this agent's next beat be the futile one
 // again? -> the precheck's stand-down { ok:false, reason:'awaiting-verdict', why:{ title, runId } } naming the build it
-// would collide with, read from the LIVE backlog — or null to admit. Reads nothing unless a futile beat is remembered.
+// would collide with, read from the LIVE backlog — or null to admit. Reads nothing unless a futile beat is remembered,
+// and nothing more when the next beat would not build (a reason-only draft is never the futile beat).
 function futileBeatHold(agentId) {
   const stuck = nightshiftStuck[agentId];
   if (!stuck) return null;
-  const item = workshopStore.backlogOf(agentId).find(b => b && b.builtRunId && b.builtRunId === stuck.runId);
-  const d = UnattendedAdmission.decide({ stuck, fp: futileBeatFingerprint(agentId), waiting: item ? { title: item.title, runId: item.builtRunId } : null });
+  const builds = nightshiftBeatBuilds(agentId);
+  const item = builds ? workshopStore.backlogOf(agentId).find(b => b && b.builtRunId && b.builtRunId === stuck.runId) : null;
+  const d = UnattendedAdmission.decide({ stuck, builds, fp: builds ? futileBeatFingerprint(agentId) : null,
+    waiting: item ? { title: item.title, runId: item.builtRunId } : null, desk: !!item && futileDeskHas(agentId, item.builtRunId) });
   return d.admit ? null : { ok: false, reason: d.binding, why: d.why };
 }
 
-// after a build beat: remember it when it ended on the dead end against an undecided build, forget it on any other end
-// (a delivery, another stand-down, a throw). `seen` is the fingerprint read before the beat read anything.
+// after a beat: remember it when it ended on the dead end against an undecided build, forget it on any other end (a
+// delivery, another stand-down, a throw, a reason-only draft beat: seen and result null). `seen` is the fingerprint read
+// before the beat read anything. A remembered build is then proved the way the desk proves it (proveFutileDesk).
 function settleFutileBeat(agentId, seen, result) {
   const next = UnattendedAdmission.settle({ fp: seen }, result, Date.now());
   if (!next && !nightshiftStuck[agentId]) return;
@@ -8592,6 +8642,18 @@ function settleFutileBeat(agentId, seen, result) {
   nightshiftStuck = all;
   try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(NIGHTSHIFT_STUCK_FILE, { v: 1, stuck: all }); }
   catch (e) { failNote('nightshift.futile.save', e); }
+  if (next) proveFutileDesk(agentId, next);
+}
+
+// the desk's own proof of a remembered build (validateWorkshopManifest, the read /api/workshop/pending lists it by): a build
+// the desk would not list is not awaited, so the marker is forgotten and the next beat runs — the hold is never asserted
+// on a build the Commander cannot find. Async; it leaves a newer marker alone.
+function proveFutileDesk(agentId, mark) {
+  if (!mark || !mark.runId) return;
+  validateWorkshopManifest(agentId, mark.runId).then((man) => {
+    const cur = nightshiftStuck[agentId];
+    if (!man && cur && cur.runId === mark.runId && cur.at === mark.at) settleFutileBeat(agentId, null, null);
+  }, (e) => failNote('nightshift.futile.desk', e));
 }
 
 // copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
@@ -9764,7 +9826,7 @@ function nightshiftPrecheck() {
     } catch (_) { return { ok: false, reason: 'precheck-error' }; }
     /* HELD FLOOR GATE (pre-spend): a saved floor that cannot be proved right now refuses an unattended BUILD (runNightshiftActShift stands down on the
        same hold), so the beat is declined here, before the leash is spent on it. Only the beat that would BUILD asks — a reason-only draft names no room. */
-    if ((commanderPosture.summary() || {}).buildsUnattended && workshopOf(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
+    if (nightshiftBeatBuilds(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
     const snap = commanderPosture.beliefs() || {};
     const summary = { known: Array.isArray(snap.known) ? snap.known : Object.keys((snap.beliefs) || {}) };
     const beliefsByDim = (dim) => (snap.beliefs && snap.beliefs[dim]) || [];
@@ -9818,7 +9880,7 @@ async function runNightshiftBeat(opts) {
   // UNCHANGED (NS-1 behavior). A tool-run needs the away-workshop WRITE grant (workshopOf) to unlock its jailed
   // writes through the SAME consent broker — without it the run would default-deny every write, so we require it.
   const posture = (commanderPosture.summary() || {});
-  if (posture.buildsUnattended && workshopOf(agentId)) {
+  if (nightshiftBeatBuilds(agentId, posture)) {
     // W1.6: what this beat is about to read, fingerprinted before it reads it; how it ended decides whether the next
     // beat is held as futile (settleFutileBeat) — on every path that runs a build beat, scheduled or fired by hand
     const seen = futileBeatFingerprint(agentId);
@@ -9826,6 +9888,9 @@ async function runNightshiftBeat(opts) {
     try { result = await runNightshiftActShift(Object.assign({}, opts, { agentId })); return result; }
     finally { settleFutileBeat(agentId, seen, result); }
   }
+  // W1.6: a reason-only draft queues nothing, so it can never end on the futile dead end — once one runs, the last beat is
+  // no longer the futile one, and a later build beat (the grant turned back on) is admitted, not held on that older one
+  settleFutileBeat(agentId, null, null);
   // HONEST DEGRADE (2026-07-13): the dial permits real building but the away-workshop grant is missing, so this
   // beat runs as a reason-only draft. Record that in the decision ledger — the old silent fall-through is exactly
   // how "dial at max, station never builds" went unnoticed for days. (The posture route now auto-grants, so this
@@ -27470,7 +27535,8 @@ function handleNightshiftStatus(req, res) {
   // in and exactly why — the silent degrade read as "the station never does anything". All provable state.
   const wsGranted = (() => { try { return workshopOf(NIGHTSHIFT_AGENT); } catch (_) { return false; } })();
   out.workshopGranted = wsGranted;
-  out.buildMode = (summary.buildsUnattended && wsGranted) ? 'build' : 'draft';
+  // the beat's own predicate (nightshiftBeatBuilds), so status can never name a mode the beat or its futile-beat hold disagrees with
+  out.buildMode = (() => { try { return nightshiftBeatBuilds(NIGHTSHIFT_AGENT, summary); } catch (_) { return false; } })() ? 'build' : 'draft';
   out.draftReason = out.buildMode === 'build' ? null : (summary.buildsUnattended ? 'no-workshop-grant' : 'reach');
   // the readiness detail behind a binding:'readiness' stand-down (dims usable / recent runs vs the hot bars).
   out.readiness = nightshiftReadinessView();

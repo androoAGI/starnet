@@ -50,6 +50,8 @@ const dossierStoreSrc = fs.readFileSync(path.join(ROOT, 'frontend', 'app', 'doss
 const postureSrc = A.fnBody(sidecarSrc, 'const commanderPosture = {');
 const precheckSrc = A.fnBody(sidecarSrc, 'function nightshiftPrecheck()');
 const viewSrc = A.fnBody(sidecarSrc, 'function nightshiftReadinessView()');
+const buildsSrc = A.fnBody(sidecarSrc, 'function nightshiftBeatBuilds(');   // the beat's mode, which the held-floor gate asks
+A.ok(buildsSrc.length > 60 && buildsSrc.length < 400, 'extracted the real nightshiftBeatBuilds from sidecar/index.js (' + buildsSrc.length + ' chars)');
 for (const [name, body] of [['commanderPosture', postureSrc], ['nightshiftPrecheck', precheckSrc], ['nightshiftReadinessView', viewSrc]]) {
   A.ok(body.length > 200 && body.length < 8000, 'extracted the real ' + name + ' from sidecar/index.js (' + body.length + ' chars)');
 }
@@ -78,7 +80,7 @@ function makeHost(runs, futile) {
     // the futile-beat skip (W1.6): nothing remembered unless a case hands one in (its own proof: unattended-admission + nightshift-futile-beat.e2e)
     futileBeatHold: () => futile || null
   });
-  return vm.runInContext(postureSrc + ';\n' + precheckSrc + '\n' + viewSrc + '\n({ commanderPosture, nightshiftPrecheck, nightshiftReadinessView })', ctx);
+  return vm.runInContext(postureSrc + ';\n' + buildsSrc + '\n' + precheckSrc + '\n' + viewSrc + '\n({ commanderPosture, nightshiftPrecheck, nightshiftReadinessView })', ctx);
 }
 
 // the beliefs snapshot the REAL DossierStore sends after the awakening commits its docs (app.js applyAgentConfig →

@@ -10,7 +10,12 @@
        the build it waits on (binding 'awaiting-verdict'); status says the same, read from the live backlog;
      · the hold survives a restart (the stuck state is reached in one boot, the next beats run in a second one);
      · it is NOT a limit: a new message re-enables the beat at once (it makes its call, ends on the same dead end, and
-       holds again), and a verdict on the waited-on build re-enables it too.
+       holds again), and a verdict on the waited-on build re-enables it too;
+     · it holds only a beat that would BUILD (review blocker, 11-09): with the away-workshop grant turned off the next
+       beat is a reason-only draft, which queues nothing and so can never be the futile one — it runs and makes its
+       call, status stops claiming a build verdict is awaited, and the marker is forgotten; with the grant back on, a
+       build beat re-reaches the dead end and the hold returns. (Fails on the first lane cut, dcc3843f9: every draft
+       beat stood down as 'awaiting-verdict' while status said buildMode 'draft'.)
 
    The stuck state is reached through the real pipeline, never seeded by hand: three force-fired beats build
    "Release checklist tool", build its continuation, then collide with that continuation. Boot 1 never ticks the driver
@@ -19,6 +24,8 @@
 'use strict';
 
 const A = require('./_assert.js');
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const { userWords } = require('./helpers/host-notes.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
@@ -31,7 +38,7 @@ const CONT = 'Continue: ' + TITLE;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // mock OpenRouter: counts every chat call by kind and the bytes of each propose request (the beat's lead-model call).
-const calls = { propose: 0, act: 0, other: 0, proposeBytes: 0 };
+const calls = { propose: 0, act: 0, other: 0, draft: 0, proposeBytes: 0 };
 function startMock() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
@@ -67,6 +74,11 @@ function startMock() {
             const job = ((prompt.match(/^- JOB: (.+)$/m) || [])[1] || TITLE).trim();
             tool('f2', 'fs_write', { path: dir + '/deliverable.json', content: JSON.stringify({ v: 1, runId, agentId: 'agent', backlogId: '', title: job, kind: 'tool', summary: 'A release checklist helper.', files: [{ path: 'tool.py', bytes: 19 }], howToUse: 'Run it.', notVerified: ['not executed'] }) });
           } else text('Built it.');
+        } else if (prompt.indexOf('TITLE: <a short title for the draft>') >= 0) {
+          // a reason-only DRAFT beat's do call (the away-workshop grant is off): it leaves no draft, so the desk and the
+          // prior work the next build beat reads stay exactly as they were
+          calls.draft++;
+          text('');
         } else if (/JOB:/.test(prompt) && /GROUNDS:/.test(prompt)) {
           // the beat's PROPOSE call: a model that keeps re-proposing the same build (the observed dead end)
           calls.propose++; calls.proposeBytes += body.length;
@@ -175,6 +187,30 @@ async function until(pred, maxMs) {
     A.eq(nsCalls() - ns1, 1, 'exactly one beat ran on the new message, then the skip held again');
     A.eq((Number(s2.beatsUsedToday) || 0) - used1, 1, 'that beat spent exactly one leash unit');
     A.eq(s2.binding, 'awaiting-verdict', 'it ended on the same dead end, so the station waits on the verdict again');
+
+    // ===== ONLY A BUILD BEAT IS HELD — the away-workshop grant off makes the next beat a reason-only draft =====
+    const stuckFile = path.join(fx.workspace, 'nightshift.stuck.json');
+    const marked = () => { try { return fs.readFileSync(stuckFile, 'utf8').indexOf(runId2) >= 0; } catch (_) { return false; } };
+    A.ok(marked(), 'the futile beat is remembered on disk (it names the build it collided with)');
+    const all = () => calls.propose + calls.act + calls.other + calls.draft;
+    const before3 = all(), draft3 = calls.draft, used3 = Number(s2.beatsUsedToday) || 0, tOff = Date.now();
+    const off = (await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: false })).body || {};
+    A.ok(off.ok === true, 'the Commander turns the away-workshop grant off');
+    A.ok(await until(async () => all() > before3, 15000), 'with the grant off, a scheduled beat makes its call: a reason-only draft is never held as futile');
+    const sDraft = await status(fx);
+    A.ok(sDraft.buildMode === 'draft' && sDraft.binding !== 'awaiting-verdict' && !sDraft.waitingOn,
+      'status stops claiming a build verdict is awaited while the beats run as drafts (got ' + JSON.stringify({ buildMode: sDraft.buildMode, binding: sDraft.binding, waitingOn: sDraft.waitingOn }) + ')');
+    A.ok((await ledger(fx)).some(e => e && e.source === 'nightshift' && e.kind === 'note' && e.reason === 'no-workshop-grant' && Number(e.ts) >= tOff), 'that beat ran as a reason-only draft (its own ledger note says so)');
+    A.ok(!marked(), 'the draft beat forgot the futile one: its last beat is no longer the futile one');
+    const on = (await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).body || {};
+    A.ok(on.ok === true, 'the grant goes back on');
+    let sRe = {};
+    const reheld = await until(async () => { sRe = await status(fx); return !sRe.inFlight && sRe.binding === 'awaiting-verdict' && !!sRe.waitingOn && sRe.waitingOn.title === CONT; }, 15000);
+    A.ok(reheld && marked(), 'with the grant back on, a build beat re-reaches the dead end and the hold returns, naming the same build');
+    console.log('measure: grant off then on: draft do calls=' + (calls.draft - draft3) + ', leash units spent across the drafts and the re-held build beat=' + ((Number(sRe.beatsUsedToday) || 0) - used3));
+    const held3 = all();
+    await sleep(1500);
+    A.eq(all() - held3, 0, 'and holds: no further call while nothing else changes');
 
     // ===== NOT A LIMIT (2) — a verdict on the waited-on build re-enables the beat =====
     const ns2 = nsCalls();

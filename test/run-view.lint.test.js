@@ -22,11 +22,13 @@ const A = require('./_assert.js');
 const { sidecarSourceFiles } = require('./helpers/source.js');
 
 const IDX = 'sidecar/index.js';
-// key -> the sixteen tagged sites. `anchor` is exact source text containing the runStore call; it must hold the tag itself, unless
+// key -> the seventeen tagged sites. `anchor` is exact source text containing the runStore call; it must hold the tag itself, unless
 // `follow` is given: then the tag must appear in `follow` within 1500 characters after the anchor.
 const TAGGED = [
   { key: 'nightfocus', anchor: "runTitles = (runStore.list(null, { limit: 60 }) || []).filter(r => r && !contextpack.isInternalStream(r.streamId) && runView('nightfocus', r))" },
   { key: 'nightshift', anchor: "return (runStore.list(null, { limit: 60 }) || []).filter(r => r && runView('nightshift', r) && (r.internal ||" },
+  // the futile-beat skip's fingerprint (W1.6): the newest owner runs it hashes are the night shift's own view of them (ids and times only)
+  { key: 'nightshift', anchor: "const owner = (runStore.list(null, { limit: 400 }) || []).filter(r => r && runView('nightshift', r) && !isInternalRun(r))" },
   { key: 'outcomes', anchor: "Outcomes.fold(runStore.list(null, { limit: 400 }).filter(r => runView('outcomes', r)), {" },
   { key: 'evidence', anchor: "ev.runs = runStore.all().filter(r => runView('evidence', r));" },
   { key: 'remote', anchor: "runHistory: (n) => (runStore.list(null, { limit: n }) || []).filter(r => runView('remote', r))," },
