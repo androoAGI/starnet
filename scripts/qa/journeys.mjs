@@ -114,6 +114,8 @@ const WIN = process.env.SKYNET_SHOT_SIZE || '1440,900';
 const KEEP = process.argv.includes('--keep');
 const SCRATCH = join(OUT_DIR, '_seed-workspace');
 const PROFILE = join(OUT_DIR, '_profile');
+// the seeded station's console: a bare station prints its desk codes there (GHSA-2hpj #1), read as the person at it reads them
+const SIDECAR_LOG = join(OUT_DIR, '_sidecar.log');
 // A FRESH BROWSER PER RUN (2026-09-23): the end-of-run wipe below fails silently while Chrome still holds
 // the profile, and a surviving profile carries a dirty `starnet.save` that cloudsave.reconcile() pushes over
 // the fresh seed (the audit gate inherited a placed prop every Guardian hour). Wipe before launch; fail loud.
@@ -758,8 +760,23 @@ async function journeyDeliverableOpen(cdp, A, base, token, mock) {
   if (cdp) await waitIdle(cdp, 60);
   await sleep(800);
 
-  // grant the workshop (W1) so the autonomous fs.write that builds the deliverable is allowed.
-  const g = await post('/api/workshop/grant', { agentId, on: true }).then(r => r.json()).catch(e => ({ error: String(e) }));
+  // grant the workshop (W1) so the autonomous fs.write that builds the deliverable is allowed. Turning it on is a standing
+  // grant (fix-sec2 review2 #9): the station asks at the desk, and the code it printed on its console is typed back, as
+  // the person at this bare station does in the page
+  const postAtDesk = async (p, b) => {
+    const first = await post(p, b);
+    const ch = first.status === 403 ? ((await first.clone().json().catch(() => ({}))) || {}).deskConfirm : null;
+    if (!ch || ch.mode !== 'page') return first;
+    let code = '';
+    for (let i = 0; i < 60 && !code; i++) {
+      let log = ''; try { log = readFileSync(SIDECAR_LOG, 'utf8'); } catch (_) {}
+      const m = [...log.matchAll(/Type code (\d{6}) in the StarNet page that asks for confirmation ([A-Z0-9]{1,6})\./g)].filter(x => x[2] === ch.code).pop();
+      if (m) code = m[1]; else await sleep(50);
+    }
+    if (!code) return first;
+    return fetch(base + p, { method: 'POST', headers: Object.assign({}, H, { 'X-StarNet-Desk-Proof': ch.id, 'X-StarNet-Desk-Code': code }), body: JSON.stringify(b) });
+  };
+  const g = await postAtDesk('/api/workshop/grant', { agentId, on: true }).then(r => r.json()).catch(e => ({ error: String(e) }));
   A.ok('J4/workshop-granted', g && (g.ok === true || g.granted === true || g.on === true), 'grant → ' + JSON.stringify(g).slice(0, 120));
 
   // queue a WEB TOOL build (the mock's "web tool" branch writes a self-contained index.html + manifest).
@@ -1090,7 +1107,7 @@ async function main() {
     console.log(`provider: controllable journey mock on ${mock.base}`);
     console.log(`sidecar: booting SEEDED SKYNET_DEV on :${PORT} (model=${DEFAULT_MODEL}) ...`);
     materializeSeedWorkspace(SCRATCH);
-    sidecar = bootSeededSidecar({ port: PORT, scratchDir: SCRATCH });
+    sidecar = bootSeededSidecar({ port: PORT, scratchDir: SCRATCH, logFile: SIDECAR_LOG });
     if (!(await waitUp(APP_URL))) { console.error('BLOCKED: seeded sidecar failed to come up on :' + PORT); return finish(2); }
     console.log('sidecar: ready');
   } catch (e) {

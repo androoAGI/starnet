@@ -252,7 +252,11 @@ async function until(fn, ms, label) {
     /* ---- 7. /yolo and /personality from the terminal: POST /api/agent/approval, /api/agent/personality -------------------- */
     {
       const rosterOf = async id => ((await fixture.json('GET', '/api/runtime/agent')).body.agents || []).find(a => a.agentId === id) || {};
-      const y1 = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
+      // headless, giving Full Access is the desk's call (GHSA-2hpj #1): the key alone is refused, and the code this bare
+      // station printed (what `starnet`'s /yolo reads over IPC, or the person types) lets it through
+      const y1Refused = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
+      A.eq([y1Refused.status, y1Refused.body && y1Refused.body.code], [403, 'desk_confirm_required'], 'headless: /yolo on asks at the desk first');
+      const y1 = await fixture.deskJson('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
       A.eq([y1.status, y1.body && y1.body.via, (await rosterOf('rook')).approvalMode], [200, 'roster', 'full'], 'headless: /yolo sets that one agent\'s approval mode on the roster, and the station reads it back');
       A.eq((await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'maybe' })).status, 400, 'approval is ask or full, nothing else');
       A.eq((await fixture.json('POST', '/api/agent/approval', { agentId: 'ghost', mode: 'ask' })).status, 404, 'an unknown agent is refused');

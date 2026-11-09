@@ -71,7 +71,8 @@ function git(cwd, args) { execFileSync('git', args, { cwd, stdio: 'ignore', wind
     A.eq(fs.existsSync(stateFile + '.bak') ? fs.statSync(stateFile + '.bak').mtimeMs : null, bak1, '…nor its .bak');
 
     // bless the repo through the REAL grant machinery (the only door — discovery never blesses).
-    const bless = await j('POST', '/api/projects/bless', { path: repo });
+    // ...confirmed at the desk (GHSA-2hpj #1) with the code this station printed, as the person at it types it
+    const bless = await fixture.deskJson('POST', '/api/projects/bless', { path: repo });
     A.eq(bless.status, 200, 'POST /api/projects/bless -> 200');
 
     // the forced cycle scans the blessed root and stages the repo's real chores.

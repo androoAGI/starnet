@@ -296,7 +296,11 @@ const server = http.createServer((req, res) => {
     const project = path.join(fixture.workspace, 'project-a');
     const otherProject = path.join(fixture.workspace, 'project-b');
     fs.mkdirSync(project); fs.mkdirSync(otherProject);
-    for (const root of [project, otherProject]) await api('POST', '/api/projects/bless', { path: root });
+    // trusting a folder is confirmed at the desk (GHSA-2hpj #1): the code this station printed, as the person types it
+    for (const root of [project, otherProject]) {
+      const blessed = await fixture.deskJson('POST', '/api/projects/bless', { path: root }, { signal: AbortSignal.timeout(90000) });
+      assert.equal(blessed.status, 200, '/api/projects/bless: ' + blessed.text.slice(0, 1000));
+    }
     await api('POST', '/api/agent-skills/share', { agentId: 'agent', target: seeded.id, scope: 'project', projectRoot: project });
     assert.ok((await worker('worker_project', 'LIFECYCLE_READ matching project', project)).includes(CANDIDATE), 'matching project can load explicitly shared procedure');
     assert.ok(!(await worker('worker_other_project', 'LIFECYCLE_READ other project', otherProject)).includes(CANDIDATE), 'another trusted project cannot load a project-private procedure');

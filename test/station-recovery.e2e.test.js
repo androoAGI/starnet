@@ -51,7 +51,7 @@ function quietEnv() {
     A.eq(routine.status, 200, 'source sidecar creates a real durable routine: ' + JSON.stringify(routine.body));
     const loop = await source.json('POST', '/api/loops', { name: 'Recovery loop', objective: 'continue recovery verification', agentId: 'agent' });
     A.eq(loop.status, 200, 'source sidecar creates a real durable loop: ' + JSON.stringify(loop.body));
-    const grant = await source.json('POST', '/api/permissions/grant', { key: 'cabinet:write' });
+    const grant = await source.deskJson('POST', '/api/permissions/grant', { key: 'cabinet:write' });   // confirmed at the desk (GHSA-2hpj #1)
     A.eq(grant.status, 200, 'source sidecar creates a portable standing capability grant');
     const memory = await source.json('POST', '/api/notebook/restore', { agent: 'agent', notes: [{ id: 'memory-live', title: 'Recovery memory', body: 'survive the machine loss', ts: 1 }] });
     A.eq(memory.status, 200, 'source sidecar creates real durable memory');

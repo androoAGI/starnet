@@ -18,7 +18,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
     const roots = [];
     for (const name of ['alpha', 'beta']) {
       const folder = path.join(fixture.workspace, name); fs.mkdirSync(folder);
-      const blessed = await fixture.json('POST', '/api/projects/bless', { path: folder });
+      const blessed = await fixture.deskJson('POST', '/api/projects/bless', { path: folder });   // confirmed at the desk (GHSA-2hpj #1)
       assert.equal(blessed.status, 200, blessed.text);
       roots.push(blessed.body.root || blessed.body.project && blessed.body.project.root);
     }
