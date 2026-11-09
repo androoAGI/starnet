@@ -393,7 +393,9 @@
       // their real rates (~0.1x read, ~1.25x write). prompt_tokens stays the TRUE total — these are a
       // breakdown OF it, never a substitute for it.
       prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheCreate },
-      reasoning_tokens: 0
+      // the thinking share of output_tokens when the API says it (output_tokens_details.thinking_tokens, the field Claude
+      // Code's result line carries too); absent = 0 as before
+      reasoning_tokens: Math.max(0, Math.min(Number(u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0, out))
     };
   }
   function normalizeModel(m) {

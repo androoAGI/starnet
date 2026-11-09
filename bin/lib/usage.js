@@ -1,7 +1,10 @@
 /* bin/lib/usage.js — the terminal's /usage: every provider this station is connected to, and how much of it is left, as
    the provider itself last said it. Nothing is estimated:
      a subscription (Claude Code, ChatGPT)   each sign-in's windows from its last run — "5-hour 88% left · resets 4:00 PM",
-                                             with when that was seen; a sign-in nothing was reported for yet: unknown
+                                             with when that was seen; a sign-in nothing was reported for yet: unknown;
+                                             under it, StarNet's OWN tokens since each window opened (the usage receipts:
+                                             "5-hour 41k tokens (35k cache re-reads)"), never a StarNet % of the window —
+                                             the window's % counts every app on that sign-in, not just this station
      a subscription that says nothing       Grok, Kimi: signed in, and that they do not say — never a made-up meter
      a sign-in that hit its limit           the station cools it (the next sign-in takes the runs): until when
      an API key                             its rate-limit buckets from its last response (per-minute meters, not a
@@ -12,7 +15,7 @@
 
    usageLines({ providers, facts, usage, accounts, budget, now }) -> [string]
      providers  connect.ordered() rows; facts: the dashboard's connectFacts(); status: connect.status
-     usage      GET /api/usage/providers  { subscriptions, rate }
+     usage      GET /api/usage/providers  { subscriptions, rate, starnet? }
      accounts   { <providerId>: [{ account, label, connected|loggedIn, coolingUntil }] }  (GET /api/auth/<id>/accounts)
      budget     GET /api/budget/status (or null) */
 'use strict';
@@ -34,6 +37,24 @@ function ago(ms) {
 }
 const usd = n => '$' + (Number(n) || 0).toFixed(2);
 const big = n => n >= 10000 ? Math.round(n / 1000) + 'k' : String(Math.round(n));
+const toks = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + 'M' : big(n);
+
+/* StarNet's own use of one sign-in since each of its windows opened, from the station's usage receipts (share = the
+   /api/usage/providers starnet entry for this sign-in). Tokens, with how many were cache re-reads (they bill at a
+   fraction). Never a percentage: the window's % is the provider's word for every app on the sign-in. Receipts that
+   begin after the window opened say "since receipts began <when>" (a floor, not the whole window); none at all: say so. */
+function starnetLine(entry, share, now) {
+  if (!entry || !share || !Array.isArray(entry.windows)) return null;
+  const parts = [];
+  for (const w of entry.windows) {
+    const s = share[w.id];
+    if (!s) continue;
+    if (s.since == null) { parts.push(w.label + ' none recorded yet'); continue; }
+    parts.push(w.label + ' ' + toks(s.tokens) + ' tokens' + (s.cacheRead > 0 ? ' (' + toks(s.cacheRead) + ' cache re-reads)' : '') +
+      (s.since > s.from ? ' since receipts began ' + clockAt(s.since, now) : ''));
+  }
+  return parts.length ? '    StarNet since each window opened: ' + parts.join(' · ') : null;
+}
 
 // one window: what is left of it, and when it resets
 function windowText(w, now) {
@@ -54,6 +75,7 @@ function accountLine(label, entry, coolingUntil, now) {
 
 function usageLines(o) {
   const now = o.now, facts = o.facts || {}, subs = (o.usage && o.usage.subscriptions) || {}, rate = (o.usage && o.usage.rate) || [];
+  const mine = (o.usage && o.usage.starnet) || {};
   const out = [];
   const on = (o.providers || connect.ordered()).filter(p => connect.status(p, facts)[1] === 'ok');
   if (!on.length) return ['No provider is connected yet — /connect adds one.'];
@@ -68,7 +90,10 @@ function usageLines(o) {
       for (const a of accts) {
         if (a.connected === false || a.loggedIn === false) { out.push('  ' + (a.label || 'account') + '  signed out'); continue; }
         if (SAYS_NOTHING[p.id]) { if (a.coolingUntil > now) out.push(accountLine(a.label, null, a.coolingUntil, now)); continue; }
-        out.push(accountLine(a.label || 'account', (subs[p.id] || {})[a.account || 'primary'] || null, a.coolingUntil, now));
+        const key = a.account || 'primary', entry = (subs[p.id] || {})[key] || null;
+        out.push(accountLine(a.label || 'account', entry, a.coolingUntil, now));
+        const own = starnetLine(entry, (mine[p.id] || {})[key], now);
+        if (own) out.push(own);
       }
       continue;
     }
@@ -81,4 +106,4 @@ function usageLines(o) {
   return out;
 }
 
-module.exports = { usageLines, windowText, clockAt, ago };
+module.exports = { usageLines, windowText, starnetLine, clockAt, ago };
