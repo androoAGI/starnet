@@ -302,9 +302,11 @@
          automatic-prefix route; on a route with explicit breakpoints (the Claude routes) from the anchor it pins, so the
          conversation a run resumed counts in full (measured in review: T from the first aged message made batches that
          cost a resumed conversation more than ageing off); all of it on a provider that holds the run's history. r and
-         w: the route's cache read and write price in fresh-input units (the cost engine's cacheRates, W1.13). F and T by
-         the loop's own ruler. An unpriced route (a sign-in, a local model) has nothing to weigh and never ages; a priced
-         one that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
+         w: the route's cache read and write price in fresh-input units (the cost engine's cacheRates, W1.13): a Claude
+         model's DOCUMENTED rates wherever it is served (Opus 5.5 reads at 0.05, Fable 5.1 at 0.025), never the billing
+         family's 0.10 read, which over-reports them (measured in review: weighed at 0.10, batches on those two models
+         cost more than ageing off). F and T by the loop's own ruler. An unpriced route (a sign-in, a local model) has
+         nothing to weigh and never ages; a priced one that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
      WHAT AGES: a tool result, through elideToolResult (2.: the micro tier's stub, wording and handle); and the long
      string arguments of a write that SUCCEEDED (WRITE_ARGS), as an ARG_ELIDED stub naming a saved copy of the exact
      argument. Only a body a handle covers ages, and only when its stub at least halves it: words quoted from another

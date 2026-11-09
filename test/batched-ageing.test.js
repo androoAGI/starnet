@@ -1,7 +1,8 @@
 /* node test/batched-ageing.test.js — unit cover for W2.1 batched ageing (sidecar/history-edit.js makeAgeing), where the
    request after a batch can still read the cache (readFloor: the payback's T, from the W2.1 review), how many later
    requests a payback may count on (the horizon, from the same review) and the route cache prices it weighs a batch with
-   (sidecar/cost.js cacheRates). The end-to-end invariants (the real loop, a binding
+   (sidecar/cost.js cacheRates: the model's documented rates on any route, from the third review). The end-to-end
+   invariants (the real loop, a binding
    upstream, the real fs.read read-back, the switch-off golden, the documented cache's bill) live in
    batched-ageing.invariant.test.js.
    Pure: no network, no files (an in-memory parker). */
@@ -296,7 +297,31 @@ const writes = chars => [{ name: 'fs_write', args: { path: 'a.js', content: body
   // ================= the route's cache prices (cost.js cacheRates) =================
   {
     const anthropic = makeCostEngine({ priceOf: id => prices.priceOf('anthropic', id) });
-    A.eq(anthropic.cacheRates('claude-opus-5-5'), { read: 0.1, write: 1.25, published: true }, 'cacheRates: the Anthropic row\'s published rates (W1.13: the 5-minute write by default)');
+    const DOC = { 'claude-opus-5-5': 0.05, 'claude-opus-5.5': 0.05, 'claude-fable-5-1': 0.025, 'claude-mythos-5-1': 0.025, 'claude-fable-5': 0.10, 'claude-mythos-5': 0.10,
+      'claude-opus-5': 0.10, 'claude-sonnet-5-5': 0.10, 'claude-haiku-5-5': 0.10, 'claude-opus-4-8': 0.10 };
+    for (const [id, read] of Object.entries(DOC)) A.eq(anthropic.cacheRates(id), { read, write: 1.25, published: true }, 'cacheRates: ' + id + ' reads at its documented ' + read + 'x, writes at the 5-minute 1.25x');
+    // billing keeps the family's rate (its over-report is the spend seatbelt's safe direction): only the payback reads these
+    A.eq(prices.priceOf('anthropic', 'claude-opus-5-5').cache.read, 0.1, 'cacheRates: billing still books an Opus 5.5 read at the family 0.10x (an over-report, the seatbelt\'s direction)');
+    A.eq(anthropic.reconcile({ prompt_tokens: 1000000, completion_tokens: 0, prompt_tokens_details: { cached_tokens: 1000000 } }, 'claude-opus-5-5').usd, 0.4, 'cacheRates: a booked Opus 5.5 read is unchanged ($0.40 per million cached tokens at the family rate)');
+    // the same rates wherever the model is served: OpenRouter's catalog row names no cache rates
+    const openrouter = makeCostEngine({ priceOf: id => (/claude/.test(id) ? { in: 4, out: 20 } : { in: 5, out: 30 }) });
+    A.eq(openrouter.cacheRates('anthropic/claude-opus-5-5'), { read: 0.05, write: 1.25, published: true }, 'cacheRates: Claude Opus 5.5 through OpenRouter or the managed route reads at 0.05x too (it used to be weighed at the assumed 0.10x)');
+    A.eq(openrouter.cacheRates('anthropic/claude-fable-5.1'), { read: 0.025, write: 1.25, published: true }, 'cacheRates: Claude Fable 5.1 through OpenRouter reads at 0.025x');
+    A.eq(openrouter.cacheRates('openai/gpt-5.5'), { read: 1, write: 1, published: false }, 'cacheRates: a non-Claude model with no cache rates on its row says it has none');
+    A.eq([prices.cacheRatesOf('gpt-5.5'), prices.cacheRatesOf('gemini-3-pro'), prices.cacheRatesOf('')], [null, null, null], 'cacheRatesOf: only a Claude model has documented rates here');
+    // the dearest write tier the cache switch asks for, on every route
+    process.env.SKYNET_ANTHROPIC_CACHE_TTL = '1h';
+    try {
+      A.eq([anthropic.cacheRates('claude-opus-5-5'), openrouter.cacheRates('anthropic/claude-opus-5-5')], [{ read: 0.05, write: 2, published: true }, { read: 0.05, write: 2, published: true }], 'cacheRates: with 1-hour anchors asked for, the write is the 1-hour 2x, natively and through OpenRouter');
+    } finally { delete process.env.SKYNET_ANTHROPIC_CACHE_TTL; }
+    // the payback weighs exactly what cacheRates says: ten turns pay at 0.10x and not at Opus 5.5's 0.05x (12 x ~148k x
+    // 0.05 = ~89k against ~102k x 1.20 = ~122k); twenty turns pay at 0.05x too, and the batch is priced there
+    const opus = () => anthropic.cacheRates('claude-opus-5-5');
+    const r10 = run(reads(10)), r20 = run(reads(20));
+    A.eq([!!(await makeAgeing({ originOf: r10.originOf }).plan(r10.list, ctxOf({ park: parker().park }))), await makeAgeing({ originOf: r10.originOf }).plan(r10.list, ctxOf({ park: parker().park, rates: opus }))], [true, null],
+      'cacheRates: a batch that pays at the family 0.10x does not at Opus 5.5\'s documented 0.05x');
+    const b = await makeAgeing({ originOf: r20.originOf }).plan(r20.list, ctxOf({ park: parker().park, rates: opus }));
+    A.eq(b && [b.read, b.write, b.assumed], [0.05, 1.25, false], 'cacheRates: the payback weighs an Opus 5.5 batch at its documented 0.05x read');
     A.eq(makeCostEngine({ priceOf: () => ({ in: 3, out: 15 }) }).cacheRates('m'), { read: 1, write: 1, published: false }, 'cacheRates: a row with no cache rates books 1.0x and says it published none');
     A.eq(makeCostEngine({ priceOf: () => null }).cacheRates('m'), null, 'cacheRates: unpriced is null');
     A.eq(makeCostEngine({ priceOf: () => ({ in: 0, out: 0 }) }).cacheRates('m'), null, 'cacheRates: a free (local) model is unpriced');
@@ -306,3 +331,7 @@ const writes = chars => [{ name: 'fs_write', args: { path: 'a.js', content: body
   A.eq([AGEING.KEEP_TURNS, AGEING.BATCH_CHARS, AGEING.MIN_TURNS, AGEING.SHORT_RUN, AGEING.HORIZON], [4, 60000, 2, 24, 12], 'the measured constants: keep 4 tool turns, 60k characters, 2 turns a batch, never for 24 requests or fewer, a payback within 12 requests');
   A.report('batched-ageing.test');
 })().catch(e => { console.log('FAIL: batched-ageing.test threw -- ' + (e && e.stack || e)); process.exit(1); });
+  /* THE MODEL'S DOCUMENTED RATES, never the billing row's (the W2.1 review): the claude-api skill documents cache reads at
+     0.025x on Claude Fable 5.1 and Mythos 5.1, 0.05x on Claude Opus 5.5, 0.1x on every other model; writes at 1.25x on
+     the 5-minute tier and 2x on the 1-hour tier (shared/prompt-caching.md:144, shared/model-migration.md:1695, :2040).
+     The values below are typed from those pages, not read from the code under test. */

@@ -6,7 +6,7 @@
    drop_block drops the first stale block and every later one), the REAL loop, registry, host-shaped parker and fs.read.
 
    With the switch on (runAgentLoop batchedAgeing: true, which the host sets from STARNET_BATCHED_AGEING):
-   1. A LONG RUN AGES IN BATCHES, NEVER PER TURN. A 30-request coding run on claude-opus-5-5 (16k-character reads,
+   1. A LONG RUN AGES IN BATCHES, NEVER PER TURN. A 48-request coding run on claude-opus-5-5 (16k-character reads,
       6k-character writes, an edit, a write that failed, a build log the registry parked before cutting it, words quoted
       from another session) sends request views whose old results and write arguments are stubs. The aged set changes
       only at a few batch requests, never on two requests in a row, never before the run's projection passes 24
@@ -26,18 +26,23 @@
    With the switch off (absent, or false), every request body is byte-identical to the stack: test/fixtures/
    batched-ageing-golden.json holds the sha256 of every request body, recorded from 9896a5c44.
    6. ONE SWITCH: STARNET_BATCHED_AGEING is read in one place (sidecar/index.js), off unless set, and handed to the loop.
-   7. A BATCH COUNTS THE RE-WRITE THE DOCUMENTED CACHE BILLS (the W2.1 review). Every arm's real wire bodies are billed
-      by test/helpers/anthropic-cache-sim.js (a read lands only where an earlier request wrote a breakpoint, at most 20
-      positions back from one of this request's; writes bill past the furthest hit), in input units at the route's 0.10
-      read and 1.25 / 2 write:
-        · the fresh long run costs less with the switch on;
+   7. A BATCH IS WEIGHED AND BILLED AT THE MODEL'S DOCUMENTED CACHE RATES (the W2.1 reviews). Every arm's real wire
+      bodies are billed by test/helpers/anthropic-cache-sim.js (a read lands only where an earlier request wrote a
+      breakpoint, at most 20 positions back from one of this request's; writes bill past the furthest hit), in input units
+      at the documented 1.25 / 2 write and the MODEL's documented read, typed here from the claude-api skill and never
+      read from the code under test: 0.05 on claude-opus-5-5, 0.025 on claude-fable-5-1 (red on c0560aaa6: its payback
+      weighed the billing row's 0.10, which over-reports these reads; billed at the models' own reads its batches cost a
+      fresh Fable 5.1 run 20.7% more than ageing off, and resumed Opus 5.5 runs 4.1% and 3.9% more):
+        · every batch's payback weighed the model's documented read (its diagnostics line);
+        · the fresh long run costs less with the switch on, on Opus 5.5 and on Fable 5.1;
         · a RESUMED conversation (a transcript seed and the run-context note before the newest message, as index.js
           runOnceCore sends it): at every batch request the documented cache reads exactly as far as the payback said,
           never less (red on 6f7b99465: its payback counted the re-write from the first aged message): on the default
           5-minute cache behind a 20,000-character conversation, the static prefix (the batch re-writes the whole
           conversation); on cache TTL 'mixed' behind a 200,000-character one, the pinned end of history (it re-writes
-          from the note), and that run costs no more with the switch on (the 5-minute run's bill is printed: a batch
-          bets on the run going on for the payback's horizon, and a run that ends sooner loses that batch's re-write);
+          from the note); and both runs cost no more with the switch on. Each batch bets on the run going on for the
+          payback's horizon, and a run that ends sooner loses that batch's re-write: each batch's credited and actual
+          remaining requests are printed;
         · NO BATCH WHEN RE-WRITING THE RESUMED CONVERSATION OUTWEIGHS THE SAVING: behind the 200,000-character
           conversation on the 5-minute cache no batch pays for that re-write within the payback's horizon (12 requests),
           so the switch-on run sends the switch-off bytes (red on 6f7b99465: three batches, 39.7% dearer than ageing
@@ -88,6 +93,19 @@ const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 const noCache = v => JSON.parse(JSON.stringify(v, (k, x) => (k === 'cache_control' ? undefined : x)));
 const hash = v => crypto.createHash('sha1').update(JSON.stringify(noCache(v))).digest('hex').slice(0, 16);
 const prefixSig = (body, msgs, own) => 'sig:' + hash({ system: body.system || null, tools: body.tools || null, msgs, own });
+// the same signatures from ONE running hash of a request's messages (sigAt(i, own) === prefixSig(body, messages[0..i), own),
+// asked in rising i): prefixSig per block hashes the whole prefix again, which made a 48-request run cubic
+function prefixSigs(body) {
+  const run = crypto.createHash('sha1');
+  run.update('{"system":' + JSON.stringify(noCache(body.system || null)) + ',"tools":' + JSON.stringify(noCache(body.tools || null)) + ',"msgs":[');
+  let k = 0;
+  return (i, own) => {
+    for (; k < i; k++) run.update((k ? ',' : '') + JSON.stringify(noCache(body.messages[k])));
+    const h = run.copy();
+    h.update('],"own":' + JSON.stringify(noCache(own)) + '}');
+    return 'sig:' + h.digest('hex').slice(0, 16);
+  };
+}
 const fn = (name, props) => ({ type: 'function', function: { name, description: name, parameters: { type: 'object', properties: props || {} } } });
 const filler = (tag, chars) => { let s = ''; let i = 0; while (s.length < chars) s += tag + ' line ' + (i++) + ' lorem ipsum dolor sit amet consectetur' + NL; return s.slice(0, chars); };
 
@@ -104,6 +122,7 @@ function bindingServer(script) {
     const th = body.thinking || null;
     const drop = !!(th && th.block_binding && th.block_binding.prefix_mismatch_behavior === 'drop_block');
     const transformations = [];
+    const sigAt = prefixSigs(body);
     let dropping = false;
     for (let i = 0; i < body.messages.length; i++) {
       const m = body.messages[i];
@@ -112,7 +131,7 @@ function bindingServer(script) {
         const b = m.content[j];
         if (b.type !== 'thinking') continue;
         rec.replayed.push(minted.get(b.signature) || 0);
-        if (!dropping && b.signature === prefixSig(body, body.messages.slice(0, i), m.content.slice(0, j))) continue;
+        if (!dropping && b.signature === sigAt(i, m.content.slice(0, j))) continue;
         if (!drop) return new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'messages.' + i + '.content.' + j + ': Invalid `signature` in `thinking` block.' } }), { status: 400 });
         dropping = true;
         transformations.push({ type: 'thinking_dropped', path: 'messages.' + i + '.content.' + j, reason: 'prefix_binding_mismatch' });
@@ -125,7 +144,7 @@ function bindingServer(script) {
     let toolUse = false;
     content.forEach((c, idx) => {
       if (c.type === 'thinking') {
-        const sig = prefixSig(body, body.messages, own.slice());
+        const sig = sigAt(body.messages.length, own.slice());
         minted.set(sig, n);
         ev.push({ type: 'content_block_start', index: idx, content_block: { type: 'thinking', thinking: '', signature: '' } },
           { type: 'content_block_delta', index: idx, delta: { type: 'signature_delta', signature: sig } }, { type: 'content_block_stop', index: idx });
@@ -248,7 +267,7 @@ async function runCodingNow(o) {
   const loopOpts = {
     messages: [{ role: 'system', content: 'You are a station agent.' }].concat(o.seed ? seedOf(o.seed) : [], [{ role: 'user', content: 'do the task' }]),
     provider, emit: makeEmitter(bus, () => {}), cost: makeCostEngine({ priceOf: o.priceOf || provider.priceOf }),
-    model: 'claude-opus-5-5', agentId: 'a', runId: 'r', tools: WIRE_TOOLS,
+    model: o.model || 'claude-opus-5-5', agentId: 'a', runId: 'r', tools: WIRE_TOOLS,
     // the host's context manager (index.js ctxMgr) at a window this run never nears: no fold or micro tier mixes in
     context: makeContext({ contextLimit: 2000000, compactAt: 0.65, keepTailTurns: 1 }), summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
     limits: Object.assign({}, o.limits || {}), dispatch: (c, ctx) => reg.dispatch(c, ctx), capCtx,
@@ -283,7 +302,7 @@ function claimedFloor(note, body, seedPairs) {
 }
 const hashes = run => run.up.posts.map(p => p.raw);
 const CASES = {
-  long: { total: 30 },                                  // 29 tool turns + the answer: projected well past 24
+  long: { total: 48 },                                  // 47 tool turns + the answer: projected well past 24
   short: { total: 12 },                                 // 11 tool turns + the answer: projected at 22 at most
   ceiling: { total: 40, limits: { maxIters: 24 } }      // a 24-turn ceiling (and its grace turn): never projected past 24
 };
@@ -421,12 +440,17 @@ function declProblems(tag, decl, req, body, mode) {
     const offFalse = await runCoding(Object.assign({ ageing: false }, CASES.long)); toClean.push(offFalse.ws.root);
     A.eq(hashes(offFalse), golden.long, 'off (switch false): every request body is byte-identical to the stack');
     A.eq(off.batches + offFalse.batches, 0, 'off: no batch ran');
+    {   // the upstream's running-hash signatures are the whole-prefix hash, block for block (the last request's 47 turns)
+      const b = off.up.posts[off.up.posts.length - 1].body, sigAt = prefixSigs(b), pairs = [];
+      b.messages.forEach((m, i) => { if (m.role === 'assistant' && Array.isArray(m.content)) m.content.forEach((x, j) => { if (x.type === 'thinking') pairs.push([sigAt(i, m.content.slice(0, j)), prefixSig(b, b.messages.slice(0, i), m.content.slice(0, j)), x.signature]); }); });
+      A.ok(pairs.length === CASES.long.total - 1 && pairs.every(([x, y, z]) => x === y && y === z), 'upstream: the running-hash signatures equal the whole-prefix hash and every replayed block matches (' + pairs.length + ' blocks)');
+    }
 
     // ================= switch ON: the long run ages in batches =================
     const on = await runCoding(Object.assign({ ageing: true }, CASES.long)); toClean.push(on.ws.root);
     const posts = on.up.posts;
     A.eq(on.res.reason, 'done', 'on: the long run finishes');
-    A.eq(posts.length, 30, 'on: every turn went out (no 400, no rescue round-trip)');
+    A.eq(posts.length, CASES.long.total, 'on: every turn went out (no 400, no rescue round-trip)');
     const edited = editedRequests(posts);
     A.ok(edited.length >= 2, 'on: the long run sends aged views in at least two batches (edited requests: ' + JSON.stringify(edited) + ')');
     A.eq(on.batches, edited.length, 'on: every batch reached the wire, and nothing else edited the prefix (batches ' + on.batches + ')');
@@ -537,39 +561,57 @@ function declProblems(tag, decl, req, body, mode) {
     const idx = code[0].text;
     A.ok(/batchedAgeing:\s*\/\^\(1\|true\|yes\|on\)\$\/i\.test\(String\(ENV\('BATCHED_AGEING'\)/.test(idx), 'switch: the host hands the loop batchedAgeing from ENV(\'BATCHED_AGEING\'), off unless 1/true/yes/on');
 
-    // ================= 7. a batch never costs more than ageing off, on the cache as Anthropic documents it =================
-    const READ = 0.10;   // the read rate the payback weighed with (cost.js cacheRates on claude-opus-5-5)
-    const bill = run => Sim.priceRun(run.up.posts.map(p => p.body), READ);
+    // ================= 7. a batch never costs more than ageing off, at the model's documented cache rates =================
+    // THE DOCUMENTED READS, typed from the claude-api skill (shared/prompt-caching.md:144, shared/model-migration.md:1695
+    // and :2040: "0.025x on Claude Fable 5.1 ... 0.05x on Claude Opus 5.5"), never read from the code under test: a bill at
+    // the rate the payback weighed would certify whatever rate it weighed (the W2.1 review: 0.10, the billing row's)
+    const DOC_READ = { 'claude-opus-5-5': 0.05, 'claude-fable-5-1': 0.025 };
+    const bill = (run, model) => Sim.priceRun(run.up.posts.map(p => p.body), DOC_READ[model || 'claude-opus-5-5']);
     const vs = (a, b) => Math.round(a.inputEq) + ' vs ' + Math.round(b.inputEq) + ' input units, ' + (100 * (a.inputEq - b.inputEq) / b.inputEq).toFixed(1) + '%';
+    // what each batch's payback weighed, from its diagnostics line ("... x read 0.05 against ...")
+    const weighedReads = run => run.notes.map(s => Number((/ freed x read ([\d.]+)/.exec(s) || [])[1]));
+    const credited = run => run.notes.map(s => Number((/= (\d+) requests credited/.exec(s) || [])[1]));
+    const betLine = (run, edited) => 'batches at requests ' + JSON.stringify(edited) + ', each crediting ' + JSON.stringify(credited(run)) + ' more requests (the run had '
+      + JSON.stringify(edited.map(n => run.up.posts.length - n)) + ' more)';
+    const billLines = [];
+    A.eq(weighedReads(on), on.notes.map(() => DOC_READ['claude-opus-5-5']), 'documented rates: every batch of the Opus 5.5 run weighed its documented 0.05 read (' + JSON.stringify(weighedReads(on)) + ')');
     const billOff = bill(off), billOn = bill(on);
-    A.ok(billOn.inputEq < billOff.inputEq, 'documented cache, fresh run: on costs less than off (' + vs(billOn, billOff) + ', ' + on.batches + ' batches)');
+    A.ok(billOn.inputEq < billOff.inputEq, 'documented cache, fresh run on Opus 5.5 (read 0.05): on costs less than off (' + vs(billOn, billOff) + ', ' + on.batches + ' batches)');
+    billLines.push('fresh run (5m), claude-opus-5-5 at read 0.05, ' + posts.length + ' requests: on vs off ' + vs(billOn, billOff) + '; ' + betLine(on, edited));
+    // THE CHEAPEST DOCUMENTED READ: Fable 5.1 at 0.025 (the payback credits a quarter of a 0.10 read)
+    const fabOff = await runCoding(Object.assign({ model: 'claude-fable-5-1' }, CASES.long)); toClean.push(fabOff.ws.root);
+    const fabOn = await runCoding(Object.assign({ ageing: true, model: 'claude-fable-5-1' }, CASES.long)); toClean.push(fabOn.ws.root);
+    const billFabOff = bill(fabOff, 'claude-fable-5-1'), billFabOn = bill(fabOn, 'claude-fable-5-1');
+    A.eq([fabOff.res.reason, fabOn.res.reason, fabOn.up.posts.map(p => p.dropped).reduce((a, b) => a + b, 0)], ['done', 'done', 0], 'Fable 5.1: both runs finish, no thinking block dropped');
+    A.ok(fabOn.batches >= 1 && weighedReads(fabOn).every(r => r === DOC_READ['claude-fable-5-1']), 'documented rates: every batch of the Fable 5.1 run weighed its documented 0.025 read (' + JSON.stringify(weighedReads(fabOn)) + ')');
+    A.ok(billFabOn.inputEq <= billFabOff.inputEq, 'documented cache, fresh run on Fable 5.1 (read 0.025): on costs no more than off (' + vs(billFabOn, billFabOff) + ', ' + fabOn.batches + ' batch(es))');
+    billLines.push('fresh run (5m), claude-fable-5-1 at read 0.025, ' + fabOn.up.posts.length + ' requests: on vs off ' + vs(billFabOn, billFabOff) + '; ' + betLine(fabOn, editedRequests(fabOn.up.posts)));
     // T: at every batch request of a resumed run, the documented cache reads exactly as far as the payback said it would
     // (never less: a re-write it did not count): on the 5-minute cache the static prefix, behind a conversation short
-    // enough for a batch to pay (SEED_SMALL); on 'mixed' the pinned end of history, behind the long one (SEED), and that
-    // run costs no more with the switch on (6f7b99465, and T counted right with R the run's whole age: batches at
-    // requests 18, 24 and 30, +2.0%). The 5-minute run's bill is printed, not asserted: each batch bets on the run going
-    // on for the horizon, and this one's second batch came three requests before the run's end.
+    // enough for a batch to pay (SEED_SMALL); on 'mixed' the pinned end of history, behind the long one (SEED); and both
+    // runs cost no more with the switch on (6f7b99465, and T counted right with R the run's whole age: batches at
+    // requests 18, 24 and 30 of 30, +2.0% on 'mixed'; c0560aaa6, weighed at 0.10 and billed at Opus 5.5's own read:
+    // +4.1% on the 5-minute cache)
     const floorsMatch = (run, pairs) => {
       const edited = editedRequests(run.up.posts);
       const billed = bill(run);
       const rows = edited.map((n, k) => { const c = claimedFloor(run.notes[k] || '', run.up.posts[n - 1].body, pairs); return { n, from: c.from, said: c.pos, read: billed.perRequest[n - 1].hit }; });
-      return { ok: edited.length === run.batches && run.notes.length === run.batches && rows.every(r => r.said >= 0 && r.read === r.said), rows, billed };
+      return { ok: edited.length === run.batches && run.notes.length === run.batches && rows.every(r => r.said >= 0 && r.read === r.said), rows, billed, edited };
     };
-    const billLines = [];
     for (const [ttl, seed] of [['5m', SEED_SMALL], ['mixed', SEED]]) {
       const tag = 'resumed ' + (seed.pairs * seed.chars) + ' characters (' + ttl + ')';
       const tOff = await runCoding(Object.assign({ seed, ttl }, CASES.long)); toClean.push(tOff.ws.root);
       const tOn = await runCoding(Object.assign({ ageing: true, seed, ttl }, CASES.long)); toClean.push(tOn.ws.root);
-      A.eq([tOff.res.reason, tOn.res.reason, tOff.up.posts.length, tOn.up.posts.length], ['done', 'done', 30, 30], tag + ': both runs finish, every turn went out');
+      A.eq([tOff.res.reason, tOn.res.reason, tOff.up.posts.length, tOn.up.posts.length], ['done', 'done', CASES.long.total, CASES.long.total], tag + ': both runs finish, every turn went out');
       const f = floorsMatch(tOn, seed.pairs);
       A.ok(tOn.batches >= 1 && f.ok, tag + ': every batch counted its re-write from where the documented cache\'s read lands ('
         + JSON.stringify(f.rows) + '; re-written from ' + (ttl === 'mixed' ? 'the note, message ' + (2 * seed.pairs + 1) : 'the system prompt, message 1') + ')');
       A.ok(f.rows.every(r => r.from === (ttl === 'mixed' ? 2 * seed.pairs + 1 : 1)), tag + ': ' + (ttl === 'mixed' ? 'the end of history is read back: the resumed conversation is never re-written' : 'the resumed conversation is counted in the re-write'));
       A.eq(tOn.up.posts.map(p => p.dropped), tOn.up.posts.map(() => 0), tag + ': no thinking block dropped');
+      A.eq(weighedReads(tOn), tOn.notes.map(() => DOC_READ['claude-opus-5-5']), tag + ': every batch weighed Opus 5.5\'s documented 0.05 read');
       const billOffR = bill(tOff);
-      if (ttl === 'mixed') A.ok(f.billed.inputEq <= billOffR.inputEq, tag + ': on costs no more than off (' + vs(f.billed, billOffR) + ')');
-      billLines.push(tag + ', 30 requests: on vs off ' + vs(f.billed, billOffR) + '; batches at requests ' + JSON.stringify(f.rows.map(r => r.n)) + ', each crediting '
-        + JSON.stringify(tOn.notes.map(s => Number((/= (\d+) requests credited/.exec(s) || [])[1]))) + ' more requests (the run had ' + JSON.stringify(f.rows.map(r => 30 - r.n)) + ' more)');
+      A.ok(f.billed.inputEq <= billOffR.inputEq, tag + ': on costs no more than off at Opus 5.5\'s 0.05 read (' + vs(f.billed, billOffR) + ')');
+      billLines.push(tag + ', ' + CASES.long.total + ' requests: on vs off ' + vs(f.billed, billOffR) + '; ' + betLine(tOn, f.edited));
     }
     // NO BATCH WHEN RE-WRITING THE RESUMED CONVERSATION OUTWEIGHS THE SAVING: behind the 200,000-character conversation on
     // the 5-minute cache no batch pays for re-writing it within the horizon (12 requests), so the switch-on run sends the
@@ -580,8 +622,8 @@ function declProblems(tag, decl, req, body, mode) {
     const bigOn = await runCoding(Object.assign({ ageing: true, seed: SEED }, CASES.long)); toClean.push(bigOn.ws.root);
     const billBigOff = bill(bigOff), billBigOn = bill(bigOn);
     A.ok(billBigOn.inputEq <= billBigOff.inputEq, 'documented cache, a 200,000-character resumed conversation on the 5-minute cache: on costs no more than off (' + vs(billBigOn, billBigOff) + ', ' + bigOn.batches + ' batch(es))');
-    A.eq([bigOn.batches, hashes(bigOn).length === 30 && hashes(bigOn).every((h, k) => h === hashes(bigOff)[k])], [0, true], 'resumed 200,000 characters (5m): no batch: every request body is the switch-off one');
-    billLines.push('resumed 200000 characters (5m): on vs off ' + vs(billBigOn, billBigOff) + ' (' + bigOn.batches + ' batches)', 'fresh run (5m), 30 requests: on vs off ' + vs(billOn, billOff) + ' (' + on.batches + ' batches)');
+    A.eq([bigOn.batches, hashes(bigOn).length === CASES.long.total && hashes(bigOn).every((h, k) => h === hashes(bigOff)[k])], [0, true], 'resumed 200,000 characters (5m): no batch: every request body is the switch-off one');
+    billLines.push('resumed 200000 characters (5m): on vs off ' + vs(billBigOn, billBigOff) + ' (' + bigOn.batches + ' batches)');
     for (const l of billLines) console.log('  [bill] ' + l);
 
     // ================= 8. every route declares where its reads land, and its wire agrees =================
