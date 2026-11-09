@@ -100,6 +100,14 @@ try {
     ['mismatched revision', w => { w.revision++; }, 'invalid'],
     ['mismatched writer', w => { w.client = 'another-window'; }, 'unvouched'],
     ['missing writer', w => { delete w.client; }, 'unvouched'],
+    ['missing writer revision', w => { delete w.revision; }, 'invalid'],
+    ['malformed writer revision', w => { w.revision = null; delete w.client; }, 'invalid'],
+    // no writer at all (StarNet 0.15.0's terminal setup posted its save without _saveClient): held as its own status, and only when
+    // nothing else is wrong; anything else wrong is held as that
+    ['no writer named', w => { delete w.revision; delete w.client; delete w.doc._saveClient; }, 'writerless'],
+    ['no writer named, and a future station', w => { delete w.revision; delete w.client; w.doc.station.version = 3; }, 'future'],
+    ['no writer named, and a duplicate dock identity', w => { delete w.revision; delete w.client; w.doc.station.props.find(p => p.id === 'b2').id = 'b1'; }, 'invalid'],
+    ['no writer named, and an unsupported layout', w => { delete w.revision; delete w.client; w.doc.station.order = []; }, 'unsupported-geometry'],
     ['future save', w => { w.doc.version = Save.CURRENT + 1; }, 'future'],
     // a save the page has not rewritten since history-by-reference (v7) is held, not read as a floor, until its first v7 save lands
     ['previous-format save (v6)', w => { w.doc.version = 6; }, 'migration-required'],
