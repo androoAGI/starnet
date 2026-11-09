@@ -152,6 +152,15 @@ async function until(fixture, predicate, label, timeoutMs) {
     // never a completion. The invariant is that nothing claims the pass finished.
     A.eq(runsAfterCrash.body.runs.filter(run => run.reason !== 'interrupted').length, 0, 'the interrupted pass is not falsely recorded as completed');
 
+    // GHSA-2hpj #8 (c673033cb): the crash left the interrupted pass's charge unsettled, and the shipped daily limit pauses
+    // unattended work (a loop included) until spend history is whole. The Commander books its real charge first, at the
+    // desk (SETTINGS › SPENDING LIMITS); this fixture's model is free, so the charge is $0.
+    const spend = await fixture.json('GET', '/api/budget/status');
+    const unsettled = ((spend.body && spend.body.unsettled) || []).map(u => u.runId);
+    A.eq(unsettled.join(','), journal.body.recoveries[0].runId, 'the interrupted pass is the one unsettled charge after the restart');
+    const settled = await fixture.deskJson('POST', '/api/budget/settle', { runId: unsettled[0], usd: 0 });
+    A.eq([settled.status, settled.body && settled.body.unsettled && settled.body.unsettled.length], [200, 0], 'the Commander books its charge at the desk, so spend history is whole again');
+
     provider.state.mode = 'complete';
     const resume = await fixture.json('POST', '/api/loops/control', { id: loopId, action: 'resume' });
     A.eq(resume.status, 200, 'explicit RESUME is accepted');
