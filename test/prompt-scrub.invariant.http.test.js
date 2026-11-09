@@ -56,6 +56,10 @@ const PROVIDER_KEY = 'sk-or-v1-' + FK.stream('invariant-provider', 64, '01234567
 let phase = 'boot', lastHit = Date.now(), panelSeq = Infinity, connSeq = Infinity;
 const captures = [];   // { seq, phase, url, body }
 const flat = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (typeof p === 'string' ? p : ((p && p.text) || ''))).join('') : (c == null ? '' : String(c)));
+// the three run-end learning passes, by their prompts: the ASK2 step waits for its own to reach the mock, and I5 reads them
+const LEARNING_PASSES = { reflection: /reflecting right after finishing a task/, study: /durable profile of your Commander/, threadmine: /You surface ideas the Commander raised/ };
+const passesIn = ph => Object.keys(LEARNING_PASSES).filter(k => captures.some(c => c.phase === ph && /chat\/completions/.test(c.url) && c.body && typeof c.body === 'object'
+  && LEARNING_PASSES[k].test(((c.body.messages) || []).map(x => flat(x && x.content)).join('\n'))));
 const LEAD = /^\s*<(run_context|recalled-memory|conversation_summary|crew_call)>[\s\S]*?<\/\1>\s*/;
 function ownWords(t) { t = String(t || ''); for (;;) { const m = LEAD.exec(t); if (!m) break; t = t.slice(m[0].length); } return t.replace(/<crew_call>[\s\S]*<\/crew_call>\s*$/, '').trim(); }
 function sse(res, msg) {
@@ -297,6 +301,9 @@ const TYPED = {};   // phase -> the key ids its own words typed
     const tr = await api('GET', '/api/transcript?agent=agent&stream=invASK&limit=200');
     const hist = ((tr.json && tr.json.turns) || []).filter(t => t && (t.role === 'user' || t.role === 'assistant') && typeof t.content === 'string').map(t => ({ role: t.role, content: t.content }));
     A.eq(await run('ASK2', '', { streamId: 'invASK', messages: hist.concat([{ role: 'user', content: 'INV-ASK2 the starnet repo' }]) }), 'done', 'phase C: ASK2 (the answer) completed');
+    // its learning passes start behind the reply and this is the last phase before the sidecar stops: wait until they
+    // have reached the mock (I5 reads them), not for the run's quiet window alone (a loaded machine can stretch that gap)
+    for (const until = Date.now() + 20000; Date.now() < until && passesIn('ASK2').length < Object.keys(LEARNING_PASSES).length;) await sleep(150);
     phase = 'final';
   } catch (e) {
     A.ok(false, 'scenario threw: ' + ((e && e.stack) || e));
@@ -331,9 +338,7 @@ const TYPED = {};   // phase -> the key ids its own words typed
   A.ok(toolMsg('SUBA', /Call the billing API with key \[redacted-key\]/), 'I5: team.subagents\' result reached the model, its stored prompt scrubbed');
   A.ok(chat.some(c => c.phase === 'AJ' && /Every model call goes through OpenAI with key \[redacted-key\]/.test(JSON.stringify(c.body))), 'I5: the page\'s autojobs internal run kept its words, its belief key scrubbed');
   // I5 (W1.4): the run that continues ASK1's brief (whose words held a key) reached its own learning passes, so I1 read them too
-  const ask2Passes = chat.filter(c => c.phase === 'ASK2').map(sysOf);
-  const ask2Ran = { reflection: /reflecting right after finishing a task/, study: /durable profile of your Commander/, threadmine: /You surface ideas the Commander raised/ };
-  A.eq(Object.keys(ask2Ran).filter(k => !ask2Passes.some(s => ask2Ran[k].test(s))), [], 'I5: ASK2\'s reflection, study and thread-mining passes reached the model (the learning windows are 0)');
+  A.eq(Object.keys(LEARNING_PASSES).filter(k => passesIn('ASK2').indexOf(k) < 0), [], 'I5: ASK2\'s reflection, study and thread-mining passes reached the model (the learning windows are 0)');
   // I2
   const later = chat.filter(c => c.seq > panelSeq);
   const text = c => JSON.stringify(c.body);
