@@ -207,7 +207,7 @@ function harness(opts) {
     await h.core.handleRpc(rpc(3, 'session/prompt', { sessionId: sid, prompt: [{ type: 'text', text: 'run the tests' }] }));
     await new Promise(r => setTimeout(r, 20));
     const req = h.requests.find(x => x.method === 'session/request_permission');
-    A.ok(req && /exact command/.test(req.params.options[1].name), 'the command card names the exact command');
+    A.eq(req && req.params.options.map(o => o.optionId + ':' + o.kind).join(','), 'once:allow_once,deny:reject_once', 'the command card offers once or reject: no session option it could not keep');
     const sent = h.posted.filter(p => p[1] === '/api/consent').map(p => p[2].decision);
     A.eq(sent, ['once'], 'a command\'s "for this session" is sent once, as once: no session answer reaches the station');
   }

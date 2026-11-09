@@ -309,10 +309,10 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
       A.eq(seen, ['once', 'always'], 'MCP: allow-always on any other ask is sent as before');
     }
 
-    // ACP: the session option names the exact command
+    // ACP: a command is offered once or reject (final review B6: its session answer could only ever be applied once)
     const acp = require('../sidecar/acp/core.js')._internals;
-    A.eq(acp.permissionOptions({ exactCommand: true }).map(o => o.optionId), ['once', 'session', 'deny'], 'ACP keeps its three answers');
-    A.ok(/exact command/.test(acp.permissionOptions({ exactCommand: true })[1].name) && acp.permissionOptions({})[1].name === 'Allow for the rest of this session', 'and words the session one for a command');
+    A.eq(acp.permissionOptions({ exactCommand: true }).map(o => o.optionId), ['once', 'deny'], 'ACP offers a command once or reject, nothing it would not keep');
+    A.eq(acp.permissionOptions({}).map(o => o.optionId + ':' + o.name), ['once:Allow once', 'session:Allow for the rest of this session', 'deny:Reject'], 'any other ask keeps its three answers');
   }
 
   // ---------------- 4. THE ASSEMBLED LINE ----------------
