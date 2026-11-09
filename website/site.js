@@ -117,24 +117,24 @@
     })();
   }
 
-  /* ---------- platform detection ---------- */
-  function detectOS(){
-    var ua = navigator.userAgent || '';
-    var plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || '';
-    if(/Windows/i.test(ua) || /Win/i.test(plat)) return 'windows';
-    if(/Macintosh|Mac OS X/i.test(ua) || /Mac/i.test(plat)){
-      // Apple Silicon Macs report Intel in UA; default to arm (the common case for new downloads)
-      return 'mac-arm';
-    }
-    return null;
-  }
-
-  var os = detectOS();
-  if(os){
-    var card = document.querySelector('.dl-card[data-os="' + os + '"]');
-    if(card) card.classList.add('detected');
-    /* hero CTA stays a plain [ DOWNLOAD ] (Andrew 2026-07-20) — the detected-OS
-       highlight below still personalizes the download cards. */
+  /* ---------- platform detection (platform.js) ----------
+     Every Mac browser claims "Intel" in its user agent, Apple Silicon included. This page used to mark the Apple Silicon
+     card on EVERY Mac, and an Intel Mac owner who followed it got macOS's "not supported on this type of Mac" (customer
+     report, 2026-11-08). The chip is now named only when the browser really says it (SNPlatform.detect); a Mac whose chip
+     stays unknown gets both Mac cards marked alike and the About This Mac check, never a guess.
+     The hero CTA stays a plain [ DOWNLOAD ] (Andrew 2026-07-20); this only marks the download cards. */
+  var SNP = window.SNPlatform;
+  if(SNP && document.querySelector('.dl-card')){
+    SNP.detect(navigator, document).then(function(r){
+      if(r.card === 'mac-unknown'){
+        document.querySelectorAll('.dl-card[data-os^="mac-"]').forEach(function(c){ c.classList.add('check-chip'); });
+        var which = document.getElementById('dl-mac-which');
+        if(which) which.hidden = false;
+        return;
+      }
+      var card = r.card && document.querySelector('.dl-card[data-os="' + r.card + '"]');
+      if(card) card.classList.add('detected');
+    });
   }
 
   /* ---------- live release links ---------- */

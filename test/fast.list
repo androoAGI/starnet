@@ -530,6 +530,7 @@ test/qa-product-perfect.test.js
 test/qa-product-perfect-claims.test.js
 test/qa-claims-streaming.test.js
 test/website-pricing-hold.test.js
+test/website-platform.test.js
 test/website-docs-navigation.test.js
 test/website-skill-market.test.js
 test/genesis-starnet-link.test.js

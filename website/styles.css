@@ -373,6 +373,17 @@ a:hover{ color:var(--amber); }
   background:var(--bg); padding:0 8px;
   font-size:14px; letter-spacing:2px; color:var(--amber);
 }
+/* a Mac whose chip the browser will not name (site.js): both Mac cards marked alike, never a guess */
+.dl-card.check-chip{ border-color:var(--amber); position:relative; }
+.dl-card.check-chip::before{
+  content:'> MAC: CHECK CHIP'; position:absolute; top:-9px; right:12px;
+  background:var(--bg); padding:0 8px;
+  font-size:14px; letter-spacing:2px; color:var(--amber);
+}
+.dl-which{
+  margin-top:18px; font-size:16px; line-height:1.55; color:rgba(236,224,207,.45);
+  border-left:2px solid var(--amber); padding-left:14px;
+}
 .dl-os{ font-size:20px; letter-spacing:1.5px; color:var(--amber-b); }
 .dl-req{ font-size:15px; letter-spacing:1px; color:rgba(236,224,207,.4); }
 .dl-btn{ text-align:center; }
@@ -698,7 +709,7 @@ a:hover{ color:var(--amber); }
 .topnav a:hover,.topnav a.on{color:var(--amber-b);text-shadow:none}
 .topbar-right{display:flex;align-items:center;gap:20px;width:auto;font:16px 'VT323',monospace;letter-spacing:1.5px}
 .topbar-right a{font:inherit;letter-spacing:inherit;color:var(--amber-d);text-decoration:none;text-shadow:none;text-transform:uppercase;white-space:nowrap}.topbar-right .nav-download{border:1px solid #726044;border-radius:5px;padding:9px 13px;color:var(--amber-b)}
-.subline,.split-copy p,.contract li,.feat p,.dl-sub,.dl-note,.source-run-note,.dl-honesty,.faq details p{font-family:system-ui,sans-serif;font-size:15px;line-height:1.8;letter-spacing:0;color:#bfc1b6}
+.subline,.split-copy p,.contract li,.feat p,.dl-sub,.dl-note,.source-run-note,.dl-honesty,.dl-which,.faq details p{font-family:system-ui,sans-serif;font-size:15px;line-height:1.8;letter-spacing:0;color:#bfc1b6}
 .subline{max-width:590px;margin-top:20px}.hero-meta{color:#b0ac9c}
 .feat-grid{gap:18px}.feat{padding:28px}.feat h3{font:600 19px/1.35 system-ui,sans-serif;letter-spacing:-.025em;color:#eeeadd;margin-bottom:12px}.feat .f-glyph{font:12px ui-monospace,monospace;color:var(--amber-d);margin-bottom:22px}.feat p{font-size:14px}.feature-link{display:inline-block;margin-top:12px;font:12px system-ui,sans-serif;text-underline-offset:4px}
 .site-doc-paths{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.site-doc-paths>a{display:flex;flex-direction:column;padding:28px;border:1px solid var(--line);background:var(--panel);text-decoration:none;border-radius:6px}.site-doc-paths>a:hover{border-color:var(--amber-d)}

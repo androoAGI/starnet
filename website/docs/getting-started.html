@@ -95,8 +95,11 @@
 <tr><td>macOS — Apple Silicon (M1 or later)</td><td><code>StarNet_&lt;version&gt;_aarch64.dmg</code></td></tr>
 <tr><td>macOS — Intel</td><td><code>StarNet_&lt;version&gt;_x64.dmg</code></td></tr>
 </table>
-<p>Not sure which Mac you have? Apple menu &rarr; <b>About This Mac</b>. "Apple M…" means
-Apple Silicon; "Intel" means Intel. The wrong one won't run.</p>
+<p>Not sure which Mac you have? Apple menu &rarr; <b>About This Mac</b>: "Chip Apple M…" means
+Apple Silicon; "Processor … Intel" means Intel. Pick the build that matches: the Apple Silicon build
+won't open on an Intel Mac — macOS says it is "not supported on this type of Mac". If you see that,
+download the <code>x64.dmg</code> instead. Both Mac builds need macOS 11 (Big Sur) or later with
+Safari 16.4 or later (built in from macOS 13.3).</p>
 
 <h3 id="windows-first-run">Windows first run</h3>
 <p>Open the installer and follow its steps. If SmartScreen shows <i>"Windows protected your PC"</i>,
