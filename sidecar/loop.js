@@ -184,6 +184,27 @@
     return true;
   }
 
+  /* A HOST-CHOSEN RUN ORDER for a sequential batch (cost audit W1.2, 2026-11-08). A gate can read state that another call
+     in the SAME batch changes: the Task Brief gate holds a write until brief_proceed has run, so a model that listed its
+     write first paid a whole extra request to make it again. The loop cannot know which calls unlock which, so the host
+     injects the order (o.batchOrder, index.js briefFirstOrder) the way it injects parallelSafe; the loop only accepts an
+     exact permutation of the batch and runs the listed order on anything else. What the MODEL sees never moves: its
+     assistant turn keeps the calls as listed, and the results go back in that same order (inCallOrder). No injected
+     order = the listed order, byte-identical to before. */
+  function batchRunOrder(calls, orderFn) {
+    if (typeof orderFn !== 'function' || calls.length < 2) return calls;
+    let order = null;
+    try { order = orderFn(calls); } catch (e) { failNote('loop.batchOrder', e); return calls; }
+    if (order === calls || !Array.isArray(order) || order.length !== calls.length) return calls;
+    const left = new Set(calls);
+    for (const c of order) if (!left.delete(c)) return calls;   // a stranger or a repeat: not a permutation
+    return order;
+  }
+  function inCallOrder(results, calls) {
+    const at = new Map(calls.map((c, i) => [c.id, i]));
+    return results.slice().sort((a, b) => at.get(a.callId) - at.get(b.callId));
+  }
+
   /* PER-TURN AGGREGATE OUTPUT BUDGET.
      tools/registry.js caps each result on its own (80k). That was enough while calls ran strictly one at a
      time — the model saw a big result and could choose to narrow the next call. Parallel batches removed that
@@ -416,7 +437,9 @@
       return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
     }
 
-    for (const c of calls) {
+    // the host may run this batch in another order (batchRunOrder: the Task Brief settle before the calls it unlocks)
+    const order = batchRunOrder(calls, meta.batchOrder);
+    for (const c of order) {
       if (finalControl) {
         results.push({ callId: c.id, isError: true, ok: false, content: 'skipped: the Task Brief paused for the Commander', summary: 'skipped', control: null });
         continue;
@@ -457,7 +480,7 @@
         ms: Math.max(0, t1 - t0), summary: r.summary || (r.isError ? 'error' : 'ok'), isError: !!r.isError, ...refusalOf(r)
       });
     }
-    return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
+    return parkForTurnBudget(order === calls ? results : inCallOrder(results, calls), calls, capCtx, meta.turnOutputMax);
   }
 
   // Pure heuristic for the continuation guard: does a final, tool-free text ANNOUNCE work the model never did?
@@ -3034,7 +3057,7 @@
       toolTurnsRun++;
       toolCutStreak = 0;   // a complete call got through: the next cut is a new problem, with its own advice
       try {
-        results = await executeCalls(calls, dispatch, capCtx, emit, { agentId, runId, clock, signal, hiddenTools: new Set(o.hiddenTools || []), parallelSafe: (typeof o.parallelSafe === 'function') ? o.parallelSafe : null, turnOutputMax: turnOutputMaxNow() });
+        results = await executeCalls(calls, dispatch, capCtx, emit, { agentId, runId, clock, signal, hiddenTools: new Set(o.hiddenTools || []), parallelSafe: (typeof o.parallelSafe === 'function') ? o.parallelSafe : null, batchOrder: (typeof o.batchOrder === 'function') ? o.batchOrder : null, turnOutputMax: turnOutputMaxNow() });
         assertPaired(calls, results); // (7) HARD INVARIANT
       } catch (e) {
         emit('agent.run.error', { agentId, runId, message: String((e && e.message) || e), transient: false, failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
@@ -3250,5 +3273,5 @@
     }
   }
 
-  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, failedCheckRepairNote, deterministicCheckSignature, parallelizable, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
+  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, failedCheckRepairNote, deterministicCheckSignature, parallelizable, batchRunOrder, inCallOrder, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
 });
