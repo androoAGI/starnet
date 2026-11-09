@@ -45,6 +45,8 @@ const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const EDGE = path.join(__dirname, 'helpers', 'outbound-edge.js');
 const IPC = 'credential-store-endpoint-pair-ipc-0123456789abcdef';
+// the desktop shell's own key (review2 #11: only the shell quits a desktop station over HTTP; deskJson plays the shell with it)
+const SHELL_KEY = 'credential-store-endpoint-pair-shell-0123456789abcdef';
 const V1 = 'credential-store-endpoint-pair-v1-bearer-0123456789';
 const K = {
   env: 'custom-OPERATOR-ENV-key-E-0123456789abcdefghij',
@@ -188,7 +190,7 @@ function station(label, up, env) {
         timer = setTimeout(() => reject(new Error(label + ': graceful shutdown did not exit within the fixture deadline')), fx.timeoutMs);
       });
       try {
-        const quitting = fx.json('POST', '/api/lifecycle/quit', undefined, { signal: AbortSignal.timeout(fx.timeoutMs) }).then(reply => {
+        const quitting = fx.deskJson('POST', '/api/lifecycle/quit', undefined, { signal: AbortSignal.timeout(fx.timeoutMs) }).then(reply => {
           const accepted = reply.status === 202 && reply.body && reply.body.ok === true && reply.body.shuttingDown === true;
           A.ok(accepted, label + ': graceful quit accepted: ' + reply.status + ' ' + reply.text);
           if (!accepted) throw new Error(label + ': graceful quit refused; do not restart');
@@ -429,7 +431,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
     // the desktop: the keychain key on its kept endpoint, after a restart with no window
     {
       const kept = up.base + '/kept/v1';
-      const s = station('desktop', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('CUSTOM_OPENAI_KEY', K.kc) });
+      const s = station('desktop', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('API_TOKEN', SHELL_KEY), ...pair('CUSTOM_OPENAI_KEY', K.kc) });
       stations.push(s);
       await s.fx.start();
       A.eq((await s.roster({ cus: { provider: 'custom' } })).status, 200, 'desktop: the roster is saved');

@@ -16915,8 +16915,8 @@ function announceDeskCode(note) {
   const line = n.kind === 'code'
     ? 'Confirm at the desk: ' + String(n.title || '').replace(/^StarNet — /, '') + ' (' + String(n.verb || 'Confirm') + '). Type code '
       + n.code + ' in the StarNet page that asks for confirmation ' + n.label + '. It works once, for two minutes. Never type it anywhere else or give it to an agent.'
-    : n.kind === 'wrong' ? 'A wrong confirmation code was typed for ' + n.label + ' (' + n.wrong + ' of ' + n.max + '; after ' + n.max + ' this station takes no permission change until it restarts).'
-      : 'Confirmation codes: ' + n.max + ' wrong codes were typed, so this station takes no permission change until it restarts.';
+    : n.kind === 'wrong' ? 'A wrong confirmation code was typed for ' + n.label + ' (' + n.wrong + ' of ' + n.max + '; after ' + n.max + ' this station takes no permission change for a while, restarts included).'
+      : 'Confirmation codes: ' + n.max + ' wrong codes were typed, so this station takes no permission change until ' + deskLockClock(n.until) + ' (a restart does not end it).';
   if (DESK_CODE_TO_PARENT && typeof process.send === 'function' && process.connected) {
     process.send({ type: 'starnet.desk-code', kind: n.kind, id: n.id || '', label: n.label || '', code: n.code || '', title: n.title || '', verb: n.verb || '', expiresAt: n.expiresAt || 0, text: line });
     return;
@@ -16924,7 +16924,27 @@ function announceDeskCode(note) {
   process.stderr.write('\n  [StarNet] ' + line + '\n\n');
 }
 const deskProofMod = require('./deskproof.js');
-const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: IPC_TOKEN, now: () => Date.now(),
+function deskLockClock(until) {
+  const t = Number(until) || 0;
+  if (!t) return 'later';
+  try { return new Date(t).toLocaleString(); } catch (_) { return new Date(t).toISOString(); }
+}
+/* review2 #11: the wrong-code count and its lockout live in StarNet's own data, so a restart (pm2 bringing a quit station
+   back) does not hand a guesser five more tries. No file is a fresh count; a file that cannot be read is a lockout. */
+const DESK_CODES_FILE = path.join(WORKSPACES, 'desk-codes.json');
+const deskCodeStore = {
+  load() {
+    let raw;
+    try { raw = fs.readFileSync(DESK_CODES_FILE, 'utf8'); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; }
+    return JSON.parse(raw);
+  },
+  save(state) {
+    const tmp = DESK_CODES_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(state));
+    fs.renameSync(tmp, DESK_CODES_FILE);
+  }
+};
+const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: IPC_TOKEN, now: () => Date.now(), store: deskCodeStore,
   announce: DESKTOP_SHELL ? null : announceDeskCode });
 // What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
 // shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).
@@ -16941,6 +16961,8 @@ function deskWords(action, d) {
     case 'servicekey-unattended': return { title: 'StarNet — let agents use a key unattended', verb: 'Allow unattended',
       summary: 'Let agents spend the key "' + o.name + '" (' + o.envVar + ') with nobody watching, in routines, Night Shift and messaged runs, without asking?\n\nIt stays on until you switch it off in Connectors › Keys.' };
     // review2 #9: the away workshop is a standing unattended write grant, asked like the station-wide one below
+    case 'quit': return { title: 'StarNet — stop this station', verb: 'Stop it',
+      summary: 'Stop this StarNet station now?\n\nEvery run, routine and loop stops. A station kept running by pm2 or another service manager starts again on its own.' };
     case 'grant': if (o.workshop) return o.dial
       ? { title: 'StarNet — let the night shift build', verb: 'Raise the dial',
         summary: 'Raise the autonomy dial to building?\n\nThat also lets ' + who + ' build from its away queue while you are away: it writes files in its own workspace with nobody watching, within the dial\'s daily leash. Each build waits in MY WORK for your KEEP IT or DISCARD.' }
@@ -17006,9 +17028,10 @@ function deskGate(req, res, action, scope, details) {
   const presented = String(req.headers['x-starnet-desk-proof'] || '').trim();
   const spent = presented ? deskProof.consume(presented, action, scope, req.headers['x-starnet-desk-code']) : null;
   if (spent && spent.ok) return true;
-  // page mode: too many wrong desk codes. Nothing is handed out again until the station restarts (deskproof.js)
+  // page mode: too many wrong desk codes. Nothing is handed out again until the lockout ends; a restart does not end it (deskproof.js)
   if (deskProof.locked()) {
-    respondFail(res, 403, 'forbidden', 'Too many wrong confirmation codes were typed, so this station takes no permission change until it restarts.', { deskLocked: true });
+    const mins = Math.max(1, Math.ceil(deskProof.lockedForMs() / 60000));
+    respondFail(res, 403, 'forbidden', 'Too many wrong confirmation codes were typed, so this station takes no permission change for ' + mins + ' more minute' + (mins === 1 ? '' : 's') + '.', { deskLocked: true, retryAfterMs: deskProof.lockedForMs() });
     return false;
   }
   const words = deskWords(action, details);
@@ -18357,6 +18380,14 @@ function handleLifecycleArmed(req, res) {
    shell now asks first; this answers at once and runs the same gracefulShutdown a SIGTERM would (bounded by its 3 s
    deadline), and the shell still kills whatever is left after its own wait. Token-gated like every /api route. */
 function handleLifecycleQuit(req, res) {
+  /* WHO MAY QUIT OVER HTTP (fix-sec2 review2 #11). Any key holder could stop the station here, and under pm2 a stop is a
+     restart, which reset the desk's wrong-code count. Now the desktop shell quits this way with its own key (with the
+     shell's proof, CLIENT_TOKEN set, never the page's key; a shell without its proof cannot tell the two apart, so it keeps
+     the old door). Anyone else is asked at the desk ('quit'): under the shell the page key is refused outright (desk_only),
+     and a bare station (browser, pm2) takes the code it printed. The CLI stops its own child over IPC and signals, never
+     this route, so `starnet stop` is unchanged. */
+  const shellKey = CLIENT_TOKEN ? apiauth.apiTokenOk(req, API_TOKEN) : DESKTOP_SHELL;
+  if (!shellKey && !deskGate(req, res, 'quit', 'station', {})) return;
   const body = JSON.stringify({ ok: true, shuttingDown: true });
   res.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) });
   res.end(body, () => setImmediate(() => gracefulShutdown('desktop-quit')));

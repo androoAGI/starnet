@@ -22,14 +22,17 @@
      3. the page replays the request with X-StarNet-Desk-Proof: <id> (and X-StarNet-Desk-Code in page mode); the route
         consumes the challenge (single use, same action, same scope, unexpired, approved by the shell in desktop mode,
         the right code in page mode) before it changes anything. A wrong code burns the challenge, and after
-        MAX_WRONG_CODES wrong codes a page-mode station takes no authority change until it restarts.
+        MAX_WRONG_CODES wrong codes a page-mode station takes no authority change for a while (LOCK_MS, doubling with
+        each lockout up to LOCK_MAX_MS). The count and the lock are kept in deps.store, so a restart does not reset them
+        (fix-sec2 review2 #11); a right code clears both.
 
      const d = makeDeskProof({ desktop, ipcToken, now, randomBytes?, announce? })
      d.mode()                                    -> 'desktop' | 'page'
      d.issue({ action, scope, title, summary, verb }) -> public challenge (never a secret)
      d.approve({ id, title, summary, verb }, presentedIpcToken) -> { ok, reason? }   (desktop mode only)
      d.consume(id, action, scope, code?)         -> { ok, reason? }   single use; a mismatch burns the challenge
-     d.locked()                                  -> true once MAX_WRONG_CODES wrong codes were typed (page mode)
+     d.locked()                                  -> true while a wrong-code lockout lasts (page mode)
+     d.lockedForMs()                             -> how long the lockout still lasts (0 when none)
      announce(note)                              page mode: shows the code where only the person at the station sees it.
                                                  note = { kind: 'code', id, label, title, verb, code, expiresAt }
                                                       | { kind: 'wrong', label, wrong, max } | { kind: 'locked', max }.
@@ -54,9 +57,13 @@ const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'g
   // fix-sec2, review2 #4: a loop's check command (create, change, or try it now)
   'loop-check',
   // fix-sec2, review2 #7: a service key spent with nobody watching
-  'servicekey-unattended']);
+  'servicekey-unattended',
+  // fix-sec2 review2 #11: stopping the station from anywhere but the desktop shell (a pm2 restart reset the code count)
+  'quit']);
 const CODE_RE = /^\d{6}$/;
-const MAX_WRONG_CODES = 5;              // a guesser gets five tries in a station's lifetime (one in 200,000), then nothing
+const MAX_WRONG_CODES = 5;              // five tries (one in 200,000), then a lockout
+const LOCK_MS = 15 * 60 * 1000;         // the first lockout; each further one doubles it...
+const LOCK_MAX_MS = 24 * 60 * 60 * 1000;   // ...up to a day: at most five guesses a day after that, restarts included
 
 // The shell refuses words with control characters (a dialog must show what was approved, nothing hidden), so the
 // station never issues any: everything but \n becomes a space, runs of blank lines collapse, and the text is capped.
@@ -98,7 +105,33 @@ function makeDeskProof(deps) {
   const desktop = d.desktop === true && !!ipcToken;   // no shell token, no desktop proof: a bare sidecar is 'page' mode
   const announce = !desktop && typeof d.announce === 'function' ? d.announce : null;
   const open = new Map();
-  let wrongCodes = 0;
+  /* THE WRONG-CODE COUNT OUTLIVES A RESTART (review2 #11). deps.store { load() -> state|null, save(state) } keeps
+     { wrong, lockouts, lockedUntil }; a restart (pm2 brings a quit station back) used to hand a guesser five more tries.
+     A store that cannot be read starts from a lockout already in force, never from zero. */
+  const store = d.store && typeof d.store.load === 'function' && typeof d.store.save === 'function' ? d.store : null;
+  let wrongCodes = 0, lockouts = 0, lockedUntil = 0;
+  if (store && !desktop) {
+    try {
+      const s = store.load();
+      if (s && typeof s === 'object') {
+        wrongCodes = Math.max(0, Math.min(MAX_WRONG_CODES, Math.floor(Number(s.wrong) || 0)));
+        lockouts = Math.max(0, Math.min(16, Math.floor(Number(s.lockouts) || 0)));
+        lockedUntil = Math.max(0, Number(s.lockedUntil) || 0);
+      }
+    } catch (_) { wrongCodes = MAX_WRONG_CODES; lockouts = 1; lockedUntil = now() + LOCK_MS; }
+  }
+  function persist() {
+    if (!store) return;
+    try { store.save({ wrong: wrongCodes, lockouts, lockedUntil }); } catch (_) { /* the in-memory count still holds */ }
+  }
+  // the lockout in force now; an ended one starts a fresh count (its lockouts stay, so the next one is longer)
+  function lockedNow() {
+    if (desktop) return false;
+    if (wrongCodes < MAX_WRONG_CODES) return false;
+    if (now() < lockedUntil) return true;
+    wrongCodes = 0; lockedUntil = 0; persist();
+    return false;
+  }
   function tell(note) {
     if (!announce) return false;
     try { announce(note); return true; } catch (_) { return false; }   // a code nobody was shown confirms nothing
@@ -118,7 +151,7 @@ function makeDeskProof(deps) {
   function publicView(c) {
     const v = { id: c.id, action: c.action, mode: desktop ? 'desktop' : 'page', title: c.title, summary: c.summary, verb: c.verb,
       code: shortCode(c.id), expiresAt: c.expiresAt };
-    if (!desktop) { v.codeWhere = c.shown ? 'station-console' : ''; if (wrongCodes >= MAX_WRONG_CODES) v.locked = true; }
+    if (!desktop) { v.codeWhere = c.shown ? 'station-console' : ''; if (lockedNow()) { v.locked = true; v.lockedUntil = lockedUntil; } }
     return v;
   }
   function issue(o) {
@@ -137,7 +170,7 @@ function makeDeskProof(deps) {
       approved: false,
       secret: '', shown: false
     };
-    if (!desktop && wrongCodes < MAX_WRONG_CODES) {
+    if (!desktop && !lockedNow()) {
       c.secret = deskCode();
       c.shown = tell({ kind: 'code', id, label: shortCode(id), title: c.title, verb: c.verb, code: c.secret, expiresAt: c.expiresAt });
     }
@@ -171,18 +204,25 @@ function makeDeskProof(deps) {
     if (c.action !== String(action || '') || c.scope !== String(scope == null ? '' : scope).slice(0, CAPS.scope)) return { ok: false, reason: 'mismatch' };
     if (desktop) return c.approved === true ? { ok: true } : { ok: false, reason: 'not-approved' };
     // page mode: the code the station showed only at its own console (fix-sec2, review 2)
-    if (wrongCodes >= MAX_WRONG_CODES) return { ok: false, reason: 'locked' };
+    if (lockedNow()) return { ok: false, reason: 'locked' };
     if (!c.shown || !c.secret) return { ok: false, reason: 'no-code-shown' };
     const typed = String(code == null ? '' : code).replace(/\s+/g, '');
     if (!typed) return { ok: false, reason: 'code-missing' };
     if (!CODE_RE.test(typed) || !constEq(c.secret, typed)) {
       wrongCodes++;
-      tell(wrongCodes >= MAX_WRONG_CODES ? { kind: 'locked', max: MAX_WRONG_CODES } : { kind: 'wrong', label: shortCode(c.id), wrong: wrongCodes, max: MAX_WRONG_CODES });
+      if (wrongCodes >= MAX_WRONG_CODES) {
+        lockedUntil = now() + Math.min(LOCK_MAX_MS, LOCK_MS * Math.pow(2, lockouts));
+        lockouts = Math.min(16, lockouts + 1);
+      }
+      persist();
+      tell(wrongCodes >= MAX_WRONG_CODES ? { kind: 'locked', max: MAX_WRONG_CODES, until: lockedUntil } : { kind: 'wrong', label: shortCode(c.id), wrong: wrongCodes, max: MAX_WRONG_CODES });
       return { ok: false, reason: wrongCodes >= MAX_WRONG_CODES ? 'locked' : 'wrong-code' };
     }
+    if (wrongCodes || lockouts || lockedUntil) { wrongCodes = 0; lockouts = 0; lockedUntil = 0; persist(); }   // a person at the desk
     return { ok: true };
   }
-  return { mode: () => (desktop ? 'desktop' : 'page'), issue, approve, consume, locked: () => !desktop && wrongCodes >= MAX_WRONG_CODES, _open: open };
+  return { mode: () => (desktop ? 'desktop' : 'page'), issue, approve, consume, locked: () => lockedNow(),
+    lockedForMs: () => (lockedNow() ? Math.max(0, lockedUntil - now()) : 0), _open: open };
 }
 
-module.exports = { makeDeskProof, cleanWords, cutPoints, wholeText, shortCode, TTL_MS, MAX_OPEN, MAX_WRONG_CODES, ACTIONS, CAPS, ID_RE, CODE_RE };
+module.exports = { makeDeskProof, cleanWords, cutPoints, wholeText, shortCode, TTL_MS, MAX_OPEN, MAX_WRONG_CODES, LOCK_MS, LOCK_MAX_MS, ACTIONS, CAPS, ID_RE, CODE_RE };

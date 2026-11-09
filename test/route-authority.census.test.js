@@ -66,7 +66,8 @@ put('desk', '"/away on" is the same workshop grant (review2 #9); a custom exec c
   [ex('/api/slash/dispatch')]);
 
 /* ---------------------------------------------------------------- open (not gated yet; each names what closes it) */
-put('open', 'review2 #11: any key holder can stop the station', [ex('/api/lifecycle/quit')], { closes: 'review2 #11' });
+put('desk', 'quit: the desktop shell stops the station with its own key; anyone else is asked at the desk (review2 #11: a pm2 restart reset the wrong-code count)',
+  [ex('/api/lifecycle/quit')]);
 put('open', 'a raised spend cap, a resumed spend or a settled-low charge lets runs spend more: the spend rail is fix-sec3-1108\'s',
   [ex('/api/budget/caps'), ex('/api/budget/resume'), ex('/api/budget/settle')], { closes: 'fix-sec3-1108 (spend rail)' });
 
@@ -201,7 +202,6 @@ put('neutral', 'app updates are verified by signature before they install (src-t
 
 /* ---------------------------------------------------------------- the census */
 const OPEN = {
-  "POST exact '/api/lifecycle/quit'": 'review2 #11',
   "POST exact '/api/budget/caps'": 'fix-sec3-1108 (spend rail)',
   "POST exact '/api/budget/resume'": 'fix-sec3-1108 (spend rail)',
   "POST exact '/api/budget/settle'": 'fix-sec3-1108 (spend rail)'
@@ -265,7 +265,7 @@ check('each pinned line is still in its route\'s body', () => {
 check('the open (still ungated) raises are exactly the known list', () => {
   const open = {};
   for (const k of Object.keys(C)) if (C[k].kind === 'open') open[k] = C[k].closes;
-  assert.deepStrictEqual(open, OPEN, 'the open set changed: close an item by gating it (class desk), never by reclassifying it');
+  assert.deepStrictEqual(open, OPEN, 'the open set changed: close an item by gating it (class desk) or pinning its refusal (must), never by relabelling it');
 });
 
 check('every class has a reason', () => {

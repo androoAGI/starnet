@@ -109,7 +109,7 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     for(let i=0;i<100&&calls<5;i++)await new Promise(r=>setTimeout(r,50));
     assert.equal(calls,5,'provider accepted the request before Quit');
     const exited=new Promise(r=>f.child.once('exit',r));
-    assert.equal((await f.json('POST','/api/lifecycle/quit')).status,202);
+    assert.equal((await f.deskJson('POST','/api/lifecycle/quit')).status,202);
     await exited;await f.stop();await quitRun;server.closeAllConnections();hold=false;
     assert.equal(fs.existsSync(dir)?fs.readdirSync(dir).length:0,0,'a graceful Quit leaves no unsettled receipt');
     await f.start({SKYNET_BUDGET_PER_DAY:'10'});st=(await status()).body;

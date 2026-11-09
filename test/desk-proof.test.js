@@ -97,6 +97,45 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.eq(desk.locked(), false, 'and never locks');
   }
   {
+    // review2 #11: the count and the lockout outlive a restart; a lockout ends after a while (each one twice as long); a
+    // right code clears both
+    const clock = { t: 1000 };
+    let saved = null;
+    const store = { load: () => saved, save: s => { saved = JSON.parse(JSON.stringify(s)); } };
+    const notes = [];
+    const boot = () => D.makeDeskProof({ now: () => clock.t, randomBytes: rnd, announce: n => notes.push(n), store });
+    const codeOf = ch => notes.filter(x => x.kind === 'code' && x.id === ch.id).pop().code;
+    const wrong = p => { const ch = p.issue({ action: 'grant', scope: 'x' }); const right = codeOf(ch); return p.consume(ch.id, 'grant', 'x', right === '000000' ? '000001' : '000000'); };
+    let p = boot();
+    for (let i = 0; i < 3; i++) wrong(p);
+    p = boot();   // a restart
+    A.eq(saved.wrong, 3, 'three wrong codes are kept on disk');
+    wrong(p);
+    A.eq(wrong(p).reason, 'locked', 'two more after a restart lock it: a restart gives no fresh tries');
+    A.ok(notes.some(n => n.kind === 'locked' && n.until === clock.t + D.LOCK_MS), 'the console says until when');
+    p = boot();
+    A.ok(p.locked(), 'the lockout holds through a restart');
+    A.ok(p.lockedForMs() > 0 && p.lockedForMs() <= D.LOCK_MS, 'for the first lockout\'s length: ' + p.lockedForMs());
+    clock.t += D.LOCK_MS + 1;
+    A.ok(!p.locked() && p.lockedForMs() === 0, 'and ends after it');
+    for (let i = 0; i < D.MAX_WRONG_CODES; i++) wrong(p);
+    A.ok(p.locked() && p.lockedForMs() > D.LOCK_MS && p.lockedForMs() <= 2 * D.LOCK_MS, 'the next lockout is twice as long: ' + p.lockedForMs());
+    clock.t += 2 * D.LOCK_MS + 1;
+    const ch = p.issue({ action: 'grant', scope: 'x' });
+    A.ok(p.consume(ch.id, 'grant', 'x', codeOf(ch)).ok, 'a right code works once the lockout ends');
+    A.ok(saved.wrong === 0 && saved.lockouts === 0 && saved.lockedUntil === 0, 'and clears the count and the lockouts: ' + JSON.stringify(saved));
+    const torn = { load: () => { throw new Error('torn'); }, save: () => {} };
+    A.ok(D.makeDeskProof({ now: () => clock.t, randomBytes: rnd, announce: () => {}, store: torn }).locked(), 'a count that cannot be read starts locked, never from zero');
+    A.eq(D.makeDeskProof({ desktop: true, ipcToken: 'IPC', now: () => clock.t, randomBytes: rnd, store: torn }).locked(), false, 'a desktop station never locks');
+    A.ok(D.LOCK_MAX_MS >= D.LOCK_MS && D.LOCK_MAX_MS <= 24 * 60 * 60 * 1000, 'lockouts stop growing at a day');
+    // the station keeps the count in its own data, and its quit door is the desktop shell's alone
+    const IDX11 = read('sidecar/index.js');
+    A.ok(/store: deskCodeStore/.test(IDX11) && /DESK_CODES_FILE = path\.join\(WORKSPACES, 'desk-codes\.json'\)/.test(IDX11), 'index.js hands the desk its persisted count');
+    const quit = A.fnBody(IDX11, 'function handleLifecycleQuit(');
+    A.ok(/const shellKey = CLIENT_TOKEN \? apiauth\.apiTokenOk\(req, API_TOKEN\) : DESKTOP_SHELL;/.test(quit) && quit.indexOf("if (!shellKey && !deskGate(req, res, 'quit', 'station', {})) return;") > 0
+      && quit.indexOf('deskGate(') < quit.indexOf('gracefulShutdown('), 'quit over HTTP is asked at the desk before any shutdown unless the caller is the desktop shell');
+  }
+  {
     const c = clockAt(5000);
     const desk = D.makeDeskProof({ desktop: true, ipcToken: 'IPC-SECRET', now: c.now, randomBytes: rnd });
     A.eq(desk.mode(), 'desktop', 'desktop shell with its IPC token: desktop mode');
@@ -197,7 +236,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
       res = fakeRes(); gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': ci.id, 'x-starnet-desk-code': right === '999999' ? '999998' : '999999' } }, res, 'remote-pair', '', {});
     }
     A.eq(res.headers['X-StarNet-Code'], 'forbidden', 'five wrong codes: refused outright');
-    A.ok(JSON.parse(res.body).deskLocked === true && /until it restarts/.test(JSON.parse(res.body).error), 'and the station says it takes no permission change until it restarts');
+    A.ok(JSON.parse(res.body).deskLocked === true && /for \d+ more minutes?\./.test(JSON.parse(res.body).error), 'and the station says for how long it takes no permission change');
     res = fakeRes();
     A.eq(gate({ headers: { 'x-starnet-token': API } }, res, 'remote-pair', '', {}), false, 'locked: no new challenge either');
     A.ok(!/deskConfirm/.test(res.body), 'nothing to confirm');

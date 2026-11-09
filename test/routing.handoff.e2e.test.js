@@ -256,7 +256,7 @@ test('hand-offs waiting when the station quits are said, never lost', async () =
     assert.equal(before.length, 1, 'one hand-off runs on B, two wait behind it: ' + JSON.stringify(before.map(j => j.status)));
     assert.equal(before[0].status, 'running');
     const exited = new Promise(r => fixture.child.once('exit', r));
-    assert.equal((await fixture.json('POST', '/api/lifecycle/quit')).status, 202);
+    assert.equal((await fixture.deskJson('POST', '/api/lifecycle/quit')).status, 202);
     await exited;
     await fixture.stop();
     const quitJobs = JSON.parse(fs.readFileSync(path.join(fixture.workspace, 'line-jobs.json'), 'utf8')).jobs;
