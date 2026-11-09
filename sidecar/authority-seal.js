@@ -147,10 +147,11 @@ function strip(value) {
   return out;
 }
 
-// A roster whose seal failed keeps who the agents are and loses what they may do: approvalMode back to ask, the
+// A roster whose seal failed keeps who the agents are and loses what they may do: approvalMode back to ask, a wider
 // execution envelope back to its default, and no freshness stamp (an unsealed stamp from the future would make every
-// real push from the page look stale).
-function clampRoster(raw) {
+// real push from the page look stale). A NARROW profile is kept (fix-sec2 breakage 5): Safe Cell is narrower than the
+// default, so dropping it would widen the agent. `lost` (optional) collects what was taken, for the restore notice.
+function clampRoster(raw, lost) {
   const rows = plainObject(raw) && Array.isArray(raw.agents) ? raw.agents : (Array.isArray(raw) ? raw : []);
   return {
     version: 1,
@@ -158,9 +159,23 @@ function clampRoster(raw) {
       const out = {};
       for (const k of Object.keys(row)) if (k !== 'executionProfile') out[k] = row[k];
       out.approvalMode = 'ask';
+      const p = row.executionProfile;
+      const narrow = typeof p === 'string' && NARROW_PROFILES.indexOf(p) >= 0;
+      if (narrow) out.executionProfile = p;
+      if (Array.isArray(lost) && (row.approvalMode === 'full' || (p !== undefined && p !== null && p !== '' && !narrow)))
+        lost.push({ name: String(row.name || row.agentId || 'agent').slice(0, 40), full: row.approvalMode === 'full', profile: narrow || p == null || p === '' ? '' : String(p).slice(0, 40) });
       return out;
     })
   };
+}
+const PROFILE_WORDS = Object.freeze({ 'this-computer': 'This Computer', 'trusted-project': 'Trusted Project', 'remote-ssh': 'Remote SSH' });
+// the restore notice's words for what clampRoster took: who lost Full Access, and whose profile went back to Station Gear
+function lostWords(lost) {
+  const q = n => '"' + n + '"';
+  const full = lost.filter(x => x.full).map(x => q(x.name));
+  const prof = lost.filter(x => x.profile).map(x => q(x.name) + ' (was ' + (PROFILE_WORDS[x.profile] || x.profile) + ')');
+  return (full.length ? ' Full Access was not carried over for ' + full.join(', ') + '.' : '')
+    + (prof.length ? ' These agents are back on the Station Gear profile until you choose theirs again here: ' + prof.join(', ') + '.' : '');
 }
 
 /* lowerOf(name, value, cap, nowMs) -> { value, dropped: [what was not taken] } | null (a file it has no rule for).
@@ -461,7 +476,7 @@ function makeAuthoritySeal(opts) {
     try { rec = restored.read(); } catch (_) { return []; }
     if (rec === undefined || rec === null) return [];
     const listed = new Set(plainObject(rec) && Array.isArray(rec.files) ? rec.files.map(String) : []);
-    const adopted = [];
+    const adopted = [], lost = [];
     for (const f of (Array.isArray(files) ? files : [])) {
       if (!listed.has(f.name) || RESTORABLE.indexOf(f.name) < 0) continue;
       let v;
@@ -469,7 +484,7 @@ function makeAuthoritySeal(opts) {
       if (v === undefined || v === null || !verify(f.name, v)) continue;
       const raw = strip(v);
       // permissions.allow.json: a restore carries none of its approvals (station-recovery empties it); sealed empty here
-      const value = f.name === 'agent.roster.json' ? clampRoster(raw)
+      const value = f.name === 'agent.roster.json' ? clampRoster(raw, lost)
         : f.name === 'permissions.allow.json' ? { version: 1, allow: [], meta: {} }
         : (typeof f.wrap === 'function' ? f.wrap(raw) : raw);
       if (!plainObject(value)) continue;
@@ -480,7 +495,7 @@ function makeAuthoritySeal(opts) {
     try { if (typeof restored.drop === 'function') restored.drop(); } catch (e) { log('could not remove ' + RESTORED_NAME + ': ' + String((e && (e.code || e.message)) || e)); }
     if (adopted.length) notice({ kind: 'restored', sealed: adopted.slice(),
       text: 'Restored from a recovery bundle: ' + adopted.join(', ') + ' sealed for this computer.' +
-        (adopted.indexOf('agent.roster.json') >= 0 ? ' Every agent asks first until you give Full Access again here.' : '') +
+        (adopted.indexOf('agent.roster.json') >= 0 ? ' Every agent asks first until you give Full Access again here.' + lostWords(lost) : '') +
         (adopted.indexOf('hooks.json') >= 0 ? ' Each hook waits for your approval.' : '') });
     return adopted;
   }

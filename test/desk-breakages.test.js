@@ -184,6 +184,21 @@ const IDX = read('sidecar/index.js');
     A.eq(st3.seal.open('permissions.bypass.json', files3['permissions.bypass.json']).why, 'unsealed', 'a forged record never admits FULL BYPASS');
     A.eq(st3.seal.open('hooks-allowed.json', files3['hooks-allowed.json']).why, 'unsealed', 'nor a hook approval');
     A.eq(st3.seal.open('agent.roster.json', files3['agent.roster.json']).value.agents[0].approvalMode, 'ask', 'and a roster it admits asks first');
+    // breakage 5 (review-sec2): a restore elsewhere keeps the NARROW profiles, and the notice names every profile it dropped
+    const files4 = { 'agent.roster.json': roundTrip(elsewhere.seal('agent.roster.json', { version: 1, agents: [
+      { agentId: 'a', name: 'NOVA', approvalMode: 'full', executionProfile: 'this-computer' },
+      { agentId: 'b', name: 'VEGA', approvalMode: 'ask', executionProfile: 'trusted-project' },
+      { agentId: 'c', name: 'CELL', approvalMode: 'ask', executionProfile: 'safe-cell' },
+      { agentId: 'd', name: 'GEAR', approvalMode: 'ask', executionProfile: 'station-gear' }] })) };
+    const st4 = station(files4, { version: 1, files: ['agent.roster.json'] });
+    st4.seal.boot(st4.list);
+    const back = st4.seal.open('agent.roster.json', files4['agent.roster.json']).value.agents;
+    A.eq(back.map(x => [x.agentId, x.approvalMode, x.executionProfile || '']), [['a', 'ask', ''], ['b', 'ask', ''], ['c', 'ask', 'safe-cell'], ['d', 'ask', 'station-gear']], 'the wide profiles are dropped, the narrow ones kept (Safe Cell is never widened to the default)');
+    const said = st4.seal.notices().filter(x => x.kind === 'restored').map(x => x.text).join(' ');
+    A.ok(/Full Access was not carried over for "NOVA"\./.test(said), 'the notice names who lost Full Access: ' + said);
+    A.ok(/back on the Station Gear profile until you choose theirs again here: "NOVA" \(was This Computer\), "VEGA" \(was Trusted Project\)\./.test(said), 'and whose profile went back to Station Gear, with what it was');
+    A.ok(!/CELL|GEAR/.test(said), 'an agent that lost nothing is not named');
+    A.eq(S.clampRoster({ version: 1, agents: [{ agentId: 'z', approvalMode: 'full', executionProfile: 'this-computer' }] }).agents, [{ agentId: 'z', approvalMode: 'ask' }], 'a tampered roster still loses a wide profile and Full Access, as before');
     A.ok(/restored: \{\s*read: \(\) => readJsonIfPresent\(path\.join\(WORKSPACES, authoritySealMod\.RESTORED_NAME\)\)/.test(IDX), 'index.js hands the seal the restore record');
     // the bundle side
     const R = require('../sidecar/station-recovery.js');
