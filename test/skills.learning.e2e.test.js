@@ -7,7 +7,8 @@
      2. THE NUDGE — turns with skill tools on the wire CARRY across runs and across a sidecar RESTART
         (skill.nudge.json); below the bar no review fork fires; the run that crosses it fires the skill-review
         fork on the RESERVED lane, taking one slot of the aux budget (2) ahead of the higher beats; the count then
-        starts over.
+        starts over. Since W3.2 (2026-11-09) the crossing run must also give the review something to learn from
+        (skillreview.js reviewCause): here, a correction in the Commander's own words.
      3. USE = LOADED — a skill that is only LISTED in the index gains no use; a run that loads it with skill.view
         gains exactly one; the count survives a restart.
    Zero real network, zero spend (fake key, mocked upstream). */
@@ -146,7 +147,7 @@ async function skillRow(fixture, agentId, name) {
 
     // ---- 2c. the run that crosses the bar fires the review on the RESERVED lane ----
     const logStart = fixture.output().length;
-    r = await run(fixture, mock, 'learner', 'Rebuild the production rollback path the same way and write up the steps', { toolTurns: 2 });
+    r = await run(fixture, mock, 'learner', 'Rebuild the production rollback path the same way and write up the steps. Next time, write up the steps before you start.', { toolTurns: 2 });
     A.eq(r.mains.length, 3, 'the second run also took 3 turns (3 + 3 = 6 >= 5)');
     A.ok(r.reviews.length >= 1, 'THE NUDGE: the run that crossed the bar fired the skill-review fork');
     A.ok(r.reviews.every(q => q.tools.length > 0), 'the review really was a tool loop (skill tools on the wire)');

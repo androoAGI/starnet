@@ -154,12 +154,14 @@ const COMMON = { SKYNET_QUEST_REFRESH: '0', SKYNET_FULL_ACCESS: '1' };
     const fixture = SidecarFixture.create({
       prefix: 'sk-auxmodel-a-',
       // SKYNET_SKILL_REVIEW_EVERY 1: the skill review rides the skill nudge (turns since the skillbase last changed),
-      // so a bar of 1 makes this one-turn run DUE and the review fork fires for the routing assertions below.
+      // so a bar of 1 makes this one-turn run DUE and the review fork fires for the routing assertions below. Since W3.2 a due
+      // count fires it only on a run that gives it something to learn from (skillreview.js reviewCause): this run's message
+      // carries a correction in the Commander's own words.
       env: Object.assign({ SKYNET_OPENROUTER_BASE: mock.base, STARNET_AUX_MODEL: AUX_MODEL, SKYNET_AUX_BUDGET: '0', SKYNET_SKILL_REVIEW_EVERY: '1' }, COMMON)
     });
     await fixture.start();
     try {
-      await driveRun(fixture, 'auxmodel-route', 'Rebuild the staging deploy rollback path and write up what changed and why');
+      await driveRun(fixture, 'auxmodel-route', 'Rebuild the staging deploy rollback path and write up what changed and why. Next time, write up what changed before you start.');
       await settle(mock.state);
       const calls = mock.state.calls;
       if (process.env.AUXDEBUG) calls.forEach((c, i) => console.error('  #' + i + ' model=' + c.model + ' main=' + c.main + ' reasoning=' + JSON.stringify(c.reasoning) + ' sys=' + c.sys.replace(/\s+/g, ' ').slice(0, 90)));
@@ -174,7 +176,7 @@ const COMMON = { SKYNET_QUEST_REFRESH: '0', SKYNET_FULL_ACCESS: '1' };
       A.ok(singleShots.length >= 2, 'more than one single-shot aux pass fired (governor off, salient run) — non-vacuous');
       A.ok(singleShots.every(c => c.model === AUX_MODEL), 'EVERY single-shot aux pass rode the aux model (got: ' + singleShots.map(c => c.model + '|' + c.sys.slice(0, 40)).join(', ') + ')');
       A.ok(singleShots.every(c => c.reasoning && c.reasoning.effort === 'low'), 'every single-shot aux pass carried effort low');
-      A.ok(review.length >= 1, 'the skill-review fork fired (nudge bar 1 reached, governor off)');
+      A.ok(review.length >= 1, 'the skill-review fork fired (nudge bar 1 reached, a correction to learn from, governor off)');
       A.ok(review.every(c => c.model === RUN_MODEL), 'skill review FELL BACK to the run model — aux/cheap is verifiably tool-less and a tool loop must never ride it');
       A.ok(review.every(c => c.tools > 0), 'the skill-review call really was a tool loop (tools on the wire)');
     } finally { await fixture.dispose(); try { mock.server.close(); } catch (_) {} }

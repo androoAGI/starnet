@@ -3,7 +3,8 @@
 
    Proves at the live seam:
      - background passes spawn with the CLI's cache switch and the user's run does not, their $0 rows name the route, and a nudge-due
-       skill review (the largest pass) books its row with the subscription flag;
+       skill review (the largest pass) books its row with the subscription flag (since W3.2 the review also needs something to learn
+       from, so that run carries a correction in the Commander's words: skillreview.js reviewCause);
      - at the ceiling the automatic passes stop, /api/memory/config says so, and the user's run still finishes;
      - the count is per route and windowed: another route's rows, and rows 25 hours old, count for nothing; rows 23 hours old count;
      - a local route has no ceiling; junk settings are refused; 0 is off; the setting survives a restart;
@@ -101,10 +102,10 @@ async function childrenDone(f, before, expectChild) {
   }
   throw new Error('background passes did not settle');
 }
-async function run(f, agentId, extra) {
+async function run(f, agentId, extra, words) {
   const before = starts().length, from = f.output().length;
   const r = await fetch(f.baseUrl + '/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': f.token, Origin: f.baseUrl },
-    body: JSON.stringify(Object.assign({ provider: 'claude-cli', model: 'haiku', agentId, isTask: true, placed: [], system: MARK + ': you are Ada.', messages: [{ role: 'user', content: 'Rebuild the staging rollback path and write up what changed and why.' }] }, extra || {})) });
+    body: JSON.stringify(Object.assign({ provider: 'claude-cli', model: 'haiku', agentId, isTask: true, placed: [], system: MARK + ': you are Ada.', messages: [{ role: 'user', content: words || 'Rebuild the staging rollback path and write up what changed and why.' }] }, extra || {})) });
   const raw = await r.text();
   if (r.status !== 200) {
     const local = await f.json('GET', '/api/auth/claude-cli/status');
@@ -128,13 +129,13 @@ async function ceilingArm() {
     const fresh = await cfg(f);
     A.eq([fresh.auxTokenCeiling, fresh.defaultAuxTokenCeiling, fresh.auxTokensUsed24h, fresh.auxTokenBlocked, fresh.auxTokenRoutes], [200000, 200000, 0, [], []], 'the default ceiling, nothing used, nothing stopped');
 
-    const a = await run(f, 'ceiling-a');
+    const a = await run(f, 'ceiling-a', undefined, 'Rebuild the staging rollback path and write up what changed and why. Next time, write up what changed before you start.');
     A.eq(a.reason, 'done', 'the run finished');
     A.ok(a.spawned.some(c => c.main), 'fixture: the user run reached the CLI');
     A.ok(a.spawned.filter(c => c.main).every(c => !c.cacheOff), 'the user run keeps its cache');
     const auxRows = rowsOf(f).filter(r => r.aux);
     A.ok(auxRows.length >= 1 && auxRows.every(r => r.subscription === true && r.usd === 0 && r.provider === 'claude-cli'), 'their rows book $0, name the subscription and name the route: ' + JSON.stringify(auxRows.map(r => [r.aux, r.subscription, r.provider])));
-    A.ok(auxRows.some(r => r.aux === 'skill-review'), 'CE6: the nudge-due skill review booked its row, the flag and route included: ' + a.line);
+    A.ok(auxRows.some(r => r.aux === 'skill-review'), 'CE6: the nudge-due skill review (a correction to learn from) booked its row, the flag and route included: ' + a.line);
     A.ok(a.spawned.some(c => !c.main && c.cacheOff), 'a toolless pass spawned with the cache switch');
     A.ok(a.spawned.some(c => !c.main && !c.cacheOff), 'the skill review, a tool loop, kept its cache');
     A.ok(rowsOf(f).filter(r => !r.aux).every(r => r.subscription !== true), 'a user run row is not an aux row');
