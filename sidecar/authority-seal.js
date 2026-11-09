@@ -309,6 +309,8 @@ function makeAuthoritySeal(opts) {
   const lastSealed = o.lastSealed && typeof o.lastSealed.read === 'function' && typeof o.lastSealed.write === 'function' ? o.lastSealed : null;
   const current = typeof o.current === 'function' ? o.current : null;
   const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
+  let restoreSeen = false;       // this boot found a restore's record (authority-restored.json)
+  let restoredBoot = false;      // ...and the marker was missing: the floors were reset for a restore, not a deleted marker
   const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
   let held = '';                 // why this boot keeps every authority file at its default and saves none (4c, 4d)
   const migrating = new Set();   // names sealed once as they are this boot: not yet in the marker's covers (4a)
@@ -419,7 +421,9 @@ function makeAuthoritySeal(opts) {
       try { keptAt = keep(name) || null; } catch (_) { keptAt = null; }
       broken.set(name, notice({
         kind: why, name: name, keptAt: keptAt,
-        text: why === 'stale' && floorsReset
+        text: why === 'stale' && floorsReset && restoredBoot
+          ? name + ' came back with a restore from a recovery bundle, which does not carry the record of what was last taken away, so ' + (CONSEQUENCE[name] || 'it is not used.')
+          : why === 'stale' && floorsReset
           ? name + ' cannot be checked against the record of what was last taken away (' + MARKER_NAME + ' was missing or did not match), so ' + (CONSEQUENCE[name] || 'it is not used.')
           : why === 'stale'
           ? name + ' is an older copy than the last change that took power away (it was put back, from a backup or its .bak), so ' + (CONSEQUENCE[name] || 'it is not used.')
@@ -475,6 +479,7 @@ function makeAuthoritySeal(opts) {
     let rec;
     try { rec = restored.read(); } catch (_) { return []; }
     if (rec === undefined || rec === null) return [];
+    restoreSeen = true;
     const listed = new Set(plainObject(rec) && Array.isArray(rec.files) ? rec.files.map(String) : []);
     const adopted = [], lost = [];
     for (const f of (Array.isArray(files) ? files : [])) {
@@ -648,8 +653,12 @@ function makeAuthoritySeal(opts) {
     }
     if (lost) {
       writeMarker({ force: true });
-      const restoredOnly = lost === 'missing' && adopted.length && !present.some(x => adopted.indexOf(x.f.name) < 0 && plainObject(x.v) && plainObject(x.v[FIELD]));
-      if (!restoredOnly) notice({ kind: 'marker-' + lost, text: (lost === 'mismatch'
+      /* A RESTORE IS NOT A DELETED MARKER (fix-sec2 breakage 6). A recovery bundle never carries authority-seal.json, so a
+         restore's first keyed boot always finds it missing. With the restore's record there, that is said as a restore:
+         no marker-missing warning. Nothing is trusted more for it: every file the restore did not re-seal is still judged
+         against the reset floors (not used until set again here), and its own notice says it came back with the restore. */
+      restoredBoot = lost === 'missing' && restoreSeen;
+      if (!restoredBoot) notice({ kind: 'marker-' + lost, text: (lost === 'mismatch'
         ? MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited).'
         : MARKER_NAME + ' is missing, although these permission files were sealed.') +
         ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here. Nothing was re-sealed.' });

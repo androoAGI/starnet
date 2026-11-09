@@ -410,6 +410,9 @@ const RESTORED_NAME = 'authority-restored.json';
 // the sealed permission files a restore brings, for the first keyed boot to adopt (authority-seal.js adoptRestored)
 // (permissions.allow.json arrives emptied, see sanitizeManagedJson: it is sealed empty, not reported as changed; review 4a)
 const RESTORED_AUTHORITY = ['agent.roster.json', 'hooks.json', 'permissions.allow.json'];
+// any sealed file a restore brings leaves the record (with nothing to adopt for the last two), so the first keyed boot
+// reads its missing marker as the restore it is, not as a marker someone deleted (fix-sec2 breakage 6)
+const RESTORED_SEALED = RESTORED_AUTHORITY.concat(['remote.json', 'cron.jobs.json']);
 // credential files by their well-known names, wherever they sit: an agent's .env is not a deliverable
 const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pfx|p12|ppk))$/i;
 const CREDENTIAL_ROW = 'credential file left out by its name';
@@ -1169,7 +1172,7 @@ function restore(opts) {
     // the permission files this restore brought: the station's first keyed boot seals them for this computer, the roster
     // asking first and every hook waiting for approval (authority-seal.js adoptRestored; fix-sec2 review 10)
     const broughtAuthority = RESTORED_AUTHORITY.filter(name => restored.some(r => r.path === name));
-    if (broughtAuthority.length) writeFlushed(fs, path.join(stage, RESTORED_NAME), Buffer.from(JSON.stringify({ version: 1, files: broughtAuthority }, null, 2) + '\n'));
+    if (broughtAuthority.length || RESTORED_SEALED.some(name => restored.some(r => r.path === name))) writeFlushed(fs, path.join(stage, RESTORED_NAME), Buffer.from(JSON.stringify({ version: 1, files: broughtAuthority }, null, 2) + '\n'));
     if (typeof o.beforeActivate === 'function') o.beforeActivate({ stage, target, rollback });
     if (fs.existsSync(target)) {
       if (!o.replaceExisting) throw new Error('restore target is not clean; pass replaceExisting to retain it as a rollback generation');

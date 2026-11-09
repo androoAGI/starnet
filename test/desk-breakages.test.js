@@ -207,7 +207,28 @@ const IDX = read('sidecar/index.js');
     A.eq(R._internals.classifyPolicy('agent.roster.json', null).action, 'include', 'the roster still travels');
     const rec = read('sidecar/station-recovery.js');
     A.ok(/sanitizeObject\(require\('\.\/authority-seal\.js'\)\.strip\(doc\), \[\], redacted\)/.test(rec), 'hooks.json travels without its seal (no mac read as a credential)');
-    A.ok(/if \(broughtAuthority\.length\) writeFlushed\(fs, path\.join\(stage, RESTORED_NAME\)/.test(rec), 'a restore that brings them leaves the record');
+    A.ok(/if \(broughtAuthority\.length \|\| RESTORED_SEALED\.some\(name => restored\.some\(r => r\.path === name\)\)\) writeFlushed\(fs, path\.join\(stage, RESTORED_NAME\)/.test(rec), 'a restore that brings them (or any other sealed file) leaves the record');
+    A.ok(/const RESTORED_SEALED = RESTORED_AUTHORITY\.concat\(\['remote\.json', 'cron\.jobs\.json'\]\);/.test(rec), 'remote.json and cron.jobs.json leave it too');
+    // breakage 6 (review-sec2): a restore on the same computer that brings a sealed file it does not re-seal (remote.json)
+    // gives no marker-missing warning; that file is still not used, and its notice says it came back with the restore
+    {
+      const homeMk5 = { value: undefined, read() { return this.value; }, write(v) { this.value = roundTrip(v); } };
+      const here5 = S.makeAuthoritySeal({ key: KEY, now: () => 5, marker: homeMk5 });
+      const files5 = { 'agent.roster.json': roundTrip(here5.seal('agent.roster.json', { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] })),
+        'remote.json': roundTrip(here5.seal('remote.json', { version: 1, enabled: true })) };
+      const st5 = station(files5, { version: 1, files: ['agent.roster.json'] });
+      A.eq(st5.seal.boot(st5.list).mode, 'enforce', 'the restored workspace boots enforcing');
+      const r5 = st5.seal.open('remote.json', files5['remote.json']);
+      A.ok(!r5.ok && r5.why === 'stale', 'remote.json from before the restore is still not used (nothing is trusted more for a restore)');
+      const n5 = st5.seal.notices();
+      A.ok(!n5.some(x => x.kind === 'marker-missing'), 'no marker-missing warning: ' + n5.map(x => x.kind).join(','));
+      A.ok(n5.some(x => x.kind === 'stale' && x.name === 'remote.json' && /came back with a restore from a recovery bundle/.test(x.text) && /paired phone waits for your approval/.test(x.text)), 'and remote.json\'s notice says it came back with the restore, and what that means');
+      // the same files with no restore record: the marker was deleted, and that is still said
+      const files6 = roundTrip(files5);
+      const st6 = station(files6, undefined);
+      st6.seal.boot(st6.list);
+      A.ok(st6.seal.notices().some(x => x.kind === 'marker-missing'), 'without a restore record, a missing marker still warns');
+    }
   }
 
   A.report('desk-breakages.test');
