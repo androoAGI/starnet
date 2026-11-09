@@ -1706,6 +1706,11 @@
             + ' — this command ran with an effective timeout of ' + timeoutMs + 'ms]\n'
           : '';
         const markerIsWin = environment && environmentBackendId !== 'local' ? false : isWin;
+        /* WHERE IT RAN (loop truth W1.11): the host folder this command was spawned in (its cwd argument and this run's `cd`
+           already applied), on the result object beside the content — never in it, so every receipt stays byte-identical.
+           The loop resolves a run's script against it to know WHICH changed file `node hello.js` ran. Host backend only: a
+           sandbox's cwd is a container path that names no host file. */
+        const ranIn = (!environment || environmentBackendId === 'local') && typeof cwd === 'string' && cwd ? cwd : '';
         /* A full-power command that opens a window on the person's screen (`start`, `explorer`, a headed browser…) opens
            THEIR app: on Windows it runs outside the station's job (sidecar/breakaway.js), so quitting or crashing StarNet
            never closes what it opened. Every other command stays the station's and ends with it. */
@@ -1768,10 +1773,12 @@
             killed.toolSummary = res.timedOut ? 'timeout' : 'cancelled';
             if (fullContent) killed.fullContent = head + fullContent;
             if (elided) killed.fullContentElided = elided;
+            if (ranIn) killed.ranIn = ranIn;
             throw killed;
           }
           const done = { content: content, fullContent: fullContent, summary: 'exit ' + exitCode + ' (' + res.ms + 'ms)' + (res.truncated ? ', truncated' : '') };
           if (elided) done.fullContentElided = elided;
+          if (ranIn) done.ranIn = ranIn;
           return done;
         });
       }
