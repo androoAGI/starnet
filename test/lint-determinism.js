@@ -56,7 +56,7 @@ files.push(path.join(base, 'frontend', 'app', 'historyref.js'));
 // capture, learning, observer): pure, no clock
 files.push(path.join(base, 'frontend', 'app', 'usertext.js'));
 // crewdefaults.js is required by the sidecar's crew effort rule (index.js crewEffort, W3.3) and the page's summon tier pick:
-// pure, no clock, the switch read from an injected env
+// pure, no clock, no environment read (the sidecar hands mode() the switch's value: index.js crewDefaultsMode, ENV())
 files.push(path.join(base, 'frontend', 'app', 'crewdefaults.js'));
 
 const banned = [/\bMath\.random\b/, /\bDate\.now\b/, /\bperformance\.now\b/, /\bnew\s+Date\s*\(\s*\)/];

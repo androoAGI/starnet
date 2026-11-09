@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /* scripts/crew-defaults-ab.mjs — the PAID A/B for LEANER CREW DEFAULTS (W3.3 + W3.4, cost audit 2026-11-08).
 
-   The switch (STARNET_CREW_DEFAULTS, frontend/app/crewdefaults.js) ships OFF until this passes on real models. It spends
+   The switch (STARNET_CREW_DEFAULTS: the sidecar reads it through ENV(), frontend/app/crewdefaults.js parses it; not
+   STARNET_LEAN_CREW, the zero-crew diet) ships OFF until this passes on real models. It spends
    real money, so an agent never runs it: Andrew does, with a key of his choosing in ONE environment variable.
 
      set STARNET_CREW_AB_KEY=<an OpenRouter key>          (PowerShell: $env:STARNET_CREW_AB_KEY = '<key>')

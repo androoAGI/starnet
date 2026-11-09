@@ -1,18 +1,23 @@
 /* frontend/app/crewdefaults.js — LEANER CREW DEFAULTS (cost lanes W3.3 + W3.4, approved by Andrew 2026-11-08).
 
-   ONE switch, ONE file, both halves. Ships OFF until an A/B on real models passes (scripts/crew-defaults-ab.mjs).
-     STARNET_CREW_DEFAULTS (SKYNET_CREW_DEFAULTS, the ENV() fallback order)
-       unset, 'off', anything else  -> 'off'   every request and record exactly as before this file
-       'lean'                       -> 'lean'  the two rules below
-   Only this file reads the switch (test/crew-defaults.invariant.test.js); the sidecar asks mode(), and the page learns
-   it from GET /api/providers (crewDefaults: 'lean', present only when on).
+   ONE switch for both halves. Ships OFF until an A/B on real models passes (scripts/crew-defaults-ab.mjs).
+     STARNET_CREW_DEFAULTS (legacy spelling SKYNET_CREW_DEFAULTS). The sidecar reads it in one place, through its one env
+     reader: index.js crewDefaultsMode() = mode(ENV('CREW_DEFAULTS')). ENV() takes the STARNET_ value whenever that variable
+     is set, even blank, else the SKYNET_ one. This file never reads the environment: mode() is handed the value.
+       unset, blank, 'off', anything else  -> 'off'   every request and record exactly as before this file
+       'lean' (any case, spaces trimmed)   -> 'lean'  the two rules below
+   The page learns the state from GET /api/providers (crewDefaults: 'lean', present only when on). Locked by
+   test/crew-defaults.invariant.test.js (A and B).
+   Not to be confused with STARNET_LEAN_CREW, the zero-crew diet (sidecar/crew-diet.js): that one is ON by default and '0'
+   turns it off; this one is OFF by default and only 'lean' turns it on.
 
    W3.3 — EFFORT. effortRule() decides the effort a CREW run asks for: a worker (team.dispatch), a clone (team.spawn) or
    a line stage (a run that belongs to a line). A class's applied effort above medium (the class loadout wrote it) runs at
    medium; the run after a failed verify (a review gate sent the work back, a structured result failed host validation)
    steps up one rung, never above the class's own effort; a pinned effort (the Commander picked it) is never touched, and
    an effort with no marker is a pin. The level it returns is a WANT: the host clamps it to the rungs the provider lists
-   for the model (AuxGovernor.clampEffort, the one clamp) and sends it per request, like every other effort override.
+   for the model (AuxGovernor.clampEffort, the one clamp) and sends it per request, like every other effort override, but
+   never above the effort the run asked for (sendable()).
 
    W3.4 — MODEL. tierPick() is the model a summon preselects for a class tier: the family's mid-tier model for a
    balanced class, its small one for a fast class, read from the provider's own catalog (never an id it does not list).
@@ -27,15 +32,11 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   'use strict';
 
-  const SWITCH = 'STARNET_CREW_DEFAULTS';
   const ON = 'lean', OFF = 'off';
-  // the switch, tolerant of garbage (a typo must never change a request): only the exact word turns it on
-  function mode(env) {
-    try {
-      const e = env || ((typeof process !== 'undefined' && process.env) ? process.env : {});
-      const raw = e[SWITCH] != null && String(e[SWITCH]).trim() !== '' ? e[SWITCH] : e['SKYNET_' + SWITCH.slice('STARNET_'.length)];
-      return String(raw == null ? '' : raw).trim().toLowerCase() === ON ? ON : OFF;
-    } catch (_) { return OFF; }
+  // mode(raw) -> 'lean' | 'off'. raw = the switch's value as the sidecar's ENV('CREW_DEFAULTS') read it (undefined: unset).
+  // Tolerant of garbage (a typo must never change a request): only the word itself turns it on.
+  function mode(raw) {
+    return (typeof raw === 'string' && raw.trim().toLowerCase() === ON) ? ON : OFF;
   }
   const isOn = m => m === ON;
 
@@ -63,6 +64,14 @@
     if (rank(asked) <= rank(LEAN)) return { why: 'kept' };
     if (o.retry) return { why: 'retry', want: ORDER[Math.min(rank(LEAN) + 1, rank(asked))] };
     return { why: 'lean', want: LEAN };
+  }
+  /* sendable(sent, asked) -> the rung the clamp gave, or null when it is not a rung or lands above the effort the run
+     asked for. The rule only ever lowers. The one clamp (AuxGovernor.clampEffort) moves a want the model does not list
+     to the nearest listed rung above it, which on a list without the asked rung can be above asked; then the rule sends
+     nothing and the run goes out on its own effort, exactly as with the switch off. */
+  function sendable(sent, asked) {
+    const r = rank(sent);
+    return (r >= 0 && rank(asked) >= 0 && r <= rank(asked)) ? ORDER[r] : null;
   }
 
   /* ---- W3.4 model -------------------------------------------------------------------------------------------------- */
@@ -125,5 +134,5 @@
     return pick ? pick.id : null;
   }
 
-  return { SWITCH, ON, OFF, mode, isOn, LEAN, ORDER, surfaceOf, effortRule, TIER_RANK, parse, tierPick };
+  return { ON, OFF, mode, isOn, LEAN, ORDER, surfaceOf, effortRule, sendable, TIER_RANK, parse, tierPick };
 });

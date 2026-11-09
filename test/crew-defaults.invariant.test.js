@@ -12,13 +12,19 @@
        from the provider's own catalog, on the existing summon card (the model picker's inherit option and helper line).
    With it off: every request and record exactly as before (no effortRule, every crew request at its asked effort).
 
-   Parts: A the pure module; B one reader of the switch; C the page's summon path (app.js resolveTierModel / applyLoadout /
-   effortSourceOf and the marketplace card's words, compiled out of the real files); D the real sidecar (SidecarFixture) with a
-   fake OpenRouter endpoint that logs the reasoning effort every request carries, on and off, and E a fake Claude Code CLI.
-   No network, no real CLI, no model spend.
+   Parts: A the pure module, and the station's read of the switch (index.js crewDefaultsMode over the real ENV(), compiled out
+   of the source and run on fake environments); B one reader of the switch: production code names it once, as
+   ENV('CREW_DEFAULTS') in the sidecar (its one env reader), the module never reads the environment, and every sidecar use
+   asks crewDefaultsMode; C the page's summon path (app.js resolveTierModel / applyLoadout / effortSourceOf and the marketplace
+   card's words, compiled out of the real files); D the real sidecar (SidecarFixture) with a fake OpenRouter endpoint that logs
+   the reasoning effort every request carries, on and off: a class-marked crew lead the Commander talks to dispatches four
+   workers and spawns a clone, the Overseer (a pin, as the page always marks it) spawns one, and a drafter -> reviewer line is
+   sent back once; and E a fake Claude Code CLI. No network, no real CLI, no model spend.
 
    RED on agent/cost-stack 9896a5c44 (the base): the module does not exist, nothing reads the switch, a balanced summon keeps the
-   copied model, and a class-high worker, clone and line stage all run at high with no effortRule on their records.
+   copied model, and a class-high worker, clone and line stage all run at high with no effortRule on their records. RED on the
+   lane's first review head (e6199f70c) too: its module read process.env itself, so a blank STARNET_ value fell through to
+   SKYNET_=lean where ENV() keeps the blank, and no sidecar call read the switch through ENV().
 
    CREW_DEFAULTS_DUMP=<file> writes the off arm's normalized crew request bodies (the base-vs-lane byte-identity evidence). */
 const fs = require('node:fs');
@@ -32,6 +38,8 @@ const { seedActiveStation } = require('./helpers/station.js');
 const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 const { geometry } = require('./helpers/line-hold-rig.js');
 const { decomment } = require('./helpers/decomment.js');
+// the sidecar's own files as text through the source helper (the one reader of sidecar/ as text; never require index.js)
+const { sidecarSourceFiles, readSidecarSource, sidecarFunctionSource, sidecarTopLevelFunction } = require('./helpers/source.js');
 
 for (const k of Object.keys(process.env)) if (/^(STARNET|SKYNET)_CREW_DEFAULTS$/.test(k)) delete process.env[k];
 const ROOT = path.join(__dirname, '..');
@@ -42,9 +50,21 @@ const one = list => Array.from(new Set(list));
 let CD = null;
 try { CD = require('../frontend/app/crewdefaults.js'); } catch (e) { A.ok(false, 'A: the crew defaults module exists (frontend/app/crewdefaults.js): ' + e.message); }
 if (CD) {
-  A.eq([CD.mode({}), CD.mode({ STARNET_CREW_DEFAULTS: 'lean' }), CD.mode({ STARNET_CREW_DEFAULTS: ' LEAN ' }), CD.mode({ STARNET_CREW_DEFAULTS: 'on' }),
-    CD.mode({ STARNET_CREW_DEFAULTS: 'off' }), CD.mode({ SKYNET_CREW_DEFAULTS: 'lean' }), CD.mode({ STARNET_CREW_DEFAULTS: 'off', SKYNET_CREW_DEFAULTS: 'lean' })],
-  ['off', 'lean', 'lean', 'off', 'off', 'lean', 'off'], 'A: the switch: only "lean" turns it on, an unknown word is off, STARNET_ wins over the SKYNET_ fallback');
+  // the switch's VALUE, as the sidecar's ENV('CREW_DEFAULTS') read it, is handed to mode(): only the word "lean" turns it on
+  A.eq([undefined, '', '  ', 'lean', ' LEAN ', 'on', 'off', 'leaner', null, 1, { STARNET_CREW_DEFAULTS: 'lean' }].map(v => CD.mode(v)),
+    ['off', 'off', 'off', 'lean', 'lean', 'off', 'off', 'off', 'off', 'off', 'off'],
+    'A: the switch: only "lean" turns it on; unset, blank, an unknown word, or anything that is not a value (an env object too: the module reads no environment) is off');
+  // ...and the station reads that value through its one env reader: index.js crewDefaultsMode over the real ENV(), compiled out
+  // of the source and run on fake environments. ENV()'s membership rule: a STARNET_ value that is set wins even when blank, else
+  // the legacy SKYNET_ spelling (a blank STARNET_ with SKYNET_=lean is OFF, the case the first review caught)
+  const ENVsrc = sidecarFunctionSource('ENV'), readSrc = sidecarFunctionSource('crewDefaultsMode');
+  const stationMode = env => new Function('process', 'CrewDefaults', ENVsrc + '\n' + readSrc + '\nreturn crewDefaultsMode();')({ env }, CD);   // eslint-disable-line no-new-func
+  let read = null;
+  try { read = (readSrc && ENVsrc) ? [{}, { STARNET_CREW_DEFAULTS: 'lean' }, { SKYNET_CREW_DEFAULTS: 'lean' }, { STARNET_CREW_DEFAULTS: '', SKYNET_CREW_DEFAULTS: 'lean' },
+    { STARNET_CREW_DEFAULTS: '  ', SKYNET_CREW_DEFAULTS: 'lean' }, { STARNET_CREW_DEFAULTS: 'off', SKYNET_CREW_DEFAULTS: 'lean' }, { STARNET_CREW_DEFAULTS: ' Lean ', SKYNET_CREW_DEFAULTS: 'off' }].map(stationMode) : null; }
+  catch (e) { read = 'threw: ' + e.message; }
+  A.eq(read, ['off', 'lean', 'lean', 'off', 'off', 'off', 'lean'],
+    'A: the station reads the switch through ENV() (index.js crewDefaultsMode): unset is off, STARNET_ wins, SKYNET_ is the fallback, and a blank STARNET_ value wins over SKYNET_=lean');
   const rule = (o) => CD.effortRule(Object.assign({ mode: 'lean', surface: 'worker' }, o));
   A.eq(rule({ asked: 'high', source: 'class' }), { why: 'lean', want: 'medium' }, 'A: a class-applied high asks for medium');
   A.eq(rule({ asked: 'xhigh', source: 'class' }), { why: 'lean', want: 'medium' }, 'A: a class-applied xhigh asks for medium');
@@ -54,6 +74,11 @@ if (CD) {
   A.eq(rule({ asked: 'high', source: '' }), { why: 'unmarked' }, 'A: an effort with no marker is a pin');
   A.eq([rule({ asked: 'medium', source: 'class' }), rule({ asked: 'low', source: 'class', retry: true })], [{ why: 'kept' }, { why: 'kept' }], 'A: a class effort at or below medium is kept, retry or not');
   A.eq([rule({ asked: 'high', source: 'class', mode: 'off' }), rule({ asked: 'high', source: 'class', surface: '' })], [null, null], 'A: off, or not a crew run: no rule');
+  // the one clamp (AuxGovernor.clampEffort) moves an unlisted want UP; on a list without the asked rung that can pass it, and the
+  // rule only ever lowers: such a rung is never sent (index.js crewEffort sends nothing and records 'unsent')
+  A.eq(typeof CD.sendable === 'function' ? [CD.sendable('medium', 'high'), CD.sendable('high', 'high'), CD.sendable('low', 'medium'), CD.sendable('xhigh', 'high'),
+    CD.sendable('max', 'xhigh'), CD.sendable(null, 'high'), CD.sendable('medium', '')] : null,
+  ['medium', 'high', 'low', null, null, null, null], 'A: a clamped rung above the effort the run asked for is never sent');
   A.eq([CD.surfaceOf({ delegatedBy: 'agent', inRoster: true }), CD.surfaceOf({ delegatedBy: 'agent', inRoster: false }), CD.surfaceOf({ lineId: 'l1' }), CD.surfaceOf({})],
     ['worker', 'clone', 'line', ''], 'A: a delegated rostered agent is a worker, a delegated ephemeral one a clone, a run on a line a line stage');
   const CLAUDE = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'claude-opus-5-5[1m]', 'claude-sonnet-5-5[1m]', 'opus', 'sonnet', 'haiku'];
@@ -77,22 +102,38 @@ if (CD) {
   A.eq(CD.tierPick({ mode: 'off', tier: 'balanced', base: 'claude-opus-5-5', catalog: CLAUDE }), null, 'A: off: no pick');
 }
 
-/* ---- B. ONE READER OF THE SWITCH ---------------------------------------------------------------------------------------- */
+/* ---- B. ONE READER OF THE SWITCH: the sidecar's ENV() (its one env reader, GitHub #105; the pattern of ENV('LEAN_CREW')) ---- */
 {
-  // the sidecar's own files through the source helper (test/helpers/source.js: the one reader of sidecar/ as text), the page's
-  // and the shared contract's by walking them
-  const { sidecarSourceFiles, readSidecarSource } = require('./helpers/source.js');
-  const readers = sidecarSourceFiles().filter(f => decomment(f.text).indexOf('CREW_DEFAULTS') >= 0).map(f => f.rel);
+  // every mention of the switch in production code, comments aside: each sidecar file through the source helper, the page's
+  // and the shared contract's by walking them. The one allowed: ENV('CREW_DEFAULTS') in the sidecar.
+  const mentions = [];
+  const scan = (rel, text) => {
+    const code = decomment(text);
+    for (let at = code.indexOf('CREW_DEFAULTS'); at >= 0; at = code.indexOf('CREW_DEFAULTS', at + 1)) {
+      const viaEnv = code.slice(at - 5, at) === "ENV('" && code.slice(at + 13, at + 15) === "')";
+      mentions.push(rel + ': ' + (viaEnv ? "ENV('CREW_DEFAULTS')" : JSON.stringify(code.slice(Math.max(0, at - 24), at + 24))));
+    }
+  };
+  for (const f of sidecarSourceFiles()) scan(f.rel, f.text);
   const walk = dir => {
     for (const e of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
       const rel = dir + '/' + e.name;
       if (e.isDirectory()) { if (e.name !== 'node_modules' && e.name !== 'vendor') walk(rel); continue; }
-      if (!/\.(js|mjs|cjs)$/.test(e.name)) continue;
-      if (decomment(fs.readFileSync(path.join(ROOT, rel), 'utf8')).indexOf('CREW_DEFAULTS') >= 0) readers.push(rel);
+      if (/\.(js|mjs|cjs)$/.test(e.name)) scan(rel, fs.readFileSync(path.join(ROOT, rel), 'utf8'));
     }
   };
   for (const d of ['frontend/app', 'shared']) walk(d);
-  A.eq(readers, ['frontend/app/crewdefaults.js'], 'B: only frontend/app/crewdefaults.js names the switch in production code (' + JSON.stringify(readers) + ')');
+  A.eq(mentions, ["sidecar/index.js: ENV('CREW_DEFAULTS')"], 'B: production code names the switch once, as the sidecar\'s ENV(\'CREW_DEFAULTS\') (' + JSON.stringify(mentions) + ')');
+  // the module is handed the value: it never reads the environment itself
+  const mod = (() => { try { return decomment(fs.readFileSync(path.join(ROOT, 'frontend/app/crewdefaults.js'), 'utf8')); } catch (_) { return null; } })();
+  A.ok(mod != null && !/\bprocess\b/.test(mod), 'B: frontend/app/crewdefaults.js never touches process (no env read of its own)');
+  // the sidecar parses it in one place, crewDefaultsMode, and every use asks that reader
+  const all = decomment(readSidecarSource());
+  A.eq((all.match(/CrewDefaults\.mode\(/g) || []).length, 1, 'B: the sidecar calls CrewDefaults.mode once');
+  A.ok(/CrewDefaults\.mode\(ENV\('CREW_DEFAULTS'\)\)/.test(sidecarFunctionSource('crewDefaultsMode')), 'B: …in crewDefaultsMode, on the value ENV(\'CREW_DEFAULTS\') read');
+  for (const fn of ['crewEffort', 'handleAgentModel', 'handleProviders']) {
+    A.ok(decomment(sidecarTopLevelFunction(fn)).indexOf('crewDefaultsMode()') >= 0, 'B: ' + fn + ' asks crewDefaultsMode() for the switch');
+  }
   A.ok(/require\('\.\.\/frontend\/app\/crewdefaults\.js'\)/.test(readSidecarSource()), 'B: the sidecar asks the one module');
   A.ok(/<script src="app\/crewdefaults\.js"><\/script>/.test(fs.readFileSync(path.join(ROOT, 'frontend/index.html'), 'utf8')), 'B: the page loads the same module');
 }
@@ -188,7 +229,8 @@ function startWire() {
         const users = msgs.filter(m => m && m.role === 'user');
         const firstUser = JSON.stringify(users.length ? users[0].content : ''), lastUser = JSON.stringify(users.length ? users[users.length - 1].content : '');
         let probe = (sys.match(/CREW_PROBE:([a-z0-9-]+)/) || [])[1] || '';
-        if (probe === 'agent' && firstUser.indexOf('CLONE_TASK') >= 0) probe = 'clone';   // a clone runs on its lead's own identity
+        // a clone runs on its lead's own identity: the crew lead's clone, or the Overseer's
+        if ((probe === 'lead' || probe === 'agent') && firstUser.indexOf('CLONE_TASK') >= 0) probe = probe === 'lead' ? 'clone' : 'agent-clone';
         if (probe && lastUser.indexOf('[STRUCTURED RESULT REPAIR]') >= 0) probe += '-repair';
         const main = raw.indexOf('[RUNTIME]') >= 0 || /-repair$/.test(probe);
         const effort = body.reasoning ? (body.reasoning.effort || null) : null;
@@ -198,7 +240,7 @@ function startWire() {
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
         const send = o => res.write('data: ' + JSON.stringify(o) + '\n\n');
         const say = text => { send({ choices: [{ delta: { content: text } }] }); send({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 400, completion_tokens: 60, total_tokens: 460 } }); };
-        if (main && probe === 'agent' && !results.length && offered.indexOf('team_dispatch') >= 0 && offered.indexOf('team_spawn') >= 0) {
+        if (main && probe === 'lead' && !results.length && offered.indexOf('team_dispatch') >= 0 && offered.indexOf('team_spawn') >= 0) {
           send({ choices: [{ delta: { tool_calls: [
             { index: 0, id: 'call_dispatch', type: 'function', function: { name: 'team_dispatch', arguments: JSON.stringify({ workers: [
               { agentId: 'w-class', prompt: 'Write up the staging rollback in one JSON summary.', resultSchema: SCHEMA },
@@ -206,7 +248,11 @@ function startWire() {
               { agentId: 'w-low', prompt: 'Write up the staging rollback.' }] }) } },
             { index: 1, id: 'call_spawn', type: 'function', function: { name: 'team_spawn', arguments: JSON.stringify({ tasks: [{ prompt: 'CLONE_TASK: list the rollback steps.', label: 'steps' }] }) } }] } }] });
           send({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 400, completion_tokens: 60, total_tokens: 460 } });
-        } else if (main && probe === 'agent') say('Handed off.');
+        } else if (main && probe === 'agent' && !results.length && offered.indexOf('team_spawn') >= 0) {
+          send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_spawn_overseer', type: 'function', function: { name: 'team_spawn',
+            arguments: JSON.stringify({ tasks: [{ prompt: 'CLONE_TASK: check the rollback steps.', label: 'check' }] }) } }] } }] });
+          send({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 400, completion_tokens: 60, total_tokens: 460 } });
+        } else if (main && (probe === 'lead' || probe === 'agent')) say('Handed off.');
         else if (main && probe === 'w-class') say('Here is the summary in prose, not JSON.');
         else if (main && probe === 'w-class-repair') say(JSON.stringify({ summary: 'The staging rollback path was rebuilt.' }));
         else if (main && probe === 'reviewer') say(reviews++ === 0 ? REVISE : APPROVED);
@@ -223,8 +269,10 @@ const QUIET = { STARNET_LIVE_PRICES: '0', STARNET_REFLECTION: '0', STARNET_STUDY
   SKYNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0' };
 const row = (agentId, effort, source) => Object.assign({ agentId, name: agentId.toUpperCase().replace(/-/g, ' '), system: 'CREW_PROBE:' + agentId + ': you are ' + agentId + '.',
   provider: 'openrouter', model: MODEL, reasoningEffort: effort, role: agentId === 'agent' ? '' : 'specialist' }, source ? { effortSource: source } : {});
-const CREW = [row('agent', 'high', 'class'), row('w-class', 'high', 'class'), row('w-pin', 'high', 'pin'), row('w-old', 'high'), row('w-low', 'low', 'class'),
-  row('drafter', 'high', 'class'), row('reviewer', 'high', 'class')];
+// the Overseer is marked as the page always marks it (a pin: its effort is the Commander's own dial, app.js effortSourceOf);
+// 'lead' is a class-marked crew member the Commander talks to directly, so it leads: it dispatches the workers and spawns a clone
+const CREW = [row('agent', 'high', 'pin'), row('lead', 'high', 'class'), row('w-class', 'high', 'class'), row('w-pin', 'high', 'pin'), row('w-old', 'high'),
+  row('w-low', 'low', 'class'), row('drafter', 'high', 'class'), row('reviewer', 'high', 'class')];
 // the volatile bytes of a request body (ids, clocks, paths, ports), so the off arm's bodies compare across two trees
 function normalized(raw, f) {
   let s = String(raw || '');
@@ -258,12 +306,17 @@ async function stationArm(mode) {
     A.eq(pushed.status, 200, tag + 'fixture: the crew is on the roster (the page sends the markers while the switch is on; this arm sends them either way)');
     await sleep(500);   // the catalog warms: run/model takes a reasoning field (OpenRouter's ladder, none..max)
 
-    // DISPATCH + SPAWN: the lead (class high) hands four workers a task and starts one clone
-    const r = await f.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId: 'agent', provider: 'openrouter', model: MODEL,
-      reasoningEffort: 'high', isTask: true, system: CREW[0].system, placed: [], messages: [{ role: 'user', content: 'Have the crew write up the staging rollback path.' }] }) });
-    const raw = await r.text();
-    A.eq(r.status, 200, tag + 'fixture: the lead run opened' + (r.status === 200 ? '' : ': ' + raw.slice(0, 200)));
-    await settle();
+    // DISPATCH + SPAWN: the crew lead (class high) hands four workers a task and starts one clone; then the Overseer (a pin)
+    // starts one clone of its own
+    const lead = async (agentId, text) => {
+      const r = await f.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agentId, provider: 'openrouter', model: MODEL,
+        reasoningEffort: 'high', isTask: true, system: CREW.find(c => c.agentId === agentId).system, placed: [], messages: [{ role: 'user', content: text }] }) });
+      const raw = await r.text();
+      A.eq(r.status, 200, tag + 'fixture: ' + agentId + '\'s run opened' + (r.status === 200 ? '' : ': ' + raw.slice(0, 200)));
+      await settle();
+    };
+    await lead('lead', 'Have the crew write up the staging rollback path.');
+    await lead('agent', 'Have a helper check the rollback steps.');
     // LINE: drafter -> reviewer -> a review gate that sends the first draft back once
     const published = await publishFloor({ json: (m, u, b) => f.json(m, u, b) }, floorOf(geometry({ maxIter: 4 }, 'esc unwired')), { label: tag + 'the review line' });
     const line = published.plan.lineOfProp.p1;
@@ -274,18 +327,22 @@ async function stationArm(mode) {
     const runs = ((await f.json('GET', '/api/runs?agent=*&limit=200')).body || {}).runs || [];
     const efforts = p => wire.calls.filter(c => c.probe === p).map(c => c.effort);
     const recs = id => runs.filter(x => x.agentId === id).sort((a, b) => (a.startedAt || a.ts || 0) - (b.startedAt || b.ts || 0));
-    const clones = runs.filter(x => /^sub[-_]/.test(String(x.agentId)) || (x.delegatedBy === 'agent' && !CREW.some(c => c.agentId === x.agentId))).sort((a, b) => (a.startedAt || a.ts || 0) - (b.startedAt || b.ts || 0));
-    if (process.env.CREW_DEFAULTS_DEBUG) console.error(JSON.stringify({ mode, leadTools: (wire.calls.find(c => c.probe === 'agent') || {}).tools, calls: wire.calls.map(c => [c.probe, c.effort]), runs: runs.map(x => [x.agentId, x.reasoningEffort, x.effortRule, x.lineId || '', x.delegatedBy || '']) }));
-    A.ok(efforts('agent').length >= 2 && efforts('w-class').length && efforts('w-class-repair').length && efforts('w-pin').length && efforts('w-old').length && efforts('w-low').length && efforts('clone').length,
-      tag + 'fixture: the lead delegated, every worker and the clone ran, and the class worker\'s prose answer was sent for repair (' + JSON.stringify(one(wire.calls.map(c => c.probe))) + ')');
+    // a clone (team.spawn's ephemeral 'sub-' agent) is never on the roster; it runs delegated by the lead that started it
+    const clonesOf = id => runs.filter(x => x.delegatedBy === id && !CREW.some(c => c.agentId === x.agentId)).sort((a, b) => (a.startedAt || a.ts || 0) - (b.startedAt || b.ts || 0));
+    if (process.env.CREW_DEFAULTS_DEBUG) console.error(JSON.stringify({ mode, leadTools: (wire.calls.find(c => c.probe === 'lead') || {}).tools, calls: wire.calls.map(c => [c.probe, c.effort]), runs: runs.map(x => [x.agentId, x.reasoningEffort, x.effortRule, x.lineId || '', x.delegatedBy || '']) }));
+    A.ok(efforts('lead').length >= 2 && efforts('w-class').length && efforts('w-class-repair').length && efforts('w-pin').length && efforts('w-old').length && efforts('w-low').length && efforts('clone').length
+      && efforts('agent').length >= 2 && efforts('agent-clone').length,
+      tag + 'fixture: the crew lead delegated, every worker and both clones ran, and the class worker\'s prose answer was sent for repair (' + JSON.stringify(one(wire.calls.map(c => c.probe))) + ')');
+    A.eq([clonesOf('lead').length, clonesOf('agent').length], [1, 1], tag + 'fixture: one clone of each lead on the records');
     A.eq([efforts('drafter').length, efforts('reviewer').length], [2, 2], tag + 'fixture: the line ran the draft and the review twice (one revise)');
-    A.eq(one(efforts('agent')), ['high'], tag + 'the lead\'s own run is not crew: it keeps its high');
+    A.eq([one(efforts('lead')), one(efforts('agent'))], [['high'], ['high']], tag + 'a lead\'s own run is not crew: the crew lead and the Overseer keep their high');
 
     if (mode === 'lean') {
       A.eq(efforts('w-class'), ['medium'], 'lean: a class-high WORKER runs at medium');
       A.eq(efforts('w-class-repair'), ['high'], 'lean: its repair after the failed host check steps up one rung (high)');
       A.eq([one(efforts('w-pin')), one(efforts('w-old')), one(efforts('w-low'))], [['high'], ['high'], ['low']], 'lean: a pinned high stays high, an unmarked high is a pin, a class low is kept');
-      A.eq(one(efforts('clone')), ['medium'], 'lean: a CLONE of a class-high lead runs at medium');
+      A.eq(one(efforts('clone')), ['medium'], 'lean: a CLONE of a class-high crew lead runs at medium');
+      A.eq(one(efforts('agent-clone')), ['high'], 'lean: a clone of the Overseer keeps its high (the Overseer\'s effort is a pin)');
       A.eq(efforts('drafter'), ['medium', 'high'], 'lean: a class-high LINE STAGE runs at medium, and its pass after the review sent it back at high');
       A.eq(efforts('reviewer'), ['medium', 'high'], 'lean: the review in that failed pass runs at high too');
       const rec = id => recs(id)[0] || {};
@@ -296,19 +353,20 @@ async function stationArm(mode) {
       A.eq([rule(rec('w-pin')), rule(rec('w-old')), rule(rec('w-low'))], [{ surface: 'worker', source: 'pin', asked: 'high', why: 'pinned' }, { surface: 'worker', source: 'unmarked', asked: 'high', why: 'unmarked' },
         { surface: 'worker', source: 'class', asked: 'low', why: 'kept' }], 'lean: a pin, an unmarked row and a kept class effort each say why nothing changed');
       A.eq([rec('w-pin').reasoningEffort, rec('w-old').reasoningEffort], ['high', 'high'], 'lean: and ran on high');
-      A.eq(clones.map(x => [x.reasoningEffort, rule(x)]), [['medium', { surface: 'clone', source: 'class', asked: 'high', why: 'lean', sent: 'medium' }]], 'lean: the clone\'s record');
+      A.eq(clonesOf('lead').map(x => [x.reasoningEffort, rule(x)]), [['medium', { surface: 'clone', source: 'class', asked: 'high', why: 'lean', sent: 'medium' }]], 'lean: the crew lead\'s clone\'s record');
+      A.eq(clonesOf('agent').map(x => [x.reasoningEffort, rule(x)]), [['high', { surface: 'clone', source: 'pin', asked: 'high', why: 'pinned' }]], 'lean: the Overseer\'s clone\'s record');
       A.eq(recs('drafter').map(x => [x.reasoningEffort, rule(x) && rule(x).surface, rule(x) && rule(x).why]), [['medium', 'line', 'lean'], ['high', 'line', 'retry']], 'lean: the drafter\'s records');
       A.eq(recs('reviewer').map(x => [x.reasoningEffort, rule(x) && rule(x).why]), [['medium', 'lean'], ['high', 'retry']], 'lean: the reviewer\'s records');
-      A.ok(!rule(rec('agent')), 'lean: the lead\'s own record carries no crew rule');
+      A.ok(recs('lead').length && recs('agent').length && !rule(rec('lead')) && !rule(rec('agent')), 'lean: a lead\'s own record carries no crew rule');
       const saved = JSON.parse(fs.readFileSync(path.join(f.workspace, 'agent.roster.json'), 'utf8'));
       const savedRow = id => ((saved && saved.agents) || []).find(x => x.agentId === id) || {};
       A.eq([savedRow('w-class').effortSource, savedRow('w-pin').effortSource, 'effortSource' in savedRow('w-old')], ['class', 'pin', false], 'lean: the roster keeps each row\'s marker where its settings live');
     } else {
-      for (const p of ['w-class', 'w-class-repair', 'w-pin', 'w-old', 'clone', 'drafter', 'reviewer']) A.eq(one(efforts(p)), ['high'], 'off: ' + p + ' asks for its high, exactly as before');
+      for (const p of ['w-class', 'w-class-repair', 'w-pin', 'w-old', 'clone', 'agent-clone', 'drafter', 'reviewer']) A.eq(one(efforts(p)), ['high'], 'off: ' + p + ' asks for its high, exactly as before');
       A.eq(one(efforts('w-low')), ['low'], 'off: w-low asks for its low');
       A.eq(runs.filter(x => 'effortRule' in x).length, 0, 'off: no record carries an effortRule');
       if (process.env.CREW_DEFAULTS_DUMP) {
-        const order = ['agent', 'w-class', 'w-class-repair', 'w-pin', 'w-old', 'w-low', 'clone', 'drafter', 'reviewer'];
+        const order = ['lead', 'w-class', 'w-class-repair', 'w-pin', 'w-old', 'w-low', 'clone', 'agent', 'agent-clone', 'drafter', 'reviewer'];
         const bodies = order.map(p => ({ probe: p, bodies: wire.calls.filter(c => c.probe === p && c.body).map(c => normalized(c.body, f)).sort() }));
         fs.writeFileSync(process.env.CREW_DEFAULTS_DUMP, JSON.stringify(bodies, null, 1));
       }

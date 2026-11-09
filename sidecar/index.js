@@ -473,7 +473,7 @@ const ForkMarkers = require('../frontend/app/fork.js');               // the one
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
-const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the one switch STARNET_CREW_DEFAULTS and its crew effort rule (the page loads the same module)
+const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the switch's parser and its crew effort rule (crewDefaultsMode reads STARNET_CREW_DEFAULTS through ENV(); the page loads the same module)
 const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
@@ -4133,13 +4133,19 @@ function effortAsRun(provider, model, sent, req) {
   if (!provider || typeof provider.effortAsSent !== 'function') return null;
   try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
 }
+/* crewDefaultsMode — the LEANER CREW DEFAULTS switch ('lean' | 'off'), read here and nowhere else: STARNET_CREW_DEFAULTS
+   through ENV(), the sidecar's one env reader (a STARNET_ value that is set wins even when blank, else the legacy SKYNET_
+   one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
+   default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
+function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
    result failed host validation) one rung up, never above the class effort. Provenance is the roster's: a row whose
    effortSource is 'class' and whose effort is the one this run resolved is class-applied (a clone reads its lead's row);
    a pin, or a row with no marker, keeps its effort. The want goes through the one clamp (AuxGovernor.clampEffort over the
-   rungs the provider lists): no list, no override. A route whose main requests carry no effort is never handed one:
+   rungs the provider lists): no list, no override, and a rung above the asked effort is never sent (CrewDefaults.sendable:
+   the rule only lowers; the record then says 'unsent'). A route whose main requests carry no effort is never handed one:
    claude-cli is told an effort only per request and a main run there sends none (W3.8 not chosen), so a claude-cli crew
    run sends nothing, runs on the CLI's own default ('cli-default') and its record says 'unsent'. `hops` = the primary and
    every fallback the run may land on; `lineId` = the line the run belongs to (a routine's entry run names it by runsLine).
@@ -4147,7 +4153,7 @@ function effortAsRun(provider, model, sent, req) {
    -> null | { sent, record }: sent = the per-request effort (null: none); record = the run record's effortRule
    { surface, source, asked, why, sent? }, the effort itself as it ran being the record's reasoningEffort (effortAsRun). */
 function crewEffort(o, agentId, asked, hops, lineId) {
-  const md = CrewDefaults.mode();
+  const md = crewDefaultsMode();
   if (!CrewDefaults.isOn(md)) return null;
   const id = String(agentId || '');
   const surface = CrewDefaults.surfaceOf({ delegatedBy: o && o.delegatedBy, lineId: lineId || (o && o.lineId), inRoster: agentRoster.has(id) });
@@ -4161,7 +4167,7 @@ function crewEffort(o, agentId, asked, hops, lineId) {
   const record = { surface, source: source || 'unmarked', asked, why: rule.why };
   if (!rule.want) return { sent: null, record };
   const first = (hops && hops[0]) || {};
-  const sent = AuxGovernor.clampEffort(rule.want, providerEfforts(first.provider, first.model));
+  const sent = CrewDefaults.sendable(AuxGovernor.clampEffort(rule.want, providerEfforts(first.provider, first.model)), asked);
   const isRung = e => CrewDefaults.ORDER.indexOf(String(e || '')) >= 0;
   const gains = h => !!(h && h.provider) && !isRung(effortAsRun(h.provider, h.model)) && isRung(effortAsRun(h.provider, h.model, sent));
   if (!sent || (hops || []).some(gains)) { record.why = 'unsent'; return { sent: null, record }; }
@@ -21002,7 +21008,7 @@ async function handleAgentModel(req, res) {
   // no page: nothing was awaited since `cur` was read, so this writes onto the roster as it is now
   const next = Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {});
   // LEANER CREW DEFAULTS (W3.3): an effort named here is a hand pick, never a class default the crew rule may lower
-  if (effort) { if (CrewDefaults.isOn(CrewDefaults.mode())) next.effortSource = 'pin'; else delete next.effortSource; }
+  if (effort) { if (CrewDefaults.isOn(crewDefaultsMode())) next.effortSource = 'pin'; else delete next.effortSource; }
   agentRoster.set(agentId, next);
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); return json(500, { error: 'could not save the roster' }); }
   return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {}));
@@ -29314,7 +29320,7 @@ function handleProviders(req, res) {
   // confirmation reads this so it names the ACTUAL store honestly (keychain vs this browser) — never claims
   // keychain when the key is in fact held in the browser (truthful-telemetry law).
   // LEANER CREW DEFAULTS (W3.4): the page preselects a summon's tier model only while the station's switch is on (present only then)
-  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(CrewDefaults.mode()) ? { crewDefaults: CrewDefaults.ON } : {})));
+  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(crewDefaultsMode()) ? { crewDefaults: CrewDefaults.ON } : {})));
 }
 
 // One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private

@@ -82,7 +82,7 @@ A.ok(/const _auxFailEffort = _auxFail \? auxPassEffort\(provider, _auxFailModel\
 // switch is off), so a run that is neither hands the loop nothing
 A.ok(/const requestEffort = internalEffort \|\| \(crew && crew\.sent\) \|\| null;/.test(idx) && /const crew = internalEffort \? null : crewEffort\(/.test(idx),
   'the per-request effort is the aux effort first, and a crew effort only for a run with none');
-A.ok(/reasoningEffort: requestEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent for every other run)');
+A.ok(/reasoningEffort: requestEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent unless the run is aux work or a crew run the crew rule sends an effort for)');
 // (effort truth, W1.12) the record reads ONE resolver: what the provider was given, read after the run
 A.ok(/const effortRan = \(\) => effortAsRun\(provider, model, requestEffort, \{ tools: o\.outputOnly \? \[\] : toolDefs, isTask: internal \? undefined : isTask \}\);/.test(idx),
   'after the run, the effort is read through effortAsRun from the adapter the run ended on (a mid-run heal moved it; claude-cli without one ran on its default)');
