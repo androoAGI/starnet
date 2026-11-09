@@ -17285,7 +17285,8 @@ function deskWords(action, d) {
     case 'plugin-allow': return { title: 'StarNet — approve a plugin', verb: 'Approve plugin',
       summary: 'Approve the plugin "' + o.name + '" and run its code inside StarNet?\n\nOnly this exact code (' + o.digest + ') is approved; any change to it needs your approval again.' };
     case 'execution-profile': return { title: 'StarNet — widen what an agent can reach', verb: 'Allow',
-      summary: 'Let ' + o.names + '?\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
+      // final review B5: a Full Access raise confirmed with the profile is asked as one plain question (o.question)
+      summary: (o.question ? String(o.question) : 'Let ' + o.names + '?') + '\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
     default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
   }
 }
@@ -21546,7 +21547,17 @@ async function handleRoster(req, res) {
       const profiles = widened.map(id => nameOf(id) + ' use the ' + executionProfiles.resolve(profileOf(rowOf(id)), {}).label + ' profile');
       if (askingRaise) profiles.unshift('FULL ACCESS for ' + raised.map(nameOf).join(', '));
       const scope = widened.map(id => id + '=' + profileOf(rowOf(id))).sort().join(',') + (askingRaise ? '|full:' + raised.slice().sort().join(',') : '');
-      if (!deskGate(req, res, 'execution-profile', scope, { names: profiles.join(', and ') })) return;
+      // final review B5: 'Let FULL ACCESS for "Overseer", and "Overseer" use the ...' read garbled; ask it as one question
+      let question = '';
+      if (askingRaise) {
+        const label = id => executionProfiles.resolve(profileOf(rowOf(id)), {}).label;
+        const both = widened.filter(id => raised.indexOf(id) >= 0);
+        const parts = both.map(id => nameOf(id) + ' FULL ACCESS and the ' + label(id) + ' profile')
+          .concat(raised.filter(id => both.indexOf(id) < 0).map(id => nameOf(id) + ' FULL ACCESS'))
+          .concat(widened.filter(id => both.indexOf(id) < 0).map(id => nameOf(id) + ' the ' + label(id) + ' profile'));
+        question = 'Give ' + parts.join(', and ') + '?';
+      }
+      if (!deskGate(req, res, 'execution-profile', scope, { names: profiles.join(', and '), question })) return;
       if (askingRaise) raised.length = 0;   // confirmed with the profile above
     } else {
       profileClamped = widened;
