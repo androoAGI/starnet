@@ -57,6 +57,10 @@ async function routine(fx) {
     assert.ok(created.job && created.job.id, 'fixture created an unarmed routine: ' + JSON.stringify(created));
     fx.routineJob = created.job;
   }
+  // GHSA-2hpj #8 (c673033cb): Run Now is unattended work, and the shipped daily limit pauses it while a charge is unsettled
+  // (an earlier interruptContinue crashed a run mid-call). The Commander books each such charge first, at the desk
+  // (SETTINGS › SPENDING LIMITS); the fixture's model is free, so each is $0.
+  for (const open of ((await fx.json('GET', '/api/budget/status')).unsettled || [])) await fx.deskJson('POST', '/api/budget/settle', { runId: open.runId, usd: 0 });
   const result = await fx.fx.json('POST', '/api/cron/run', { id: fx.routineJob.id });
   assert.equal(result.status, 200, 'actual Run Now route');
   const events = eventsOf(result.text), start = events.find(e => e.name === 'agent.run.start').payload;
