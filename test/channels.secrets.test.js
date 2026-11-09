@@ -433,7 +433,8 @@ const root = path.resolve(__dirname, '..');
   {
     const idx = readSidecarSource();
     A.ok(/persistChannelSecretsVerified = channelSecretsMod\.makeVerifiedPersist\(\{/.test(idx), 'saveChannelSecrets rides makeVerifiedPersist (read-back-proven)');
-    A.ok(/const r = persistChannelSecretsVerified\(obj\);[\s\S]{0,400}?return r\.ok;/.test(idx), 'saveChannelSecrets returns the proven ok bit');
+    // (final review #3: the records it persists keep the owners a boot that could not check left out, withWithheldChannelOwners)
+    A.ok(/const r = persistChannelSecretsVerified\(withWithheldChannelOwners\(obj\)\);[\s\S]{0,600}?return r\.ok;/.test(idx), 'saveChannelSecrets returns the proven ok bit');
     A.ok(/if \(!saveChannelSecrets\(channelSecrets\)\) \{ res\.writeHead\(500/.test(idx), 'the notify route surfaces a failed persist as 500 (the old guard was unreachable)');
     A.ok((idx.match(/purged: purge && persisted/g) || []).length >= 2, 'a FORGET/purge never claims `purged` without read-back proof (telegram + generic)');
     A.ok((idx.match(/persisted: !!\(started && started\.secretsPersisted\)/g) || []).length >= 3, 'all three connect routes report the persist truth bit');
