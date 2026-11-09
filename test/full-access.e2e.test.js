@@ -74,7 +74,9 @@ async function driveShell(fixture, decision) {
       events.push(ev);
       if (ev.name === 'agent.run.start') runId = ev.payload.runId;
       if (ev.name === 'permission.prompt' && decision !== 'unanswered') {
-        await fixture.json('POST', '/api/consent', {
+        // a FULL answer is lasting authority: confirmed at the desk with the code this station printed (GHSA-2hpj #1), as
+        // the page's fetch wrapper does after the person types it
+        await fixture.deskJson('POST', '/api/consent', {
           runId, promptId: ev.payload.promptId, decision: decision || 'deny'
         });
       }
