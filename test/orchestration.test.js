@@ -1424,7 +1424,8 @@ for (const mode of ['invalid', 'error', 'refused']) {
   const { dispatchTool } = makeOrchestrationTools({runOnce:ro, roster:()=>new Map([['researcher',{system:'R-SYS'}]]), key:'k', model:'m', newId:counter(), getTaskContext:()=>understanding});
   understanding = 'Latest answer: draft only; user must review before sending.';
   await dispatchTool.run({workers:[{agentId:'researcher',prompt:'Prepare the draft'}]}, {agentId:'lead',emit:()=>{},consent:{}});
-  A.ok(ro.calls[0].system.includes(understanding),'worker receives the latest in-turn understanding at dispatch');
+  A.eq(ro.calls[0].delegatedContext, '[TASK CONTEXT]\n' + understanding, 'worker receives the latest in-turn understanding at dispatch, handed on whole as its [TASK CONTEXT] note');
+  A.ok(!ro.calls[0].system.includes(understanding), 'and never inside its cached system prompt (THE WORKER PREFIX, test/worker-prefix.test.js)');
 }
 
 // ---- #57: a FOREGROUND dispatch is real but never in the background list — team.subagents must say so, and a runId

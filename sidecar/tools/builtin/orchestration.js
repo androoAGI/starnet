@@ -519,12 +519,23 @@
           : 'ASK FIRST. Writes and network calls (and commands, when shell_exec is in your tool list) are shown to the Commander for approval when you call the '
             + 'tool — so still just make the tool call, but expect a pause, and carry on without it if it is declined.');
     }
-    function workerSystem(base) {
+    /* THE WORKER PREFIX (cost lane W1.10, 2026-11-09). Nothing volatile in a cached prefix. A delegated run's system
+       prompt is the prefix every provider reads from cache (the Codex route is a hash of it; claude-cli and OpenRouter
+       cache it), and the TASK CONTEXT changes with every dispatch: the lead's Task Brief (its <task_brief
+       id="tb_<lead run>"> is per run), the Commander evidence, the lead's query-ranked recall and the Commander's taste.
+       Appended to the identity, it made two dispatches of one agent differ a few hundred chars in, so every dispatch
+       paid the worker's whole system cold. ONE resolver for every delegated surface (dispatch and its structured-result
+       repair, spawn, resume): the system is the identity, the approval posture and, when a context exists, the fixed
+       [DELEGATED EXECUTION] line, byte-identical across dispatches of one agent. The context itself is handed to the
+       run host whole, in the same words, as `delegatedContext`; runOnce places it in the opening message's per-run
+       <run_context> note (index.js THE WORKER PREFIX), never in the worker's own words (its directive, title and
+       transcript row). With no context the system keeps its old bytes. test/worker-prefix(.e2e).test.js pin it. */
+    const DELEGATED_EXECUTION = '[DELEGATED EXECUTION] Treat the [TASK CONTEXT] block handed to you with this task as settled input from the Commander. Do not ask the Commander another discovery question. If a truly blocking gap remains, report that gap to the lead agent.';
+    function workerPrompt(base) {
       const identity = String(base || '') + postureNote();
       const liveContext = typeof deps.getTaskContext==='function' ? String(deps.getTaskContext() || '') : taskContext;
-      if (!liveContext) return identity;
-      return identity + '\n\n' + liveContext
-        + '\n\n[DELEGATED EXECUTION] Treat the task context above as settled input from the Commander. Do not ask the Commander another discovery question. If a truly blocking gap remains, report that gap to the lead agent.';
+      if (!liveContext) return { system: identity };
+      return { system: identity + '\n\n' + DELEGATED_EXECUTION, delegatedContext: '[TASK CONTEXT]\n' + liveContext };
     }
     /* LEAD CONTEXT HANDOFF (G6 closure). A worker's opening message was ONLY the prompt string: whatever the
        lead had already established — discovered file paths, findings, constraints, decisions — was lost unless
@@ -533,8 +544,8 @@
        itself stays last (recency); the structured-result REPAIR run replays the same opening message verbatim
        (it reuses this composed string), and restart-resume rebuilds it from the durable record's own `context`
        field — a resumed worker never silently loses its handoff. Distinct from `taskContext` above: that block
-       is the HOST-assembled Commander evidence in the system prompt; this one is the LEAD-authored, per-worker
-       working state. */
+       is the HOST-assembled Commander evidence handed on as the run's [TASK CONTEXT] note (workerPrompt); this one
+       is the LEAD-authored, per-worker working state. */
     const HANDOFF_CONTEXT_MAX = 8000;
     function handoffContext(raw) { return String(raw == null ? '' : raw).trim().slice(0, HANDOFF_CONTEXT_MAX); }
     function openingMessage(prompt, context, resultSchema, earlier) {
@@ -1088,7 +1099,7 @@
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
               reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire): its own, else the station's when it follows
               model: wire.model,
-              system: workerSystem((job.ident && job.ident.system) || ''),
+              ...workerPrompt((job.ident && job.ident.system) || ''),
               messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
               agentId: job.agentId, isTask: true,
               emit: o2.emit || childEmit,      // lifecycle/cost ride the lead/global stream -> the floor lights the worker
@@ -1147,7 +1158,7 @@
                 ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx), ...repairPool.options,
                 key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
                 reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
-                model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
+                model: wire.model, ...workerPrompt((job.ident && job.ident.system) || ''),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                   { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(job.resultSchema) }],
                 agentId: job.agentId, isTask: true, emit: o2.emit || childEmit,
@@ -1390,7 +1401,7 @@
               result = await runOnce({
               ...projectOptions(ctx), ...connectorOptions(ctx), ...watched.options,
                 key, provider, baseUrl, reasoningEffort, model,      // the lead's OWN model - a clone of self
-                system: workerSystem(selfSystem),           // the lead's OWN identity plus settled task context
+                ...workerPrompt(selfSystem),           // the lead's OWN identity; the settled task context rides as its [TASK CONTEXT] note
                                                             // composes its own caps for its (narrowed) toolset
                 messages: [{ role: 'user', content: contractedPrompt }],
                 agentId: ephemeralId, isTask: true,
@@ -1438,7 +1449,7 @@
                 repair = await runOnce({
                   outputOnly: true,
                   ...projectOptions(ctx), ...connectorOptions(ctx), ...repairPool.options,
-                  key, provider, baseUrl, reasoningEffort, model, system: workerSystem(selfSystem),
+                  key, provider, baseUrl, reasoningEffort, model, ...workerPrompt(selfSystem),
                   messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                     { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(task.resultSchema) }],
                   agentId: ephemeralId, isTask: true,
@@ -1655,7 +1666,7 @@
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
             reasoningEffort: wire.reasoningEffort,   // the ONE effort rule, as a fresh dispatch (workerWire)
             model: wire.model,
-            system: workerSystem((ident && ident.system) || ''),
+            ...workerPrompt((ident && ident.system) || ''),
             messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
             streamId: rec.streamId || undefined, sessionTitle: resumedSession && resumedSession.title,
             coordinatedSession: !!rec.parentStreamId,
@@ -1695,7 +1706,7 @@
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...repairPool.options,
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
             reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
-            model: wire.model, system: workerSystem((ident && ident.system) || ''),
+            model: wire.model, ...workerPrompt((ident && ident.system) || ''),
             messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
               { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(rec.resultSchema) }],
             agentId: rec.agentId, isTask: true, emit: h.emit, signal: h.signal, runId: repairRunId,

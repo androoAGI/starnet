@@ -25630,15 +25630,25 @@ async function runOnceCore(o) {
   if (o.stationEvidence === true && !internal && !taskBrief) {
     try { const t = stationEvidenceNote(); if (t) stationEvidenceBlock = '\n\n' + t; } catch (e) { failNote('run.stationEvidence', e); }
   }
+  /* THE WORKER PREFIX (cost lane W1.10, 2026-11-09). A delegated run's TASK CONTEXT (its lead's Task Brief, whose
+     <task_brief id="tb_<lead run>"> is per run, the Commander evidence, the lead's query-ranked recall and taste) used to
+     be appended to the worker's identity, so it sat inside cacheSystemPrefix and every dispatch to one agent paid its
+     whole system cold (the Codex route is a hash of that prefix). orchestration.js workerPrompt now hands it here whole,
+     in the same words, as o.delegatedContext ('[TASK CONTEXT]\n…'), and the worker's system keeps only the fixed
+     [DELEGATED EXECUTION] line naming it. It opens this run's <run_context> note (after a learned tail, where it used
+     to end up for a persona with learned heads); STABLE_PREFIX=0 puts it first in the system's per-run tail, after the
+     cached prefix; an internal run (a structured-result repair is outputOnly) keeps its verbatim system and gets it at
+     the end, so it is never dropped. Only host code sets it: /api/run builds its options field by field. */
+  const delegatedBlock = (typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
-  const perRunBlocks = LearnedTail.tail(persona.learned) + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
+  const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
     ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
-    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
+    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
   const sys = internal
-    ? (String(system || '') + evidenceBlock)
+    ? (String(system || '') + evidenceBlock + delegatedBlock)
     : stablePrefix ? taskSystem
       : withQuests(taskSystem, PromptScrub.scrubStored(questsBlock));   // ground-truth caps + task-context doctrine share the one final prompt seam
   // The whole per-run note is stored text the host composed (brief, evidence, quests, away briefing, skills, domain
