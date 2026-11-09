@@ -975,8 +975,8 @@ function cardLines(q, model, cw, H) {
   return lines;
 }
 // Always (allow this kind of action from now on) is offered where the app's card offers it: not on an ask answered fresh
-// every time
-function canAlways(q) { return !!q && !q.question && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0; }
+// every time, nor on a command (GHSA-2hpj #4: the station stamps it onceOnly; the tool list covers an adopted ask)
+function canAlways(q) { return !!q && !q.question && !q.onceOnly && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0; }
 // the card that asks to trust the folder `starnet` was started in: the project root the station would trust, and what that
 // means. Answered with y / n like an ask.
 function trustLines(t, cw) {

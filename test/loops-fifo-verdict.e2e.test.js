@@ -19,6 +19,8 @@ const os = require('os');
 const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();   // the station's desk codes, read from its console as the person there would
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -57,6 +59,7 @@ function boot(port, env, attemptsLeft) {
     const child = spawn(process.execPath, [INDEX], { env: Object.assign({}, process.env, env, { SKYNET_PORT: String(port) }), stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '', settled = false;
     const onData = d => {
+      desk.feed(d);
       out += d.toString();
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
       else if (!settled && BIND_REFUSED.test(out)) {
@@ -105,7 +108,11 @@ function boot(port, env, attemptsLeft) {
     const post = async (route, body) => { const r = await fetch(B + route, { method: 'POST', headers, body: JSON.stringify(body) }); let j = null; try { j = await r.json(); } catch (_) {} return { status: r.status, body: j || {} }; };
     const loopOf = async id => ((await (await fetch(B + '/api/loops', { headers })).json()).loops || []).find(x => x.id === id);
 
-    A.eq((await post('/api/projects/bless', { path: repo, surface: 'interactive' })).status, 200, 'the project is approved');
+    // blessing a folder is confirmed at the desk (fix-sec2 review 3): the code the station printed, as the person there types it
+    A.eq((await desk.confirm(await post('/api/projects/bless', { path: repo, surface: 'interactive' }), async extra => {
+      const r = await fetch(B + '/api/projects/bless', { method: 'POST', headers: Object.assign({}, headers, extra), body: JSON.stringify({ path: repo, surface: 'interactive' }) });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    })).status, 200, 'the project is approved');
     const created = await post('/api/loops', { name: 'add features', objective: 'add one feature per pass', workdir: repo, queueCap: 3, exitOn: 'never', model: 'test/model', provider: 'openrouter' });
     A.eq(created.status, 200, 'the loop is created');
     const id = created.body.loop.id;

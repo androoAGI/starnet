@@ -569,8 +569,14 @@
         const action = lower(clean(args && args.action, 20));
         if (action === 'read') {
           if (typeof getRoutineNotepad !== 'function') return { content: 'routine notepad unavailable', summary: 'unavailable' };
-          const note = await getRoutineNotepad(jobId);
-          return { content: String(note == null ? '' : note).slice(0, 8000), summary: String(note || '').length + ' character(s)' };
+          const got = await getRoutineNotepad(jobId);
+          // the host hands back { text, taintedBy } (a bare string from an older host): a note a tainted run wrote taints
+          // the run that reads it (GHSA-2hpj #5) through the host's relayed-taint latch, like a tainted worker's text
+          const note = got && typeof got === 'object' ? got.text : got;
+          const taint = got && typeof got === 'object' && typeof got.taintedBy === 'string' ? got.taintedBy.trim() : '';
+          const out = { content: String(note == null ? '' : note).slice(0, 8000), summary: String(note || '').length + ' character(s)' };
+          if (taint && String(note || '')) out.taintedBy = 'routine notepad written by a run that read ' + taint.slice(0, 120);
+          return out;
         }
         if (action !== 'write') throw new Error('action must be read or write');
         if (typeof setRoutineNotepad !== 'function') return { content: 'routine notepad unavailable', summary: 'unavailable' };

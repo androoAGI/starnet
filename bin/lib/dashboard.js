@@ -343,6 +343,9 @@ function runDashboard(station, opts) {
     mine.set(id, { req, agentId, kind: 'run', streamId });
     paint();
   }
+  // the station asked for its desk confirmation (desk_confirm_required), said only its window may (desk_only), or takes no
+  // permission change until a wrong-code lockout ends (desk_locked; fix-sec2 breakage 4)
+  function deskRefusal(r) { return !!(r && r.status === 403 && r.json && (r.json.code === 'desk_confirm_required' || r.json.code === 'desk_only' || r.json.code === 'desk_locked')); }
   async function answer(key) {
     const q = model.front();
     if (!q) return;
@@ -358,8 +361,29 @@ function runDashboard(station, opts) {
     // y once · a always (this kind of action from now on, as the app's card offers it) · n deny
     const decision = key === 'y' ? 'once' : key === 'a' ? 'always' : 'deny';
     ui.keyFlash = { k: key, until: now() + 700 };
-    const r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
-    if (r.ok && r.json && r.json.ok) model.apply('permission.response', { promptId: q.promptId, decision: r.json.decision || decision, via: 'terminal' }, now());
+    /* A TERMINAL THAT CANNOT READ THE DESK CODE DOES NOT ASK FOR ONE (fix-sec2 breakage 8). Only a station this terminal
+       started sends its desk codes here (client.deskCodeFor). Asking any other station for ALWAYS issued a confirmation
+       that nobody here could finish, and printed a stray code on that station's console; the answer was once anyway. */
+    const asked = decision === 'always' && typeof client.deskCodeFor !== 'function' ? 'once' : decision;
+    let r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: asked, via: 'terminal' });
+    /* ALWAYS NEEDS THE DESK (GHSA-2hpj #1; fix-sec2, review 8). A standing answer is confirmed at the desk; a terminal can only
+       carry that confirmation for a station it started itself (its console is the terminal's own: the desk code comes over
+       their IPC channel, bin/starnet.js makeDeskCodeBook). Otherwise the card is not left waiting: this call is allowed ONCE
+       and the terminal says how to make it standing. */
+    let downgraded = asked !== decision;
+    if (asked === 'always' && deskRefusal(r)) {
+      const ch = r.json.deskConfirm;
+      const code = ch && ch.mode === 'page' && typeof client.deskCodeFor === 'function' ? await client.deskCodeFor(ch.id) : '';
+      if (code) r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' }, { deskProof: ch.id, deskCode: code });
+      if (deskRefusal(r) || !(r.ok && r.json && r.json.ok)) {
+        r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: 'once', via: 'terminal' });
+        downgraded = true;
+      }
+    }
+    if (r.ok && r.json && r.json.ok) {
+      model.apply('permission.response', { promptId: q.promptId, decision: r.json.decision || (downgraded ? 'once' : decision), via: 'terminal' }, now());
+      if (downgraded) flash('allowed ONCE: ALWAYS is confirmed in the StarNet window (Settings › Permissions), not from a terminal');
+    }
     else if (r.ok && r.json && r.json.gone) { model.apply('permission.response', { promptId: q.promptId, decision: 'deny', stopped: true }, now()); flash('that ask is no longer waiting — it was answered elsewhere or its run ended'); }
     else flash('the station did not take that answer' + (r.error ? ' (' + r.error + ')' : r.status ? ' (HTTP ' + r.status + ')' : ''));
     paint();
@@ -383,7 +407,15 @@ function runDashboard(station, opts) {
     ui.keyFlash = { k: key, until: now() + 700 };
     if (key !== 'y') return flash('not trusted · the crew works in its own workspace', 'dim', 5000);
     paint();
-    const r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000 });
+    let r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000 });
+    /* TRUSTING A FOLDER NEEDS THE DESK (fix-sec2 review 3): for a station this terminal started, the 'y' is confirmed with the
+       desk code that station sent here; otherwise the folder is trusted in the StarNet window (or the page) that asks. */
+    if (deskRefusal(r)) {
+      const ch = r.json.deskConfirm;
+      const code = ch && ch.mode === 'page' && typeof client.deskCodeFor === 'function' ? await client.deskCodeFor(ch.id) : '';
+      if (code) r = await client.request('POST', '/api/projects/bless', { path: t.root }, { timeoutMs: 10000, deskProof: ch.id, deskCode: code });
+      if (deskRefusal(r)) return flash('not trusted yet: trust ' + folderLib.shortPath(t.root, 50) + ' under PROJECTS in the StarNet window, where it asks you to confirm', 'am', 9000);
+    }
     if (r.ok && r.status === 200 && r.json && r.json.ok && r.json.root) {
       setProject(String(r.json.root));
       flash('trusted · the crew works in ' + folderLib.shortPath(r.json.root, 60) + ' (it is under PROJECTS in the app too)', 'ok', 6000);
@@ -792,7 +824,7 @@ function runDashboard(station, opts) {
   function answerKey(ch) {
     const q = model.front();
     if (q && !q.question && /^[ynv]$/.test(ch)) { answer(ch); return true; }
-    if (q && !q.question && ch === 'a' && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0) { answer('a'); return true; }
+    if (q && !q.question && ch === 'a' && !q.onceOnly && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0) { answer('a'); return true; }
     if (!q && ui.trust && !ui.wake && /^[yn]$/.test(ch)) { answerTrust(ch); return true; }
     return false;
   }
@@ -1521,15 +1553,38 @@ function runDashboard(station, opts) {
     if (j.gone) return { gone: true, line: 'The StarNet app did not confirm in time, and ' + a.name + ' is no longer on the station\'s roster.' };
     return { st: j.station || {}, lead: 'The StarNet app did not confirm in time — it may still be applying it.' };
   };
+  let pendingYolo = null;   // a bare station's /yolo challenge waiting for the code its own console printed
+  // a station this terminal started shows its desk codes here, not in a console nobody sees (bin/starnet.js makeDeskCodeBook)
+  if (typeof client.onDeskNote === 'function') client.onDeskNote((text, kind) => sayHere('desk', [text], kind === 'code', 'DESK CODE'));
   async function yoloCommand(args) {
     const a = model.state.agents.get(ui.focus);
     if (!a) return sayHere('/yolo', ['No agent shown.'], false);
     const raw = String(args || '').trim().toLowerCase();
     const was = a.approvalMode === 'full' ? 'run without prompts' : 'ask first';
-    const want = raw ? /^(1|true|yes|on|full|yolo)$/.test(raw) : a.approvalMode !== 'full';
+    const word = raw.replace(/\s*\d{6}$/, '');
+    const want = word ? /^(1|true|yes|on|full|yolo)$/.test(word) : (/\d{6}$/.test(raw) ? true : a.approvalMode !== 'full');
     const mode = want ? 'full' : 'ask', now2 = want ? 'run without prompts' : 'ask first';
     if ((a.approvalMode === 'full' ? 'full' : 'ask') === mode) return sayHere('/yolo', ['Approval mode unchanged for ' + a.name + ': ' + now2 + '.']);
-    const r = await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000 });
+    /* GIVING FULL ACCESS NEEDS THE DESK'S CONFIRMATION (GHSA-2hpj #1). With the StarNet app open the app asks; under the
+       desktop app with no window this terminal is told to use the window. A bare station (no desktop app) needs the desk
+       code it shows only at its own console (fix-sec2, review 2): a station this terminal started sends it here over their
+       IPC channel, so the typed /yolo is the confirmation; for a station started elsewhere, the person types the code it
+       printed: /yolo on <code>. A 'desktop' challenge is never replayed from here: only the app's own dialog can. */
+    const typed = (String(args || '').trim().match(/(?:^|\s)(\d{6})$/) || [])[1] || '';
+    const held = pendingYolo && pendingYolo.agentId === a.id && pendingYolo.mode === mode && pendingYolo.expiresAt > now() ? pendingYolo : null;
+    pendingYolo = null;
+    let r = typed && held
+      ? await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000, deskProof: held.id, deskCode: typed })
+      : await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000 });
+    const ch = r && r.status === 403 && r.json && r.json.code === 'desk_confirm_required' && r.json.deskConfirm;
+    if (ch && ch.mode === 'page' && ch.id) {
+      const code = typeof client.deskCodeFor === 'function' ? await client.deskCodeFor(ch.id) : '';
+      if (code) r = await client.request('POST', '/api/agent/approval', { agentId: a.id, mode }, { timeoutMs: 15000, deskProof: ch.id, deskCode: code });
+      else if (ch.codeWhere && !ch.locked) {
+        pendingYolo = { agentId: a.id, mode, id: ch.id, expiresAt: Number(ch.expiresAt) || now() + 110000 };
+        return sayHere('/yolo', [(typed ? String(r.json.error || '') + ' ' : '') + 'To give ' + a.name + ' Full Access, type /yolo on <code> with the 6-digit code the station printed in the terminal it runs in for confirmation ' + String(ch.code || '') + ' (it works once, for two minutes).'], !typed);
+      }
+    }
     const u = unconfirmed(r, a);
     if (u) {
       if (u.gone) return sayHere('/yolo', [u.line], false);

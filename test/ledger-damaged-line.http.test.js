@@ -91,12 +91,15 @@ const near = (a, b) => typeof a === 'number' && Math.abs(a - b) < 1e-9;
     assert.equal(st.unsettled.length, 1, 'a restart reads the same damaged line: still listed, still unknown');
     assert.equal(st.unsettled[0].runId, d.runId, 'the same line keeps the same identity across boots');
 
-    const settled = await f.json('POST', '/api/budget/settle', { runId: d.runId, mode: 'bound' });
+    // the last unknown charge: booking it reopens spending, so it is confirmed at the desk (GHSA-2hpj spend routes)
+    const askedSettle = await f.json('POST', '/api/budget/settle', { runId: d.runId, mode: 'bound' });
+    assert.deepEqual([askedSettle.status, askedSettle.body.code], [403, 'desk_confirm_required'], 'settling the last unknown charge asks the desk first');
+    const settled = await f.deskJson('POST', '/api/budget/settle', { runId: d.runId, mode: 'bound' });
     assert.equal(settled.status, 200, JSON.stringify(settled.body));
     assert.equal(settled.body.unsettled.length, 0);
     assert.equal(settled.body.unknown, undefined, 'nothing unknown is left');
     assert.ok(near(settled.body.spentToday, 2.95), 'the explicit one-click charge joins only the readable rows: ' + settled.body.spentToday);
-    assert.equal((await f.json('POST', '/api/budget/resume', { scope: 'day' })).status, 200, 'settled history permits headroom');
+    assert.equal((await f.deskJson('POST', '/api/budget/resume', { scope: 'day' })).status, 200, 'settled history permits headroom (RESUME, confirmed at the desk)');
     const accepted = await run(f);
     assert.equal(calls, 1, 'a paid call starts only after settlement and resume');
     assert.ok(!/spend_history_unavailable/.test(accepted.text));

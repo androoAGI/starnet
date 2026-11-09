@@ -20,6 +20,7 @@ const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { floorOf, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -173,10 +174,14 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKCHAIN';
   const B = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(B, B);
-    const api = (method, url, body) => fetch(B + url, {
-      method, headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
+    const api = (method, url, body, extra) => fetch(B + url, {
+      method, headers: Object.assign({ 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }, extra || {}),
       body: body === undefined ? undefined : JSON.stringify(body)
     }).then(async r => ({ status: r.status, j: await r.json().catch(() => ({})) }));
+    // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+    const desk = makeDeskCodeReader();
+    child.stderr.on('data', d => desk.feed(d));
+    const deskApi = async (method, url, body) => desk.confirm(await api(method, url, body), h => api(method, url, body, h), 'j');
 
     const roster = await api('POST', '/api/roster', { agents: [
       { agentId: 'research-agent', name: 'RESEARCH', model: 'test/model', provider: 'openrouter', reasoningEffort: 'low' },
@@ -185,11 +190,11 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKCHAIN';
     A.eq(roster.status, 200, 'the two agents have distinct live roster identities');
 
     // ---- 1. add the agent-bound bot and enroll its owner (multibot pattern) ----
-    const add = await api('POST', '/api/channels/telegram/bots/connect', { token: TOK_A, agentId: 'research-agent', agentName: 'RESEARCH', model: 'test/model' });
+    const add = await deskApi('POST', '/api/channels/telegram/bots/connect', { token: TOK_A, agentId: 'research-agent', agentName: 'RESEARCH', model: 'test/model' });
     A.eq(add.status, 200, 'agent bot added');
     A.eq(add.j.botId, '333', 'bot keyed by its getMe id');
     await waitUntil(() => tg.perToken[TOK_A].calls.some(c => c.method === 'getUpdates'), 5000, 'agent bot polls');
-    const pair = await api('POST', '/api/channels/telegram/bots/333/owner/pair', {});
+    const pair = await deskApi('POST', '/api/channels/telegram/bots/333/owner/pair', {});
     A.eq(pair.status, 200, 'owner pairing code issued');
     tg.pushText(TOK_A, 900, 77, '/pair ' + pair.j.code);
     await waitUntil(() => tg.perToken[TOK_A].sends.some(s => String(s.chat_id) === '900' && /Owner paired/i.test(String(s.text || ''))), 8000, 'owner paired');

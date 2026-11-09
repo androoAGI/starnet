@@ -66,12 +66,18 @@ function appsPage(payload) {
     const schedule = await fx.json('POST', '/api/apps/schedule', { id: appId, every: 'every 1h', task: 'refresh the proof' });
     A.eq(schedule.status, 200, 'real app routine created');
     const jobId = schedule.body.jobId;
-    A.eq((await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).body.ok, true, 'real workshop routine granted');
-    A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).status, 200, 'phone door enabled');
-    const pair = (await fx.json('POST', '/api/remote/pair', { name: 'Scheduler proof phone' })).body;
+    // Each authority change below is confirmed at the desk, as the person at the station does it (GHSA-2hpj #1, #7; fix-sec2
+    // review2 #9): turning the away workshop on, switching Remote on, making a pairing code, and approving the new phone.
+    A.eq((await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).body.ok, true, 'real workshop routine granted');
+    A.eq((await fx.deskJson('POST', '/api/remote/enable', { on: true })).status, 200, 'phone door enabled');
+    const pairRes = await fx.deskJson('POST', '/api/remote/pair', { name: 'Scheduler proof phone' });
+    A.eq(pairRes.status, 200, 'pairing code issued at the desk');
+    const pair = pairRes.body;
     const key = await Phone.makeDeviceKey();
     const base = 'http://127.0.0.1:' + lanPort;
-    const paired = await Phone.pair({ base, pairingId: pair.pairingId, code: pair.code, name: 'Scheduler proof phone', key });
+    // the phone proves the link's 128-bit secret (GHSA-2hpj #7), and waits for the desk's approval before it has a session
+    const paired = await Phone.pair({ base, pairingId: pair.pairingId, secret: pair.secret, name: 'Scheduler proof phone', key });
+    A.eq((await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired.deviceId })).status, 200, 'the new phone is approved at the desk');
     phone = Phone.connect({ base, deviceId: paired.deviceId, stationPub: pair.stationPub, key });
 
     async function inspect(label, held) {

@@ -104,8 +104,8 @@ A.ok(/connectorAutonomy\(call, tool\)\) return \{ allow: true/.test(perms), 'the
 A.ok(perms.indexOf('connectorAutonomy(call, tool)) return { allow: true') <
      perms.indexOf("surface === 'autonomous' && scope === 'execute'"),
   'the connector tier also sits ABOVE the exec lockout (a non-read MCP tool is scope execute)');
-A.ok(/connectorGrant: \(call, tool\) => !execution\.taintedBy\(\) && \(ownerTrusted \|\| unattendedGrants\.indexOf\('connectors'\) >= 0\)/.test(src),
-  'connector standing grants apply only before untrusted content, including for an owner DM');
+A.ok(/connectorGrant: \(call, tool\) => !execution\.taintedBy\(\) && unattendedGrants\.indexOf\('connectors'\) >= 0,/.test(src),
+  'connector standing grants apply only before untrusted content, and an owner DM is not one (final review #1: it asks in the chat unless the desk bound the agent)');
 A.ok(/stationWithConnectors\(station, agentId, connectorIds\)/.test(src) && /connectorIds: connectors\.ids\(\)/.test(src),   // the run projection (capability/project-tools.js), handed the live connector ids
   'connector portals are injected into a bay-docked room too (composeOffice is bypassed there)');
 // the capability note must not re-assert the old blanket "no connectors unattended" lie
@@ -125,10 +125,12 @@ A.ok(perms.indexOf('terminalAutonomy(call, tool)) return { allow: true') <
      perms.indexOf("surface === 'autonomous' && scope === 'execute'"),
   'the grant tier sits ABOVE the exec lockout');
 // the grant must never be derivable from anything the model can influence
-A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\) && \(ownerTrusted \|\| unattendedGrants\.indexOf\('workbench'\) >= 0\)/.test(src),
-  'terminal standing grants apply only before untrusted content, including for an owner DM');
-A.ok(/surface === 'interactive' \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
-  'the grant is ignored on the watched surface, where floor placement governs');
+A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\) && unattendedGrants\.indexOf\('workbench'\) >= 0,/.test(src),
+  'terminal standing grants apply only before untrusted content, and an owner DM is not one (final review #1)');
+A.ok(/bypass: \(\) => unrestrictedHostNow\(\), unrestrictedHost: unrestrictedHostNow,/.test(src),
+  'the consent broker is bypassed only by what the desk bound (Full Access / FULL BYPASS), never by an owner DM alone (final review #1)');
+A.ok(/\(surface === 'interactive' \|\| authoritySeal\.held\) \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
+  'the grant is ignored on the watched surface, where floor placement governs (and while the seal is held, review 4c)');
 
 /* ---- 4. the injection tripwire is wired at EVERY door ----
    Behavior lives in test/cron-guard.test.js; this locks the WIRING, which is where a scanner silently dies.

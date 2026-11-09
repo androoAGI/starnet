@@ -48,7 +48,8 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
     const src = readSidecarSource();
     const promptSrc = part(src, '  function promptConsent(call, tool, ask) {', '\n  }\n') + '\n  }\n';
     const seen = [];
-    const ctx = vm.createContext({ askHuman: (fields) => { seen.push(fields); return 'asked'; }, consentSummary: () => 'sum', consentArgsFull: () => null, streamId: 's1' });
+    const ctx = vm.createContext({ askHuman: (fields) => { seen.push(fields); return 'asked'; }, consentSummary: () => 'sum', consentArgsFull: () => null, streamId: 's1',
+      isExactCommand: require('../sidecar/permissions.js').exactCommand });
     vm.runInContext(promptSrc + '\n;this.promptConsent = promptConsent;', ctx);
     const plain = { scope: 'read', capability: 'mcp:gmail-app-password' };
     ctx.promptConsent({ name: 'mcp__gmail__read_message', args: {} }, plain, { outsideContent: true });
@@ -64,6 +65,7 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
 
     const handle = sidecarFunctionSource('handleConsent');
     A.ok(handle.length > 200 && handle.length < 8000, 'handleConsent sliced');
+    const deskAsked = [];
     async function answer(decision, finishFlags) {
       let got = null, persistedFor = null, body = null;
       const finish = Object.assign(d => { got = d; }, finishFlags || {});
@@ -72,7 +74,9 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
         readBody: async () => JSON.stringify({ runId: 'r1', promptId: 'p1', decision }),
         pendingByRun: new Map([['r1', new Map([['p1', finish]])]]), channelPendingByRun: new Map(),
         runTable: new Map([['r1', { agentId: 'agent' }]]),
-        persistAgentFullAccess: id => { persistedFor = id; return true; }
+        persistAgentFullAccess: id => { persistedFor = id; return true; },
+        // the desk gate (GHSA-2hpj #1) confirms standing answers; here it confirms, and counts what it was asked
+        deskGate: (rq, rs, action) => { deskAsked.push(action); return true; }, agentRoster: new Map()
       });
       vm.runInContext(handle + '\n;this.handleConsent = handleConsent;', ctx2);
       const res = { writeHead() {}, end(t) { body = JSON.parse(t); } };
@@ -83,6 +87,7 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
     A.eq([a.got, a.body.decision], ['once', 'once'], 'Always on a post-taint ask is applied and echoed as once: no surface says "always allowed"');
     const s = await answer('session', { outsideContent: true });
     A.eq(s.got, 'once', 'Session there is once too');
+    A.eq(deskAsked, [], 'and neither asks the desk: nothing standing is made');
     const f = await answer('full', { outsideContent: true });
     A.eq([f.got, f.persistedFor], ['full', 'agent'], 'Full access keeps its meaning (the agent\'s standing posture, which the boundary reads)');
     const d = await answer('deny', { outsideContent: true });
@@ -97,14 +102,16 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
   {
     const chat = read('frontend/app/chat.js');
     const branches = part(chat, "    if (p.tool === 'browser.login') {", "    appendConsentDetails(r.body, p, 'plan');");
-    const card = part(branches, '} else if (p.outsideContent === true) {', "} else if (p.tool === 'station.power'");
+    const card = part(branches, '} else if (p.outsideContent === true) {', '    } else {\n');
+    // a fresh card (a tainted write, station.power, plugin.submit) is drawn before it: it stays once-or-deny, never Full access
+    A.ok(branches.indexOf("p.fresh === true) {") >= 0 && branches.indexOf("p.fresh === true) {") < branches.indexOf('} else if (p.outsideContent === true) {'), 'a fresh card keeps its once-or-deny branch ahead of the post-taint card');
     A.ok(/mk\('Approve once', 'once'/.test(card) && /mk\('Full access', 'full'/.test(card) && /mk\('Deny', 'deny'/.test(card), 'the post-taint card offers Approve once, Full access and Deny');
     A.ok(!/mk\('Always'/.test(card) && !/consentHintFor\(/.test(card), 'and never Always, nor the line that teaches Always');
     A.ok(/outside content/.test(card) && /Always cannot skip that/.test(card), 'it says in one line why it asks each time');
     A.ok(branches.indexOf('} else if (p.outsideContent === true) {') < branches.lastIndexOf('    } else {'), 'it is a branch before the default card');
     const voice = read('frontend/app/voice-live.js');
-    A.ok(/ONCE_ONLY\.has\(p\.tool\) \|\| p\.workerAgentId \|\| p\.outsideContent === true \? '\. Say approve or deny\.'/.test(voice), 'voice asks for approve or deny');
-    A.ok(/const onceOnly = decision === 'always' && \(ONCE_ONLY\.has\(pending\.tool\) \|\| pending\.outsideContent === true\);/.test(voice), 'and a spoken "always allow" there is approved once, said as once');
+    A.ok(/ONCE_ONLY\.has\(p\.tool\) \|\| p\.workerAgentId \|\| p\.outsideContent === true \|\| [^\n]*\? '\. Say approve or deny\.'/.test(voice), 'voice asks for approve or deny');
+    A.ok(/const onceOnly = decision === 'always' && \(ONCE_ONLY\.has\(pending\.tool\) \|\| pending\.outsideContent === true \|\| /.test(voice), 'and a spoken "always allow" there is approved once, said as once');
     A.eq(read('website/app/app/chat.js') === chat && read('website/app/app/voice-live.js') === voice, true, 'the website copy carries the same card');
   }
 

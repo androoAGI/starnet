@@ -1198,6 +1198,22 @@ const StationCommands = (() => {
       try { if (typeof StationUI !== 'undefined' && StationUI.invalidate) StationUI.invalidate('settings'); } catch (_) {}
       return { provider, store: h.isDesktop && h.isDesktop() ? 'keychain' : 'browser', verified: !!(res && res.credentialVerified), endpointOnly: !got.key };
     },
+    /* A LEAD'S ESCALATION MEETS THE DESK (fix-sec2, review 9; sidecar/index.js callOwnRouteAtDesk). The station hands this
+       page the desk challenge for a station.power change the Commander approved on its card; the page confirms it the way
+       a click on that setting would. Only the desktop window answers a desktop challenge; in a browser, only the page
+       watching the run that asked. Every other page stays quiet. The answer says only that the page asked: the station's
+       own challenge is the proof. */
+    'station.desk_confirm': async (a) => {
+      const h = typeof Harness === 'object' && Harness ? Harness : null;
+      const quiet = () => Object.assign(new Error('not this page'), { quiet: true });
+      const c = a && a.challenge;
+      if (!h || typeof h.confirmAtDesk !== 'function' || !c || typeof c.id !== 'string') throw quiet();
+      if (c.mode === 'desktop') { if (!(h.isDesktop && h.isDesktop())) throw quiet(); }
+      else { try { await requireWatching(a.origin); } catch (_) { throw quiet(); } }
+      const out = await h.confirmAtDesk(c);
+      const yes = out === true || !!(out && out.yes === true);
+      return { confirmed: yes, code: yes && out && typeof out.code === 'string' ? out.code : '' };
+    },
     'station.control': async (a) => {
       const act = String((a && a.action) || '');
       if (/^agent\./.test(act)) return agentControl(act, a);

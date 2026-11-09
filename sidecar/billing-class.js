@@ -212,7 +212,11 @@
                                           Code keeps it and a key or a local model never meets it. A call the Commander triggered
                                           (trigger 'commander': a rating's review, REFRESH QUESTS) runs past it; its row still counts.
      A check that THROWS refuses (gate 'check'), never "not blocked": the refusal reads as unknown spend, so every reader of a
-     verdict fails closed, and it names its exit. -> null (admitted), the pool's own verdict, or a refusal { gate: 'dollars' |
+     verdict fails closed, and it names its exit.
+     WHO IS WATCHING (GHSA-2hpj #8): budget.check hears { attended }. A background kind is watched only when the Commander
+     triggered it (trigger 'commander'); every other kind only when its caller says so (o.attended === true: a press, or a
+     run the host knows a person is watching). Absent means nobody: on the shipped soft rail with unknown history that work
+     pauses (budget.js), so a caller that forgets the flag fails toward pausing, never toward spending unwatched. -> null (admitted), the pool's own verdict, or a refusal { gate: 'dollars' |
      'tokens' | 'check', kind, cls, why, exit, ...the verdict }. budget.check is asked with no clock (its own); this stays pure. */
   const KINDS = Object.freeze({
     run: Object.freeze({ background: false }),                    // a run's own calls, every turn (runOnceCore runBudget)
@@ -233,8 +237,9 @@
     if (r.gate === 'check') return { why: 'the spending check failed (' + r.error + ')', exit: 'restart StarNet; ' + LIMITS + ' shows what the spend record holds' };
     // budget.js names the way out of every refusal over unknown spend (unknownExit): COUNT AS or the charge, a restart, the files
     if (r.unknown) return { why: 'spend history is unavailable (' + (r.cause || 'unknown') + ')', exit: r.exit ? String(r.exit) : 'see ' + LIMITS };
+    // a cap reached while unknown spend is counted names its own way on (settling it: RESUME is closed until then)
     return { why: 'the ' + (r.scope || 'spending') + ' spending cap is reached' + (typeof r.cap === 'number' ? ' (' + usd(r.usd) + ' of ' + usd(r.cap) + ')' : ''),
-      exit: 'RESUME it or raise it in ' + LIMITS };
+      exit: r.exit ? String(r.exit) : 'RESUME it or raise it in ' + LIMITS };
   }
   /* makeGovernor({ budget, auxTokenGate(providerId) -> { blocked, used, ceiling }, classOfProvider(providerId) -> class,
      onError(kind, e)? }). onError notes what a refused check threw; it must not throw (the host's failNote never does). */
@@ -271,7 +276,8 @@
         let reserved = false;
         try {
           if (o.pool) { const pooled = o.pool.admit(); if (pooled) return pooled; reserved = true; }
-          const b = budget.check(o.runId == null ? null : o.runId, o.agentId, Number(o.spentUsd) || 0, o.now, o.emit || null, o.receiptMeta);
+          const attended = k.background ? o.trigger === 'commander' : o.attended === true;
+          const b = budget.check(o.runId == null ? null : o.runId, o.agentId, Number(o.spentUsd) || 0, o.now, o.emit || null, o.receiptMeta, { attended });
           if (b) { if (reserved) { reserved = false; o.pool.withdraw(); } return refuse(kind, cls, 'dollars', b); }
         } catch (e) { return failed(kind, cls, e, reserved ? o.pool : null); }
       }

@@ -138,7 +138,7 @@ function seedOldBuild(root, chatId, owner) {
   const owed = ['QUEUED_ANSWER_MARK', 'HELD_ANSWER_MARK', 'REPLAYED_ANSWER_MARK', 'NOT run again'];
   try {
     await sidecar.start();
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-ledger-upgrade-fake', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.'
     });
@@ -176,7 +176,7 @@ function seedOldBuild(root, chatId, owner) {
     A.eq(runs().length, before.runs, 'and runs nothing');
 
     // the station still works on the ledger it migrated to: the owner pairs and a new message is answered once
-    const pair = await sidecar.json('POST', '/api/channels/telegram/owner/pair', {});
+    const pair = await sidecar.deskJson('POST', '/api/channels/telegram/owner/pair', {});
     A.ok(pair.body && pair.body.code, 'a one-time owner pairing code');
     telegram.pushText(CHAT, CHAT, '/pair ' + pair.body.code);
     await waitFor(() => sends().some(c => /Owner paired/i.test(String(c.fields.text || ''))), 15000, 'the owner pairing acknowledgement');

@@ -77,11 +77,14 @@ function startProvider() {
   });
   try {
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', {
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first, and the run's writes would wait on cards nobody answers
+    const roster = await fixture.deskJson('POST', '/api/roster', {
       updatedAt: 100,
-      agents: [{ agentId: 'receipt', name: 'RECEIPT', system: 'Use tools and report only proven outcomes.', provider: 'openrouter', model: 'test/output-recovery', approvalMode: 'full', executionProfile: 'trusted-project' }]
+      agents: [{ agentId: 'receipt', name: 'RECEIPT', system: 'Use tools and report only proven outcomes.', provider: 'openrouter', model: 'test/output-recovery', approvalMode: 'full', executionProfile: 'trusted-project' }],
+      raise: ['receipt']
     });
-    A.ok(roster.body && roster.body.ok === true, 'the real sidecar accepts the full-access test agent');
+    A.ok(roster.body && roster.body.ok === true && !roster.body.clamped, 'the real sidecar accepts the full-access test agent, on Full Access');
     const agentWorkspace = path.join(fixture.workspace, 'receipt');
     fs.mkdirSync(agentWorkspace, { recursive: true });
     fs.writeFileSync(path.join(agentWorkspace, 'flood-a.txt'), 'A'.repeat(61000), 'utf8');

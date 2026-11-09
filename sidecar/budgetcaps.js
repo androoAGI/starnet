@@ -155,5 +155,32 @@
     return { ok: true, overrides: next };
   }
 
-  return { KEYS, CAP_MAX, DEFAULT_PER_DAY_USD, DEFAULT_MANAGED_PER_RUN_USD, shippedDefaults, resolveCaps, validateOverridesPatch, cleanOverrides, managedRunCapUsd, managedCapIsBalance, managedRefusalMessage };
+  /* A RAISE IS CONFIRMED AT THE DESK (GHSA-2hpj-9wm7-rvg5, the route census's spend routes). Every /api route takes the page
+     token, which a same-user process can read, so a token holder used to lift every dollar limit (a higher figure, or 0 = none)
+     and let routines spend with nobody watching. The station now asks the desk (sidecar/deskproof.js) before it saves a raise.
+     raisedLimits(envDefaults, before, after, o) -> [{ key, from, to, soft? }]: the limits a change of saved overrides RAISES,
+     read on the EFFECTIVE caps (the saved override, else the env default), 0 meaning no limit at all:
+       · a higher figure, or none where there was one;
+       · while a charge is unsettled (o.historyUnknown), a PER DAY someone chose going back to the shipped rail at any figure
+         (soft: true). A chosen PER DAY refuses every paid call while a charge is unknown; the shipped rail lets a run someone
+         watches go on against its floor (budget.js, GHSA-2hpj #8), so that change lets runs spend that could not. With the
+         history whole the two behave alike, and the shipped rail is the safe default #8 made it.
+       o.dayChosen(overrides) -> whether PER DAY is a chosen limit under that override set (index.js budgetDayChosen).
+     A lower or equal figure never appears otherwise, so lowering or tightening never asks. Pure. */
+  function raisedLimits(envDefaults, before, after, o) {
+    const opts = o || {};
+    const a = resolveCaps(envDefaults, before), b = resolveCaps(envDefaults, after);
+    const ceiling = v => (isNum(v) && v > 0) ? v : Infinity;
+    const out = [];
+    for (const k of KEYS) {
+      if (ceiling(b[k]) > ceiling(a[k])) { out.push({ key: k, from: a[k], to: b[k] }); continue; }
+      if (k === 'perDay' && opts.historyUnknown === true && typeof opts.dayChosen === 'function'
+        && ceiling(a[k]) < Infinity && ceiling(b[k]) < Infinity && opts.dayChosen(before) && !opts.dayChosen(after)) {
+        out.push({ key: k, from: a[k], to: b[k], soft: true });
+      }
+    }
+    return out;
+  }
+
+  return { KEYS, CAP_MAX, DEFAULT_PER_DAY_USD, DEFAULT_MANAGED_PER_RUN_USD, shippedDefaults, resolveCaps, validateOverridesPatch, cleanOverrides, raisedLimits, managedRunCapUsd, managedCapIsBalance, managedRefusalMessage };
 });

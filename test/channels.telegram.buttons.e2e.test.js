@@ -24,6 +24,7 @@ const { bootToken } = require('./_httpToken.js');
 const { userWords } = require('./helpers/host-notes.js');
 const { canonical, publishFloor, fetchApi } = require('./helpers/saved-floor.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -197,6 +198,9 @@ const lastUserTurn = (req) => {
     SKYNET_TELEGRAM_API_BASE: tg.base, STARNET_TELEGRAM_API_BASE: tg.base
   };
   const { child, port } = await boot(await allocatePort(), env, 20);
+  // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+  const desk = makeDeskCodeReader();
+  child.stderr.on('data', d => desk.feed(d));
   const B = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(B, B);
@@ -204,11 +208,11 @@ const lastUserTurn = (req) => {
     await waitUntil(() => tg.calls.some(c => c.method === 'getUpdates' && c.body && c.body.offset === -1), 5000, 'telegram drop-pending poll');
 
     // Enrol the Telegram account through the same explicit local pairing flow as the desktop UI.
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', {
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
       body: '{}'
-    })).json();
+    });
     A.ok(/^[-A-Z0-9]{11}$/.test(String(pair.code || '')), 'local owner pairing issued a code');
     tg.pushText(4242, 99, '/pair ' + pair.code);
     await waitUntil(() => tg.sends.some(s => String(s.chat_id) === '4242' && /Owner paired/i.test(String(s.text || ''))), 8000, 'owner pairing acknowledgement');
@@ -315,8 +319,9 @@ const lastUserTurn = (req) => {
     A.ok(/Permission needed/.test(ask.text), 'the ask announces itself as a permission request');
     A.ok(/fs\.write/.test(ask.text), 'and names the actual tool the broker paused on');
     const ckb = ask.reply_markup.inline_keyboard;
-    A.eq(ckb.map(r => r[0].text), ['✅ Allow once', '✅ Allow for this session', '♾️ Always allow', '❌ Deny'],
-      'the four buttons are the broker\'s own decision vocabulary');
+    // fix-sec2 F3 and review2 #10: a chat answers once or no; ALWAYS and for-this-session are confirmed at the desk
+    A.eq(ckb.map(r => r[0].text), ['✅ Allow once', '❌ Deny'],
+      'the two buttons are the broker\'s own decision vocabulary');
     for (const row of ckb) A.ok(Buffer.byteLength(row[0].callback_data, 'utf8') <= 64, 'consent callback_data is within the 64-byte cap');
 
     // tap "Allow once" -> the paused run resumes and the write actually happens

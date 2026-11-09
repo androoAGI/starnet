@@ -76,7 +76,7 @@
           else throw new Error('no check command given and no package.json found — pass { "cmd": "<your check>" }');
         }
         const hostWide = shell.unrestrictedHost(ctx);
-        const deny = hostWide ? null : escapesWorkspace(cmd);
+        const deny = hostWide ? null : (escapesWorkspace(cmd) || shell.authorityFileRisk(cmd, { cwd: hostCwd, root: ROOT, pathMod: P, fs: fs, isWin: isWin }));   // fix-sec2 F2
         if (deny) throw new Error('refused: ' + deny);
         const safetyDeny = hostWide ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P,
           dialect: environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix'), isWin: isWin,

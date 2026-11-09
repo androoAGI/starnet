@@ -93,14 +93,16 @@ const Friendly = require('../frontend/app/friendlyerror.js');
 
     // ---- 3. a per-run cap above the wallet is capped at the wallet, not refused ----
     const save = await fixture.json('POST', '/api/budget/caps', { perRun: 50 });
-    assert.equal(save.status, 200, 'saving a $50 per-run cap succeeds');
+    assert.equal(save.status, 200, 'saving a $50 per-run cap succeeds (no cap -> $50 tightens, so nothing asks)');
     reset(10);
     r = await run('cap-above-wallet');
     assert.ok(!OUT_OF_CREDITS.test(r.message), 'a $10 wallet with a $50 cap is not "out of credit": ' + r.message);
     assert.equal(r.end.reason, 'done', 'the run is admitted and finishes (got ' + r.end.reason + ')');
     assert.equal(reserveOf(), 10, 'it reserves what the wallet holds ($10), not the $50 cap (reserve=' + reserveOf() + ')');
     assert.ok(chatCalls >= 1, 'the model was actually called');
-    await fixture.json('POST', '/api/budget/caps', { perRun: null });
+    // back to no per-run cap: that removes a limit, so it is confirmed at the desk (GHSA-2hpj spend routes)
+    assert.equal((await fixture.json('POST', '/api/budget/caps', { perRun: null })).status, 403, 'removing the $50 per-run cap asks the desk first');
+    assert.equal((await fixture.deskJson('POST', '/api/budget/caps', { perRun: null })).status, 200, 'and is cleared once it is confirmed there');
 
     // ---- 4. a real $0 wallet keeps the honest refusal ----
     reset(0);

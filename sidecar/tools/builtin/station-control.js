@@ -508,7 +508,8 @@
 
     function makeChange(name, consentKey, isPower) {
       return {
-        name, capability: 'orchestrator', impact: 'none', consentKey, taintLocked: true, scope: 'write', requiresConsent: true, timeoutMs: 45000,
+        // an escalation may wait on the desk's own confirmation of the change (index.js callOwnRouteAtDesk: up to ~2 min)
+        name, capability: 'orchestrator', impact: 'none', consentKey, taintLocked: true, scope: 'write', requiresConsent: true, timeoutMs: isPower ? 150000 : 45000,
         // station SETUP (bring crew into this chat, rename a session, the look, an e-stop) is not the deliverable a Task Brief
         // settles — the team.summon rule (taskbrief-policy canMutate). It keeps its own approval card. Anything that deletes,
         // wipes, rewinds or decides work (agent.delete, memory.reset, checkpoint.restore…) and every escalation still waits.

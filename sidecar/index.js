@@ -284,7 +284,7 @@ const { makeStationInspectTool } = require('./tools/builtin/station-inspect.js')
 const { makeManualReadTool } = require('./tools/builtin/manual-read.js');   // manual.read — the operator manual's reference sections, on demand
 const { makeStationShowTool } = require('./tools/builtin/station-show.js');   // station.show — the agent opens a StarNet window/tab for the Commander (frontend/app/places.js)
 const memcore = require('./memcore.js');
-const { makeConsentBroker } = require('./permissions.js');
+const { makeConsentBroker, exactCommand: isExactCommand, EXACT_CLASSES: COMMAND_GRANT_CLASSES } = require('./permissions.js');
 const { makeGrantManager } = require('./permgrants.js');
 const { makeProjectsStore } = require('./projects-store.js');   // NS-5: known-projects (blessed roots) durable store
 const { makePathTrust } = require('./pathtrust.js');            // NS-5: conversational path-trust guard
@@ -547,6 +547,16 @@ function ENV(suffix) { const k = 'STARNET_' + suffix; return (k in process.env) 
 
 const PORT = Number(ENV('PORT') || process.env.PORT) || 8787;
 const API_TOKEN = String(ENV('API_TOKEN') || crypto.randomBytes(32).toString('hex'));
+/* THE PER-LAUNCH SECRETS LEAVE THE ENVIRONMENT AS SOON AS THEY ARE READ (fix-sec2, review 1). The shell hands the page token
+   and its own IPC token (the one that approves a desk confirmation) to this process as environment variables. Read once
+   here, they are deleted from process.env, so nothing that snapshots it later (a worker, a child spawned without
+   child-env.js, a diagnostics dump) can carry them, and on Windows the live environment block no longer holds them.
+   Honest limit: Linux /proc/<pid>/environ and macOS KERN_PROCARGS2 show the environment this process STARTED with, which
+   deleting does not change, and any same-user process can read this process's memory. Only a hand-off over a pipe
+   (the shell writing them to stdin) keeps them out of the start-up environment; that needs the Rust side and is not
+   done here. */
+const IPC_TOKEN = String(ENV('IPC_TOKEN') || '');
+for (const k of ['STARNET_API_TOKEN', 'SKYNET_API_TOKEN', 'STARNET_IPC_TOKEN', 'SKYNET_IPC_TOKEN']) delete process.env[k];
 // DEV fast-path (the `npm run dev:seed` launcher sets this): when on, the served index.html carries a small
 // boot payload (window.__STARNET_DEV__ = {model, prov}) so a fresh browser origin auto-resumes the server-
 // seeded save with no connect screen / awakening. Holds NO secret — the API key stays in the credential store. Never
@@ -556,6 +566,15 @@ const DEV_MODE = /^(1|true|yes|on)$/i.test(String(ENV('DEV') || '').trim());
 // parent process), so only then do channel bot tokens live in the keychain instead of plaintext secrets.json.
 // The bare sidecar (npm start / tests / headless deploy) never sets this and HONESTLY keeps the plaintext path.
 const DESKTOP_SHELL = /^(1|true|yes|on)$/i.test(String(ENV('DESKTOP_SHELL') || '').trim());
+/* TWO KEYS UNDER THE DESKTOP SHELL (GHSA-2hpj-9wm7-rvg5 #1, 2026-11-08). The desktop app page receives API_TOKEN from the
+   shell's init script (main.rs webview_init_script), never from GET /. So under the shell, the page this sidecar SERVES
+   carries CLIENT_TOKEN instead: the `starnet` CLI and the MCP/ACP bridges keep reading it there, and so can any command an
+   agent runs, but CLIENT_TOKEN can never ask for a desk confirmation (deskGate), so the AUTHORITY changes (FULL BYPASS, FULL
+   ACCESS / ALWAYS answers, standing grants, Remote, pairing, approving a phone; sidecar/deskproof.js) stay out of its reach.
+   Every other route takes either key. A bare sidecar (browser mode, tests, the CLI's own station) has no other way to hand
+   its page a key, so it serves API_TOKEN as before and its desk confirmation is an in-page one. */
+const DESK_SHELL_PROOF = DESKTOP_SHELL && !!IPC_TOKEN.trim();
+const CLIENT_TOKEN = DESK_SHELL_PROOF ? crypto.randomBytes(32).toString('hex') : '';
 // #119: only the desktop app, or a test in its own sandbox, may clean up in a profile's Downloads. Read once and removed,
 // so a test or tool started from inside the app does not inherit the permission.
 const SWEEP_BACKUP_TEMPS = ENV('SWEEP_BACKUP_TEMPS') === '1';
@@ -569,6 +588,15 @@ const apiauth = require('./apiauth.js');
 const apitickets = require('./apitickets.js');
 const TICKET_GUARD = apitickets.replayGuard(4096);   // single-use registry for the once-only ticket kinds (sse, save)
 const { isAllowedApiOrigin, isAllowedHost, requiresApiToken, TAURI_ORIGINS } = apiauth;
+// Either station key on the header: API_TOKEN (the app page), or CLIENT_TOKEN (what GET / serves under the desktop shell).
+// Only deskGate tells them apart; every other route is reachable with either, exactly as it was with the one key.
+function stationTokenOk(req) { return apiauth.apiTokenOk(req, API_TOKEN) || (!!CLIENT_TOKEN && apiauth.apiTokenOk(req, CLIENT_TOKEN)); }
+// a page mints its link/stream tickets from the key it holds (frontend/app/apiticket.js), so a ticket is good under either
+function stationTicketOk(req) { return apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD) || (!!CLIENT_TOKEN && apiauth.ticketOk(req, CLIENT_TOKEN, Date.now(), TICKET_GUARD)); }
+function stationTicketVerify(ticket, kind, scope) {
+  const v = apitickets.verify(API_TOKEN, ticket, kind, scope, { now: Date.now() });
+  return (v.ok || !CLIENT_TOKEN) ? v : apitickets.verify(CLIENT_TOKEN, ticket, kind, scope, { now: Date.now() });
+}
 function applyApiCors(req, res) {
   const origin = String(req.headers.origin || '');
   if (origin && isAllowedApiOrigin(origin, PORT, req.headers.host)) {
@@ -577,7 +605,7 @@ function applyApiCors(req, res) {
   }
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,DELETE,OPTIONS');   // PATCH: /api/routing/triggers/:id (line triggers)
   // accept the legacy token header too (old Tauri shell); X-Speech-Deadline-Ms: a sentence's deadline budget (media-service.js)
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,X-StarNet-Token,X-Skynet-Token,X-Speech-Deadline-Ms,X-StarNet-Desk-Proof,X-StarNet-Desk-Code');   // the desk proof: deskGate
   // the desktop page is cross-origin: it can only read a non-safelisted header named here. voice.js picks a
   // clip's effect + pacing from which engine spoke it; hidden, every built-in voice resolved as the keyed recipe.
   // X-StarNet-Code names a failure (respond.js CODES): hidden, the desktop page could not tell a stale key from any 403.
@@ -1137,6 +1165,107 @@ try { fs.mkdirSync(WORKSPACES, { recursive: true }); } catch (e) {}
 // quarantineCorrupt (first-free <file>.corrupt-<n>), loadResilient (an unreadable load is noted) and saveResilient (the
 // last-known-good replace through the update-frozen writer) are sidecar/persist's host, the composition its tests build.
 const { quarantineCorrupt, readResilient, loadResilient, saveResilient } = require('./persist/index.js').host({ fs: fs, path: path, writeDurable: writeFileDurable });
+/* AUTHORITY SEAL (GHSA-2hpj #3) — sidecar/authority-seal.js. The five files that say what this station may do without
+   asking (FULL BYPASS, the roster's Full Access, hooks and their approvals, plugin approvals) carry an HMAC keyed from
+   the OS credential store (connector-vault deriveKey; the raw key never leaves the vault). One changed outside StarNet
+   reads as its safe default and GET /api/permissions carries the notice the page shows. boot() runs here, before any
+   of them is read: the first keyed boot after the upgrade seals what is there, once. Without a credential-store key
+   (a bare station, or the desktop when the store was unreachable) nothing is sealed or checked, as before; over a
+   workspace the app sealed, such a StarNet keeps the last sealed copy (<name>.sealed-last) before it overwrites a file,
+   and the next keyed boot takes back what it saved where it only takes power away (fix-sec2 F1, authority-seal.js). */
+const authoritySealMod = require('./authority-seal.js');
+const AUTHORITY_SEAL_FILE = path.join(WORKSPACES, authoritySealMod.MARKER_NAME);
+function readJsonIfPresent(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; }
+}
+// where each sealed file lives: the phones' file sits in .secrets (review 4a), the rest beside the jail
+// (final review #3: the chat channels' owners record sits beside channels/secrets.json)
+const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKSPACES, '.secrets', 'remote.json')
+  : String(name) === 'channel-owners.json' ? path.join(WORKSPACES, 'channels', 'channel-owners.json')
+  : path.join(WORKSPACES, path.basename(String(name)));
+const authoritySealLastFile = name => authorityFileOf(name) + authoritySealMod.LAST_SUFFIX;
+const authoritySeal = authoritySealMod.makeAuthoritySeal({
+  key: connectorVault.deriveKey(authoritySealMod.LABEL),
+  // final review #5: the desktop shell's record (in the OS credential store, beside the key) that this workspace was sealed
+  // before; with it a missing marker is never read as the one-time upgrade (src-tauri credentials.rs authority_sealed)
+  sealedBefore: DESKTOP_SHELL && /^(?:1|true)$/i.test(String(ENV('AUTHORITY_SEALED') || '').trim()),
+  desktop: DESKTOP_SHELL,   // the app's station holds over a sealed workspace when its key is missing (review 4d)
+  now: () => Date.now(),
+  marker: {
+    read: () => readJsonIfPresent(AUTHORITY_SEAL_FILE),
+    write: (value) => { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, AUTHORITY_SEAL_FILE, JSON.stringify(value, null, 2) + '\n'); }
+  },
+  keep: (name) => authoritySealMod.keepCopy(fs, authorityFileOf(name)),
+  lastSealed: {
+    read: (name) => readJsonIfPresent(authoritySealLastFile(name)),
+    write: (name, value) => writeFileDurable({ fs: fs, path: path }, authoritySealLastFile(name), JSON.stringify(value, null, 2) + '\n'),
+    drop: (name) => { try { fs.unlinkSync(authoritySealLastFile(name)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
+  },
+  current: (name) => readJsonIfPresent(authorityFileOf(name)),
+  // where a trace of sealing survives when the marker is gone (review 4c): each file's .bak and .sealed-last copy, and
+  // the routine store with its .bak (sealed in parts, review 4a)
+  evidence: () => {
+    const out = [];
+    const files = [];
+    for (const name of authoritySealMod.NAMES) files.push(authorityFileOf(name) + '.bak', authoritySealLastFile(name));
+    files.push(path.join(WORKSPACES, 'cron.jobs.json'), path.join(WORKSPACES, 'cron.jobs.json.bak'));
+    for (const file of files) {
+      try { const v = readJsonIfPresent(file); if (v !== undefined) out.push(v); }
+      catch (e) { failNote('authority-seal.evidence', e); }
+    }
+    return out;
+  },
+  // a restore from a recovery bundle names the files it brought (station-recovery.js; fix-sec2 review 10)
+  restored: {
+    read: () => readJsonIfPresent(path.join(WORKSPACES, authoritySealMod.RESTORED_NAME)),
+    drop: () => { try { fs.unlinkSync(path.join(WORKSPACES, authoritySealMod.RESTORED_NAME)); } catch (e) { if (!e || e.code !== 'ENOENT') throw e; } }
+  },
+  log: (line) => console.warn('[authority-seal] ' + line)
+});
+// The two resilient stores are saved twice when sealed at the upgrade: the first save moves the old unsealed main to
+// .bak, the second makes the .bak the sealed copy, so a later recovery from .bak is not refused as unsealed.
+const authoritySealBoot = authoritySeal.boot(authoritySealMod.NAMES.map(name => {
+  const file = authorityFileOf(name);
+  const resilient = name === 'permissions.bypass.json' || name === 'agent.roster.json' || name === 'permissions.allow.json';
+  if (name === 'channel-owners.json') {
+    // final review #3: who owns each chat channel. Before this record existed the owners lived only in channels/secrets.json,
+    // so the one-time upgrade (or a marker that does not cover it yet) seals what that file says, once; afterwards an absent
+    // record is read as it is (no owners), never derived again
+    return {
+      name: name,
+      read: () => {
+        const own = readJsonIfPresent(file);
+        if (own !== undefined) return own;
+        let secrets;
+        try { secrets = readJsonIfPresent(path.join(WORKSPACES, 'channels', 'secrets.json')); } catch (_) { return undefined; }
+        const derived = channelOwnersOf(secrets);
+        return Object.keys(derived.owners).length ? derived : undefined;
+      },
+      write: v => { fs.mkdirSync(path.dirname(file), { recursive: true }); writeFileDurable({ fs: fs, path: path }, file, JSON.stringify(v, null, 2) + '\n'); }
+    };
+  }
+  if (name === 'remote.json') {
+    // the phones' file is the remote module's resilient store (durable-store), sealed through it at the upgrade too
+    const { readJsonResilient: readRemote, writeJsonResilient: writeRemote } = require('./durable-store.js');
+    return {
+      name: name,
+      read: () => { const r = readRemote({ fs: fs }, file); if (r.status === 'unreadable') throw r.err || new Error('unreadable'); return r.value; },
+      write: v => { writeRemote({ fs: fs, path: path }, file, v); writeRemote({ fs: fs, path: path }, file, v); }
+    };
+  }
+  return {
+    name: name,
+    wrap: name === 'hooks.json' ? (v => Array.isArray(v) ? { hooks: v } : v) : undefined,
+    read: resilient ? () => loadResilient(file, 'authority-seal') : () => readJsonIfPresent(file),
+    write: resilient ? (v => { saveResilient(file, v); saveResilient(file, v); }) : (v => writeFileDurable({ fs: fs, path: path }, file, JSON.stringify(v, null, 2)))
+  };
+}));
+// the value a reader may obey, or undefined (its default) when the seal is missing or wrong
+function authorityOpen(name, raw) {
+  const opened = authoritySeal.open(name, raw);
+  return opened.ok ? opened.value : undefined;
+}
 // Explicit credential deletion has a stricter contract than an ordinary resilient update. The normal writer
 // intentionally snapshots the old main into .bak; during remove/reset that old value is exactly the credential
 // the user asked us to forget. Write the sanitized envelope to BOTH copies directly and read both back before
@@ -1195,7 +1324,7 @@ const engineKeys = engineCredential.makeEngineKeys({
    The store's header has the layers and their order. */
 const DESKTOP_ENDPOINTS_FILE = path.join(WORKSPACES, '.secrets', 'provider-endpoints.json');
 const CHANNEL_CREDENTIALS_FILE = path.join(WORKSPACES, '.secrets', 'channel-credentials.json');
-const SHELL_PUSHES_PROVIDER_CONFIG = !!String(ENV('IPC_TOKEN') || '').trim();
+const SHELL_PUSHES_PROVIDER_CONFIG = !!IPC_TOKEN.trim();
 const PROVIDER_IDS = Object.freeze(listProviderProfiles({ includeInactive: true, public: false }).map(p => p.id));   // the registry's, fixed
 const credStore = credentialStore.makeCredentialStore({
   profile: getProviderProfile,
@@ -1497,9 +1626,7 @@ const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAP
 // check time, after the saved overrides have loaded.
 function budgetScopeIsExplicit(scope) {
   if (scope !== 'day') return true;
-  const env = ENV('BUDGET_PER_DAY');
-  if (env != null && String(env).trim() !== '') return true;
-  return !!(budgetOverrides && Object.prototype.hasOwnProperty.call(budgetOverrides, 'perDay'));
+  return budgetDayChosen(budgetOverrides);   // the environment's PER DAY, or a saved one (the spend desk below reads the same rule)
 }
 // THE ONE GOVERNOR (billing-class.js makeGovernor): every paid call path asks it before its call; it answers by the route's payer,
 // and a check that throws refuses with its exit named (noted here), never "not blocked".
@@ -2514,7 +2641,10 @@ function replaceAgentRoster(list) {
 }
 function loadAgentRoster() {
   try {
-    const raw = loadResilient(AGENT_ROSTER_FILE, 'roster');   // last-known-good recovery; never silent-wipe
+    const stored = loadResilient(AGENT_ROSTER_FILE, 'roster');   // last-known-good recovery; never silent-wipe
+    // GHSA-2hpj #3: a roster whose seal is missing or wrong keeps its agents and loses their Full Access (clampRoster)
+    const opened = authoritySeal.open('agent.roster.json', stored);
+    const raw = opened.ok ? opened.value : authoritySealMod.clampRoster(stored);
     if (raw) {
       replaceAgentRoster(raw && raw.agents);
       // P1.1: adopt the stored envelope's updatedAt as the anti-clobber baseline. A LEGACY { version:1, agents }
@@ -2554,7 +2684,7 @@ function saveAgentRoster(updatedAt) {
     const stamp = Number(updatedAt);
     const nextUpdatedAt = (Number.isFinite(stamp) && stamp > 0) ? stamp : Math.max(agentRosterUpdatedAt + 1, Date.now());
     if (!stationLife.station()) { agentRosterHeld = true; agentRosterUpdatedAt = nextUpdatedAt; return true; }   // nothing to fail: see agentRosterHeld
-    saveResilient(AGENT_ROSTER_FILE, { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents });   // fsync-durable + .bak last-known-good
+    saveResilient(AGENT_ROSTER_FILE, authoritySeal.seal('agent.roster.json', { version: 1, updatedAt: nextUpdatedAt, ...(agentRosterSaveRevision > 0 ? { saveRevision: agentRosterSaveRevision } : {}), agents }));   // fsync-durable + .bak last-known-good; sealed (GHSA-2hpj #3)
     // The freshness baseline is committed state, not attempted state. Advancing it before the durable replace
     // succeeds would make a failed write reject a later retry as stale even though disk never received the value.
     agentRosterUpdatedAt = nextUpdatedAt;
@@ -3503,7 +3633,10 @@ function channelRunConfigFor(agentId, candidate, opts) {
     ok: true, key, model, provider, baseUrl,
     reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort),
     system: (ident && ident.system) || '',
-    wireSource: wire.source
+    wireSource: wire.source,
+    // the run goes out on an endpoint the channel's own record carries (set at connect or by a sync), not the station's
+    // resolution for its provider: an owner's card-free DM is not given to it (channelOwnerCardFree, final review #1)
+    ownEndpoint: !!(sameProvider && offered && String(offered.baseUrl || offered.base_url || '').trim())
   };
 }
 /* THE STATION'S OWN CHAT HUBS (Telegram, Discord, the generic channels, the dev channel) run the ROUTED agent's one pair,
@@ -3521,7 +3654,24 @@ function stationHubRunConfig(agentId, snap, opts) {
     { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null, storedCredential: !!(opts && opts.storedCredential) });
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
-  return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
+  // final review #1: the channel's own copy of the instructions (a sync writes it, with the page key) is not bound to an
+  // agent's Full Access the way the roster's is (fullAccessDriveOf), so a Full Access agent runs on its roster's only
+  const rec = agentRoster.get(String(agentId || ''));
+  const full = !!(rec && rec.approvalMode === 'full');
+  return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured && !full ? String(s.system || '') : '') });
+}
+/* THE OWNER'S CARD-FREE DM (final review #1, 2026-11-08). A Telegram owner's DM with chat approvals off used to skip every
+   card whatever the agent behind it, so the key GET / serves (any same-user script, or a command an agent ran) could
+   rewrite an ask-first agent's instructions, model or skills, or the channel's own copy of them, and the owner's next
+   ordinary message ran a host shell with no card. Card-free is now what the desk has bound: the agent's Full Access, whose
+   instructions, model, provider and skills a6dfca2ce binds (any change drops it unless the desk keeps it), or FULL BYPASS.
+   An ask-first agent gets the approval buttons in the chat instead, and a run that would go out on an endpoint the
+   channel's own record carries (a sync can set one) is never card-free. Read live for every message. */
+function channelOwnerCardFree(agentId, sec) {
+  if (sec && sec.ownEndpoint === true) return false;
+  if (FULL_ACCESS || masterBypassOn()) return true;
+  const rec = agentRoster.get(String(agentId || ''));
+  return !!(rec && rec.approvalMode === 'full');
 }
 /* THE ONE READ OF A CHANNEL'S CREDENTIAL (credential-store lane, S8). A record holds a reference, never a key
    (channels/secrets.js): this is the saved record with what that reference resolves to laid over it: { key, baseUrl } of its
@@ -4761,22 +4911,34 @@ const FULL_ACCESS = /^(1|true|yes|on)$/i.test(String(ENV('FULL_ACCESS') || '').t
    Persist-before-commit: a torn write leaves the previous state standing (never a phantom bypass). */
 const BYPASS_FILE = path.join(WORKSPACES, 'permissions.bypass.json');
 function loadMasterBypass() {
-  try { const raw = loadResilient(BYPASS_FILE, 'permissions-bypass'); return !!(raw && raw.on === true); }
+  // GHSA-2hpj #3: an unsealed or mismatched file reads as OFF (authorityOpen -> undefined), and the page is told why
+  try { const raw = authorityOpen('permissions.bypass.json', loadResilient(BYPASS_FILE, 'permissions-bypass')); return !!(raw && raw.on === true); }
   catch (e) { return false; }   // unreadable -> OFF (fail-closed, the safe default)
 }
 let masterBypassFlag = loadMasterBypass();
 const masterBypassOn = () => masterBypassFlag;
 function setMasterBypass(on) {
-  saveResilient(BYPASS_FILE, { version: 1, on: !!on, setAt: Date.now() });   // throws -> caller reports, state unchanged
+  saveResilient(BYPASS_FILE, authoritySeal.seal('permissions.bypass.json', { version: 1, on: !!on, setAt: Date.now() }));   // throws -> caller reports, state unchanged
   masterBypassFlag = !!on;
 }
 // permanent allowlist of danger-class keys (capability:scope) the user has blessed forever. Lives BESIDE
 // the notebook store (sibling of the fs jail) so the agent's own fs.* tools can neither read nor rewrite it.
 const ALLOWLIST_FILE = path.join(WORKSPACES, 'permissions.allow.json');
+// fix-sec2 review 4a: the file is sealed (authority-seal.js); one changed outside StarNet reads as empty
+/* A RETIRED COMMAND GRANT (GHSA-2hpj #4). An older StarNet's ALWAYS on a command card saved the whole class
+   (workbench:execute: every command, every run, forever). A command is never allowed always now, and the broker never
+   reads a class row for one, so that row is not loaded at all: the Permissions panel and a config export no longer show
+   a grant that does nothing, and the next save of the file leaves it out. Commands ask again, one at a time. */
+const retiredCommandGrant = (k) => Object.prototype.hasOwnProperty.call(COMMAND_GRANT_CLASSES, k);
+let retiredCommandGrantsAtLoad = [];   // final review B4: said once on the Permissions page, then left out of the file
 function loadAllowlist() {
   try {
-    const raw = loadResilient(ALLOWLIST_FILE, 'permissions');   // recover blessed grants from .bak on a torn main
-    return new Set((raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string'));
+    const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));   // recover blessed grants from .bak on a torn main
+    const keys = (raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string');
+    const retired = keys.filter(retiredCommandGrant);
+    if (retired.length) console.log('  · permissions: ' + retired.join(', ') + ' (an older "always" for every command) is retired: each command asks again (GHSA-2hpj #4)');
+    retiredCommandGrantsAtLoad = retired;
+    return new Set(keys.filter(k => !retiredCommandGrant(k)));
   } catch (e) { return new Set(); }   // unrecoverable -> nothing pre-allowed (fail-closed, the safe default)
 }
 // ADDITIVE provenance (B1.1): a sibling `meta` map { dangerKey: { grantedAt } } persisted INSIDE the same file
@@ -4784,7 +4946,7 @@ function loadAllowlist() {
 // for still-held keys are kept, so a hand-edited/legacy file can't inject junk provenance.
 function loadAllowMeta() {
   try {
-    const raw = loadResilient(ALLOWLIST_FILE, 'permissions');
+    const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));
     const m = raw && raw.meta && typeof raw.meta === 'object' ? raw.meta : {};
     const out = {};
     for (const k of Object.keys(m)) {
@@ -4796,6 +4958,21 @@ function loadAllowMeta() {
 }
 const grantsPermanent = loadAllowlist();   // process-wide, restored from disk
 const grantMeta = loadAllowMeta();         // process-wide provenance, restored alongside (additive; may be {})
+/* final review B4: people who had ALWAYS on a command card only saw the cards come back; the retirement was said in the
+   station's console alone. It is said once on the Permissions page (a seal notice the page shows), and the file is saved
+   without the retired row so the next launch does not say it again. While the seal is held nothing is saved: it is said
+   again on the next launch that can save. */
+if (retiredCommandGrantsAtLoad.length) {
+  authoritySeal.inform('Your older "always allow" for every command was retired in this version, because it let any command run with no card: each command now asks you again, one at a time. FULL ACCESS in an agent\'s dossier still skips the cards for that agent.');
+  if (!authoritySeal.held) {
+    try {
+      const keep = Array.from(grantsPermanent);
+      const meta = {};
+      for (const k of keep) if (grantMeta[k]) meta[k] = grantMeta[k];
+      persistAllowlist(keep, meta);
+    } catch (e) { failNote('permissions.retired-drop', e); }
+  }
+}
 // throws on failure -> the broker degrades the grant to a deny. Two callers, ONE durable format:
 //   • permgrants.js passes (nextAllow, nextMeta) — the panel's grant/revoke ships the provenance it computed.
 //   • permissions.js (the broker's 'always' path) passes ONLY (nextAllow) — we preserve the live grantMeta and
@@ -4810,7 +4987,8 @@ function persistAllowlist(nextAllow, nextMeta) {   // throws on failure -> the b
     metaToWrite = {};
     for (const k of nextAllow) metaToWrite[k] = grantMeta[k] || { grantedAt: nowMs };
   }
-  const value = { version: 1, allow: nextAllow, meta: metaToWrite };
+  // sealed (review 4a); a removal moves the file's floor first (4b). Throws when it cannot be sealed: nothing changes.
+  const value = authoritySeal.seal('permissions.allow.json', { version: 1, allow: nextAllow, meta: metaToWrite });
   const nextSet = new Set(nextAllow);
   const removesAuthority = Array.from(grantsPermanent).some(k => !nextSet.has(k));
   if (removesAuthority) {
@@ -4891,7 +5069,9 @@ const pathTrustCore = makePathTrust({
   // touches are simply not recency evidence; meta.user comes from runPathTrust (interactive or owner-trusted DM).
   touch: (rootReal, abs, meta) => { if (!meta || meta.user !== true) return; try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
   isGitRepoOf: projectIsGitRepo,
-  now: () => Date.now()
+  now: () => Date.now(),
+  // final review #7: a tainted write of loadable code beside a granted routine script asks (watched) or is refused
+  guardedFolders: () => routineScriptFolders()
 });
 // NS-5c: the ADD-a-project route's bless core — the SAME blessProjectRoot() the conversational prompt calls,
 // wrapped in the identical hardlines + git-root proposal. Reuses pathTrustCore's detectRoot/normalizeRoot/
@@ -5005,6 +5185,7 @@ function channelAskConsent(o) {
     scope: (o.tool && o.tool.scope) || 'write',
     argsSummary: consentSummary(o.call)
   };
+  if (isExactCommand(o.tool)) fields.exactCommand = true;   // additive (GHSA-2hpj #4): the phone's row and the chat keyboard know a command
   let untrack = null, askedId = '';
   return makeConsentWait({
     pending: pend, signal: o.signal, timeoutMs: CONSENT_TIMEOUT_MS, extendMs: CONSENT_ACK_EXTEND_MS,
@@ -5044,7 +5225,15 @@ function noteChannelConsentSettled(promptId, decision) {
 }
 function channelConsentOutcome(runId, promptId) { return channelConsentSettled.get(String(promptId == null ? '' : promptId)) || ''; }
 function channelResolveConsent(runId, promptId, decision) {
-  const d = (decision === 'once' || decision === 'session' || decision === 'always' || decision === 'full') ? decision : 'deny';
+  /* A CHAT CANNOT GIVE A STANDING ANSWER (fix-sec2 F3 / review 6). ALWAYS and FULL ACCESS outlive the card, so they are
+     confirmed at the desk (GHSA-2hpj #1), which a Telegram tap is not. A chat does not get "for this session" either
+     (review2 #10): it allows every later request of the kind until the session ends. A chat answers once or no. The keyboard
+     offers neither (channels/hub.js); a tap on an older keyboard is taken as once.
+     A paired PHONE does not answer through here. It answers the same prompt through remote/approvals.js, which takes once,
+     session or deny, and its "for this session" is NOT confirmed at the desk: it applies as given to an ask that runs nothing,
+     and as once to one that runs something (scope 'execute', an exact command; GHSA-2hpj #4). What vouches for that phone is
+     the desk's approval when it was paired (device-activate, GHSA-2hpj #7), not a confirmation of each answer. */
+  const d = (decision === 'always' || decision === 'full' || decision === 'session') ? 'once' : decision === 'once' ? 'once' : 'deny';
   const pend = channelPendingByRun.get(String(runId == null ? '' : runId));
   const finish = pend && pend.get(String(promptId == null ? '' : promptId));
   if (!finish) return false;
@@ -5108,7 +5297,7 @@ const HOOKS_ALLOW_FILE = path.join(WORKSPACES, 'hooks-allowed.json');
 const hookSpine = makeHooks({ onError: (e) => console.warn('[hooks] ' + (e && e.hook) + ' on ' + (e && e.event) + ': ' + (e && e.error)) });
 const shellHooks = makeShellHooks({
   spawn: childSpawn, fsp, pathMod: path, hooksFile: HOOKS_FILE, allowFile: HOOKS_ALLOW_FILE,
-  cwd: WORKSPACES, clock: { now: () => Date.now() },
+  cwd: WORKSPACES, clock: { now: () => Date.now() }, seal: authoritySeal,   // GHSA-2hpj #3: both files sealed
   onError: (e) => console.warn('[hooks] ' + (e && e.hook) + ': ' + (e && e.error))
 });
 /* PLUGINS — the packaged form of the same idea (sidecar/plugins.js). Scoped SURFACE: the only thing a plugin
@@ -5152,6 +5341,7 @@ const pluginLoader = makePluginLoader({
   guard: skillGuard, clock: { now: () => Date.now() },
   template: require('./plugin-template.js').templateFiles,   // "Create a plugin" writes a hook AND a kit-built window
   runtime: pluginRuntime,                                     // plugin code runs in its own process, never in the sidecar
+  seal: authoritySeal,                                        // GHSA-2hpj #3: plugins-allowed.json is sealed
   onError: (e) => console.warn('[plugins] ' + (e && e.plugin) + ': ' + (e && e.error))
 });
 let pluginsLoaded = { loaded: [], pending: [], errors: [] };
@@ -5178,7 +5368,7 @@ function reloadExtensions() {
 }
 const servePluginUi = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   // who may FRAME a plugin page: the station itself (browser mode) and the desktop shell's app origins
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' ')
 });
@@ -5221,9 +5411,10 @@ const apps = makeApps({
       if (!scan.ok) return { ok: false, error: scan.error };
       let schedule;
       try { schedule = parseCronScheduleOr400(p.schedule, Date.now(), (cur.schedule && cur.schedule.tz) || undefined); } catch (e) { return { ok: false, error: e.message }; }
-      // GRANTS BIND TO THE APPROVED INSTRUCTION (routine.manage does the same): a crew app.schedule that rewrites a granted
-      // routine's task drops its unattended workbench/connector grants — the Commander re-grants from SCHEDULES (QA 2026-10-02)
-      try { await withCronWrite((jobs) => { const patch = { schedule, prompt: p.prompt, name: p.name }; if (p.byAgent && cronStore.grantsRevokedByAgentEdit(cronStore.getJob(jobs, id), patch).length) patch.unattendedGrants = []; return cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ }); }); }
+      // GRANTS BIND TO THE APPROVED INSTRUCTION (routine.manage does the same): an app.schedule that rewrites a granted
+      // routine's task drops its unattended grants — the Commander re-grants from SCHEDULES (QA 2026-10-02). Since review2 #2
+      // that holds for the app window's own SAVE too, not only the crew's: this path has no desk confirmation to keep them.
+      try { await withCronWrite((jobs) => { const patch = { schedule, prompt: p.prompt, name: p.name }; if (cronStore.grantsRevokedByEdit(cronStore.getJob(jobs, id), patch).length) patch.unattendedGrants = []; return cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ }); }); }
       catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
       return { ok: true, job: cronStore.getJob(cronJobs, id) };
     },
@@ -5239,7 +5430,7 @@ const apps = makeApps({
 });
 const serveAppUi = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' '),
   prefix: '/app-ui/', scopeFor: (id, digest) => apitickets.scopeApp(id, digest), resolve: (id) => apps.record(id),
   goneMessage: 'this app changed — reopening it shows the new version',
@@ -5270,7 +5461,7 @@ async function draftRecord(id) {
 }
 const servePluginDraft = makePluginUiServer({
   fs, fsp, path, frontendDir: FRONTEND, loader: pluginLoader, apitickets, apiKey: API_TOKEN, mime: MIME,
-  tokenOk: (req) => apiauth.apiTokenOk(req, API_TOKEN), now: () => Date.now(),
+  tokenOk: (req) => stationTokenOk(req), now: () => Date.now(),
   frameAncestors: () => Array.from(apiauth.TAURI_ORIGINS).concat(['http://127.0.0.1:' + PORT, 'http://localhost:' + PORT]).join(' '),
   prefix: '/plugin-draft/', scopeFor: (id, digest) => apitickets.scopeDraft(id, digest), resolve: draftRecord,
   // A DRAFT never reaches the network: scripts and styles only from its own ticketed files (plus inline), no
@@ -5411,9 +5602,31 @@ const CHANNEL_OWNER_LABEL = { discord: 'Discord', slack: 'Slack', matrix: 'Matri
 function channelOwnerAdmission(id, message) {
   return telegramOwnerAdmission((channelSecrets && channelSecrets[id]) || {}, message, CHANNEL_OWNER_LABEL[id] || id);
 }
-function issueChannelOwnerPairing(id) {
+/* AN OWNER CODE IS AN AUTHORITY GRANT (fix-sec2, review2 #1). Whoever DMs a bot the owner code becomes its owner: owner-
+   trusted runs, answers to permission cards, work for every agent the bot reaches. So making that code is itself a grant,
+   and it needs the desk proof, on every route that can make one: the PAIR OWNER buttons, and the first connect of a bot
+   that has no owner yet (connect hands its code back in the same answer). Before this, the page key alone could revoke
+   the owner (a lowering, which stays free) and then reconnect with an empty body to get a fresh code, so anything holding
+   the page key could make its own Telegram account the owner.
+   The rule lives in the code that makes a code, not only in the routes: mintOwnerCode makes one only for a pass that
+   deskGate handed out for this request, once. A route that forgets its gate gets "no code was issued", never a code.
+   ownerPairingPass(req, res, action, scope, details) -> a one-use pass, or null after deskGate answered the request. */
+const OWNER_PAIRING_PASS = Symbol('owner-pairing-pass');
+const ownerPassesSpent = new WeakSet();
+const OWNER_CODE_NEEDS_DESK = 'pairing an owner needs your confirmation at the desk; no code was issued';
+function ownerPairingPass(req, res, action, scope, details) {
+  if (!deskGate(req, res, action, scope, details)) return null;
+  return Object.freeze({ [OWNER_PAIRING_PASS]: true, action: String(action), scope: String(scope || '') });
+}
+function mintOwnerCode(pass) {
+  if (!pass || typeof pass !== 'object' || pass[OWNER_PAIRING_PASS] !== true || ownerPassesSpent.has(pass)) return null;
+  ownerPassesSpent.add(pass);
+  return telegramOwnerPairing.issue({ now: Date.now() });
+}
+function issueChannelOwnerPairing(id, pass) {
   const record = (channelSecrets && channelSecrets[id]) || {};
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const patch = {}; patch[id] = Object.assign({}, record, { ownerPairing: issued.state });
   channelSecrets = Object.assign({}, channelSecrets, patch);
   const persisted = saveChannelSecrets(channelSecrets) || saveChannelSecrets(channelSecrets);
@@ -5422,11 +5635,11 @@ function issueChannelOwnerPairing(id) {
 }
 // Fold a pairing challenge into a connect response when the channel has no bound owner yet (the raw code is
 // returned ONLY here, to the authenticated local caller — never in status, logs or a transcript).
-function withOwnerPairing(id, out) {
+function withOwnerPairing(id, out, pass) {
   const rec = (channelSecrets && channelSecrets[id]) || {};
   out.pairingRequired = !rec.ownerId;
   if (!out.pairingRequired) return out;
-  const pairing = issueChannelOwnerPairing(id);
+  const pairing = issueChannelOwnerPairing(id, pass);
   if (pairing.ok) { out.pairingCode = pairing.code; out.pairingExpiresAt = pairing.expiresAt; }
   else out.pairingError = pairing.error;
   return out;
@@ -5439,8 +5652,9 @@ function ownerPairingStatus(record) {
 // Mint + durably save one Telegram owner challenge. The raw code is returned only to the authenticated local
 // caller; channelSecrets receives the salted verifier. Shared by first connect (so setup cannot stop at a deaf
 // but healthy poller) and the explicit PAIR OWNER recovery button (which rotates a lost/expired code).
-function issueTelegramOwnerPairing(record) {
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+function issueTelegramOwnerPairing(record, pass) {
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const next = Object.assign({}, record || {}, { ownerPairing: issued.state });
   channelSecrets = Object.assign({}, channelSecrets, { telegram: next });
   const persisted = saveChannelSecrets(channelSecrets) || saveChannelSecrets(channelSecrets);
@@ -5487,10 +5701,116 @@ const persistChannelSecretsVerified = channelSecretsMod.makeVerifiedPersist({
   }
 });
 function saveChannelSecrets(obj) {   // protected sibling of the fs jail; the agent's own fs.* tools can't read/write it
-  const r = persistChannelSecretsVerified(obj);
+  const r = persistChannelSecretsVerified(withWithheldChannelOwners(obj));
   if (!r.ok) console.warn('[channels] secrets persist UNVERIFIED after retry (' + r.error + ') — channel config/token may not survive a restart');
-  else credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
+  else {
+    credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
+    sealChannelOwners(obj);   // final review #3: the owners it now names, sealed (after the records, so a crash between reads as no owner)
+  }
   return r.ok;   // callers with a response channel surface this honestly (never a false "saved")
+}
+/* WHO OWNS A CHAT CHANNEL IS SEALED (final review #3, 2026-11-08). The paired owner of each bot (Telegram, every agent bot,
+   Discord, Slack, Matrix, Signal) is the account whose DM runs as the Commander, and its pending pairing challenge is what
+   makes the next /pair <code> that owner. Both lived only in channels/secrets.json, unsealed, so a same-user process that
+   rewrote ownerId (or planted a pairing verifier for a code it knew) owned the bot after the next boot. They are now also
+   kept in channels/channel-owners.json, sealed whole by authority-seal.js (its NAMES), and a record's ownerId or
+   ownerPairing is used only when the sealed record says the same. One that does not match, or a sealed record that is
+   missing, edited or older than the last change (the floor moves when an owner is revoked or replaced), reads as no owner:
+   the bot answers nobody until the owner pairs again from the desk, and the page says why. Every save of the records
+   reseals it, so a pairing, claim or revoke made here keeps it current. A bare station (no credential-store key) checks
+   nothing, as before. A boot that cannot check (the seal held, or the record locked) uses no owner but keeps the saved one
+   on disk for the next boot. */
+function channelOwnersOf(obj) {
+  const owners = {};
+  const take = (id, r) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return;
+    const row = {};
+    if (r.ownerId !== undefined && r.ownerId !== null && String(r.ownerId) !== '') row.ownerId = String(r.ownerId);
+    if (r.ownerPairing && typeof r.ownerPairing === 'object') row.pairing = r.ownerPairing;
+    if (Object.keys(row).length) owners[id] = row;
+  };
+  const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+  for (const k of Object.keys(src)) {
+    if (k === authoritySealMod.FIELD) continue;
+    if (k === 'telegramBots') {
+      const bots = src.telegramBots;
+      if (bots && typeof bots === 'object' && !Array.isArray(bots)) for (const b of Object.keys(bots)) take('telegramBots:' + b, bots[b]);
+    } else take(k, src[k]);
+  }
+  return { version: 1, owners };
+}
+const CHANNEL_OWNERS_NAME = 'channel-owners.json';
+const CHANNEL_OWNERS_FILE = authorityFileOf(CHANNEL_OWNERS_NAME);
+const channelOwnersWithheld = new Map();   // record id -> the owner fields a boot that could not check left out (kept on disk)
+let channelOwnersSealed = null;            // canonical form of the owners record last opened or sealed (null: none)
+const channelRecordOf = (obj, id) => String(id).indexOf('telegramBots:') === 0
+  ? ((obj.telegramBots && typeof obj.telegramBots === 'object') ? obj.telegramBots[String(id).slice(13)] : undefined) : obj[id];
+function withChannelRecord(obj, id, rec) {
+  if (String(id).indexOf('telegramBots:') !== 0) return Object.assign({}, obj, { [id]: rec });
+  return Object.assign({}, obj, { telegramBots: Object.assign({}, obj.telegramBots, { [String(id).slice(13)]: rec }) });
+}
+function trustChannelOwners(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  if (!authoritySeal.keyed && !authoritySeal.held) return obj;   // a bare station: nothing sealed or checked, as before
+  const claimed = channelOwnersOf(obj).owners;
+  let raw, cannot = '';
+  if (authoritySeal.held) cannot = 'held';
+  else {
+    try { raw = readJsonIfPresent(CHANNEL_OWNERS_FILE); }
+    catch (e) { if (e instanceof SyntaxError) raw = {}; else cannot = String((e && e.code) || 'unreadable'); }   // torn: unsealed
+  }
+  const opened = cannot ? null : authoritySeal.open(CHANNEL_OWNERS_NAME, raw);
+  const sealedOwners = (opened && opened.ok && opened.value && typeof opened.value.owners === 'object' && opened.value.owners) || {};
+  if (opened && opened.ok && !opened.absent) channelOwnersSealed = authoritySealMod.canonical(opened.value);
+  const C = authoritySealMod.canonical;
+  let out = obj;
+  const dropped = [];
+  for (const id of Object.keys(claimed)) {
+    const have = claimed[id], want = sealedOwners[id] || null;
+    const ownerOk = have.ownerId === undefined || !!(want && want.ownerId === have.ownerId);
+    const pairOk = have.pairing === undefined || !!(want && want.pairing && C(want.pairing) === C(have.pairing));
+    if (ownerOk && pairOk) continue;
+    const rec = Object.assign({}, channelRecordOf(out, id));
+    const keep = {};
+    if (!ownerOk) { keep.ownerId = rec.ownerId; delete rec.ownerId; }
+    if (!pairOk) { keep.ownerPairing = rec.ownerPairing; delete rec.ownerPairing; }
+    out = withChannelRecord(out, id, rec);
+    if (cannot) channelOwnersWithheld.set(id, keep);
+    else dropped.push(id);
+  }
+  if (cannot && channelOwnersWithheld.size) console.warn('[channels] the sealed record of channel owners could not be checked this boot (' + cannot + '), so no bot has an owner until StarNet restarts; the saved owners are kept');
+  if (dropped.length) {
+    const words = dropped.map(id => id.replace(/^telegramBots:/, 'the agent bot ')).join(', ');
+    console.warn('[channels] ' + words + ': its paired owner is not in the sealed record of channel owners, so the bot answers nobody until the owner pairs again from the desk');
+    if (opened && opened.ok) authoritySeal.refused(CHANNEL_OWNERS_NAME, 'The paired owner of ' + words + ' is not in ' + CHANNEL_OWNERS_NAME + ' (' + (opened.absent ? 'it is missing' : 'it names someone else') + '), so that bot answers nobody until you pair its owner again from the desk.');
+  }
+  return out;
+}
+// a boot that could not check keeps the owners it left out on disk (never erased by an unrelated save)
+function withWithheldChannelOwners(obj) {
+  if (!channelOwnersWithheld.size || !obj || typeof obj !== 'object') return obj;
+  let out = obj;
+  for (const [id, keep] of channelOwnersWithheld) {
+    const rec = channelRecordOf(out, id);
+    if (!rec || typeof rec !== 'object' || rec.ownerId !== undefined || rec.ownerPairing !== undefined) continue;
+    out = withChannelRecord(out, id, Object.assign({}, rec, keep));
+  }
+  return out;
+}
+function sealChannelOwners(obj) {
+  if (!authoritySeal.keyed || authoritySeal.held) return;
+  const next = channelOwnersOf(obj);
+  const canon = authoritySealMod.canonical(next);
+  if (canon === channelOwnersSealed) return;
+  if (channelOwnersSealed === null && !Object.keys(next.owners).length) return;   // nothing owned, nothing sealed yet
+  try {
+    const sealed = authoritySeal.seal(CHANNEL_OWNERS_NAME, next);
+    fs.mkdirSync(path.dirname(CHANNEL_OWNERS_FILE), { recursive: true });
+    writeFileDurable({ fs: fs, path: path }, CHANNEL_OWNERS_FILE, JSON.stringify(sealed, null, 2) + '\n');
+    channelOwnersSealed = canon;
+  } catch (e) {
+    console.warn('[channels] the sealed record of channel owners could not be written (' + String((e && (e.code || e.message)) || e).slice(0, 120) + '): an owner paired or changed now must pair again after a restart');
+  }
 }
 // a record save that could not be proven, and a route that rolled its record back: each bot's own credential keeps the versions the
 // records in memory and the main file a boot reads name, so a change neither names is undone (credential-store.js settleChannels).
@@ -5565,7 +5885,7 @@ function mirrorPurgedChannelRecordToBak(id, botId) {
     return false;
   }
 }
-let channelSecrets = loadChannelSecrets();
+let channelSecrets = trustChannelOwners(loadChannelSecrets());   // final review #3: an owner the sealed record does not name is no owner
 /* THE CHANNEL RECONCILIATION (credential-store.js CHANNELS: the steps, and why each is in this order), at every boot and safe to run
    again. The store writes what must reach the channel file before a record changes; the records are saved here; only then do
    entries go (finish). A file that could not be read is left alone, and nothing is deleted because of it: a locked secrets.json
@@ -6249,7 +6569,8 @@ const executionEnvironment = makeExecutionRouter({
   defaultBackendId: configuredExecutionBackend,
   profileForAgent: (agentId) => ((agentRoster.get(String(agentId || '')) || {}).executionProfile || 'station-gear'),
   // Full Power means this computer, not "all permissions inside a container/SSH profile". Keep the stored
-  // profile intact for revocation, but route every host-authorized command to the local backend while active.
+  // profile intact for revocation, and route host-authorized commands to the local backend while active, except a
+  // SAFE CELL agent's: the router refuses those with a clear message instead of moving it (GHSA-2hpj #2).
   forceLocalForAgent: (agentId) => FULL_ACCESS || masterBypassOn()
     || ((agentRoster.get(String(agentId || '')) || {}).approvalMode === 'full')
 });
@@ -6367,7 +6688,105 @@ function cronScriptSpec(job) {
   else throw new Error('routine script type is not supported');
   return { cwd, cmd };
 }
+/* THE SCRIPT A GRANT WAS GIVEN TO (fix-sec2, review2 #3). A script routine's grants cover the file's CONTENT as it was when
+   the desk said yes, not whatever sits at that path later. An agent run, a tainted one included, writes its own workspace
+   without a card, so a grant tied only to the path let a run that read a hostile page replace the script and have the next
+   fire run it with nobody watching. The station records the file's digest with every yes it gets for the routine (create,
+   adding a grant, keeping grants through an edit, ALLOW THIS VERSION) and refuses to run a script whose bytes differ:
+   nothing runs, and the routine says why. Chosen over refusing tainted writes to such files because a digest catches every
+   writer (a tainted run, an earlier run that was steered, another program, a sync tool), not only the one we thought of.
+   Only the named file is digested; what it loads from its folder is guarded at the write (routineScriptFolders below,
+   final review #7), and the desk words say both. */
+function cronScriptDigest(job) {
+  if (!job || !job.script) return '';
+  try {
+    const cwd = job.workdir ? fs.realpathSync(String(job.workdir).trim()) : executionEnvironment.ensureWorkspace(job.agentId);   // identity only: the run still checks the folder (cronScriptSpec)
+    const abs = fs.realpathSync(path.resolve(cwd, String(job.script).trim()));
+    return 'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+  } catch (e) { return ''; }   // unreadable: matches no recorded digest, so it does not run
+}
+/* WHAT A GRANTED SCRIPT LOADS (final review #7, 2026-11-08). The digest above covers the script's own bytes; the files it
+   loads from its folder (a helper module, a json.py that shadows Python's, a package in node_modules) are guarded at the
+   write instead: a run that read outside content does not write loadable code there without asking (pathtrust
+   guardedFolders). The script's folder, and the node_modules of each folder between it and its routine's folder (Node
+   looks up the folders for a package). Computed on each tainted write, from the routines as they are now. */
+function routineScriptFolders() {
+  const out = [];
+  for (const j of (Array.isArray(cronJobs) ? cronJobs : [])) {
+    if (!j || !j.script || !Array.isArray(j.unattendedGrants) || !j.unattendedGrants.length) continue;
+    try {
+      const cwd = fs.realpathSync(j.workdir ? String(j.workdir).trim() : executionEnvironment.ensureWorkspace(j.agentId));
+      const abs = fs.realpathSync(path.resolve(cwd, String(j.script).trim()));
+      const reason = 'code beside routine "' + String(j.name || j.id || '').slice(0, 60) + '" script, which runs with nobody watching';
+      let dir = path.dirname(abs);
+      out.push({ dir, reason });
+      const inside = d => { const r = path.relative(cwd, d); return r === '' || (!!r && !r.startsWith('..') && !path.isAbsolute(r)); };
+      while (inside(dir) && path.dirname(dir) !== dir) {
+        const up = path.dirname(dir);
+        if (!inside(up)) break;
+        out.push({ dir: path.join(up, 'node_modules'), reason });
+        dir = up;
+      }
+    } catch (e) {   // a script that is not there has nothing beside it to guard; the run checks it (cronScriptSpec)
+      if (!e || e.code !== 'ENOENT') failNote('cron.script-folders', e);
+    }
+  }
+  return out;
+}
+function cronScriptStale(job) {
+  const grants = Array.isArray(job && job.unattendedGrants) ? job.unattendedGrants : [];
+  return !!(job && job.script && grants.length && (!job.scriptDigest || cronScriptDigest(job) !== job.scriptDigest));
+}
+/* WHAT DRIVES A GRANT (final review #2, 2026-11-08). A routine's grants let the model that runs it use the terminal, the
+   accounts or the studio with nobody watching, so the model is part of what the desk said yes to: the routine's own model
+   and provider (cronStore RUN_FIELDS), and also what they resolve to when the routine follows its agent or the station
+   default, and the endpoint the provider's calls go to. The page key could re-point any of those without touching the
+   routine (the agent's model, the station default, a provider on a local port). So the station records the drive when
+   the desk says yes (grantDrive: 'd1:<model and provider>:<endpoint>', '-' for an endpoint not known then), and a run
+   whose drive differs runs without its grants and says why. A script-only routine (noAgent) calls no model: null. */
+const sha32 = s => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 32);
+function routineDriveOf(providerId, model, baseUrl) {
+  const pm = sha32(JSON.stringify([normalizeProvider(providerId || ''), String(model || '').trim()]));
+  return 'd1:' + pm + ':' + (String(baseUrl || '').trim() ? sha32(String(baseUrl).trim().replace(/\/+$/, '')) : '-');
+}
+// the drive a routine resolves to now, as its run would (cron-driver and Run Now: cronWireFor, the station's own key)
+function routineDriveFor(job, opts) {
+  if (!job || job.noAgent === true) return null;
+  const w = cronWireFor(job);
+  const providerId = normalizeProvider(w.provider || 'openrouter');
+  const model = chatModelId(providerId, String(w.model || '').trim());
+  if (!model) return null;
+  if (opts && opts.endpoint === false) return routineDriveOf(providerId, model, '');
+  const key = providerRuntimeKey(providerId, '');
+  return routineDriveOf(providerId, model, providerRuntimeBaseUrl(providerId, '', key, key, false));
+}
+// '' when the run's drive is the one the grant was given for, else why not (in the run's words)
+function routineDriveMoved(stamp, providerId, model, baseUrl) {
+  if (typeof stamp !== 'string' || !/^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/.test(stamp)) return 'the model it runs on was never confirmed with its grants';
+  const now = routineDriveOf(providerId, model, baseUrl).split(':');
+  const was = stamp.split(':');
+  if (was[1] !== now[1]) return 'it would run on ' + String(model || 'another model').slice(0, 80) + ' (' + String(providerId || '').slice(0, 40) + '), not the model its grants were given for';
+  if (was[2] !== '-' && now[2] !== '-' && was[2] !== now[2]) return 'the endpoint its provider calls changed since its grants were given';
+  return '';
+}
+// the first lines of the script, for the desk words: the yes is for what the person could read
+function cronScriptExcerpt(job) {
+  if (!job || !job.script) return '';
+  try {
+    const cwd = job.workdir ? fs.realpathSync(String(job.workdir).trim()) : executionEnvironment.ensureWorkspace(job.agentId);   // identity only: the run still checks the folder (cronScriptSpec)
+    const text = fs.readFileSync(fs.realpathSync(path.resolve(cwd, String(job.script).trim())), 'utf8');
+    return text.length > 300 ? text.slice(0, 300) + ' …' : text;
+  } catch (e) { return '(the file could not be read)'; }
+}
 async function executeCronScript(job, signal) {
+  // final review B3: while the seal is held a routine runs without its grants; say that, not "requires the workbench grant"
+  if (job && job.script && authoritySeal.held) {
+    throw new Error('the script ' + String(job.script) + ' did not run: ' + authoritySeal.held + ' Until then, routines run without their unattended grants. Nothing is lost.');
+  }
+  // review2 #3: only the bytes the desk's yes was given to run with nobody watching
+  if (job && job.script && cronScriptStale(job)) {
+    throw new Error('the script ' + String(job.script) + ' changed since you allowed this routine to run it with nobody watching, so it did not run. Check the file; to run this version, press ALLOW THIS VERSION on the routine (StarNet asks you to confirm).');
+  }
   const spec = cronScriptSpec(job);
   if (!spec) return null;
   let r;
@@ -7524,6 +7943,87 @@ const cronPersistence = require('./persist/index.js');
    the Commander acknowledges it or restores the quarantined file and restarts. Sticky for the process. */
 let cronDegraded = null;
 let cronJobs = [];
+/* THE ROUTINES' AUTHORITY IS SEALED IN PARTS (fix-sec2 review 4a; authority-seal.js sealParts/openParts). A routine's
+   unattendedGrants let it use the terminal, accounts or the studio with nobody watching, and its notepad's missing taint
+   stamp says a clean run wrote it; both sat in cron.jobs.json as plain JSON a same-user process could write. Each granted
+   routine carries a MAC over its grants and what they are bound to (agent, prompt, script, workdir, toolsets), each clean
+   notepad one over its text, all under one generation in the envelope's __seals. A part that fails loses only its claim:
+   the grants are dropped, the notepad counts as outside content. Without a key the record read is carried unchanged.
+   While the seal holds (it cannot check anything this boot) the routines are not rewritten: they run without grants and
+   their notepads count as outside content (runOnce, getRoutineNotepad), and adding a grant is refused. */
+const CRON_NOTEPAD_UNSEALED = 'routine notepad changed outside StarNet';
+const CRON_NOTEPAD_UNCHECKED = 'routine notepad StarNet could not check (its permission seal is not available)';
+let cronSealsRead = null;              // the __seals record as last read: what a keyless save carries
+let cronGrantsSealed = new Map();      // routine id -> its grants as last read or sealed (removing one moves the floor)
+/* THE MODEL IS SEALED WITH THE GRANT (final review #2). A grant part now also binds the routine's model, provider and the
+   drive the desk confirmed (grantDrive), so a same-user edit of cron.jobs.json's model no longer keeps a valid seal. The
+   record says which form its parts take (p: 2); a record from before (no p) is checked in its own form, so a routine sealed
+   then keeps its grants, and the first keyed save after reading one moves the floor, so that older form never opens again
+   (it did not bind the model). */
+const CRON_PARTS_FORM = 2;
+let cronSealsLegacy = false;           // the record read was in the first form: the next keyed seal moves the floor
+function cronAuthorityParts(jobs, legacy) {
+  const parts = {};
+  for (const j of (Array.isArray(jobs) ? jobs : [])) {
+    if (!j || typeof j !== 'object' || typeof j.id !== 'string') continue;
+    const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.map(String) : [];
+    if (grants.length) parts['grant:' + j.id] = Object.assign({ grants, agentId: j.agentId == null ? null : String(j.agentId), prompt: j.prompt == null ? null : String(j.prompt),
+      script: j.script == null ? null : j.script, workdir: j.workdir == null ? null : String(j.workdir), noAgent: j.noAgent === true,
+      enabledToolsets: Array.isArray(j.enabledToolsets) ? j.enabledToolsets : null,
+      // review2 #2/#3: everything that changes what the grant runs, and the script bytes it was given for
+      skills: Array.isArray(j.skills) ? j.skills : null, contextFrom: Array.isArray(j.contextFrom) ? j.contextFrom : null,
+      runsLine: j.runsLine === true, scriptDigest: typeof j.scriptDigest === 'string' ? j.scriptDigest : null },
+      legacy ? {} : { model: j.model == null ? null : String(j.model), provider: j.provider == null ? null : String(j.provider),
+        grantDrive: typeof j.grantDrive === 'string' ? j.grantDrive : null });
+    if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint) parts['notepad:' + j.id] = { notepad: j.notepad };
+  }
+  return parts;
+}
+const cronGrantKey = j => (Array.isArray(j && j.unattendedGrants) ? j.unattendedGrants.map(String) : []).sort().join(',');
+// raw: the envelope as read; jobs: its validated jobs. -> the jobs a reader may obey
+function cronOpenAuthority(raw, jobs) {
+  cronSealsRead = raw && typeof raw === 'object' && raw.__seals && typeof raw.__seals === 'object' && !Array.isArray(raw.__seals) ? raw.__seals : null;
+  const legacy = !(cronSealsRead && cronSealsRead.p === CRON_PARTS_FORM);
+  cronSealsLegacy = legacy && !!(cronSealsRead && cronSealsRead.macs && Object.keys(cronSealsRead.macs).length);
+  const r = authoritySeal.openParts('cron.jobs.json', cronSealsRead, cronAuthorityParts(jobs, legacy));
+  let out = jobs;
+  if (r && Array.isArray(r.ok)) {
+    const ok = new Set(r.ok);
+    const lost = [];
+    let notepads = 0;
+    out = jobs.map(j => {
+      if (!j || typeof j !== 'object') return j;
+      let next = j;
+      if (Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !ok.has('grant:' + j.id)) { next = Object.assign({}, next, { unattendedGrants: [] }); lost.push('"' + String(j.name || j.id).slice(0, 40) + '"'); }
+      if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint && !ok.has('notepad:' + j.id)) { next = Object.assign({}, next, { notepadTaint: CRON_NOTEPAD_UNSEALED }); notepads++; }
+      return next;
+    });
+    // final review B2: after a restore (this computer's or another's) say so; "changed outside StarNet" was wrong there
+    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', (r.restored
+        ? 'cron.jobs.json came back with a restore from a recovery bundle, and its seal is not one this computer can check'
+        : r.stale && r.reset
+        ? 'cron.jobs.json cannot be checked against the record of what was last taken away (authority-seal.json was missing or did not match)'
+        : 'cron.jobs.json was changed outside StarNet' + (r.stale ? ' (an older copy was put back)' : '')) + ', so ' +
+      (lost.length ? 'the routine' + (lost.length > 1 ? 's ' : ' ') + lost.slice(0, 6).join(', ') + (lost.length > 6 ? ' and ' + (lost.length - 6) + ' more' : '') + ' run' + (lost.length > 1 ? '' : 's') + ' without unattended grants (grant them again in SCHEDULES)' : '') +
+      (lost.length && notepads ? ', and ' : '') + (notepads ? notepads + ' routine notepad' + (notepads > 1 ? 's count' : ' counts') + ' as outside content' : '') + '.');
+  }
+  cronGrantsSealed = new Map((Array.isArray(out) ? out : []).filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
+  return out;
+}
+// the record a save writes: sealed fresh with a key; the record read, carried, without one or while the seal holds
+function cronSealRecord(jobs) {
+  if (authoritySeal.held || !authoritySeal.keyed) return cronSealsRead;
+  const now = new Map((Array.isArray(jobs) ? jobs : []).filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
+  let lowering = false;
+  for (const [id, was] of cronGrantsSealed) {
+    if (!was) continue;
+    const is = now.has(id) ? now.get(id).split(',').filter(Boolean) : [];
+    if (was.split(',').some(g => is.indexOf(g) < 0)) { lowering = true; break; }   // a grant removed, or a granted routine deleted
+  }
+  const rec = authoritySeal.sealParts('cron.jobs.json', cronAuthorityParts(jobs, false), { lowering: lowering || cronSealsLegacy });
+  if (rec) { rec.p = CRON_PARTS_FORM; cronSealsLegacy = false; }
+  return rec;
+}
 // A3: how many stored routines the last load had to repair, and which ones were already logged (a failed boot
 // persist re-applies the repair on every load; it is logged once per routine, not once per load).
 let cronToolsetsRepairedOnLoad = 0;
@@ -7567,7 +8067,9 @@ function loadCronJobs() {
       console.error('[cron] ' + CRON_FILE + ' exists but is unreadable (' + ((r.err && r.err.code) || r.err) + ') — keeping the in-memory list, not treating as empty.');
       if (Array.isArray(cronJobs)) return cronJobs;
     }
-    const loaded = cronStore.loadEnvelope((r.status === 'ok' || r.status === 'recovered') ? r.value : undefined).jobs;
+    const readValue = (r.status === 'ok' || r.status === 'recovered') ? r.value : undefined;
+    // review 4a: checked as read, before any load-time repair changes a field the seal covers
+    const loaded = cronOpenAuthority(readValue, cronStore.loadEnvelope(readValue).jobs);
     /* A3 (#58): a routine saved before 0.13.2 can carry a toolset list the old pattern filter broke — [] from the
        'WEB & BROWSER' label, 'web_request' kept as an unknown family — and every fire path reads the stored list raw
        while no UI or routine.manage edits it, so re-saving was never a way out. Repair it HERE, on every load
@@ -7635,6 +8137,36 @@ function pairCronJobWires(jobs) {
   return { jobs: out, changed };
 }
 cronJobs = loadCronJobs();
+// review 4a: a routine store this workspace never sealed (the upgrade) is sealed now, as it is, so it is not obeyed unsealed for long
+if (Array.isArray(authoritySealBoot.migrating) && authoritySealBoot.migrating.indexOf('cron.jobs.json') >= 0 && cronJobs.length) {
+  try { saveCronJobs(); } catch (e) { failNote('authority-seal.cron.upgrade', e); }
+}
+/* review2 #3: a script routine granted before the station kept script digests is stamped ONCE with its file as it is now
+   (the trust it had before this version), so it keeps running; from here on, a changed file stops it. Only while the
+   seal can check what it stamps (never while held), and only for grants that survived the seal's own check above. */
+{
+  const unstamped = authoritySeal.held ? [] : cronJobs.filter(j => j && j.script && Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !j.scriptDigest);
+  if (unstamped.length) {
+    const stamps = new Map(unstamped.map(j => [j.id, cronScriptDigest(j)]));
+    cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { scriptDigest: stamps.get(j.id) }) : j);
+    try { saveCronJobs(); console.warn('[cron] recorded the script fingerprint of ' + unstamped.length + ' routine(s) allowed to run unattended; a later change to those files stops them until you allow it again'); }
+    catch (e) { failNote('cron.script-digest.stamp', e); }
+  }
+}
+/* final review #2: a granted routine from before the station recorded what model its grants were given for is stamped ONCE
+   with the model and provider it resolves to now (the trust it had before this version), so it keeps running; from here on
+   another model stops its grants. Its endpoint is not stamped (the desktop app's keys may not have arrived yet at boot): a
+   new yes at the desk records it. Only while the seal can check what it stamps, and only for grants that survived it. */
+{
+  const unstamped = authoritySeal.held ? [] : cronJobs.filter(j => j && j.noAgent !== true && Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !j.grantDrive);
+  if (unstamped.length) {
+    const stamps = new Map();
+    for (const j of unstamped) { try { const d = routineDriveFor(j, { endpoint: false }); if (d) stamps.set(j.id, d); } catch (e) { failNote('cron.grant-drive.stamp', e); } }
+    cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { grantDrive: stamps.get(j.id) }) : j);
+    try { if (stamps.size) { saveCronJobs(); console.warn('[cron] recorded the model of ' + stamps.size + ' routine(s) allowed to run unattended; a later change of model stops their grants until you allow it again'); } }
+    catch (e) { failNote('cron.grant-drive.stamp', e); }
+  }
+}
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
 // healed list from disk. A failed write is not fatal: the repair re-applies on every load until one lands.
 if (cronToolsetsRepairedOnLoad) {
@@ -7681,6 +8213,9 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   if (cronDegraded && intended.jobs.length === 0 && !_cronWriteOverride) {
     throw new Error('cron store is degraded (quarantined ' + (cronDegraded.quarantinePath || 'unknown') + '); refusing to persist an empty routine list — restore the file or POST /api/cron/degraded/clear to accept the loss');
   }
+  // review 4a: the routines' grants and clean notepads ride sealed (throws when a removal cannot be recorded: nothing saved)
+  const sealRecord = cronSealRecord(intended.jobs);
+  if (sealRecord) intended.__seals = sealRecord;
   const proofText = JSON.stringify(intended);
   try { cronStore.assertPublicationEnvelope(intended); } catch (error) { throw holdCronPublication(error); }
   const primaryProof = cronStore.hasPublicationMetadata(intended) || (prior.kind === 'ok' && cronStore.hasPublicationMetadata(prior.value));
@@ -7701,6 +8236,8 @@ function saveCronJobs() {   // throws on failure (the CRUD routes let it surface
   });
   if (!saved.ok) throw new Error('cron durable read-back failed after ' + saved.attempts + ' attempt(s): ' + saved.error);
   cronJobs = intended.jobs;   // publish host-derived intake observations only after the same durable read-back
+  cronSealsRead = sealRecord || null;
+  cronGrantsSealed = new Map(intended.jobs.filter(j => j && typeof j === 'object').map(j => [j.id, cronGrantKey(j)]));
 }
 
 /* ---- G4.6: persisted "is the scheduler armed?" flag, so a one-click ENABLE in the UI arms the timer WITHOUT
@@ -10916,6 +11453,38 @@ function handleLoopsList(req, res) {
   json(200, loopStateSnapshot());
 }
 
+/* A LOOP'S CHECK IS A STORED HOST COMMAND (fix-sec2, review2 #4). checkCmd runs as the person, in the project folder,
+   after every iteration, with nobody watching: the same thing a hook is, and hooks are confirmed at the desk
+   (hook-allow). So is a check: creating a loop that carries one, changing it or the folder it runs in, and the
+   pre-flight that runs it once now (testcheck). The desk shows the whole command and the folder; the scope binds the
+   yes to exactly that pair. A desk-confirmed pre-flight hands back a one-use approval for the same pair, so the
+   window's START (pre-flight, then create) asks once, not twice. A check longer than the store keeps is refused
+   rather than cut, so what was shown is what runs. Removing a check never asks. */
+const LOOP_CHECK_MAX = 600;   // loopjob-store keeps at most this many characters of a check
+const LOOP_CHECK_WORDS_MAX = 900;     // folder + command; the rest of the desk's words stay under its 1200 cap
+const LOOP_CHECK_APPROVAL_MS = 10 * 60 * 1000;
+const loopCheckApprovals = new Map();   // approval id -> { scope, until }
+function loopCheckScope(workdir, cmd) { return String(workdir || '') + '\n' + String(cmd || ''); }
+function loopCheckAtDesk(req, res, workdir, cmd, details, approvalId) {
+  // the desk's words have a cap; a folder and command that would not fit whole are refused, never shown cut
+  if (Array.from(String(workdir || '')).length + Array.from(String(cmd || '')).length > LOOP_CHECK_WORDS_MAX) {
+    loopJson(res)(400, { error: 'that folder and check command are too long to show in full when StarNet asks you to confirm them' });
+    return false;
+  }
+  const scope = loopCheckScope(workdir, cmd);
+  const now = Date.now();
+  for (const [k, v] of loopCheckApprovals) if (v.until <= now) loopCheckApprovals.delete(k);
+  const held = approvalId ? loopCheckApprovals.get(String(approvalId)) : null;
+  if (held && held.scope === scope && held.until > now) { loopCheckApprovals.delete(String(approvalId)); return true; }
+  return deskGate(req, res, 'loop-check', scope, Object.assign({ workdir: String(workdir || ''), command: String(cmd || '') }, details || {}));
+}
+function loopCheckApproval(workdir, cmd) {
+  const id = 'lc_' + crypto.randomBytes(18).toString('base64url');
+  loopCheckApprovals.set(id, { scope: loopCheckScope(workdir, cmd), until: Date.now() + LOOP_CHECK_APPROVAL_MS });
+  while (loopCheckApprovals.size > 16) loopCheckApprovals.delete(loopCheckApprovals.keys().next().value);
+  return id;
+}
+
 // POST /api/loops — create a standing objective. body: { name, objective, agentId?, gate?, queueCap?,
 // maxIterations?, dryStopAfter?, workdir?, model?, provider?, perDayUsd?, perIterationUsd? }
 function handleLoopsCreate(req, res) {
@@ -10938,6 +11507,10 @@ function handleLoopsCreate(req, res) {
     // A check needs somewhere to run. Accepting a checkCmd with no workdir would create a loop whose stated
     // exit condition could never be evaluated — a promise the harness cannot keep.
     if (body.checkCmd && !workdir) return json(400, { error: 'a check command needs a project folder — set workdir' });
+    if (body.checkCmd != null) body.checkCmd = String(body.checkCmd).trim();   // what is shown at the desk is what is kept
+    if (body.checkCmd != null && String(body.checkCmd).length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+    if (body.checkCmd != null && String(body.checkCmd).trim()
+      && !loopCheckAtDesk(req, res, workdir, String(body.checkCmd), { name: deskProofMod.cutPoints(String(body.name || objective), 60) }, body.checkApproval)) return;
     const id = crypto.randomUUID();
     try {
       const candidate = loopjobStore.createLoop(loopJobs, {
@@ -10972,6 +11545,15 @@ function handleLoopsUpdate(req, res) {
       try { patch.agentId = parseCronAgentIdOr400(patch.agentId); } catch (e) { return json(e.code || 400, { error: e.message }); }
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'workdir') && patch.workdir) patch.workdir = path.resolve(String(patch.workdir));
+    // review2 #4: a new check, or the check moved to another folder, is confirmed at the desk; removing one never asks
+    {
+      const cur = loopjobStore.getLoop(loopJobs, id) || {};
+      const nextCmd = Object.prototype.hasOwnProperty.call(patch, 'checkCmd') ? (patch.checkCmd == null ? '' : String(patch.checkCmd)) : String(cur.checkCmd || '');
+      const nextDir = Object.prototype.hasOwnProperty.call(patch, 'workdir') ? (patch.workdir || '') : (cur.workdir || '');
+      if (nextCmd.length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+      if (nextCmd.trim() && (nextCmd !== String(cur.checkCmd || '') || nextDir !== String(cur.workdir || ''))
+        && !loopCheckAtDesk(req, res, nextDir, nextCmd, { name: deskProofMod.cutPoints(String(cur.name || ''), 60) }, body.checkApproval)) return;
+    }
     try { commitLoops(loopjobStore.updateLoop(loopJobs, id, patch, { now: Date.now() })); }
     catch (e) { return json(500, { error: 'could not save: ' + ((e && e.message) || e) }); }
     armLoops(true);
@@ -11121,6 +11703,11 @@ function handleLoopsTestCheck(req, res) {
     catch (e) { return json(400, { error: 'that folder does not exist: ' + root }); }
     // the host only ever executes at a root the Commander has approved — the same law the loop check obeys.
     if (!isBlessedRoot(root)) return json(403, { error: 'that folder is not approved yet — pick it again to approve it' });
+    // review2 #4: this runs the command now, as you; the page key alone used to be enough. The desk's yes for it also
+    // covers creating the loop with the same check in the same folder (checkApproval, once, for ten minutes).
+    if (cmd.length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+    if (!loopCheckAtDesk(req, res, root, cmd, { now: true })) return;
+    const checkApproval = loopCheckApproval(root, cmd);
     try {
       const r = await shellRunCommand({
         spawn: childSpawn, cmd: cmd, cwd: root, timeoutMs: 120000, maxBytes: LOOP_CHECK_MAX_BYTES,
@@ -11142,9 +11729,10 @@ function handleLoopsTestCheck(req, res) {
         exitCode: r.exitCode, timedOut: !!r.timedOut,
         couldNotRun: !v.passed && couldNotRun,
         // the loop would finish instantly on an already-green check — the most important case to surface.
-        alreadyGreen: v.passed
+        alreadyGreen: v.passed,
+        checkApproval
       });
-    } catch (e) { json(200, { ok: false, error: 'could not run it — ' + ((e && e.message) || e) }); }
+    } catch (e) { json(200, { ok: false, error: 'could not run it — ' + ((e && e.message) || e), checkApproval }); }
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 
@@ -11694,7 +12282,8 @@ function makeHubDeps(kind, overrides) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     expandAttachments: (messages) => messages,
     scrubOutbound: scrubOutbound,
-    resolveRunConfig: channelRunConfigFor
+    resolveRunConfig: channelRunConfigFor,
+    ownerCardFree: channelOwnerCardFree   // final review #1: what an owner's DM may run without a card
   }, overrides);
 }
 function startTelegram(token, model, agentCfg) {
@@ -11949,8 +12538,9 @@ function persistTelegramBotOwnerClaim(botId, uid) {
 // Agent-bound bots use the same explicit local enrollment as the station bot. Keep this in one helper so the
 // add flow and the recovery PAIR action cannot drift: a code is returned only after its salted verifier was
 // durably read back, and the raw code never enters status, logs, or the bot transcript.
-function issueTelegramBotOwnerPairing(botId) {
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+function issueTelegramBotOwnerPairing(botId, pass) {
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const persisted = saveTelegramBotRecord(botId, { ownerPairing: issued.state });
   if (!persisted) return { ok: false, error: 'could not save the pairing challenge; no code was issued' };
   return { ok: true, code: issued.code, expiresAt: issued.state.expiresAt, persisted: true };
@@ -12526,7 +13116,7 @@ const server = http.createServer((req, res) => {
   // EventSource: GET /api/channels/events; the unload save beacon: POST /api/save) a ?ticket= minted for exactly that
   // resource (apiauth.ticketOk). The MASTER token is never accepted from a query string (it leaked into browser history,
   // Referer and copied links).
-  if (isApi && requiresApiToken(req) && !apiauth.apiTokenOk(req, API_TOKEN) && !apiauth.ticketOk(req, API_TOKEN, Date.now(), TICKET_GUARD)) return refuseAtGate(req, res, 'forbidden token');
+  if (isApi && requiresApiToken(req) && !stationTokenOk(req) && !stationTicketOk(req)) return refuseAtGate(req, res, 'forbidden token');
   const mutationTicket = updatePreparation.beginRequest(req.method, req.url);
   if (!mutationTicket.ok) {
     res.writeHead(423, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -12818,7 +13408,9 @@ const remoteCrypto = require('./remote/crypto.js');
 const remoteDevices = require('./remote/devices.js').makeDevices({
   fs, path, crypto: remoteCrypto, file: path.join(WORKSPACES, '.secrets', 'remote.json'),
   now: () => Date.now(), newId: () => crypto.randomUUID(),
-  tighten: () => { if (process.platform !== 'win32') { try { fs.chmodSync(path.join(WORKSPACES, '.secrets', 'remote.json'), 0o600); } catch (e) { failNote('remote.index.fs.chmodSync', e); } } }
+  tighten: () => { if (process.platform !== 'win32') { try { fs.chmodSync(path.join(WORKSPACES, '.secrets', 'remote.json'), 0o600); } catch (e) { failNote('remote.index.fs.chmodSync', e); } } },
+  // fix-sec2 review 4a: the phones' file is sealed; one changed outside StarNet keeps the station and holds every phone
+  seal: { seal: v => authoritySeal.seal('remote.json', v), open: v => authoritySeal.open('remote.json', v) }
 });
 const remoteSessions = require('./remote/session.js').makeSessions({ devices: remoteDevices, crypto: remoteCrypto, now: () => Date.now(), newId: () => crypto.randomUUID() });
 // hoisted on purpose: the approvals registry (defined far above) announces changes through this
@@ -13154,6 +13746,8 @@ async function handleRemoteViewCrew(req, res) {
 async function handleRemoteEnable(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
   const on = b.on === true;
+  // switching Remote ON opens a way in from outside this computer: the desk confirms it (GHSA-2hpj #1); OFF never asks
+  if (on && !remoteDevices.enabled() && !deskGate(req, res, 'remote-enable', '', { relay: REMOTE_RELAY_URL || (REMOTE_LAN_ON ? 'the local network' : '') })) return;
   const saved = remoteDevices.setEnabled(on);
   if (!saved.ok) return respondJson(res, 500, { ok: false, error: 'could not save the Remote switch (' + saved.error + ')' });
   try {
@@ -13167,20 +13761,37 @@ async function handleRemotePair(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { b = {}; }
   if (!remoteDevices.enabled()) return respondJson(res, 409, { ok: false, error: 'switch Remote on first' });
   if (!remoteRelay && !remoteLan.info().listening) return respondJson(res, 409, { ok: false, error: 'this build has no relay set up yet, so a phone has no way to reach this station' });
+  if (!deskGate(req, res, 'remote-pair', '', {})) return;   // a pairing code is a way in: the desk confirms it (GHSA-2hpj #1)
   let p; try { p = remoteDevices.startPairing({ name: b.name }); } catch (e) { return respondJson(res, 500, { ok: false, error: (e && e.message) || String(e) }); }
   const urls = remoteLanUrls();
   // what the phone needs, in one blob; carried in a URL FRAGMENT so it never reaches a server log. The relay URL
   // rides along only when it isn't the page's own origin (a self-hosted or test relay).
-  const blob = remoteCrypto.b64u(Buffer.from(JSON.stringify(Object.assign({ v: remoteCrypto.VERSION, i: p.stationId, s: p.stationPub, p: p.pairingId, c: p.code },
+  // `c` is the pairing's 128-bit SECRET, the proof's key (GHSA-2hpj #7). It used to be the 8-character code; every phone
+  // app proves with whatever `c` holds, so an older app pairs with the secret too. The code is answered below as a lookup.
+  const blob = remoteCrypto.b64u(Buffer.from(JSON.stringify(Object.assign({ v: remoteCrypto.VERSION, i: p.stationId, s: p.stationPub, p: p.pairingId, c: p.secret },
     remoteRelay ? { r: REMOTE_RELAY_URL } : { u: urls }))));
   const pairUrl = remoteRelay ? REMOTE_RELAY_URL + '/#pair=' + blob : (urls.length ? urls[0] + '/remote/app/#pair=' + blob : null);
-  respondJson(res, 200, { ok: true, pairingId: p.pairingId, code: p.code, stationId: p.stationId, stationPub: p.stationPub, fingerprint: p.fingerprint,
+  respondJson(res, 200, { ok: true, pairingId: p.pairingId, code: p.code, secret: p.secret, stationId: p.stationId, stationPub: p.stationPub, fingerprint: p.fingerprint,
     expiresAt: p.expiresAt, urls, relay: remoteRelay ? REMOTE_RELAY_URL : null, pairBlob: blob, pairUrl });
 }
 // POST /api/remote/device { deviceId, askFirst } — this phone asks before every gated step (true) or works with the desk's permissions
 async function handleRemoteDevice(req, res) {
   let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
+  // letting a phone work with the desk's own permissions (askFirst off) is a lasting grant: the desk confirms it (GHSA-2hpj #1)
+  const devRow = remoteDevices.list().find(d => d.id === String(b.deviceId || ''));
+  if (devRow && b.askFirst !== true && devRow.askFirst === true && !deskGate(req, res, 'device-desk-permissions', devRow.id, { name: devRow.name, fingerprint: devRow.fingerprint })) return;
   const r = remoteDevices.setAskFirst(String(b.deviceId || ''), b.askFirst === true);
+  if (!r.ok) return respondJson(res, r.error === 'no such device' ? 404 : 500, { ok: false, error: r.error });
+  respondJson(res, 200, remoteSnapshot());
+}
+// POST /api/remote/activate { deviceId } — the desk approves a newly paired phone (GHSA-2hpj #7). Until then the phone
+// has no session. The desk confirmation shows its name and fingerprint; the phone starts out asking first.
+async function handleRemoteActivate(req, res) {
+  let b; try { b = JSON.parse(await readBody(req, 1024)) || {}; } catch (_) { return respondJson(res, 400, { ok: false, error: 'bad request' }); }
+  const devRow = remoteDevices.list().find(d => d.id === String(b.deviceId || ''));
+  if (!devRow) return respondJson(res, 404, { ok: false, error: 'no such device' });
+  if (devRow.pending === true && !deskGate(req, res, 'device-activate', devRow.id, { name: devRow.name, fingerprint: devRow.fingerprint })) return;
+  const r = remoteDevices.activate(devRow.id);
   if (!r.ok) return respondJson(res, r.error === 'no such device' ? 404 : 500, { ok: false, error: r.error });
   respondJson(res, 200, remoteSnapshot());
 }
@@ -13309,6 +13920,7 @@ const ROUTES = [
   { m: ['GET', 'POST', 'DELETE'], exact: '/api/personalization', h: handlePersonalization },
   { m: 'POST', exact: '/api/summon/ack', h: handleSummonAck },
   { m: 'POST', exact: '/api/key', h: handleSetKey },
+  { m: 'POST', exact: '/api/desk/approve', h: handleDeskApprove },   // the desktop shell's native confirmation (deskGate)
   { m: 'POST', exact: '/api/channels/token', h: handleSetChannelToken },
   { m: 'POST', exact: '/api/channels/telegram/connect', h: handleChannelConnect },
   { m: 'POST', exact: '/api/channels/telegram/sync', h: handleChannelSync },
@@ -13398,6 +14010,7 @@ const ROUTES = [
   { m: 'POST', exact: '/api/remote/enable', h: handleRemoteEnable },  // the switch (persisted); opens/closes the LAN door
   { m: 'POST', exact: '/api/remote/pair', h: handleRemotePair },      // one-time pairing code for ONE phone (10 min)
   { m: 'POST', exact: '/api/remote/revoke', h: handleRemoteRevoke },
+  { m: 'POST', exact: '/api/remote/activate', h: handleRemoteActivate },   // approve a newly paired phone at the desk (GHSA-2hpj #7)
   { m: 'POST', exact: '/api/remote/device', h: handleRemoteDevice },    // one phone: ALWAYS ASK, or the desk's own permissions  // forget a phone; its sessions end at once
   { m: 'POST', exact: '/api/budget/caps', h: handleBudgetCaps },
   { m: 'POST', exact: '/api/budget/resume', h: handleBudgetResume },
@@ -14152,7 +14765,7 @@ function handleChannelEvents(req, res) {
   });
   try { res.write('retry: 3000\n\n'); } catch (_) {}        // EventSource auto-reconnects after 3s if dropped
   // the header token passed the gate → a Node client; otherwise the gate passed on an SSE ticket → a page (ssePages)
-  const isPage = !apiauth.apiTokenOk(req, API_TOKEN);
+  const isPage = !stationTokenOk(req);
   sse.add(res);
   if (!sse.resume(res, req.headers['last-event-id'] || new URL(req.url, 'http://localhost').searchParams.get('cursor'))) return;
   if (isPage) ssePages.add(res);
@@ -15275,7 +15888,7 @@ async function stationOneShot(prompt, tag, failLead) {
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };
   const providerId = normalizeProvider(cfg.provider);
   // by the station model's payer: a ChatGPT plan spends no dollars, so no dollar cap refuses it; a throw refuses with its exit
-  const blocked = governor.admit('oneshot', { providerId, agentId: 'agent' });
+  const blocked = governor.admit('oneshot', { providerId, agentId: 'agent', attended: true });   // a press: the Commander is there
   if (blocked) return { ok: false, status: 409, error: blocked.gate === 'check' ? 'the station’s spending limits can’t be checked: ' + blocked.why + ' — ' + blocked.exit + ', then ask again'
     : blocked.unknown ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
     : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
@@ -15844,15 +16457,74 @@ async function handleCreditsUnlink(req, res) {
   const ok = r.ok !== false;
   return creditsJson(res, ok ? 200 : 500, { ok, unlinked: ok, configured: credits.configured(), error: ok ? undefined : r.error });
 }
+/* SPENDING AUTHORITY IS CONFIRMED AT THE DESK (GHSA-2hpj-9wm7-rvg5; the route census's last open routes). The page token
+   reaches every route below, and a same-user process can read it, so a token holder used to lift every dollar limit, RESUME
+   a stopped pool as often as it liked, or book an unknown charge at $0, and let routines spend with nobody watching. Each
+   change that lets runs spend what they could not now asks the desk first (deskGate: the desktop shell's native dialog, or
+   the code a bare station prints on its own console); the page's fetch wrapper confirms and replays it
+   (frontend/app/harness.js), and a station.power tool reaches the desk through the StarNet window (callOwnRouteAtDesk):
+     budget-raise   a saved limit raised, or removed (0 = none): SETTINGS › SPENDING LIMITS, a restored backup, a reset
+                    (budgetcaps.js raisedLimits says which, and why a chosen PER DAY going back to the shipped rail while a
+                    charge is unsettled is one);
+     budget-resume  RESUME: another base limit of headroom on the DAY or GLOBAL pool for the session;
+     budget-settle  a settlement that reopens spending (settleReopensSpend below).
+   Lowering a limit, tightening one, or booking a charge at or above what it is already counted at never asks. */
+const BUDGET_LIMIT_WORDS = Object.freeze({ perRun: 'PER RUN', perAgent: 'PER AGENT', perDay: 'PER DAY', global: 'GLOBAL' });
+function budgetMoney(v) { const n = (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : 0; return '$' + (n === 0 || n >= 0.01 ? n.toFixed(2) : String(n)); }
+function budgetUsdWords(v) { return (typeof v === 'number' && Number.isFinite(v) && v > 0) ? budgetMoney(v) : 'no limit'; }
+// a PER DAY someone chose (the environment, or a saved override) is strict; the shipped $25 rail nobody chose is soft (budget.js)
+function budgetDayChosen(overrides) {
+  const env = ENV('BUDGET_PER_DAY');
+  if (env != null && String(env).trim() !== '') return true;
+  return !!(overrides && Object.prototype.hasOwnProperty.call(overrides, 'perDay'));
+}
+function budgetHistoryUnknown() { const h = ledger.health(); return !h.complete || !h.durable; }
+// before/after: saved override sets -> the limits the change raises (budgetcaps.js raisedLimits), [] when none
+function budgetRaisesOf(before, after) {
+  return budgetCaps.raisedLimits(BUDGET_CAPS, before, after, { historyUnknown: budgetHistoryUnknown(), dayChosen: budgetDayChosen });
+}
+// true when nothing is raised or the desk confirmed exactly these raises; else it has answered the request
+function budgetRaiseAtDesk(req, res, before, after, via) {
+  const raised = budgetRaisesOf(before, after);
+  if (!raised.length) return true;
+  return deskGate(req, res, 'budget-raise', budgetRaiseScope(raised), { via, count: raised.length, lines: budgetRaiseLines(raised) });
+}
+function budgetRaiseScope(raised) { return 'limits:' + raised.map(r => r.key + '=' + r.from + '>' + r.to + (r.soft ? '~shipped' : '')).join(','); }
+function budgetRaiseLines(raised) {
+  return raised.map(r => '  • ' + BUDGET_LIMIT_WORDS[r.key] + ': ' + budgetUsdWords(r.from) + (r.soft ? ' (your limit)' : '') + ' → ' + budgetUsdWords(r.to)
+    + (r.soft ? ' (the shipped limit, which lets a run you watch keep spending while a charge is unsettled)' : '')).join('\n');
+}
+/* settleReopensSpend(open, usd) -> null (books nothing new: no ask) | the desk's words. A settlement REOPENS spending when:
+     · it books the LAST unknown charge: the history is whole again, so a limit you chose stops refusing paid calls and the
+       shipped day limit stops pausing work nobody watches (budget.js, GHSA-2hpj #8);
+     · it books a figure BELOW what the charge counts at until it is settled (its bound, else its COUNT AS figure, as budget.js
+       floorOf counts it), which every limit then counts instead, leaving that much more room.
+   Booking a charge at or above that figure while another stays unknown changes nothing that may spend. */
+function settleReopensSpend(open, usd) {
+  const h = ledger.health();
+  const items = ledger.unknownItems();
+  const item = items.find(i => i.runId === open.runId) || null;
+  const floor = item ? (item.bound && item.bound.usd > 0 ? item.bound.usd : (item.countAs && item.countAs.usd > 0 ? item.countAs.usd : 0)) : 0;
+  const last = !h.writeError && h.readError === 'UNSETTLED_SPEND' && items.every(i => i.runId === open.runId);
+  const below = usd < floor;
+  if (!last && !below) return null;
+  const name = deskProofMod.cutPoints(crewNameOf(open.agentId) || String(open.agentId || ''), 40);
+  const kind = item && item.kind === 'damaged' ? 'the unreadable spend record line' : item && item.kind === 'evaluation' ? 'the unpriced skill evaluation run'
+    : 'the interrupted run';
+  return { what: kind + (name && !(item && item.kind === 'damaged') ? ' of "' + name + '"' : '') + (open.model ? ' (' + deskProofMod.cutPoints(String(open.model), 60) + ')' : ''),
+    usd: budgetMoney(usd), last, below, floor: budgetMoney(floor), room: budgetMoney(Math.max(0, floor - usd)) };
+}
 /* ---- POST /api/budget/caps { perRun?, perAgent?, perDay?, global? } — set one or more USD caps. Each value:
    a positive number = a real cap; 0 (or "0") = NO CAP (ungoverned) — an explicit saved choice; null / "" = CLEAR
    the override so that key falls back to its env default. Strictly validated (finite, >= 0, sane ceiling), persisted
-   durably, and applied LIVE to the governor (no restart). Additive: leaves env-only setups untouched until saved. ---- */
+   durably, and applied LIVE to the governor (no restart). Additive: leaves env-only setups untouched until saved.
+   A raise asks the desk first (budget-raise, above); lowering never does. ---- */
 async function handleBudgetCaps(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const v = budgetCaps.validateOverridesPatch(body, budgetOverrides);   // pure: strict parse + merge onto current
   if (!v.ok) return json(400, { error: v.error });
+  if (!budgetRaiseAtDesk(req, res, budgetOverrides, v.overrides, 'settings')) return;
   try { saveBudgetOverrides(v.overrides); }
   catch (_) { return json(500, { error: 'Spending limit changes could not be confirmed on disk. Try saving again.', persisted: false }); }
   applyBudgetCaps();   // live, no restart
@@ -15906,12 +16578,18 @@ async function handleRealtimeSession(req, res) {
   res.end(out.body);
 }
 /* ---- POST /api/budget/resume { scope } — the one-click "keep going" after a SOFT pool cap is hit: grant another
-   base-cap of headroom to that scope for the rest of the session. scope ∈ {day, global}. ---- */
+   base-cap of headroom to that scope for the rest of the session. scope ∈ {day, global}. The desk confirms it first
+   (budget-resume, above handleBudgetCaps). ---- */
 async function handleBudgetResume(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const scope = String(body.scope || '').trim();
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
+  // RESUME lets runs spend another base limit, so the desk confirms it (budget-resume, above), bound to this pool at this cap.
+  // Only one that would be granted asks: a pool with no limit, or one over unknown spend, is refused below without a question.
+  const pool = budget.status(Date.now())[scope];
+  if (pool && !budgetHistoryUnknown() && !deskGate(req, res, 'budget-resume', scope + ':' + pool.cap + '+' + pool.base,
+    { pool: scope === 'day' ? 'DAY' : 'GLOBAL', more: budgetMoney(pool.base), from: budgetMoney(pool.cap), to: budgetMoney(pool.cap + pool.base) })) return;
   const cap = budget.resume(scope);
   if (cap == null) {
     // Resume adds headroom only after uncertain charges are explicitly settled; an estimate is not settlement.
@@ -15926,7 +16604,8 @@ async function handleBudgetResume(req, res) {
    ledger.js countAs, its limit, the charge its line records or the assumption; 'limit': the recorded limit only). Only a run found unsettled at boot is accepted (404
    otherwise — a live run books itself); the row is journaled-then-appended through the ledger's strict path and the
    receipt removed, so history is complete again and stays so across restarts. Deliberately NOT a station-control
-   action: attesting what a provider charged belongs to the Commander, never to an agent. ---- */
+   action: attesting what a provider charged belongs to the Commander, never to an agent. A settlement that reopens spending
+   (the last unknown charge, or a figure below what it counts at) is confirmed at the desk first (settleReopensSpend). ---- */
 async function handleBudgetSettle(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
@@ -15947,6 +16626,9 @@ async function handleBudgetSettle(req, res) {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
     if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
   }
+  // a settlement that reopens spending asks the desk first, bound to this run, this figure and how it was reached (above)
+  const reopens = settleReopensSpend(open, usd);
+  if (reopens && !deskGate(req, res, 'budget-settle', runId + '\n' + usd + '\n' + how, reopens)) return;
   try { ledger.settleUnsettled(runId, usd, how); }
   catch (e) {
     if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
@@ -16303,6 +16985,17 @@ async function handleConfigImport(req, res) {
   const importNotes = [];
   const effectiveSecretsNeeded = (parsed.secretsNeeded || []).filter(x => x && x.kind !== 'connector');
   const sec = parsed.sections;
+  // a backup that would ADD standing grants needs the desk's confirmation before ANY section applies (GHSA-2hpj #1), and so
+  // does one that raises a spending limit (budget-raise: the spend routes' rule, budgetRaisesOf). One request carries one
+  // proof, so a backup that does both asks once, for both.
+  const fresh = (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow))
+    ? [...new Set(sec.permissions.allow.filter(k => typeof k === 'string' && !grantsPermanent.has(k)))].sort() : [];
+  const spendRaised = want('budget') ? budgetRaisesOf(budgetOverrides, budgetCaps.cleanOverrides(sec.budget || {})) : [];
+  if (fresh.length) {
+    const list = fresh.slice(0, 12).map(k => '  • ' + k).join('\n') + (fresh.length > 12 ? '\n  • and ' + (fresh.length - 12) + ' more' : '');
+    if (!deskGate(req, res, 'grant-import', fresh.join(',') + (spendRaised.length ? '\n' + budgetRaiseScope(spendRaised) : ''),
+      { count: fresh.length, list, spend: spendRaised.length ? budgetRaiseLines(spendRaised) : '' })) return;
+  } else if (spendRaised.length && !deskGate(req, res, 'budget-raise', budgetRaiseScope(spendRaised), { via: 'import', count: spendRaised.length, lines: budgetRaiseLines(spendRaised) })) return;
   let connectorPlan = null;
   if (want('connectors') && Array.isArray(sec.connectors)) {
     connectorPlan = prepareConnectorImport(sec.connectors);
@@ -16325,10 +17018,16 @@ async function handleConfigImport(req, res) {
     // (never in the export). A roster with no live match is added with an empty system (re-woken later).
     for (const a of sec.roster) {
       const cur = agentRoster.get(a.agentId) || { system: '', name: a.agentId, model: null, provider: null, role: '', approvalMode: 'ask' };
-      agentRoster.set(a.agentId, Object.assign({}, cur, {
+      const next = Object.assign({}, cur, {
         name: a.name || cur.name, model: a.model || cur.model,
         provider: a.provider ? normalizeProviderId(a.provider) : cur.provider, role: a.role || cur.role
-      }));
+      });
+      // review2 #6: an import that points a Full Access agent at another model or provider drops it to ask-first
+      if (cur.approvalMode === 'full' && fullAccessDriveOf(next) !== fullAccessDriveOf(cur)) {
+        next.approvalMode = 'ask';
+        importNotes.push('"' + String(next.name || a.agentId).slice(0, 40) + '" asks first now: the import changed its model or provider. Give it Full Access again in its dossier.');
+      }
+      agentRoster.set(a.agentId, next);
     }
     saveAgentRoster(); applied.push('roster');
   }
@@ -16388,6 +17087,8 @@ async function handleConfigReset(req, res) {
   const section = String(body.section || '').trim();
   switch (section) {
     case 'budget':
+      // back to the defaults can lift a limit someone chose: that asks the desk like any raise (budget-raise); lowering does not
+      if (!budgetRaiseAtDesk(req, res, budgetOverrides, {}, 'reset')) return;
       try { saveBudgetOverrides({}); }
       catch (_) { return json(500, { ok: false, section, error: 'Spending limit reset could not be confirmed on disk. Try resetting again.' }); }
       applyBudgetCaps(); break;
@@ -16544,12 +17245,216 @@ function setProviderRuntimeConfig(provider, patch, report) { return credStore.pu
    !== leaks match-prefix length through response timing; hash both sides to fixed width first so
    timingSafeEqual never throws on length mismatch and the comparison cost is length-independent. */
 function ipcTokenOk(req) {
-  const token = String(ENV('IPC_TOKEN') || '');
+  const token = IPC_TOKEN;   // the per-launch IPC token, read once at start (it is no longer in process.env)
   if (!token) return false;
   const given = String(req.headers['x-starnet-token'] || req.headers['x-skynet-token'] || '');
   const a = crypto.createHash('sha256').update(given, 'utf8').digest();
   const b = crypto.createHash('sha256').update(token, 'utf8').digest();
   return crypto.timingSafeEqual(a, b);
+}
+
+/* THE DESK PROOF (GHSA-2hpj-9wm7-rvg5 #1, 2026-11-08; sidecar/deskproof.js). The page token alone no longer makes an
+   AUTHORITY change: FULL BYPASS on, a FULL ACCESS or ALWAYS answer, a standing grant (the Permissions panel or a restored
+   backup), raising an agent to full access, Remote on, a pairing code, approving a phone, or letting a phone use the desk's
+   own permissions. Under the desktop shell the confirmation is the shell's native dialog, reported with the IPC token;
+   a bare sidecar (browser mode) confirms in the page with the DESK CODE below. */
+/* THE DESK CODE (fix-sec2, review 2). A bare station (npm start, the `starnet` terminal's own, a pm2 deploy, a source build)
+   has no shell to show a dialog, and it cannot tell its page from any other local process holding the page token. So each
+   of its confirmations needs six digits shown only where the person running the station looks: this process's own console
+   (stderr; nothing in this station reads it back or serves it), or, for a station the `starnet` terminal started
+   (STARNET_DESK_CODE_IPC=1 and its IPC channel), that terminal over the channel only the two processes share. The code never
+   rides in an API body. Under the desktop shell the console is a log file, so a station there with no shell proof shows
+   no code at all and its page confirmations cannot be given (fail closed). A same-user process that can read this
+   console's buffer, a log file it is redirected to (pm2's), or this process's memory can still read the code: that is
+   the same-user residual that only an OS sandbox for agent-run commands closes.
+   A CONSOLE THAT IS A LOG KEEPS NO CODE (final review #9, 2026-11-08). pm2 saves this console to ~/.pm2/logs, and a
+   console redirected to a file (or a socket: journald) keeps it the same way, so the client key plus one read of that log
+   turned FULL BYPASS on. There the code is not written: the line says what is waiting and how to confirm it (run the
+   station in a terminal, or the `starnet` terminal), and STARNET_DESK_CODE_TO_LOG=1 is the operator's own choice to
+   write codes to the log anyway. Said plainly: a bare or pm2 station is not sealed, and it does not protect its
+   permissions from other programs running as the same user (they can write its files); the desk code only keeps the
+   page key alone from making those changes. */
+const DESK_CODE_TO_PARENT = ENV('DESK_CODE_IPC') === '1';
+function deskCodeConsoleKept() {
+  if (/^(?:1|true|yes)$/i.test(String(ENV('DESK_CODE_TO_LOG') || '').trim())) return '';
+  const e = process.env || {};
+  if (e.pm_id !== undefined || e.pm_err_log_path !== undefined || e.PM2_HOME !== undefined) return 'pm2';
+  const out = process.stderr;
+  if (!out || out.isTTY) return '';
+  if (typeof out.fd !== 'number') return '';   // not a descriptor (a stream handed in): nothing on disk to keep
+  try { const st = fs.fstatSync(out.fd); return st.isFile() ? 'file' : st.isSocket() ? 'socket' : ''; }
+  catch (err) { return 'unknown'; }   // a console this process cannot even describe gets no code
+}
+function announceDeskCode(note) {
+  const n = note || {};
+  const line = n.kind === 'code'
+    ? 'Confirm at the desk: ' + String(n.title || '').replace(/^StarNet — /, '') + ' (' + String(n.verb || 'Confirm') + '). Type code '
+      + n.code + ' in the StarNet page that asks for confirmation ' + n.label + '. It works once, for two minutes. Never type it anywhere else or give it to an agent.'
+    : n.kind === 'wrong' ? 'A wrong confirmation code was typed for ' + n.label + ' (' + n.wrong + ' of ' + n.max + '; after ' + n.max + ' this station takes no permission change for a while, restarts included).'
+      : 'Confirmation codes: ' + n.max + ' wrong codes were typed, so this station takes no permission change until ' + deskLockClock(n.until) + ' (a restart does not end it).';
+  if (DESK_CODE_TO_PARENT && typeof process.send === 'function' && process.connected) {
+    process.send({ type: 'starnet.desk-code', kind: n.kind, id: n.id || '', label: n.label || '', code: n.code || '', title: n.title || '', verb: n.verb || '', expiresAt: n.expiresAt || 0, text: line });
+    return;
+  }
+  const kept = n.kind === 'code' ? deskCodeConsoleKept() : '';
+  if (kept) {
+    process.stderr.write('\n  [StarNet] Confirm at the desk: ' + String(n.title || '').replace(/^StarNet — /, '') + ' (' + String(n.verb || 'Confirm') + '), asked for confirmation '
+      + n.label + '. This station\'s console is ' + (kept === 'pm2' ? 'saved by pm2' : 'kept in a log') + ', so its code is not written here (whatever can read the log could use it). '
+      + 'To confirm, run the station in a terminal (npm start, or the starnet terminal), or start it with STARNET_DESK_CODE_TO_LOG=1 to write codes to this log anyway.\n\n');
+    return;
+  }
+  process.stderr.write('\n  [StarNet] ' + line + '\n\n');
+}
+const deskProofMod = require('./deskproof.js');
+function deskLockClock(until) {
+  const t = Number(until) || 0;
+  if (!t) return 'later';
+  try { return new Date(t).toLocaleString(); } catch (_) { return new Date(t).toISOString(); }
+}
+/* review2 #11: the wrong-code count and its lockout live in StarNet's own data, so a restart (pm2 bringing a quit station
+   back) does not hand a guesser five more tries. No file is a fresh count; a file that cannot be read is a lockout. */
+const DESK_CODES_FILE = path.join(WORKSPACES, 'desk-codes.json');
+const deskCodeStore = {
+  load() {
+    let raw;
+    try { raw = fs.readFileSync(DESK_CODES_FILE, 'utf8'); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; }
+    return JSON.parse(raw);
+  },
+  save(state) { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, DESK_CODES_FILE, JSON.stringify(state)); }
+};
+const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: IPC_TOKEN, now: () => Date.now(), store: deskCodeStore,
+  announce: DESKTOP_SHELL ? null : announceDeskCode });
+// What the confirmation says, composed HERE from what the station holds (never from the request's own words): the shell
+// shows exactly this text in its dialog, and the station refuses an approval for any other text (deskProof.approve).
+function deskWords(action, d) {
+  const o = d || {};
+  const who = o.agentName ? '"' + o.agentName + '"' : 'this agent';
+  switch (action) {
+    case 'bypass-on': return { title: 'StarNet — turn on FULL BYPASS', verb: 'Turn on FULL BYPASS',
+      summary: 'Turn on FULL BYPASS for every agent?\n\nEvery agent, on every surface (chat, Telegram, routines, the night shift), will run commands, change files and use your connected accounts without asking you first, until you turn it off in Settings › Permissions.' };
+    case 'consent-full': return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
+      summary: 'Give ' + who + ' FULL ACCESS?\n\nIt will run every tool, command and file change without asking you, in this task and every later one, until you set it back to ask first.' + (o.tool ? '\n\nIt is asking to use: ' + o.tool : '') };
+    case 'consent-always': return { title: 'StarNet — always allow', verb: 'Always allow',
+      summary: 'Always allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
+    case 'servicekey-unattended': return { title: 'StarNet — let agents use a key unattended', verb: 'Allow unattended',
+      summary: 'Let agents spend the key "' + o.name + '" (' + o.envVar + ') with nobody watching, in routines, Night Shift and messaged runs, without asking?\n\nIt stays on until you switch it off in Connectors › Keys.' };
+    // review2 #9: the away workshop is a standing unattended write grant, asked like the station-wide one below
+    case 'toolset-on': return { title: 'StarNet — turn a toolset back on', verb: 'Turn it on',
+      summary: 'Turn the ' + (o.label || 'toolset') + ' toolset back on?\n\nEvery agent can use its tools again'
+        + (o.tools ? ' (' + o.tools + (o.more ? ' and ' + o.more + ' more' : '') + ')' : '') + ', within each agent\'s own approval setting, until you switch it off again in Connectors › Tools.' };
+    case 'quit': return { title: 'StarNet — stop this station', verb: 'Stop it',
+      summary: 'Stop this StarNet station now?\n\nEvery run, routine and loop stops. A station kept running by pm2 or another service manager starts again on its own.' };
+    // the census's spend routes (handleBudgetCaps, handleBudgetResume, handleBudgetSettle; a restored backup or a reset too)
+    case 'budget-raise': return { title: 'StarNet — raise ' + (o.count === 1 ? 'a spending limit' : 'spending limits'),
+      verb: o.via === 'import' ? 'Restore the backup' : o.via === 'reset' ? 'Reset the limits' : o.count === 1 ? 'Raise the limit' : 'Raise the limits',
+      summary: (o.via === 'import' ? 'This backup raises your spending limits:' : o.via === 'reset' ? 'Resetting your spending limits to their defaults raises them:' : 'Raise your spending limits?')
+        + '\n' + o.lines + '\n\nYour agents, routines and the night shift can spend up to ' + (o.count === 1 ? 'it' : 'them') + ', with nobody watching.' };
+    case 'budget-resume': return { title: 'StarNet — keep spending', verb: 'Resume spending',
+      summary: 'Give the ' + o.pool + ' pool another ' + o.more + ' for the rest of this session?\n\nIts limit goes from ' + o.from + ' to ' + o.to + '. Your agents, routines and the night shift can spend it, with nobody watching.' };
+    case 'budget-settle': return { title: 'StarNet — settle an unknown charge', verb: 'Settle it',
+      summary: 'Book ' + o.what + ' at ' + o.usd + '?'
+        + (o.below ? '\n\nThat is less than the ' + o.floor + ' StarNet counts it at until it is settled, so your spending limits get ' + o.room + ' more room.' : '')
+        + (o.last ? '\n\nIt is the last charge StarNet does not know: limits you chose stop refusing paid calls, and routines and other work nobody watches start again.' : '')
+        + '\n\nBook only what was really charged (your provider dashboard, or Recent Activity in the StarNet store).' };
+    case 'grant': if (o.workshop) return o.dial
+      ? { title: 'StarNet — let the night shift build', verb: 'Raise the dial',
+        summary: 'Raise the autonomy dial to building?\n\nThat also lets ' + who + ' build from its away queue while you are away: it writes files in its own workspace with nobody watching, within the dial\'s daily leash. Each build waits in MY WORK for your KEEP IT or DISCARD.' }
+      : { title: 'StarNet — build while you are away', verb: 'Turn on',
+        summary: 'Let ' + who + ' build from its away queue while you are away?\n\nIt writes files in its own workspace with nobody watching, and its build shift runs on a schedule and spends from your budget. Each build waits in MY WORK for your KEEP IT or DISCARD. Turn it off any time.' };
+      return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
+      summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
+    case 'grant-import': if (o.spend) return { title: 'StarNet — restore permissions and limits', verb: 'Restore the backup',
+      // one confirmation for the whole backup: a request carries one proof (handleConfigImport)
+      summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list
+        + '\n\nIt also raises your spending limits:\n' + o.spend + '\n\nRestore it? Agents will use ' + (o.count === 1 ? 'that permission' : 'those permissions') + ' without asking, and spend up to the new limits.' };
+      return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
+      summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list + '\n\nRestore ' + (o.count === 1 ? 'it' : 'them') + '? Agents will use ' + (o.count === 1 ? 'it' : 'them') + ' without asking.' };
+    // review2 #6: a Full Access agent whose instructions, model, provider or skills changed keeps Full Access only on a yes
+    case 'approval-full': if (o.keep) return { title: 'StarNet — keep Full Access', verb: 'Keep Full Access',
+      summary: 'Keep FULL ACCESS for ' + o.names + ' with what now drives ' + (o.count === 1 ? 'it' : 'them') + '?\n\n' + (o.count === 1 ? 'It' : 'They') + ' will run every tool, command and file change without asking you. Model: ' + o.model + '.'
+        + (o.excerpt ? '\n\nInstructions (start):\n' + o.excerpt : '') + '\n\nSay no and ' + (o.count === 1 ? 'it asks' : 'they ask') + ' first from now.' };
+      return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
+      summary: 'Give FULL ACCESS to ' + o.names + '?\n\n' + (o.count === 1 ? 'It' : 'They') + ' will run every tool, command and file change without asking you, until you set ' + (o.count === 1 ? 'it' : 'them') + ' back to ask first.' };
+    case 'remote-enable': return { title: 'StarNet — turn on Remote', verb: 'Turn on Remote',
+      summary: 'Turn on StarNet Remote?\n\nThis station will connect out to ' + (o.relay || 'its relay') + ' so the phones you pair and approve here can reach it from anywhere.' };
+    case 'remote-pair': return { title: 'StarNet — pair a phone', verb: 'Make a pairing code',
+      summary: 'Make a one-time code to pair a new phone with this station?\n\nA phone that uses it stays switched off until you approve it here, at this computer.' };
+    case 'device-activate': return { title: 'StarNet — approve a phone', verb: 'Approve phone',
+      summary: 'Let the phone "' + o.name + '" use this station?\n\nIts fingerprint is ' + o.fingerprint + '. Check that your phone shows the same one, and approve only a phone you just paired yourself. It starts out asking before every step.' };
+    case 'device-desk-permissions': return { title: 'StarNet — phone permissions', verb: 'Allow',
+      summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
+    // fix-sec2, review 3, 6 and 7
+    case 'consent-session': if (o.command) return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
+      // GHSA-2hpj #4: a command's session grant is that exact command (its words come last, so a long one is cut, never the rule)
+      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n' + o.command };
+      return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
+      summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
+    case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: o.changed ? 'Keep allowing' : 'Allow unattended',
+      summary: (o.changed ? 'The routine "' + o.name + '" (' + o.agentName + ') is changing what it runs. Keep letting it ' : 'Let the routine "' + o.name + '" (' + o.agentName + ') ')
+        + o.grants + ' with nobody watching, every time it runs?' + (o.task ? '\n\nWhat it runs: ' + o.task : '') + '\n\nIt keeps this until you remove it in Routines.' };
+    case 'telegram-owner-pair': return { title: 'StarNet — pair a Telegram owner', verb: 'Make a pairing code',
+      summary: (o.connecting ? 'Connect this station’s Telegram bot and make' : 'Make') + ' a one-time code that makes a Telegram account the OWNER of this station’s bot?\n\nThe owner can give your agents work from Telegram and answer their permission requests there.' };
+    // review2 #1: Discord, Slack, Matrix, Signal and every agent's own Telegram bot
+    case 'channel-owner-pair': return { title: 'StarNet — pair a messaging owner', verb: 'Make a pairing code',
+      summary: (o.connecting ? 'Connect ' + o.label + ' and make' : 'Make') + ' a one-time code that makes the account that sends it the OWNER of ' + o.label + (o.agentName ? ' (' + o.agentName + ')' : '') + '?\n\nThe owner can give your agents work from there and answer their permission requests there.' };
+    case 'project-bless': return { title: 'StarNet — trust a project folder', verb: 'Trust this folder',
+      summary: 'Trust the folder ' + o.root + '?\n\nYour agents may read and change everything in it without asking you about each file, until you remove it under Projects.' };
+    // review2 #4: the whole command, never cut (the routes refuse one longer than the store keeps)
+    case 'loop-check': return { title: 'StarNet — approve a loop check', verb: o.now ? 'Run it' : 'Approve check',
+      summary: (o.now ? 'Run this command now, as you, in ' + o.workdir + ', to try it as a loop check?'
+        : 'Run this command as you, in ' + o.workdir + ', after every pass of the loop "' + (o.name || 'untitled') + '", with nobody watching?')
+        + '\n\n' + o.command };
+    case 'hook-allow': return { title: 'StarNet — approve a hook', verb: 'Approve hook',
+      summary: 'Run this command on every "' + o.event + '" event, as you, with no prompt?\n\n' + o.command };
+    case 'plugin-allow': return { title: 'StarNet — approve a plugin', verb: 'Approve plugin',
+      summary: 'Approve the plugin "' + o.name + '" and run its code inside StarNet?\n\nOnly this exact code (' + o.digest + ') is approved; any change to it needs your approval again.' };
+    case 'execution-profile': return { title: 'StarNet — widen what an agent can reach', verb: 'Allow',
+      // final review B5: a Full Access raise confirmed with the profile is asked as one plain question (o.question)
+      summary: (o.question ? String(o.question) : 'Let ' + o.names + '?') + '\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
+    default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
+  }
+}
+/* deskGate(req, res, action, scope, details) -> true when the request carries a good desk proof for exactly this change
+   (consumed: single use). Otherwise it answers and returns false: CLIENT_TOKEN (what GET / serves under the shell) is told
+   the change belongs to the StarNet window (desk_only, no challenge); the app page is handed a fresh challenge
+   (desk_confirm_required { deskConfirm }) that its fetch wrapper confirms and replays once (frontend/app/harness.js).
+   Call it AFTER the body is read and BEFORE anything changes. */
+function deskGate(req, res, action, scope, details) {
+  // an in-process call (callOwnRoute: a station.power tool after its own card) is the station itself, never the client
+  // key: it is handed a challenge like the page, which only the desk can confirm (callOwnRouteAtDesk, fix-sec2 review 9)
+  if (CLIENT_TOKEN && !(req && req[IN_PROCESS_REQUEST] === true) && !apiauth.apiTokenOk(req, API_TOKEN)) {
+    respondFail(res, 403, 'desk_only', 'This change can only be made in the StarNet window, where it asks you to confirm.', { deskOnly: true });
+    return false;
+  }
+  const presented = String(req.headers['x-starnet-desk-proof'] || '').trim();
+  const spent = presented ? deskProof.consume(presented, action, scope, req.headers['x-starnet-desk-code']) : null;
+  if (spent && spent.ok) return true;
+  // page mode: too many wrong desk codes. Nothing is handed out again until the lockout ends; a restart does not end it (deskproof.js)
+  if (deskProof.locked()) {
+    const mins = Math.max(1, Math.ceil(deskProof.lockedForMs() / 60000));
+    respondFail(res, 403, 'desk_locked', 'Too many wrong confirmation codes were typed, so this station takes no permission change for ' + mins + ' more minute' + (mins === 1 ? '' : 's') + '.', { deskLocked: true, retryAfterMs: deskProof.lockedForMs() });
+    return false;
+  }
+  const words = deskWords(action, details);
+  const challenge = deskProof.issue({ action, scope, title: words.title, summary: words.summary, verb: words.verb });
+  const why = !presented ? 'Confirm this change first: ' + challenge.title.replace(/^StarNet — /, '') + '.'
+    : spent.reason === 'wrong-code' ? 'That confirmation code was wrong. Confirm it again with the new code.'
+      : spent.reason === 'code-missing' ? 'This station needs the confirmation code it printed in its terminal. Confirm it again.'
+        : 'That confirmation was not for this change, or it ran out. Confirm it again.';
+  const where = challenge.mode === 'page' && !challenge.codeWhere ? ' This station shows its confirmation codes nowhere (it runs under the desktop app without its proof), so this change cannot be confirmed here.' : '';
+  respondFail(res, 403, 'desk_confirm_required', why + where, { deskConfirm: challenge });
+  return false;
+}
+// POST /api/desk/approve { id, title, summary, verb } — the desktop shell's report (main.rs starnet_desk_confirm) that a
+// person said yes in its native dialog showing exactly these words. Token-exempt like /api/key: guarded by the
+// per-launch IPC token, which no page and no child process holds (child-env.js strips it from every child).
+async function handleDeskApprove(req, res) {
+  if (!ipcTokenOk(req)) return respondFail(res, 403, 'forbidden', 'forbidden');
+  const b = await readJsonBody(req, readBody, 8192, res);
+  if (!b) return respondFail(res, 400, 'bad_json', 'bad json');
+  const r = deskProof.approve({ id: b.id, title: b.title, summary: b.summary, verb: b.verb }, apiauth.headerToken(req));
+  if (!r.ok) return respondFail(res, r.reason === 'gone' ? 404 : 409, r.reason === 'gone' ? 'not_found' : 'conflict', 'desk confirmation refused (' + r.reason + ')');
+  return respondJson(res, 200, { ok: true });
 }
 
 /* desktop key push: the parent shell sets live BYOK/provider config here (token-gated), so changing a
@@ -16828,13 +17733,22 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
 async function handleToolsetToggle(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let id = '';
-  try { id = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname.replace(/^\/api\/toolsets\//, '')); } catch (_) {}
+  // the route matched the '/api/toolsets/' prefix, so the id is what follows it (sliced, not a regex: test/_fnbody.js reads
+  // a regex literal's '//' as a comment, and the route census then read this handler's body long into its neighbours)
+  try { id = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname.slice('/api/toolsets/'.length)); } catch (_) {}
   id = String(id || '').trim();
   if (!id) return json(400, { error: 'a toolset id is required' });
   if (id === 'compute') return json(400, { error: 'compute is the always-on compute gate and cannot be toggled' });
   if (TOGGLEABLE_CAPS.indexOf(id) < 0) return json(404, { error: 'unknown toolset: ' + id });
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   if (typeof body.enabled !== 'boolean') return json(400, { error: 'enabled must be a boolean' });
+  // turning a toolset that is OFF back ON gives every agent its tools again: the desk confirms it (the route census's
+  // toolsets row; GHSA-2hpj #1). Turning one off, or "on" when it is already on, never asks.
+  if (body.enabled && toolsetDisabled[id] === false) {
+    const row = toolsetRows(CAP_REGISTRY).find(r => r.id === id) || {};
+    if (!deskGate(req, res, 'toolset-on', id, { label: String(row.label || id), tools: (row.tools || []).slice(0, 8).join(', '),
+      more: Math.max(0, (row.tools || []).length - 8) })) return;
+  }
   if (body.enabled) delete toolsetDisabled[id]; else toolsetDisabled[id] = false;   // sparse: only OFF is persisted
   saveToolsetState();   // durable; the in-memory map is already live for the next resolveTools call
   return json(200, { ok: true, id, enabled: body.enabled });
@@ -16984,6 +17898,13 @@ async function handleServiceKeyAutonomy(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   if (typeof body.autonomous !== 'boolean') return json(400, { error: 'autonomous must be a boolean' });
+  /* SWITCHING IT ON IS A STANDING GRANT (fix-sec2 review2 #7). With it on, every unattended call that names this key is
+     allowed with no card, which is what a standing permission is, and those are confirmed at the desk. Switching it off
+     never asks. The yes is for this key, by id and the variable it fills. */
+  const held = (Array.isArray(serviceKeys) ? serviceKeys : []).find(row => row && row.id === String(body.id || ''));
+  if (body.autonomous && held && held.autonomous !== true && held.unattendedSupported !== false
+    && !deskGate(req, res, 'servicekey-unattended', String(held.id) + ':' + String(held.envVar || ''),
+      { name: deskProofMod.cutPoints(String(held.name || held.envVar || held.id), 60), envVar: String(held.envVar || '') })) return;
   const r = serviceKeysMod.setAutonomous(serviceKeys, body.id, body.autonomous);
   if (r.error) return json(serviceKeys.some(row => row && row.id === String(body.id || '')) ? 409 : 404, { error: r.error });
   serviceKeys = r.list;
@@ -17769,7 +18690,8 @@ function cronStateSnapshot(now) {
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j), nextFireAt: SchedulerState.nextFireOf(scheduler, j) });   // null wire: a script-only routine
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j), nextFireAt: SchedulerState.nextFireOf(scheduler, j) },   // null wire: a script-only routine
+      cronScriptStale(j) ? { scriptChanged: true } : {});   // review2 #3: its script is not the one the desk's yes was for
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
@@ -17868,6 +18790,14 @@ function handleLifecycleArmed(req, res) {
    shell now asks first; this answers at once and runs the same gracefulShutdown a SIGTERM would (bounded by its 3 s
    deadline), and the shell still kills whatever is left after its own wait. Token-gated like every /api route. */
 function handleLifecycleQuit(req, res) {
+  /* WHO MAY QUIT OVER HTTP (fix-sec2 review2 #11). Any key holder could stop the station here, and under pm2 a stop is a
+     restart, which reset the desk's wrong-code count. Now the desktop shell quits this way with its own key (with the
+     shell's proof, CLIENT_TOKEN set, never the page's key; a shell without its proof cannot tell the two apart, so it keeps
+     the old door). Anyone else is asked at the desk ('quit'): under the shell the page key is refused outright (desk_only),
+     and a bare station (browser, pm2) takes the code it printed. The CLI stops its own child over IPC and signals, never
+     this route, so `starnet stop` is unchanged. */
+  const shellKey = CLIENT_TOKEN ? apiauth.apiTokenOk(req, API_TOKEN) : DESKTOP_SHELL;
+  if (!shellKey && !deskGate(req, res, 'quit', 'station', {})) return;
   const body = JSON.stringify({ ok: true, shuttingDown: true });
   res.writeHead(202, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Length': Buffer.byteLength(body) });
   res.end(body, () => setImmediate(() => gracefulShutdown('desktop-quit')));
@@ -17935,6 +18865,7 @@ function handleStateSnapshot(req, res) {
         // (the conversation, what it asks for) — the same fields its permission.prompt carried (askHuman)
         const row = { runId: runId, agentId: (ask && ask.workerAgentId) || agentId, promptId: promptId };
         if (ask && ask.tool) row.tool = ask.tool;   // additive: a reloaded floor words a question (brief.ask) as one, not an approval
+        if (ask && ask.exactCommand === true) row.exactCommand = true;   // additive (GHSA-2hpj #4): a reloaded card offers no ALWAYS for a command
         if (ask && f.detached) Object.assign(row, { background: true, tool: ask.tool, scope: ask.scope, argsSummary: ask.argsSummary,
           workerAgentId: ask.workerAgentId, workerRunId: ask.workerRunId, workerStreamId: ask.workerStreamId, streamId: ask.streamId, askedAt: ask.askedAt, leadAgentId: ask.agentId });
         out.prompts.push(row);
@@ -18035,7 +18966,7 @@ function handleCronDegradedClear(req, res) {
           if (!primary.value || !Array.isArray(primary.value.jobs) || validated.jobs.length !== primary.value.jobs.length) {
             throw cronStore.publicationError('The saved routine primary cannot be restored without dropping records');
           }
-          cronJobs = validated.jobs;
+          cronJobs = cronOpenAuthority(primary.value, validated.jobs);   // review 4a: checked like any load
         });
         if (!checked.ran) return json(409, { error: 'The routine store is busy; retry the confirmation' });
       } catch (error) { holdCronPublication(error); return json(409, { error: (error && error.message) || 'The saved routine publication is still unavailable' }); }
@@ -18091,7 +19022,19 @@ function handleCronCreate(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   readBody(req, 1 << 16).then(async raw => {
     let body; try { body = JSON.parse(raw) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
-    const out = await createCronJobFromSpec(body);
+    // fix-sec2 review 3: an unattended grant lets the routine use the terminal (or accounts, or the studio) with nobody
+    // watching on every fire, so it is confirmed at the desk for exactly this routine's words
+    const grants = Array.from(normalizeUnattendedGrants(body.unattendedGrants)).sort();
+    if (grants.length && authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
+    // review2 #3: a script routine's yes is for the script's bytes as they are now; the digest is in the scope and is kept
+    let scriptDigest = '';
+    if (grants.length && body.script) { try { scriptDigest = cronScriptDigest(Object.assign({}, body, { agentId: parseCronAgentIdOr400(body.agentId) })); } catch (e) { scriptDigest = ''; } }
+    // final review #2: and for the model it runs on, as it resolves now
+    let grantDrive = null;
+    if (grants.length) { try { grantDrive = routineDriveFor(Object.assign({}, body, { agentId: parseCronAgentIdOr400(body.agentId) })); } catch (e) { grantDrive = null; } }
+    const spec = Object.assign({}, body, { scriptDigest, grantDrive });
+    if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(spec, grants), routineGrantWords(spec, grants))) return;
+    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0, scriptDigest, grantDrive });
     /* ARM ON CREATE (routine reliability, 2026-10-01): the panel used to save a routine and then toast "saved, but
        the scheduler is off — this won't run" — a routine the Commander just made never firing is the most common
        way a routine "doesn't work". body.arm:true (sent by the CREATE form, same default as routine.create's
@@ -18112,8 +19055,37 @@ function handleCronCreate(req, res) {
 /* createCronJobFromSpec(body) — the CREATE path, extracted so POST /api/cron and the /routine slash action mint
    routines through the identical validation, mint gate and locked write. Returns { status, body } shaped exactly
    like the HTTP response the route used to build inline. Never throws. */
-async function createCronJobFromSpec(body) {
+// fix-sec2 review 3: what an unattended grant on a routine is confirmed for, and the words the desk shows
+// the desk's yes for a routine's grants is for this routine as it will run: every field cronStore.RUN_FIELDS names is in
+// the scope, so a yes given for one task, script, agent or folder never covers another (review2 #2)
+function routineGrantScope(spec, grants) {
+  const s = spec || {};
+  const list = v => (Array.isArray(v) ? v.map(String) : null);
+  return crypto.createHash('sha256').update(JSON.stringify([String(s.agentId || ''), grants, String(s.name || ''), String(s.prompt || ''),
+    String(s.script || ''), String(s.workdir || ''), s.noAgent === true, list(s.enabledToolsets), list(s.skills), list(s.contextFrom),
+    s.runsLine === true, String(s.scriptDigest || ''),   // review2 #3: and the script's bytes
+    // final review #2: and its model, provider and the drive they resolve to
+    String(s.model || ''), String(s.provider || ''), String(s.grantDrive || '')])).digest('hex');
+}
+const ROUTINE_GRANT_WORDS = { workbench: 'use the terminal (run commands on this computer)', connectors: 'use your connected accounts', studio: 'make images in the studio' };
+function routineGrantWords(spec, grants, changed) {
+  const s = spec || {};
+  const rec = agentRoster.get(String(s.agentId || ''));
+  // what it will run, in its own words, so the yes is given for something the person read (review2 #2, #3)
+  const task = s.script
+    ? 'the script ' + String(s.script) + ' (this file is checked before each run, and a run that read outside content asks before it writes code beside it):\n' + cronScriptExcerpt(s) + (s.noAgent === true ? '' : '\n\nthen: ' + String(s.prompt || ''))
+    : String(s.prompt || '');
+  return { name: deskProofMod.cutPoints(String(s.name || 'untitled'), 60), agentName: deskProofMod.cutPoints(String((rec && rec.name) || s.agentId || 'an agent'), 40),
+    grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and '), task: deskProofMod.cutPoints(task, 400), changed: changed === true };
+}
+async function createCronJobFromSpec(body, opts) {
   body = body || {};
+  // an unattended grant only rides a create the desk confirmed (handleCronCreate); every other caller (the /routine slash
+  // action, an app's refresh routine, a line's schedule) makes a routine with none, as the chain-grants law says
+  if (!(opts && opts.grantsConfirmed === true)) body = Object.assign({}, body, { unattendedGrants: [] });
+  // the script digest is the station's own, read when the desk said yes (review2 #3); never the body's
+  body = Object.assign({}, body, { scriptDigest: (opts && opts.grantsConfirmed === true && typeof opts.scriptDigest === 'string') ? opts.scriptDigest : null,
+    grantDrive: (opts && opts.grantsConfirmed === true && typeof opts.grantDrive === 'string') ? opts.grantDrive : null });   // final review #2
   const out = (status, obj) => ({ status: status, body: obj });
   const takeoverId = body.meta && body.meta.workflowTakeoverId;
   const widgetId = body.meta && body.meta.widgetId;
@@ -18190,7 +19162,7 @@ async function createCronJobFromSpec(body) {
       // on this routine. cron-store whitelists it and inputpolicy re-filters at the gate, so an arbitrary body
       // value cannot widen a run. Absent -> [] -> the routine has no terminal, exactly as before.
       unattendedGrants: body.unattendedGrants,
-      skills: body.skills, script: body.script, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
+      skills: body.skills, script: body.script, scriptDigest: body.scriptDigest, grantDrive: body.grantDrive, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
       noAgent: body.noAgent, enabledToolsets: body.enabledToolsets, attachToSession: body.attachToSession,
       monitorMode: body.monitorMode === true,
       origin: body.origin,
@@ -18269,17 +19241,58 @@ function handleCronUpdate(req, res) {
        NOW, read inside the lock. The row's ▣ ALLOW IMAGES sends it. A page sending its rendered list instead could
        re-add a grant that was dropped since that row was drawn (an agent rewriting the task clears them all). */
     const addGrants = Array.isArray(body.addGrants) ? body.addGrants.map(g => String(g == null ? '' : g).trim()).filter(Boolean) : [];
+    /* fix-sec2 review 3: a grant this routine does not hold yet is confirmed at the desk (removing one never asks).
+       review2 #2: a grant was given for what the routine runs. An edit that changes that (its task, script, agent,
+       folder, toolsets, skills, upstream routines: cronStore.RUN_FIELDS) drops every grant it holds, unless the edit
+       asks to keep them (keepGrants) and the desk says yes for the routine as it will run. Before, a desk-confirmed
+       grant stayed on a routine whose prompt or script the page key had just rewritten. */
+    const keepGrants = body.keepGrants === true;
+    let confirmed = new Set(), confirmedDigest, confirmedDrive;
+    {
+      const current = cronStore.getJob(cronJobs, id) || {};
+      const held = new Set(normalizeUnattendedGrants(current.unattendedGrants));
+      const wanted = addGrants.length
+        ? new Set([...normalizeUnattendedGrants(Array.isArray(patch.unattendedGrants) ? patch.unattendedGrants : (current.unattendedGrants || []))].concat([...normalizeUnattendedGrants(addGrants)]))
+        : (Object.prototype.hasOwnProperty.call(patch, 'unattendedGrants') ? normalizeUnattendedGrants(patch.unattendedGrants) : held);
+      const added = [...wanted].filter(g => !held.has(g)).sort();
+      const rewrite = cronStore.grantsRevokedByEdit(current, patch).length > 0;
+      // review2 #3: a script whose bytes changed since the last yes is a rewrite too, for keeping its grants (ALLOW THIS VERSION)
+      const stale = cronScriptStale(current);
+      const confirm = ((rewrite || stale) && keepGrants) ? [...wanted].sort() : added;
+      if (confirm.length) {
+        if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
+        const spec = Object.assign({}, current, patch);
+        spec.scriptDigest = cronScriptDigest(spec);
+        spec.grantDrive = routineDriveFor(spec);   // final review #2: the model it will run on, as it resolves now
+        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, confirm), routineGrantWords(spec, confirm, rewrite || stale))) return;
+        confirmed = new Set(confirm);
+        if (spec.script) confirmedDigest = spec.scriptDigest;
+        confirmedDrive = spec.grantDrive;
+      }
+    }
+    let grantsDropped = [];
     try {
       // G4.3: the full edit (updateJob + optional pause/resume) is ONE re-read-modify-write under the lock,
       // so it cannot clobber a concurrent advance and the pause/resume sees the just-updated job.
       await withCronWrite(jobs => {
         const current = cronStore.getJob(jobs, id);
-        const edit = addGrants.length
+        let edit = addGrants.length
           ? Object.assign({}, patch, { unattendedGrants: (Array.isArray(patch.unattendedGrants) ? patch.unattendedGrants : ((current && current.unattendedGrants) || [])).concat(addGrants) })
           : patch;
+        // review2 #2: what the edit revokes is read here, under the lock, from the routine as it is now. Only a grant the
+        // desk just confirmed for the routine as it will run survives it.
+        const revoked = cronStore.grantsRevokedByEdit(current, patch);
+        if (revoked.length) {
+          const base = [...normalizeUnattendedGrants(Array.isArray(edit.unattendedGrants) ? edit.unattendedGrants : ((current && current.unattendedGrants) || []))];
+          const keep = base.filter(g => revoked.indexOf(g) < 0 || confirmed.has(g));
+          grantsDropped = revoked.filter(g => keep.indexOf(g) < 0);
+          edit = Object.assign({}, edit, { unattendedGrants: keep });
+        }
         const candidate = Object.assign({}, current, edit);
         if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
-        let next = cronStore.updateJob(jobs, id, edit, { now: Date.now(), defaultTz: CRON_HOST_TZ });
+        // review2 #3: the bytes the desk's yes was for, recorded with it
+        let next = cronStore.updateJob(jobs, id, edit, Object.assign({ now: Date.now(), defaultTz: CRON_HOST_TZ }, confirmedDigest !== undefined ? { scriptDigest: confirmedDigest } : {},
+          confirmedDrive !== undefined ? { grantDrive: confirmedDrive } : {}));
         if (enabled === true) next = cronStore.resumeJob(next, id, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         else if (enabled === false) next = cronStore.pauseJob(next, id);
         return next;
@@ -18289,7 +19302,7 @@ function handleCronUpdate(req, res) {
     // work NOW, not after up to maxRunMs more spend. Only after the durable write above succeeded, so a
     // failed save never kills a run the store still says is armed.
     if (enabled === false) { const lease = cronDriver.leases.get(id); if (lease && lease.ac) { try { lease.ac.abort(); } catch (e) { failNote('cron.pause.abort', e); } } }
-    json(200, { ok: true, job: cronStore.getJob(cronJobs, id) });
+    json(200, grantsDropped.length ? { ok: true, job: cronStore.getJob(cronJobs, id), grantsDropped } : { ok: true, job: cronStore.getJob(cronJobs, id) });
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 
@@ -18529,7 +19542,8 @@ async function handleCronRun(req, res) {
       unattendedGrants: Array.isArray(job.unattendedGrants) ? job.unattendedGrants.slice() : [],
       // SOP recipes: Run Now is held to the same host-checked acceptance contract as the scheduled fire.
       postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
-      preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null,
+      preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null, cronScriptDigest: job.scriptDigest || null,
+      cronGrantDrive: job.grantDrive || null,   // the model its grants were given for (routineDriveFor, final review #2)
       scriptTimeoutMs: job.scriptTimeoutMs,
       // dockId comes from the crate above (placeCronWorkitem resolves job.dockId, else the agent's entry bay), exactly
       // like the scheduled fire's wrapper — a second dockId key here silently overrode it with undefined.
@@ -19306,12 +20320,29 @@ async function handleQuestsRefreshNorthStar(req, res) {
 
 // POST /api/workshop/grant { agentId, on } — record/clear the Commander's "Build things while I'm away" consent
 // for an agent, and arm/disarm its workshop shift routine accordingly. Plain-language surface; not a jargon knob.
+/* THE AWAY WORKSHOP IS ASKED AT THE DESK (fix-sec2 review2 #9). Turning it on is a standing unattended write grant (and
+   arms a build shift that spends), so it takes the same desk question as a station-wide grant ('grant', scoped to the
+   agent's workshop). Turning it off, or asking for what it already has, never asks. The dial's own raise to building and
+   "/away on" ask the same question. */
+function workshopDeskDetails(agentId, dial) {
+  const row = agentRoster.get(String(agentId || '')) || {};
+  return { workshop: true, dial: !!dial, agentName: String(row.name || agentId || '') };
+}
+function workshopRaiseAtDesk(req, res, agentId, dial) {
+  return deskGate(req, res, 'grant', 'workshop:' + agentId, workshopDeskDetails(agentId, dial));
+}
+// "/away on" from a slash command: the workshop grant, when the agent does not already hold it
+function slashAwayGrant(directive, agentId) {
+  return !!(directive && directive.type === 'server' && String(directive.action || '') === 'away'
+    && String(directive.args == null ? '' : directive.args).trim().toLowerCase() === 'on' && !workshopOf(agentId));
+}
 async function handleWorkshopGrant(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
   if (refuseBadAgentId(res, agentId)) return;
   const on = body.on === true || body.on === 'true';
+  if (on && !workshopOf(agentId) && !workshopRaiseAtDesk(req, res, agentId, false)) return;
   try { await workshopStore.setGrant(agentId, on); } catch (e) { return json(500, { error: 'could not save that setting' }); }
   try { if (on) await armWorkshopShift(agentId); else await disarmWorkshopShift(agentId); } catch (_) {}
   json(200, { ok: true, agentId: agentId, on: on });
@@ -20012,7 +21043,7 @@ const WORKSHOP_RUN_PREFIX = '/workshop-run/';
 async function serveWorkshopRun(req, res) {
   const reqPath = String(req.url || '').split('?')[0];
   const ticketed = apitickets.splitRunTicket(reqPath);                 // { ticket, rest } | null
-  if (!ticketed && !apiauth.apiTokenOk(req, API_TOKEN)) return refuseAtGate(req, res, 'forbidden token');
+  if (!ticketed && !stationTokenOk(req)) return refuseAtGate(req, res, 'forbidden token');
   let abs;
   try {
     const rawPath = decodeURIComponent(ticketed ? WORKSHOP_RUN_PREFIX + ticketed.rest : reqPath);
@@ -20027,7 +21058,7 @@ async function serveWorkshopRun(req, res) {
     if (ticketed) {
       // the ticket is bound to (agentId, runId) — the VERIFIER derives both from the path, never from the ticket
       const runId = rel.slice(0, rel.indexOf('/'));
-      const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'run', apitickets.scopeRun(agentId, runId), { now: Date.now() });
+      const v = stationTicketVerify(ticketed.ticket, 'run', apitickets.scopeRun(agentId, runId));
       if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     }
     ({ abs } = await fsJail.resolveInside(agentId, 'workshop/' + rel));  // throws on '..'/absolute/symlink/bad agentId
@@ -20086,7 +21117,7 @@ async function serveWorkspaceView(req, res) {
     if (refuseBadAgentId(res, agentId)) return;
     const parts = (dir ? dir.split('/') : []).concat(tail.join('/').split('/'));
     if (parts.some(s => !s || s.charAt(0) === '.' || s.indexOf('\\') >= 0)) { res.writeHead(403, { 'X-StarNet-Code': 'path_refused' }); return res.end('forbidden'); }
-    const v = apitickets.verify(API_TOKEN, ticketed.ticket, 'view', apitickets.scopeView(agentId, dir), { now: Date.now() });
+    const v = stationTicketVerify(ticketed.ticket, 'view', apitickets.scopeView(agentId, dir));
     if (!v.ok) { res.writeHead(403, { 'X-StarNet-Code': 'ticket_refused' }); return res.end('forbidden ticket'); }
     ({ abs } = await fsJail.resolveInside(agentId, parts.join('/')));
   } catch (e) {
@@ -20177,6 +21208,10 @@ async function handleHooksCreate(req, res) {
   catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }
   const event = String((body && body.event) || '').trim();
   if (hookSpine.events().indexOf(event) < 0) return json(400, { error: 'unknown event — pick one of: ' + hookSpine.events().join(', ') });
+  /* fix-sec2 review 3: creating here also approves it (see above), so the desk confirms the command first. The keystrokes
+     are the Commander's in the app, but the page token alone is anyone's who can read the page. */
+  const hookCommand = String((body && body.command) || '').trim();
+  if (hookCommand && !deskGate(req, res, 'hook-allow', event + '\n' + hookCommand, { event, command: deskProofMod.cutPoints(hookCommand, 900) })) return;
   const r = await shellHooks.create({ event, command: (body && body.command) || '', name: (body && body.name) || '' });
   if (!r.ok) return json(400, { error: r.error });
   try { await reloadExtensions(); }
@@ -20381,6 +21416,8 @@ async function handlePluginsAllow(req, res) {
   const match = found.plugins.find(p => p.id === id);
   if (!match) return json(404, { error: 'no such plugin installed: ' + id });
   if (match.digest !== digest) return json(409, { error: 'this plugin changed since you read it — re-read /api/plugins and approve the current code', digest: match.digest });
+  // fix-sec2 review 3: approved code runs inside the station; the desk confirms this exact digest
+  if (!deskGate(req, res, 'plugin-allow', id + '@' + digest, { name: deskProofMod.cutPoints(String(match.name || id), 60), digest: digest.slice(0, 16) })) return;
   if (!(await pluginLoader.allow(id, digest))) return json(500, { error: 'could not persist the approval' });
   // Same in-place rebuild as the hooks route, and the same ordering: plugins first, then shell hooks.
   try {
@@ -20423,6 +21460,8 @@ async function handleHooksAllow(req, res) {
   try { cfg = await shellHooks.load(); } catch (_) { cfg = { hooks: [] }; }
   const match = cfg.hooks.find(h => h.event === event && h.command === command);
   if (!match) return json(404, { error: 'no such hook in hooks.json — this route approves a configured hook, it never adds one' });
+  // fix-sec2 review 3: an approved hook runs this command as the user on every such event; the desk confirms this exact pair
+  if (!deskGate(req, res, 'hook-allow', event + '\n' + command, { event, command: deskProofMod.cutPoints(command, 900) })) return;
   if (!(await shellHooks.allow(event, command))) return json(500, { error: 'could not persist the approval' });
   // Re-install so the newly-approved hook is live immediately, with no restart. The spine is cleared IN PLACE
   // rather than replaced: it was captured by reference at boot (by the dispatch ctx and by every in-flight
@@ -20566,6 +21605,10 @@ async function handleRoster(req, res) {
   // P2.1: DEGRADED — this workspace was stamped by a NEWER StarNet. Refuse a destructive roster overwrite (the
   // route replaces the whole store) rather than corrupt data this code doesn't understand. Reads/runs are untouched.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  /* HELD: SAY WHY, BEFORE ANY DIALOG (final review B3). While the seal is held (no key over a sealed workspace) no roster
+     save can land. The push used to reach the save and answer 500 "could not persist roster", and a raise confirmed at
+     the desk showed the native dialog first, then failed the same way. Nothing is lost: it saves once the key is back. */
+  if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held, held: true });
   /* THE ROSTER'S REVISION CHECK (save-latch-kill; the roster was a second copy of the crew, last-write-wins on page clocks):
      a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()). A push built on an
      OLDER station revision than the station file holds — another window or a merge wrote since — would put that window's
@@ -20599,7 +21642,110 @@ async function handleRoster(req, res) {
   const previousRoster = new Map(agentRoster);
   const previousRaw = new Map(agentRosterRaw);
   const previousUpdatedAt = agentRosterUpdatedAt, previousSaveRevision = agentRosterSaveRevision;
-  replaceAgentRoster(rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents);
+  /* RAISING AN AGENT TO FULL ACCESS NEEDS THE DESK (GHSA-2hpj-9wm7-rvg5 #1). A row that turns an agent the station holds
+     as ask-first (or a new agent) into approvalMode 'full' is a raise. A push that ASKS for it (raise: [ids], sent by the
+     page's own setAgentApproval / onboarding / /yolo) must carry a desk proof for exactly those agents (deskGate: the
+     page's fetch wrapper confirms and replays). Any other push (a page booting from its save, a stale tab, a save some
+     process wrote) cannot raise anyone: those rows are kept ask-first and named in `clamped`, and the page puts its own
+     copy back. Lowering is never refused. */
+  let incomingRows = rosterMerge ? mergeRosterRows(previousRaw, body.agents, rosterMerge) : body.agents;
+  const raised = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || '');
+    if (a && a.approvalMode === 'full' && !(previousRoster.get(id) && previousRoster.get(id).approvalMode === 'full')) raised.push(id);
+  }
+  /* A WIDER EXECUTION PROFILE IS A RAISE TOO (fix-sec2 review 7). THIS COMPUTER reaches host paths, a trusted project the
+     approved folders, Remote SSH another machine; Station Gear and Safe Cell are the narrow ones. A push that asks for
+     it (raiseProfile: [ids], sent by the dossier's profile picker) is confirmed at the desk; any other push keeps the
+     profile the station holds (named in `profileClamped`). Narrowing is never refused. One confirmation covers a push
+     that asks for both raises. */
+  const rowOf = id => incomingRows.find(x => String((x && x.agentId) || '') === id) || {};
+  const nameOf = id => '"' + deskProofMod.cutPoints(String(rowOf(id).name || id), 40) + '"';
+  const profileOf = row => executionProfiles.normalizeId(row && row.executionProfile);
+  const widened = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+    // a NEW agent with the product's own default (TRUSTED PROJECT: every summon, onboarding's Overseer, CLI awaken) is
+    // not a raise (fix-sec2 review2, breakage 1); widening an agent the station already holds still asks
+    if (!prev && profileOf(a) === NEW_AGENT_EXECUTION_PROFILE) continue;
+    if (NARROW_EXECUTION_PROFILES.indexOf(profileOf(a)) < 0 && !(prev && prev.executionProfile === profileOf(a))) widened.push(id);
+  }
+  /* WHICH QUESTION IS ASKED IS DECIDED BY THE BODY ALONE (review2, breakage 2). It used to be decided in part by whether a
+     desk proof header was present, so the replay of a confirmed Full Access raise took the combined branch, its proof
+     did not match that question, and the person's yes was lost. A push that asks for a raise (raise or raiseProfile)
+     of an agent whose profile also widens is asked both in one question, on the first request and on its replay. */
+  const askedProfile = new Set((Array.isArray(body.raiseProfile) ? body.raiseProfile : []).map(String));
+  const askedRaise = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
+  let profileClamped = [];
+  if (widened.length) {
+    const askingRaise = raised.length > 0 && raised.some(id => askedRaise.has(id));
+    if (widened.some(id => askedProfile.has(id) || askedRaise.has(id))) {
+      // the profile is confirmed here; a Full Access raise in the same push is confirmed with it (one dialog, both named)
+      const profiles = widened.map(id => nameOf(id) + ' use the ' + executionProfiles.resolve(profileOf(rowOf(id)), {}).label + ' profile');
+      if (askingRaise) profiles.unshift('FULL ACCESS for ' + raised.map(nameOf).join(', '));
+      const scope = widened.map(id => id + '=' + profileOf(rowOf(id))).sort().join(',') + (askingRaise ? '|full:' + raised.slice().sort().join(',') : '');
+      // final review B5: 'Let FULL ACCESS for "Overseer", and "Overseer" use the ...' read garbled; ask it as one question
+      let question = '';
+      if (askingRaise) {
+        const label = id => executionProfiles.resolve(profileOf(rowOf(id)), {}).label;
+        const both = widened.filter(id => raised.indexOf(id) >= 0);
+        const parts = both.map(id => nameOf(id) + ' FULL ACCESS and the ' + label(id) + ' profile')
+          .concat(raised.filter(id => both.indexOf(id) < 0).map(id => nameOf(id) + ' FULL ACCESS'))
+          .concat(widened.filter(id => both.indexOf(id) < 0).map(id => nameOf(id) + ' the ' + label(id) + ' profile'));
+        question = 'Give ' + parts.join(', and ') + '?';
+      }
+      if (!deskGate(req, res, 'execution-profile', scope, { names: profiles.join(', and '), question })) return;
+      if (askingRaise) raised.length = 0;   // confirmed with the profile above
+    } else {
+      profileClamped = widened;
+      const keep = new Set(profileClamped);
+      incomingRows = incomingRows.map(a => (a && keep.has(String(a.agentId || '')))
+        ? Object.assign({}, a, { executionProfile: (previousRoster.get(String(a.agentId)) || {}).executionProfile || 'station-gear' }) : a);
+    }
+  }
+  let clamped = [];
+  if (raised.length) {
+    if (raised.some(id => askedRaise.has(id))) {
+      const names = raised.map(nameOf);
+      if (!deskGate(req, res, 'approval-full', raised.slice().sort().join(','), { names: names.join(', '), count: raised.length })) return;
+    } else {
+      clamped = raised;
+      const keep = new Set(clamped);
+      incomingRows = incomingRows.map(a => (a && keep.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
+    }
+  }
+  /* WHAT DRIVES A FULL ACCESS AGENT IS PART OF ITS FULL ACCESS (fix-sec2 review2 #6). Full Access was bound to the agent's
+     id alone, so a push could rewrite a Full Access agent's instructions, or point it at another model or provider, and it
+     kept running every tool with no card, on every surface, under words the Commander never saw. A push that changes
+     what drives an agent the station holds at Full Access (fullAccessDriveOf: its own instructions, model, provider,
+     skills) keeps Full Access only when it asks to (keepFull: [ids], sent by the page when the Commander edits the
+     agent) and the desk confirms, showing the new instructions; any other such push drops the agent to ask-first, named
+     in `clamped`. Under the desktop shell, the key GET / serves (CLIENT_TOKEN: the CLI, the bridges, any command an agent
+     runs) cannot change a Full Access agent's persona at all without dropping it. */
+  const askedKeep = new Set((Array.isArray(body.keepFull) ? body.keepFull : []).map(String));
+  const clientKeyPush = !!CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN);
+  const redriven = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+    if (!a || a.approvalMode !== 'full' || !prev || prev.approvalMode !== 'full') continue;   // a raise was asked above
+    if (fullAccessDriveOf(a) !== fullAccessDriveOf(prev) || (clientKeyPush && String(a.system || '') !== String(prev.system || ''))) redriven.push(id);
+  }
+  if (redriven.length) {
+    const keepAsked = redriven.filter(id => askedKeep.has(id)).sort();
+    if (keepAsked.length) {
+      const first = rowOf(keepAsked[0]);
+      if (!deskGate(req, res, 'approval-full', 'keep:' + keepAsked.map(id => id + '=' + fullAccessDriveOf(rowOf(id))).join(','), {
+        names: keepAsked.map(nameOf).join(', '), count: keepAsked.length, keep: true,
+        model: deskProofMod.cutPoints(String(first.model || 'the station default'), 80) + (first.provider ? ' (' + deskProofMod.cutPoints(String(first.provider), 40) + ')' : ''),
+        excerpt: deskProofMod.cutPoints(fullAccessInstructions(first.system).trim(), 500) })) return;
+    }
+    const drop = new Set(redriven.filter(id => keepAsked.indexOf(id) < 0));
+    if (drop.size) {
+      clamped = clamped.concat([...drop]);
+      incomingRows = incomingRows.map(a => (a && drop.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
+    }
+  }
+  replaceAgentRoster(incomingRows);
   if (hasBase) agentRosterSaveRevision = Math.max(ceiling, baseRevision);
   if (!saveAgentRoster(hasStamp ? (rosterMerge ? Math.max(incomingUpdatedAt, agentRosterUpdatedAt) : incomingUpdatedAt) : undefined)) {
     // POST /api/roster replaces the whole live roster, so a rejected durable replace must also roll RAM back.
@@ -20609,7 +21755,7 @@ async function handleRoster(req, res) {
     agentRosterUpdatedAt = previousUpdatedAt; agentRosterSaveRevision = previousSaveRevision;
     return json(500, { ok: false, error: 'could not persist roster' });
   }
-  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}));
+  json(200, Object.assign({ ok: true, count: agentRoster.size, updatedAt: agentRosterUpdatedAt }, agentRosterHeld ? { held: true } : {}, clamped.length ? { clamped } : {}, profileClamped.length ? { profileClamped, profilesHeld: Object.fromEntries(profileClamped.map(id => [id, (agentRoster.get(id) || {}).executionProfile || 'station-gear'])) } : {}));
 }
 
 // POST /api/agent/delete { agentId } — DOSSIER › DELETE AGENT. Removes a summoned agent from the SERVER roster
@@ -20647,9 +21793,16 @@ async function handleAgentModel(req, res) {
     return json(409, pageRefusal(out, agentId));
   }
   // no page: nothing was awaited since `cur` was read, so this writes onto the roster as it is now
-  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}));
-  if (!saveAgentRoster()) { agentRoster.set(agentId, cur); return json(500, { error: 'could not save the roster' }); }
-  return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {}));
+  // review2 #6 (route census): a new model for a Full Access agent drops it to ask-first, as a roster push and a new
+  // personality do (Full Access is given again at the desk). The effort alone is not part of what drives it.
+  const raw = agentRosterRaw.get(agentId);
+  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { model, provider })) !== fullAccessDriveOf(cur);
+  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {}));
+  if (dropFull) agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { approvalMode: 'ask' }));
+  if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (dropFull) { if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); } return json(500, { error: 'could not save the roster' }); }
+  if (dropFull) saveApprovalMode(agentId, 'ask');
+  return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {},
+    dropFull ? { fullAccessDropped: true, note: 'its model changed, so it asks first now; give it Full Access again at the desk' } : {}));
 }
 /* POST /api/agent/approval {agentId, mode:'ask'|'full'} and POST /api/agent/personality {agentId, personality, system?} — one
    agent's approval mode or personality, for a client with no page of its own (the terminal's /yolo and /personality). The
@@ -20706,6 +21859,23 @@ function saveApprovalMode(agentId, mode) {
   try { seedSaveMemos('agent', doc); } catch (e) { failNote('agent.approval.seed-memos', e); }
   return { save: 'patched' };
 }
+// fix-sec2 review 7: Full Access raises a terminal or client relays to the open window (each one a native dialog)
+const RELAYED_RAISE_MAX = 3, RELAYED_RAISE_WINDOW_MS = 10 * 60 * 1000, RELAYED_RAISE_GAP_MS = 30 * 1000;
+const relayedRaiseTimes = [];
+const NARROW_EXECUTION_PROFILES = Object.freeze(['station-gear', 'safe-cell']);   // as authority-seal.js NARROW_PROFILES
+const NEW_AGENT_EXECUTION_PROFILE = 'trusted-project';   // what a new agent is given (app.js summon/onboarding, bin/lib/awaken.js)
+/* fullAccessDriveOf(row) -> a digest of what drives an agent (review2 #6): the Commander's own instructions, model, provider
+   and skills. The persona's learned tail (the Commander dossier, the fork directive: learned-tail.js) and the one-line YOUR
+   CREW roster clause are composed by the page as the station learns and as the crew changes, so they are left out; a
+   second crew line, or anything after it, is not. */
+function fullAccessInstructions(system) {
+  return LearnedTail.split(String(system || '')).stable.replace(/\n\nYOUR CREW: [^\n]*/, '');
+}
+function fullAccessDriveOf(row) {
+  const r = row && typeof row === 'object' ? row : {};
+  const skills = Array.isArray(r.skills) ? [...new Set(r.skills.map(s => String(s || '').trim()).filter(Boolean))].slice(0, 40).sort() : [];
+  return crypto.createHash('sha256').update(JSON.stringify([fullAccessInstructions(r.system), r.model ? String(r.model) : '', normalizeProviderId(r.provider || ''), skills])).digest('hex').slice(0, 32);
+}
 async function handleAgentApproval(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
@@ -20716,10 +21886,24 @@ async function handleAgentApproval(req, res) {
   const mode = body.mode === 'full' ? 'full' : body.mode === 'ask' ? 'ask' : '';
   if (!mode) return json(400, { error: 'approval is "ask" or "full"' });
   if (pageListening()) {
+    /* NOT A DIALOG MACHINE (fix-sec2 review 7). Raising here makes the open window ask the Commander to confirm Full Access
+       in a native dialog nobody at the desk asked for. Anything holding the page key could repeat that until a tired
+       Commander clicks yes, so a raise relayed to the window is rate limited (lowering never is). */
+    if (mode === 'full' && cur.approvalMode !== 'full') {
+      const t = Date.now();
+      while (relayedRaiseTimes.length && relayedRaiseTimes[0] <= t - RELAYED_RAISE_WINDOW_MS) relayedRaiseTimes.shift();
+      if (relayedRaiseTimes.length >= RELAYED_RAISE_MAX || (relayedRaiseTimes.length && t - relayedRaiseTimes[relayedRaiseTimes.length - 1] < RELAYED_RAISE_GAP_MS))
+        return respondFail(res, 429, 'rate_limited', 'Full Access was asked for from outside the StarNet window too often just now. Give it in the agent\'s dossier, or ask again in a few minutes.');
+      relayedRaiseTimes.push(t);
+    }
     const out = await stationBridge.request('station.control', { action: 'agent.approval', agent: agentId, mode });
     if (out && out.ok) return json(200, { ok: true, agentId, mode, via: 'page' });
     return json(409, pageRefusal(out, agentId));
   }
+  // no page: raising to FULL needs the desk's confirmation (GHSA-2hpj #1). Under the desktop shell a terminal holds only the
+  // client key, so it is told to use the StarNet window (with the app open, the page above confirms it there); a bare
+  // station's terminal (`starnet` with no app) confirms the typed /yolo itself (bin/lib/dashboard.js). Lowering never asks.
+  if (mode === 'full' && cur.approvalMode !== 'full' && !deskGate(req, res, 'approval-full', agentId, { names: '"' + deskProofMod.cutPoints(String(cur.name || agentId), 40) + '"', count: 1 })) return;
   // no page: nothing was awaited since `cur` was read. The roster takes it either way (taking power away is never refused:
   // the station's runs ask first from now). Taking it away also goes into the app's save, the copy the app hydrates its
   // crew from and pushes back when it opens; `save` says whether it took it, so the caller never reports as lasting a
@@ -20747,10 +21931,13 @@ async function handleAgentPersonality(req, res) {
   const system = typeof body.system === 'string' ? body.system : '';
   if (!system.trim() || system.length > 400000) return json(409, { error: 'no StarNet page is open to compose the new prompt, and none was sent' });
   const raw = agentRosterRaw.get(agentId);
-  agentRoster.set(agentId, Object.assign({}, cur, { system }));
-  agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { personaId: personality }));
+  // review2 #6: new instructions for a Full Access agent drop it to ask-first (Full Access is given again at the desk)
+  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { system })) !== fullAccessDriveOf(cur);
+  agentRoster.set(agentId, Object.assign({}, cur, { system }, dropFull ? { approvalMode: 'ask' } : {}));
+  agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { personaId: personality }, dropFull ? { approvalMode: 'ask' } : {}));
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); return json(500, { error: 'could not save the roster' }); }
-  return json(200, { ok: true, agentId, personality, via: 'roster' });
+  if (dropFull) saveApprovalMode(agentId, 'ask');
+  return json(200, Object.assign({ ok: true, agentId, personality, via: 'roster' }, dropFull ? { fullAccessDropped: true, note: 'its instructions changed, so it asks first now; give it Full Access again to undo that' } : {}));
 }
 async function handleAgentDelete(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -21263,6 +22450,8 @@ async function runSlashForChannel(input, ctx) {
   // Only dispatch:'server' commands can answer off-browser. A client command would need the DOM, so say that
   // plainly rather than returning an empty reply that reads like a failure.
   if (out.directive.type !== 'server') return { ok: false, text: 'That command only works in the StarNet desktop app.' };
+  // review2 #9: a chat cannot confirm at the desk, so it cannot turn on the away workshop ("/away off" still works)
+  if (slashAwayGrant(out.directive, agentId)) return { ok: false, text: 'Turning on "build while away" is confirmed in the StarNet window: turn it on there (/away on in the desktop app, or the agent\'s settings).' };
   let r;
   // the chat a messaging hub ran this from (hub.js: { channel, chatId, threadId }) — /routine add delivers there
   const dOrigin = (ctx.deliveryOrigin && typeof ctx.deliveryOrigin === 'object' && ctx.deliveryOrigin.channel && ctx.deliveryOrigin.chatId) ? ctx.deliveryOrigin : null;
@@ -21293,6 +22482,8 @@ async function handleSlashDispatch(req, res) {
       agentId: /^[A-Za-z0-9_-]{1,40}$/.test(String(body.agentId || '')) ? String(body.agentId) : 'agent',
       placed: placed
     };
+    // review2 #9: "/away on" is the away-workshop grant, asked at the desk like the toggle
+    if (slashAwayGrant(out.directive, ctx.agentId) && !workshopRaiseAtDesk(req, res, ctx.agentId, false)) return;
     const r = await slashActions.run(out.directive.action, out.directive.args, ctx);
     // A refusal is still a 200: the command RAN and produced an honest answer ("no such routine"). Only an
     // unknown action is a 404 — the browser must be able to tell "it said no" from "it never executed".
@@ -21815,10 +23006,11 @@ async function handleSkillCandidateAction(req, res) {
       const runCase = SkillEvaluationRunner.makeAgentLoopCaseRunner({ provider, model: cfg.model, unmetered, cost: makeCostEngine({ priceOf: provider.priceOf }), clock: { now: () => Date.now() },
         runIdPrefix: evalPrefix, limits: { maxIters: 8, maxCostUsd: lim.perRunUsd, grace: false },
         scrub: PromptScrub.scrubStored,   // the skill under evaluation is stored exact; it reaches the model scrubbed
-        authorize: async () => !controller.signal.aborted && accounting.canContinue() && !governor.admit('skill-evaluation', { providerId, agentId }),
+        // EVALUATE is the Commander's press (attended: the soft rail counts its floor instead of pausing it, GHSA-2hpj #8)
+        authorize: async () => !controller.signal.aborted && accounting.canContinue() && !governor.admit('skill-evaluation', { providerId, agentId, attended: true }),
         beforeRun: accounting.beforeRun,
         beforeStream: ({ runId, spentUsd }) => !controller.signal.aborted && accounting.canContinue(spentUsd) &&
-          !governor.admit('skill-evaluation', { providerId, agentId, runId, spentUsd }),
+          !governor.admit('skill-evaluation', { providerId, agentId, runId, spentUsd, attended: true }),
         onStream: accounting.onStream,
         onRun: accounting.onRun
       });
@@ -22115,6 +23307,12 @@ async function handleRun(req, res) {
       emitPrompt: (promptId) => {
         askId = promptId;
         const row = { promptId, agentId, tool: (fields && fields.tool) || 'tool', scope: (fields && fields.scope) || 'write', argsSummary: (fields && fields.argsSummary) || '' };
+        // review2 #12 (additive): a tainted path card's exact file, what the run read, and why the file matters
+        if (fields && fields.file) Object.assign(row, { file: fields.file, taintedBy: fields.taintedBy || '', standing: fields.standing || '' });
+        // fix-sec2 breakage 9 (additive): a fresh-consent ask says so, and the page offers only once or deny
+        if (fields && fields.fresh) row.fresh = true;
+        // additive (GHSA-2hpj #4): a command — every surface offers no ALWAYS for it, and "for this session" covers this exact call only
+        if (fields && fields.exactCommand === true) row.exactCommand = true;
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -22129,6 +23327,7 @@ async function handleRun(req, res) {
         if (orig) { orig.askRow = row; if (detached) orig.detached = true; }   // the snapshot + the page-closed note read these
         if (orig && fields && fields.fresh) orig.freshConsent = true;   // handleConsent: a "full" here approves this call only
         if (orig && fields && fields.outsideContent === true) orig.outsideContent = true;   // handleConsent: an "always" here approves this call only
+        if (orig && fields && fields.exactCommand === true) orig.exactCommand = true;   // handleConsent: an "always" here approves this call only (GHSA-2hpj #4)
         // an answer from the TERMINAL (POST /api/consent { via:'terminal' }) settles a card the page still shows: tell the page
         // on this run's own stream, the way a phone answer does, so the desk never keeps live keys on a settled ask
         if (orig) orig.announce = (decision) => { announced = true; answeredVia = 'terminal'; try { say('permission.response', { promptId, decision, via: 'terminal' }); } catch (e) { failNote('consent.terminalResponse', e); } };
@@ -22171,7 +23370,7 @@ async function handleRun(req, res) {
     // ask.outsideContent: the post-taint one-call confirmation (dispatch, TAINT ENFORCEMENT), where an Always answer approves
     // this call only; the card says so instead of offering Always (customer report 11-08: Gmail asked again for every email)
     const outsideContent = !!(ask && ask.outsideContent === true) && !(tool && tool.freshConsent === true);
-    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true), outsideContent }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
+    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true), outsideContent, exactCommand: isExactCommand(tool) }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
   }
   // NS-5: the "work in <root>? always/once/no" channel — the SAME permission.prompt mechanism, so the browser's
   // existing consent card answers it (Always = record a standing path grant; Approve once = this access only;
@@ -22211,7 +23410,15 @@ async function handleRun(req, res) {
       : { answered: false });
   }
   function promptPathTrust(proposedRoot, info) {
-    return askHuman({ tool: 'path.trust', scope: (info && info.scope) || 'read', argsSummary: String(proposedRoot || '') });
+    const i = info || {};
+    /* review2 #12: a write by a run that read outside content names the exact file and what the run read (argsSummary
+       stays the folder: a standing answer anchors the conversation to it). */
+    const tainted = i.tainted === true
+      ? { file: String(i.path || '').slice(0, 1000), taintedBy: String(i.taintedBy || '').slice(0, 300), standing: String(i.standing || '').slice(0, 200) } : {};
+    /* fix-sec2 breakage 9: that card is FRESH (askHuman fields.fresh -> freshConsent). ALWAYS and session record nothing
+       for a tainted write (pathtrust.js), and FULL would have kept the agent's Full Access when the person meant this one
+       write, so the station applies any yes as once and the card offers only once or deny. */
+    return askHuman(Object.assign({ tool: 'path.trust', scope: i.scope || 'read', argsSummary: String(proposedRoot || '') }, tainted, i.tainted === true ? { fresh: true } : {}));
   }
 
   // THE LIVE SUMMON CHANNEL (mirrors promptConsent): the orchestrator's team.summon tool calls ctx.summon(spec);
@@ -22765,7 +23972,17 @@ async function runOnceCore(o) {
      output or Full Access. Interactive runs ignore it entirely: THE MOAT (floor-real placement) governs there,
      and auto-granting a WORKBENCH would hand over a power the Commander never put on the floor. Absent on every
      other caller, so every non-cron surface stays byte-identical. */
-  const unattendedGrants = surface === 'interactive' ? [] : Array.from(normalizeUnattendedGrants(o.unattendedGrants));
+  // while the authority seal holds (it cannot check cron.jobs.json, review 4a/4d) no routine runs with its grants
+  const unattendedGrants = (surface === 'interactive' || authoritySeal.held) ? [] : Array.from(normalizeUnattendedGrants(o.unattendedGrants));
+  /* final review #2: the grants hold only on the model, provider and endpoint the desk said yes to (routineDriveFor). A
+     script-only routine calls no model; any other run that carries grants without a matching drive runs without them
+     (emptied here, before anything reads the list). */
+  const grantDriveMoved = (unattendedGrants.length && o.noAgent !== true) ? routineDriveMoved(o.cronGrantDrive, providerId, model, baseUrl) : '';
+  if (grantDriveMoved) {
+    unattendedGrants.length = 0;
+    console.warn('[cron] routine ' + String(o.cronJobId || '?') + ' runs without its unattended grants: ' + grantDriveMoved);
+    if (runNotices.length < 4) runNotices.push('this routine ran without its unattended grants: ' + grantDriveMoved + '. Grant them again in SCHEDULES (StarNet asks you to confirm)');
+  }
   /* UNTRUSTED-CONTENT TAINT (2026-07-25) — the structural half of the tool-result injection defence.
      Fencing tells the model that fetched text is data; it cannot MAKE the model obey. So the host removes the
      payoff instead of trying to detect the payload: once content the Commander did not author has entered this
@@ -22951,6 +24168,16 @@ async function runOnceCore(o) {
   const pathPrompt = o.pathPrompt;   // NS-5: the live "work in <root>? always/once/no" channel (browser runs only); undefined for headless/autonomous → path-trust hard-denies a new root
   const summon = o.summon;   // the live team.summon round-trip closure (browser runs only); undefined for headless/workers → tool degrades gracefully
   const trigger = o.trigger || 'directive';
+  /* WHO IS WATCHING, for the spend rail (GHSA-2hpj #8, budget.js). While spend history is unknown the shipped soft day rail
+     pauses work nobody is watching and counts a floor for work someone is. Watched: the desk's live run (an interactive
+     surface with a card channel, the phone's included), the owner's own channel message (a Telegram owner DM: never a
+     routine, a line hop or a worker), and a worker whose lead is watched (the lead's host-minted connectorAuthority says so,
+     read at each check, so a worker outliving its lead's run stops counting as watched once that run is cancelled). A
+     routine (Run Now too), a line, a loop, the night shift and a worker of any of them are not. Host-minted inputs only. */
+  const spendAttended = () => !isRoutineTrigger(trigger) && (
+    (surface === 'interactive' && typeof prompt === 'function')
+    || (!o.delegatedBy && ownerTrusted && !workflowLine)
+    || (!!o.delegatedBy && typeof o.connectorAuthority?.attended === 'function' && o.connectorAuthority.attended() === true));
   // P1 (WIRING_AUDIT slice 2): a server-initiated run (telegram/routed/manual-cron) has NO browser-local copy of its
   // lifecycle, so the station floor never lights for it. When a caller opts in via o.broadcast, ALSO mirror the
   // run-lifecycle events to the floor over SSE. Gated on the explicit flag — NOT on trigger — so the hero's
@@ -23011,7 +24238,7 @@ async function runOnceCore(o) {
   // it and COMMS words it through FriendlyError.CODE_TO_KIND: a host refusal never reads as the sink's generic run_failure
   if (o.cronScript) {
     let checked;
-    try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
+    try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, scriptDigest: o.cronScriptDigest || null, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
     catch (e) {
       refuse({ message: (e && e.message) || String(e), failureCode: 'routine_script_failed' }, o.noAgent ? '' : model);
       return;
@@ -23329,7 +24556,7 @@ async function runOnceCore(o) {
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
     mediaUsd: () => mediaUsd,
-    crossRun: spent => governor.admit('media', { runId, agentId, spentUsd: spent, emit, receiptMeta: runReceiptMeta }),
+    crossRun: spent => governor.admit('media', { runId, agentId, spentUsd: spent, emit, receiptMeta: runReceiptMeta, attended: spendAttended() }),
     onCheckError: e => failNote('image.spend-check', e) });
   let auxVisionProvider = null;
   // the run's PRIMARY provider: the catalog the studio route's pinned vision model (`model` below) came from. Bound with
@@ -23458,7 +24685,11 @@ async function runOnceCore(o) {
     // This Computer widens the path envelope without changing approval posture: ASK still prompts before
     // mutations, while reads of non-protected host paths no longer need a second project-root card.
     fullAccess: unrestrictedHostNow() || executionProfile.filesystemScope === 'host-paths-except-hard-floor',
-    unrestrictedHost: unrestrictedHostNow()
+    unrestrictedHost: unrestrictedHostNow(),
+    // fix-sec2 review 5: once the run read outside content (its own latch, or one it inherited), a write gets no
+    // host-wide pass: outside its workspace and the trusted projects it asks a watched run, and an unattended one is refused
+    // review2 #12: the source itself (truthy = tainted), so the path card can say what the run read
+    tainted: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()) || ''
   });
   /* ONE PATH OBJECT PER RUN (run-paths lane, sidecar/run-paths.js). Every tool reads ctx.paths, so a relative path means
      the same folder to fs.*, shell, terminal, verify, media and browser.upload, and every receipt names a path the next
@@ -23675,7 +24906,7 @@ async function runOnceCore(o) {
   // Commander — page-owned ones over the same bridge as above, server-owned ones through this sidecar's OWN route table
   // in-process (callOwnRoute), so a change from chat runs exactly the validators and stores its button runs.
   makeStationControlTools({ station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
-    ? overseerStation(o.streamId, runId) : stationBridge, route: callOwnRoute, surface, ownerTrusted,
+    ? overseerStation(o.streamId, runId) : stationBridge, route: callOwnRouteAtDesk(stationBridge, { streamId: o.streamId || '', runId }), surface, ownerTrusted,
     providerReady: pid => { const id = normalizeProviderId(pid); return providerHasCredential(id, providerRuntimeKey(id, ''), providerRuntimeBaseUrl(id, '')); }
   }).register(registry);
   // routine.create/list: the lead can schedule real StarNet ROUTINES through the same cron store the panel uses.
@@ -23806,16 +25037,18 @@ async function runOnceCore(o) {
       await withCronWrite(jobs => cronStore.triggerJob(jobs, id, { now: Date.now(), defaultTz: CRON_HOST_TZ }));
       return cronStore.getJob(cronJobs, id);
     },
+    // GHSA-2hpj #5: the note carries the taint of the run that wrote it, and the tool result hands it to the reader's latch
     getRoutineNotepad: async (id) => {
       const job = cronStore.getJob(cronJobs, String(id || ''));
       if (!job) throw new Error('scheduled routine no longer exists');
-      return String(job.notepad || '');
+      return { text: String(job.notepad || ''), taintedBy: (typeof job.notepadTaint === 'string' && job.notepadTaint) || (authoritySeal.held && job.notepad ? CRON_NOTEPAD_UNCHECKED : null) };
     },
     setRoutineNotepad: async (id, text) => {
       id = String(id || '');
       if (!cronStore.getJob(cronJobs, id)) throw new Error('scheduled routine no longer exists');
       const bounded = String(text == null ? '' : text).slice(0, 8000);
-      await withCronWrite(jobs => cronStore.setNotepad(jobs, id, bounded, { now: Date.now() }));
+      const writerTaint = execution.rowTaint() || execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) || null;
+      await withCronWrite(jobs => cronStore.setNotepad(jobs, id, bounded, { now: Date.now(), taint: writerTaint }));
       const saved = cronStore.getJob(cronJobs, id);
       return !!(saved && String(saved.notepad || '') === bounded);
     },
@@ -24039,7 +25272,9 @@ async function runOnceCore(o) {
     // channel. If that chat explicitly enables approvals, preserve the chosen in-chat prompt behavior instead.
     // a FUNCTION, re-read every call: the master FULL BYPASS switch must take effect — and revoke — on the
     // very next tool call without a restart. The frozen env flag and the per-agent posture ride inside it.
-    bypass: () => unrestrictedHostNow() || (ownerTrusted && !prompt), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
+    // final review #1: the owner's DM no longer skips cards on its own. It is card-free only through what the desk bound (the
+    // agent's Full Access or FULL BYPASS, both in unrestrictedHostNow); otherwise the hub asks in the chat (channelOwnerCardFree).
+    bypass: () => unrestrictedHostNow(), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
     grantsSession, grantsPermanent, persist: persistAllowlist,
     // Full Access is the persisted per-agent posture, so it applies on every surface and every later task.
     // The hardline floor remains above this broker and still denies protected physical/desktop effects.
@@ -24047,7 +25282,8 @@ async function runOnceCore(o) {
     // AWAY WORKSHOP (W1): the Commander's recorded per-agent grant. The broker only consults it for an autonomous
     // cabinet:write / notebook:write (jail-scoped) — exec stays locked, non-jail tools unchanged. A read of the
     // live store each check keeps it honest (a toggle flip takes effect on the very next tool call, no restart).
-    workshop: (call, tool) => workshopOf(agentId),
+    // review2 #3: lifted by taint, as the terminal grant is: a run that read untrusted words writes its jail only with a card
+    workshop: (call, tool) => !execution.taintedBy() && workshopOf(agentId),
     // UNATTENDED CREDENTIAL GRANT: every ${VAR} this call references must name a service key the Commander
     // approved for unattended use. Read live from the store, so revoking the toggle takes effect on the very
     // next tool call. The tool re-checks independently at send time — this tier only decides consent.
@@ -24066,10 +25302,11 @@ async function runOnceCore(o) {
     // The taint check is repeated here, not just at dispatch, so consent and the dispatch gate can never
     // disagree: a tool the gate will refuse must not be one consent says yes to (the incoherent state the
     // terminal lane hit). Same predicate source (`revokedByTaint`) on both sides.
-    terminalGrant: (call, tool) => !execution.taintedBy() && (ownerTrusted || unattendedGrants.indexOf('workbench') >= 0),
+    // final review #1: an owner DM is not a terminal grant (an ask-first agent's owner DM asks in the chat; Full Access bypasses)
+    terminalGrant: (call, tool) => !execution.taintedBy() && unattendedGrants.indexOf('workbench') >= 0,
     // UNATTENDED CONNECTOR GRANT: same host-side source as the authority gate, so an offered MCP tool can
     // never be refused by consent (the incoherent state the terminal lane hit before this was wired).
-    connectorGrant: (call, tool) => !execution.taintedBy() && (ownerTrusted || unattendedGrants.indexOf('connectors') >= 0),
+    connectorGrant: (call, tool) => !execution.taintedBy() && unattendedGrants.indexOf('connectors') >= 0,
     /* UNATTENDED IMAGES GRANT (2026-10-18): this routine's recorded "may make images" approval, off the same durable
        job record as the two above, lifted by taint like them. It covers the routine's OWN agent only: a worker it
        delegates to asks through this broker inside askedBy (attributeAsks) and gets nothing from it, and a line hop
@@ -24135,6 +25372,8 @@ async function runOnceCore(o) {
       withholdHostPower: hostPowerWithheld,
       untrustedEntry: untrustedEntryRun,   // host-minted: a worker of a payload-started run keeps the taint lock under Full Access
       withholdTaste: tasteWithheld,        // host-minted: a worker of a non-owner/group run never receives the Commander's taste
+      // GHSA-2hpj #8: a worker's spend counts as watched only while this (its lead's) run is (spendAttended above)
+      attended: () => !signal?.aborted && spendAttended(),
       taintedBy: () => execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)   // rowTaint: a worker inherits the page a lead read after its attachment, not just the attachment (which decays)
     },
     // HOOKS reach the tool boundary through the dispatch ctx. registry.js consults them AFTER the authority,
@@ -24381,9 +25620,14 @@ async function runOnceCore(o) {
     runNotices.push('and ' + fbUnsaid + ' more fallback' + (fbUnsaid === 1 ? '' : 's') + ' on a provider this station does not know ' + (fbUnsaid === 1 ? 'was' : 'were') + ' skipped');
     runStartExtra.notices = runNotices;
   }
-  const fallbacks = rotationFallbacks
+  /* A ROUTINE WITH GRANTS RUNS ONLY ON THE MODEL THEY WERE GIVEN FOR (final review #2). A fallback to another model or
+     provider (the station's saved chain, which the page key sets) would hand the grants to a model the desk never saw, so
+     such a run keeps only its credential rotations (the same model, another key or account). */
+  const fallbacksAll = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
     .concat(providerFallbacks);
+  const fallbacks = unattendedGrants.length ? fallbacksAll.filter(f => f && f.providerId === providerId && f.model === model) : fallbacksAll;
+  if (fallbacks.length < fallbacksAll.length && runNotices.length < 4) runNotices.push('its fallbacks to other models were skipped: a routine allowed to run unattended runs only on the model its grants were given for');
   // INTERNAL self-talk (a title, session ideas, a goal plan) is reason-only aux work: it runs on the aux effort, not the
   // effort the Commander picked for their own chat (auxPassEffort). Every adapter clamps a per-request effort to what
   // the model it lands on offers, so a fallback hop stays valid. null = no override (every other run — an /v1
@@ -24543,7 +25787,7 @@ async function runOnceCore(o) {
   // set. nextCallUsd is the most the call about to go out can cost (loop.js: its prompt plus the most output it can
   // bill — the model's output ceiling or a reported window's room — at catalog prices): the pool reserves it while the
   // call is in flight.
-  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run', { providerId: activeProviderId, agentId, runId, spentUsd: spentThisRun, emit, receiptMeta: runReceiptMeta,
+  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run', { providerId: activeProviderId, agentId, runId, spentUsd: spentThisRun, emit, receiptMeta: runReceiptMeta, attended: spendAttended(),
     pool: { admit: () => spendPool.admit(runId, spentThisRun, nextCallUsd), withdraw: () => spendPool.withdraw(runId) } }) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
@@ -24729,7 +25973,7 @@ async function runOnceCore(o) {
     const connectorFullAccess = /^mcp:/.test(String(liveTool?.capability || ''))
       && typeof o.connectorAuthority?.fullAccess === 'function' && o.connectorAuthority.fullAccess() === true;
     /* SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12): a run whose only untrusted reads are responses from ONE
-       https API may keep calling that same API with keys it already sent there — no per-call card, and unattended runs
+       https API may keep reading that same API with keys it already sent there (final review #8: a body-less GET/HEAD to its path or named folder, taint.js) — no per-call card, and unattended runs
        are not refused for it. The taint stays latched: every other host, key, tool and power keeps the lock below. */
     const sameOriginApi = !!taintSource && !inheritedTaint && taintSource === execution.taintedBy()
       && taintPolicy.sameOriginContinuation(taintScope, liveTool, c, { untrustedEntry: untrustedEntryRun });
@@ -24804,9 +26048,13 @@ async function runOnceCore(o) {
       // A delegated worker runs surface 'autonomous' with no run prompt (orchestration.js): unless THIS call reached a
       // live confirmation (a connector call forwarded to a watched lead's prompt), there is no approval to offer it.
       const offerApproval = !o.delegatedBy || (effectSurface === 'interactive' && typeof effectPrompt === 'function');
+      // GHSA-2hpj #6: an API run's continuation is now one method under one folder; a refused request hears what still goes
+      // through, so the model can stay inside it instead of giving up the API
+      const apiStillOpen = (!inheritedTaint && !untrustedEntryRun && String(c.name || '').replace(/\./g, '_') === 'web_request')
+        ? taintPolicy.continuationHint(taintScope) : '';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' '
+        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' ' + (apiStillOpen ? apiStillOpen + ' ' : '')
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
           + 'run needs a fresh confirmation for this exact call. For the Commander: '
           + (offerApproval ? 'a watched chat can ask to approve this exact call, or ' : '')
@@ -25414,8 +26662,9 @@ async function runOnceCore(o) {
   // rule verbatim and only a table of contents for its reference sections (~6.3K instead of ~9.3K); without it the
   // whole manual stays inline. Both forms are constants, so the cached prefix is as stable as before.
   // An owner-trusted chat-app turn (the Commander on their phone) gets only a pointer to manual.read — never the 6K index.
-  const manualBlock = (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual())
-    : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
+  // (final review #1: an owner's DM to an ask-first agent now runs interactive so it can ask in the chat; it is still the phone)
+  const manualBlock = (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer()
+    : (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual()) : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
   const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
@@ -26816,11 +28065,29 @@ async function handleConsent(req, res) {
   // a background worker's ask outlives its lead's turn (askHuman): once that run's meta is gone, the ask row still names
   // the lead whose broker it rides — the same agent a "full" answer would have granted while the lead was live
   const agentId = (meta && meta.agentId) || (finish && finish.detached && finish.askRow && finish.askRow.agentId) || undefined;
-  let persisted = true;
+  // GHSA-2hpj #4: a command is never allowed always. ALWAYS on a command card (an older page, the terminal's `a`, a
+  // bridge's allow-always) approves this call once: nothing standing is made, so the desk is not asked, and the answer
+  // says what was applied.
+  if (finish && finish.exactCommand === true && decision === 'always') decision = 'once';
   // the post-taint one-call confirmation (dispatch TAINT ENFORCEMENT) approves this call whatever the answer: an "always" or
-  // "session" there is echoed as 'once', so no surface (voice, phone, desk) says "always allowed" and then asks again.
-  // "full" keeps its meaning: it is the agent's standing Full Access, which the boundary already reads (postTaintBoundary)
+  // "session" there is echoed as 'once', so no surface (voice, phone, desk) says "always allowed" and then asks again. Before
+  // the desk gate: nothing standing is made, so the desk is not asked. "full" keeps its meaning: it is the agent's standing
+  // Full Access, which the boundary already reads (postTaintBoundary), and the desk confirms it below
   if (finish && finish.outsideContent === true && /^(always|session)$/.test(decision)) decision = 'once';
+  // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
+  // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
+  // standing answer only ever approves this call, below, so it never asks).
+  // fix-sec2 review 3: 'session' too. It allows every later request of the same kind for the rest of the session, so it is
+  // a standing answer within that session (a surface that cannot confirm at the desk answers 'once' instead: acp/core.js,
+  // bin/lib/station-commands.js). The phone answers its own way (the Remote approval path), never through this route.
+  if (finish && finish.freshConsent !== true && (decision === 'always' || decision === 'full' || decision === 'session')) {
+    const row = finish.askRow || {};
+    const rec = agentId ? agentRoster.get(String(agentId)) : null;
+    // a command's "for this session" covers that exact command only (GHSA-2hpj #4): the dialog shows it and says so
+    if (!deskGate(req, res, 'consent-' + decision, String(body.runId || '') + '\n' + String(body.promptId || ''),
+      { agentName: (rec && rec.name) || agentId || '', tool: row.tool || '', scope: row.scope || '', command: finish.exactCommand === true ? String(row.argsSummary || '') : '' })) return;
+  }
+  let persisted = true;
   // a fresh-consent card (station.power, plugin.submit) answers THIS call only: the broker grants any yes once, so a
   // standing answer (full, always, session) is applied and echoed as 'once', and no surface confirms a grant never made
   if (finish && finish.freshConsent === true && /^(full|always|session)$/.test(decision)) decision = 'once';
@@ -26898,14 +28165,17 @@ function handlePermissionsList(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   // additive: the master FULL BYPASS switch + whether the boot env forces it (so the panel can say WHY the
   // toggle is pinned on rather than rendering a switch that appears to do nothing).
-  res.end(JSON.stringify(Object.assign({}, snap, { masterBypass: masterBypassOn(), envFullAccess: FULL_ACCESS })));
+  // additive (GHSA-2hpj #3): whether the permission files are sealed, and any notice the page should show once
+  res.end(JSON.stringify(Object.assign({}, snap, { masterBypass: masterBypassOn(), envFullAccess: FULL_ACCESS,
+    authoritySeal: { keyed: authoritySeal.keyed, mode: authoritySealBoot.mode, notices: authoritySeal.notices() } })));
 }
-// POST /api/permissions/bypass { on } — flip the master FULL BYPASS switch. The click IS the consent: this
-// route is reachable only through the token-gated loopback API (a human in settings), never from a tool.
-// Fail-closed: a torn durable write returns ok:false and the previous state stands.
+// POST /api/permissions/bypass { on } — flip the master FULL BYPASS switch. Turning it ON needs the desk's confirmation
+// (deskGate, GHSA-2hpj #1): a token is not a click, and any local process that read the page held one. Turning it OFF
+// never asks. Fail-closed: a torn durable write returns ok:false and the previous state stands.
 async function handlePermissionsBypass(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
   const want = body && body.on === true;
+  if (want && !masterBypassOn() && !deskGate(req, res, 'bypass-on', '', {})) return;
   try { setMasterBypass(want); }
   catch (e) {
     res.writeHead(400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
@@ -26919,6 +28189,10 @@ async function handlePermissionsBypass(req, res) {
 // (returns 400 ok:false) if the durable write throws, so the grant never silently "takes" without persisting.
 async function handlePermissionsGrant(req, res) {
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { res.writeHead(400); return res.end('bad json'); }
+  // a NEW standing grant the catalog allows needs the desk's confirmation (GHSA-2hpj #1); a refused key is refused below
+  const grantKey = String((body && body.key) || '');
+  const grantable = (grantManager.snapshot() || {}).grantable || [];
+  if (grantable.indexOf(grantKey) >= 0 && !grantsPermanent.has(grantKey) && !deskGate(req, res, 'grant', grantKey, { key: grantKey })) return;
   const r = grantManager.grant(body && body.key);
   res.writeHead(r.ok ? 200 : 400, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
   res.end(JSON.stringify(r));
@@ -27003,8 +28277,12 @@ async function handleProjectDiscover(req, res) {
 async function handleProjectBless(req, res) {
   const sendJson = (code, obj) => respondJson(res, code, obj);   // canonical helper (sidecar/respond.js)
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { if (res.headersSent) return; res.writeHead(400); return res.end('bad json'); }
-  let r; try { r = await projectBless.blessPath({ path: body && body.path, surface: 'interactive' }); }
-  catch (e) { return sendJson(400, { ok: false, reason: 'bless failed: ' + (e && e.message || e) }); }
+  // fix-sec2 review 3: a trusted folder is a standing path grant, confirmed at the desk for the exact root it resolves to
+  let answered = false;
+  const confirm = (root) => { const ok = deskGate(req, res, 'project-bless', String(root), { root: String(root) }); answered = !ok; return ok; };
+  let r; try { r = await projectBless.blessPath({ path: body && body.path, surface: 'interactive', confirm }); }
+  catch (e) { if (answered || res.headersSent) return; return sendJson(400, { ok: false, reason: 'bless failed: ' + (e && e.message || e) }); }
+  if (answered) return;   // deskGate answered (the challenge, or desk_only)
   sendJson(r && r.ok ? 200 : 400, r || { ok: false, reason: 'bless failed' });
 }
 
@@ -27241,6 +28519,16 @@ async function handleAutonomyPosture(req, res) {
   const posture = (body.posture && typeof body.posture === 'object') ? body.posture
     : ((body.initiative || body.reach || body.leashPerDay != null) ? body : null);   // tolerate a flat posture too
   const postureWritten = !!posture;
+  /* review2 #9: a raise to building grants the night shift's away workshop when it was never decided (grantIfUndecided
+     below), so that raise is asked at the desk first. A raise that grants nothing, and every lowering, never asks. */
+  if (postureWritten) {
+    let grants = false;
+    try {
+      const rec = workshopStore.read(NIGHTSHIFT_AGENT) || {};
+      grants = !!(Autonomy.summary(Autonomy.normalize(posture)) || {}).buildsUnattended && !rec.grant && !rec.grantExplicit;
+    } catch (_) { grants = true; }   // unreadable: ask (never a silent grant)
+    if (grants && !workshopRaiseAtDesk(req, res, NIGHTSHIFT_AGENT, true)) return;
+  }
   const resumeRequested = postureWritten && body.resumeHalt === true;
   let beliefsAdmitted = true, beliefsReason = '', beliefsForgotten = [];
   try { const w = commanderPosture.set(posture, body.beliefs); beliefsAdmitted = w.beliefsAdmitted; beliefsReason = w.reason; beliefsForgotten = w.forgotten; }
@@ -28259,13 +29547,20 @@ async function handleChannelConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // a bot with no owner gets its owner code in this answer: that code is a grant, so it is confirmed at the desk
+  // first, before anything is saved or started (review2 #1). A bot that keeps its owner reconnects without asking.
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets.telegram) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'telegram-owner-pair', '', { connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel('telegram', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startTelegram(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // Poll health is not DM readiness. A fresh bot rejects every ordinary DM until the authenticated local app
   // pairs an owner, so return a new one-time command as part of connect instead of ending on a deaf false-green.
   const live = (channelSecrets && channelSecrets.telegram) || {};
   const pairingRequired = !live.ownerId;
-  const pairing = pairingRequired ? issueTelegramOwnerPairing(live) : { ok: true, persisted: !!(started && started.secretsPersisted) };
+  const pairing = pairingRequired ? issueTelegramOwnerPairing(live, ownerPass) : { ok: true, persisted: !!(started && started.secretsPersisted) };
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status once
   // the transport proves the round-trip. Never assert connected here. `persisted` is the read-back-proven
   // config-write bit: false = live this session but may not survive a restart (never a false "saved").
@@ -28352,7 +29647,10 @@ async function handleTelegramOwnerPair(req, res) {
   const cur = (channelSecrets && channelSecrets.telegram) || {};
   if (!channelToken('telegram', '', cur)) return json(409, { error: 'connect the Telegram bot before pairing an owner' });
   if (cur.ownerId) return json(409, { error: 'an owner is already paired; revoke it locally before pairing a different account' });
-  const pairing = issueTelegramOwnerPairing(cur);
+  // fix-sec2 review 3: the code makes a Telegram account the bot's owner (owner-trusted runs, answers to permission cards)
+  const ownerPass = ownerPairingPass(req, res, 'telegram-owner-pair', '', {});
+  if (!ownerPass) return;
+  const pairing = issueTelegramOwnerPairing(cur, ownerPass);
   if (!pairing.ok) return json(500, { error: pairing.error });
   json(200, { code: pairing.code, expiresAt: pairing.expiresAt, persisted: true });
 }
@@ -28418,6 +29716,15 @@ async function handleTelegramBotAdd(req, res) {
   if (channelToken('telegram', '', main) === token) return json(400, { error: '@' + (me.username || 'that bot') + ' is already the station bot — create a fresh bot with @BotFather for this agent' });
   const prev = telegramBotRecords()[botId] || {};
   const wasConfigured = !!channelToken('telegram:' + botId, '', prev);
+  // a bot with no owner gets its owner code in this answer, so the desk confirms it before the provider probe and
+  // before anything is saved (review2 #1). The scope names the bot getMe just proved, so one yes pairs one bot.
+  const pairingRequired = !prev.ownerId;
+  let ownerPass = null;
+  if (pairingRequired) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'telegram-bot:' + botId,
+      { label: 'the Telegram bot @' + (me.username || botId), agentName: ident.name || agentId });
+    if (!ownerPass) return;
+  }
   // The pair the bot runs and keeps (channelConnectCredential): the body's key with the endpoint sent beside it, else — a
   // rebind with no key — the bot's own saved pair, never its key beside the endpoint the station resolves for ITS key. The
   // probe proves that pair, and the bot keeps only an endpoint the key would not resolve to anyway (review r7).
@@ -28432,8 +29739,8 @@ async function handleTelegramBotAdd(req, res) {
     error: 'agent provider/model check failed for ' + (ident.name || agentId) + ': ' + runProbe.error,
     code: runProbe.code || 'AGENT_PROVIDER_PROBE_FAILED'
   });
-  const pairingRequired = !prev.ownerId;
-  const pairing = pairingRequired ? telegramOwnerPairing.issue({ now: Date.now() }) : null;
+  const pairing = pairingRequired ? mintOwnerCode(ownerPass) : null;
+  if (pairingRequired && !pairing) return json(403, { error: OWNER_CODE_NEEDS_DESK });
   // the bot's own credential goes to the store before the record names it — without it the bot only works while a
   // runtime/station key happens to exist, and refuses on restart even though the add-flow validated a key
   const own = credStore.putChannel('telegramBots:' + botId, { provider, key: cred.recordKey, baseUrl: cred.ownBase });
@@ -28510,7 +29817,10 @@ async function handleTelegramBotOwner(req, res, botId, verb) {
   if (!cur) return json(404, { error: 'unknown bot' });
   if (verb === 'pair') {
     if (cur.ownerId) return json(409, { error: 'an owner is already paired; revoke it locally before pairing a different account' });
-    const issued = issueTelegramBotOwnerPairing(botId);
+    const ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'telegram-bot:' + botId,
+      { label: 'the Telegram bot @' + (cur.username || botId), agentName: cur.name || cur.agentId || '' });
+    if (!ownerPass) return;
+    const issued = issueTelegramBotOwnerPairing(botId, ownerPass);
     if (!issued.ok) return json(500, { error: issued.error });
     return json(200, { code: issued.code, expiresAt: issued.expiresAt, persisted: true });
   }
@@ -28552,10 +29862,16 @@ async function handleDiscordConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create a bot in the Discord Developer Portal and paste its token here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // the owner code this answer carries for a bot with no owner is a grant: the desk confirms it first (review2 #1)
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets.discord) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'discord', { label: 'this station’s Discord bot', connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel('discord', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startDiscord(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status ('connecting' until the gateway reaches READY) — the panel repaints from /status.
-  json(200, channelCredentialAnswer(own, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) })));
+  json(200, channelCredentialAnswer(own, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) }, ownerPass)));
 }
 
 // POST /api/channels/discord/sync — refresh the agent identity the Discord bot runs as (mirrors handleChannelSync).
@@ -28737,11 +30053,17 @@ async function handleGenericChannelConnect(req, res, id) {
   }
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // the owner code this answer carries for a channel with no owner is a grant: the desk confirms it first (review2 #1)
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets[id]) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', id, { label: 'this station’s ' + (CHANNEL_OWNER_LABEL[id] || id) + ' bot', connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel(id, { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startGenericChannel(id, token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential, endpoint, account }); }
   catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status.
-  json(200, channelCredentialAnswer(own, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) })));
+  json(200, channelCredentialAnswer(own, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) }, ownerPass)));
 }
 
 // POST /api/channels/<id>/owner/pair (discord|slack|matrix|signal) — mint a fresh one-time owner code for a connected
@@ -28752,7 +30074,9 @@ async function handleChannelOwnerPair(req, res, id) {
   const configured = id === 'signal' ? !!(cur.endpoint && cur.account) : !!channelToken(id, '', cur);
   if (!configured) return respondJson(res, 409, { error: 'connect the channel before pairing an owner' });
   if (cur.ownerId) return respondJson(res, 409, { error: 'an owner is already paired on this channel' });
-  const pairing = issueChannelOwnerPairing(id);
+  const ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', id, { label: 'this station’s ' + (CHANNEL_OWNER_LABEL[id] || id) + ' bot' });
+  if (!ownerPass) return;
+  const pairing = issueChannelOwnerPairing(id, ownerPass);
   if (!pairing.ok) return respondJson(res, 500, { error: pairing.error });
   respondJson(res, 200, { code: pairing.code, expiresAt: pairing.expiresAt, persisted: true });
 }
@@ -29593,11 +30917,16 @@ async function handleClaudeCliAuth(req, res, verb) {
    plain stream carrying the JSON body (readBody needs only data/end events); the response is captured instead of sent.
    It sits past the HTTP edge (Host/Origin/token): the caller is a host-registered tool whose catalog builds every path
    and body itself — no model-chosen path ever reaches this. */
-function callOwnRoute(method, url, body) {
+// marks a request callOwnRoute built in-process: a property no HTTP request can carry (deskGate reads it)
+const IN_PROCESS_REQUEST = Symbol('starnet.inProcessRequest');
+function callOwnRoute(method, url, body, extraHeaders) {
   const { Readable } = require('node:stream');
   const payload = body === undefined ? '' : JSON.stringify(body);
   const req = Readable.from(payload ? [Buffer.from(payload, 'utf8')] : []);
   req.method = method; req.url = url; req.headers = { 'content-type': 'application/json', host: '127.0.0.1' };
+  // only the desk proof's two headers ride along (callOwnRouteAtDesk): never a key, never a host or origin
+  for (const k of ['x-starnet-desk-proof', 'x-starnet-desk-code']) if (extraHeaders && extraHeaders[k]) req.headers[k] = String(extraHeaders[k]).slice(0, 200);
+  req[IN_PROCESS_REQUEST] = true;
   return new Promise(resolve => {
     let status = 200, settled = false;
     const chunks = [];
@@ -29617,6 +30946,32 @@ function callOwnRoute(method, url, body) {
     Promise.resolve().then(() => dispatchRoute(req, res))
       .catch(e => finish({ status: 500, json: { error: 'the station failed: ' + ((e && e.message) || e) } }));
   });
+}
+/* AN APPROVED station.power CHANGE STILL MEETS THE DESK (fix-sec2, review 9). fullpower.set, permission.grant and the other
+   escalations a lead makes for the Commander call the route a click calls, in-process. Since GHSA-2hpj #1 those routes
+   answer with a desk challenge, and the in-process call had no way to meet it: every such change failed even after the
+   Commander approved its card. Now the challenge goes to the Commander's StarNet window over the station bridge (verb
+   station.desk_confirm, frontend/app/stationcommands.js), which confirms it exactly as a click on that setting would: the
+   desktop shell's native dialog, or in a browser the station's code. The window reports only that it asked; the proof is
+   the challenge itself, which the station consumes on the replay (a page that merely claims "confirmed" proves nothing).
+   No window, no answer in time, or a no: the change is refused with the reason, and nothing changed. */
+const DESK_BRIDGE_WAIT_MS = 110000;   // inside the challenge's own two minutes, and inside station.power's tool timeout
+function callOwnRouteAtDesk(bridge, origin) {
+  return async function (method, url, body) {
+    const r = await callOwnRoute(method, url, body);
+    const c = r && r.status === 403 && r.json && r.json.code === 'desk_confirm_required' && r.json.deskConfirm;
+    if (!c || !bridge || typeof bridge.request !== 'function') return r;
+    let asked;
+    try { asked = await bridge.request('station.desk_confirm', { challenge: c, origin: origin || null }, { timeoutMs: DESK_BRIDGE_WAIT_MS }); }
+    catch (e) { asked = { ok: false, error: String((e && e.message) || e) }; }
+    const said = asked && asked.ok ? asked.result : null;
+    if (!said || said.confirmed !== true) {
+      const why = asked && asked.unattended ? 'no StarNet window answered, so nobody at the desk could confirm it'
+        : (asked && !asked.ok && asked.error) ? String(asked.error).slice(0, 200) : 'the Commander did not confirm it at the desk';
+      return { status: 403, json: { ok: false, code: 'desk_not_confirmed', error: String(c.title || 'this change').replace(/^StarNet — /, '') + ': ' + why + '; nothing changed' } };
+    }
+    return callOwnRoute(method, url, body, { 'x-starnet-desk-proof': c.id, 'x-starnet-desk-code': said.code ? String(said.code) : '' });
+  };
 }
 // a short, human-readable summary of WHAT a consent prompt is approving — the file path for fs.* (what the user
 // actually cares about), else the compact args. Never echoes secrets (redact() also runs on the emitted event).
@@ -31916,7 +33271,8 @@ async function handleMemoryConfigSet(req, res) {
   if (Object.prototype.hasOwnProperty.call(body, 'failureReviewEnabled')) memoryConfig.failureReviewEnabled = !!body.failureReviewEnabled;
   if (Object.prototype.hasOwnProperty.call(body, 'embedModel')) {
     const m = String(body.embedModel == null ? '' : body.embedModel).trim();
-    if (m.length > 120 || /[\s"'<>]/.test(m)) return json(400, { error: 'embedModel must be a bare model id (≤120 chars, no spaces/quotes)' });
+    // the quotes are written \x22 \x27: a quote inside a regex literal makes test/_fnbody.js (the route census) read past this function
+    if (m.length > 120 || /[\s\x22\x27<>]/.test(m)) return json(400, { error: 'embedModel must be a bare model id (≤120 chars, no spaces/quotes)' });
     memoryConfig.embedModel = m;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'embedProvider')) {
@@ -31978,7 +33334,7 @@ async function serveStatic(req, res) {
       const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort });
       // the app page gets a per-response script nonce (CSP below), so its one inline boot script runs and nothing else inline does
       if (isAppPage) scriptNonce = crypto.randomBytes(16).toString('base64');
-      let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(API_TOKEN) + ';'
+      let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(CLIENT_TOKEN || API_TOKEN) + ';'
         : 'window.__STARNET_TOKEN_WITHHELD__=' + JSON.stringify(peer.reason) + ';');
       if (!peer.ok) noteTokenWithheld(peer);
       // DEV fast-path: hand the page a model + provider hint so a fresh origin auto-resumes the seeded

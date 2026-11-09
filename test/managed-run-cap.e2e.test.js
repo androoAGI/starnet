@@ -98,7 +98,7 @@ const CALL_USD = 0.75;   // what the relay charges per completion in this fixtur
 
     // ---- 3. a SAVED per-run cap is authoritative: higher ($5) and lower ($1) both replace the default ----
     let save = await fixture.json('POST', '/api/budget/caps', { perRun: 5 });
-    assert.equal(save.status, 200, 'saving a $5 per-run cap succeeds');
+    assert.equal(save.status, 200, 'saving a $5 per-run cap succeeds (no cap -> $5 tightens, so nothing asks)');
     reset(10);
     r = await run('saved-high');
     assert.equal(reserveOf(), 5, 'a saved $5 per-run cap reserves $5');
@@ -107,22 +107,27 @@ const CALL_USD = 0.75;   // what the relay charges per completion in this fixtur
     assert.equal(r.end.budgetCapIsBalance, undefined, 'a chosen $5 cap under a $10 wallet is not the balance');
     // a saved cap ABOVE the wallet (customer report 2026-10-06: PER RUN $100 on $79) reserves the wallet and its stop
     // says it used the balance — "raise your $100 cap" would be advice that does nothing
+    // $5 -> $100 raises a spending limit, so it is confirmed at the desk (GHSA-2hpj spend routes)
     save = await fixture.json('POST', '/api/budget/caps', { perRun: 100 });
-    assert.equal(save.status, 200, 'saving a $100 per-run cap succeeds');
+    assert.deepEqual([save.status, save.body && save.body.code], [403, 'desk_confirm_required'], 'raising the per-run cap to $100 asks the desk first');
+    save = await fixture.deskJson('POST', '/api/budget/caps', { perRun: 100 });
+    assert.equal(save.status, 200, 'saving a $100 per-run cap succeeds once it is confirmed');
     reset(4);
     r = await run('saved-above-wallet');
     assert.equal(reserveOf(), 4, 'a $100 cap on a $4 wallet reserves the $4 wallet');
     assert.equal(r.end.reason, 'budget'); assert.equal(r.end.budgetCapUsd, 4, 'and stops at the wallet');
     assert.equal(r.end.budgetCapIsBalance, true, 'and the stop is marked as the balance, not the $100 cap');
     save = await fixture.json('POST', '/api/budget/caps', { perRun: 1 });
-    assert.equal(save.status, 200, 'saving a $1 per-run cap succeeds');
+    assert.equal(save.status, 200, 'saving a $1 per-run cap succeeds (lowering never asks)');
     reset(10);
     r = await run('saved-low');
     assert.equal(reserveOf(), 1, 'a saved $1 per-run cap reserves $1');
     assert.equal(r.end.budgetCapUsd, 1, 'and stops at $1');
     // 0 saved = "no cap": on StarNet credits the $2 default still stands between one prompt and the wallet
     save = await fixture.json('POST', '/api/budget/caps', { perRun: 0 });
-    assert.equal(save.status, 200, 'saving 0 (no cap) succeeds');
+    assert.deepEqual([save.status, save.body && save.body.code], [403, 'desk_confirm_required'], 'removing the per-run cap asks the desk first');
+    save = await fixture.deskJson('POST', '/api/budget/caps', { perRun: 0 });
+    assert.equal(save.status, 200, 'saving 0 (no cap) succeeds once it is confirmed');
     reset(10);
     r = await run('saved-zero');
     assert.equal(reserveOf(), 2, 'a saved 0 on a StarNet-credit run falls back to the $2 default, never the whole wallet');

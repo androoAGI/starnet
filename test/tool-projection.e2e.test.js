@@ -45,9 +45,13 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       const r = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: 5, _saveRevision: revision, updatedAt: Date.now(), agent: { id: 'agent' }, station: station.serialize() });
       assert.equal(r.body.ok, true, r.text);
     };
+    // a wider profile (the dossier's picker: raiseProfile) or Full Access (raise) is asked for by name and confirmed at the
+    // desk with the code this station printed (GHSA-2hpj #1, fix-sec2 review 7), as the page does; otherwise it is held back
     const roster = async (profile = 'station-gear', approvalMode = 'ask') => {
-      const r = await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Probe', provider: 'ollama', model: 'qwen3:14b', approvalMode, executionProfile: profile }] });
+      const asks = Object.assign({}, approvalMode === 'full' ? { raise: ['agent'] } : {}, ['station-gear', 'safe-cell'].includes(profile) ? {} : { raiseProfile: ['agent'] });
+      const r = await fixture.deskJson('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Probe', provider: 'ollama', model: 'qwen3:14b', approvalMode, executionProfile: profile }], ...asks });
       assert.equal(r.status, 200, r.text);
+      assert.deepEqual([r.body.clamped || [], r.body.profileClamped || []], [[], []], 'the station holds what was asked: ' + r.text);
     };
     const row = v => v.toolsets.find(t => t.id === 'cabinet');
     const view = async (query = '') => (await fixture.json('GET', '/api/toolsets' + query)).body;
@@ -79,11 +83,19 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     for (const model of ['qwen3:14b', 'qwen3:30b-a3b', 'qwen3:8b', 'llama3.1:8b']) {
       await roster('trusted-project');
       await run(model, { placed: [], internal: false }, true);
-      await fixture.json('POST', '/api/toolsets/cabinet', { enabled: false });
+      // switching a toolset off never asks the desk
+      assert.equal((await fixture.json('POST', '/api/toolsets/cabinet', { enabled: false })).status, 200, 'turning the cabinet toolset off is not asked');
       await run(model, {}, false);
       await roster('trusted-project', 'full');
       await run(model, { placed: [], internal: false }, true);
-      await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true });
+      // switching it back on gives every agent its tools again: the page key alone is refused and nothing changes, then the
+      // code this bare station printed confirms it (the route census's toolsets row)
+      const unconfirmedOn = await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true });
+      assert.deepEqual([unconfirmedOn.status, unconfirmedOn.body && unconfirmedOn.body.code, unconfirmedOn.body && unconfirmedOn.body.deskConfirm && unconfirmedOn.body.deskConfirm.action],
+        [403, 'desk_confirm_required', 'toolset-on'], 'turning a toolset back on asks the desk first: ' + unconfirmedOn.text);
+      assert.equal((await fixture.json('GET', '/api/toolsets')).body.toolsets.find(t => t.id === 'cabinet').enabled, false, 'and it stays off until the desk says yes');
+      assert.equal((await fixture.deskJson('POST', '/api/toolsets/cabinet', { enabled: true })).status, 200, 'the desk confirms turning it back on');
+      assert.equal((await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true })).status, 200, '"on" for a toolset that is already on does not ask');
       await roster();
     }
     await fixture.restart();

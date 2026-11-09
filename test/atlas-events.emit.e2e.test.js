@@ -22,6 +22,7 @@ const { bootToken } = require('./_httpToken.js');
 // the run-context note is the leading text of the newest user message on a non-Claude chat wire: match the Commander's own words
 const { userWords, loopNotes } = require('./helpers/host-notes.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -166,6 +167,9 @@ async function waitUntil(fn, ms, label) { const deadline = Date.now() + ms; whil
     SKYNET_TELEGRAM_API_BASE: tg.base, STARNET_TELEGRAM_API_BASE: tg.base
   };
   const { child, port } = await boot(await allocatePort(), env, 20);
+  // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+  const desk = makeDeskCodeReader();
+  child.stderr.on('data', d => desk.feed(d));
   const B = 'http://' + HOST + ':' + port;
   let sse = null;
   try {
@@ -177,11 +181,11 @@ async function waitUntil(fn, ms, label) { const deadline = Date.now() + ms; whil
     // wait for the adapter's drop-pending poll so the hub is live, then HOLD run #1 in-flight.
     await waitUntil(() => tg.calls.some(c => c.method === 'getUpdates' && c.body && c.body.offset === -1), 6000, 'telegram drop-pending poll');
     // First DM never claims a remote-control bot. Pair this test's owner via the authenticated local route.
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', {
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
       body: '{}'
-    })).json();
+    });
     A.ok(/^[-A-Z0-9]{11}$/.test(String(pair.code || '')), 'owner pairing issued a code');
     tg.pushText(5555, 77, '/pair ' + pair.code);
     await waitUntil(() => tg.sends.some(s => String(s.chat_id) === '5555' && /Owner paired/i.test(String(s.text || ''))), 8000, 'owner pairing acknowledgement');

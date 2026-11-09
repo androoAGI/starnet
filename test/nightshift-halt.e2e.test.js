@@ -19,6 +19,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+// fix-sec2 review2 #9: a raise that turns on the away workshop is confirmed at the desk, with the code the station prints
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -33,7 +36,7 @@ function boot(port, env, attemptsLeft) {
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -53,7 +56,7 @@ function kill(child) { return new Promise(r => { try { child.on('exit', () => r(
     const status = async () => (await fetch(B + '/api/nightshift/status', { headers })).json();
 
     // arm the shift by raising the dial (the same call a live station makes) — and confirm the clean baseline.
-    const arm = await (await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 3 } }) })).json();
+    const arm = await fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 3 } }) });
     A.ok(arm.ok === true && arm.nightshiftArmed === true, 'raising the dial arms the night shift');
     let s = await status();
     A.eq(s.halted, false, 'baseline: not halted');
@@ -77,13 +80,13 @@ function kill(child) { return new Promise(r => { try { child.on('exit', () => r(
     A.eq(s.halted, true, 'the halt survived the sidecar restart (durable, not in-memory)');
 
     // ===== 3. a background beliefs mirror must NOT impersonate an explicit resume =====
-    const beliefsOnly = await (await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ beliefs: { known: [], beliefs: {} } }) })).json();
+    const beliefsOnly = await fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ beliefs: { known: [], beliefs: {} } }) });
     A.eq(beliefsOnly.postureWritten, false, 'beliefs-only posture sync identifies that no dial was written');
     s = await status();
     A.eq(s.halted, true, 'beliefs-only page-load sync does not lift the durable E-STOP');
 
     // ===== 4. a deliberate dial re-write LIFTS the halt (not wedged forever) =====
-    await (await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 3 }, resumeHalt: true }) })).json();
+    await fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 3 }, resumeHalt: true }) });
     s = await status();
     A.eq(s.halted, false, 're-writing the autonomy dial lifts the halt');
     A.ok(s.binding !== 'halt', 'the binding is no longer halt (got ' + s.binding + ')');

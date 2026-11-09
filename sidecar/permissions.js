@@ -24,7 +24,9 @@
                    with no prompt wired, it fails closed. Only this branch is async — tiers 1–3 and the
                    read-only/autonomous paths stay synchronous, so direct-result callers are unaffected.
 
-   dangerKey = (tool.capability || tool.name) + ':' + tool.scope — the danger CLASS, never args/paths/keys.
+   dangerKey = (tool.capability || tool.name) + ':' + tool.scope — the danger CLASS, never args/paths/keys. The one
+   exception is a COMMAND (workbench:execute, GHSA-2hpj #4): its grant is keyed by exactKey (the class plus a hash of the
+   exact call), lives in the session only, and is never "always".
    (The makeTool object carries no `network` flag — that lives in resolved.networkCaps — so the read-only
     tier asks the injected networkOf(); index.js wires it to (call)=>!!resolved.networkCaps[call.name].) */
 'use strict';
@@ -49,6 +51,35 @@
   function dangerKey(tool) {
     const cls = (tool && (tool.consentKey || tool.capability || tool.name)) || 'unknown';
     return cls + ':' + scopeOf(tool);
+  }
+
+  /* ONE APPROVAL, ONE COMMAND (GHSA-2hpj #4). shell.exec, shell.bg.write, terminal.start, terminal.write and verify.run
+     share one danger class (workbench:execute), so "for this session" on `npm test` used to let every later command of
+     the run go unasked, and "always" did that for every run forever. A command class grant is now bound to the EXACT
+     call it was given for: the tool and its whole arguments, hashed. "For this session" re-allows only that same call
+     in that same run; "always" is never recorded for a command (any yes to it approves this call once); and no grant
+     keyed by the CLASS (an "always" an older StarNet saved, or one this process holds) reads as a yes for a command:
+     it asks. Exported so every surface names the same rule (index.js stamps the ask; approvals.js, the page, the
+     terminal and the bridges read the stamp or the same tool list). */
+  const EXACT_CLASSES = Object.freeze({ 'workbench:execute': true });
+  function exactCommand(tool) { return !!tool && Object.prototype.hasOwnProperty.call(EXACT_CLASSES, dangerKey(tool)); }
+  // canonical JSON (keys sorted at every depth) so the same call always hashes the same, whatever order its args arrived in
+  function canonical(v) {
+    if (v === undefined) return 'null';
+    if (v === null || typeof v !== 'object') return JSON.stringify(v);
+    if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
+    return '{' + Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
+  }
+  const nodeCrypto = (function () { try { return typeof require === 'function' ? require('crypto') : null; } catch (_) { return null; } })();
+  function digest(s) {
+    // the sidecar always has node:crypto; without it (a browser) the canonical text itself is the key — still exact
+    if (nodeCrypto && typeof nodeCrypto.createHash === 'function') return 'sha256:' + nodeCrypto.createHash('sha256').update(s, 'utf8').digest('hex');
+    return 'text:' + s;
+  }
+  // the grant key of THIS exact command: its class, then a hash of the tool name and every argument
+  function exactKey(call, tool) {
+    const name = String((tool && tool.name) || (call && call.name) || '');
+    return dangerKey(tool) + '#' + digest(name + '\n' + canonical(call && call.args !== undefined ? call.args : null));
   }
 
   // The makeTool object has no network flag; the sidecar edge injects networkOf when wiring. The
@@ -211,15 +242,22 @@
       const s = grantsSession.get(sessionKey);
       return !!(s && s.has(key));
     }
+    // a command's grant lives in this session only, under its exact key (GHSA-2hpj #4): a standing set never holds one
+    // a yes counts, so a permanent row (hand-written, or a future format) is never read for a command either
+    function grantedExact(call, tool) {
+      const s = grantsSession.get(sessionKey);
+      return !!(s && s.has(exactKey(call, tool)));
+    }
 
     function consent(call, tool) {
       const scope = scopeOf(tool);
-      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet policy floors.
-      // Input/schema validity, OS permissions and downstream service prerequisites still report normally.
-      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
-      // 1. HARDLINE — unreachable past any flag.
+      // 1. HARDLINE — unreachable past any flag, Full Power included (GHSA-2hpj #2: it used to run after the full-power
+      // return below, so any Full Access skipped the .env/.git floor its own comment promised).
       const hr = hardline ? hardline(call, tool) : null;
       if (hr) return { allow: false, scope: scope, hardline: true, reason: String(hr) + ANTI_RETRY };
+      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet's other policy tiers.
+      // Input/schema validity, OS permissions and downstream service prerequisites still report normally.
+      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
       // 2. BYPASS — boot Full Access, live master bypass, or persisted per-agent Full Access.
       if (bypassNow()) return { allow: true, scope: scope, reason: 'full-access' };
       // 2.4 UNATTENDED TERMINAL GRANT — checked BEFORE the exec lockout because opening that lockout for exactly
@@ -246,7 +284,12 @@
       // widening the station's own leash (station.power: Full Power, FULL agents, caps, trusted folders, hook code) is a
       // card the Commander answers per call when they are in ASK — one "always" used to approve every later escalation.
       // Full Access (tier 2) is the Commander's zero-prompt posture and still covers it; taint.js keeps the lock on it.
-      if (!(tool && tool.freshConsent === true) && granted(dangerKey(tool))) return { allow: true, scope: scope, reason: 'previously granted' };
+      // A COMMAND (GHSA-2hpj #4) is looked up by its exact key only, never by its class: a class-wide "always" or
+      // "session" (an older StarNet's, or any held in this process) reads as ask, never as allow.
+      if (!(tool && tool.freshConsent === true)) {
+        if (exactCommand(tool)) { if (grantedExact(call, tool)) return { allow: true, scope: scope, reason: 'previously granted for this exact command' }; }
+        else if (granted(dangerKey(tool))) return { allow: true, scope: scope, reason: 'previously granted' };
+      }
       // 4. RESOLVE.
       if (scope === 'read' && !networkOf(call, tool)) return { allow: true, scope: scope, reason: 'read-only, non-network' };
       if (surface === 'autonomous') return { allow: false, scope: scope, reason: autonomousRefusal(call, tool) };
@@ -272,6 +315,12 @@
       // a fresh-consent tool never leaves a standing grant behind: any yes approves this one call only
       if (tool && tool.freshConsent === true) {
         return /^(?:session|always|full)$/.test(String(decision)) ? { allow: true, scope: scope, reason: 'granted once' } : { allow: false, scope: scope, reason: 'denied' };
+      }
+      // A COMMAND (GHSA-2hpj #4): "session" re-allows this exact call for the rest of the session and nothing else;
+      // "always" is never recorded for one (it approves this call once). "full" is the agent's posture, as for any tool.
+      if (exactCommand(tool)) {
+        if (decision === 'session') { sessionSet(true).add(exactKey(call, tool)); return { allow: true, scope: scope, exact: true, reason: 'granted for this exact command for this session' }; }
+        if (decision === 'always') return { allow: true, scope: scope, exact: true, reason: 'granted once — a command is never allowed always' };
       }
       if (decision === 'session') { sessionSet(true).add(key); return { allow: true, scope: scope, reason: 'granted for session' }; }
       if (decision === 'always') {
@@ -302,5 +351,5 @@
   }
 
   // dangerKey is exported so a readout names the SAME standing-grant class the broker keys on (capability/project-tools.js)
-  return { makeConsentBroker, ANTI_RETRY, SILENCE, dangerKey };
+  return { makeConsentBroker, ANTI_RETRY, SILENCE, dangerKey, exactCommand, exactKey, EXACT_CLASSES };
 });

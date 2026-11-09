@@ -22,6 +22,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+// turning the away workshop on is confirmed at the desk (fix-sec2 review2 #9): the code this bare station prints on its console
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -109,7 +112,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -154,7 +157,13 @@ async function startSse(url) {
     sse = await startSse(B + '/api/channels/events?' + require('./_httpToken.js').sseQuery(token));
 
     // 0. EMPTY BACKLOG (granted, nothing queued) -> silent no-op, no workshop.built.
-    await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'builder', on: true }) });
+    // Turning the workshop on is asked at the desk (fix-sec2 review2 #9): the page token alone gets the station's challenge...
+    const unconfirmed = await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'builder', on: true }) });
+    const unconfirmedJ = await unconfirmed.json().catch(() => ({}));
+    A.ok(unconfirmed.status === 403 && unconfirmedJ.code === 'desk_confirm_required', 'turning the away workshop on with the page token alone is asked at the desk');
+    // ...and the person at the station confirms it with the code the station printed on its console
+    const granted = await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'builder', on: true }) });
+    A.ok(granted.ok === true && granted.on === true, 'the away workshop is on once the desk confirmed it');
     const emptyShift = await (await fetch(B + '/api/workshop/shift', { method: 'POST', headers, body: JSON.stringify({ agentId: 'builder' }) })).text();
     const emptyRes = JSON.parse(emptyShift.trim().split('\n').filter(Boolean).pop());
     A.ok(emptyRes.payload && emptyRes.payload.fired === false && emptyRes.payload.reason === 'empty-backlog', 'empty backlog is a SILENT no-op (fired:false)');
@@ -330,7 +339,7 @@ async function startSse(url) {
     const partialRuns = [];
     for (const missing of ['entry', 'support']) {
       const partialAgent = 'partial-' + missing;
-      await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: partialAgent, on: true }) });
+      await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: partialAgent, on: true }) });
       await fetch(B + '/api/workshop/queue', { method: 'POST', headers, body: JSON.stringify({ agentId: partialAgent, id: partialAgent, title: 'Partial ' + missing + ' build' }) });
       for (let attempt = 0; attempt < 2; attempt++) {
         const events = await readNdjson(await fetch(B + '/api/workshop/shift', { method: 'POST', headers, body: JSON.stringify({ agentId: partialAgent }) }));

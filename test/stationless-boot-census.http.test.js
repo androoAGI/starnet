@@ -56,6 +56,8 @@ const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();
 const { inspectWorkspaceLineage } = require('../sidecar/workspace-lineage.js');
 
 const HOST = '127.0.0.1';
@@ -108,7 +110,7 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
           else reject(new Error('no free port'));
         }
       };
-      child.stdout.on('data', onData); child.stderr.on('data', onData);
+      child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
       child.on('error', e => { if (!settled) { settled = true; reject(e); } });
       child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
       setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout; output:\n' + out)); } }, 30000).unref();
@@ -136,8 +138,8 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
     child = booted.child;
     const B = 'http://' + HOST + ':' + booted.port;
     const apiToken = await bootToken(B, B);
-    const j = async (m, p, body) => {
-      const headers = { 'Content-Type': 'application/json', Origin: B };
+    const j = async (m, p, body, extra) => {
+      const headers = Object.assign({ 'Content-Type': 'application/json', Origin: B }, extra || {});
       if (apiToken) headers['X-StarNet-Token'] = apiToken;
       const r = await fetch(B + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
       const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
@@ -221,7 +223,8 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
     A.eq(halt.body.nightshiftHaltPersisted, true, 'the E-STOP durably wrote its night-shift bookkeeping');
     A.eq(halt.body.loopsHaltPersisted, true, 'the E-STOP durably wrote its loops bookkeeping');
     // the shell's stop (src-tauri stop_station): on Windows a kill alone would keep gracefulShutdown's writers out of the census
-    const quit = await s.j('POST', '/api/lifecycle/quit', {});
+    // fix-sec2 review2 #11: a bare station's quit is confirmed at the desk, with the code it printed
+    const quit = await desk.confirm(await s.j('POST', '/api/lifecycle/quit', {}), h => s.j('POST', '/api/lifecycle/quit', {}, h));
     A.eq(quit.status, 202, 'the quit asks the station to shut down');
     A.eq(await exited(child, 8000), true, 'the station ran its graceful shutdown to the end');
     await stop(child); child = null;
@@ -252,7 +255,13 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
       ['POST', '/api/config/reset', { section: 'roster' }]
     ];
     for (const [m, route, body] of routes) {
-      const r = await s.j(m, route, body);
+      // raising an agent to FULL with no page is the desk's call (GHSA-2hpj #1): refused on the key alone, then confirmed with
+      // the code this bare station printed, as the person at its terminal would (bin/lib/dashboard.js /yolo)
+      if (route === '/api/agent/approval') {
+        const refused = await s.j(m, route, body);
+        A.eq([refused.status, refused.body && refused.body.code], [403, 'desk_confirm_required'], m + ' ' + route + ' (full) asks at the desk first');
+      }
+      const r = route === '/api/agent/approval' ? await desk.confirm(await s.j(m, route, body), h => s.j(m, route, body, h)) : await s.j(m, route, body);
       A.ok(r.status < 500, m + ' ' + route + ' answers on a station-less workspace (' + r.status + ')');
       if (route === '/api/roster') A.eq([r.body && r.body.ok, r.body && r.body.held], [true, true], 'WAKE\'s crew push is taken and held, not written (' + JSON.stringify(r.body) + ')');
       if (route.startsWith('/api/agent/')) A.eq([r.status, r.body && r.body.via], [200, 'roster'], m + ' ' + route + ' reaches the roster\'s write path (' + JSON.stringify(r.body) + ')');

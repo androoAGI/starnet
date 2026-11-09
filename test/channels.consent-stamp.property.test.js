@@ -143,7 +143,7 @@ async function row(pathName, late, refused) {
     if (p.decision) A.eq(run.decision, p.decision, name + ': the run got that decision');
     A.eq(w.journal.get(tag + '#0') || 0, p.decision === 'once' ? 1 : 0, name + ': and the action ran only on a yes');
     const edits = editsOf(w, kb).length;
-    const cb = w.tap(kb, 3);
+    const cb = w.tap(kb, 1);   // Deny, the last button since a chat answers once or no (fix-sec2 F3, review2 #10)
     await w.advance(2000);
     A.eq(editsOf(w, kb).length, edits, name + ': a late tap edits nothing');
     if (pathName === 'crash') A.ok(/no longer open/.test((w.toasts.get(cb) || {}).text || ''), name + ': and is told the question is no longer open');
@@ -354,7 +354,7 @@ async function failures() {
     if (!dm || !bot) { A.ok(false, 'two asks: fixture: both keyboards landed'); return; }
     A.eq(openOnDisk(w).length, ledgerDoc(w) ? 2 : 0, 'two asks: both are open on the ledger');
     w.editFaults.push('429');
-    w.tap(dm, 3);
+    w.tap(dm, 1);   // Deny
     await w.advance(500);
     await restart(w, 'test: the station dies with one stamp waiting and one ask open');
     await w.advance(40000);
@@ -368,9 +368,9 @@ async function failures() {
     const kb = askKeyboards(w, BOT).pop();
     if (!kb) { A.ok(false, 'the agent bot: fixture: the keyboard landed'); return; }
     w.editFaults.push('429');
-    w.tap(kb, 1);
+    w.tap(kb, 0);
     await w.advance(20000);
-    await oneStamp('the agent bot: a tap, its first edit refused', '▸ ✅ Allow for this session', kb, w, 2);
+    await oneStamp('the agent bot: a tap, its first edit refused', '▸ ✅ Allow once', kb, w, 2);
   }, { bot: true });
 
   // THE ONE EXCEPTION: the keyboard's answer never came back, so nothing knows its message

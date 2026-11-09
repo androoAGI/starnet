@@ -15,7 +15,21 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
 const HOST = '127.0.0.1';
+// the desk codes each booted station prints on its own console, read as the person at it reads them (GHSA-2hpj #1)
+const desk = makeDeskCodeReader();
+/* deskFetch(url, init) -> the Response of a fetch() the station may answer with its desk challenge (blessing a folder, an
+   ALWAYS or FULL answer: lasting authority), replayed once with the code it printed, as the person types it in the page */
+async function deskFetch(url, init) {
+  const go = extra => fetch(url, Object.assign({}, init, { headers: Object.assign({}, init.headers, extra || {}) }));
+  const first = await go();
+  if (first.status !== 403) return first;
+  const body = await first.clone().json().catch(() => ({}));
+  let replayed = null;
+  await desk.confirm({ status: first.status, body }, async h => { replayed = await go(h); return replayed; });
+  return replayed || first;
+}
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
 
 // mock OpenRouter: first turn of a run (no tool result yet) → fs_read the path in the LAST user message;
@@ -65,6 +79,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -121,7 +136,8 @@ function boot(port, env, attemptsLeft) {
         if (ev.name === 'agent.run.start') runId = ev.payload.runId;
         if (ev.name === 'permission.prompt') {
           prompts.push(ev.payload);
-          fetch(B + '/api/consent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
+          // an ALWAYS or FULL answer is lasting authority: the person confirms it at the desk with the station's code
+          deskFetch(B + '/api/consent', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
             body: JSON.stringify({ runId, promptId: ev.payload.promptId, decision }) }).catch(() => {});
         }
       }
@@ -139,10 +155,12 @@ function boot(port, env, attemptsLeft) {
 
     // Agent workspaces are private even if one is accidentally recorded in the station-global project-grant
     // store. A global `path:<WORKSPACES/alpha>` grant must never override beta's workspace boundary.
-    const blessWorkspace = await fetch(B + '/api/projects/bless', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
-      body: JSON.stringify({ path: alphaWorkspace })
-    });
+    // trusting a folder is lasting authority: the page token alone is refused, and the desk's code lets it through
+    const blessInit = { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
+      body: JSON.stringify({ path: alphaWorkspace }) };
+    const blessUnconfirmed = await fetch(B + '/api/projects/bless', blessInit);
+    A.eq([blessUnconfirmed.status, (await blessUnconfirmed.json().catch(() => ({}))).code], [403, 'desk_confirm_required'], 'blessing a folder asks at the desk first');
+    const blessWorkspace = await deskFetch(B + '/api/projects/bless', blessInit);
     A.eq(blessWorkspace.status, 200, 'setup: the current Projects doorway records the alpha workspace grant');
     const workspaceGrant = 'path:' + path.resolve(alphaWorkspace);
     const beforeIsolationRead = mock.requests.length;
@@ -166,7 +184,7 @@ function boot(port, env, attemptsLeft) {
     A.eq((permsBeforeDiscoverGrant.grants || []).includes('path:' + repo2), false, 'discovering a project does not grant its path');
 
     // ---- NS-5c: POST /api/projects/bless is the ADD-a-project doorway (same grant machinery, honest errors) ----
-    const bless = (p) => fetch(B + '/api/projects/bless', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }, body: JSON.stringify({ path: p }) });
+    const bless = (p) => deskFetch(B + '/api/projects/bless', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }, body: JSON.stringify({ path: p }) });
     // a) honest rejects: relative path + a nonexistent folder both 400 with a reason, no grant recorded.
     const bRel = await bless('some/rel/path'); const jRel = await bRel.json();
     A.eq(bRel.status, 400, 'bless of a relative path is 400'); A.eq(jRel.ok, false, 'relative path ok:false'); A.eq(jRel.code, 'relative', 'relative code');

@@ -14,8 +14,8 @@ const vm = require('node:vm');
 const { fnBody } = require('./_fnbody.js');
 
 const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
-const slice = h => { const b = fnBody(app, h); A.ok(b.startsWith(h) && b.length > 50 && b.length < 8000, 'sliced exactly ' + h + ' (' + b.length + ' chars)'); return b; };
-const src = ['function pushRoster()', 'function rosterRefusalWords()', 'function setAgentApproval(agentId, mode, opts)'].map(slice).join('\n');
+const slice = h => { const b = fnBody(app, h); A.ok(b.startsWith(h) && b.length > 50 && b.length < 12000, 'sliced exactly ' + h + ' (' + b.length + ' chars)'); return b; };
+const src = ['function settleRefusedRaise(ids, why)', 'function pushRoster()', 'function rosterRefusalWords()', 'function setAgentApproval(agentId, mode, opts)'].map(slice).join('\n');
 
 (async () => {
   const posts = [];
@@ -31,7 +31,7 @@ const src = ['function pushRoster()', 'function rosterRefusalWords()', 'function
     liveAgents: () => crew, stationDefaultWire: () => ({ provider: 'openrouter' }), rosterRole: () => 'r', executionProfileOf: () => 'standard', rosterTrack: () => '',
     agents: new Map(crew.map(a => [a.id, a])), agent: crew[0], persist: () => true
   });
-  vm.runInContext('let lastRosterPush = Promise.resolve(); let rosterPushFailed = false; let rosterRefusal = null; let rosterAccepted = new Map();\n' + src +
+  vm.runInContext('let lastRosterPush = Promise.resolve(); let rosterPushFailed = false; let rosterRefusal = null; let rosterAccepted = new Map(); const pendingRaise = new Set(); const pendingProfileRaise = new Set(); const NARROW_EXECUTION_PROFILES = ["station-gear", "safe-cell"];\n' + src +
     '\nthis.api = { pushRoster, rosterRefusalWords, setAgentApproval };', ctx);
   const api = ctx.api;
 
@@ -52,6 +52,36 @@ const src = ['function pushRoster()', 'function rosterRefusalWords()', 'function
   answer = { ok: true };
   crew[1].name = 'Ada II';
   await api.pushRoster();
-  A.eq(posts[posts.length - 1].body.rosterBase.changed.sort(), ['c1'], 'after a refusal, the base is still the last ACCEPTED push (the refused one changed nothing on the station)');
+  A.ok(posts.filter(p => p.body.raise).length === 1, 'only the refused FULL ACCESS push named a raise; the push after it (put back to ask-first) raised nobody');
+  // GHSA-2hpj #1: raising an agent the station holds ask-first names it in `raise` (the station asks the desk to confirm it)
+  setAgentRaise: {
+    const at = posts.length;
+    api.setAgentApproval('c1', 'full');
+    await new Promise(r => setTimeout(r, 20));
+    A.eq(posts[at] && posts[at].body.raise, ['c1'], 'a raise from ask-first names the agent in raise');
+    A.eq(crew[1].approvalMode, 'full', 'an accepted raise stays');
+    const again = posts.length;
+    await api.pushRoster();
+    A.ok(!posts[again].body.raise, 'once accepted, the next push raises nobody');
+  }
+  // fix-sec2 review2 #6: a FULL ACCESS row this page changed since its last accepted push asks the station to keep Full Access
+  keepFullAsk: {
+    const at = posts.length;
+    crew[1].systemPrompt = 'new instructions';
+    await api.pushRoster();
+    A.eq(posts[at] && posts[at].body.keepFull, ['c1'], 'an edited FULL ACCESS row asks to keep it (the station asks the desk only when what drives it changed)');
+    const again = posts.length;
+    await api.pushRoster();
+    A.ok(!posts[again].body.keepFull, 'an unchanged one does not');
+  }
+  // a push the station CLAMPED (a raise it was never asked to confirm): the page puts its own copy back and says so
+  crew[1].approvalMode = 'ask'; await api.pushRoster();
+  crew[1].approvalMode = 'full';
+  answer = { ok: true, clamped: ['c1'] };
+  const n0 = notes.length;
+  await api.pushRoster();
+  A.eq(crew[1].approvalMode, 'ask', 'a clamped agent is ask-first on the page too');
+  A.ok(notes.length === n0 + 1 && /still asks first/.test(notes[notes.length - 1]), 'and the page says so (' + notes[notes.length - 1] + ')');
+  answer = { ok: true };
   A.report('roster-push-base');
 })().catch(e => { console.log('FAIL: unhandled ' + (e && e.stack || e)); process.exit(1); });

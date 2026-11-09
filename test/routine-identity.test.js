@@ -15,6 +15,10 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
   A.eq(id, { cronJobId: 'j1', cronJobName: 'brief', idempotencyScope: 'cron:j1:1700000000000', recipeId: 'rec_9' }, 'identity = job id + name + fire-time scope + recipe');
   A.eq(routineRunIdentity({ id: 'j2' }, 5).recipeId, undefined, 'a plain routine carries no recipeId');
   A.ok(routineRunIdentity({ id: 'j2' }, 5).idempotencyScope !== routineRunIdentity({ id: 'j2' }, 6).idempotencyScope, 'two fires of one routine are two scopes');
+  // GHSA-2hpj #9: a retry hands back its occurrence's scope; only this job's own is honoured
+  A.eq(routineRunIdentity({ id: 'j2' }, 9, 'cron:j2:5').idempotencyScope, 'cron:j2:5', 'a retry keeps the scope of the fire it retries');
+  A.eq(routineRunIdentity({ id: 'j2' }, 9, 'cron:j3:5').idempotencyScope, 'cron:j2:9', "another routine's scope is never borrowed");
+  A.eq(routineRunIdentity({ id: 'j2' }, 9, null).idempotencyScope, 'cron:j2:9', 'no kept scope: the fire time, as before');
   A.eq(runsAsCommand('/usage', null), true, 'a slash prompt runs the command');
   A.eq(runsAsCommand('/usage', 'echo hi'), false, '…unless the routine carries a pre-check script (the scheduled rule)');
   A.eq(runsAsCommand('summarise /var/log', null), false, 'a prompt that merely contains a slash is a model turn');
@@ -43,7 +47,7 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
   A.eq([runs[0].cronJobId, runs[0].cronJobName], ['j1', ''], 'and the routine identity');
   const driverSrc = sidecarSourceFiles().find(f => f.rel === 'sidecar/cron-driver.js').text;
   const fire = driverSrc.slice(driverSrc.indexOf('function fireJob('), driverSrc.indexOf('function applyTick('));
-  A.ok(/\.\.\.routineRunIdentity\(job, scheduledFor\)/.test(fire), 'the driver takes the identity from the shared helper');
+  A.ok(/const identity = routineRunIdentity\(job, scheduledFor, /.test(fire) && /\.\.\.identity,/.test(fire), 'the driver takes the identity from the shared helper');
 }
 
 // ---- C. Run Now and the scheduled command redirect use the same helpers ----
@@ -87,4 +91,34 @@ const { sidecarTopLevelFunction, readSidecarSource, sidecarSourceFiles } = requi
   else A.ok(/trigger === 'schedule' \|\| trigger === 'manual'\) return 'schedule'/.test(require('fs').readFileSync(require('path').join(__dirname, '..', 'sidecar', 'memcore.js'), 'utf8')), "a Run Now's memory is stamped origin schedule, like the fire it is");
 }
 
-A.report('routine-identity.test');
+// ---- E. a RETRY of a failed fire is the same occurrence: same idempotency scope (GHSA-2hpj #9, the REAL driver + store) ----
+(async () => {
+  const cron = require('../sidecar/cron.js');
+  const cronStore = require('../sidecar/cron-store.js');
+  const { makeCronDriver } = require('../sidecar/cron-driver.js');
+  const T0 = 1700000000000, HOUR = 3600000;
+  let now = T0, n = 0;
+  let store = [cronStore.makeJob({ id: 'j9', prompt: 'post the update', agentId: 'agent', schedule: cron.parseSchedule('every 1h', T0) }, { id: 'j9', now: T0 })];
+  const runs = [];
+  const driver = makeCronDriver({
+    getJobs: () => store, setJobs: (j) => { store = j; return true; },
+    runOnce: (o) => { runs.push(o); return Promise.reject(Object.assign(new Error('network down'), { transient: true })); },
+    emit: () => {}, newId: () => 'run-' + (++n), newAbort: () => new AbortController(), now: () => now,
+    getKey: () => 'k', defaultModel: 'm', persona: 'P', maxRunMs: 480000
+  });
+  const settle = () => new Promise(r => setTimeout(r, 20));
+  now = T0 + HOUR; driver.applyTick(now); await settle();
+  A.eq(runs.length, 1, 'fixture: the first fire ran');
+  let j = cronStore.getJob(store, 'j9');
+  A.eq([j.retryCount, j.occurrenceScope], [1, runs[0].idempotencyScope], "a transient failure keeps the occurrence's scope on the record");
+  for (let k = 1; k <= 3; k++) {
+    now = Date.parse(cronStore.getJob(store, 'j9').nextRunAt) + 1; driver.applyTick(now); await settle();
+  }
+  A.eq(runs.length, 4, 'fixture: the fire and its three retries ran');
+  A.eq(runs.slice(1).map(r => r.idempotencyScope), [runs[0].idempotencyScope, runs[0].idempotencyScope, runs[0].idempotencyScope], "every retry reuses the first fire's scope (no connector write is sent twice)");
+  j = cronStore.getJob(store, 'j9');
+  A.eq([j.retryCount, j.occurrenceScope], [0, null], 'the occurrence settles when its retries run out, and its scope goes with it');
+  now = Date.parse(j.nextRunAt) + 1; driver.applyTick(now); await settle();
+  A.ok(runs.length === 5 && runs[4].idempotencyScope !== runs[0].idempotencyScope, 'the next occurrence has a scope of its own');
+  A.report('routine-identity.test');
+})().catch(e => { console.error(e); process.exit(1); });

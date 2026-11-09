@@ -118,6 +118,11 @@ function station(opts) {
     channelTokenRuntime: { telegram: 'tok-telegram', discord: 'tok-discord', slack: 'xoxb-1 xapp-1' },
     parseSlackTokens: () => ({ botToken: 'xoxb-1', appToken: 'xapp-1' }),
     issueTelegramOwnerPairing: () => ({ ok: true, code: 'PAIR', expiresAt: 0 }),
+    // the owner code's desk confirmation (review2 #1) is desk-proof.test.js's subject; here the desk said yes
+    ownerPairingPass: () => ({ desk: 'yes' }),
+    mintOwnerCode: pass => (pass ? { code: 'PAIR', state: { expiresAt: 0 } } : null),
+    OWNER_CODE_NEEDS_DESK: 'needs the desk',
+    CHANNEL_OWNER_LABEL: { discord: 'Discord', slack: 'Slack', matrix: 'Matrix', signal: 'Signal', telegram: 'Telegram' },
     withOwnerPairing: (id, out) => out,
     // saveResilient: the CURRENT main goes to .bak, then the new main is written (nothing is written when it fails)
     saveChannelSecrets: obj => {

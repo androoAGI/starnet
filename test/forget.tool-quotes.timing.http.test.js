@@ -174,7 +174,8 @@ const recall = (query, then) => ctx => ctx.made('recall_conversation') === 0 ? {
         "  const t = setInterval(() => { if (fs.existsSync(signal)) { clearInterval(t); process.stdout.write('{}'); } }, 20);",
         "});"
       ].join('\n'));
-      const made = await rig.json('POST', '/api/hooks/create', { event: 'post_tool_call', command: 'node "' + hook + '" "' + signal + '" "' + started + '"', name: 'hold the read' });
+      // a hook is a host command run on every event: the Commander's yes is confirmed at the desk (fix-sec2, review 3)
+      const made = await rig.fx.deskJson('POST', '/api/hooks/create', { event: 'post_tool_call', command: 'node "' + hook + '" "' + signal + '" "' + started + '"', name: 'hold the read' });
       A.eq(made.status, 200, '(5) the hook is installed (the Commander typed it: approved)');
       const held = gate();
       up.behave = recall('bilby', () => ({ hold: held, partial: 'continuing' }));

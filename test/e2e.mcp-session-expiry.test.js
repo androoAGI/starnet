@@ -18,6 +18,20 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes the booted station prints on its own console, read as the person at it reads them (GHSA-2hpj #1)
+const desk = makeDeskCodeReader();
+/* deskFetch(url, init) -> the Response of a fetch() the station may answer with its desk challenge (an ALWAYS or FULL
+   answer to a card is lasting authority), replayed once with the code it printed, as the person types it in the page */
+async function deskFetch(url, init) {
+  const go = extra => fetch(url, Object.assign({}, init, { headers: Object.assign({}, init.headers, extra || {}) }));
+  const first = await go();
+  if (first.status !== 403) return first;
+  const body = await first.clone().json().catch(() => ({}));
+  let replayed = null;
+  await desk.confirm({ status: first.status, body }, async h => { replayed = await go(h); return replayed; });
+  return replayed || first;
+}
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -150,6 +164,7 @@ function boot(port, env, attemptsLeft) {
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -196,7 +211,8 @@ function boot(port, env, attemptsLeft) {
           if (ev.name === 'agent.run.start') runId = ev.payload.runId;
           if (ev.name === 'agent.tool_call' && ev.payload.name === 'mcp__demo__lookup') calls.push(ev.payload);
           if (ev.name === 'agent.tool_result') results.push(ev.payload);
-          if (ev.name === 'permission.prompt') fetch(B + '/api/consent', { method: 'POST', headers, body: JSON.stringify({ runId, promptId: ev.payload.promptId, decision }) }).catch(() => {});
+          // a FULL answer is confirmed at the desk with the station's code (GHSA-2hpj #1), as the page does
+          if (ev.name === 'permission.prompt') deskFetch(B + '/api/consent', { method: 'POST', headers, body: JSON.stringify({ runId, promptId: ev.payload.promptId, decision }) }).catch(() => {});
         }
       }
       return { calls, results };

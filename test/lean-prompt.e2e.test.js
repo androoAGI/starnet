@@ -160,7 +160,7 @@ async function run(fixture, up, stream, messages) {
 
     // [PROJECT WORKSPACE] rides the crewless briefing too
     const folder = require('node:path').join(fixture.workspace, 'lean-project'); require('node:fs').mkdirSync(folder);
-    const blessed = await fixture.json('POST', '/api/projects/bless', { path: folder });
+    const blessed = await fixture.deskJson('POST', '/api/projects/bless', { path: folder });   // confirmed at the desk (GHSA-2hpj #1)
     A.eq(blessed.status, 200, 'project folder blessed');
     let root = blessed.body && (blessed.body.root || (blessed.body.project && blessed.body.project.root));
     if (!root) root = ((await fixture.json('GET', '/api/projects')).body.projects.find(p => /lean-project$/i.test(p.root)) || {}).root;

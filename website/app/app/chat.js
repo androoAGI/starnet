@@ -4267,6 +4267,9 @@ const Chat = (() => {
     }
     // NS-5 conversational path trust: a file was referenced OUTSIDE the agent's workspace — "Always" blesses
     // the whole project folder for future reads (revocable in Permissions); argsSummary is the proposed root.
+    // review2 #12: a write by a run that read outside content names the exact file, why it matters, and what the run read
+    if (t === 'path.trust' && ev.file) return 'change ' + ev.file + (ev.standing ? ' — ' + ev.standing : '')
+      + ' (this run read ' + (ev.taintedBy || 'outside content') + ', so this write asks first)';
     if (t === 'path.trust') return 'work with files in ' + (ev.argsSummary || 'a project folder') + ' (reads; "Always" or "Full access" trusts it for later)';
     // ATTENDED BROWSER LOGIN: two-phase takeover. Phase 1 asks to open a visible Chrome window the COMMANDER
     // drives; phase 2 holds the run until they click Done. Password honesty is part of the card copy.
@@ -4687,8 +4690,12 @@ const Chat = (() => {
   // the channel's record of an ask — a delegated worker's says who asked (sidecar attributeAsks): its row on the
   // delegation card answers it; askedAt gives the NEEDS YOU list its age
   function pendingFrom(ev, ws) {
-    return { promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, runId: Channels.runIdOf(ws.id),
-      workerAgentId: ev.workerAgentId || '', workerRunId: ev.workerRunId || '', workerStreamId: ev.workerStreamId || '', askedAt: ev.askedAt || Date.now() };
+    return Object.assign({ promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, runId: Channels.runIdOf(ws.id),
+      workerAgentId: ev.workerAgentId || '', workerRunId: ev.workerRunId || '', workerStreamId: ev.workerStreamId || '', askedAt: ev.askedAt || Date.now() },
+      // a tainted write's card keeps its file and source, and a fresh ask stays once-or-deny, when it is drawn again (review2 #12; breakage 9)
+      ev.file ? { file: ev.file, taintedBy: ev.taintedBy || '', standing: ev.standing || '' } : {}, ev.fresh === true ? { fresh: true } : {},
+      // a command: its card offers no Always (GHSA-2hpj #4), also after a reload
+      ev.exactCommand === true ? { exactCommand: true } : {}, ev.outsideContent === true ? { outsideContent: true } : {});
   }
   // who is asking: a delegated worker's ask names the worker (the sidecar stamps workerAgentId), never the lead
   function askerName(p, ws) {
@@ -4709,11 +4716,17 @@ const Chat = (() => {
      ("fs read", never "fs.read"). A first ask, a worker's ask and a background ask get no line.
      wsId -> Map(tool -> Set(promptId)): a re-render of the same ask never counts as a second ask. */
   const askedTools = new Map();
+  /* A COMMAND IS APPROVED ONE AT A TIME (GHSA-2hpj #4). The station never records ALWAYS for a command (shell, terminal,
+     background input, a check run): any yes approves that one call, and "for this session" covers that exact call only.
+     The station stamps the ask (exactCommand); the tool names are the same rule for an ask restored from an older save. */
+  const EXACT_COMMAND_TOOLS = new Set(['shell.exec', 'shell.bg.write', 'terminal.start', 'terminal.write', 'verify.run']);
+  function isCommandAsk(p) { return !!p && (p.exactCommand === true || EXACT_COMMAND_TOOLS.has(String(p.tool || ''))); }
   // the tool in the card title's words (actionPhrase's ANY OTHER TOOL line): a connector tool says whose
   const toolWordsOf = t => { const mcp = /^mcp__(.+?)__(.+)$/.exec(t); return (mcp ? mcp[1] + ' ' + mcp[2] : t).replace(/[._]+/g, ' ').trim(); };
   function consentHintFor(p, ws) {
     const tool = String((p && p.tool) || '');
     if (!tool || !ws || !p || p.promptId == null || p.workerAgentId || p.workerRunId || p.background === true) return '';
+    if (isCommandAsk(p)) return '';   // a command's card has no Always to explain (GHSA-2hpj #4)
     const byTool = askedTools.get(ws.id) || new Map(); askedTools.set(ws.id, byTool);
     const ids = byTool.get(tool) || new Set(); byTool.set(tool, ids);
     ids.add(String(p.promptId)); if (ids.size > 20) ids.delete(ids.values().next().value);
@@ -4815,6 +4828,12 @@ const Chat = (() => {
     } else if (p.tool === 'browser.login.done') {
       mk('Done — I\'ve logged in', 'once', 'primary', '✓ done', false);
       mk('Cancel', 'deny', 'deny', '✕ cancelled', true);
+    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true) {
+      // widening the station's leash and installing a plugin are answered fresh every time (freshConsent tools,
+      // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access. Any ask the station
+      // marks fresh too: a write by a run that read outside content (fix-sec2 breakage 9)
+      mk('Approve once', 'once', 'primary', '✓ approved once', false);
+      mk('Deny', 'deny', 'deny', '✕ denied', true);
     } else if (p.outsideContent === true) {
       // AFTER OUTSIDE CONTENT (taint.js postTaintBoundary): this chat read an email, a page or a connector result, and the
       // station approves each later call of this kind once, whatever the answer. Customer report 11-08: the card offered
@@ -4826,15 +4845,14 @@ const Chat = (() => {
       const why = document.createElement('span'); why.className = 'consent-hint';
       why.textContent = 'This chat has read outside content (an email, a web page or a connector result), so StarNet asks before each ' + toolWordsOf(String(p.tool || '')) + ' here, and Always cannot skip that';
       btns.appendChild(why);
-    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit') {
-      // widening the station's leash and installing a plugin are answered fresh every time (freshConsent tools,
-      // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access
-      mk('Approve once', 'once', 'primary', '✓ approved once', false);
-      mk('Deny', 'deny', 'deny', '✕ denied', true);
     } else {
       const agentName = (p && p.workerAgentId) ? askerName(p, ws) : name;
-      mk('Approve once', 'once', 'primary', '✓ approved once', false, 'Allow just this one');
-      mk('Always', 'always', '', '✓ always allowed', false, 'Allow this kind of action from now on, without asking');
+      // a command (GHSA-2hpj #4) has no Always: the station approves a command one at a time. Full access stays the
+      // agent's posture; a terminal's "for this session" answer covers this exact command, and the card settles so
+      const command = isCommandAsk(p);
+      mk('Approve once', 'once', 'primary', '✓ approved once', false, command ? 'Run just this command. The next command asks again' : 'Allow just this one');
+      if (!command) mk('Always', 'always', '', '✓ always allowed', false, 'Allow this kind of action from now on, without asking');
+      else labels.session = '✓ approved for this session (this exact command)';
       mk('Full access', 'full', 'danger', '✓ full access', false, 'Give ' + agentName + ' full access: it stops asking before most actions, until you change it back');
       mk('Deny', 'deny', 'deny', '✕ denied', true);
       // a repeat ask's one line (what Always does), inside the keys' row so it leaves with them once the card is answered
@@ -12424,7 +12442,7 @@ const Chat = (() => {
 
   // the store asks for a conversation's packed rows through the same reader (Workstreams.sourceIdsOf: a purge must see every run a session holds)
   if (typeof Workstreams !== 'undefined' && Workstreams.setHydrator) Workstreams.setHydrator(ws => hydrateHistory(ws, { windowMs: 20000 }));
-  return { init, load, paintTitle, deliverTurns, forgetSession, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl,
+  return { init, load, paintTitle, deliverTurns, forgetSession, send, consentInspect, appendConsentDetails, revealHistory, revealAsk, copyText, continuityDiagnostics, refreshStarters, sendOrQueue, continueConnectorTask, stopActive, status, localLine, broadcast, renderProse, toolRailOf, openFile, answerConsent, consentPhrase: actionPhrase, reconcileBackgroundAsks, setSystem, getHistory, hydrateHistory, sealRows, sealSoon, contextRef, abort, isBusy, beatBusy: skillBeatBusy, beginInterview, endInterview, echoUser, prefill, rememberSent: recordSent, autoGrowInput, choices, clearChoices, retireDeskPrompt, typeLine, nudge, clearNudge, offerCuriosity, offerFork, planGoalPath, briefingReceipt, isComposerEngaged, canFocusSession, runMeta, runDidWork, awayDigest, awayReview, awayRate, sampleCard, workshopReturn, refreshIdBar: renderIdBar, refreshGroupControls: updateControls, refreshAgentIdentity, setRosterStatus, askBudgetSpent, spendAsk, clockLabel: fmtClock, breakLabel: fmtBreak, workspaceFileRefs, imageBlobUrl, readableUrl, isCommandAsk,
     // the COMMS '▤ saved' row's folder / copy-path keys and their path resolver, shared with MY WORK › DELIVERABLES' FILES rows (org pass 10-14, P24)
     folderButton, copyPathButton, fullSavedPath: absoluteArtifactPath };
 })();

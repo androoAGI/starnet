@@ -44,8 +44,17 @@ const { fnBody } = require('./_fnbody');   // lives in its own module (node:test
 
 let reported = false;
 
+/* A FAILURE OUTSIDE THE COUNTERS IS STILL A FAILURE (2026-11-08). A test whose catch flags the throw with
+   process.exitCode = 1 and then reaches report() used to print "OK (n assertions)" and exit 0, because report()
+   exits with its own count: forget.phone.http read green that way after it threw before asserting anything. So a
+   failing exit code already set when report() runs counts as a problem: no OK, exit 1. */
 function report(title) {
   reported = true;
+  const prior = process.exitCode;
+  if (prior !== undefined && prior !== null && prior !== 0 && prior !== '0') {
+    err('the test had already failed outside its assertions (process.exitCode ' + prior + ' before report(): usually a throw its catch flagged'
+      + (pass === 0 ? ', before any assertion ran' : '') + ')');
+  }
   console.log((title || 'tests') + ': ' + (fail ? (fail + ' problem(s), ' + pass + ' ok') : ('OK (' + pass + ' assertions)')));
   process.exit(fail ? 1 : 0);
 }

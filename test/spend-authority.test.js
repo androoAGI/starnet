@@ -57,7 +57,9 @@ console.log('spend admission: receipt failure, repeated checks, independent sett
   const blk=makeBudget({clock,ledger:open,caps:{day:5}}).check('r','a',0);
   assert.equal(blk.unknown,true,'a chosen cap stays fail-closed over a run with no bound');assert.equal(blk.cause,'unsettled');
   assert.equal(blk.exit,'press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0','...naming its one-click exit');
-  assert.equal(makeBudget({clock,ledger:open,caps:{day:5},strictScope:()=>false}).check('s','a',0),null,'the soft shipped rail still proceeds');
+  // GHSA-2hpj #8: the soft shipped rail pauses unwatched work over it, and lets a watched run proceed against the floor
+  assert.equal(makeBudget({clock,ledger:open,caps:{day:5},strictScope:()=>false}).check('s','a',0).paused,true,'the soft shipped rail pauses unattended work');
+  assert.equal(makeBudget({clock,ledger:open,caps:{day:5},strictScope:()=>false}).check('s','a',0,undefined,null,null,{attended:true}),null,'the soft shipped rail still proceeds for a watched run');
   for(const bad of [NaN,-1,'0.3',Infinity,undefined]) assert.throws(()=>L.settleUnsettled('x',bad),e=>e.code==='bad_usd','refuses '+String(bad));
   assert.throws(()=>L.settleUnsettled('nope',0.3),e=>e.code==='not_unsettled','only a run found unsettled at boot');
   assert.throws(()=>L.settleUnsettled('s',0.3),e=>e.code==='not_unsettled','a run this process dispatched books itself');
@@ -112,7 +114,7 @@ console.log('spend admission: receipt failure, repeated checks, independent sett
   assert.deepEqual(receipts[2],{runId:'m3',agentId:'a',ts:100000},'a throwing meta getter still begins the run');
   assert.equal(L.pendingRuns(),3);
   const soft=[];const S=makeLedger({clock,io:{readAll:()=>[],unsettled:()=>[{runId:'z'}],append(){},beginRun(r){soft.push(r);}}});
-  makeBudget({clock,ledger:S,caps:{day:5},strictScope:()=>false}).check('s1','a',0,0,null,{provider:'p'});
+  makeBudget({clock,ledger:S,caps:{day:5},strictScope:()=>false}).check('s1','a',0,0,null,{provider:'p'},{attended:true});
   assert.equal(soft[0].provider,'p','the soft-unknown path forwards the receipt meta too');
 }
 console.log('spend recovery: kept rows, strict refusal, Commander settle, live-run guard, write failure, receipt meta PASS');

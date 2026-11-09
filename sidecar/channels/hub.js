@@ -440,6 +440,8 @@
     // The composition root may mint this only for an authenticated Telegram owner DM. It deliberately lives at
     // the hub edge so every other channel and every Telegram group message stays on its ordinary policy.
     const ownerTrustedFor = typeof o.ownerTrusted === 'function' ? o.ownerTrusted : (() => false);
+    // final review #1: (agentId, config) -> may the owner's message run with no card (the host's own verdict, read per message)
+    const ownerCardFreeFor = typeof o.ownerCardFree === 'function' ? o.ownerCardFree : null;
     // whether this hub HAS an owner DM that can be trusted — what a shell-command refusal may point the owner to
     const ownerDmExec = typeof o.ownerTrusted === 'function';
     /* OWNER IDENTITY for control commands and Full Power inheritance (2026-09-25, sec-owner-gates).
@@ -537,8 +539,8 @@
           chatId: chatId,
           options: [
             { label: '✅ Allow once', value: 'once' },
-            { label: '✅ Allow for this session', value: 'session' },
-            { label: '♾️ Always allow', value: 'always' },
+            // no ALWAYS and no session: a chat answers once or no; anything that outlives the card is confirmed at the desk
+            // (GHSA-2hpj #1; fix-sec2 F3, review2 #10)
             { label: '❌ Deny', value: 'deny' }
           ],
           meta: { runId: runId, promptId: promptId }
@@ -1827,6 +1829,16 @@
           sec = config && config.ok !== false ? config : { error: (config && config.error) || 'target agent is not configured' };
         } catch (_) { sec = { error: 'target agent configuration could not be read' }; }
       }
+      /* THE OWNER'S CARD-FREE DM IS WHAT THE DESK BOUND (final review #1). ownerCardFree (the composition root) says whether
+         this agent, on this config, may run the owner's message with no card: its Full Access (bound to its instructions,
+         model, provider and skills) or FULL BYPASS, and never on an endpoint the channel's own record carries. When it may
+         not, an owner DM asks in the chat with the approval buttons (when this transport has them), and the run is handed
+         channelOwnerUnbound so no Full Power rides it. Asked after the agent and its config are resolved, every message. */
+      let ownerBound = true;
+      if (ownerCardFreeFor && (ownerTrusted || channelSenderOwner)) {
+        try { ownerBound = ownerCardFreeFor(agentId, sec) === true; } catch (_) { ownerBound = false; }
+      }
+      const approvalsOn = wantApprovals || (ownerTrusted && !ownerBound && buttonsOk && !!askConsent && !!resolveConsent);
       const provider = String(sec.provider || 'openrouter').trim().toLowerCase() || 'openrouter';
       const usingCodex = provider === 'codex' || provider === 'openai-codex';
       const reasoningEffort = sec.reasoningEffort || sec.reasoning_effort || (usingCodex ? 'low' : 'medium');
@@ -2211,7 +2223,7 @@
         // pause/resolve (askConsent registers it in the SAME pendingByRun the browser answers), while the hub
         // only renders the keyboard and routes the tap back. Built per ATTEMPT so it closes over this attempt's
         // runId + AbortController; a superseded attempt's prompts die with its signal.
-        const consentPrompt = wantApprovals ? function (call, tool) {
+        const consentPrompt = approvalsOn ? function (call, tool) {
           // count the open asks on the chat's run record (released however the wait settles: tap, timeout, abort) so a
           // typed follow-up can say the run is paused on this keyboard (LIVE STEER above)
           myRec.awaitingConsent = (myRec.awaitingConsent || 0) + 1;
@@ -2259,8 +2271,9 @@
             // RUN ORIGIN (run-origin.js entryUntrusted): the job itself is third-party content, so Full Access does not
             // lift this run's taint lock. Every hop of its line inherits the same verdict (lineEntryUntrusted below).
             untrustedEntry: lineEntryUntrusted || undefined,
-            surface: wantApprovals ? 'interactive' : 'autonomous',
+            surface: approvalsOn ? 'interactive' : 'autonomous',
             ownerTrusted: ownerTrusted,
+            channelOwnerUnbound: ownerBound ? undefined : true,   // final review #1 (run-origin.js hostPowerWithheldFor)
             // RUN ORIGIN (sidecar/run-origin.js): a chat sender started this run. Full Power (per-agent Full Access /
             // master bypass) is inherited only when that sender is the bound owner in a direct chat (a SEND TO hand-off: as
             // the sending job's sender was, lineWithheld above).
@@ -2342,7 +2355,7 @@
              POSITIVE only and only here — this hub established them. A hand-off of this job (handoff-runner) runs the next line
              under the same ones; a seed without them (routines, Run Now, anything older) hands on as untrusted + withheld. */
           entryTrusted: lineEntryUntrusted ? undefined : true,
-          hostPowerKept: (runChannelSender === true && runChannelSenderOwner !== true) ? undefined : true,   // run-origin.js hostPowerWithheldFor's own test
+          hostPowerKept: ((runChannelSender === true && runChannelSenderOwner !== true) || !ownerBound) ? undefined : true,   // run-origin.js hostPowerWithheldFor's own test (+ final review #1)
           /* THE SAVED HOLD'S ADMISSION (line-hold lane): a walk that parks at a reviewer's gate keeps how this job came in. The door's own
              facts (o.jobOrigin: the trigger and SEND TO hubs know theirs) else this chat's, and the entry's restrictive taint label. Facts
              only: the host's originOf (index.js) decides whether they name an origin, and a hold that cannot be named ends as it did. */
@@ -2356,6 +2369,10 @@
           channel: channel, chatId: chatId, streamId: canonicalStreamId, config: resolveRunConfig, persona: (agentId) => personaFor(agentId, rec),
           station: resolveStation, ownerTrusted: ownerTrusted, untrustedEntry: lineEntryUntrusted,
           channelSender: runChannelSender, channelSenderOwner: runChannelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
+          // final review #1: each hop's own agent and config get the same card-free question as the entry (null: not an owner's line)
+          ownerUnbound: (ownerCardFreeFor && (ownerTrusted || channelSenderOwner)) ? function (hopAgentId) {
+            try { return ownerCardFreeFor(hopAgentId, resolveRunConfig(hopAgentId)) !== true; } catch (_) { return true; }
+          } : null,
           // a REAL chat's line history for THIS dock: its earlier jobs only, never the agent's shared history (hopLineage); a one-job hub none
           history: bindChats ? hopLineage(chatId, lineId, chatHistory) : null,
           redact: redact, onToolStep: noteToolStep,   // a hop's step is this message's step too

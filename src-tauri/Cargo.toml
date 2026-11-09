@@ -25,6 +25,11 @@ tauri-plugin-dialog = "2"
 # Secret Service (dbus) with keyutils fallback — without these, non-Windows builds
 # compile but have NO store and every keychain call errors at runtime.
 keyring = { version = "3", features = ["windows-native", "apple-native", "linux-native", "sync-secret-service"] }
+# GHSA-2hpj #10 (update_verify.rs): unpack a macOS update exactly as tauri-plugin-updater will, to check its code
+# signature before the swap. The same tar 0.4 / flate2 1 the plugin links (one entry each in Cargo.lock). Every target
+# builds them so `cargo test` runs the unpack tests anywhere; only macOS calls the unpack, the release LTO drops it elsewhere.
+tar = "0.4"
+flate2 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"

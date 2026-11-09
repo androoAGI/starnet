@@ -37,6 +37,11 @@ on:
   push:
     tags: ['v*']
 
+# Least privilege (GHSA-2hpj): the workflow token only reads this repo. Releases go to the releases repo
+# through RELEASES_TOKEN, never through this token.
+permissions:
+  contents: read
+
 jobs:
   # -------------------------------------------------------------------------------------------
   # Job 1 — gate: nothing builds unless the fast test suite is green.
@@ -49,14 +54,14 @@ jobs:
       # planning authority reads BLOCKED ("source commit unreadable"), failing the gate on a
       # green trunk (proven on the v0.6.3 train, runs 29787452203/29788984615). Same reason
       # the build job already fetches full history for its provenance gate.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           # A manual recovery run executes the repaired workflow from trunk, but every
           # release assertion and build input must still come from the immutable tag.
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -168,20 +173,20 @@ jobs:
       # default shallow checkout (fetch-depth 1, no tags) makes describe fall back to the bare short SHA, so the
       # gate's `describe == tag` check fails and the train produces ZERO artifacts (what stalled v0.4.0). Do NOT
       # shrink this back to a shallow checkout — it feeds the gate real git data, it does not weaken the gate.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           targets: ${{ matrix.rust-target }}
 
-      - uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
           key: ${{ matrix.target }}
@@ -572,6 +577,35 @@ jobs:
             throw "[$env:TARGET] installed bundled Node version is $actualNodeVersion; expected $expectedNodeVersion"
           }
 
+      # GHSA-2hpj #10 RELEASE GATE: the shell's OWN update signer check must admit the installer the
+      # fleet will download. An installed StarNet runs src-tauri/src/update_verify.rs on every update
+      # (Get-AuthenticodeSignature: Valid, embedded, exactly one CN = the publisher pinned above)
+      # before it runs the installer. update-verify-gate compiles that file unchanged and runs it on
+      # the signed installer here, so a check that would refuse this release fails the train instead
+      # of every installed copy's next update. Controls: a catalog-signed Microsoft binary and the
+      # runner's Node (embedded OpenJS Foundation signature) must be refused. A tiny crate (tar +
+      # flate2 only) built into the job's existing target dir.
+      - name: Gate the signed installer through the shell's own update signer check
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json).version
+          $installers = @(Get-ChildItem -Path 'src-tauri/target' -Recurse -File -Filter "*_$($version)_*-setup.exe" |
+            Where-Object { $_.FullName -match '[\\/]release[\\/]bundle[\\/]nsis[\\/]' })
+          if ($installers.Count -ne 1) {
+            throw "[$env:TARGET] expected exactly one signed $version NSIS installer for the update signer gate, found $($installers.Count)"
+          }
+          cargo build --locked --manifest-path src-tauri/update-verify-gate/Cargo.toml --target-dir src-tauri/target
+          if ($LASTEXITCODE -ne 0) { throw "[$env:TARGET] the update signer gate did not build" }
+          $foreign = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+          & 'src-tauri/target/debug/update-verify-gate.exe' windows $installers[0].FullName $foreign
+          if ($LASTEXITCODE -ne 0) {
+            throw "[$env:TARGET] the shell's own update signer check refused the signed installer (error above); nothing is uploaded"
+          }
+
       # Clean-install/signature proof cannot catch the field failure where an existing
       # installation's uninstall.exe is missing, blocked, or exits nonzero. Exercise the exact
       # human path (double-click candidate with no flags) from both latest and N-1 published
@@ -606,7 +640,7 @@ jobs:
 
       - name: Upload Windows published-upgrade receipt
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: windows-published-upgrade-proof-${{ matrix.target }}
           path: windows-published-upgrade-proof.json
@@ -712,6 +746,36 @@ jobs:
 
           echo "::notice::[$TARGET] local Developer ID checks passed; ready for asynchronous Apple submission ✓"
 
+      # GHSA-2hpj #10 RELEASE GATE: the shell's OWN update signer check must admit the archive the
+      # fleet will download. An installed StarNet runs src-tauri/src/update_verify.rs on every update:
+      # it unpacks the .app.tar.gz exactly as the updater plugin will (the tar crate, no xattrs) and
+      # needs `codesign --verify --deep --strict -R =<Developer ID requirement pinned to its own
+      # team>` to pass before it swaps itself. update-verify-gate compiles that file unchanged and
+      # runs it here on the freshly signed archive, with this build's signed .app standing in for
+      # the running copy, so a check that would refuse this release fails the train instead of every
+      # Mac's next update. The expected team comes from the signed .app itself (no Apple secret in
+      # this step). A control asks codesign for the same requirement under another team and must be
+      # refused. A tiny crate (tar + flate2 only) built into the job's existing target dir.
+      - name: Gate the updater archive through the shell's own update signer check
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          app=$(find src-tauri/target -type d -name '*.app' -path '*/release/bundle/macos/*' | head -1)
+          archives=$(find src-tauri/target -type f -name '*.app.tar.gz' -path '*/release/bundle/macos/*')
+          [ -n "${app:-}" ] && [ -d "$app" ] || { echo "::error::[$TARGET] no signed .app to take the team from."; exit 1; }
+          count=$(printf '%s\n' "$archives" | grep -c . || true)
+          [ "$count" -eq 1 ] || { echo "::error::[$TARGET] expected exactly one .app.tar.gz for the update signer gate, found $count."; exit 1; }
+          team=$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p' | head -1)
+          case "$team" in
+            ""|"not set") echo "::error::[$TARGET] the signed .app has no TeamIdentifier for the update signer gate."; exit 1 ;;
+          esac
+          cargo build --locked --manifest-path src-tauri/update-verify-gate/Cargo.toml --target-dir src-tauri/target
+          src-tauri/target/debug/update-verify-gate macos "$archives" "$app" "$team"
+          echo "::notice::[$TARGET] the shell's own update signer check admits $archives (team $team) ✓"
+
       # Tauri names the mac updater bundle "<App>.app.tar.gz" with NO arch marker — identical
       # for both mac legs. Release assets are a flat namespace, so without a rename the two
       # legs collide into one asset and one arch gets the wrong binary. Rename per-arch here.
@@ -754,7 +818,7 @@ jobs:
 
       - name: Upload macOS notarization input
         if: runner.os == 'macOS'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           if-no-files-found: error
@@ -766,7 +830,7 @@ jobs:
 
       - name: Upload Windows distributable artifacts
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -789,11 +853,11 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 350
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: notarization-input-${{ matrix.target }}
           path: notarization-input
@@ -809,7 +873,7 @@ jobs:
           dmg=$(find notarization-input -type f -name '*.dmg' | head -1)
           bash scripts/notarize-macos-finalize.sh notarization-input/notary-submission.json "$dmg"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: starnet-${{ matrix.target }}
           if-no-files-found: error
@@ -826,12 +890,12 @@ jobs:
     if: ${{ !cancelled() && needs.build.result == 'success' && needs.notarize-macos.result == 'success' }}
     runs-on: macos-15-intel
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
       - name: Download notarized Intel macOS distributable
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: starnet-darwin-x64
           path: intel-distributable
@@ -846,7 +910,7 @@ jobs:
           bash scripts/verify-macos-intel-installed.sh "$dmg" intel-macos-installed-acceptance.json
 
       - name: Upload Intel installed-app receipt
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: intel-macos-installed-acceptance
           if-no-files-found: error
@@ -859,11 +923,11 @@ jobs:
     needs: [build, notarize-macos, intel-macos-installed-acceptance]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22
 
@@ -886,7 +950,7 @@ jobs:
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
           echo "::notice::building release train for v$V"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: starnet-*
           path: dist
@@ -910,7 +974,7 @@ jobs:
           node scripts/verify-update-host.mjs --manifest release/latest.json
           --require-platforms windows-x86_64,darwin-aarch64,darwin-x86_64
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-manifest
           if-no-files-found: error
@@ -947,7 +1011,7 @@ jobs:
       GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
       REPO: androoAGI/starnet-releases
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
@@ -960,13 +1024,13 @@ jobs:
           echo "version=$V" >> "$GITHUB_OUTPUT"
           echo "tag=v$V" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: starnet-*
           path: dist
           merge-multiple: true
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: release-manifest
           path: release

@@ -56,7 +56,7 @@ async function installApprovedPlugin(fixture, id) {
   fs.writeFileSync(path.join(dir, 'index.js'), "module.exports = { register(api) { api.tool({ name: 'inspect', description: 'Inspect the sample.', readOnly: true, parameters: { type: 'object', properties: {} }, run: async () => ({ ok: true }) }); } };\n");
   const found = ((await fixture.json('GET', '/api/plugins')).body.plugins || []).find(p => p.id === id);
   A.ok(found && found.digest && found.pending, 'the sample plugin is installed and awaits approval');
-  const allowed = await fixture.json('POST', '/api/plugins/allow', { id, digest: found.digest });
+  const allowed = await fixture.deskJson('POST', '/api/plugins/allow', { id, digest: found.digest });   // confirmed at the desk (fix-sec2, review 3)
   A.eq(allowed.status, 200, 'the sample plugin is approved by its exact digest');
   const live = ((await fixture.json('GET', '/api/plugins')).body.plugins || []).find(p => p.id === id);
   A.ok(live && live.active && (live.tools || []).indexOf('inspect') >= 0, 'the approved plugin runs in its process and registered its inspect tool');

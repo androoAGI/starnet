@@ -263,7 +263,7 @@ async function waitFor(pred, label) {
       const fire = await s.scheduled('ant', 'SCHED-ANT-AFTER-REMOVE');
       A.ok(!!fire.blocked && fire.blocked.lastError === sentence('anthropic', 'this scheduled routine'), 'desktop: the scheduled fire is blocked with the shared sentence: ' +
         JSON.stringify(fire.blocked ? { lastReason: fire.blocked.lastReason, lastError: fire.blocked.lastError } : fire));
-      const tg = await s.fx.json('POST', '/api/channels/telegram/connect', { token: '123456:REMOVE-ROTATE-TOKEN', agentId: 'ant', provider: 'anthropic', model: MODELS.anthropic });
+      const tg = await s.fx.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:REMOVE-ROTATE-TOKEN', agentId: 'ant', provider: 'anthropic', model: MODELS.anthropic });
       A.ok(tg.status === 400 && /cannot run on this station/.test(String(tg.body && tg.body.error)), 'desktop: the Telegram connect gate refuses a bot on the removed key: ' + tg.status + ' ' + JSON.stringify(tg.body));
       A.ok(!keysSince(up, mark).includes(K.ant), 'desktop: no upstream request after the REMOVE carries the removed key (' + keysSince(up, mark).length + ' requests since)');
       A.eq(s.holders(K.ant), [], 'desktop: the sidecar\'s environment holds the removed key under no name (neither spelling)');

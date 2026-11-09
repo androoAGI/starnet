@@ -81,8 +81,9 @@ function stubs() {
   A.ok(/if \(finish && finish\.freshConsent === true && \/\^\(full\|always\|session\)\$\/\.test\(decision\)\) decision = 'once';\s*if \(finish && decision === 'full'\) \{\s*persisted = persistAgentFullAccess/.test(idx), 'handleConsent: any standing answer on a fresh card is applied and echoed as once, and never persists Full Access');
   A.ok(/fresh: !!\(tool && tool\.freshConsent === true\)/.test(idx) && /if \(orig && fields && fields\.fresh\) orig\.freshConsent = true;/.test(idx), 'the desk prompt marks a fresh card\'s finisher');
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
-  // the fresh-consent cards (station.power, and plugin.submit since app-shell-ui-03) share one once / deny branch
-  const freshBranch = "} else if (p.tool === 'station.power' || p.tool === 'plugin.submit') {";
+  // the fresh-consent cards (station.power, plugin.submit since app-shell-ui-03, and any card the host marks fresh since
+  // 5dae834e8: a tainted write's path card) share one once / deny branch
+  const freshBranch = "} else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true) {";
   A.ok(chat.indexOf(freshBranch) >= 0, 'the station.power and plugin.submit cards share the fresh-consent branch');
   const card = chat.slice(chat.indexOf(freshBranch), chat.indexOf("} else {", chat.indexOf(freshBranch)));
   A.ok(/'Approve once'/.test(card) && /'Deny'/.test(card) && !/'Always'|'Full access'/.test(card), 'the station.power card offers Approve once and Deny only');

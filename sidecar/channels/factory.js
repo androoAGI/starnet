@@ -44,6 +44,7 @@ const POLICY = Object.freeze({
   onJobSettled: { wired: ["sample", "trigger", "handoff"], off: "Only host-owned sample/trigger jobs publish this receipt." },
   onLineOutcome: { wired: ["sample", "trigger", "handoff"], off: "Only host-owned sample/trigger jobs consume this outcome callback." },
   onResolved: { wired: ["dev", "sample", "trigger", "handoff"], off: "Only dev/sample/trigger need a constructor-level resolution observer." },
+  ownerCardFree: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal"], off: "Only adapter-paired conversation channels have an owner whose DM could skip a card." },
   ownerSurface: { wired: ["dev", "sample"], off: "Only authenticated local dev and sample routes carry ambient owner authority." },
   ownerTrusted: { wired: ["telegram", "telegram-bot"], off: "Only Telegram adapters prove an owner DM; local sample/dev use ownerSurface." },
   persona: { wired: ["telegram", "telegram-bot", "discord", "slack", "matrix", "signal", "dev", "sample", "trigger", "handoff"], off: "This hub kind has no caller for this dependency." },

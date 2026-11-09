@@ -45,6 +45,8 @@ const { floorOf, publishFloor } = require('./helpers/saved-floor.js');
 
 const EDGE = path.join(__dirname, 'helpers', 'outbound-edge.js');
 const IPC = 'credential-store-endpoint-pair-ipc-0123456789abcdef';
+// the desktop shell's own key (review2 #11: only the shell quits a desktop station over HTTP; deskJson plays the shell with it)
+const SHELL_KEY = 'credential-store-endpoint-pair-shell-0123456789abcdef';
 const V1 = 'credential-store-endpoint-pair-v1-bearer-0123456789';
 const K = {
   env: 'custom-OPERATOR-ENV-key-E-0123456789abcdefghij',
@@ -188,7 +190,7 @@ function station(label, up, env) {
         timer = setTimeout(() => reject(new Error(label + ': graceful shutdown did not exit within the fixture deadline')), fx.timeoutMs);
       });
       try {
-        const quitting = fx.json('POST', '/api/lifecycle/quit', undefined, { signal: AbortSignal.timeout(fx.timeoutMs) }).then(reply => {
+        const quitting = fx.deskJson('POST', '/api/lifecycle/quit', undefined, { signal: AbortSignal.timeout(fx.timeoutMs) }).then(reply => {
           const accepted = reply.status === 202 && reply.body && reply.body.ok === true && reply.body.shuttingDown === true;
           A.ok(accepted, label + ': graceful quit accepted: ' + reply.status + ' ' + reply.text);
           if (!accepted) throw new Error(label + ': graceful quit refused; do not restart');
@@ -291,7 +293,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       const routine = await s.routine('cus', 'custom', 'PAIR-RUN-NOW');
       const line = await s.routine('cus', 'custom', 'PAIR-LINE', { runsLine: true });
       // a bot that keeps no key of its own: it follows the station (a station reference)
-      const connected = await s.fx.json('POST', '/api/channels/telegram/connect', { token: '123456:ENDPOINT-PAIR-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
+      const connected = await s.fx.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:ENDPOINT-PAIR-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
       A.eq(connected.status, 200, 'P3b: the bot connects: the connect gate proves the pair its messages run (trunk refused it): ' + connected.text.slice(0, 300));
       await waitFor(() => tg.polling(), 'the bot polls');
       if (connected.body && connected.body.pairingCode) {
@@ -380,7 +382,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       A.ok(!!fire.blocked && fire.blocked.lastError === P3C_SENTENCE, 'P3c: the scheduled fire is blocked with the same sentence: ' + JSON.stringify(fire.blocked ? fire.blocked.lastError : fire));
       const v1 = await s.v1('cus', 'P3C-V1');
       A.ok(v1.status === 503 && /CUSTOM_OPENAI_KEY/.test(JSON.stringify(v1.body)) && /CUSTOM_OPENAI_BASE_URL/.test(JSON.stringify(v1.body)), '/v1 refuses, naming the key and an exit: ' + JSON.stringify(v1.body));
-      const bot = await s.fx.json('POST', '/api/channels/telegram/connect', { token: '123456:P3C-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
+      const bot = await s.fx.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:P3C-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
       A.ok(bot.status === 400 && /CUSTOM_OPENAI_KEY/.test(String(bot.body && bot.body.error)), 'a bot\'s connect refuses, naming the key: ' + bot.text.slice(0, 260));
       const providers = await s.providers();
       A.eq([providers.custom.configured, providers.custom.credentialSource, providers.custom.envName], [false, 'environment', 'CUSTOM_OPENAI_KEY'], 'P3c: /api/providers says the env key is what the station holds, and it cannot run');
@@ -429,7 +431,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
     // the desktop: the keychain key on its kept endpoint, after a restart with no window
     {
       const kept = up.base + '/kept/v1';
-      const s = station('desktop', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('CUSTOM_OPENAI_KEY', K.kc) });
+      const s = station('desktop', up, { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('API_TOKEN', SHELL_KEY), ...pair('CUSTOM_OPENAI_KEY', K.kc) });
       stations.push(s);
       await s.fx.start();
       A.eq((await s.roster({ cus: { provider: 'custom' } })).status, 200, 'desktop: the roster is saved');

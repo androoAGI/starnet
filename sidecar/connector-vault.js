@@ -296,7 +296,13 @@ function makeConnectorVault({ fs, path, keyHex = '', required = false, writeDura
       throw new Error('START FRESH failed. ' + detail + ' ' + String(error && error.message || error));
     } finally { resetInProgress = false; }
   }
-  return { load, write, migrate, startFresh,
+  // A key for another purpose, derived from the credential-store key (HMAC-SHA256 under a label), so the raw key stays
+  // in this closure. null without a key. The authority seal (GHSA-2hpj #3) is the one caller.
+  function deriveKey(label) {
+    if (!key || typeof label !== 'string' || !label) return null;
+    return crypto.createHmac('sha256', key).update('starnet.derive\n' + label).digest();
+  }
+  return { load, write, migrate, startFresh, deriveKey,
     get protected() { return !!key && !locked; }, get locked() { return locked; },
     get lockReason() { return locked ? lockReason : ''; },
     // What the lock message can name (lockMessage's third argument): { movedTo, unfinishable? } for an interrupted

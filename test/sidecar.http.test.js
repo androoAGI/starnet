@@ -22,6 +22,7 @@ const edge = require('../sidecar/edgetts.js');   // V-EDGE: exported WS codec + 
 const { bootToken, sseQuery, fileQuery } = require('./_httpToken.js');
 const Tickets = require('../sidecar/apitickets.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
 const HOST = '127.0.0.1';
@@ -153,8 +154,12 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   const { child, port } = booted;
   const B = 'http://' + HOST + ':' + port;
   let apiToken = '';
-  const j = async (m, p, body) => {
-    const headers = { 'Content-Type': 'application/json' };
+  // an authority change (here: the owner code a first channel connect hands out, review2 #1) is confirmed with the code
+  // this station printed on its own console, as the person at it would type it
+  const desk = makeDeskCodeReader();
+  child.stderr.on('data', d => desk.feed(d));
+  const j = async (m, p, body, extra) => {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes need the token too now
     const r = await fetch(B + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
@@ -658,10 +663,14 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(JSON.stringify(configuredProviders.body).indexOf('xai-provider-http-test-secret') < 0, 'provider list never leaks the pushed xAI secret');
 
     // PU-06: Signal is tokenless. Removing it destroys endpoint/account configuration, not a fictional token.
-    const signalConnect = await j('POST', '/api/channels/signal/connect', {
+    const signalBody = {
       endpoint: 'http://127.0.0.1:65529', account: '+15551234567', model: 'local/proven-model',
       provider: 'custom', baseUrl: 'http://127.0.0.1:65530/v1', agentId: 'agent', agentName: 'Ultron'
-    });
+    };
+    const signalAsked = await j('POST', '/api/channels/signal/connect', signalBody);
+    A.eq(signalAsked.status, 403, 'a first Signal connect, which hands out its owner code, asks at the desk first (review2 #1)');
+    A.eq((await j('GET', '/api/channels/signal/status')).body.configured, false, 'and saves nothing before the desk says yes');
+    const signalConnect = await desk.confirm(await j('POST', '/api/channels/signal/connect', signalBody), h => j('POST', '/api/channels/signal/connect', signalBody, h));
     A.eq(signalConnect.status, 200, 'Signal accepts endpoint/account configuration against an offline bridge');
     const signalSaved = await j('GET', '/api/channels/signal/status');
     A.eq(signalSaved.body.configured, true, 'Signal status is configured from saved endpoint/account');
@@ -903,8 +912,12 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(savedChannels.discord.ownerId, 'discord-owner-42', 'Discord auto-start preserved saved ownerId on disk');
 
     // ---- resume lifts a pool for the session ----
-    const rs = await j('POST', '/api/budget/resume', { scope: 'day' });
-    A.eq(rs.status, 200, 'POST /api/budget/resume{day} -> 200');
+    // RESUME lets runs spend another limit: it asks the desk first, and the station's console code confirms it (GHSA-2hpj)
+    const rsAsked = await j('POST', '/api/budget/resume', { scope: 'day' });
+    A.eq([rsAsked.status, rsAsked.body && rsAsked.body.code, rsAsked.body && rsAsked.body.deskConfirm && rsAsked.body.deskConfirm.action],
+      [403, 'desk_confirm_required', 'budget-resume'], 'POST /api/budget/resume{day} asks the desk first');
+    const rs = await desk.confirm(rsAsked, h => j('POST', '/api/budget/resume', { scope: 'day' }, h));
+    A.eq(rs.status, 200, 'POST /api/budget/resume{day} -> 200 once confirmed');
     A.eq(rs.body.resumed, 'day', 'resume names the scope');
     A.ok(Math.abs(rs.body.cap - 80) < 1e-9, 'resume lifts the day cap to $80 (base + base)');
 
@@ -1158,8 +1171,11 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(fs.existsSync(path.join(ws, 'memory.config.json')), 'the memory config persisted to disk');
 
     // ---- P1-7 STATION BACKUP: export excludes secrets; import round-trips + reset ----
-    // first seed a real budget override so the export has something server-side to carry.
-    await j('POST', '/api/budget/caps', { perRun: 7 });
+    // first seed a real budget override so the export has something server-side to carry. PER RUN $3 (this station's
+    // environment) -> $7 raises a limit, so it is confirmed at the desk (GHSA-2hpj spend routes)
+    const seedAsked = await j('POST', '/api/budget/caps', { perRun: 7 });
+    A.eq([seedAsked.status, seedAsked.body && seedAsked.body.code], [403, 'desk_confirm_required'], 'raising PER RUN $3 -> $7 asks the desk first');
+    A.eq((await desk.confirm(seedAsked, h => j('POST', '/api/budget/caps', { perRun: 7 }, h))).status, 200, 'and is saved once it is confirmed');
     const exp = await j('POST', '/api/config/export', { sections: { settings: { theme: 'blue' }, autonomy: { initiative: 'wait', reach: 'sandbox' } } });
     A.eq(exp.status, 200, 'POST /api/config/export -> 200');
     A.eq(exp.body.starnetExport, 1, 'the export carries the schema-version pivot');
@@ -1170,12 +1186,18 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(JSON.stringify(exp.body).indexOf('sk-') < 0, 'the export never contains a key-shaped secret');
 
     // now reset the budget, then import the envelope back and prove the value is restored.
+    // the reset takes PER RUN from $7 back to the environment's $3: that lowers it, so it does not ask
     const rst = await j('POST', '/api/config/reset', { section: 'budget' });
-    A.eq(rst.status, 200, 'POST /api/config/reset{budget} -> 200');
+    A.eq(rst.status, 200, 'POST /api/config/reset{budget} -> 200 (a reset that lowers a limit never asks)');
     const afterReset = await j('GET', '/api/budget/status');
     A.ok(!Object.prototype.hasOwnProperty.call(afterReset.body.saved, 'perRun'), 'budget override cleared by reset');
-    const imp = await j('POST', '/api/config/import', { envelope: exp.body });
-    A.eq(imp.status, 200, 'POST /api/config/import -> 200');
+    // restoring the backup raises PER RUN $3 -> $7 again: asked at the desk first, nothing applied until it is confirmed
+    const impAsked = await j('POST', '/api/config/import', { envelope: exp.body });
+    A.eq([impAsked.status, impAsked.body && impAsked.body.code, impAsked.body && impAsked.body.deskConfirm && impAsked.body.deskConfirm.action],
+      [403, 'desk_confirm_required', 'budget-raise'], 'an import that raises a spending limit asks the desk first');
+    A.ok(!Object.prototype.hasOwnProperty.call((await j('GET', '/api/budget/status')).body.saved, 'perRun'), 'and nothing is imported before the desk said yes');
+    const imp = await desk.confirm(impAsked, h => j('POST', '/api/config/import', { envelope: exp.body }, h));
+    A.eq(imp.status, 200, 'POST /api/config/import -> 200 once confirmed');
     A.ok(imp.body.applied.indexOf('budget') >= 0, 'import reports budget applied');
     A.ok(imp.body.browser && imp.body.browser.settings && imp.body.browser.settings.theme === 'blue', 'import echoes the browser settings slice for local restore');
     const afterImport = await j('GET', '/api/budget/status');
@@ -1357,7 +1379,11 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
       A.eq(mkJob.status, 200, 'created a routine bound to the doomed agent');
       const mkHero = await j('POST', '/api/cron', { name: 'Hero digest', prompt: 'summarize', schedule: 'every 60m', agentId: 'agent' });
       A.eq(mkHero.status, 200, 'created a routine bound to the hero');
-      const grant = await j('POST', '/api/workshop/grant', { agentId: 'doomed-7', on: true });
+      // turning the away workshop on is a standing unattended grant: confirmed at the desk (review2 #9)
+      const grantBody = { agentId: 'doomed-7', on: true };
+      const grantAsked = await j('POST', '/api/workshop/grant', grantBody);
+      A.eq([grantAsked.status, grantAsked.body && grantAsked.body.code], [403, 'desk_confirm_required'], 'the away-workshop grant asks the desk first');
+      const grant = await desk.confirm(grantAsked, h => j('POST', '/api/workshop/grant', grantBody, h));
       A.eq(grant.status, 200, 'armed the doomed agent\'s away-workshop shift (a second cron job, meta.workshop)');
       const cronBefore = await j('GET', '/api/cron');
       A.eq((cronBefore.body.jobs || []).filter(x => x.agentId === 'doomed-7').length, 2, 'the doomed agent owns 2 jobs (routine + workshop shift)');

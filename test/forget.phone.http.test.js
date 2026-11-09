@@ -78,7 +78,8 @@ const textOf = rows => (Array.isArray(rows) ? rows : []).map(r => String(r && r.
     }
   } catch (e) {
     console.error(e && e.stack || e);
-    process.exitCode = 1;
+    // counted, not only flagged: A.report() exits with its own count, which turned a throw into "OK (0 assertions)", exit 0
+    A.ok(false, 'forget.phone.http threw: ' + String((e && e.message) || e).slice(0, 300));
   } finally {
     await fx.dispose();
   }

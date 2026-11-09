@@ -30,6 +30,8 @@ mod terminal_session;
 mod update_staging;
 mod webview_recovery;
 mod window_visibility;
+// GHSA-2hpj #10: the update's own platform signer, checked before the updater installs it (VerifiedUpdate below)
+mod update_verify;
 
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -1958,6 +1960,18 @@ fn set_sidecar_branded_env<V: AsRef<OsStr>>(cmd: &mut Command, legacy_name: &str
     }
 }
 
+/// Final review #5: once the workspace holds the sidecar's seal record (`authority-seal.json`), say so in the credential
+/// store beside the key (credentials::mark_authority_sealed). Checked before each launch and once the sidecar listens
+/// (the upgrade's first sealed boot writes the record during its own start). A failure is logged and changes nothing.
+fn note_authority_sealed(state: &AppState) {
+    if !state.workspaces.join("authority-seal.json").is_file() {
+        return;
+    }
+    if let Err(error) = credentials::mark_authority_sealed(&state.workspaces) {
+        log_startup(&state.startup_log, format!("authority-sealed record not saved: {error}"));
+    }
+}
+
 fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     let mut cmd = Command::new(node);
     // Clear inherited material: only this OS account's verified keychain entry
@@ -1975,6 +1989,14 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
             eprintln!("[connectors] {error}");
             cmd.env("STARNET_CONNECTOR_KEY_ERROR", &error);
         }
+    }
+    // Final review #5: whether this workspace's permission files were sealed before, from the credential store (never
+    // inherited). A record that exists now is noted first, so it holds even if it is later deleted with every trace.
+    cmd.env_remove("STARNET_AUTHORITY_SEALED");
+    cmd.env_remove("SKYNET_AUTHORITY_SEALED");
+    note_authority_sealed(state);
+    if credentials::authority_sealed(&state.workspaces) {
+        set_sidecar_branded_env(&mut cmd, "STARNET_AUTHORITY_SEALED", "1");
     }
     cmd.arg(entry)
         // The sidecar can load the native Windows desktop driver, but that alone grants nothing:
@@ -2142,6 +2164,9 @@ fn spawn_sidecar(state: &AppState) -> bool {
                     }
                 }
                 record_boot_output(state, &output, listening, exited);
+                if listening {
+                    note_authority_sealed(state);
+                }
                 return listening;
             }
             Err(e) if cfg!(windows) && e.raw_os_error() == Some(32) && attempt < 20 => {
@@ -4469,6 +4494,56 @@ async fn starnet_reveal_path(
     Ok(())
 }
 
+/// THE DESK PROOF (GHSA-2hpj-9wm7-rvg5 #1). The sidecar refuses an AUTHORITY change (FULL BYPASS on, a FULL ACCESS or
+/// ALWAYS answer, a standing grant, raising an agent to full access, Remote on, a pairing code, approving a phone) until
+/// this shell reports that a person confirmed it here: a renderer click or a page token is not a host gesture (the law
+/// confirm_host_launch keeps). The page passes the challenge the sidecar issued (sidecar/deskproof.js); this command shows
+/// its words in a blocking native dialog and, only on yes, reports them back with the per-launch IPC token
+/// (POST /api/desk/approve), which no page and no child process holds. The sidecar accepts the approval only for the
+/// exact words it issued, so a page cannot show one thing and approve another. Nothing is cached: the next change asks again.
+#[tauri::command]
+async fn starnet_desk_confirm(
+    id: String,
+    title: String,
+    summary: String,
+    verb: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    desk_confirm_words_ok(&id, &title, &summary, &verb)?;
+    if !confirm_host_launch(&app, &title, &summary, &verb) {
+        return Err(format!("desk confirmation {HOST_GESTURE_DECLINED}"));
+    }
+    let body = serde_json::json!({
+        "id": id,
+        "title": title,
+        "summary": summary,
+        "verb": verb,
+    })
+    .to_string();
+    post_sidecar_json(&state, "/api/desk/approve", &body, "desk confirmation")
+}
+
+/// The challenge a page hands over must look like one the sidecar issues: an id of its shape, and words with no control
+/// character but a line break, within the sidecar's caps. Anything else is refused before any dialog shows.
+fn desk_confirm_words_ok(id: &str, title: &str, summary: &str, verb: &str) -> Result<(), String> {
+    let id_ok = id.len() >= 19
+        && id.len() <= 67
+        && id.starts_with("dc_")
+        && id[3..]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    let clean = |s: &str, max: usize| {
+        !s.trim().is_empty()
+            && s.chars().count() <= max
+            && !s.chars().any(|c| c.is_control() && c != '\n')
+    };
+    if !id_ok || !clean(title, 120) || !clean(summary, 1200) || !clean(verb, 40) {
+        return Err("that confirmation is not one StarNet issued".to_string());
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod artifact_open_tests {
     use super::{resolve_artifact_path, safe_native_artifact_extension, strip_verbatim};
@@ -4904,7 +4979,7 @@ async fn starnet_update_install(
     };
 
     let mut started = false;
-    let install_result = update
+    let install_result = VerifiedUpdate(&update)
         .download_and_install(
             |chunk_length, content_length| {
                 if !started {
@@ -4934,6 +5009,37 @@ async fn starnet_update_install(
 
     let _ = on_event.send(UpdateInstallEvent::Installing);
     app.restart()
+}
+
+/// THE UPDATE'S OWN SIGNER (GHSA-2hpj-9wm7-rvg5 #10). The pending update, downloaded and minisign-checked by the plugin
+/// (Update::download), then checked against the platform signer the release train signs every build with
+/// (update_verify.rs: codesign + a Developer ID requirement pinned to StarNet's team on macOS, Authenticode + the
+/// release's publisher on Windows) before the plugin installs those SAME bytes (Update::install). Shaped like
+/// Update::download_and_install so the install command reads the same; its error is the sentence the Update Center
+/// shows, and nothing has been installed or moved when it returns one.
+struct VerifiedUpdate<'a>(&'a Update);
+
+impl VerifiedUpdate<'_> {
+    async fn download_and_install<C: FnMut(usize, Option<u64>), D: FnOnce()>(
+        &self,
+        on_chunk: C,
+        on_download_finish: D,
+    ) -> Result<(), String> {
+        let bytes = self
+            .0
+            .download(on_chunk, on_download_finish)
+            .await
+            .map_err(|e| e.to_string())?;
+        // codesign / PowerShell take seconds: off the async runtime
+        let bytes = tauri::async_runtime::spawn_blocking(move || {
+            update_verify::verify_update_bytes(&bytes).map(|()| bytes)
+        })
+        .await
+        .map_err(|e| {
+            format!("the code signature check could not finish ({e}). Nothing was installed.")
+        })??;
+        self.0.install(&bytes).map_err(|e| e.to_string())
+    }
 }
 
 /// P1.5 build provenance: the app version + the git commit/dirty state this binary was compiled from (stamped by
@@ -5571,6 +5677,7 @@ fn main() {
             harness_clear_credits_token,
             starnet_open_artifact,
             starnet_reveal_path,
+            starnet_desk_confirm,
             open_external_url,
             starnet_toggle_fullscreen,
             starnet_set_keep_awake,

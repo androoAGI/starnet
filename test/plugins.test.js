@@ -386,6 +386,21 @@ async function writePlugin(id, source, manifest) {
       await clockless.approvedRecord('jobber', { quick: true });
       A.ok(hashes > 0, 'clockless: every quick check re-hashes');
     }
+
+    // ---- B1 (final review 11-08): a MISSING allowlist is not a changed one ----
+    {
+      const { makeAuthoritySeal } = require('../sidecar/authority-seal.js');
+      const seal = makeAuthoritySeal({ key: crypto.randomBytes(32), now: () => 1700000000000, marker: { read: () => undefined, write: () => {} } });
+      seal.boot([]);
+      await fsp.rm(ALLOW, { force: true });
+      const loader = mk({ seal });
+      await loader.listPending();
+      A.eq(seal.notices().filter(n => n.name === 'plugins-allowed.json').length, 0, 'B1: a missing plugins-allowed.json raises no "changed outside StarNet" notice');
+      await fsp.writeFile(ALLOW, JSON.stringify({ jobber: { digest: 'abc' } }), 'utf8');
+      A.eq(await loader.approvedRecord('jobber'), null, 'B1: an unsealed allowlist still approves nothing');
+      A.ok(seal.notices().some(n => n.name === 'plugins-allowed.json' && n.kind === 'unsealed'), 'B1: an unsealed allowlist on disk is still reported as changed');
+      await fsp.rm(ALLOW, { force: true });
+    }
   } finally {
     await fsp.rm(DIR, { recursive: true, force: true });
     delete global.__auditLog; delete global.__apiKeys; delete global.__spineReachable;

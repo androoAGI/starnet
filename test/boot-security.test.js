@@ -8,6 +8,9 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes this bare station prints on its own console (RESUME below is confirmed at the desk: GHSA-2hpj spend routes)
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -43,6 +46,7 @@ function boot(port, workspaces, attemptsLeft) {
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => {
@@ -112,12 +116,16 @@ function extractBootToken(html) {
     });
     A.eq(browserBudget.status, 200, 'trusted browser flow can read budget with the boot token');
 
-    const browserResume = await fetch(B + '/api/budget/resume', {
+    const resume = extra => fetch(B + '/api/budget/resume', {
       method: 'POST',
-      headers: { Origin: B, 'X-StarNet-Token': browserToken, 'Content-Type': 'application/json' },
+      headers: Object.assign({ Origin: B, 'X-StarNet-Token': browserToken, 'Content-Type': 'application/json' }, extra || {}),
       body: JSON.stringify({ scope: 'day' })
-    });
-    A.eq(browserResume.status, 200, 'trusted browser flow can perform token-gated POSTs');
+    }).then(async r => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+    // the token gate lets the tokened POST through to its route; RESUME lets runs spend more, so the route asks the desk
+    const asked = await resume();
+    A.eq([asked.status, asked.body && asked.body.code], [403, 'desk_confirm_required'], 'a tokened POST passes the token gate and reaches its route (RESUME asks the desk)');
+    const browserResume = await desk.confirm(asked, resume);
+    A.eq(browserResume.status, 200, 'trusted browser flow can perform token-gated POSTs (RESUME confirmed with the station console code)');
 
     const tauriOrigin = 'http://tauri.localhost';
     const tauriBudget = await fetch(B + '/api/budget/status', {

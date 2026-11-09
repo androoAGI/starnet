@@ -94,7 +94,7 @@
   const RunOutcome = (typeof require === 'function') ? require('../frontend/app/runoutcome.js') : ((typeof globalThis !== 'undefined' && globalThis.RunOutcome) || null);
   // WHO a routine run is (routine id + name, recipe, fire-time idempotency scope) — one definition for this tick and Run Now
   const routineRunIdentity = (typeof require === 'function') ? require('./routine-identity.js').routineRunIdentity
-    : function (job, at) { return { cronJobId: job.id, cronJobName: job.name || '', idempotencyScope: 'cron:' + job.id + ':' + String(at == null ? '' : at), recipeId: (job.meta && job.meta.recipeId) || undefined }; };
+    : function (job, at, kept) { const own = 'cron:' + job.id + ':'; return { cronJobId: job.id, cronJobName: job.name || '', idempotencyScope: (typeof kept === 'string' && kept.indexOf(own) === 0) ? kept : own + String(at == null ? '' : at), recipeId: (job.meta && job.meta.recipeId) || undefined }; };
   const { note: failNote } = (typeof require === 'function') ? require('./failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
   // what a finished work line leaves on the fire: its answer + stop note, its spend, its stop facts (routing/line-fire.js)
   const foldLineIntoFire = (typeof require === 'function') ? require('./routing/line-fire.js').foldLineIntoFire
@@ -465,7 +465,8 @@
             error: errMsg || undefined, transient: transient, output: ok ? reply : undefined, usd: state.usd || 0,
             line: state.line || null,   // the work line's stop facts (stopped / unapproved / partial), null on a clean or no line
             pausedAtStart: lease.pausedAtStart === true,   // a RUN NOW pressed on a routine already paused (handleCronRun's lease): its result is not held
-            monitorHash: ok ? state.monitorHash : undefined
+            monitorHash: ok ? state.monitorHash : undefined,
+            idempotencyScope: lease.scope || undefined   // kept on the record while this occurrence still has retries (GHSA-2hpj #9)
           }, { now: at, defaultTz: defaultTz, maxConsecutiveFailures: maxConsecutiveFailures });
           committed = setJobs(next) !== false;
         } catch (_) { committed = false; }
@@ -634,7 +635,9 @@
       // run is never declared a zombie. isOnce marks whether to also persist a DURABLE heartbeat on the job
       // record (so a fresh heartbeat survives a restart and suppresses the one-shot fireClaim re-fire).
       const isOnce = !!(job.schedule && job.schedule.kind === 'once');
-      leases.set(job.id, { runId: runId, startedAt: nowMs, heartbeatAt: nowMs, ac: ac, isOnce: isOnce });
+      // GHSA-2hpj #9: a retry (retryCount > 0) reuses its occurrence's idempotency scope, which markRun kept from the first fire
+      const identity = routineRunIdentity(job, scheduledFor, (Number(job.retryCount) > 0 && job.occurrenceScope) ? job.occurrenceScope : null);
+      leases.set(job.id, { runId: runId, startedAt: nowMs, heartbeatAt: nowMs, ac: ac, isOnce: isOnce, scope: identity.idempotencyScope });
       try { emit('cron.fire', { jobId: job.id, runId: runId, scheduledFor: scheduledFor }); } catch (_) {}
       // ride the routine's instruction onto the CONVEYOR as a box bound for this agent — only NOW (past the
       // capability gate, lease taken), so a crate appears on the floor iff a run is genuinely firing.
@@ -724,7 +727,7 @@
           // to the routine that launched it without trusting model text or guessing from the stream id. Same helper as
           // Run Now (routine-identity.js): cronJobId/cronJobName, the recipe's provenance (recipeId), and the IDEMPOTENCY
           // SCOPE — the same tick retried/resumed must not re-send a connector write, the NEXT tick may (job + fire time).
-          ...routineRunIdentity(job, scheduledFor),
+          ...identity,
           // SOP recipes: a routine minted from a recipe with acceptance rows carries the typed postconditions
           // contract in its meta bag; the host evaluates it at run end exactly as for an interactive launch.
           postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
@@ -738,6 +741,8 @@
           preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [],
           requiredPreloads: true,
           cronScript: job.script || null,
+          cronScriptDigest: job.scriptDigest || null,   // the bytes its grants were allowed for (index.js cronScriptDigest, review2 #3)
+          cronGrantDrive: job.grantDrive || null,   // the model its grants were given for (index.js routineDriveFor, final review #2)
           scriptTimeoutMs: job.scriptTimeoutMs,
           noAgent: job.noAgent === true,
           runsLine: job.runsLine === true,

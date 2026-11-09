@@ -23,7 +23,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     A.eq(full.authority.source, 'agent', 'per-agent Full Access source is real roster state');
     A.eq(cabinet(full).available, true, 'Full Access overrides saved off switch');
     A.eq(cabinet(full).consentGated, false, 'Full Access does not promise confirmation');
-    await fixture.json('POST', '/api/permissions/bypass', { on: true });
+    await fixture.deskJson('POST', '/api/permissions/bypass', { on: true });   // FULL BYPASS on is confirmed at the desk (GHSA-2hpj #1)
     A.eq((await get('ask')).authority.source, 'station', 'master bypass updates effective disclosure live');
     await fixture.restart();
     A.eq((await get('ask')).authority.source, 'station', 'master bypass disclosure survives restart');

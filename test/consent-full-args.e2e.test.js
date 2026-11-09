@@ -51,7 +51,9 @@ test('a live consent card serves its whole redacted request until it is answered
     const p = prompts[0];
     assert.equal(p.tool, 'shell.exec');
     assert.ok(!p.argsSummary.includes(SECRET) && p.argsSummary.includes('-d @release-manifest.json'), 'the summary is the whole request, redacted: ' + p.argsSummary);
-    assert.deepEqual(Object.keys(p).sort(), ['agentId', 'argsSummary', 'promptId', 'scope', 'tool'], 'the event carries no full text');
+    // exactCommand (GHSA-2hpj #4, c9a494c11): a flag saying one approval covers this one exact command, not more text
+    assert.deepEqual(Object.keys(p).sort(), ['agentId', 'argsSummary', 'exactCommand', 'promptId', 'scope', 'tool'], 'the event carries no full text');
+    assert.equal(p.exactCommand, true, 'a shell command card is approved for that exact command only');
     const { live, noToken, after } = seen[0];
     assert.equal(live.status, 200, live.text);
     assert.equal(live.headers.get('cache-control'), 'no-store');

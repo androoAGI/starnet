@@ -78,6 +78,11 @@ const server = http.createServer((req, res) => {
     assert.equal(response.status, status, route + ': ' + response.text.slice(0, 1200));
     return response.body;
   };
+  const deskApi = async (method, route, body, status = 200) => {
+    const response = await fixture.deskJson(method, route, body, { signal: AbortSignal.timeout(90000) });
+    assert.equal(response.status, status, route + ' (at the desk): ' + response.text.slice(0, 1200));
+    return response.body;
+  };
   try {
     const seeded = seed(fixture.workspace);
     await fixture.start();
@@ -141,12 +146,17 @@ const server = http.createServer((req, res) => {
 
     // This explicit owner attestation is the fixture's stand-in for checking the
     // provider dashboard. It does not guess a charge from missing token usage.
-    const reconciled = await api('POST', '/api/budget/settle', { runId: unsettled.runId, usd: 0.02 });
+    // Booking the last unknown charge, below the $2 it was counted at, reopens spending: the Commander confirms it at
+    // the desk (GHSA-2hpj spend routes). Unconfirmed, nothing is booked.
+    const askedSettle = await fixture.json('POST', '/api/budget/settle', { runId: unsettled.runId, usd: 0.02 });
+    assert.deepEqual([askedSettle.status, askedSettle.body && askedSettle.body.code], [403, 'desk_confirm_required'], 'settling the last unknown charge asks the desk first');
+    assert.equal((await api('GET', '/api/budget/status')).unsettled.length, 1, 'an unconfirmed settlement books nothing');
+    const reconciled = await deskApi('POST', '/api/budget/settle', { runId: unsettled.runId, usd: 0.02 });
     assert.equal(reconciled.accounting.complete, true);
     assert.equal(reconciled.accounting.durable, true);
     assert.deepEqual(reconciled.unsettled, []);
     assert.equal(reconciled.spentToday, 0.02);
-    assert.equal((await api('POST', '/api/budget/resume', { scope: 'day' })).cap, 2, 'explicit settlement restores ordinary pool resume');
+    assert.equal((await deskApi('POST', '/api/budget/resume', { scope: 'day' })).cap, 2, 'explicit settlement restores ordinary pool resume (confirmed at the desk)');
     includeUsage = true;
     const recovered = await evaluate();
     assert.equal(recovered.receipt.status, 'passed', JSON.stringify(recovered.receipt));

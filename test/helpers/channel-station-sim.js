@@ -113,6 +113,7 @@ const MANIFEST = {
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
       runSlash: 'answers every slash command', userCommandNames: 'none',
+      ownerCardFree: 'absent: the owner\'s DM runs as a desk-bound (Full Access) agent\'s would, card-free (final review #1 is channels.buttons 5E)',
       desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider', resolveRunConfig: 'a configured downstream provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
       briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',
@@ -184,7 +185,8 @@ function consentSlice(world) {
   const src = names.map(n => sidecarFunctionSource(n)).filter(Boolean).join('\n');
   const deps = {
     makeConsentWait, channelPendingByRun: new Map(), channelConsentSettled: new Map(), CONSENT_TIMEOUT_MS: 120000, CONSENT_ACK_EXTEND_MS: 60000,
-    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: world.approvals, failNote: () => {}, redact: (v) => v
+    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: world.approvals, failNote: () => {}, redact: (v) => v,
+    isExactCommand: require('../../sidecar/permissions.js').exactCommand   // index.js's import (GHSA-2hpj #4: a command's ask is stamped)
   };
   try {
     return new Function(...Object.keys(deps), src + '\nreturn { channelAskConsent, channelResolveConsent, channelConsentOutcome };')(...Object.values(deps));   // eslint-disable-line no-new-func

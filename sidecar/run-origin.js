@@ -19,6 +19,9 @@
 function hostPowerWithheldFor(o) {
   if (!o || typeof o !== 'object') return false;
   if (o.channelSender === true && o.channelSenderOwner !== true) return true;
+  // final review #1: the owner's own message, on a config the desk has not bound (an endpoint the channel's own record
+  // carries): host-minted by the hub from the composition root's ownerCardFree verdict
+  if (o.channelOwnerUnbound === true) return true;
   const inherited = o.connectorAuthority;
   return !!(inherited && typeof inherited === 'object' && inherited.withholdHostPower === true);
 }

@@ -269,8 +269,9 @@ function sanitizeManagedJson(rel, raw, options = {}) {
     if (doc && doc.armed === true) reauthentication.push({ kind: 'approval', id: 'cron.armed.json', reason: 'Routines are off after a restore. Turn them on again in SCHEDULES when you have read them.', fields: ['armed'] });
     return { data: DISARMED(), redacted, reauthentication };
   } else if (p === 'hooks.json') {
-    // its commands stay (each is inert until approved again); what a hook was handed in env does not
-    value = sanitizeObject(doc, [], redacted);
+    // its commands stay (each is inert until approved again); what a hook was handed in env does not. Its seal does not
+    // either: it is this computer's, and the redaction below changes what it covered (authority-seal.js adoptRestored)
+    value = sanitizeObject(require('./authority-seal.js').strip(doc), [], redacted);
     if (redacted.length) reauthentication.push({ kind: 'hook', id: 'hooks.json', reason: 'Hook credential values are intentionally excluded.', fields: redacted.slice() });
   } else if (p === 'channels/secrets.json') {
     value = sanitizeObject(doc, [], redacted);
@@ -365,10 +366,24 @@ function quietStore(rel, raw) {
     // the state cron-store.deliveriesHeld already keeps such a result in until a person resumes it.
     const waiting = j => (Array.isArray(j.deliveryBacklog) ? j.deliveryBacklog : []).concat(j.finalization ? [j.finalization] : []).some(f => f && f.state === 'pending');
     doc.jobs = doc.jobs.map((j, i) => {
-      if (!isObj(j) || !waiting(j) || (j.enabled === false && j.state === 'paused')) return j;
+      if (!isObj(j)) return j;
+      let out = j;
+      /* A ROUTINE'S UNATTENDED GRANTS DO NOT TRAVEL (final review #6, 2026-11-08). They are the Commander's yes at this
+         station's desk, bound to the routine's model, script and settings here; a bundle saying so (an older StarNet's, a
+         hand-edited one, or this computer's own) was never that yes. Each comes back without them, listed, and is granted
+         again in SCHEDULES, confirmed at the desk. What bound them (the script's digest, the model it was given for) goes too. */
+      const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.filter(g => typeof g === 'string' && g) : [];
+      if (grants.length || j.scriptDigest !== undefined || j.grantDrive !== undefined) {
+        const id = safeId(j.id, 'routine-' + i);
+        if (grants.length) rows.push({ kind: 'approval', id: 'routine:' + id, reason: 'Routine "' + name(j, id) + '" runs without its unattended grants (' + grants.slice(0, 4).join(', ').slice(0, 80) + ') after a restore. Grant them again in SCHEDULES if you want them (StarNet asks you to confirm at the desk).', fields: ['unattendedGrants'] });
+        out = Object.assign({}, out, { unattendedGrants: [] });
+        delete out.scriptDigest;
+        delete out.grantDrive;
+      }
+      if (!waiting(out) || (out.enabled === false && out.state === 'paused')) return out;
       const id = safeId(j.id, 'routine-' + i);
       rows.push({ kind: 'routine', id, reason: 'Routine "' + name(j, id) + '" has a result that was not sent. It is paused so nothing goes out after a restore. Resume it in SCHEDULES to send it.', fields: ['enabled'] });
-      return Object.assign({}, j, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
+      return Object.assign({}, out, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
     });
   } else if (p === 'subagents.json') {
     if (!Array.isArray(doc.records)) return untouched;
@@ -400,10 +415,20 @@ const AUTHORITY_FILES = new Map([
   ['permissions.bypass.json', 'FULL BYPASS is off after a restore. Turn it on again in SETTINGS if you want it.'],
   ['hooks-allowed.json', 'Hooks stay off after a restore until you approve each one again.'],
   ['plugins-allowed.json', 'Plugins stay off after a restore until you approve each one again.'],
+  // who owns each chat bot is sealed with this computer's key (final review #3): it never travels, and a bot pairs its owner again
+  ['channels/channel-owners.json', 'Each chat bot pairs its owner again after a restore (PAIR OWNER, from the desk).'],
   ['skills-allowed.json', 'Skills that needed approval ask again after a restore.'],
   // with no file the dial reads Autonomy.fresh() and the dossier verdict reads not ready: both are the safe default
   ['_commander.autonomy.json', 'How much your agents may do on their own is back at its default after a restore. Set it again if you want more.']
 ]);
+const SEAL_BOOKKEEPING = /^(?:authority-seal\.json|authority-restored\.json|[^/]+\.json\.sealed-last|[^/]+\.json\.unsealed-\d+)$/i;
+const RESTORED_NAME = 'authority-restored.json';
+// the sealed permission files a restore brings, for the first keyed boot to adopt (authority-seal.js adoptRestored)
+// (permissions.allow.json arrives emptied, see sanitizeManagedJson: it is sealed empty, not reported as changed; review 4a)
+const RESTORED_AUTHORITY = ['agent.roster.json', 'hooks.json', 'permissions.allow.json'];
+// any sealed file a restore brings leaves the record (with nothing to adopt for the last two), so the first keyed boot
+// reads its missing marker as the restore it is, not as a marker someone deleted (fix-sec2 breakage 6)
+const RESTORED_SEALED = RESTORED_AUTHORITY.concat(['remote.json', 'cron.jobs.json']);
 // credential files by their well-known names, wherever they sit: an agent's .env is not a deliverable
 const CREDENTIAL_FILE = /(?:^|\/)(?:\.env(?:\.(?!example$|sample$|template$)[^/]*)?|\.npmrc|\.pypirc|\.netrc|_netrc|\.git-credentials|id_(?:rsa|dsa|ecdsa|ed25519)|[^/]*\.(?:pfx|p12|ppk))$/i;
 const CREDENTIAL_ROW = 'credential file left out by its name';
@@ -446,6 +471,9 @@ function classifyPolicy(rel, st) {
   if (EPHEMERAL_TOP.has(top)) return { action: 'skip', reason: 'ephemeral browser/runtime profile; sign-in must be re-established' };
   if (SYSTEM_SECRET_TOP.has(top)) return { action: 'skip', reason: 'system-managed credential material is intentionally excluded', reauth: { kind: top === '.secrets' ? 'credential-store' : 'provider', id: top, reason: 'Reauthentication required on the restored profile.' } };
   if (AUTHORITY_FILES.has(p.toLowerCase())) return { action: 'skip', reason: 'an approval made on this station does not travel', reauth: { kind: 'approval', id: p.toLowerCase(), reason: AUTHORITY_FILES.get(p.toLowerCase()) } };
+  // the permission files' seal record, their sealed and refused copies, and a restore's own record are this computer's
+  // (sidecar/authority-seal.js): a seal made with this computer's key does not travel (fix-sec2, review 10)
+  if (SEAL_BOOKKEEPING.test(p)) return { action: 'skip', reason: 'the permission seal\'s bookkeeping belongs to the computer that made it' };
   if (CREDENTIAL_FILE.test(p)) return { action: 'skip', reason: CREDENTIAL_ROW, reauth: credentialReauth(p) };
   // these names are StarNet's own bookkeeping only among its own stores: agent/thesis.bak and draft.tmp.md are someone's work
   const store = budgetTier(p) < 2;
@@ -1157,6 +1185,10 @@ function restore(opts) {
       if (dest !== stage && !dest.startsWith(stage + path.sep)) throw new Error('unsafe restore path: ' + dir);
       fs.mkdirSync(dest, { recursive: true });
     }
+    // the permission files this restore brought: the station's first keyed boot seals them for this computer, the roster
+    // asking first and every hook waiting for approval (authority-seal.js adoptRestored; fix-sec2 review 10)
+    const broughtAuthority = RESTORED_AUTHORITY.filter(name => restored.some(r => r.path === name));
+    if (broughtAuthority.length || RESTORED_SEALED.some(name => restored.some(r => r.path === name))) writeFlushed(fs, path.join(stage, RESTORED_NAME), Buffer.from(JSON.stringify({ version: 1, files: broughtAuthority }, null, 2) + '\n'));
     if (typeof o.beforeActivate === 'function') o.beforeActivate({ stage, target, rollback });
     if (fs.existsSync(target)) {
       if (!o.replaceExisting) throw new Error('restore target is not clean; pass replaceExisting to retain it as a rollback generation');

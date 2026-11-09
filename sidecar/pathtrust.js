@@ -36,6 +36,8 @@
                   not override ownership beneath this root.
      now        : injected clock.
      maxWalk    : ancestor-walk cap for git-root detection (default 40).
+     guardedFolders: () => [{ dir, reason }] — folders whose files run with nobody watching (a granted routine script's
+                  folder: final review #7). A tainted write inside one asks a watched run and is refused unattended.
 
    guard(absPath, { scope, surface, prompt, agentId }) -> { base, abs }   // throws on any deny
      scope   : 'read' | 'write' (write only reaches here AFTER the broker's own scope consent).
@@ -90,8 +92,30 @@
     if (/(^|[\\/])\.env(\.|:|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.env)';
     if (/(^|[\\/])\.git([\\/:]|$)/i.test(probe)) return 'reading ' + probe + ' is blocked by the protected-file floor (.git)';
     const cred = credentialFloor(probe);
-    if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — only Full Power reaches it';
+    if (cred) return 'reading ' + probe + ' is blocked by the credential floor (' + cred + ') — no setting reaches it, Full Power included';
     return null;
+  }
+
+  /* FILES THAT BECOME ORDERS OR RUN BY THEMSELVES (fix-sec2 review2 #8). A run that read outside content may still
+     write its own workspace and the trusted projects with no card. Some files there are not data, though: an agent
+     follows a project's instruction files as standing orders (projectbless.js INSTRUCTION_FILES: AGENTS.md, CLAUDE.md,
+     .cursorrules), and a loop's derived check (index.js detectCheckCommand), git hooks and editor tasks run others with
+     nobody watching. A tainted write to one of them asks a watched run (this one access) and is refused to an unattended
+     run. Matched on the final name, case-folded, with Windows' trailing dots and spaces and an NTFS stream suffix cut, so
+     `AGENTS.md.` or `CLAUDE.md::$DATA` is the same file. A test locks the instruction names to projectbless's list. */
+  const STANDING_INSTRUCTIONS = ['agents.md', 'claude.md', '.cursorrules'];
+  const STANDING_AUTORUN = ['package.json', 'conftest.py', 'pytest.ini', 'tox.ini', 'pyproject.toml', 'setup.cfg', 'setup.py',
+    'cargo.toml', 'build.rs', 'go.mod', 'makefile', 'gnumakefile', 'gemfile', '.rspec', '.envrc'];
+  function standingFileReason(abs) {
+    const parts = String(abs == null ? '' : abs).split(/[\\/]+/).filter(Boolean)
+      .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, '').toLowerCase());
+    const name = parts[parts.length - 1] || '';
+    const dir = parts[parts.length - 2] || '';
+    if (STANDING_INSTRUCTIONS.indexOf(name) >= 0) return name + ' (project instructions an agent follows as standing orders)';
+    if (STANDING_AUTORUN.indexOf(name) >= 0) return name + ' (a project check or a build runs what it says)';
+    if (parts.slice(0, -1).indexOf('.husky') >= 0) return '.husky/' + name + ' (a git hook)';
+    if (dir === '.vscode' && name === 'tasks.json') return '.vscode/tasks.json (editor tasks that can run when the folder opens)';
+    return '';
   }
 
   function makePathTrust(deps) {
@@ -102,6 +126,7 @@
     const bless = typeof deps.bless === 'function' ? deps.bless : null;
     const touch = typeof deps.touch === 'function' ? deps.touch : (() => {});
     const isGitRepoOf = typeof deps.isGitRepoOf === 'function' ? deps.isGitRepoOf : (async () => false);
+    const guardedFolders = typeof deps.guardedFolders === 'function' ? deps.guardedFolders : (() => []);
     const workspaceRoot = deps.workspaceRoot ? P.resolve(String(deps.workspaceRoot)) : '';
     const now = typeof deps.now === 'function' ? deps.now : (() => null);
     const MAX_WALK = Number(deps.maxWalk) > 0 ? Number(deps.maxWalk) : 40;
@@ -113,6 +138,29 @@
       let a = P.resolve(abs), b = P.resolve(base);
       if (winish) { a = a.toLowerCase(); b = b.toLowerCase(); }
       return a === b || a.indexOf(b + P.sep) === 0;
+    }
+    /* A GRANTED SCRIPT'S FOLDER (final review #7, 2026-11-08). A routine's script runs with its grants and nobody watching,
+       and the station checks the script's own bytes before each run (index.js cronScriptDigest); what it loads beside it
+       (helper.js, a json.py that shadows Python's, a package in its node_modules) was not checked, and a run that read
+       outside content could rewrite those in its own workspace with no card. So a tainted write of a file that can be
+       loaded as code inside such a folder (any depth; anything at all under a node_modules or __pycache__ there) is a
+       standing file: a watched run asks for this one access, an unattended one is refused. Data (a report, notes, a CSV)
+       still flows, so a routine whose script sits at its workspace's root keeps writing its results. A failing list
+       guards nothing more, and never throws here (the write keeps every other check). */
+    const LOADABLE = /\.(?:js|cjs|mjs|ts|cts|mts|jsx|tsx|node|py|pyw|pyc|pyo|pyd|pth|sh|bash|zsh|ps1|psm1|psd1|bat|cmd|vbs|wsf|dll|so|dylib|exe)$/i;
+    function guardedFolderReason(abs) {
+      let list = [];
+      try { list = guardedFolders() || []; } catch (_) { list = []; }
+      for (const g of (Array.isArray(list) ? list : [])) {
+        const dir = g && typeof g.dir === 'string' ? g.dir : '';
+        if (!dir || !pathInside(abs, dir)) continue;
+        const rel = P.relative(P.resolve(dir), P.resolve(abs));
+        const parts = rel.split(/[\\/]+/).filter(Boolean).map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, '').toLowerCase());
+        const name = parts[parts.length - 1] || '';
+        if (g.whole === true || LOADABLE.test(name) || parts.slice(0, -1).some(s => s === 'node_modules' || s === '__pycache__'))
+          return String((g && g.reason) || 'a file beside a script that runs unattended').slice(0, 200);
+      }
+      return '';
     }
     async function realpathOrSelf(p) {
       try { return await fsp.realpath(p); }
@@ -163,6 +211,21 @@
       const prompt = typeof o.prompt === 'function' ? o.prompt : null;
       const fullAccess = o.fullAccess === true;
       const unrestrictedHost = o.unrestrictedHost === true;
+      /* A RUN THAT READ OUTSIDE CONTENT DOES NOT WRITE THE HOST UNASKED (fix-sec2, review 5). This Computer and Full
+         Power let a run reach every host path with no card. After the run read a web page, a connector or another
+         untrusted source (o.tainted, the host's latch), that would let the page's author write a Startup entry, a
+         LaunchAgent, ~/.bashrc or StarNet's own data (a routine's terminal grant) with no prompt. So a tainted WRITE
+         gets no host-wide pass: its own workspace and the trusted projects still flow; anything else asks a watched run
+         for this one access (never a standing grant), and is refused to an unattended one. Reads are unchanged. */
+      // o.tainted() may name the source (review2 #12: the card says what the run read); any truthy answer is taint
+      let taintedWrite = false, taintSource = '';
+      if (scope === 'write' && o.tainted != null) {
+        try {
+          const t = typeof o.tainted === 'function' ? o.tainted() : (o.tainted === true);
+          taintedWrite = !!t;
+          taintSource = typeof t === 'string' ? t.slice(0, 300) : '';
+        } catch (_) { taintedWrite = true; }
+      }
       // WHO caused this I/O, for recency metadata only (never an authority input): an explicit host-minted flag wins,
       // otherwise a watched interactive run is the user's and everything else is the agent's.
       const userTouch = (o.userTouch === true || o.userTouch === false) ? o.userTouch : surface === 'interactive';
@@ -173,10 +236,15 @@
       // policy restrictions, not path syntax validity or the distinction between this computer and a share.
       if (raw.indexOf('\0') >= 0) throw new Error('illegal path (NUL): ' + raw);
       if (/^[\\/]{2}/.test(raw)) throw new Error('network paths (UNC) are not local computer paths: ' + raw);
-      // Host-wide Full Power intentionally bypasses project blessings, protected-file policy, cross-agent
-      // workspace ownership and symlink containment. The OS remains the authority on whether the path exists
-      // and whether this user can read or write it.
-      if (unrestrictedHost) {
+      // Host-wide Full Power intentionally bypasses project blessings, cross-agent workspace ownership and symlink
+      // containment. It does NOT bypass the floors (GHSA-2hpj #2): .env, .git and credential files stay refused, on
+      // the path as named and on the real target a link resolves to. The OS remains the authority on the rest.
+      if (unrestrictedHost && !taintedWrite) {
+        const fhr = hardlineReason(raw, norm);
+        if (fhr) throw new Error(fhr);
+        const freal = await realpathDeepest(norm);
+        const frhr = hardlineReason(freal, freal);
+        if (frhr) throw new Error(frhr + ' (reached via ' + norm + ')');
         return { base: (P.parse(norm).root || P.dirname(norm)), abs: norm, unrestrictedHost: true };
       }
       const hr = hardlineReason(raw, norm);
@@ -191,6 +259,18 @@
          Same function, same rules, now applied to what will actually be opened. */
       const rhr = hardlineReason(real, real);
       if (rhr) throw new Error(rhr + ' (reached via ' + norm + ')');
+
+      // review2 #8: a tainted write to a file that becomes orders or runs by itself asks first, even in its own
+      // workspace or a trusted project (above standingFileReason). A yes allows this one access and records nothing.
+      const standing = taintedWrite ? (standingFileReason(norm) || standingFileReason(real) || guardedFolderReason(norm) || guardedFolderReason(real)) : '';
+      let standingYes = false;
+      if (standing) {
+        if (surface !== 'interactive' || !prompt)
+          throw new Error('this run read outside content, so it cannot write ' + standing + ' without asking: ' + norm);
+        const said = await prompt(P.dirname(norm), { path: norm, scope: 'write', standing: standing, tainted: true, taintedBy: taintSource });
+        if (!/^(?:once|session|always|full)$/.test(String(said || ''))) throw new Error('access to ' + norm + ' was denied');
+        standingYes = true;
+      }
 
       // Agent workspaces are private jails, not station-global projects. A stale or accidentally-created
       // path:<WORKSPACES/alpha> grant must never let beta cross that boundary, and Full Access must not turn
@@ -237,8 +317,12 @@
       if (sessionRoots) for (const R of sessionRoots) if (R && pathInside(real, R)) return { base: R, abs: norm };
 
       // 2. not blessed. In ASK mode only a watched, prompt-wired run may approve a new root. Full Access is
-      // already the operator's authority for every non-hardline path, so it must never manufacture a prompt.
-      if (!fullAccess && (surface !== 'interactive' || !prompt))
+      // already the operator's authority for every non-hardline path, so it must never manufacture a prompt
+      // (except for a tainted write, above: it asks a watched run, and an unattended one is refused).
+      const hostWide = (fullAccess || unrestrictedHost) && !taintedWrite;
+      if (taintedWrite && (surface !== 'interactive' || !prompt))
+        throw new Error('this run read outside content, so it cannot write outside its workspace and trusted projects without asking: ' + norm);
+      if (!hostWide && (surface !== 'interactive' || !prompt))
         throw new Error('path is outside the agent workspace and no project root grant covers it: ' + norm +
           ' — an autonomous run cannot bless a new folder; grant it from a watched session first.');
 
@@ -253,7 +337,7 @@
 
       // Full Access is live and revocable, so do not silently convert it into a permanent path grant. While the
       // posture remains full every access flows here without asking; revoking it restores the ordinary path card.
-      if (fullAccess) return { base: proposedReal, abs: norm, fullAccess: true };
+      if (hostWide) return { base: proposedReal, abs: norm, fullAccess: true };
 
       /* BLESS THE REAL PATH. The header calls the grant key "realpath (canonical)", but normalizeRoot is only
          P.resolve — so a root reached through a symlinked ancestor (~/code -> /mnt/data/code, the ordinary
@@ -262,7 +346,15 @@
          bless the same folder on every single call — consent fatigue that trains people to click through the
          one prompt that widens the agent's filesystem reach. The PROMPT still names the path the Commander
          recognizes; only the recorded key is canonical. */
-      const decision = await prompt(proposed, { path: norm, scope: scope });
+      if (standingYes) return { base: proposedReal, abs: norm, oneShot: true };   // asked once above, for this access
+      // review2 #12: a tainted write's card names the exact file and the source, not only the folder
+      const decision = await prompt(proposed, taintedWrite ? { path: norm, scope: scope, tainted: true, taintedBy: taintSource } : { path: norm, scope: scope });
+      // a tainted write: any yes allows this one access and records nothing (a standing grant made after the taint
+      // would outlive it)
+      if (taintedWrite) {
+        if (/^(?:once|session|always|full)$/.test(String(decision || ''))) return { base: proposedReal, abs: norm, oneShot: true };
+        throw new Error('access to ' + norm + ' was denied');
+      }
       /* "always" AND "full" both RECORD the standing root grant. "full" used to fall through to the one-time
          branch below on the reasoning that "a directory bless is never a side effect of a blanket capability
          grant" — which is still true and still enforced, because this module does not interpret the agent's
@@ -293,5 +385,5 @@
     return { guard, detectRoot, normalizeRoot, _internals: { pathInside, realpathDeepest, hardlineReason } };
   }
 
-  return { makePathTrust, hardlineReason };
+  return { makePathTrust, hardlineReason, standingFileReason, _internals: { STANDING_INSTRUCTIONS, STANDING_AUTORUN } };
 });

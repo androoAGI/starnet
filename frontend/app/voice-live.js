@@ -509,7 +509,8 @@ const VoiceLive = (() => {
     const ask = askParts(p, ws);
     return (ask.what ? (ask.who ? ask.who + ' needs approval to ' : 'Approval needed to ') + ask.what
       : 'Approval needed: ' + (p.tool || 'an action') + (p.argsSummary ? ' — ' + String(p.argsSummary).slice(0, 120) : '')) +
-      (ONCE_ONLY.has(p.tool) || p.workerAgentId || p.outsideContent === true ? '. Say approve or deny.' : '. Say approve, always allow, or deny.');
+      // a command (shell, terminal, verify) is approved one at a time too, never always (GHSA-2hpj #4)
+      (ONCE_ONLY.has(p.tool) || p.workerAgentId || p.outsideContent === true || (typeof Chat !== 'undefined' && Chat.isCommandAsk && Chat.isCommandAsk(p)) ? '. Say approve or deny.' : '. Say approve, always allow, or deny.');
   }
   // a brief.ask is a question, not a grade: say the question and only the answers voice can give — the card's one-tap
   // options, which chipCommand presses — never approve/always/deny (approvalCommand leaves brief.ask alone)
@@ -568,7 +569,7 @@ const VoiceLive = (() => {
   // below: chat.js's card offers no Always for it either.
   const approvalSubmissions = new Set();
   // asks the station grants one call at a time whatever grade arrives (no Always key: the leash, the login window; the
-  // plugin install): a spoken "always allow" approves this one call and says so (review app-shell-ui-02/03)
+  // plugin install; a command): a spoken "always allow" approves this one call and says so (app-shell-ui-02/03)
   const ONCE_ONLY = new Set(['station.power', 'browser.login', 'browser.login.done', 'plugin.submit']);
   // which ask a spoken line is about, in the card's own words (Chat.consentPhrase): who asks (the worker, else the lead) and
   // what for, without the card's fine print. what = '' when there is no phrase, and the line keeps its plain form
@@ -588,7 +589,7 @@ const VoiceLive = (() => {
     else if (/^(?:always allow|approve always|always approve)$/.test(lower)) decision = 'always';
     else if (/^(?:deny|deny it|do not allow|don't allow|reject)$/.test(lower)) decision = 'deny';
     if (!decision) return false;
-    const onceOnly = decision === 'always' && (ONCE_ONLY.has(pending.tool) || pending.outsideContent === true);
+    const onceOnly = decision === 'always' && (ONCE_ONLY.has(pending.tool) || pending.outsideContent === true || (typeof Chat !== 'undefined' && !!Chat.isCommandAsk && Chat.isCommandAsk(pending)));
     if (onceOnly) decision = 'once';
     if (decision === 'always' && pending.workerAgentId) {   // the worker's row grants this request only — so does voice
       speakLocal('A delegated worker\'s request can only be approved once or denied. Say approve, or deny.');
@@ -603,7 +604,7 @@ const VoiceLive = (() => {
     approvalSubmissions.add(id);
     const seq = sessionSeq;
     const ownsFeedback = () => active && sessionSeq === seq && boundWsId === ws.id;
-    // with several asks open, the outcome names the one it answered (review app-shell-ui-08)
+    // with several asks open, the outcome names the one it answered
     const ask = askParts(pending, ws), about = ask.what ? ': ' + (ask.who ? ask.who + ' to ' : '') + ask.what + '.' : '.';
     // Every surface uses the same confirmed, exact-prompt path. A delegated ask may have no ordinary card.
     Promise.resolve().then(() => Chat.answerConsent(pending, ws, decision, 'voice')).then(result => {
@@ -615,7 +616,7 @@ const VoiceLive = (() => {
       else speakLocal('The station did not confirm your answer. Please try again.');
     }).catch(() => {
       if (!ownsFeedback()) return;
-      // settled elsewhere meanwhile (timed out, answered on the card or the phone): say so, never leave the call silent
+      // settled elsewhere (timed out, answered on the card or the phone): say so, never stay silent
       const stillPending = Channels.pendingAllOf(ws.id).some(p => String(p.promptId || '') === id);
       speakLocal(stillPending ? 'I could not submit that answer. The approval is still waiting; please try again.' : 'That approval is no longer waiting.');
     }).finally(() => {

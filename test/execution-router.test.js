@@ -55,8 +55,20 @@ A.eq(router.backendIdFor('trusted'), 'local', 'Trusted Project routes local');
 A.eq(router.backendIdFor('host'), 'local', 'This Computer routes local');
 A.eq(fullPowerRouter.backendIdFor('safe'), 'docker', 'restricted Safe Cell begins in Docker');
 fullPower = true;
-A.eq(fullPowerRouter.backendIdFor('safe'), 'local', 'Full Power immediately routes a Safe Cell agent onto this computer');
+// GHSA-2hpj #2: Full Power never moves a Safe Cell agent onto this computer; its commands are refused, saying why
+A.eq(fullPowerRouter.backendIdFor('safe'), 'docker', 'Full Power does not route a Safe Cell agent onto this computer');
+const conflict = fullPowerRouter.refusalFor('safe');
+A.ok(conflict && conflict.code === 'sandbox_unavailable' && conflict.conflict === 'full-power' && /SAFE CELL and Full Access is on/.test(conflict.message) && /NOT run/.test(conflict.message),
+  'a Safe Cell agent under Full Power is refused with a clear message (' + (conflict && conflict.message) + ')');
+A.ok(/turn Full Access .* off|change its execution profile/.test(conflict && conflict.message), 'the refusal names the two ways out');
+A.ok(fullPowerRouter.describeAgent('safe').refusing === true && fullPowerRouter.describeAgent('safe').fullPowerConflict === true, 'describeAgent says the agent is refusing, and why');
+fullPowerRouter.execute({ agentId: 'safe', cmd: 'x' }).then(
+  () => A.ok(false, 'a Safe Cell command under Full Power must not run anywhere'),
+  e => A.ok(e && e.conflict === 'full-power', 'a Safe Cell command under Full Power rejects, run nowhere'));
+A.eq(fullPowerRouter.refusalFor('host'), null, 'This Computer under Full Power is not refused');
 A.eq(fullPowerRouter.ensureWorkspace('remote'), 'local:workspace:remote', 'Full Power routes host work locally even when the stored profile is SSH');
+const allowRouter = makeExecutionRouter({ environments: { local, docker, ssh }, defaultBackendId: 'local', sandboxFallback: 'allow', profileForAgent: agentId => profiles[agentId] || 'station-gear', forceLocalForAgent: () => true });
+A.ok(allowRouter.refusalFor('safe') && allowRouter.refusalFor('safe').conflict === 'full-power', 'the refusal holds under STARNET_SANDBOX_FALLBACK=allow too (a choice, not an outage)');
 fullPower = false;
 A.eq(fullPowerRouter.backendIdFor('safe'), 'docker', 'revoking Full Power restores the stored profile immediately');
 A.eq(router.forAgent('safe').supports.hostileCodeSandbox, true, 'authority can inspect the selected isolated environment');

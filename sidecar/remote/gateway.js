@@ -17,7 +17,8 @@
                                      (voice: spoken on a voice-only device: the reply is shaped to be heard)
      stop      { runId }             abort a live run, all the way to the provider
      approvals                       every open approval and question on the station
-     decide    { runId, promptId, decision }   once | session | deny   (never always / full from a phone)
+     decide    { runId, promptId, decision }   once | session | deny   (never always / full from a phone; never session for
+                                     something that runs: that is applied once, GHSA-2hpj #4)
      reply     { runId, promptId, text }       answer an agent's question
      seen      { runId, promptId }             the phone showed it to a human: one bounded extension
      files     { limit?, query? }    recent deliverables
@@ -120,7 +121,8 @@ function makeGateway(deps) {
 
     async decide(a) {
       const r = approvals.answer(id(a.runId), id(a.promptId), String(a.decision || ''));
-      return r.ok ? good({ decided: String(a.decision) }) : bad(r.error);
+      // decided = what was APPLIED: a phone's "this task" on something that runs is applied once (GHSA-2hpj #4)
+      return r.ok ? good({ decided: String(r.decision || a.decision) }) : bad(r.error);
     },
 
     async reply(a) {

@@ -58,6 +58,41 @@ fn connector_encryption_key_with(
 fn valid_connector_key(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|c| c.is_ascii_hexdigit())
 }
+
+/// THIS WORKSPACE WAS SEALED BEFORE (final review #5, 2026-11-08). The sidecar seals its permission files with a key
+/// derived from the connector key above, and records which floors hold in `authority-seal.json` in the workspace. A
+/// same-user process that deleted that record and every trace of sealing made the next boot look like the one-time
+/// upgrade, which sealed whatever the files then said. This entry, beside the key, says the workspace has been sealed
+/// with it, so the sidecar reads a missing record as missing (STARNET_AUTHORITY_SEALED=1), never as the upgrade. A
+/// process that can remove this entry can read the key too, so it adds no new way in. One entry per workspace folder.
+fn authority_sealed_account(workspaces: &Path) -> String {
+    use sha2::{Digest, Sha256};
+    let id = workspaces.to_string_lossy().to_lowercase();
+    let digest = Sha256::digest(id.as_bytes());
+    let hex: String = digest.iter().take(16).map(|b| format!("{b:02x}")).collect();
+    format!("authority:sealed:v1:{hex}")
+}
+
+/// Whether the credential store records that this workspace was sealed. Any error reads as no record (the sidecar's own
+/// traces still count), so a locked store never stops a launch.
+pub(crate) fn authority_sealed(workspaces: &Path) -> bool {
+    match keyring::Entry::new(KEYCHAIN_SERVICE, &authority_sealed_account(workspaces)) {
+        Ok(entry) => matches!(entry.get_password(), Ok(value) if value == "1"),
+        Err(_) => false,
+    }
+}
+
+/// Record that this workspace has been sealed (once its `authority-seal.json` exists). Idempotent.
+pub(crate) fn mark_authority_sealed(workspaces: &Path) -> Result<(), String> {
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, &authority_sealed_account(workspaces))
+        .map_err(|e| format!("the system credential store is unavailable ({e})"))?;
+    if matches!(entry.get_password(), Ok(value) if value == "1") {
+        return Ok(());
+    }
+    entry
+        .set_password("1")
+        .map_err(|e| format!("the system credential store refused the sealed-workspace record ({e})"))
+}
 pub(crate) const KEYCHAIN_PROVIDERS: [&str; 13] = [
     "openrouter",
     "openai",

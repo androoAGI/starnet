@@ -131,7 +131,8 @@ const until = async (fn, label, ms = 15000) => { const end = Date.now() + ms; fo
     A.eq(file().block, '', '(e) the reset always admits the empty block');
 
     // ---- (f) the posture write: the dial is written, a snapshot naming a forgotten run is refused ----
-    const p1 = await json('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 4 }, beliefs: beliefs({ complete: true }, [RUN_GONE]) });
+    // a raise to building grants the never-decided away workshop, so it is confirmed at the desk first (review2 #9)
+    const p1 = await fixture.deskJson('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 4 }, beliefs: beliefs({ complete: true }, [RUN_GONE]) });
     A.eq(p1.status, 200, '(f) the posture route answers');
     A.eq([p1.body.ok, p1.body.beliefsAdmitted], [true, false], '(f) a snapshot naming a forgotten run is refused and answered (beliefsAdmitted:false): ' + JSON.stringify(p1.body).slice(0, 200));
     A.eq((await posture()).summary.initiative, 'leash', '(f) ...while the dial the Commander set is written');

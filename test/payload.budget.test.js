@@ -171,7 +171,8 @@ const BUDGET = {
     measured['default-new-install'] = await measure(true);
     const chat = await measure(false);
     A.eq(chat.tools, 0, 'chat diet: a non-task turn carries NO tools on the wire');
-    A.eq((await fixture.json('POST', '/api/permissions/bypass', { on: true })).status, 200, 'master bypass on (every capability object materialized)');
+    // FULL BYPASS on is confirmed at the desk (GHSA-2hpj #1): the code this station printed, as the person types it
+    A.eq((await fixture.deskJson('POST', '/api/permissions/bypass', { on: true })).status, 200, 'master bypass on (every capability object materialized)');
     measured['fully-granted-floor'] = await measure(true);
     // lead-with-crew: the starter floor again (bypass off), now with ONE specialist on the roster, so the crew>0 path —
     // which the zero-crew diet must leave byte-identical — keeps its own ratchet

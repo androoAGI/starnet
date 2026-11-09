@@ -23,6 +23,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+// fix-sec2 review2 #9: a raise that turns on the away workshop is confirmed at the desk, with the code the station prints
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -105,7 +108,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -170,8 +173,8 @@ function seedLogs(ws, now) {
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
 
     // ===== 1. THIN-DOSSIER + FABRICATED-ACTIVITY BEAT — reach sandbox + the away grant → a real build. =====
-    await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
-    await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: thinBeliefs() }) });
+    await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
+    await fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: thinBeliefs() }) });
 
     const before = await (await fetch(B + '/api/runs?limit=60', { headers })).json();
     A.ok(Array.isArray(before.runs) && before.runs.some(r => r.runId === 'r1' && r.title === REAL_RUN_TITLE), 'the raw recent run exists in actual host history before the grounding proof');
@@ -241,7 +244,7 @@ function seedLogs(ws, now) {
       // thing that can bind. Make the Commander AWAY by setting lastActivity far in the past is not exposed; instead
       // the status route's statusDecision surfaces the binding the tick would hit once away. With an empty dossier +
       // empty activity, the precheck returns not-ok → binding 'readiness'.
-      await fetch(B2 + '/api/autonomy/posture', { method: 'POST', headers: headers2, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'observe', leashPerDay: 12 }, beliefs: { known: [], beliefs: {} } }) });
+      await fetchJsonAtDesk(desk, B2 + '/api/autonomy/posture', { method: 'POST', headers: headers2, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'observe', leashPerDay: 12 }, beliefs: { known: [], beliefs: {} } }) });
       const st2 = await (await fetch(B2 + '/api/nightshift/status', { headers: headers2 })).json();
       A.eq(st2.beatsUsedToday, 0, 'COLD-LEASH: a brand-new station has spent NO leash');
       // the binding is either 'present' (if the boot-seeded away clock hasn't elapsed) or 'readiness' (if away). In

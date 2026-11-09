@@ -278,10 +278,13 @@
   /* The three answers StarNet's consent broker actually understands, in ACP's option vocabulary. `optionId` is
      the exact string POST /api/consent wants, so nothing has to be translated on the way back — and an
      UNRECOGNISED answer is coerced to 'deny' by the sidecar, which is the fail-closed direction. */
-  function permissionOptions() {
+  // a COMMAND's "for this session" covers that exact command only (GHSA-2hpj #4: the station stamps the ask exactCommand),
+  // so the option says so
+  function permissionOptions(q) {
+    const exact = !!(q && q.exactCommand === true);
     return [
       { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
-      { optionId: 'session', name: 'Allow for the rest of this session', kind: 'allow_always' },
+      { optionId: 'session', name: exact ? 'Allow this exact command for the rest of this session' : 'Allow for the rest of this session', kind: 'allow_always' },
       { optionId: 'deny', name: 'Reject', kind: 'reject_once' }
     ];
   }
@@ -506,7 +509,7 @@
         else if (str(q && q.argsSummary)) toolCall.rawInput = { summary: str(q.argsSummary) };
 
         Promise.resolve()
-          .then(() => request('session/request_permission', { sessionId: sessionId, toolCall: toolCall, options: permissionOptions() }))
+          .then(() => request('session/request_permission', { sessionId: sessionId, toolCall: toolCall, options: permissionOptions(q) }))
           .then((res) => {
             const outcome = (res && res.outcome) || {};
             if (str(outcome.outcome) !== 'selected') return 'deny';
@@ -514,7 +517,14 @@
             return (chosen === 'once' || chosen === 'session') ? chosen : 'deny';
           })
           .catch((e) => { log('permission request failed, denying: ' + ((e && e.message) || e)); return 'deny'; })
-          .then((decision) => callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: decision }))
+          .then((decision) => callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: decision }).then((r) => {
+            /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): the station confirms a 'session' answer in the StarNet
+               window, which an editor cannot. The ask is not left waiting: it is allowed once, and the log says why. */
+            const j = (r && r.json) || {};
+            if (decision !== 'session' || !r || r.status !== 403 || (j.code !== 'desk_confirm_required' && j.code !== 'desk_only' && j.code !== 'desk_locked')) return r;
+            log('"allow for this session" is confirmed in the StarNet window; allowed once instead');
+            return callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: 'once' });
+          }))
           .catch((e) => log('consent post failed: ' + ((e && e.message) || e)));
       };
 

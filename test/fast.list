@@ -70,6 +70,7 @@ test/budget-caps.test.js
 test/budget-stop-door.test.js
 test/unknown-spend-state.test.js
 test/spend-strict-unknown.test.js
+test/soft-rail-unknown-history.test.js
 test/run-spend-pool.test.js
 test/unpriced-ceiling-setting.test.js
 test/billing-class.parity.test.js
@@ -489,6 +490,8 @@ test/update-snapshot-framing.test.js
 test/update-snapshot-prune.test.js
 test/update-drain-wiring.test.js
 test/updates-install.test.js
+test/update-signer-check.test.js
+test/release-update-signer-gate.test.js
 test/update-drain-newest-save.test.js
 test/update-drain-conflict.test.js
 test/update-center-truth.test.js
@@ -962,6 +965,7 @@ test/tool-withheld-message.test.js
 test/cron-guard.test.js
 test/untrusted-taint.test.js
 test/api-continuation-boundary.test.js
+test/taint-api-continuation-scope.test.js
 test/taint-lineage.test.js
 test/taint-refusal-copy.test.js
 test/taint-entry-origin.test.js
@@ -1478,6 +1482,11 @@ test/save-journal-page-lock.test.js
 test/growth-fold.test.js
 test/save-merge.test.js
 test/roster-push-base.test.js
+test/desk-proof.test.js
+test/desk-breakages.test.js
+test/taint-host-write.test.js
+test/authority-seal.test.js
+test/release-workflow-pins.test.js
 test/sprite-direction-details.test.js
 test/chat-history-reconcile.test.js
 test/prop-industrial-remaster.test.js
@@ -1544,6 +1553,8 @@ test/cli-desktop-closed.test.js
 test/cli-owner-identity.test.js
 test/cli-bootstrap-lineage.test.js
 test/cli-dashboard.test.js
+test/awaken-full-power-desk.test.js
+test/awaken-save-floor.test.js
 test/cli-dashboard-signal.test.js
 test/cli-dashboard-drive.test.js
 test/cli-theme.test.js
@@ -1803,3 +1814,8 @@ test/dossier.forget-compose.test.js
 test/reflect.dedup-only.test.js
 test/aux-cache-policy.test.js
 test/aux-admission.test.js
+test/route-authority.census.test.js
+test/taint-standing-files.test.js
+test/shell-taint-hooks.test.js
+test/exact-command-grants.test.js
+test/remote-pair-secret.test.js

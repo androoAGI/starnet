@@ -186,11 +186,13 @@ const server = http.createServer((req, res) => {
   const startedAt = Date.now();
   try {
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', { agents: [
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first
+    const roster = await fixture.deskJson('POST', '/api/roster', { agents: [
       { agentId: 'agent', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode: 'full' },
       { agentId: 'worker', name: 'SPECIALIST', system: 'WORKER_MARK', model: 'test/model', provider: 'openrouter', approvalMode: 'full' }
-    ] });
-    if (roster.status !== 200) throw new Error('roster ' + roster.text);
+    ], raise: ['agent', 'worker'] });
+    if (roster.status !== 200 || (roster.body && roster.body.clamped)) throw new Error('roster ' + roster.text);
 
     // ---- INV-3: a brief's prose never grants or withholds a tool, on any surface that runs it ----
     const control = await surfaces(CONTROL);

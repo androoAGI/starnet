@@ -63,11 +63,116 @@
     // forward-slash-rooted forms: `/S`, `/c` etc. are overwhelmingly option flags (robocopy /S) and `/c/Users` is a
     // normalized cwd form, so there is no safe way to tell a root path from a flag — backslash-rooted only.
     { re: /(^|[\s"'`=(])\\(?![\\])/, why: 'drive-root paths (\\…) are not allowed — use paths inside your workspace', names: ['\\…'] },
-    // unnamed: not a path form; the refusal itself names it
-    { re: /\.checkpoints|permissions\.allow|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
+    // unnamed: not a path form; the refusal itself names it. The authority files (GHSA-2hpj #3: FULL BYPASS, the roster,
+    // hooks and their approvals, plugin approvals, the seal record) are named too: a stopgap beside their seal, which is
+    // what actually refuses a changed one (sidecar/authority-seal.js); this text check only stops the plain spelling.
+    // The one GENERIC name among them, hooks.json, is not here (fix-sec2 F2): plenty of projects have their own, so it
+    // is refused only where it names StarNet's own data directory, by its resolved path (authorityFileRisk below).
+    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks-allowed\.json|plugins-allowed|authority-seal\.json|channel-owners\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
   ].map(function (r) { return Object.freeze({ re: r.re, why: r.why, names: Object.freeze(r.names) }); }));
   function escapesWorkspace(cmd) {
     for (const rule of FLOOR_RULES) if (rule.re.test(cmd)) return rule.why;
+    return null;
+  }
+
+  /* STARNET'S OWN hooks.json, BY ITS RESOLVED PATH (fix-sec2 F2, 2026-11-08). The authority stopgap (GHSA-2hpj #3) named
+     hooks.json in the text floor above, which refused every command that so much as mentioned a project's own hooks.json
+     (git hooks managers, editor and CI configs use the name). StarNet's file is <data directory>/hooks.json (and its
+     .sealed-last copy), so that is what is refused now: every word of the command that names hooks.json is resolved
+     (against the command's real working folder, and against every other path the command names, which covers
+     `cd <dir> && …`, `git -C <dir>` and the like; ~, $HOME, %USERPROFILE%, $env:LOCALAPPDATA and kin expanded) and
+     refused when it lands on the data directory's file by its name or real path. A word the check cannot resolve (a
+     variable it does not know, a command substitution) is refused as before, and so is every mention when the caller
+     cannot say where the command runs. This stays a stopgap: the seal is what refuses a changed hooks.json.
+       authorityFileRisk(cmd, { cwd, root, pathMod, fs?, isWin?, env?, home? }) -> refusal text | null */
+  const AUTHORITY_WHY = 'that path is a protected harness control file';
+  const GENERIC_AUTHORITY_RE = /hooks\.json/i;
+  const GENERIC_AUTHORITY_NAMES = ['hooks.json', 'hooks.json.sealed-last'];
+  const ENV_PATH_VARS = ['HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'PWD'];
+  function commandWords(cmd, quoted) {
+    // quote-aware enough for paths: "a b", 'a b' and bare runs; separators, redirections and `=` end a word.
+    // quoted (optional): filled with whether each word was in quotes
+    const out = [];
+    const re = /"([^"]*)"|'([^']*)'|([^\s"'=;&|<>()]+)/g;
+    let m;
+    while ((m = re.exec(cmd))) {
+      out.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+      if (Array.isArray(quoted)) quoted.push(m[3] == null);
+    }
+    return out;
+  }
+  /* WHAT CAN EXPAND (fix-sec2 breakage 11). A word with a `$` used to count as one the check cannot resolve, so
+     `sed -i 's/a$/b/' hooks.json` and `grep 'x$' hooks.json` on a project's own hooks.json were refused. A `$` only
+     expands when it starts a variable, a substitution or a quoting form, in a POSIX shell and in PowerShell alike (a
+     letter, digit, _, {, (, [, a special parameter, zsh's ^ = ~, or a quote right after it); cmd.exe never expands `$`. Any other `$`
+     is literal in every one of them, a nested shell included, so it no longer stops the check. A bare `$` at the end of
+     a word may sit right before a quote ($'...' builds any text in bash): only a quoted word's last `$` is literal.
+     Backticks and %NAME% stay unresolved, as before. */
+  const EXPANDS_RE = /`|\$(?=[A-Za-z0-9_{(\[@*#?!$^~='"\-])/;
+  function authorityFileRisk(cmd, o) {
+    cmd = String(cmd == null ? '' : cmd);
+    if (!GENERIC_AUTHORITY_RE.test(cmd)) return null;
+    o = o || {};
+    const P = o.pathMod, root = o.root ? String(o.root) : '', cwd = o.cwd ? String(o.cwd) : '';
+    if (!P || !root || !cwd) return AUTHORITY_WHY;   // nowhere to resolve against: the plain name is refused, as before
+    const isWin = o.isWin == null ? WIN : o.isWin === true;
+    const fold = function (s) { return isWin ? String(s).toLowerCase() : String(s); };
+    const env = o.env || (typeof process !== 'undefined' && process.env) || {};
+    const home = String(o.home || env.HOME || env.USERPROFILE || '');
+    const envOf = function (name) {
+      if (/^home$/i.test(name) && home) return home;
+      const k = Object.keys(env).find(function (x) { return isWin ? x.toUpperCase() === name.toUpperCase() : x === name; });
+      return k ? String(env[k]) : null;
+    };
+    const known = ENV_PATH_VARS.join('|');
+    function expand(w, quoted) {
+      let s = String(w);
+      if (/^~(?=$|[\\/])/.test(s)) { if (!home) return null; s = home + s.slice(1); }
+      let bad = false;
+      const sub = function (_, name) { const v = envOf(name); if (v == null) bad = true; return v == null ? '' : v; };
+      s = s.replace(new RegExp('\\$\\{(' + known + ')\\}|\\$(' + known + ')(?![A-Za-z0-9_])', isWin ? 'gi' : 'g'), function (m0, a, b) { return sub(m0, a || b); })
+        .replace(new RegExp('%(' + known + ')%', 'gi'), sub)
+        .replace(new RegExp('\\$env:(' + known + ')(?![A-Za-z0-9_])', 'gi'), sub);
+      // a variable or substitution it cannot resolve (EXPANDS_RE: only a `$` that can expand counts)
+      if (bad || EXPANDS_RE.test(s) || (!quoted && /\$$/.test(s)) || /%[A-Za-z_][A-Za-z0-9_]*%|^~/.test(s)) return null;
+      return normalizeWinCwd(P, s, isWin);
+    }
+    const resolveFrom = function (base, w) { return P.isAbsolute(w) ? P.resolve(w) : P.resolve(base, w); };
+    const targets = new Set();
+    const roots = [P.resolve(root)];
+    // the real path of p, or null when there is none to read (a path that does not exist yet is the common case, and the
+    // literal spelling is still compared, so a miss here never lets a name through)
+    const realOrNull = function (p) {
+      if (!o.fs || typeof o.fs.realpathSync !== 'function') return null;
+      try { return o.fs.realpathSync(p); } catch (_) { return null; }
+    };
+    const realRoot = realOrNull(root);
+    if (realRoot) roots.push(realRoot);
+    for (const r of roots) for (const n of GENERIC_AUTHORITY_NAMES) targets.add(fold(P.join(r, n)));
+    const hits = function (abs) {
+      if (targets.has(fold(abs))) return true;
+      // by the real path too: a link in the project that points into the data directory
+      const realDir = realOrNull(P.dirname(abs));
+      return !!realDir && targets.has(fold(P.join(realDir, P.basename(abs))));
+    };
+    const wordQuoted = [];
+    const words = commandWords(cmd, wordQuoted);
+    const named = [], bases = [P.resolve(cwd)];
+    let unresolved = false;
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      const x = expand(w, wordQuoted[i] === true);
+      if (GENERIC_AUTHORITY_RE.test(w)) { if (x == null) return AUTHORITY_WHY; named.push(x); continue; }
+      if (x == null) { unresolved = true; continue; }
+      bases.push(resolveFrom(cwd, x));   // any word may be a folder the command moves to; only the data directory matters
+    }
+    // a word it cannot resolve may be the folder a hooks.json is relative to (cd $X && …) or the head of its own path
+    // ($(dirname x)/hooks.json splits into two words): either way the check cannot say where it lands
+    if (unresolved) return AUTHORITY_WHY;
+    for (const w of named) {
+      if (P.isAbsolute(w)) { if (hits(P.resolve(w))) return AUTHORITY_WHY; continue; }
+      for (const b of bases) if (hits(P.resolve(b, w))) return AUTHORITY_WHY;
+    }
     return null;
   }
   // "`..`, C:\… and \…": every named form, in the floor's own order
@@ -1667,6 +1772,18 @@
         const hostCwd = environment && typeof environment.workspaceRoot === 'function' && environmentBackendId !== 'local'
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
+        // StarNet's own hooks.json, by its resolved path (fix-sec2 F2): a project's own hooks.json is the project's
+        /* review2 #13 (the cheap part): Full Power skips this check, but not for a run that read outside content. On a
+           station without a key nothing seals hooks.json or hooks-allowed.json, so an approved command there could plant
+           an approved hook. A tainted Full Power command that names either file is refused like any other run's. The
+           check still reads only the plain spelling (cmd's ^, quote splits and built strings get around it); the seal is
+           what refuses a changed file on a keyed station. */
+        let shellTainted = false;
+        try { const a = ctx && ctx.connectorAuthority; shellTainted = !!(a && typeof a.taintedBy === 'function' && a.taintedBy()); } catch (_) { shellTainted = true; }
+        const authorityDeny = (remoteOwner && !shellTainted) ? null : authorityFileRisk(cmd, { cwd: hostCwd, root: ROOT, pathMod: P, fs: fs, isWin: isWin });
+        if (authorityDeny) throw new Error('refused: ' + authorityDeny);
+        if (remoteOwner && shellTainted && /hooks-allowed\.json/i.test(cmd))
+          throw new Error('refused: this run read outside content, so it cannot change StarNet\'s hook approvals (hooks-allowed.json)');
         const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
@@ -1911,6 +2028,9 @@
        write still snapshotted. shell.bg.write now takes its own restore point of the agent workspace (the root the hook
        used; the backend's host mirror off the local backend) through ctx.checkpointMutation, after its input screen.
        Fail-open, like shell.exec's: a checkpoint is a safety net, never a gate on the write. */
+    // THE ASSEMBLED LINE (GHSA-2hpj #4): a pipe's partial lines (submit:false), per agent and process, so the line a
+    // later newline completes is screened whole, not part by part (input-lines.js; a pipe applies no line editing)
+    const bgTyped = (typeof require === 'function') ? require('./input-lines.js').makeInputLines({ editing: false }) : null;
     async function bgWriteCheckpoint(ctx, aid, backendId, jailRoot) {
       if (!ctx || typeof ctx.checkpointMutation !== 'function') return;
       const hostRoot = environment && typeof environment.workspaceRoot === 'function' && backendId && backendId !== 'local'
@@ -1945,6 +2065,7 @@
           const eofBackendId = environment ? (typeof environment.backendIdFor === 'function' ? environment.backendIdFor(aid) : environment.backendId) : null;
           await bgWriteCheckpoint(ctx, aid, eofBackendId, environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid));   // EOF can start the work too
           const c = await Promise.resolve(source && typeof source.closeBackgroundStdin === 'function' ? source.closeBackgroundStdin(aid, id) : bg.closeStdin(aid, id));
+          if (bgTyped) bgTyped.clear(aid + '\u0000' + id);   // stdin closed: no part of a line waits any more
           return { content: c.ok ? (c.alreadyClosed ? 'stdin for ' + id + ' was already closed.' : 'Closed stdin for ' + id + ' (EOF sent).') : ('Could not close stdin: ' + c.error), summary: c.ok ? 'eof' : 'not closed' };
         }
         const input = String((args && args.input) || '');
@@ -1957,8 +2078,20 @@
         const remoteOwner = unrestrictedHost(ctx);
         const risk = remoteOwner ? null : commandSafetyRisk(input, { cwd: jailRoot, fs: fs, pathMod: P, dialect: dialect, isWin: isWin });
         if (risk) throw new Error('refused [' + risk.kind + ']: this input ' + risk.reason + '. A line sent to a shell or REPL runs like a command, so it is screened the same way.');
+        // …and the WHOLE line it completes or extends, with what earlier submit:false writes sent (GHSA-2hpj #4)
+        const lineKey = aid + '\u0000' + id;
+        const plan = bgTyped ? bgTyped.plan(lineKey, input, args && args.submit) : null;
+        if (plan && !plan.ok && !remoteOwner) throw new Error('refused [input]: ' + plan.error);
+        if (plan && plan.ok && !remoteOwner) {
+          for (const line of bgTyped.texts(plan)) {
+            if (line === input) continue;   // screened just above
+            const whole = { risk: commandSafetyRisk(line, { cwd: jailRoot, fs: fs, pathMod: P, dialect: dialect, isWin: isWin }) };
+            if (whole.risk) throw new Error('refused [' + whole.risk.kind + ']: with what was already sent, this input makes the line "' + line.slice(0, 200) + (line.length > 200 ? '…' : '') + '", which ' + whole.risk.reason + '. A line sent to a shell or REPL runs like a command, so it is screened whole.');
+          }
+        }
         await bgWriteCheckpoint(ctx, aid, environmentBackendId, jailRoot);   // after the screen: a refused line snapshots nothing
         const r = await Promise.resolve(source ? source.writeBackground(aid, id, { input: input, submit: args && args.submit }) : bg.write(aid, id, { input: input, submit: args && args.submit }));
+        if (plan && r && r.ok) { if (plan.ok) bgTyped.commit(lineKey, plan); else bgTyped.clear(lineKey); }
         return {
           content: r.ok ? ('Sent ' + r.bytes + ' byte(s) to ' + id + '. Read what it printed with shell.bg.read.') : ('Could not write: ' + r.error),
           summary: r.ok ? 'wrote ' + r.bytes + 'b' : 'not written'
@@ -2011,10 +2144,10 @@
 
     return {
       execTool: execTool, bgStatusTool: bgStatusTool, bgReadTool: bgReadTool, bgWriteTool: bgWriteTool, bgKillTool: bgKillTool, bgWaitTool: bgWaitTool,
-      _internals: { escapesWorkspace: escapesWorkspace, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, killTree: killTree, safeAgentId: safeAgentId, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, unrestrictedHost: unrestrictedHost },
+      _internals: { escapesWorkspace: escapesWorkspace, authorityFileRisk: authorityFileRisk, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, killTree: killTree, safeAgentId: safeAgentId, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, unrestrictedHost: unrestrictedHost },
       register: function (reg) { reg.register(execTool); reg.register(bgStatusTool); reg.register(bgReadTool); reg.register(bgWriteTool); reg.register(bgKillTool); reg.register(bgWaitTool); return reg; }
     };
   }
 
-  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
+  return { makeShellTool: makeShellTool, runCommand: runCommand, escapesWorkspace: escapesWorkspace, authorityFileRisk: authorityFileRisk, FLOOR_RULES: FLOOR_RULES, FLOOR_FORMS: FLOOR_FORMS, opensVisibleWindow: opensVisibleWindow, inputIsolationRisk: inputIsolationRisk, commandSafetyRisk: commandSafetyRisk, workspaceCapturesInput: workspaceCapturesInput, projectScanRoot: projectScanRoot, breaksMachineState: breaksMachineState, exposesNetwork: exposesNetwork, safeAgentId: safeAgentId, buildMarkedCmd: buildMarkedCmd, parseMarker: parseMarker, withinJail: withinJail, normalizeWinCwd: normalizeWinCwd, resolveShellCwd: resolveShellCwd, runShellCwd: runShellCwd, unrestrictedHost: unrestrictedHost, sandboxRefusal: sandboxRefusal, commandEnvOf: commandEnvOf };
 });

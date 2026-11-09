@@ -18,7 +18,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     assert.equal((await fetch(fixture.baseUrl + '/api/discovery/sources')).status, 403);
     assert.equal((await j('POST', '/api/discovery/sources', { root, enabled: true })).status, 400);
     assert.equal((await j('GET', '/api/discovery/sources')).body.approvedRoots.length, 0, 'selection must not mint permission');
-    assert.equal((await j('POST', '/api/projects/bless', { path: root })).body.ok, true);
+    // trusting a folder is confirmed at the desk (GHSA-2hpj #1): the code this station printed, as the person types it
+    assert.equal((await fixture.deskJson('POST', '/api/projects/bless', { path: root })).body.ok, true);
     await j('POST', '/api/discovery/scan');
     assert.equal((await staged()).length, 0, 'approved folder alone is not document-discovery consent');
     const configured = await j('POST', '/api/discovery/sources', { root, enabled: true });

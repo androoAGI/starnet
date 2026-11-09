@@ -18,6 +18,20 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes the booted station prints on its own console, read as the person at it reads them (GHSA-2hpj #1)
+const desk = makeDeskCodeReader();
+/* deskFetch(url, init) -> the Response of a fetch() the station may answer with its desk challenge (a routine's unattended
+   grant is lasting authority, fix-sec2 review 3), replayed once with the code it printed, as the person types it in the page */
+async function deskFetch(url, init) {
+  const go = extra => fetch(url, Object.assign({}, init, { headers: Object.assign({}, init.headers, extra || {}) }));
+  const first = await go();
+  if (first.status !== 403) return first;
+  const body = await first.clone().json().catch(() => ({}));
+  let replayed = null;
+  await desk.confirm({ status: first.status, body }, async h => { replayed = await go(h); return replayed; });
+  return replayed || first;
+}
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -135,6 +149,7 @@ function boot(port, env, attemptsLeft) {
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -182,7 +197,8 @@ async function readNdjson(res) {
     A.eq(upsert.status, 200, 'configured the MCP connector');
     A.eq((await upsert.json()).toolCount, 3, 'write and command tools were discovered');
 
-    const create = await fetch(B + '/api/cron', {
+    // the routine's connector grant is confirmed at the desk with the code the station printed (fix-sec2 review 3)
+    const create = await deskFetch(B + '/api/cron', {
       method: 'POST', headers,
       body: JSON.stringify({ name: 'Send invoice notice', prompt: 'send the invoice notice to ops', schedule: 'every 1h', agentId: 'idem-agent', model: 'test/model', provider: 'openrouter', unattendedGrants: ['connectors'] })
     });

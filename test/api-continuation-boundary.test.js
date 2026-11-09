@@ -88,8 +88,17 @@ function assertLocked(r, tool, c, label) {
   A.eq(responseProvenance.originOf(JSON.parse(JSON.stringify(first))), '', 'JSON/model projections cannot retain host proof');
   A.eq(responseProvenance.originOf(Object.assign({}, first, { content: first.content + '\nhost decoration' })), ORIGIN, 'host result decoration preserves proof');
   const clean = run(); clean.observe(initial.tool, c, first);
-  A.eq(clean.scope, { origin: ORIGIN, keys: [KEY] }, 'direct API body scopes to proven origin and key');
-  A.ok(clean.next(initial.tool, call({ method: 'PUT', body: '{}' })).postTaint.allow, 'same API/key write continues');
+  A.eq(clean.scope, { origin: ORIGIN, keys: [KEY], method: 'GET', prefix: '/', path: '/read' }, 'direct API body scopes to proven origin and key, method, folder and path');
+  A.ok(clean.next(initial.tool, call({ url: ORIGIN + '/read?page=2' })).postTaint.allow, 'the next page of the same API/key/method read continues');
+  // final review #8: a first read at the root scopes nothing but its own path
+  A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read/next' })).sameOriginApi, 'another path under the root folder is no continuation');
+  // GHSA-2hpj #6: a write after a read, or an upload, is no continuation: unattended refused, watched asks
+  const write = call({ method: 'PUT', body: '{}' });
+  A.ok(!clean.next(initial.tool, write).sameOriginApi && !clean.next(initial.tool, write).postTaint.allow, 'same API/key write after a read is refused unattended');
+  A.ok(clean.next(initial.tool, write, { surface: 'interactive', prompt: true }).postTaint.needsConfirmation, 'and asks a watched run');
+  const upload = call({ url: ORIGIN + '/read', method: 'POST', body: '{"f":"$' + '{file:notes.txt}"}' });
+  A.ok(!clean.next(initial.tool, upload).sameOriginApi, 'a file reference is never a continuation');
+  A.ok(!clean.next(initial.tool, upload, { fullAccess: true }).postTaint.allow, 'and Full Access does not send it unasked');
   A.ok(!clean.next(initial.tool, call({ url: OTHER + '/send' })).sameOriginApi, 'different origin cannot continue');
   A.ok(!clean.next(initial.tool, call({ headers: { Authorization: 'Bearer $' + '{OTHER_KEY}' } })).sameOriginApi, 'new key cannot continue');
   A.ok(!clean.next(initial.tool, c, { inherited: 'worker context' }).sameOriginApi, 'inherited taint cannot continue');

@@ -19,7 +19,10 @@ const { spawn } = require('node:child_process');
 
 function makeStationIO(client) {
   const get = (p, ms) => client.request('GET', p, null, { timeoutMs: ms || 10000 });
-  const post = (p, body, ms) => client.request('POST', p, body || {}, { timeoutMs: ms || 15000 });
+  // extra: { deskProof, deskCode } for a desk confirmation's replay (fix-sec2 breakage 3)
+  const post = (p, body, ms, extra) => client.request('POST', p, body || {}, Object.assign({ timeoutMs: ms || 15000 }, extra || {}));
+  // the desk code a station this terminal spawned printed over IPC for challenge `id` ('' when it was not this terminal's)
+  const deskCodeFor = id => (typeof client.deskCodeFor === 'function' ? Promise.resolve(client.deskCodeFor(id)).catch(() => '') : Promise.resolve(''));
   function chat(o) {
     return new Promise(resolve => {
       const body = { model: o.model, provider: o.provider, agentId: o.agentId || 'agent', system: o.system || '', messages: [{ role: 'user', content: String(o.directive || '') }], isTask: false, placed: [], internal: true };
@@ -73,7 +76,7 @@ function makeStationIO(client) {
     const cmd = process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', u]] : process.platform === 'darwin' ? ['open', [u]] : ['xdg-open', [u]];
     try { const c = spawn(cmd[0], cmd[1], { stdio: 'ignore', detached: true, windowsHide: true }); c.on('error', () => {}); c.unref(); return true; } catch (_) { return false; }
   }
-  return { get, post, chat, open };
+  return { get, post, chat, open, deskCodeFor };
 }
 
 module.exports = { makeStationIO };

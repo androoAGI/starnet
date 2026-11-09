@@ -3,6 +3,7 @@
 
 const Shell = require('./shell.js');
 const RunPaths = require('../../run-paths.js');
+const { makeInputLines } = require('./input-lines.js');
 const { hardlineReason } = require('../../pathtrust.js');
 
 function makeTerminalTools(deps) {
@@ -68,7 +69,8 @@ function makeTerminalTools(deps) {
   }
   function safety(command, cwd, ctx, exactCwd) {
     if (remoteOwner(ctx)) return null;
-    const escaped = Shell.escapesWorkspace(command);
+    // StarNet's own hooks.json by its resolved path (fix-sec2 F2), from where this terminal runs
+    const escaped = Shell.escapesWorkspace(command) || Shell.authorityFileRisk(command, { cwd, root: ROOT, pathMod: P, fs, isWin });
     if (escaped) return { kind: 'workspace', reason: escaped };
     // a new terminal's program is searched for in the environment its PTY is given (manager.start gets envFor); text typed later proves nothing
     return Shell.commandSafetyRisk(command, { cwd, exactCwd: exactCwd === true, fs, pathMod: P, dialect: isWin ? 'cmd' : 'posix', isWin, env: exactCwd === true ? envFor(ctx && ctx.surface) : undefined });
@@ -98,6 +100,10 @@ function makeTerminalTools(deps) {
     return realCwd;
   }
   function sessionRef(args) { return String((args && args.session) || '').trim(); }
+  // THE ASSEMBLED LINE (GHSA-2hpj #4): the part of a line typed with submit:false, per agent and session, so the line Enter
+  // sends is screened whole (input-lines.js); a session's unique id keys it, so a new session by the same name starts empty
+  const typed = makeInputLines({ editing: true });
+  const lineKey = (agentId, s) => agentId + '\u0000' + String((s && (s.sessionId || s.id || s.name)) || '');
   function fail(r) { if (!r || !r.ok) throw new Error((r && r.error) || 'terminal operation failed'); return r; }
   function terminalSummary(s) {
     return '[' + s.name + '] ' + String(s.state || 'unknown').toUpperCase()
@@ -232,10 +238,19 @@ function makeTerminalTools(deps) {
       if (!s) throw new Error('no such terminal session');
       const risk = safety(data, s.cwd, ctx || {});
       if (risk) throw new Error('refused [' + risk.kind + ']: this terminal input ' + risk.reason);
+      // …and the WHOLE line it completes or extends, with what earlier submit:false writes typed (GHSA-2hpj #4)
+      const plan = typed.plan(lineKey(agentId, s), data, args.submit);
+      if (!plan.ok && !remoteOwner(ctx || {})) throw new Error('refused [input]: ' + plan.error);
+      for (const line of typed.texts(plan)) {
+        if (line === data) continue;   // screened just above
+        const whole = { risk: safety(line, s.cwd, ctx || {}) };
+        if (whole.risk) throw new Error('refused [' + whole.risk.kind + ']: with what was already typed, this terminal input makes the line "' + line.slice(0, 200) + (line.length > 200 ? '…' : '') + '", which ' + whole.risk.reason + '. Interrupt the line (terminal.interrupt) to start it over.');
+      }
       if (ctx && typeof ctx.checkpointMutation === 'function') {
         try { await ctx.checkpointMutation(s.cwd, 'terminal.write', { always: true }); } catch (_) {}
       }
       const r = fail(manager.write(agentId, ref, { data, submit: args.submit }));
+      if (plan.ok) typed.commit(lineKey(agentId, s), plan); else typed.clear(lineKey(agentId, s));
       return { content: 'Sent ' + r.bytes + ' byte(s) to ' + r.session.name + '. Read the response with terminal.read.', summary: 'terminal input sent' };
     }
   };
@@ -257,6 +272,7 @@ function makeTerminalTools(deps) {
     schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
     run: function (args, ctx) {
       const r = fail(manager.interrupt(aid(ctx), sessionRef(args)));
+      typed.clear(lineKey(aid(ctx), r.session));   // Ctrl-C abandons the line being typed
       return { content: 'Sent Ctrl-C to ' + r.session.name + '. Its resulting state is not assumed; check terminal.status/read.', summary: 'interrupt sent' };
     }
   };
@@ -268,13 +284,14 @@ function makeTerminalTools(deps) {
     schema: { type: 'object', required: ['session'], properties: { session: { type: 'string' } } },
     run: function (args, ctx) {
       const r = fail(manager.stop(aid(ctx), sessionRef(args)));
+      typed.clear(lineKey(aid(ctx), r.session));
       if (r.alreadyExited) return { content: terminalSummary(r.session), summary: 'already ' + r.session.state };
       return { content: 'Stop requested for ' + r.session.name + '; awaiting its exit event. Check terminal.status.', summary: 'stop requested' };
     }
   };
 
   const all = [startTool, statusTool, readTool, writeTool, resizeTool, interruptTool, stopTool];
-  return { tools: all, register: function (registry) { all.forEach(t => registry.register(t)); return registry; }, _internals: { resolveCwd, safety, terminalSummary } };
+  return { tools: all, register: function (registry) { all.forEach(t => registry.register(t)); return registry; }, _internals: { resolveCwd, safety, terminalSummary, typed } };
 }
 
 module.exports = { makeTerminalTools };

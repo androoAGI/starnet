@@ -24,6 +24,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -202,12 +203,15 @@ function filesUnder(dir) {
   try {
     let live = await boot(await allocatePort(), env, 20);
     child = live.child;
+    // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+    const desk = makeDeskCodeReader();
+    child.stderr.on('data', d => desk.feed(d));
     let B = 'http://' + HOST + ':' + live.port;
     let token = await bootToken(B, B);
     await polling(0);
 
     // ---- 1. the owner pairs in a DM -------------------------------------------------------------------
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' }, body: '{}' })).json();
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' }, body: '{}' });
     A.ok(pair && /^[-A-Z0-9]{11}$/.test(String(pair.code || '')), 'local owner pairing issued a one-time code');
     tg.dm(OWNER, '/pair ' + pair.code);
     await waitUntil(() => sentTo(OWNER).some(s => /Owner paired/i.test(String(s.text || ''))), 8000, 'owner-pair acknowledgement');

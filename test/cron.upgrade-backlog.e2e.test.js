@@ -135,7 +135,7 @@ function seedStore(file) {
   try {
     seedStore(path.join(sidecar.workspace, 'cron.jobs.json'));
     await sidecar.start();
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-upgrade-backlog-fake', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.'
     });

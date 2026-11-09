@@ -192,10 +192,14 @@ async function setup(fx, lanPort, label) {
       { id: 'b2', t: 'bay', x: 7, y: 0, w: 1, h: 1, agentId: 'writer-agent' }, { id: 'o', t: 'outbox', x: 10, y: 0, w: 1, h: 1 }],
     belts: [belt(1, 0, 'E'), belt(2, 0, 'E'), belt(3, 0, 'E'), belt(5, 0, 'E'), belt(6, 0, 'E'), belt(8, 0, 'E'), belt(9, 0, 'E')]
   }), { label: label + ': the two-stage line' });
-  A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, label + ': Remote switched on');
-  const pr = await fx.json('POST', '/api/remote/pair', { name: 'RL phone' });
+  // Remote on, the pairing code and the new phone are confirmed at the desk (GHSA-2hpj #1, #7): this bare station takes the
+  // code it printed on its console, typed as the person there would (deskJson); the phone proves the link's 128-bit secret
+  A.eq((await fx.deskJson('POST', '/api/remote/enable', { on: true })).body.enabled, true, label + ': Remote switched on');
+  const pr = await fx.deskJson('POST', '/api/remote/pair', { name: 'RL phone' });
+  A.eq(pr.status, 200, label + ': the pairing code is confirmed at the desk');
   const key = await Phone.makeDeviceKey();
-  const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, code: pr.body.code, name: 'RL phone', key });
+  const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, secret: pr.body.secret, name: 'RL phone', key });
+  A.eq((await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired.deviceId })).status, 200, label + ': the new phone is approved at the desk');
   const phone = Phone.connect({ base: 'http://' + HOST + ':' + lanPort, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
   return { group, phone };
 }

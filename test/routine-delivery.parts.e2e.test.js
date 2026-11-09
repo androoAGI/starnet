@@ -125,7 +125,7 @@ async function startModel() {
   const landed = (k) => sends().filter(c => !c.refused && partOf(c.fields.text).indexOf(k) >= 0).length;
   try {
     await sidecar.start();
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-routine-parts-fake', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.'
     });
@@ -133,7 +133,7 @@ async function startModel() {
     const up = async () => { const s = await sidecar.json('GET', '/api/channels/telegram/status'); return !!(s.body && s.body.connected && s.body.state === 'up'); };
     await waitFor(up, 20000, 'Telegram to report up');
     // the owner pairs, the way a desktop owner does (a one-time code, consumed by Telegram)
-    const pair = await sidecar.json('POST', '/api/channels/telegram/owner/pair', {});
+    const pair = await sidecar.deskJson('POST', '/api/channels/telegram/owner/pair', {});
     A.ok(pair.body && pair.body.code, 'a one-time owner pairing code');
     telegram.pushText(CHAT, CHAT, '/pair ' + pair.body.code);
     await waitFor(() => sends().some(c => /Owner paired/i.test(String(c.fields.text || ''))), 15000, 'the owner pairing acknowledgement');

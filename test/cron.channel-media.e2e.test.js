@@ -165,7 +165,7 @@ async function waitFor(pred, ms, label) {
   });
   try {
     await sidecar.start();
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-routine-media-fake', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.'
     });
@@ -180,7 +180,7 @@ async function waitFor(pred, ms, label) {
     fs.writeFileSync(path.join(agentDir, 'charts', 'today.png'), SEEDED_PNG);
 
     async function routine(name, prompt, extra) {
-      const r = await sidecar.json('POST', '/api/cron', Object.assign({
+      const r = await sidecar.deskJson('POST', '/api/cron', Object.assign({
         name, prompt, schedule: 'every 1h', agentId: 'agent', model: 'test/model', provider: 'openrouter',
         deliver: 'origin', origin: { channel: 'telegram', chatId: '777' }
       }, extra || {}));
@@ -289,7 +289,7 @@ async function waitFor(pred, ms, label) {
     /* ---- 2. an image the run GENERATED rides the delivery without any ATTACH line ----
        Generation itself is a paid write that an unattended run in ASK may not self-approve (unchanged policy), so
        this half runs under the Commander's live Full Access switch — the delivery path is the same either way. */
-    const bypass = await sidecar.json('POST', '/api/permissions/bypass', { on: true });
+    const bypass = await sidecar.deskJson('POST', '/api/permissions/bypass', { on: true });
     A.eq(bypass.status, 200, 'Full Access switched on for the render routine');
     const renderJob = await routine('Morning render', 'ROUTINE_RENDER make me a sunrise picture', { unattendedGrants: ['studio'] });
     A.eq(renderJob.unattendedGrants, ['studio'], 'the render routine holds ALLOW IMAGES');

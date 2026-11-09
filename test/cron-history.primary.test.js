@@ -44,10 +44,13 @@ async function scenario(name, action) {
     router: { dockOf: () => '', intakeReceiptFor: () => null },
     cronLock: { withLock(fn) { return { ran: true, result: fn() }; } }, updateHolding: () => false,
     cronDriver: { applyTick() { state.ticks++; return {}; } }, readBody: async req => JSON.stringify(req.body),
-    console: { warn() {}, error() {} }, _sleep: async () => {}, CRON_WRITE_RETRIES: 2, CRON_WRITE_RETRY_MS: 0 };
+    console: { warn() {}, error() {} }, _sleep: async () => {}, CRON_WRITE_RETRIES: 2, CRON_WRITE_RETRY_MS: 0,
+    // the routine store's seal (fix-sec2 review 4a) is authority-seal.test's; here it reads and writes nothing
+    cronOpenAuthority: (raw, jobs) => jobs, cronSealRecord: () => null, cronGrantKey: () => '' };
   const create = new Function(...Object.keys(deps), `
     let cronJobs = [{id:'remembered',name:'unchanged RAM'}], cronDegraded = null, _cronWriteOverride = false;
     let cronToolsetsRepairedOnLoad = 0, cronWiresPairedOnLoad = 0;
+    let cronSealsRead = null, cronGrantsSealed = new Map();
     const cronToolsetsRepairNoted = new Set(), cronHealth = {};
     ${pieces}
     return { load: loadCronJobs, save: saveCronJobs, write: withCronWrite, tick: cronTickHealthy,

@@ -26,7 +26,7 @@
       '<h4 class="ms-h">PHONE ACCESS <span class="dim">— your station, from your phone</span></h4>' +
       '<p class="set-about">Pair a phone and it can see your crew, send tasks, answer approvals and open what your agents made, from anywhere. ' +
       'Everything between the phone and this computer is encrypted end to end: the StarNet relay in the middle passes sealed messages it cannot read. ' +
-      'A phone works with the same permissions as this desk: an agent on full access acts without asking from your phone too, so you can work on the go. Tick ALWAYS ASK on a phone to have it ask before every step that needs an OK. Standing grants and full access are only ever set here, at the desk.</p>' +
+      'A newly paired phone stays switched off until you approve it here, checking that its code matches the one your phone shows, and it starts out asking before every step that needs an OK. Untick ALWAYS ASK to let a phone work with the same permissions as this desk (an agent on full access then acts without asking from your phone too). Standing grants and full access are only ever set here, at the desk.</p>' +
       '<label class="set-row"><input type="checkbox" id="rmt-on"> REMOTE ON <span class="dim" id="rmt-on-note">— checking…</span></label>' +
       '<p class="set-about" id="rmt-link"></p>' +
       '<div class="set-save"><button class="bb sm" id="rmt-pair" type="button" disabled>PAIR A PHONE</button></div>' +
@@ -66,7 +66,8 @@
           '<span class="dot' + (live.has(d.id) ? ' on' : '') + '"></span> ' + esc(d.name) +
           ' <span class="dim">— ' + (live.has(d.id) ? 'connected now' : (d.lastSeenAt ? 'last seen ' + esc(ago(Date.now() - d.lastSeenAt)) : 'never connected')) +
           ' · code ' + esc(d.fingerprint) + '</span>' +
-          ' <label class="dim" title="This phone asks before every step that needs an OK, even for agents on full access"><input type="checkbox" data-askfirst="' + esc(d.id) + '"' + (d.askFirst ? ' checked' : '') + '> ALWAYS ASK</label>' +
+          (d.pending ? ' <b>WAITING FOR YOUR APPROVAL</b> <button class="bb xs" type="button" data-approve="' + esc(d.id) + '">APPROVE</button>' :
+          ' <label class="dim" title="This phone asks before every step that needs an OK, even for agents on full access"><input type="checkbox" data-askfirst="' + esc(d.id) + '"' + (d.askFirst ? ' checked' : '') + '> ALWAYS ASK</label>') +
           ' <button class="bb xs danger" type="button" data-remove="' + esc(d.id) + '">REMOVE</button>' +
         '</div>').join('');
       box.querySelectorAll('[data-askfirst]').forEach(cb => {
@@ -75,6 +76,15 @@
           cb.disabled = true;
           try { snap = await api('/api/remote/device', { deviceId: id, askFirst: on }); say(on ? 'From its next task, that phone asks before every step that needs an OK (a task it is running now keeps the permissions it started with).' : 'That phone now works with this desk’s permissions (agents on full access act without asking).'); paint(); }
           catch (e) { cb.checked = !on; cb.disabled = false; say(e.message, true); }
+        };
+      });
+      // GHSA-2hpj #7: a new phone has no session until it is approved here (StarNet asks to confirm, showing its code)
+      box.querySelectorAll('[data-approve]').forEach(btn => {
+        btn.onclick = async () => {
+          const id = btn.getAttribute('data-approve');
+          btn.disabled = true;
+          try { snap = await api('/api/remote/activate', { deviceId: id }); say('Approved. That phone can reach this station now, and it asks before every step that needs an OK.'); paint(); }
+          catch (e) { btn.disabled = false; say(e.message, true); }
         };
       });
       box.querySelectorAll('[data-remove]').forEach(btn => {

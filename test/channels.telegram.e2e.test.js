@@ -13,6 +13,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 // host notes (the <run_context> note, recall) ride the newest user turn on this non-Claude wire: read them, and the
 // Commander's own words, through the helper rather than one placement (provider.js userSideHostNotes)
 const { runContextOf, userWords, lastUserWords, hostText, loopNotes } = require('./helpers/host-notes.js');
@@ -202,6 +203,16 @@ function startMockTelegram() {
     } catch (_) {}
   }
 
+  // a tap on one button of a keyboard the bot sent (the owner's callback_query for that message)
+  function tap(chatId, userId, sent, label) {
+    const rows = (sent && sent.reply_markup && (typeof sent.reply_markup === 'string' ? JSON.parse(sent.reply_markup) : sent.reply_markup).inline_keyboard) || [];
+    const btn = rows.map(r => r[0]).find(b => b && new RegExp(label).test(String(b.text || '')));
+    queued.push({ update_id: ++updateId, callback_query: { id: 'cq' + updateId, from: { id: userId, username: 'commander' }, chat_instance: 'ci',
+      message: { message_id: sent && sent._messageId, date: Math.floor(Date.now() / 1000), chat: { id: Number(chatId), type: 'private' } }, data: btn && btn.callback_data } });
+    flush();
+    return !!btn;
+  }
+
   function flush() {
     while (queued.length && waiters.length) {
       const w = waiters.shift();
@@ -248,10 +259,17 @@ function startMockTelegram() {
         return;
       }
       if (method === 'sendMessage') {
-        sends.push(body);
-        respond(res, { ok: true, result: { message_id: ++messageId } });
+        const sentId = ++messageId;
+        const sent = Object.assign({}, body, { _messageId: sentId });   // the id lets a tap name the message its keyboard rode
+        sends.push(sent);
+        respond(res, { ok: true, result: { message_id: sentId } });
+        // final review #1 (2026-11-08): an owner DM to an ask-first agent (every tg_<chat> agent here) asks in the chat before
+        // a consequential step. The owner of these flows says yes: each permission card is answered Allow once
+        if (sent.reply_markup && /Permission needed/.test(String(sent.text || ''))) setTimeout(() => tap(sent.chat_id, 99, sent, 'Allow once'), 50);
         return;
       }
+      // a tapped permission card is acknowledged and stamped (final review #1: the owner's ask-first DM asks in the chat)
+      if (method === 'answerCallbackQuery' || method === 'editMessageText') { respond(res, { ok: true, result: true }); return; }
       respond(res, { ok: false, error_code: 404, description: 'unknown method' });
     });
     server.listen(0, HOST, () => {
@@ -419,6 +437,9 @@ async function waitUntil(fn, ms, label) {
   };
   const live = await boot(await allocatePort(), env, 20);
   let child = live.child;
+  // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+  const desk = makeDeskCodeReader();
+  child.stderr.on('data', d => desk.feed(d));
   const port = live.port;
   let B = 'http://' + HOST + ':' + port;
   let sse = null;
@@ -442,11 +463,11 @@ async function waitUntil(fn, ms, label) {
     // Telegram is deliberately no longer trust-on-first-DM. Enrol this test account through the same local,
     // authenticated pairing route a desktop owner uses, then prove the one-time code is consumed by Telegram
     // before asking it to run anything.
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', {
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', {
       method: 'POST',
       headers: { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' },
       body: '{}'
-    })).json();
+    });
     A.ok(pair && /^[-A-Z0-9]{11}$/.test(String(pair.code || '')), 'local owner pairing issued a one-time code');
     tg.pushText(4242, 99, '/pair ' + pair.code);
     await waitUntil(() => tg.sends.some(s => String(s.chat_id) === '4242' && /Owner paired/i.test(String(s.text || ''))), 8000, 'Telegram owner-pair acknowledgement');
@@ -489,6 +510,11 @@ async function waitUntil(fn, ms, label) {
     const shellChat = 4244;
     const beforeShell = llm.requests.length;
     tg.pushText(shellChat, 99, 'run telegram shell proof');
+    // final review #1 (2026-11-08): this chat's agent asks first (it has no Full Access), so the owner's DM no longer runs a
+    // shell with no card: the permission card comes to the chat, and the owner allows it once (the fake answers every card)
+    await waitUntil(() => tg.sends.some(s => String(s.chat_id) === String(shellChat) && s.reply_markup && /Permission needed/.test(String(s.text || ''))), 8000, 'owner Telegram permission card');
+    const shellCard = tg.sends.find(s => String(s.chat_id) === String(shellChat) && s.reply_markup && /Permission needed/.test(String(s.text || '')));
+    A.ok(/shell/i.test(String(shellCard.text || '')) && /TELEGRAM_SHELL_OK/.test(String(shellCard.text || '')), 'the owner\'s card names the shell command (an ask-first agent asks in the chat)');
     await waitUntil(() => tg.sends.some(s => String(s.chat_id) === String(shellChat) && String(s.text || '').indexOf('Telegram answer') >= 0), 8000, 'owner Telegram shell reply');
     const shellReqs = llm.requests.slice(beforeShell);
     const shellWire = ((shellReqs[0] && shellReqs[0].tools) || []).map(t => String((t && t.function && t.function.name) || (t && t.name) || ''));

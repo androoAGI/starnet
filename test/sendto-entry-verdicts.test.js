@@ -39,6 +39,10 @@ const { crewedDocksOnLine } = require('../sidecar/routing/trigger-runner.js');
 
 const root = path.resolve(__dirname, '..');
 const tick = (ms) => new Promise(r => setTimeout(r, ms || 5));
+// The probe is a CONNECTOR write: a lock Full Access lifts for the Commander's own job and keeps for an untrusted entry. It
+// used to be shell.exec; since GHSA-2hpj #2 no Full Access lifts the host-process lock after taint (untrusted-taint.test.js),
+// so the shell no longer tells an owner's job from a payload's. lockLifted = that probe allowed with no prompt.
+const PROBE = { name: 'mcp__notes__write', capability: 'mcp:notes', scope: 'execute' };
 const SHELL = { name: 'shell.exec', capability: 'workbench', scope: 'execute' };
 
 function memStore() {
@@ -54,10 +58,13 @@ function memStore() {
 // (run-origin) keeps the taint lock on — read through taint.postTaintBoundary exactly as the boundary is asked (autonomous, no prompt)
 function verdictsOf(o) {
   const untrusted = entryUntrusted(o), withheld = hostPowerWithheldFor(o);
-  const shell = taint.postTaintBoundary(SHELL, { taintedBy: o.initialTaint || null, surface: o.surface || 'autonomous', hasPrompt: !!o.prompt, fullAccess: !withheld, untrustedEntry: untrusted });
-  return { untrusted, withheld, fullAccess: !withheld, shellAllowed: shell.allow === true };
+  const shell = taint.postTaintBoundary(PROBE, { taintedBy: o.initialTaint || null, surface: o.surface || 'autonomous', hasPrompt: !!o.prompt, fullAccess: !withheld, untrustedEntry: untrusted });
+  return { untrusted, withheld, fullAccess: !withheld, lockLifted: shell.allow === true };
 }
-const pick = (r) => ({ untrusted: r.untrusted, withheld: r.withheld, fullAccess: r.fullAccess, shellAllowed: r.shellAllowed });
+// ...and the shell itself stays held after taint even on the Commander's own Full Access job (GHSA-2hpj #2)
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'upstream line output', surface: 'autonomous', hasPrompt: false, fullAccess: true }).allow, false,
+  'a tainted step of the Commander\'s own Full Access job is still refused the shell unattended');
+const pick = (r) => ({ untrusted: r.untrusted, withheld: r.withheld, fullAccess: r.fullAccess, lockLifted: r.lockLifted });
 
 /* ---------- 1. HUB: the hooks narrow, never widen; the seed stamp mirrors the run verdicts ---------- */
 function hubHarness(extra) {
@@ -194,7 +201,7 @@ function world(opts) {
     await h.hub.onInbound(msg('[HAND-OFF] job', { channel: 'trigger' }));
     A.eq([h.runs[0].untrustedEntry, h.runs[1].untrustedEntry], [undefined, undefined], 'a trusted sending job: neither the entry nor its hop is untrusted');
     A.eq(h.runs[0].initialTaint, 'upstream line output', '…but the entry still STARTS TAINTED by the upstream line\'s output, like a chain hop');
-    A.eq([h.runs[0].shellAllowed, h.runs[1].shellAllowed], [true, true], '…so Full Access lifts the taint lock on both, exactly as on an in-line hop');
+    A.eq([h.runs[0].lockLifted, h.runs[1].lockLifted], [true, true], '…so Full Access lifts the taint lock on both, exactly as on an in-line hop');
     A.eq([h.seeds[0].entryTrusted, h.seeds[0].hostPowerKept], [true, true], '…and the seed stamps both verdicts for the next hand-off');
   }
   {
@@ -256,7 +263,7 @@ function world(opts) {
     A.ok(a.length === 2 && b.length === 2 && c.length === 2, 'the job ran A (2 steps) → B (2 steps) → C (2 steps): ' + JSON.stringify(w.runs.map(r => r.line)));
     A.ok(w.shipped.length >= 2 && w.shipped[0].entryTrusted === true && w.shipped[0].hostPowerKept === true, 'A\'s shipment carries the Commander job\'s verdicts');
     const inLineHop = pick(a[1]);
-    A.eq(inLineHop, { untrusted: false, withheld: false, fullAccess: true, shellAllowed: true }, 'an IN-LINE hop of the Commander\'s job keeps Full Access (the baseline)');
+    A.eq(inLineHop, { untrusted: false, withheld: false, fullAccess: true, lockLifted: true }, 'an IN-LINE hop of the Commander\'s job keeps Full Access (the baseline)');
     A.eq(pick(b[0]), inLineHop, 'B\'s entry run gets the SAME verdict as an in-line hop: Full Access kept, the tainted shell step allowed');
     A.eq(b[0].initialTaint, 'upstream line output', '…while still starting tainted by the upstream line\'s output');
     A.eq(pick(b[1]), inLineHop, '…and so does B\'s own hop');
@@ -267,14 +274,14 @@ function world(opts) {
     const w = world();
     await w.entryHub({ channel: 'telegram', isOwner: () => true }).onInbound(msg('Research Mars'));
     await w.settle();
-    A.ok(w.on('B').length === 2 && w.on('B').concat(w.on('C')).every(r => !r.untrusted && !r.withheld && r.shellAllowed), 'the owner\'s Telegram DM job keeps Full Access on B and C — ' + JSON.stringify(w.on('B').concat(w.on('C')).map(pick)));
+    A.ok(w.on('B').length === 2 && w.on('B').concat(w.on('C')).every(r => !r.untrusted && !r.withheld && r.lockLifted), 'the owner\'s Telegram DM job keeps Full Access on B and C — ' + JSON.stringify(w.on('B').concat(w.on('C')).map(pick)));
   }
   // (a'') the SAME Commander job on a host that does not forward the hooks (the trunk before the host half): today's lock
   {
     const w = world({ forward: false });
     await w.entryHub({ channel: 'sample', ownerSurface: true, streamId: 'sample-nofwd' }).onInbound(msg('Research Mars', { channel: 'sample', chatId: 'smp' }));
     await w.settle();
-    A.ok(w.on('B').length === 2 && w.on('B').every(r => r.untrusted && !r.shellAllowed), 'without the host forwarding the hooks, B stays under the untrusted-entry lock (the bug this fixes)');
+    A.ok(w.on('B').length === 2 && w.on('B').every(r => r.untrusted && !r.lockLifted), 'without the host forwarding the hooks, B stays under the untrusted-entry lock (the bug this fixes)');
   }
   // (b) a WEBHOOK-started A (the trigger hub's own entryTaint): untrusted on A, B and C
   {
@@ -283,7 +290,7 @@ function world(opts) {
     await w.settle();
     const all = w.on('A').concat(w.on('B'), w.on('C'));
     A.ok(w.on('B').length === 2 && w.on('C').length === 2, 'the webhook job rode on to B and C');
-    A.ok(all.every(r => r.untrusted && !r.shellAllowed), 'a webhook-started job stays untrusted on EVERY line: the tainted shell step is refused despite Full Access — ' + JSON.stringify(all.map(pick)));
+    A.ok(all.every(r => r.untrusted && !r.lockLifted), 'a webhook-started job stays untrusted on EVERY line: the tainted shell step is refused despite Full Access — ' + JSON.stringify(all.map(pick)));
     A.ok(all.every(r => !r.withheld), '…and, as today, nothing is withheld (a trigger has no chat sender)');
     A.ok(w.shipped.every(s => s.entryTrusted !== true), '…and no shipment of it ever carries entryTrusted');
   }
@@ -293,7 +300,7 @@ function world(opts) {
     await w.entryHub({ channel: 'telegram', isOwner: () => true }).onInbound(msg('look at this', { forwarded: true }));
     await w.settle();
     const all = w.on('A').concat(w.on('B'), w.on('C'));
-    A.ok(w.on('C').length === 2 && all.every(r => r.untrusted && !r.shellAllowed), 'a forwarded-message job stays untrusted on B and C — ' + JSON.stringify(all.map(pick)));
+    A.ok(w.on('C').length === 2 && all.every(r => r.untrusted && !r.lockLifted), 'a forwarded-message job stays untrusted on B and C — ' + JSON.stringify(all.map(pick)));
   }
   // (d) an ATTACHMENT-started job from the owner: untrusted on A, B and C
   {
@@ -305,7 +312,7 @@ function world(opts) {
     await w.settle();
     const all = w.on('A').concat(w.on('B'), w.on('C'));
     A.ok(w.on('A')[0] && w.on('A')[0].initialTaint === 'channel attachment', 'the entry run was started by the attachment');
-    A.ok(w.on('C').length === 2 && all.every(r => r.untrusted && !r.shellAllowed), 'an attachment-started job stays untrusted on B and C — ' + JSON.stringify(all.map(pick)));
+    A.ok(w.on('C').length === 2 && all.every(r => r.untrusted && !r.lockLifted), 'an attachment-started job stays untrusted on B and C — ' + JSON.stringify(all.map(pick)));
   }
   // (e) a NON-OWNER sender's job (a group member): withheld on A, B and C
   {
@@ -315,7 +322,7 @@ function world(opts) {
     const all = w.on('A').concat(w.on('B'), w.on('C'));
     A.ok(w.on('B').length === 2 && w.on('C').length === 2, 'the non-owner\'s job rode on to B and C');
     A.ok(all.every(r => r.withheld && !r.fullAccess), 'a non-owner sender\'s job stays WITHHELD on every line — never gains Full Access by a hand-off — ' + JSON.stringify(all.map(pick)));
-    A.ok(all.filter(r => r.initialTaint).length === 5 && all.filter(r => r.initialTaint).every(r => !r.shellAllowed), '…so every tainted step (A\'s hop, all of B and C) is refused the shell');
+    A.ok(all.filter(r => r.initialTaint).length === 5 && all.filter(r => r.initialTaint).every(r => !r.lockLifted), '…so every tainted step (A\'s hop, all of B and C) is refused the shell');
     A.ok(w.shipped.every(s => s.hostPowerKept !== true), '…and no shipment of it carries hostPowerKept');
   }
   // (f') a ROUTINE's shipment (index.js stamps hostPowerKept on the scheduled + Run Now seeds, never entryTrusted): untrusted, NOT withheld
@@ -327,7 +334,7 @@ function world(opts) {
     A.ok(q.ok, 'the routine\'s shipment is handed on — ' + JSON.stringify(q));
     await w.settle();
     const bc = w.on('B').concat(w.on('C'));
-    A.ok(w.on('B').length === 2 && w.on('C').length === 2 && bc.every(r => r.untrusted && !r.withheld && !r.shellAllowed), 'a routine\'s hand-off runs untrusted but not withheld on B and C (today\'s level) — ' + JSON.stringify(bc.map(pick)));
+    A.ok(w.on('B').length === 2 && w.on('C').length === 2 && bc.every(r => r.untrusted && !r.withheld && !r.lockLifted), 'a routine\'s hand-off runs untrusted but not withheld on B and C (today\'s level) — ' + JSON.stringify(bc.map(pick)));
   }
   // (f) a LEGACY shipment (no verdict fields: anything from before this change): untrusted + withheld
   {
@@ -337,7 +344,7 @@ function world(opts) {
     A.ok(q.ok, 'the legacy shipment is handed on — ' + JSON.stringify(q));
     await w.settle();
     const bc = w.on('B').concat(w.on('C'));
-    A.ok(w.on('B').length === 2 && w.on('C').length === 2 && bc.every(r => r.untrusted && r.withheld && !r.shellAllowed), 'a shipment with no verdicts runs untrusted + withheld on B and C — ' + JSON.stringify(bc.map(pick)));
+    A.ok(w.on('B').length === 2 && w.on('C').length === 2 && bc.every(r => r.untrusted && r.withheld && !r.lockLifted), 'a shipment with no verdicts runs untrusted + withheld on B and C — ' + JSON.stringify(bc.map(pick)));
   }
   // (g) non-boolean verdicts on a shipment are not verdicts
   {

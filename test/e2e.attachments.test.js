@@ -125,8 +125,9 @@ async function drain(res) { const rd = res.body.getReader(); const dec = new Tex
     const fs = require('fs'), os = require('os'), path = require('path');
     const proj = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-attach-proj-'));
     try {
-      const bless = await fetch(B + '/api/projects/bless', { method: 'POST', headers: H, body: JSON.stringify({ path: fs.realpathSync.native(proj) }) });
-      const blessed = await bless.json();
+      // trusting a folder is confirmed at the desk (GHSA-2hpj #1): the code this station printed, as the person types it
+      const bless = await fixture.deskJson('POST', '/api/projects/bless', { path: fs.realpathSync.native(proj) });
+      const blessed = bless.body || {};
       A.ok(bless.status === 200 && blessed.ok && blessed.root, 'the project folder is trusted through /api/projects/bless: ' + JSON.stringify(blessed));
       const upTxt = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ agent: 'e2e', name: 'brief.md', dataUrl: 'data:text/markdown;base64,' + Buffer.from('# the brief\nship it').toString('base64') }) });
       const txtRef = await upTxt.json();

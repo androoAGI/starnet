@@ -12,7 +12,8 @@
 
    Laws:
      · A hello for a device that isn't paired (or was revoked) gets NO welcome. The station never derives keys
-       for a stranger, so there is nothing to probe.
+       for a stranger, so there is nothing to probe. Nor for a phone still waiting for the desk's approval
+       (devices.js pending, GHSA-2hpj #7): it is told to ask at the desk, and nothing else.
      · Every inbound seq must be strictly greater than the last one on that session: a replayed or reordered
        frame is refused, not processed twice.
      · A session carries its device id; revoking the device ends every session it has, immediately.
@@ -37,6 +38,7 @@ function makeSessions(deps) {
     if (h.v !== C.VERSION) return { ok: false, error: 'unsupported protocol version' };
     const dev = devices.get(String(h.deviceId || ''));
     if (!dev) return { ok: false, error: 'unknown device' };
+    if (dev.pending === true) return { ok: false, error: 'this phone is waiting for approval: open StarNet on the computer, check the code in SETTINGS > REMOTE matches this phone, and approve it there' };
     let keys, eph, nS;
     try {
       const station = devices.stationKeys();
@@ -67,7 +69,8 @@ function makeSessions(deps) {
     const s = live.get(String(sid || ''));
     if (!s) return null;
     if (now() - s.lastAt > ttlMs) { live.delete(s.id); return null; }
-    if (!devices.get(s.deviceId)) { live.delete(s.id); return null; }   // revoked since
+    const dev = devices.get(s.deviceId);
+    if (!dev || dev.pending === true) { live.delete(s.id); return null; }   // revoked since (or never approved)
     return s;
   }
 

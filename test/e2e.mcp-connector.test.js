@@ -16,6 +16,20 @@ const { bootToken } = require('./_httpToken.js');
 // message) quotes earlier chats as RECENT ACTIVITY, so a raw-content match would route a routine on a previous chat
 const { userWords } = require('./helpers/host-notes.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes the booted station prints on its own console, read as the person at it reads them (GHSA-2hpj #1)
+const desk = makeDeskCodeReader();
+/* deskFetch(url, init) -> the Response of a fetch() the station may answer with its desk challenge (a routine's unattended
+   grant is lasting authority, fix-sec2 review 3), replayed once with the code it printed, as the person types it in the page */
+async function deskFetch(url, init) {
+  const go = extra => fetch(url, Object.assign({}, init, { headers: Object.assign({}, init.headers, extra || {}) }));
+  const first = await go();
+  if (first.status !== 403) return first;
+  const body = await first.clone().json().catch(() => ({}));
+  let replayed = null;
+  await desk.confirm({ status: first.status, body }, async h => { replayed = await go(h); return replayed; });
+  return replayed || first;
+}
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
 
 const HOST = '127.0.0.1';
@@ -157,6 +171,7 @@ function boot(port, env, attemptsLeft) {
     };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -527,7 +542,8 @@ async function readNdjson(res) {
        routine use your connected tools". Everything above proves the ungranted default is unchanged; this
        proves the grant actually reaches the real MCP server, end to end, with nobody watching. */
     const mcpCallsBefore = mcp.calls.filter(c => c.msg && c.msg.method === 'tools/call').length;
-    const grantedCreate = await fetch(B + '/api/cron', {
+    // ...which the desk confirms with the code the station printed (fix-sec2 review 3), as the person types it in the page
+    const grantedCreate = await deskFetch(B + '/api/cron', {
       method: 'POST', headers,
       body: JSON.stringify({ name: 'MCP granted', prompt: 'use the demo connector lookup for alpha', schedule: 'every 1h', agentId: 'mcp-agent', model: 'test/model', provider: 'openrouter', unattendedGrants: ['connectors'] })
     });
@@ -579,7 +595,8 @@ async function readNdjson(res) {
           if (ev.name === 'agent.tool_result') results.push(ev.payload);
           if (ev.name === 'permission.prompt') {
             prompts.push(ev.payload);
-            fetch(B + '/api/consent', { method: 'POST', headers, body: JSON.stringify({ runId, promptId: ev.payload.promptId, decision }) }).catch(() => {});
+            // a FULL or ALWAYS answer is confirmed at the desk with the station's code (GHSA-2hpj #1), as the page does
+            deskFetch(B + '/api/consent', { method: 'POST', headers, body: JSON.stringify({ runId, promptId: ev.payload.promptId, decision }) }).catch(() => {});
           }
         }
       }

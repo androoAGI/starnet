@@ -115,7 +115,8 @@ const frameOf = (r, name) => {
     const edited = fn => { const w = clone(wrapper); fn(w); return Buffer.from(JSON.stringify(w)); };
 
     // ---- the station: two queued builds, a plan to implement, the night shift ready to build ----
-    A.eq((await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, 'the away workshop is granted');
+    // turning it on is confirmed at the desk (fix-sec2 review2 #9), with the code this station printed on its console
+    A.eq((await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, 'the away workshop is granted');
     for (const title of ['Build a tiny haiku generator', 'Build a small unit converter']) {
       const q = await fx.json('POST', '/api/workshop/queue', { agentId: 'agent', title, detail: 'one file' });
       A.ok(q.body && q.body.ok === true, 'queued: ' + title);

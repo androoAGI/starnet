@@ -16,7 +16,12 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
     // security audit 2026-09-25: a path:<root> grant in an imported file is machine authority and is dropped.
     const envelope = { starnetExport: 1, sections: { permissions: { allow: ['cabinet:write', 'path:C:/imported-whole-drive'] } } };
-    const imported = await fixture.json('POST', '/api/config/import', { envelope, only: ['permissions'] });
+    // an import that adds standing grants is an authority change: the page key alone is refused (GHSA-2hpj #1)...
+    const unconfirmed = await fixture.json('POST', '/api/config/import', { envelope, only: ['permissions'] });
+    A.eq([unconfirmed.status, unconfirmed.body && unconfirmed.body.code], [403, 'desk_confirm_required'], 'an import that adds grants asks at the desk first');
+    A.eq((await fixture.json('GET', '/api/permissions')).body.grants, [existing], '...and nothing is granted before the desk says yes');
+    // ...and goes through once the person at the station types the code it printed
+    const imported = await fixture.deskJson('POST', '/api/config/import', { envelope, only: ['permissions'] });
     A.eq(imported.status, 200, 'permission-only config import succeeds');
     A.ok(imported.body.applied.includes('permissions'), 'response reports the permission section applied');
     A.ok((imported.body.notes || []).some(n => /skipped 1 project folder grant/.test(n)), 'the dropped folder grant is named in the import notes');
@@ -41,7 +46,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     await fixture.start();
     A.eq((await fixture.json('GET', '/api/permissions')).body.grants, [], 'corrupt-primary recovery cannot resurrect a reset grant');
 
-    A.eq((await fixture.json('POST', '/api/permissions/grant', { key: 'cabinet:write' })).status, 200, 'grant can be recreated for individual revoke proof');
+    A.eq((await fixture.deskJson('POST', '/api/permissions/grant', { key: 'cabinet:write' })).status, 200, 'grant can be recreated (confirmed at the desk) for individual revoke proof');
     A.eq((await fixture.json('POST', '/api/permissions/revoke', { key: 'cabinet:write' })).status, 200, 'individual permission revoke succeeds');
     A.eq(JSON.parse(fs.readFileSync(allowFile + '.bak', 'utf8')).allow, [], 'individual revoke sanitizes the recovery copy');
     await fixture.stop();

@@ -20,6 +20,8 @@ const { bootToken } = require('./_httpToken.js');
 const { makeRunJournal } = require('../sidecar/run-journal.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
+// an unattended grant is confirmed at the desk with the code the station prints on its console (fix-sec2 review 3)
+const desk = require('./helpers/desk-code.js').makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -51,6 +53,7 @@ function boot(port, workspaces, attemptsLeft) {
       }
     };
     child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout; output:\n' + out)); } }, 30000).unref();
@@ -70,12 +73,13 @@ function boot(port, workspaces, attemptsLeft) {
     apiToken = await bootToken(B(), B());
   }
   await refreshToken();
-  const j = async (m, p, body) => {
-    const headers = { 'Content-Type': 'application/json' };
+  const j = async (m, p, body, extra) => {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes are token-gated too now
     const r = await fetch(B() + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
-    return { status: r.status, body: v };
+    const res = { status: r.status, body: v };
+    return extra ? res : desk.confirm(res, h => j(m, p, body, h));
   };
 
   try {
@@ -263,6 +267,62 @@ function boot(port, workspaces, attemptsLeft) {
     A.eq(continued && continued.content, '✦ Script health\n\nscript-only result', 'the published row is exactly what the chat received');
     const scriptTranscript = await j('GET', '/api/transcript?agent=cron_brief&stream=' + encodeURIComponent('cron-' + scriptJob.lastRunId) + '&limit=20');
     A.ok((scriptTranscript.body.turns || []).some(t => t.role === 'assistant' && t.content === 'script-only result'), 'script-only output is recoverable in its continuable cron session');
+
+    // ---- review2 #2: the desk's yes was for what the routine runs; an edit that changes that keeps it only with a new yes ----
+    {
+      const gid = scriptCreate.body.job.id;
+      fs.writeFileSync(path.join(agentWs, 'other.js'), 'console.log("other result")\n', 'utf8');
+      const jobNow = async () => (await j('GET', '/api/cron')).body.jobs.find(x => x.id === gid);
+      const renamed = await j('POST', '/api/cron/update', { id: gid, patch: { name: 'Script health (renamed)' } }, {});
+      A.eq(renamed.status, 200, 'a rename asks nothing');
+      A.eq(renamed.body.job.unattendedGrants, ['workbench'], 'and keeps the grant');
+      const keepAsked = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'other.js' }, keepGrants: true }, {});
+      A.eq(keepAsked.status, 403, 'keeping a grant through a new script asks at the desk');
+      A.eq(keepAsked.body && keepAsked.body.code, 'desk_confirm_required', 'with the desk challenge');
+      A.ok(/is changing what it runs[\s\S]*other\.js/.test(String((keepAsked.body.deskConfirm || {}).summary || '')), 'the question says what it will run now');
+      A.eq((await jobNow()).script, 'health.js', 'nothing changed before the desk said yes');
+      const kept = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'other.js' }, keepGrants: true });
+      A.eq(kept.status, 200, 'the desk said yes: the new script is saved');
+      A.eq(kept.body.job.unattendedGrants, ['workbench'], 'and keeps its grant');
+      A.ok(!kept.body.grantsDropped, 'nothing dropped');
+      const plain = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'health.js' } }, {});
+      A.eq(plain.status, 200, 'an edit that changes what it runs, without asking to keep the grant, saves without asking');
+      A.eq(plain.body.job.unattendedGrants, [], 'and the routine loses its grant');
+      A.eq(plain.body.grantsDropped, ['workbench'], 'and says which grants it lost');
+      A.eq((await jobNow()).unattendedGrants, [], 'durably');
+    }
+
+    // ---- review2 #3: the yes was for the script's bytes; a changed file does not run until it is allowed again ----
+    {
+      fs.writeFileSync(path.join(agentWs, 'digest.js'), 'console.log("approved bytes")\n', 'utf8');
+      const made = await j('POST', '/api/cron', { name: 'Digest check', prompt: 'run the digest check', schedule: 'every 1h', agentId: 'cron_brief',
+        script: 'digest.js', noAgent: true, unattendedGrants: ['workbench'] });
+      A.eq(made.status, 200, 'a granted script routine is made at the desk');
+      const did = made.body.job.id;
+      A.ok(/^sha256:[0-9a-f]{64}$/.test(String(made.body.job.scriptDigest || '')), 'and records the digest of the script it was allowed to run');
+      const ran = await j('POST', '/api/cron/run', { id: did });
+      A.ok(String(JSON.stringify(ran.body)).includes('approved bytes'), 'the approved script runs');
+      fs.writeFileSync(path.join(agentWs, 'digest.js'), 'console.log("swapped bytes")\n', 'utf8');
+      const row = (await j('GET', '/api/cron')).body.jobs.find(x => x.id === did);
+      A.eq(row.scriptChanged, true, 'the routines list says its script changed');
+      const refused = await j('POST', '/api/cron/run', { id: did });
+      A.ok(!String(JSON.stringify(refused.body)).includes('swapped bytes'), 'the swapped script does not run');
+      let after = null;
+      for (let tries = 0; tries < 50; tries++) { after = (await j('GET', '/api/cron')).body.jobs.find(x => x.id === did); if (after && after.lastError) break; await sleep(100); }
+      A.ok(/changed since you allowed this routine/.test(String((after && after.lastError) || '') + JSON.stringify(refused.body)), 'and the routine says why: ' + String(after && after.lastError).slice(0, 200));
+      const unconfirmed = await j('POST', '/api/cron/update', { id: did, patch: {}, keepGrants: true }, {});
+      A.eq(unconfirmed.status, 403, 'allowing the new version asks at the desk');
+      A.ok(/swapped bytes/.test(String((unconfirmed.body.deskConfirm || {}).summary || '')), 'and the question shows the new script');
+      const allowed = await j('POST', '/api/cron/update', { id: did, patch: {}, keepGrants: true });
+      A.eq(allowed.status, 200, 'the desk said yes');
+      A.ok(allowed.body.job.scriptDigest && allowed.body.job.scriptDigest !== made.body.job.scriptDigest, 'the new digest is recorded');
+      A.eq(allowed.body.job.unattendedGrants, ['workbench'], 'and the grant is kept');
+      const ranNew = await j('POST', '/api/cron/run', { id: did });
+      A.ok(String(JSON.stringify(ranNew.body)).includes('swapped bytes'), 'the allowed version runs');
+      const forged = await j('POST', '/api/cron/update', { id: did, patch: { scriptDigest: 'sha256:' + '0'.repeat(64) } }, {});
+      A.eq(forged.body.job.scriptDigest, allowed.body.job.scriptDigest, 'a patch cannot write the digest');
+      await j('POST', '/api/cron/remove', { id: did });
+    }
     await j('POST', '/api/cron/remove', { id: scriptCreate.body.job.id });
 
     // ---- persistence: the routine survives a fresh boot on the same workspace ----

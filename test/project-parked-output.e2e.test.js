@@ -81,11 +81,14 @@ function startProvider() {
     fs.writeFileSync(path.join(fixture.workspace, 'permissions.allow.json'), JSON.stringify({ version: 1, allow: [grant], meta: { [grant]: { grantedAt: 1 } } }), 'utf8');
     fs.writeFileSync(path.join(fixture.workspace, 'projects.json'), JSON.stringify({ version: 1, projects: [{ root: path.resolve(projectRoot), displayPath: projectRoot, grantedAt: 1, lastTouchedAt: 1, isGitRepo: false }] }), 'utf8');
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', {
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first, and the run's shell_exec would wait on a card nobody answers
+    const roster = await fixture.deskJson('POST', '/api/roster', {
       updatedAt: 100,
-      agents: [{ agentId: 'park-agent', name: 'park-agent', system: 'Use the requested native tools and report only their receipts.', provider: 'openrouter', model: 'test/parked-output', approvalMode: 'full', executionProfile: 'trusted-project' }]
+      agents: [{ agentId: 'park-agent', name: 'park-agent', system: 'Use the requested native tools and report only their receipts.', provider: 'openrouter', model: 'test/parked-output', approvalMode: 'full', executionProfile: 'trusted-project' }],
+      raise: ['park-agent']
     });
-    A.eq(roster.status, 200, 'the real sidecar accepts the project test agent');
+    A.eq([roster.status, roster.body && roster.body.clamped], [200, undefined], 'the real sidecar accepts the project test agent, on Full Access');
 
     const response = await fixture.request('/api/run', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

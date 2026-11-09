@@ -28,6 +28,7 @@ const path = require('path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { userWords } = require('./helpers/host-notes.js');
 const { sseQuery } = require('./_httpToken.js');
+const { fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -354,8 +355,16 @@ async function until(fn, ms, label) {
     const astray = await (await fetch(B + '/api/consent', { method: 'POST', headers: H, body: JSON.stringify({ runId: 'not-the-slot', promptId: d2.promptId, decision: 'once' }) })).json();
     A.eq([astray.ok, !!astray.gone], [false, false], 'a misaddressed answer is refused, and the still-waiting ask is not reported gone');
     A.ok(!bus.events.some(e => e.name === 'permission.response' && e.payload && e.payload.promptId === d2.promptId), 'the misaddressed answer settled nothing');
-    const sess = await (await fetch(B + '/api/consent', { method: 'POST', headers: H, body: JSON.stringify({ runId: lead2RunId, promptId: d2.promptId, decision: 'session' }) })).json();
-    A.eq(sess.ok, true, 'a "session" answer to a background ask after its lead ended is accepted');
+    // "for this session" is a standing answer within the session, so the page key alone is handed a desk challenge (fix-sec2
+    // review 3) and the ask keeps waiting; the Commander confirms it with the code this bare station printed on its console
+    // (the page's replay, test/helpers/desk-code.js), and only then does it apply
+    const sessBody = JSON.stringify({ runId: lead2RunId, promptId: d2.promptId, decision: 'session' });
+    const sessAsked = await fetch(B + '/api/consent', { method: 'POST', headers: H, body: sessBody });
+    const sessAskedBody = await sessAsked.json().catch(() => ({}));
+    A.eq([sessAsked.status, sessAskedBody.code], [403, 'desk_confirm_required'], 'a "session" answer with the page key alone asks at the desk first');
+    A.ok(!bus.events.some(e => e.name === 'permission.response' && e.payload && e.payload.promptId === d2.promptId), '...and settles nothing until it is confirmed');
+    const sess = await fetchJsonAtDesk(fixture.desk, B + '/api/consent', { method: 'POST', headers: H, body: sessBody });
+    A.eq(sess.ok, true, 'a "session" answer to a background ask after its lead ended is accepted once confirmed at the desk');
     const drafterFile = path.join(fixture.workspace, 'drafter', 'pricing-page.md');
     await until(() => fs.existsSync(drafterFile), 8000, 'the approved pricing page landing');
     A.ok(fs.existsSync(drafterFile), 'the approved background write ran');

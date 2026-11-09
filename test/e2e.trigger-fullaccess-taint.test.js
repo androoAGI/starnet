@@ -5,11 +5,13 @@
    agent. Owner-typed runs keep today's behaviour: Full Access means zero prompts, taint or not.
 
    Boots the REAL sidecar through the hermetic SidecarFixture (scratch APPDATA/LOCALAPPDATA/XDG + USERPROFILE/HOME),
-   with a content-driven mock OpenRouter (zero spend). Both docks of a two-stage line are set to Full Access.
+   with a content-driven mock OpenRouter (zero spend). Both docks of a two-stage line are set to Full Access, confirmed
+   at the desk (GHSA-2hpj #1: a roster push that raises an agent without the desk's yes is kept ask-first).
      1. a WEBHOOK fire runs the line; the entry dock and the downstream hop each try shell.exec -> both are refused
         with the untrusted-content lockout, and the command never ran;
      2. an owner APP run on the SAME Full Access agent, tainted by an attachment the owner uploaded, calls the same
-        tool -> it runs (the echo output reaches the model). */
+        tool -> since GHSA-2hpj #2 Full Access no longer lifts the taint lock for a host process: the watched run asks
+        for that one call, and on the owner's yes it runs (the echo output reaches the model). */
 'use strict';
 const A = require('./_assert.js');
 const http = require('http');
@@ -109,11 +111,12 @@ function toolTurns(requests) {
     const H = { 'Content-Type': 'application/json', 'X-StarNet-Token': fx.token, Origin: B };
     const api = (p, method, body) => fetch(B + p, { method: method || 'GET', headers: H, body: body === undefined ? undefined : JSON.stringify(body) }).then(r => r.json().catch(() => null).then(j => ({ status: r.status, j })));
 
-    const roster = await api('/api/roster', 'POST', { agents: [
+    const roster = await fx.deskJson('POST', '/api/roster', { agents: [
       { agentId: 'research-agent', name: 'RESEARCH', model: 'test/model', provider: 'openrouter', approvalMode: 'full' },
       { agentId: 'writer-agent', name: 'WRITER', model: 'test/model', provider: 'openrouter', approvalMode: 'full' }
-    ] });
+    ], raise: ['research-agent', 'writer-agent'] });
     A.eq(roster.status, 200, 'both docks are set to Full Access');
+    A.ok(!(roster.body && roster.body.clamped), 'the desk confirmed the raise, so nothing was kept ask-first: ' + JSON.stringify(roster.body));
     const two = await publishFloor(fetchApi(B, H), twoStageFloor(), { label: 'the two-stage floor' });
     const lineId = Pipeline.lineOf(two.plan, 'research-agent');
     const cw = await api('/api/routing/triggers', 'POST', { kind: 'webhook', lineId, name: 'Orders' });
@@ -143,7 +146,7 @@ function toolTurns(requests) {
     A.ok(trig.every(x => x.content.indexOf('TRIGGER_SHELL_RAN') < 0), 'the payload-requested command never ran');
     A.ok(trig.some(x => /line trigger payload/.test(x.content)), 'the refusal names the trigger payload as the source');
 
-    /* ---- 2. an owner APP run on the SAME Full Access agent, tainted by the owner's own attachment: allowed ---- */
+    /* ---- 2. an owner APP run on the SAME Full Access agent, tainted by the owner's own attachment: it asks, then runs ---- */
     const up = await fetch(B + '/api/attachments', { method: 'POST', headers: H, body: JSON.stringify({ agent: 'research-agent', name: 'pixel.png', dataUrl: 'data:image/png;base64,' + PNG_B64 }) });
     A.eq(up.status, 200, 'the owner uploads an attachment');
     const ref = await up.json();
@@ -152,13 +155,27 @@ function toolTurns(requests) {
       messages: [{ role: 'user', content: 'owner-run: look at this and echo', attachments: [{ id: ref.id, name: 'pixel.png', path: ref.path, mediaType: 'image/png', kind: 'image' }] }]
     }) });
     A.eq(res.status, 200, 'the owner app run streams');
-    await res.text();
+    // the watched run's card for this one call: the owner says yes once (GHSA-2hpj #2)
+    const prompts = [];
+    let buf = '', runId = '';
+    for await (const chunk of res.body) {
+      buf += Buffer.from(chunk).toString();
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        let ev = null; try { ev = JSON.parse(buf.slice(0, idx)); } catch (_) {}
+        buf = buf.slice(idx + 1);
+        if (!ev) continue;
+        if (ev.name === 'agent.run.start') runId = ev.payload.runId;
+        if (ev.name === 'permission.prompt') { prompts.push(ev.payload); await api('/api/consent', 'POST', { runId, promptId: ev.payload.promptId, decision: 'once' }); }
+      }
+    }
+    A.ok(prompts.some(p => /^shell[._]exec$/.test(String(p.tool || ''))), 'the tainted owner run asks before the host command, Full Access or not: ' + JSON.stringify(prompts.map(p => p.tool)));
     const owner = toolTurns(mock.requests).filter(x => x.user.toLowerCase().indexOf('owner-run') >= 0);
     A.ok(owner.length >= 1, 'the owner run attempted shell.exec');
     A.ok(owner.some(x => x.content.indexOf('OWNER_SHELL_RAN') >= 0) && owner.every(x => !/untrusted-content|no longer available on this run/.test(x.content)),
-      'the owner-typed run on the same Full Access agent keeps the override (the command ran): ' + JSON.stringify(owner.map(x => x.content.slice(0, 160))));
+      'on the owner\'s yes the command ran: ' + JSON.stringify(owner.map(x => x.content.slice(0, 160))));
     const ownerRow = ((((await api('/api/runs?agent=research-agent&limit=50')).j) || {}).runs || []).find(r => r && /owner-run/.test(String(r.title || '')));
-    A.ok(ownerRow && ownerRow.taintedBy === 'user attachment', 'the owner run WAS tainted (by its attachment) — so the override, not a clean context, let it run: ' + (ownerRow && ownerRow.taintedBy));
+    A.ok(ownerRow && ownerRow.taintedBy === 'user attachment', 'the owner run WAS tainted (by its attachment) — so the yes, not a clean context, let it run: ' + (ownerRow && ownerRow.taintedBy));
   } finally {
     try { await fx.dispose(); } catch (_) {}
     try { mock.server.close(); } catch (_) {}

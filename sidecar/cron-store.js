@@ -103,6 +103,10 @@
 
   // fields a user may edit via updateJob. `id`, timestamps, run-state and counters are NOT editable here.
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
+  const SCRIPT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
+  // what drove the routine when the desk said yes to its grants (index.js routineDriveFor, final review #2): the model and
+  // provider it resolves to, and the endpoint ('-' when it was not known then)
+  const GRANT_DRIVE_RE = /^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/;
 
   /* UNATTENDED CAPABILITY GRANT (2026-07-25) — the capability families the Commander explicitly approved for
      THIS routine to use with nobody watching. Default EMPTY: a routine grants nothing extra unless the user
@@ -231,6 +235,11 @@
       unattendedGrants: normGrants(spec.unattendedGrants),
       skills: normList(spec.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/),
       script: spec.script != null ? String(spec.script) : null,
+      // the bytes of the script the desk's yes for its grants was given to (review2 #3). Set by the station only: not in
+      // EDITABLE, so a patch never writes it; updateJob takes it from ctx.scriptDigest when the station records a yes.
+      scriptDigest: SCRIPT_DIGEST_RE.test(String(spec.scriptDigest || '')) ? String(spec.scriptDigest) : null,
+      // final review #2: set by the station only, like scriptDigest (not in EDITABLE; updateJob takes ctx.grantDrive)
+      grantDrive: GRANT_DRIVE_RE.test(String(spec.grantDrive || '')) ? String(spec.grantDrive) : null,
       scriptTimeoutMs: spec.scriptTimeoutMs != null ? Math.min(120000, Math.max(1000, parseInt(spec.scriptTimeoutMs, 10) || 30000)) : 30000,
       workdir: spec.workdir != null ? String(spec.workdir) : null,
       contextFrom: spec.contextFrom == null ? null : normList(spec.contextFrom, 8, ID_RE),
@@ -307,6 +316,8 @@
     return mapJob(jobs, id, (job) => {
       const next = Object.assign({}, job);
       for (const k of EDITABLE) if (Object.prototype.hasOwnProperty.call(patch, k)) next[k] = patch[k];
+      if (Object.prototype.hasOwnProperty.call(ctx, 'scriptDigest')) next.scriptDigest = SCRIPT_DIGEST_RE.test(String(ctx.scriptDigest || '')) ? String(ctx.scriptDigest) : null;
+      if (Object.prototype.hasOwnProperty.call(ctx, 'grantDrive')) next.grantDrive = GRANT_DRIVE_RE.test(String(ctx.grantDrive || '')) ? String(ctx.grantDrive) : null;
       if (Object.prototype.hasOwnProperty.call(patch, 'misfire')) next.misfire = normMisfire(patch.misfire);
       // dockId: a safe id or nothing (a cleared/garbage value removes the key — the job fires at the entry dock)
       if (Object.prototype.hasOwnProperty.call(patch, 'dockId')) { if (ID_RE.test(String(patch.dockId == null ? '' : patch.dockId))) next.dockId = String(patch.dockId); else delete next.dockId; }
@@ -345,6 +356,7 @@
         }
         if (next.enabled) next.nextRunAt = armAt(next.schedule, null, now, ctx && ctx.defaultTz);   // re-anchor at now
         next.retryAnchorAt = null;   // the OLD schedule's retry anchor must never phase-lock the new cadence
+        next.occurrenceScope = null;
       }
       if (['agentId', 'model', 'provider', 'deliver', 'origin'].some(k => Object.prototype.hasOwnProperty.call(patch, k))) {
         next.blockedConfig = null;
@@ -371,7 +383,7 @@
         // auto-disable reason is cleared (otherwise one more failure would re-pause it instantly).
         // The pre-pause retry anchor goes with it — a resumed job advances from ITS re-anchored
         // nextRunAt, never the grid of the failure it was paused during.
-        consecutiveFailures: 0, disabledReason: null, disabledAt: null, retryAnchorAt: null, retryCount: 0
+        consecutiveFailures: 0, disabledReason: null, disabledAt: null, retryAnchorAt: null, retryCount: 0, occurrenceScope: null
       });
     });
   }
@@ -397,7 +409,7 @@
       if (job.schedule && job.schedule.kind === 'once' && job.lastRunAt) return job;   // settled one-shot: never re-armable
       // a manual trigger owns the next fire completely — a stale retry anchor advancing from an old grid
       // after the triggered run settles would phase-shift the schedule the Commander just touched.
-      return Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null });
+      return Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null, occurrenceScope: null });
     });
   }
 
@@ -729,11 +741,15 @@
     });
   }
 
+  // ctx.taint: the WRITING run's taint source (host-proven), or none. A note a tainted run wrote carries it, and the run that
+  // reads it back inherits it (GHSA-2hpj #5): otherwise a page read today could steer tomorrow's untainted fire. A write
+  // replaces the whole note, so a clean write clears the stamp.
   function setNotepad(jobs, id, text, ctx) {
     ctx = ctx || {};
     return mapJob(jobs, id, (job) => Object.assign({}, job, {
       notepad: String(text == null ? '' : text).slice(0, 8000),
-      notepadUpdatedAt: iso(ctx.now || 0)
+      notepadUpdatedAt: iso(ctx.now || 0),
+      notepadTaint: typeof ctx.taint === 'string' && ctx.taint.trim() ? ctx.taint.trim().slice(0, 200) : null
     }));
   }
 
@@ -809,6 +825,8 @@
         // permanently (+backoff per transient). The first transient of this occurrence stamps the anchor
         // (nextRunAt still holds the advance-before-run value); later retries keep the original.
         next.retryAnchorAt = job.retryAnchorAt || job.nextRunAt || null;
+        // GHSA-2hpj #9: and the occurrence's idempotency scope, from its FIRST fire, so a retry never re-sends what it already sent
+        next.occurrenceScope = job.occurrenceScope || (typeof result.idempotencyScope === 'string' && result.idempotencyScope ? result.idempotencyScope.slice(0, 200) : null);
         // RAMPED BACKOFF (2026-10-01): 1×, 3×, 9× the base (90s → 4.5m → 13.5m by default). A fixed 90s burned
         // all three retries inside ~5 minutes — shorter than most provider blips and network drops it exists for.
         next.nextRunAt = iso(now + backoffMs * Math.pow(3, Math.min(job.retryCount || 0, 3)));
@@ -836,6 +854,7 @@
       if (askedWhilePaused) next.finalization.pausedAtStart = true;   // a RUN NOW pressed on the paused routine: its result goes out (header)
       next.retryCount = 0;
       next.retryAnchorAt = null;   // the occurrence is settled — the retry re-anchor must not outlive it
+      next.occurrenceScope = null; // ...nor its idempotency scope: the next occurrence may send again
       // CONSECUTIVE-FAILURE COUNTER (durable): terminal failures in a row; any ok/silent settlement resets it.
       next.consecutiveFailures = ok ? 0 : stopped ? (Number(job.consecutiveFailures) || 0) : ((Number(job.consecutiveFailures) || 0) + 1);
       next.lastRunAt = iso(now);
@@ -890,12 +909,34 @@
 
   /* GRANTS BIND TO THE APPROVED INSTRUCTION (2026-09-23 security audit). Returns the unattended grants an AGENT
      edit must drop: rewriting a granted routine's prompt would otherwise inherit the Commander's standing
-     workbench/connectors power for an instruction the Commander never saw. Pure; the Commander's own edit path
-     (POST /api/cron/update) does not call this. */
+     workbench/connectors power for an instruction the Commander never saw. Kept as the agent-edit name of
+     grantsRevokedByEdit below, which since review2 #2 covers every field that changes what the routine runs. */
   function grantsRevokedByAgentEdit(current, patch) {
-    if (!current || !patch || !Object.prototype.hasOwnProperty.call(patch, 'prompt')) return [];
-    if (String(patch.prompt == null ? '' : patch.prompt) === String(current.prompt == null ? '' : current.prompt)) return [];
-    return normGrants(current.unattendedGrants);
+    return grantsRevokedByEdit(current, patch);
+  }
+  /* WHAT A GRANT WAS GIVEN TO (fix-sec2, review2 #2). A grant covers what the routine RUNS: its task, its script (and
+     whether it runs with no agent), which agent runs it, the folder it runs in, the toolsets and skills it carries, the
+     routines whose output it reads first, and whether it may buy a whole line. Changing any of them on a granted routine
+     revokes every grant it holds, whoever makes the change; the Commander's own edit keeps them only with the desk's yes
+     for the changed routine (POST /api/cron/update keepGrants). A rename, a new schedule or delivery target leaves what it
+     runs alone. Pure: the caller drops the grants (or asks the desk).
+     THE MODEL IS WHAT RUNS IT (final review #2, 2026-11-08). A routine's model and provider pick the model that reads the
+     prompt and calls the tools its grants allow: the page key switched a granted routine to a model on an endpoint it
+     controlled, and that model ran the terminal unattended. Both are run fields now. */
+  const RUN_FIELDS = ['prompt', 'script', 'noAgent', 'agentId', 'workdir', 'enabledToolsets', 'skills', 'contextFrom', 'runsLine', 'model', 'provider'];
+  function runValue(k, v) {
+    if (k === 'noAgent' || k === 'runsLine') return v === true;
+    if (k === 'provider') return String(v == null ? '' : v).trim().toLowerCase();
+    if (k === 'model') return String(v == null ? '' : v).trim();
+    if (k === 'enabledToolsets' || k === 'skills' || k === 'contextFrom') return Array.isArray(v) ? JSON.stringify(v.map(String)) : '';
+    return String(v == null ? '' : v);
+  }
+  function runChanged(current, patch) {
+    if (!current || !patch) return false;
+    return RUN_FIELDS.some(k => Object.prototype.hasOwnProperty.call(patch, k) && runValue(k, patch[k]) !== runValue(k, current[k]));
+  }
+  function grantsRevokedByEdit(current, patch) {
+    return runChanged(current, patch) ? normGrants(current.unattendedGrants) : [];
   }
 
   function toEnvelope(jobs, intakeReceiptFor) {
@@ -913,6 +954,8 @@
     createJob: createJob,
     updateJob: updateJob,
     grantsRevokedByAgentEdit: grantsRevokedByAgentEdit,
+    grantsRevokedByEdit: grantsRevokedByEdit,
+    RUN_FIELDS: RUN_FIELDS,
     pauseJob: pauseJob,
     resumeJob: resumeJob,
     triggerJob: triggerJob,

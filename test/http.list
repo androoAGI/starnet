@@ -30,6 +30,7 @@ test/update-preparation.http.test.js
 test/codex-status.e2e.test.js
 test/oauth-status.e2e.test.js
 test/roster-envelope.http.test.js
+test/roster-raise.http.test.js
 test/roster-cas.http.test.js
 test/full-access.e2e.test.js
 test/ask-brief-before-approval.e2e.test.js
@@ -363,3 +364,11 @@ test/forget.phone.http.test.js
 test/forget.dossier.http.test.js
 test/forgotten-everywhere.e2e.test.js
 test/auto-steer.e2e.test.js
+test/budget-desk.http.test.js
+test/routine-drive.http.test.js
+test/channel-owner-cardfree.http.test.js
+test/channel-owner-seal.http.test.js
+test/seal-wipe.http.test.js
+test/desk-code-log.http.test.js
+test/seal-held-words.http.test.js
+test/retired-grant-notice.http.test.js

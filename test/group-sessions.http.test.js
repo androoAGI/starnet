@@ -50,7 +50,10 @@ const server = http.createServer((req, res) => {
       const r = await fixture.request('/api/groups' + query, { method, headers: { 'Content-Type': 'application/json' }, body: b ? JSON.stringify(b) : undefined });
       const result = await r.json(); assert.equal(r.status, 200, JSON.stringify(result)); return result.result;
     };
-    await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: ['agent', 'qa'].map(agentId => ({ agentId, name: agentId, model: 'test/model', provider: 'openrouter', approvalMode: 'full', system: agentId === 'qa' ? 'IDENTITY_QA' : 'IDENTITY_ENGINEER' })) });
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first, and the turn would wait for an approval
+    const crew = await fixture.deskJson('POST', '/api/roster', { updatedAt: Date.now(), agents: ['agent', 'qa'].map(agentId => ({ agentId, name: agentId, model: 'test/model', provider: 'openrouter', approvalMode: 'full', system: agentId === 'qa' ? 'IDENTITY_QA' : 'IDENTITY_ENGINEER' })), raise: ['agent', 'qa'] });
+    assert.deepEqual([crew.status, crew.body && crew.body.clamped], [200, undefined], 'both are on Full Access: ' + crew.text);
     // the starter floor (a DISH among its gear), saved the way the app saves it: group participants draw their room gear
     // from it, so web_request — and keys.save, were it allowed — would really be on their runs. The saved floor is also the routing
     // authority, which a group turn asks for its room: so it is saved as the app saves it NOW (the current save version, its window's

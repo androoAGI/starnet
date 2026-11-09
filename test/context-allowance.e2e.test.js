@@ -73,8 +73,10 @@ async function runScenario(name, env, turns, files, inspect) {
   });
   try {
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', { updatedAt: 100, agents: [{ agentId: 'rs', name: 'RS', system: 'Research.', provider: 'openrouter', model: MODEL, approvalMode: 'full', executionProfile: 'trusted-project' }] });
-    A.ok(roster.body && roster.body.ok === true, name + ': the real sidecar accepts the agent');
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first, and the run's code_run would wait on a card nobody answers
+    const roster = await fixture.deskJson('POST', '/api/roster', { updatedAt: 100, agents: [{ agentId: 'rs', name: 'RS', system: 'Research.', provider: 'openrouter', model: MODEL, approvalMode: 'full', executionProfile: 'trusted-project' }], raise: ['rs'] });
+    A.ok(roster.body && roster.body.ok === true && !roster.body.clamped, name + ': the real sidecar accepts the agent, on Full Access');
     const workspace = path.join(fixture.workspace, 'rs');
     fs.mkdirSync(workspace, { recursive: true });
     for (const [file, text] of Object.entries(files)) fs.writeFileSync(path.join(workspace, file), text, 'utf8');

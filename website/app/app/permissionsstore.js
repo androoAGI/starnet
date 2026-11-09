@@ -24,6 +24,9 @@ const PermissionsStore = (() => {
      renders the toggle pinned + explained rather than a switch that appears to do nothing. */
   let masterBypass = false;
   let envFullAccess = false;
+  /* Whether this station seals its permission files (GHSA-2hpj #3, fix-sec2 F1): false on a station with no
+     credential-store key (a bare or browser-only station), where the panel says so; null when the server did not say. */
+  let sealed = null;
   let loaded = false;     // a successful load/refresh has happened at least once
   let error = '';         // last authority/mutation failure; never replace confirmed grants with guessed emptiness
   let epoch = 0, revision = 0, readId = 0, mutationTail = null;
@@ -62,6 +65,7 @@ const PermissionsStore = (() => {
         meta = normMeta(r && r.meta);   // additive: absent → {}, no provenance shown (legacy store)
         masterBypass = !!(r && r.masterBypass);
         envFullAccess = !!(r && r.envFullAccess);
+        sealed = r && r.authoritySeal && typeof r.authoritySeal.keyed === 'boolean' ? r.authoritySeal.keyed : null;
         loaded = true;
         error = '';
       } catch (e) { if (current()) error = String((e && e.message) || 'permissions service unavailable'); }
@@ -102,6 +106,7 @@ const PermissionsStore = (() => {
       meta: Object.assign({}, meta),   // provenance { key: { grantedAt } } — additive; {} when the store is legacy
       masterBypass,
       envFullAccess,
+      sealed,
       level: currentLevel(),
       loaded,
       error
@@ -154,7 +159,7 @@ const PermissionsStore = (() => {
   function init(opts) {
     epoch++; revision++; readId++; mutationTail = null;
     deps = opts || {};
-    grants = []; grantable = []; meta = {}; masterBypass = false; envFullAccess = false; loaded = false; error = '';
+    grants = []; grantable = []; meta = {}; masterBypass = false; envFullAccess = false; sealed = null; loaded = false; error = '';
     if (deps.load !== false) { try { refresh(); } catch (_) {} }
   }
 

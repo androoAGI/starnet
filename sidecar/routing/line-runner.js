@@ -565,7 +565,7 @@ const station2 = (fn, h) => typeof fn !== 'function' ? null : (h.dockId ? fn(h.a
    configured system prompt, and keeps the entry sender's verdicts: owner trust, sender, untrusted entry. Only narrowing. A real
    chat's hub hands it the chat's lineage (history: { load(h), append(h, role, text) }, the hub's hopLineage); a one-job hub none.
    o: { channel, chatId, streamId, config(agentId), persona(agentId), station(agentId, dockId?), ownerTrusted, channelSender,
-        channelSenderOwner, untrustedEntry, history?, redact?, onToolStep?, onRun? } */
+        channelSenderOwner, untrustedEntry, ownerUnbound(agentId)?, history?, redact?, onToolStep?, onRun? } */
 function channel(o) {
   o = o || {};
   const ch = String(o.channel || '');
@@ -579,6 +579,8 @@ function channel(o) {
       untrustedEntry: o.untrustedEntry || undefined,   // a hop of a payload-started line stays under the taint lock
       ownerTrusted: o.ownerTrusted, broadcast: true,
       channelSender: o.channelSender, channelSenderOwner: o.channelSenderOwner,   // a hop keeps the entry sender's Full Power verdict
+      // final review #1: the owner's line, on a hop agent or config the desk has not bound, carries no Full Power (hub's verdict)
+      channelOwnerUnbound: (typeof o.ownerUnbound === 'function' && o.ownerUnbound(h.agentId) === true) ? true : undefined,
       taskKey: 'chain:' + ch + ':' + o.chatId + ':' + h.agentId + (h.dockId ? '@' + h.dockId : ''), taskSource: ch
     }),
     history: o.history || null,
