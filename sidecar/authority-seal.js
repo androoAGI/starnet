@@ -21,6 +21,9 @@
      current  (name) -> the file's value on disk now | undefined: what an unkeyed StarNet is about to overwrite (F1).
      restored { read() -> { files: [names] } | undefined, drop() }: the record a restore from a recovery bundle leaves
               (station-recovery.js RESTORED_NAME; fix-sec2 review 10). See adoptRestored below.
+     desktop  true when this is the desktop app's station, which always has its key (review 4d). Unkeyed over a sealed
+              workspace it HOLDS (every file at its safe default, no permission change saved) instead of reading the
+              files unchecked. A bare or pm2 station (desktop absent) never holds for want of a key.
    -> { keyed, seal(name, value), open(name, value), boot(files), notices(), clampRoster(raw) }
 
    boot(files: [{ name, read, write, wrap? }]) runs once, before any reader. With a valid marker: nothing to do but the
@@ -309,6 +312,7 @@ function makeAuthoritySeal(opts) {
   const lastSealed = o.lastSealed && typeof o.lastSealed.read === 'function' && typeof o.lastSealed.write === 'function' ? o.lastSealed : null;
   const current = typeof o.current === 'function' ? o.current : null;
   const restored = o.restored && typeof o.restored.read === 'function' ? o.restored : null;
+  const desktop = o.desktop === true;
   let restoreSeen = false;       // this boot found a restore's record (authority-restored.json)
   let restoredBoot = false;      // ...and the marker was missing: the floors were reset for a restore, not a deleted marker
   const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
@@ -600,6 +604,16 @@ function makeAuthoritySeal(opts) {
       let sealedHere = false;
       try { sealedHere = marker.read && marker.read() !== undefined; } catch (_) { sealedHere = true; }
       sealedWorkspace = sealedHere;
+      /* THE DESKTOP APP WITHOUT ITS KEY DOES NOT READ SEALED FILES UNCHECKED (review 4d). The app always has a
+         credential-store key; without one (the store unreachable, or a damaged entry that the shell could not read) a
+         sealed workspace's files cannot be checked, and anyone who can write them could have. So this boot holds:
+         every file reads as its safe default and no permission change is saved, with the reason, until a restart
+         finds the key. A bare or pm2 station has no key by design and goes on as before (the notice below). */
+      if (desktop && sealedHere) {
+        held = 'StarNet cannot save permission changes right now: it could not read its key from this computer\'s credential store, and this station\'s permission files were sealed with it. Restart StarNet to try again.';
+        notice({ kind: 'held', text: 'StarNet could not read its key from this computer\'s credential store, so it cannot check the permission files it sealed with it. Until it can, FULL BYPASS is off, every agent asks first, no hooks or plugins run, standing permissions are off, and permission changes are not saved. Restart StarNet to try again; if this keeps happening, check that the system credential store (Windows Credential Manager, the macOS keychain, or the Secret Service) is working.' });
+        return { mode: 'held', sealed: [], failed: [] };
+      }
       if (sealedHere) notice({ kind: 'unkeyed-sealed', text: 'These permission files were sealed by the StarNet app, but this StarNet has no credential-store key. They are read as they are. When the app opens them again it keeps what a change made here takes away, and does not use what one adds (FULL BYPASS, Full Access, a hook or an approval) until you give it there.' });
       else log('unkeyed: this station has no credential-store key, so its permission files are not sealed (any program running as this user can change them)');
       return { mode: 'unkeyed', sealed: [], failed: [] };

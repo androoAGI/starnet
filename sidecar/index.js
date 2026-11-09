@@ -1184,6 +1184,7 @@ const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKS
 const authoritySealLastFile = name => authorityFileOf(name) + authoritySealMod.LAST_SUFFIX;
 const authoritySeal = authoritySealMod.makeAuthoritySeal({
   key: connectorVault.deriveKey(authoritySealMod.LABEL),
+  desktop: DESKTOP_SHELL,   // the app's station holds over a sealed workspace when its key is missing (review 4d)
   now: () => Date.now(),
   marker: {
     read: () => readJsonIfPresent(AUTHORITY_SEAL_FILE),

@@ -87,6 +87,30 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const sealedWs = make(null, { marker: { read: () => ({ version: 1 }), write: () => {} } }).seal;
     sealedWs.boot([]);
     A.ok(sealedWs.notices().some(n => n.kind === 'unkeyed-sealed' && /no credential-store key/.test(n.text)), 'unkeyed over a workspace the app sealed: one notice says what that means');
+    // review 4d: the DESKTOP app without its key, over a workspace it sealed, holds: safe defaults, no permission change saved
+    const sealedMarker = { read: () => ({ version: 1 }), write: () => { throw new Error('a held boot writes no marker'); } };
+    const app = make(null, { desktop: true, marker: sealedMarker }).seal;
+    const roster = { version: 1, agents: [{ agentId: 'a', approvalMode: 'full' }] };
+    A.eq(app.boot([{ name: 'agent.roster.json', read: () => roster, write: () => { throw new Error('no'); } }]).mode, 'held', 'the desktop app without its key over a sealed workspace holds');
+    const held = app.open('permissions.bypass.json', v);
+    A.ok(held.ok === false && held.why === 'held', 'a present file is not obeyed unchecked: it reads as its safe default');
+    A.ok(app.open('hooks.json', undefined).ok === true, 'an absent file is its default, as always');
+    A.eq(app.openParts('cron.jobs.json', { v: 1, g: 1, macs: {} }, { a: 1 }), { held: true }, 'a routine\'s grants are not obeyed either');
+    let threw = '';
+    try { app.seal('permissions.bypass.json', { version: 1, on: false }); } catch (e) { threw = String(e && e.message); }
+    A.ok(/could not read its key from this computer's credential store/.test(threw) && /Restart StarNet/.test(threw), 'a permission change is refused, and says why: ' + threw);
+    A.ok(/could not read its key/.test(app.held), 'the routes read the same reason (authoritySeal.held -> 409)');
+    A.ok(app.notices().some(n => n.kind === 'held' && /FULL BYPASS is off, every agent asks first/.test(n.text) && /credential store/.test(n.text)), 'one notice says what holding means and what to check');
+    // ...while a bare or pm2 station with no key never holds, sealed workspace or not
+    for (const marker of [sealedMarker, { read: () => undefined, write: () => {} }, { read: () => { throw new Error('EBUSY'); }, write: () => {} }]) {
+      const bare = make(null, { marker }).seal;
+      A.eq(bare.boot([{ name: 'agent.roster.json', read: () => roster, write: () => {} }]).mode, 'unkeyed', 'a bare station without a key is unkeyed, never held');
+      A.ok(bare.open('agent.roster.json', roster).ok === true && bare.held === '' && bare.seal('agent.roster.json', roster) === roster, 'and reads and writes as before');
+    }
+    // the desktop app without its key over a workspace nobody sealed (a first run): nothing to hold, as before
+    const fresh = make(null, { desktop: true, marker: { read: () => undefined, write: () => {} } }).seal;
+    A.eq(fresh.boot([]).mode, 'unkeyed', 'the desktop app over an unsealed workspace is unkeyed, as before');
+    A.ok(/desktop: DESKTOP_SHELL,/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')), 'index.js tells the seal when it is the desktop app\'s station');
   }
 
   // ---- 2. boot ----
