@@ -103,7 +103,7 @@ function loadSfx(now) {
     agents: new Map(),
     el: () => null,
     Harness: { getModel: () => 'm0', getProv: () => 'openrouter', setProv() {}, setModel() {}, setReasoningEffort() {}, normalizeReasoningEffort: e => e || 'medium' },
-    normalizeProviderId: p => p, syncChannels() {}, pushRoster() {}, persist() {}, noteWirePin() {},
+    normalizeProviderId: p => p, syncChannels() {}, pushRoster() {}, persist() {}, noteWirePin() {}, noteEffortSource() {},
     providerLabel: p => p.toUpperCase(), shortModelLabel: m => m, effortLabel: e => String(e).toUpperCase(),
     StationUI: { notify: (msg, cls, category, opts) => notes.push({ msg, opts: opts || null }) }
   });
