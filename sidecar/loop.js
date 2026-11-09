@@ -1947,7 +1947,10 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        const parker = capCtx && typeof capCtx.parkOutput === 'function' ? (text, meta) => capCtx.parkOutput(text, meta) : null;
+        // a failed park leaves that stub on the old wording, and says so (as the turn budget's park does)
+        const parker = capCtx && typeof capCtx.parkOutput === 'function'
+          ? async (text, meta) => { try { return await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; } }
+          : null;
         const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was

@@ -44,6 +44,7 @@ const { makeContext } = require('../sidecar/context.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeAnthropicProvider } = require('../sidecar/providers/anthropic.js');
 const failopen = require('../sidecar/failopen.js');
+const { elideToolResult } = require('../sidecar/history-edit.js');
 const { makeReplayProvider } = require('../sidecar/providers/replay.js');
 const { makeFsTools } = require('../sidecar/tools/builtin/fs.js');
 const { makeOutputArtifacts } = require('../sidecar/output-artifacts.js');
@@ -157,7 +158,8 @@ async function runBound(o) {
     deferredTools: [fn('web_fetch', { url: { type: 'string' } })], toolImages: !!o.toolImages,
     context: o.context || null, summarize: o.summarize || null, microCompaction: o.microCompaction,
     limits: Object.assign({ maxIters: 10 }, o.limits || {}), dispatch: (c, ctx) => reg.dispatch(c, ctx),
-    capCtx: { canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office' }, sleep: async () => {}, random: () => 0.5
+    capCtx: Object.assign({ canRun: () => true, canUse: () => ({ ok: true }), agentId: 'a', room: 'office' }, o.parkOutput ? { parkOutput: o.parkOutput } : {}),
+    sleep: async () => {}, random: () => 0.5
   });
   return { res, up, seq };
 }
@@ -314,6 +316,15 @@ async function readBack(reg, ctx, call) {
     A.eq(h.up.posts.map(p => p.dropped), [0, 0, 1, 0, 0], 'an edit below the view: only the request that met it drops (block 2), and nothing is dropped after (no cascade)');
     A.eq(h.up.posts[4].replayed, [1, 4], 'an edit below the view: block 1 (before the rewrite) and every block made after the backstop replay');
     A.eq((failopen.counts()['loop.historyEdit.unbound'] || 0) - unboundBefore, 1, 'an edit below the view: the backstop ran once, and said so (diagnostics line)');
+
+    // (invariant 2's other half) A PARK THAT FAILS: the micro tier's stubs keep the old wording, naming no file that was
+    // never written, and each failure is named (it used to be swallowed without a trace)
+    const parkFailsBefore = failopen.counts()['loop.historyEdit.park'] || 0;
+    const broken = await runBound(Object.assign(microRun(), { parkOutput: async () => { throw new Error('disk full'); }, script: noopSource }));
+    const brokenStubs = broken.res.messages.filter(m => m.role === 'tool' && /^\[tool result elided at compaction/.test(String(m.content)));
+    A.eq(broken.res.reason, 'done', 'a park that fails: the run finishes');
+    A.ok(brokenStubs.length >= 2 && brokenStubs.every(m => /re-run the tool for the full output\]$/.test(String(m.content).split(NL)[0])), 'a park that fails: every stub keeps the old wording and names no file (' + brokenStubs.length + ' stubs)');
+    A.eq((failopen.counts()['loop.historyEdit.park'] || 0) - parkFailsBefore, brokenStubs.length, 'a park that fails: each failure is named (diagnostics line)');
   }
 
   // ================= 2. every elision stub names a handle that reads back byte-identical =================
@@ -386,6 +397,22 @@ async function readBack(reg, ctx, call) {
       A.eq(elisionParks.length, saved, 'stubs: one park per saved stub — the measuring pass asked for none');
       const files = fs.readdirSync(path.join(ws.root, 'a', '.output'));
       A.eq(files.length, saved + 1, 'stubs: .output holds the saved stubs and the registry park of build_log, nothing else (' + files.length + ' files)');
+      // bytes a text tool can mangle on the way back — CRLF, a leading BOM, emoji and CJK across page breaks, a lone CR —
+      // come back exactly, on fs.read's whole-file path and on its streaming path (forced here by readStreamMinBytes 0)
+      const rows = (sep, tail) => Array.from({ length: 900 }, (_, i) => 'row ' + i + ' lorem ipsum' + (tail || '')).join(sep);
+      const odd = { crlf: rows('\r\n'), bom: '\uFEFF' + rows(NL), emoji: rows(NL, ' \u{1F600}\u{1F680}'), cjk: rows(NL, ' \u4E2D\u6587'), cr: rows('\r') };
+      const streamReg = makeRegistry();
+      const streamTools = makeFsTools({ fsp, pathMod: path, root: ws.root, rg: false, limits: { readStreamMinBytes: 0 } });
+      if (typeof streamTools.register === 'function') streamTools.register(streamReg); else for (const t of Object.values(streamTools)) if (t && t.name) streamReg.register(t);
+      for (const [kind, body] of Object.entries(odd)) {
+        const st = await elideToolResult(body, { name: 'noop', park: ws.parkOutput });
+        A.ok(!!(st && st.handle && st.handle.via === 'saved'), 'stubs: a ' + kind + ' body is saved at elision');
+        if (!st || !st.handle) continue;
+        for (const [how, r] of [['whole-file', reg], ['streaming', streamReg]]) {
+          const back = await readBack(r, capCtx, st.handle.call);
+          A.ok(back.ok && back.text === body && back.pages > 1, 'stubs: a ' + kind + ' body reads back BYTE-IDENTICAL over ' + back.pages + ' fs.read pages (' + how + ' path)');
+        }
+      }
     } finally { fs.rmSync(ws.root, { recursive: true, force: true }); }
   }
 
