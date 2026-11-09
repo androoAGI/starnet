@@ -71,7 +71,8 @@ A.ok(ptr.length < 600, 'the pointer is short (' + ptr.length + ' chars) — the 
 for (const s of M.MANUAL_SECTIONS.filter(x => x.kind === 'reference')) A.ok(ptr.indexOf(s.id) >= 0, 'the pointer names section ' + s.id);
 A.ok(/manual\.read/.test(ptr) && /never answer that from memory/.test(ptr) && /station\.show cannot open/.test(ptr), 'the pointer says: call manual.read, never memory, cannot open places');
 const ix = readSidecarSource();
-A.ok(/\(isTask && ownerTrusted && coreNames\.indexOf\('manual\.read'\) >= 0\) \? starnetManualPointer\(\) : ''/.test(ix), 'index.js: an owner-trusted task turn with manual.read on the wire gets the pointer');
+// final review #1: an owner's DM to an ask-first agent runs interactive, so the pointer is asked first (still the phone)
+A.ok(/const manualBlock = \(isTask && ownerTrusted && coreNames\.indexOf\('manual\.read'\) >= 0\) \? starnetManualPointer\(\)\s*: \(isTask && surface === 'interactive'\)/.test(ix), 'index.js: an owner-trusted task turn with manual.read on the wire gets the pointer');
 A.ok(/\(isTask && surface === 'interactive'\) \? \(coreNames\.indexOf\('manual\.read'\) >= 0 \? starnetManualIndex\(\) : starnetManual\(\)\)/.test(ix), 'index.js: the watched station still gets the inline index');
 
 // ---- E. nothing that is gone ----
