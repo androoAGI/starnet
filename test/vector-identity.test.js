@@ -175,7 +175,7 @@ A.ok(/#left > h3 #crew-sum,\n[^{]*\.comms-session \{[^}]*background: var\(--vx-l
 A.ok(/#left > h3 \.crew-hide \{[^}]*border-radius: 50%/.test(css), 'find and fold are round chrome knobs');
 A.ok(/#left > h3 #crew-search-toggle\[aria-expanded="true"\] \{[^}]*var\(--ph\)/.test(css), 'an open finder is the lit knob (its aria-expanded state stays visible)');
 A.ok(/#chat-panel \.comms-portrait \{[^}]*width: 56px/.test(css), 'the COMMS portrait has a bigger bezel');
-A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*pointer-events: none/.test(css), 'the gutters carry clamp brackets that never catch the drag');
+A.ok(!/:is\(\.crew-resizer, \.col-resizer\)::before/.test(css), 'nothing is drawn across a gutter (the clamps are gone, 2026-11-09), so nothing can catch the drag');
 A.ok(/calc\(var\(--vx-dim, 0\)/.test(css), 'the device darkens with the BRIGHTNESS knob (--vx-dim)');
 A.ok(/setProperty\('--vx-dim', dim\.toFixed\(3\)\)/.test(fsx.readFileSync(pathx.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8')),
   'stationui writes --vx-dim from SETTINGS › BRIGHTNESS');
@@ -184,7 +184,6 @@ A.ok(/setProperty\('--vx-dim', dim\.toFixed\(3\)\)/.test(fsx.readFileSync(pathx.
 A.ok(/#left, #chat-panel\) > h3 \{ height: 42px;/.test(css), 'the CREW and COMMS plates are one slim height');
 A.ok(/#chat-panel #comms-idbar \{ min-height: 0;[^}]*border-bottom: 0/.test(css), 'the COMMS identity is a compact strip with no rule under it');
 A.ok(/#chat-panel \.comms-portrait \{ width: 46px; height: 52px;/.test(css), 'the COMMS portrait is sized to the strip');
-A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*data:image\/svg\+xml/.test(css), 'the clamps are drawn brackets, not stacked gradients');
 A.ok(/\.cam-hud::after \{[^}]*--cm: #c9d0d8/.test(css), 'the viewfinder marks are chrome, not lit HUD green (the marks themselves stay)');
 A.ok(/\.cam-cine \{[^}]*border-radius: 999px/.test(css), 'CINEMA is a silver pill key');
 A.ok(/#left \.ws-head \{ background: none; \}/.test(css), 'no green hairlines over the rail head');
@@ -197,4 +196,42 @@ A.ok(rails && !/vx-pipe/.test(rails), 'the rails\' last background carries no li
 A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important; box-shadow: none !important; \}/.test(css), 'the finder row is not a second frame around the finder');
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
+// ---- the touch-up (Andrew 2026-11-09: "seriously touch it up more"). `lastA` reads the rule VECTOR itself ends on: variation
+// B below is scoped .vx-b and never counts ----
+const lastA = (tail) => (css.match(new RegExp('html body\\.vx:not\\(\\.hud-mode\\) ' + tail + ' \\{[^}]*\\}', 'g')) || []).pop() || '';
+const railA = lastA('#screen-game :is\\(#topbar, #bottombar\\)');
+A.ok(/corner-shape: round/.test(railA) && !/vx-pipe/.test(railA), 'the rails end as one slab of black chrome with no pipe across the middle of the bar');
+const headA = lastA('#screen-game :is\\(#left, #chat-panel\\) > h3');
+A.ok(/height: 40px/.test(headA) && !/#eef2f6/.test(headA) && /rgba\(var\(--ph-rgb\)/.test(headA), 'the CREW and COMMS titles sit on a band of hue glass, not a silver plate');
+A.ok(/--pg-glow: 0 0 8px rgba\(var\(--ph-rgb\)/.test(headA) && !/text-shadow/.test(headA),
+  'the titles are lit through --pg-glow (pipglass owns text-shadow there with three ids: a plain text-shadow never paints)');
+const houseA = lastA('#screen-game :is\\(#left, #chat-panel\\)::after');
+A.ok(/filter: drop-shadow/.test(houseA) && !/brightness/.test(houseA), 'the housings show as baked: the dark knob no longer flattens the render to grey');
+const gutA = lastA('#screen-game :is\\(\\.crew-resizer, \\.col-resizer\\)');
+A.ok(/center \/ 1px 100% no-repeat/.test(gutA), 'each gutter is one thin lit seam');
+A.ok(/:is\(#topbar, #bottombar\) \.widget-rail \.wg-add \{[^}]*radial-gradient\(circle at 38% 28%, #f4f7fa/.test(css), 'both + keys are the same silver knob');
+A.ok(/#left #workstreams > \.ws-row\.ws-row\.ws-row\.sel:not\(\.attn\),[^{]*\{[^}]*rgba\(var\(--ph-rgb\), \.75\)/.test(css), 'the chosen track is a lit capsule (.sel stays visible)');
+
+// ---- variation B, LUMINOUS GLASS (Andrew 2026-11-09: "I want another entire variation as well"). It ships DORMANT: one more
+// body class, and nothing in the app sets it until Andrew asks for a way to (no unrequested setting, key or button) ----
+const rawCss = read('frontend/css/vector.css');
+const bAt = rawCss.indexOf('24 · VARIATION B');
+A.ok(bAt > 0, 'vector.css carries variation B as its own section');
+const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+const cssA = strip(rawCss.slice(0, rawCss.lastIndexOf('/*', bAt)));
+const cssB = strip(rawCss.slice(rawCss.indexOf('*/', bAt) + 2));
+A.ok(!/\.vx-b\b/.test(cssA), 'nothing before section 24 mentions .vx-b: VECTOR does not depend on its variation');
+const selsB = cssB.split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
+A.ok(selsB.length > 40, 'variation B restyles the whole dashboard (' + selsB.length + ' selectors)');
+A.eq(selsB.filter(x => !x.startsWith('html body.vx:not(.hud-mode).vx-b')).join(' | '), '', 'every selector in variation B is scoped body.vx.vx-b');
+const appDir = path.join(ROOT, 'frontend', 'app');
+const hooks = fs.readdirSync(appDir).filter(f => f.endsWith('.js')).filter(f => /vx-b\b/.test(fs.readFileSync(path.join(appDir, f), 'utf8')));
+A.eq(hooks.join(' '), '', 'no script sets vx-b: the variation is dormant until Andrew asks for a way to pick it');
+A.ok(!/vx-b\b/.test(html), 'index.html does not boot with vx-b');
+A.ok(/\.vx-b #screen-game :is\(#topbar, #bottombar\)::after \{ content: none; \}/.test(cssB), 'variation B draws no line on, across or along the bars');
+A.ok(/#stage-wrap::after \{[^}]*border-image: none[^}]*box-shadow: var\(--vxb-tube\)/.test(cssB), 'variation B has no metal: every housing is one lit tube');
+A.ok(!/url\(/.test(cssB) && !/#(c9d0d8|eef2f6|a9b2bd|f4f7fa)/i.test(cssB), 'variation B ships no art and no silver');
+A.ok(/> \.bb-grp:not\(:hover\):not\(:focus-visible\) \{[^}]*inset 0 0 0 1px rgba\(var\(--ph-rgb\), \.58\)[^}]*--pg-glow: var\(--vxb-lit\)/.test(cssB),
+  'variation B dock keys are lit ghost keys (a hue ring and a lit legend), never dark smoked caps');
+A.ok(/\.has-active > \.bb-grp::after \{[^}]*var\(--gold\)/.test(cssB), 'variation B keeps the dock’s live lamp in its state colour');
 A.report('vector-identity');

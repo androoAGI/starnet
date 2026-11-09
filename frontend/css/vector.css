@@ -1771,21 +1771,6 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group,
 html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-view, .ws-head-acts),
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow { filter: brightness(calc(1 - var(--vx-dim, 0) * .35)); }
 
-/* the clamps: chrome brackets bolted across each gutter, binding the neighbouring housings together */
-html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer)::before {
-  content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 34px; margin-left: -17px; pointer-events: none;
-  background:
-    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 7% / 7px 7px no-repeat,
-    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 32% / 7px 7px no-repeat,
-    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 68% / 7px 7px no-repeat,
-    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 93% / 7px 7px no-repeat,
-    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 7% / 34px 14px no-repeat,
-    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 32% / 26px 12px no-repeat,
-    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 68% / 26px 12px no-repeat,
-    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 93% / 34px 14px no-repeat;
-  filter: drop-shadow(0 0 0 #050608) drop-shadow(0 1px 0 #050608) drop-shadow(0 -1px 0 #050608) drop-shadow(0 2px 3px rgba(0, 0, 0, .8)) brightness(calc(1 - var(--vx-dim, 0) * .35));
-}
-
 /* ============ 21 · THE FINISH — COMMS sized to its content (Andrew 11-08: "the comms looks weird and overly large for no
    reason"), the gutter clamps drawn as real lit brackets, and the last green HUD leftovers (viewfinder marks, CINEMA, the crew
    card's lit frame, the hairlines over the rail head and search) moved onto the chrome ============ */
@@ -1807,13 +1792,6 @@ html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-idbar :is(#comms-bro
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow { margin-bottom: 12px; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-input { min-height: 0; padding-top: 7px; padding-bottom: 7px; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-tools { padding-top: 2px; padding-bottom: 2px; }
-
-/* ---- the clamps: drawn chrome brackets (a lit body, a specular strip, a slotted screw), not stacked gradients ---- */
-html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer)::before {
-  width: 36px; margin-left: -18px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 7% / 36px 18px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 32% / 30px 15px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 68% / 30px 15px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 93% / 36px 18px no-repeat;
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .75)) brightness(calc(1 - var(--vx-dim, 0) * .35));
-}
 
 /* ---- the viewfinder marks: pale chrome strokes with a dark keyline, no glow ---- */
 html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-hud::after {
@@ -1944,3 +1922,289 @@ html body.vx:not(.hud-mode) #screen-game #left #crew-search-close:is(:hover, :fo
   background: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 45%, #c9d0d8) 26%, color-mix(in srgb, var(--ph) 45%, #59626d) 62%, #3a414a 86%, #8d96a1 100%);
   border: 0; color: #020604;
 }
+
+/* ============ 23 · THE TOUCH-UP — the rails are one slab of black chrome under a lit chamfer; the housings show as baked
+   (the dark knob no longer flattens the render to grey); the titles are lit type on hue glass; the chosen track is a gel
+   capsule; the gutters are one lit seam (the clamps are gone); the keys and knobs are polished silver that stays bright on a
+   dark device (Andrew 11-09: "seriously touch it up more"). Lit type is set through --pg-glow: pipglass owns text-shadow on
+   the panel heads and the dock keys with three ids, so a plain text-shadow here never paints ============ */
+
+/* ---- the chassis: the modules sit on black; the only light between them is the hue leaking out of the seams ---- */
+html body.vx:not(.hud-mode) #screen-game.active {
+  background:
+    radial-gradient(ellipse 60% 26% at 50% 0%, rgba(var(--ph-rgb), .1), transparent 72%),
+    radial-gradient(ellipse 60% 22% at 50% 100%, rgba(var(--ph-rgb), .08), transparent 72%),
+    linear-gradient(180deg, #0a0c0f 0, #040506 22%, #040506 78%, #090b0e 100%);
+}
+
+/* ---- the rails: one slab of black chrome. A lit chamfer on the top edge, a soft sky bloom off it, a long fall to black and
+   a faint ground bounce on the foot; nothing crosses the middle of the bar. The dark knob sits UNDER the chamfer so a dark
+   device keeps its highlights instead of going grey ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) {
+  border-radius: 22px; corner-shape: round;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, .22) 1px, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(ellipse 46% 130% at 50% -45%, rgba(255, 255, 255, .13), transparent 70%),
+    linear-gradient(rgba(3, 4, 6, calc(var(--vx-dim, 0) * .4)), rgba(3, 4, 6, calc(var(--vx-dim, 0) * .4))),
+    linear-gradient(180deg, #98a2ae 0, #535c67 10%, #262b31 30%, #0d1013 58%, #14181c 82%, #323941 100%);
+  box-shadow: 0 0 0 1px #000, inset 0 -1px 0 rgba(255, 255, 255, .16), 0 6px 14px rgba(0, 0, 0, .7);
+}
+/* the light pipes fade in and out of the metal instead of starting at a hard end */
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar)::after {
+  height: 12px; box-shadow: none;
+  background:
+    linear-gradient(90deg, var(--vx-line), var(--vx-node) 50%, var(--vx-line)) center / 100% 2px no-repeat,
+    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--ph-rgb), .5), transparent 100%) center / 100% 100% no-repeat,
+    linear-gradient(180deg, transparent, rgba(var(--ph-rgb), .3) 50%, transparent);
+  -webkit-mask: linear-gradient(90deg, transparent, #000 90px, #000 calc(100% - 90px), transparent);
+  mask: linear-gradient(90deg, transparent, #000 90px, #000 calc(100% - 90px), transparent);
+}
+html body.vx:not(.hud-mode) #screen-game #topbar::after { bottom: -1px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar::after { top: -1px; }
+
+/* ---- the housings: rendered chrome (vx/panelL.png, panelR.png, win.png are baked from a height field under a sky and a
+   ground). The dark knob no longer flattens them to grey: the bake shows as baked at every setting, the same as the
+   station view's frame, which never carries a filter ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::after {
+  filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)) drop-shadow(0 0 1px rgba(0, 0, 0, .9));
+}
+html body.vx:not(.hud-mode) .term:not(.pw)::after { filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)); }
+/* the lens: a gel gem seated in the boss */
+html body.vx:not(.hud-mode) {
+  --vx-lens: radial-gradient(circle at 46% 44%, #fff 0 .9px, color-mix(in srgb, var(--vx-core) 75%, #fff) 1.7px, var(--ph) 3px, color-mix(in srgb, var(--ph) 55%, #000) 4.3px, rgba(var(--ph-rgb), .35) 5px, transparent 7px);
+}
+
+/* ---- the titles: lit type on a band of hue glass fused under the housing (the engraved silver plate is gone) ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 {
+  height: 40px; margin: 11px 11px 6px; padding: 0 10px 0 38px;
+  color: color-mix(in srgb, var(--vx-core) 62%, #fff);
+  --pg-glow: 0 0 8px rgba(var(--ph-rgb), .85), 0 0 2px rgba(var(--ph-rgb), .6);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .2) 0, rgba(255, 255, 255, .05) 42%, rgba(255, 255, 255, 0) 60%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .34), rgba(var(--ph-rgb), .1) 55%, rgba(var(--ph-rgb), .22)),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 16%, #080b0d), color-mix(in srgb, var(--ph) 5%, #030506));
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(var(--ph-rgb), .7),
+    0 1px 0 #000, 0 4px 8px rgba(0, 0, 0, .55);
+  filter: none;
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 { border-radius: 19px 4px 4px 4px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 { border-radius: 4px 19px 4px 4px; margin: 11px 11px 6px; padding: 0 30px 0 34px; }
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3::before { box-shadow: 0 0 0 2px #020304, 0 0 8px rgba(var(--ph-rgb), .9); }
+html body.vx:not(.hud-mode) #screen-game #left > h3::before { left: 19px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3::before { left: 14px; }
+
+/* ---- the lists: the lit band is a gel capsule seated in the screen with the same margin both sides ---- */
+html body.vx:not(.hud-mode) #screen-game #left :is(#crew, #workstreams, #projects) { scrollbar-gutter: stable both-edges; padding-left: 0; padding-right: 0; }
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row.ws-row.ws-row.ws-row:not(.attn),
+html body.vx:not(.hud-mode) #screen-game #left #crew > .crew-row.crew-row.crew-row.crew-row { border-radius: 9px !important; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.ws-row.sel:not(.attn),
+html body.vx:not(.hud-mode) #screen-game #left #projects > .ws-row.ws-row.ws-row.proj-row:is(.project-selected, [aria-current="page"]) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .34) 0, rgba(255, 255, 255, .06) 46%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 62%, #05080a), color-mix(in srgb, var(--ph) 36%, #030506)) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .75), inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -3px 5px rgba(0, 0, 0, .3),
+    0 0 12px rgba(var(--ph-rgb), .3) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew > .crew-row.crew-row.crew-row.crew-row.selected {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .16) 0, rgba(255, 255, 255, .03) 46%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 30%, #05080a), color-mix(in srgb, var(--ph) 14%, #030506)) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .5), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -3px 5px rgba(0, 0, 0, .3) !important;
+}
+
+/* ---- the gutters: one thin lit seam in a dark channel; the clamps are gone ---- */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
+  background:
+    linear-gradient(180deg, rgba(var(--ph-rgb), 0) 3%, rgba(var(--ph-rgb), .5) 18%, color-mix(in srgb, var(--vx-core) 50%, #fff) 50%, rgba(var(--ph-rgb), .5) 82%, rgba(var(--ph-rgb), 0) 97%) center / 1px 100% no-repeat,
+    linear-gradient(180deg, rgba(var(--ph-rgb), 0) 6%, rgba(var(--ph-rgb), .22) 30%, rgba(var(--ph-rgb), .34) 50%, rgba(var(--ph-rgb), .22) 70%, rgba(var(--ph-rgb), 0) 94%) center / 5px 100% no-repeat;
+}
+
+/* ---- the keys and knobs: polished silver that stays bright when the device is dark, legends near black ---- */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group,
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-view, .ws-head-acts) { filter: brightness(calc(1 - var(--vx-dim, 0) * .12)); }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group:not(.open) > .bb-grp:not(:hover):not(:focus-visible) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .95) 0, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(ellipse 70% 60% at 50% 0%, rgba(255, 255, 255, .7), transparent 72%),
+    linear-gradient(180deg, #f4f6f9 0, #d3d9df 34%, #a9b2bc 62%, #8f98a3 80%, #c1c8d0 100%);
+  color: #04070a;
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group:not(.open) > .bb-grp .bb-gi { color: color-mix(in srgb, var(--ph) 40%, #000); }
+/* both + keys are the same silver knob */
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add {
+  background: radial-gradient(circle at 38% 28%, #f4f7fa 0, #a9b2bd 26%, #4a525c 60%, #1c2126 82%, #6d7682 100%);
+  color: #06100a; text-shadow: 0 1px 0 rgba(255, 255, 255, .5);
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add:is(:hover, :focus-visible) {
+  background: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 45%, #c9d0d8) 26%, color-mix(in srgb, var(--ph) 45%, #59626d) 62%, #1c2126 84%, #6d7682 100%);
+}
+/* CINEMA: the same silver, a notch calmer than the dock so the stage owns its corner (the dark knob is a layer in its own
+   fill: nothing under the station view carries a filter) */
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-cine {
+  background:
+    linear-gradient(rgba(3, 4, 6, calc(var(--vx-dim, 0) * .3)), rgba(3, 4, 6, calc(var(--vx-dim, 0) * .3))),
+    linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 45%),
+    linear-gradient(180deg, #e3e8ee 0, #a9b2bd 45%, #6b747f 80%, #9aa3ae 100%);
+}
+
+/* ============ 24 · VARIATION B — LUMINOUS GLASS (Andrew 11-09: "I want another entire variation as well"). The same alien
+   silhouette cast in light instead of metal: every module is a slab of dark glass inside one lit tube, the rails are glass
+   capsules in a lit pipe, every round key is an orb, the dock keys are ghost keys with lit legends, and there is no chrome
+   anywhere. DORMANT: it is on only while <body> also carries `vx-b`, and nothing in the app sets that class — no setting,
+   no key, no button until Andrew asks for one. It layers on sections 1–23, so it only states what differs ============ */
+
+/* ---- B tokens: the lit tube (a glass pipe glowing from its core), the thin rim, the gel orb ---- */
+html body.vx:not(.hud-mode).vx-b {
+  --vxb-t1: color-mix(in srgb, var(--ph) 34%, #000);
+  --vxb-t2: color-mix(in srgb, var(--ph) 78%, #000);
+  --vxb-t3: color-mix(in srgb, var(--vx-core) 62%, #fff);
+  --vxb-tube: inset 0 0 0 1px #000, inset 0 0 0 2px var(--vxb-t1), inset 0 0 0 3.5px var(--vxb-t2), inset 0 0 0 5.5px var(--vxb-t3),
+    inset 0 0 0 7px var(--vxb-t2), inset 0 0 0 8px var(--vxb-t1), inset 0 0 0 9px #000;
+  --vxb-pipe: inset 0 0 0 1px #000, inset 0 0 0 2px var(--vxb-t1), inset 0 0 0 3px var(--vxb-t3), inset 0 0 0 4px var(--vxb-t1), inset 0 0 0 5px #000;
+  --vxb-rim: 0 0 0 1px #000, 0 0 0 2px var(--vxb-t2), 0 0 0 3px #000;
+  --vxb-orb:
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, .55) 0, rgba(255, 255, 255, .1) 24%, transparent 42%),
+    radial-gradient(circle at 50% 112%, rgba(var(--ph-rgb), .7), transparent 62%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 22%, #06090b), color-mix(in srgb, var(--ph) 8%, #020304));
+  --vxb-orb-hot:
+    radial-gradient(circle at 36% 24%, rgba(255, 255, 255, .7) 0, rgba(255, 255, 255, .16) 24%, transparent 42%),
+    radial-gradient(circle at 50% 105%, rgba(var(--ph-rgb), 1), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 44%, #06090b), color-mix(in srgb, var(--ph) 20%, #020304));
+  --vxb-orb-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .7), 0 0 0 1px #000, 0 0 8px rgba(var(--ph-rgb), .3);
+  --vxb-gel:
+    linear-gradient(180deg, rgba(255, 255, 255, .4) 0, rgba(255, 255, 255, .1) 44%, rgba(255, 255, 255, 0) 50%),
+    radial-gradient(ellipse 85% 80% at 50% 118%, rgba(var(--ph-rgb), .85), transparent 72%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 44%, #05080a), color-mix(in srgb, var(--ph) 18%, #020304));
+  --vxb-gel-hot:
+    linear-gradient(180deg, rgba(255, 255, 255, .36) 0, rgba(255, 255, 255, .06) 46%, rgba(255, 255, 255, 0) 52%),
+    radial-gradient(ellipse 90% 70% at 50% 120%, rgba(var(--ph-rgb), .9), transparent 75%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 74%, #05080a), color-mix(in srgb, var(--ph) 44%, #030506));
+  --vxb-gel-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .85), inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 0 1px #000, 0 0 9px rgba(var(--ph-rgb), .28);
+  --vxb-lit: 0 0 7px rgba(var(--ph-rgb), .95), 0 0 2px rgba(var(--ph-rgb), .7);
+  /* the kit's own tokens, re-cast in glass */
+  --vx-knob: var(--vxb-orb); --vx-knob-hot: var(--vxb-orb-hot);
+  --vx-seat: linear-gradient(180deg, #010202, color-mix(in srgb, var(--ph) 7%, #020304));
+  --vx-seat-shadow: inset 0 2px 4px #000, var(--vxb-rim);
+  --vx-cap: var(--vxb-gel); --vx-cap-hot: var(--vxb-gel-hot); --vx-cap-shadow: var(--vxb-gel-shadow);
+  --vx-well-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .2);
+  --vx-lcd-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 0 22px rgba(var(--ph-rgb), .08), var(--vxb-rim);
+}
+
+/* ---- the chassis: black, with the light of the tubes pooling behind the modules ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game.active {
+  background:
+    radial-gradient(ellipse 30% 46% at 11% 50%, rgba(var(--ph-rgb), .1), transparent 72%),
+    radial-gradient(ellipse 36% 46% at 82% 50%, rgba(var(--ph-rgb), .1), transparent 72%),
+    #020303;
+}
+
+/* ---- the rails: capsules of dark glass inside a lit pipe; no slab, no rim line ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#topbar, #bottombar) {
+  border-radius: 24px; corner-shape: round;
+  background:
+    radial-gradient(ellipse 60% 120% at 50% -60%, rgba(255, 255, 255, .1), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 13%, #030506), color-mix(in srgb, var(--ph) 4%, #010202) 55%, color-mix(in srgb, var(--ph) 10%, #020304));
+  box-shadow: var(--vxb-pipe), inset 0 0 22px rgba(var(--ph-rgb), .2), 0 0 14px rgba(var(--ph-rgb), .22);
+  filter: brightness(calc(1 - var(--vx-dim, 0) * .1));
+}
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#topbar, #bottombar)::after { content: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #topbar::before {
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .5), inset 0 0 18px rgba(var(--ph-rgb), .3), var(--vxb-rim);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#topbar .tb-stats, #bottombar .bb-right) {
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), var(--vxb-rim);
+}
+
+/* ---- the housings: no metal. Each module is a slab of glass inside one lit tube ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#left, #chat-panel)::after,
+html body.vx:not(.hud-mode).vx-b .term:not(.pw)::after,
+html body.vx:not(.hud-mode).vx-b #screen-game:not(.cinema) #stage-wrap::after {
+  inset: 0; border: 0; border-image: none; border-radius: 22px; background: none;
+  box-shadow: var(--vxb-tube), inset 0 0 12px rgba(var(--ph-rgb), .4), inset 0 0 44px rgba(var(--ph-rgb), .16);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#left, #chat-panel)::after,
+html body.vx:not(.hud-mode).vx-b .term:not(.pw)::after { filter: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #left::after { border-radius: 34px 12px 34px 12px; }
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel::after { border-radius: 12px 34px 12px 34px; }
+html body.vx:not(.hud-mode).vx-b .term:not(.pw)::after { border-radius: 24px 24px 10px 10px; }
+html body.vx:not(.hud-mode).vx-b #screen-game #left::before { inset: 6px; border-radius: 28px 6px 28px 6px; }
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel::before { inset: 6px; border-radius: 6px 28px 6px 28px; }
+html body.vx:not(.hud-mode).vx-b #screen-game:not(.cinema) #stage-wrap { border-radius: 22px; box-shadow: inset 0 0 30px rgba(0, 0, 0, .8); }
+html body.vx:not(.hud-mode).vx-b #screen-game :is(.crew-resizer, .col-resizer) { background: none; }
+
+/* ---- the titles: lit type straight on the glass ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#left, #chat-panel) > h3 {
+  margin: 12px 14px 4px; padding: 0 6px 0 34px; border-radius: 0;
+  background: none; box-shadow: none;
+  color: color-mix(in srgb, var(--vx-core) 55%, #fff);
+  --pg-glow: 0 0 10px rgba(var(--ph-rgb), 1), 0 0 3px rgba(var(--ph-rgb), .7);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#left, #chat-panel) > h3::before { left: 14px; }
+
+/* ---- orbs: every round key is a bead of dark glass with a lit glyph ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game #left > h3 .crew-hide,
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add {
+  background: var(--vxb-orb); box-shadow: var(--vxb-orb-shadow);
+  color: color-mix(in srgb, var(--vx-core) 60%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .9);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #left > h3 .crew-hide:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode).vx-b #screen-game :is(#topbar, #bottombar) .widget-rail .wg-add:is(:hover, :focus-visible) {
+  background: var(--vxb-orb-hot); color: #fff;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents) {
+  box-shadow: var(--vxb-orb-shadow) !important; color: color-mix(in srgb, var(--vx-core) 60%, #fff) !important;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents) svg { filter: drop-shadow(0 0 3px rgba(var(--ph-rgb), .9)); }
+
+/* ---- the dock: ghost keys floating in the rail, no bay ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group { filter: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group::before { background: none; box-shadow: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group:not(.open) > .bb-grp:not(:hover):not(:focus-visible) {
+  background:
+    radial-gradient(ellipse 76% 100% at 50% 126%, rgba(var(--ph-rgb), .72), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, 0) 50%);
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .58), 0 0 0 1px #000;
+  color: #f2fff5; --pg-glow: var(--vxb-lit);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group:not(.open) > .bb-grp:is(:hover, :focus-visible) {
+  background: var(--vxb-gel-hot); box-shadow: var(--vxb-gel-shadow), 0 0 14px rgba(var(--ph-rgb), .55);
+  color: #fff; --pg-glow: 0 1px 0 rgba(0, 0, 0, .55), var(--vxb-lit);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group:not(.open) > .bb-grp .bb-gi { color: #f2fff5; filter: drop-shadow(0 0 3px rgba(var(--ph-rgb), .9)); }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group > .bb-grp::before { background: #010202; box-shadow: inset 0 1px 2px #000, 0 0 0 1px rgba(var(--ph-rgb), .3); }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group > .bb-grp::after { box-shadow: 0 0 0 1px #000; }
+html body.vx:not(.hud-mode).vx-b #screen-game #bottombar .bb-group.has-active > .bb-grp::after { box-shadow: 0 0 0 1px #000, 0 0 4px 1px var(--gold), 0 0 12px 3px rgba(var(--gold-rgb), .7); }
+
+/* ---- the rail head, the finder, the portraits, the composer: glass and rims, no silver ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game #left .ws-head :is(.ws-view, .ws-head-acts),
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel #chat-inputrow { filter: none; }
+html body.vx:not(.hud-mode).vx-b #screen-game #left :is(#ws-search, #crew-search) { box-shadow: var(--vx-lcd-shadow); }
+html body.vx:not(.hud-mode).vx-b #screen-game #left #crew .crew-portrait,
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel .comms-portrait {
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 14px rgba(var(--ph-rgb), .25), var(--vxb-rim);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel #chat-inputrow {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1) 0, rgba(255, 255, 255, 0) 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 16%, #05080a), color-mix(in srgb, var(--ph) 6%, #020304));
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .45), 0 0 0 1px #000;
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #chat-panel #chat-inputrow #chat-send {
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--vxb-t2), 0 0 0 3px #000, 0 0 14px rgba(var(--ph-rgb), .6) !important;
+}
+
+/* ---- the stage: hue viewfinder marks, a gel CINEMA key ---- */
+html body.vx:not(.hud-mode).vx-b #screen-game #stage-wrap .cam-hud::after { --cm: var(--vx-core); opacity: .55; inset: 14px; }
+html body.vx:not(.hud-mode).vx-b #screen-game #stage-wrap .cam-cine {
+  background: var(--vxb-gel); box-shadow: var(--vxb-gel-shadow);
+  color: color-mix(in srgb, var(--vx-core) 62%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .85);
+}
+html body.vx:not(.hud-mode).vx-b #screen-game #stage-wrap .cam-cine:is(:hover, :focus-visible) { background: var(--vxb-gel-hot); color: #fff; }
+
+/* ---- the windows: the same tube, and the window keys are orbs ---- */
+html body.vx:not(.hud-mode).vx-b .term:not(.pw) .term-head :is(.gd-window-button, .term-x) {
+  background: var(--vxb-orb); box-shadow: var(--vxb-orb-shadow);
+  color: color-mix(in srgb, var(--vx-core) 60%, #fff);
+}
+html body.vx:not(.hud-mode).vx-b .term:not(.pw) .term-head :is(.gd-window-button, .term-x):is(:hover, :focus-visible) { background: var(--vxb-orb-hot); color: #fff; }
