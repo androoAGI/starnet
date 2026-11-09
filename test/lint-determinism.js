@@ -55,6 +55,9 @@ files.push(path.join(base, 'frontend', 'app', 'historyref.js'));
 // usertext.js is the one flattener of a message's text parts, required by the sidecar (transcript store, run directive
 // capture, learning, observer): pure, no clock
 files.push(path.join(base, 'frontend', 'app', 'usertext.js'));
+// crewdefaults.js is required by the sidecar's crew effort rule (index.js crewEffort, W3.3) and the page's summon tier pick:
+// pure, no clock, the switch read from an injected env
+files.push(path.join(base, 'frontend', 'app', 'crewdefaults.js'));
 
 const banned = [/\bMath\.random\b/, /\bDate\.now\b/, /\bperformance\.now\b/, /\bnew\s+Date\s*\(\s*\)/];
 const labels = ['Math.random', 'Date.now', 'performance.now', 'new Date()'];

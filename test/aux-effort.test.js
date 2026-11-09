@@ -78,9 +78,13 @@ A.ok(/providerEfforts\(provider, model\)/.test(fnSrc) && /AuxGovernor\.pickAuxEf
   'auxPassEffort: unconfigured, it picks from the levels the provider lists for that model');
 A.ok(/const _auxEffort = _auxDone \? auxPassEffort\(provider, _auxModel\) : null;/.test(idx), 'reflection · study · thread-mine · scout ride auxPassEffort');
 A.ok(/const _auxFailEffort = _auxFail \? auxPassEffort\(provider, _auxFailModel\) : null;/.test(idx), 'failure review rides auxPassEffort');
-A.ok(/reasoningEffort: internalEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent for every other run)');
+// (W3.3 leaner crew) the run's ONE per-request effort: the aux effort first, else the crew rule's (crewEffort, null while its
+// switch is off), so a run that is neither hands the loop nothing
+A.ok(/const requestEffort = internalEffort \|\| \(crew && crew\.sent\) \|\| null;/.test(idx) && /const crew = internalEffort \? null : crewEffort\(/.test(idx),
+  'the per-request effort is the aux effort first, and a crew effort only for a run with none');
+A.ok(/reasoningEffort: requestEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent for every other run)');
 // (effort truth, W1.12) the record reads ONE resolver: what the provider was given, read after the run
-A.ok(/const effortRan = \(\) => effortAsRun\(provider, model, internalEffort, \{ tools: o\.outputOnly \? \[\] : toolDefs, isTask: internal \? undefined : isTask \}\);/.test(idx),
+A.ok(/const effortRan = \(\) => effortAsRun\(provider, model, requestEffort, \{ tools: o\.outputOnly \? \[\] : toolDefs, isTask: internal \? undefined : isTask \}\);/.test(idx),
   'after the run, the effort is read through effortAsRun from the adapter the run ended on (a mid-run heal moved it; claude-cli without one ran on its default)');
 const asRun = A.fnBody(idx, 'function effortAsRun(');
 A.ok(/provider\.effortAsSent\(model, sent \|\| undefined, req\)/.test(asRun) && !/cliEffortAsSent|effortAsRan|built/.test(asRun),

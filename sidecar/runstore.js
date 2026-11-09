@@ -95,6 +95,17 @@
   const COMPLETION_ROWS_MAX = 100;
   const RECOVERY_ATTEMPTS_MAX = 100;
   const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;   // a floor prop id (lineId = its INBOX's id, dockId = the bay's id)
+  // a crew run's effort rule (index.js crewEffort): closed vocabularies only, so a record never carries a word the rule cannot say
+  const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+  function effortRuleOf(r) {
+    if (!r || typeof r !== 'object') return null;
+    const one = (v, list) => (list.indexOf(String(v)) >= 0 ? String(v) : null);
+    const surface = one(r.surface, ['worker', 'clone', 'line']), source = one(r.source, ['class', 'pin', 'unmarked']);
+    const why = one(r.why, ['lean', 'retry', 'kept', 'pinned', 'unmarked', 'unsent']), asked = one(r.asked, EFFORTS);
+    if (!surface || !source || !why || !asked) return null;
+    const sent = one(r.sent, EFFORTS);
+    return Object.assign({ surface, source, asked, why }, sent ? { sent } : {});
+  }
   /* TURN IDENTITY (additive, turn-identity): which turn a run answered and the transcript rows it stood on, noted while the
      run is live (runStore.noteIdentity) and merged into that run's next record(). Only these keys, each checked; anything
      else is dropped and counted. */
@@ -454,6 +465,10 @@
         // orchestration — parentRunId alone also links overseer reviews and connector continuations, which are not
         // delegated work. Present only when set, so every other row stays byte-identical.
         ...(ID_RE.test(str(e.delegatedBy)) ? { delegatedBy: str(e.delegatedBy) } : {}),
+        // LEANER CREW DEFAULTS (additive, W3.3, 2026-11-09): why a crew run (a worker, a clone, a line stage) asked for the effort it
+        // did, written by the host only while STARNET_CREW_DEFAULTS is on (index.js crewEffort): { surface, source, asked, why, sent? }.
+        // The effort it ran on stays `reasoningEffort` above. Present only when set, so every other row stays byte-identical.
+        ...(effortRuleOf(e.effortRule) ? { effortRule: effortRuleOf(e.effortRule) } : {}),
         // PAGE CLOSED (additive, rc-walk #60, 2026-10-13): the page watching this desk run closed or reloaded while the run
         // was live, so the station cancelled it (the disconnect law). `waitingOn` names, in plain words, the approvals
         // still open at that moment — the disconnect denied them, so none of them was granted. Set only by the host that

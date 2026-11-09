@@ -7,7 +7,7 @@
      makeLineRunner({ runOnce, chain?, liveRuns?, now?, newId?, jobs?, emit?, runRow? })
        -> { hopRunner, runLineJob, stopNote, chain, profiles, open, get, track, mark, settle, preview, outcomeOf, deliverCrate, stop, reap }
        hopRunner(profile)            -> runAgent(h): runs ONE stage. h is chain.js's hop call { agentId, dockId?, text, hop, from,
-                                        signal, workitemId, ceilingUsd, parallel?, lineId? }; the step test's runDock adds { entry,
+                                        signal, workitemId, ceilingUsd, parallel?, lineId?, revisePass? }; the step test's runDock adds { entry,
                                         sessionId, runId, edited, preview, fromDock, streamId }.
                                         -> { text, usd, error, stopped, stopCode, runId, workitemId, tools, denied, ms }: text is the
                                         stage's returned TERMINAL text when it counts (hopVerdict below), else ''
@@ -417,7 +417,8 @@ function makeLineRunner(deps) {
           surface: 'autonomous', reflect: true, unattendedGrants: [],
           station: (typeof p.station === 'function' ? p.station(h) : null) || undefined,   // the hop's OWN bay room (multi-bay)
           lineId: h.lineId || undefined, dockId: h.dockId || undefined, workitemId: h.workitemId || crateId || undefined,
-          lineHop: !h.entry || undefined
+          lineHop: !h.entry || undefined,
+          ...(h.revisePass ? { crewRetry: true } : {})   // a stage in a review loop's failed pass: its effort steps up one rung (W3.3)
         }));
       } catch (e) {
         // the hop's room (or brief) was asked of a saved floor that cannot be proved right now: nothing ran, and the stage fails in the hold's own words
