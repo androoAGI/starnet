@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "1443b055277bed5654836f70ca6fb8597bfdfc25",
+    "sourceCommit": "5cc6cd06e34a830f59da0a1b0f65c0450367350b",
     "pathSetSha256": "d849d3b31da6f2722288a632ec2c696aa54886f298c849c2e1ff8309b1bffa18",
     "files": [
       {
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1004863,
-        "sha256": "a267fd64f8ea21268f62fbb51495c45f33abac2572d5fa1d8fbe53348a5663ca"
+        "bytes": 1005177,
+        "sha256": "626831c5ef66a14848a35f177fd1feef9caeb5a28a0df5b3e4775338452be147"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1828,8 +1828,8 @@
       },
       {
         "path": "frontend/css/vector.css",
-        "bytes": 122950,
-        "sha256": "1ce4705cb8bb2179d32730e1145901c94f180327666403e0721ace99bd1fd04b"
+        "bytes": 133149,
+        "sha256": "86c22400006d7c1939cc33e35ccbe8f400ece77bf29733e691e502a4ea3a5ec2"
       },
       {
         "path": "frontend/css/warroom.css",
