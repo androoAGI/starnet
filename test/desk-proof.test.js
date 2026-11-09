@@ -359,7 +359,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const acp = read('sidecar/acp/core.js');
     A.ok(/if \(decision !== 'session' \|\| !r \|\| r\.status !== 403[\s\S]{0,300}decision: 'once' \}\)/.test(acp), 'an editor\'s "for this session" that meets the desk is allowed once');
     const sc = read('bin/lib/station-commands.js');
-    A.ok(/if \(decision === 'session' && deskRefused\(r\)\)[\s\S]{0,700}decision: 'once', via: 'terminal'/.test(sc), '`starnet allow --session` that meets the desk is allowed once, and says so');
+    A.ok(/if \(asked === 'session' && deskRefused\(r\)\)[\s\S]{0,700}decision: 'once', via: 'terminal'/.test(sc), '`starnet allow --session` that meets the desk is allowed once, and says so');
     const dash = read('bin/lib/dashboard.js');
     A.ok(/if \(deskRefusal\(r\)\) \{[\s\S]{0,400}'\/api\/projects\/bless', \{ path: t\.root \}, \{ timeoutMs: 10000, deskProof: ch\.id, deskCode: code \}/.test(dash), 'the terminal\'s TRUST THIS FOLDER confirms with its own station\'s code, else points at the window');
     const app = read('frontend/app/app.js');

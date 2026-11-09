@@ -66,7 +66,13 @@ const IDX = read('sidecar/index.js');
     const dash = read('bin/lib/dashboard.js');
     const at = dash.indexOf('async function answer(key) {');
     const body = dash.slice(at, at + 3000);
-    A.ok(/decision === 'always' && deskRefusal\(r\)/.test(body), 'the terminal sees the desk refusal of ALWAYS');
+    A.ok(/asked === 'always' && deskRefusal\(r\)/.test(body), 'the terminal sees the desk refusal of ALWAYS');
+    // breakage 8 (review-sec2): a terminal that cannot read the station's desk codes asks once, and prints no stray code there
+    A.ok(/const asked = decision === 'always' && typeof client\.deskCodeFor !== 'function' \? 'once' : decision;/.test(body)
+      && /decision: asked, via: 'terminal'/.test(body) && /let downgraded = asked !== decision;/.test(body), 'ALWAYS from a terminal that did not start the station is answered once, without asking for a code');
+    const scSrc = read('bin/lib/station-commands.js');
+    A.ok(/const asked = decision === 'session' && typeof station\.client\.deskCodeFor !== 'function' \? 'once' : decision;/.test(scSrc)
+      && /let downgraded = asked !== decision;/.test(scSrc), '`starnet allow --session` on a station this terminal did not start: once, said so');
     A.ok(/decision: 'once', via: 'terminal'/.test(body) && /downgraded = true/.test(body), 'and answers the card once instead of leaving it waiting');
     A.ok(/allowed ONCE: ALWAYS is confirmed in the StarNet window/.test(body), 'and says so');
     A.ok(/function deskRefusal\(r\) \{ return !!\(r && r\.status === 403 && r\.json && \(r\.json\.code === 'desk_confirm_required' \|\| r\.json\.code === 'desk_only' \|\| r\.json\.code === 'desk_locked'\)\); \}/.test(dash), 'deskRefusal reads the station\'s own codes, the lockout too');

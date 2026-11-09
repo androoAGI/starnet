@@ -361,13 +361,17 @@ function runDashboard(station, opts) {
     // y once · a always (this kind of action from now on, as the app's card offers it) · n deny
     const decision = key === 'y' ? 'once' : key === 'a' ? 'always' : 'deny';
     ui.keyFlash = { k: key, until: now() + 700 };
-    let r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
+    /* A TERMINAL THAT CANNOT READ THE DESK CODE DOES NOT ASK FOR ONE (fix-sec2 breakage 8). Only a station this terminal
+       started sends its desk codes here (client.deskCodeFor). Asking any other station for ALWAYS issued a confirmation
+       that nobody here could finish, and printed a stray code on that station's console; the answer was once anyway. */
+    const asked = decision === 'always' && typeof client.deskCodeFor !== 'function' ? 'once' : decision;
+    let r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: asked, via: 'terminal' });
     /* ALWAYS NEEDS THE DESK (GHSA-2hpj #1; fix-sec2, review 8). A standing answer is confirmed at the desk; a terminal can only
        carry that confirmation for a station it started itself (its console is the terminal's own: the desk code comes over
        their IPC channel, bin/starnet.js makeDeskCodeBook). Otherwise the card is not left waiting: this call is allowed ONCE
        and the terminal says how to make it standing. */
-    let downgraded = false;
-    if (decision === 'always' && deskRefusal(r)) {
+    let downgraded = asked !== decision;
+    if (asked === 'always' && deskRefusal(r)) {
       const ch = r.json.deskConfirm;
       const code = ch && ch.mode === 'page' && typeof client.deskCodeFor === 'function' ? await client.deskCodeFor(ch.id) : '';
       if (code) r = await client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' }, { deskProof: ch.id, deskCode: code });

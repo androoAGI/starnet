@@ -81,12 +81,15 @@ async function answerCommand(opts, station, io) {
   }
   const q = open[0];
   const decision = opts.cmd === 'deny' ? 'deny' : opts.session ? 'session' : 'once';
-  let r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' });
+  // a station this terminal did not start shows its desk code only on its own console: no confirmation is asked for that
+  // nobody here can finish (and no stray code is printed there); the answer is once, said below (fix-sec2 breakage 8)
+  const asked = decision === 'session' && typeof station.client.deskCodeFor !== 'function' ? 'once' : decision;
+  let r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision: asked, via: 'terminal' });
   /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): a terminal confirms it only for a station it started (its desk code
      comes over their IPC channel, bin/starnet.js makeDeskCodeBook); otherwise the ask is allowed once, and the terminal says so */
-  let downgraded = false;
+  let downgraded = asked !== decision;
   const deskRefused = x => !!(x && x.status === 403 && x.json && (x.json.code === 'desk_confirm_required' || x.json.code === 'desk_only' || x.json.code === 'desk_locked'));
-  if (decision === 'session' && deskRefused(r)) {
+  if (asked === 'session' && deskRefused(r)) {
     const ch = r.json.deskConfirm;
     const code = ch && ch.mode === 'page' && typeof station.client.deskCodeFor === 'function' ? await station.client.deskCodeFor(ch.id) : '';
     if (code) r = await station.client.request('POST', '/api/consent', { runId: q.runId, promptId: q.promptId, decision, via: 'terminal' }, { deskProof: ch.id, deskCode: code });
