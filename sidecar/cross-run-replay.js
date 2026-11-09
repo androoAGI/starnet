@@ -42,6 +42,13 @@
       it from there), and not at all on a list that names no row there. A replayed turn keeps its tag and the list its row ids
       through every rewrite before this seam (TurnView.map: attachments.js expanding a turn's files), so a file on an earlier
       turn neither turns the window off nor leaves its turn stranded in front of the cut.
+   4. THE FIT MEASURES WHAT THE MODEL IS CHARGED FOR. The page fits what it POSTs: references, never a file's bytes. Here the run
+      host has already expanded the files (attachments.expandForRun, before this seam), so a photo on the directive or on the turn
+      before it is an image part holding its whole base64 data URL, which the page's rulers (the wire byte cap, JSON bytes / 2)
+      would count ~100x over its cost (a 250 KB JPEG ~170k tokens) and so cut the whole replay for one photo. Each image part is
+      measured as the run's own estimator charges it instead (context.js imageTokens: ~1,500 tokens for a photo, by its pixels when
+      its header says): a stand-in of that many tokens under the page's ruler, for the byte cap too, which bounds the page's POST
+      of references and never a re-sent image. Everything else is measured as it is sent: an inlined text file is real context.
 
    KILL SWITCH: STARNET_CROSS_RUN_REPLAY=0 (index.js) replays every earlier result whole and unwindowed, as before.
    Pure apart from the injected parker. */
@@ -51,8 +58,10 @@ const TurnView = require('./turn-view.js');
 const Fit = require('../frontend/app/historyfit.js');
 const { rowTaint } = require('./transcriptstore.js');
 const { ATTACHMENT_TAINT } = require('./taint.js');
+const { imageTokens } = require('./context.js');   // what the run's own estimator charges for an image part (0: not an image)
 
 const STEP_SHARE = 0.25;   // a cut moves in steps of a quarter of the row cap (30 messages of the 120)
+const STANDIN_BYTES_PER_TOKEN = 2;   // the page's ruler (historyfit contextEstimateMessages): JSON utf8 bytes / 2 per token
 // tools whose result is another session's words (wire names: dots become underscores on every provider)
 const QUOTING_TOOLS = new Set(['recall_conversation', 'session_peek']);
 const wireName = name => String(name || '').replace(/\./g, '_');
@@ -74,6 +83,14 @@ async function stubOf(m, tag, o) {
   const stub = await HistoryEdit.elideToolResult(m.content, { name: p.tool || 'tool', park: p.quoted ? null : o.park, parkMeta: meta });
   if (!stub) return null;
   return { message: TurnView.carryMarks(m, Object.assign({}, m, { content: stub.content })), saved: !!stub.handle };
+}
+
+/* what the fit measures a message by (4 above): the message itself, but each image part as a text stand-in of the tokens the run's
+   estimator charges for it (imageTokens), never its base64. Only measured: what is sent is the message, the same object. */
+function measured(m) {
+  const parts = m && m.content;
+  if (!Array.isArray(parts) || !parts.some(p => imageTokens(p) > 0)) return m;
+  return Object.assign({}, m, { content: parts.map(p => { const t = imageTokens(p); return t > 0 ? { type: 'text', text: 'i'.repeat(t * STANDIN_BYTES_PER_TOKEN) } : p; }) });
 }
 
 /* where a cut starts in the replayed block: the first user turn at or after `from` that may open the window (`opens`: the note
@@ -138,9 +155,10 @@ async function resolve(list, o) {
   const sent = i => replaced.has(i) ? replaced.get(i).message : src[i];
   let start = 0;
   if (windowed) {
-    // the byte and token fit, on what will be sent; what follows the block (the directive) is never cut
+    // the byte and token fit, on what will be sent, an image as what it costs (measured); what follows the block (the directive)
+    // is never cut, but counted
     const tail = [];
-    for (let i = lo + capStart; i < src.length; i++) tail.push(sent(i));
+    for (let i = lo + capStart; i < src.length; i++) tail.push(measured(sent(i)));
     let kept = Fit.fitHistoryBytes(tail, Fit.HISTORY_WIRE_MAX_BYTES).length;
     const limit = Number(o.limit);
     if (limit > 0) kept = Fit.fitHistoryTokens(tail.slice(tail.length - kept), Fit.uncalibratedBudget(limit, o.compactAt)).length;
@@ -158,4 +176,4 @@ async function resolve(list, o) {
   return { messages: out, stubbed, saved, dropped: start };
 }
 
-module.exports = { resolve, provenanceOf, QUOTING_TOOLS, STEP_SHARE, _internals: { startOf, stubOf } };
+module.exports = { resolve, provenanceOf, QUOTING_TOOLS, STEP_SHARE, _internals: { startOf, stubOf, measured } };

@@ -24,7 +24,12 @@
       MANY_CALLS reads each (over the 120-row cap), one with a document on its first round (the cut drops it), one with a document on
       a later round (the window keeps it): each follow-up's replay is inside the row cap and opens on a user turn, every replayed user
       turn holds exactly one round's words (no dropped turn merged into the next kept one), the cut rounds are gone from the replay,
-      and the earlier-conversation note carries their words. */
+      and the earlier-conversation note carries their words.
+   7. A PHOTO NEITHER CUTS THE REPLAY NOR SWINGS THE WINDOW (W1.8 review r3). A Telegram chat of five file reads, then a 300 KB photo
+      (its bytes ride the photo's own run and, re-sent, the next one), then two text turns: every follow-up replays every earlier
+      round with its results stubbed, carries no earlier-conversation note, and each replay is the one before it plus the newest
+      rounds, byte for byte (the window's first message, and the cached prefix behind it, never moves). Red on the lane before
+      the fit measured an image by what the run is charged for it: the photo's base64 cut every round but the newest. */
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
@@ -112,8 +117,14 @@ function startModel() {
 }
 
 /* ---------------------------------------------------------------- the fake Bot API (test/channels.ledger-upgrade.e2e shape)
-   A document is one small text file: getFile names it and /file/bot<token>/... serves its bytes (section 6). */
+   A document is one small text file: getFile names it and /file/bot<token>/... serves its bytes (section 6). A photo (a file id
+   starting "ph") is PHOTO, a 300 KB JPEG whose header names its pixels (SOF0: 1280 x 960), under photos/ (section 7). */
 const DOC = Buffer.from('W18DOC a short attached note for the replay window\n');
+const PHOTO = (() => {
+  const head = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+    0xFF, 0xC0, 0x00, 0x11, 0x08, 0x03, 0xC0, 0x05, 0x00, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
+  return Buffer.concat([head, require('node:crypto').randomBytes(300 * 1024 - head.length - 2), Buffer.from([0xFF, 0xD9])]);
+})();
 async function startTelegram() {
   const calls = [], queued = [], waiters = []; let nextId = 100, updateId = 0; const api = { calls, fileGets: 0 };
   const reply = (res, status, obj) => { try { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); } catch (_) {} };
@@ -122,10 +133,19 @@ async function startTelegram() {
     const chunks = []; req.on('data', d => chunks.push(d));
     req.on('end', () => {
       const url = String(req.url || '').split('?')[0];
-      if (url.indexOf('/file/bot') === 0) { api.fileGets++; res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': DOC.length }); return res.end(DOC); }
+      if (url.indexOf('/file/bot') === 0) {
+        api.fileGets++;
+        const photo = url.indexOf('/photos/') > 0, bytes = photo ? PHOTO : DOC;
+        res.writeHead(200, { 'Content-Type': photo ? 'image/jpeg' : 'text/plain', 'Content-Length': bytes.length });
+        return res.end(bytes);
+      }
       const method = url.split('/').pop();
       let fields = {}; try { fields = JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch (_) {}
-      if (method === 'getFile') return reply(res, 200, { ok: true, result: { file_id: String(fields.file_id || ''), file_unique_id: 'u_' + String(fields.file_id || ''), file_size: DOC.length, file_path: 'documents/' + String(fields.file_id || 'file') + '.txt' } });
+      if (method === 'getFile') {
+        const id = String(fields.file_id || ''), photo = /^ph/.test(id);
+        return reply(res, 200, { ok: true, result: { file_id: id, file_unique_id: 'u_' + id, file_size: photo ? PHOTO.length : DOC.length,
+          file_path: (photo ? 'photos/' : 'documents/') + (id || 'file') + (photo ? '.jpg' : '.txt') } });
+      }
       if (method === 'getUpdates') {
         if (fields.offset === -1) return reply(res, 200, { ok: true, result: [] });
         if (queued.length) return reply(res, 200, { ok: true, result: [queued.shift()] });
@@ -411,6 +431,50 @@ const handleOf = content => { const h = /read it with fs\.read (\{[^\n]*?\})\]/.
       if (fileOn >= 3) A.ok(users.some(m => roundsOf(m)[0] === fileOn && /note\.txt/.test(text(m.content))), label + ': the kept round that carried the file rides with its file note');
       const note = (/<conversation_summary>[\s\S]*?<\/conversation_summary>/.exec(f.msgs.map(m => text(m.content)).join('\n')) || [''])[0];
       A.ok(note.indexOf('W18' + chat + 'R1 MANY') >= 0 && note.indexOf('W18' + chat + 'R2 MANY') >= 0, label + ': the earlier-conversation note carries the cut rounds\' words (' + (note ? note.length + ' chars' : 'no note') + ')');
+    }
+
+    // ============ 7. a photo neither cuts the replay nor swings the window (W1.8 review r3) ============
+    // The run host expands a photo into a data URL of its whole base64 before the replay is resolved. Measured by those bytes, one
+    // 300 KB photo on the directive (or on the turn before it, which re-sends it) counted ~205k tokens against a 114k budget and cut
+    // every earlier round into the note, and the window sprang back once the photo stopped riding. Measured as the run is charged
+    // for it (~1,500 tokens), nothing moves.
+    {
+      const before = freshSends();
+      telegram.push('/new');
+      await waitFor(() => freshSends() > before, 40000, 'photo chat: /new');
+      const reads = [1, 2, 3, 4, 5].map(k => probeFile(ws, 'ph-r' + k + '.txt', 3000, 'W18TAIL_PHR' + k));
+      for (let k = 1; k <= 5; k++) await say('W18phR' + k + ' READ ' + reads[k - 1], 'W18DONE phR' + k);
+      const gets = telegram.fileGets;
+      await say('', 'W18DONE phR6', { text: undefined, caption: 'W18phR6 HI',
+        photo: [{ file_id: 'ph_small', file_unique_id: 'u_ph_small', width: 90, height: 67, file_size: 1200 },
+                { file_id: 'ph_big', file_unique_id: 'u_ph_big', width: 1280, height: 960, file_size: PHOTO.length }] });
+      await say('W18phR7 HI', 'W18DONE phR7');
+      await say('W18phR8 HI', 'W18DONE phR8');
+      const reqs = [5, 6, 7, 8].map(k => firstReq(S, 'phR' + k));
+      A.ok(reqs.every(Boolean), 'photo chat: every turn reached the model');
+      const replayOf = req => {
+        if (!req) return [];
+        let last = -1; for (let i = req.msgs.length - 1; i >= 0; i--) if (req.msgs[i].role === 'user') { last = i; break; }
+        return req.msgs.slice(0, Math.max(0, last)).filter(m => m.role !== 'system');
+      };
+      const roundsOf = list => [...new Set(list.flatMap(m => [...(text(m.content) + JSON.stringify(m.tool_calls || []) + String(m.tool_call_id || '')).matchAll(/(?:W18|W18DONE |call_)phR(\d)/g)].map(x => Number(x[1]))))].sort((a, b) => a - b);
+      const [q5, q6, q7, q8] = reqs.map(replayOf);
+      A.ok(!!reqs[1] && reqs[1].raw.indexOf('data:image/jpeg;base64,') >= 0 && telegram.fileGets > gets, 'photo chat: the photo reached the run it was sent with (R6) as image bytes');
+      A.ok(!!reqs[2] && reqs[2].raw.indexOf('data:image/jpeg;base64,') >= 0, 'photo chat: the next turn re-sent it (R7: the photo on the previous round)');
+      for (const [k, q, req] of [[6, q6, reqs[1]], [7, q7, reqs[2]], [8, q8, reqs[3]]]) {
+        if (!req) continue;
+        A.eq(roundsOf(q), Array.from({ length: k - 1 }, (_, i) => i + 1), 'photo chat R' + k + ': every earlier round is replayed');
+        const tools = q.filter(m => m.role === 'tool');
+        A.ok(tools.length === 5 && tools.every(m => text(m.content).indexOf(ELIDED) === 0 && text(m.content).length <= STUB_MAX),
+          'photo chat R' + k + ': the five earlier reads ride as stubs (' + tools.map(m => text(m.content).length).join(',') + ')');
+        const note = (/<conversation_summary>[\s\S]*?<\/conversation_summary>/.exec(req.msgs.map(m => text(m.content)).join('\n')) || [''])[0];
+        A.ok(!note, 'photo chat R' + k + ': no earlier-conversation note, nothing was cut (' + (note ? note.length + ' chars' : 'none') + ')');
+        A.ok(pairsValid(req), 'photo chat R' + k + ': every replayed result still follows its call');
+      }
+      // the window never swings: each replay starts as the one before it did, byte for byte (up to the photo's own turn, whose
+      // bytes ride two turns and then become a marker)
+      const extends_ = (a, b) => a.length > 0 && b.length > a.length && JSON.stringify(b.slice(0, a.length)) === JSON.stringify(a);
+      A.ok(extends_(q5, q6) && extends_(q6, q7) && extends_(q6, q8), 'photo chat: every replay starts as the one before it did, byte for byte (' + [q5, q6, q7, q8].map(q => q.length).join(' -> ') + ' replayed messages)');
     }
   } catch (e) {
     A.ok(false, 'rig error: ' + ((e && e.stack) || e));

@@ -20,7 +20,13 @@
    7. THE MARKS SURVIVE THE ATTACHMENT EXPANSION (W1.8 review): TurnView.map keeps a copy's marks and the list's row ids, and a real
       store view through the real attachments.expandForRun (unscoped, project-scoped, and its failure path) keeps every replayed
       turn's tag and the row ids, so a file on the first replayed turn or a later one still cuts on a user turn with no stranded
-      turn in front, and EarlierConversation.align places the window it leaves. */
+      turn in front, and EarlierConversation.align places the window it leaves.
+   8. THE FIT MEASURES WHAT THE MODEL IS CHARGED FOR (W1.8 review r3): an image part counts the tokens the run's own estimator
+      charges for it (context.js imageTokens), never its base64, in the token fit and the byte cap alike, and only the measure
+      changes (the photo rides as it came). Through a real store view and the real expandForRun: a 250 KB or 600 KB photo on the
+      directive, or a 250 KB photo on the newest replayed round, keeps every earlier round at a 200k window, a 100 KB photo at a
+      128k window, four 400 KB photos with no window size, and a photo leaves a replay over the row cap the same window. An
+      inlined text file is real context and still counts. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -383,6 +389,101 @@ const directive = () => ({ role: 'user', content: 'the new directive' });
         A.ok(alignment.cut > 0 && rows[alignment.cut] && rows[alignment.cut].rowId === View.replayedOf(r.messages[0]).rowId,
           label + ': the earlier-conversation note places the window it leaves (cut ' + alignment.cut + ')');
       }
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
+  }
+
+  // ---------------------------------------------------------------- 8. the fit measures what the model is charged for
+  {
+    const Ctx = require('../sidecar/context.js');
+    const textOf = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (p && p.text) || '').join('') : '');
+    // a JPEG whose header names its pixels (SOF0: 1280 x 960, so the run's estimator charges ~1,534 tokens), filled to `bytes`
+    const jpeg = bytes => {
+      const head = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00,
+        0xFF, 0xC0, 0x00, 0x11, 0x08, 0x03, 0xC0, 0x05, 0x00, 0x03, 0x01, 0x22, 0x00, 0x02, 0x11, 0x01, 0x03, 0x11, 0x01]);
+      return Buffer.concat([head, crypto.randomBytes(Math.max(0, bytes - head.length - 2)), Buffer.from([0xFF, 0xD9])]);
+    };
+
+    // the measure itself: an image part is a stand-in of the tokens it is charged, the rest of the message as it is
+    const part = { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + jpeg(250 * 1024).toString('base64') } };
+    const charged = Ctx.imageTokens(part);
+    const withImage = { role: 'user', content: [{ type: 'text', text: 'what is in this photo?' }, part] };
+    const textOnly = { role: 'user', content: [{ type: 'text', text: 'what is in this photo?' }] };
+    const before = JSON.stringify(withImage);
+    const measured = typeof Replay._internals.measured === 'function' ? Replay._internals.measured : (x => x);   // absent: the message as it is
+    A.ok(typeof Replay._internals.measured === 'function', 'the resolver has one measure for its fit (measured)');
+    const m = measured(withImage);
+    const delta = Fit.contextEstimateMessages([m]) - Fit.contextEstimateMessages([textOnly]);
+    A.ok(charged > 1000 && charged < 1700, 'the run\'s estimator charges a 1280x960 photo by its pixels (' + charged + ' tokens)');
+    A.ok(Math.abs(delta - charged) <= 16, 'the fit measures the image part as the tokens it is charged (' + delta + ' vs ' + charged + '), not its base64 (' + Math.ceil(part.image_url.url.length / 2) + ')');
+    A.ok(Fit.utf8Bytes(JSON.stringify(m)) < 4096, 'and the byte cap meets a stand-in of that size, never the re-sent bytes (' + Fit.utf8Bytes(JSON.stringify(m)) + ' bytes)');
+    A.ok(JSON.stringify(withImage) === before && withImage.content[1] === part, 'measuring never changes the message');
+    const plain = { role: 'tool', content: big(3000), tool_call_id: 'x' }, parts = { role: 'user', content: [{ type: 'text', text: 'no image here' }] };
+    A.ok(measured(plain) === plain && measured(parts) === parts, 'a message with no image part is measured as it is (the same object)');
+
+    // through a real store view and the REAL expandForRun, the shapes channel history and the queued re-seed take
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'w18-photo-'));
+    try {
+      fs.mkdirSync(path.join(ws, 'agent', '.attachments'), { recursive: true });
+      const resolveInside = async (agentId, rel) => ({ base: path.join(ws, agentId), abs: path.join(ws, agentId, rel) });
+      const att = makeAttachments({ fsp: fs.promises, path, crypto, workspaces: ws, resolveInside });
+      let saved = 0;
+      const photo = kb => { const id = 'feedface' + String(++saved).padStart(2, '0'); fs.writeFileSync(path.join(ws, 'agent', '.attachments', id + '.jpg'), jpeg(kb * 1024)); return { id, name: 'photo.jpg', path: '.attachments/' + id + '.jpg', mediaType: 'image/jpeg', kind: 'image' }; };
+      const textFile = kb => { const id = 'feedbeef' + String(++saved).padStart(2, '0'); fs.writeFileSync(path.join(ws, 'agent', '.attachments', id + '.txt'), big(kb * 1024, 'attached notes')); return { id, name: 'notes.txt', path: '.attachments/' + id + '.txt', mediaType: 'text/plain', kind: 'file' }; };
+      // rounds of `calls` reads of 3,000 chars and a 600-char reply; `lastRef` rides on the newest round's turn
+      const chat = (rounds, calls, lastRef) => {
+        const runs = new Map([['r1', { runId: 'r1', streamId: 's', agentId: 'agent', ownerDirective: true, internal: false }]]);
+        const dual = Dual.make({ now: () => 10, hash, save() {} });
+        const store = Store.makeTranscriptStore({ io: makeMemoryTranscriptIo(), clock: { now: () => 10 }, runOf: id => runs.get(id) || null,
+          quotedMaterial: Learning.quotedMaterial, live: new Set(), pick: dual.pick, hash, deletedAt: () => 0 });
+        const add = extra => store.appendStrict(Object.assign({ streamId: 's', agentId: 'agent', sourceRunId: 'r1', role: 'user', content: 'q', kind: 'turn', taint: null, ts: 10 }, extra));
+        for (let k = 1; k <= rounds; k++) {
+          const turnId = 't' + k, words = 'ROUND' + k + ' please check the files';
+          add(Object.assign({ content: words, turnId }, k === rounds && lastRef ? { typed: words, attachments: [lastRef] } : {}));
+          const cs = Array.from({ length: calls }, (_, c) => ({ id: 'c' + k + '_' + c, type: 'function', function: { name: 'fs_read', arguments: '{"path":"f' + c + '.txt"}' } }));
+          add({ role: 'assistant', content: '', toolCalls: cs, turnId });
+          for (const c of cs) add({ role: 'tool', content: big(3000, 'R' + k + ' ' + c.id), toolCallId: c.id, turnId });
+          add({ role: 'assistant', content: 'answer ' + k + ': ' + big(600, 'reply'), turnId });
+        }
+        return store.view('model-replay', 's', { complete: true, shape: 'pairs', form: 'pre' });
+      };
+      const replayOf = async (view, refs, o) => {
+        const newest = { role: 'user', content: 'NEW DIRECTIVE what about this?' };
+        if (refs && refs.length) newest.attachments = refs;
+        const expanded = await att.expandForRun(View.concat(view, [newest]), 'agent', '');
+        const r = await Replay.resolve(expanded, Object.assign({ park: parker().park, streamId: 's' }, o));
+        return { expanded, r, images: r.messages.filter(x => Array.isArray(x.content) && x.content.some(p => p && p.type === 'image_url')).length,
+          rounds: [...new Set(r.messages.slice(0, -1).map(x => (/^ROUND(\d+) /.exec(textOf(x.content)) || [])[1]).filter(Boolean))].map(Number) };
+      };
+      const W200 = { limit: 200000, compactAt: 0.65 }, W128 = { limit: 128000, compactAt: 0.65 };
+      const all8 = [1, 2, 3, 4, 5, 6, 7, 8];
+      const control = await replayOf(chat(8, 2), null, W200);
+      A.ok(control.r.dropped === 0 && control.r.stubbed === 16, 'control: a text directive keeps all 8 rounds at a 200k window, every result stubbed (' + control.r.dropped + ' dropped, ' + control.r.stubbed + ' stubbed)');
+      for (const [label, view, refs, o, images] of [
+        ['a 250 KB photo on the directive, 200k window', chat(8, 2), [photo(250)], W200, 1],
+        ['a 600 KB photo on the directive, 200k window', chat(8, 2), [photo(600)], W200, 1],
+        ['a 250 KB photo on the newest replayed round (re-sent), a text directive, 200k window', chat(8, 2, photo(250)), null, W200, 1],
+        ['a 100 KB photo on the directive, 128k window', chat(8, 2), [photo(100)], W128, 1],
+        ['four 400 KB photos on the directive, no window size (the byte cap alone)', chat(8, 2), [photo(400), photo(400), photo(400), photo(400)], {}, 1]
+      ]) {
+        const { expanded, r, rounds, images: carried } = await replayOf(view, refs, o);
+        const sentParts = expanded.flatMap(x => Array.isArray(x.content) ? x.content.filter(p => p && p.type === 'image_url') : []);
+        const outParts = r.messages.flatMap(x => Array.isArray(x.content) ? x.content.filter(p => p && p.type === 'image_url') : []);
+        A.ok(sentParts.length >= 1 && r.dropped === 0 && JSON.stringify(rounds) === JSON.stringify(all8) && r.stubbed === 16,
+          label + ': every earlier round rides (' + r.dropped + ' dropped, rounds ' + rounds.join(',') + ')');
+        A.ok(carried === images && outParts.length === sentParts.length && outParts.every((p, i) => p === sentParts[i]) && r.messages.every(x => textOf(x.content).indexOf('iiiiiiii') < 0),
+          label + ': the photo rides as it came (the same part, ' + outParts.length + ' on the wire), never the stand-in');
+      }
+      // the window of a replay over the row cap (10 rounds of 10 reads: 130 messages) is the same with a photo on the directive
+      const capped = await replayOf(chat(10, 10), null, W200), cappedPhoto = await replayOf(chat(10, 10), [photo(600)], W200);
+      A.ok(capped.r.dropped > 0 && capped.r.messages[0].role === 'user' && cappedPhoto.r.dropped === capped.r.dropped && JSON.stringify(cappedPhoto.rounds) === JSON.stringify(capped.rounds),
+        'over the row cap, a photo on the directive leaves the window where it was (' + capped.r.dropped + ' vs ' + cappedPhoto.r.dropped + ' dropped, rounds ' + cappedPhoto.rounds.join(',') + ')');
+      // an inlined text file is real context and still counts: at a 100k window a 90 KB text file on the directive cuts the replay
+      // (on a user turn), where a 600 KB photo does not; at 200k the same text file rides with every round
+      const W100 = { limit: 100000, compactAt: 0.65 };
+      const text200 = await replayOf(chat(8, 2), [textFile(90)], W200), text100 = await replayOf(chat(8, 2), [textFile(90)], W100);
+      const photo100 = await replayOf(chat(8, 2), [photo(600)], W100);
+      A.ok(text200.r.dropped === 0 && text100.r.dropped > 0 && text100.r.messages[0].role === 'user' && pairsValid(text100.r.messages) && photo100.r.dropped === 0,
+        'an inlined 90 KB text file still counts: whole at 200k, cut on a user turn at 100k, where a 600 KB photo is not (' + text200.r.dropped + ' / ' + text100.r.dropped + ' / ' + photo100.r.dropped + ' dropped)');
     } finally { fs.rmSync(ws, { recursive: true, force: true }); }
   }
 
