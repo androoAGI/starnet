@@ -16938,11 +16938,7 @@ const deskCodeStore = {
     try { raw = fs.readFileSync(DESK_CODES_FILE, 'utf8'); } catch (e) { if (e && e.code === 'ENOENT') return null; throw e; }
     return JSON.parse(raw);
   },
-  save(state) {
-    const tmp = DESK_CODES_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(state));
-    fs.renameSync(tmp, DESK_CODES_FILE);
-  }
+  save(state) { fs.mkdirSync(WORKSPACES, { recursive: true }); writeFileDurable({ fs: fs, path: path }, DESK_CODES_FILE, JSON.stringify(state)); }
 };
 const deskProof = deskProofMod.makeDeskProof({ desktop: DESK_SHELL_PROOF, ipcToken: IPC_TOKEN, now: () => Date.now(), store: deskCodeStore,
   announce: DESKTOP_SHELL ? null : announceDeskCode });
