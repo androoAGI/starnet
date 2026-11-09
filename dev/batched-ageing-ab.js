@@ -31,7 +31,8 @@
      input_transformations thinking_dropped, read by the proxy); provider-reported usage per call (uncached input, cache
      read, cache write 5m/1h, output) and the weighted cost:
        input-eq = uncached + 1.25 x write(5m) + 2 x write(1h) + READ x cache read
-         (READ: Opus 5.5 0.05, Fable 5.1 0.025, else 0.10; AB_READ_RATIO overrides; a write with no tier split = 5m)
+         (READ: the model's documented cache read from prices.cacheRatesOf, the rate the planner weighs: Opus 5.5
+         0.05, Fable 5.1 and Mythos 5.1 0.025, else 0.10; AB_READ_RATIO overrides; a write with no tier split = 5m)
        dollars  = input-eq x list input price + output x list output price  (sidecar/providers/prices.js; Haiku 5.5
          above 100K prompt tokens at its long-prompt rate, 5x)
      The failopen notes print the first 5 of a kind, then every 50th: a count above 5 is a lower bound.
@@ -43,8 +44,14 @@
    SPEND: HARD CAP AB_CAP_USD (default 5; above 5 is refused). Every model call goes through a local forwarding proxy
    that, BEFORE forwarding, reserves the call's worst case (each prompt token written at the 1-hour rate, max_tokens out,
    all at the long-prompt rate) and refuses the call when spent + reserved would pass the cap; after the call it books
-   the provider-reported usage at the same worst-case rates (a call that streamed but reported no usage is booked at
-   its whole reserve). A refused call ends that arm; every later arm is reported "not run (cap)".
+   the provider-reported usage at the same worst-case rates (a call that streamed but never reported its final usage,
+   message_delta, is booked at its whole reserve: message_start's usage counts no output). A refused call ends that
+   arm; every later arm is reported "not run (cap)". The proxy forwards only the native adapter's two calls, POST
+   /v1/messages and GET /v1/models: any other method or path is refused there and never reaches Anthropic with the key.
+
+   BEFORE DEFAULT-ON: run it on Opus 5.5 too (AB_MODEL=claude-opus-5-5). Opus 5.5 reads its cache at 0.05x, half the
+   default model's 0.10x, so a batch pays back half as much there (W2.1 review): a Haiku 5.5 run alone does not cover it.
+   On Opus each call reserves its max_tokens at $20/MTok, so the $5 cap can end an Opus run early ("not run (cap)").
 
    KEY: ONLY from the environment variable STARNET_AGEING_AB_KEY (an Anthropic API key). It is read once and deleted
    from process.env before anything is spawned; the proxy sets it as x-api-key on each upstream request. The sidecar
@@ -60,7 +67,8 @@
      it (test/helpers/anthropic-cache-sim.js: reads land only on an earlier breakpoint, 20 positions back at most), and
      binds thinking like the API: each reply carries a thinking block signed over its prefix, and a replayed block whose
      prefix changed is dropped (drop_block) and reported in input_transformations, so both thinking metrics are exercised.
-     With AB_CAP_USD=0.001 it proves the cap refuses the first call. */
+     It also probes the proxy: requests outside the allow-list never reach the mock, and a stream the mock cuts after
+     message_start is booked at its whole reserve. With AB_CAP_USD=0.001 it proves the cap refuses the first call. */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -95,8 +103,8 @@ const LIST = prices.priceOf('anthropic', MODEL);
 if (!LIST || !(LIST.in > 0) || !(LIST.out > 0)) refuse('the price catalog has no list price for ' + MODEL + ': the cap could not be enforced.');
 const TIER = prices.promptTierTokens(MODEL) || 0;   // prompt tokens above which the model bills its long-prompt rate
 const TIER_FACTOR = TIER ? 5 : 1;                     // Haiku 5.5: $0.50/$2.50 above 100K vs $0.10/$0.50 (prices.js row)
-const READ = process.env.AB_READ_RATIO ? Number(process.env.AB_READ_RATIO)
-  : (/opus-5[-.]5/i.test(MODEL) ? 0.05 : /fable-5[-.]1/i.test(MODEL) ? 0.025 : 0.10);
+const DOC_CACHE = prices.cacheRatesOf(MODEL);   // the model's documented cache rates: the source cost.cacheRates hands the planner
+const READ = process.env.AB_READ_RATIO ? Number(process.env.AB_READ_RATIO) : (DOC_CACHE ? DOC_CACHE.read : 0.10);
 const num = v => (typeof v === 'number' && isFinite(v) && v > 0) ? v : 0;
 
 function countsOf(u) {
@@ -119,10 +127,12 @@ function reserveOf(bodyChars, body) {
   return (promptTokens * 2 * LIST.in * TIER_FACTOR + maxOut * LIST.out * TIER_FACTOR) / 1e6;
 }
 function dropsOf(tx) { return Array.isArray(tx) ? tx.filter(t => t && t.type === 'thinking_dropped').length : 0; }
+// complete: the call's FINAL usage arrived (a whole JSON reply, or a stream's message_delta). A stream cut before it
+// carries only message_start's usage, which counts no output: the proxy books such a call at its whole reserve.
 function parseCall(text) {
   let start = null, delta = null, drops = 0, stop = '';
   let whole = null; try { whole = JSON.parse(text); } catch (_) { whole = null; }
-  if (whole && whole.usage) { start = whole.usage; drops = dropsOf(whole.input_transformations); stop = whole.stop_reason || ''; }
+  if (whole && whole.usage) { start = whole.usage; drops = dropsOf(whole.input_transformations); stop = whole.stop_reason || ''; delta = {}; }
   else {
     for (const line of String(text || '').split('\n')) {
       const t = line.trim();
@@ -133,7 +143,12 @@ function parseCall(text) {
     }
   }
   const u = (start || delta) ? Object.assign({}, start || {}, delta || {}) : null;
-  return { counts: u ? countsOf(u) : null, apiDroppedThinking: drops, stop };
+  return { counts: u ? countsOf(u) : null, complete: !!(u && delta), apiDroppedThinking: drops, stop };
+}
+// the only requests the proxy forwards: the native adapter's model call and its model list
+function forwarded(method, url) {
+  const p = String(url || '').split('?')[0];
+  return (method === 'POST' && p === '/v1/messages') || (method === 'GET' && /^\/v1\/models(\/[A-Za-z0-9._-]+)?$/.test(p));
 }
 
 // ---- the forwarding proxy: the key, the cap, the provider-reported usage ----
@@ -143,8 +158,14 @@ function startProxy(ledger, tag, upstreamBase) {
     const body = Buffer.concat(chunks);
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) if (!/^(host|content-length|connection|x-api-key|authorization|accept-encoding)$/i.test(k)) headers[k] = v;
+    if (!forwarded(req.method, req.url)) {   // never sent upstream, so the key never travels with it
+      ledger.blocked = (ledger.blocked || 0) + 1;
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ type: 'error', error: { type: 'permission_error', message: 'A/B proxy: only POST /v1/messages and GET /v1/models are forwarded' } }));
+      return;
+    }
     if (KEY) headers['x-api-key'] = KEY;
-    const isCall = req.method === 'POST' && /\/v1\/messages(\?|$)/.test(req.url);
+    const isCall = req.method === 'POST';
     let reserve = 0;
     if (isCall) {
       let j = null; try { j = JSON.parse(body.toString('utf8')); } catch (_) { j = null; }
@@ -175,7 +196,9 @@ function startProxy(ledger, tag, upstreamBase) {
       if (isCall) {
         ledger.reserved -= reserve;
         const call = parseCall(text);
-        const booked = call.counts ? capCost(call.counts) : (status === 200 ? reserve : 0);   // an error before generation bills nothing
+        // a call whose final usage never came (a cut stream) is booked at its whole reserve; an error status bills nothing
+        const booked = (call.counts && call.complete) ? capCost(call.counts)
+          : (status === 200 ? Math.max(reserve, call.counts ? capCost(call.counts) : 0) : 0);
         ledger.spent += booked;
         ledger.calls.push(Object.assign({ tag, status, capUsd: booked }, call));
       }
@@ -444,7 +467,7 @@ function bindingCheck(body) {
 }
 function startMockAnthropic() {
   const cacheByArm = new Map(), memoByArm = new Map();
-  let seq = 0;
+  let seq = 0, strays = 0;
   const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
     const raw = Buffer.concat(chunks).toString('utf8');
@@ -453,9 +476,14 @@ function startMockAnthropic() {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(/\/v1\/models\/./.test(req.url) ? row : { data: [row], has_more: false, first_id: MODEL, last_id: MODEL }));
     }
-    if (req.method !== 'POST' || !/\/v1\/messages(\?|$)/.test(req.url)) { res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end('{"type":"error","error":{"type":"not_found_error","message":"mock"}}'); }
+    if (req.method !== 'POST' || !/\/v1\/messages(\?|$)/.test(req.url)) { strays++; res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end('{"type":"error","error":{"type":"not_found_error","message":"mock"}}'); }
     let body = {}; try { body = JSON.parse(raw); } catch (_) { body = {}; }
     const sys = textOf(body.system);
+    if (sys === 'AB-cut-probe') {   // the proxy probe: a stream cut after message_start, as a dropped connection leaves it
+      res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      res.write('event: message_start\ndata: ' + JSON.stringify({ type: 'message_start', message: { id: 'msg_cut', type: 'message', role: 'assistant', model: MODEL, content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 1 } } }) + '\n\n');
+      return res.end();
+    }
     const armKey = (/AB-(?:on|off)-[0-9a-f]+/.exec(sys) || ['aux'])[0];
     if (!memoByArm.has(armKey)) memoByArm.set(armKey, { tokens: new Set(), appended: new Set(), sawEarlier: false, thought: 0 });
     // a resumed thread's earlier exchanges reached the wire (chain-resumed): the self-test checks the seed is sent
@@ -508,7 +536,30 @@ function startMockAnthropic() {
     send({ type: 'message_stop' });
     res.end();
   });
-  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ base: 'http://127.0.0.1:' + server.address().port, memo: key => memoByArm.get(key) || null, close: () => new Promise(c => server.close(() => c())) })));
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ base: 'http://127.0.0.1:' + server.address().port, memo: key => memoByArm.get(key) || null, strays: () => strays, close: () => new Promise(c => server.close(() => c())) })));
+}
+/* THE PROXY'S OWN GUARDS (self-test, against the mock, on a ledger of their own): a request outside the allow-list is
+   refused before the upstream sees it, and a stream cut after message_start is booked at the call's whole reserve. */
+async function proxyProbes(mock) {
+  const problems = [];
+  const ledger = { spent: 0, reserved: 0, refused: 0, capHit: false, calls: [] };
+  const proxy = await startProxy(ledger, 'probe', mock.base);
+  try {
+    const before = mock.strays();
+    for (const [method, p] of [['GET', '/v1/files'], ['POST', '/v1/messages/batches'], ['POST', '/v1/messages/count_tokens'], ['DELETE', '/v1/models/x']]) {
+      const r = await fetch(proxy.base + p, { method, headers: { 'Content-Type': 'application/json' }, body: method === 'GET' ? undefined : '{}' });
+      await r.text();
+      if (r.status !== 403) problems.push('proxy: ' + method + ' ' + p + ' answered ' + r.status + ' (not refused)');
+    }
+    if (mock.strays() !== before) problems.push('proxy: ' + (mock.strays() - before) + ' request(s) outside the allow-list reached the upstream');
+    const body = JSON.stringify({ model: MODEL, max_tokens: 1000, stream: true, system: 'AB-cut-probe', messages: [{ role: 'user', content: 'cut' }] });
+    const r = await fetch(proxy.base + '/v1/messages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+    await r.text();
+    const reserve = reserveOf(Buffer.byteLength(body), JSON.parse(body));
+    const c = ledger.calls[ledger.calls.length - 1];
+    if (!c || c.complete || !(c.capUsd >= reserve)) problems.push('proxy: a stream cut after message_start was booked ' + (c ? c.capUsd : 'nothing') + ', under its reserve ' + reserve);
+  } finally { await proxy.close(); }
+  return problems;
 }
 
 // ---- the A/B ----
@@ -518,7 +569,9 @@ function startMockAnthropic() {
   const ledger = { spent: 0, reserved: 0, refused: 0, capHit: false, calls: [] };
   const rows = [];
   console.log('[batched-ageing-ab] ' + (SELF_TEST ? 'SELF-TEST (local mock upstream, no spend)' : 'REAL MODEL A/B') + ': model ' + MODEL + ', effort ' + EFFORT + ', tasks ' + TASK_IDS.join(',') + ', hard cap $' + CAP);
+  let probeProblems = [];
   try {
+    if (mock && CAP >= 0.01) probeProblems = await proxyProbes(mock);
     for (let i = 0; i < TASK_IDS.length; i++) {
       const order = i % 2 === 0 ? ['off', 'on'] : ['on', 'off'];
       for (const arm of order) {
@@ -550,6 +603,7 @@ function startMockAnthropic() {
       if (ledger.refused < 1) problems.push('cap mode: no call was refused');
       if (ledger.calls.length) problems.push('cap mode: ' + ledger.calls.length + ' call(s) went out');
     } else {
+      problems.push(...probeProblems);
       // chain-deep's success is the loop's to decide (its strategy guard refuses a long burst of re-reads, in both arms):
       // the self-test checks the plumbing, never a policy outcome
       for (const r of rows) if (!r.ran || r.reason !== 'done' || (r.task !== 'chain-deep' && !r.success)) problems.push(r.task + '/' + r.arm + ': ' + (r.why || (r.reason + ', ' + r.detail)));
