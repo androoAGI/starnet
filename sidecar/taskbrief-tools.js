@@ -157,7 +157,9 @@ function registerTaskBriefTools(registry, store, state, deps) {
   });
   registry.register({
     name: 'brief.proceed', scope: 'read', readOnly: true, capability: 'taskbrief', impact: 'none',
-    description: 'Settle the Task Brief and unlock consequential tools. Call immediately before the first write/execute action.',
+    // SAME RESPONSE (cost audit W1.2): "immediately before" read as "in a reply of its own" and cost a full request per
+    // task; the host runs this first in its batch (TaskBriefPolicy.settleFirst). A material question still goes to brief_ask.
+    description: 'Settle the Task Brief and unlock consequential tools. When no material question is left to ask (use brief_ask for one), send it in the SAME response as your first write/execute call, listed first; the host runs it first.',
     schema: { type: 'object', required: ['objective'], properties: {
       objective: { type: 'string' }, deliverable: { type: 'string' }, audience: { type: 'string' }, success: { type: 'string' },
       assumptions: { type: 'array', items: { type: 'string' } }, sources: { type: 'array', items: { type: 'string' } }

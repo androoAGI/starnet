@@ -24635,9 +24635,18 @@ async function runOnceCore(o) {
     // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
     // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
     // the brief first" over a red ✗ team.dispatch chip).
-    if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again. This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
+    if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again (in one response, brief_proceed first). This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
     return null;
   };
+  /* THE SETTLE RUNS FIRST (cost audit W1.2, 2026-11-08). The hold above reads the brief at the moment a call runs, and a
+     batch ran in the order the model listed it, so [fs_write, brief_proceed] in one response held the write and paid a
+     whole extra full-context request for the retry. loop.js runs a sequential batch in this order instead (o.batchOrder):
+     the brief_update / brief_proceed calls first, unless the batch also asks (brief_ask) — the ONE rule lives in
+     TaskBriefPolicy.settleFirst. A batch containing brief.* is never parallel (PARALLEL_UNSAFE_FAMILY), so this always
+     applies. Names resolve the way dispatch resolves them (wire, then any registered tool, then as sent). */
+  const briefFirstOrder = internalBriefTools.length
+    ? (calls) => TaskBriefPolicy.settleFirst(calls, c => fromWire.get(c.name) || allWire.get(c.name) || c.name)
+    : null;
   // Per-run latches/counters/artifacts live in `execution`; policy and side effects remain in this host.
   const dispatch = async (c, ctx) => {
     briefAnswerHold = null;   // the model asked for a tool (hidden brief_* calls emit no tool_call): the answer was read
@@ -26137,6 +26146,8 @@ async function runOnceCore(o) {
       // A turn that asks for four file reads waited four round trips for them; an all-read-only batch now
       // overlaps. The predicate is above — the loop cannot judge tool scope on its own.
       parallelSafe,
+      // ...and a sequential batch runs its Task Brief settle before the calls it unlocks (briefFirstOrder, above)
+      batchOrder: o.outputOnly ? null : briefFirstOrder,
       // A PROMPT UNDER THE FOLD LINE HAS ROOM, whatever the byte count says. The budget is a stand-in for the prompt's
       // real size and it drifts above it, and once it empties the receipts stop the prompt growing, so the fold that
       // would re-arm it never fires: the run keeps paying for turns it cannot see. Above the line the fold owns it.
