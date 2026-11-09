@@ -8,12 +8,14 @@
    fetch, and optionally a stream reader for events. No Node modules.
 
      const kp = await PhoneClient.makeDeviceKey()                 // { privateKey:CryptoKey, publicRaw }
-     const p  = await PhoneClient.pair({ base, pairingId, code, name, key: kp })
+     const p  = await PhoneClient.pair({ base, pairingId, secret, name, key: kp })
      const c  = PhoneClient.connect({ base, deviceId, stationPub, key: kp })          LAN door (HTTP; tests, local tools)
      await c.open();  await c.call('status');  c.onEvent(fn);  await c.listen();  c.close()
-     const p2 = await PhoneClient.pairRelay({ relay, stationPub, pairingId, code, name, key: kp })
+     const p2 = await PhoneClient.pairRelay({ relay, stationPub, pairingId, secret, name, key: kp })
      const r  = PhoneClient.connectRelay({ relay, stationPub, deviceId, relayToken, key: kp })   the product path
-     await r.open(); await r.call('status'); r.onEvent(fn); r.onStatus(fn); r.close() */
+     await r.open(); await r.call('status'); r.onEvent(fn); r.onStatus(fn); r.close()
+   secret = the pairing link's `c`: the station's 128-bit secret for that one pairing (GHSA-2hpj #7). An older caller's
+   `code` is taken in its place; the station refuses a proof made with the short code itself. */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.PhoneClient = factory();
@@ -101,7 +103,7 @@
   async function pair(o) {
     const fetchFn = o.fetch || fetch;
     const name = String(o.name || 'Phone');
-    const proof = await pairingProof(o.code, o.key.publicRaw, name);
+    const proof = await pairingProof(o.secret != null ? o.secret : o.code, o.key.publicRaw, name);   // the link's secret (GHSA-2hpj #7); `code` from an older caller
     const r = await postJson(fetchFn, o.base + '/remote/v1/pair', { pairingId: o.pairingId, publicKey: o.key.publicRaw, name, proof });
     if (r.status !== 200 || !r.body.ok) throw new Error(r.body.error || ('pairing failed (' + r.status + ')'));
     return r.body;
@@ -194,7 +196,7 @@
   async function pairRelay(o) {
     const WS = o.WebSocket || globalThis.WebSocket;
     const name = String(o.name || 'Phone');
-    const proof = await pairingProof(o.code, o.key.publicRaw, name);
+    const proof = await pairingProof(o.secret != null ? o.secret : o.code, o.key.publicRaw, name);   // the link's secret (GHSA-2hpj #7); `code` from an older caller
     const rid = await ridOf(o.stationPub);
     return new Promise((resolve, reject) => {
       const ws = new WS(wsUrlOf(o.relay) + '/v1/phone?rid=' + encodeURIComponent(rid));

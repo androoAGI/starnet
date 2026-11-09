@@ -7,7 +7,7 @@
 
 const http = require('node:http');
 const core = require('./cli-core.js');
-const { makeStation, sourceOf, fmtDur, costText, toolName, oneLine, argDigest, askGlance } = require('./station-model.js');
+const { makeStation, sourceOf, fmtDur, costText, toolName, oneLine, argDigest, askGlance, COMMAND_TOOLS } = require('./station-model.js');
 const { clean, trunc } = require('./tui.js');
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a run's end prints its outcome-aware reason
 
@@ -103,7 +103,9 @@ async function answerCommand(opts, station, io) {
   const what = q.tool + (q.summary ? ' ' + oneLine(clean(q.summary), 100) : '');
   if (r.ok && r.json && r.json.ok) {
     const applied = r.json.decision || decision;
-    io.out((applied === 'deny' ? 'denied · ' : applied === 'session' ? 'allowed for this session · ' : 'allowed once · ') + name.toLowerCase() + ' · ' + what + '\n');
+    // a command's "for this session" covers that exact command only (GHSA-2hpj #4)
+    const exact = applied === 'session' && (q.onceOnly || COMMAND_TOOLS.indexOf(q.tool) >= 0) ? ' (this exact command)' : '';
+    io.out((applied === 'deny' ? 'denied · ' : applied === 'session' ? 'allowed for this session' + exact + ' · ' : 'allowed once · ') + name.toLowerCase() + ' · ' + what + '\n');
     return core.EXIT.OK;
   }
   if (r.ok && r.json && r.json.gone) { io.err('that ask is no longer waiting (answered elsewhere, expired, or its run ended)\n'); return core.EXIT.NOTHING; }

@@ -195,7 +195,7 @@ async function setup(fx, lanPort, label) {
   A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, label + ': Remote switched on');
   const pr = await fx.json('POST', '/api/remote/pair', { name: 'RL phone' });
   const key = await Phone.makeDeviceKey();
-  const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, code: pr.body.code, name: 'RL phone', key });
+  const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, secret: pr.body.secret, name: 'RL phone', key });
   const phone = Phone.connect({ base: 'http://' + HOST + ':' + lanPort, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
   return { group, phone };
 }

@@ -81,7 +81,10 @@ async function rejects(p, re, msg) {
     const wrong = await Phone.pairingProof('WRONGCOD', phoneKey.publicRaw, 'Andrew phone');
     const r1 = devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof: wrong });
     A.eq(r1.ok, false, 'a wrong proof is refused');
-    const proof = await Phone.pairingProof(p.code, phoneKey.publicRaw, 'Andrew phone');
+    // GHSA-2hpj #7: the proof's key is the pairing's 128-bit secret (the link's `c`); the short code is a lookup only
+    const byCode = await Phone.pairingProof(p.code, phoneKey.publicRaw, 'Andrew phone');
+    A.eq(devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof: byCode }).ok, false, 'a proof made with the short code is refused');
+    const proof = await Phone.pairingProof(p.secret, phoneKey.publicRaw, 'Andrew phone');
     const r2 = devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof });
     A.eq(r2.ok, true, 'the right proof pairs');
     const r3 = devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof });
@@ -97,11 +100,11 @@ async function rejects(p, re, msg) {
     const p = devices.startPairing({});
     const k = await Phone.makeDeviceKey();
     for (let i = 0; i < PAIR_MAX_TRIES; i++) devices.completePairing({ pairingId: p.pairingId, publicKey: k.publicRaw, name: 'x', proof: 'nope' });
-    const proof = await Phone.pairingProof(p.code, k.publicRaw, 'x');
+    const proof = await Phone.pairingProof(p.secret, k.publicRaw, 'x');
     A.eq(devices.completePairing({ pairingId: p.pairingId, publicKey: k.publicRaw, name: 'x', proof }).ok, false, 'a code burns after too many wrong proofs');
     const p2 = devices.startPairing({});
     clock += 11 * 60 * 1000;
-    const proof2 = await Phone.pairingProof(p2.code, k.publicRaw, 'x');
+    const proof2 = await Phone.pairingProof(p2.secret, k.publicRaw, 'x');
     A.eq(devices.completePairing({ pairingId: p2.pairingId, publicKey: k.publicRaw, name: 'x', proof: proof2 }).ok, false, 'a code expires after 10 minutes');
   }
   const deviceId = devices.list()[0].id;
@@ -195,9 +198,10 @@ async function rejects(p, re, msg) {
     // pair a second phone over HTTP
     const k2 = await Phone.makeDeviceKey();
     const p = devices.startPairing({});
-    const paired = await Phone.pair({ base, pairingId: p.pairingId, code: p.code, name: 'Tablet', key: k2 });
+    await rejects(Phone.pair({ base, pairingId: p.pairingId, code: p.code, name: 'Tablet', key: k2 }), /wrong pairing/, 'over HTTP too, the short code is not the proof (GHSA-2hpj #7)');
+    const paired = await Phone.pair({ base, pairingId: p.pairingId, secret: p.secret, name: 'Tablet', key: k2 });
     A.ok(/^dev_/.test(paired.deviceId), 'pairing over HTTP returns a device id');
-    await rejects(Phone.pair({ base, pairingId: p.pairingId, code: p.code, name: 'Tablet', key: k2 }), /expired|already/, 'the same code cannot pair twice over HTTP');
+    await rejects(Phone.pair({ base, pairingId: p.pairingId, secret: p.secret, name: 'Tablet', key: k2 }), /expired|already/, 'the same code cannot pair twice over HTTP');
     // GHSA-2hpj #7: until the desk approves it, the paired phone gets no session over HTTP either
     await rejects(Phone.connect({ base, deviceId: paired.deviceId, stationPub: p.stationPub, key: k2 }).call('status'), /waiting for approval/, 'a pending phone cannot open a session over HTTP');
     A.eq(devices.activate(paired.deviceId).ok, true, 'the desk approves the tablet');

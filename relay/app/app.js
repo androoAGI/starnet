@@ -879,11 +879,14 @@
       if (w.detail) box.appendChild(el('pre', null, w.detail));
       const row = el('div', 'btns fill');
       const mk = (label, cls, decision) => { const b = el('button', 'btn ' + cls, label); b.type = 'button'; b.onclick = () => decide(a, decision, box); row.appendChild(b); };
-      const session = !/^path\.trust$/.test(String(a.tool || ''));
+      // something that RUNS (a command, a web request, a click, a message) is approved once from a phone: the station
+      // applies a "this task" answer to it as once (GHSA-2hpj #4), so the phone never offers one
+      const runs = String(a.scope || '') === 'execute' || a.exactCommand === true;
+      const session = !/^path\.trust$/.test(String(a.tool || '')) && !runs;
       mk('Once', 'go', 'once'); if (session) mk('This task', '', 'session'); mk('Deny', 'no', 'deny');
       box.appendChild(row);
       const wait = Date.now() - arrived;
-      box.appendChild(el('div', 'note', 'Asked ' + (wait < 60000 ? 'just now' : ago(wait) + ' ago') + '.' + (session ? ' "This task" lets it do this again until the task ends.' : '') + ' "Always" and full access are set at the desk.'));
+      box.appendChild(el('div', 'note', 'Asked ' + (wait < 60000 ? 'just now' : ago(wait) + ' ago') + '.' + (session ? ' "This task" lets it do this again until the task ends.' : runs ? ' From a phone this is approved one time only.' : '') + ' "Always" and full access are set at the desk.'));
     }
     if (S.linkState !== 'open') { for (const b of box.querySelectorAll('button')) b.disabled = true; box.appendChild(el('div', 'note', 'Reconnect to answer. If the station stays unreachable, it denies this on its own after a short wait.')); }
     // it is on a screen a person is looking at: earn the one bounded extension, once
@@ -1297,7 +1300,7 @@
     $('setup-fp').textContent = await PhoneClient.fingerprint(p.s);
     const key = await PhoneClient.makeDeviceKey();
     const name = /iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Android/.test(navigator.userAgent) ? 'Android phone' : 'Phone';
-    const res = await PhoneClient.pairRelay({ relay, stationPub: p.s, pairingId: p.p, code: p.c, name, key });
+    const res = await PhoneClient.pairRelay({ relay, stationPub: p.s, pairingId: p.p, secret: p.c, name, key });   // c = the 128-bit link secret (GHSA-2hpj #7)
     const rec = { key, station: { stationId: res.stationId || p.i, stationPub: p.s, deviceId: res.deviceId, relayToken: res.relayToken, relay, name, fingerprint: res.fingerprint, pairedAt: Date.now() } };
     await RemoteStore.save(rec);
     return rec;

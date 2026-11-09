@@ -2028,6 +2028,9 @@
        write still snapshotted. shell.bg.write now takes its own restore point of the agent workspace (the root the hook
        used; the backend's host mirror off the local backend) through ctx.checkpointMutation, after its input screen.
        Fail-open, like shell.exec's: a checkpoint is a safety net, never a gate on the write. */
+    // THE ASSEMBLED LINE (GHSA-2hpj #4): a pipe's partial lines (submit:false), per agent and process, so the line a
+    // later newline completes is screened whole, not part by part (input-lines.js; a pipe applies no line editing)
+    const bgTyped = (typeof require === 'function') ? require('./input-lines.js').makeInputLines({ editing: false }) : null;
     async function bgWriteCheckpoint(ctx, aid, backendId, jailRoot) {
       if (!ctx || typeof ctx.checkpointMutation !== 'function') return;
       const hostRoot = environment && typeof environment.workspaceRoot === 'function' && backendId && backendId !== 'local'
@@ -2062,6 +2065,7 @@
           const eofBackendId = environment ? (typeof environment.backendIdFor === 'function' ? environment.backendIdFor(aid) : environment.backendId) : null;
           await bgWriteCheckpoint(ctx, aid, eofBackendId, environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid));   // EOF can start the work too
           const c = await Promise.resolve(source && typeof source.closeBackgroundStdin === 'function' ? source.closeBackgroundStdin(aid, id) : bg.closeStdin(aid, id));
+          if (bgTyped) bgTyped.clear(aid + '\u0000' + id);   // stdin closed: no part of a line waits any more
           return { content: c.ok ? (c.alreadyClosed ? 'stdin for ' + id + ' was already closed.' : 'Closed stdin for ' + id + ' (EOF sent).') : ('Could not close stdin: ' + c.error), summary: c.ok ? 'eof' : 'not closed' };
         }
         const input = String((args && args.input) || '');
@@ -2074,8 +2078,20 @@
         const remoteOwner = unrestrictedHost(ctx);
         const risk = remoteOwner ? null : commandSafetyRisk(input, { cwd: jailRoot, fs: fs, pathMod: P, dialect: dialect, isWin: isWin });
         if (risk) throw new Error('refused [' + risk.kind + ']: this input ' + risk.reason + '. A line sent to a shell or REPL runs like a command, so it is screened the same way.');
+        // …and the WHOLE line it completes or extends, with what earlier submit:false writes sent (GHSA-2hpj #4)
+        const lineKey = aid + '\u0000' + id;
+        const plan = bgTyped ? bgTyped.plan(lineKey, input, args && args.submit) : null;
+        if (plan && !plan.ok && !remoteOwner) throw new Error('refused [input]: ' + plan.error);
+        if (plan && plan.ok && !remoteOwner) {
+          for (const line of bgTyped.texts(plan)) {
+            if (line === input) continue;   // screened just above
+            const whole = { risk: commandSafetyRisk(line, { cwd: jailRoot, fs: fs, pathMod: P, dialect: dialect, isWin: isWin }) };
+            if (whole.risk) throw new Error('refused [' + whole.risk.kind + ']: with what was already sent, this input makes the line "' + line.slice(0, 200) + (line.length > 200 ? '…' : '') + '", which ' + whole.risk.reason + '. A line sent to a shell or REPL runs like a command, so it is screened whole.');
+          }
+        }
         await bgWriteCheckpoint(ctx, aid, environmentBackendId, jailRoot);   // after the screen: a refused line snapshots nothing
         const r = await Promise.resolve(source ? source.writeBackground(aid, id, { input: input, submit: args && args.submit }) : bg.write(aid, id, { input: input, submit: args && args.submit }));
+        if (plan && r && r.ok) { if (plan.ok) bgTyped.commit(lineKey, plan); else bgTyped.clear(lineKey); }
         return {
           content: r.ok ? ('Sent ' + r.bytes + ' byte(s) to ' + id + '. Read what it printed with shell.bg.read.') : ('Could not write: ' + r.error),
           summary: r.ok ? 'wrote ' + r.bytes + 'b' : 'not written'

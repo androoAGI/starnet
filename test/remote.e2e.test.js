@@ -170,12 +170,18 @@ function startMockModel() {
     const pr = await fx.json('POST', '/api/remote/pair', { name: 'Test phone' });
     A.eq(pr.status, 200, 'pairing code issued');
     A.ok(/^[A-Z2-9]{8}$/.test(pr.body.code), 'code shape');
+    // GHSA-2hpj #7: the QR carries the pairing's 128-bit secret (the proof's key) where the short code used to be
+    A.ok(/^[A-Za-z0-9_-]{22}$/.test(pr.body.secret || ''), 'a 128-bit link secret is issued');
     const blob = JSON.parse(Buffer.from(pr.body.pairBlob.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
-    A.eq(blob.c, pr.body.code, 'the pairing blob carries the code for the QR');
+    A.eq(blob.c, pr.body.secret, 'the pairing blob carries the secret for the QR');
+    A.ok(JSON.stringify(blob).indexOf(pr.body.code) < 0, 'and not the short code');
     A.ok(pr.body.pairUrl === null || /\/remote\/app\/#pair=/.test(pr.body.pairUrl), 'the pair URL keeps the secret in the fragment');
 
     const key = await Phone.makeDeviceKey();
-    const paired = await Phone.pair({ base: lan, pairingId: pr.body.pairingId, code: pr.body.code, name: 'Test phone', key });
+    let byCode = null; try { await Phone.pair({ base: lan, pairingId: pr.body.pairingId, code: pr.body.code, name: 'Test phone', key }); } catch (e) { byCode = e.message; }
+    A.ok(/wrong pairing/.test(byCode || ''), 'a proof made with the short code is refused at the LAN door: ' + byCode);
+    // the phone app reads the blob's `c` (any version of it): that is the secret
+    const paired = await Phone.pair({ base: lan, pairingId: blob.p, code: blob.c, name: 'Test phone', key });
     A.ok(/^dev_/.test(paired.deviceId), 'phone paired over the LAN door');
     const st = await fx.json('GET', '/api/remote');
     A.eq(st.body.devices.length, 1, 'the desk lists the paired phone');
@@ -362,7 +368,7 @@ function startMockModel() {
     // a second phone, to carry through the restart
     const pr2 = await fx.json('POST', '/api/remote/pair', { name: 'Tablet' });
     const key2 = await Phone.makeDeviceKey();
-    const paired2 = await Phone.pair({ base: lan, pairingId: pr2.body.pairingId, code: pr2.body.code, name: 'Tablet', key: key2 });
+    const paired2 = await Phone.pair({ base: lan, pairingId: pr2.body.pairingId, secret: pr2.body.secret, name: 'Tablet', key: key2 });
 
     const rv = await fx.json('POST', '/api/remote/revoke', { deviceId: paired.deviceId });
     A.eq(rv.status, 200, 'revoke');

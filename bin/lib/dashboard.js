@@ -824,7 +824,7 @@ function runDashboard(station, opts) {
   function answerKey(ch) {
     const q = model.front();
     if (q && !q.question && /^[ynv]$/.test(ch)) { answer(ch); return true; }
-    if (q && !q.question && ch === 'a' && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0) { answer('a'); return true; }
+    if (q && !q.question && ch === 'a' && !q.onceOnly && ONCE_ONLY_TOOLS.indexOf(q.tool) < 0) { answer('a'); return true; }
     if (!q && ui.trust && !ui.wake && /^[yn]$/.test(ch)) { answerTrust(ch); return true; }
     return false;
   }

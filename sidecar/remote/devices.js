@@ -4,22 +4,26 @@
      { v:1, station:{ id, privateKey, publicKey, createdAt },
        devices:[ { id, name, publicKey, createdAt, lastSeenAt } ],
        enabled: false }
-   Pairing codes live in MEMORY only: a restart forgets an unused code, which is the safe direction.
+   Pairings (code and secret) live in MEMORY only: a restart forgets an unused one, which is the safe direction.
 
      const d = makeDevices({ fs, path, file, crypto, now, newId, tighten })
      d.stationKeys()                          -> { id, privateKey:KeyObject, publicRaw }   (made on first use, persisted)
      d.list() / d.get(id)                     -> public device rows (never a private key; phones have none here)
-     d.startPairing({ name? })                -> { pairingId, code, stationId, stationPub, fingerprint, expiresAt }
-     d.completePairing({ pairingId, publicKey, name, proof }) -> { ok, device } | { ok:false, error }
+     d.startPairing({ name? })                -> { pairingId, code, secret, stationId, stationPub, fingerprint, expiresAt }
+     d.completePairing({ pairingId | code, publicKey, name, proof }) -> { ok, device } | { ok:false, error }
      d.revoke(id) -> bool     d.touch(id)     d.setEnabled(bool) / d.enabled()
      d.activate(id)                           -> { ok } | { ok:false, error }   the desk approved a pending phone
      d.issueRelayToken(id)                    -> { ok, token }   the phone's pass to knock at the relay (only its hash is kept)
      d.relayTokenHashes()                     -> [hash]          what the station tells the relay to admit
 
    Laws:
-     · A pairing code is single use, expires in 10 minutes, and burns after 5 wrong proofs.
-     · The code itself never crosses the wire: the phone proves it with an HMAC bound to the key it registers
-       (crypto.pairingProof), so a sniffed completion can't be replayed to register a different key.
+     · A pairing is single use, expires in 10 minutes, and burns after 5 wrong proofs.
+     · The proof's key is a 128-bit SECRET made for that one pairing (GHSA-2hpj #7). It rides in the pairing link the
+       phone opens (the QR's fragment, field `c`, where the short code used to be, so a phone app of any version proves
+       with it) and never crosses the wire: the phone proves it with an HMAC bound to the key it registers
+       (crypto.pairingProof), so a sniffed completion can't be replayed to register a different key, and the proof
+       cannot be searched back to its key the way an 8-character code could. The short code is kept as a LOOKUP only
+       (completePairing finds a pairing by its id or its code); a proof made with the code is refused.
      · Every write is read back before it counts (saveJsonVerified). A pairing that didn't reach disk is
        reported as failed, never as "paired".
      · Revoke deletes the row. A revoked-but-present row is one forgotten check away from working again.
@@ -37,6 +41,7 @@ const { readJsonResilient, writeJsonResilient, saveJsonVerified } = require('../
 
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';   // no 0/O/1/I/L: it may be typed from a screen
 const CODE_LEN = 8;
+const SECRET_BYTES = 16;   // the pairing link's secret: 128 bits, the proof's key (GHSA-2hpj #7)
 const PAIR_TTL_MS = 10 * 60 * 1000;
 const PAIR_MAX_TRIES = 5;
 const MAX_DEVICES = 16;
@@ -116,19 +121,34 @@ function makeDevices(deps) {
     const bytes = randomBytes(CODE_LEN);
     let code = '';
     for (let i = 0; i < CODE_LEN; i++) code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-    const p = { pairingId: 'pr_' + newId().replace(/-/g, '').slice(0, 16), code, name: cleanName(o && o.name), expiresAt: now() + PAIR_TTL_MS, tries: 0, used: false };
+    // the proof's key (GHSA-2hpj #7): 128 random bits, carried in the pairing link; the code above only finds the pairing
+    const secret = C.b64u(randomBytes(SECRET_BYTES));
+    const p = { pairingId: 'pr_' + newId().replace(/-/g, '').slice(0, 16), code, secret, name: cleanName(o && o.name), expiresAt: now() + PAIR_TTL_MS, tries: 0, used: false };
     pairings.set(p.pairingId, p);
-    return { pairingId: p.pairingId, code, stationId: st.id, stationPub: st.publicRaw, fingerprint: C.fingerprint(st.publicRaw), expiresAt: p.expiresAt };
+    return { pairingId: p.pairingId, code, secret, stationId: st.id, stationPub: st.publicRaw, fingerprint: C.fingerprint(st.publicRaw), expiresAt: p.expiresAt };
+  }
+
+  // a pairing by its id (the link's), or by its short code as a person would type it (any case, spaces or dashes).
+  // Either is a LOOKUP: neither proves anything
+  function findPairing(o) {
+    const id = String((o && o.pairingId) || '');
+    if (id) return pairings.get(id) || null;
+    const typed = String((o && o.code) || '').toUpperCase().replace(/[\s-]+/g, '');
+    if (!typed) return null;
+    for (const p of pairings.values()) if (C.safeEqual(p.code, typed)) return p;
+    return null;
   }
 
   function completePairing(o) {
     sweepPairings();
-    const p = pairings.get(String((o && o.pairingId) || ''));
+    const p = findPairing(o);
     if (!p) return { ok: false, error: 'this pairing code expired or was already used — make a new one on the desktop' };
     const pub = String((o && o.publicKey) || '');
     try { C.importPublicRaw(pub); } catch (_) { return { ok: false, error: 'the phone sent an invalid key' }; }
     const name = cleanName((o && o.name) || p.name);
-    const want = C.pairingProof(p.code, pub, name);
+    // proved with the link's 128-bit secret, never with the short code: a proof seen on its way (it crosses the relay)
+    // cannot be searched back to its key within the pairing window, as an 8-character code could (GHSA-2hpj #7)
+    const want = C.pairingProof(p.secret, pub, name);
     if (!C.safeEqual(want, String((o && o.proof) || ''))) {
       p.tries += 1;
       if (p.tries >= PAIR_MAX_TRIES) pairings.delete(p.pairingId);
@@ -210,4 +230,4 @@ function makeDevices(deps) {
   return { stationKeys, list, get, startPairing, completePairing, activate, revoke, askFirst, setAskFirst, touch, enabled, setEnabled, issueRelayToken, relayTokenHashes, tokenHashOf, _pairings: pairings };
 }
 
-module.exports = { makeDevices, CODE_ALPHABET, PAIR_TTL_MS, PAIR_MAX_TRIES };
+module.exports = { makeDevices, CODE_ALPHABET, PAIR_TTL_MS, PAIR_MAX_TRIES, SECRET_BYTES };

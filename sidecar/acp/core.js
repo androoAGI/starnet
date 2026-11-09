@@ -278,10 +278,13 @@
   /* The three answers StarNet's consent broker actually understands, in ACP's option vocabulary. `optionId` is
      the exact string POST /api/consent wants, so nothing has to be translated on the way back — and an
      UNRECOGNISED answer is coerced to 'deny' by the sidecar, which is the fail-closed direction. */
-  function permissionOptions() {
+  // a COMMAND's "for this session" covers that exact command only (GHSA-2hpj #4: the station stamps the ask exactCommand),
+  // so the option says so
+  function permissionOptions(q) {
+    const exact = !!(q && q.exactCommand === true);
     return [
       { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
-      { optionId: 'session', name: 'Allow for the rest of this session', kind: 'allow_always' },
+      { optionId: 'session', name: exact ? 'Allow this exact command for the rest of this session' : 'Allow for the rest of this session', kind: 'allow_always' },
       { optionId: 'deny', name: 'Reject', kind: 'reject_once' }
     ];
   }
@@ -506,7 +509,7 @@
         else if (str(q && q.argsSummary)) toolCall.rawInput = { summary: str(q.argsSummary) };
 
         Promise.resolve()
-          .then(() => request('session/request_permission', { sessionId: sessionId, toolCall: toolCall, options: permissionOptions() }))
+          .then(() => request('session/request_permission', { sessionId: sessionId, toolCall: toolCall, options: permissionOptions(q) }))
           .then((res) => {
             const outcome = (res && res.outcome) || {};
             if (str(outcome.outcome) !== 'selected') return 'deny';

@@ -82,6 +82,7 @@ function observerView(name, payload, ctx) {
       });
       if (p.workerAgentId) v.workerAgentId = str(p.workerAgentId);
       if (p.background === true) v.background = true;
+      if (p.exactCommand === true) v.exactCommand = true;   // a command: the terminal offers no ALWAYS for it (GHSA-2hpj #4)
       return v;
     }
     case 'permission.response': {

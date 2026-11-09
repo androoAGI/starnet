@@ -11,11 +11,13 @@
      const done = reg.add({ runId, promptId, agentId, surface, tool, scope, argsSummary, finish })
      done()                                  // the waiter settled (answered, timed out, or aborted)
      reg.list()                              -> public rows (no finisher)
-     reg.answer(runId, promptId, decision)   -> { ok, error? }   decision: once | session | deny
+     reg.answer(runId, promptId, decision)   -> { ok, decision?, error? }   decision: once | session | deny (decision = what was applied)
      reg.reply(runId, promptId, text)        -> { ok, error? }   a clarify (tool 'brief.ask') answer
 
    Remote answers are deliberately narrower than the desk's: a phone can approve ONCE or for the SESSION,
-   or deny. It can never grant ALWAYS or FULL ACCESS; standing grants are made at the desk. */
+   or deny. It can never grant ALWAYS or FULL ACCESS; standing grants are made at the desk. And it never grants
+   "for this session" to anything that RUNS (scope 'execute': a command, a web request, a click, a message sent;
+   GHSA-2hpj #4): such an answer is applied as ONCE, and the phone offers only Once and Deny for it. */
 'use strict';
 
 const { note } = require('../failopen.js');
@@ -40,6 +42,7 @@ function makeApprovals(deps) {
       runId: String(o.runId || ''), promptId: String(o.promptId || ''), agentId: String(o.agentId || ''),
       surface: o.surface === 'channel' || o.surface === 'remote' ? o.surface : 'desk',
       tool: clip(o.tool || 'tool', 80), scope: clip(o.scope || 'write', 20), argsSummary: clip(o.argsSummary, 4000),
+      exactCommand: o.exactCommand === true,
       createdAt: now(), finish: o.finish
     };
     open.set(k, e);
@@ -54,8 +57,10 @@ function makeApprovals(deps) {
   }
 
   function publicRow(e) {
-    return { runId: e.runId, promptId: e.promptId, agentId: e.agentId, surface: e.surface, tool: e.tool, scope: e.scope,
+    const row = { runId: e.runId, promptId: e.promptId, agentId: e.agentId, surface: e.surface, tool: e.tool, scope: e.scope,
       argsSummary: e.argsSummary, kind: e.tool === 'brief.ask' ? 'question' : 'approval', createdAt: e.createdAt };
+    if (e.exactCommand) row.exactCommand = true;   // additive (GHSA-2hpj #4)
+    return row;
   }
 
   function list() { return Array.from(open.values()).sort((a, b) => a.createdAt - b.createdAt).map(publicRow); }
@@ -70,14 +75,16 @@ function makeApprovals(deps) {
   }
 
   function answer(runId, promptId, decision) {
-    const d = String(decision || '');
+    let d = String(decision || '');
     if (!REMOTE_DECISIONS.has(d)) return { ok: false, error: 'a phone can approve once or for this session, or deny. Standing grants are made at the desk.' };
     const e = open.get(keyOf(runId, promptId));
     if (!e) return { ok: false, error: 'that request was already answered or has expired' };
     if (e.tool === 'brief.ask' && d !== 'deny') return { ok: false, error: 'this is a question — answer it with text' };
+    // GHSA-2hpj #4: a phone never grants "for this session" to something that runs; an older phone's tap is taken as once
+    if (d === 'session' && (e.scope === 'execute' || e.exactCommand)) d = 'once';
     take(runId, promptId);
     try { e.finish(d); } catch (err) { note('remote.approvals.finishDecision', err); }
-    return { ok: true };
+    return { ok: true, decision: d };
   }
 
   function reply(runId, promptId, text) {
