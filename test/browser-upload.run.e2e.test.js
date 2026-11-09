@@ -80,10 +80,13 @@ function reply(res, call) {
     fs.writeFileSync(path.join(fixture.workspace, 'permissions.allow.json'), JSON.stringify({ version: 1, allow: [grant], meta: { [grant]: { grantedAt: 1 } } }));
     fs.writeFileSync(path.join(fixture.workspace, 'projects.json'), JSON.stringify({ version: 1, projects: [{ root: path.resolve(project), displayPath: project, grantedAt: 1, lastTouchedAt: 1, isGitRepo: false }] }));
     await fixture.start();
-    A.eq((await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{
+    // Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed (GHSA-2hpj #1),
+    // as the page does; a push that names no raise is held ask-first
+    const seeded = await fixture.deskJson('POST', '/api/roster', { updatedAt: Date.now(), agents: [{
       agentId: 'upload-agent', name: 'Upload fixture', system: 'Use the requested native tools and report only their receipts.',
       provider: 'openrouter', model: MODEL, approvalMode: 'full', executionProfile: 'trusted-project'
-    }] })).status, 200, 'seeded sidecar accepts the local fixture agent');
+    }], raise: ['upload-agent'] });
+    A.eq([seeded.status, seeded.body && seeded.body.clamped], [200, undefined], 'seeded sidecar accepts the local fixture agent, on Full Access');
     const response = await fixture.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(90000), body: JSON.stringify({
       key: 'sk-or-v1-upload-fixture', provider: 'openrouter', model: MODEL, agentId: 'upload-agent', streamId: 'upload-proof', isTask: true, projectRoot: project,
       messages: [{ role: 'user', content: 'Start upload-page.cjs, open its owned local page, select photo.txt, and read back the file selection. Stop the server when finished.' }]

@@ -468,11 +468,13 @@ function startMock() {
     {
       await fixture.restart({ SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: '' });
       B = fixture.baseUrl; H = { 'Content-Type': 'application/json', 'X-StarNet-Token': fixture.token, Origin: B };
-      const roster = await fetch(B + '/api/roster', { method: 'POST', headers: H, body: JSON.stringify({ agents: [
+      // the lead's Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed
+      // (GHSA-2hpj #1), as the page does; a push that names no raise is held ask-first
+      const roster = await fixture.deskJson('POST', '/api/roster', { agents: [
         { agentId: AGENT, name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode: 'full' },
         { agentId: WORKER, system: WORKER_MARK + ' - you are a worker.', name: 'WORKER', model: 'test/model', provider: 'openrouter', approvalMode: 'ask' }
-      ] }) });
-      A.eq(roster.status, 200, 'the lead (Full Access) and the worker (ask) are on the roster');
+      ], raise: [AGENT] });
+      A.eq([roster.status, roster.body && roster.body.clamped], [200, undefined], 'the lead (Full Access) and the worker (ask) are on the roster');
       // the worker run row the lead's run started, and what the model was handed back for one of its tool calls
       const workerRow = async (leadRunId) => ((await get('/api/runs?agent=' + WORKER + '&limit=60')).runs || []).find(r => r.parentRunId === leadRunId && r.delegatedBy === AGENT) || null;
       const resultOf = (callId) => {

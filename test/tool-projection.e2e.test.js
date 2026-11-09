@@ -45,9 +45,13 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
       const r = await fixture.json('POST', '/api/save', { schema: 'starnet.save', version: 5, _saveRevision: revision, updatedAt: Date.now(), agent: { id: 'agent' }, station: station.serialize() });
       assert.equal(r.body.ok, true, r.text);
     };
+    // a wider profile (the dossier's picker: raiseProfile) or Full Access (raise) is asked for by name and confirmed at the
+    // desk with the code this station printed (GHSA-2hpj #1, fix-sec2 review 7), as the page does; otherwise it is held back
     const roster = async (profile = 'station-gear', approvalMode = 'ask') => {
-      const r = await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Probe', provider: 'ollama', model: 'qwen3:14b', approvalMode, executionProfile: profile }] });
+      const asks = Object.assign({}, approvalMode === 'full' ? { raise: ['agent'] } : {}, ['station-gear', 'safe-cell'].includes(profile) ? {} : { raiseProfile: ['agent'] });
+      const r = await fixture.deskJson('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'Probe', provider: 'ollama', model: 'qwen3:14b', approvalMode, executionProfile: profile }], ...asks });
       assert.equal(r.status, 200, r.text);
+      assert.deepEqual([r.body.clamped || [], r.body.profileClamped || []], [[], []], 'the station holds what was asked: ' + r.text);
     };
     const row = v => v.toolsets.find(t => t.id === 'cabinet');
     const view = async (query = '') => (await fixture.json('GET', '/api/toolsets' + query)).body;

@@ -62,10 +62,12 @@ const { seedActiveStation } = require('./helpers/station.js');   // a crew lives
   try {
     seedActiveStation(fixture.workspace);
     await fixture.start();
-    const setRoster = approvalMode => fixture.json('POST', '/api/roster', { agents: [
+    // the lead's Full Access is asked for by name (raise) and confirmed at the desk with the code this station printed
+    // (GHSA-2hpj #1), as the page does; a push that names no raise is held ask-first
+    const setRoster = approvalMode => fixture.deskJson('POST', '/api/roster', Object.assign({ agents: [
       { agentId: 'agent', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode, executionProfile: 'trusted-project' },
       { agentId: 'worker', name: 'SPECIALIST', system: 'CRM_SPECIALIST', model: 'test/model', provider: 'openrouter', approvalMode: 'ask', executionProfile: 'trusted-project' }
-    ] }); const roster = await setRoster('ask'); assert.equal(roster.status, 200, roster.text);
+    ] }, approvalMode === 'full' ? { raise: ['agent'] } : {})); const roster = await setRoster('ask'); assert.equal(roster.status, 200, roster.text);
     const conn = await fixture.json('POST', '/api/connectors', { id: 'crm', transport: 'http', url: base + '/mcp', enabled: true });
     assert.equal(conn.status, 200, conn.text);
     const direct = await drive('direct');
@@ -85,7 +87,8 @@ const { seedActiveStation } = require('./helpers/station.js');   // a crew lives
       assert.ok(delegated.prompts.filter(p => !/^mcp/.test(String(p.tool || ''))).every(p => !p.workerAgentId), 'the lead\'s own asks carry no worker stamp');
       assert.ok(wire.filter(w => w.specialist).every(w => !w.names.includes('team_dispatch')), 'worker cannot recursively delegate');
     }
-    await setRoster('full');
+    const raised = await setRoster('full');
+    assert.deepEqual([raised.status, raised.body && raised.body.clamped], [200, undefined], 'the lead is on Full Access: ' + raised.text);
     const full = await drive('delegated');
     assert.deepEqual(effects, ['read', 'write'], 'lead Full Access permits both delegated connector calls');
     assert.equal(full.prompts.length, 0, 'worker keeps the lead Full Access posture for MCP');
