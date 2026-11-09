@@ -72,7 +72,7 @@ const projectbless = require('../sidecar/projectbless.js');
   for (const spec of projectbless._internals.INSTRUCTION_FILES) {
     for (const n of spec.names) A.ok(_internals.STANDING_INSTRUCTIONS.indexOf(n.toLowerCase()) >= 0, 'projectbless loads ' + n + ': it is an instruction file here');
   }
-  const IDX = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const IDX = require('./helpers/source.js').readSidecarIndex();
   const detect = A.fnBody(IDX, 'function detectCheckCommand(');
   const keyed = [...detect.matchAll(/has\('([^']+)'\)/g)].map(m => m[1].toLowerCase());
   A.ok(keyed.length >= 8, 'detectCheckCommand keys on files: ' + keyed.join(', '));
@@ -101,7 +101,7 @@ const projectbless = require('../sidecar/projectbless.js');
   A.ok(/if \(orig && fields && fields\.fresh\) orig\.freshConsent = true;/.test(IDX), 'so handleConsent turns ALWAYS, session and FULL into once (no Full Access is kept for one write)');
   A.ok(/if \(fields && fields\.fresh\) row\.fresh = true;/.test(IDX), 'and the prompt row tells the page');
   const CHAT = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
-  A.ok(/\} else if \(p\.tool === 'station\.power' \|\| p\.tool === 'plugin\.submit' \|\| p\.fresh === true\) \{/.test(CHAT), 'the page offers a fresh card only Approve once and Deny');
+  A.ok(/\} else if \(p\.tool === 'station\.power' \|\| p\.tool === 'plugin\.submit' \|\| p\.fresh === true(?: \|\| [^{\n]*)?\) \{/.test(CHAT), 'the page offers a fresh card only Approve once and Deny');
   A.ok(/ev\.fresh === true \? \{ fresh: true \} : \{\}/.test(CHAT) && /ev\.file \? \{ file: ev\.file, taintedBy:/.test(CHAT), 'and a card drawn again keeps both');
   A.eq(fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8'), CHAT, 'chat.js is mirrored into website/app');
   A.ok(/if \(t === 'path\.trust' && ev\.file\) return 'change ' \+ ev\.file/.test(CHAT) && /this run read ' \+ \(ev\.taintedBy \|\| 'outside content'\)/.test(CHAT),
@@ -138,7 +138,7 @@ const projectbless = require('../sidecar/projectbless.js');
     A.eq(asked.length, 0, '#7: and nothing asked');
     folders = null;
     A.ok(!!(await gg(path.join(scripts, 'report.md'), { tainted: true, prompt: say('deny') })), '#7: no list guards nothing more');
-    const IDXs = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const IDXs = require('./helpers/source.js').readSidecarIndex();
     A.ok(/guardedFolders: \(\) => routineScriptFolders\(\)/.test(IDXs), '#7: the station hands pathtrust its granted scripts\' folders');
     const rsf = A.fnBody(IDXs, 'function routineScriptFolders(');
     A.ok(/unattendedGrants\.length/.test(rsf) && /path\.dirname\(abs\)/.test(rsf) && /'node_modules'/.test(rsf), '#7: the folder of each granted script, and the node_modules up to its routine\'s folder');

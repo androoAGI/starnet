@@ -17,7 +17,7 @@ const os = require('os');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8');
-const IDX = read('sidecar/index.js');
+const IDX = require('./helpers/source.js').readSidecarIndex();
 
 (async () => {
   // ---- 12. names and dialog words are cut by code point ----
