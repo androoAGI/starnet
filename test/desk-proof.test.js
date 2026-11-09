@@ -378,7 +378,9 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const panel = read('frontend/app/remote-devices.js');
     A.ok(/data-approve=/.test(panel) && /api\('\/api\/remote\/activate', \{ deviceId: id \}\)/.test(panel) && /WAITING FOR YOUR APPROVAL/.test(panel), 'the REMOTE panel shows a pending phone with an APPROVE button');
   }
-  before('async function handleConfigImport(', /deskGate\(req, res, 'grant-import'/, /applyBudgetCaps\(\)|want\('budget'\)/, 'a backup that adds grants asks before any section applies');
+  // the first section to apply is the budget (saveBudgetOverrides); want('budget') alone now also measures its raises first
+  before('async function handleConfigImport(', /deskGate\(req, res, 'grant-import'/, /saveBudgetOverrides\(|applyBudgetCaps\(\)/, 'a backup that adds grants asks before any section applies');
+  before('async function handleConfigImport(', /deskGate\(req, res, 'budget-raise'/, /saveBudgetOverrides\(|applyBudgetCaps\(\)/, 'a backup that raises a spending limit asks before any section applies');
 
   // ---- 4. the keys and the shell ----
   const serve = A.fnBody(IDX, 'async function serveStatic(');

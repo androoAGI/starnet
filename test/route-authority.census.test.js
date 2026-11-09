@@ -25,7 +25,10 @@ const { mutatingRoutes } = require('./helpers/route-table');
 
 const ROOT = path.join(__dirname, '..');
 const IDX = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');
-const DESK_CALL = /deskGate\(|ownerPairingPass\(|loopCheckAtDesk\(|deskApproved|blessPath\(|workshopRaiseAtDesk\(/;
+const DESK_CALL = /deskGate\(|ownerPairingPass\(|loopCheckAtDesk\(|deskApproved|blessPath\(|workshopRaiseAtDesk\(|budgetRaiseAtDesk\(/;
+// the named helpers above that stand for deskGate in a route's body: each must itself call it (a helper that stopped
+// asking would otherwise leave every route that calls it classified desk with no gate)
+const DESK_HELPERS = ['ownerPairingPass', 'loopCheckAtDesk', 'workshopRaiseAtDesk', 'budgetRaiseAtDesk'];
 
 const C = Object.create(null);
 function put(kind, reason, keys, extra) {
@@ -47,7 +50,10 @@ put('desk', 'roster raises (Full Access, a wider execution profile, keepFull acr
 put('desk', 'the per-agent approval dial', [ex('/api/agent/approval')]);
 put('desk', 'remote access: turning it on, pairing a device, activating it, raising a device', [ex('/api/remote/enable'),
   ex('/api/remote/pair'), ex('/api/remote/activate'), ex('/api/remote/device')]);
-put('desk', 'an imported config can carry grants, hooks and posture', [ex('/api/config/import')]);
+put('desk', 'an imported config can carry grants, hooks, posture and higher spending limits (one proof for all of it)', [ex('/api/config/import')],
+  { must: /budgetRaisesOf\(/ });
+put('desk', 'resetting the spending limits to their defaults can lift a limit someone chose; every other section only takes away',
+  [ex('/api/config/reset')], { must: /budgetRaiseAtDesk\(req, res, budgetOverrides, \{\}, 'reset'\)/ });
 put('desk', 'a service key used without asking', [ex('/api/servicekeys/autonomy')]);
 put('desk', 'turning a toolset on gives agents its tools', ["POST prefix '/api/toolsets/'"]);
 put('desk', 'a routine with unattended grants, or a changed/stale script under them', [ex('/api/cron'), ex('/api/cron/update')]);
@@ -65,11 +71,15 @@ put('desk', 'a dial raise to building grants the away workshop when it was never
 put('desk', '"/away on" is the same workshop grant (review2 #9); a custom exec command is the owner\'s own snippet',
   [ex('/api/slash/dispatch')]);
 
-/* ---------------------------------------------------------------- open (not gated yet; each names what closes it) */
 put('desk', 'quit: the desktop shell stops the station with its own key; anyone else is asked at the desk (review2 #11: a pm2 restart reset the wrong-code count)',
   [ex('/api/lifecycle/quit')]);
-put('open', 'a raised spend cap, a resumed spend or a settled-low charge lets runs spend more: the spend rail is fix-sec3-1108\'s',
-  [ex('/api/budget/caps'), ex('/api/budget/resume'), ex('/api/budget/settle')], { closes: 'fix-sec3-1108 (spend rail)' });
+put('desk', 'a raised or removed spending limit lets runs spend more; lowering never asks', [ex('/api/budget/caps')], { must: /budgetRaiseAtDesk\(/ });
+put('desk', 'RESUME gives a stopped pool another limit of headroom', [ex('/api/budget/resume')], { must: /deskGate\(req, res, 'budget-resume'/ });
+put('desk', 'settling the last unknown charge, or one below what it counts at, reopens spending; booking at or above it does not ask',
+  [ex('/api/budget/settle')], { must: /settleReopensSpend\(/ });
+
+/* ---------------------------------------------------------------- open (not gated yet; each names what closes it) */
+// none: the spend routes were the last (GHSA-2hpj integration, sec-int-1108)
 
 /* ---------------------------------------------------------------- lowering */
 put('lowering', 'stops a run or every automation (the E-STOP)', [ex('/api/cancel'), ex('/api/halt'), ex('/api/subagents/interrupt'),
@@ -91,7 +101,6 @@ put('lowering', 'uninstalls a skill', [ex('/api/skill-market/uninstall')]);
 put('lowering', 'forgets or redacts text', [ex('/api/transcript/redact'), ex('/api/prompt/scrub'), ex('/api/memory/reset'),
   ex('/api/memory/forget'), "DELETE exact '/api/personalization'"]);
 put('lowering', 'closes the station browser', [ex('/api/browser/view/close'), ex('/api/browser/reset')]);
-put('lowering', 'resets a section to its safe defaults (roster cleared, grants cleared)', [ex('/api/config/reset')]);
 put('lowering', 'removes idle sandboxes', [ex('/api/execution/cleanup')]);
 
 /* ---------------------------------------------------------------- neutral */
@@ -201,11 +210,7 @@ put('neutral', 'app updates are verified by signature before they install (src-t
   ex('/api/update/cancel')]);
 
 /* ---------------------------------------------------------------- the census */
-const OPEN = {
-  "POST exact '/api/budget/caps'": 'fix-sec3-1108 (spend rail)',
-  "POST exact '/api/budget/resume'": 'fix-sec3-1108 (spend rail)',
-  "POST exact '/api/budget/settle'": 'fix-sec3-1108 (spend rail)'
-};
+const OPEN = {};
 
 const routes = mutatingRoutes(ROOT);
 const keys = routes.map(r => r.key);
@@ -246,6 +251,11 @@ check('every desk route calls the desk proof (its own body, or the handler its i
     if (!DESK_CALL.test(body)) bad.push(r.key);
   }
   assert.deepStrictEqual(bad, [], 'desk routes without a desk proof call');
+});
+
+check('every desk helper a route may call in deskGate\'s place calls deskGate itself', () => {
+  const bad = DESK_HELPERS.filter(h => (fnBody(IDX, 'function ' + h + '(') || fnBody(IDX, 'async function ' + h + '(') || '').indexOf('deskGate(') < 0);
+  assert.deepStrictEqual(bad, [], 'helpers that no longer ask the desk');
 });
 
 check('a route that calls the desk proof is classified desk (no gate hidden as neutral)', () => {

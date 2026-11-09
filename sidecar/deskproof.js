@@ -60,7 +60,9 @@ const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'g
   // fix-sec2, review2 #7: a service key spent with nobody watching
   'servicekey-unattended',
   // fix-sec2 review2 #11: stopping the station from anywhere but the desktop shell (a pm2 restart reset the code count)
-  'quit']);
+  'quit',
+  // the route census's spend routes: a raised or removed spending limit, a RESUME past a stop, a settlement that reopens spending
+  'budget-raise', 'budget-resume', 'budget-settle']);
 const CODE_RE = /^\d{6}$/;
 const MAX_WRONG_CODES = 5;              // five tries (one in 200,000), then a lockout
 const LOCK_MS = 15 * 60 * 1000;         // the first lockout; each further one doubles it...

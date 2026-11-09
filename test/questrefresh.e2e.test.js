@@ -28,6 +28,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes each station prints on its console: RESUME gives a pool more money, which the person at the station
+// confirms (GHSA-2hpj spend routes)
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -72,7 +76,7 @@ function boot(port, env, attemptsLeft) {
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {} if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -138,7 +142,13 @@ const CRED = { SKYNET_OPENROUTER_KEY: 'sk-or-v1-questrefresh-fake', SKYNET_DEFAU
       await pollRefresh(base, token, s => !s.inFlight && s.ledger.length > first.ledger.length, 'manual budget decision');
       A.eq(mock.calls.quest, 0, scope + ': manual refresh is not a budget resume');
       if (scope !== 'unknown') {
-        await post('/api/budget/resume', { scope });
+        const resumeAt = async extra => {
+          const r = await fetch(base + '/api/budget/resume', { method: 'POST', headers: Object.assign({}, headers, extra || {}), body: JSON.stringify({ scope }) });
+          return { status: r.status, body: await r.json().catch(() => ({})) };
+        };
+        const askedResume = await resumeAt();
+        A.eq([askedResume.status, askedResume.body.code], [403, 'desk_confirm_required'], scope + ': RESUME asks the desk first');
+        A.eq((await desk.confirm(askedResume, resumeAt)).status, 200, scope + ': and resumes once it is confirmed there');
         await post('/api/quests/refresh/run');
         await pollRefresh(base, token, s => !s.inFlight && s.ledger.some(e => e.outcome === 'none'), 'resumed refresh');
         A.eq(mock.calls.quest, 1, scope + ': explicit budget resume restores the request');

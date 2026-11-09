@@ -17,6 +17,14 @@ function fn(name) {
   if (!close) throw new Error('unclosed host function ' + name);
   return source.slice(m.index, m.index + close.index + 2);
 }
+/* the spend-raise helpers the budget handlers call (GHSA-2hpj spend routes: a raise asks the desk first). This suite is
+   about durability, so the desk here is a person who confirms; what it was asked is recorded and checked below. */
+function deskHelpers() {
+  const start = source.indexOf('const BUDGET_LIMIT_WORDS = ');
+  const end = source.indexOf('/* settleReopensSpend(', start);
+  if (start < 0 || end < 0) throw new Error('missing host budget desk helpers');
+  return source.slice(start, end);
+}
 const funcs = ['saveRuntimeKnobs', 'activeRuntimeKnobs', 'runtimeKnobsStatus', 'handleRuntimeKnobsSet',
   'saveBudgetOverrides', 'applyBudgetCaps', 'handleBudgetCaps', 'handleConfigImport', 'handleConfigReset'];
 
@@ -25,6 +33,7 @@ async function scenario(action, failure) {
   const runtimeFile = path.join(dir, 'runtime.knobs.json'), budgetFile = path.join(dir, 'budget.json');
   const target = action === 'runtime' ? runtimeFile : budgetFile;
   let fault = '', landed = false;
+  const asks = [];
   const eio = () => Object.assign(new Error('fixture limits storage fault'), { code: 'EIO' });
   const disk = Object.create(fs);
   disk.readFileSync = (file, ...args) => {
@@ -50,9 +59,11 @@ async function scenario(action, failure) {
       CAPS: limitsRegistry.caps(() => null, oldRuntime), MAX_CONCURRENT_AGENTS: 0, CONSENT_TIMEOUT_MS: 120000,
       CONSENT_ACK_EXTEND_MS: 600000, CRON_TICK_MS: 60000, RUNTIME_KNOB_DEFS: limitsRegistry.definitions('runtime'),
       ENV: () => undefined, knobEnvLocked: () => false, readBody: async req => req.body,
-      handleBudgetStatus: (req, res) => { res.writeHead(200); res.end(JSON.stringify({ ok: true })); }
+      handleBudgetStatus: (req, res) => { res.writeHead(200); res.end(JSON.stringify({ ok: true })); },
+      ledger: { health: () => ({ complete: true, durable: true }), unknownItems: () => [] },
+      deskGate: (req, res, action, scope) => { asks.push({ action, scope }); return true; }
     });
-    vm.runInContext('function resolveKnob(key) { return limitsRegistry.resolve(key, ENV, runtimeKnobs); }\n' + funcs.map(fn).join('\n'), ctx);
+    vm.runInContext('function resolveKnob(key) { return limitsRegistry.resolve(key, ENV, runtimeKnobs); }\n' + deskHelpers() + '\n' + funcs.map(fn).join('\n'), ctx);
     const request = action === 'runtime' ? { maxSubscriptionTokens: 9000000 }
       : action === 'budget' ? { perDay: 7 }
       : action === 'import' ? { envelope: configExport.buildExport({ budget: { perDay: 7 } }, { now: 1 }), only: ['budget'] }
@@ -82,6 +93,9 @@ async function scenario(action, failure) {
     const intended = action === 'runtime' ? { maxSubscriptionTokens: 9000000 } : action === 'reset' ? {} : { perDay: 7 };
     A.eq(JSON.parse(fs.readFileSync(target, 'utf8'))[action === 'runtime' ? 'knobs' : 'caps'], intended, label + ': successful reply matches durable main readback');
     A.eq(action === 'runtime' ? limitsRegistry.parseKnobs(JSON.parse(fs.readFileSync(target, 'utf8'))) : store.load().value, intended, label + ': independent restart reader sees the accepted state');
+    // PER DAY $3 -> $7 (save, import) or -> the shipped $25 (reset) raises a limit: each attempt asked the desk first
+    const raise = action === 'reset' ? 'limits:perDay=3>25' : 'limits:perDay=3>7';
+    A.eq(asks.map(a => a.action + ' ' + a.scope), action === 'runtime' ? [] : ['budget-raise ' + raise, 'budget-raise ' + raise], label + ': a raise asks the desk on every attempt, a runtime knob never');
   } finally {
     if (path.dirname(path.resolve(dir)) !== path.resolve(os.tmpdir()) || !path.basename(dir).startsWith('limits-persist-')) throw new Error('unexpected fixture cleanup path');
     fs.rmSync(dir, { recursive: true, force: true });

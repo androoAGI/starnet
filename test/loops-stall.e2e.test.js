@@ -24,6 +24,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes the station prints on its console: switching the rail OFF raises a spending limit, which the person at
+// the station confirms (GHSA-2hpj spend routes)
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -77,7 +81,7 @@ function boot(port, env, attemptsLeft) {
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port'));
       }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -133,8 +137,13 @@ async function until(B, headers, pred, label, ms) {
     A.eq(bs.envDefaults.perAgent, 0, 'per-agent stays off');
     A.eq(bs.envDefaults.global, 0, 'global stays off');
     // the Commander can switch it off — a rail, not a wall
-    const off = await fetch(B + '/api/budget/caps', { method: 'POST', headers, body: JSON.stringify({ perDay: 0 }) });
-    A.eq(off.status, 200, 'saving perDay=0 is accepted');
+    // switching it off removes a limit, so the station asks the person at the desk first; unconfirmed, nothing changes
+    const saveOff = async extra => { const r = await fetch(B + '/api/budget/caps', { method: 'POST', headers: Object.assign({}, headers, extra || {}), body: JSON.stringify({ perDay: 0 }) }); return { status: r.status, body: await r.json().catch(() => ({})) }; };
+    const askedOff = await saveOff();
+    A.eq([askedOff.status, askedOff.body.code], [403, 'desk_confirm_required'], 'switching the rail off asks the desk first');
+    A.eq((await (await fetch(B + '/api/budget/status', { headers })).json()).caps.perDay, 25, 'and an unconfirmed switch-off leaves the rail on');
+    const off = await desk.confirm(askedOff, saveOff);
+    A.eq(off.status, 200, 'saving perDay=0 is accepted once it is confirmed at the desk');
     const after = await (await fetch(B + '/api/budget/status', { headers })).json();
     A.eq(after.caps.perDay, 0, 'and the rail is OFF (0 = ungoverned)');
     A.eq(after.day, null, 'the governor drops the day pool entirely');

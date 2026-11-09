@@ -1603,9 +1603,7 @@ const budget = makeBudget({ caps: { agent: BUDGET_CAPS.perAgent, day: BUDGET_CAP
 // check time, after the saved overrides have loaded.
 function budgetScopeIsExplicit(scope) {
   if (scope !== 'day') return true;
-  const env = ENV('BUDGET_PER_DAY');
-  if (env != null && String(env).trim() !== '') return true;
-  return !!(budgetOverrides && Object.prototype.hasOwnProperty.call(budgetOverrides, 'perDay'));
+  return budgetDayChosen(budgetOverrides);   // the environment's PER DAY, or a saved one (the spend desk below reads the same rule)
 }
 // THE ONE GOVERNOR (billing-class.js makeGovernor): every paid call path asks it before its call; it answers by the route's payer,
 // and a check that throws refuses with its exit named (noted here), never "not blocked".
@@ -16192,15 +16190,74 @@ async function handleCreditsUnlink(req, res) {
   const ok = r.ok !== false;
   return creditsJson(res, ok ? 200 : 500, { ok, unlinked: ok, configured: credits.configured(), error: ok ? undefined : r.error });
 }
+/* SPENDING AUTHORITY IS CONFIRMED AT THE DESK (GHSA-2hpj-9wm7-rvg5; the route census's last open routes). The page token
+   reaches every route below, and a same-user process can read it, so a token holder used to lift every dollar limit, RESUME
+   a stopped pool as often as it liked, or book an unknown charge at $0, and let routines spend with nobody watching. Each
+   change that lets runs spend what they could not now asks the desk first (deskGate: the desktop shell's native dialog, or
+   the code a bare station prints on its own console); the page's fetch wrapper confirms and replays it
+   (frontend/app/harness.js), and a station.power tool reaches the desk through the StarNet window (callOwnRouteAtDesk):
+     budget-raise   a saved limit raised, or removed (0 = none): SETTINGS › SPENDING LIMITS, a restored backup, a reset
+                    (budgetcaps.js raisedLimits says which, and why a chosen PER DAY going back to the shipped rail while a
+                    charge is unsettled is one);
+     budget-resume  RESUME: another base limit of headroom on the DAY or GLOBAL pool for the session;
+     budget-settle  a settlement that reopens spending (settleReopensSpend below).
+   Lowering a limit, tightening one, or booking a charge at or above what it is already counted at never asks. */
+const BUDGET_LIMIT_WORDS = Object.freeze({ perRun: 'PER RUN', perAgent: 'PER AGENT', perDay: 'PER DAY', global: 'GLOBAL' });
+function budgetMoney(v) { const n = (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : 0; return '$' + (n === 0 || n >= 0.01 ? n.toFixed(2) : String(n)); }
+function budgetUsdWords(v) { return (typeof v === 'number' && Number.isFinite(v) && v > 0) ? budgetMoney(v) : 'no limit'; }
+// a PER DAY someone chose (the environment, or a saved override) is strict; the shipped $25 rail nobody chose is soft (budget.js)
+function budgetDayChosen(overrides) {
+  const env = ENV('BUDGET_PER_DAY');
+  if (env != null && String(env).trim() !== '') return true;
+  return !!(overrides && Object.prototype.hasOwnProperty.call(overrides, 'perDay'));
+}
+function budgetHistoryUnknown() { const h = ledger.health(); return !h.complete || !h.durable; }
+// before/after: saved override sets -> the limits the change raises (budgetcaps.js raisedLimits), [] when none
+function budgetRaisesOf(before, after) {
+  return budgetCaps.raisedLimits(BUDGET_CAPS, before, after, { historyUnknown: budgetHistoryUnknown(), dayChosen: budgetDayChosen });
+}
+// true when nothing is raised or the desk confirmed exactly these raises; else it has answered the request
+function budgetRaiseAtDesk(req, res, before, after, via) {
+  const raised = budgetRaisesOf(before, after);
+  if (!raised.length) return true;
+  return deskGate(req, res, 'budget-raise', budgetRaiseScope(raised), { via, count: raised.length, lines: budgetRaiseLines(raised) });
+}
+function budgetRaiseScope(raised) { return 'limits:' + raised.map(r => r.key + '=' + r.from + '>' + r.to + (r.soft ? '~shipped' : '')).join(','); }
+function budgetRaiseLines(raised) {
+  return raised.map(r => '  • ' + BUDGET_LIMIT_WORDS[r.key] + ': ' + budgetUsdWords(r.from) + (r.soft ? ' (your limit)' : '') + ' → ' + budgetUsdWords(r.to)
+    + (r.soft ? ' (the shipped limit, which lets a run you watch keep spending while a charge is unsettled)' : '')).join('\n');
+}
+/* settleReopensSpend(open, usd) -> null (books nothing new: no ask) | the desk's words. A settlement REOPENS spending when:
+     · it books the LAST unknown charge: the history is whole again, so a limit you chose stops refusing paid calls and the
+       shipped day limit stops pausing work nobody watches (budget.js, GHSA-2hpj #8);
+     · it books a figure BELOW what the charge counts at until it is settled (its bound, else its COUNT AS figure, as budget.js
+       floorOf counts it), which every limit then counts instead, leaving that much more room.
+   Booking a charge at or above that figure while another stays unknown changes nothing that may spend. */
+function settleReopensSpend(open, usd) {
+  const h = ledger.health();
+  const items = ledger.unknownItems();
+  const item = items.find(i => i.runId === open.runId) || null;
+  const floor = item ? (item.bound && item.bound.usd > 0 ? item.bound.usd : (item.countAs && item.countAs.usd > 0 ? item.countAs.usd : 0)) : 0;
+  const last = !h.writeError && h.readError === 'UNSETTLED_SPEND' && items.every(i => i.runId === open.runId);
+  const below = usd < floor;
+  if (!last && !below) return null;
+  const name = deskProofMod.cutPoints(crewNameOf(open.agentId) || String(open.agentId || ''), 40);
+  const kind = item && item.kind === 'damaged' ? 'the unreadable spend record line' : item && item.kind === 'evaluation' ? 'the unpriced skill evaluation run'
+    : 'the interrupted run';
+  return { what: kind + (name && !(item && item.kind === 'damaged') ? ' of "' + name + '"' : '') + (open.model ? ' (' + deskProofMod.cutPoints(String(open.model), 60) + ')' : ''),
+    usd: budgetMoney(usd), last, below, floor: budgetMoney(floor), room: budgetMoney(Math.max(0, floor - usd)) };
+}
 /* ---- POST /api/budget/caps { perRun?, perAgent?, perDay?, global? } — set one or more USD caps. Each value:
    a positive number = a real cap; 0 (or "0") = NO CAP (ungoverned) — an explicit saved choice; null / "" = CLEAR
    the override so that key falls back to its env default. Strictly validated (finite, >= 0, sane ceiling), persisted
-   durably, and applied LIVE to the governor (no restart). Additive: leaves env-only setups untouched until saved. ---- */
+   durably, and applied LIVE to the governor (no restart). Additive: leaves env-only setups untouched until saved.
+   A raise asks the desk first (budget-raise, above); lowering never does. ---- */
 async function handleBudgetCaps(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const v = budgetCaps.validateOverridesPatch(body, budgetOverrides);   // pure: strict parse + merge onto current
   if (!v.ok) return json(400, { error: v.error });
+  if (!budgetRaiseAtDesk(req, res, budgetOverrides, v.overrides, 'settings')) return;
   try { saveBudgetOverrides(v.overrides); }
   catch (_) { return json(500, { error: 'Spending limit changes could not be confirmed on disk. Try saving again.', persisted: false }); }
   applyBudgetCaps();   // live, no restart
@@ -16254,12 +16311,18 @@ async function handleRealtimeSession(req, res) {
   res.end(out.body);
 }
 /* ---- POST /api/budget/resume { scope } — the one-click "keep going" after a SOFT pool cap is hit: grant another
-   base-cap of headroom to that scope for the rest of the session. scope ∈ {day, global}. ---- */
+   base-cap of headroom to that scope for the rest of the session. scope ∈ {day, global}. The desk confirms it first
+   (budget-resume, above handleBudgetCaps). ---- */
 async function handleBudgetResume(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   const scope = String(body.scope || '').trim();
   if (scope !== 'day' && scope !== 'global') return json(400, { error: 'scope must be "day" or "global"' });
+  // RESUME lets runs spend another base limit, so the desk confirms it (budget-resume, above), bound to this pool at this cap.
+  // Only one that would be granted asks: a pool with no limit, or one over unknown spend, is refused below without a question.
+  const pool = budget.status(Date.now())[scope];
+  if (pool && !budgetHistoryUnknown() && !deskGate(req, res, 'budget-resume', scope + ':' + pool.cap + '+' + pool.base,
+    { pool: scope === 'day' ? 'DAY' : 'GLOBAL', more: budgetMoney(pool.base), from: budgetMoney(pool.cap), to: budgetMoney(pool.cap + pool.base) })) return;
   const cap = budget.resume(scope);
   if (cap == null) {
     // Resume adds headroom only after uncertain charges are explicitly settled; an estimate is not settlement.
@@ -16274,7 +16337,8 @@ async function handleBudgetResume(req, res) {
    ledger.js countAs, its limit, the charge its line records or the assumption; 'limit': the recorded limit only). Only a run found unsettled at boot is accepted (404
    otherwise — a live run books itself); the row is journaled-then-appended through the ledger's strict path and the
    receipt removed, so history is complete again and stays so across restarts. Deliberately NOT a station-control
-   action: attesting what a provider charged belongs to the Commander, never to an agent. ---- */
+   action: attesting what a provider charged belongs to the Commander, never to an agent. A settlement that reopens spending
+   (the last unknown charge, or a figure below what it counts at) is confirmed at the desk first (settleReopensSpend). ---- */
 async function handleBudgetSettle(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
@@ -16295,6 +16359,9 @@ async function handleBudgetSettle(req, res) {
     usd = (typeof body.usd === 'string' && body.usd.trim() !== '') ? Number(body.usd) : body.usd;
     if (typeof usd !== 'number' || !Number.isFinite(usd) || usd < 0 || usd > 1e6) return json(400, { error: 'enter the charge in USD (0 or more)' });
   }
+  // a settlement that reopens spending asks the desk first, bound to this run, this figure and how it was reached (above)
+  const reopens = settleReopensSpend(open, usd);
+  if (reopens && !deskGate(req, res, 'budget-settle', runId + '\n' + usd + '\n' + how, reopens)) return;
   try { ledger.settleUnsettled(runId, usd, how); }
   catch (e) {
     if (e && e.code === 'not_unsettled') return json(404, { error: 'that run has no unsettled spend', code: 'not_unsettled' });
@@ -16651,11 +16718,17 @@ async function handleConfigImport(req, res) {
   const importNotes = [];
   const effectiveSecretsNeeded = (parsed.secretsNeeded || []).filter(x => x && x.kind !== 'connector');
   const sec = parsed.sections;
-  // a backup that would ADD standing grants needs the desk's confirmation before ANY section applies (GHSA-2hpj #1)
-  if (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow)) {
-    const fresh = [...new Set(sec.permissions.allow.filter(k => typeof k === 'string' && !grantsPermanent.has(k)))].sort();
-    if (fresh.length && !deskGate(req, res, 'grant-import', fresh.join(','), { count: fresh.length, list: fresh.slice(0, 12).map(k => '  • ' + k).join('\n') + (fresh.length > 12 ? '\n  • and ' + (fresh.length - 12) + ' more' : '') })) return;
-  }
+  // a backup that would ADD standing grants needs the desk's confirmation before ANY section applies (GHSA-2hpj #1), and so
+  // does one that raises a spending limit (budget-raise: the spend routes' rule, budgetRaisesOf). One request carries one
+  // proof, so a backup that does both asks once, for both.
+  const fresh = (want('permissions') && sec.permissions && Array.isArray(sec.permissions.allow))
+    ? [...new Set(sec.permissions.allow.filter(k => typeof k === 'string' && !grantsPermanent.has(k)))].sort() : [];
+  const spendRaised = want('budget') ? budgetRaisesOf(budgetOverrides, budgetCaps.cleanOverrides(sec.budget || {})) : [];
+  if (fresh.length) {
+    const list = fresh.slice(0, 12).map(k => '  • ' + k).join('\n') + (fresh.length > 12 ? '\n  • and ' + (fresh.length - 12) + ' more' : '');
+    if (!deskGate(req, res, 'grant-import', fresh.join(',') + (spendRaised.length ? '\n' + budgetRaiseScope(spendRaised) : ''),
+      { count: fresh.length, list, spend: spendRaised.length ? budgetRaiseLines(spendRaised) : '' })) return;
+  } else if (spendRaised.length && !deskGate(req, res, 'budget-raise', budgetRaiseScope(spendRaised), { via: 'import', count: spendRaised.length, lines: budgetRaiseLines(spendRaised) })) return;
   let connectorPlan = null;
   if (want('connectors') && Array.isArray(sec.connectors)) {
     connectorPlan = prepareConnectorImport(sec.connectors);
@@ -16747,6 +16820,8 @@ async function handleConfigReset(req, res) {
   const section = String(body.section || '').trim();
   switch (section) {
     case 'budget':
+      // back to the defaults can lift a limit someone chose: that asks the desk like any raise (budget-raise); lowering does not
+      if (!budgetRaiseAtDesk(req, res, budgetOverrides, {}, 'reset')) return;
       try { saveBudgetOverrides({}); }
       catch (_) { return json(500, { ok: false, section, error: 'Spending limit reset could not be confirmed on disk. Try resetting again.' }); }
       applyBudgetCaps(); break;
@@ -16975,6 +17050,18 @@ function deskWords(action, d) {
     // review2 #9: the away workshop is a standing unattended write grant, asked like the station-wide one below
     case 'quit': return { title: 'StarNet — stop this station', verb: 'Stop it',
       summary: 'Stop this StarNet station now?\n\nEvery run, routine and loop stops. A station kept running by pm2 or another service manager starts again on its own.' };
+    // the census's spend routes (handleBudgetCaps, handleBudgetResume, handleBudgetSettle; a restored backup or a reset too)
+    case 'budget-raise': return { title: 'StarNet — raise ' + (o.count === 1 ? 'a spending limit' : 'spending limits'),
+      verb: o.via === 'import' ? 'Restore the backup' : o.via === 'reset' ? 'Reset the limits' : o.count === 1 ? 'Raise the limit' : 'Raise the limits',
+      summary: (o.via === 'import' ? 'This backup raises your spending limits:' : o.via === 'reset' ? 'Resetting your spending limits to their defaults raises them:' : 'Raise your spending limits?')
+        + '\n' + o.lines + '\n\nYour agents, routines and the night shift can spend up to ' + (o.count === 1 ? 'it' : 'them') + ', with nobody watching.' };
+    case 'budget-resume': return { title: 'StarNet — keep spending', verb: 'Resume spending',
+      summary: 'Give the ' + o.pool + ' pool another ' + o.more + ' for the rest of this session?\n\nIts limit goes from ' + o.from + ' to ' + o.to + '. Your agents, routines and the night shift can spend it, with nobody watching.' };
+    case 'budget-settle': return { title: 'StarNet — settle an unknown charge', verb: 'Settle it',
+      summary: 'Book ' + o.what + ' at ' + o.usd + '?'
+        + (o.below ? '\n\nThat is less than the ' + o.floor + ' StarNet counts it at until it is settled, so your spending limits get ' + o.room + ' more room.' : '')
+        + (o.last ? '\n\nIt is the last charge StarNet does not know: limits you chose stop refusing paid calls, and routines and other work nobody watches start again.' : '')
+        + '\n\nBook only what was really charged (your provider dashboard, or Recent Activity in the StarNet store).' };
     case 'grant': if (o.workshop) return o.dial
       ? { title: 'StarNet — let the night shift build', verb: 'Raise the dial',
         summary: 'Raise the autonomy dial to building?\n\nThat also lets ' + who + ' build from its away queue while you are away: it writes files in its own workspace with nobody watching, within the dial\'s daily leash. Each build waits in MY WORK for your KEEP IT or DISCARD.' }
@@ -16982,7 +17069,11 @@ function deskWords(action, d) {
         summary: 'Let ' + who + ' build from its away queue while you are away?\n\nIt writes files in its own workspace with nobody watching, and its build shift runs on a schedule and spends from your budget. Each build waits in MY WORK for your KEEP IT or DISCARD. Turn it off any time.' };
       return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
       summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
-    case 'grant-import': return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
+    case 'grant-import': if (o.spend) return { title: 'StarNet — restore permissions and limits', verb: 'Restore the backup',
+      // one confirmation for the whole backup: a request carries one proof (handleConfigImport)
+      summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list
+        + '\n\nIt also raises your spending limits:\n' + o.spend + '\n\nRestore it? Agents will use ' + (o.count === 1 ? 'that permission' : 'those permissions') + ' without asking, and spend up to the new limits.' };
+      return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
       summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list + '\n\nRestore ' + (o.count === 1 ? 'it' : 'them') + '? Agents will use ' + (o.count === 1 ? 'it' : 'them') + ' without asking.' };
     // review2 #6: a Full Access agent whose instructions, model, provider or skills changed keeps Full Access only on a yes
     case 'approval-full': if (o.keep) return { title: 'StarNet — keep Full Access', verb: 'Keep Full Access',

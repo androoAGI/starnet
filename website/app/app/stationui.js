@@ -7306,6 +7306,17 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   // BUDGET panel — read the live caps + real spend from the sidecar, fill the four inputs, wire SAVE / RESET.
   // Caps persist server-side and apply live; this is the ONLY UI for money limits (previously env-var-only).
   const BG_KEYS = ['perRun', 'perAgent', 'perDay', 'global'];
+  /* SPENDING MORE IS CONFIRMED AT THE DESK (GHSA-2hpj; sidecar/index.js budget-raise, budget-resume, budget-settle). Raising or
+     removing a limit, RESUME, and a settlement that reopens spending come back with the station's desk challenge, which the
+     fetch wrapper confirms and replays (harness.js deskConfirmation). What reaches here unconfirmed was a no, a station that
+     takes no confirmation from this page, or a lockout: say that, with nothing changed. Lowering a limit never asks. */
+  function budgetDeskWords(r, what) {
+    const code = r && r.code;
+    if (code === 'desk_confirm_required') return what + ': it was not confirmed, so nothing changed';
+    if (code === 'desk_only') return what + ': this is changed in the StarNet window, where it asks you to confirm; nothing changed';
+    if (code === 'desk_locked') return what + ': too many wrong confirmation codes were typed, so the station takes no change like this for a while';
+    return '';
+  }
   // How a run is named in the STORE's RECENT ACTIVITY and in an unsettled row's tip — the same words on both, so the
   // Commander can match a charge to its row. A skill evaluation run id is 'skill-eval-<evaluation>-<n>-<phase>-<digest>'
   // (skill-evaluation-runner.js), so its first 8 chars are the same for every one: name its evaluation, serial and phase.
@@ -7455,9 +7466,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const settleRun = (r, payload, btns) => {
       btns.forEach(b => { b.disabled = true; }); setMsg('settling…');
       Harness.api.post('/api/budget/settle', Object.assign({ runId: r.runId }, payload))
-        .then(({ ok, j }) => {
+        .then((reply) => {
+          const { ok, j } = reply;
           if (!ok) {
-            setMsg((j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; });
+            setMsg(budgetDeskWords(reply, 'not settled') || (j && j.error) || 'could not settle that run'); sfx('bad'); btns.forEach(b => { b.disabled = false; });
             // a failed settle still changed the server (a failed write drops the run and turns accounting into a write
             // error; a 404 means it was already settled or gone): repaint the rows + spend line from the server's truth
             refresh();
@@ -7568,8 +7580,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         btn.addEventListener('click', () => {
           btn.disabled = true; setMsg('resuming…');
           Harness.api.post('/api/budget/resume', { scope })
-            .then(({ ok, j }) => {
-              if (!ok) { setMsg((j && j.error) || 'could not resume'); sfx('bad'); btn.disabled = false; return; }
+            .then((reply) => {
+              const { ok, j } = reply;
+              if (!ok) { setMsg(budgetDeskWords(reply, 'not resumed') || (j && j.error) || 'could not resume'); sfx('bad'); btn.disabled = false; return; }
               setMsg('✓ ' + scope + ' pool resumed — runs may continue this session', true); sfx('click');
               refresh();   // repaint pools + spend from the server truth (the hit row clears only when the governor says so)
             })
@@ -7602,8 +7615,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       if (!Object.keys(payload).length) { setMsg('no changes to save', true); return; }
       setMsg('saving…');
       Harness.api.post('/api/budget/caps', payload)
-        .then(({ ok, j }) => {
-          if (!ok) { setMsg((j && j.error) || 'could not save limits'); sfx('bad'); return; }
+        .then((reply) => {
+          const { ok, j } = reply;
+          if (!ok) { setMsg(budgetDeskWords(reply, 'limits not saved') || (j && j.error) || 'could not save limits'); sfx('bad'); return; }
           paint(j); setMsg('✓ limits saved & applied', true); sfx('click');
         })
         .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
@@ -7614,7 +7628,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const payload = {}; BG_KEYS.forEach(k => { payload[k] = null; });
       setMsg('resetting…');
       Harness.api.post('/api/budget/caps', payload)
-        .then(({ ok, j }) => { if (!ok) { setMsg((j && j.error) || 'reset failed'); sfx('bad'); return; } paint(j); setMsg('✓ reset to environment defaults', true); sfx('click'); })
+        .then((reply) => { const { ok, j } = reply; if (!ok) { setMsg(budgetDeskWords(reply, 'not reset') || (j && j.error) || 'reset failed'); sfx('bad'); return; } paint(j); setMsg('✓ reset to environment defaults', true); sfx('click'); })
         .catch(() => { setMsg('could not reach the sidecar'); sfx('bad'); });
     });
   }

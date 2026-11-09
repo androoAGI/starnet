@@ -67,7 +67,11 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     assert.equal((await settle({runId:crashed.runId,mode:'limit'})).status,400,'no recorded limit -> nothing to count it at');
     assert.equal((await settle({runId:'nope',usd:0})).status,404,'only a run found unsettled can be settled');
     assert.equal(fs.readdirSync(dir).length,1,'refusals keep the receipt');
-    const settled=await settle({runId:crashed.runId,usd:0.3});
+    // the last unknown charge: booking it reopens spending, so the Commander confirms it at the desk (GHSA-2hpj spend routes)
+    const asked=await settle({runId:crashed.runId,usd:0.3});
+    assert.deepEqual([asked.status,asked.body&&asked.body.code],[403,'desk_confirm_required'],'settling the last unknown charge asks the desk first');
+    assert.equal(fs.readdirSync(dir).length,1,'an unconfirmed settlement keeps the receipt');
+    const settled=await f.deskJson('POST','/api/budget/settle',{runId:crashed.runId,usd:0.3});
     assert.equal(settled.status,200);assert.ok(Math.abs(settled.body.spentToday-1.5)<1e-9,'the entered charge joins the history');
     assert.equal(settled.body.unsettled.length,0);assert.equal(settled.body.atLeast,null);assert.equal(fs.readdirSync(dir).length,0,'the receipt is removed');
     const row=fs.readFileSync(ledger,'utf8').trim().split('\n').map(l=>JSON.parse(l)).find(r=>r.runId===crashed.runId);
@@ -97,7 +101,10 @@ const {SidecarFixture}=require('./helpers/sidecar-fixture');
     await f.start({SKYNET_BUDGET_PER_DAY:'10'});st=(await status()).body;
     assert.equal(st.unsettled.length,1);assert.equal(st.unsettled[0].runCapUsd,0.75,'the receipt recorded the run\'s own per-run limit');
     const limitedId=st.unsettled[0].runId;
-    const counted=await settle({runId:limitedId,mode:'limit'});
+    // counted at its limit, but it is the last unknown charge: booking it reopens spending, so it is confirmed at the desk
+    const countAsked=await settle({runId:limitedId,mode:'limit'});
+    assert.deepEqual([countAsked.status,countAsked.body&&countAsked.body.code],[403,'desk_confirm_required'],'counting the last unknown charge at its limit asks the desk first');
+    const counted=await f.deskJson('POST','/api/budget/settle',{runId:limitedId,mode:'limit'});
     assert.equal(counted.status,200);assert.ok(Math.abs(counted.body.spentToday-2.65)<1e-9,'counted at its limit');assert.equal(counted.body.unsettled.length,0);
     const limitRow=fs.readFileSync(ledger,'utf8').trim().split('\n').map(l=>JSON.parse(l)).find(r=>r.runId===limitedId);
     assert.ok(limitRow&&limitRow.usd===0.75&&limitRow.attested===true&&limitRow.attestedAs==='limit','the row says it was counted at its limit, not entered');

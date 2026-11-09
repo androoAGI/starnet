@@ -56,7 +56,10 @@ const QUIET = { SKYNET_QUEST_REFRESH: '0', SKYNET_THREAD_MINE: '0', SKYNET_SKILL
         await f.stop();
       }
       await f.start();
-      const settled = await f.json('POST', '/api/budget/settle', { runId: 'live-run', usd: 0.3 });
+      // the last unknown charge: settling it reopens spending, so the Commander confirms it at the desk (GHSA-2hpj spend routes)
+      const asked = await f.json('POST', '/api/budget/settle', { runId: 'live-run', usd: 0.3 });
+      A.eq([asked.status, asked.body && asked.body.code], [403, 'desk_confirm_required'], 'A: settling the last unknown charge asks the desk first');
+      const settled = await f.deskJson('POST', '/api/budget/settle', { runId: 'live-run', usd: 0.3 });
       A.eq(settled.status, 200, 'A: the Commander can settle the run');
       A.ok(near(settled.body && settled.body.spentToday, 0.83), 'A: the entered charge joins the aux rows: ' + JSON.stringify(settled.body && settled.body.spentToday));
       A.eq([(settled.body.unsettled || []).length, pendingFiles(ws)], [0, []], 'A: that row (not an aux one) clears the receipt');
