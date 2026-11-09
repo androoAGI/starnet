@@ -4,8 +4,8 @@
    - every rule in vector.css is scoped under body.vx (the identity is one class away from off, never a leak);
    - the curved radius scales are zeroed in ONE place each (the family is closed by tokens, not per-surface patches), and
      window interiors square by structure (empty inline lights keep their round), never by [class] text;
-   - the mark keeps its own letterforms and mask (style.css): VECTOR only lights it (Andrew 2026-11-08 lifted the old
-     no-glow call: "should be glowing and look digital inside of it");
+   - the mark keeps its own letterforms and mask (style.css), and VECTOR ends on the clean mark (Andrew 2026-11-09:
+     "remove the glow entirely and just be the clean logo"; the 11-08 glow and digit field stay only under variation B);
    - the world keeps its own colours: no phosphor grade in world.js and no colour filter on the station view (Andrew
      2026-11-08: the identity is the dashboard's, never a filter on the world). */
 'use strict';
@@ -71,8 +71,8 @@ A.ok(!/\[class/.test(css), 'vector.css never keys on [class] text');
 A.ok(css.includes('#screen-game #terms .term:not(.pw) *:not(:is(span, i, b, em):empty)'),
   'window interiors square everything but empty inline lights, anchored where every window lives');
 
-// ---- the mark is lit, never reshaped (Andrew 2026-11-08: "should be glowing and look digital inside of it") ----
-A.ok(!/\.logo-img \{[^}]*mask/.test(css), 'vector.css lights the mark but never swaps its mask (the letterforms are the master art\'s own)');
+// ---- the mark is never reshaped: VECTOR may colour it, the letterforms stay the master art's own ----
+A.ok(!/\.logo-img \{[^}]*mask/.test(css), 'vector.css never swaps the mark\'s mask (the letterforms are the master art\'s own)');
 
 // ---- fully committed (Andrew 2026-11-08: "i want it to be actually fully committed"): the shared glass tokens are
 // closed under body.vx once, and the screens before the station is up wear the same console ----
@@ -175,7 +175,8 @@ A.ok(/#left > h3 #crew-sum,\n[^{]*\.comms-session \{[^}]*background: var\(--vx-l
 A.ok(/#left > h3 \.crew-hide \{[^}]*border-radius: 50%/.test(css), 'find and fold are round chrome knobs');
 A.ok(/#left > h3 #crew-search-toggle\[aria-expanded="true"\] \{[^}]*var\(--ph\)/.test(css), 'an open finder is the lit knob (its aria-expanded state stays visible)');
 A.ok(/#chat-panel \.comms-portrait \{[^}]*width: 56px/.test(css), 'the COMMS portrait has a bigger bezel');
-A.ok(!/:is\(\.crew-resizer, \.col-resizer\)::before/.test(css), 'nothing is drawn across a gutter (the clamps are gone, 2026-11-09), so nothing can catch the drag');
+A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*pointer-events: none/.test(css), 'the gutters carry clamp brackets that never catch the drag');
+A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*data:image\/svg\+xml/.test(css), 'the clamps are drawn brackets, not stacked gradients');
 A.ok(/calc\(var\(--vx-dim, 0\)/.test(css), 'the device darkens with the BRIGHTNESS knob (--vx-dim)');
 A.ok(/setProperty\('--vx-dim', dim\.toFixed\(3\)\)/.test(fsx.readFileSync(pathx.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8')),
   'stationui writes --vx-dim from SETTINGS › BRIGHTNESS');
@@ -189,41 +190,55 @@ A.ok(/\.cam-cine \{[^}]*border-radius: 999px/.test(css), 'CINEMA is a silver pil
 A.ok(/#left \.ws-head \{ background: none; \}/.test(css), 'no green hairlines over the rail head');
 // ---- the lit mark, the finder, the clean rails (Andrew 2026-11-08: "starnet logo top left needs to be immensely improved",
 // "the search bar needs to be better, and get rid of the line on the top and bottom thats in the middle of the bar") ----
-A.ok(/#logo \{\s*filter: drop-shadow\(0 0 1px rgba\(var\(--ph-rgb\)/.test(css), 'the mark glows in its own hue');
-A.ok(/#logo::before \{[^}]*data:image\/svg\+xml[^}]*opacity: \.34/.test(css), 'the mark\'s display shows a faint field of digits');
 const rails = (css.match(/\(#topbar, #bottombar\) \{\s*background:[^}]*\}/g) || []).pop() || '';
 A.ok(rails && !/vx-pipe/.test(rails), 'the rails\' last background carries no light pipe across the middle');
 A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important; box-shadow: none !important; \}/.test(css), 'the finder row is not a second frame around the finder');
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
-// ---- the touch-up (Andrew 2026-11-09: "seriously touch it up more"). `lastA` reads the rule VECTOR itself ends on: variation
-// B below is scoped .vx-b and never counts ----
-const lastA = (tail) => (css.match(new RegExp('html body\\.vx:not\\(\\.hud-mode\\) ' + tail + ' \\{[^}]*\\}', 'g')) || []).pop() || '';
-const railA = lastA('#screen-game :is\\(#topbar, #bottombar\\)');
-A.ok(/corner-shape: round/.test(railA) && !/vx-pipe/.test(railA), 'the rails end as one slab of black chrome with no pipe across the middle of the bar');
-const headA = lastA('#screen-game :is\\(#left, #chat-panel\\) > h3');
-A.ok(/height: 40px/.test(headA) && !/#eef2f6/.test(headA) && /rgba\(var\(--ph-rgb\)/.test(headA), 'the CREW and COMMS titles sit on a band of hue glass, not a silver plate');
-A.ok(/--pg-glow: 0 0 8px rgba\(var\(--ph-rgb\)/.test(headA) && !/text-shadow/.test(headA),
-  'the titles are lit through --pg-glow (pipglass owns text-shadow there with three ids: a plain text-shadow never paints)');
-const houseA = lastA('#screen-game :is\\(#left, #chat-panel\\)::after');
-A.ok(/filter: drop-shadow/.test(houseA) && !/brightness/.test(houseA), 'the housings show as baked: the dark knob no longer flattens the render to grey');
-const gutA = lastA('#screen-game :is\\(\\.crew-resizer, \\.col-resizer\\)');
-A.ok(/center \/ 1px 100% no-repeat/.test(gutA), 'each gutter is one thin lit seam');
-A.ok(/:is\(#topbar, #bottombar\) \.widget-rail \.wg-add \{[^}]*radial-gradient\(circle at 38% 28%, #f4f7fa/.test(css), 'both + keys are the same silver knob');
-A.ok(/#left #workstreams > \.ws-row\.ws-row\.ws-row\.sel:not\(\.attn\),[^{]*\{[^}]*rgba\(var\(--ph-rgb\), \.75\)/.test(css), 'the chosen track is a lit capsule (.sel stays visible)');
+
+// ---- the sheet is four parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// its insane"), finished by section 25. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds
+// no specificity and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
+const rawCss = read('frontend/css/vector.css');
+const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
+const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt, 'vector.css carries the black chassis, variation B and the perfected VECTOR as sections 23, 24, 25 in that order');
+const cssA = strip(rawCss.slice(0, baseAt));
+const cssBase = strip(rawCss.slice(baseAt, bAt));
+const cssB = strip(rawCss.slice(bAt, pAt));
+const cssP = strip(rawCss.slice(pAt));
+const selsOf = (t) => t.split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
+// a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
+const stray = (t, gate) => (t.match(/html body\.vx:not\(\.hud-mode\)[^ ]*/g) || []).filter(x => x !== 'html body.vx:not(.hud-mode)' + gate);
+A.ok(!/\.vx-b\b/.test(cssA), 'nothing in sections 1-22 mentions .vx-b: VECTOR does not depend on its variation');
+
+// ---- the black chassis (Andrew 2026-11-09: "seriously touch it up more") now rides only under variation B ----
+const selsBase = selsOf(cssBase);
+A.ok(selsBase.length > 20, 'the black chassis is a whole pass (' + selsBase.length + ' selectors)');
+A.eq(selsBase.filter(x => !x.startsWith('html body.vx:not(.hud-mode):where(.vx-b)')).join(' | '), '', 'every black-chassis selector is gated :where(.vx-b): zero added specificity, and VECTOR never sees it');
+A.eq(stray(cssBase, ':where(.vx-b)').join(' | '), '', 'no black-chassis selector slips its gate inside a one-line list');
+const lastBase = (tail) => (cssBase.match(new RegExp('html body\\.vx:not\\(\\.hud-mode\\):where\\(\\.vx-b\\) ' + tail + ' \\{[^}]*\\}', 'g')) || []).pop() || '';
+const railBase = lastBase('#screen-game :is\\(#topbar, #bottombar\\)');
+A.ok(/corner-shape: round/.test(railBase) && !/vx-pipe/.test(railBase), 'its rails are one slab of black chrome with no pipe across the middle of the bar');
+const headBase = lastBase('#screen-game :is\\(#left, #chat-panel\\) > h3');
+A.ok(/height: 40px/.test(headBase) && !/#eef2f6/.test(headBase) && /rgba\(var\(--ph-rgb\)/.test(headBase), 'its CREW and COMMS titles sit on a band of hue glass, not a silver plate');
+A.ok(/--pg-glow: 0 0 8px rgba\(var\(--ph-rgb\)/.test(headBase) && !/text-shadow/.test(headBase),
+  'its titles are lit through --pg-glow (pipglass owns text-shadow there with three ids: a plain text-shadow never paints)');
+const houseBase = lastBase('#screen-game :is\\(#left, #chat-panel\\)::after');
+A.ok(/filter: drop-shadow/.test(houseBase) && !/brightness/.test(houseBase), 'its housings show as baked: the dark knob does not flatten the render to grey');
+const gutBase = lastBase('#screen-game :is\\(\\.crew-resizer, \\.col-resizer\\)');
+A.ok(/center \/ 1px 100% no-repeat/.test(gutBase), 'each of its gutters is one thin lit seam');
+A.ok(/:where\(\.vx-b\) #screen-game :is\(\.crew-resizer, \.col-resizer\)::before \{ content: none; \}/.test(cssBase), 'and nothing is bolted across that seam (VECTOR\'s clamps are cancelled under variation B)');
+A.ok(/:is\(#topbar, #bottombar\) \.widget-rail \.wg-add \{[^}]*radial-gradient\(circle at 38% 28%, #f4f7fa/.test(cssBase), 'both of its + keys are the same silver knob');
+A.ok(/#left #workstreams > \.ws-row\.ws-row\.ws-row\.sel:not\(\.attn\),[^{]*\{[^}]*rgba\(var\(--ph-rgb\), \.75\)/.test(cssBase), 'its chosen track is a lit capsule (.sel stays visible)');
 
 // ---- variation B, LUMINOUS GLASS (Andrew 2026-11-09: "I want another entire variation as well"). It ships DORMANT: one more
 // body class, and nothing in the app sets it until Andrew asks for a way to (no unrequested setting, key or button) ----
-const rawCss = read('frontend/css/vector.css');
-const bAt = rawCss.indexOf('24 · VARIATION B');
-A.ok(bAt > 0, 'vector.css carries variation B as its own section');
-const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
-const cssA = strip(rawCss.slice(0, rawCss.lastIndexOf('/*', bAt)));
-const cssB = strip(rawCss.slice(rawCss.indexOf('*/', bAt) + 2));
-A.ok(!/\.vx-b\b/.test(cssA), 'nothing before section 24 mentions .vx-b: VECTOR does not depend on its variation');
-const selsB = cssB.split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
+const selsB = selsOf(cssB);
 A.ok(selsB.length > 40, 'variation B restyles the whole dashboard (' + selsB.length + ' selectors)');
 A.eq(selsB.filter(x => !x.startsWith('html body.vx:not(.hud-mode).vx-b')).join(' | '), '', 'every selector in variation B is scoped body.vx.vx-b');
+A.eq(stray(cssB, '.vx-b').join(' | '), '', 'no variation B selector slips its scope inside a one-line list');
 const appDir = path.join(ROOT, 'frontend', 'app');
 const hooks = fs.readdirSync(appDir).filter(f => f.endsWith('.js')).filter(f => /vx-b\b/.test(fs.readFileSync(path.join(appDir, f), 'utf8')));
 A.eq(hooks.join(' '), '', 'no script sets vx-b: the variation is dormant until Andrew asks for a way to pick it');
@@ -234,4 +249,34 @@ A.ok(!/url\(/.test(cssB) && !/#(c9d0d8|eef2f6|a9b2bd|f4f7fa)/i.test(cssB), 'vari
 A.ok(/> \.bb-grp:not\(:hover\):not\(:focus-visible\) \{[^}]*inset 0 0 0 1px rgba\(var\(--ph-rgb\), \.58\)[^}]*--pg-glow: var\(--vxb-lit\)/.test(cssB),
   'variation B dock keys are lit ghost keys (a hue ring and a lit legend), never dark smoked caps');
 A.ok(/\.has-active > \.bb-grp::after \{[^}]*var\(--gold\)/.test(cssB), 'variation B keeps the dock’s live lamp in its state colour');
+
+// ---- the perfected VECTOR (Andrew 2026-11-09: the dock keys "should have more of the 3D effect like the add a widget does",
+// the logo "is not properly centered ... remove the glow entirely and just be the clean logo", the search and collapse keys
+// "are a bit too glitchy looking", "the 0 working also glitches out") ----
+const selsP = selsOf(cssP);
+A.ok(selsP.length > 15, 'the perfected pass is its own section (' + selsP.length + ' selectors)');
+A.eq(selsP.filter(x => !x.startsWith('html body.vx:not(.hud-mode):not(.vx-b)')).join(' | '), '', 'every selector in the perfected pass is scoped :not(.vx-b): variation B never sees it');
+A.eq(stray(cssP, ':not(.vx-b)').join(' | '), '', 'no perfected-pass selector slips its scope inside a one-line list');
+// pipglass zeroes a resting dock key's box-shadow with THREE ids, so a two-id key rule can never give the key a body. The
+// dock id is doubled on rest, hover and open alike (a three-id rest rule would otherwise beat a two-id hover or open rule)
+const keyP = (state) => (cssP.match(new RegExp('#bottombar#bottombar \\.bb-group' + state + ' \\{[^}]*\\}')) || [''])[0];
+A.ok(/box-shadow:[^;]*inset 0 -12px[^;]*0 0 0 1px #050608, 0 2px 4px rgba\(0, 0, 0, \.7\)/.test(keyP(' > \\.bb-grp')),
+  'a resting dock key is a domed chrome body wearing the add knob\'s ring and drop shadow (three ids: it out-ranks the pipglass reset)');
+A.ok(/background:/.test(keyP(' > \\.bb-grp:is\\(:hover, :focus-visible\\)')), 'a hovered dock key keeps its own lit body over the three-id rest rule');
+A.ok(/inset 0 3px 5px rgba\(0, 0, 0, \.7\)[^}]*var\(--ph-rgb\)/.test(keyP('\\.open > \\.bb-grp')), 'an open dock key is pushed in and lit (the .open state stays visible on the new body)');
+A.ok(!/#bottombar [^{]*\.bb-grp[^{]*\{/.test(cssP.replace(/#bottombar#bottombar/g, '')), 'no dock key rule in the perfected pass falls back to a single dock id');
+A.ok(/:is\(#topbar, #bottombar\) \.widget-rail \.wg-add \{[^}]*width: 30px; min-width: 30px; height: 30px;[^}]*radial-gradient\(circle at 38% 28%, #f4f7fa/.test(cssP),
+  'both + keys are the same round silver knob');
+A.ok(/\.wg-add::before \{[^}]*12px 2px no-repeat[^}]*2px 12px no-repeat/.test(cssP), 'the plus is drawn on whole pixels (2px arms in a 12px box on a 30px knob)');
+A.ok(/:not\(\.vx-b\) #logo \{ filter: none; \}/.test(cssP) && /:not\(\.vx-b\) #logo::before \{ content: none; \}/.test(cssP),
+  'the mark is the clean logo: no glow and no digit field');
+A.ok(/#topbar::before \{ content: none; \}/.test(cssP) && /#topbar > #logo-anchor::before \{[^}]*content: ''[^}]*left: -18px; right: -18px;/.test(cssP),
+  'the brand well is drawn on the mark\'s own anchor, so the mark stays centred in it at either logo size (style.css shrinks the mark on narrow windows)');
+A.ok(!/#logo::before \{[^}]*content: ''/.test(cssP), 'the well is never drawn on #logo itself (logoclip.js clips that box)');
+A.ok(/#left > h3 \.crew-hide \{[^}]*font-size: 0/.test(cssP) && /#crew-search-close \{[^}]*font-size: 0/.test(cssP),
+  'find, fold and the finder\'s close knob draw ONE icon each: the fallback glyph under pipglass\'s pixel-map icon is off');
+A.ok(/#crew-sum \.pos::after \{ content: none; \}/.test(cssP) && /#crew-sum \.dim::before \{ content: '·'/.test(cssP),
+  'the crew readout\'s separator belongs to the idle count, so the working count never trails a loose dot when the idle count sheds');
+A.ok(/#left > h3 #crew-sum \{[^}]*min-width: min-content/.test(cssP), 'the crew readout sheds whole counts on a narrow rail, never half a word');
+A.ok(/:is\(#topbar, #bottombar\) \{ --vx-rivet: none; \}/.test(cssP), 'the rails carry no end rivets under the wells');
 A.report('vector-identity');
