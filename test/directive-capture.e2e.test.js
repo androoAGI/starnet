@@ -111,6 +111,10 @@ async function poll(fn, tries) { for (let i = 0; i < (tries || 40); i++) { const
     SKYNET_SCOUT: '0', SKYNET_THREAD_MINE: '0', SKYNET_SKILL_CURATOR: '0', SKYNET_EDGE_TTS: '0', SKYNET_CRON_ENABLED: '0'
   } });
   const skillId = seedSkill(fx.workspace);
+  // Study's window is 0: every eligible run below must reach its own study request, and since W1.4 (learning-cooldown.js)
+  // a study attempt arms the 30 min window whatever it kept (this mock's study replies keep nothing). The window is read
+  // from memory.config.json at boot (POST /api/memory/config does not take it).
+  fs.writeFileSync(path.join(fx.workspace, 'memory.config.json'), JSON.stringify({ version: 1, studyCooldownMs: 0 }));
   await fx.start();
   const diskRows = stream => {
     const root = path.join(fx.workspace, 'transcript-history-v2');
