@@ -1806,3 +1806,5 @@ test/aux-admission.test.js
 test/route-authority.census.test.js
 test/taint-standing-files.test.js
 test/shell-taint-hooks.test.js
+test/exact-command-grants.test.js
+test/remote-pair-secret.test.js
