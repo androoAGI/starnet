@@ -53,6 +53,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { connectCDP, evalJS, sleep } from './lib/cdp.mjs';
 import { buildReceipt, populatedFixture, validateReceipt } from './lib/update-continuity.mjs';
+import { canPromptHidden, promptHidden } from './lib/hidden-prompt.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -81,14 +82,22 @@ function bumpPatch(v) {
   return m[1] + '.' + m[2] + '.' + (Number(m[3]) + 1);
 }
 
-function signingEnv() {
+// The updater key has a passphrase since 0.15.1 (GHSA-2hpj #7). It comes from
+// TAURI_SIGNING_PRIVATE_KEY_PASSWORD, else a no-echo prompt before the build, else '' (an
+// explicit empty password: a passphrase-protected key then fails at once with "Wrong password"
+// instead of stalling on an invisible prompt). It is passed through the environment only.
+async function signingEnv() {
   const env = Object.assign({}, process.env);
   if (!env.TAURI_SIGNING_PRIVATE_KEY) {
     const keyFile = join(homedir(), '.tauri', 'starnet-updater.key');
     if (!existsSync(keyFile)) fail('no TAURI_SIGNING_PRIVATE_KEY in env and no ' + keyFile);
     env.TAURI_SIGNING_PRIVATE_KEY = readFileSync(keyFile, 'utf8').trim();
   }
-  if (env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD === undefined) env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = '';
+  if (!env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD) {
+    env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD = canPromptHidden()
+      ? await promptHidden('Updater key passphrase (press Enter if the key has none): ')
+      : '';
+  }
   return env;
 }
 
@@ -108,7 +117,7 @@ function overlayFor(version) {
   };
 }
 
-function buildCanary(version, destDir) {
+function buildCanary(version, destDir, env) {
   if (process.platform !== 'win32') fail('canary builds are Windows-only for now (NSIS leg)');
   mkdirSync(destDir, { recursive: true });
   const overlayPath = join(DIR, 'overlay-' + version + '.json');
@@ -121,8 +130,8 @@ function buildCanary(version, destDir) {
 
   log('building StarNet Canary v' + version + ' (full Rust release build — 10-30 min; a rustc ctor-race crash = just re-run)…');
   const r = spawnSync('npm', ['run', 'tauri', '--', 'build', '--bundles', 'nsis', '--config', overlayPath],
-    { cwd: ROOT, stdio: 'inherit', env: signingEnv(), shell: true });
-  if (r.status !== 0) fail('tauri build failed (exit ' + r.status + '). If rustc crashed (ctor race), re-run this exact command — the cache resumes.');
+    { cwd: ROOT, stdio: 'inherit', env, shell: true });
+  if (r.status !== 0) fail('tauri build failed (exit ' + r.status + '). If rustc crashed (ctor race), re-run this exact command — the cache resumes. "Wrong password for that key" = the updater key passphrase was not entered or is wrong.');
 
   // Locate the produced canary installer (+ .sig) and stage it.
   const nsisDir = join(ROOT, 'src-tauri', 'target', 'release', 'bundle', 'nsis');
@@ -410,12 +419,12 @@ function hangDiagnostic() {
 
 if (cmd === 'build-old') {
   const v = argVal('--version', conf().version);
-  buildCanary(v, OLD);
+  buildCanary(v, OLD, await signingEnv());
   log('OLD canary staged at v' + v + '. Next: build-new.');
 } else if (cmd === 'build-new') {
   const v = argVal('--version', bumpPatch(conf().version));
   mkdirSync(FEED, { recursive: true });
-  const exe = buildCanary(v, FEED);
+  const exe = buildCanary(v, FEED, await signingEnv());
   assembleFeed(v);
   log('NEW canary v' + v + ' staged + signed feed assembled (' + exe + '). Next: serve.');
 } else if (cmd === 'serve') {

@@ -9,12 +9,16 @@
  *
  *  1. SIGNING STALL (the reason 0.1.7 shipped with createUpdaterArtifacts:false).
  *     The updater private key at ~/.tauri/starnet-updater.key is an rsign ENCRYPTED
- *     secret key. Its password is empty, and an empty password supplied through the
- *     environment is treated as absent by the Tauri build signer on Windows. That makes
- *     `tauri build` block on an invisible interactive prompt. Build the NSIS installer
- *     with updater-artifact generation disabled for that invocation, then sign the final
- *     installer explicitly with `tauri signer sign --password=`. The private key stays in
- *     its file and never appears in argv or logs. createUpdaterArtifacts remains TRUE in
+ *     secret key. A signer given NO password blocks on an invisible interactive prompt,
+ *     and older Tauri CLIs treated an empty password in the environment as absent. Build
+ *     the NSIS installer with updater-artifact generation disabled for that invocation,
+ *     then sign the final installer explicitly with `tauri signer sign`. Since 0.15.1 the
+ *     key has a passphrase (GHSA-2hpj #7): it comes from TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+ *     or, failing that, a no-echo prompt at the START of the cut (not after a 30-minute
+ *     build), and reaches the signer through its environment only. With no passphrase
+ *     entered the signer gets an explicit `--password=` and a passphrase-protected key
+ *     fails at once with "Wrong password" instead of stalling. The private key stays in
+ *     its file; neither it nor the passphrase appears in argv or logs. createUpdaterArtifacts remains TRUE in
  *     tauri.conf.json as the release-policy assertion; only this bounded build invocation
  *     is overridden because the explicit signing step produces the required .sig.
  *
@@ -46,6 +50,7 @@ import { fileURLToPath } from 'node:url';
 import { runBoundedCommand } from './lib/run-command.mjs';
 import { findVersionedNsisInstaller } from './lib/release-installer.mjs';
 import { resolvePubkeyText, verifySignature } from './minisign-verify.mjs';
+import { canPromptHidden, promptHidden } from './lib/hidden-prompt.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -153,8 +158,18 @@ async function runStep(label, cmd, extraArgs, env) {
   return res;
 }
 
+// The updater key passphrase: the environment first, else a no-echo prompt, else none (a key
+// that has one then fails fast with "Wrong password"). Asked before the long build, never logged.
+async function updaterKeyPassword() {
+  const fromEnv = process.env.TAURI_SIGNING_PRIVATE_KEY_PASSWORD;
+  if (fromEnv) return fromEnv;
+  if (DRY_RUN || SKIP_BUILD || !canPromptHidden()) return '';
+  return promptHidden('Updater key passphrase (press Enter if the key has none): ');
+}
+
 async function main() {
   const version = await preflight();
+  const keyPassword = await updaterKeyPassword();
 
   if (!SKIP_BUILD) {
     // Gotcha #2: pre-build the ctor proc-macro crates single-threaded to dodge the E0463 race.
@@ -185,13 +200,18 @@ async function main() {
 
   if (!SKIP_BUILD) {
     const tauriCli = join(ROOT, 'node_modules', '@tauri-apps', 'cli', 'tauri.js');
-    await runStep('Sign updater installer (explicit empty password)', 'node', [
-      tauriCli, 'signer', 'sign', '--private-key-path', KEY_FILE, '--password=', installer
+    // A passphrase reaches the signer through its environment only (argv is visible to every
+    // process on the machine). With none, the explicit `--password=` is authoritative.
+    const passwordArgs = keyPassword ? [] : ['--password='];
+    await runStep(keyPassword ? 'Sign updater installer (passphrase from the environment or prompt)'
+      : 'Sign updater installer (no passphrase entered: explicit empty password)', 'node', [
+      tauriCli, 'signer', 'sign', '--private-key-path', KEY_FILE, ...passwordArgs, installer
     ], {
       // Explicit arguments are authoritative. Legacy shells may still carry these vars;
       // inheriting them makes the CLI reject the duplicate private-key source.
       TAURI_SIGNING_PRIVATE_KEY: null,
-      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: null
+      TAURI_SIGNING_PRIVATE_KEY_PATH: null,
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: keyPassword || null
     });
   }
 

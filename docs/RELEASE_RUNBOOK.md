@@ -130,7 +130,8 @@ merge, tag on the merge):
 ### 0.4 What the scripts cannot check (still yours)
 
 - That the release notes are *true* — the script only checks the TODO scaffold is gone.
-- The offline key backups (§4.1) — two physical copies, password "(empty string)".
+- The offline key backups (§4.1) — two physical copies, and the key's passphrase (§4.4) kept in your
+  password manager, never stored with the key.
 - Whether a hotfix may waive the 48h RC soak (`docs/RELEASE_READINESS.md`) — the row stays WARN; you
   decide and you write the waiver down in `RELEASE_NOTES`/`NEXT.md`.
 - Everything after the push: §1.6 onward is still a human watching a train and clicking Publish.
@@ -566,9 +567,11 @@ cp ~/.tauri/starnet-updater.key /d/backups/starnet-updater.key      # e.g. a USB
 cp ~/.tauri/starnet-updater.key /e/backups/starnet-updater.key      # e.g. a second stick / drive
 ```
 
-Also record the key's password. It is **empty** (that's deliberate — see the header of
-`scripts/release-cut.mjs`), so the note is literally "password: (empty string)". Store that
-note with the backups so a future you doesn't assume it's lost.
+Since 0.15.1 the key has a **passphrase** (§4.4). Until then its password was empty, so a copy
+of the file alone could sign updates every installed StarNet accepts. Keep the passphrase in your
+password manager (plus one written copy somewhere else), **never next to the key backups**: a
+backup that travels with its passphrase protects nothing. Losing the passphrase is the same as
+losing the key.
 Treat these copies like a house key: offline, physically controlled, never committed to git and
 never pasted into chat.
 
@@ -578,10 +581,12 @@ The train signs on CI, so the key also lives as two Actions secrets on the **sou
 (Settings → Secrets and variables → Actions):
 - `TAURI_SIGNING_PRIVATE_KEY` — the **entire contents** of `~/.tauri/starnet-updater.key`
   (the whole file, not a path).
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — an **empty** string.
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — the key's passphrase (§4.4).
 
-To refresh (e.g. new machine, or you rotated): open each secret → Update → paste the file
-contents / leave the password empty → Save. The publish token
+To refresh (e.g. new machine, new passphrase, or you rotated): open each secret → Update → paste
+the file contents / the passphrase → Save, or use the `gh secret set` commands in §4.4 step 4. A
+wrong or missing passphrase fails the build leg with "Wrong password for that key" before anything
+is staged. The publish token
 `RELEASES_TOKEN` (fine-grained PAT with Contents:write on `starnet-releases`) also lives here;
 refresh it the same way if it expires.
 
@@ -601,6 +606,47 @@ two-step bridge:
 Because step 2 strands anyone who missed the interim release, keep the interim build available
 for a long time and announce it loudly. Rotate only if you truly must (key leak). Otherwise the
 right answer is: **don't lose the key** (4.1).
+
+### 4.4 Put a passphrase on the key (once; before the 0.15.1 release build)
+
+This keeps the SAME key (same key id `FF7E32DB22213F8C`, same public key), so every installed
+StarNet keeps accepting updates. Only the protection on the file changes. Do it in your own
+terminal window, not inside an AI chat: the passphrase must never pass through one.
+
+1. **Make the passphrase in your password manager first** (a long random one; the tool wants 12+
+   characters) and save it there. Keep a written copy somewhere other than the key backups.
+2. From the repo root run:
+   ```powershell
+   node scripts/updater-key-passphrase.mjs
+   ```
+   It asks for the current passphrase (press Enter: there is none yet), then the new one twice,
+   with nothing shown on screen. It writes `~/.tauri/starnet-updater.key.new` and never touches the
+   original. Before it finishes it checks the new file opens with the new passphrase to the exact key
+   installed apps trust, no longer opens with an empty password, and that Tauri's own signer signs
+   with it and the signature verifies. Any failure deletes the new file and changes nothing.
+3. Swap the files (keep the old one until step 5 passes):
+   ```powershell
+   Move-Item "$HOME\.tauri\starnet-updater.key" "$HOME\.tauri\starnet-updater.key.no-passphrase"
+   Move-Item "$HOME\.tauri\starnet-updater.key.new" "$HOME\.tauri\starnet-updater.key"
+   ```
+4. Update both Actions secrets on the source repo (the release train and desktop-build read them):
+   ```powershell
+   cmd /c "gh secret set TAURI_SIGNING_PRIVATE_KEY --repo androoAGI/starnet < %USERPROFILE%\.tauri\starnet-updater.key"
+   gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo androoAGI/starnet
+   ```
+   The second command asks for the value with nothing shown: paste the passphrase.
+5. Prove it before you delete anything (this changes nothing; type the new passphrase):
+   ```powershell
+   node scripts/updater-key-passphrase.mjs --check
+   ```
+   The release train proves the CI secrets: a wrong passphrase stops the build leg with "Wrong
+   password for that key" and nothing is staged.
+6. Replace both offline backups (§4.1) with the new file. Then delete
+   `starnet-updater.key.no-passphrase` and the old backup copies: each is still a working signing key
+   for anyone who copies it. (Deleting cannot be undone, so only after step 5 passed.)
+
+Local cuts (`npm run release:cut`) and the update canary ask for the passphrase without echo at the
+start, or read it from `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if it is set in that terminal.
 
 ---
 

@@ -20,7 +20,7 @@
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   TAURI_SIGNING_PRIVATE_KEY          — contents of ~/.tauri/starnet-updater.key (the whole file)
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — empty string (the key is encrypted with an empty password)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — the key's passphrase (since 0.15.1; RELEASE_RUNBOOK §4.4)
 #   RELEASES_TOKEN                     — fine-grained PAT with Contents:write on
 #                                        androoAGI/starnet-releases
 #                                        (only needed for the publish step; build works without it)

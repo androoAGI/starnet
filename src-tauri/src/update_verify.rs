@@ -14,7 +14,9 @@
 //!     one top folder, no `..`, no hard links or device files, no write through a link, no duplicate path.
 //!   - Windows: the installer bytes are written to a private scratch file and Get-AuthenticodeSignature must say
 //!     Valid, embedded, with exactly one CN equal to WINDOWS_PUBLISHER_CN: the publisher the release train asserts
-//!     on every installer it ships (release-train.yml, Assert-Authenticode 'CN=Andrew Sims(?:,|$)').
+//!     on every installer it ships (release-train.yml, Assert-Authenticode 'CN=Andrew Sims(?:,|$)'). The signer's
+//!     certificate must also come from Microsoft's Trusted Signing issuers and carry StarNet's own signing-profile
+//!     EKU (WINDOWS_SIGNING_PROFILE_EKUS), so another publisher named "Andrew Sims" is refused (review LOW 13).
 //!   - Linux (AppImage): no platform signer exists; minisign stays the only check.
 //!
 //! The plugin then installs the SAME in-memory bytes (Update::install), so what was checked is what runs. Every
@@ -38,6 +40,17 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 /// The Windows publisher every shipped installer is asserted to carry (release-train.yml Assert-Authenticode).
 pub const WINDOWS_PUBLISHER_CN: &str = "Andrew Sims";
+/// StarNet's Azure Trusted Signing certificate profile, by its durable ID. Trusted Signing issues a fresh 3-day
+/// certificate under a rotating Microsoft intermediate (0.12.5: "Microsoft ID Verified CS AOC CA 03"; 0.15.0: "... CA
+/// 04"), so neither a thumbprint nor an issuer can be pinned. Every certificate of ONE profile carries the same
+/// 1.3.6.1.4.1.311.97.* EKU, which no other profile (another "Andrew Sims" included) carries. Read 2026-11-09 from the
+/// signed 0.12.5 and 0.15.0 installers. RECREATING THE PROFILE CHANGES THIS ID: every installed copy would then refuse
+/// the update. Ship a release that lists BOTH IDs first, then switch profiles (docs/CODE_SIGNING.md).
+pub const WINDOWS_SIGNING_PROFILE_EKUS: &[&str] =
+    &["1.3.6.1.4.1.311.97.854303013.546681036.740033270.779116820"];
+/// Trusted Signing's public-trust issuers: "Microsoft ID Verified CS <AOC|EOC> CA <nn>", O=Microsoft Corporation.
+pub const WINDOWS_ISSUER_CN_PREFIX: &str = "Microsoft ID Verified CS ";
+pub const WINDOWS_ISSUER_O: &str = "Microsoft Corporation";
 /// A macOS Team ID baked in at build time, when the release build sets it; otherwise the running copy's own team.
 const MAC_TEAM_PIN: Option<&str> = option_env!("STARNET_MAC_TEAM_ID");
 /// Upper bounds on what the scratch unpack may write (a shipped StarNet.app is well under both).
@@ -458,15 +471,19 @@ pub fn windows_installer_extension(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// Get-AuthenticodeSignature on the path in STARNET_UPDATE_NEW, as three `key=value` lines. Single-quoted strings
-/// only and no type literals, so it passes through the command line unchanged and runs in Constrained Language Mode.
-pub const AUTHENTICODE_SCRIPT: &str = "$ErrorActionPreference = 'Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:STARNET_UPDATE_NEW; $c = $s.SignerCertificate; $subject = ''; if ($null -ne $c) { $subject = ($c.Subject -replace '[\\r\\n]', ' ') }; Write-Output ('status=' + $s.Status); Write-Output ('type=' + $s.SignatureType); Write-Output ('subject=' + $subject)";
+/// Get-AuthenticodeSignature on the path in STARNET_UPDATE_NEW, as five `key=value` lines (the signer's EKUs read
+/// through its extension list, space-separated). Single-quoted strings only and no type literals, so it passes through
+/// the command line unchanged and runs in Constrained Language Mode (checked 2026-11-09 against the signed 0.12.5
+/// installer in both language modes; EnhancedKeyUsageList, a ScriptProperty, reads empty in Constrained mode).
+pub const AUTHENTICODE_SCRIPT: &str = "$ErrorActionPreference = 'Stop'; $s = Get-AuthenticodeSignature -LiteralPath $env:STARNET_UPDATE_NEW; $c = $s.SignerCertificate; $subject = ''; $issuer = ''; $eku = ''; if ($null -ne $c) { $subject = ($c.Subject -replace '[\\r\\n]', ' '); $issuer = ($c.Issuer -replace '[\\r\\n]', ' '); $eku = (@($c.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' } | ForEach-Object { $_.EnhancedKeyUsages } | ForEach-Object { $_.Value }) -join ' ') }; Write-Output ('status=' + $s.Status); Write-Output ('type=' + $s.SignatureType); Write-Output ('subject=' + $subject); Write-Output ('issuer=' + $issuer); Write-Output ('eku=' + $eku)";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct AuthenticodeReport {
     pub status: String,
     pub signature_type: String,
     pub subject: String,
+    pub issuer: String,
+    pub ekus: Vec<String>,
 }
 
 pub fn parse_authenticode_report(output: &str) -> AuthenticodeReport {
@@ -479,6 +496,10 @@ pub fn parse_authenticode_report(output: &str) -> AuthenticodeReport {
             report.signature_type = v.trim().to_string();
         } else if let Some(v) = line.strip_prefix("subject=") {
             report.subject = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("issuer=") {
+            report.issuer = v.trim().to_string();
+        } else if let Some(v) = line.strip_prefix("eku=") {
+            report.ekus = v.split_whitespace().map(str::to_string).collect();
         }
     }
     report
@@ -487,6 +508,11 @@ pub fn parse_authenticode_report(output: &str) -> AuthenticodeReport {
 /// Every CN in an X.500 name as .NET prints it ("CN=Andrew Sims, O=Andrew Sims, C=US"; a value with a separator
 /// in it is double-quoted, "" inside quotes is a quote). '+' (a multi-valued RDN) separates attributes too.
 pub fn common_names(subject: &str) -> Vec<String> {
+    attribute_values(subject, "CN")
+}
+
+/// Every value of one attribute (CN, O, …) in an X.500 name as .NET prints it, by the same rules as common_names.
+pub fn attribute_values(subject: &str, attribute: &str) -> Vec<String> {
     let mut parts: Vec<String> = Vec::new();
     let mut current = String::new();
     let mut quoted = false;
@@ -506,7 +532,7 @@ pub fn common_names(subject: &str) -> Vec<String> {
     parts
         .iter()
         .filter_map(|part| part.split_once('='))
-        .filter(|(key, _)| key.trim().eq_ignore_ascii_case("CN"))
+        .filter(|(key, _)| key.trim().eq_ignore_ascii_case(attribute))
         .map(|(_, value)| value.trim().to_string())
         .collect()
 }
@@ -534,6 +560,28 @@ pub fn judge_authenticode(report: &AuthenticodeReport) -> Result<(), String> {
         return Err(format!(
             "the code signature check refused the update: the installer is signed by \"{}\", not StarNet's publisher {WINDOWS_PUBLISHER_CN}. Nothing was installed.",
             report.subject
+        ));
+    }
+    // the certificate comes from StarNet's own Trusted Signing profile, under Microsoft's Trusted Signing issuers
+    let issuer_names = common_names(&report.issuer);
+    let issuer_orgs = attribute_values(&report.issuer, "O");
+    if issuer_names.len() != 1
+        || !issuer_names[0].starts_with(WINDOWS_ISSUER_CN_PREFIX)
+        || issuer_orgs.len() != 1
+        || issuer_orgs[0] != WINDOWS_ISSUER_O
+    {
+        return Err(format!(
+            "the code signature check refused the update: the installer's certificate for {WINDOWS_PUBLISHER_CN} was issued by \"{}\", not by StarNet's signing service. Nothing was installed.",
+            report.issuer
+        ));
+    }
+    if !report
+        .ekus
+        .iter()
+        .any(|eku| WINDOWS_SIGNING_PROFILE_EKUS.contains(&eku.as_str()))
+    {
+        return Err(format!(
+            "the code signature check refused the update: the installer's certificate for {WINDOWS_PUBLISHER_CN} is not from StarNet's own signing profile. Nothing was installed."
         ));
     }
     Ok(())
@@ -1145,11 +1193,26 @@ mod tests {
 
     #[test]
     fn judges_the_installer_signer() {
+        // as the signed 0.15.0 installer reads (2026-11-09)
         let ok = AuthenticodeReport {
             status: "Valid".into(),
             signature_type: "Authenticode".into(),
-            subject: "CN=Andrew Sims, O=Andrew Sims, L=Austin, S=Texas, C=US".into(),
+            subject: "CN=Andrew Sims, O=Andrew Sims, L=Boca Raton, S=fl, C=US".into(),
+            issuer: "CN=Microsoft ID Verified CS AOC CA 04, O=Microsoft Corporation, C=US".into(),
+            ekus: vec![
+                "1.3.6.1.4.1.311.97.1.0".into(),
+                "1.3.6.1.5.5.7.3.3".into(),
+                "1.3.6.1.4.1.311.97.854303013.546681036.740033270.779116820".into(),
+            ],
         };
+        assert_eq!(
+            judge_authenticode(&AuthenticodeReport {
+                issuer: "CN=Microsoft ID Verified CS EOC CA 01, O=Microsoft Corporation, C=US".into(),
+                ..ok.clone()
+            }),
+            Ok(()),
+            "a rotated Trusted Signing intermediate still passes: the profile is what is pinned"
+        );
         assert_eq!(judge_authenticode(&ok), Ok(()));
         assert_eq!(
             judge_authenticode(&AuthenticodeReport {
@@ -1216,6 +1279,46 @@ mod tests {
                 },
                 "not StarNet's publisher",
             ),
+            (
+                AuthenticodeReport {
+                    issuer: "CN=Cheap CA, O=Cheap CA Ltd, C=US".into(),
+                    ..ok.clone()
+                },
+                "not by StarNet's signing service",
+            ),
+            (
+                AuthenticodeReport {
+                    issuer: "CN=Microsoft ID Verified CS AOC CA 04, O=Mallory, C=US".into(),
+                    ..ok.clone()
+                },
+                "not by StarNet's signing service",
+            ),
+            (
+                AuthenticodeReport {
+                    issuer: String::new(),
+                    ..ok.clone()
+                },
+                "not by StarNet's signing service",
+            ),
+            (
+                // another Trusted Signing customer named Andrew Sims: a different profile EKU
+                AuthenticodeReport {
+                    ekus: vec![
+                        "1.3.6.1.4.1.311.97.1.0".into(),
+                        "1.3.6.1.5.5.7.3.3".into(),
+                        "1.3.6.1.4.1.311.97.1.2.3.4".into(),
+                    ],
+                    ..ok.clone()
+                },
+                "not from StarNet's own signing profile",
+            ),
+            (
+                AuthenticodeReport {
+                    ekus: Vec::new(),
+                    ..ok.clone()
+                },
+                "not from StarNet's own signing profile",
+            ),
         ] {
             let why = judge_authenticode(&bad).unwrap_err();
             assert!(
@@ -1230,15 +1333,21 @@ mod tests {
     #[test]
     fn parses_the_powershell_report() {
         let r = parse_authenticode_report(
-            "status=Valid\r\ntype=Authenticode\r\nsubject=CN=Andrew Sims, C=US\r\n",
+            "status=Valid\r\ntype=Authenticode\r\nsubject=CN=Andrew Sims, C=US\r\nissuer=CN=Microsoft ID Verified CS AOC CA 04, O=Microsoft Corporation, C=US\r\neku=1.3.6.1.5.5.7.3.3  1.3.6.1.4.1.311.97.1.0\r\n",
         );
         assert_eq!(
             r,
             AuthenticodeReport {
                 status: "Valid".into(),
                 signature_type: "Authenticode".into(),
-                subject: "CN=Andrew Sims, C=US".into()
+                subject: "CN=Andrew Sims, C=US".into(),
+                issuer: "CN=Microsoft ID Verified CS AOC CA 04, O=Microsoft Corporation, C=US".into(),
+                ekus: vec!["1.3.6.1.5.5.7.3.3".into(), "1.3.6.1.4.1.311.97.1.0".into()],
             }
+        );
+        assert_eq!(
+            attribute_values("CN=Microsoft ID Verified CS AOC CA 04, O=Microsoft Corporation, C=US", "O"),
+            ["Microsoft Corporation"]
         );
         assert_eq!(
             parse_authenticode_report("Get-AuthenticodeSignature : Cannot find path\n"),

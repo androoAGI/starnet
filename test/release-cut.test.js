@@ -39,8 +39,28 @@ assert.match(output, new RegExp('Cargo\\.lock version\\s+: ' + versionPattern),
 const source = readFileSync(join(ROOT, 'scripts', 'release-cut.mjs'), 'utf8');
 assert.match(source, /TAURI_SIGNING_PRIVATE_KEY:\s*null/,
   'explicit path signing must remove a legacy inline key from the child environment');
-assert.match(source, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*null/,
-  'explicit password signing must remove a legacy password variable from the child environment');
+assert.match(source, /TAURI_SIGNING_PRIVATE_KEY_PASSWORD:\s*keyPassword \|\| null/,
+  'with no passphrase entered, a legacy password variable is removed from the signer environment');
+assert.match(source, /const passwordArgs = keyPassword \? \[\] : \['--password='\]/,
+  'a passphrase never goes on the signer command line; without one the empty password is explicit (no stall)');
+assert.match(source, /const version = await preflight\(\);\s+const keyPassword = await updaterKeyPassword\(\);/,
+  'the passphrase is asked before the long build, not after it');
+
+/* GHSA-2hpj #7 (0.15.1): the updater key has a passphrase. Given through the environment, it reaches the
+   signer through the environment only: the printed command has no --password and never the value. */
+{
+  const secret = 'fixture-passphrase-' + Date.now();
+  const withPass = spawnSync(process.execPath, [
+    join(ROOT, 'scripts', 'release-cut.mjs'), '--dry-run', '--no-pre-build-ctor'
+  ], { cwd: ROOT, encoding: 'utf8', env: Object.assign({}, process.env, {
+    STARNET_UPDATER_KEY_FILE: keyFile, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: secret }) });
+  assert.equal(withPass.status, 0, withPass.stderr || withPass.stdout);
+  const text = withPass.stdout + withPass.stderr;
+  assert.match(text, /signer sign --private-key-path .*starnet-updater\.key \S*setup\.exe/i,
+    'with a passphrase the signing command goes straight from the key path to the installer');
+  assert.doesNotMatch(text, /--password/, 'no password flag when the passphrase comes from the environment');
+  assert.ok(!text.includes(secret), 'the passphrase never appears in the cutter output');
+}
 assert.match(source, /Object\.entries\(versions\).*value !== version/,
   'the release cutter fails closed when any of the five release pins disagree');
 assert.match(source, /findVersionedNsisInstaller\(nsisDir, version\)/,

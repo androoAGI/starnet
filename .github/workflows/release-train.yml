@@ -14,7 +14,8 @@
 #                                        UNLIKE desktop-build, this is REQUIRED: the build fails
 #                                        fast if absent. There is NO createUpdaterArtifacts:false
 #                                        fallback here — an unsigned release train is not a thing.
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — empty string (key encrypted with an empty password).
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD — the key's passphrase (since 0.15.1; RELEASE_RUNBOOK §4.4).
+#                                        A wrong one fails the build leg with "Wrong password".
 #   RELEASES_TOKEN                     — fine-grained PAT with Contents:write on
 #                                        androoAGI/starnet-releases.
 #   APPLE_* (required for macOS)       — codesign/notarize the mac DMG. The release train
@@ -579,8 +580,9 @@ jobs:
 
       # GHSA-2hpj #10 RELEASE GATE: the shell's OWN update signer check must admit the installer the
       # fleet will download. An installed StarNet runs src-tauri/src/update_verify.rs on every update
-      # (Get-AuthenticodeSignature: Valid, embedded, exactly one CN = the publisher pinned above)
-      # before it runs the installer. update-verify-gate compiles that file unchanged and runs it on
+      # (Get-AuthenticodeSignature: Valid, embedded, exactly one CN = the publisher pinned above, a
+      # Microsoft "ID Verified CS" issuer, and StarNet's own Trusted Signing profile EKU; see
+      # docs/CODE_SIGNING.md before recreating that profile) before it runs the installer. update-verify-gate compiles that file unchanged and runs it on
       # the signed installer here, so a check that would refuse this release fails the train instead
       # of every installed copy's next update. Controls: a catalog-signed Microsoft binary and the
       # runner's Node (embedded OpenJS Foundation signature) must be refused. A tiny crate (tar +

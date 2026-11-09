@@ -61,19 +61,23 @@ The public updater key is embedded in `src-tauri/tauri.conf.json`. The matching 
 C:\Users\<you>\.tauri\starnet-updater.key
 ```
 
-It is an **rsign encrypted secret key with an empty password**. Do not commit it. Back it up
-in a password manager or release vault before shipping a public build. If that private key is
-lost after release, existing users will not be able to install future signed updates.
+It is an **rsign encrypted secret key protected by a passphrase** (since 0.15.1; before that the
+password was empty, see `docs/RELEASE_RUNBOOK.md` §4.4 for how it was added without changing the
+key). Do not commit it. Back it up offline, and keep the passphrase in a password manager, apart
+from the key. If the private key or its passphrase is lost after release, existing users will not
+be able to install future signed updates.
 
 ### The signing stall (why 0.1.7 shipped without updater artifacts)
 
-`tauri build` invokes minisign to produce the `.sig`. Because the key is encrypted, the CLI
-**blocks on an interactive password prompt** when its empty password is supplied through the
-normal build environment. That interactive stall is why an earlier build set
+`tauri build` invokes minisign to produce the `.sig`. Because the key is encrypted, a signer
+that gets **no** password **blocks on an invisible interactive prompt** (older CLIs also treated
+an empty password in the environment as absent). That stall is why an earlier build set
 `createUpdaterArtifacts: false` to get unblocked (which silently disabled the updater, since
 the updater REQUIRES the `.sig`). The release cutter avoids that path: it builds the NSIS
-installer first, then signs it explicitly with the key file and `--password=`. No signing
-environment variables are required for a local cut:
+installer first, then signs it explicitly with the key file. It asks for the passphrase without
+echo at the start (or reads `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and hands it to the signer
+through the environment only; with none it passes `--password=`, so a wrong or missing
+passphrase fails at once with "Wrong password for that key" instead of stalling:
 
 ```powershell
 Test-Path "$env:USERPROFILE\.tauri\starnet-updater.key" # must print True

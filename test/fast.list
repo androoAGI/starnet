@@ -1324,6 +1324,7 @@ test/terminal-tools.test.js
 test/terminal-output-boundary.test.js
 test/release-bump.test.js
 test/release-cut.test.js
+test/updater-key-passphrase.test.js
 test/release-preflight.test.js
 test/release-gate-text-encoding.test.js
 test/release-ritual.test.js

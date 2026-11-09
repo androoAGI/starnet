@@ -50,6 +50,35 @@ uses `Get-AuthenticodeSignature` to require a valid timestamped signature on the
 installer, and bundled Node runtime. Any missing credential, wrong publisher, unsigned
 file, invalid chain, or missing timestamp stops the release before staging.
 
+### What an installed StarNet checks before it runs an update (since 0.15.1)
+
+Before an installed copy runs a downloaded Windows update, `src-tauri/src/update_verify.rs`
+requires, through `Get-AuthenticodeSignature` (Constrained Language Mode safe):
+
+- status `Valid` with an embedded signature (a catalog signature is refused);
+- exactly one subject CN, `Andrew Sims`;
+- an issuer with exactly one CN starting `Microsoft ID Verified CS ` and exactly one
+  O = `Microsoft Corporation`. Trusted Signing rotates its intermediates (0.12.5 came from
+  `... AOC CA 03`, 0.15.0 from `... AOC CA 04`, and EOC variants exist), so the issuer name is
+  matched by prefix, never pinned exactly;
+- the certificate profile's own EKU,
+  `1.3.6.1.4.1.311.97.854303013.546681036.740033270.779116820`. Trusted Signing stamps every
+  certificate it issues for the `starnet-public` profile with this ID, and it survives the 3-day
+  certificate renewals and intermediate rotations. It is what stops a certificate someone else
+  obtained for the same name from passing.
+
+The release train runs this very file on the signed installer (`update-verify-gate`) and stops if it
+would refuse, so a mismatch fails the train, never the fleet.
+
+> **Before you ever delete, recreate or replace the `starnet-public` certificate profile** (or the
+> identity validation behind it): the new profile gets a NEW EKU ID, and every installed copy would
+> refuse updates signed under it. First ship a release, signed under the old profile, whose
+> `WINDOWS_SIGNING_PROFILE_EKUS` in `update_verify.rs` lists BOTH IDs. Read the new ID from a file
+> the new profile signed:
+> `$c = (Get-AuthenticodeSignature <file>).SignerCertificate; $c.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' } | ForEach-Object { $_.EnhancedKeyUsages } | ForEach-Object { $_.Value }`
+> (the profile ID is the one under `1.3.6.1.4.1.311.97.`; the others are generic code signing).
+> Give users time to take that release, then switch.
+
 ### Reputation reality check
 
 Signing removes the unknown-publisher condition and reduces malware heuristics, but
