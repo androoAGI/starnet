@@ -269,10 +269,20 @@ function channelStation(o) {
     '"use strict";\nlet _quarantineSeq = 0;\n' + persistBinding + lifted + '\nreturn { readResilient, loadResilient, saveResilient, saveCredentialRemovalVerified, bothCopiesHold };')(
     sharedPersist ? req(ROOT, 'sidecar/persist/index.js').host({ fs: fsio, path, writeDurable: req(ROOT, 'sidecar/durable-write.js').writeFileDurable }) : null,
     fsio, path, host.console, DS.readJsonResilient, DS.writeJsonResilient, DS.saveJsonVerified, req(ROOT, 'sidecar/durable-write.js').writeFileDurable);
+  // final review #3: the region seals who owns each bot (channel-owners.json) through the authority seal. These stations are
+  // bare (no credential-store key), so the seal is the real module's unkeyed one, which checks and seals nothing, as before;
+  // authorityFileOf is index.js's own statement, over this station's folder
+  const authoritySealMod = req(ROOT, 'sidecar/authority-seal.js');
+  const authorityFileOf = text.indexOf('const authorityFileOf = name =>') >= 0
+    ? new Function('path', 'WORKSPACES', '"use strict";\n' + between(text, 'const authorityFileOf = name =>', 'path.basename(String(name)));', 'where each sealed file lives') + '\nreturn authorityFileOf;')(path, o.dir)
+    : null;
+  Object.assign(host, { authoritySealMod, authorityFileOf, authoritySeal: authoritySealMod.makeAuthoritySeal({ key: null, now: () => Date.now(), log: () => {} }),
+    readJsonIfPresent: file => { try { return JSON.parse(fsio.readFileSync(file, 'utf8')); } catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; } } });
   Object.assign(host, durable, { fs: fsio, channelSecretsMod: req(ROOT, 'sidecar/channels/secrets.js'), saveJsonVerified: DS.saveJsonVerified, writeFileDurable: req(ROOT, 'sidecar/durable-write.js').writeFileDurable,
     CHANNELS_DIR: path.join(o.dir, 'channels'), CHANNEL_SECRETS_FILE: path.join(o.dir, 'channels', 'secrets.json'), channelTokenRuntime: {}, channelTokenDurable: Object.assign({}, o.durableTokens),
     failNote: (tag, e) => host.warns.push(tag + ': ' + ((e && e.message) || e)), expiredSignInNote: () => '', resolveReasoningEffort: (p, v) => v || 'medium' });
-  const factory = compile('const credentialStore = host.credentialStore;\nconst { fs, channelSecretsMod, saveJsonVerified, saveResilient, writeFileDurable, CHANNELS_DIR, CHANNEL_SECRETS_FILE, channelTokenRuntime, channelTokenDurable, failNote, expiredSignInNote, resolveReasoningEffort } = host;\n' +
+  const factory = compile('const credentialStore = host.credentialStore;\nconst { fs, channelSecretsMod, saveJsonVerified, saveResilient, writeFileDurable, CHANNELS_DIR, CHANNEL_SECRETS_FILE, channelTokenRuntime, channelTokenDurable, failNote, expiredSignInNote, resolveReasoningEffort,' +
+    ' authoritySealMod, authorityFileOf, authoritySeal, readJsonIfPresent } = host;\n' +
     adoption + '\n' + fns.join('\n') + '\n' + block + '\n' + views + '\n' + region +
     '\nreturn { credStore, reconciled: channelsReconciled, status: () => channelSecretsStatus, records: () => channelSecrets, view: channelCredential, hub: channelHubSecrets, save: () => saveChannelSecrets(channelSecrets), botRecord: saveTelegramBotRecord,' +
     ' push: setProviderRuntimeConfig, putPage: (p, input, opts) => credStore.putPage(p, input, opts) };', ['channelsFollowStation', 'channelCredential']);

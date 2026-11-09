@@ -145,7 +145,7 @@ const ends = calls => calls.map(x => x.via === 'fetch' ? x.url : x.baseUrl);
   {
     const core = sidecarTopLevelFunction('runOnceCore');
     const fromAt = core.indexOf('  const providerFallbacks = [];');
-    const toAt = core.indexOf('  const fallbacks = rotationFallbacks', fromAt);
+    const toAt = core.indexOf('  const fallbacksAll = rotationFallbacks', fromAt);
     A.ok(fromAt > 0 && toAt > fromAt && toAt - fromAt < 6000, "fixture: runOnceCore's fallback loop is sliced");
     // runWatch: the run's watch over the keys its adapters send (credential-store.js inFlight, step S3), from this station's store
     const entries = (s, list, runWatch) => new Function('savedProviderFallbacks', 'o', 'normalizeProvider', 'providerId', 'chatModelId', 'model', 'providerRuntimeBaseUrl', 'providerRuntimeKey', 'providerHasCredential',

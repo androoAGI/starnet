@@ -640,6 +640,8 @@
         '<label class="sn-menu-field">What should it do?<textarea class="key-input" data-edit-prompt rows="5" maxlength="' + EDIT_PROMPT_MAX + '" style="resize:vertical"></textarea></label>' +
         '<div class="mc-detail" data-edit-error role="alert" hidden></div>' +
         '<div class="mc-acts"><button class="bb xs" data-edit="save">✓ SAVE CHANGES</button>' +
+        // shown only after the desk did not keep a granted routine's permissions through this change (review2 #2)
+        '<button class="bb xs danger" data-edit="save-without" style="display:none" title="save this change, and the routine stops doing what it was allowed to do with nobody watching">SAVE WITHOUT ITS PERMISSIONS</button>' +
         '<button class="bb xs" data-edit="cancel">CANCEL</button></div>';
       rowEl.insertAdjacentElement('afterend', host);
       btn.classList.add('on');
@@ -647,6 +649,7 @@
       const promptEl = host.querySelector('[data-edit-prompt]');
       const errorEl = host.querySelector('[data-edit-error]');
       const cancelBtn = host.querySelector('[data-edit="cancel"]');
+      const withoutBtn = host.querySelector('[data-edit="save-without"]');
       nameEl.value = job.name || '';
       promptEl.value = job.prompt || '';
       nameEl.focus();
@@ -666,19 +669,25 @@
         const agentEl = host.querySelector('[data-edit-agent]');
         if (agentEl && agentEl.value && agentEl.value !== curAgent) patch.agentId = agentEl.value;
         if (!Object.keys(patch).length) { closeEdit(); return; }
+        const withoutGrants = action.dataset.edit === 'save-without';
+        const restLabel = action.textContent;
         editSaving = true;
         action.disabled = true; action.textContent = '… saving';
         cancelBtn.disabled = true;
         errorEl.hidden = true;
+        withoutBtn.style.display = 'none';   // .bb.xs is inline-flex, which a [hidden] attribute would not hide
         try {
           // WHAT IT WAS ALLOWED FOR (fix-sec2, review2 #2): a routine's unattended permissions were given for what it
           // runs. A new task or a new agent keeps them only with a yes at the desk; when that is declined, the change can
-          // still be saved without them (taking a permission away never needs the desk).
-          const holds = Array.isArray(job.unattendedGrants) && job.unattendedGrants.length > 0 && ('prompt' in patch || 'agentId' in patch);
-          let response = await Harness.api.post('/api/cron/update', holds ? { id, patch, keepGrants: true } : { id, patch });
-          if (holds && !response.ok && (response.code === 'desk_confirm_required' || response.code === 'desk_only' || response.code === 'desk_locked')
-              && window.confirm('Save the changed routine without its unattended permissions?\n\nIt keeps running on its schedule, but no longer does what it was allowed to do with nobody watching.')) {
-            response = await Harness.api.post('/api/cron/update', { id, patch });
+          // still be saved without them (taking a permission away never needs the desk). That second choice is this form's
+          // own SAVE WITHOUT ITS PERMISSIONS button, shown with the reason, never a native dialog.
+          const holds = !withoutGrants && Array.isArray(job.unattendedGrants) && job.unattendedGrants.length > 0 && ('prompt' in patch || 'agentId' in patch);
+          const response = await Harness.api.post('/api/cron/update', holds ? { id, patch, keepGrants: true } : { id, patch });
+          if (holds && !response.ok && (response.code === 'desk_confirm_required' || response.code === 'desk_only' || response.code === 'desk_locked')) {
+            errorEl.textContent = 'Not saved: ' + Harness.api.why(response) + ', so this routine cannot keep its unattended permissions through this change. ' +
+              'You can save it without them: it keeps running on its schedule, but no longer does what it was allowed to do with nobody watching.';
+            errorEl.hidden = false; withoutBtn.style.display = ''; sfx('bad');
+            return;
           }
           const result = response.j;
           if (!response.ok) throw new Error('changes were not saved: ' + Harness.api.why(response));
@@ -688,9 +697,10 @@
         } catch (e) {
           errorEl.textContent = (e && e.message) || 'could not reach the station — changes were not saved';
           errorEl.hidden = false; sfx('bad');
+          if (withoutGrants) withoutBtn.style.display = '';   // that choice is still open
         } finally {
           editSaving = false;
-          action.disabled = false; action.textContent = '✓ SAVE CHANGES';
+          action.disabled = false; action.textContent = restLabel;
           cancelBtn.disabled = false;
         }
       });
