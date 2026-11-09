@@ -376,16 +376,17 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
 // ---- SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12, Etsy-factory Publisher report) ----
 // Reading one API's response revoked web_request: one card per call in a watched run ("session" collapsed to once),
 // a refusal in an unattended one — so no GET-then-PUT API job could run hands-off. The continuation lets the run keep
-// calling THAT https origin with keys it already sent there, with the first read's method under its folder and no attached
-// files (GHSA-2hpj #6); everything else keeps the lock.
+// calling THAT https origin with keys it already sent there, with the first read's method and no attached files (GHSA-2hpj #6),
+// and since NEW-3 (2026-11-09) only the first read's own path, its query changed in paging only; everything else keeps the lock.
 {
   const wr = { name: 'web_request', capability: 'web', scope: 'write', impact: 'external-credentialed' };
   const call = (url, extra) => ({ name: 'web_request', args: Object.assign({ url }, extra || {}) });
   const P = 'https://api.printify.com/v1/shops/1/products/5de6593ebff03b5313567d22.json';
   const key = { headers: { Authorization: 'Bearer ${PRINTIFY_API_KEY}' } };
   let s = taint.scopeAfterSource(null, wr, call(P, key), { wasTainted: false, runId: 'r1', responseOrigin: 'https://api.printify.com' });
-  A.eq(JSON.stringify(s), '{"origin":"https://api.printify.com","keys":["PRINTIFY_API_KEY"],"method":"GET","prefix":"/v1/shops/1/products/","path":"/v1/shops/1/products/5de6593ebff03b5313567d22.json"}', 'the first API read scopes the run to that origin + key, and to its method, path folder and path (GHSA-2hpj #6, final review #8)');
-  A.ok(taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/shops/1/products/another.json', key)), 'a GET under the same folder with the same key continues without a card');
+  A.eq(JSON.stringify([s.origin, s.keys, s.method, s.path, s.query]), '["https://api.printify.com",["PRINTIFY_API_KEY"],"GET","/v1/shops/1/products/5de6593ebff03b5313567d22.json",[]]', 'the first API read scopes the run to that origin + key, and to its method, path and query (GHSA-2hpj #6, final review #8, NEW-3)');
+  A.ok(taint.sameOriginContinuation(s, wr, call(P + '?page=2', key)), 'the next page of the same read with the same key continues without a card');
+  A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/shops/1/products/another.json', key)), 'NEW-3: another product under the same folder is a new request: it asks');
   // GHSA-2hpj #6: one origin is not one principal, so a write after a read and another folder ask again (test/taint-api-continuation-scope.test.js)
   A.ok(!taint.sameOriginContinuation(s, wr, call(P, Object.assign({ method: 'PUT', body: '{}' }, key))), 'a PUT after a GET is another method: it needs a fresh confirmation');
   A.ok(!taint.sameOriginContinuation(s, wr, call('https://api.printify.com/v1/uploads/images.json', Object.assign({ method: 'POST' }, key))), 'another path on the same origin no longer continues');
@@ -412,7 +413,7 @@ A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'auton
   // wiring: one gate, before the boundary; the scope follows every source and relayed taint
   const idx = readSidecarSource();
   A.ok(/const sameOriginApi = !!taintSource && !inheritedTaint && taintSource === execution\.taintedBy\(\)\s*&& taintPolicy\.sameOriginContinuation\(taintScope, liveTool, c, \{ untrustedEntry: untrustedEntryRun \}\);\s*let postTaint = sameOriginApi \?/.test(idx), 'the dispatch gate consults the scope (never for an inherited taint)');
-  A.ok(/taintScope = taintPolicy\.scopeAfterSource\(taintScope, liveTool, c, \{ wasTainted: !!execution\.taintedBy\(\), runId, responseOrigin: responseProvenance\.originOf\(r\) \}\);/.test(idx), 'every untrusted result updates the scope, not only the first');
+  A.ok(/taintScope = taintPolicy\.scopeAfterSource\(taintScope, liveTool, c, \{ wasTainted: !!execution\.taintedBy\(\), runId, responseOrigin: responseProvenance\.originOf\(r\), responseText: r\.content \}\);/.test(idx), 'every untrusted result updates the scope, not only the first (and hands it what the model was shown: NEW-3)');
   A.ok(/if \(relayed\) \{ latchRunTaint\(relayed\); taintScope = \{ broad: true \}; \}/.test(idx), 'relayed worker taint makes the scope broad');
 }
 

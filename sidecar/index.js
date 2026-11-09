@@ -26278,7 +26278,7 @@ async function runOnceCore(o) {
     // ...EXCEPT a refusal the HOST itself wrote (hostAuthored: a URL guard refusing file:// or a private address) — no
     // outside byte reached the context. MCP connector failures never carry the flag, so they still latch.
     if (r && typeof r.content === 'string' && r.content.length && !(r.isError && r.hostAuthored === true) && revokedByTaint.isSource(liveTool, c)) {
-      taintScope = taintPolicy.scopeAfterSource(taintScope, liveTool, c, { wasTainted: !!execution.taintedBy(), runId, responseOrigin: responseProvenance.originOf(r) });
+      taintScope = taintPolicy.scopeAfterSource(taintScope, liveTool, c, { wasTainted: !!execution.taintedBy(), runId, responseOrigin: responseProvenance.originOf(r), responseText: r.content });   // responseText: a next-page cursor must be one the API returned (NEW-3)
       latchRunTaint(c.name);   // every untrusted result, not only the first: latchTaint keeps the first source, and the attachment (which decays) must not shield a page read after it
     }
     /* RELAYED TAINT (sec-taint 09-25). team.dispatch / team.spawn / team.subagents / team.resume hand this run the
