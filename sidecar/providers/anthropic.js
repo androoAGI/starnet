@@ -572,12 +572,17 @@
        and caches by prefix, so these keys never shift the cached prefix — but they DO invalidate it when they
        CHANGE, which is why effort is resolved once per request from a value that is stable for a run's life
        rather than recomputed per turn. */
+    // the level a request for `model` carrying `perRequest` (else the construction default) asks for, on that model's own
+    // ladder: applyThinking and effortAsSent read this one function
+    function effortFor(model, perRequest) {
+      const allowed = effortsFor(model);
+      const want = normalizeEffort(perRequest || defaultEffort);
+      return (allowed.indexOf(want) >= 0) ? want : clampEffort(want, allowed);
+    }
     function applyThinking(body, req, wire) {
       const model = body.model;
       if (!isClaude(model)) return;                        // third-party Anthropic-compatible endpoint: send nothing
-      const allowed = effortsFor(model);
-      const want = normalizeEffort(req.reasoningEffort || defaultEffort);
-      const effort = (allowed.indexOf(want) >= 0) ? want : clampEffort(want, allowed);
+      const effort = effortFor(model, req.reasoningEffort);
 
       if (hasAny(model, LEGACY_CLAUDE)) {
         if (effort === 'none') return;                     // legacy has no disable switch — omitting IS the off state
@@ -1035,6 +1040,22 @@
     // Resolved from the model NAME, not the warm catalog: /v1/models publishes no capability data, and the
     // dock asks this before a catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return effortsFor(id); }
+    /* effortAsSent(id, perRequest, req?) -> the effort a request for `id` carrying `perRequest` (falsy: none of its own) puts
+       on the wire, read off applyThinking itself: what every station record of an Anthropic call names (index.js
+       effortAsRun), never the dial (Opus 5.5 always thinks: none and minimal go out as low). Adaptive thinking: its
+       output_config.effort; legacy manual thinking: the level its budget was chosen for; OFF: 'none' ({type:'disabled'},
+       Sonnet 5.5's {type:'between_tools'}, and a legacy model sent no thinking, its off). null = nothing was sent (a
+       non-Claude model on an Anthropic-shaped endpoint): it ran on the endpoint's own default. `req` (optional) carries the
+       request's own output ceiling, which can leave a legacy budget no room to think. */
+    function effortAsSent(id, perRequest, req) {
+      const body = { model: id, max_tokens: resolveMaxTokens(Object.assign({}, req, { model: id })) };
+      applyThinking(body, { reasoningEffort: perRequest });
+      const t = body.thinking;
+      if (!t) return isClaude(id) ? 'none' : null;
+      if (t.type === 'adaptive') return body.output_config.effort;
+      if (t.type === 'enabled') return effortFor(id, perRequest);
+      return 'none';
+    }
 
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
@@ -1043,7 +1064,7 @@
     /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
        after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
        replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking };
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound } };

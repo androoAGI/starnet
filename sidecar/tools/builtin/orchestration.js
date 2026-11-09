@@ -1196,7 +1196,9 @@
             usd: totalUsd,
             runId: workerRunId,
             model: effective.model || wire.model,
-            reasoningEffort: effective.reasoningEffort || wire.reasoningEffort || null,
+            // the effort the worker's run records (index.js effortAsRun: what its request carried), never the dial it was handed:
+            // a request that carried none names none here, as its run record and ledger row do
+            reasoningEffort: effective.reasoningEffort || null,
             toolsOk: (Number(result.toolsOk) || 0) + (Number(repaired && repaired.toolsOk) || 0),
             durationMs: (Number(result.durationMs) || 0) + (Number(repaired && repaired.durationMs) || 0),
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)

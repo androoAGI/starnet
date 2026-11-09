@@ -23,6 +23,7 @@ const http = require('node:http');
 const readline = require('node:readline');
 const core = require('./cli-core.js');
 const RunOutcome = require('../../frontend/app/runoutcome.js');   // TYPED OUTCOMES: a goal step is judged only when it SUCCEEDED
+const providerRegistry = require('../../sidecar/providers/registry.js');   // effortDialReachesRuns: the one answer COMMS reads too
 const { makeStation, costText, ONCE_ONLY_TOOLS } = require('./station-model.js');
 const tui = require('./tui.js');
 const sixel = require('./sixel.js');
@@ -1180,6 +1181,10 @@ function runDashboard(station, opts) {
   // /reasoning, /fast: the agent's effort dial, saved on the station (POST /api/agent/model: the app's own page when one is
   // open, else the roster), and sent with every message from here
   const REASONING_LEVELS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'];
+  // the dial reaches an agent's messages only on a route whose runs are given it (the provider registry's
+  // effortDialReachesRuns, read by COMMS too): Claude Code runs them on its own default, so no line promises a change there
+  const effortReaches = a => providerRegistry.effortDialReachesRuns(a && a.provider);
+  const EFFORT_UNREACHED = ' Note: Claude Code runs your messages on its own default effort, so this setting does not change them.';
   async function setEffort(cmd, want) {
     const a = model.state.agents.get(ui.focus);
     if (!a) return sayHere(cmd, ['No agent shown.'], false);
@@ -1193,7 +1198,7 @@ function runDashboard(station, opts) {
       return sayHere(cmd, [a.name + ' ' + from + ' (' + (a.provider || 'the station\'s provider') + ' · ' + a.model + '), so its effort is its own class effort, else the station\'s. Pin a model with /model first, or set its effort in the app.'], false);
     }
     const cur = a.reasoningEffort || 'the provider\'s default';
-    if (want === a.reasoningEffort) return sayHere(cmd, ['Reasoning effort is already ' + want + '.']);
+    if (want === a.reasoningEffort) return sayHere(cmd, ['Reasoning effort is already ' + want + '.' + (effortReaches(a) ? '' : EFFORT_UNREACHED)]);
     const r = await client.request('POST', '/api/agent/model', { agentId: a.id, model: a.model, provider: a.provider, effort: want }, { timeoutMs: 15000 });
     const u = unconfirmed(r, a);
     if (u) {
@@ -1203,18 +1208,24 @@ function runDashboard(station, opts) {
     }
     if (!(r.ok && r.status === 200 && r.json && r.json.ok)) return sayHere(cmd, ['Could not set reasoning effort to ' + want + ' (' + ((r.json && r.json.error) || r.error || 'HTTP ' + r.status) + ') — it is still ' + cur + '.'], false);
     a.reasoningEffort = want;
-    sayHere(cmd, ['Reasoning effort: ' + cur + ' → ' + want + ' for ' + a.name + '. Takes effect on your next message.' + (cmd === '/fast' ? ' /reasoning ' + (REASONING_LEVELS.indexOf(cur) >= 0 ? cur : 'medium') + ' puts it back.' : '')]);
+    const reaches = effortReaches(a);
+    sayHere(cmd, ['Reasoning effort: ' + cur + ' → ' + want + ' for ' + a.name + '.' + (reaches ? ' Takes effect on your next message.' : '')
+      + (cmd === '/fast' ? ' /reasoning ' + (REASONING_LEVELS.indexOf(cur) >= 0 ? cur : 'medium') + ' puts it back.' : '') + (reaches ? '' : EFFORT_UNREACHED)]);
   }
   function reasoningCommand(args) {
     const raw = String(args || '').trim().toLowerCase();
     const a = model.state.agents.get(ui.focus);
-    if (!raw || raw === 'status') return sayHere('/reasoning', ['Reasoning effort: ' + ((a && a.reasoningEffort) || 'the provider\'s default') + '. Set it with /reasoning ' + REASONING_LEVELS.join('|') + ' — lower answers faster and cheaper, higher thinks longer first.']);
+    if (!raw || raw === 'status') return sayHere('/reasoning', ['Reasoning effort: ' + ((a && a.reasoningEffort) || 'the provider\'s default') + '. Set it with /reasoning ' + REASONING_LEVELS.join('|')
+      + (effortReaches(a) ? ' — lower answers faster and cheaper, higher thinks longer first.' : '.' + EFFORT_UNREACHED)]);
     if (REASONING_LEVELS.indexOf(raw) < 0) return sayHere('/reasoning', ['"' + raw + '" is not a reasoning level. Pick one of: ' + REASONING_LEVELS.join(', ') + '.'], false);
     return setEffort('/reasoning', raw);
   }
   function fastCommand() {
     const a = model.state.agents.get(ui.focus);
-    if (a && (a.reasoningEffort === 'minimal' || a.reasoningEffort === 'none')) return sayHere('/fast', ['Already as fast as it gets — reasoning effort is ' + a.reasoningEffort + '. /reasoning medium lets it think longer.']);
+    if (a && (a.reasoningEffort === 'minimal' || a.reasoningEffort === 'none')) {
+      if (!effortReaches(a)) return sayHere('/fast', ['Reasoning effort is already ' + a.reasoningEffort + '.' + EFFORT_UNREACHED]);
+      return sayHere('/fast', ['Already as fast as it gets — reasoning effort is ' + a.reasoningEffort + '. /reasoning medium lets it think longer.']);
+    }
     return setEffort('/fast', 'minimal');
   }
   function debugCommand() {

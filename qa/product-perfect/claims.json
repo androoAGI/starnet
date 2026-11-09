@@ -353,8 +353,8 @@
       },
       {
         "path": "frontend/app/chat.js",
-        "bytes": 949835,
-        "sha256": "7fb9bdb0de752804da9778c8483667bc608dbf67f680e3bd0948309735705c52"
+        "bytes": 950816,
+        "sha256": "0b8f916fac69c22f2b5e073a989be933e80f3036bee296f8bda45afdab01270e"
       },
       {
         "path": "frontend/app/chatresize.js",
@@ -933,8 +933,8 @@
       },
       {
         "path": "frontend/app/provider-registry.js",
-        "bytes": 32335,
-        "sha256": "ab7e5c1403cc85e242b38117e71a2ea215a933ee3075230261e4b797a6d9ae06"
+        "bytes": 33240,
+        "sha256": "cb718141b1dd4376aa772164bef80df56241da5e1fd4211bbacc222224eb9e6d"
       },
       {
         "path": "frontend/app/qr.js",

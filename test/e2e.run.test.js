@@ -327,7 +327,9 @@ function boot(port, env, attemptsLeft) {
       const runId = ((evs.find(e => e.name === 'agent.run.start') || {}).payload || {}).runId;
       const runs = await (await fetch(B + '/api/runs?agent=e2e-domain&runId=' + encodeURIComponent(runId), { headers: { 'X-StarNet-Token': token, Origin: B } })).json();
       const row = (runs.runs || [])[0];
-      A.ok(row && row.model === 'test/model' && row.reasoningEffort === 'medium', 'run row persists actual model + reasoning effort');
+      // test/model takes no reasoning field (its catalog row lists only tools), so its requests carried no effort: the row names
+      // none, never the medium dial the run was set to (effortAsRun reads the adapter's own word for the wire)
+      A.ok(row && row.model === 'test/model' && !row.reasoningEffort && domainMain.every(q => !(q && q.reasoning)), 'run row persists actual model, and the effort its requests carried (none)');
       A.ok(row && row.durationMs > 0 && Array.isArray(row.toolTrace) && row.toolTrace.length === 1, 'run row persists elapsed time and one tool trace');
       A.ok(row.toolTrace[0].ms >= 0 && row.toolTrace[0].name === 'web_fetch', 'per-tool elapsed milliseconds survive the API persistence boundary');
     }

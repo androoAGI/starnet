@@ -140,6 +140,44 @@ const tick = () => new Promise(resolve => setImmediate(resolve));
   A.eq(row.bound, 'bounded read (requested by lead)', 'dispatch result says the worker was bounded, and by whom');
 }
 
+/* ---- EFFORT TRUTH (cost lane W1.12): the dispatch receipt the LEAD reads names the effort the worker's run RECORDS
+   (index.js effortAsRun: what its request carried), never the dial the worker was handed. A run whose request carried no
+   effort (an OpenRouter model that takes no reasoning field) records none, and so does its receipt: the receipt used to
+   fall back to the dial, so the lead was told 'high' while GET /api/runs and the ledger named no effort for the same run.
+   The dial reaches the worker through the station's wire (resolveWire) or the lead's own (the legacy roster rule). ---- */
+{
+  const stationWire = (effort) => () => ({ ok: true, provider: '', model: 'm', source: 'station', reasoningEffort: effort });
+  const cases = [
+    // [the worker run's recorded effort, the dial it was handed, via, what the receipt must name, why]
+    [null, 'high', 'lead', null, 'a run whose request carried no effort names none, never the lead dial high'],
+    [undefined, 'high', 'lead', null, 'a run result without an effort names none, never the lead dial high'],
+    ['', 'xhigh', 'station', null, 'an empty run record names none, never the station dial xhigh'],
+    [null, 'medium', 'station', null, 'a run whose request carried no effort names none, never the station dial medium'],
+    ['cli-default', 'high', 'lead', 'cli-default', 'a claude-cli worker sent no --effort keeps cli-default (its run record)'],
+    ['low', 'minimal', 'station', 'low', 'a Codex worker at minimal names low, the word its request carried'],
+    ['xhigh', 'max', 'lead', 'xhigh', 'a Codex worker at max names xhigh, the word its request carried']
+  ];
+  for (const [ran, dial, via, want, why] of cases) {
+    const ro = fakeRunOnce(() => ({ reason: 'done', messages: [{ role: 'assistant', content: 'ok' }], usd: 0, model: 'm', reasoningEffort: ran }));
+    const roster = new Map([['researcher', { system: 'R' }]]);
+    const deps = { runOnce: ro, roster: () => roster, key: 'k', model: 'm', newId: counter() };
+    if (via === 'lead') deps.reasoningEffort = dial; else deps.resolveWire = stationWire(dial);
+    const { dispatchTool } = makeOrchestrationTools(deps);
+    const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'x' }] }, { agentId: 'lead', emit: () => {} });
+    A.eq(ro.calls[0].reasoningEffort, dial, 'fixture: the worker run was handed the ' + via + ' dial ' + dial);
+    const row = JSON.parse(out.content)[0];
+    A.eq(row.reasoningEffort, want, 'dispatch receipt effort: ' + why);
+  }
+  // a structured result's repair run settles the row (repaired || result): its record names the effort too, never the dial
+  const ro = fakeRunOnce((o) => ({ reason: 'done', messages: [{ role: 'assistant', content: o.outputOnly ? '{"ok":true}' : 'not json' }], usd: 0, model: 'm', reasoningEffort: null }));
+  const roster = new Map([['researcher', { system: 'R' }]]);
+  const { dispatchTool } = makeOrchestrationTools({ runOnce: ro, roster: () => roster, key: 'k', model: 'm', reasoningEffort: 'high', newId: counter() });
+  const out = await dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'x', resultSchema: { type: 'object', required: ['ok'], properties: { ok: { type: 'boolean' } } } }] }, { agentId: 'lead', emit: () => {} });
+  const row = JSON.parse(out.content)[0];
+  A.eq([ro.calls.length, ro.calls[1] && ro.calls[1].outputOnly, row.repairRunId !== ''], [2, true, true], 'fixture: the invalid result was repaired by a second, output-only run');
+  A.eq(row.reasoningEffort, null, 'dispatch receipt effort: a repaired worker whose runs carried no effort names none, never the lead dial high');
+}
+
 // ---- a FILE NAME in a worker's brief is not a one-host check: the worker keeps its ordinary budgets (soak 10-15) ----
 {
   const ro = fakeRunOnce();

@@ -226,5 +226,35 @@ const usage = (i, o, cached) => ({ type: 'usage', usage: { prompt_tokens: i, com
     for (const k of CEILING_KINDS) A.ok(booked.includes(k), 'CEILING_KINDS names a kind something really books: ' + k);
   }
 
+  // ---- EFFORT TRUTH (cost lane W1.12): a pass's row names the effort its calls ran on (effortOf, read after each call) only
+  //      when every call ran on that one. It used to keep the last effort any call named, so a pass whose last call carried
+  //      none still named an earlier call's level. ----
+  {
+    const io = fakeIo(), L = makeLedger({ io, clock });
+    const meterRanOn = (kind, efforts) => { let i = 0; return makeAuxMeter({ ledger: L, kind, effortOf: () => { const e = efforts[i++]; if (e instanceof Error) throw e; return e; } }); };
+    const rowOf = async (kind, efforts) => {
+      const m = meterRanOn(kind, efforts);
+      for (let k = 0; k < efforts.length; k++) await m.stream(provider([usage(100, 10)]), { model: 'paid' }, cost);
+      return m.book({ runId: 'run-' + kind, agentId: 'agent', model: 'paid' });
+    };
+    A.eq((await rowOf('scout', ['low', 'low'])).reasoningEffort, 'low', 'two calls that ran on low: the row says low');
+    A.eq((await rowOf('study', [null])).reasoningEffort, undefined, 'a call that carried no effort: the row names none');
+    A.eq((await rowOf('threadmine', ['low', null])).reasoningEffort, undefined, 'a call on low, then one that carried none: the row names none, never the earlier low');
+    A.eq((await rowOf('reflection', [null, 'low'])).reasoningEffort, undefined, 'one that carried none, then a call on low: the row names none');
+    A.eq((await rowOf('quest-refresh', ['low', 'medium'])).reasoningEffort, undefined, 'calls on two efforts: the row names neither');
+    A.eq((await rowOf('failure-review', ['low', new Error('unreadable')])).reasoningEffort, undefined, 'a call whose effort cannot be read: the row names none');
+    // a booked row starts the next one over: each row is judged on its own calls
+    const m = meterRanOn('scout', ['low', 'medium', 'medium']);
+    await m.stream(provider([usage(100, 10)]), { model: 'paid' }, cost);
+    await m.stream(provider([usage(100, 10)]), { model: 'paid' }, cost);
+    A.eq(m.book({ runId: 'r-1', agentId: 'agent', model: 'paid' }).reasoningEffort, undefined, 'fixture: the first row mixed low and medium');
+    await m.stream(provider([usage(100, 10)]), { model: 'paid' }, cost);
+    A.eq(m.book({ runId: 'r-2', agentId: 'agent', model: 'paid' }).reasoningEffort, 'medium', 'the next row names the one effort its own call ran on');
+    // no effortOf (a pass whose route the host cannot read) names nothing, as before
+    const plain = makeAuxMeter({ ledger: L, kind: 'embed' });
+    plain.add({ prompt_tokens: 5 }, cost, 'paid');
+    A.eq(plain.book({ runId: 'r-3', agentId: 'agent', model: 'paid' }).reasoningEffort, undefined, 'a meter with no effortOf names none');
+  }
+
   A.report('ledger.aux-meter.test');
 })().catch(e => { console.log('FAIL: ' + ((e && e.stack) || e)); process.exit(1); });
