@@ -14,10 +14,11 @@
    external-unknown effect that requires an exact, live, non-cacheable per-call confirmation. */
 'use strict';
 (function (root, factory) {
-  const api = factory(typeof require === 'function' ? require('../tools/fence.js') : (root.SK && root.SK.fence));
+  const api = factory(typeof require === 'function' ? require('../tools/fence.js') : (root.SK && root.SK.fence),
+    typeof require === 'function' ? require('../history-edit.js') : (root.SK && root.SK.historyEdit));
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else { root.SK = root.SK || {}; (root.SK.mcp = root.SK.mcp || {}).translate = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (fence) {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (fence, historyEdit) {
   'use strict';
 
   const NAME_MAX = 64;   // the OpenRouter/OpenAI function-name grammar is ^[A-Za-z0-9_-]{1,64}$
@@ -146,14 +147,18 @@
 
   /* Clamp with a hint the model can ACT on, matching the fs.search / web_fetch convention: say it was
      cut, say how much is missing, and point at the paging/filtering knob the server itself exposes. */
+  /* HEAD AND TAIL (W1.7). The same cap now keeps the first 70% and the last 30% of the payload (history-edit headTail), the gap
+     marked in place: the end of a long result — a totals row, the last page marker, an error the server appends — was the part
+     the head-only cut threw away. A browser copy without the resolver keeps the head, as before. */
+  const headTail = (historyEdit && typeof historyEdit.headTail === 'function') ? historyEdit.headTail
+    : function (s, max, noteFor) { return s.slice(0, max) + noteFor(s.length - max); };
   function clampResult(text, max) {
     const s = String(text == null ? '' : text);
     const limit = max > 0 ? max : RESULT_MAX_CHARS;
     if (s.length <= limit) return { text: s, truncated: false };
-    const dropped = s.length - limit;
     return {
-      text: s.slice(0, limit) + '\n\n…[truncated — ' + dropped + ' more characters. Narrow the request (a ' +
-            'filter, a smaller page/limit argument, or a more specific query) rather than re-running this as-is.]',
+      text: headTail(s, limit, dropped => '\n\n…[truncated — ' + dropped + ' more characters in the middle are not shown; the end follows. Narrow the request (a ' +
+            'filter, a smaller page/limit argument, or a more specific query) rather than re-running this as-is.]\n\n'),
       truncated: true
     };
   }

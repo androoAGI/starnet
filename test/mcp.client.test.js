@@ -228,9 +228,24 @@ function makeFakeTransport(handle) {
     const tuned = makeMcpToolDef({ connectorId: 'db', mcpTool: { name: 'q2', inputSchema: { type: 'object' } },
       maxResultChars: 100, call: () => Promise.resolve({ content: [{ type: 'text', text: huge }] }) });
     const tunedOut = await tuned.run({}, {});
-    // ...and the override still clamps the PAYLOAD to 100 chars; the fence wrapper rides outside it.
-    A.ok(tunedOut.content.indexOf('X'.repeat(100)) > 0, 'maxResultChars overrides the default cap');
-    A.ok(tunedOut.content.indexOf('X'.repeat(101)) < 0, 'and nothing past the override survives');
+    // ...and the override still clamps the PAYLOAD to 100 chars; the fence wrapper rides outside it. Since W1.7 those 100
+    // are the payload's first 70 and last 30 (head and tail, the gap marked between them), not its first 100.
+    A.ok(tunedOut.content.indexOf('X'.repeat(70) + '\n\n…[truncated — ') > 0, 'maxResultChars overrides the default cap (the head)');
+    const tunedTail = /the end follows\.[^\]]*\]\n\n(X+)/.exec(tunedOut.content);
+    A.ok(tunedTail && tunedTail[1].length === 30, 'and the last 30 of the 100 are the payload\'s own end');
+    A.ok(tunedOut.content.indexOf('X'.repeat(71)) < 0, 'and nothing past the override survives');
+  }
+
+  // ===== E3. HEAD AND TAIL (W1.7) — the end of a long MCP payload survives the cap ==================
+  {
+    const body = 'HEAD-' + 'm'.repeat(3 * RESULT_MAX_CHARS) + '-TOTAL: 4812 rows';
+    const def = makeMcpToolDef({ connectorId: 'db', mcpTool: { name: 'scan', inputSchema: { type: 'object' } },
+      call: () => Promise.resolve({ content: [{ type: 'text', text: body }] }) });
+    const out = await def.run({}, {});
+    A.ok(out.content.indexOf('HEAD-') > 0, 'a cut MCP payload keeps its head');
+    A.ok(out.content.indexOf('-TOTAL: 4812 rows') > 0, 'and its end (the totals row a head-only cut threw away)');
+    A.ok(out.content.indexOf((body.length - RESULT_MAX_CHARS) + ' more characters in the middle') > 0, 'the marker says how much of the middle is missing');
+    A.ok(out.content.length < RESULT_MAX_CHARS + 600, 'inside the same cap plus the hint and the fence');
   }
 
   // ===== F. end-to-end: dispatch a translated MCP tool through the REAL registry boundary =====

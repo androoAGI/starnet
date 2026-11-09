@@ -33,6 +33,8 @@
   // fullOut is bounded (head + tail, output-capture.js): an unbounded `+=` crashed the station at V8's max string length
   const makeFullCapture = (typeof require === 'function') ? require('../../output-capture.js').makeFullCapture
     : function () { let s = ''; return { push: function (t) { s += t; }, value: function () { return s; }, elided: function () { return 0; } }; };
+  // a cut output keeps its head AND its tail inside the same cap (history-edit headTail, W1.7); a browser copy keeps the head
+  const headTail = (typeof require === 'function') ? require('../../history-edit.js').headTail : function (s, max) { s = String(s); return s.length > max ? s.slice(0, max) : s; };
   function safeAgentId(id) { if (!AID_RE.test(id || '')) throw new Error('bad agentId'); return id; }
   function clip(s, n) { s = String(s == null ? '' : s); n = n || 200; return s.length > n ? s.slice(0, n) + '…' : s; }
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
@@ -1726,13 +1728,18 @@
           else if (pm.cwd && (remoteOwner || withinJail(P, pm.cwd, jailRoot))) paths.setShellCwd(pm.cwd);
           const exitCode = (pm.ec != null && !res.timedOut && !res.aborted) ? pm.ec : res.exitCode;
           const note = res.timedOut ? ' — KILLED (timed out after ' + timeoutMs + 'ms)' : res.aborted ? ' — KILLED (aborted)' : '';
-          const body = redact((res.truncated ? preview.cleanOut : pm.cleanOut) || '(no output)');
+          /* HEAD AND TAIL (W1.7). A cut output kept only its first MAX_BYTES, and a build or test log ends where the error is.
+             The same MAX_BYTES now holds the first 70% and the last 30% of the full capture, the gap marked in place (history-edit
+             headTail). Cut AFTER redaction, so no key straddles the gap; a backend that hands back no full capture keeps the head. */
+          const fullText = res.truncated ? redact(pm.cleanOut || '(no output)') : null;
+          const body = !res.truncated ? redact(pm.cleanOut || '(no output)')
+            : (typeof res.fullOut === 'string' && res.fullOut ? headTail(fullText, MAX_BYTES) : redact(preview.cleanOut || '(no output)'));
           // the bounded capture (output-capture.js) dropped the middle of a huge output: say so, never imply the saved copy is whole
           const elided = Number(res.fullOutElided) > 0 ? Number(res.fullOutElided) : 0;
           const content = clampNote + body + '\n[exit ' + exitCode + (res.truncated ? ', output truncated to ' + Math.round(MAX_BYTES / 1000) + 'KB' : '')
             + (elided ? ', ' + elided + ' characters from the middle of the output were not kept' : '') + note + ']';
           const fullContent = res.truncated
-            ? clampNote + redact(pm.cleanOut || '(no output)') + '\n[exit ' + exitCode + note + ']'
+            ? clampNote + fullText + '\n[exit ' + exitCode + note + ']'
             : undefined;
           try {
             if (typeof ctx.emit === 'function') ctx.emit('shell.exec', {
