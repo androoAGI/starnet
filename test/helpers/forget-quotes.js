@@ -13,8 +13,11 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { SidecarFixture } = require('./sidecar-fixture.js');
 const { makeSegmentedTranscriptIo } = require('../../sidecar/transcript-history.js');
+const Save = require('../../frontend/app/save.js');
+const WorldModel = require('../../frontend/app/worldmodel.js');
 
 const HOST = '127.0.0.1';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -88,6 +91,14 @@ function stationEnv(base, extra) {
     SKYNET_OPENROUTER_BASE: base, STARNET_OPENROUTER_BASE: base, SKYNET_OPENROUTER_KEY: 'sk-or-v1-fixture', STARNET_OPENROUTER_KEY: 'sk-or-v1-fixture', SKYNET_DEFAULT_MODEL: 'test/model', STARNET_DEFAULT_MODEL: 'test/model' }, extra || {});
 }
 
+// the floor a page saves on a fresh station, built the way app.js enterGame builds it: the starter room, and the hero's desk in it
+// (ensureWorkstation, which enterGame runs before its first persist). It compiles clean and routes nothing: no bay, no line.
+function pageFloor(heroId) {
+  const model = WorldModel.create(WorldModel.starterDoc());
+  model.ensureWorkstation(heroId);
+  return model.serialize();
+}
+
 async function station(prefix, options) {
   const o = options || {};
   const up = await startUpstream();
@@ -138,10 +149,15 @@ async function station(prefix, options) {
   };
   rig.sessions = [];   // the workstreams the page would still list (id, title)
   rig.revision = 0;    // the save revision the page last heard (a stale one is a conflict, and a conflict deletes nothing)
-  // the page's save: the workstreams it still lists, the ids it deleted and (the Commander's Delete) the ids to forget
+  rig.client = 'page-' + randomUUID();   // the page's window id (cloudsave.js clientId, minted once per page load): every save names it
+  rig.floor = pageFloor('agent');        // the floor a fresh page has drawn by its first save, saved whole every time
+  /* the page's save, in the shape the page sends it (app.js persist + cloudsave.js push): the save envelope (schema, version, updatedAt), the
+     revision it last heard and its window id (_saveClient: the station vouches only a save that names its writer), the agent, the station
+     floor, the workstreams it still lists, the ids it deleted and (the Commander's Delete) the ids to forget. A save without the envelope,
+     the writer or the floor is one no page writes, and the station's saved floor reads it as invalid: routing holds, and a routine never runs. */
   rig.save = async (deleted, forget) => {
-    const r = await rig.json('POST', '/api/save', { agent: { id: 'agent', name: 'NOVA', createdAt: 1 }, updatedAt: Date.now(), _saveRevision: rig.revision,
-      workstreams: rig.sessions.filter(w => !(deleted || []).includes(w.id)).map(w => ({ id: w.id, title: w.title, agentId: 'agent', history: [] })), deletedIds: deleted || [], forgetIds: forget || deleted || [] });
+    const r = await rig.json('POST', '/api/save', Save.envelope({ _saveDirty: true, _saveRevision: rig.revision, _saveClient: rig.client, agent: { id: 'agent', name: 'NOVA', createdAt: 1 }, station: rig.floor,
+      workstreams: rig.sessions.filter(w => !(deleted || []).includes(w.id)).map(w => ({ id: w.id, title: w.title, agentId: 'agent', history: [] })), deletedIds: deleted || [], forgetIds: forget || deleted || [] }));
     if (r.body && r.body.ok === true && r.body.revision) rig.revision = r.body.revision;
     return r;
   };

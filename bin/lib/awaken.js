@@ -25,6 +25,7 @@
           optional }) → { value, label, skip, help, custom } · note(text, style) · speaker(name) · feed(key|null)
           · roster(list) (the crew panel learns the new agent) */
 'use strict';
+const { randomUUID } = require('node:crypto');
 
 const seg = (text, cps, holdAfter) => ({ text: String(text), cps: cps || 44, hold: holdAfter || 0 });
 
@@ -106,11 +107,16 @@ function makeAwakening(deps) {
     const rd = M.Understanding.readiness ? M.Understanding.readiness(ctx.dossier) : null;
     await st.post('/api/autonomy/posture', { beliefs: { known, beliefs: snap, ready: rd ? { ok: !!rd.ready, reasons: Array.isArray(rd.reasons) ? rd.reasons : [] } : null } }, 10000);
   }
+  /* THE SAVE NAMES ITS WRITER, as the app's window does (cloudsave.js: _saveClient, one id per page load; here one per awakening).
+     The station vouches only a save that names who wrote it (savestore vouchedHead), and the saved floor is the routing authority
+     (sidecar/routing/saved-authority.js): a save with no writer reads as an invalid floor, so a station set up here and never
+     opened in the app held every routine, channel message and line with "the saved floor is invalid". */
+  const writerId = 'terminal-' + randomUUID();
   async function persist() {
     const cur = await st.get('/api/save?agent=agent', 15000);
     const rev = (ok(cur) && cur.json && cur.json.save && cur.json.save._saveRevision) || ctx.rev || 0;
     const state = {
-      _saveDirty: true, _saveRevision: rev, agent: ctx.agent, usage: { tokens: 0, cost: 0, calls: 0 }, prov: ctx.agent.provider,
+      _saveDirty: true, _saveRevision: rev, _saveClient: writerId, agent: ctx.agent, usage: { tokens: 0, cost: 0, calls: 0 }, prov: ctx.agent.provider,
       reasoningEffort: ctx.agent.reasoningEffort, reasoningMigrated: '0125', station: ctx.station.serialize(), profile: ctx.profile, dossier: ctx.dossier
     };
     const envelope = M.Save.envelope ? M.Save.envelope(state) : state;

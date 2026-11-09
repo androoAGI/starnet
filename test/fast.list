@@ -1537,6 +1537,7 @@ test/cli-desktop-closed.test.js
 test/cli-owner-identity.test.js
 test/cli-bootstrap-lineage.test.js
 test/cli-dashboard.test.js
+test/awaken-save-floor.test.js
 test/cli-dashboard-signal.test.js
 test/cli-dashboard-drive.test.js
 test/cli-theme.test.js
