@@ -52,7 +52,9 @@ const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'g
   // fix-sec2, review2 #1: an owner code for Discord, Slack, Matrix, Signal or an agent's own Telegram bot
   'channel-owner-pair',
   // fix-sec2, review2 #4: a loop's check command (create, change, or try it now)
-  'loop-check']);
+  'loop-check',
+  // fix-sec2, review2 #7: a service key spent with nobody watching
+  'servicekey-unattended']);
 const CODE_RE = /^\d{6}$/;
 const MAX_WRONG_CODES = 5;              // a guesser gets five tries in a station's lifetime (one in 200,000), then nothing
 

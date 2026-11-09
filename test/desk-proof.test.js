@@ -250,6 +250,9 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.ok(!/mintOwnerCode|OwnerPairing\(/.test(A.fnBody(IDX, 'async function handleTelegramOwnerRevoke(')), 'revoking an owner makes no code');
     A.ok(/'channel-owner-pair'/.test(read('sidecar/deskproof.js')), 'the desk knows the new change');
   }
+  // review2 #7: a service key's "use without asking" is a standing grant
+  before('async function handleServiceKeyAutonomy(', /if \(body\.autonomous && held && held\.autonomous !== true[\s\S]{0,200}deskGate\(req, res, 'servicekey-unattended'/, /serviceKeysMod\.setAutonomous\(/, 'switching a key\'s unattended use on asks first; off never does');
+  A.ok(/'servicekey-unattended'/.test(read('sidecar/deskproof.js')), 'the desk knows the unattended key');
   // review2 #4: a loop's check is a stored host command, gated like a hook for the exact command and folder
   before('function handleLoopsCreate(', /loopCheckAtDesk\(req, res, workdir, String\(body\.checkCmd\)/, /loopjobStore\.createLoop\(/, 'a loop that carries a check asks first');
   before('function handleLoopsUpdate(', /loopCheckAtDesk\(req, res, nextDir, nextCmd/, /loopjobStore\.updateLoop\(/, 'a changed or moved check asks first; removing one never does');

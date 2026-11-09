@@ -77,6 +77,25 @@ const SECRET = 'rk-live-verySECRET-9876';
     A.ok(/OAuth|refresh|unattended/i.test(String(etsyAuto.body.error || '')), 'Etsy refusal explains the missing refresh lifecycle');
     A.eq((await j('POST', '/api/servicekeys/remove', { id: 'etsy' })).status, 200, 'Etsy test credential removed');
 
+    // ---- fix-sec2 review2 #7: "use without asking" is a standing grant, confirmed at the desk; off never asks ----
+    {
+      const wx = await j('POST', '/api/servicekeys', { name: 'Weather Desk', key: 'wx-desk-token-123' });
+      A.eq(wx.status, 200, 'a key is saved');
+      const wid = wx.body.key.id;
+      const bare = await j('POST', '/api/servicekeys/autonomy', { id: wid, autonomous: true });
+      A.eq(bare.status, 403, 'switching unattended use on is not done on the page key alone');
+      A.eq(bare.body.code, 'desk_confirm_required', 'it asks at the desk');
+      A.ok(String((bare.body.deskConfirm || {}).summary || '').indexOf(wx.body.key.envVar) >= 0, 'naming the key and the variable it fills');
+      A.eq(((await j('GET', '/api/servicekeys')).body.keys || []).find(k => k.id === wid).autonomous, false, 'and nothing changed');
+      const yes = await fixture.deskJson('POST', '/api/servicekeys/autonomy', { id: wid, autonomous: true });
+      A.eq(yes.status, 200, 'confirmed at the desk, it is on');
+      A.eq(yes.body.key.autonomous, true, 'and the key says so');
+      const off = await j('POST', '/api/servicekeys/autonomy', { id: wid, autonomous: false });
+      A.eq(off.status, 200, 'switching it off never asks');
+      A.eq(off.body.key.autonomous, false, 'and it is off');
+      A.eq((await j('POST', '/api/servicekeys/remove', { id: wid })).status, 200, 'the test key is removed');
+    }
+
     // ---- update with EMPTY key keeps the saved secret (the edit idiom) ----
     const upd = await j('POST', '/api/servicekeys', { name: 'Resend', key: '', docsUrl: 'https://new.docs' });
     A.eq(upd.status, 200, 'update with empty key -> 200 (saved key kept)');

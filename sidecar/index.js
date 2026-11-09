@@ -16931,6 +16931,8 @@ function deskWords(action, d) {
       summary: 'Give ' + who + ' FULL ACCESS?\n\nIt will run every tool, command and file change without asking you, in this task and every later one, until you set it back to ask first.' + (o.tool ? '\n\nIt is asking to use: ' + o.tool : '') };
     case 'consent-always': return { title: 'StarNet — always allow', verb: 'Always allow',
       summary: 'Always allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
+    case 'servicekey-unattended': return { title: 'StarNet — let agents use a key unattended', verb: 'Allow unattended',
+      summary: 'Let agents spend the key "' + o.name + '" (' + o.envVar + ') with nobody watching, in routines, Night Shift and messaged runs, without asking?\n\nIt stays on until you switch it off in Connectors › Keys.' };
     case 'grant': return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
       summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
     case 'grant-import': return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
@@ -17446,6 +17448,13 @@ async function handleServiceKeyAutonomy(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   if (typeof body.autonomous !== 'boolean') return json(400, { error: 'autonomous must be a boolean' });
+  /* SWITCHING IT ON IS A STANDING GRANT (fix-sec2 review2 #7). With it on, every unattended call that names this key is
+     allowed with no card, which is what a standing permission is, and those are confirmed at the desk. Switching it off
+     never asks. The yes is for this key, by id and the variable it fills. */
+  const held = (Array.isArray(serviceKeys) ? serviceKeys : []).find(row => row && row.id === String(body.id || ''));
+  if (body.autonomous && held && held.autonomous !== true && held.unattendedSupported !== false
+    && !deskGate(req, res, 'servicekey-unattended', String(held.id) + ':' + String(held.envVar || ''),
+      { name: deskProofMod.cutPoints(String(held.name || held.envVar || held.id), 60), envVar: String(held.envVar || '') })) return;
   const r = serviceKeysMod.setAutonomous(serviceKeys, body.id, body.autonomous);
   if (r.error) return json(serviceKeys.some(row => row && row.id === String(body.id || '')) ? 409 : 404, { error: r.error });
   serviceKeys = r.list;
