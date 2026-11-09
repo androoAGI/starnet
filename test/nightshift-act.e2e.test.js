@@ -25,6 +25,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+// fix-sec2 review2 #9: a raise that turns on the away workshop is confirmed at the desk, with the code the station prints
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -110,7 +113,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -139,8 +142,7 @@ function hotBeliefs(now) {
 }
 
 async function setPosture(B, headers, reach, beliefs) {
-  const r = await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: reach, leashPerDay: 12 }, beliefs: beliefs }) });
-  return r.json();
+  return fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: reach, leashPerDay: 12 }, beliefs: beliefs }) });
 }
 
 async function fireBeat(B, headers) {
@@ -174,7 +176,7 @@ async function recommendations(B, headers) {
     const beliefs = hotBeliefs(now);
 
     // ===== 1. REACH GATE IS HONEST — reach 'observe' → reason-only, NO jailed build, NO pending deliverable. =====
-    await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
+    await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
     await setPosture(B, headers, 'observe', beliefs);
     const obs = await fireBeat(B, headers);
     A.ok(obs.reason !== 'built' && !obs.runId, 'reach observe: the beat did NOT run a real build (no runId, reason≠built) — gate is honest');

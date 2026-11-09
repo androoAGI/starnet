@@ -16940,7 +16940,13 @@ function deskWords(action, d) {
       summary: 'Always allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
     case 'servicekey-unattended': return { title: 'StarNet — let agents use a key unattended', verb: 'Allow unattended',
       summary: 'Let agents spend the key "' + o.name + '" (' + o.envVar + ') with nobody watching, in routines, Night Shift and messaged runs, without asking?\n\nIt stays on until you switch it off in Connectors › Keys.' };
-    case 'grant': return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
+    // review2 #9: the away workshop is a standing unattended write grant, asked like the station-wide one below
+    case 'grant': if (o.workshop) return o.dial
+      ? { title: 'StarNet — let the night shift build', verb: 'Raise the dial',
+        summary: 'Raise the autonomy dial to building?\n\nThat also lets ' + who + ' build from its away queue while you are away: it writes files in its own workspace with nobody watching, within the dial\'s daily leash. Each build waits in MY WORK for your KEEP IT or DISCARD.' }
+      : { title: 'StarNet — build while you are away', verb: 'Turn on',
+        summary: 'Let ' + who + ' build from its away queue while you are away?\n\nIt writes files in its own workspace with nobody watching, and its build shift runs on a schedule and spends from your budget. Each build waits in MY WORK for your KEEP IT or DISCARD. Turn it off any time.' };
+      return { title: 'StarNet — pre-approve a permission', verb: 'Pre-approve',
       summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
     case 'grant-import': return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
       summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list + '\n\nRestore ' + (o.count === 1 ? 'it' : 'them') + '? Agents will use ' + (o.count === 1 ? 'it' : 'them') + ' without asking.' };
@@ -19862,12 +19868,29 @@ async function handleQuestsRefreshNorthStar(req, res) {
 
 // POST /api/workshop/grant { agentId, on } — record/clear the Commander's "Build things while I'm away" consent
 // for an agent, and arm/disarm its workshop shift routine accordingly. Plain-language surface; not a jargon knob.
+/* THE AWAY WORKSHOP IS ASKED AT THE DESK (fix-sec2 review2 #9). Turning it on is a standing unattended write grant (and
+   arms a build shift that spends), so it takes the same desk question as a station-wide grant ('grant', scoped to the
+   agent's workshop). Turning it off, or asking for what it already has, never asks. The dial's own raise to building and
+   "/away on" ask the same question. */
+function workshopDeskDetails(agentId, dial) {
+  const row = agentRoster.get(String(agentId || '')) || {};
+  return { workshop: true, dial: !!dial, agentName: String(row.name || agentId || '') };
+}
+function workshopRaiseAtDesk(req, res, agentId, dial) {
+  return deskGate(req, res, 'grant', 'workshop:' + agentId, workshopDeskDetails(agentId, dial));
+}
+// "/away on" from a slash command: the workshop grant, when the agent does not already hold it
+function slashAwayGrant(directive, agentId) {
+  return !!(directive && directive.type === 'server' && String(directive.action || '') === 'away'
+    && String(directive.args == null ? '' : directive.args).trim().toLowerCase() === 'on' && !workshopOf(agentId));
+}
 async function handleWorkshopGrant(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 4096)) || {}; } catch (e) { return json(400, { error: 'bad request' }); }
   const agentId = String(body.agentId || '');
   if (refuseBadAgentId(res, agentId)) return;
   const on = body.on === true || body.on === 'true';
+  if (on && !workshopOf(agentId) && !workshopRaiseAtDesk(req, res, agentId, false)) return;
   try { await workshopStore.setGrant(agentId, on); } catch (e) { return json(500, { error: 'could not save that setting' }); }
   try { if (on) await armWorkshopShift(agentId); else await disarmWorkshopShift(agentId); } catch (_) {}
   json(200, { ok: true, agentId: agentId, on: on });
@@ -21961,6 +21984,8 @@ async function runSlashForChannel(input, ctx) {
   // Only dispatch:'server' commands can answer off-browser. A client command would need the DOM, so say that
   // plainly rather than returning an empty reply that reads like a failure.
   if (out.directive.type !== 'server') return { ok: false, text: 'That command only works in the StarNet desktop app.' };
+  // review2 #9: a chat cannot confirm at the desk, so it cannot turn on the away workshop ("/away off" still works)
+  if (slashAwayGrant(out.directive, agentId)) return { ok: false, text: 'Turning on "build while away" is confirmed in the StarNet window: turn it on there (/away on in the desktop app, or the agent\'s settings).' };
   let r;
   // the chat a messaging hub ran this from (hub.js: { channel, chatId, threadId }) — /routine add delivers there
   const dOrigin = (ctx.deliveryOrigin && typeof ctx.deliveryOrigin === 'object' && ctx.deliveryOrigin.channel && ctx.deliveryOrigin.chatId) ? ctx.deliveryOrigin : null;
@@ -21991,6 +22016,8 @@ async function handleSlashDispatch(req, res) {
       agentId: /^[A-Za-z0-9_-]{1,40}$/.test(String(body.agentId || '')) ? String(body.agentId) : 'agent',
       placed: placed
     };
+    // review2 #9: "/away on" is the away-workshop grant, asked at the desk like the toggle
+    if (slashAwayGrant(out.directive, ctx.agentId) && !workshopRaiseAtDesk(req, res, ctx.agentId, false)) return;
     const r = await slashActions.run(out.directive.action, out.directive.args, ctx);
     // A refusal is still a 200: the command RAN and produced an honest answer ("no such routine"). Only an
     // unknown action is a 404 — the browser must be able to tell "it said no" from "it never executed".
@@ -27960,6 +27987,16 @@ async function handleAutonomyPosture(req, res) {
   const posture = (body.posture && typeof body.posture === 'object') ? body.posture
     : ((body.initiative || body.reach || body.leashPerDay != null) ? body : null);   // tolerate a flat posture too
   const postureWritten = !!posture;
+  /* review2 #9: a raise to building grants the night shift's away workshop when it was never decided (grantIfUndecided
+     below), so that raise is asked at the desk first. A raise that grants nothing, and every lowering, never asks. */
+  if (postureWritten) {
+    let grants = false;
+    try {
+      const rec = workshopStore.read(NIGHTSHIFT_AGENT) || {};
+      grants = !!(Autonomy.summary(Autonomy.normalize(posture)) || {}).buildsUnattended && !rec.grant && !rec.grantExplicit;
+    } catch (_) { grants = true; }   // unreadable: ask (never a silent grant)
+    if (grants && !workshopRaiseAtDesk(req, res, NIGHTSHIFT_AGENT, true)) return;
+  }
   const resumeRequested = postureWritten && body.resumeHalt === true;
   let beliefsAdmitted = true, beliefsReason = '', beliefsForgotten = [];
   try { const w = commanderPosture.set(posture, body.beliefs); beliefsAdmitted = w.beliefsAdmitted; beliefsReason = w.reason; beliefsForgotten = w.forgotten; }

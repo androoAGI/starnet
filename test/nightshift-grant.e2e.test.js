@@ -21,6 +21,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+// fix-sec2 review2 #9: a dial raise that grants the away workshop is confirmed at the desk, with the code the station prints
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -31,6 +34,7 @@ function boot(port, env, attemptsLeft) {
     let out = '', settled = false;
     const onData = d => {
       out += d.toString();
+      desk.feed(d);
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
@@ -43,8 +47,7 @@ function boot(port, env, attemptsLeft) {
 }
 
 async function setPosture(B, headers, initiative, reach) {
-  const r = await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative, reach, leashPerDay: 6 } }) });
-  return r.json();
+  return fetchJsonAtDesk(desk, B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative, reach, leashPerDay: 6 } }) });
 }
 async function status(B, headers) { return (await fetch(B + '/api/nightshift/status', { headers })).json(); }
 function wsRecord(ws) { try { return JSON.parse(fs.readFileSync(path.join(ws, 'agent.workshop.json'), 'utf8')); } catch (_) { return null; } }

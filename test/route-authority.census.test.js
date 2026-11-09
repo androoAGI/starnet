@@ -25,7 +25,7 @@ const { mutatingRoutes } = require('./helpers/route-table');
 
 const ROOT = path.join(__dirname, '..');
 const IDX = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');
-const DESK_CALL = /deskGate\(|ownerPairingPass\(|loopCheckAtDesk\(|deskApproved|blessPath\(/;
+const DESK_CALL = /deskGate\(|ownerPairingPass\(|loopCheckAtDesk\(|deskApproved|blessPath\(|workshopRaiseAtDesk\(/;
 
 const C = Object.create(null);
 function put(kind, reason, keys, extra) {
@@ -58,10 +58,14 @@ put('desk', 'a bot owner pairing lets that chat drive the crew', ['POST rx TG_BO
 put('desk', 'a generic channel connect lets its chats reach the crew', ['POST rx GENERIC_CHANNEL_RX.connect'], { via: 'handleGenericChannelConnect' });
 put('desk', 'an owner pairing lets that chat drive the crew', ['POST rx GENERIC_CHANNEL_RX.ownerPair'], { via: 'handleChannelOwnerPair' });
 
+put('desk', 'turning the away workshop on lets the agent build unattended and arms a build shift that spends (review2 #9)',
+  [ex('/api/workshop/grant')]);
+put('desk', 'a dial raise to building grants the away workshop when it was never decided (review2 #9); lowering never asks',
+  [ex('/api/autonomy/posture')]);
+put('desk', '"/away on" is the same workshop grant (review2 #9); a custom exec command is the owner\'s own snippet',
+  [ex('/api/slash/dispatch')]);
+
 /* ---------------------------------------------------------------- open (not gated yet; each names what closes it) */
-put('open', 'review2 #9: turning the away workshop on lets the crew build unattended', [ex('/api/workshop/grant')], { closes: 'review2 #9' });
-put('open', 'review2 #9: a dial raise grants the away workshop on its own', [ex('/api/autonomy/posture')], { closes: 'review2 #9' });
-put('open', 'review2 #9: /away on is the same workshop grant', [ex('/api/slash/dispatch')], { closes: 'review2 #9' });
 put('open', 'review2 #11: any key holder can stop the station', [ex('/api/lifecycle/quit')], { closes: 'review2 #11' });
 put('open', 'a raised spend cap, a resumed spend or a settled-low charge lets runs spend more: the spend rail is fix-sec3-1108\'s',
   [ex('/api/budget/caps'), ex('/api/budget/resume'), ex('/api/budget/settle')], { closes: 'fix-sec3-1108 (spend rail)' });
@@ -197,9 +201,6 @@ put('neutral', 'app updates are verified by signature before they install (src-t
 
 /* ---------------------------------------------------------------- the census */
 const OPEN = {
-  "POST exact '/api/workshop/grant'": 'review2 #9',
-  "POST exact '/api/autonomy/posture'": 'review2 #9',
-  "POST exact '/api/slash/dispatch'": 'review2 #9',
   "POST exact '/api/lifecycle/quit'": 'review2 #11',
   "POST exact '/api/budget/caps'": 'fix-sec3-1108 (spend rail)',
   "POST exact '/api/budget/resume'": 'fix-sec3-1108 (spend rail)',
