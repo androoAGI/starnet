@@ -109,7 +109,7 @@ const LC = require('../sidecar/learning-cooldown.js');
   // THE FAILED ATTEMPT (review r2 blocker): a call that errored or timed out never answered, so it read nothing and uses nothing up
   const e = LC.make({ now: () => t });
   e.ended('re1'); e.open('e', 'feedback'); e.ended('re2');                 // a verdict on run 1, then run 2 ends
-  A.eq(e.noted('reflection', 'e', { runId: 're2', replied: false, produced: false }), true, 'failed: an attempt whose call failed still arms its window (it went out; a timeout is billed for its prompt)');
+  A.eq(e.noted('reflection', 'e', { runId: 're2', replied: false, produced: false }), true, 'failed: an attempt whose call failed still arms its window (it went out; a timeout may be billed for its prompt)');
   A.eq(e.bypass('reflection', 'e', {}), 'feedback', 'failed: ...but keeps the verdict: the model never answered, so it never read it');
   A.eq(e.streak('e'), 0, 'failed: ...and counts no NONE');
   e.ended('re3');

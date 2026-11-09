@@ -6,8 +6,8 @@
    the very next run: four quick tool runs paid eight one-shot passes, reflection and study after every run, for
    nothing. That choice is reversed here, on purpose:
      - every ATTEMPT (a model call went out) stamps its pass's window, whatever it kept, and a call that FAILED too (an
-       HTTP error, a 429, a usage limit, the timeout): it went out, and a timeout is billed for its prompt, so a route
-       that keeps failing is tried once per window instead of at every run-end;
+       HTTP error, a 429, a usage limit, the timeout): it went out, and a timeout may be billed for its prompt, so a
+       route that keeps failing is tried once per window instead of at every run-end;
      - reflection backs off after consecutive replies that kept nothing: its window x1, x4, x10 (the default 3 min
        becomes 3, then 12, then 30 min); a kept proposal resets the streak. The ladder multiplies whatever window is
        configured and has no ceiling of its own (a 60 min window becomes 10 h after three NONE replies);
