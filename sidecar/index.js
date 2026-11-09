@@ -1187,6 +1187,9 @@ const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKS
 const authoritySealLastFile = name => authorityFileOf(name) + authoritySealMod.LAST_SUFFIX;
 const authoritySeal = authoritySealMod.makeAuthoritySeal({
   key: connectorVault.deriveKey(authoritySealMod.LABEL),
+  // final review #5: the desktop shell's record (in the OS credential store, beside the key) that this workspace was sealed
+  // before; with it a missing marker is never read as the one-time upgrade (src-tauri credentials.rs authority_sealed)
+  sealedBefore: DESKTOP_SHELL && /^(?:1|true)$/i.test(String(ENV('AUTHORITY_SEALED') || '').trim()),
   desktop: DESKTOP_SHELL,   // the app's station holds over a sealed workspace when its key is missing (review 4d)
   now: () => Date.now(),
   marker: {

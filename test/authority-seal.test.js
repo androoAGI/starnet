@@ -132,7 +132,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(r.mode, 'migrated', 'first keyed boot with files and no marker: the upgrade');
     A.eq(r.sealed.sort(), ['hooks-allowed.json', 'hooks.json', 'permissions.bypass.json'], 'it seals every present file, as it is');
     A.ok(marker.writes === 1 && marker.value && marker.value[S.FIELD], 'and writes the sealed marker');
-    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === true, 'a migrated bypass keeps its value');
+    // final review #5 (defence in depth): FULL BYPASS is not taken on the upgrade's word; it is turned on again at the desk
+    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === false, 'a migrated FULL BYPASS is sealed off (turned on again at the desk)');
     A.eq(seal.open('hooks.json', d.files['hooks.json']).value, { hooks: [{ event: 'pre', command: 'x' }] }, 'a legacy array hooks.json is wrapped as { hooks } and sealed');
     const n = seal.notices().find(x => x.kind === 'migrated');
     A.ok(n && /sealed/.test(n.text) && /once, on this upgrade/.test(n.text) && /hooks\.json/.test(n.text), 'the upgrade is one visible notice naming what was sealed (' + (n && n.text) + ')');
@@ -847,6 +848,57 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const foreign = S.makeAuthoritySeal({ key: KEY, now: () => 4000, marker: mk });
     foreign.boot(list);
     A.eq(foreign.openParts('cron.jobs.json', granted, parts).ok, [], '#4: a marker that does not verify resets the routine store\'s floor too');
+  }
+  {
+    // final review #5: deleting the marker and every trace, then planting FULL BYPASS and a Full Access roster, made the next
+    // keyed boot run the one-time upgrade and seal them. The desktop shell's record (sealedBefore) says the workspace was
+    // sealed before: the missing marker is read as missing, and nothing planted is sealed or obeyed.
+    const planted = () => ({
+      'permissions.bypass.json': { version: 1, on: true },
+      'agent.roster.json': { version: 1, agents: [{ agentId: 'agent', name: 'Overseer', approvalMode: 'full', system: 'PWN' }, { agentId: 'w', name: 'W', approvalMode: 'ask' }] }
+    });
+    const listOf = files => S.NAMES.map(name => ({ name, read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    {
+      const files = planted(), mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk, sealedBefore: true });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'enforce', '#5: with the shell\'s record, a wiped workspace is not the upgrade');
+      A.ok(!files['permissions.bypass.json'][S.FIELD], '#5: the planted FULL BYPASS is not sealed');
+      A.eq(st.open('permissions.bypass.json', files['permissions.bypass.json']).ok, false, '#5: and is not obeyed (reads as off)');
+      A.eq(st.open('agent.roster.json', files['agent.roster.json']).ok, false, '#5: nor the planted Full Access roster');
+      A.ok(st.notices().some(n => n.kind === 'marker-missing'), '#5: the page says the record is missing');
+      A.ok(mk.value && Number(mk.value.floors['permissions.bypass.json']) >= 5000, '#5: and the rewritten marker carries reset floors');
+    }
+    {
+      // a fresh start (nothing in the workspace) with the shell's record: nothing was planted, nothing to say
+      const files = {}, mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk, sealedBefore: true });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'enforce', '#5: an empty workspace with the record boots as before');
+      A.eq(st.notices().filter(n => /^marker-/.test(n.kind)).length, 0, '#5: and says nothing about a missing record');
+    }
+    {
+      // DEFENCE IN DEPTH: the real upgrade (no record anywhere) seals everything as it is, except FULL BYPASS and Full Access
+      const files = planted(), mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'migrated', '#5: with no record anywhere this is the upgrade');
+      const bp = st.open('permissions.bypass.json', files['permissions.bypass.json']);
+      A.ok(bp.ok && bp.value.on === false, '#5: the upgrade seals FULL BYPASS off (not taken on the file\'s word)');
+      const ro = st.open('agent.roster.json', files['agent.roster.json']);
+      A.ok(ro.ok && ro.value.agents.find(a => a.agentId === 'agent').approvalMode === 'ask', '#5: and Full Access as ask');
+      A.eq(ro.value.agents.find(a => a.agentId === 'agent').system, 'PWN', 'everything else in the roster is kept as it was');
+      const n = st.notices().find(x => x.kind === 'migrated');
+      A.ok(n && /FULL BYPASS on/.test(n.text) && /Full Access for "Overseer"/.test(n.text) && /confirm at the desk/.test(n.text), '#5: the upgrade notice names what to turn on again, at the desk');
+      A.eq(r.lowered.length, 2, '#5: the boot reports both');
+    }
+    {
+      // an upgrade with nothing raised says nothing extra
+      const files = { 'permissions.bypass.json': { version: 1, on: false } }, mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
+      st.boot(listOf(files));
+      A.ok(!/Not carried over/.test(st.notices().find(x => x.kind === 'migrated').text), 'an upgrade that finds nothing raised keeps its old notice');
+    }
   }
   {
     // remote/devices.js with the seal

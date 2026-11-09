@@ -122,6 +122,8 @@ const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remo
 // sealed in parts by their owner (index.js), not as one value
 const PART_NAMES = Object.freeze(['cron.jobs.json']);
 const ALL_NAMES = Object.freeze(NAMES.concat(PART_NAMES));
+// what the one-time upgrade seals off instead of taking on the file's word (final review #5): FULL BYPASS and Full Access
+const UPGRADE_ASKS = Object.freeze(['permissions.bypass.json', 'agent.roster.json']);
 
 // What the safe default means for each file, in the words the page shows.
 const CONSEQUENCE = Object.freeze({
@@ -335,6 +337,9 @@ function makeAuthoritySeal(opts) {
   let restoreSeen = false;       // this boot found a restore's record (authority-restored.json)
   let restoredBoot = false;      // ...and the marker was missing: the floors were reset for a restore, not a deleted marker
   const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
+  // final review #5: the desktop shell's word, kept in the OS credential store beside the key, that this workspace has been
+  // sealed with it before (STARNET_AUTHORITY_SEALED). With it, a missing marker is never the upgrade, whatever the files say
+  const sealedBefore = o.sealedBefore === true;
   let held = '';                 // why this boot keeps every authority file at its default and saves none (4c, 4d)
   const migrating = new Set();   // names sealed once as they are this boot: not yet in the marker's covers (4a)
   let floorsReset = false;       // the marker was missing or foreign: every floor was set above what exists (4c)
@@ -662,7 +667,10 @@ function makeAuthoritySeal(opts) {
     let lost = '';                          // 'mismatch' | 'missing': the record of floors is gone (4c)
     if (markerValid) { markerOk = true; adoptMarker(m); }   // the floors first: a restore or a sealed copy is judged against them (4b)
     else if (m !== undefined || markerErr) lost = 'mismatch';
-    else { const t = traces(present); if (t.any) { lost = 'missing'; resetFloors(names, t.maxG); } }
+    // no marker: the upgrade only when nothing says this workspace was sealed before, neither a trace in it nor the shell's
+    // record in the credential store (final review #5: a wipe of the marker and every trace looked like the upgrade). A
+    // workspace with nothing in it is a fresh start either way: nothing there was planted.
+    else { const t = traces(present); if (t.any || (sealedBefore && present.length)) { lost = 'missing'; resetFloors(names, t.maxG); } }
     if (lost === 'mismatch') resetFloors(names, traces(present).maxG);
     // a restore is taken before anything else (it is sealed above the new floors, so it is current)
     const adopted = adoptRestored(files);
@@ -705,21 +713,31 @@ function makeAuthoritySeal(opts) {
     for (const n of PART_NAMES) migrating.add(n);
     if (adopted.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // a restore into a fresh folder: the rest answers for itself
     if (!present.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // the marker comes with the first sealed write
-    const sealed = [], failed = [];
+    const sealed = [], failed = [], lowered = [];
     for (const x of present) {
-      const value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
+      let value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
       if (!plainObject(value)) { failed.push(x.f.name); continue; }
+      /* DEFENCE IN DEPTH (final review #5): the upgrade takes each file on its word, and a same-user process that could
+         still wipe every trace (on a computer whose shell keeps no record, or with that record removed too) would have its
+         planted FULL BYPASS or Full Access sealed. So those two are not taken on the upgrade's word: they are sealed off,
+         and the Commander turns them on again, each confirmed at the desk as any raise is. Everything else is kept. */
+      if (UPGRADE_ASKS.indexOf(x.f.name) >= 0) {
+        const low = lowerOf(x.f.name, strip(value), {}, now());
+        if (low && low.dropped.length) { value = low.value; for (const d of low.dropped) lowered.push(d); }
+      }
       known.set(x.f.name, null);            // nothing was sealed before the upgrade: no floor to move
       try { x.f.write(seal(x.f.name, value)); sealed.push(x.f.name); }
       catch (e) { failed.push(x.f.name); }
     }
     writeMarker();
-    notice({ kind: 'migrated', sealed: sealed.slice(), failed: failed.slice(),
+    notice({ kind: 'migrated', sealed: sealed.slice(), failed: failed.slice(), dropped: lowered.slice(),
       text: 'StarNet now seals its permission files with a key from this computer\'s credential store. It sealed ' +
         (sealed.length ? sealed.join(', ') : 'nothing') + ' once, on this upgrade' +
         (failed.length ? '; ' + failed.join(', ') + ' could not be sealed and will not be used' : '') +
-        '. A change made to them outside StarNet is not obeyed from now on.' });
-    return { mode: 'migrated', sealed: sealed, failed: failed, migrating: Array.from(migrating) };
+        '. A change made to them outside StarNet is not obeyed from now on.' +
+        (lowered.length ? ' Not carried over on the upgrade, because StarNet does not take that much power on a file\'s word: ' + lowered.join(', ') +
+          '. Turn ' + (lowered.length > 1 ? 'them' : 'it') + ' on again in SETTINGS or the agent\'s dossier (StarNet asks you to confirm at the desk).' : '') });
+    return { mode: 'migrated', sealed: sealed, failed: failed, lowered: lowered, migrating: Array.from(migrating) };
   }
 
   return {
