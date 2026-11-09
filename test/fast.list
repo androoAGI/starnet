@@ -1050,6 +1050,7 @@ test/stationbake.plate-parity.test.mjs
 test/stationbake.offcanvas.test.mjs
 test/canvas-loss-recovery.test.js
 test/render-pacing.test.js
+test/litefx.test.js
 test/no-smooth-infinite-animation.test.js
 test/render-still.test.js
 test/render-still-readouts.test.js

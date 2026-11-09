@@ -260,7 +260,16 @@ const Chat = (() => {
     // sit the pill just above the composer: distance from the panel's bottom = the composer stack's height.
     const composer = el('chat-inputrow'), queuedEl = el('chat-queued');
     const h = (composer ? composer.offsetHeight : 0) + (queuedEl ? queuedEl.offsetHeight : 0) + 8;
-    pill.style.bottom = h + 'px';
+    if (pill.style.bottom !== h + 'px') pill.style.bottom = h + 'px';
+  }
+  /* SCROLL COST (Mac report 11-08, "a 2014 Mac is too slow to scroll"): showNewPill runs on EVERY scroll event while the
+     reader is up in history, and it rewrote the pill's text, label and offset each time. Every event dirtied style, so the
+     next one's nearBottom()/offsetHeight read forced a style recalc + layout of the panel: ~3.6 ms an event on a fast
+     desktop, ~40 ms under a 4x CPU throttle (trace of a 150-wheel COMMS scroll). A pill that already says the right thing
+     is left alone; only a real change writes the DOM. */
+  function setPillText(pill, text, label) {
+    if (pill.textContent !== text) pill.textContent = text;
+    if (pill.getAttribute('aria-label') !== label) pill.setAttribute('aria-label', label);
   }
   function showNewPill(hasNew) {
     const panel = el('chat-panel'); if (!panel || stick) return;
@@ -274,8 +283,8 @@ const Chat = (() => {
     }
     if (hasNew) pill.classList.add('hasnew');
     const isNew = pill.classList.contains('hasnew');
-    pill.textContent = isNew ? 'new messages' : 'latest';   // the ▾ chevron is drawn by CSS (::after), not a font glyph
-    pill.setAttribute('aria-label', isNew ? 'Jump to newest messages' : 'Scroll to latest');
+    // the ▾ chevron is drawn by CSS (::after), not a font glyph
+    setPillText(pill, isNew ? 'new messages' : 'latest', isNew ? 'Jump to newest messages' : 'Scroll to latest');
     positionNewPill(pill);
     pill.classList.add('show');
     if (log) log.classList.add('pill-clear');   // reserve the pill's height at the foot of the scroll so it never covers the newest line

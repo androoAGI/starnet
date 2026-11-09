@@ -1,0 +1,20 @@
+/* LITE EFFECTS (app/litefx.js) — on, via body.sn-lite-glass, only on a weak machine or when the OS asks for reduced
+   transparency. Everything else in the cascade is untouched; a capable machine never matches a rule in this file.
+   GLASS: no backdrop-filter anywhere. The cabinet panels' blur(18px) saturate(1.08) sits over #screen-game's flat gradient,
+   so they look the same without it. The universal selector + !important is deliberate: the blur is declared in a dozen
+   sheets at specificities up to (1,3,1), and every one of them must lose here.
+   FACES: the glass that floats OVER the floor (windows, the model picker, the widget library, the line-watch card) was
+   frosted so the moving station behind it read as a soft wash. Without the frost the floor would show through sharp,
+   which is busier, not lighter, and the opposite of what "reduce transparency" asks for. Their colour layer goes opaque
+   (the same --panel2 their 82-95% face is mixed from); the tint gradients on top stay.
+   GLOW: body's inherited 0 0 4px phosphor text-shadow (alpha .14) goes, and the transcript drops its own as well (the
+   callsigns' 4-5px). A blurred shadow is per-text-run paint work on every tile a scroll uncovers. Chrome that sets its
+   own glow outside the transcript (titles, readouts) keeps it. */
+body.sn-lite-glass *, body.sn-lite-glass *::before, body.sn-lite-glass *::after, body.sn-lite-glass *::backdrop {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+}
+body.sn-lite-glass :is(.term:not(.pw), #model-dock, .wg-library, .lw-card) { background-color: var(--panel2) !important; }
+body.sn-lite-glass { text-shadow: none; }
+body.sn-lite-glass #chat-panel :is(#chat-log, #gc-log), body.sn-lite-glass #chat-panel :is(#chat-log, #gc-log) :is(*, *::before, *::after) {
+  text-shadow: none !important;
+}

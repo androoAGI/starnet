@@ -67,6 +67,7 @@
 <link rel="stylesheet" href="css/comms-convo.css"><!-- COMMS AS A CONVERSATION: the transcript's reading layer (bubbles, visible stamps, time breaks, run footer) — loaded last on purpose -->
 
 <link rel="stylesheet" href="css/titlebar.css"><!-- custom window chrome (Windows desktop shell): themed titlebar + MIN/MAX/CLOSE; inert unless body.sn-chrome (titlebar.js) -->
+<link rel="stylesheet" href="css/litefx.css"><!-- LITE EFFECTS: no backdrop blur, no transcript glow; inert unless body.sn-lite-glass (app/litefx.js: a weak machine or reduced transparency) -->
 
 </head>
 <body class="theme-amber glass-demo">
@@ -822,6 +823,7 @@
 <script src="app/bootguard.js"></script><!-- BOOT GUARD: installs the window error/unhandledrejection listeners before anything else can fail silently, then verifies the critical module globals after DOMContentLoaded (fatal banner names the file). Reads no state — the ONE script allowed ahead of legacymigrate -->
 <script src="app/legacymigrate.js"></script>
 <script src="app/glass-boot.js"></script><!-- FIRST store-touching script: migrate starnet.* localStorage keys -> starnet.* before any store reads -->
+<script src="app/litefx.js"></script><!-- LITE EFFECTS: lighter glass + the floor stands aside during a scroll, only on a weak machine or an OS reduced-transparency/motion ask (decides before first paint; GPU probe at idle) -->
 <script src="js/util.js"></script>
 <script src="app/pollgate.js"></script><!-- IDLE COST: the ONE owner of "is anyone looking?" for background polls (visible cadence unchanged, a 30 s floor while away, never a stop); MUST load before its consumers (queryspine, overseer, group-chat, stationui, world, widgets) -->
 <script src="app/asciifx.js"></script><!-- ASCII-motion kit (AsciiFX): decode/dissolve/typewriter primitives; must load before its consumers (chat.js, stationui.js) -->
