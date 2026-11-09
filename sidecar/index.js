@@ -4657,6 +4657,11 @@ function launchVerdictReview(job) {
     console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': its session was deleted');
     return Promise.resolve(true);
   }
+  // W3.2: the one rule for every skill review (skillReview.reviewCause): a verdict that teaches always qualifies, due or not
+  if (skillReview.reviewCause({ verdict: job.verdict }) !== 'verdict') {
+    console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': verdict ' + job.verdict + ' is not one that teaches');
+    return Promise.resolve(true);
+  }
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
 }
@@ -26963,7 +26968,8 @@ async function runOnceCore(o) {
   const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
-  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
+  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar (and,
+  // since W3.2, only on a run that gives it something to learn from: _reviewWhy below). A
   // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
   // alone is a candidate on every finished task) and still counts against the ceiling (issue #105).
   // Counted only while a review could ever fire (review on, bar > 0), and never for a team.spawn clone: its 'sub-'
@@ -26974,7 +26980,15 @@ async function runOnceCore(o) {
   const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
-  const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
+  /* W3.2 REVIEW ONLY WHEN USEFUL (cost lane, Andrew 2026-11-08). A due count no longer fires the review by itself:
+     skillReview.reviewCause, the one rule for every skill review (launchVerdictReview asks it too), names what this run
+     gives it to learn from: a tool error, a correction cue in the Commander's own words, or a new multi-step procedure.
+     A due count on a run that holds none of them is kept for the next run that does: the count write below carries it
+     (clamped at the bar), and only an admitted review spends it. */
+  const _reviewDue = !!(_auxDone && _nudge && _nudge.due);
+  const _reviewWhy = _reviewDue ? skillReview.reviewCause({ due: true, commanderWords, toolTrace: execution.toolTraceList(), loadedSkills }) : '';
+  if (_reviewDue) console.log('[skills] review ' + (_reviewWhy ? 'qualifies (' + _reviewWhy + ')' : 'held: no tool error, correction or new procedure in this run; the nudge stays due') + ' run=' + runId + ' agent=' + agentId);
+  const _gateSkillReview = !!(_reviewWhy && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
   const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
@@ -27021,7 +27035,7 @@ async function runOnceCore(o) {
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
-  // review, e.g. a failed run, stays due for the next finished one). Written only when it changes.
+  // review, e.g. a failed run or one with nothing to learn from, stays due for the next one that can). Written only when it changes.
   if (_nudge) {
     const _nudgeNext = _nudge.count;   // reset only when the queued review is admitted
     if (_nudgeNext !== (skillNudge.get(agentId) || 0)) { skillNudge.set(agentId, _nudgeNext); persistSkillNudge(); }

@@ -56,6 +56,7 @@ test/failreview-budget.e2e.test.js
 test/failreview-provider-refusal.e2e.test.js
 test/learning-cooldown.e2e.test.js
 test/learning-cooldown.race.e2e.test.js
+test/skillreview-useful.e2e.test.js
 test/run-cap-bounds-spawn.e2e.test.js
 test/questrefresh.e2e.test.js
 test/e2e.run.test.js

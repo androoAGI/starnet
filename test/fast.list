@@ -1719,6 +1719,7 @@ test/org-crew-comms.test.js
 test/internal-run-not-working.test.js
 test/aux-effort.test.js
 test/skillreview-diet.test.js
+test/skillreview-cause.test.js
 test/effort-dial-copy.test.js
 test/effort-as-sent.test.js
 test/starter-drift.test.js

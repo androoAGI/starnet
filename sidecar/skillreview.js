@@ -14,6 +14,9 @@
 
   const learning = typeof require === 'function' ? require('./learningevidence.js') : null;
   const RunOutcome = typeof require === 'function' ? require('../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
+  // reviewCause's two borrowed rules: the verdicts that teach (the rating path arms only these) and W1.4's correction cue
+  const VERDICTS = typeof require === 'function' ? require('./verdictreview.js').VERDICTS_THAT_TEACH : new Set(['ok', 'miss']);
+  const cueIn = typeof require === 'function' ? require('./learning-cooldown.js').cueIn : function () { return false; };
 
   function str(v) { return v == null ? '' : String(v); }
 
@@ -161,7 +164,9 @@
      skillbase last changed, carried across runs. When the count reaches `every`, a review is DUE: it spends
      outside the aux ceiling (the governor's reserved lane) and the count starts over. An agent that saved or
      edited a skill itself this run did the job already, so its count starts over too. Pure: no clock, no I/O.
-     `every` 0 turns the nudge off. */
+     `every` 0 turns the nudge off.
+     Since W3.2 (2026-11-09) DUE is necessary, not sufficient: reviewCause below decides whether the run gives the
+     review anything to learn from, and a due count on a run that does not stays due (clamped at the bar). */
   const NUDGE_EVERY = 10;
   function parseNudgeEvery(raw) {
     if (raw == null) return NUDGE_EVERY;
@@ -182,6 +187,55 @@
     // changing and stops being rewritten
     const next = o.managed ? 0 : (every > 0 ? Math.min(every, carried + turns) : carried + turns);
     return { count: next, due: every > 0 && next >= every };
+  }
+
+  /* REVIEW ONLY WHEN USEFUL (cost lane W3.2, 2026-11-09; Andrew's call 2026-11-08). A due nudge used to fire the review on
+     whatever run came next: a chat, or a run that followed a saved skill to the letter. Each review is a tool loop (about
+     30k input-eq on a claude-cli station) and 1 proposal came out of 3. reviewCause is the ONE rule for every skill review,
+     the run-end one and the rating's: it names what the run gives the review to learn from, read only from state the
+     harness already holds (never a model call), or '' for nothing:
+       'verdict'        the Commander rated the run short of the mark (VERDICTS: the ok/miss the rating path arms). A
+                        verdict ALWAYS qualifies, due or not. Praise (great) is not one, as before: it mints goldens for
+                        the loaded skills and saves the like (feedback memory), and it has never spent a review.
+       'correction'     an explicit correction or preference cue in the Commander's own latest words (W1.4's cue
+                        resolver, learning-cooldown.js cueIn; the host mints commanderWords from the owner's own
+                        surfaces only, so a routine's or a worker's brief carries none).
+       'tool-error'     a tool call came back failed (what the evidence packet shows the review as 'failed') in a run that
+                        still succeeded: the fix or retry pattern the review is told to capture. A denied approval is the
+                        Commander's decision, not an error, and a skipped call never ran: neither counts.
+       'new-procedure'  a NEW MULTI-STEP PROCEDURE, which is what the review proposes a skill from: the run got there
+                        through at least PROCEDURE_STEPS successful calls across at least PROCEDURE_TOOLS distinct tools
+                        (the skill tools are the skillbase, not a step of the work), and it loaded no saved skill (no
+                        skill.view, no /skill preload), so no saved procedure governed it. One tool repeated is a lookup,
+                        not a procedure; a run that followed a saved skill and hit nothing new has nothing to add to it.
+     Every kind but the verdict needs the nudge DUE as well (facts.due), so the nudge stays the cadence floor: reviews only
+     get rarer than the 2026-09-28 cadence, never more frequent. Pure: no clock, no I/O. */
+  const PROCEDURE_STEPS = 3;
+  const PROCEDURE_TOOLS = 2;
+  const SKILL_TOOL = /^skill[._](?:list|view|write|manage)$/;   // a trace names a call by its wire name (skill_view)
+  // a call that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a denied approval
+  // (the refusal mark reflect.js refusedAction reads) and a call the loop skipped (cancelled, terminal evidence)
+  function callFailed(t) {
+    if (!t || t.endedAt == null || (t.ok && !t.isError)) return false;
+    const summary = str(t.summary);
+    return summary !== 'denied' && !/^skipped\b/.test(summary);
+  }
+  // procedureOf(toolTrace) -> { steps, tools }: the run's successful calls outside the skill tools, and the distinct tools
+  function procedureOf(toolTrace) {
+    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => t && t.endedAt != null && t.ok && !t.isError && !SKILL_TOOL.test(str(t.name)));
+    return { steps: steps.length, tools: new Set(steps.map(t => str(t.name))).size };
+  }
+  // reviewCause({ verdict, due, commanderWords, toolTrace, loadedSkills }) -> 'verdict' | 'correction' | 'tool-error' | 'new-procedure' | ''
+  function reviewCause(facts) {
+    const f = facts || {};
+    if (VERDICTS.has(str(f.verdict))) return 'verdict';
+    if (f.due !== true) return '';
+    if (cueIn(str(f.commanderWords))) return 'correction';
+    const trace = Array.isArray(f.toolTrace) ? f.toolTrace : [];
+    if (trace.some(callFailed)) return 'tool-error';
+    const loaded = Array.isArray(f.loadedSkills) && f.loadedSkills.length > 0;
+    const p = procedureOf(trace);
+    return !loaded && p.steps >= PROCEDURE_STEPS && p.tools >= PROCEDURE_TOOLS ? 'new-procedure' : '';
   }
 
   /* makeReviewObserver({ emit, log, now, source }) -> { onManage(skill, action, info) }
@@ -215,5 +269,6 @@
     };
   }
 
-  return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun };
+  return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun,
+    reviewCause, procedureOf, PROCEDURE_STEPS, PROCEDURE_TOOLS };
 });
