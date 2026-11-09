@@ -311,7 +311,8 @@
      string arguments of a write that SUCCEEDED (WRITE_ARGS), as an ARG_ELIDED stub naming a saved copy of the exact
      argument. Only a body a handle covers ages, and only when its stub at least halves it: words quoted from another
      session, a body this run did not produce (a resumed history), a body no UTF-8 file can hold and a park that failed
-     ride whole, and are never tried again.
+     ride whole, and are never tried again. A batch some of whose parks failed frees less than it was weighed on: it is
+     weighed again as it stands, and one that no longer pays ages nothing and keeps the copies it saved for a later batch.
      IN THE VIEW ONLY: `messages` is never touched. view(list) swaps each aged message for its copy (the list itself
      while nothing has aged, so a run that never ages sends byte-identical requests); the transcript, the run journal and
      every fold keep the full bodies. A copy is made once and reused, so the prefix stays cached between batches; it
@@ -372,8 +373,9 @@
     const aged = (typeof WeakMap === 'function') ? new WeakMap() : null;     // original -> its aged copy
     const owners = (typeof WeakMap === 'function') ? new WeakMap() : null;   // aged copy -> its original
     const never = (typeof WeakSet === 'function') ? new WeakSet() : null;    // originals that can never age
+    const ready = (typeof WeakMap === 'function') ? new WeakMap() : null;    // original -> a copy saved for a batch that no longer paid
     let any = false;
-    if (!aged || !owners || !never) return { plan: async () => null, view: list => list, agedOf: () => null, originalOf: () => null };
+    if (!aged || !owners || !never || !ready) return { plan: async () => null, view: list => list, agedOf: () => null, originalOf: () => null };
     const quoted = meta => !!meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length > 0;
     // what one message would become, priced with a stand-in handle (nothing is parked), or null: it can never age
     function candidate(m, names, results, park, standIn) {
@@ -484,43 +486,71 @@
       let freed = 0, suffix = floor.systemTail ? size(floor.systemTail) : 0;
       for (const it of p.items) freed += size(it.msg) - size(it.est);
       for (let i = floor.from; i < list.length; i++) { const m = list[i]; suffix += size(est.get(m) || aged.get(m) || m); }
-      const saving = remaining * freed * r, rewrite = suffix * (w - r);
+      let saving = remaining * freed * r, rewrite = suffix * (w - r);
       if (!(freed > 0) || !(saving > rewrite)) return null;
-      // THE BATCH: each body parked (or its registry park named), then its copy swapped in from the next request on
-      let editAt = -1, results = 0, args = 0, freedChars = 0;
-      for (const it of p.items) {
-        let copy = null;
-        if (it.kind === 'result') {
-          const st = await elideToolResult(it.msg.content, { name: it.name, parkedPath: it.origin.parkedPath, parkMeta: it.origin.parkMeta, park });
-          if (st && st.handle) { copy = Object.assign({}, it.msg, { content: st.content }); results++; }
-        } else {
-          const calls = it.msg.tool_calls.slice();
-          let took = 0;
-          for (const c of it.calls) {
-            const next = Object.assign({}, c.args);
-            let saved = 0;
-            for (const f of c.fields) {
-              let at = null;
-              try { at = await park(c.args[f], Object.assign({}, c.meta, { tool: String((c.call.function && c.call.function.name) || 'tool'), reason: 'argument-elided-at-compaction' })); } catch (_) { at = null; }
-              if (!at || !at.path) continue;
-              next[f] = argStubText(c.args[f], pathCall(String(at.path)));
-              saved++;
-            }
-            if (!saved) continue;
-            calls[c.k] = Object.assign({}, c.call, { function: Object.assign({}, c.call.function, { arguments: JSON.stringify(next) }) });
-            took += saved;
-          }
-          if (took) { copy = Object.assign({}, it.msg, { tool_calls: calls }); args += took; }
+      // THE BATCH: each body parked (or its registry park named) into its copy; none reaches the view before the batch
+      // stands. A body whose park failed rides whole and is never tried again
+      const staged = [];
+      try {
+        for (const it of p.items) {
+          const s = ready.get(it.msg) || await copyOf(it, park);
+          if (!s) { never.add(it.msg); continue; }
+          staged.push({ it, copy: s.copy, results: s.results, args: s.args });
         }
-        if (!copy) { never.add(it.msg); continue; }
-        inheritMarkers(it.msg, copy);
-        aged.set(it.msg, copy); owners.set(copy, it.msg);
-        any = true;   // at once: whatever agedOf answers, the view swaps in too (a throw later in the batch splits nothing)
-        freedChars += charsOf(it.msg) - charsOf(copy);
-        if (editAt < 0) editAt = it.at;
+      } catch (e) { keep(staged); throw e; }
+      if (!staged.length) return null;
+      // A PARK THAT FAILED frees less than the payback weighed, and the re-write starts at the first body that saved:
+      // weigh the batch again as it stands. One that no longer pays keeps its copies for a later batch (never parked twice)
+      let from = floor.from;
+      if (staged.length < p.items.length) {
+        const copies = new Map(staged.map(s => [s.it.msg, s.copy]));
+        const f2 = readFloor(list, staged[0].it.at, { holdsHistory: !!ctx.holdsHistory, anchors: ctx.anchors || null, isHistoryEnd: ctx.isHistoryEnd, stable: ctx.stable });
+        let freed2 = 0, suffix2 = f2.systemTail ? size(f2.systemTail) : 0;
+        for (const s of staged) freed2 += size(s.it.msg) - size(s.copy);
+        for (let i = f2.from; i < list.length; i++) { const m = list[i]; suffix2 += size(copies.get(m) || aged.get(m) || m); }
+        const saving2 = remaining * freed2 * r, rewrite2 = suffix2 * (w - r);
+        if (!(freed2 > 0) || !(saving2 > rewrite2)) { keep(staged); return null; }
+        from = f2.from; freed = freed2; suffix = suffix2; saving = saving2; rewrite = rewrite2;
       }
-      if (editAt < 0) return null;
-      return { editAt, from: floor.from, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
+      // then every copy swaps in at once, from the next request on
+      let editAt = -1, results = 0, args = 0, freedChars = 0;
+      for (const s of staged) {
+        ready.delete(s.it.msg);
+        inheritMarkers(s.it.msg, s.copy);
+        aged.set(s.it.msg, s.copy); owners.set(s.copy, s.it.msg);
+        any = true;
+        results += s.results; args += s.args;
+        freedChars += charsOf(s.it.msg) - charsOf(s.copy);
+        if (editAt < 0) editAt = s.it.at;
+      }
+      return { editAt, from, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
+    }
+    // copies saved for a batch that did not stand (it no longer paid, or a park threw): a later batch takes them unparked
+    function keep(staged) { for (const s of staged) ready.set(s.it.msg, { copy: s.copy, results: s.results, args: s.args }); }
+    // one pending message's aged copy: { copy, results, args } (how many results and arguments it aged), or null when
+    // no body in it could be saved
+    async function copyOf(it, park) {
+      if (it.kind === 'result') {
+        const st = await elideToolResult(it.msg.content, { name: it.name, parkedPath: it.origin.parkedPath, parkMeta: it.origin.parkMeta, park });
+        return (st && st.handle) ? { copy: Object.assign({}, it.msg, { content: st.content }), results: 1, args: 0 } : null;
+      }
+      const calls = it.msg.tool_calls.slice();
+      let took = 0;
+      for (const c of it.calls) {
+        const next = Object.assign({}, c.args);
+        let saved = 0;
+        for (const f of c.fields) {
+          let at = null;
+          try { at = await park(c.args[f], Object.assign({}, c.meta, { tool: String((c.call.function && c.call.function.name) || 'tool'), reason: 'argument-elided-at-compaction' })); } catch (_) { at = null; }
+          if (!at || !at.path) continue;
+          next[f] = argStubText(c.args[f], pathCall(String(at.path)));
+          saved++;
+        }
+        if (!saved) continue;
+        calls[c.k] = Object.assign({}, c.call, { function: Object.assign({}, c.call.function, { arguments: JSON.stringify(next) }) });
+        took += saved;
+      }
+      return took ? { copy: Object.assign({}, it.msg, { tool_calls: calls }), results: 0, args: took } : null;
     }
     function view(list) {
       if (!any || !Array.isArray(list)) return list;

@@ -281,7 +281,7 @@ const writes = chars => [{ name: 'fs_write', args: { path: 'a.js', content: body
     A.eq((await plan(async () => { throw new Error('x'); })).freed, fixed.freed, 'stand-in: one that throws falls back to the fixed stand-in');
   }
 
-  // ================= a throw mid-batch: the view and agedOf still agree =================
+  // ================= a throw mid-batch: nothing ages, and the body already saved is never parked twice =================
   {
     const r = run(reads(10));
     let n = 0;
@@ -290,11 +290,37 @@ const writes = chars => [{ name: 'fs_write', args: { path: 'a.js', content: body
     let threw = false;
     try { await ag.plan(r.list, ctxOf({ park })); } catch (_) { threw = true; }
     const v = ag.view(r.list);
-    A.ok(threw && ag.agedOf(r.list[3]) !== null, 'mid-batch throw: (the planner threw on the second body, after the first aged)');
-    A.ok(r.list.every((m, i) => { const c = ag.agedOf(m); return c ? v[i] === c : v[i] === m; }), 'mid-batch throw: every copy agedOf answers is the one the view sends, and nothing else changed');
+    A.ok(threw && n === 2, 'mid-batch throw: (the planner threw on the second body, after the first was saved)');
+    A.ok(v === r.list && r.list.every(m => ag.agedOf(m) === null), 'mid-batch throw: the batch never half-stands: nothing ages, the view is the list itself');
+    const b = await ag.plan(r.list, ctxOf({ park }));
+    A.ok(!!b && b.results === 6 && n === 7 && ag.view(r.list)[3] === ag.agedOf(r.list[3]) && ag.agedOf(r.list[3]).content.indexOf('.output/q1.txt') >= 0,
+      'mid-batch throw: the next batch takes the first body\'s saved copy unparked (5 new parks: ' + (n - 2) + ')');
+  }
+
+  // ================= parks that mostly fail: the batch is weighed again as it stands =================
+  {
+    const r = run(reads(14));
+    let calls = 0;
+    const failing = new Set([1, 2, 3, 4]);   // the four oldest bodies cannot be saved
+    const park = async () => { calls++; return failing.has(calls) ? null : { path: '.output/m' + calls + '.txt' }; };
+    const ag = makeAgeing({ originOf: r.originOf });
+    const first = r.list.slice(0, 2 + 2 * 10);   // ten tool turns: six behind the window, four of them unsavable
+    const full = await makeAgeing({ originOf: r.originOf }).plan(first, ctxOf({ park: parker().park }));
+    A.ok(!!full && full.results === 6, 'mostly failing parks: (with every park saved, these six bodies pay as one batch)');
+    A.eq([await ag.plan(first, ctxOf({ park })), calls], [null, 6], 'mostly failing parks: two saved bodies cannot pay for the re-write: no batch');
+    A.ok(ag.view(first) === first && first.every(m => ag.agedOf(m) === null), 'mostly failing parks: nothing ages, the view is the list itself');
+    const b = await ag.plan(r.list, ctxOf({ park }));   // fourteen turns: the two saved copies and four new bodies
+    A.ok(!!b && b.results === 6 && calls === 10 && ag.agedOf(r.list[11]).content.indexOf('.output/m5.txt') >= 0 && ag.agedOf(r.list[15]).content.indexOf('.output/m7.txt') >= 0,
+      'mostly failing parks: a later batch takes the two saved copies unparked and parks only the new bodies ('
+      + JSON.stringify(b && { results: b.results, calls }) + ')');
+    A.ok(ag.view(r.list)[3] === r.list[3] && ag.view(r.list)[9] === r.list[9], 'mostly failing parks: the four unsavable bodies ride whole');
   }
 
   // ================= the route's cache prices (cost.js cacheRates) =================
+  /* THE MODEL'S DOCUMENTED RATES, never the billing row's (the W2.1 review): the claude-api skill documents cache reads at
+     0.025x on Claude Fable 5.1 and Mythos 5.1, 0.05x on Claude Opus 5.5, 0.1x on every other model; writes at 1.25x on
+     the 5-minute tier and 2x on the 1-hour tier (shared/prompt-caching.md:144, shared/model-migration.md:1695, :2040).
+     The values below are typed from those pages, not read from the code under test. */
   {
     const anthropic = makeCostEngine({ priceOf: id => prices.priceOf('anthropic', id) });
     const DOC = { 'claude-opus-5-5': 0.05, 'claude-opus-5.5': 0.05, 'claude-fable-5-1': 0.025, 'claude-mythos-5-1': 0.025, 'claude-fable-5': 0.10, 'claude-mythos-5': 0.10,
@@ -331,7 +357,3 @@ const writes = chars => [{ name: 'fs_write', args: { path: 'a.js', content: body
   A.eq([AGEING.KEEP_TURNS, AGEING.BATCH_CHARS, AGEING.MIN_TURNS, AGEING.SHORT_RUN, AGEING.HORIZON], [4, 60000, 2, 24, 12], 'the measured constants: keep 4 tool turns, 60k characters, 2 turns a batch, never for 24 requests or fewer, a payback within 12 requests');
   A.report('batched-ageing.test');
 })().catch(e => { console.log('FAIL: batched-ageing.test threw -- ' + (e && e.stack || e)); process.exit(1); });
-  /* THE MODEL'S DOCUMENTED RATES, never the billing row's (the W2.1 review): the claude-api skill documents cache reads at
-     0.025x on Claude Fable 5.1 and Mythos 5.1, 0.05x on Claude Opus 5.5, 0.1x on every other model; writes at 1.25x on
-     the 5-minute tier and 2x on the 1-hour tier (shared/prompt-caching.md:144, shared/model-migration.md:1695, :2040).
-     The values below are typed from those pages, not read from the code under test. */
