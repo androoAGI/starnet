@@ -1537,7 +1537,7 @@ const App = (() => {
       const id = String(n && n.kind) + '|' + String(n && n.name || '') + '|' + String(n && n.at || '');
       if (!n || typeof n.text !== 'string' || !n.text || shownSealNotices.has(id)) continue;
       shownSealNotices.add(id);
-      if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, 400), n.kind === 'migrated' ? 'info' : 'warn');
+      if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, 400), (n.kind === 'migrated' || n.kind === 'info') ? 'info' : 'warn');
     }
   }
   // a wider profile a roster push did not ask for: the station kept its own, and so does this page (fix-sec2 review 7)

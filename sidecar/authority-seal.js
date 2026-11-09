@@ -745,6 +745,8 @@ function makeAuthoritySeal(opts) {
     get keyed() { return !!key; },
     get held() { return held; },
     sealParts: sealParts, openParts: openParts, refused: refused,
+    // inform(text): a notice that is news, not a warning (final review B4: a retired grant); the page shows it once
+    inform: (text) => { notice({ kind: 'info', text: String(text) }); },
     seal: seal, open: open, boot: boot, clampRoster: clampRoster,
     notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}, n.dropped ? { dropped: n.dropped.slice() } : {}))
   };

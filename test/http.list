@@ -370,3 +370,4 @@ test/channel-owner-seal.http.test.js
 test/seal-wipe.http.test.js
 test/desk-code-log.http.test.js
 test/seal-held-words.http.test.js
+test/retired-grant-notice.http.test.js

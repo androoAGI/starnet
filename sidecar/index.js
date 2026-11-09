@@ -4932,12 +4932,14 @@ const ALLOWLIST_FILE = path.join(WORKSPACES, 'permissions.allow.json');
    reads a class row for one, so that row is not loaded at all: the Permissions panel and a config export no longer show
    a grant that does nothing, and the next save of the file leaves it out. Commands ask again, one at a time. */
 const retiredCommandGrant = (k) => Object.prototype.hasOwnProperty.call(COMMAND_GRANT_CLASSES, k);
+let retiredCommandGrantsAtLoad = [];   // final review B4: said once on the Permissions page, then left out of the file
 function loadAllowlist() {
   try {
     const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));   // recover blessed grants from .bak on a torn main
     const keys = (raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string');
     const retired = keys.filter(retiredCommandGrant);
     if (retired.length) console.log('  · permissions: ' + retired.join(', ') + ' (an older "always" for every command) is retired: each command asks again (GHSA-2hpj #4)');
+    retiredCommandGrantsAtLoad = retired;
     return new Set(keys.filter(k => !retiredCommandGrant(k)));
   } catch (e) { return new Set(); }   // unrecoverable -> nothing pre-allowed (fail-closed, the safe default)
 }
@@ -4958,6 +4960,21 @@ function loadAllowMeta() {
 }
 const grantsPermanent = loadAllowlist();   // process-wide, restored from disk
 const grantMeta = loadAllowMeta();         // process-wide provenance, restored alongside (additive; may be {})
+/* final review B4: people who had ALWAYS on a command card only saw the cards come back; the retirement was said in the
+   station's console alone. It is said once on the Permissions page (a seal notice the page shows), and the file is saved
+   without the retired row so the next launch does not say it again. While the seal is held nothing is saved: it is said
+   again on the next launch that can save. */
+if (retiredCommandGrantsAtLoad.length) {
+  authoritySeal.inform('Your older "always allow" for every command was retired in this version, because it let any command run with no card: each command now asks you again, one at a time. FULL ACCESS in an agent\'s dossier still skips the cards for that agent.');
+  if (!authoritySeal.held) {
+    try {
+      const keep = Array.from(grantsPermanent);
+      const meta = {};
+      for (const k of keep) if (grantMeta[k]) meta[k] = grantMeta[k];
+      persistAllowlist(keep, meta);
+    } catch (e) { failNote('permissions.retired-drop', e); }
+  }
+}
 // throws on failure -> the broker degrades the grant to a deny. Two callers, ONE durable format:
 //   • permgrants.js passes (nextAllow, nextMeta) — the panel's grant/revoke ships the provenance it computed.
 //   • permissions.js (the broker's 'always' path) passes ONLY (nextAllow) — we preserve the live grantMeta and
