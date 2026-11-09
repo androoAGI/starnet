@@ -14,9 +14,16 @@ const end = source.indexOf('// POST /api/cron/remove', start);
   const ctx = vm.createContext({ Date, cronJobs: [before], CRON_HOST_TZ: 'UTC',
     // fix-sec2 review 3: the route reads which unattended grants an edit adds (none here, so no desk confirmation)
     normalizeUnattendedGrants: require('../sidecar/inputpolicy.js').normalizeUnattendedGrants,
-    cronStore: { getJob: jobs => jobs[0], updateJob: () => { writes++; throw new Error('must not persist invalid state'); } },
+    // review2 #2: which grants an edit revokes is the store's own pure reducer (none: this edit changes no run field)
+    cronStore: { getJob: jobs => jobs[0], updateJob: () => { writes++; throw new Error('must not persist invalid state'); },
+      grantsRevokedByEdit: require('../sidecar/cron-store.js').grantsRevokedByEdit },
+    // review2 #3: the host's own stale-script check (this routine runs no script, so it never digests one)
+    cronScriptDigest: () => { throw new Error('a routine with no script is never digested'); },
     readBody: async () => JSON.stringify({ id: 'routine', patch: { attachToSession: true } }),
     withCronWrite: async fn => fn([afterConcurrentEdit]) });
+  const staleAt = source.indexOf('\nfunction cronScriptStale(');
+  assert.ok(staleAt >= 0, 'fixture: cronScriptStale is in index.js');
+  vm.runInContext(source.slice(staleAt, source.indexOf('\n}\n', staleAt) + 3), ctx);
   vm.runInContext(source.slice(start, end), ctx);
   let status;
   ctx.handleCronUpdate({}, { writeHead: n => { status = n; }, end: body => finish(JSON.parse(body)) });
