@@ -53,13 +53,22 @@
     'precheck-error': 'the station could not verify its budget, provider, or readiness checks, so it stood down safely',
     // a build runs in its bay room, which a saved floor that can’t be proved right now can’t name: held before the job limit is spent
     'routing-held': 'the saved floor can’t be proved right now, so building is held until it is readable',
-    'persist-failed': 'the station couldn’t safely record the work, so it stood down'
+    'persist-failed': 'the station couldn’t safely record the work, so it stood down',
+    // the futile-beat skip (W1.6): the last job only proposed a build still undecided on the desk, and nothing it reads has
+    // changed since — held before the job limit is spent; a verdict or anything new lifts it (status.waitingOn names the build)
+    'awaiting-verdict': 'it is waiting on your verdict — its last job only proposed a build already waiting on your desk, so it won’t spend another job until you keep or discard that one (or anything new comes in)'
   };
+  // the same hold, naming the build from status.waitingOn (the live backlog's title); the plain phrase when the status has none
+  function awaitingVerdictPhrase(waitingOn) {
+    const t = waitingOn && typeof waitingOn.title === 'string' ? waitingOn.title.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
+    return t ? 'it is waiting on your verdict on “' + t + '” — its last job only proposed that build again, so it won’t spend another job until you keep or discard it (or anything new comes in)'
+      : BINDING_PHRASE['awaiting-verdict'];
+  }
 
   // a stable, HONEST label for a binding we don't recognise (forward-compat: a new gate name renders as itself,
   // never a fabricated reason). Used by both the report's idle sentence and the panel's decision trail.
   // gates no wall clock clears: until their cause is fixed, NEXT JOB EARLIEST has no honest time to show
-  const NO_CLOCK_BINDINGS = new Set(['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed']);
+  const NO_CLOCK_BINDINGS = new Set(['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed', 'awaiting-verdict']);
   function bindingPhrase(binding) {
     if (binding == null || binding === '') return 'nothing is blocking the next job right now';
     return BINDING_PHRASE[binding] || ('held back by the ' + String(binding) + ' gate');
@@ -237,7 +246,8 @@
     // STATE: ACTIVE (armed) vs OFF, and the honest WHY when OFF (the live binding names the blocking gate).
     const off = !active;
     const stateText = off ? 'OFF' : (away ? 'ACTIVE · on watch' : 'ACTIVE · standing by');
-    const whyOff = off ? bindingPhrase(s.binding) : (s.binding ? bindingPhrase(s.binding) : bindingPhrase(null));
+    const whyOff = s.binding === 'awaiting-verdict' ? awaitingVerdictPhrase(s.waitingOn)
+      : off ? bindingPhrase(s.binding) : (s.binding ? bindingPhrase(s.binding) : bindingPhrase(null));
     return {
       reachable: true,
       active: active,

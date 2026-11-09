@@ -175,9 +175,18 @@ A.ok(panelLeash.nextEligibleText.indexOf(NR.fmtLocalTime(T0610Z + 2700000, -300)
 A.ok(panelLeash.nextEligibleText.indexOf(NR.fmtLocalTime(resetAt, -300)) >= 0 && /limit/.test(panelLeash.nextEligibleText), 'it names the leash refill time and why: ' + panelLeash.nextEligibleText);
 // a saved floor that cannot be proved right now holds an unattended BUILD before the leash is spent (saved-floor routing authority): plain words, and no clock clears it
 A.ok(/saved floor/.test(NR.bindingPhrase('routing-held')) && !/routing-held gate/.test(NR.bindingPhrase('routing-held')), 'routing-held renders plain copy naming the saved floor, not raw gate jargon: ' + NR.bindingPhrase('routing-held'));
-for (const binding of ['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed']) {
+for (const binding of ['budget', 'spend-unknown', 'no-provider', 'readiness', 'precheck-error', 'routing-held', 'persist-failed', 'awaiting-verdict']) {
   const p = NR.panelModel({ status: { active: true, away: true, beatsUsedToday: 1, leashPerDay: 3, binding, lastBeatAt: T0610Z, nextEligibleAt: T0610Z + 2700000 }, tzOffsetMin: -300 });
   A.ok(!/\d{1,2}:\d{2}\s*(AM|PM)/.test(p.nextEligibleText) && /not scheduled/.test(p.nextEligibleText), binding + '-bound: no next-job clock a clock cannot clear (' + p.nextEligibleText + ')');
+}
+// the futile-beat skip (W1.6): plain words that say what it waits on, and the panel names the build the status read from the backlog
+A.ok(/waiting on your verdict/.test(NR.bindingPhrase('awaiting-verdict')) && /keep or discard/.test(NR.bindingPhrase('awaiting-verdict')) && !/awaiting-verdict gate/.test(NR.bindingPhrase('awaiting-verdict')),
+  'awaiting-verdict renders plain copy naming the verdict it waits on: ' + NR.bindingPhrase('awaiting-verdict'));
+{
+  const held = { active: true, away: true, beatsUsedToday: 0, leashPerDay: 3, binding: 'awaiting-verdict', lastBeatAt: 0, nextEligibleAt: 0 };
+  const named = NR.panelModel({ status: Object.assign({ waitingOn: { title: 'Continue: Release checklist tool', runId: 'r2' } }, held), tzOffsetMin: 0 });
+  A.ok(named.why.indexOf('“Continue: Release checklist tool”') >= 0 && /waiting on your verdict/.test(named.why), 'the panel WHY names the build it waits on: ' + named.why);
+  A.eq(NR.panelModel({ status: held, tzOffsetMin: 0 }).why, NR.bindingPhrase('awaiting-verdict'), 'a status without waitingOn falls back to the plain phrase (never an invented title)');
 }
 
 /* ---------- panelModel(): BUILD-vs-DRAFT mode + cold-start readiness honesty (2026-07-13) ----------
