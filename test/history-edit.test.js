@@ -121,28 +121,28 @@ const firstLine = s => String(s).split('\n')[0];
     const a3 = asst('three', 3), t3 = { role: 'tool', tool_call_id: 'c3', content: 'R3' };
     const l3 = [sys, u0, a1, t1e, a2, t2];
     const r3 = view.messages(l3, { tools, binds: true });
-    A.eq([r3.editAt, r3.stripped], [3, 1], 'view: the edit is found at the first changed message and one block is stripped');
-    A.ok(r3.messages !== l3 && r3.messages[2] === a1 && r3.messages[3] === t1e && r3.messages[5] === t2, 'view: everything else goes out as the same objects');
-    A.ok(r3.messages[4] !== a2 && !('reasoning' in r3.messages[4]) && r3.messages[4].content === 'two', 'view: the stripped turn is a reasoning-free copy (text kept)');
-    A.ok(r3.messages[4][sym] === 'kept', 'view: host markers ride on the copy');
-    A.ok(Array.isArray(a2.reasoning) && a2.reasoning.length === 1 && Array.isArray(a1.reasoning), 'view: the transcript itself is never mutated');
+    A.eq([r3.editAt, r3.stripped], [3, 1], 'view: the edit is found at the first changed message and one turn is stripped');
+    A.ok(r3.messages === l3 && r3.messages[2] === a1 && r3.messages[4] === a2, 'view: the list itself goes out, the same objects');
+    A.ok(!('reasoning' in a2) && a2.content === 'two', 'view: the stripped block is deleted from its own turn, in place (text kept), so a journal snapshot holds it gone');
+    A.ok(a2[sym] === 'kept', 'view: host markers stay where they are (the turn is the same object)');
+    A.ok(Array.isArray(a1.reasoning) && a1.reasoning.length === 1, 'view: the block before the edit is untouched');
 
-    // sticky and identity-stable: the next (append-only) request sends the same copy, and the new block intact
+    // sticky: the next (append-only) request is not taken for an edit, and the new block goes out intact
     const l4 = [sys, u0, a1, t1e, a2, t2, a3, t3];
     const r4 = view.messages(l4, { tools, binds: true });
-    A.eq([r4.editAt, r4.stripped], [-1, 0], 'view: an append-only request after an edit strips nothing new');
-    A.ok(r4.messages[4] === r3.messages[4], 'view: a stripped turn stays stripped, as the same copy (same bytes every request)');
-    A.ok(r4.messages[6] === a3 && r4.messages[2] === a1, 'view: the block produced after the edit, and the one before it, go out intact');
+    A.eq([r4.editAt, r4.stripped], [-1, 0], 'view: an append-only request after an edit strips nothing new (a deletion is not an edit)');
+    A.ok(r4.messages === l4 && !('reasoning' in a2), 'view: a stripped turn stays stripped');
+    A.ok(Array.isArray(a3.reasoning) && Array.isArray(a1.reasoning), 'view: the block produced after the edit, and the one before it, go out intact');
 
     // an assistant turn rewritten in place (collapseContinuation) is an edit at its own index: its block goes too
     a3.content = 'three, continued';
     const r5 = view.messages(l4, { tools, binds: true });
     A.eq([r5.editAt, r5.stripped], [6, 1], 'view: an in-place rewrite is seen (the fingerprint memo follows the content)');
-    A.ok(!('reasoning' in r5.messages[6]) && r5.messages[6].content === 'three, continued', 'view: and its own block is stripped (the documented over-strip)');
+    A.ok(!('reasoning' in a3) && a3.content === 'three, continued', 'view: and its own block is stripped (the documented over-strip)');
 
     // a change to the tools is an edit at 0: every block goes
     const r6 = view.messages(l4, { tools: tools.concat([{ type: 'function', function: { name: 'y' } }]), binds: true });
-    A.eq([r6.editAt, r6.stripped], [0, 1], 'view: a tools change is an edit at 0 (only a1 was still unstripped)');
+    A.eq([r6.editAt, r6.stripped], [0, 1], 'view: a tools change is an edit at 0 (only a1 still had a block)');
     A.ok(r6.messages.every(m => !m || !('reasoning' in m)), 'view: no block survives a tools change');
 
     // a pure shrink (a cut tail, nothing changed before it) is not an edit

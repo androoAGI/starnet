@@ -9,7 +9,8 @@
       through four history edits — a tool.search reveal, a stale screen capture aged out, the micro tier, a paid fold —
       and keeps working after each. Every request must report zero dropped blocks; the edit must really have happened
       on the wire; the blocks produced after it must still be replayed, and so must the blocks before it that the edit
-      left valid (nothing the API would keep is stripped).
+      left valid (nothing the API would keep is stripped). A run RECOVERED from the run journal's checkpoint after the
+      edit (index.js o.recovery) must drop nothing either: the strip is durable, never put back.
    2. EVERY ELISION STUB NAMES A HANDLE THAT READS BACK BYTE-IDENTICAL. The REAL loop + registry + fs tools + the host
       parker shape (output-artifacts.js, stems like index.js capCtx.parkOutput) fold old results through the micro
       tier. The agent edits the file it read before the elision, the file is rewritten again after it, and the run's
@@ -130,7 +131,7 @@ const thinkText = [{ type: 'thinking' }, { type: 'text', text: 'All done.' }];
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 async function runBound(o) {
-  const up = bindingServer(o.script, o.usageFor);
+  const up = o.up || bindingServer(o.script, o.usageFor);   // a recovered run talks to the same server (it knows the signatures)
   const reg = makeRegistry();
   reg.register({ impact: 'none', name: 'fs_read', schema: { type: 'object', properties: { path: { type: 'string' } } }, run: async a => ({ content: 'file ' + a.path, summary: 'read' }) });
   reg.register({ impact: 'none', name: 'tool_search', schema: { type: 'object', properties: { query: { type: 'string' } } }, run: async () => ({ content: 'revealed web_fetch', summary: 'found', control: { revealTools: ['web_fetch'] } }) });
@@ -141,7 +142,8 @@ async function runBound(o) {
   const bus = A.makeBus();
   const seq = A.collectBus(bus, events.names());
   const res = await runAgentLoop({
-    messages: [{ role: 'system', content: 'You are a station agent.' }, { role: 'user', content: 'do the task' }],
+    messages: o.messages || [{ role: 'system', content: 'You are a station agent.' }, { role: 'user', content: 'do the task' }],
+    onCheckpoint: o.onCheckpoint,
     provider: makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'medium' }), emit: makeEmitter(bus, () => {}),
     cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 1 }) }), model: 'claude-opus-5-5', agentId: 'a', runId: 'r',
     tools: [fn('fs_read', { path: { type: 'string' } }), fn('tool_search', { query: { type: 'string' } }), fn('snap'), fn('noop')],
@@ -226,6 +228,26 @@ async function readBack(reg, ctx, call) {
     const fold = await runBound({ context: ctx(), usageFor: usage, microCompaction: false, summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
       script: n => n <= 4 ? thinkTool('noop') : thinkText });
     checkBound('paid fold', fold, { requests: 5, editAt: 4, compact: 'context', lastReplays: [4] });
+
+    // (e) a recovered run: the run journal (index.js onCheckpoint -> run-journal) snapshots the turns as they stand. A run
+    // recovered from the checkpoint after the micro tier's edit (index.js o.recovery: those messages, verbatim) starts
+    // with a fresh view, so it must not find the blocks the edit invalidated still in its history
+    const snaps = [];
+    const crashed = await runBound({ context: ctx(), usageFor: usage, summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
+      script: n => n <= 4 ? thinkTool('noop') : thinkText,
+      onCheckpoint: ({ phase, messages }) => { snaps.push({ phase, messages: JSON.parse(JSON.stringify(messages)) }); } });
+    const afterEdit = snaps.filter(s => s.phase === 'tool_results')[3];   // turn 4's results: the edit and request 4 are behind it
+    A.ok(!!afterEdit && crashed.up.posts.length === 5, 'recovery: a journal checkpoint exists after the edited request');
+    if (afterEdit) {
+      const from = crashed.up.posts.length;
+      const recovered = await runBound({ up: crashed.up, messages: afterEdit.messages, context: ctx(), usageFor: usage,
+        summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }) });
+      const tail = crashed.up.posts.slice(from);
+      A.eq(recovered.res.reason, 'done', 'recovery: the recovered run finishes');
+      A.ok(tail.length >= 1, 'recovery: the recovered run made its request');
+      A.eq(tail.map(p => p.dropped), tail.map(() => 0), 'recovery: NO thinking block dropped on the recovered run (the strip was durable)');
+      A.eq(tail.length ? tail[0].replayed : null, [1, 4], 'recovery: it replays exactly the blocks still bound — 1 (before the edit) and 4 (after it)');
+    }
   }
 
   // ================= 2. every elision stub names a handle that reads back byte-identical =================

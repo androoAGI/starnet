@@ -11,13 +11,14 @@
       after e no longer matches. The API (drop_block) then drops the first stale block AND every later one, on every
       request: the stale block stays in history, so each new turn's valid block is dropped behind it (the cascade). The
       view diffs each outgoing request against the last one it handed out (fingerprints that leave `reasoning` out; a
-      change to `tools` counts as an edit at 0) and, on a provider that binds, strips the blocks at or after the first
-      changed message: exactly the set the API would drop on that request. They stay stripped (sticky, keyed by the
-      reasoning array), so later requests keep the prefix the post-edit blocks were signed against. Blocks before the
-      edit and every block produced after it replay intact: zero drops after an edit. One deliberate over-strip: when
-      the first changed message is itself an assistant turn rewritten in place (only collapseContinuation does that),
-      its own blocks go too, because whether they still bind depends on where they sat inside the turn. The transcript
-      is never mutated: a stripped turn goes out as a reasoning-free copy, the same copy every request.
+      change to `tools` counts as an edit at 0) and, on a provider that binds, deletes the blocks at or after the first
+      changed message from their turns: exactly the set the API would drop on that request. The deletion is in place,
+      as a failover's model swap deletes foreign blocks (loop.js): a stale block can never bind again, and the run
+      journal snapshots the turn without it, so a recovered run does not put back a block the edit had invalidated
+      (the API would drop it and every block after it for the rest of that run). Blocks before the edit and every
+      block produced after it replay intact: zero drops after an edit. One deliberate over-strip: when the first
+      changed message is itself an assistant turn rewritten in place (only collapseContinuation does that), its own
+      blocks go too, because whether they still bind depends on where they sat inside the turn.
    2. AN ELIDED BODY KEEPS A HANDLE (elideToolResult: the ONE stub/handle builder; W1.8 cross-run replay reuses it).
       The micro tier's stub kept 240 chars and said "re-run the tool": a write-free re-run is not always possible, and a
       re-run of a command is not the same bytes. The stub now names a saved file that gives the elided bytes back: the
@@ -37,7 +38,8 @@
       only the head: a build or test log ends where the error is, and that end was the part thrown away. The same 64k
       now holds the first 70% and the last 30% (the registry's clampOutput cut), with the gap marked in place.
 
-   Pure apart from the injected parker; no clock; UMD so loop.js can load it wherever it loads. */
+   Pure apart from the injected parker and the request view's in-place strip (1.); no clock; UMD so loop.js can load it
+   wherever it loads. */
 'use strict';
 (function (root, factory) {
   const crypto = (typeof require === 'function') ? (function () { try { return require('crypto'); } catch (_) { return null; } })() : null;
@@ -148,28 +150,16 @@
     return key;
   }
   /* makeRequestView() -> { messages(list, { tools, binds }) -> { messages, editAt, stripped } }   one per run.
-     list: what the loop would send (screen captures already aged out). binds: the provider binds thinking to its
-     prefix for this model (provider.bindsThinking). Returns the list ITSELF when nothing is stripped. editAt: the first
-     changed message since the last view (0 = the tools changed; -1 = append-only). stripped: blocks newly stripped. */
+     list: what the loop would send (screen captures already aged out); its assistant turns are the loop's own message
+     objects. binds: the provider binds thinking to its prefix for this model (provider.bindsThinking). On a binding
+     request the blocks an edit invalidated are DELETED from their turns, in place (see 1. above), and the list itself
+     is returned. editAt: the first changed message since the last view (0 = the tools changed; -1 = append-only).
+     stripped: the turns whose blocks this call deleted. */
   function makeRequestView() {
     let last = null;
-    const stripped = (typeof WeakSet === 'function') ? new WeakSet() : null;
-    const copies = (typeof WeakMap === 'function') ? new WeakMap() : null;
-    function withoutReasoning(m) {
-      const hit = copies.get(m);
-      if (hit && hit.content === m.content && hit.calls === m.tool_calls) return hit.copy;
-      const copy = {};
-      for (const k of Object.keys(m)) if (k !== 'reasoning') copy[k] = m[k];
-      for (const sym of Object.getOwnPropertySymbols(m)) {   // host identity markers ride along, as the elided copies' do
-        const d = Object.getOwnPropertyDescriptor(m, sym);
-        if (d && !Object.prototype.hasOwnProperty.call(copy, sym)) Object.defineProperty(copy, sym, d);
-      }
-      copies.set(m, { content: m.content, calls: m.tool_calls, copy });
-      return copy;
-    }
     function messages(list, o) {
       const src = Array.isArray(list) ? list : [];
-      if (!o || o.binds !== true || !stripped || !copies) { last = null; return { messages: src, editAt: -1, stripped: 0 }; }
+      if (!o || o.binds !== true) { last = null; return { messages: src, editAt: -1, stripped: 0 }; }
       const keys = src.map(wireKey);
       const tools = hashOf(JSON.stringify(o.tools || null));
       let editAt = -1;
@@ -180,20 +170,15 @@
           for (let i = 0; i < n; i++) if (last.keys[i] !== keys[i]) { editAt = i; break; }
         }
       }
-      let newly = 0;
+      let stripped = 0;
       if (editAt >= 0) {
         for (let i = editAt; i < src.length; i++) {
           const m = src[i];
-          if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length && !stripped.has(m.reasoning)) { stripped.add(m.reasoning); newly++; }
+          if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length) { delete m.reasoning; stripped++; }
         }
       }
       last = { keys, tools };
-      let out = null;
-      for (let i = 0; i < src.length; i++) {
-        const m = src[i];
-        if (m && Array.isArray(m.reasoning) && stripped.has(m.reasoning)) { if (!out) out = src.slice(); out[i] = withoutReasoning(m); }
-      }
-      return { messages: out || src, editAt, stripped: newly };
+      return { messages: src, editAt, stripped };
     }
     return { messages };
   }
