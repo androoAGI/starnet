@@ -297,14 +297,21 @@
      capture turn's text label), the run journal and the compaction drain all keep seeing the message objects
      exactly as before, so nothing durable changes and a recovered run evicts the same way. Once a capture falls
      out of the newest `keep` it stays out, so the request prefix is stable turn to turn (prompt caching holds).
-     Returns `messages` ITSELF when nothing is evicted — byte-identical requests for every run without captures. */
+     Returns `messages` ITSELF when nothing is evicted — byte-identical requests for every run without captures.
+     IN STEPS (cost audit W1.9, 2026-11-08): aging one capture out at each new one changed the request at that capture
+     every time, so every capture past the `keep`-th re-wrote the prompt cache from there to the end (the kept captures'
+     pixels included). Captures now age out `step + 1` at a time: between `keep` and `keep + step` capture turns ride as
+     pixels, and the prefix changes once every `step + 1` captures. step 0 (or keep 0) = one at a time, as before.
+     A provider that holds the run's history itself (claude-cli's persistent child, holdsHistory) gets no eviction until
+     its view holds HELD_IMAGE_TURNS capture turns: inside a live child every edited earlier message costs a fresh child
+     that rewrites the whole run. */
   function isScreenCapture(m) {
     if (!m || m.role !== 'user' || !Array.isArray(m.content) || !m.content.length) return false;
     const first = m.content[0];
     if (!first || typeof first.text !== 'string' || !TurnKinds || TurnKinds.classify({ role: 'user', content: first.text }).kind !== 'capture') return false;
     return m.content.some(p => p && p.type === 'image_url');
   }
-  function screenshotPlaceholder(m, keep, meta) {
+  function screenshotPlaceholder(m, keep, meta, stepped) {
     const imgs = m.content.filter(p => p && p.type === 'image_url');
     let chars = 0;
     const mimes = [];
@@ -318,19 +325,29 @@
     const by = meta && Array.isArray(meta.tools) && meta.tools.length ? ' returned by ' + meta.tools.join(', ') : '';
     const at = meta && meta.turn ? ' on turn ' + meta.turn : '';
     return '[earlier screen capture removed from view to save context: ' + imgs.length + ' image' + (imgs.length === 1 ? '' : 's')
-      + ' (' + (mimes.join(', ') || 'image') + ', ~' + kb + ' KB)' + by + at + '. Only the ' + keep + ' most recent screen capture'
-      + (keep === 1 ? '' : 's') + ' stay' + (keep === 1 ? 's' : '') + ' visible as pixels; the tool results above still say what was captured. '
+      + ' (' + (mimes.join(', ') || 'image') + ', ~' + kb + ' KB)' + by + at + '. Only the '
+      // stepped: how many stay varies between steps, and a placeholder must read the same on every later request
+      + (stepped ? 'most recent screen captures stay' : keep + ' most recent screen capture' + (keep === 1 ? '' : 's') + ' stay' + (keep === 1 ? 's' : ''))
+      + ' visible as pixels; the tool results above still say what was captured. '
       + 'Take a new screenshot if you need to see the screen again.]';
   }
-  function evictStaleScreenshots(messages, keep, metaOf) {
+  // How many of the oldest of `n` capture turns are out of view (see IN STEPS above).
+  function evictedCaptures(n, keep, step) {
+    if (!(keep >= 0) || n <= keep) return 0;
+    const k = keep > 0 && step > 0 ? Math.floor(step) + 1 : 1;
+    return Math.floor((n - keep) / k) * k;
+  }
+  function evictStaleScreenshots(messages, keep, metaOf, step) {
     if (!Array.isArray(messages) || !(keep >= 0)) return messages;
     const idx = [];
     for (let i = 0; i < messages.length; i++) if (isScreenCapture(messages[i])) idx.push(i);
-    if (idx.length <= keep) return messages;
+    const gone = evictedCaptures(idx.length, keep, step);
+    if (!gone) return messages;
+    const stepped = keep > 0 && step > 0;
     const out = messages.slice();
-    for (const i of idx.slice(0, idx.length - keep)) {
+    for (const i of idx.slice(0, gone)) {
       const m = messages[i];
-      out[i] = Object.assign({}, m, { content: screenshotPlaceholder(m, keep, typeof metaOf === 'function' ? metaOf(m) : null) });
+      out[i] = Object.assign({}, m, { content: screenshotPlaceholder(m, keep, typeof metaOf === 'function' ? metaOf(m) : null, stepped) });
     }
     return out;
   }
@@ -1057,7 +1074,7 @@
     // Its estimateMessages measures what is SENT: stale screen captures count as their placeholder, not as pixels
     // the provider never receives (SCREENSHOTS AGE OUT OF VIEW). Everything else is the manager itself.
     const context = (o.context && typeof o.context.estimateMessages === 'function')
-      ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null))) } })
+      ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(viewOf(msgs)) } })
       : o.context;
     const summarize = o.summarize;
     /* OPTIONAL: told about every PAID fold that committed (never the free micro tier, the deterministic fallback note or a
@@ -1244,9 +1261,21 @@
     // limits.toolImageKeep: a number overrides (0 = send none); false disables eviction (every capture rides forever).
     const _tik = limits.toolImageKeep;
     const TOOL_IMAGE_KEEP = (_tik === false) ? -1 : ((typeof _tik === 'number' && _tik >= 0) ? Math.floor(_tik) : 2);
+    // limits.toolImageStep: how many more capture turns may ride as pixels before the older ones leave together (IN STEPS);
+    // 0 = one at a time, the old view.
+    const _tis = limits.toolImageStep;
+    const TOOL_IMAGE_STEP = (typeof _tis === 'number' && _tis >= 0) ? Math.floor(_tis) : 4;
     const screenshotMeta = (typeof WeakMap === 'function') ? new WeakMap() : null;   // capture turn -> { tools, turn }
-    // What the provider is sent: `messages` with stale screen captures replaced by placeholders (a view — never an edit).
-    const wireMessages = () => evictStaleScreenshots(messages, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null));
+    // What the provider is sent, and what the context meter measures: `messages` with stale screen captures replaced by
+    // placeholders (a view — never an edit). Asked of the CURRENT provider each time (a fallback can change it): one that
+    // holds the run's history itself (claude-cli's persistent child) is sent every capture as it was, up to
+    // HELD_IMAGE_TURNS capture turns; past that all but the newest keep leave at once (an API request takes at most 100
+    // images, and the child re-sends its whole history every turn).
+    const HELD_IMAGE_TURNS = 20;
+    const holdsHistory = () => { try { return !!(provider && typeof provider.holdsHistory === 'function' && provider.holdsHistory()); } catch (e) { failNote('loop.provider.holdsHistory', e); return false; } };
+    const viewOf = (msgs) => evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null),
+      (TOOL_IMAGE_KEEP > 0 && holdsHistory()) ? Math.max(TOOL_IMAGE_STEP, HELD_IMAGE_TURNS - TOOL_IMAGE_KEEP) : TOOL_IMAGE_STEP);
+    const wireMessages = () => viewOf(messages);
     /* Per-turn aggregate tool output (see applyTurnBudget). 200k characters is ~2.5 full-size single results,
        so an ordinary turn never notices it and only a wide parallel fan-out gets trimmed. 0 disables.
        A FUNCTION is read fresh each turn: the host passes 30% of the live model window (tools/registry.js
@@ -3058,7 +3087,8 @@
 
          Bounded to TOOL_IMAGE_MAX per turn — an image is thousands of tokens, and a loop that screenshots
          every turn would otherwise eat the context window it was supposed to be reasoning inside. Across turns they
-         age out of what is SENT (SCREENSHOTS AGE OUT OF VIEW: only the newest TOOL_IMAGE_KEEP stay as pixels). */
+         age out of what is SENT (SCREENSHOTS AGE OUT OF VIEW: the newest TOOL_IMAGE_KEEP, up to TOOL_IMAGE_STEP more
+         between steps, stay as pixels; a provider that holds the run's history keeps up to HELD_IMAGE_TURNS). */
       if (toolImages) {
         const shots = [];
         const shotTools = [];   // which calls' pixels these are — named by the placeholder once this capture ages out
