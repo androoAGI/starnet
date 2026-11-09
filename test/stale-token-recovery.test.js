@@ -260,6 +260,50 @@ const forbiddenToken = () => new Response('forbidden token', { status: 403 });
         '…and raises only what is true of this page (' + (withheld || 'keyed') + '): ' + JSON.stringify(notes.map(x => x.text)));
     }
     A.ok(/async function init\(\) \{[^}]*?\n\s*bootNotices\(\);/.test(harness), 'Harness.init runs that boot step');
+
+    // final review B10: THE REASON STAYS ON THE PAGE. While the key is withheld one bar across the top says why (a toast leaves
+    // in seconds, and the load looked blank or broken); a transient reason offers Check again; it leaves once the key is adopted
+    {
+      const made = [];
+      const el = (tag) => { const n = { tag, children: [], style: {}, attrs: {}, on: {}, removed: false, textContent: '',
+        setAttribute(k, v) { this.attrs[k] = v; }, appendChild(c) { this.children.push(c); c.parent = this; }, addEventListener(t, f) { this.on[t] = f; },
+        remove() { this.removed = true; if (this.parent) this.parent.children = this.parent.children.filter(x => x !== this); } }; made.push(n); return n; };
+      const wireDoc = (withheld, pages) => {
+        const doc = { body: el('body'), createElement: el };
+        const notes = []; const clock = { now: 1000 };
+        const win = { fetch: () => Promise.resolve(new Response((typeof pages === 'function' ? pages() : pages) || '<html></html>', { status: 200 })) };
+        if (!withheld) win.__STARNET_API_TOKEN__ = 'OLD';
+        const StationUI = { notify: (text, cls, category, opts) => notes.push({ text, opts }), settleNotifs() {} };
+        const w = new Function('window', 'DESKTOP', 'StationUI', 'staleTokenRecovery', 'tokenWithheld', 'Date', 'document',
+          'let apiToken = window.__STARNET_API_TOKEN__ || "";\n' + wiringSrc +
+          '\nreturn { staleToken, note: noteTokenWithheld, withheld: () => tokenWithheld };')(win, false, StationUI, staleTokenRecovery, withheld, { now: () => clock.now }, doc);
+        return { w, doc, clock, bar: () => doc.body.children.find(c => c.attrs && c.attrs.role === 'alert') };
+      };
+      let passes = false;
+      const t = wireDoc('lookup-failed', () => passes ? pageWith('NEW') : withheldPage('lookup-failed'));
+      t.w.note();
+      const bar = t.bar();
+      A.ok(!!bar, 'B10: a withheld page draws one bar that says why');
+      const words = bar ? bar.children.find(c => c.tag === 'span') : null;
+      A.eq(words && words.textContent, tokenWithheldNotice('lookup-failed'), 'B10: in the notice\'s own words (the reason, Check again, then the owner\'s hatch)');
+      A.ok(bar && /position:fixed/.test(bar.style.cssText) && /flex-wrap:wrap/.test(bar.style.cssText), 'B10: across the top, wrapping on a narrow screen');
+      const keys = bar ? bar.children.filter(c => c.tag === 'button').map(b => b.textContent) : [];
+      A.eq(keys, ['Check again', 'Hide'], 'B10: a transient reason offers Check again (a reload re-runs the check) and Hide');
+      t.w.note();
+      A.eq(t.doc.body.children.filter(c => c.attrs && c.attrs.role === 'alert').length, 1, 'B10: one bar, however often the page is refused');
+      t.clock.now += 61000; passes = true;
+      await t.w.staleToken.settle(forbiddenToken(), '', fresh => Promise.resolve(new Response('replayed:' + fresh)));
+      A.ok(t.w.withheld() === '' && !t.bar() && bar.removed === true, 'B10: the bar leaves once the page takes its key in place');
+      const lasting = wireDoc('other-user', pageWith('NEW'));
+      lasting.w.note();
+      A.eq(lasting.bar().children.filter(c => c.tag === 'button').map(b => b.textContent), ['Hide'], 'B10: a lasting reason offers no Check again (it would re-run the same failing check)');
+      lasting.bar().children.find(c => c.textContent === 'Hide').on.click();
+      A.ok(!lasting.bar(), 'B10: Hide puts it away (the bell keeps the alert)');
+      const keyed = wireDoc('', pageWith('OLD'));
+      keyed.w.note();
+      A.ok(!keyed.bar(), 'B10: a page that holds its key draws no bar');
+      A.eq(wire('lookup-failed', withheldPage('lookup-failed')).w.note(), undefined, 'B10: with no page to draw on (no document), nothing is drawn and nothing throws');
+    }
     A.ok(/let tokenWithheld = \(typeof window !== 'undefined' && !window\.__STARNET_API_TOKEN__ && window\.__STARNET_TOKEN_WITHHELD__\)/.test(harness),
       'harness reads the withheld reason only when the page carries no key (cleared when a retry adopts one)');
     A.ok(/async function init\(\) \{\s*(\/\/[^\n]*\n\s*)?bootNotices\(\);/.test(harness) && /function bootNotices\(\) \{\s*noteTokenWithheld\(\);/.test(harness),

@@ -667,9 +667,10 @@ const peerOwnerCheck = require('./peerowner.js').makePeerOwnerCheck({
   winSystemDir: path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32'),
   trustAll: /^(1|true|yes|on)$/i.test(String(ENV('TRUST_LOCAL_PEERS') || '').trim()),
   readFile: (f) => fsp.readFile(f, 'utf8'),
-  run: (exe, args) => new Promise((resolve) => {
+  // each lookup's limit comes from peerowner.js: 5 s, and 15 s for its one retry (final review B10)
+  run: (exe, args, opts) => new Promise((resolve) => {
     try {
-      stationChildProcess.execFile(exe, args, { windowsHide: true, timeout: 5000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
+      stationChildProcess.execFile(exe, args, { windowsHide: true, timeout: Math.max(1000, Number(opts && opts.timeoutMs) || 5000), maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
         resolve({ ok: !err, code: err && typeof err.code === 'number' ? err.code : (err ? -1 : 0), stdout: String(stdout || '') }));
     } catch (_) { resolve({ ok: false, code: -1, stdout: '' }); }
   })
@@ -33338,7 +33339,8 @@ async function serveStatic(req, res) {
     if (isAppPage ||
         (DEV_MODE && abs.toLowerCase() === path.resolve(FRONTEND, 'agent-station-demo.html').toLowerCase())) {
       const sock = req.socket || {};
-      const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort });
+      // socket: a proved owner is kept for the life of THIS connection only (peerowner.js, final review B10)
+      const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort, socket: req.socket || null });
       // the app page gets a per-response script nonce (CSP below), so its one inline boot script runs and nothing else inline does
       if (isAppPage) scriptNonce = crypto.randomBytes(16).toString('base64');
       let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(CLIENT_TOKEN || API_TOKEN) + ';'

@@ -155,6 +155,66 @@ const Q = { remoteAddress: '127.0.0.1', remotePort: 52345, localAddress: '127.0.
   A.eq((await P.makePeerOwnerCheck({ platform: 'sunos', trustAll: true })(Q)).ok, true, 'STARNET_TRUST_LOCAL_PEERS escape hatch');
   A.eq((await winSame({ remoteAddress: '127.0.0.1' })).ok, false, 'no ports on the socket → fail closed');
 
+  // ---- final review B10: one retry with a longer limit; a proved answer lives as long as its connection, no longer ----
+  {
+    // a lookup that fails (a timeout on a loaded box) is run once more, with the longer limit, before the check gives up
+    const seen = [];
+    let netstatFails = 1, tasklistFails = 1;
+    const winSlow = P.makePeerOwnerCheck({ platform: 'win32', selfPid: 100, winUser: 'HOST\\owner',
+      run: async (exe, args, opts) => {
+        const k = path.win32.basename(exe); seen.push(k + '@' + (opts && opts.timeoutMs));
+        if (k === 'netstat.exe') return netstatFails-- > 0 ? { ok: false, code: -1, stdout: '' } : { ok: true, stdout: NETSTAT };
+        return tasklistFails-- > 0 ? { ok: false, code: -1, stdout: '' } : { ok: true, stdout: '"chrome.exe","4242","Console","1","1 K"' };
+      } });
+    const slow = await winSlow(Q);
+    A.eq([slow.ok, slow.reason], [true, 'same-user'], 'win32: a lookup that failed once passes on its retry');
+    A.eq(seen, ['netstat.exe@5000', 'netstat.exe@15000', 'tasklist.exe@5000', 'tasklist.exe@15000'], 'win32: each failed tool is retried ONCE, with the longer limit');
+    seen.length = 0; netstatFails = 2;
+    A.eq((await winSlow(Q)).reason, 'lookup-failed', 'win32: a lookup that fails twice still fails closed');
+    A.eq(seen, ['netstat.exe@5000', 'netstat.exe@15000'], 'win32: never more than one retry');
+    seen.length = 0;
+    const other = P.makePeerOwnerCheck({ platform: 'win32', selfPid: 100, winUser: 'HOST\\owner',
+      run: async (exe, args, opts) => { const k = path.win32.basename(exe); seen.push(k + '@' + opts.timeoutMs); return k === 'netstat.exe' ? { ok: true, stdout: NETSTAT } : { ok: true, stdout: 'INFO: none' }; } });
+    A.eq((await other(Q)).reason, 'other-user', 'win32: another account\'s process is refused');
+    A.eq(seen, ['netstat.exe@5000', 'tasklist.exe@5000'], 'win32: a lookup that RAN is never retried (an answer, not a failure)');
+    const macSeen = [];
+    const macRetry = P.makePeerOwnerCheck({ platform: 'darwin', selfPid: 100, uid: 501, run: async (exe, args, opts) => {
+      macSeen.push(opts.timeoutMs);
+      return macSeen.length === 1 ? { ok: false, code: -1, stdout: '' } : { ok: true, code: 0, stdout: 'p4242\nu501\nf20\nn127.0.0.1:52345->127.0.0.1:8787\n' };
+    } });
+    A.eq([(await macRetry(Q)).ok, macSeen], [true, [5000, 15000]], 'darwin: a failed lsof is retried once with the longer limit');
+    const macNone = [];
+    const macEmpty = P.makePeerOwnerCheck({ platform: 'darwin', selfPid: 100, uid: 501, run: async (exe, args, opts) => { macNone.push(opts.timeoutMs); return { ok: false, code: 1, stdout: '' }; } });
+    A.eq([(await macEmpty(Q)).reason, macNone], ['peer-not-found', [5000]], 'darwin: lsof listing nothing (exit 1) is an answer, not retried');
+
+    // the same CONNECTION (the server's socket object) reuses a proved answer; anything else is checked afresh
+    let looks = 0, owner = true;
+    const conn = P.makePeerOwnerCheck({ platform: 'win32', selfPid: 100, winUser: 'HOST\\owner',
+      run: async (exe) => { const k = path.win32.basename(exe); if (k === 'tasklist.exe') looks++; return k === 'netstat.exe' ? { ok: true, stdout: NETSTAT } : { ok: true, stdout: owner ? '"chrome.exe","4242","Console","1","1 K"' : 'INFO: none' }; } });
+    const sockA = { destroyed: false }, sockB = { destroyed: false };
+    A.eq((await conn(Object.assign({ socket: sockA }, Q))).ok, true, 'socket: the owner is proved');
+    owner = false;   // (a later lookup would refuse: only a reuse can still answer yes)
+    const again = await conn(Object.assign({ socket: sockA }, Q));
+    A.eq([again.ok, again.sameConnection, looks], [true, true, 1], 'socket: a later request on the SAME connection reuses the answer, no lookup');
+    A.eq([(await conn(Object.assign({ socket: sockB }, Q))).reason, looks], ['other-user', 2], 'socket: a NEW connection on the same port is checked afresh');
+    A.eq([(await conn(Object.assign({ socket: sockB }, Q))).reason, looks], ['other-user', 3], 'socket: a refusal is never kept');
+    sockA.destroyed = true;
+    A.eq([(await conn(Object.assign({ socket: sockA }, Q))).ok, looks], [false, 4], 'socket: a closed connection keeps nothing');
+    A.eq([(await conn(Q)).ok, looks], [false, 5], 'no socket: every request is checked, as before');
+    owner = true;
+    const sockC = { destroyed: false };
+    const both = await Promise.all([conn(Object.assign({ socket: sockC }, Q)), conn(Object.assign({ socket: sockC }, Q))]);
+    A.eq([both.map(v => v.ok), looks], [[true, true], 6], 'socket: two checks on one connection share one lookup');
+    let failing = true;
+    const flaky = P.makePeerOwnerCheck({ platform: 'win32', selfPid: 100, winUser: 'HOST\\owner',
+      run: async (exe) => (path.win32.basename(exe) === 'netstat.exe' && !failing) ? { ok: true, stdout: NETSTAT } : (failing ? { ok: false, code: -1, stdout: '' } : { ok: true, stdout: '"chrome.exe","4242","Console","1","1 K"' }) });
+    const sockD = { destroyed: false };
+    A.eq((await flaky(Object.assign({ socket: sockD }, Q))).reason, 'lookup-failed', 'socket: an unknown owner fails closed');
+    failing = false;
+    A.eq((await flaky(Object.assign({ socket: sockD }, Q))).ok, true, 'socket: …and is not kept, so the next request on it checks again');
+    A.eq((await P.makePeerOwnerCheck({ platform: 'sunos' })(Object.assign({ socket: {} }, Q))).ok, false, 'socket: an unknown platform still fails closed');
+  }
+
   // ---- REAL round trip on this OS: our own loopback client is recognised as the owner ----
   if (process.platform === 'win32' || process.platform === 'linux' || process.platform === 'darwin') {
     const real = P.makePeerOwnerCheck({

@@ -15,7 +15,8 @@
      darwin : `lsof -F pufn` on the client port; lsof run as a non-root user cannot see another user's sockets, so a
               foreign client yields no row.
    FAIL CLOSED: anything we cannot prove (lookup error, timeout, connection not found, unknown platform) withholds
-   the token — the page still loads, it just cannot drive the station. STARNET_TRUST_LOCAL_PEERS=1 is the owner's
+   the token — the page still loads, says why, and cannot drive the station. A lookup tool that failed is run once more
+   with a longer limit first, and a proved answer is kept for the life of its connection (final review B10). STARNET_TRUST_LOCAL_PEERS=1 is the owner's
    explicit escape hatch for an environment where the lookup cannot work (set in the owner's own process env —
    nothing a local stranger can reach).
 
@@ -26,7 +27,7 @@
      tasklistListsPid(text, pid) -> boolean
      parseProcNetTcpUid(text, { clientAddress, clientPort, serverAddress, serverPort }) -> uid | null
      parseLsofOwners(text, selfPid, query?) -> [{ pid, uid }]
-     makePeerOwnerCheck(deps) -> async ({ remoteAddress, remotePort, localAddress, localPort }) -> { ok, reason, pid? } */
+     makePeerOwnerCheck(deps) -> async ({ remoteAddress, remotePort, localAddress, localPort, socket? }) -> { ok, reason, pid? } */
 'use strict';
 
 function normAddr(a) {
@@ -112,22 +113,36 @@ function parseLsofOwners(text, selfPid, q) {
     .map(r => ({ pid: r.pid, uid: r.uid }));
 }
 
-/* deps: { platform, run(exe, args) -> Promise<{ ok, stdout }>, readFile(path) -> Promise<string>, selfPid, uid,
-           winUser, winSystemDir, trustAll }
-   Check ownership for every request: a PID may be recycled for another user, so even a short-lived positive
-   PID cache is not evidence about the current socket owner. */
+/* deps: { platform, run(exe, args, { timeoutMs }) -> Promise<{ ok, code, stdout }>, readFile(path) -> Promise<string>, selfPid,
+           uid, winUser, winSystemDir, trustAll, firstTimeoutMs?, retryTimeoutMs? }
+   Check ownership for every new connection: a PID may be recycled for another user, so even a short-lived positive
+   PID cache is not evidence about the current socket owner. Only the connection itself carries an answer (check below). */
+const FIRST_LOOKUP_MS = 5000;    // each lookup tool's first limit
+const RETRY_LOOKUP_MS = 15000;   // …and the one retry's, when the first failed or ran past it (final review B10)
 function makePeerOwnerCheck(deps) {
   const d = deps || {};
   const platform = d.platform || process.platform;
+  /* ONE RETRY, WITH A LONGER LIMIT (final review B10). On a busy Windows machine netstat and tasklist were timed at
+     1.7-3.4 s each, and one that failed or ran past its 5 s limit withheld the owner's own key ("lookup-failed"). A lookup
+     tool that failed is run once more with a longer limit before the check gives up; what it still cannot prove fails
+     closed, as before. run(exe, args, { timeoutMs }) is the injected runner (index.js). */
+  const firstMs = Number(d.firstTimeoutMs) > 0 ? Number(d.firstTimeoutMs) : FIRST_LOOKUP_MS;
+  const retryMs = Number(d.retryTimeoutMs) > 0 ? Number(d.retryTimeoutMs) : RETRY_LOOKUP_MS;
+  const ran = r => !!(r && r.ok);
+  async function runTool(exe, args, usable) {
+    const first = await d.run(exe, args, { timeoutMs: firstMs });
+    if (usable(first)) return first;
+    return d.run(exe, args, { timeoutMs: retryMs });
+  }
   async function win(q) {
     const sys = d.winSystemDir || 'C:\\Windows\\System32';
-    const ns = await d.run(sys + '\\netstat.exe', ['-ano']);
+    const ns = await runTool(sys + '\\netstat.exe', ['-ano'], ran);
     if (!ns || !ns.ok) return { ok: false, reason: 'lookup-failed' };
     const pid = parseNetstatPid(ns.stdout, q);
     if (!pid) return { ok: false, reason: 'peer-not-found' };
     if (pid === Number(d.selfPid)) return { ok: true, reason: 'same-user', pid };
     if (!d.winUser) return { ok: false, reason: 'lookup-failed', pid };
-    const tl = await d.run(sys + '\\tasklist.exe', ['/FI', 'PID eq ' + pid, '/FI', 'USERNAME eq ' + d.winUser, '/FO', 'CSV', '/NH']);
+    const tl = await runTool(sys + '\\tasklist.exe', ['/FI', 'PID eq ' + pid, '/FI', 'USERNAME eq ' + d.winUser, '/FO', 'CSV', '/NH'], ran);
     if (!tl || !tl.ok) return { ok: false, reason: 'lookup-failed', pid };
     if (!tasklistListsPid(tl.stdout, pid)) return { ok: false, reason: 'other-user', pid };
     return { ok: true, reason: 'same-user', pid };
@@ -143,15 +158,14 @@ function makePeerOwnerCheck(deps) {
     return uid === Number(d.uid) ? { ok: true, reason: 'same-user' } : { ok: false, reason: 'other-user' };
   }
   async function darwin(q) {
-    const r = await d.run('/usr/sbin/lsof', ['-nP', '-iTCP:' + Number(q.clientPort), '-sTCP:ESTABLISHED', '-F', 'pufn']);
-    // lsof exits 1 when it lists nothing — that is "no visible owner", not a tool failure
+    // lsof exits 1 when it lists nothing — that is "no visible owner", not a tool failure (and not retried)
+    const r = await runTool('/usr/sbin/lsof', ['-nP', '-iTCP:' + Number(q.clientPort), '-sTCP:ESTABLISHED', '-F', 'pufn'], x => !!(x && (x.ok || x.code === 1)));
     const rows = parseLsofOwners(r && r.stdout, d.selfPid, q);
     if (!rows.length) return { ok: false, reason: (r && (r.ok || r.code === 1)) ? 'peer-not-found' : 'lookup-failed' };
     return rows.every(x => x.uid === Number(d.uid)) ? { ok: true, reason: 'same-user', pid: rows[0].pid } : { ok: false, reason: 'other-user', pid: rows[0].pid };
   }
 
-  return async function check(q) {
-    if (d.trustAll) return { ok: true, reason: 'trusted-by-env' };
+  async function checkNow(q) {
     const query = { clientAddress: q && q.remoteAddress, clientPort: q && q.remotePort, serverAddress: q && q.localAddress, serverPort: q && q.localPort };
     if (!query.clientPort || !query.serverPort) return { ok: false, reason: 'peer-not-found' };
     try {
@@ -160,6 +174,31 @@ function makePeerOwnerCheck(deps) {
       if (platform === 'darwin') return await darwin(query);
       return { ok: false, reason: 'unsupported-platform' };
     } catch (_) { return { ok: false, reason: 'lookup-failed' }; }
+  }
+
+  /* A SAME-USER ANSWER LASTS AS LONG AS ITS CONNECTION, NO LONGER (final review B10). q.socket is the server's own object for
+     this TCP connection (index.js passes req.socket). Its client end belongs to the process that was proved to run as us,
+     and stays there while the connection lives, so a later request on the SAME connection (a page re-read, a reload over a
+     kept-alive socket) reuses that answer instead of running the lookups again, and two checks on it share one run. The
+     answer is keyed by that object in a WeakMap: it cannot outlive the connection or reach another one (a new connection,
+     even on the same port, is a new socket and is checked afresh). It is never a PID cache — a PID can be handed to another
+     account's process — and a refusal or a lookup that failed is never kept: it fails closed and is checked again. */
+  const proven = new WeakMap();     // socket -> { pid } of its proved same-user owner
+  const checking = new WeakMap();   // socket -> the check already running for it
+  return async function check(q) {
+    if (d.trustAll) return { ok: true, reason: 'trusted-by-env' };
+    const sock = q && q.socket && typeof q.socket === 'object' ? q.socket : null;
+    if (!sock) return checkNow(q);
+    const known = proven.get(sock);
+    if (known && !sock.destroyed) return { ok: true, reason: 'same-user', pid: known.pid, sameConnection: true };
+    if (checking.has(sock)) return checking.get(sock);
+    const running = checkNow(q);
+    checking.set(sock, running);
+    try {
+      const r = await running;
+      if (r && r.ok === true && r.reason === 'same-user' && !sock.destroyed) proven.set(sock, { pid: r.pid });
+      return r;
+    } finally { checking.delete(sock); }
   };
 }
 
