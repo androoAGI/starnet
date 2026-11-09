@@ -315,7 +315,9 @@ const LC = require('../sidecar/learning-cooldown.js');
     A.ok(at > 0, fn + ': its finally notes the attempt, with its runId, when its meter counted a call');
     A.ok(at < fin.indexOf('spend.book('), fn + ': ...before book() zeroes the meter');
     A.ok(!STAMPS.some(m => body.indexOf(m + '.set(') >= 0), fn + ': no window is armed on a surviving proposal any more');
-    A.ok(/let replied = false, kept = false;/.test(body) && /const text = await spend\.stream\(provider, req, cost\);\s*replied = !!String\(text \|\| ''\)\.trim\(\);\s*return text;/.test(body), fn + ': a reply is what the model really answered');
+    // the reply is the one the pass's meter streamed: directly, or through the one-shot resolver's call (W3.5: the small model, its retry)
+    const answered = /const text = await (?:spend\.stream\(provider, req, cost\)|oneShotStream\('([a-z-]+)', o, spend, req, [^;]+\));\s*replied = !!String\(text \|\| ''\)\.trim\(\);\s*return text;/.exec(body);
+    A.ok(/let replied = false, kept = false;/.test(body) && !!answered && (answered[1] === undefined || answered[1] === kind), fn + ': a reply is what the model really answered');
     A.ok(/if \(proposals\.length\) \{\s*(?:\/\/[^\n]*\n\s*)?kept = true;/.test(body), fn + ': a surviving proposal marks the attempt productive');
   }
   A.ok(/failureClass: LearningCooldown\.failureClass\(o\)/.test(sidecarTopLevelFunction('runFailureReview')), 'the failure review notes the class it read');

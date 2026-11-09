@@ -4,7 +4,7 @@
    writes never left cost.js, and a subscription's window readings kept only the latest value. So nobody — not the
    user, not an audit — could tell which calls drained a plan window, or which harness did. This is the receipt:
 
-     { v:1, at, ms, provider, account, model, runId?,
+     { v:1, at, ms, provider, account, model, runId?,          model: as it ran (the provider's served model, else the asked one)
        uncachedIn, cacheRead, cacheWrite, out, reasoning,      the call's own usage, through cost.resolveUsage
        cacheWrite5m?, cacheWrite1h?,                           the write's split by cache tier, only when the provider
                                                                reported one that adds up (W1.13: Anthropic, Claude Code)
@@ -102,9 +102,12 @@ function makeUsageReceipts(opts) {
     }) };
   }
 
-  function receipt(meta, req, startedAt, usage, end, status) {
+  // model: the model as it ran — the one the provider said served the call (a usage event's `model`: claude-cli names what
+  // an alias such as `haiku` resolved to), else the one the request asked for (W3.5)
+  function receipt(meta, req, startedAt, usage, end, status, served) {
     const at = now();
-    const rec = { v: 1, at, ms: Math.max(0, at - startedAt), provider: meta.pid, account: meta.acct, model: req && req.model != null ? ident(req.model, 200) : '' };
+    const asked = req && req.model != null ? req.model : '';
+    const rec = { v: 1, at, ms: Math.max(0, at - startedAt), provider: meta.pid, account: meta.acct, model: ident(served || asked, 200) };
     if (req && req.runId != null && String(req.runId)) rec.runId = ident(req.runId, 128);
     const c = resolveUsage(usage);
     if (c) Object.assign(rec, c);
@@ -117,11 +120,11 @@ function makeUsageReceipts(opts) {
   }
 
   async function* receipted(iterable, req, meta, startedAt) {
-    let usage = null, events = 0, sawDone = false, threw = false, status = null;
+    let usage = null, events = 0, sawDone = false, threw = false, status = null, served = '';
     try {
       for await (const ev of iterable) {
         events++;
-        if (ev && ev.type === 'usage' && ev.usage) usage = ev.usage;   // cumulative: the last one is the call's
+        if (ev && ev.type === 'usage' && ev.usage) { usage = ev.usage; if (typeof ev.model === 'string' && ev.model) served = ev.model; }   // cumulative: the last one is the call's
         else if (ev && ev.type === 'done') sawDone = true;
         yield ev;
       }
@@ -131,7 +134,7 @@ function makeUsageReceipts(opts) {
       throw e;
     } finally {
       if (usage || events > 0 || threw) {
-        try { append(receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status)); }
+        try { append(receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status, served)); }
         catch (e) { note('usage-receipts.record', e); }
       }
     }

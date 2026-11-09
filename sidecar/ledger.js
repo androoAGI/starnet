@@ -335,7 +335,8 @@
      makeAuxMeter({ ledger, kind, provider?, rowClass? }) -> {
        stream(provider, req, cost) -> text,   // one streamed completion, metered even when the stream throws
        add(usage, cost, model),               // one finished call (usage null = none arrived)
-       book({ runId, agentId, model, unmetered, turns? }) -> entry | null,   // no call ran = no row
+       book({ runId, agentId, model, unmetered, turns? }) -> entry | null,   // no call ran = no row; one row per model that
+                                                                            // ran (row.model only names a call that named none)
        calls(), usd(), tokens()
      }
      rowClass(signedIn) -> the row's payer (the host's billing-class.js auxRowClass for the pass's route: the route's payer, a
@@ -358,58 +359,80 @@
     // effortOf(provider, req) -> the effort a streamed call ran on (the host's one answer, read after the call). The row names
     // ONE effort only when every streamed call ran on it: a call on another, or on none the host can name, leaves it out
     const effortOf = typeof o.effortOf === 'function' ? o.effortOf : null;
-    const generationReceipt = makeGenerationReceipt();
-    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0, effort = null;   // null: no call named one yet
+    /* ONE ROW PER MODEL THAT RAN (W3.5). A one-shot pass runs on its family's small model and, when that reply was unusable,
+       once more on the run's model (oneshot-model.js): one pass, two models. Each call lands in the bucket of the model it
+       ran on (the model its provider said served it, else the one it asked for), and book() writes one row per bucket, so
+       the ledger says each model as it ran with its own tokens and dollars. A pass on one model books one row, as before. */
+    let buckets = new Map();
+    function bucketOf(model) {
+      const k = str(model);
+      let b = buckets.get(k);
+      if (!b) {
+        b = { calls: 0, missing: 0, unpriced: false, subscription: false, usd: 0, tokens: 0, cachedTokens: 0, effort: null, receipt: makeGenerationReceipt() };   // effort null: no call named one yet
+        buckets.set(k, b);
+      }
+      return b;
+    }
+    const total = f => { let s = 0; for (const b of buckets.values()) s += b[f]; return s; };
     function add(usage, cost, model, noteGeneration) {
-      (noteGeneration || generationReceipt.begin())(usage && usage.generation_id);
-      calls++;
-      if (usage && usage.subscription === true) subscription = true;
+      const b = bucketOf(model);
+      (noteGeneration || b.receipt.begin())(usage && usage.generation_id);
+      b.calls++;
+      if (usage && usage.subscription === true) b.subscription = true;
       let c = null;
       try { c = usage ? cost.reconcile(usage, model) : null; } catch (_) { c = null; }
-      if (!c) { missing++; return; }
-      usd += num(c.usd); tokens += num(c.tokensIn) + num(c.tokensOut); cachedTokens += num(c.cachedTokens);
-      if (c.unpriced) unpriced = true;
+      if (!c) { b.missing++; return; }
+      b.usd += num(c.usd); b.tokens += num(c.tokensIn) + num(c.tokensOut); b.cachedTokens += num(c.cachedTokens);
+      if (c.unpriced) b.unpriced = true;
     }
     return {
       add,
       async stream(provider, req, cost) {
-        const noteGeneration = generationReceipt.begin();
-        let out = '', usage = null;
+        const ids = [];
+        let out = '', usage = null, served = '';
         try {
           // A toolless housekeeping call is one request whose prompt nothing reads again: the adapter may skip the cache write
           // (claude-cli.js oneShotStream). A tool loop re-reads its own prompt every turn and keeps its cache.
           const hasTools = !!(req && Array.isArray(req.tools) && req.tools.length);
           for await (const ev of provider.stream(hasTools ? req : Object.assign({}, req, { neverReread: true }))) {
             if (ev && ev.type === 'text') out += ev.delta;
-            else if (ev && ev.type === 'generation') noteGeneration(ev.id);
-            else if (ev && ev.type === 'usage') usage = ev.usage;
+            else if (ev && ev.type === 'generation') ids.push(ev.id);
+            else if (ev && ev.type === 'usage') { usage = ev.usage; if (ev.model) served = str(ev.model); }   // the model the provider says served it (provider.js)
           }
         } finally {
-          add(usage, cost, req && req.model, noteGeneration);
+          const ran = served || (req && req.model);
+          const b = bucketOf(ran);
+          const noteGeneration = b.receipt.begin();
+          for (const id of ids) noteGeneration(id);
+          add(usage, cost, ran, noteGeneration);
           if (effortOf) {
-            let ran = '';
-            try { ran = str(effortOf(provider, req) || ''); } catch (_) { ran = ''; }   // unreadable = unnamed, never a guess
-            effort = (effort === null || effort === ran) ? ran : '';   // two calls on different efforts: the row names neither
+            let e = '';
+            try { e = str(effortOf(provider, req) || ''); } catch (_) { e = ''; }   // unreadable = unnamed, never a guess
+            b.effort = (b.effort === null || b.effort === e) ? e : '';   // two calls on different efforts: the row names neither
           }
         }
         return out;
       },
       book(row) {
-        if (!calls || !ledger) return null;
+        if (!total('calls') || !ledger) return null;
         row = row || {};
-        let billingClass = null;
-        try { billingClass = rowClass ? rowClass(subscription) : null; } catch (_) { billingClass = null; }   // no payer named: the caller's flag
-        if (!knownClass(billingClass)) billingClass = null;
-        const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
-        const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, ...(billingClass ? { billingClass } : {}), unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, reasoningEffort: effort || '', ...generationReceipt.fields() });
-        generationReceipt.reset();
-        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0; effort = null;   // booked once: a second book() adds no copy
-        return entry;
+        let entry = null, first = true;
+        for (const [model, b] of buckets) {
+          if (!b.calls) continue;
+          let billingClass = null;
+          try { billingClass = rowClass ? rowClass(b.subscription) : null; } catch (_) { billingClass = null; }   // no payer named: the caller's flag
+          if (!knownClass(billingClass)) billingClass = null;
+          const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
+          entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: first ? num(row.turns) : 0, usd: b.usd, tokens: b.tokens, cachedTokens: b.cachedTokens, model: model || row.model, ...(billingClass ? { billingClass } : {}), unmetered,
+            unpriced: !unmetered && b.unpriced, usageMissing: !unmetered && b.missing > 0, subscription: b.subscription, provider: route, aux: kind, reasoningEffort: b.effort || '', ...b.receipt.fields() });
+          first = false;
+        }
+        buckets = new Map();   // booked once: a second book() adds no copy
+        return entry;   // the last row written: the model the pass ended on
       },
-      calls() { return calls; },
-      usd() { return usd; },
-      tokens() { return tokens; }
+      calls() { return total('calls'); },
+      usd() { return total('usd'); },
+      tokens() { return total('tokens'); }
     };
   }
 
