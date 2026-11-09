@@ -84,6 +84,7 @@ function decide(inp) {
      'routine'     a routine's scheduled fire (a routine the Commander armed is still unattended when it fires)
      'loop'        a standing loop's tick
      'workshop'    an away build: the away-workshop routine's shift, and the build a FREE plan chains into
+     'trigger'     a line trigger's fire (a file landing in a watched folder, a webhook call): armed like a routine, fired by no one
    A message, Run Now, a beat or a shift fired by hand: a person started it, and nothing here ever holds or delays it.
 
    THE WINDOW RESERVE. A subscription says how much of each window is used on every call (sub-usage.js). An unattended
@@ -104,7 +105,7 @@ function decide(inp) {
 
 const WINDOW_RESERVE = 'window-reserve';
 const UNATTENDED_RAIL = 'unattended-rail';
-const ORIGINS = Object.freeze(['nightshift', 'routine', 'loop', 'workshop']);
+const ORIGINS = Object.freeze(['nightshift', 'routine', 'loop', 'workshop', 'trigger']);
 // the ONE table: every check reads it (the host's switches only override the two lines, through thresholds())
 const THRESHOLDS = Object.freeze({ windowPct: 90, staleMs: 12 * 3600000, railTokens: 2000000, railMs: 24 * 3600000 });
 

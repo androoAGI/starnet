@@ -25,6 +25,13 @@
    taint lock and a non-owner sender's job stays withheld. Fail closed: only entryTrusted/hostPowerKept carried as a literal true from the
    hub that ran the job (chain.js shipped) lift either, the weakest along the lineage wins, and anything else is untrusted + withheld.
 
+   WHO STARTED IT (cost fix W3.1). The target line's job is the work of whoever started the sending job: deps.startOf(rec) names the
+   unattended start that shipped it ({ origin, ref, start }: a routine's fire, a trigger's fire, a hand-off of one), or null for a
+   person's own job (a message, Run Now, a sample). An unattended one is asked deps.unattendedHold(start, toLine) when it queues and
+   again at dispatch: held, it is refused on the target line's job record in the hold's words, like any closed gate (never queued
+   to burst out after the reset); admitted, it runs in that start's scope (deps.asUnattended(start, fn)), so its receipts count on
+   the rail with the work that shipped it. All three deps are optional: without them every hand-off runs as before.
+
    THE RECORDS: the target line's job is a line-jobs record of ITS line with from:{ line, jobId, name }, its `text` the job AS IT
    FIRST ARRIVED and `handedIn` what the sending line delivered; the sending job is linked sentTo:{ line, jobId, name } — or,
    refused, sentTo.refused = why (never read as "sent on"). Each line's result stays its own. A job E-STOP killed is `stopped`.
@@ -68,6 +75,13 @@ function makeHandoffRunner(deps) {
     try { return d.plan(); } catch (e) { if (e && e.held === true) return null; throw e; }
   };
   const heldOf = typeof d.held === 'function' ? d.held : function () { return null; };
+  // W3.1: the unattended start a shipped job belongs to (null: a person's), and the hold its hand-off is asked (the hold's words, or null)
+  const startOf = function (rec) { try { return typeof d.startOf === 'function' ? (d.startOf(rec) || null) : null; } catch (e) { warn('[handoff] start read: ' + ((e && e.message) || e)); return null; } };
+  const unattendedHeld = function (item) {
+    if (!item.unattended || typeof d.unattendedHold !== 'function') return null;
+    try { const why = d.unattendedHold(item.unattended, item.toLine); return why ? String(why) : null; }
+    catch (e) { warn('[handoff] unattended hold check failed: ' + ((e && e.message) || e)); return null; }   // a check that throws admits
+  };
   const jobs = d.jobs || {};
   const J = {
     get: id => typeof jobs.get === 'function' ? jobs.get(id) : null,
@@ -177,7 +191,8 @@ function makeHandoffRunner(deps) {
          that ran the job established them) AND every earlier line of its lineage held them too — a hand-off is never more trusted than
          the job that produced it, and the weakest verdict along A → B → C wins. Missing anywhere = untrusted entry + host power withheld. */
       entryTrusted: r.entryTrusted === true && (!lin || lin.entryTrusted === true),
-      hostPowerKept: r.hostPowerKept === true && (!lin || lin.hostPowerKept === true)
+      hostPowerKept: r.hostPowerKept === true && (!lin || lin.hostPowerKept === true),
+      unattended: startOf(r)   // W3.1: read now, while the start that shipped it is still the one running
     };
     /* an UNAPPROVED job (chain out.unapproved: a review loop used all its passes without the verdict it waits for, GitHub #122) IS handed
        on — the LOOP sent it on, and SEND TO follows the line — but the frame the next line reads and its job record say nobody approved it */
@@ -190,6 +205,8 @@ function makeHandoffRunner(deps) {
     if (item.depth >= MAX_DEPTH) return refuse(item, 'this job has already been handed on ' + from.depth + ' times — a job crosses at most ' + MAX_DEPTH + ' lines');
     const detail = {}, pf = preflight(plan, st.toLine, detail);
     if (pf) return refuse(item, pf, detail.code);
+    const held = unattendedHeld(item);
+    if (held) return refuse(item, held);
     const s = stateOf(st.toLine);
     if (s.queue.length >= MAX_PENDING) return refuse(item, say(plan, st.toLine) + ' already has ' + s.queue.length + ' hand-offs waiting behind the one running');
     s.queue.push(item);
@@ -283,6 +300,8 @@ function makeHandoffRunner(deps) {
     if (!still || still.toLine !== item.toLine) return refuse(item, 'the SEND TO changed before the hand-off ran');
     const detail = {}, pf = preflight(plan, item.toLine, detail);
     if (pf) return refuse(item, pf, detail.code);
+    const held = unattendedHeld(item);
+    if (held) return refuse(item, held);
     const sr = sendingRuns(item.rec, item.at);
     if (sr.known && sr.rows.some(x => !stepOk(x))) {
       const bad = sr.rows.find(x => !stepOk(x));
@@ -315,7 +334,9 @@ function makeHandoffRunner(deps) {
       entryTrusted: item.entryTrusted === true, hostPowerKept: item.hostPowerKept === true,
       origin: { sourceJobId: item.fromJobId, sourceLineId: item.fromLine, sourceOutboxId: item.fromOutbox, targetIntakeId: item.toIntake, lineage: item.lines.concat([item.toLine]), depth: item.depth } };   // what hubFor's verdict hooks answer
     const hub = hubFor(item.toLine, s);
-    const settled = Promise.resolve(hub.onInbound({ chatId: 'hof-' + item.toLine, userId: 'handoff', text: input, chatType: 'dm' }))
+    // W3.1: unattended work's hand-off runs in the start that shipped it (its first synchronous slice still runs here)
+    const enter = () => hub.onInbound({ chatId: 'hof-' + item.toLine, userId: 'handoff', text: input, chatType: 'dm' });
+    const settled = Promise.resolve(item.unattended && typeof d.asUnattended === 'function' ? d.asUnattended(item.unattended, enter) : enter())
       .catch(e => ({ error: (e && e.message) || String(e) }));
     item.entered = true;   // the target line has the work from here (a throw after this is said as "broke after it started" — pump)
     // resolution lands in onInbound's first synchronous slice (the one-resolver law); the crate follows it
