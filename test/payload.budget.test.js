@@ -110,11 +110,15 @@ const HOST = '127.0.0.1';
    edited); no parameter name, type, required list or enum moved. Measured base ab5fa2c98 -> lane: default-new-install
    and fully-granted-floor 61,281 -> 58,272 tool bytes (-3,009, -4.9%), lead-with-crew 66,111 -> 63,021 (-3,090); system
    chars unchanged at 22,229 / 22,450 / 25,397; 79 / 79 / 84 tools. Tool-byte budgets = measurement + ~0.6% so the diet
-   cannot silently regrow: a lane that adds a tool raises them here, in the same commit, and says why. */
+   cannot silently regrow: a lane that adds a tool raises them here, in the same commit, and says why.
+   THE REACH FENCE 2026-11-08 (agent/fullaccess-fence-1108): the operator manual's APPROVAL paragraph gains one clause
+   (+63 chars, "a TRUSTED PROJECT reach keeps it to approved project folders"), first drafted at +244 and cut back because
+   every agent pays it on every call; the fenced agent's own approval clause carries the rest. Measured 22,289 /
+   22,510 / 25,457 system chars; tools and tool bytes unchanged. Intended growth: the system budgets move by 60. */
 const BUDGET = {
-  'default-new-install': { systemChars: 22282, tools: 79, toolBytes: 58620 },
-  'fully-granted-floor': { systemChars: 22502, tools: 79, toolBytes: 58620 },
-  'lead-with-crew': { systemChars: 25422, tools: 84, toolBytes: 63400 }
+  'default-new-install': { systemChars: 22342, tools: 79, toolBytes: 58620 },
+  'fully-granted-floor': { systemChars: 22562, tools: 79, toolBytes: 58620 },
+  'lead-with-crew': { systemChars: 25482, tools: 84, toolBytes: 63400 }
 };
 
 (async () => {
