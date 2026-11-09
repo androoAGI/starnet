@@ -22869,6 +22869,8 @@ async function handleRun(req, res) {
         const row = { promptId, agentId, tool: (fields && fields.tool) || 'tool', scope: (fields && fields.scope) || 'write', argsSummary: (fields && fields.argsSummary) || '' };
         // review2 #12 (additive): a tainted path card's exact file, what the run read, and why the file matters
         if (fields && fields.file) Object.assign(row, { file: fields.file, taintedBy: fields.taintedBy || '', standing: fields.standing || '' });
+        // fix-sec2 breakage 9 (additive): a fresh-consent ask says so, and the page offers only once or deny
+        if (fields && fields.fresh) row.fresh = true;
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -22965,7 +22967,10 @@ async function handleRun(req, res) {
        stays the folder: a standing answer anchors the conversation to it). */
     const tainted = i.tainted === true
       ? { file: String(i.path || '').slice(0, 1000), taintedBy: String(i.taintedBy || '').slice(0, 300), standing: String(i.standing || '').slice(0, 200) } : {};
-    return askHuman(Object.assign({ tool: 'path.trust', scope: i.scope || 'read', argsSummary: String(proposedRoot || '') }, tainted));
+    /* fix-sec2 breakage 9: that card is FRESH (askHuman fields.fresh -> freshConsent). ALWAYS and session record nothing
+       for a tainted write (pathtrust.js), and FULL would have kept the agent's Full Access when the person meant this one
+       write, so the station applies any yes as once and the card offers only once or deny. */
+    return askHuman(Object.assign({ tool: 'path.trust', scope: i.scope || 'read', argsSummary: String(proposedRoot || '') }, tainted, i.tainted === true ? { fresh: true } : {}));
   }
 
   // THE LIVE SUMMON CHANNEL (mirrors promptConsent): the orchestrator's team.summon tool calls ctx.summon(spec);

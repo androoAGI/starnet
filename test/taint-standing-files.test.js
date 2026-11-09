@@ -96,7 +96,14 @@ const projectbless = require('../sidecar/projectbless.js');
   A.ok(/if \(fields && fields\.file\) Object\.assign\(row, \{ file: fields\.file, taintedBy:/.test(IDX), 'the prompt row carries them to the page');
   A.ok(/tainted: \(\) => execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''/.test(IDX),
     'the guard is handed the source itself');
+  // breakage 9 (review-sec2): that card is fresh, so the station applies any yes as once and the page offers once or deny
+  A.ok(/i\.tainted === true \? \{ fresh: true \} : \{\}/.test(promptSrc), 'a tainted path card is asked fresh');
+  A.ok(/if \(orig && fields && fields\.fresh\) orig\.freshConsent = true;/.test(IDX), 'so handleConsent turns ALWAYS, session and FULL into once (no Full Access is kept for one write)');
+  A.ok(/if \(fields && fields\.fresh\) row\.fresh = true;/.test(IDX), 'and the prompt row tells the page');
   const CHAT = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
+  A.ok(/\} else if \(p\.tool === 'station\.power' \|\| p\.tool === 'plugin\.submit' \|\| p\.fresh === true\) \{/.test(CHAT), 'the page offers a fresh card only Approve once and Deny');
+  A.ok(/ev\.fresh === true \? \{ fresh: true \} : \{\}/.test(CHAT) && /ev\.file \? \{ file: ev\.file, taintedBy:/.test(CHAT), 'and a card drawn again keeps both');
+  A.eq(fs.readFileSync(path.join(__dirname, '..', 'website', 'app', 'app', 'chat.js'), 'utf8'), CHAT, 'chat.js is mirrored into website/app');
   A.ok(/if \(t === 'path\.trust' && ev\.file\) return 'change ' \+ ev\.file/.test(CHAT) && /this run read ' \+ \(ev\.taintedBy \|\| 'outside content'\)/.test(CHAT),
     'the card reads "change <file> ... (this run read <source> ...)"');
 

@@ -4674,8 +4674,10 @@ const Chat = (() => {
   // the channel's record of an ask — a delegated worker's says who asked (sidecar attributeAsks): its row on the
   // delegation card answers it; askedAt gives the NEEDS YOU list its age
   function pendingFrom(ev, ws) {
-    return { promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, runId: Channels.runIdOf(ws.id),
-      workerAgentId: ev.workerAgentId || '', workerRunId: ev.workerRunId || '', workerStreamId: ev.workerStreamId || '', askedAt: ev.askedAt || Date.now() };
+    return Object.assign({ promptId: ev.promptId, agentId: ev.agentId || ws.agentId, tool: ev.tool, argsSummary: ev.argsSummary, runId: Channels.runIdOf(ws.id),
+      workerAgentId: ev.workerAgentId || '', workerRunId: ev.workerRunId || '', workerStreamId: ev.workerStreamId || '', askedAt: ev.askedAt || Date.now() },
+      // a tainted write's card keeps its file and source, and a fresh ask stays once-or-deny, when it is drawn again (review2 #12; breakage 9)
+      ev.file ? { file: ev.file, taintedBy: ev.taintedBy || '', standing: ev.standing || '' } : {}, ev.fresh === true ? { fresh: true } : {});
   }
   // who is asking: a delegated worker's ask names the worker (the sidecar stamps workerAgentId), never the lead
   function askerName(p, ws) {
@@ -4802,9 +4804,10 @@ const Chat = (() => {
     } else if (p.tool === 'browser.login.done') {
       mk('Done — I\'ve logged in', 'once', 'primary', '✓ done', false);
       mk('Cancel', 'deny', 'deny', '✕ cancelled', true);
-    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit') {
+    } else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true) {
       // widening the station's leash and installing a plugin are answered fresh every time (freshConsent tools,
-      // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access
+      // permissions.js tier 1.5): the station grants any yes once, so no Always and no Full access. Any ask the station
+      // marks fresh too: a write by a run that read outside content (fix-sec2 breakage 9)
       mk('Approve once', 'once', 'primary', '✓ approved once', false);
       mk('Deny', 'deny', 'deny', '✕ denied', true);
     } else {
