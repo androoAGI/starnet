@@ -1617,7 +1617,14 @@ const App = (() => {
       pendingRaise.clear();
       const raiseProfile = list.filter(r => NARROW_EXECUTION_PROFILES.indexOf(r.executionProfile) < 0 && pendingProfileRaise.has(r.agentId)).map(r => r.agentId);
       pendingProfileRaise.clear();
-      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base, raise.length ? { raise } : {}, raiseProfile.length ? { raiseProfile } : {})) })
+      /* KEEPING FULL ACCESS THROUGH AN EDIT (fix-sec2 review2 #6): the station keeps a FULL ACCESS agent at Full Access through a
+         change to what drives it (its instructions, model, provider, skills) only when the push asks and the Commander
+         confirms at the desk; otherwise it asks first from then on. A FULL ACCESS row this page changed since its last
+         accepted push (or its first push, after an update that changed how prompts are composed) asks; the station asks the
+         desk only when what drives the agent really changed, never for the crew line or what it learned. */
+      const keepFull = list.filter(r => r.approvalMode === 'full' && raise.indexOf(r.agentId) < 0
+        && (!rosterAccepted.has(r.agentId) || (wasFull(r.agentId) && rosterBase.changed.indexOf(r.agentId) >= 0))).map(r => r.agentId);
+      lastRosterPush = fetch('/api/roster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ agents: list, updatedAt: Date.now() }, base, raise.length ? { raise } : {}, raiseProfile.length ? { raiseProfile } : {}, keepFull.length ? { keepFull } : {})) })
         .then(async r => {
           // the station's own name for its refusal (X-StarNet-Code): an unconfirmed raise is the desk's answer, never a lost station
           let deskCode = '';
@@ -1626,7 +1633,7 @@ const App = (() => {
             let refusal = null;
             try { refusal = await r.clone().json(); } catch (_) { refusal = null; }
             rosterRefusal = { desk: deskCode, error: String((refusal && refusal.error) || '') };
-            settleRefusedRaise(raise, rosterRefusalWords());
+            settleRefusedRaise(raise.concat(keepFull), rosterRefusalWords());
             throw new Error('roster refused: desk confirmation');
           }
           if (r && r.ok === false) throw new Error('roster HTTP ' + r.status);

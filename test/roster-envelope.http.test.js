@@ -119,7 +119,8 @@ const { seedActiveStation } = require('./helpers/station.js');   // a crew lives
     A.eq(reloaded.executionProfile, 'trusted-project', 'execution profile survives the same sidecar restart');
     // and a fresh save from the SECOND sidecar (re-serialized from its freshly-loaded live Map) STILL writes 'full',
     // proving the load parsed it into the Map AND the save now emits it — the complete round-trip.
-    const re = await jj('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'v4', name: 'Ultron', provider: 'openrouter', approvalMode: 'full', executionProfile: 'safe-cell' }], updatedAt: 300 });
+    // new instructions for a Full Access agent keep its Full Access only on the desk's yes (fix-sec2 review2 #6)
+    const re = await fixture.deskJson('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'v4', name: 'Ultron', provider: 'openrouter', approvalMode: 'full', executionProfile: 'safe-cell' }], updatedAt: 300, keepFull: ['agent'] });
     A.eq(re.body.ok, true, 'the second sidecar accepts a fresher push');
     const afterSave = JSON.parse(fs.readFileSync(rosterFile, 'utf8'));
     const saved2 = (afterSave.agents || []).find(a => a.agentId === 'agent') || {};

@@ -16661,10 +16661,16 @@ async function handleConfigImport(req, res) {
     // (never in the export). A roster with no live match is added with an empty system (re-woken later).
     for (const a of sec.roster) {
       const cur = agentRoster.get(a.agentId) || { system: '', name: a.agentId, model: null, provider: null, role: '', approvalMode: 'ask' };
-      agentRoster.set(a.agentId, Object.assign({}, cur, {
+      const next = Object.assign({}, cur, {
         name: a.name || cur.name, model: a.model || cur.model,
         provider: a.provider ? normalizeProviderId(a.provider) : cur.provider, role: a.role || cur.role
-      }));
+      });
+      // review2 #6: an import that points a Full Access agent at another model or provider drops it to ask-first
+      if (cur.approvalMode === 'full' && fullAccessDriveOf(next) !== fullAccessDriveOf(cur)) {
+        next.approvalMode = 'ask';
+        importNotes.push('"' + String(next.name || a.agentId).slice(0, 40) + '" asks first now: the import changed its model or provider. Give it Full Access again in its dossier.');
+      }
+      agentRoster.set(a.agentId, next);
     }
     saveAgentRoster(); applied.push('roster');
   }
@@ -16937,7 +16943,11 @@ function deskWords(action, d) {
       summary: 'Let every agent use "' + o.key + '" without asking?\n\nThe permission stays until you remove it in Settings › Permissions.' };
     case 'grant-import': return { title: 'StarNet — restore permissions', verb: 'Restore permissions',
       summary: 'This backup pre-approves ' + o.count + ' permission' + (o.count === 1 ? '' : 's') + ' this station does not have yet:\n' + o.list + '\n\nRestore ' + (o.count === 1 ? 'it' : 'them') + '? Agents will use ' + (o.count === 1 ? 'it' : 'them') + ' without asking.' };
-    case 'approval-full': return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
+    // review2 #6: a Full Access agent whose instructions, model, provider or skills changed keeps Full Access only on a yes
+    case 'approval-full': if (o.keep) return { title: 'StarNet — keep Full Access', verb: 'Keep Full Access',
+      summary: 'Keep FULL ACCESS for ' + o.names + ' with what now drives ' + (o.count === 1 ? 'it' : 'them') + '?\n\n' + (o.count === 1 ? 'It' : 'They') + ' will run every tool, command and file change without asking you. Model: ' + o.model + '.'
+        + (o.excerpt ? '\n\nInstructions (start):\n' + o.excerpt : '') + '\n\nSay no and ' + (o.count === 1 ? 'it asks' : 'they ask') + ' first from now.' };
+      return { title: 'StarNet — give Full Access', verb: 'Give Full Access',
       summary: 'Give FULL ACCESS to ' + o.names + '?\n\n' + (o.count === 1 ? 'It' : 'They') + ' will run every tool, command and file change without asking you, until you set ' + (o.count === 1 ? 'it' : 'them') + ' back to ask first.' };
     case 'remote-enable': return { title: 'StarNet — turn on Remote', verb: 'Turn on Remote',
       summary: 'Turn on StarNet Remote?\n\nThis station will connect out to ' + (o.relay || 'its relay') + ' so the phones you pair and approve here can reach it from anywhere.' };
@@ -21214,6 +21224,37 @@ async function handleRoster(req, res) {
       incomingRows = incomingRows.map(a => (a && keep.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
     }
   }
+  /* WHAT DRIVES A FULL ACCESS AGENT IS PART OF ITS FULL ACCESS (fix-sec2 review2 #6). Full Access was bound to the agent's
+     id alone, so a push could rewrite a Full Access agent's instructions, or point it at another model or provider, and it
+     kept running every tool with no card, on every surface, under words the Commander never saw. A push that changes
+     what drives an agent the station holds at Full Access (fullAccessDriveOf: its own instructions, model, provider,
+     skills) keeps Full Access only when it asks to (keepFull: [ids], sent by the page when the Commander edits the
+     agent) and the desk confirms, showing the new instructions; any other such push drops the agent to ask-first, named
+     in `clamped`. Under the desktop shell, the key GET / serves (CLIENT_TOKEN: the CLI, the bridges, any command an agent
+     runs) cannot change a Full Access agent's persona at all without dropping it. */
+  const askedKeep = new Set((Array.isArray(body.keepFull) ? body.keepFull : []).map(String));
+  const clientKeyPush = !!CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN);
+  const redriven = [];
+  for (const a of incomingRows) {
+    const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+    if (!a || a.approvalMode !== 'full' || !prev || prev.approvalMode !== 'full') continue;   // a raise was asked above
+    if (fullAccessDriveOf(a) !== fullAccessDriveOf(prev) || (clientKeyPush && String(a.system || '') !== String(prev.system || ''))) redriven.push(id);
+  }
+  if (redriven.length) {
+    const keepAsked = redriven.filter(id => askedKeep.has(id)).sort();
+    if (keepAsked.length) {
+      const first = rowOf(keepAsked[0]);
+      if (!deskGate(req, res, 'approval-full', 'keep:' + keepAsked.map(id => id + '=' + fullAccessDriveOf(rowOf(id))).join(','), {
+        names: keepAsked.map(nameOf).join(', '), count: keepAsked.length, keep: true,
+        model: deskProofMod.cutPoints(String(first.model || 'the station default'), 80) + (first.provider ? ' (' + deskProofMod.cutPoints(String(first.provider), 40) + ')' : ''),
+        excerpt: deskProofMod.cutPoints(fullAccessInstructions(first.system).trim(), 500) })) return;
+    }
+    const drop = new Set(redriven.filter(id => keepAsked.indexOf(id) < 0));
+    if (drop.size) {
+      clamped = clamped.concat([...drop]);
+      incomingRows = incomingRows.map(a => (a && drop.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
+    }
+  }
   replaceAgentRoster(incomingRows);
   if (hasBase) agentRosterSaveRevision = Math.max(ceiling, baseRevision);
   if (!saveAgentRoster(hasStamp ? (rosterMerge ? Math.max(incomingUpdatedAt, agentRosterUpdatedAt) : incomingUpdatedAt) : undefined)) {
@@ -21326,6 +21367,18 @@ const RELAYED_RAISE_MAX = 3, RELAYED_RAISE_WINDOW_MS = 10 * 60 * 1000, RELAYED_R
 const relayedRaiseTimes = [];
 const NARROW_EXECUTION_PROFILES = Object.freeze(['station-gear', 'safe-cell']);   // as authority-seal.js NARROW_PROFILES
 const NEW_AGENT_EXECUTION_PROFILE = 'trusted-project';   // what a new agent is given (app.js summon/onboarding, bin/lib/awaken.js)
+/* fullAccessDriveOf(row) -> a digest of what drives an agent (review2 #6): the Commander's own instructions, model, provider
+   and skills. The persona's learned tail (the Commander dossier, the fork directive: learned-tail.js) and the one-line YOUR
+   CREW roster clause are composed by the page as the station learns and as the crew changes, so they are left out; a
+   second crew line, or anything after it, is not. */
+function fullAccessInstructions(system) {
+  return LearnedTail.split(String(system || '')).stable.replace(/\n\nYOUR CREW: [^\n]*/, '');
+}
+function fullAccessDriveOf(row) {
+  const r = row && typeof row === 'object' ? row : {};
+  const skills = Array.isArray(r.skills) ? [...new Set(r.skills.map(s => String(s || '').trim()).filter(Boolean))].slice(0, 40).sort() : [];
+  return crypto.createHash('sha256').update(JSON.stringify([fullAccessInstructions(r.system), r.model ? String(r.model) : '', normalizeProviderId(r.provider || ''), skills])).digest('hex').slice(0, 32);
+}
 async function handleAgentApproval(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
@@ -21381,10 +21434,13 @@ async function handleAgentPersonality(req, res) {
   const system = typeof body.system === 'string' ? body.system : '';
   if (!system.trim() || system.length > 400000) return json(409, { error: 'no StarNet page is open to compose the new prompt, and none was sent' });
   const raw = agentRosterRaw.get(agentId);
-  agentRoster.set(agentId, Object.assign({}, cur, { system }));
-  agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { personaId: personality }));
+  // review2 #6: new instructions for a Full Access agent drop it to ask-first (Full Access is given again at the desk)
+  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { system })) !== fullAccessDriveOf(cur);
+  agentRoster.set(agentId, Object.assign({}, cur, { system }, dropFull ? { approvalMode: 'ask' } : {}));
+  agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { personaId: personality }, dropFull ? { approvalMode: 'ask' } : {}));
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); return json(500, { error: 'could not save the roster' }); }
-  return json(200, { ok: true, agentId, personality, via: 'roster' });
+  if (dropFull) saveApprovalMode(agentId, 'ask');
+  return json(200, Object.assign({ ok: true, agentId, personality, via: 'roster' }, dropFull ? { fullAccessDropped: true, note: 'its instructions changed, so it asks first now; give it Full Access again to undo that' } : {}));
 }
 async function handleAgentDelete(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };

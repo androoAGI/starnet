@@ -14,7 +14,7 @@ const vm = require('node:vm');
 const { fnBody } = require('./_fnbody.js');
 
 const app = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'app.js'), 'utf8');
-const slice = h => { const b = fnBody(app, h); A.ok(b.startsWith(h) && b.length > 50 && b.length < 8000, 'sliced exactly ' + h + ' (' + b.length + ' chars)'); return b; };
+const slice = h => { const b = fnBody(app, h); A.ok(b.startsWith(h) && b.length > 50 && b.length < 12000, 'sliced exactly ' + h + ' (' + b.length + ' chars)'); return b; };
 const src = ['function settleRefusedRaise(ids, why)', 'function pushRoster()', 'function rosterRefusalWords()', 'function setAgentApproval(agentId, mode, opts)'].map(slice).join('\n');
 
 (async () => {
@@ -63,6 +63,16 @@ const src = ['function settleRefusedRaise(ids, why)', 'function pushRoster()', '
     const again = posts.length;
     await api.pushRoster();
     A.ok(!posts[again].body.raise, 'once accepted, the next push raises nobody');
+  }
+  // fix-sec2 review2 #6: a FULL ACCESS row this page changed since its last accepted push asks the station to keep Full Access
+  keepFullAsk: {
+    const at = posts.length;
+    crew[1].systemPrompt = 'new instructions';
+    await api.pushRoster();
+    A.eq(posts[at] && posts[at].body.keepFull, ['c1'], 'an edited FULL ACCESS row asks to keep it (the station asks the desk only when what drives it changed)');
+    const again = posts.length;
+    await api.pushRoster();
+    A.ok(!posts[again].body.keepFull, 'an unchanged one does not');
   }
   // a push the station CLAMPED (a raise it was never asked to confirm): the page puts its own copy back and says so
   crew[1].approvalMode = 'ask'; await api.pushRoster();
