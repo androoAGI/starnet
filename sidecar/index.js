@@ -3612,7 +3612,10 @@ function channelRunConfigFor(agentId, candidate, opts) {
     ok: true, key, model, provider, baseUrl,
     reasoningEffort: resolveReasoningEffort(provider, wire.reasoningEffort),
     system: (ident && ident.system) || '',
-    wireSource: wire.source
+    wireSource: wire.source,
+    // the run goes out on an endpoint the channel's own record carries (set at connect or by a sync), not the station's
+    // resolution for its provider: an owner's card-free DM is not given to it (channelOwnerCardFree, final review #1)
+    ownEndpoint: !!(sameProvider && offered && String(offered.baseUrl || offered.base_url || '').trim())
   };
 }
 /* THE STATION'S OWN CHAT HUBS (Telegram, Discord, the generic channels, the dev channel) run the ROUTED agent's one pair,
@@ -3630,7 +3633,24 @@ function stationHubRunConfig(agentId, snap, opts) {
     { unrostered: true, fallback: s.model ? { provider: s.provider || '', model: s.model, reasoningEffort: s.reasoningEffort } : null, storedCredential: !!(opts && opts.storedCredential) });
   if (!cfg.ok) return cfg;
   const configured = String(s.agentId || '') && String(agentId) === String(s.agentId);
-  return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured ? String(s.system || '') : '') });
+  // final review #1: the channel's own copy of the instructions (a sync writes it, with the page key) is not bound to an
+  // agent's Full Access the way the roster's is (fullAccessDriveOf), so a Full Access agent runs on its roster's only
+  const rec = agentRoster.get(String(agentId || ''));
+  const full = !!(rec && rec.approvalMode === 'full');
+  return Object.assign({}, cfg, { configured: true, agentId: s.agentId, system: cfg.system || (configured && !full ? String(s.system || '') : '') });
+}
+/* THE OWNER'S CARD-FREE DM (final review #1, 2026-11-08). A Telegram owner's DM with chat approvals off used to skip every
+   card whatever the agent behind it, so the key GET / serves (any same-user script, or a command an agent ran) could
+   rewrite an ask-first agent's instructions, model or skills, or the channel's own copy of them, and the owner's next
+   ordinary message ran a host shell with no card. Card-free is now what the desk has bound: the agent's Full Access, whose
+   instructions, model, provider and skills a6dfca2ce binds (any change drops it unless the desk keeps it), or FULL BYPASS.
+   An ask-first agent gets the approval buttons in the chat instead, and a run that would go out on an endpoint the
+   channel's own record carries (a sync can set one) is never card-free. Read live for every message. */
+function channelOwnerCardFree(agentId, sec) {
+  if (sec && sec.ownEndpoint === true) return false;
+  if (FULL_ACCESS || masterBypassOn()) return true;
+  const rec = agentRoster.get(String(agentId || ''));
+  return !!(rec && rec.approvalMode === 'full');
 }
 /* THE ONE READ OF A CHANNEL'S CREDENTIAL (credential-store lane, S8). A record holds a reference, never a key
    (channels/secrets.js): this is the saved record with what that reference resolves to laid over it: { key, baseUrl } of its
@@ -12077,7 +12097,8 @@ function makeHubDeps(kind, overrides) {
     saveAttachment: (agentId, name, dataUrl) => attachments.saveAttachment(agentId, name, dataUrl),
     expandAttachments: (messages) => messages,
     scrubOutbound: scrubOutbound,
-    resolveRunConfig: channelRunConfigFor
+    resolveRunConfig: channelRunConfigFor,
+    ownerCardFree: channelOwnerCardFree   // final review #1: what an owner's DM may run without a card
   }, overrides);
 }
 function startTelegram(token, model, agentCfg) {
@@ -24915,7 +24936,9 @@ async function runOnceCore(o) {
     // channel. If that chat explicitly enables approvals, preserve the chosen in-chat prompt behavior instead.
     // a FUNCTION, re-read every call: the master FULL BYPASS switch must take effect — and revoke — on the
     // very next tool call without a restart. The frozen env flag and the per-agent posture ride inside it.
-    bypass: () => unrestrictedHostNow() || (ownerTrusted && !prompt), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
+    // final review #1: the owner's DM no longer skips cards on its own. It is card-free only through what the desk bound (the
+    // agent's Full Access or FULL BYPASS, both in unrestrictedHostNow); otherwise the hub asks in the chat (channelOwnerCardFree).
+    bypass: () => unrestrictedHostNow(), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
     grantsSession, grantsPermanent, persist: persistAllowlist,
     // Full Access is the persisted per-agent posture, so it applies on every surface and every later task.
     // The hardline floor remains above this broker and still denies protected physical/desktop effects.
@@ -24943,10 +24966,11 @@ async function runOnceCore(o) {
     // The taint check is repeated here, not just at dispatch, so consent and the dispatch gate can never
     // disagree: a tool the gate will refuse must not be one consent says yes to (the incoherent state the
     // terminal lane hit). Same predicate source (`revokedByTaint`) on both sides.
-    terminalGrant: (call, tool) => !execution.taintedBy() && (ownerTrusted || unattendedGrants.indexOf('workbench') >= 0),
+    // final review #1: an owner DM is not a terminal grant (an ask-first agent's owner DM asks in the chat; Full Access bypasses)
+    terminalGrant: (call, tool) => !execution.taintedBy() && unattendedGrants.indexOf('workbench') >= 0,
     // UNATTENDED CONNECTOR GRANT: same host-side source as the authority gate, so an offered MCP tool can
     // never be refused by consent (the incoherent state the terminal lane hit before this was wired).
-    connectorGrant: (call, tool) => !execution.taintedBy() && (ownerTrusted || unattendedGrants.indexOf('connectors') >= 0),
+    connectorGrant: (call, tool) => !execution.taintedBy() && unattendedGrants.indexOf('connectors') >= 0,
     /* UNATTENDED IMAGES GRANT (2026-10-18): this routine's recorded "may make images" approval, off the same durable
        job record as the two above, lifted by taint like them. It covers the routine's OWN agent only: a worker it
        delegates to asks through this broker inside askedBy (attributeAsks) and gets nothing from it, and a line hop
