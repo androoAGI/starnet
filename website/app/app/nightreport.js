@@ -62,7 +62,8 @@
     // the unattended hold (cost fix W3.1): held before the job limit is spent, on the provider's own window reading or on the
     // 24-hour rail of unattended tokens (status.hold names the reading or the count: unattendedHoldPhrase)
     'window-reserve': 'your plan’s usage window is nearly used — the rest is kept for you, so jobs wait until it resets',
-    'unattended-rail': 'unattended work used its 24-hour token rail — jobs are paused until you re-arm autonomy (press an ON ITS OWN rung)'
+    // RESUME is a press of a rung that turns unattended work on (the sidecar resumes the rail only for SMALL JOBS or FREE)
+    'unattended-rail': 'unattended work used its 24-hour token rail — jobs are paused until you re-arm autonomy (press SMALL JOBS or FREE under ON ITS OWN)'
   };
   // the same two holds in the station's own numbers (status.hold.why, or a ledger row's detail): the reading, its source and the
   // reset, or the count and how it resumes — in LOCAL time; the plain phrase when the numbers are missing
@@ -77,7 +78,7 @@
     const n = w && Number(w.tokens), lim = w && Number(w.limit);
     if (binding === 'unattended-rail' && Number.isFinite(n) && Number.isFinite(lim)) {
       const lifts = fmtLocalWhen(w.liftsAt, tzOffsetMin, nowMs);
-      return 'unattended work used ' + shortTokens(n) + ' weighted tokens in the last 24 hours (the rail is ' + shortTokens(lim) + ') — jobs are paused until you re-arm autonomy (press an ON ITS OWN rung)'
+      return 'unattended work used ' + shortTokens(n) + ' weighted tokens in the last 24 hours (the rail is ' + shortTokens(lim) + ') — jobs are paused until you re-arm autonomy (press SMALL JOBS or FREE under ON ITS OWN)'
         + (lifts ? ', or until ' + lifts : '');
     }
     return BINDING_PHRASE[binding] || bindingPhrase(binding);
@@ -318,7 +319,7 @@
         : s.binding === 'unattended-rail' ? 'when you re-arm autonomy' + (heldUntil ? ', or ' + heldUntil : '')
         : NO_CLOCK_BINDINGS.has(String(s.binding || '')) ? 'not scheduled — held until the reason above is fixed'
         : (fmtLocalTime(s.nextEligibleAt, tz) || 'when the next window opens'),
-      // W3.1: what one away job spent, weighted (uncached input + a tenth of cached + output), over its newest jobs; '' until one is recorded
+      // W3.1: what one away job spent, weighted (fresh input + cache writes + output + a tenth of cache reads), over its newest jobs; '' until one is recorded
       perJobText: (s.tokensPerBeat && Number(s.tokensPerBeat.tokens) > 0) ? '~' + shortTokens(s.tokensPerBeat.tokens) + ' weighted tokens a job' : '',
       modeText: modeText(s),
       modeWarn: s.buildMode === 'draft' && s.draftReason === 'no-workshop-grant',
@@ -430,6 +431,11 @@
     return (e.binding === 'window-reserve' || e.binding === 'unattended-rail') ? unattendedHoldPhrase(e.binding, e.detail, tzOffsetMin, undefined, Number(e.ts) || 0)
       : bindingPhrase(e.binding);
   }
+  // a note row's words: its reason code, except a note the station words itself — the rail's RESUME (W3.1) says what it did
+  function noteTail(e) {
+    if (e.reason === 'unattended-rail:resumed' && e.detail && e.detail.note) return String(e.detail.note);
+    return e.reason || (e.detail && e.detail.title) || '';
+  }
   function trailLine(entry, tzOffsetMin) {
     const e = entry || {};
     const when = fmtLocalTime(e.ts, tzOffsetMin) || '—';
@@ -437,7 +443,7 @@
     let tail = '';
     if (e.kind === 'decline') tail = declinePhrase(e, tzOffsetMin);
     else if (e.kind === 'act') tail = (e.detail && e.detail.title) ? String(e.detail.title) : (e.reason || 'left a draft');
-    else tail = e.reason || (e.detail && e.detail.title) || '';
+    else tail = noteTail(e);
     return when + ' · ' + kind + (tail ? ' · ' + tail : '');
   }
 
@@ -476,7 +482,7 @@
       const kind = e.kind === 'decline' ? 'declined' : (e.kind === 'act' ? 'acted' : 'noted');
       let tail = '';
       if (e.kind === 'decline') tail = declinePhrase(e, tzOffsetMin);
-      else tail = e.reason || (e.detail && e.detail.title) || '';
+      else tail = noteTail(e);
       return from + '–' + to + ' · ' + kind + ' ×' + e.count + (tail ? ' · ' + tail : '');
     });
   }
