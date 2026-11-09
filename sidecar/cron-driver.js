@@ -741,6 +741,7 @@
           preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [],
           requiredPreloads: true,
           cronScript: job.script || null,
+          cronScriptDigest: job.scriptDigest || null,   // the bytes its grants were allowed for (index.js cronScriptDigest, review2 #3)
           scriptTimeoutMs: job.scriptTimeoutMs,
           noAgent: job.noAgent === true,
           runsLine: job.runsLine === true,

@@ -356,7 +356,9 @@
       const termBadge =
         grantBadge(grantsOf.indexOf('workbench') >= 0, '⌘ terminal', 'this routine may run shell commands unattended') +
         grantBadge(grantsOf.indexOf('connectors') >= 0, '⧉ connected tools', 'this routine may call your MCP connectors unattended') +
-        grantBadge(grantsOf.indexOf('studio') >= 0, '▣ images', 'this routine may make images unattended');
+        grantBadge(grantsOf.indexOf('studio') >= 0, '▣ images', 'this routine may make images unattended') +
+        // review2 #3: its script is not the file the desk's yes was for, so it does not run until it is allowed again
+        grantBadge(!!j.scriptChanged, '⚠ script changed', 'the script file changed since you allowed this routine to run it unattended; it will not run until you allow this version');
       // a routine made from a chat (the agent's routine.create) carries no grant, and the create form is the only other
       // place one is set — so images can be allowed on the row itself. A script-only routine never calls a model.
       const canAllowImages = grantsOf.indexOf('studio') < 0 && !j.noAgent;
@@ -395,6 +397,7 @@
           // REVOKE — a standing unattended permission must be withdrawable without deleting the routine.
           // Only rendered when there is something to revoke, so an ordinary routine's action row is unchanged.
           (canAllowImages ? '<button class="bb xs" data-act="allow-images" title="let this routine make images with nobody approving each one — each picture can cost money and counts toward your spend caps">▣ ALLOW IMAGES</button>' : '') +
+          (j.scriptChanged ? '<button class="bb xs" data-act="allow-script" title="the script file changed since you allowed it; StarNet shows you the new version and asks you to confirm">✓ ALLOW THIS VERSION</button>' : '') +
           (grantsOf.length ? '<button class="bb xs" data-act="revoke" title="stop this routine using the terminal / your connected tools / making images">⌫ REVOKE ACCESS</button>' : '') +
           '<button class="bb xs danger" data-act="remove">✕ DELETE</button>' +
         '</div></div>';
@@ -814,6 +817,16 @@
         // force while the station said "access revoked" — the one lie a permission surface can never tell.
         try { const r = await Harness.api.post('/api/cron/update', { id, patch: { unattendedGrants: [] } }); notify(r.ok ? 'access revoked' : 'could NOT revoke access: ' + Harness.api.why(r) + ' — the routine still has it', r.ok ? 'good' : 'warn'); }
         catch (_) { notify('could not reach the station — access was NOT revoked', 'warn'); }
+        refresh(); return;
+      }
+      if (act === 'allow-script') {
+        // review2 #3: keepGrants with no change asks the desk about the script as it is now; the yes records its bytes
+        sfx('click');
+        try {
+          const r = await Harness.api.post('/api/cron/update', { id, patch: {}, keepGrants: true });
+          const ok = !!(r.ok && r.j && r.j.job);
+          notify(ok ? 'this version of the script may run unattended' : 'the new version was NOT allowed' + (r.ok ? '' : ': ' + Harness.api.why(r)) + ' — the routine still will not run it', ok ? 'good' : 'warn');
+        } catch (_) { notify('could not reach the station — the new version was NOT allowed', 'warn'); }
         refresh(); return;
       }
       if (act === 'allow-images') {

@@ -32,6 +32,19 @@ A.eq(cronStore.grantsRevokedByAgentEdit(null, { prompt: 'x' }), [], 'a missing j
   A.eq(cronStore.grantsRevokedByAgentEdit(g, { script: 'payload.js' }), ['workbench', 'connectors'], 'the agent-edit name covers the same fields');
 }
 
+// ---- 1c. review2 #3: the script digest is the station's to write, never a patch's ----
+{
+  const D1 = 'sha256:' + 'a'.repeat(64), D2 = 'sha256:' + 'b'.repeat(64);
+  const sched = { kind: 'interval', everyMs: 3600000, display: 'every 1h' };
+  let jobs = [cronStore.makeJob({ id: 's1', name: 's', prompt: 'p', schedule: sched, agentId: 'agent', script: 'a.js', scriptDigest: D1, unattendedGrants: ['workbench'] }, { id: 's1', now: 1 })];
+  A.eq(cronStore.getJob(jobs, 's1').scriptDigest, D1, 'a create the station stamped keeps its digest');
+  A.eq(cronStore.makeJob({ id: 's2', name: 's', prompt: 'p', schedule: sched, scriptDigest: 'whatever' }, { id: 's2', now: 1 }).scriptDigest, null, 'a malformed digest is not kept');
+  jobs = cronStore.updateJob(jobs, 's1', { scriptDigest: D2, name: 'renamed' }, { now: 2 });
+  A.eq(cronStore.getJob(jobs, 's1').scriptDigest, D1, 'a patch cannot write it');
+  jobs = cronStore.updateJob(jobs, 's1', {}, { now: 3, scriptDigest: D2 });
+  A.eq(cronStore.getJob(jobs, 's1').scriptDigest, D2, 'the station records a new one with a yes');
+}
+
 // ---- 2. the store applies the drop when told to ----
 {
   const jobs = [cronStore.makeJob({ id: 'nightly', name: 'nightly-build', prompt: granted.prompt, schedule: { kind: 'interval', everyMs: 3600000, display: 'every 1h' }, agentId: 'agent', unattendedGrants: ['workbench'] }, { id: 'nightly', now: 1000 })];

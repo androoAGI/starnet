@@ -6507,7 +6507,41 @@ function cronScriptSpec(job) {
   else throw new Error('routine script type is not supported');
   return { cwd, cmd };
 }
+/* THE SCRIPT A GRANT WAS GIVEN TO (fix-sec2, review2 #3). A script routine's grants cover the file's CONTENT as it was when
+   the desk said yes, not whatever sits at that path later. An agent run, a tainted one included, writes its own workspace
+   without a card, so a grant tied only to the path let a run that read a hostile page replace the script and have the next
+   fire run it with nobody watching. The station records the file's digest with every yes it gets for the routine (create,
+   adding a grant, keeping grants through an edit, ALLOW THIS VERSION) and refuses to run a script whose bytes differ:
+   nothing runs, and the routine says why. Chosen over refusing tainted writes to such files because a digest catches every
+   writer (a tainted run, an earlier run that was steered, another program, a sync tool), not only the one we thought of.
+   Only the named file is checked: a script that loads other files from a folder agents can write is only as safe as that
+   folder (said in the desk words too). */
+function cronScriptDigest(job) {
+  if (!job || !job.script) return '';
+  try {
+    const cwd = job.workdir ? fs.realpathSync(String(job.workdir).trim()) : executionEnvironment.ensureWorkspace(job.agentId);   // identity only: the run still checks the folder (cronScriptSpec)
+    const abs = fs.realpathSync(path.resolve(cwd, String(job.script).trim()));
+    return 'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
+  } catch (e) { return ''; }   // unreadable: matches no recorded digest, so it does not run
+}
+function cronScriptStale(job) {
+  const grants = Array.isArray(job && job.unattendedGrants) ? job.unattendedGrants : [];
+  return !!(job && job.script && grants.length && (!job.scriptDigest || cronScriptDigest(job) !== job.scriptDigest));
+}
+// the first lines of the script, for the desk words: the yes is for what the person could read
+function cronScriptExcerpt(job) {
+  if (!job || !job.script) return '';
+  try {
+    const cwd = job.workdir ? fs.realpathSync(String(job.workdir).trim()) : executionEnvironment.ensureWorkspace(job.agentId);   // identity only: the run still checks the folder (cronScriptSpec)
+    const text = fs.readFileSync(fs.realpathSync(path.resolve(cwd, String(job.script).trim())), 'utf8');
+    return text.length > 300 ? text.slice(0, 300) + ' …' : text;
+  } catch (e) { return '(the file could not be read)'; }
+}
 async function executeCronScript(job, signal) {
+  // review2 #3: only the bytes the desk's yes was given to run with nobody watching
+  if (job && job.script && cronScriptStale(job)) {
+    throw new Error('the script ' + String(job.script) + ' changed since you allowed this routine to run it with nobody watching, so it did not run. Check the file; to run this version, press ALLOW THIS VERSION on the routine (StarNet asks you to confirm).');
+  }
   const spec = cronScriptSpec(job);
   if (!spec) return null;
   let r;
@@ -7683,7 +7717,10 @@ function cronAuthorityParts(jobs) {
     const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.map(String) : [];
     if (grants.length) parts['grant:' + j.id] = { grants, agentId: j.agentId == null ? null : String(j.agentId), prompt: j.prompt == null ? null : String(j.prompt),
       script: j.script == null ? null : j.script, workdir: j.workdir == null ? null : String(j.workdir), noAgent: j.noAgent === true,
-      enabledToolsets: Array.isArray(j.enabledToolsets) ? j.enabledToolsets : null };
+      enabledToolsets: Array.isArray(j.enabledToolsets) ? j.enabledToolsets : null,
+      // review2 #2/#3: everything that changes what the grant runs, and the script bytes it was given for
+      skills: Array.isArray(j.skills) ? j.skills : null, contextFrom: Array.isArray(j.contextFrom) ? j.contextFrom : null,
+      runsLine: j.runsLine === true, scriptDigest: typeof j.scriptDigest === 'string' ? j.scriptDigest : null };
     if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint) parts['notepad:' + j.id] = { notepad: j.notepad };
   }
   return parts;
@@ -7840,6 +7877,18 @@ cronJobs = loadCronJobs();
 // review 4a: a routine store this workspace never sealed (the upgrade) is sealed now, as it is, so it is not obeyed unsealed for long
 if (Array.isArray(authoritySealBoot.migrating) && authoritySealBoot.migrating.indexOf('cron.jobs.json') >= 0 && cronJobs.length) {
   try { saveCronJobs(); } catch (e) { failNote('authority-seal.cron.upgrade', e); }
+}
+/* review2 #3: a script routine granted before the station kept script digests is stamped ONCE with its file as it is now
+   (the trust it had before this version), so it keeps running; from here on, a changed file stops it. Only while the
+   seal can check what it stamps (never while held), and only for grants that survived the seal's own check above. */
+{
+  const unstamped = authoritySeal.held ? [] : cronJobs.filter(j => j && j.script && Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !j.scriptDigest);
+  if (unstamped.length) {
+    const stamps = new Map(unstamped.map(j => [j.id, cronScriptDigest(j)]));
+    cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { scriptDigest: stamps.get(j.id) }) : j);
+    try { saveCronJobs(); console.warn('[cron] recorded the script fingerprint of ' + unstamped.length + ' routine(s) allowed to run unattended; a later change to those files stops them until you allow it again'); }
+    catch (e) { failNote('cron.script-digest.stamp', e); }
+  }
 }
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
 // healed list from disk. A failed write is not fatal: the repair re-applies on every load until one lands.
@@ -18126,7 +18175,8 @@ function cronStateSnapshot(now) {
   const jobs = (Array.isArray(cronJobs) ? cronJobs : []).map(j => {
     if (!j || !j.id) return j;
     const lease = cronDriver.leases.get(j.id);
-    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j), nextFireAt: SchedulerState.nextFireOf(scheduler, j) });   // null wire: a script-only routine
+    return Object.assign({}, j, (lease && !lease.settlement) ? { inFlight: true } : {}, lease ? { inFlightRunId: String(lease.runId || '') } : {}, { wire: routineWireRow(j), nextFireAt: SchedulerState.nextFireOf(scheduler, j) },   // null wire: a script-only routine
+      cronScriptStale(j) ? { scriptChanged: true } : {});   // review2 #3: its script is not the one the desk's yes was for
   });
   // `armSet` (additive, org P16): the Commander has set the switch at least once — enabled:false + armSet:true is an explicit
   // OFF (a save keeps it off); armSet:false is a switch never set (the first save turns it on)
@@ -18452,8 +18502,12 @@ function handleCronCreate(req, res) {
     // watching on every fire, so it is confirmed at the desk for exactly this routine's words
     const grants = Array.from(normalizeUnattendedGrants(body.unattendedGrants)).sort();
     if (grants.length && authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
-    if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(body, grants), routineGrantWords(body, grants))) return;
-    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0 });
+    // review2 #3: a script routine's yes is for the script's bytes as they are now; the digest is in the scope and is kept
+    let scriptDigest = '';
+    if (grants.length && body.script) { try { scriptDigest = cronScriptDigest(Object.assign({}, body, { agentId: parseCronAgentIdOr400(body.agentId) })); } catch (e) { scriptDigest = ''; } }
+    const spec = Object.assign({}, body, { scriptDigest });
+    if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(spec, grants), routineGrantWords(spec, grants))) return;
+    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0, scriptDigest });
     /* ARM ON CREATE (routine reliability, 2026-10-01): the panel used to save a routine and then toast "saved, but
        the scheduler is off — this won't run" — a routine the Commander just made never firing is the most common
        way a routine "doesn't work". body.arm:true (sent by the CREATE form, same default as routine.create's
@@ -18482,14 +18536,16 @@ function routineGrantScope(spec, grants) {
   const list = v => (Array.isArray(v) ? v.map(String) : null);
   return crypto.createHash('sha256').update(JSON.stringify([String(s.agentId || ''), grants, String(s.name || ''), String(s.prompt || ''),
     String(s.script || ''), String(s.workdir || ''), s.noAgent === true, list(s.enabledToolsets), list(s.skills), list(s.contextFrom),
-    s.runsLine === true])).digest('hex');
+    s.runsLine === true, String(s.scriptDigest || '')])).digest('hex');   // review2 #3: and the script's bytes
 }
 const ROUTINE_GRANT_WORDS = { workbench: 'use the terminal (run commands on this computer)', connectors: 'use your connected accounts', studio: 'make images in the studio' };
 function routineGrantWords(spec, grants, changed) {
   const s = spec || {};
   const rec = agentRoster.get(String(s.agentId || ''));
-  // what it will run, in its own words, so the yes is given for something the person read (review2 #2)
-  const task = s.script ? 'the script ' + String(s.script) + (s.noAgent === true ? '' : ', then: ' + String(s.prompt || '')) : String(s.prompt || '');
+  // what it will run, in its own words, so the yes is given for something the person read (review2 #2, #3)
+  const task = s.script
+    ? 'the script ' + String(s.script) + ' (only this file is checked before each run):\n' + cronScriptExcerpt(s) + (s.noAgent === true ? '' : '\n\nthen: ' + String(s.prompt || ''))
+    : String(s.prompt || '');
   return { name: deskProofMod.cutPoints(String(s.name || 'untitled'), 60), agentName: deskProofMod.cutPoints(String((rec && rec.name) || s.agentId || 'an agent'), 40),
     grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and '), task: deskProofMod.cutPoints(task, 400), changed: changed === true };
 }
@@ -18498,6 +18554,8 @@ async function createCronJobFromSpec(body, opts) {
   // an unattended grant only rides a create the desk confirmed (handleCronCreate); every other caller (the /routine slash
   // action, an app's refresh routine, a line's schedule) makes a routine with none, as the chain-grants law says
   if (!(opts && opts.grantsConfirmed === true)) body = Object.assign({}, body, { unattendedGrants: [] });
+  // the script digest is the station's own, read when the desk said yes (review2 #3); never the body's
+  body = Object.assign({}, body, { scriptDigest: (opts && opts.grantsConfirmed === true && typeof opts.scriptDigest === 'string') ? opts.scriptDigest : null });
   const out = (status, obj) => ({ status: status, body: obj });
   const takeoverId = body.meta && body.meta.workflowTakeoverId;
   const widgetId = body.meta && body.meta.widgetId;
@@ -18574,7 +18632,7 @@ async function createCronJobFromSpec(body, opts) {
       // on this routine. cron-store whitelists it and inputpolicy re-filters at the gate, so an arbitrary body
       // value cannot widen a run. Absent -> [] -> the routine has no terminal, exactly as before.
       unattendedGrants: body.unattendedGrants,
-      skills: body.skills, script: body.script, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
+      skills: body.skills, script: body.script, scriptDigest: body.scriptDigest, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
       noAgent: body.noAgent, enabledToolsets: body.enabledToolsets, attachToSession: body.attachToSession,
       monitorMode: body.monitorMode === true,
       origin: body.origin,
@@ -18659,7 +18717,7 @@ function handleCronUpdate(req, res) {
        asks to keep them (keepGrants) and the desk says yes for the routine as it will run. Before, a desk-confirmed
        grant stayed on a routine whose prompt or script the page key had just rewritten. */
     const keepGrants = body.keepGrants === true;
-    let confirmed = new Set();
+    let confirmed = new Set(), confirmedDigest;
     {
       const current = cronStore.getJob(cronJobs, id) || {};
       const held = new Set(normalizeUnattendedGrants(current.unattendedGrants));
@@ -18668,12 +18726,16 @@ function handleCronUpdate(req, res) {
         : (Object.prototype.hasOwnProperty.call(patch, 'unattendedGrants') ? normalizeUnattendedGrants(patch.unattendedGrants) : held);
       const added = [...wanted].filter(g => !held.has(g)).sort();
       const rewrite = cronStore.grantsRevokedByEdit(current, patch).length > 0;
-      const confirm = (rewrite && keepGrants) ? [...wanted].sort() : added;
+      // review2 #3: a script whose bytes changed since the last yes is a rewrite too, for keeping its grants (ALLOW THIS VERSION)
+      const stale = cronScriptStale(current);
+      const confirm = ((rewrite || stale) && keepGrants) ? [...wanted].sort() : added;
       if (confirm.length) {
         if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
         const spec = Object.assign({}, current, patch);
-        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, confirm), routineGrantWords(spec, confirm, rewrite))) return;
+        spec.scriptDigest = cronScriptDigest(spec);
+        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, confirm), routineGrantWords(spec, confirm, rewrite || stale))) return;
         confirmed = new Set(confirm);
+        if (spec.script) confirmedDigest = spec.scriptDigest;
       }
     }
     let grantsDropped = [];
@@ -18696,7 +18758,8 @@ function handleCronUpdate(req, res) {
         }
         const candidate = Object.assign({}, current, edit);
         if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
-        let next = cronStore.updateJob(jobs, id, edit, { now: Date.now(), defaultTz: CRON_HOST_TZ });
+        // review2 #3: the bytes the desk's yes was for, recorded with it
+        let next = cronStore.updateJob(jobs, id, edit, Object.assign({ now: Date.now(), defaultTz: CRON_HOST_TZ }, confirmedDigest !== undefined ? { scriptDigest: confirmedDigest } : {}));
         if (enabled === true) next = cronStore.resumeJob(next, id, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         else if (enabled === false) next = cronStore.pauseJob(next, id);
         return next;
@@ -18946,7 +19009,7 @@ async function handleCronRun(req, res) {
       unattendedGrants: Array.isArray(job.unattendedGrants) ? job.unattendedGrants.slice() : [],
       // SOP recipes: Run Now is held to the same host-checked acceptance contract as the scheduled fire.
       postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
-      preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null,
+      preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null, cronScriptDigest: job.scriptDigest || null,
       scriptTimeoutMs: job.scriptTimeoutMs,
       // dockId comes from the crate above (placeCronWorkitem resolves job.dockId, else the agent's entry bay), exactly
       // like the scheduled fire's wrapper — a second dockId key here silently overrode it with undefined.
@@ -23506,7 +23569,7 @@ async function runOnceCore(o) {
   // it and COMMS words it through FriendlyError.CODE_TO_KIND: a host refusal never reads as the sink's generic run_failure
   if (o.cronScript) {
     let checked;
-    try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
+    try { checked = await executeCronScript({ id: runId, agentId, script: o.cronScript, scriptDigest: o.cronScriptDigest || null, workdir: o.workdir, unattendedGrants, scriptTimeoutMs: o.scriptTimeoutMs }, signal); }
     catch (e) {
       refuse({ message: (e && e.message) || String(e), failureCode: 'routine_script_failed' }, o.noAgent ? '' : model);
       return;
@@ -24547,7 +24610,8 @@ async function runOnceCore(o) {
     // AWAY WORKSHOP (W1): the Commander's recorded per-agent grant. The broker only consults it for an autonomous
     // cabinet:write / notebook:write (jail-scoped) — exec stays locked, non-jail tools unchanged. A read of the
     // live store each check keeps it honest (a toggle flip takes effect on the very next tool call, no restart).
-    workshop: (call, tool) => workshopOf(agentId),
+    // review2 #3: lifted by taint, as the terminal grant is: a run that read untrusted words writes its jail only with a card
+    workshop: (call, tool) => !execution.taintedBy() && workshopOf(agentId),
     // UNATTENDED CREDENTIAL GRANT: every ${VAR} this call references must name a service key the Commander
     // approved for unattended use. Read live from the store, so revoking the toggle takes effect on the very
     // next tool call. The tool re-checks independently at send time — this tier only decides consent.

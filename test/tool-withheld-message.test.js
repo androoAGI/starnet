@@ -127,8 +127,8 @@ A.ok(perms.indexOf('terminalAutonomy(call, tool)) return { allow: true') <
 // the grant must never be derivable from anything the model can influence
 A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\) && \(ownerTrusted \|\| unattendedGrants\.indexOf\('workbench'\) >= 0\)/.test(src),
   'terminal standing grants apply only before untrusted content, including for an owner DM');
-A.ok(/surface === 'interactive' \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
-  'the grant is ignored on the watched surface, where floor placement governs');
+A.ok(/\(surface === 'interactive' \|\| authoritySeal\.held\) \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
+  'the grant is ignored on the watched surface, where floor placement governs (and while the seal is held, review 4c)');
 
 /* ---- 4. the injection tripwire is wired at EVERY door ----
    Behavior lives in test/cron-guard.test.js; this locks the WIRING, which is where a scanner silently dies.

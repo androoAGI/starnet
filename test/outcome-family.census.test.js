@@ -2095,8 +2095,8 @@ const RAISED = { agentId: 'agent', runId: 'r-raised', reason: 'done', outcome: '
       const routineWireRow = j => ({ provider: 'openrouter', model: 'm-' + j.id, source: 'routine' });
       let snap = null;
       try {
-        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow', 'SchedulerState',
-          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow, require('../sidecar/scheduler-state.js'));
+        snap = new Function('cronHealth', 'cronArmed', 'cronTimer', 'CRON_TICK_MS', 'cronJobs', 'cronDriver', 'cronHalted', 'cronArmSet', 'cronDegraded', 'CRON_MAX_CONSECUTIVE_FAILURES', 'cronStore', 'routineWireRow', 'SchedulerState', 'cronScriptStale',
+          src + '\nreturn cronStateSnapshot(1000);')({ lastTickAt: 0, lastSuccessAt: 0, lastTickError: null }, true, 1, 60000, [{ id: 'jrun' }, { id: 'jsettling' }, { id: 'jidle' }], { leases }, false, true, null, 5, { MAX_PENDING_DELIVERIES: 9 }, routineWireRow, require('../sidecar/scheduler-state.js'), () => false);
       } catch (e) { snap = { error: String((e && e.message) || e) }; }
       const one = id => ((snap && snap.jobs) || []).find(x => x && x.id === id) || {};
       A.ok(!!src && one('jrun').inFlight === true && one('jrun').inFlightRunId === 'fx' && one('jsettling').inFlight !== true && one('jsettling').inFlightRunId === 'fy' && !one('jidle').inFlight && !one('jidle').inFlightRunId

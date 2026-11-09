@@ -291,6 +291,38 @@ function boot(port, workspaces, attemptsLeft) {
       A.eq(plain.body.grantsDropped, ['workbench'], 'and says which grants it lost');
       A.eq((await jobNow()).unattendedGrants, [], 'durably');
     }
+
+    // ---- review2 #3: the yes was for the script's bytes; a changed file does not run until it is allowed again ----
+    {
+      fs.writeFileSync(path.join(agentWs, 'digest.js'), 'console.log("approved bytes")\n', 'utf8');
+      const made = await j('POST', '/api/cron', { name: 'Digest check', prompt: 'run the digest check', schedule: 'every 1h', agentId: 'cron_brief',
+        script: 'digest.js', noAgent: true, unattendedGrants: ['workbench'] });
+      A.eq(made.status, 200, 'a granted script routine is made at the desk');
+      const did = made.body.job.id;
+      A.ok(/^sha256:[0-9a-f]{64}$/.test(String(made.body.job.scriptDigest || '')), 'and records the digest of the script it was allowed to run');
+      const ran = await j('POST', '/api/cron/run', { id: did });
+      A.ok(String(JSON.stringify(ran.body)).includes('approved bytes'), 'the approved script runs');
+      fs.writeFileSync(path.join(agentWs, 'digest.js'), 'console.log("swapped bytes")\n', 'utf8');
+      const row = (await j('GET', '/api/cron')).body.jobs.find(x => x.id === did);
+      A.eq(row.scriptChanged, true, 'the routines list says its script changed');
+      const refused = await j('POST', '/api/cron/run', { id: did });
+      A.ok(!String(JSON.stringify(refused.body)).includes('swapped bytes'), 'the swapped script does not run');
+      let after = null;
+      for (let tries = 0; tries < 50; tries++) { after = (await j('GET', '/api/cron')).body.jobs.find(x => x.id === did); if (after && after.lastError) break; await sleep(100); }
+      A.ok(/changed since you allowed this routine/.test(String((after && after.lastError) || '') + JSON.stringify(refused.body)), 'and the routine says why: ' + String(after && after.lastError).slice(0, 200));
+      const unconfirmed = await j('POST', '/api/cron/update', { id: did, patch: {}, keepGrants: true }, {});
+      A.eq(unconfirmed.status, 403, 'allowing the new version asks at the desk');
+      A.ok(/swapped bytes/.test(String((unconfirmed.body.deskConfirm || {}).summary || '')), 'and the question shows the new script');
+      const allowed = await j('POST', '/api/cron/update', { id: did, patch: {}, keepGrants: true });
+      A.eq(allowed.status, 200, 'the desk said yes');
+      A.ok(allowed.body.job.scriptDigest && allowed.body.job.scriptDigest !== made.body.job.scriptDigest, 'the new digest is recorded');
+      A.eq(allowed.body.job.unattendedGrants, ['workbench'], 'and the grant is kept');
+      const ranNew = await j('POST', '/api/cron/run', { id: did });
+      A.ok(String(JSON.stringify(ranNew.body)).includes('swapped bytes'), 'the allowed version runs');
+      const forged = await j('POST', '/api/cron/update', { id: did, patch: { scriptDigest: 'sha256:' + '0'.repeat(64) } }, {});
+      A.eq(forged.body.job.scriptDigest, allowed.body.job.scriptDigest, 'a patch cannot write the digest');
+      await j('POST', '/api/cron/remove', { id: did });
+    }
     await j('POST', '/api/cron/remove', { id: scriptCreate.body.job.id });
 
     // ---- persistence: the routine survives a fresh boot on the same workspace ----

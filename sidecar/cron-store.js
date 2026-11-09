@@ -103,6 +103,7 @@
 
   // fields a user may edit via updateJob. `id`, timestamps, run-state and counters are NOT editable here.
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
+  const SCRIPT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
 
   /* UNATTENDED CAPABILITY GRANT (2026-07-25) — the capability families the Commander explicitly approved for
      THIS routine to use with nobody watching. Default EMPTY: a routine grants nothing extra unless the user
@@ -231,6 +232,9 @@
       unattendedGrants: normGrants(spec.unattendedGrants),
       skills: normList(spec.skills, 8, /^[A-Za-z0-9_. -]{1,120}$/),
       script: spec.script != null ? String(spec.script) : null,
+      // the bytes of the script the desk's yes for its grants was given to (review2 #3). Set by the station only: not in
+      // EDITABLE, so a patch never writes it; updateJob takes it from ctx.scriptDigest when the station records a yes.
+      scriptDigest: SCRIPT_DIGEST_RE.test(String(spec.scriptDigest || '')) ? String(spec.scriptDigest) : null,
       scriptTimeoutMs: spec.scriptTimeoutMs != null ? Math.min(120000, Math.max(1000, parseInt(spec.scriptTimeoutMs, 10) || 30000)) : 30000,
       workdir: spec.workdir != null ? String(spec.workdir) : null,
       contextFrom: spec.contextFrom == null ? null : normList(spec.contextFrom, 8, ID_RE),
@@ -307,6 +311,7 @@
     return mapJob(jobs, id, (job) => {
       const next = Object.assign({}, job);
       for (const k of EDITABLE) if (Object.prototype.hasOwnProperty.call(patch, k)) next[k] = patch[k];
+      if (Object.prototype.hasOwnProperty.call(ctx, 'scriptDigest')) next.scriptDigest = SCRIPT_DIGEST_RE.test(String(ctx.scriptDigest || '')) ? String(ctx.scriptDigest) : null;
       if (Object.prototype.hasOwnProperty.call(patch, 'misfire')) next.misfire = normMisfire(patch.misfire);
       // dockId: a safe id or nothing (a cleared/garbage value removes the key — the job fires at the entry dock)
       if (Object.prototype.hasOwnProperty.call(patch, 'dockId')) { if (ID_RE.test(String(patch.dockId == null ? '' : patch.dockId))) next.dockId = String(patch.dockId); else delete next.dockId; }
