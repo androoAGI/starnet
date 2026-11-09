@@ -1649,7 +1649,9 @@
 
     const subagentsTool = {
       name: 'team.subagents', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
-      timeoutMs: SUBAGENT_WAIT_MAX_MS + 10000,   // registry backstop above the bounded wait (a plain list returns at once)
+      // the registry backstop: above the bounded wait for wait:true; any other call (a list, an id, a runId lookup) keeps the
+      // run's 30 s fast-tool cap (0 = ctx.timeoutMs), as before the wait existed
+      timeoutMs: (args) => (args && args.wait === true ? SUBAGENT_WAIT_MAX_MS + 10000 : 0),
       description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers. wait:true waits up to timeoutMs (max 3 min) for a status change instead of polling.',
       schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' }, wait: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
       run: async (args, ctx) => {

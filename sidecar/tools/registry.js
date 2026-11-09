@@ -667,7 +667,12 @@
       // run once, bounded by the per-tool timeout; any throw becomes an isError result. A per-call AbortController
       // (chained to the run's parent signal) is threaded in as ctx.signal so that on TIMEOUT we abort() the work
       // before rejecting — a timed-out tool no longer keeps running/spending in the background.
-      const timeoutMs = tool.timeoutMs || ctx.timeoutMs || 0;
+      // A tool's own backstop is a number, or (args) => ms when its wall clock depends on the call (team.subagents wait:true
+      // blocks for minutes, its plain list does not); 0 = the run's own fast-tool cap (ctx.timeoutMs)
+      const ownTimeoutMs = typeof tool.timeoutMs === 'function'
+        ? (() => { try { const ms = Number(tool.timeoutMs(call.args || {})); return ms > 0 && Number.isFinite(ms) ? ms : 0; } catch (_) { return 0; } })()
+        : tool.timeoutMs;
+      const timeoutMs = ownTimeoutMs || ctx.timeoutMs || 0;
       const scrubResult = resultScrubFor(tool);   // null for workspace / connector tools, or when no scrubber is attached
       const child = childAbort(ctx.signal);
       const ac = child.ctrl;

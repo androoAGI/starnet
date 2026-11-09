@@ -30,7 +30,8 @@
      D. ...and the run row keeps those counts (runstore: runs.jsonl, GET /api/runs), additive, so the history can price them.
      E. team.subagents could only be POLLED (one paid turn per look). wait:true blocks, bounded, until a listed worker
         changes, the run is cancelled, or a note for the run arrives (the real steer buffer); a timeout is an answer,
-        not an error; and one wait never outlives the provider's 5-minute prompt cache.
+        not an error; one wait never outlives the provider's 5-minute prompt cache; and only a wait outlasts the run's own
+        30 s fast-tool cap (the registry backstop is per call).
 
    Hermetic: replay provider, a stub registry whose shell behaves like shell.js (it starts in the run's base, keeps a
    cwd argument and a bare `cd`, and reports where it ran), an in-memory run store, a real subagent manager on a temp
@@ -525,7 +526,18 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       const orchSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'orchestration.js'), 'utf8');
       const cap = Number((/const SUBAGENT_WAIT_MAX_MS = (\d+);/.exec(orchSrc) || [])[1]);
       A.ok(cap > 0 && cap <= 240000, 'E0 one wait never outlives the 5-minute prompt cache (cap ' + cap + 'ms, a minute left for the turn that asked)');
-      A.ok(Number(tool.timeoutMs) >= cap && Number(tool.timeoutMs) < 300000, 'E0 the registry backstop sits above the bounded wait (' + tool.timeoutMs + 'ms)');
+      // the registry backstop is per call (review round 2): above the bounded wait for wait:true only; a list, an id or a
+      // runId lookup keeps the run's 30 s fast-tool cap (0 = ctx.timeoutMs), as before the wait existed
+      const backstop = (args) => (typeof tool.timeoutMs === 'function' ? Number(tool.timeoutMs(args)) : Number(tool.timeoutMs));
+      A.ok(backstop({ wait: true }) >= cap && backstop({ wait: true }) < 300000, 'E0 a wait:true call\'s registry backstop sits above the bounded wait (' + backstop({ wait: true }) + 'ms)');
+      A.eq([backstop({}), backstop({ id: 'sub_1' }), backstop({ runId: 'run_1' })], [0, 0, 0], 'E0 ...and every other call keeps the run\'s fast-tool cap (0 = ctx.timeoutMs)');
+      // ...and the registry reads that per-call form: (args) => ms, 0 = the run's own cap
+      const napReg = makeRegistry();
+      napReg.register({ impact: 'none', name: 'nap', schema: ANY, timeoutMs: (a) => (a && a.long ? 20000 : 0), run: () => new Promise(resolve => setTimeout(() => resolve('woke'), 400)) });
+      const napCtx = Object.assign(openCtx(BASE), { timeoutMs: 100 });
+      const napShort = await napReg.dispatch({ id: 'n1', name: 'nap', args: {} }, napCtx);
+      const napLong = await napReg.dispatch({ id: 'n2', name: 'nap', args: { long: true } }, napCtx);
+      A.ok(napShort.isError && !napLong.isError && /woke/.test(String(napLong.content)), 'E0 the registry applies a per-call backstop: 0 falls back to the run\'s cap (timed out), a longer one lets the call finish');
 
       finishAfter.set('researcher', 1500);   // long enough that the plain list below still sees it running on a loaded CPU
       const handle = JSON.parse((await tools.dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'x' }], background: true }, { agentId: 'lead', emit: () => {} })).content)[0];
