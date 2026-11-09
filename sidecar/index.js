@@ -9620,6 +9620,43 @@ function stationEpoch() {
   return epoch;
 }
 
+/* FOLLOW-UP FACTS (cost audit W1.3) — what this agent's follow-up controls could act on right now, for the dormant rule in
+   ProjectTools (capability/followups.js): true = a live handle or record exists, false = the host PROVED none, undefined =
+   unknown (the family stays on the wire). Read at a task run's start and by the TOOLSETS preview, from the state the
+   controls themselves act on: this agent's live PTY sessions; its background processes (local and Docker ones live in this
+   process's shellBg; an SSH backend's restart-persistent jobs live on the far machine, so that is unknown); the station's
+   routines and loops (routine.manage / loop.manage act on any of them); and the task board's cards in the agent save,
+   archived ones included (task.manage restores them). Cheap: in-memory counts, and the save is parsed only when its stamp
+   moved (the stationEpoch pattern). */
+let _taskCardsMemo = { stamp: '', has: undefined };
+function taskCardsExist() {
+  const now = saveStore.stamp('agent');
+  if (now && now === _taskCardsMemo.stamp) return _taskCardsMemo.has;
+  const r = saveStore.loadStamped('agent');
+  // no save at all: the board was never saved, so it holds no card. A save that would not read is unknown. The store
+  // answers which (its tagged read), never a file probe of our own (station-record-readers: P1 is station-record.js's).
+  if (!r.doc) return saveStore.loadState('agent').status === 'absent' ? false : undefined;
+  const has = Array.isArray(r.doc.workstreams) && r.doc.workstreams.some(w => w && w.kind === 'task');
+  if (r.stamp) _taskCardsMemo = { stamp: r.stamp, has: has };
+  return has;
+}
+function followupFactsFor(agentId) {
+  const fact = (tag, read) => {
+    try { const v = read(); return typeof v === 'boolean' ? v : undefined; }
+    catch (e) { failNote('tools.followups.' + tag, e); return undefined; }
+  };
+  return {
+    terminal: fact('terminal', () => terminalSessions.countRunning(agentId) > 0),
+    shellBg: fact('shell-bg', () => {
+      const backend = executionEnvironment.backendIdFor(agentId);
+      return (backend === 'local' || backend === 'docker') ? shellBg.count(agentId) > 0 : undefined;
+    }),
+    routines: fact('routines', () => (cronJobs || []).some(j => j && j.id)),
+    loops: fact('loops', () => (loopJobs || []).some(l => l && l.id)),
+    tasks: fact('tasks', taskCardsExist)
+  };
+}
+
 /* nightshiftUserRunCount() — the readiness evidence (pack.userRunCount) WITHOUT building the whole context pack
    (2026-10-19, idle-CPU piece 2). The precheck runs every 60 s night-shift tick once the gates clear, and while
    readiness stays cold it stands down every time — yet it built the full pack to read one number: two clones of the
@@ -16802,7 +16839,8 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
     realDesktopAuthority: unrestrictedHost && computerControl.available(), executionProfile, widgetScope: '',
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
-    availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() }
+    availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() },
+    followups: deferralOff ? undefined : followupFactsFor(agentId)   // the same live handles and records the run reads
   };
   const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
   facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
@@ -23937,7 +23975,9 @@ async function runOnceCore(o) {
     registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
-    leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability
+    leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
+    // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): live handles and records, read only where a deferral can apply
+    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
@@ -25576,11 +25616,12 @@ async function runOnceCore(o) {
      the watched browser run, a cron routine, a Workshop shift, a messaging reply. Putting it on handleRun alone
      (as a first draft did) left the AWAY runs — the ones nobody watched and therefore most need a readable name —
      with only the tool description to go on.
-     Gated on the tool actually being GRANTED to this run: instructing a model to call a tool it does not have is
-     the same class of dishonesty as a UI asserting unprovable state, and it would waste tokens on every run that
-     legitimately lacks it. Skipped for `internal` self-talk, whose prompt stays verbatim by contract.
-     A byte-stable constant, so it never shifts the cached system prefix. */
-  const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
+     Gated on the tool actually being ON THE WIRE of this run (cost audit W1.3): instructing a model to call a tool it
+     does not have is the same class of dishonesty as a UI asserting unprovable state, and it would waste tokens on
+     every run that legitimately lacks it. A chat turn carries no tools at all, so a GRANTED deliverable_note used to
+     put the clause on every greeting with nothing to call. Skipped for `internal` self-talk, whose prompt stays
+     verbatim by contract. A byte-stable constant, so it never shifts the cached system prefix. */
+  const canName = wireNames.indexOf('deliverable_note') >= 0;
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
   // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
   // the explicit Claude boundary precedes changing context, while runtime identity remains last

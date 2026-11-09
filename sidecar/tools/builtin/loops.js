@@ -5,6 +5,9 @@
    or the host derives it from an already-approved project. All mutations are consent-gated by orchestrator. */
 'use strict';
 
+// DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a station with no loop holds loop.manage off the wire; a result that
+// shows a real loop reveals it (capability/followups.js, loop.js revealTools)
+const LOOP_CONTROLS = require('../../capability/followups.js').revealFor('loops');
 const PATCHABLE = ['name', 'objective', 'agentId', 'model', 'provider', 'exitOn', 'maxIterations'];
 
 function clean(value, cap) {
@@ -57,7 +60,8 @@ function makeLoopTools(deps) {
       const loops = (state.loops || []).map(safeLoop);
       const body = { loops, halted: !!state.halted, armed: !!state.armed, inFlight: Number(state.inFlight) || 0 };
       if (body.halted) body.note = "LOOPS are stopped by the Commander's E-STOP; creating or resuming one does not lift it";
-      return { content: JSON.stringify(body), summary: loops.length + ' loop(s)' + (body.halted ? ' - E-STOPPED' : '') };
+      return { content: JSON.stringify(body), summary: loops.length + ' loop(s)' + (body.halted ? ' - E-STOPPED' : ''),
+        control: loops.some(l => l && l.id) ? { revealTools: LOOP_CONTROLS.slice() } : undefined };
     }
   };
 
@@ -89,7 +93,9 @@ function makeLoopTools(deps) {
       return {
         content: JSON.stringify({ ok: true, duplicate, loop: safe, halted: !!(row && row._halted), durable: true,
           note: row && row._halted ? "saved, but LOOPS remain stopped by the Commander's E-STOP" : undefined }),
-        summary: duplicate ? 'loop already exists - no duplicate created' : 'created durable loop "' + (safe && safe.name) + '"'
+        summary: duplicate ? 'loop already exists - no duplicate created' : 'created durable loop "' + (safe && safe.name) + '"',
+        // the loop is saved (or already existed): loop.manage rides the next call, only for a real record
+        control: safe && safe.id ? { revealTools: LOOP_CONTROLS.slice() } : undefined
       };
     }
   };

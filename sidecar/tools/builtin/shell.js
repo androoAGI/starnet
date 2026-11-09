@@ -33,6 +33,9 @@
   // fullOut is bounded (head + tail, output-capture.js): an unbounded `+=` crashed the station at V8's max string length
   const makeFullCapture = (typeof require === 'function') ? require('../../output-capture.js').makeFullCapture
     : function () { let s = ''; return { push: function (t) { s += t; }, value: function () { return s; }, elided: function () { return 0; } }; };
+  // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a run whose agent had no background process holds the shell.bg.*
+  // controls off the wire; the start that creates one reveals them (capability/followups.js, loop.js revealTools)
+  const BG_CONTROLS = (typeof require === 'function') ? require('../../capability/followups.js').revealFor('shellBg') : [];
   function safeAgentId(id) { if (!AID_RE.test(id || '')) throw new Error('bad agentId'); return id; }
   function clip(s, n) { s = String(s == null ? '' : s); n = n || 200; return s.length > n ? s.slice(0, n) + '…' : s; }
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
@@ -1686,7 +1689,9 @@
           const content = r.ok
             ? 'Started background process ' + r.bgId + ' in your workspace. It keeps running while you work — check it with shell.bg.status (id "' + r.bgId + '"), read its full log with shell.bg.read, send it input with shell.bg.write, stop it with shell.bg.kill.'
             : 'Could not start a background process: ' + r.error;
-          return { content: content, summary: r.ok ? ('bg started ' + r.bgId) : 'bg refused' };
+          // a real handle now exists: its controls ride the next call (a no-op where they were already advertised)
+          return r.ok ? { content: content, summary: 'bg started ' + r.bgId, control: { revealTools: BG_CONTROLS.slice() } }
+            : { content: content, summary: 'bg refused' };
           });
         });
         const requestedMs = args && (args.timeoutMs || args.timeout_ms);
@@ -1783,13 +1788,19 @@
             : v.outputSpillCapped ? '\n[output log: the first ' + v.outputBytes + ' bytes are durably appended to ' + spillPath(v.outputPath, ctx) + '; the log stopped at its cap, later output is only in the memory ring]'
             : (v.outputSpillError ? '\n[full-output spill failed: ' + v.outputSpillError + ']' : '');
           const state = v.running ? 'RUNNING' + killNote(v) : v.lost ? 'LOST — ' + (v.remoteBoundary || 'remote process identity is unconfirmed') : 'exited ' + v.exitCode + (v.killed ? ' (killed)' : '') + killNote(v);
-          return { content: '[' + v.bgId + '] ' + state + ' · ' + v.ms + 'ms · ' + v.cmd + saved + '\n--- output tail ---\n' + redact(v.tail || '(none)'), summary: v.running ? 'running' : v.lost ? 'lost' : 'exited ' + v.exitCode };
+          return withLiveControls({ content: '[' + v.bgId + '] ' + state + ' · ' + v.ms + 'ms · ' + v.cmd + saved + '\n--- output tail ---\n' + redact(v.tail || '(none)'), summary: v.running ? 'running' : v.lost ? 'lost' : 'exited ' + v.exitCode }, [v]);
         }
         const list = await Promise.resolve(source ? source.statusBackground(aid) : bg.status(aid)) || [];
         if (!list.length) return { content: 'No background processes.', summary: '0' };
-        return { content: list.map(function (v) { return '[' + v.bgId + '] ' + (v.running ? 'RUNNING' : v.lost ? 'LOST (identity mismatch)' : 'exited ' + v.exitCode) + killNote(v) + ' · ' + v.cmd; }).join('\n'), summary: list.length + ' process(es)' };
+        return withLiveControls({ content: list.map(function (v) { return '[' + v.bgId + '] ' + (v.running ? 'RUNNING' : v.lost ? 'LOST (identity mismatch)' : 'exited ' + v.exitCode) + killNote(v) + ' · ' + v.cmd; }).join('\n'), summary: list.length + ' process(es)' }, list);
       }
     };
+    // a status that SHOWS a running process (one started by another run of this agent while this one ran) brings its
+    // controls onto the wire, exactly as the start would have; a list of finished ones reveals nothing (cost audit W1.3)
+    function withLiveControls(result, views) {
+      if ((views || []).some(function (v) { return v && v.running; })) result.control = { revealTools: BG_CONTROLS.slice() };
+      return result;
+    }
     // A kill is reported only as far as it was proven (shellbg.js killState): never "(killed)" for a tree that
     // may still be running.
     function killNote(v) {

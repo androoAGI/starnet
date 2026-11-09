@@ -10,15 +10,22 @@
                           interactive LEAD run, ASK approval, no connectors, no media/Spotify credentials.
      fully-granted-floor  the same station with the master bypass on: every CAP_REGISTRY object is materialized.
      lead-with-crew       the default floor again with ONE specialist on the roster (the crew>0 lead path).
+     comms-task           the call a Commander's first COMMS task sends on a fresh station: the page's composed lead persona,
+                          a COMMS stream, the starter floor. It also pins prefixBytes, the system + tool-schema bytes.
+     claude-cli           that same call on the claude-cli route: the bytes of the --system-prompt-file (tools ride it as text).
 
    A budget failure is a REVIEW prompt, not a bug report: if the growth is intended, raise the budget in the same
    commit and say why. Also re-asserts the chat-diet law: a non-task turn carries NO tools on the wire. */
 'use strict';
 const A = require('./_assert.js');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const vm = require('node:vm');
 const http = require('node:http');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const WM = require('../frontend/app/worldmodel.js');
-const { hostNotes } = require('./helpers/host-notes.js');
+const { hostNotes, userWords } = require('./helpers/host-notes.js');
 
 const MARK = 'PAYLOAD_BUDGET_PROBE';
 const HOST = '127.0.0.1';
@@ -110,20 +117,102 @@ const HOST = '127.0.0.1';
    edited); no parameter name, type, required list or enum moved. Measured base ab5fa2c98 -> lane: default-new-install
    and fully-granted-floor 61,281 -> 58,272 tool bytes (-3,009, -4.9%), lead-with-crew 66,111 -> 63,021 (-3,090); system
    chars unchanged at 22,229 / 22,450 / 25,397; 79 / 79 / 84 tools. Tool-byte budgets = measurement + ~0.6% so the diet
-   cannot silently regrow: a lane that adds a tool raises them here, in the same commit, and says why. */
+   cannot silently regrow: a lane that adds a tool raises them here, in the same commit, and says why.
+   DORMANT FOLLOW-UP CONTROLS 2026-11-08 (agent/dormant-controls, cost audit W1.3): RATCHET DOWN, nothing removed. The
+   controls for things a run has not started (terminal.status / read / write / resize / interrupt / stop, shell.bg.read /
+   write / kill / wait, routine.manage, loop.manage, task.manage; shell.bg.status too where shell.exec is off the wire)
+   stay granted and named in the [HARNESS] deferred list, where tool_search finds them, but leave the wire until a live
+   terminal, background process, routine, loop or task card exists. The starter's result reveals them on the next call
+   (capability/followups.js). Measured trunk e316231d7 -> lane: default-new-install and fully-granted-floor 79 -> 66 tools,
+   58,343 -> 50,990 tool bytes; lead-with-crew 84 -> 71, 63,246 -> 55,893; system chars unchanged (22,226 / 22,447 /
+   25,394). Tool-byte budgets = measurement + ~0.6%.
+   THE COMMS TASK CALL (same lane): the rows above probe with a one-line system and no COMMS stream, so none of them is the
+   call a Commander's first COMMS task really sends. comms-task is that call (composed lead persona, COMMS stream, starter
+   floor, an OpenRouter key on the mock): 95,184 -> 87,340 fixed-prefix bytes (system 29,774 unchanged; 83 -> 70 tools,
+   65,410 -> 57,566 tool bytes, of which -491 is brief_ask saying its per-question field descriptions once). prefixBytes'
+   budget is the cost audit's target, 87,500; the others are measurement + ~0.3% (chars) / ~0.6% (tool bytes). claude-cli
+   sends the same call as one --system-prompt-file: 91,700 -> 84,558 bytes, budget measurement + ~0.3%. */
 const BUDGET = {
-  'default-new-install': { systemChars: 22282, tools: 79, toolBytes: 58620 },
-  'fully-granted-floor': { systemChars: 22502, tools: 79, toolBytes: 58620 },
-  'lead-with-crew': { systemChars: 25422, tools: 84, toolBytes: 63400 }
+  'default-new-install': { systemChars: 22282, tools: 66, toolBytes: 51300 },
+  'fully-granted-floor': { systemChars: 22502, tools: 66, toolBytes: 51300 },
+  'lead-with-crew': { systemChars: 25422, tools: 71, toolBytes: 56230 },
+  'comms-task': { systemChars: 32115, tools: 70, toolBytes: 57900, prefixBytes: 87500 }
 };
+// the comms-task call on the claude-cli route, where the tool schemas are text inside the system prompt file (bytes)
+const CLI_BUDGET = { systemBytes: 84810 };
+
+/* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed
+   from the page's own functions over the real personas.js and specialties.js, so the comms-task rows measure the prompt a
+   Commander's first COMMS task really ships, persona included (a persona edit moves them, as it moves the real call). */
+function commsPersona() {
+  const dir = path.join(__dirname, '..', 'frontend', 'app');
+  const app = fs.readFileSync(path.join(dir, 'app.js'), 'utf8');
+  const FNS = ['liveAgents', 'baseIdentity', 'orchestratorClause', 'agentDocs', 'approvalClause', 'foundationClause', 'rosterClause', 'rosterRole', 'composeSystemPrompt', 'executionProfileOf'];
+  const bodies = FNS.map(n => A.fnBody(app, 'function ' + n + '('));
+  bodies.forEach((b, i) => A.ok(b.length > 0 && b.length < 20000, 'comms persona: app.js ' + FNS[i] + ' is sliced whole (' + b.length + ' chars)'));
+  const ids = /const EXECUTION_PROFILE_IDS = \[[^\]]*\];/.exec(app);
+  A.ok(!!ids, 'comms persona: app.js names its execution profiles');
+  const ctx = { console, Specialties: require('../frontend/app/specialties.js'), agents: new Map(), DossierStore: { composeBlock: () => '' } };
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(dir, 'personas.js'), 'utf8') + '\n;this.Personas = Personas;', ctx);
+  vm.runInContext((ids ? ids[0] : '') + '\n' + bodies.join('\n') + '\nthis.__api = { agentDocs, composeSystemPrompt };', ctx);
+  const lead = { id: 'agent', name: 'NOVA', role: 'orchestrator', personaId: 'composed', approvalMode: 'ask' };
+  ctx.__api.agentDocs(lead);
+  ctx.agents.set(lead.id, lead);
+  return ctx.__api.composeSystemPrompt(lead);
+}
+const COMMS_TASK = 'Research the three most popular open-source note-taking apps and save a short comparison table to notes/compare.md.';
+
+/* A FAKE claude CLI (the aux-token-ceiling pattern): claude-cli.js runs the cli.js beside a .cmd shim; this one records the
+   --system-prompt-file it was handed and answers one line. No real CLI, no sign-in, no inference. */
+const FAKE_CLI = `'use strict';
+const fs = require('fs');
+const args = process.argv.slice(2);
+const out = o => process.stdout.write(JSON.stringify(o) + '\\n');
+if (args[0] === 'auth') { out({ loggedIn: true, authMethod: 'claude.ai', subscriptionType: 'max' }); process.exit(0); }
+if (args[0] === '--version' || args[0] === '-v') { process.stdout.write('2.1.300 (Claude Code)\\n'); process.exit(0); }
+const at = args.indexOf('--system-prompt-file');
+let system = '';
+try { system = at >= 0 ? fs.readFileSync(args[at + 1], 'utf8') : ''; } catch (_) {}
+process.stdin.resume();
+process.stdin.on('end', () => {
+  fs.appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ system }) + '\\n');
+  out({ type: 'system', subtype: 'init', apiKeySource: 'none', tools: [] });
+  out({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } } });
+  out({ type: 'result', subtype: 'success', is_error: false, result: 'ok', stop_reason: 'end_turn', total_cost_usd: 0,
+    usage: { input_tokens: 400, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 2 } });
+});
+`;
+
+const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (typeof p === 'string' ? p : ((p && p.text) || ''))).join('') : String(c == null ? '' : c));
+// one captured request -> the numbers this ratchet pins. prefixBytes is the FIXED PREFIX every call of the run re-sends:
+// the UTF-8 bytes of its system messages plus its tool schemas, exactly as they sit on the wire.
+function shape(b) {
+  const tools = Array.isArray(b.tools) ? b.tools : [];
+  const system = (b.messages || []).filter(m => m.role === 'system');
+  // every system-role message PLUS the host notes that ride user-side (the per-run <run_context> note is the fenced
+  // leading text of the newest user message on this non-Claude wire since 1765d0a2c): host-authored prompt text is
+  // re-sent on every call wherever the wire puts it, so the ratchet keeps counting it
+  const noteChars = hostNotes((b.messages || []).filter(m => m.role === 'user')).reduce((n, t) => n + t.length, 0);
+  const toolBytes = tools.length ? Buffer.byteLength(JSON.stringify(tools)) : 0;
+  return {
+    systemChars: system.reduce((n, m) => n + text(m.content).length, 0) + noteChars,
+    noteChars,
+    tools: tools.length,
+    toolBytes,
+    prefixBytes: system.reduce((n, m) => n + Buffer.byteLength(text(m.content)), 0) + toolBytes
+  };
+}
 
 (async () => {
   const bodies = [];
+  const all = [];   // every model request (the comms-task row carries the real persona, not the MARK)
   const llm = http.createServer(async (req, res) => {
     let raw = ''; req.setEncoding('utf8'); for await (const c of req) raw += c;
     if (!raw) { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify({ data: [] })); }
     const body = JSON.parse(raw);
     const system = (body.messages || []).filter(m => m.role === 'system').map(m => String(m.content)).join('\n');
+    all.push(body);
     if (system.indexOf(MARK) >= 0) bodies.push(body);
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'ok' } }] }) + '\n\n');
@@ -151,19 +240,9 @@ const BUDGET = {
     A.eq(r.status, 200, 'run accepted');
     await r.text();
     A.eq(bodies.length, 1, 'exactly one foreground model call');
-    const b = bodies[0] || { messages: [] };
-    const tools = Array.isArray(b.tools) ? b.tools : [];
-    // every system-role message PLUS the host notes that ride user-side (the per-run <run_context> note is the fenced
-    // leading text of the newest user message on this non-Claude wire since 1765d0a2c): host-authored prompt text is
-    // re-sent on every call wherever the wire puts it, so the ratchet keeps counting it
-    const noteChars = hostNotes(b.messages.filter(m => m.role === 'user')).reduce((n, t) => n + t.length, 0);
-    return {
-      systemChars: b.messages.filter(m => m.role === 'system').reduce((n, m) => n + String(m.content).length, 0) + noteChars,
-      noteChars,
-      tools: tools.length,
-      toolBytes: tools.length ? Buffer.byteLength(JSON.stringify(tools)) : 0
-    };
+    return shape(bodies[0] || { messages: [] });
   }
+  let comms = null, fakeRoot = '';
   try {
     await fixture.start();
     A.eq(starter.slice().sort(), ['cabinet', 'dish', 'notebook', 'studio', 'workbench'], 'the starter floor is the five essentials (worldmodel.js starterDoc)');
@@ -180,17 +259,83 @@ const BUDGET = {
       { agentId: 'agent', name: 'NOVA', provider: 'custom', model: 'fixture-model' },
       { agentId: 'researcher', name: 'Ada', role: 'researcher', provider: 'custom', model: 'fixture-model' }] })).status, 200, 'one specialist on the roster');
     measured['lead-with-crew'] = await measure(true);
+    await fixture.dispose();
+
+    /* THE COMMS TASK CALL (cost audit W1.3): the rows above probe with a one-line system and no COMMS stream. This one is the
+       call a Commander's first COMMS task really sends on a fresh station: the page's composed lead persona as `system`, the
+       lead alone on the roster as the page posts it, a streamId (a COMMS stream: the Task Brief tools ride it), the starter
+       floor and a real task. A second hermetic sidecar, so the rows above stay exactly as they were; it also carries a FAKE
+       claude CLI, and the same call on the claude-cli route pins the --system-prompt-file it hands the CLI (on that wire the
+       tool schemas are text inside the system prompt). */
+    fakeRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-payload-cli-'));
+    const pkg = path.join(fakeRoot, 'node_modules', '@anthropic-ai', 'claude-code');
+    fs.mkdirSync(pkg, { recursive: true });
+    fs.writeFileSync(path.join(pkg, 'cli.js'), FAKE_CLI);
+    const shim = path.join(fakeRoot, 'claude.cmd');
+    fs.writeFileSync(shim, '@echo off\r\n');   // never executed: claude-cli.js runs the cli.js beside a .cmd shim
+    const cliLogFile = path.join(fakeRoot, 'calls.log');
+    fs.writeFileSync(cliLogFile, '');
+    const cliLog = () => fs.readFileSync(cliLogFile, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
+    const home = path.join(fakeRoot, 'home');
+    fs.mkdirSync(home);
+    // SidecarFixture leaves USERPROFILE real on Windows; this boot reads no real sign-in or home directory. An OpenRouter key
+    // is set (a fake one, on the mock) because a station that runs COMMS tasks has a provider: the cost audit measured that way.
+    comms = SidecarFixture.create({ prefix: 'starnet-payload-comms-', timeoutMs: 20000, env: Object.assign({}, env, {
+      HOME: home, USERPROFILE: home, STARNET_CLAUDE_BIN: shim, FAKE_CLAUDE_LOG: cliLogFile, STARNET_CLAUDE_CLI_PERSIST: '0',
+      SKYNET_OPENROUTER_BASE: 'http://' + HOST + ':' + llm.address().port + '/api/v1', SKYNET_OPENROUTER_KEY: 'sk-or-v1-local-proof', SKYNET_DEFAULT_MODEL: 'test/model',
+      STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', SKYNET_QUEST_REFRESH: '0' }) });
+    await comms.start();
+    const persona = commsPersona();
+    A.ok(persona.length > 3000 && persona.indexOf('NOVA') >= 0, 'comms persona: the composed lead persona (' + persona.length + ' chars)');
+    A.eq((await comms.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', system: persona, name: 'NOVA', provider: 'custom', model: 'fixture-model',
+      role: 'orchestrator', approvalMode: 'ask', executionProfile: 'station-gear', workshop: false, skills: [], reasoningEffort: null }] })).status, 200, 'the lead alone on the roster');
+    const placed = starter.map(objectType => ({ objectType }));
+    const commsRun = async extra => {
+      const r = await comms.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({
+        agentId: 'agent', isTask: true, placed, stationPlaced: placed, system: persona, messages: [{ role: 'user', content: COMMS_TASK }] }, extra)) });
+      const raw = await r.text();
+      A.eq(r.status, 200, 'comms run accepted (' + extra.provider + ')');
+      return raw;
+    };
+    all.length = 0;
+    await commsRun({ provider: 'custom', baseUrl: 'http://' + HOST + ':' + llm.address().port + '/v1', key: 'fixture-key', model: 'fixture-model', streamId: 'payload-comms-1' });
+    // the run's other request is the Task Brief intake pass, which carries no tools
+    const mains = all.filter(b => Array.isArray(b.tools) && b.tools.length);
+    A.eq(mains.length, 1, 'comms-task: exactly one foreground model call carries the tools');
+    const main = mains[0] || { messages: [] };
+    const mainSystem = (main.messages || []).filter(m => m.role === 'system');
+    A.ok(mainSystem.length === 1 && text(mainSystem[0].content).indexOf(persona) === 0, 'comms-task: the call opens with the composed COMMS persona');
+    A.ok((main.tools || []).some(t => t && t.function && t.function.name === 'brief_proceed'), 'comms-task: a COMMS stream run (the Task Brief tools ride it)');
+    A.eq(userWords((main.messages || []).filter(m => m.role === 'user').pop()), COMMS_TASK, 'comms-task: the Commander\'s task is the newest user message');
+    measured['comms-task'] = shape(main);
+    // the same first COMMS task on the claude-cli route
+    const st = await comms.json('GET', '/api/auth/claude-cli/status');
+    A.eq([st.status, st.body && st.body.installed, st.body && st.body.loggedIn], [200, true, true], 'claude-cli: the fake CLI is installed and signed in');
+    const cliBefore = cliLog().length;
+    await commsRun({ provider: 'claude-cli', model: 'claude-sonnet-5-5', streamId: 'payload-comms-2' });
+    const cliMains = cliLog().slice(cliBefore).filter(c => String(c.system).indexOf('\n\n# Tools\n') >= 0);
+    A.eq(cliMains.length, 1, 'claude-cli: exactly one foreground CLI call carries the tools block');
+    const cliSystem = cliMains.length ? String(cliMains[0].system) : '';
+    A.ok(cliSystem.indexOf(persona) === 0, 'claude-cli: the system prompt file opens with the composed COMMS persona');
+    const cliBytes = Buffer.byteLength(cliSystem);
+
     for (const id of Object.keys(BUDGET)) {
       const m = measured[id], b = BUDGET[id];
       console.log('[payload] ' + id + ': system ' + m.systemChars + ' chars (budget ' + b.systemChars + '; of which user-side notes ' + m.noteChars + ') | ' + m.tools + ' tools (budget ' + b.tools + ') | '
-        + m.toolBytes + ' tool bytes (budget ' + b.toolBytes + ')');
+        + m.toolBytes + ' tool bytes (budget ' + b.toolBytes + ') | fixed prefix ' + m.prefixBytes + ' bytes' + (b.prefixBytes ? ' (budget ' + b.prefixBytes + ')' : ''));
       A.ok(m.systemChars <= b.systemChars, id + ': system prompt ' + m.systemChars + ' chars within budget ' + b.systemChars);
       A.ok(m.tools <= b.tools, id + ': ' + m.tools + ' advertised tools within budget ' + b.tools);
       A.ok(m.toolBytes <= b.toolBytes, id + ': ' + m.toolBytes + ' tool-schema bytes within budget ' + b.toolBytes);
+      if (b.prefixBytes) A.ok(m.prefixBytes <= b.prefixBytes, id + ': fixed prefix ' + m.prefixBytes + ' bytes (system + tool schemas) within budget ' + b.prefixBytes);
       A.ok(m.tools > 10 && m.systemChars > 5000, id + ': the measurement saw a real task payload (not an empty request)');
     }
+    console.log('[payload] claude-cli: system prompt file ' + cliBytes + ' bytes (budget ' + CLI_BUDGET.systemBytes + ')');
+    A.ok(cliBytes <= CLI_BUDGET.systemBytes, 'claude-cli: system prompt file ' + cliBytes + ' bytes within budget ' + CLI_BUDGET.systemBytes);
+    A.ok(cliBytes > 20000, 'claude-cli: the measurement saw a real task prompt (persona, harness and tools block)');
   } finally {
     await fixture.dispose();
+    if (comms) await comms.dispose();
+    if (fakeRoot) { try { fs.rmSync(fakeRoot, { recursive: true, force: true }); } catch (_) {} }
     await new Promise(r => llm.close(r));
   }
   A.report('payload.budget');
