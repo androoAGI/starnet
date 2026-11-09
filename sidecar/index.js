@@ -21166,14 +21166,21 @@ async function handleRoster(req, res) {
   const widened = [];
   for (const a of incomingRows) {
     const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+    // a NEW agent with the product's own default (TRUSTED PROJECT: every summon, onboarding's Overseer, CLI awaken) is
+    // not a raise (fix-sec2 review2, breakage 1); widening an agent the station already holds still asks
+    if (!prev && profileOf(a) === NEW_AGENT_EXECUTION_PROFILE) continue;
     if (NARROW_EXECUTION_PROFILES.indexOf(profileOf(a)) < 0 && !(prev && prev.executionProfile === profileOf(a))) widened.push(id);
   }
+  /* WHICH QUESTION IS ASKED IS DECIDED BY THE BODY ALONE (review2, breakage 2). It used to be decided in part by whether a
+     desk proof header was present, so the replay of a confirmed Full Access raise took the combined branch, its proof
+     did not match that question, and the person's yes was lost. A push that asks for a raise (raise or raiseProfile)
+     of an agent whose profile also widens is asked both in one question, on the first request and on its replay. */
+  const askedProfile = new Set((Array.isArray(body.raiseProfile) ? body.raiseProfile : []).map(String));
+  const askedRaise = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
   let profileClamped = [];
   if (widened.length) {
-    const askedProfile = new Set((Array.isArray(body.raiseProfile) ? body.raiseProfile : []).map(String));
-    const askedRaise = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
-    const askingRaise = raised.length && (raised.some(id => askedRaise.has(id)) || req.headers['x-starnet-desk-proof']);
-    if (widened.some(id => askedProfile.has(id)) || req.headers['x-starnet-desk-proof']) {
+    const askingRaise = raised.length > 0 && raised.some(id => askedRaise.has(id));
+    if (widened.some(id => askedProfile.has(id) || askedRaise.has(id))) {
       // the profile is confirmed here; a Full Access raise in the same push is confirmed with it (one dialog, both named)
       const profiles = widened.map(id => nameOf(id) + ' use the ' + executionProfiles.resolve(profileOf(rowOf(id)), {}).label + ' profile');
       if (askingRaise) profiles.unshift('FULL ACCESS for ' + raised.map(nameOf).join(', '));
@@ -21189,8 +21196,7 @@ async function handleRoster(req, res) {
   }
   let clamped = [];
   if (raised.length) {
-    const asked = new Set((Array.isArray(body.raise) ? body.raise : []).map(String));
-    if (raised.some(id => asked.has(id)) || req.headers['x-starnet-desk-proof']) {
+    if (raised.some(id => askedRaise.has(id))) {
       const names = raised.map(nameOf);
       if (!deskGate(req, res, 'approval-full', raised.slice().sort().join(','), { names: names.join(', '), count: raised.length })) return;
     } else {
@@ -21310,6 +21316,7 @@ function saveApprovalMode(agentId, mode) {
 const RELAYED_RAISE_MAX = 3, RELAYED_RAISE_WINDOW_MS = 10 * 60 * 1000, RELAYED_RAISE_GAP_MS = 30 * 1000;
 const relayedRaiseTimes = [];
 const NARROW_EXECUTION_PROFILES = Object.freeze(['station-gear', 'safe-cell']);   // as authority-seal.js NARROW_PROFILES
+const NEW_AGENT_EXECUTION_PROFILE = 'trusted-project';   // what a new agent is given (app.js summon/onboarding, bin/lib/awaken.js)
 async function handleAgentApproval(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }

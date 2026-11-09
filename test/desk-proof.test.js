@@ -293,6 +293,9 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const roster = A.fnBody(IDX, 'async function handleRoster(');
     A.ok(roster.indexOf("deskGate(req, res, 'execution-profile'") > 0 && roster.indexOf("deskGate(req, res, 'execution-profile'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a wider execution profile asks first');
     A.ok(/profileClamped = widened;[\s\S]{0,300}executionProfile: \(previousRoster\.get\(String\(a\.agentId\)\) \|\| \{\}\)\.executionProfile \|\| 'station-gear'/.test(roster), 'a push that does not ask keeps the profile the station holds');
+    // review2 breakages 1 and 2 (behaviour in test/roster-raise.http.test.js)
+    A.ok(roster.indexOf('x-starnet-desk-proof') < 0, 'which question a push is asked is decided by its body, never by a proof header');
+    A.ok(/if \(!prev && profileOf\(a\) === NEW_AGENT_EXECUTION_PROFILE\) continue;/.test(roster) && /const NEW_AGENT_EXECUTION_PROFILE = 'trusted-project';/.test(IDX), 'a new agent with the product default profile is not a raise');
     const approval = A.fnBody(IDX, 'async function handleAgentApproval(');
     A.ok(approval.indexOf('relayedRaiseTimes.length >= RELAYED_RAISE_MAX') > 0 && approval.indexOf('relayedRaiseTimes.length >= RELAYED_RAISE_MAX') < approval.indexOf("stationBridge.request('station.control', { action: 'agent.approval'"), 'a Full Access raise relayed to the window is rate limited before the window is asked');
     // channelResolveConsent, lifted and run: a chat never gives a standing answer

@@ -61,7 +61,9 @@ const { seedActiveStation } = require('./helpers/station.js');   // a crew lives
     // audit 1.3 — approvalMode MUST persist. The load path (replaceAgentRoster) parses it, but saveAgentRoster used
     // to OMIT it, so a Full-Access agent silently reverted to 'ask' on every sidecar restart. Push a 'full' agent
     // (fresher stamp so it isn't refused as stale) and prove it lands in the on-disk roster envelope.
-    const full = await j('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'v3', name: 'Ultron', provider: 'openrouter', approvalMode: 'full', executionProfile: 'trusted-project' }], updatedAt: 200 });
+    // raising the held agent to Full Access and a wider profile is confirmed at the desk (GHSA-2hpj #1, fix-sec2 review 7):
+    // the push asks for both, and the test types the code the station printed, as the person there would
+    const full = await fixture.deskJson('POST', '/api/roster', { agents: [{ agentId: 'agent', system: 'v3', name: 'Ultron', provider: 'openrouter', approvalMode: 'full', executionProfile: 'trusted-project' }], updatedAt: 200, raise: ['agent'], raiseProfile: ['agent'] });
     A.eq(full.body.ok, true, 'the Full-Access push is accepted (fresher stamp)');
     const onDisk = JSON.parse(fs.readFileSync(rosterFile, 'utf8'));
     const savedAgent = (onDisk.agents || []).find(a => a.agentId === 'agent') || {};
@@ -125,8 +127,10 @@ const { seedActiveStation } = require('./helpers/station.js');   // a crew lives
     A.eq(saved2.executionProfile, 'safe-cell', 'profile changes without changing approval posture');
     const routed = await jj('GET', '/api/execution-profiles');
     const routedAgent = ((routed.body && routed.body.agents) || []).find(a => a.agentId === 'agent') || {};
-    A.eq(routedAgent.profile && routedAgent.profile.effectiveBackend, 'local', 'Full Power routes this agent to the local host even while Safe Cell remains the stored post-revocation profile');
-    A.eq(routedAgent.environment && routedAgent.environment.effectiveBackend, 'local', 'runtime truth agrees with active Full Power host authority');
+    // GHSA-2hpj #2: Full Access no longer moves a Safe Cell agent onto this computer; its commands are refused, by name
+    A.eq(routedAgent.profile && routedAgent.profile.effectiveBackend, 'docker', 'Full Power does not move a Safe Cell agent onto the local host');
+    A.eq(routedAgent.environment && routedAgent.environment.fullPowerConflict, true, 'runtime truth says Full Access and Safe Cell conflict');
+    A.eq(routedAgent.environment && routedAgent.environment.refusing, true, 'and that its commands are refused rather than moved');
     A.eq(routed.body && routed.body.backend && routed.body.backend.routing && routed.body.backend.routing.perAgent, true, 'station status exposes per-agent backend routing');
     A.eq(routed.body && routed.body.policy && routed.body.policy.idleCleanupMinutes, 17, 'idle cleanup policy survives a sidecar restart');
     A.eq(routedAgent.sshTarget && routedAgent.sshTarget.host, 'buildbox', 'nonsecret SSH destination survives the same restart');
