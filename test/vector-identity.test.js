@@ -117,7 +117,6 @@ A.ok(!/vx\/crest\.png/.test(css) && !fsx.existsSync(pathx.join(__dirname, '..', 
 A.ok(!/#stage-wrap::after \{[^}]*(mix-blend|[^-]filter\s*:)/.test(css), 'the station view housing is a frame only (no filter, no blend on the world)');
 A.ok(/\.comms-presence\.resolved\.tone-bad \{ --hz: var\(--bad/.test(css) && /\.comms-presence\.resolved\.tone-warn \{ --hz: var\(--warn/.test(css),
   'the hazard plate wears the run\'s true state colour (bad = red, warn = amber), never the theme hue');
-A.ok(/\.ws-row\.sel:not\(\.attn\) \{[^}]*color: #020604/.test(css), 'a selected row is inverse video (black type on the lit slot)');
 
 A.ok(css.includes('.ws-row.sel:not(.attn) *:not(.ws-dot)') && !/\.ws-row\.sel:not\(\.attn\) \* \{/.test(css),
   'inverse video never inks the row state dot: a failed/working mark keeps its true colour on a selected row');
@@ -148,4 +147,22 @@ A.ok(/#left \.ws-head \.ws-tab\.on \{[^}]*var\(--vx-cap-on\)/.test(css), 'the ch
 A.ok(/\.fam-tabs > \.fam-tab\.on, \.q-view-tabs > button\[aria-selected="true"\], \.utility-tabs > button\[aria-pressed="true"\], \.fm-tabs > \.fm-tab\.on\) \{[^}]*var\(--vx-cap-on\)/.test(css),
   'window tab rows light the chosen tab from the app’s own state (.on / aria-selected / aria-pressed)');
 A.ok(/#chat-inputrow \.chat-editline \{[^}]*var\(--vx-well\)/.test(css), 'the COMMS composer text sits in a recessed well inside a chrome deck');
+// ---- the playlist (Andrew 2026-11-08: "the session list should almost be like what the music playlist is here"): one dark LCD
+// screen, numbered tracks, a lit band on the chosen one. The band is NOT inverse video, so every state mark keeps its true
+// colour on it; the track numbers are display-only (hidden from assistive tech) ----
+A.ok(/#left :is\(#workstreams, #projects\) \{[^}]*background: var\(--vx-lcd\)[^}]*counter-reset: vxtrack/.test(css), 'the session list is one LCD screen that numbers its tracks');
+A.ok(/content: counter\(vxtrack, decimal-leading-zero\) "\." \/ "";/.test(css), 'track numbers are display-only (empty alt text: a reader never hears them)');
+A.ok(/:not\(\.rows-inbox\) #screen-game #left :is\(#workstreams, #projects\) > \.ws-row::before/.test(css), 'numbering stays out of the inbox row grid (it would claim a grid cell)');
+for (const [st, col] of [['unseen', 'var(--gold)'], ['working', 'var(--ph-bright)'], ['failed', 'var(--bad)']])
+  A.ok(css.split('\n').some(l => l.includes('.ws-row.ws-row.sel:not(.attn) .ws-dot.' + st) && (l.includes('{ background: ' + col) || css.includes('.ws-dot.' + st + ',\n'))),
+    'the chosen track keeps its ' + st + ' dot colour on the band');
+A.ok(/\.sel:not\(\.attn\) \.ws-dot\.unseen,\n[^{]*\.ws-dot\.needsyou \{ background: var\(--gold\)/.test(css), 'unseen and needs-you tracks keep --gold on the band');
+A.ok(/\.ws-dot\.unseen ~ \.ws-meta \{ color: var\(--gold\) !important/.test(css), 'an unseen track keeps its gold time token (the playlist type never repaints it)');
+A.ok(/#chat-panel #chat-log \{[^}]*background: var\(--vx-lcd\)/.test(css), 'the COMMS transcript is the same kind of LCD screen');
+// ---- the brand well is centred on the bar's axis and holds the whole mark; the dock keys are silver keys parted by black
+// channels, each LED in a dark lamp pocket so lit vs dark reads on the bright key ----
+A.ok(/#topbar::before \{[^}]*top: calc\(50% - 22px\)[^}]*width: 202px/.test(css), 'the brand well is centred on the top bar and wide enough for the whole mark');
+A.ok(/#bottombar \.bb-group > \.bb-grp::before \{[^}]*border-radius: 50%/.test(css), 'each dock LED sits in a dark lamp pocket');
+A.ok(!/border-radius: 999px \d+px \d+px 999px/.test(css) && !/border-radius: \d+px 999px 999px \d+px/.test(css),
+  'end keys use real pill radii (999px corners get scaled down with their neighbours and square the inner corners)');
 A.report('vector-identity');

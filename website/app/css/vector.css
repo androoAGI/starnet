@@ -1321,8 +1321,8 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp {
   text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
   transition: background .12s, box-shadow .12s, transform .08s;
 }
-html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"] > .bb-grp { border-radius: 999px 7px 7px 999px; padding-left: 18px; }
-html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp { border-radius: 7px 999px 999px 7px; padding-right: 26px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"] > .bb-grp { border-radius: 20px 9px 9px 20px; padding-left: 18px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp { border-radius: 9px 20px 20px 9px; padding-right: 26px; }
 html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp .bb-gi { filter: drop-shadow(0 0 3px rgba(var(--ph-rgb), .8)); }
 /* the LED: dark until the group has an open window (.has-active), then lit in the --gold state colour */
 html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp::after {
@@ -1402,8 +1402,8 @@ html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-tab, .ws-head-ac
   color: var(--vx-core) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75) !important;
   clip-path: none !important;
 }
-html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:first-child { border-radius: 999px 6px 6px 999px; padding-left: 16px; }
-html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:last-child { border-radius: 6px 999px 999px 6px; padding-right: 16px; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:first-child { border-radius: 16px 6px 6px 16px; padding-left: 16px; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-tab:last-child { border-radius: 6px 16px 16px 6px; padding-right: 16px; }
 html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-head-acts > button { border-radius: 999px; padding-inline: 15px; }
 html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-tab, .ws-head-acts > button):is(:hover, :focus-visible) {
   background: var(--vx-cap-hot) !important; color: color-mix(in srgb, var(--vx-core) 55%, #fff) !important; text-shadow: 0 0 8px rgba(var(--ph-rgb), 1) !important;
@@ -1472,8 +1472,8 @@ html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility
   background: var(--vx-cap) !important; box-shadow: var(--vx-cap-shadow) !important;
   color: var(--vx-core) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75) !important; clip-path: none !important;
 }
-html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:first-child { border-radius: 999px 6px 6px 999px !important; }
-html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:last-child { border-radius: 6px 999px 999px 6px !important; }
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:first-child { border-radius: 17px 6px 6px 17px !important; }
+html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:last-child { border-radius: 6px 17px 17px 6px !important; }
 html body.vx:not(.hud-mode) .term:not(.pw) :is(.fam-tabs, .q-view-tabs, .utility-tabs, .fm-tabs) > button:is(:hover, :focus-visible) {
   background: var(--vx-cap-hot) !important; color: color-mix(in srgb, var(--vx-core) 55%, #fff) !important;
 }
@@ -1488,3 +1488,178 @@ html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es
   color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
 }
 html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es-cta):is(:hover, :focus-visible) { background: var(--vx-cap-hot); }
+
+/* ============ 19 · PLAYLIST + SEATED MARK + DRONE KEYS — the session list is the skins' playlist screen (one dark LCD, numbered
+   tracks, a lit band on the chosen row, time column on the right); the brand well is centred on the bar's axis and wraps the
+   whole mark; the dock keys are silver moulded keys parted by black channels (the drone's keypad) ============ */
+
+/* the brand well: centred on the bar's axis (the + key and the pipe share it) and wide enough to hold the whole mark */
+html body.vx:not(.hud-mode) #screen-game #topbar { padding-left: 30px; }
+html body.vx:not(.hud-mode) #screen-game #topbar::before {
+  inset: auto; top: calc(50% - 22px); height: 44px; left: 19px; width: 202px;
+  border-radius: 14px;
+}
+html body.vx:not(.hud-mode) #screen-game #topbar > .widget-rail { margin-left: 22px; }
+/* the rails' lit rims start where the brand well and the transport bay end, never running across them */
+html body.vx:not(.hud-mode) #screen-game #topbar::after { left: 236px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar::after { left: 452px; }
+
+/* ---- the dock: a black recessed bay with a bright chrome lip; the keys are convex silver parted by black channels ---- */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group::before {
+  inset: -5px 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 5px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 3px 5px 3px rgba(0, 0, 0, .55);
+  clip-path: inset(-8px 0);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"]::before { left: -6px; clip-path: inset(-8px 0 -8px -8px); }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"]::before { right: -6px; clip-path: inset(-8px -8px -8px 0); }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group:not([data-group="crew"])::after { content: none; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group { border-color: transparent; }
+
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp {
+  margin-inline: 2px; padding-inline: 13px 22px;
+  border-radius: 9px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(255, 255, 255, .55), transparent 70%),
+    linear-gradient(180deg, #e9edf1 0, #b8c0c9 30%, #8a939e 52%, #6b747f 70%, #8f98a3 88%, #c3cad2 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35), inset 0 -2px 2px rgba(0, 0, 0, .35), 0 0 0 1px #000, 0 2px 2px rgba(0, 0, 0, .8);
+  color: #0b1014;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp .bb-gi {
+  color: color-mix(in srgb, var(--ph) 55%, #000);
+  filter: drop-shadow(0 1px 0 rgba(255, 255, 255, .6));
+}
+/* the LED sits in a little dark pocket cut into the key */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp::after {
+  width: 6px; height: 6px; margin-top: -3px;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 1px 0 2px rgba(255, 255, 255, .55);
+}
+/* hover: the key backlights in the hue from inside, the legend lights */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp:is(:hover, :focus-visible) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .9) 0, rgba(255, 255, 255, 0) 3px),
+    radial-gradient(ellipse 80% 70% at 50% 100%, rgba(var(--ph-rgb), .55), transparent 75%),
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(255, 255, 255, .6), transparent 70%),
+    linear-gradient(180deg, #f1f4f7 0, color-mix(in srgb, #b8c0c9 80%, var(--ph)) 30%, color-mix(in srgb, #8a939e 75%, var(--ph)) 52%, color-mix(in srgb, #6b747f 75%, var(--ph)) 70%, #c3cad2 100%);
+  color: #020604; text-shadow: 0 1px 0 rgba(255, 255, 255, .6);
+}
+/* open: the key is pushed into the bay and glows solid in the hue */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.open > .bb-grp {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .35) 0, rgba(0, 0, 0, 0) 4px),
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgba(255, 255, 255, .45), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--vx-core) 60%, #fff) 0, var(--ph) 55%, color-mix(in srgb, var(--ph) 65%, #000) 100%);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .5), 0 0 0 1px #000, 0 0 12px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.open > .bb-grp .bb-gi { color: #020604; }
+
+/* ---- the panels: the body goes smoked gunmetal so the screens set into it read as screens ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::before {
+  background:
+    var(--vx-glass-sweep),
+    radial-gradient(ellipse 110% 18% at 50% 100%, rgba(var(--ph-rgb), .12), transparent 72%),
+    radial-gradient(ellipse 125% 95% at 50% 45%, transparent 56%, rgba(0, 0, 0, .5) 100%),
+    var(--vx-grain-tube),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 9%, #10151a) 0%, color-mix(in srgb, var(--ph) 5%, #080b0e) 40%, color-mix(in srgb, var(--ph) 4%, #06080b) 75%, color-mix(in srgb, var(--ph) 8%, #0d1116) 100%);
+}
+
+/* ---- the playlist screen: one dark LCD set into the CREW body, the sessions are its tracks ---- */
+html body.vx:not(.hud-mode) {
+  --vx-lcd:
+    radial-gradient(ellipse 150% 60% at 15% -20%, rgba(255, 255, 255, .07) 0, rgba(255, 255, 255, .02) 50%, transparent 50.5%),
+    radial-gradient(ellipse 120% 60% at 50% 0%, rgba(var(--ph-rgb), .035), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 3%, #030507), color-mix(in srgb, var(--ph) 1.5%, #010203) 70%, color-mix(in srgb, var(--ph) 3%, #030507));
+  --vx-lcd-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .32), inset 0 0 22px rgba(var(--ph-rgb), .08),
+    0 0 0 2px #07090c, 0 0 0 3px #59626d, 0 1px 0 3px #dfe5eb, 0 0 0 4px #20252b;
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) {
+  margin: 4px 15px 15px; padding: 6px 0;
+  border-radius: 12px; corner-shape: round;
+  background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+  counter-reset: vxtrack;
+}
+/* a track: a line of type on the screen, never a plate */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row.ws-row.ws-row:not(.attn) {
+  background: transparent !important; border: 0 !important; box-shadow: none !important; clip-path: none !important;
+  border-radius: 0 !important; margin: 0 !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row {
+  counter-increment: vxtrack;
+  min-height: 30px; padding: 2px 12px 2px 10px; gap: 8px;
+}
+html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left :is(#workstreams, #projects) > .ws-row::before {
+  content: counter(vxtrack, decimal-leading-zero) "." / "";
+  flex: none; min-width: 2.2ch; order: -2;
+  color: rgba(var(--ph-rgb), .55); text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left :is(#workstreams, #projects) > .ws-row > .ws-dot { order: -1; }
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row .ws-title {
+  color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row .ws-meta { color: rgba(var(--ph-rgb), .7); }
+/* the rail dot reads as a small LED on the screen (its state colours are untouched) */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row > .ws-dot { width: 7px; height: 7px; flex: 0 0 7px; min-width: 0; border-radius: 50%; border-width: 0; }
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row > .ws-dot.connecting { border-width: 1px; }
+/* hover: a faint band */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row.ws-row.ws-row:not(.attn):not(.sel):not(.project-selected):is(:hover, :focus-visible) {
+  background: linear-gradient(90deg, rgba(var(--ph-rgb), .16), rgba(var(--ph-rgb), .06)) !important;
+}
+/* the chosen track: the lit selection band of the playlist */
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn),
+html body.vx:not(.hud-mode) #screen-game #left #projects > .ws-row.ws-row.proj-row:is(.project-selected, [aria-current="page"]) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .22) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .62), rgba(var(--ph-rgb), .34)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 0, 0, .45) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn) *:not(.ws-dot),
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn)::before { color: #fff !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .9) !important; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn) .ws-dot { box-shadow: 0 0 0 1px rgba(0, 0, 0, .7); }
+/* the selection band is not inverse video: the chosen track's LED keeps its own state colour (the old inverse rule blacked it) */
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot { background: var(--ph-dim); }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot.unseen,
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot.needsyou { background: var(--gold); }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot.working { background: var(--ph-bright); }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot.connecting { background: transparent; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot.failed { background: var(--bad); }
+/* an unseen track's time token keeps the --gold it shares with its dot */
+html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row .ws-dot.unseen ~ .ws-meta { color: var(--gold) !important; text-shadow: 0 0 6px rgba(var(--gold-rgb), .45) !important; }
+
+/* ---- the COMMS transcript is the same kind of screen, set into the COMMS body above the composer deck ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-log {
+  margin: 2px 16px 10px; border-radius: 12px; corner-shape: round;
+  background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+/* ---- the crew roster: a small LCD readout above the playlist, the chosen agent on the lit band ---- */
+html body.vx:not(.hud-mode) #screen-game #left #crew {
+  margin: 4px 15px 8px; padding: 4px 0; border-radius: 12px; corner-shape: round;
+  background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew > .crew-row.crew-row.crew-row {
+  margin: 0 !important; border: 0 !important; border-radius: 0 !important; clip-path: none !important;
+  background: transparent !important; box-shadow: none !important;
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew > .crew-row.crew-row.crew-row.selected {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .16) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .38), rgba(var(--ph-rgb), .14)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 -1px 0 rgba(0, 0, 0, .45) !important;
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="crew"] > .bb-grp { border-radius: 20px 9px 9px 20px; }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp { border-radius: 9px 20px 20px 9px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow { margin: 0 16px 14px; }
+/* a lit LED must carry on bright silver: a stronger --gold bloom than it needed on the dark caps */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group.has-active > .bb-grp::after {
+  box-shadow: 0 0 0 1px #000, 0 0 4px 1px var(--gold), 0 0 12px 3px rgba(var(--gold-rgb), .7);
+}
+/* each LED sits in a dark lamp pocket cut into the silver, so lit vs dark reads at a glance on the bright key */
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp::before {
+  content: ''; position: absolute; right: 6px; top: 50%; width: 12px; height: 12px; margin-top: -6px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, #020304 50%, #23292f 100%);
+  box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .65), 0 -1px 0 rgba(0, 0, 0, .35);
+}
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp::before { right: 10px; }
