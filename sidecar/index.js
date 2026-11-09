@@ -17031,7 +17031,7 @@ function deskGate(req, res, action, scope, details) {
   // page mode: too many wrong desk codes. Nothing is handed out again until the lockout ends; a restart does not end it (deskproof.js)
   if (deskProof.locked()) {
     const mins = Math.max(1, Math.ceil(deskProof.lockedForMs() / 60000));
-    respondFail(res, 403, 'forbidden', 'Too many wrong confirmation codes were typed, so this station takes no permission change for ' + mins + ' more minute' + (mins === 1 ? '' : 's') + '.', { deskLocked: true, retryAfterMs: deskProof.lockedForMs() });
+    respondFail(res, 403, 'desk_locked', 'Too many wrong confirmation codes were typed, so this station takes no permission change for ' + mins + ' more minute' + (mins === 1 ? '' : 's') + '.', { deskLocked: true, retryAfterMs: deskProof.lockedForMs() });
     return false;
   }
   const words = deskWords(action, details);

@@ -413,7 +413,7 @@ const IMPLS = {
     /* ALLOW-ALWAYS NEEDS THE DESK (GHSA-2hpj #1; fix-sec2, review 8). A standing answer is confirmed in the StarNet window,
        which a bridge cannot do. The ask is not left waiting: this call is allowed once, and the answer says so. */
     const j = r.json || {};
-    if (mapped === 'always' && r.status === 403 && (j.code === 'desk_confirm_required' || j.code === 'desk_only')) {
+    if (mapped === 'always' && r.status === 403 && (j.code === 'desk_confirm_required' || j.code === 'desk_only' || j.code === 'desk_locked')) {
       r = await ctx.callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: 'once' });
       if (!r.ok) return sidecarDown(ctx, r);
       if (r.status !== 200) return badStatus('/api/consent', r);

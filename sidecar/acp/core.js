@@ -518,7 +518,7 @@
             /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): the station confirms a 'session' answer in the StarNet
                window, which an editor cannot. The ask is not left waiting: it is allowed once, and the log says why. */
             const j = (r && r.json) || {};
-            if (decision !== 'session' || !r || r.status !== 403 || (j.code !== 'desk_confirm_required' && j.code !== 'desk_only')) return r;
+            if (decision !== 'session' || !r || r.status !== 403 || (j.code !== 'desk_confirm_required' && j.code !== 'desk_only' && j.code !== 'desk_locked')) return r;
             log('"allow for this session" is confirmed in the StarNet window; allowed once instead');
             return callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: 'once' });
           }))

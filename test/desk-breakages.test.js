@@ -44,7 +44,7 @@ const IDX = read('sidecar/index.js');
   // ---- 8. MCP allow-always: allowed once, said so ----
   {
     const { makeBridge } = require('../sidecar/mcp/bridge-core.js');
-    for (const refusal of ['desk_confirm_required', 'desk_only']) {
+    for (const refusal of ['desk_confirm_required', 'desk_only', 'desk_locked']) {
       const calls = [];
       const bridge = makeBridge({ callSidecar: async (m, p, b) => {
         calls.push(b && b.decision);
@@ -69,7 +69,25 @@ const IDX = read('sidecar/index.js');
     A.ok(/decision === 'always' && deskRefusal\(r\)/.test(body), 'the terminal sees the desk refusal of ALWAYS');
     A.ok(/decision: 'once', via: 'terminal'/.test(body) && /downgraded = true/.test(body), 'and answers the card once instead of leaving it waiting');
     A.ok(/allowed ONCE: ALWAYS is confirmed in the StarNet window/.test(body), 'and says so');
-    A.ok(/function deskRefusal\(r\) \{ return !!\(r && r\.status === 403 && r\.json && \(r\.json\.code === 'desk_confirm_required' \|\| r\.json\.code === 'desk_only'\)\); \}/.test(dash), 'deskRefusal reads the station\'s own codes');
+    A.ok(/function deskRefusal\(r\) \{ return !!\(r && r\.status === 403 && r\.json && \(r\.json\.code === 'desk_confirm_required' \|\| r\.json\.code === 'desk_only' \|\| r\.json\.code === 'desk_locked'\)\); \}/.test(dash), 'deskRefusal reads the station\'s own codes, the lockout too');
+  }
+  // ---- breakage 4 (review-sec2): the wrong-code lockout has its own name, and every "fall back to once" path reads it ----
+  {
+    const respond = require('../sidecar/respond.js');
+    A.eq(respond.CODES.desk_locked, 403, 'desk_locked is one of the station\'s codes');
+    const gate = A.fnBody(IDX, 'function deskGate(');
+    A.ok(/if \(deskProof\.locked\(\)\) \{[\s\S]{0,200}respondFail\(res, 403, 'desk_locked',/.test(gate), 'the lockout answers desk_locked, not a bare forbidden');
+    const sc = read('bin/lib/station-commands.js');
+    A.ok(sc.indexOf("x.json.code === 'desk_only' || x.json.code === 'desk_locked'") > 0, '`starnet allow --session` falls back to once on a lockout');
+    const acp = read('sidecar/acp/core.js');
+    A.ok(acp.indexOf("j.code !== 'desk_only' && j.code !== 'desk_locked')) return r;") > 0, 'the ACP session answer falls back to once on a lockout, instead of leaving the card waiting');
+    for (const rel of ['frontend/app/', 'website/app/app/']) {
+      const app = read(rel + 'app.js'), h = read(rel + 'harness.js'), rt = read(rel + 'windows/routines.js'), fe = read(rel + 'friendlyerror.js');
+      A.ok(app.indexOf("deskCode === 'desk_only' || deskCode === 'desk_locked'") > 0 && /r\.desk === 'desk_locked' \? 'Full Access was not confirmed: too many wrong confirmation codes/.test(app), rel + ': a raise refused by the lockout is the desk\'s answer, said in words');
+      A.ok(h.indexOf("station === 'desk_only' || station === 'desk_locked'") > 0, rel + ': the page reads the lockout as the station\'s own answer, never a lost session');
+      A.ok(rt.indexOf("response.code === 'desk_only' || response.code === 'desk_locked'") > 0, rel + ': a granted routine\'s edit can still be saved without its permissions during a lockout');
+      A.ok(/desk_locked: 'station_refused'/.test(fe), rel + ': friendlyerror has the lockout\'s row');
+    }
   }
 
   // ---- 9. a lead's approved escalation meets the desk through the window ----

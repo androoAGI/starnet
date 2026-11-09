@@ -235,7 +235,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
       const right = shown.filter(n => n.id === ci.id).pop().code;
       res = fakeRes(); gate({ headers: { 'x-starnet-token': API, 'x-starnet-desk-proof': ci.id, 'x-starnet-desk-code': right === '999999' ? '999998' : '999999' } }, res, 'remote-pair', '', {});
     }
-    A.eq(res.headers['X-StarNet-Code'], 'forbidden', 'five wrong codes: refused outright');
+    A.eq(res.headers['X-StarNet-Code'], 'desk_locked', 'five wrong codes: refused outright, under its own name (desk_locked; fix-sec2 breakage 4)');
     A.ok(JSON.parse(res.body).deskLocked === true && /for \d+ more minutes?\./.test(JSON.parse(res.body).error), 'and the station says for how long it takes no permission change');
     res = fakeRes();
     A.eq(gate({ headers: { 'x-starnet-token': API } }, res, 'remote-pair', '', {}), false, 'locked: no new challenge either');
@@ -406,6 +406,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   A.ok(/X-StarNet-Desk-Proof/.test(A.fnBody(IDX, 'function applyApiCors(')), 'the desktop page\'s cross-origin replay may carry the proof header');
   A.eq(respond.CODES.desk_confirm_required, 403, 'desk_confirm_required is a named 403');
   A.eq(respond.CODES.desk_only, 403, 'desk_only is a named 403');
+  A.eq(respond.CODES.desk_locked, 403, 'desk_locked is a named 403');
   const rs = read('src-tauri/src/main.rs');
   const cmd = A.fnBody(rs, 'async fn starnet_desk_confirm(');
   A.ok(/desk_confirm_words_ok\(&id, &title, &summary, &verb\)\?;\s*if !confirm_host_launch\(&app, &title, &summary, &verb\)/.test(cmd), 'the shell checks the words, then shows them in its blocking native dialog');

@@ -676,7 +676,7 @@
           // still be saved without them (taking a permission away never needs the desk).
           const holds = Array.isArray(job.unattendedGrants) && job.unattendedGrants.length > 0 && ('prompt' in patch || 'agentId' in patch);
           let response = await Harness.api.post('/api/cron/update', holds ? { id, patch, keepGrants: true } : { id, patch });
-          if (holds && !response.ok && (response.code === 'desk_confirm_required' || response.code === 'desk_only')
+          if (holds && !response.ok && (response.code === 'desk_confirm_required' || response.code === 'desk_only' || response.code === 'desk_locked')
               && window.confirm('Save the changed routine without its unattended permissions?\n\nIt keeps running on its schedule, but no longer does what it was allowed to do with nobody watching.')) {
             response = await Harness.api.post('/api/cron/update', { id, patch });
           }

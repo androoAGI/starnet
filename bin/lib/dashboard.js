@@ -343,8 +343,9 @@ function runDashboard(station, opts) {
     mine.set(id, { req, agentId, kind: 'run', streamId });
     paint();
   }
-  // the station asked for its desk confirmation (desk_confirm_required) or said only its window may (desk_only)
-  function deskRefusal(r) { return !!(r && r.status === 403 && r.json && (r.json.code === 'desk_confirm_required' || r.json.code === 'desk_only')); }
+  // the station asked for its desk confirmation (desk_confirm_required), said only its window may (desk_only), or takes no
+  // permission change until a wrong-code lockout ends (desk_locked; fix-sec2 breakage 4)
+  function deskRefusal(r) { return !!(r && r.status === 403 && r.json && (r.json.code === 'desk_confirm_required' || r.json.code === 'desk_only' || r.json.code === 'desk_locked')); }
   async function answer(key) {
     const q = model.front();
     if (!q) return;

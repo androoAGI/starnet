@@ -66,6 +66,8 @@ const CODES = Object.freeze({
   wrong_owner: 403,
   desk_confirm_required: 403,   // an authority change needs a fresh desk confirmation (index.js deskGate); the body carries the challenge
   desk_only: 403,              // an authority change refused to the served page's client key: it is made in the StarNet window
+  desk_locked: 403,            // page mode, after five wrong desk codes: no authority change until the lockout ends (index.js deskGate).
+                               // Its own name so every "fall back to once" path (terminal, ACP, MCP, the page) reads it as the desk's no
   path_refused: 403,
   ticket_refused: 403,
   not_found: 404,

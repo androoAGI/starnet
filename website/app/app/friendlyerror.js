@@ -264,6 +264,7 @@
     not_found: 'station_refused', method_not_allowed: 'station_refused', conflict: 'station_refused', too_large: 'station_refused',
     frozen: 'station_refused', rate_limited: 'station_refused', upstream_error: 'station_refused', upstream_timeout: 'station_refused',
     desk_confirm_required: 'station_refused', desk_only: 'station_refused',   // an authority change not confirmed at the desk (GHSA-2hpj #1): the station's sentence says which
+    desk_locked: 'station_refused',   // too many wrong desk codes: the station's sentence says for how long (fix-sec2 breakage 4)
     station_error: 'server_error', unavailable: 'server_error'
   });
   const STATION_GATE_CODES = { token_stale: 1, token_missing: 1, forbidden_origin: 1, forbidden_host: 1 };

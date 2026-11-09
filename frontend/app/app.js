@@ -592,7 +592,9 @@ const App = (() => {
     if (r.degraded) return 'This station’s data was written by a newer StarNet — update the app.';
     if (r.behind) return 'Another window saved newer station changes first; try again in a moment.';
     if (r.stale) return 'Another window sent a newer crew list first; try again in a moment.';
-    if (r.desk) return r.desk === 'desk_only' ? 'Full Access is turned on in the StarNet window, where it asks you to confirm.' : 'Full Access was not confirmed.';
+    if (r.desk) return r.desk === 'desk_only' ? 'Full Access is turned on in the StarNet window, where it asks you to confirm.'
+      : r.desk === 'desk_locked' ? 'Full Access was not confirmed: too many wrong confirmation codes were typed, so the station takes no permission change for a while.'
+        : 'Full Access was not confirmed.';
     return 'The station refused it' + (r.error ? ' (' + r.error.slice(0, 120) + ')' : '') + '.';
   }
 
@@ -1629,7 +1631,7 @@ const App = (() => {
           // the station's own name for its refusal (X-StarNet-Code): an unconfirmed raise is the desk's answer, never a lost station
           let deskCode = '';
           try { deskCode = String((r && r.headers && typeof r.headers.get === 'function' && r.headers.get('X-StarNet-Code')) || ''); } catch (_) { deskCode = ''; }
-          if (deskCode === 'desk_confirm_required' || deskCode === 'desk_only') {
+          if (deskCode === 'desk_confirm_required' || deskCode === 'desk_only' || deskCode === 'desk_locked') {
             let refusal = null;
             try { refusal = await r.clone().json(); } catch (_) { refusal = null; }
             rosterRefusal = { desk: deskCode, error: String((refusal && refusal.error) || '') };

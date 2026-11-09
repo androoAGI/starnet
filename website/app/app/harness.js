@@ -394,9 +394,11 @@ const Harness = (() => {
     }
     // an authority change the Commander did not confirm at the desk (deskConfirm), or one the served page's client key may
     // not make at all (GHSA-2hpj #1): the route's own answer, never a restart
-    if (station === 'desk_confirm_required' || station === 'desk_only') {
+    if (station === 'desk_confirm_required' || station === 'desk_only' || station === 'desk_locked') {
       return { code: station, status, terminal: true, staleSession: false, tokenWithheld: '', stationCode: station,
-        message: station === 'desk_only' ? 'this change is made in the StarNet window, where it asks you to confirm' : 'this change was not confirmed' };
+        message: station === 'desk_only' ? 'this change is made in the StarNet window, where it asks you to confirm'
+          : station === 'desk_locked' ? 'too many wrong confirmation codes were typed, so the station takes no permission change for a while'
+            : 'this change was not confirmed' };
     }
     if (status === 403) {
       return { code: 'forbidden', status, terminal: true, staleSession: false, tokenWithheld: '', stationCode: station,
