@@ -30,6 +30,7 @@ test/update-preparation.http.test.js
 test/codex-status.e2e.test.js
 test/oauth-status.e2e.test.js
 test/roster-envelope.http.test.js
+test/roster-raise.http.test.js
 test/roster-cas.http.test.js
 test/full-access.e2e.test.js
 test/ask-brief-before-approval.e2e.test.js
