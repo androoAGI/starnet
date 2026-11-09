@@ -116,16 +116,35 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.eq([...loadAllowlist()].sort(), ['files:write', 'path:/p'], 'an older ALWAYS for every command is not loaded; every other grant is');
     A.ok(logs.length === 1 && /retired/.test(logs[0]) && /workbench:execute/.test(logs[0]), 'and the log says so once: ' + logs[0]);
 
+    // deskWords + the B8 fit rule, lifted from the source (final review B8/B9)
+    const deskWords = new Function(sidecarTopLevelFunction('deskWords') + '\nreturn deskWords;')();   // eslint-disable-line no-new-func
+    const fitConsts = /const SESSION_DIALOG_ROWS = [^\n]*\n/.exec(src);
+    A.ok(!!fitConsts, 'index.js names the session dialog\'s rows and columns');
+    const roster = new Map([['a1', { name: 'NOVA' }]]);
+    const commandSessionFits = new Function('deskProofMod', 'deskWords', 'agentRoster',   // eslint-disable-line no-new-func
+      fitConsts[0] + sidecarTopLevelFunction('deskWordsShownWhole') + '\n' + sidecarTopLevelFunction('commandSessionFits') + '\nreturn commandSessionFits;')(
+      require('../sidecar/deskproof.js'), deskWords, roster);
+    const SH = (cmd) => ({ tool: 'shell.exec', scope: 'execute', argsSummary: JSON.stringify({ cmd }, null, 2) });
+    A.ok(commandSessionFits('a1', SH('npm test')), 'B8: a short command fits its session dialog whole');
+    A.ok(!commandSessionFits('a1', SH('x'.repeat(1100))), 'B8: a command past the dialog\'s cap does not (it would be cut)');
+    A.ok(!commandSessionFits('a1', { tool: 'shell.exec', scope: 'execute', argsSummary: JSON.stringify(Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['k' + i, i])), null, 2) }),
+      'B8: nor one whose lines would run past what a browser prompt shows (30 short lines under the character cap)');
+    const edge = (n) => SH('y'.repeat(n));
+    let most = 0; for (let n = 0; n < 1300; n += 10) if (commandSessionFits('a1', edge(n))) most = n;
+    const shown = deskWords('consent-session', { agentName: 'NOVA', tool: 'shell.exec', scope: 'execute', command: edge(most).argsSummary }).summary;
+    A.ok(most > 500, 'B8: a command of several hundred characters still fits (' + most + ')');
+    A.eq(require('../sidecar/deskproof.js').cleanWords(shown, 1200), shown.trim(), 'B8: the longest command that fits is shown to its last character (' + most + ' characters), never cut');
+
     // handleConsent: ALWAYS on a command card is once with no desk prompt; "for this session" goes to the desk with the command
-    const handleConsent = new Function('readBody', 'pendingByRun', 'runTable', 'agentRoster', 'deskGate', 'persistAgentFullAccess', 'channelPendingByRun',   // eslint-disable-line no-new-func
+    const handleConsent = new Function('readBody', 'pendingByRun', 'runTable', 'agentRoster', 'deskGate', 'persistAgentFullAccess', 'channelPendingByRun', 'commandSessionFits',   // eslint-disable-line no-new-func
       sidecarTopLevelFunction('handleConsent') + '\nreturn handleConsent;');
-    async function answer(decision, finishExtra) {
+    async function answer(decision, finishExtra, argsSummary) {
       const got = [], gates = [];
-      const finish = Object.assign((d) => got.push(d), { askRow: { tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', agentId: 'a1' } }, finishExtra || {});
+      const finish = Object.assign((d) => got.push(d), { askRow: { tool: 'shell.exec', scope: 'execute', argsSummary: argsSummary || '{"cmd":"npm test"}', agentId: 'a1' } }, finishExtra || {});
       const res = { writeHead(c) { this.status = c; }, end(b) { this.body = b; } };
       const fn = handleConsent(async () => JSON.stringify({ runId: 'r1', promptId: 'p1', decision }), new Map([['r1', new Map([['p1', finish]])]]),
-        new Map([['r1', { agentId: 'a1' }]]), new Map([['a1', { name: 'NOVA' }]]),
-        (_q, _s, action, _k, details) => { gates.push({ action, details }); return true; }, () => true, new Map());
+        new Map([['r1', { agentId: 'a1' }]]), roster,
+        (_q, _s, action, _k, details) => { gates.push({ action, details }); return true; }, () => true, new Map(), commandSessionFits);
       await fn({}, res);
       return { got, gates, body: JSON.parse(res.body || '{}') };
     }
@@ -133,21 +152,30 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.eq([o.got, o.gates.length, o.body.decision, o.body.ok], [['once'], 0, 'once', true], 'ALWAYS on a command card is applied and echoed as once, and the desk is never asked');
     o = await answer('session', { exactCommand: true });
     A.eq([o.got, o.gates.map(g => g.action), o.gates[0] && o.gates[0].details.command], [['session'], ['consent-session'], '{"cmd":"npm test"}'], 'a command\'s "for this session" is still confirmed at the desk, naming the command');
+    A.ok(!('tooLongForSession' in o.body), 'and its answer carries no long-command note');
+    o = await answer('session', { exactCommand: true }, SH('z'.repeat(1500)).argsSummary);
+    A.eq([o.got, o.gates.length, o.body.decision, o.body.ok, o.body.tooLongForSession], [['once'], 0, 'once', true, true],
+      'B8: "for this session" on a command too long to show whole is approved once, no confirmation is issued, and the answer says why');
+    o = await answer('session', {}, SH('z'.repeat(1500)).argsSummary);
+    A.eq([o.got, o.gates.map(g => g.action)], [['session'], ['consent-session']], 'B8: any other card\'s session answer is unchanged (desk-confirmed)');
     o = await answer('always');
     A.eq([o.got, o.gates.map(g => g.action), o.gates[0] && o.gates[0].details.command], [['always'], ['consent-always'], ''], 'ALWAYS on any other card is unchanged (desk-confirmed)');
     o = await answer('full', { exactCommand: true });
     A.eq([o.got, o.gates.map(g => g.action)], [['full'], ['consent-full']], 'Full Access on a command card is unchanged (desk-confirmed agent posture)');
     A.ok(src.indexOf("finish.freshConsent !== true && (decision === 'always' || decision === 'full' || decision === 'session')") >= 0, 'the desk gate on every standing answer is untouched');
 
-    const deskWords = new Function(sidecarTopLevelFunction('deskWords') + '\nreturn deskWords;')();   // eslint-disable-line no-new-func
     const w = deskWords('consent-session', { agentName: 'NOVA', tool: 'shell.exec', scope: 'execute', command: '{"cmd":"npm test"}' });
     A.ok(/this exact command/.test(w.summary) && /Any other command still asks/.test(w.summary) && /npm test"\}$/.test(w.summary), 'the desk dialog names the exact command, last: ' + JSON.stringify(w.summary.slice(0, 90)));
+    A.ok(/only the command below with these exact settings: a different folder, time limit or background setting asks again/.test(w.summary), 'B9: the dialog says one plain line: these exact settings, and what asks again');
     A.ok(/Every later request of this kind/.test(deskWords('consent-session', { agentName: 'NOVA', tool: 'fs.write', scope: 'write' }).summary), 'another tool\'s dialog is unchanged');
 
     // the ask is stamped everywhere it travels (additive field)
     A.ok(/exactCommand: isExactCommand\(tool\)/.test(sidecarTopLevelFunction('handleRun')), 'a run\'s ask carries the stamp');
     A.ok(/if \(isExactCommand\(o\.tool\)\) fields\.exactCommand = true;/.test(sidecarTopLevelFunction('channelAskConsent')), 'a channel run\'s ask carries it (the phone row and the chat keyboard)');
     A.ok(/if \(ask && ask\.exactCommand === true\) row\.exactCommand = true;/.test(sidecarTopLevelFunction('handleStateSnapshot')), 'a reloaded page sees it');
+    A.ok(/if \(row\.exactCommand && !fields\.fresh && !commandSessionFits\(agentId, row\)\) row\.tooLongForSession = true;/.test(sidecarTopLevelFunction('handleRun')), 'B8: a run\'s command ask too long to show whole says so (additive)');
+    A.ok(/if \(ask && ask\.tooLongForSession === true\) row\.tooLongForSession = true;/.test(sidecarTopLevelFunction('handleStateSnapshot')), 'B8: a reloaded page sees that too');
+    A.ok(/r\.json\.tooLongForSession === true\) io\.err\('starnet: this command is too long to show whole in a confirmation, so it was allowed once/.test(read('bin/lib/station-commands.js')), 'B8: `starnet approve --session` says why it was allowed once');
   }
 
   // ---------------- 3. EVERY SURFACE ----------------

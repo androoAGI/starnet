@@ -99,6 +99,8 @@ async function answerCommand(opts, station, io) {
     }
   }
   if (downgraded && r.ok && r.json && r.json.ok) io.err('starnet: "for this session" is confirmed in the StarNet window, so this was allowed once\n');
+  // final review B8: a command too long to show whole in a confirmation is never allowed for the session
+  else if (r.ok && r.json && r.json.ok && r.json.tooLongForSession === true) io.err('starnet: this command is too long to show whole in a confirmation, so it was allowed once\n');
   const name = (model.state.agents.get(q.agentId) || { name: q.agentId }).name;
   const what = q.tool + (q.summary ? ' ' + oneLine(clean(q.summary), 100) : '');
   if (r.ok && r.json && r.json.ok) {

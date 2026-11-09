@@ -17383,8 +17383,10 @@ function deskWords(action, d) {
       summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
     // fix-sec2, review 3, 6 and 7
     case 'consent-session': if (o.command) return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
-      // GHSA-2hpj #4: a command's session grant is that exact command (its words come last, so a long one is cut, never the rule)
-      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n' + o.command };
+      // GHSA-2hpj #4: a command's session grant is that exact command with these exact settings (final review B9), and its
+      // words come last. One too long to show whole here is never asked for the session at all (commandSessionFits, B8)
+      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n'
+        + 'This covers only the command below with these exact settings: a different folder, time limit or background setting asks again.\n\n' + o.command };
       return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
       summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
     case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: o.changed ? 'Keep allowing' : 'Allow unattended',
@@ -17411,6 +17413,25 @@ function deskWords(action, d) {
       summary: (o.question ? String(o.question) : 'Let ' + o.names + '?') + '\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
     default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
   }
+}
+/* A COMMAND IS CONFIRMED FOR THE SESSION ONLY WHERE IT CAN BE READ WHOLE (final review B8). The desk confirmation is capped
+   (deskproof CAPS.summary, the desktop shell's own cap), and a browser's code prompt may cut a long message too (Chromium keeps
+   about 2000 characters, or 32 lines of 132 on Linux). So "for this session" on a command is offered and confirmed only when
+   its dialog fits within the cap and within SESSION_DIALOG_ROWS lines of SESSION_DIALOG_COLS, leaving the prompt's own title
+   and instruction room. A longer command is approved once at most: the person never confirms a command whose end they
+   could not see. commandSessionFits(agentId, row) reads the same words handleConsent would put in the dialog. */
+const SESSION_DIALOG_ROWS = 24, SESSION_DIALOG_COLS = 132;
+function deskWordsShownWhole(summary) {
+  const t = deskProofMod.cleanWords(summary, Infinity);
+  if (Array.from(t).length > deskProofMod.CAPS.summary) return false;
+  let rows = 0;
+  for (const line of t.split('\n')) rows += Math.max(1, Math.ceil(Array.from(line).length / SESSION_DIALOG_COLS));
+  return rows <= SESSION_DIALOG_ROWS;
+}
+function commandSessionFits(agentId, row) {
+  const r = row || {};
+  const rec = agentId ? agentRoster.get(String(agentId)) : null;
+  return deskWordsShownWhole(deskWords('consent-session', { agentName: (rec && rec.name) || agentId || '', tool: r.tool || '', scope: r.scope || '', command: String(r.argsSummary || '') }).summary);
 }
 /* deskGate(req, res, action, scope, details) -> true when the request carries a good desk proof for exactly this change
    (consumed: single use). Otherwise it answers and returns false: CLIENT_TOKEN (what GET / serves under the shell) is told
@@ -18864,6 +18885,7 @@ function handleStateSnapshot(req, res) {
         const row = { runId: runId, agentId: (ask && ask.workerAgentId) || agentId, promptId: promptId };
         if (ask && ask.tool) row.tool = ask.tool;   // additive: a reloaded floor words a question (brief.ask) as one, not an approval
         if (ask && ask.exactCommand === true) row.exactCommand = true;   // additive (GHSA-2hpj #4): a reloaded card offers no ALWAYS for a command
+        if (ask && ask.tooLongForSession === true) row.tooLongForSession = true;   // additive (final review B8): …nor "for this session" for a long one
         if (ask && f.detached) Object.assign(row, { background: true, tool: ask.tool, scope: ask.scope, argsSummary: ask.argsSummary,
           workerAgentId: ask.workerAgentId, workerRunId: ask.workerRunId, workerStreamId: ask.workerStreamId, streamId: ask.streamId, askedAt: ask.askedAt, leadAgentId: ask.agentId });
         out.prompts.push(row);
@@ -23311,6 +23333,8 @@ async function handleRun(req, res) {
         if (fields && fields.fresh) row.fresh = true;
         // additive (GHSA-2hpj #4): a command — every surface offers no ALWAYS for it, and "for this session" covers this exact call only
         if (fields && fields.exactCommand === true) row.exactCommand = true;
+        // final review B8 (additive): a command too long to show whole in a confirmation is never offered "for this session"
+        if (row.exactCommand && !fields.fresh && !commandSessionFits(agentId, row)) row.tooLongForSession = true;
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -28062,6 +28086,10 @@ async function handleConsent(req, res) {
   // bridge's allow-always) approves this call once: nothing standing is made, so the desk is not asked, and the answer
   // says what was applied.
   if (finish && finish.exactCommand === true && decision === 'always') decision = 'once';
+  // final review B8: "for this session" on a command is confirmed only in a dialog that shows the WHOLE command. For one too
+  // long to show whole, no confirmation is issued: this call is approved once, and the answer says why (tooLongForSession)
+  let tooLong = false;
+  if (finish && finish.exactCommand === true && finish.freshConsent !== true && decision === 'session' && !commandSessionFits(agentId, finish.askRow)) { decision = 'once'; tooLong = true; }
   // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
   // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
   // standing answer only ever approves this call, below, so it never asks).
@@ -28093,7 +28121,7 @@ async function handleConsent(req, res) {
   let gone = false;
   if (!finish) { gone = true; for (const p of [...pendingByRun.values(), ...channelPendingByRun.values()]) if (p && p.has(body.promptId)) { gone = false; break; } }
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(Object.assign({ ok: !!finish && persisted, decision, agentId: agentId || null, approvalMode: persisted && decision === 'full' ? 'full' : null }, gone ? { gone: true } : {})));
+  res.end(JSON.stringify(Object.assign({ ok: !!finish && persisted, decision, agentId: agentId || null, approvalMode: persisted && decision === 'full' ? 'full' : null }, gone ? { gone: true } : {}, tooLong ? { tooLongForSession: true } : {})));
 }
 
 /* POST /api/consent/answer { runId, promptId, answer } — the in-turn clarify reply (2026-07-31). A SIBLING
