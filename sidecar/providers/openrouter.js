@@ -318,14 +318,22 @@
     // the loop sees them; with no such tool this is the raw stream itself.
     function stream(req) { return toolschema.withRestoredArgKeys(wireStream(req), req && req.tools); }
 
+    // THE REASONING A REQUEST CARRIES (wireStream and effortAsSent read this one function): the asked effort, else the one
+    // this adapter was built with, clamped to the rungs this model takes (the endpoint's own refusal outranks the catalog
+    // and the guess); null = the request goes out with no reasoning field (a model whose only rung is none is told nothing).
+    function reasoningFor(model, perRequest) {
+      const meta = findModel(model), learned = learnedFor(model);
+      const allowed = reasoningEffortsForModel(model, meta, learned);
+      const effort = clampReasoningEffortForModel(model, perRequest || reasoningEffort, meta, learned);
+      return (effort !== 'none' || allowed.length > 1) ? { effort } : null;
+    }
+
     async function* wireStream(req) {
       maybeRewarmCatalog();
       // usage.include asks OpenRouter to return the real billed `cost` in the final usage chunk (opt-in for
       // streaming). Without it tokens still tally but usd stays 0 unless priceOf(model) resolves — so SPEND
       // reads $0 for any custom/uncatalogued slug. cost.js then takes this authoritative cost over the estimate.
-      const meta = findModel(req.model);
-      const allowed = reasoningEffortsForModel(req.model, meta, learnedFor(req.model));
-      const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta, learnedFor(req.model));
+      const reasoning = reasoningFor(req.model, req.reasoningEffort);
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
       // Strict upstreams behind OpenRouter must never see StarNet's own bookkeeping keys on a message (ts, streamId,
       // agentId, sourceRunId, error, stopped, attachments) — only Chat Completions message keys leave, projected
@@ -334,7 +342,7 @@
       // refuses the whole request otherwise (404 "No endpoints found that support image input"). Unknown keeps them.
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages, req.model) : req.messages;
       const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length)), stream: true, usage: { include: true } };
-      if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
+      if (reasoning) body.reasoning = reasoning;
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
         // on one bad key), and the Moonshot dialect for a moonshotai/* model. A well-formed catalog on any other
@@ -349,7 +357,8 @@
            four prompt re-sends). Reverses docs/harness-runtime-spec.md's MVP position, dated 2026-08-17. */
       }
       let res;
-      try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length)); }   // retries transient 429/5xx + network errors BEFORE any token streams
+      const onSend = sentBody => effortSent.set(sentKey(req.model, req.reasoningEffort), (sentBody.reasoning && sentBody.reasoning.effort) || null);   // effortAsSent
+      try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), onSend); }   // retries transient 429/5xx + network errors BEFORE any token streams
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }  // cancel during the POST/backoff -> end cleanly so the loop reports 'cancelled', not 'error'
       // idle watchdog: no bytes for SKYNET_PROVIDER_IDLE_MS -> cancel the reader + throw a `timeout` error (a hung
       // stream must not pin a paid run forever). A user-cancel via req.signal still surfaces as an AbortError below.
@@ -492,10 +501,25 @@
     }
     function reasoningEfforts(id) { return reasoningEffortsForModel(id, findModel(id), learnedFor(id)); }
     function learnedFor(id) { return LEARNED_EFFORTS.get(baseUrl + '\n' + String(id || '')) || null; }
+    /* effortAsSent(id, perRequest) -> the reasoning.effort a request for `id` carrying `perRequest` (falsy: none of its own)
+       put on the wire: what every station record of an OpenRouter call names (index.js effortAsRun). Read off the body the
+       last such request on this adapter actually sent (onSend), so a rung the endpoint refused and the heal resent is named
+       as resent, and a first call made before the catalog warmed is named as it went; with no request yet, what one would
+       carry (reasoningFor). null = no reasoning field (a model whose only rung is none, or the heal ran out of rungs): it ran
+       on the model's own default and the record names no level. */
+    const effortSent = new Map();   // sentKey -> the reasoning.effort that request last carried (null: none)
+    const sentKey = (id, perRequest) => String(id || '') + '\n' + String(perRequest || '');
+    function effortAsSent(id, perRequest) {
+      const k = sentKey(id, perRequest);
+      if (effortSent.has(k)) return effortSent.get(k);
+      const r = reasoningFor(id, perRequest);
+      return r ? r.effort : null;
+    }
 
     // POST the chat request, retrying transient failures (429/5xx + network resets) BEFORE the stream
     // starts — safe because no tokens have been emitted yet. Aborts propagate at once. Returns an ok Response.
-    async function requestWithRetry(body, signal, maxRetries) {
+    // onSend(body) (optional): told each attempt's exact body as it leaves, after any heal rewrote it (effortAsSent)
+    async function requestWithRetry(body, signal, maxRetries, onSend) {
       // maxRetries: the loop may LOWER this ladder (req.preStreamRetries = 0 once it owns the pacing — provider.js).
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
@@ -508,6 +532,7 @@
         // Fresh connect guard per attempt; disarmed the instant the fetch settles so the ceiling can't abort
         // the streaming body (a connect expiry rejects as a `timeout`, a user-cancel as AbortError).
         const guard = timeouts.connectGuard(signal);
+        if (onSend) onSend(body);
         try {
           res = await doFetch(baseUrl + '/chat/completions', {
             method: 'POST',
@@ -591,7 +616,7 @@
       return provider.verifyResponse(doFetch, baseUrl + '/auth/key', { headers: { Authorization: 'Bearer ' + (key || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => j && j.data && typeof j.data === 'object' && !Array.isArray(j.data) ? [{ credential: true }] : [], !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent };
   }
 
   return { makeOpenRouterProvider, applyCacheControl, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };

@@ -832,23 +832,12 @@
            means an endpoint that 400s on it never sees it ('parallel_tool_calls' stays in DROPPABLE_PARAMS only
            for saved drop-state from older builds). */
       }
-      // reasoning_effort: a model whose catalog DECLARES its levels gets one of those levels, or nothing when it
-      // declares no dial. Otherwise the param goes on the wire only when the model provably reasons (catalog) or
-      // the provider profile documents it, and effort 'none' means omit it entirely.
+      // reasoning_effort: reasoningEffortFor (one decision, shared with effortAsSent)
       const requestedEffort = req.reasoningEffort || defaultEffort;
-      const known = findModel(req.model);
       const declaration = declarationFor(req.model);
       const declared = declaration ? declaration.levels : null;
-      if (declared) {
-        const pick = clampToDeclared(requestedEffort, declared, declaration.defaultLevel);
-        if (pick && !skip('reasoning_effort')) body.reasoning_effort = pick;
-      } else {
-        const effort = wireEffort(requestedEffort);
-        if (effort && !skip('reasoning_effort')) {
-          const modelReasons = !!(known && (known.supportsReasoning === true || (Array.isArray(known.reasoningEfforts) && known.reasoningEfforts.length)));
-          if (modelReasons || sendReasoningEffort) body.reasoning_effort = effort;
-        }
-      }
+      const reasoningEffort = reasoningEffortFor(req.model, requestedEffort);
+      if (reasoningEffort) body.reasoning_effort = reasoningEffort;
       if (replayReasoning) {
         // THINKING is on unless this request turns it off ('none'): an omitted effort means the endpoint default
         // (DeepSeek V4: thinking at high). Only a model KNOWN to think owes the field — one that declares levels,
@@ -916,7 +905,8 @@
       // the loop's re-send of a busy silence (req.localBusyResent, loop.js): this request is that ONE re-send
       if (localCall && req.localBusyResent === true) localCall.busyResent = true;
       const onWait = (((wire && wire.native) || localCall) && waitNoteMs > 0) ? w => { waits.push(w); rouse(); } : null;
-      const pending = requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), requestHeaders(req), wire, onWait, localCall);
+      const onSend = sent => effortSent.set(sentKey(req.model, req.reasoningEffort, req), sent);   // effortAsSent
+      const pending = requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), requestHeaders(req), wire, onWait, localCall, onSend);
       let noted = false;
       if (onWait) {
         let settled = false;
@@ -1127,7 +1117,9 @@
       return err;
     }
 
-    async function requestWithRetry(body, signal, maxRetries, wireHeaders, wire, onWait, localCall) {
+    // onSend(effort) (optional): told the effort each attempt's exact payload carries as it leaves, after any heal rewrote
+    // it: the chat wire's reasoning_effort, native Ollama's think:false as 'none' (null: no effort on the wire)
+    async function requestWithRetry(body, signal, maxRetries, wireHeaders, wire, onWait, localCall, onSend) {
       // maxRetries: the loop may LOWER this ladder (req.preStreamRetries = 0 once it owns the pacing — provider.js).
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
@@ -1143,11 +1135,13 @@
         if (wire) wire.native = native;
         const probe = (native && onWait) ? waitProbe(body, onWait, wire.openCall)   // WAIT TRUTH (#99): one per attempt
           : (!native && localCall && onWait) ? localWaitProbe(onWait, localCall) : null;
+        const payload = native ? ollamaNative.toNativeRequest(body, { numCtx: wire.numCtx, think: wire.think }) : body;
+        if (onSend) onSend(native ? (payload.think === false ? 'none' : null) : (payload.reasoning_effort || null));
         try {
           res = await doFetch(native ? nativeBase + '/api/chat' : baseUrl + chatPath, {
             method: 'POST',
             headers: headerBag(key, wireHeaders === undefined ? opts.headers : wireHeaders),
-            body: JSON.stringify(native ? ollamaNative.toNativeRequest(body, { numCtx: wire.numCtx, think: wire.think }) : body),
+            body: JSON.stringify(payload),
             signal: guard.signal
           });
         } catch (e) {
@@ -1480,6 +1474,44 @@
       if ((m && m.supportsReasoning === true) || sendReasoningEffort) return ['none'].concat(WIRE_EFFORTS);
       return ['none'];
     }
+    /* THE reasoning_effort A CHAT BODY CARRIES (wireStreamOnce and effortAsSent read this one function): a model whose
+       catalog DECLARES its levels gets one of those levels, or nothing when it declares no dial. Otherwise the param goes on
+       the wire only when the model provably reasons (catalog) or the provider profile documents it, and effort 'none' means
+       omit it entirely. A param this endpoint refused for the model (dropUnsupportedParam) is never sent. '' = no param. */
+    function reasoningEffortFor(model, requested) {
+      const dropped = droppedParams.get(String(model || ''));
+      if (dropped && dropped.has('reasoning_effort')) return '';
+      const declaration = declarationFor(model);
+      if (declaration) return clampToDeclared(requested, declaration.levels, declaration.defaultLevel) || '';
+      const effort = wireEffort(requested);
+      if (!effort) return '';
+      const known = findModel(model);
+      const modelReasons = !!(known && (known.supportsReasoning === true || (Array.isArray(known.reasoningEfforts) && known.reasoningEfforts.length)));
+      return (modelReasons || sendReasoningEffort) ? effort : '';
+    }
+    /* effortAsSent(id, perRequest, req?) -> the effort a request for `id` carrying `perRequest` (falsy: none of its own) put
+       on the wire: what every station record of a call on this wire names (index.js effortAsRun). Read off the payload the
+       last such request on this adapter actually sent (onSend), so a level the endpoint refused and the heal resent, or a
+       first call made before the catalog warmed, is named as it went; with no request yet, what one would carry. /v1: its
+       reasoning_effort. Native Ollama: 'none' for think:false (a background call, or OFF, on a model that thinks), and no
+       level for think:true, which names none. null = the request carried no effort (OFF here is the param omitted): it ran
+       on the model's own default, which may think. `req` (optional) is the request itself: a background call (no tools, no
+       isTask) is native Ollama's own rule. */
+    const effortSent = new Map();   // sentKey -> the effort that request last carried (null: none)
+    const isBackground = req => !!req && !(req.tools && req.tools.length) && typeof req.isTask !== 'boolean';
+    const sentKey = (id, perRequest, req) => String(id || '') + '\n' + String(perRequest || '') + (isBackground(req) ? '\nbackground' : '');
+    function effortAsSent(id, perRequest, req) {
+      const k = sentKey(id, perRequest, req);
+      if (effortSent.has(k)) return effortSent.get(k);
+      const requested = perRequest || defaultEffort;
+      const sent = reasoningEffortFor(id, requested);
+      if (!nativeWire) return sent || null;
+      const facts = knownFacts.get(String(id || '')) || null, thinks = !!(facts && facts.supportsReasoning === true);
+      const background = isBackground(req);
+      const effort = (background && !perRequest && thinks) ? '' : sent;
+      if (effort) return effort === 'none' ? 'none' : null;
+      return ((background || canonicalEffort(requested) === 'none') && thinks) ? 'none' : null;
+    }
 
     async function verifyCredential(o) {
       o = o || {};
@@ -1525,7 +1557,7 @@
 
     // localRuntime names the Ollama server this instance talks to, so the loop never fails a local out-of-memory
     // over to another model on the same server.
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
   }
 
   return { makeOpenAICompatibleProvider, _internals: { normalizeModel, reportedWindow, cleanBaseUrl, responseErrorDetail, safeErrorField, makeArgsTracker, clampToDeclared, canonicalEffort, paramNamed, supportedEffortsFrom, toolsForceNone, replayReasoningContent } };

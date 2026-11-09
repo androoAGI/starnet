@@ -16,6 +16,8 @@
      • a provider refusal that names the supported values learns exactly that list and resends at the nearest rung;
      • what was learned outlives the provider instance (a run builds a fresh one), so the next call goes straight to an
        accepted rung, and reasoningEfforts() — what pickAuxEffort reads — stops offering the refused rung;
+     • the record of a healed call (effortAsSent, what every run record and ledger row names) is the rung the resend
+       carried, never the refused one;
      • a model that takes 'none' is untouched, and a Commander's own effort is untouched;
      • an unrelated 400 is not retried (one request, the honest error);
      • the learned list is per endpoint (another base URL still guesses). */
@@ -65,10 +67,14 @@ const fresh = (o) => makeOpenRouterProvider(Object.assign({ fetch: fakeFetch, ke
   // ---- 'Reasoning is mandatory' -> resend once at the next rung, and learn it ----
   {
     calls.length = 0;
-    const r = await run(fresh(), { model: 'openai/gpt-5-mini', reasoningEffort: 'none' });
+    A.eq(fresh().effortAsSent('openai/gpt-5-mini', 'none'), 'none', 'unlearned, a call asking none would carry none');
+    const healed = fresh();
+    const r = await run(healed, { model: 'openai/gpt-5-mini', reasoningEffort: 'none' });
     A.ok(!r.threw, 'a mandatory-reasoning refusal does not fail the call (' + (r.threw && r.threw.message) + ')');
     A.eq(r.text, 'OK', 'the call completes with the reply');
     A.eq(calls.map(c => c.effort), ['none', 'minimal'], 'one refused none, then one resend at minimal');
+    A.eq(healed.effortAsSent('openai/gpt-5-mini', 'none'), 'minimal', 'its record names the minimal the resend carried, never the refused none');
+    A.eq(fresh().effortAsSent('openai/gpt-5-mini', 'none'), 'minimal', 'and the next call asking none is predicted at minimal (what was learned)');
     const learned = fresh().reasoningEfforts('openai/gpt-5-mini');
     A.ok(learned.indexOf('none') < 0 && learned.indexOf('minimal') >= 0, 'a fresh instance no longer offers none (' + JSON.stringify(learned) + ')');
     A.eq(G.pickAuxEffort(learned), 'minimal', 'so the aux pick becomes minimal');
@@ -81,10 +87,12 @@ const fresh = (o) => makeOpenRouterProvider(Object.assign({ fetch: fakeFetch, ke
   // ---- a provider refusal naming the supported values -> learn that exact list ----
   {
     calls.length = 0;
-    const r = await run(fresh(), { model: 'openai/o4-mini', reasoningEffort: 'none' });
+    const healed = fresh();
+    const r = await run(healed, { model: 'openai/o4-mini', reasoningEffort: 'none' });
     A.ok(!r.threw, 'a provider unsupported-value refusal does not fail the call (' + (r.threw && r.threw.message) + ')');
     A.eq(r.text, 'OK', 'the o4-mini call completes');
     A.eq(calls.map(c => c.effort), ['none', 'low'], 'the named list is learned in one step: none refused, resent at low (never minimal)');
+    A.eq(healed.effortAsSent('openai/o4-mini', 'none'), 'low', 'its record names the low the resend carried');
     A.eq(fresh().reasoningEfforts('openai/o4-mini'), ['low', 'medium', 'high'], 'reasoningEfforts is exactly what the provider named');
     A.eq(G.pickAuxEffort(fresh().reasoningEfforts('openai/o4-mini')), 'low', 'the aux pick becomes low');
   }
@@ -97,8 +105,10 @@ const fresh = (o) => makeOpenRouterProvider(Object.assign({ fetch: fakeFetch, ke
     A.eq(calls.map(c => c.effort), ['none'], 'haiku is sent none once (nothing to heal)');
     A.eq(G.pickAuxEffort(fresh().reasoningEfforts('anthropic/claude-haiku-4.5')), 'none', 'and keeps none as its aux pick');
     calls.length = 0;
-    await run(fresh({ reasoningEffort: 'medium' }), { model: 'openai/gpt-5-mini' });
+    const commander = fresh({ reasoningEffort: 'medium' });
+    await run(commander, { model: 'openai/gpt-5-mini' });
     A.eq(calls.map(c => c.effort), ['medium'], 'a Commander run at medium is sent medium');
+    A.eq(commander.effortAsSent('openai/gpt-5-mini'), 'medium', 'and its record names medium');
   }
 
   // ---- an unrelated 400 is not retried ----

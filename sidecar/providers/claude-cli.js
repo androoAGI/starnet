@@ -30,7 +30,7 @@
 
    makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit? })
      onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
-     -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts } */
+     -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent } */
 'use strict';
 (function (root, factory) {
   if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'));
@@ -1472,7 +1472,9 @@
       // a turn with an image rides the CLI's stream-json input as real image blocks (see IMAGES), so image_analyze's
       // session fallback can use a Claude Code agent's own model
       supportsImages() { return true; },
-      reasoningEfforts() { return EFFORTS.slice(); }
+      reasoningEfforts() { return EFFORTS.slice(); },
+      // what a request carrying `perRequest` gave the CLI (effortAsSent above): its --effort, else 'cli-default'
+      effortAsSent(id, perRequest) { return effortAsSent(perRequest); }
     };
   }
 

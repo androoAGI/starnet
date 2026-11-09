@@ -254,12 +254,15 @@
     // a flat 272000. No list is shared (a token is one account), only the window each slug REPORTED. Absent = as before.
     const facts = (opts.catalogCache && typeof opts.catalogCache.bind === 'function')
       ? opts.catalogCache.bind({ scope: null, endpoint: baseUrl }) : null;
+    // THE EFFORT A REQUEST CARRIES (buildBody and effortAsSent read this one function): its own, else the one this adapter
+    // was built with, in the Responses API's words. Every request on this wire carries a reasoning.effort.
+    const effortFor = perRequest => normalizeCodexReasoningEffort(perRequest || reasoningEffort);
 
     function buildBody(req) {
       // ONE pre-send normalization (provider.js prepareWireMessages): a well-formed transcript is untouched; a malformed
       // one arrives paired (messagesToInput relies on it). Then the ONE role projection (projectRoles 'native').
       const { instructions, rest } = extractInstructions(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'codex'), 'native'));
-      const effort = normalizeCodexReasoningEffort(req.reasoningEffort || reasoningEffort);
+      const effort = effortFor(req.reasoningEffort);
       const body = {
         model: req.model || DEFAULT_MODEL,
         instructions: instructions || 'You are a helpful assistant.',
@@ -600,13 +603,17 @@
     function supportsTools(id) { const m = findModel(id); return m ? !!m.supportsTools : true; }   // Codex models are tool-capable; never false-refuse
     // Which reasoning levels a codex model exposes — the static entry's list, or the four-level default.
     function reasoningEfforts(id) { const m = findModel(id); return (m && Array.isArray(m.reasoningEfforts) && m.reasoningEfforts.length) ? m.reasoningEfforts.slice() : CODEX_EFFORT_LIST.slice(); }
+    // effortAsSent(id, perRequest) -> the reasoning.effort a request for `id` carrying `perRequest` (falsy: none of its own)
+    // puts on the wire: what every station record of a Codex call names (index.js effortAsRun), never the dial it was set to
+    // (minimal goes out as low, max as xhigh).
+    function effortAsSent(id, perRequest) { return effortFor(perRequest); }
 
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models?client_version=' + CLIENT_VERSION,
         { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent };
   }
 
   /* #118 (2026-10-15): the ids a listModels() answer proves the ACCOUNT offers, in the backend's priority order. The

@@ -177,7 +177,6 @@ const {
   attachRequestScrub
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
-const { effortAsSent: cliEffortAsSent } = require('./providers/claude-cli.js');   // what the Claude CLI was given for an effort (effortAsRun)
 const { promptTierCeiling } = require('./providers/prices.js');
 /* RESTRICTED GOOGLE DATA NEVER RIDES THE STARNET RELAY (mcp/google-relay-guard.js). Every provider this process
    builds for StarNet Managed ('starnet' — the one StarNet-operated path model traffic can take) streams through
@@ -1456,7 +1455,7 @@ const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(),
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js);
 // its row names its payer by the pass's route (billing-class.js auxRowClass)
 const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null,
-  effortOf: (provider, req) => effortAsRun(r, provider, req && req.model, req && req.reasoningEffort, null) }); };   // the row names the effort the call ran on
+  effortOf: (provider, req) => effortAsRun(provider, req && req.model, req && req.reasoningEffort, req) }); };   // the row names the effort the call ran on
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
@@ -4069,16 +4068,14 @@ function auxSkillModel(provider, runModel) {
 /* auxReasoningEffort — the per-request reasoning effort for the SINGLE-SHOT aux streams (reflection/study/
    thread-mine/scout/compaction). Engaged only when the aux tier is configured (an aux model, or an explicit
    STARNET_AUX_EFFORT): an unconfigured install keeps today's requests byte-identical. Default 'low' — aux work
-   is extraction/summarization, where thinking depth buys little — overridable via STARNET_AUX_EFFORT. Returns
-   null unless the provider VERIFIABLY offers that effort for this model (provider.reasoningEfforts); null rides
-   as "no per-request override", so an adapter that can't select effort never sees a value it might reject. */
+   is extraction/summarization, where thinking depth buys little — overridable via STARNET_AUX_EFFORT. Clamped to the
+   rungs the provider lists for this model (AuxGovernor.clampEffort: the asked rung, else the nearest above, else below),
+   so a configured 'minimal' on a route that has no minimal runs at low there, as the background loops do. null = no
+   list (provider.reasoningEfforts): no per-request override, so an adapter that can't select effort never sees one. */
 function auxReasoningEffort(provider, model) {
   const effortEnv = String(ENV('AUX_EFFORT') || '').trim();
   if (!effortEnv && !resolveAuxModel()) return null;
-  if (!provider || typeof provider.reasoningEfforts !== 'function') return null;
-  const want = normalizeReasoningEffort(effortEnv || 'low');
-  let allowed; try { allowed = provider.reasoningEfforts(model); } catch (_) { return null; }
-  return (Array.isArray(allowed) && allowed.indexOf(want) >= 0) ? want : null;
+  return AuxGovernor.clampEffort(normalizeReasoningEffort(effortEnv || 'low'), providerEfforts(provider, model));
 }
 /* auxPassEffort — the effort for the station's REASON-ONLY aux work: the post-run passes (reflection · failure
    review · study · thread-mine · scout) and INTERNAL self-talk runs (a session title, session ideas, a goal plan, a
@@ -4102,25 +4099,26 @@ function providerEfforts(provider, model) {
   try { return provider.reasoningEfforts(model); } catch (e) { failNote('aux.effort', e); return null; }
 }
 /* auxLoopEffort — the effort for the station's background TOOL loops (the skill review, the skill curator), `o` = the
-   loop's inputs (route, runEffort). sent: 'low', or the configured STARNET_AUX_EFFORT, clamped to the rungs the provider
-   lists for the loop's model and never above the run's own effort (AuxGovernor.loopEffort, the one clamp auxPassEffort also
-   goes through); undefined = no list: no override. ran(): the effort the loop's row records, read after the loop (a
+   loop's inputs (runEffort). sent: 'low', or the configured STARNET_AUX_EFFORT, clamped to the rungs the provider lists for
+   the loop's model and never above the run's own effort (AuxGovernor.loopEffort, over the same clampEffort every background
+   effort goes through); undefined = no list: no override. ran(): the effort the loop's row records, read after the loop (a
    mid-loop heal moved it; effortAsRun). */
 function auxLoopEffort(o, provider, model) {
   const configured = String(ENV('AUX_EFFORT') || '').trim();
   const sent = AuxGovernor.loopEffort(providerEfforts(provider, model), o && o.runEffort, configured ? normalizeReasoningEffort(configured) : undefined) || undefined;
-  return { sent, ran: () => effortAsRun(o && o.route, provider, model, sent, o && o.runEffort) };
+  return { sent, ran: () => effortAsRun(provider, model, sent) };
 }
 /* effortAsRun — THE answer to "what effort did this call run on", for every record that names one (a run record, a ledger
-   row). claude-cli is given an effort only per request (--effort): a call that carried none ran on the CLI's own default and
-   is recorded 'cli-default' (claude-cli.js effortAsSent), never the level the station was set to. Any other adapter ran on
-   the per-request effort when one was sent, re-read against the model's list after the call (a refused rung was resent at
-   the nearest one kept: AuxGovernor.effortAsRan), else on the effort it was built with (`built`; null = the caller cannot
-   know it, and a record leaves the field out rather than guess). */
-function effortAsRun(providerId, provider, model, sent, built) {
-  if (auxRoute(providerId) === 'claude-cli') return cliEffortAsSent(sent);
-  if (sent) return AuxGovernor.effortAsRan(sent, providerEfforts(provider, model));
-  return built || null;
+   row): the adapter's own word for what its request put on the wire (provider.effortAsSent), read after the call, so a rung
+   the endpoint refused and the adapter resent is named as resent. `sent` = the per-request effort the call carried (falsy:
+   none, so the effort the adapter was built with went out); `req` (optional) = the request, where its shape decides the wire.
+   Never the dial: claude-cli is told an effort only per request (--effort), so a call that carried none ran on the CLI's own
+   default and says 'cli-default'; Codex sends minimal as low and max as xhigh; Opus 5.5 always thinks (none goes out as low);
+   an OpenRouter model that takes no reasoning field is sent no effort at all. null = the adapter cannot say, or its request
+   carried no effort: a record leaves the field out rather than guess. */
+function effortAsRun(provider, model, sent, req) {
+  if (!provider || typeof provider.effortAsSent !== 'function') return null;
+  try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
 }
 
 /* ---- HYBRID RECALL — the embedding lane (memory-compound lane) ----------------------------------------------
@@ -24413,10 +24411,11 @@ async function runOnceCore(o) {
   // outputOnly repair is an external caller's own request, so it is o.internal here, not `internal`).
   // An internal run marked o.keepEffort (work the Commander reads, the goal judge, the wake preflight) keeps their effort.
   const internalEffort = o.internal && !o.keepEffort ? auxPassEffort(provider, model) : null;
-  // …and the effort it RAN on, read after the run (effortAsRun): a claude-cli run that sent none ran on the CLI's own default
-  // ('cli-default', never the dial's level), and a pick an HTTP endpoint refused was resent at the nearest rung it keeps
-  // (OpenRouter learns the refusal), so the record names that rung, never the refused one.
-  const effortRan = () => effortAsRun(activeProviderId, provider, model, internalEffort, reasoningEffort);
+  // …and the effort it RAN on, read after the run from the adapter it ended on (effortAsRun): a claude-cli run that sent none
+  // ran on the CLI's own default ('cli-default', never the dial's level), an HTTP request carries the adapter's own word for
+  // the dial (Codex minimal is low), and a pick an endpoint refused was resent at the nearest rung it keeps (OpenRouter
+  // learns the refusal), so the record names that rung, never the refused one. The request shape is the loop's (below).
+  const effortRan = () => effortAsRun(provider, model, internalEffort, { tools: o.outputOnly ? [] : toolDefs, isTask: internal ? undefined : isTask });
 
   // ---- context auto-compaction: fold older turns into a summary once the live prompt passes 65% of the model's
   //      window, so a long run shrinks instead of overflowing. The summarizer is ONE model call over the older

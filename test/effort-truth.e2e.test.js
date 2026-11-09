@@ -10,9 +10,17 @@
    and each record or ledger row says 'low'. The rule checked on every spawn: the record = the argv's --effort, or
    'cli-default' when the argv has none.
 
+   CONFIGURED-TIER ARM. An operator's STARNET_AUX_EFFORT goes through the same clamp as every background effort: 'minimal' on
+   claude-cli (whose rungs start at low) gives the manual quest refresh, an internal self-talk run and every post-run pass
+   --effort low, and each record or row says 'low' — never no --effort at all while the skill review got low.
+
    OPENROUTER ARM. A high-effort run's skill review is a background tool loop: it goes out at reasoning effort low (it used to
    inherit the run's high), a /fast run's review stays at minimal (a loop is only ever lowered), the main run keeps the
-   Commander's effort, and every ledger row names the effort its request carried. */
+   Commander's effort, and every ledger row names the effort its request carried.
+
+   HTTP ARM. A record names what the request carried, never the dial: Codex sends minimal as low and max as xhigh, Opus 5.5 on
+   the Anthropic API always thinks (minimal and none go out as low), and an OpenRouter model that takes no reasoning field is
+   sent none, so its record names no effort. One fake endpoint for the three wires logs every request's effort. */
 'use strict';
 const fs = require('node:fs');
 const http = require('node:http');
@@ -92,6 +100,7 @@ async function runOn(f, body) {
 
 const asSent = spawn => spawn.effort || 'cli-default';   // what the CLI was given: its --effort, or nothing (its own default)
 const one = list => Array.from(new Set(list));
+const named = v => (v === undefined || v === '' ? null : v);   // a record that names no effort: the field is absent (a row) or empty (a run record)
 
 async function cliArm() {
   const f = SidecarFixture.create({ prefix: 'sk-efforttruth-cli-', timeoutMs: 60000, env: {
@@ -163,6 +172,58 @@ async function cliArm() {
     }
     A.ok(auxRows.some(r => r.aux === 'skill-review' && r.reasoningEffort === 'low'), 'the skill review ran low and its row says so');
     A.ok(auxRows.some(r => r.aux === 'quest-refresh' && r.reasoningEffort === 'low'), 'the quest refresh ran low and its row says so');
+  } finally { await f.dispose(); }
+}
+
+// ---- CONFIGURED-TIER ARM: STARNET_AUX_EFFORT=minimal on claude-cli -----------------------------------------------------
+async function cliConfiguredArm() {
+  const from = spawns().length;
+  const f = SidecarFixture.create({ prefix: 'sk-efforttruth-auxcfg-', timeoutMs: 60000, env: {
+    HOME: home, USERPROFILE: home, STARNET_CLAUDE_BIN: shim, FAKE_CLAUDE_LOG: logFile, STARNET_CLAUDE_CLI_PERSIST: '0', STARNET_DEBUG_CHANNELS: '1',
+    SKYNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', SKYNET_SKILL_REVIEW_EVERY: '1', SKYNET_SKILL_CURATOR: '0', STARNET_DEFAULT_MODEL: 'haiku',
+    STARNET_AUX_EFFORT: 'minimal' } });
+  try {
+    await f.start();
+    const st = await f.json('GET', '/api/auth/claude-cli/status');
+    A.eq([st.status, st.body && st.body.installed, st.body && st.body.loggedIn], [200, true, true], 'configured tier: fixture: the fake CLI is installed and signed in');
+    const roster = await f.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'ADA', provider: 'claude-cli', model: 'haiku', reasoningEffort: null }] });
+    A.eq(roster.status, 200, 'configured tier: fixture: the roster runs on the Claude sign-in');
+    const base = { provider: 'claude-cli', model: 'claude-opus-5-5', placed: [], messages: [{ role: 'user', content: 'Roll back the staging path and write up what changed.' }] };
+    const probes = [
+      { probe: 'cfg-task', body: { agentId: 'cfg-task', isTask: true, reasoningEffort: 'high' } },
+      { probe: 'cfg-self', body: { agentId: 'cfg-self', isTask: false, internal: true, reasoningEffort: 'high' } }
+    ];
+    for (const p of probes) {
+      A.eq(await runOn(f, Object.assign({}, base, { system: MARK + ':' + p.probe + ': you are Ada.' }, p.body)), 'done', 'configured tier: fixture: the ' + p.probe + ' run finished');
+      await settleCli(f);
+    }
+    const dossier = await f.json('POST', '/api/dossier', { block: 'COMMANDER DOSSIER\n- Goals: grow the channel to 10k subscribers\n- Works on: weekly video essays' });
+    A.eq(dossier.body && dossier.body.admitted, true, 'configured tier: fixture: the dossier is admitted as quest evidence');
+    const before = spawns().length;
+    const press = await f.json('POST', '/api/quests/refresh/run', {});
+    A.eq(press.body && press.body.started, true, 'configured tier: fixture: the manual quest refresh started');
+    for (const until = Date.now() + 15000; Date.now() < until && !spawns().slice(before).some(s => s.kind === 'quest-refresh');) await sleep(150);
+    await settleCli(f);
+
+    const all = spawns().slice(from);
+    const runs = ((await f.json('GET', '/api/runs?agent=*&limit=100')).body || {}).runs || [];
+    const rows = rowsOf(f);
+    if (process.env.EFFORT_TRUTH_DEBUG) console.error(JSON.stringify({ cfgSpawns: all.map(s => [s.probe || s.kind, s.effort]), cfgRuns: runs.map(r => [r.agentId, r.reasoningEffort]), cfgRows: rows.map(r => [r.aux || r.agentId, r.reasoningEffort]) }));
+    const quest = all.filter(s => s.kind === 'quest-refresh');
+    A.ok(quest.length >= 1, 'configured tier: fixture: the quest refresh reached the CLI');
+    A.eq(one(quest.map(asSent)), ['low'], 'configured tier: the quest refresh goes out at --effort low (minimal clamped to the CLI\'s lowest rung), never with none at all');
+    A.eq(one(rows.filter(r => r.aux === 'quest-refresh').map(r => r.reasoningEffort)), ['low'], 'configured tier: the quest refresh row says low');
+    A.eq(one(all.filter(s => s.probe === 'cfg-self').map(asSent)), ['low'], 'configured tier: an internal self-talk run goes out at --effort low');
+    A.eq((runs.find(r => r.agentId === 'cfg-self') || {}).reasoningEffort, 'low', 'configured tier: and its record says low');
+    A.eq(one(all.filter(s => s.probe === 'cfg-task').map(asSent)), ['cli-default'], 'configured tier: a main run still gets no --effort (W3.8)');
+    A.eq((runs.find(r => r.agentId === 'cfg-task') || {}).reasoningEffort, 'cli-default', 'configured tier: and its record says cli-default');
+    const aux = all.filter(s => !s.probe);
+    A.ok(aux.some(s => s.kind === 'skill-review') && aux.some(s => s.kind === 'reflection'), 'configured tier: fixture: the skill review and the reflection ran');
+    A.eq(one(aux.map(asSent)), ['low'], 'configured tier: every background pass spawned at --effort low, the loops and the one-shot passes alike (' + JSON.stringify(aux.map(s => [s.kind, s.effort])) + ')');
+    const auxRows = rows.filter(r => r.aux && r.provider === 'claude-cli');
+    for (const kind of one(auxRows.map(r => r.aux))) {
+      A.eq(one(auxRows.filter(r => r.aux === kind).map(r => r.reasoningEffort)), one(aux.filter(s => s.kind === kind).map(asSent)), 'configured tier: ' + kind + ': its row names the effort its spawn was given');
+    }
   } finally { await f.dispose(); }
 }
 
@@ -240,10 +301,128 @@ async function openrouterArm() {
   } finally { await f.dispose(); await new Promise(r => mock.server.close(r)); }
 }
 
+// ---- HTTP ARM: Codex, the Anthropic API and an OpenRouter model with no reasoning field, on one fake endpoint ------------
+const IPC = 'effort-truth-ipc-token-1234567890abcdef';
+const JWT = 'fixture.' + Buffer.from(JSON.stringify({ exp: 4102444800, 'https://api.openai.com/profile': { email: 'plan@example.test' } })).toString('base64url') + '.fixture';
+const NO_REASONING = 'meta-llama/llama-3.3-70b-instruct';
+function startWires() {
+  const calls = [];
+  return new Promise(resolve => {
+    const server = http.createServer((req, res) => {
+      const route = String(req.url || '').split('/')[1];
+      let raw = '';
+      req.on('data', d => { raw += d; });
+      req.on('end', () => {
+        if (req.method !== 'POST') {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          if (route === 'anthropic') return res.end(JSON.stringify({ data: [{ id: 'claude-opus-5-5', type: 'model', display_name: 'Claude Opus 5.5', max_input_tokens: 1000000 }], has_more: false }));
+          if (route === 'openrouter') return res.end(JSON.stringify({ data: [{ id: NO_REASONING, context_length: 131072, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] }] }));
+          return res.end(JSON.stringify({ models: [], data: [] }));
+        }
+        let body = {};
+        try { body = JSON.parse(raw); } catch (_) {}
+        const sysText = JSON.stringify(route === 'codex' ? body.instructions || '' : route === 'anthropic' ? body.system || '' : ((body.messages || []).find(m => m && m.role === 'system') || {}).content || '');
+        const probe = (raw.match(new RegExp(MARK + ':([a-z0-9-]+)')) || [])[1] || '';
+        const kind = probe && raw.indexOf('[RUNTIME]') >= 0 ? 'main' : ((KINDS.find(([, re]) => re.test(sysText)) || ['other'])[0]);
+        const effort = route === 'anthropic'
+          ? (!body.thinking ? 'none' : body.thinking.type === 'adaptive' ? (body.output_config && body.output_config.effort) || null : body.thinking.type === 'enabled' ? 'manual' : 'none')
+          : (body.reasoning && body.reasoning.effort) || null;
+        calls.push({ route, probe: kind === 'main' ? probe : '', kind, effort });
+        const text = kind === 'main' ? LONG : 'nothing durable.';
+        res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+        const send = o => res.write('data: ' + JSON.stringify(o) + '\n\n');
+        if (route === 'codex') {
+          send({ type: 'response.output_text.delta', delta: text });
+          send({ type: 'response.completed', response: { status: 'completed', usage: { input_tokens: 40, output_tokens: 8 } } });
+        } else if (route === 'anthropic') {
+          send({ type: 'message_start', message: { usage: { input_tokens: 40, output_tokens: 0 } } });
+          send({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } });
+          send({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } });
+          send({ type: 'content_block_stop', index: 0 });
+          send({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 8 } });
+          send({ type: 'message_stop' });
+        } else {
+          send({ choices: [{ delta: { content: text } }] });
+          send({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 40, completion_tokens: 8, total_tokens: 48 } });
+        }
+        res.end('data: [DONE]\n\n');
+      });
+    });
+    server.listen(0, '127.0.0.1', () => resolve({ server, calls, base: 'http://127.0.0.1:' + server.address().port }));
+  });
+}
+
+async function httpArm() {
+  const wires = await startWires();
+  const env = { STARNET_IPC_TOKEN: IPC, SKYNET_FULL_ACCESS: '1', SKYNET_AUX_BUDGET: '0', SKYNET_QUEST_REFRESH: '0', SKYNET_SKILL_CURATOR: '0',
+    STARNET_CREDITS_URL: '', STARNET_CLOUD_URL: '', STARNET_DEFAULT_MODEL: '', SKYNET_DEFAULT_MODEL: '' };
+  for (const name of ['OPENROUTER_KEY', 'OPENROUTER_API_KEY', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'CREDITS_API_KEY']) { env[name] = ''; env['STARNET_' + name] = ''; env['SKYNET_' + name] = ''; }
+  const f = SidecarFixture.create({ prefix: 'sk-efforttruth-http-', timeoutMs: 60000, env });
+  const settle = async () => {
+    let last = -1, since = Date.now();
+    for (const until = Date.now() + 15000; Date.now() < until;) {
+      const n = wires.calls.length + rowsOf(f).length;
+      if (n !== last) { last = n; since = Date.now(); } else if (Date.now() - since >= 1500) return;
+      await sleep(150);
+    }
+  };
+  try {
+    fs.mkdirSync(path.join(f.workspace, 'codex'), { recursive: true });
+    fs.writeFileSync(path.join(f.workspace, 'codex', 'tokens.json'), JSON.stringify({ access_token: JWT, refresh_token: 'fixture', token_type: 'Bearer' }));
+    await f.start();
+    // the desktop's runtime push: the ChatGPT sign-in keeps its stored token, each wire's endpoint moves to the fake
+    for (const [provider, key, at] of [['codex', '', '/codex'], ['anthropic', 'ant-fixture-key', '/anthropic/v1'], ['openrouter', 'or-fixture-key', '/openrouter']]) {
+      const res = await f.request('/api/key', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': IPC }, body: JSON.stringify({ provider, key, baseUrl: wires.base + at }) });
+      A.eq(res.status, 200, 'http: fixture: ' + provider + '\'s endpoint is pushed to the station');
+    }
+    await sleep(600);   // the catalogs warm (the OpenRouter model reads as taking no reasoning field)
+    // the dial each run was set to, and what its wire must carry: the record names the second, never the first
+    const cases = [
+      { probe: 'codex-minimal', provider: 'codex', model: 'gpt-5.5', dial: 'minimal', wire: 'low' },
+      { probe: 'codex-max', provider: 'codex', model: 'gpt-5.5', dial: 'max', wire: 'xhigh' },
+      { probe: 'codex-none', provider: 'codex', model: 'gpt-5.5', dial: 'none', wire: 'none' },
+      { probe: 'opus-minimal', provider: 'anthropic', model: 'claude-opus-5-5', dial: 'minimal', wire: 'low' },
+      { probe: 'opus-none', provider: 'anthropic', model: 'claude-opus-5-5', dial: 'none', wire: 'low' },
+      { probe: 'or-plain', provider: 'openrouter', model: NO_REASONING, dial: 'medium', wire: null }
+    ];
+    for (const c of cases) {
+      const reason = await runOn(f, { agentId: c.probe, provider: c.provider, model: c.model, reasoningEffort: c.dial, isTask: true, placed: [],
+        system: MARK + ':' + c.probe + ': you are Ada.', messages: [{ role: 'user', content: 'Rebuild the staging deploy rollback path and write up what changed and why' }] });
+      A.eq(reason, 'done', 'http: fixture: the ' + c.probe + ' run finished');
+      await settle();
+    }
+    const recs = ((await f.json('GET', '/api/runs?agent=*&limit=50')).body || {}).runs || [];
+    const rows = rowsOf(f);
+    if (process.env.EFFORT_TRUTH_DEBUG) console.error(JSON.stringify({ wires: wires.calls.map(c => [c.route, c.probe || c.kind, c.effort]), httpRuns: recs.map(r => [r.agentId, r.reasoningEffort]), httpRows: rows.map(r => [r.provider, r.aux || r.agentId, r.reasoningEffort]) }));
+    for (const c of cases) {
+      const sent = one(wires.calls.filter(x => x.probe === c.probe).map(x => x.effort));
+      A.eq(sent, [c.wire], c.probe + ': fixture: the ' + c.dial + ' dial goes out as ' + JSON.stringify(c.wire) + ' on ' + c.provider);
+      const rec = recs.find(r => r.agentId === c.probe) || {};
+      const row = rows.find(r => !r.aux && r.agentId === c.probe) || {};
+      A.eq(named(rec.reasoningEffort), c.wire, c.probe + ': the run record names what the request carried (' + JSON.stringify(rec.reasoningEffort) + '), never the ' + c.dial + ' dial');
+      A.eq(named(row.reasoningEffort), c.wire, c.probe + ': the run\'s ledger row names it too (' + JSON.stringify(row.reasoningEffort) + ')');
+    }
+    // every post-run pass row on these wires names what its own requests carried
+    let checked = 0;
+    for (const provider of ['codex', 'anthropic', 'openrouter']) {
+      const auxRows = rows.filter(r => r.aux && r.provider === provider);
+      for (const kind of one(auxRows.map(r => r.aux))) {
+        const wire = one(wires.calls.filter(x => x.route === provider && x.kind === kind).map(x => x.effort));
+        if (!wire.length) continue;   // a pass whose requests the fake cannot tell apart is not judged here
+        A.eq(one(auxRows.filter(r => r.aux === kind).map(r => named(r.reasoningEffort))), wire, 'http: ' + provider + ' ' + kind + ': its ledger row names the effort its requests carried');
+        checked++;
+      }
+    }
+    A.ok(checked >= 3, 'http: fixture: post-run pass rows were checked on the three wires (' + checked + ')');
+  } finally { await f.dispose(); await new Promise(r => wires.server.close(r)); }
+}
+
 (async () => {
   try {
     await cliArm();
+    await cliConfiguredArm();
     await openrouterArm();
+    await httpArm();
   } finally {
     try { fs.rmSync(fakeRoot, { recursive: true, force: true }); } catch (_) {}
   }

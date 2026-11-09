@@ -14,7 +14,8 @@
        rung; that refusal heals in the adapter (test/openrouter-effort-heal.test.js);
      • the post-run passes and INTERNAL runs read that pick (auxPassEffort); compaction keeps auxReasoningEffort
        (a fold is the Commander's own task context, not station self-talk) — source locks, index.js is not loadable;
-     • an operator who configured the aux tier keeps exactly their configuration;
+     • an operator who configured the aux tier gets their configured effort, through the same clamp as every background
+       effort (AuxGovernor.clampEffort: the asked rung, else the nearest above, else below);
      • an internal run that must keep the Commander's effort says keepEffort, end to end: the autopilot's draft and its
        self-critique (work they read), a plan they asked for, the goal loop's done/continue judge, and the WAKE
        preflight (it must prove the path the awakening uses). Proactive self-talk (titles, ideas, the goal-arc
@@ -37,13 +38,10 @@ A.eq(G.pickAuxEffort([]), null, 'an empty list: no override');
 A.eq(G.pickAuxEffort(null), null, 'no list at all: no override');
 A.eq(G.pickAuxEffort(['HIGH', 'Low']), null, 'only exact effort ids count (the providers normalize before listing)');
 
-// ---- the effort a run is RECORDED on is the one it ran on (truthful telemetry): a refused pick healed mid-run ----
-A.eq(G.effortAsRan('none', ['minimal', 'low', 'medium', 'high', 'xhigh', 'max']), 'minimal', 'none refused (Reasoning is mandatory) ran at minimal');
-A.eq(G.effortAsRan('none', ['low', 'medium', 'high']), 'low', 'none refused by o4-mini ran at low');
-A.eq(G.effortAsRan('minimal', ['none', 'low', 'medium']), 'none', 'a refused rung clamps down first, as the adapter does');
-A.eq(G.effortAsRan('none', ['none', 'minimal', 'low']), 'none', 'an accepted pick is recorded as itself');
-A.eq(G.effortAsRan('none', []), 'none', 'no list: the pick as asked');
-A.eq(G.effortAsRan(null, ['low']), null, 'no pick: nothing to record');
+// ---- the effort a run is RECORDED on is the one it ran on (truthful telemetry): the adapter says what its request carried
+//      (provider.effortAsSent; a refused pick healed mid-run is named as resent: test/effort-as-sent, openrouter-effort-heal),
+//      so the governor keeps no second guess of the adapter's heal order ----
+A.ok(!('effortAsRan' in G), 'no re-derived record clamp: the record is the adapter\'s own word for the wire');
 
 // ---- THE ONE CLAMP (W1.5): a background effort is the asked rung, else the nearest one above, else below ----
 A.eq(G.clampEffort('low', ['low', 'medium', 'high']), 'low', 'a listed rung is itself');
@@ -71,17 +69,23 @@ const idx = readSidecarSource();
 const fnSrc = A.fnBody(idx, 'function auxPassEffort(');
 A.ok(/AUX_EFFORT/.test(fnSrc) && /resolveAuxModel\(\)/.test(fnSrc) && /return auxReasoningEffort\(provider, model\)/.test(fnSrc),
   'auxPassEffort: a configured aux tier (STARNET_AUX_EFFORT / STARNET_AUX_MODEL) keeps exactly auxReasoningEffort');
+// (W1.5 review) the configured tier goes through THE ONE CLAMP: a configured minimal on a route with no minimal runs at low
+// there (the quest refresh, the post-run passes, compaction), exactly as the background loops clamp it
+A.ok(/return AuxGovernor\.clampEffort\(normalizeReasoningEffort\(effortEnv \|\| 'low'\), providerEfforts\(provider, model\)\);/.test(A.fnBody(idx, 'function auxReasoningEffort(')),
+  'auxReasoningEffort: the configured effort, clamped to the provider\'s rungs (AuxGovernor.clampEffort), never an exact match or nothing');
 A.ok(/providerEfforts\(provider, model\)/.test(fnSrc) && /AuxGovernor\.pickAuxEffort\(/.test(fnSrc) && /provider\.reasoningEfforts\(model\)/.test(A.fnBody(idx, 'function providerEfforts(')),
   'auxPassEffort: unconfigured, it picks from the levels the provider lists for that model');
 A.ok(/const _auxEffort = _auxDone \? auxPassEffort\(provider, _auxModel\) : null;/.test(idx), 'reflection · study · thread-mine · scout ride auxPassEffort');
 A.ok(/const _auxFailEffort = _auxFail \? auxPassEffort\(provider, _auxFailModel\) : null;/.test(idx), 'failure review rides auxPassEffort');
 A.ok(/reasoningEffort: internalEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent for every other run)');
 // (effort truth, W1.12) the record reads ONE resolver: what the provider was given, read after the run
-A.ok(/const effortRan = \(\) => effortAsRun\(activeProviderId, provider, model, internalEffort, reasoningEffort\);/.test(idx),
-  'after the run, the effort is re-read through effortAsRun (a mid-run heal moved it; claude-cli without one ran on its default)');
+A.ok(/const effortRan = \(\) => effortAsRun\(provider, model, internalEffort, \{ tools: o\.outputOnly \? \[\] : toolDefs, isTask: internal \? undefined : isTask \}\);/.test(idx),
+  'after the run, the effort is read through effortAsRun from the adapter the run ended on (a mid-run heal moved it; claude-cli without one ran on its default)');
 const asRun = A.fnBody(idx, 'function effortAsRun(');
-A.ok(/return cliEffortAsSent\(sent\)/.test(asRun) && /AuxGovernor\.effortAsRan\(sent, providerEfforts\(provider, model\)\)/.test(asRun) && /return built \|\| null;/.test(asRun),
-  'effortAsRun: claude-cli = what its argv carried; any other adapter = the per-request effort as healed, else the one it was built with');
+A.ok(/provider\.effortAsSent\(model, sent \|\| undefined, req\)/.test(asRun) && !/cliEffortAsSent|effortAsRan|built/.test(asRun),
+  'effortAsRun: the adapter\'s own word for what its request carried (claude-cli: its argv), never the dial it was built with');
+A.ok(/effortOf: \(provider, req\) => effortAsRun\(provider, req && req\.model, req && req\.reasoningEffort, req\)/.test(idx),
+  'every aux meter row reads the same resolver, with the request it metered');
 A.ok(/reasoningEffort: effortRan\(\), unmetered:/.test(idx) && /result\.reasoningEffort = effortRan\(\);/.test(idx),
   'the run record and the result carry the effort the run ran on');
 A.ok(!/internalEffort \|\| reasoningEffort/.test(idx), 'no record keeps the pre-heal pick');
@@ -118,7 +122,7 @@ for (const fn of ['async function runBackgroundSkillReview(', 'async function ru
 }
 const loopFx = A.fnBody(idx, 'function auxLoopEffort(');
 A.ok(/AuxGovernor\.loopEffort\(providerEfforts\(provider, model\), o && o\.runEffort,/.test(loopFx)
-  && /ran: \(\) => effortAsRun\(o && o\.route, provider, model, sent, o && o\.runEffort\)/.test(loopFx),
+  && /ran: \(\) => effortAsRun\(provider, model, sent\)/.test(loopFx),
   'auxLoopEffort reads the provider\'s rungs for the loop model, and its row reads effortAsRun after the loop');
 A.ok((idx.match(/runEffort: reasoningEffort, cost,/g) || []).length === 3, 'the review, the verdict stash and the curator carry the run\'s effort');
 A.ok(/const questEffort = auxPassEffort\(provider, model\);[^\n]*\n\s*if \(questEffort\) req\.reasoningEffort = questEffort;/.test(A.fnBody(idx, 'async function runQuestRefreshCycle(')), 'the quest refresh rides the aux effort');
