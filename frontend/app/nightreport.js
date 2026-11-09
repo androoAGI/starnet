@@ -55,13 +55,15 @@
     'routing-held': 'the saved floor can’t be proved right now, so building is held until it is readable',
     'persist-failed': 'the station couldn’t safely record the work, so it stood down',
     // the futile-beat skip (W1.6): the last job only proposed a build still undecided on the desk, and nothing it reads has
-    // changed since — held before the job limit is spent; a verdict or anything new lifts it (status.waitingOn names the build)
-    'awaiting-verdict': 'it is waiting on your verdict — its last job only proposed a build already waiting on your desk, so it won’t spend another job until you keep or discard that one (or anything new comes in)'
+    // changed since — held before the job limit is spent (status.waitingOn names the build). It names only what is SURE to
+    // lift it (the verdict, an owner run, the goal, the steered priority and the rung are all in sidecar futileBeatFingerprint);
+    // never "anything new": a change the fingerprint does not read (a learned interest, a job-limit change) lifts nothing
+    'awaiting-verdict': 'it is waiting on your verdict — its last job only proposed a build already waiting on your desk, so it won’t spend another job until you keep or discard that one, message it, or change your goal, priority or autonomy rung'
   };
   // the same hold, naming the build from status.waitingOn (the live backlog's title); the plain phrase when the status has none
   function awaitingVerdictPhrase(waitingOn) {
     const t = waitingOn && typeof waitingOn.title === 'string' ? waitingOn.title.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
-    return t ? 'it is waiting on your verdict on “' + t + '” — its last job only proposed that build again, so it won’t spend another job until you keep or discard it (or anything new comes in)'
+    return t ? 'it is waiting on your verdict on “' + t + '” — its last job only proposed that build again, so it won’t spend another job until you keep or discard it, message it, or change your goal, priority or autonomy rung'
       : BINDING_PHRASE['awaiting-verdict'];
   }
 

@@ -187,6 +187,12 @@ A.ok(/waiting on your verdict/.test(NR.bindingPhrase('awaiting-verdict')) && /ke
   const named = NR.panelModel({ status: Object.assign({ waitingOn: { title: 'Continue: Release checklist tool', runId: 'r2' } }, held), tzOffsetMin: 0 });
   A.ok(named.why.indexOf('“Continue: Release checklist tool”') >= 0 && /waiting on your verdict/.test(named.why), 'the panel WHY names the build it waits on: ' + named.why);
   A.eq(NR.panelModel({ status: held, tzOffsetMin: 0 }).why, NR.bindingPhrase('awaiting-verdict'), 'a status without waitingOn falls back to the plain phrase (never an invented title)');
+  // it names only what is SURE to lift the hold (each is a part of the sidecar's futileBeatFingerprint, or the verdict itself) and
+  // never promises that "anything new" will: a change the fingerprint does not read (a learned interest, a job limit) lifts nothing
+  for (const why of [named.why, NR.bindingPhrase('awaiting-verdict')]) {
+    A.ok(/message it/.test(why) && /goal, priority or autonomy rung/.test(why), 'the hold names what lifts it: a message, the goal, the steered priority, the rung: ' + why);
+    A.ok(!/anything new|anything else/.test(why), 'the hold never claims anything new lifts it: ' + why);
+  }
 }
 
 /* ---------- panelModel(): BUILD-vs-DRAFT mode + cold-start readiness honesty (2026-07-13) ----------
