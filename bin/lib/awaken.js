@@ -88,10 +88,37 @@ function makeAwakening(deps) {
   // ---- the station, as the app writes it -------------------------------------------------------------------------------
   const ok = r => !!(r && r.ok && r.status === 200);
   function system() { return M.composer.compose(ctx.agent, { dossierBlock: M.Dossier.composeBlock(ctx.dossier) }); }
+  /* FULL POWER IS CONFIRMED AT THE DESK (fix-sec2 breakage 3). The station takes Full Access and the This Computer profile
+     only on a push that asks for them (raise) and a desk yes, and a later change to what drives a Full Access agent (its
+     purpose, its instructions) keeps it only on keepFull and another yes. A station this terminal spawned prints its
+     desk codes to this terminal over IPC (st.deskCodeFor), so the person's choice above is confirmed here. A station it
+     only attached to (or the desktop app's, which asks in its own dialog) cannot be confirmed from here: the Overseer then
+     asks first, and the person is told where to give Full power. */
+  const rowOf = a => ({ agentId: a.id, system: a.systemPrompt, name: a.name, model: a.model || '', provider: a.provider || ctx.prov, role: String(a.purpose || 'general specialist').slice(0, 120), approvalMode: a.approvalMode === 'full' ? 'full' : 'ask', executionProfile: a.executionProfile, track: '', workshop: !!a.workshop, skills: [], reasoningEffort: a.reasoningEffort || null });
   async function pushRoster() {
     const a = ctx.agent;
     a.systemPrompt = system();
-    const r = await st.post('/api/roster', { agents: [{ agentId: a.id, system: a.systemPrompt, name: a.name, model: a.model || '', provider: a.provider || ctx.prov, role: String(a.purpose || 'general specialist').slice(0, 120), approvalMode: a.approvalMode === 'full' ? 'full' : 'ask', executionProfile: a.executionProfile, track: '', workshop: !!a.workshop, skills: [], reasoningEffort: a.reasoningEffort || null }], updatedAt: now() }, 15000);
+    const full = a.approvalMode === 'full';
+    const body = Object.assign({ agents: [rowOf(a)], updatedAt: now() }, full ? { raise: [a.id], keepFull: [a.id] } : {});
+    let r = await st.post('/api/roster', body, 15000);
+    // the desk's answers: a challenge (confirmable here only with a code this terminal was shown), desk_only (the desktop
+    // app's station: its own dialog), or a lockout after wrong codes
+    const atDesk = full && r && r.status === 403 && r.json && (r.json.code === 'desk_confirm_required' || r.json.code === 'desk_only' || r.json.code === 'desk_locked' || r.json.deskLocked === true);
+    const ch = atDesk && r.json.code === 'desk_confirm_required' && r.json.deskConfirm;
+    if (ch) {
+      const code = ch.mode === 'page' && typeof st.deskCodeFor === 'function' ? await st.deskCodeFor(ch.id) : '';
+      if (code) r = await st.post('/api/roster', body, 15000, { deskProof: ch.id, deskCode: code });
+    }
+    const dropped = full && ((atDesk && !(ok(r) && r.json && r.json.ok !== false)) || (r.json && Array.isArray(r.json.clamped) && r.json.clamped.indexOf(a.id) >= 0)
+      || (r.json && Array.isArray(r.json.profileClamped) && r.json.profileClamped.indexOf(a.id) >= 0));
+    if (dropped) {
+      // never silently: the Overseer asks first, and the person hears where Full power is given
+      a.approvalMode = 'ask'; a.executionProfile = 'trusted-project';
+      a.systemPrompt = system();
+      r = await st.post('/api/roster', { agents: [rowOf(a)], updatedAt: now() }, 15000);
+      ctx.fullDropped = true;
+      await io.say([seg('full power was not given: it is confirmed at the desk, and this terminal could not confirm it. ' + a.name + ' asks first for now — give it Full power in the StarNet window (the agent’s settings).', 44, 300)], { who: 'STARNET' });
+    }
     if (!(ok(r) && r.json && r.json.ok !== false)) throw new Error('the station did not take the roster' + ((r.json && r.json.error) ? ': ' + r.json.error : r.error ? ' (' + r.error + ')' : ' (HTTP ' + r.status + ')'));
     if (io.roster) io.roster([{ agentId: a.id, name: a.name, model: a.model, provider: a.provider, skin: a.skin }]);
   }
