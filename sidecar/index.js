@@ -4688,7 +4688,8 @@ async function runBackgroundSkillReview(o) {
       // top-12 by rank() against the run's directive (was: last 12 in raw store order) — the reviewer sees the
       // memories RELEVANT to what this run did; on a queryless run rank degrades to recency+trust, still 12.
       memories: (o.learningEvidence && (o.learningEvidence.tainted || o.learningEvidence.trustedOnly)) ? [] : rank(Array.isArray(reviewNotebook) ? reviewNotebook : [], latestUserText(messages), { now: Date.now(), k: 12 }).slice(0, 12),   // rank adds up to 32 pinned/standing past k; the reviewer gets its top 12 (score order: pins lead)
-      skills: scrubSkillsForPrompt(skillGate.annotate(skillStore.list(agentId, { includeArchived: true })))   // a withheld row is named, never summarized (scan census); each field scrubbed before it is composed
+      skills: scrubSkillsForPrompt(skillGate.annotate(skillStore.list(agentId, { includeArchived: true }))),   // a withheld row is named, never summarized (scan census); each field scrubbed before it is composed
+      finalScrub: (t) => PromptScrub.scrubStored(t)   // the scrub this prompt goes through: a tool output the packet holds the start of is cut only where it changes nothing
     }));
     result = await runAgentLoop({
       messages: [

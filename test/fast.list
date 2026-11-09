@@ -1707,6 +1707,7 @@ test/needs-you-bell-settle.test.js
 test/org-crew-comms.test.js
 test/internal-run-not-working.test.js
 test/aux-effort.test.js
+test/skillreview-diet.test.js
 test/starter-drift.test.js
 test/openrouter-effort-heal.test.js
 test/stop-truth.test.js

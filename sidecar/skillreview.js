@@ -45,17 +45,38 @@
     return s.toolCalls >= minToolCalls || (result.turns || 0) >= minTurns || s.chars >= minChars;
   }
 
-  function transcript(messages, cap) {
+  /* transcript(messages, cap, evidence?, finalScrub?) — the run's tail as the review reads it (the last `cap` chars). Given the
+     evidence packet the same prompt carries, a tool output the packet already holds is not sent a second time: the line
+     points at the packet (and keeps whatever the packet cut off; learning.outputBeyondPacket says what that is). Measured
+     on the window the full transcript would show, and a line is only ever replaced by a shorter one, so the review prompt
+     only shrinks; with nothing in the packet it is byte-identical to the transcript without one. */
+  function transcript(messages, cap, evidence, finalScrub) {
     cap = cap || 12000;
     const lines = [];
     for (const m of (Array.isArray(messages) ? messages : [])) {
       if (!m || (m.role !== 'user' && m.role !== 'assistant' && m.role !== 'tool')) continue;
       let c = typeof m.content === 'string' ? m.content : '';
       if (Array.isArray(m.tool_calls) && m.tool_calls.length) c += '\n[tool calls: ' + m.tool_calls.map(tc => tc && tc.function && tc.function.name).filter(Boolean).join(', ') + ']';
-      if (c) lines.push(m.role.toUpperCase() + ': ' + c);
+      if (!c) continue;
+      const line = m.role.toUpperCase() + ': ' + c;
+      const rest = (evidence && learning && m.role === 'tool') ? learning.outputBeyondPacket(evidence, m, finalScrub) : null;
+      const ref = 'evidence packet toolResults callId ' + str(m.tool_call_id);
+      const short = rest == null ? line : rest ? 'TOOL: [start in the ' + ref + '; continues] ' + rest : 'TOOL: [in the ' + ref + ']';
+      lines.push([line, short.length < line.length ? short : line]);
     }
-    const body = lines.join('\n');
-    return body.length > cap ? body.slice(body.length - cap) : body;
+    const body = lines.map(l => l[0]).join('\n');
+    if (lines.every(l => l[1] === l[0])) return body.length > cap ? body.slice(body.length - cap) : body;
+    const start = Math.max(0, body.length - cap), out = [];
+    let at = 0;
+    for (const [line, short] of lines) {
+      const end = at + line.length;
+      if (end > start) {
+        const seen = at >= start ? line : line.slice(start - at);   // the part of this line the full window shows
+        out.push(short.length < seen.length ? short : seen);
+      }
+      at = end + 1;   // the joining newline
+    }
+    return out.join('\n');
   }
 
   function buildPrompt(input) {
@@ -124,7 +145,7 @@
       ...verdictBlock,
       '',
       'Completed run transcript:',
-      evidence && evidence.trustedOnly ? '[Raw transcript withheld: only trusted structured evidence is eligible for this review.]' : transcript(input.messages, input.cap || 12000)
+      evidence && evidence.trustedOnly ? '[Raw transcript withheld: only trusted structured evidence is eligible for this review.]' : transcript(input.messages, input.cap || 12000, evidence, input.finalScrub)
     ].join('\n');
   }
 
@@ -194,5 +215,5 @@
     };
   }
 
-  return { stats, shouldReviewRun, buildPrompt, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun };
+  return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun };
 });
