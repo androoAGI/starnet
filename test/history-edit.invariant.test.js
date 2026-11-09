@@ -317,14 +317,17 @@ async function readBack(reg, ctx, call) {
     A.eq(h.up.posts[4].replayed, [1, 4], 'an edit below the view: block 1 (before the rewrite) and every block made after the backstop replay');
     A.eq((failopen.counts()['loop.historyEdit.unbound'] || 0) - unboundBefore, 1, 'an edit below the view: the backstop ran once, and said so (diagnostics line)');
 
-    // (invariant 2's other half) A PARK THAT FAILS: the micro tier's stubs keep the old wording, naming no file that was
-    // never written, and each failure is named (it used to be swallowed without a trace)
-    const parkFailsBefore = failopen.counts()['loop.historyEdit.park'] || 0;
-    const broken = await runBound(Object.assign(microRun(), { parkOutput: async () => { throw new Error('disk full'); }, script: noopSource }));
-    const brokenStubs = broken.res.messages.filter(m => m.role === 'tool' && /^\[tool result elided at compaction/.test(String(m.content)));
-    A.eq(broken.res.reason, 'done', 'a park that fails: the run finishes');
-    A.ok(brokenStubs.length >= 2 && brokenStubs.every(m => /re-run the tool for the full output\]$/.test(String(m.content).split(NL)[0])), 'a park that fails: every stub keeps the old wording and names no file (' + brokenStubs.length + ' stubs)');
-    A.eq((failopen.counts()['loop.historyEdit.park'] || 0) - parkFailsBefore, brokenStubs.length, 'a park that fails: each failure is named (diagnostics line)');
+    // (invariant 2's other half) A PARK THAT FAILS — it throws, or (the host parker, index.js, swallows its own errors) it
+    // answers null: the micro tier's stubs keep the old wording, naming no file that was never written, and each failure
+    // is named (it used to be swallowed without a trace)
+    for (const [how, parkOutput] of [['throws', async () => { throw new Error('disk full'); }], ['answers null', async () => null]]) {
+      const parkFailsBefore = failopen.counts()['loop.historyEdit.park'] || 0;
+      const broken = await runBound(Object.assign(microRun(), { parkOutput, script: noopSource }));
+      const brokenStubs = broken.res.messages.filter(m => m.role === 'tool' && /^\[tool result elided at compaction/.test(String(m.content)));
+      A.eq(broken.res.reason, 'done', 'a park that ' + how + ': the run finishes');
+      A.ok(brokenStubs.length >= 2 && brokenStubs.every(m => /re-run the tool for the full output\]$/.test(String(m.content).split(NL)[0])), 'a park that ' + how + ': every stub keeps the old wording and names no file (' + brokenStubs.length + ' stubs)');
+      A.eq((failopen.counts()['loop.historyEdit.park'] || 0) - parkFailsBefore, brokenStubs.length, 'a park that ' + how + ': each failure is named (diagnostics line)');
+    }
   }
 
   // ================= 2. every elision stub names a handle that reads back byte-identical =================

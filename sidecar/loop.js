@@ -1947,9 +1947,16 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        // a failed park leaves that stub on the old wording, and says so (as the turn budget's park does)
+        /* a park that fails leaves that stub on the old wording, and says so. The host parker (index.js) swallows its own
+           errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so a null or a
+           missing path here is a failed write, noted like a throw. */
         const parker = capCtx && typeof capCtx.parkOutput === 'function'
-          ? async (text, meta) => { try { return await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; } }
+          ? async (text, meta) => {
+            let p = null;
+            try { p = await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; }
+            if (!p || !p.path) failNote('loop.historyEdit.park', 'the host parker saved nothing for a ' + String((meta && meta.tool) || 'tool') + ' result at elision; its stub keeps the old wording');
+            return p;
+          }
           : null;
         const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
