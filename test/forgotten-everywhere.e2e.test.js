@@ -122,7 +122,7 @@ function hermeticEnv(base) {
     fs.writeFileSync(ws('runs.jsonl'), JSON.stringify({ runId: 'run_wombat_1', agentId: 'agent', streamId: W, ts: now - 30000, reason: 'done', directive: 'plan the wombat habitat' }) + '\n');
 
     // every learning window 0, so every run may reflect AND study: the passes after the delete are part of this proof, and since
-    // W1.4 an attempt arms its window whatever it kept (POST /api/memory/config takes reflection's window only, never study's)
+    // W1.4 an attempt arms its window whatever it kept (POST /api/memory/config never takes study's window)
     zeroLearningWindows(fixture.workspace);
     await fixture.start();
     A.eq((await json('GET', '/api/memory/config')).body.reflectCooldownMs, 0, 'the aux cooldowns are off (every run may reflect and study): memory.config.json was read at boot');

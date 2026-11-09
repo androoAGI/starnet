@@ -6,8 +6,8 @@
    leak check over every upstream body, a payer check over every call, "the ceiling stopped them") boots with every
    window at 0 here, so each eligible run still reaches its own passes, and adds a positive check that they ran.
 
-   The windows are read from memory.config.json when the sidecar boots (POST /api/memory/config takes reflectCooldownMs
-   only, not study's or failure review's); thread mining's is an env knob. Write before the first start. */
+   The windows are read from memory.config.json when the sidecar boots (POST /api/memory/config takes reflection's and
+   failure review's windows, never study's); thread mining's is an env knob. Write before the first start. */
 'use strict';
 const fs = require('fs');
 const path = require('path');
