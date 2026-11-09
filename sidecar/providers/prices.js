@@ -30,7 +30,9 @@
        for the families whose rates are published — anthropic.js asks for prompt caching, so leaving it
        unmodelled would have overstated most of the input bill on every run. A family with no CACHE entry
        still prices cached tokens at the fresh rate and therefore OVER-reports, never under.
-     · Anthropic's 1-hour cache TTL writes at 2.0x; only the default 5-minute (1.25x) tier is modelled.
+     · Anthropic cache writes price per tier (W1.13): the 5-minute tier at 1.25x, the 1-hour tier at 2.0x, split by
+       the usage the API reports (cost.js writeUnits). A write reported without its split prices at the dearest tier
+       the request asked for (see CACHE below), so it can only over-report.
      · Batch/priority tiers are not modelled.
    For a spend SEATBELT an approximate number is enormously better than a structural zero, which is the
    trade being made here.
@@ -51,10 +53,11 @@
    silently disabling the seatbelt again. */
 'use strict';
 (function (root, factory) {
-  const api = factory();
-  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  const node = typeof module !== 'undefined' && module.exports;
+  const api = factory(node ? require('./cache-ttl.js') : ((root.SK && root.SK.providers) || {}).cacheTtl);
+  if (node) module.exports = api;
   else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).prices = api; }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (cacheTtl) {
   'use strict';
 
   // [pattern, { in, out }] — USD per MILLION tokens. Order matters: specific before family fallback.
@@ -289,17 +292,14 @@
      starts overstating most of the input bill.
      A family absent from here keeps the old 1.0x behaviour, so an unmodelled provider can only ever
      OVER-report — the safe direction for a spend seatbelt, and never a silent under-count. */
-  /* The anthropic write multiplier tracks the TTL tier anthropic.js actually requests: the 5-minute tier
-     writes at 1.25x, the 1-hour tier (SKYNET_ANTHROPIC_CACHE_TTL=1h) at 2.0x. Reading the SAME env both
-     sides keeps the estimate honest — an operator who opts into the pricier tier sees it in the seatbelt. */
-  const ANTHROPIC_TTL_1H = (function () {
-    try {
-      const raw = (typeof process !== 'undefined' && process.env) ? process.env.SKYNET_ANTHROPIC_CACHE_TTL : '';
-      return String(raw == null ? '' : raw).trim().toLowerCase() === '1h';
-    } catch (_) { return false; }
-  })();
+  /* The anthropic WRITE multiplier depends on the tier (claude-api skill, shared/prompt-caching.md:144): the 5-minute
+     tier writes at 1.25x, the 1-hour tier at 2.0x. write5m / write1h price a write the API split by tier
+     (usage.cache_creation; cost.js writeUnits). `write` prices a write whose split went unreported, at the dearest tier
+     the request asked for (cache-ttl.js longestTier, the same switch the stampers read): 1.25x under the default, 2.0x
+     once 1-hour anchors are requested (cacheOf below) — an operator who opts into the pricier tier sees it in the
+     seatbelt, and an unreported split can only over-report. */
   const CACHE = {
-    anthropic: { read: 0.10, write: ANTHROPIC_TTL_1H ? 2.00 : 1.25 },
+    anthropic: { read: 0.10, write: 1.25, write5m: 1.25, write1h: 2.00 },
     gemini:    { read: 0.25, write: 1.00 },   // implicit context caching — no separate write charge published
     // 2026-08-21. OpenAI: cached input is 0.10x list on every current model (gpt-5.x, gpt-4.1, o3/o4); the
     // legacy o1 (0.50x) and gpt-4o (0.50x) rows UNDER-report cache reads at this ratio — accepted, they are
@@ -311,6 +311,11 @@
     mistral:   { read: 0.10, write: 1.00 }
   };
   const NO_CACHE = { read: 1, write: 1 };
+  const ANTHROPIC_1H = { read: 0.10, write: 2.00, write5m: 1.25, write1h: 2.00 };   // the same rates, 1-hour anchors requested
+  function cacheOf(family) {
+    if (family === 'anthropic' && cacheTtl && cacheTtl.longestTier() === '1h') return ANTHROPIC_1H;
+    return CACHE[family] || NO_CACHE;
+  }
 
   // Operator overrides, parsed ONCE and tolerant of garbage — a typo in the env must never wedge a run
   // (same discipline as SKYNET_ANTHROPIC_MAX_TOKENS in anthropic.js). Longest matching key wins, so a full
@@ -348,7 +353,7 @@
   function priceOf(family, id) {
     const key = String(id == null ? '' : id).trim();
     if (!key) return null;
-    const cache = CACHE[family] || NO_CACHE;   // an operator override rebases in/out, never the cache ratios
+    const cache = cacheOf(family);   // an operator override rebases in/out, never the cache ratios
     const lower = key.toLowerCase();
     for (const o of OVERRIDES) if (lower.indexOf(o.key) === 0) return { in: o.price.in, out: o.price.out, cache };
     if (liveLookup) {

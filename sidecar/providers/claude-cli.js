@@ -33,9 +33,9 @@
      -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts } */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'));
-  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'));
+  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl) {
   'use strict';
 
   const timeouts = provider.timeouts;
@@ -752,7 +752,9 @@
       if (!p) return NaN;
       const uncached = Number(u.input_tokens) || 0, write = Number(u.cache_creation_input_tokens) || 0, read = Number(u.cache_read_input_tokens) || 0;
       const c = p.cache || { read: 1, write: 1 };
-      return ((uncached + read * c.read + write * c.write) * p.in + (Number(u.output_tokens) || 0) * p.out) / 1e6;
+      // the write per tier when the CLI's usage splits it (usage.cache_creation; cost.js writeUnits), else at one rate
+      const writeUnits = require('../cost.js').writeUnits;
+      return ((uncached + read * c.read + writeUnits(write, u.cache_creation, c)) * p.in + (Number(u.output_tokens) || 0) * p.out) / 1e6;
     } catch (_) { return NaN; }
   }
   function makeClaudeCliProvider(opts) {
@@ -880,13 +882,17 @@
         const thinking = Number(u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0;
         const subscription = t.apiKeySource === 'none';
         const reported = Number(billed.total_cost_usd);
+        const details = { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite };
+        // the write's split by tier, as the CLI's usage reports it (usage.cache_creation, like the Messages API's)
+        const split = cacheTtl.reportedSplit(u.cache_creation);
+        if (split) details.cache_creation = split;
         return {
           type: 'usage',
           usage: {
             prompt_tokens: uncached + cacheWrite + cacheRead,
             completion_tokens: out,
             total_tokens: uncached + cacheWrite + cacheRead + out,
-            prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite },
+            prompt_tokens_details: details,
             reasoning_tokens: Math.max(0, Math.min(thinking, out)),
             // subscription login: nothing is billed per call. API key: the CLI's own billed figure.
             cost: subscription ? 0 : (isFinite(reported) ? reported : undefined),

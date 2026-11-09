@@ -3,9 +3,9 @@
    messages wire, then normalizes Anthropic SSE back to HarnessEvent. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.anthropic = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./cache-ttl.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.anthropic = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.cacheTtl); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, cacheTtl) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -36,19 +36,12 @@
       return String(raw == null ? '' : raw).trim() === '0';
     } catch (_) { return false; }
   })();
-  /* CACHE TTL (2026-07-31, Hermes-parity pass). Default stays the 5-minute tier. SKYNET_ANTHROPIC_CACHE_TTL=1h
-     opts into the 1-hour tier — the right trade for human-paced COMMS conversations, where the gap between
-     turns routinely exceeds 5 minutes and every reply then pays a full re-write. Costs are NOT symmetric:
-     a 1h write bills 2.0x (vs 1.25x), so the break-even moves from two requests to three — which is why it
-     is an operator opt-in, not the default. prices.js reads the SAME env so the spend estimate tracks the
-     tier actually requested. */
-  const CACHE_TTL_1H = (function () {
-    try {
-      const raw = (typeof process !== 'undefined' && process.env) ? process.env.SKYNET_ANTHROPIC_CACHE_TTL : '';
-      return String(raw == null ? '' : raw).trim().toLowerCase() === '1h';
-    } catch (_) { return false; }
-  })();
-  const cacheControl = () => (CACHE_TTL_1H ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' });
+  /* CACHE TTL (2026-07-31, Hermes-parity pass; one resolver since W1.13). Default stays the 5-minute tier. The tier each
+     anchor asks for comes from cache-ttl.js, the one reader of SKYNET_ANTHROPIC_CACHE_TTL: '1h' puts every anchor on
+     the 1-hour tier, 'mixed' only the stable ones (tools, system, the end of history; see buildBody). A 1h write bills
+     2.0x (vs 1.25x), so its break-even moves from two requests to three — the right trade only for human-paced COMMS
+     gaps, which is why it is an operator opt-in, not the default. The usage the API reports splits each write by tier
+     (normalizeUsage), and cost.js prices each tier at its own rate. */
   // TOOL ANCHOR kill switch (see buildBody): STARNET_ANTHROPIC_TOOL_ANCHOR=0 restores the system-only anchor layout.
   // Read per call, so flipping it takes effect on the next request without a restart.
   function toolAnchorOn() {
@@ -385,14 +378,19 @@
     const cacheCreate = Number(u.cache_creation_input_tokens || 0) || 0;
     const cacheRead = Number(u.cache_read_input_tokens || 0) || 0;
     const out = Number(u.output_tokens || 0) || 0;
+    // cache_creation_tokens is carried alongside cached_tokens so cost.js can price the three buckets at
+    // their real rates (~0.1x read, ~1.25x write). prompt_tokens stays the TRUE total — these are a
+    // breakdown OF it, never a substitute for it.
+    const details = { cached_tokens: cacheRead, cache_creation_tokens: cacheCreate };
+    // ...and the write's own split by tier when the API reports one (usage.cache_creation: 5-minute writes bill 1.25x,
+    // 1-hour writes 2x). Absent when not reported: no split is ever made up.
+    const split = cacheTtl.reportedSplit(u.cache_creation);
+    if (split) details.cache_creation = split;
     return {
       prompt_tokens: uncached + cacheCreate + cacheRead,
       completion_tokens: out,
       total_tokens: uncached + cacheCreate + cacheRead + out,
-      // cache_creation_tokens is carried alongside cached_tokens so cost.js can price the three buckets at
-      // their real rates (~0.1x read, ~1.25x write). prompt_tokens stays the TRUE total — these are a
-      // breakdown OF it, never a substitute for it.
-      prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheCreate },
+      prompt_tokens_details: details,
       // the thinking share of output_tokens when the API says it (output_tokens_details.thinking_tokens, the field Claude
       // Code's result line carries too); absent = 0 as before
       reasoning_tokens: Math.max(0, Math.min(Number(u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0, out))
@@ -511,19 +509,43 @@
        A run that ends in ONE turn pays the 1.25x for nothing — the right trade when the ceiling is 40
        iterations. Under a model's minimum cacheable prefix Anthropic simply declines to cache; that is a
        silent no-op rather than an error, so there is nothing to feature-detect per model. */
-    function breakpoint(blocks) {
-      if (CACHE_OFF || !Array.isArray(blocks) || !blocks.length) return blocks;
-      const i = blocks.length - 1;
-      const last = blocks[i];
-      if (!last || typeof last !== 'object') return blocks;
+    function breakpoint(blocks, cc) {
+      if (Array.isArray(blocks) && blocks.length) breakpointAt(blocks, blocks.length - 1, cc);
+      return blocks;
+    }
+    // Stamp block i with the cache_control `cc` (cache-ttl.js control()); true when it did.
+    function breakpointAt(blocks, i, cc) {
+      if (CACHE_OFF || !Array.isArray(blocks) || !blocks.length) return false;
+      const blk = blocks[i];
+      if (!blk || typeof blk !== 'object') return false;
       // Only the documented cacheable block kinds may carry cache_control (system text, tool defs, and
       // message text/image/tool_use/tool_result/document). A THINKING block cannot — stamping one 400s the
       // request — and tool DEFINITIONS have no .type at all, which is why absence of .type passes.
-      if (last.type && !CACHEABLE_BLOCK[last.type]) return blocks;
+      if (blk.type && !CACHEABLE_BLOCK[blk.type]) return false;
       // COPY, never stamp in place: userContentToBlocks passes native image blocks through BY REFERENCE, so
-      // mutating the last block here would reach back into the CALLER's message array and persist.
-      blocks[i] = Object.assign({}, last, { cache_control: cacheControl() });
-      return blocks;
+      // mutating the block here would reach back into the CALLER's message array and persist.
+      blocks[i] = Object.assign({}, blk, { cache_control: cc });
+      return true;
+    }
+    // END OF HISTORY (cache TTL 'mixed'): the nearest cacheable block before the newest <run_context> note, the last
+    // bytes the conversation's next message still shares. The note rides the user side (extractLeadingSystem); a
+    // note that opens the messages (a conversation's first message) has no history before it.
+    // -> { note: the note's message, m, b: the block to anchor (m -1 when nothing precedes the note) } | null (no note)
+    function historyEnd(msgs) {
+      let note = null;
+      for (let m = 0; m < msgs.length; m++) {
+        const c = msgs[m] && msgs[m].content;
+        if (!Array.isArray(c)) continue;
+        for (let b = 0; b < c.length; b++) if (c[b] && c[b].type === 'text' && typeof c[b].text === 'string' && c[b].text.indexOf(provider.RUN_CONTEXT_OPEN) === 0) note = { m, b };
+      }
+      if (!note) return null;
+      for (let m = note.m, b = note.b - 1; m >= 0; m--, b = (m >= 0 && msgs[m] && Array.isArray(msgs[m].content)) ? msgs[m].content.length - 1 : -1) {
+        for (; b >= 0; b--) {
+          const blk = msgs[m].content[b];
+          if (blk && typeof blk === 'object' && (!blk.type || CACHEABLE_BLOCK[blk.type])) return { note: note.m, m, b };
+        }
+      }
+      return { note: note.m, m: -1, b: -1 };
     }
     /* Put the model's thinking contract on the wire. Per-request `reasoningEffort` wins over the construction
        default, mirroring the openrouter adapter, so a single agent can be dialled without a new provider.
@@ -577,7 +599,12 @@
       if (tools) body.tools = tools;
       // A disposable, toolless extraction is never read again. Avoid a cache-write premium without
       // changing any model input or generation setting. Tool loops always retain their reusable cache.
-      const stamp = req.neverReread === true && !tools ? blocks => blocks : breakpoint;
+      const stamping = !(req.neverReread === true && !tools);
+      // The tier each anchor asks for (cache-ttl.js, read once per request): the static prefix is STABLE, the sliding
+      // message anchors are the TAIL. Under the default both are the 5-minute tier, exactly as before.
+      const ttl = cacheTtl.mode();
+      const stamp = stamping ? blocks => breakpoint(blocks, cacheTtl.control('stable', ttl)) : blocks => blocks;
+      const stampTail = stamping ? blocks => breakpoint(blocks, cacheTtl.control('tail', ttl)) : blocks => blocks;
       // One breakpoint for the whole static prefix. System is the preferred anchor because it sits AFTER the
       // tools and so caches both; with no system prompt the last tool is the only anchor that covers them.
       let systemAnchors = 1;
@@ -612,10 +639,22 @@
          blocks for its predecessor, and a single agentic turn with parallel tool calls can append more
          than 20 blocks at once — the new anchor then misses the old one and the whole conversation
          re-bills as a cold write. Three sliding anchors keep every gap under the lookback window, and
-         the anchors they slide off remain valid READ points as the tail grows. */
+         the anchors they slide off remain valid READ points as the tail grows.
+         END OF HISTORY (cache TTL 'mixed', W1.13): one of those anchors stays put on the last block before the newest
+         <run_context> note, on the 1-hour tier — the history the conversation's next message reads back after a
+         human-paced gap. The sliding anchors then only cover the newest message and the run's own turns after it, so
+         every 1-hour marker stays before every 5-minute one (prompt-caching.md:172). */
       const msgs = converted.messages;
-      for (let k = Math.max(0, msgs.length - (4 - systemAnchors)); k < msgs.length; k++) {
-        if (msgs[k]) stamp(msgs[k].content);
+      let slots = 4 - systemAnchors, from = 0;
+      if (stamping && cacheTtl.anchorsHistory(ttl)) {
+        const end = historyEnd(msgs);
+        if (end) {
+          from = end.note;
+          if (end.m >= 0 && breakpointAt(msgs[end.m].content, end.b, cacheTtl.control('stable', ttl))) slots--;
+        }
+      }
+      for (let k = Math.max(from, msgs.length - slots); k < msgs.length; k++) {
+        if (msgs[k]) stampTail(msgs[k].content);
       }
       return body;
     }

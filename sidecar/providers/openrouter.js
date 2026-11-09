@@ -11,9 +11,9 @@
    price catalog. With it, the final chunk carries the authoritative billed cost cost.js prefers. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./toolschema.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openrouter = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.toolschema); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, toolschema) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./toolschema.js'), require('./cache-ttl.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openrouter = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.toolschema, root.SK.providers.cacheTtl); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, toolschema, cacheTtl) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -133,6 +133,10 @@
   }
   function applyCacheControl(messages, model, cacheSystemPrefix, neverReread) {
     if (neverReread === true || !Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
+    // The tier each anchor asks for (cache-ttl.js, read once per call): the leading system anchors are STABLE, the
+    // sliding tail anchors the TAIL. Under the default both are the 5-minute tier: the exact wire from before.
+    const ttl = cacheTtl.mode();
+    const stable = () => cacheTtl.control('stable', ttl);
     let idx = -1;
     for (let i = 0; i < messages.length; i++) {
       if (messages[i] && messages[i].role === 'system') idx = i; else break;   // last of the LEADING system block
@@ -145,17 +149,17 @@
       && first.content.startsWith(cacheSystemPrefix);
     const suffix = prefixMatches ? first.content.slice(cacheSystemPrefix.length) : '';
     if (prefixMatches && (suffix.trim() || idx > 0)) {
-      const parts = [{ type: 'text', text: cacheSystemPrefix, cache_control: { type: 'ephemeral' } }];
-      if (suffix) parts.push(Object.assign({ type: 'text', text: suffix }, idx === 0 ? { cache_control: { type: 'ephemeral' } } : {}));
+      const parts = [{ type: 'text', text: cacheSystemPrefix, cache_control: stable() }];
+      if (suffix) parts.push(Object.assign({ type: 'text', text: suffix }, idx === 0 ? { cache_control: stable() } : {}));
       out[0] = Object.assign({}, first, { content: parts });
       // Recall may be another leading system message. Anchor its end as well, keeping the
       // stable instruction anchor before all changing runtime/recall bytes.
       systemAnchors = 2;
       if (idx > 0 && typeof messages[idx].content === 'string') {
-        out[idx] = Object.assign({}, messages[idx], { content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] });
+        out[idx] = Object.assign({}, messages[idx], { content: [{ type: 'text', text: messages[idx].content, cache_control: stable() }] });
       }
     } else if (idx >= 0 && typeof messages[idx].content === 'string') {
-      out[idx] = { role: 'system', content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] };
+      out[idx] = { role: 'system', content: [{ type: 'text', text: messages[idx].content, cache_control: stable() }] };
     }
     /* SLIDING TAIL ANCHORS (ported from the anthropic adapter's Hermes-parity pass). The single system anchor
        caches the static prefix, but the bytes migrate into the CONVERSATION as a run grows — tool results
@@ -175,25 +179,53 @@
        message of a consecutive user run is stamped; the next anchor slides back to that reply. */
     // KILL SWITCH: STARNET_STABLE_PREFIX=0 (the run-context switch, index.js) restores per-message stamping.
     const oneAnchorPerTurn = String((typeof process !== 'undefined' && process.env && (process.env.STARNET_STABLE_PREFIX != null ? process.env.STARNET_STABLE_PREFIX : process.env.SKYNET_STABLE_PREFIX)) || '').trim() !== '0';
-    let stamped = 0;
-    for (let i = out.length - 1; i > idx && stamped < 4 - systemAnchors; i--) {
-      const m = out[i];
-      if (!m || m.role === 'system') continue;
-      if (oneAnchorPerTurn && m.role === 'user' && out[i + 1] && out[i + 1].role === 'user') continue;
-      if (typeof m.content === 'string' && m.content.trim()) {
-        out[i] = Object.assign({}, m, { content: [{ type: 'text', text: m.content, cache_control: { type: 'ephemeral' } }] });
-        stamped++;
-      } else if (Array.isArray(m.content) && m.content.length) {
-        const parts = m.content.slice();
-        const last = parts[parts.length - 1];
-        if (last && last.type === 'text' && typeof last.text === 'string' && last.text.trim()) {
-          parts[parts.length - 1] = Object.assign({}, last, { cache_control: { type: 'ephemeral' } });
-          out[i] = Object.assign({}, m, { content: parts });
-          stamped++;
+    /* END OF HISTORY (cache TTL 'mixed', W1.13; the anthropic adapter's buildBody does the same on its own wire). One
+       anchor stays put on the last stampable message before the newest <run_context> note (made user-side for Claude),
+       on the 1-hour tier: the history the conversation's next message reads back after a human-paced gap. The sliding
+       anchors then cover only the note's turn and the run's own turns after it, so every 1-hour marker stays before
+       every 5-minute one (prompt-caching.md:172). A note right after the system prompt has no history before it. */
+    let floor = idx, budget = 4 - systemAnchors;
+    if (cacheTtl.anchorsHistory(ttl)) {
+      let note = -1;
+      for (let i = out.length - 1; i > idx; i--) if (out[i] && out[i].role !== 'system' && opensRunContext(out[i])) { note = i; break; }
+      if (note > idx) {
+        floor = note - 1;
+        for (let i = note - 1; i > idx; i--) {
+          if (!out[i] || out[i].role === 'system') continue;
+          const s = stampMessage(out[i], stable());
+          if (s) { out[i] = s; budget--; break; }
         }
       }
     }
+    let stamped = 0;
+    for (let i = out.length - 1; i > floor && stamped < budget; i--) {
+      const m = out[i];
+      if (!m || m.role === 'system') continue;
+      if (oneAnchorPerTurn && m.role === 'user' && out[i + 1] && out[i + 1].role === 'user') continue;
+      const s = stampMessage(m, cacheTtl.control('tail', ttl));
+      if (s) { out[i] = s; stamped++; }
+    }
     return out;
+  }
+  // A copy of message m with `cc` on its content's last text part (string content becomes one text part), or null when
+  // there is nothing to stamp: blank text 400s upstream, and only a text part is stamped here. Never stamps in place.
+  function stampMessage(m, cc) {
+    if (typeof m.content === 'string' && m.content.trim()) return Object.assign({}, m, { content: [{ type: 'text', text: m.content, cache_control: cc }] });
+    if (Array.isArray(m.content) && m.content.length) {
+      const parts = m.content.slice();
+      const last = parts[parts.length - 1];
+      if (last && last.type === 'text' && typeof last.text === 'string' && last.text.trim()) {
+        parts[parts.length - 1] = Object.assign({}, last, { cache_control: cc });
+        return Object.assign({}, m, { content: parts });
+      }
+    }
+    return null;
+  }
+  // the per-run <run_context> note (provider.js runContextNote), whichever role the projection gave it
+  function opensRunContext(m) {
+    const c = m && m.content;
+    const head = typeof c === 'string' ? c : (Array.isArray(c) && c[0] && typeof c[0].text === 'string' ? c[0].text : '');
+    return head.indexOf(provider.RUN_CONTEXT_OPEN) === 0;
   }
 
   const repairToolPairs = provider.repairToolPairs;
