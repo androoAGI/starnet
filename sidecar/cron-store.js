@@ -105,8 +105,9 @@
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
   const SCRIPT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
   // what drove the routine when the desk said yes to its grants (index.js routineDriveFor, final review #2): the model and
-  // provider it resolves to, and the endpoint ('-' when it was not known then)
-  const GRANT_DRIVE_RE = /^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/;
+  // provider it resolves to, and the endpoint ('-' when it was not known then); since GHSA-2hpj NEW-1 also the agent's own
+  // instructions and the routine's skills as they were then (a fourth part; granted-context.js instructionsDigest)
+  const GRANT_DRIVE_RE = /^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)(?::[0-9a-f]{32})?$/;
 
   /* UNATTENDED CAPABILITY GRANT (2026-07-25) — the capability families the Commander explicitly approved for
      THIS routine to use with nobody watching. Default EMPTY: a routine grants nothing extra unless the user

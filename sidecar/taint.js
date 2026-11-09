@@ -213,11 +213,11 @@
      used there, a taint the run started with or inherited — makes the scope broad and the old lock applies unchanged.
      ONE ORIGIN IS NOT ONE PRINCIPAL (GHSA-2hpj #6, 2026-11-08). On a multi-tenant API (GitHub, Drive, a marketplace) an
      issue body the run read can name another account's repo on the same host, and the Commander's key works there too.
-     So the scope also keeps what the run chose BEFORE any untrusted byte could steer it: the method and the path folder of
-     the request whose response first scoped it ({ origin, keys, method, prefix }). A continuation must use that method,
-     stay under that folder, and attach no files: a ${file:…} reference or a multipart part makes the HOST read a workspace
+     So the scope also keeps what the run chose BEFORE any untrusted byte could steer it: the method, the path, the query and
+     the headers of the request whose response first scoped it (since NEW-3, below: { origin, keys, method, path, query, shape }).
+     A continuation must use that method and path, and attach no files: a ${file:…} reference or a multipart part makes the HOST read a workspace
      file the model never saw and send it, so injected text could choose one. Anything else (a PUT after a GET, another
-     folder, an upload) needs a fresh confirmation in a watched run and is refused unattended, as before 10-12. */
+     path, an upload) needs a fresh confirmation in a watched run and is refused unattended, as before 10-12. */
   const KEY_REF = /\$\{([A-Z][A-Z0-9_]*)\}/g;
   function requestOrigin(call) {
     try {
@@ -251,8 +251,6 @@
       return /%(?:2f|5c|2e)|\\/i.test(p) ? '' : p;
     } catch (_) { return ''; }
   }
-  // A path's folder: everything through its last '/'. /v1/shops/1/products/9.json -> /v1/shops/1/products/
-  function pathFolder(p) { return p.slice(0, p.lastIndexOf('/') + 1) || '/'; }
   // fs.read / fs.search of a park THIS run made: its bytes are this run's own (same-scope) results, not new content.
   function ownPark(tool, call, runId) {
     const name = String((tool && tool.name) || '');
@@ -262,72 +260,121 @@
     return !!rid && base.indexOf(UNTRUSTED_PARK_PREFIX) === 0 && base.indexOf('-' + rid + '-') > 0;
   }
   // The scope after one more untrusted result. wasTainted = the run was already tainted before this result arrived.
+  // opts.responseText: what the model was shown of that result; a cursor the next page asks for must come from it (below).
   function scopeAfterSource(scope, tool, call, opts) {
     opts = opts || {};
     if (scope && scope.broad) return scope;
     if (!scope && opts.wasTainted) return { broad: true };          // tainted by something we did not scope
-    if (scope && ownPark(tool, call, opts.runId)) return scope;
+    if (scope && ownPark(tool, call, opts.runId)) return withSeen(scope, opts.responseText);
     const origin = isWebRequest(tool, call) ? requestOrigin(call) : '';
     // The host proves which HTTPS origin authored the response. The requested URL alone cannot prove it:
     // web_request may have followed a cross-origin redirect, and failed/replayed results may have no proof.
     if (!origin || opts.responseOrigin !== origin) return { broad: true };
     const keys = requestKeys(call);
     if (!scope) {
-      // the first proven API read: its request was chosen before any untrusted byte reached the run
-      const path = requestPath(call);
-      return path ? { origin, keys, method: requestMethod(call), prefix: pathFolder(path), path } : { broad: true };
+      // the first proven API read: its request was chosen before any untrusted byte reached the run, so its path, its
+      // query and its headers are the ones a continuation is held to (GHSA-2hpj NEW-3)
+      const path = requestPath(call), query = requestQuery(call);
+      return path && query ? withSeen({ origin, keys, method: requestMethod(call), path, query, shape: requestShape(call), seen: '' }, opts.responseText) : { broad: true };
     }
     if (scope.origin !== origin || !keys.every(k => scope.keys.indexOf(k) >= 0)) return { broad: true };
-    return scope;
+    return withSeen(scope, opts.responseText);
   }
   /* A CONTINUATION IS A READ (final review #8, 2026-11-08). On RPC-style APIs the folder said nothing: Slack's methods all
      live under /api/ (conversations.history, then chat.postMessage), GitHub's GraphQL is one POST /graphql for queries and
-     mutations alike, and a first read at the root (GET /search) scoped the whole origin. So a continuation is now only:
-       - a GET or HEAD with no body at all (nothing of the workspace rides inline, and nothing is POSTed, PUT or deleted);
-         a run whose first API read was a POST (GraphQL, a query endpoint) has no continuation: each call after the taint
-         asks, or is refused unattended;
-       - to the very path the first read used (paging it: only the query string differs), or under its folder when that
-         folder names something (at least two segments, one of them not a generic api/v1/rpc/graphql word) and the call's
-         last segment is not an RPC method name (users.list, chat.postMessage; a data file like products.json is fine). */
+     mutations alike, and a first read at the root (GET /search) scoped the whole origin. So a continuation is only a GET
+     or HEAD with no body at all (nothing of the workspace rides inline, and nothing is POSTed, PUT or deleted); a run whose
+     first API read was a POST (GraphQL, a query endpoint) has no continuation: each call after the taint asks, or is
+     refused unattended.
+     A CONTINUATION IS THE NEXT PAGE OF THE FIRST READ (GHSA-2hpj NEW-3, 2026-11-09). A GET still carried what the run chose
+     after the taint: GET /v1/items/search?q=<workspace text> after ?q=a, GET /repos/me/r/issues/2?note=<workspace text>
+     beside issues/1, GET /v1/do?action=delete after ?action=list, or a header the run added. Each one sent workspace bytes
+     to the API, or made a GET act, with no card. Now a continuation must be:
+       - the very path the first read used (another document beside it is a new request: it asks);
+       - with the same headers and the same auth descriptor (a header value is a place to put bytes as well);
+       - with a query string that differs from the first read only in its paging parameters (PAGING below). A page
+         number, a page size or an offset is a short number; a cursor, a token, an id to start after or a time to read
+         since must be one this run was shown in a response from that origin (a value the API itself handed out is not
+         the workspace's), so a cursor cannot carry a file out either;
+       - with no user name or password in the URL.
+     Anything else asks in a watched run and is refused unattended, as every other post-taint call. */
   const CONTINUE_METHODS = ['GET', 'HEAD'];
-  const GENERIC_SEGMENT = /^(?:api|apis|rest|rpc|jsonrpc|json-rpc|xmlrpc|graphql|gql|query|services?|methods?|v\d+(?:\.\d+)*)$/i;
-  const RPC_METHOD_SEGMENT = /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/;
-  const DATA_EXTENSION = /\.(?:json|xml|csv|tsv|txt|html?|md|ya?ml|atom|rss|ics|pdf|png|jpe?g|gif|webp|svg)$/i;
-  function namedFolder(prefix) {
-    const segs = String(prefix || '').split('/').filter(Boolean);
-    return segs.length >= 2 && segs.some(s => !GENERIC_SEGMENT.test(s));
+  const PAGING_NUMBER = ['page', 'per_page', 'page_size', 'limit', 'offset'];
+  const PAGING_TOKEN = ['cursor', 'after', 'before', 'since', 'starting_after', 'ending_before', 'pagetoken', 'page_token', 'next'];
+  const PAGING = PAGING_NUMBER.concat(PAGING_TOKEN);
+  const SEEN_MAX = 1 << 20;   // the newest 1 MB of what the run was shown from the scoped origin: where a cursor must come from
+  function withSeen(scope, text) {
+    const add = typeof text === 'string' ? text : '';
+    if (!add) return scope;
+    const seen = (String(scope.seen || '') + '\n' + add);
+    return Object.assign({}, scope, { seen: seen.length > SEEN_MAX ? seen.slice(seen.length - SEEN_MAX) : seen });
   }
-  function rpcMethodName(path) {
-    const last = String(path || '').split('/').pop() || '';
-    return RPC_METHOD_SEGMENT.test(last) && !DATA_EXTENSION.test(last);
+  // The query as [name, value] pairs in a fixed order (names compared case-blind), or null when it cannot be read.
+  function requestQuery(call) {
+    try {
+      const u = new URL(String((call && call.args && call.args.url) || ''));
+      const out = [];
+      for (const [k, v] of u.searchParams) out.push([k.toLowerCase(), v]);
+      return out.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0)));
+    } catch (_) { return null; }
+  }
+  function requestUserinfo(call) {
+    try { const u = new URL(String((call && call.args && call.args.url) || '')); return !!(u.username || u.password); } catch (_) { return true; }
+  }
+  // Everything else the request sends that the run chooses: its headers (names case-blind) and the auth descriptor.
+  function requestShape(call) {
+    const a = (call && call.args) || {};
+    const h = a.headers && typeof a.headers === 'object' && !Array.isArray(a.headers) ? a.headers : {};
+    const headers = Object.keys(h).map(k => [k.toLowerCase(), String(h[k])]).sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : 0));
+    const auth = a.auth && typeof a.auth === 'object' ? Object.keys(a.auth).sort().map(k => [k, String(a.auth[k])]) : null;
+    return JSON.stringify([headers, auth]);
+  }
+  const valuesOf = (pairs, name) => pairs.filter(p => p[0] === name).map(p => p[1]);
+  // Does `next` differ from `first` only in paging parameters whose values pass? Pure.
+  function pagingOnly(first, next, seen) {
+    const names = new Set(first.map(p => p[0]).concat(next.map(p => p[0])));
+    for (const name of names) {
+      const was = valuesOf(first, name), now = valuesOf(next, name);
+      if (JSON.stringify(was) === JSON.stringify(now)) continue;
+      if (PAGING.indexOf(name) < 0) return false;
+      if (now.length > 1) return false;
+      if (!now.length) continue;   // a paging parameter dropped (back to the first page)
+      const v = now[0];
+      if (PAGING_NUMBER.indexOf(name) >= 0) { if (!/^\d{1,7}$/.test(v)) return false; continue; }
+      if (!v || v.length > 512) return false;
+      if (was.indexOf(v) >= 0) continue;
+      const shown = String(seen || '');
+      if (shown.indexOf(v) < 0 && shown.indexOf(v.replace(/\//g, '\\/')) < 0 && shown.indexOf(encodeURIComponent(v)) < 0) return false;
+    }
+    return true;
   }
   function continuable(scope) {
     return !!(scope && !scope.broad && typeof scope.method === 'string' && CONTINUE_METHODS.indexOf(scope.method) >= 0
-      && typeof scope.prefix === 'string' && scope.prefix && typeof scope.path === 'string' && scope.path);
+      && typeof scope.path === 'string' && scope.path && Array.isArray(scope.query) && typeof scope.shape === 'string');
   }
   // May this call skip the post-taint confirmation? Only a body-less GET/HEAD web_request back to the scoped origin, with
-  // the scoped method, to the first read's path or under its named folder, spending no key the run had not already sent
-  // there. Never for an untrusted ENTRY (webhook/forward/attachment-started run).
+  // the scoped method, to the first read's very path with the same headers, its query changed only in paging parameters,
+  // spending no key the run had not already sent there. Never for an untrusted ENTRY (webhook/forward/attachment-started run).
   function sameOriginContinuation(scope, tool, call, opts) {
     opts = opts || {};
     if (!continuable(scope) || opts.untrustedEntry === true || !isWebRequest(tool, call)) return false;
-    if (requestOrigin(call) !== scope.origin) return false;
+    if (requestOrigin(call) !== scope.origin || requestUserinfo(call)) return false;
     if (requestCarriesFiles(call)) return false;
     const a = (call && call.args) || {};
     if (a.body != null && String(a.body) !== '') return false;
     if (requestMethod(call) !== scope.method) return false;
-    const path = requestPath(call);
-    if (!path) return false;
-    const samePath = path === scope.path;
-    if (!samePath && !(namedFolder(scope.prefix) && path.indexOf(scope.prefix) === 0 && !rpcMethodName(path))) return false;
+    if (requestPath(call) !== scope.path) return false;
+    if (requestShape(call) !== scope.shape) return false;
+    const query = requestQuery(call);
+    if (!query || !pagingOnly(scope.query, query, scope.seen)) return false;
     return requestKeys(call).every(k => scope.keys.indexOf(k) >= 0);
   }
   // What still goes through without a card, in words for the lockout, so the model can stay inside it. '' unless scoped. Pure.
   function continuationHint(scope) {
     if (!continuable(scope)) return '';
-    return 'Calls that still go through on this run without a confirmation: ' + scope.method + ' requests '
-      + (namedFolder(scope.prefix) ? 'under ' + scope.origin + scope.prefix : 'to ' + scope.origin + scope.path + ' (other pages of it)')
-      + ' with the keys already sent there, no body and no attached files.';
+    return 'Calls that still go through on this run without a confirmation: ' + scope.method + ' requests to ' + scope.origin + scope.path
+      + ' for other pages of the same read (only page, per_page, page_size, limit and offset numbers, or a cursor this API returned, may change)'
+      + ', with the same headers and keys, no body and no attached files.';
   }
 
   return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, continuationHint, requestCarriesFiles, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
