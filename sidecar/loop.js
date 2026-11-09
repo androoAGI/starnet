@@ -726,13 +726,30 @@
     const script = tokens[i] || '';
     return script && script !== '-' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(script) ? script : '';
   }
-  const vosPathKey = p => String(p == null ? '' : p).trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^(?:\.\/)+/, '').toLowerCase();
-  // does running `script` run the changed file `touched`? (paths as the model wrote them: relative, absolute, ./, backslashes)
-  function vosRunsPath(script, touched) {
-    const s = vosPathKey(script), t = vosPathKey(touched);
+  // a comparable path: slashes forward, case folded, `.` and `..` segments resolved (paths as the model wrote them)
+  function vosPathKey(p) {
+    const raw = String(p == null ? '' : p).trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/').toLowerCase();
+    const root = (/^(?:\/|[a-z]:\/)/.exec(raw) || [''])[0];
+    const out = [];
+    for (const seg of raw.slice(root.length).split('/')) {
+      if (!seg || seg === '.') continue;
+      if (seg === '..' && out.length && out[out.length - 1] !== '..') out.pop(); else out.push(seg);
+    }
+    return root + out.join('/');
+  }
+  const vosIsAbsKey = k => /^(?:\/|[a-z]:\/)/.test(k);
+  // does running `script` (from `cwd` when the call names one) run the changed file `touched`? Two relative paths must be
+  // EQUAL — `node other/app.js` vouches for nothing about the app.js written at the root — and an absolute path matches the
+  // relative path it ends with (the same file named from the project root).
+  function vosRunsPath(script, touched, cwd) {
+    let s = vosPathKey(script);
+    const t = vosPathKey(touched), c = vosPathKey(cwd);
     if (!s || !t) return false;
+    if (c && !vosIsAbsKey(s)) s = vosPathKey(c + '/' + s);
     const forms = /\.[a-z0-9]+$/.test(s.split('/').pop()) ? [s] : [s, s + '.js', s + '.mjs', s + '.cjs'];
-    return forms.some(v => v === t || t.endsWith('/' + v) || v.endsWith('/' + t));
+    return forms.some(v => v === t
+      || (vosIsAbsKey(t) && !vosIsAbsKey(v) && t.endsWith('/' + v))
+      || (vosIsAbsKey(v) && !vosIsAbsKey(t) && v.endsWith('/' + t)));
   }
   // the host's own receipt that a command ran to completion and exited 0
   function vosExitZero(result) {
@@ -3242,7 +3259,7 @@
           }
           if (k === 'shell_exec') {
             const script = (c.args && c.args.background !== true) ? vosInterpreterTarget(c.args) : '';
-            const runsOf = script ? Array.from(vosUnverified).filter(p => vosRunsPath(script, p)) : [];
+            const runsOf = script ? Array.from(vosUnverified).filter(p => vosRunsPath(script, p, c.args && c.args.cwd)) : [];
             const note = vosRanNote(c.args, resultById[c.id]);
             if (runsOf.length && vosExitZero(resultById[c.id])) {
               for (const p of runsOf) vosUnverified.delete(p);

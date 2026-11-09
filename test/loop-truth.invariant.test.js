@@ -178,6 +178,16 @@ const NOTHING_RAN = 'and are ending without running anything against it.';
       const failedOne = P('verify_before_done', { failedCheck: 'npm test', ran: [{ cmd: 'ls', exit: '0' }] });
       A.ok(/did NOT pass/.test(failedOne) && /npm test/.test(failedOne), 'A10 a failed check outranks the ran list');
     }
+    // A11. which changed file a run ran: equal relative paths (`.`/`..` resolved), an extensionless node script, absolute vs
+    // relative, an explicit cwd — and never a same-named file somewhere else
+    const R = _internals.vosRunsPath;
+    A.eq(typeof R === 'function' ? [R('hello.js', 'hello.js'), R('./src/../hello.js', 'hello.js'), R('src/app', 'src/app.js'), R('app.js', 'C:\\proj\\app.js'),
+      R('C:/proj/src/app.js', 'src/app.js'), R('app.js', 'src/app.js', 'src'), R('other/hello.js', 'hello.js'), R('hello.js', 'src/hello.js'), R('hello.js', 'hello.json')] : null,
+      [true, true, true, true, true, true, false, false, false], 'A11 vosRunsPath matches the file a run ran, never a namesake');
+    const fromCwd = await run([write('w1', 'src/app.js'), exec('x1', 'node app.js', { cwd: 'src' }), say(DONE)], { shell: [shellOut('ok', 0)] });
+    A.eq(fromCwd.vos.length, 0, 'A11 `node app.js` run with cwd src clears the src/app.js it ran');
+    const namesake = await run([write('w1', 'hello.js'), exec('x1', 'node other/hello.js'), say(DONE), say('Not verified.')], { shell: [shellOut('ok', 0)] });
+    A.eq(namesake.vos.length, 1, 'A11 a run of a same-named file in another folder clears nothing (anti-fake-done)');
   }
 
   // ===== B. FAILURE RECOVERY: held is not failed =====
