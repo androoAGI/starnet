@@ -27,6 +27,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { sidecarSourceFiles } = require('./helpers/source.js');
+const { zeroLearningWindows, THREAD_MINE_WINDOW_ZERO } = require('./helpers/learning-windows.js');
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const IPC = 'governor-every-call-ipc-token-0123456789';
@@ -157,10 +158,13 @@ function rig(fixture, fake) {
 }
 
 async function capArm(fake, shim) {
-  const fixture = SidecarFixture.create({ prefix: 'gov-every-call-', timeoutMs: 30000, entry: bootEntry(fs.mkdtempSync(path.join(shim, 'cap-')), false), env: ENV });
+  const fixture = SidecarFixture.create({ prefix: 'gov-every-call-', timeoutMs: 30000, entry: bootEntry(fs.mkdtempSync(path.join(shim, 'cap-')), false), env: Object.assign({}, ENV, THREAD_MINE_WINDOW_ZERO) });
   const t = rig(fixture, fake);
   try {
     seed(fixture.workspace);
+    // every learning window 0: the ceiling run's reflection, study and thread mining are due though the plan run just
+    // attempted them (since W1.4 an attempt arms its window whatever it kept), so the ceiling is what stops them
+    zeroLearningWindows(fixture.workspace);
     await fixture.start();
     await t.push('openrouter', 'or-fixture-key');
     await t.push('codex', '');
@@ -220,6 +224,8 @@ async function capArm(fake, shim) {
     A.eq(ceilingRun.end.reason, 'done', 'plan, token ceiling: the Commander\'s run still runs');
     A.eq([t.passRows('codex', from).length, t.count('codex', 'aux') - auxBefore], [0, 0], 'plan, token ceiling: its run-end passes do not');
     A.ok(/\[aux-governor\][^\n]*token ceiling reached/.test(fixture.output().slice(at)), 'plan, token ceiling: the run-end says the ceiling stopped them');
+    const ceilingLine = (fixture.output().slice(at).match(/\[aux-governor\][^\n]*token ceiling reached[^\n]*/) || [''])[0];
+    A.eq(['reflection', 'study', 'threadmine'].filter(k => !new RegExp('DEFERRED\\[[^\\]]*\\b' + k + '\\b').test(ceilingLine)), [], 'NON-VACUOUS: the ceiling stopped the learning passes themselves, each due (their windows are 0): ' + ceilingLine);
     const ceilingDraft = await t.lineDraft();
     A.eq([ceilingDraft.status, t.count('codex', 'linedraft')], [200, 2], 'plan, token ceiling: the one-shot is a press, so the ceiling does not stop it: ' + ceilingDraft.text.slice(0, 200));
     const ceilingQuest = await t.refreshQuests();

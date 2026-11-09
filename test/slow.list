@@ -358,3 +358,9 @@ test/forget.tool-quotes.relay.http.test.js
 test/forget.tool-quotes.overflow.http.test.js
 # forget.tool-quotes.http: the core shard (setup runs, a routine, the delete, replay and recall through real runs, the rollback modes, a posted window, TurnMerge, a restart, session.list titles, the recorded limit) - 34-40 s with other lanes building (2026-11-04); listed so a 2-3x slowdown under load cannot turn a healthy step red.
 test/forget.tool-quotes.http.test.js
+# learning-cooldown.e2e: seventeen tool runs on one real sidecar (the 4-run burst, a cue, a productive pass, three failed runs, a verdict, the NONE ladder with its 6 s and 6.5 s waits on a 5 s window, a restart) - 48-51 s standalone (2026-11-09), 80 s at 87% CPU with other sessions' gates running (2026-11-09); listed by the >= 40 s rule.
+test/learning-cooldown.e2e.test.js
+# learning-cooldown.race.e2e: twenty tool runs on one real sidecar (held and failing learning passes, verdicts, a correction, two memory resets) - 35-38 s at 87% CPU with other sessions' gates running (2026-11-09); listed so a 2-3x slowdown under load cannot turn a healthy step red.
+test/learning-cooldown.race.e2e.test.js
+# prompt-scrub.invariant.http: one real sidecar against a capturing mock (legacy rows on disk before boot, live seeding through real routes, then a dozen later lanes, each captured request scanned for keys); W1.4 waits up to 20 s for ASK2's learning passes - 42.5 s on base e316231d7 and 44.6 s on the lane back to back, 41.9-50.1 s across the lane's runs with other sessions' gates running (2026-11-09); listed by the >= 40 s rule (already over it on base).
+test/prompt-scrub.invariant.http.test.js

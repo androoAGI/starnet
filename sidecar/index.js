@@ -269,6 +269,7 @@ const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TAST
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
 const LearningEligibility = require('./learning-eligibility.js');   // memory-truth-1027: the ONE rule for which runs may teach which learning pass
+const LearningCooldown = require('./learning-cooldown.js');   // W1.4: the ONE cooldown policy for reflection, failure review, study and thread mining
 const Embed = require('./embed.js');              // memory-compound: the embedding lane of hybrid recall (BM25 + vectors over a configured provider)
 const { swallow, note: failNote, summary: failopenSummary, setClock: failopenSetClock } = require('./failopen.js');    // tagged fail-open: a swallowed error stays visible (throttled warn + counter + diagnostics summary)
 const { makeProcessFaultHandler } = require('./process-fault.js');   // fail-loud-but-safe uncaughtException policy (degrade health, release locks, exit(1) for the shell watchdog)
@@ -4215,6 +4216,7 @@ async function runReflection(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
   const spend = auxSpend('reflection', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
@@ -4225,7 +4227,9 @@ async function runReflection(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    const text = await spend.stream(provider, req, cost);
+    replied = !!String(text || '').trim();
+    return text;
   };
   /* (aux-tier repair, 2026-08-17) A typed-postconditions line — `let finalCompletionEvidence =
      execution.completionEvidence()` — landed HERE instead of in runOnce (890855829 merge damage). `execution`
@@ -4254,9 +4258,8 @@ async function runReflection(o) {
     // project tier: NEW facts key to the run's blessed root; a correction (replaceId) keeps its original record's scope
     proposals = proposals.map(p => (p && p.replaceId) ? p : scopeToProject(p, o.projectRoot));
     if (proposals.length) {
-      // arm the cooldown ONLY when a beat actually fires — so a trivial/floored/all-deduped run (zero proposals)
-      // never spends the window and blocks a following substantive run's turn-in (honours "always confirm").
-      lastReflectAt.set(agentId, Date.now());
+      // a beat fires: the NONE backoff starts over (W1.4 — the window itself is armed by the ATTEMPT, in finally below)
+      kept = true;
       // SILENT-SAVE UX: split the batch. NORMAL proposals auto-save immediately (no confirmation) via the ONE
       // write path — a passive "◈ remembered" receipt in COMMS, one-tap ✕ to veto. HIGH-STAKES proposals
       // (credentials / PII / standing instructions) are NOT auto-saved — they still stash + emit memory.proposed
@@ -4292,6 +4295,8 @@ async function runReflection(o) {
   } catch (e) { console.warn('[cortex] reflection failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window, whatever it kept (a NONE reply included). Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('reflection', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
@@ -4315,6 +4320,7 @@ async function runFailureReview(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
   const spend = auxSpend('failure-review', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a lesson survived
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4323,7 +4329,9 @@ async function runFailureReview(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    const text = await spend.stream(provider, req, cost);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     const stored = notebookStore.get('notebook:' + agentId);
@@ -4342,9 +4350,7 @@ async function runFailureReview(o) {
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.content)); }
     proposals = proposals.map(p => scopeToProject(p, o.projectRoot));   // project tier: a failure lesson keys to the repo it was learned in
     if (proposals.length) {
-      // arm the cooldown ONLY when a beat actually fires (zero surviving lessons never spend the window) —
-      // the same arming rule as reflection.
-      lastFailReviewAt.set(agentId, Date.now());
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), the same rule as reflection
       const highStakesProps = [], normalProps = [];
       for (const p of proposals) (highStakes(p.content) ? highStakesProps : normalProps).push(p);
       // auto-save the normal lessons — silent save = NEUTRAL trust (trustDelta 0); origin 'failure-review' is
@@ -4367,6 +4373,8 @@ async function runFailureReview(o) {
   } catch (e) { console.warn('[cortex] failure review failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window and marks this failure class reviewed. Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('failure-review', agentId, { runId, replied, produced: kept, failureClass: LearningCooldown.failureClass(o) }); } catch (e) { failNote('learning.cooldown', e); }
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
@@ -4418,6 +4426,7 @@ async function runStudy(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
   const spend = auxSpend('study', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4428,7 +4437,9 @@ async function runStudy(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    const text = await spend.stream(provider, req, cost);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? promptDossier() : '';
@@ -4444,8 +4455,7 @@ async function runStudy(o) {
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.text)); }
     if (proposals.length && !forgetRegistry.admit(o.src || { runId })) { console.log('[study] proposals for run=' + runId + ' dropped: its session was deleted'); proposals = []; }   // the registry's gate: a pass that began before a delete stashes nothing
     if (proposals.length) {
-      // arm the cooldown ONLY when proposals actually survive — a floored/all-dedup run never blocks the next study.
-      lastStudyAt.set(agentId, Date.now());
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), whatever survived
       stashStudy(agentId, runId, proposals.map(p => ({ id: p.id, dim: p.dim, kind: p.kind, text: p.text, evidence: p.evidence || '', evidenceRef: p.evidenceRef || { runId: p.sourceRunId || runId, kind: 'directive' }, source: 'study', sourceRunId: p.sourceRunId || runId })));
       // NB: NO chanEmit — study needs no bus event. The browser fetches /api/study/proposals on agent.run.end
       // (a frozen event it already listens to), so the shared/events.js contract stays untouched.
@@ -4453,6 +4463,8 @@ async function runStudy(o) {
   } catch (e) { console.warn('[study] pass failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window (persisted in study.state.json). Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('study', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
@@ -4483,6 +4495,7 @@ async function runThreadMine(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
   const spend = auxSpend('threadmine', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a thread survived
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4491,7 +4504,9 @@ async function runThreadMine(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    const text = await spend.stream(provider, req, cost);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     // known fingerprints = every live (non-declined) thread + the permanent declined denylist — so a duplicate or a
@@ -4511,7 +4526,7 @@ async function runThreadMine(o) {
     // declined in ANOTHER surface (a reflected belief / a study belief / a quest title / a north star) before stash.
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.title)); }
     if (proposals.length) {
-      lastThreadMineAt.set(agentId, Date.now());   // arm the cooldown ONLY when proposals survive (a floored/all-dedup run never blocks the next mine)
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), whatever survived
       stashThreads(agentId, runId, proposals);
       // NB: NO chanEmit — like study, the browser fetches /api/threads/proposals on agent.run.end (a frozen event
       // it already listens to), so the shared/events.js contract stays untouched.
@@ -4519,8 +4534,49 @@ async function runThreadMine(o) {
   } catch (e) { console.warn('[threads] mine failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window. Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('threadmine', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
+}
+
+/* ---- W1.4 ONE COOLDOWN RESOLVER for the four post-run LEARNING passes (cost lane, 2026-11-09) ----
+   Reflection, failure review, study and thread mining each kept a window, but armed it only when a proposal survived,
+   so a pass whose model replied NONE (or kept nothing after the floors and dedup) fired again on the very next run.
+   Now every ATTEMPT (a model call went out: the pass's meter counted one) arms its window — noteLearningAttempt, from
+   each run*'s finally — and the policy lives in ONE module (learning-cooldown.js): reflection backs off after replies
+   that kept nothing (its window x1, x4, x10), and feedback always gets through — a like or dislike (the one feedback
+   write path, recordFeedbackMemory) or a cue in the Commander's own latest words opens every window of that agent until each
+   pass's next ANSWERED attempt from a run that ended after it (a pass already running when the feedback came never uses it
+   up, and neither does a call that failed: it arms the window, but the next attempt still skips it), and a failure
+   review also skips its window for a failure class it has not reviewed (with an answer) within its window. The
+   stamps stay here, where the routes and resets already read them; the configured windows are the same live knobs
+   (memoryConfig, THREAD_MINE_COOLDOWN_MS). A window of 0 stays 0. */
+const learningCooldown = LearningCooldown.make({ now: () => Date.now() });
+// may this learning pass spend at this run-end? ctx: { failureClass: the failed run's class (failure review only) }
+function learningPassDue(kind, agentId, ctx) {
+  const c = ctx || {};
+  let open;
+  if (kind === 'reflection') open = Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs * learningCooldown.scale('reflection', agentId);
+  else if (kind === 'failure-review') open = Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs;
+  else if (kind === 'study') open = Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs;
+  else if (kind === 'threadmine') open = Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS;
+  else return false;
+  if (open) return true;
+  const why = learningCooldown.bypass(kind, agentId, { failureClass: c.failureClass || '', windowMs: memoryConfig.failureReviewCooldownMs });
+  if (why) console.log('[learning] ' + kind + ' may spend inside its window: agent=' + agentId + ' (' + why + ')');
+  return !!why;
+}
+// one ATTEMPT of a learning pass ended (its meter counted a call, a failed one too): the policy folds what it got (only an
+// answer uses feedback up), then the window is armed — unless the attempt's run ended before its agent was deleted or
+// reset (a pass that outlived its agent)
+function noteLearningAttempt(kind, agentId, r) {
+  if (!learningCooldown.noted(kind, agentId, r)) return;
+  const at = Date.now();
+  if (kind === 'reflection') lastReflectAt.set(agentId, at);
+  else if (kind === 'failure-review') lastFailReviewAt.set(agentId, at);
+  else if (kind === 'study') { lastStudyAt.set(agentId, at); persistStudyState(); }
+  else if (kind === 'threadmine') lastThreadMineAt.set(agentId, at);
 }
 
 const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), limitsRegistry.BY_KEY.skillReviewMs.def);
@@ -20885,6 +20941,8 @@ async function handleAgentDelete(req, res) {
     lastFailReviewAt.delete(agentId); failReviewingNow.delete(agentId); skillReviewingNow.delete(agentId); if (skillNudge.delete(agentId)) persistSkillNudge();
     for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
     latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+    lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: thread mining's window too (every attempt arms it now)
+    learningCooldown.forget(agentId);   // W1.4: its NONE streak, failure classes and feedback tokens go too, and a pass still running arms nothing
     persistStudyState();
   } catch (_) {}
   return json(200, { ok: true, agentId, rosterRemoved: removed, archived, cronRemoved });
@@ -26460,6 +26518,11 @@ async function runOnceCore(o) {
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     // no result = the run THREW before its loop returned (bug 812c3bfb): it is settled as an error, never a finished run
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
+    /* W1.4 LEARNING ORDER, taken BEFORE the run's row exists (runStore.record below). A rating, a correction or KEEP THIS
+       STYLE on this run needs that row (404 without it), so it always lands after this run's end order and opens the
+       learning windows for the NEXT run's passes, never for this run's own, which never read it. A cue in the Commander's
+       own latest words opens first, so this run's own passes do use that one (the learning block below reads both). */
+    try { if (LearningCooldown.cueIn(commanderWords)) learningCooldown.open(agentId, 'cue'); learningCooldown.ended(runId); } catch (e) { failNote('learning.cooldown', e); }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
@@ -26603,8 +26666,8 @@ async function runOnceCore(o) {
   // VERIFIABLY tool-capable on this run's provider (supportsTools === true), else the run's own model as today.
   const _auxSkillModel = auxSkillModel(provider, model);
 
-  // Each pass's OWN gate, computed WITHOUT firing (the EXACT predicates from before — the reflect/study/threadmine
-  // cooldown comparisons are byte-for-byte the originals, so the settings-P1 source-locks still hold). A pass
+  // Each pass's OWN gate, computed WITHOUT firing (the four learning passes read their windows through ONE resolver,
+  // learningPassDue, which keeps the configured reflection comparison the settings-P1 source-lock pins). A pass
   // becomes a budget CANDIDATE iff it would actually SPEND a model call this run-end — so an already-blocked pass
   // never eats a slot. Cortex M-mem.5b reflection · GROWTH Tier 1 study · NS-6 thread-mine — all ride isTask/done/salience.
   /* A LINE HAND-OFF IS NOT THE COMMANDER SPEAKING (2026-09-30). A work line's later stages run on the hand-off frame
@@ -26637,9 +26700,19 @@ async function runOnceCore(o) {
   if (_learn['trusted-capture']) {
     await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence, outcome: _learn.kind });
   }
+  /* W1.4 ONE COOLDOWN RESOLVER: the four learning passes ask learningPassDue (learning-cooldown.js policy) whether their
+     window lets them spend. Feedback always gets through: a preference or correction cue in the Commander's OWN latest
+     words (commanderWords: host-minted from the owner's own surfaces only, so a routine's or a worker's brief that says
+     "always" opens nothing) opens every learning window of this agent, as a thumbs verdict does (recordFeedbackMemory),
+     until each pass's next answered attempt from a run that ended after it: this run's own pass, or, for a pass held back
+     here (its previous pass still running, or deferred by the budget) or whose call failed, its next one. The cue opened
+     and this run's end took its order in the finally above, before the run's row was recorded, so a pass still running
+     from an earlier run never uses the cue up, and a like or dislike on this run waits for the next run's passes. A
+     failure review also skips its window for a failure class (outcome, stage, code) it has not reviewed within its window. */
+  const _learnFailClass = LearningCooldown.failureClass({ outcome: _leadOc.outcome, failureStage: execution.failureStage(), failureCode: execution.failureCode() });
   const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
-      && !reflectingNow.has(agentId) && (Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs));
+      && !reflectingNow.has(agentId) && learningPassDue('reflection', agentId));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
   // workers stay off), the live config master-switch, the personalization PAUSE (checked here so a paused station
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
@@ -26649,11 +26722,11 @@ async function runOnceCore(o) {
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
-      && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
+      && !failReviewingNow.has(agentId) && learningPassDue('failure-review', agentId, { failureClass: _learnFailClass }));
   const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
-      && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
+      && !studyingNow.has(agentId) && learningPassDue('study', agentId));
   const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
-      && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
+      && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
   // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
@@ -26733,8 +26806,8 @@ async function runOnceCore(o) {
   // run's FIRST request: a key keys.save stored mid-run would ride them raw. Re-guarded here = a fresh snapshot.
   const auxProvider = PromptScrub.guardRequest(provider);
   // Fire ONLY the granted passes — each keeps its exact prior spend semantics + in-flight guard. A deferred pass
-  // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run* only on a surviving beat),
-  // so it re-qualifies next run.
+  // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run*, on an attempt whose meter
+  // counted a model call — W1.4), so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
     automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
@@ -31454,6 +31527,11 @@ async function recordFeedbackMemory(o) {
     if (!personalizationStore.read().enabled) return { stored: false, reason: 'personalization-paused' };
     // the reference is read only for a verdict that is about to be stored (never while learning is paused)
     const ref = o.run ? await captureTasteRef(o.run) : null;
+    // W1.4 FEEDBACK IS CRITICAL: every like or dislike (a verdict, its correction, KEEP THIS STYLE, a workflow's NEEDS
+    // CHANGES: this is their one write path) opens every learning window of the agent, whatever the save below keeps,
+    // until each pass's next answered attempt from a run that ended after it (learning-cooldown.js); a running pass never
+    // uses it. Below the reference read, which never throws (captureTasteRef answers null), so the save is all it precedes.
+    try { learningCooldown.open(agentId, 'feedback'); } catch (e) { failNote('learning.cooldown', e); }
     let out = null;
     await notebookStore.update('notebook:' + agentId, (stored) => {
       const r = FeedbackMemory.apply(stored, { runId: o.runId, verdict: o.verdict, words: redact(String(o.words || '')), directive: redact(String(o.directive || '')), ref, kept: o.kept === true },
@@ -31762,6 +31840,8 @@ async function handleMemoryReset(req, res) {
   // GROWTH Tier 1: also drop any pending STUDY proposals so a fresh Commander never inherits a stranger's belief-update queue.
   for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
   latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+  lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: nor the last hero's thread-mining window (every attempt arms it now)
+  learningCooldown.forget(agentId);   // W1.4: a fresh hero starts with no NONE backoff or stranger's failure classes, and a pass still running arms nothing
   persistStudyState();
   return json(200, { ok: true, agent: agentId });
 }

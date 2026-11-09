@@ -6,9 +6,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { seedActiveStation } = require('./helpers/station.js');   // a crew lives on a founded station: before one, the roster is held, never written
+const { zeroLearningWindows } = require('./helpers/learning-windows.js');
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 (async () => {
-  const calls = []; let mode = 'direct';
+  const calls = [], learning = []; let mode = 'direct', round = 0;
   const server = http.createServer(async (req, res) => {
     let raw = ''; for await (const chunk of req) raw += chunk;
     res.setHeader('Content-Type', 'application/json');
@@ -17,6 +18,7 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
     if (req.url.includes('/models')) return res.end(JSON.stringify({ data: [{ id: 'test/model', supported_parameters: ['tools'], pricing: { prompt: '0', completion: '0' } }] }));
     calls.push({ url: req.url, auth: req.headers.authorization });
     const body = JSON.parse(raw || '{}');
+    if (/reflecting right after finishing a task|durable profile of your Commander/.test(JSON.stringify(body.messages || []))) learning.push({ url: req.url, auth: req.headers.authorization, at: round + '/' + mode });
     if (body.modalities?.includes('image')) return res.end(JSON.stringify({ choices: [{ message: { images: [{ image_url: { url: 'data:image/png;base64,' + PNG } }] } }], usage: { cost: 0 } }));
     const results = (body.messages || []).filter(m => m.role === 'tool');
     const worker = (body.messages || []).some(m => m.role === 'system' && String(m.content).includes('BYOK_WORKER'));
@@ -39,13 +41,16 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
     fs.mkdirSync(path.join(fixture.workspace, '.secrets'), { recursive: true });
     fs.writeFileSync(path.join(fixture.workspace, '.secrets/credits.json'), JSON.stringify({ url: base, deviceToken: 'managed-fixture', accountId: 'fixture', linkedAt: Date.now() }));
     seedActiveStation(fixture.workspace);
+    // every learning window 0: each eligible run's reflection and study reach the upstream, so the payer check reads them
+    // after every mode (since W1.4 an attempt arms its window whatever it kept)
+    zeroLearningWindows(fixture.workspace);
     await fixture.start();
     await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [
       { agentId: 'agent', provider: 'openrouter', model: 'test/model', approvalMode: 'full' },
       // Stale provider with no pinned model must still follow the lead.
       { agentId: 'worker', provider: 'starnet', model: '', system: 'BYOK_WORKER', approvalMode: 'full' }
     ] });
-    for (const round of [0, 1]) {
+    for (round of [0, 1]) {
       if (round) await fixture.restart();
       for (mode of ['direct', 'delegation', 'image']) {
         calls.length = 0;
@@ -58,6 +63,11 @@ const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwA
         if (mode === 'image') assert.equal(fs.readFileSync(path.join(fixture.workspace, 'agent/images/byok.png')).toString('base64'), PNG);
       }
     }
+    // the run-end reflection and study passes are paid calls too: every eligible run's (each run's windows are 0), the last
+    // run's included once they land, stay on the BYOK key and route (the per-mode check reads those landing inside a mode)
+    for (let i = 0; i < 80 && learning.length < 6; i++) await new Promise(r => setTimeout(r, 100));
+    assert.ok(learning.length >= 6, 'the run-end learning passes of the runs reached the upstream: ' + JSON.stringify(learning.map(c => c.at)));
+    assert.ok(learning.every(c => c.auth === 'Bearer byok-fixture' && c.url.startsWith('/byok/')), 'every run-end learning pass stayed on the BYOK key: ' + JSON.stringify(learning));
     calls.length = 0; mode = 'direct';
     const managed = await fixture.json('POST', '/api/run', { provider: 'starnet', model: 'test/model', agentId: 'agent', messages: [{ role: 'user', content: 'Hello' }] });
     assert.match(managed.text, /Out of managed credit/);
