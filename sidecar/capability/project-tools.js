@@ -29,7 +29,8 @@
    facts  : { registry, authority, connectorIds, disabledCaps, unrestrictedHost, realDesktopAuthority, executionProfile,
             dynamicTools: { connector: [def], plugin: [def] }, widgetScope, internalBriefTools, deferralOff,
             keySaveOffered, directDomain, leanCrew, crewCount, connectorDefer: { bytes, tools },
-            availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime } } */
+            availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime },
+            followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none) } */
 'use strict';
 
 const { composeOffice, stationWithObject, stationWithConnectors } = require('./office.js');
@@ -41,6 +42,7 @@ const { enforceSyntheticOnly, enforceRunAuthority, enforceEnabledToolsets, impac
 const { isRoutineTrigger } = require('../routine-identity.js');
 const { dangerKey } = require('../permissions.js');
 const CrewDiet = require('../crew-diet.js');
+const Followups = require('./followups.js');
 const { planConnectorDeferral } = require('../tools/builtin/toolsearch.js');
 const { note: failNote } = require('../failopen.js');
 
@@ -246,13 +248,24 @@ function projectTools(agent, origin, role, facts) {
     resolved.deferred = deferred.concat(extra.filter(n => granted.has(n) && deferred.indexOf(n) < 0 && !ddw(n)));
     resolved.unavailable = unavailable.byTool;
   }
+  /* DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a control for a terminal, a background process or a routine/loop/task
+     record leaves the wire while the host PROVES nothing of its kind exists (facts.followups false). Still granted, named
+     in [HARNESS], found by tool.search, and revealed by its starter's result; an unknown fact keeps it advertised. Decided
+     after every other deferral, so a control already held for another reason keeps that reason. */
+  let dormantFollowups = [];
+  {
+    const held = new Set(resolved.deferred || []);
+    dormantFollowups = Followups.dormantFollowups({ isTask, deferralOff, granted: resolved.tools,
+      wire: resolved.tools.filter(n => !held.has(n) && !ddw(n)), facts: facts.followups });
+    if (dormantFollowups.length) resolved.deferred = (resolved.deferred || []).concat(dormantFollowups);
+  }
   // CORE vs DEFERRED on the wire: both granted; only the core list rides every request (task runs only).
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !ddw(n)));
   const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !ddw(n));
   const advertised = isTask ? coreNames : [];
   const deferredWire = isTask ? Array.from(deferredNames) : [];
   const projection = { station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-    connectorDeferral, unavailable, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
+    connectorDeferral, unavailable, dormantFollowups, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
   projection.rows = rowsOf(projection, { agentId, registry, authority: facts.authority, surface, enabledToolsets, directDomain: facts.directDomain, groupTurn: Array.isArray(origin.groupTools) });
   return projection;
 }
@@ -287,7 +300,8 @@ function rowsOf(p, ctx) {
     const row = { state, impact, consent: consentClassOf(tool, impact), source: p.injected[name] || grantedBy[name] || 'room' };
     if (state === 'withheld') row.reason = limitOf(name, tool, impact, p, ctx);
     if (state === 'deferred') row.reason = p.resolved.unavailable && p.resolved.unavailable[name] ? 'unavailable:' + p.resolved.unavailable[name].signal
-      : p.connectorDeferral.deferred.indexOf(name) >= 0 ? 'connector-index' : (p.crewless && CrewDiet.CREW_KIT_DEFERRED.indexOf(name) >= 0) ? 'crewless-lead' : 'catalog-deferred';
+      : p.connectorDeferral.deferred.indexOf(name) >= 0 ? 'connector-index' : (p.crewless && CrewDiet.CREW_KIT_DEFERRED.indexOf(name) >= 0) ? 'crewless-lead'
+      : (p.dormantFollowups || []).indexOf(name) >= 0 ? 'dormant-followup' : 'catalog-deferred';
     if (Object.prototype.hasOwnProperty.call(withheldExplained, name)) row.why = withheldExplained[name].why;
     rows[name] = row;
   }

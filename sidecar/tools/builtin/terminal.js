@@ -4,6 +4,9 @@
 const Shell = require('./shell.js');
 const RunPaths = require('../../run-paths.js');
 const { hardlineReason } = require('../../pathtrust.js');
+// DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a run whose agent had no live terminal holds terminal.status/read/write/
+// resize/interrupt/stop off the wire; the start that opens one reveals them (capability/followups.js, loop.js revealTools)
+const TERMINAL_CONTROLS = require('../../capability/followups.js').revealFor('terminal');
 
 function makeTerminalTools(deps) {
   deps = deps || {};
@@ -157,7 +160,9 @@ function makeTerminalTools(deps) {
       return {
         content: terminalSummary(result.session) + '\nStarted as ' + result.session.sessionId + '.' + durable
           + '\nRead output with terminal.read {session:"' + result.session.name + '"}.',
-        summary: 'terminal ' + result.session.name + ' started'
+        summary: 'terminal ' + result.session.name + ' started',
+        // a live session now exists: its controls ride the next call (a no-op where they were already advertised)
+        control: { revealTools: TERMINAL_CONTROLS.slice() }
       };
     }
   };

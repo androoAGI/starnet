@@ -25,6 +25,9 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (scrubStored, RunOutcome) {
   'use strict';
   const scrub = typeof scrubStored === 'function' ? scrubStored : (s => s);
+  // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a board with no card holds task.manage off the wire; a result that shows
+  // a real card reveals it (capability/followups.js, loop.js revealTools)
+  const TASK_CONTROLS = (typeof require === 'function') ? require('../../capability/followups.js').revealFor('tasks') : [];
   /* how a run ENDED, as the lead is told it (review 4.3): a run row's reason is the loop's "it ended" word — a reply the provider
      cut and a 'done' end the run's own error outranked both end 'done', and the job's verdict then said a step ended badly while
      every step read 'done'. endedOf is RunOutcome.reasonOf ('done' only for a run that SUCCEEDED: 'cut_short', 'error', …); a
@@ -242,7 +245,8 @@
         const out = await ask('station.tasks', {});
         if (!out.ok) return refuse(out.error);
         const r = out.result || {};
-        return { content: JSON.stringify(r), summary: (r.count != null ? r.count : (r.tasks || []).length) + ' board task(s)' };
+        return { content: JSON.stringify(r), summary: (r.count != null ? r.count : (r.tasks || []).length) + ' board task(s)',
+          control: (r.tasks || []).some(t => t && t.id) ? { revealTools: TASK_CONTROLS.slice() } : undefined };
       }
     };
 
@@ -256,7 +260,9 @@
         const out = await ask('station.new_task', { title, agentId: String((args && args.agentId) || '').trim() || undefined });
         if (!out.ok) return refuse(out.error);
         const r = out.result || {};
-        return { content: JSON.stringify(r), summary: r.created === false ? 'already on board: "' + (r.title || title) + '"' : 'added "' + (r.title || title) + '" to the board' };
+        return { content: JSON.stringify(r), summary: r.created === false ? 'already on board: "' + (r.title || title) + '"' : 'added "' + (r.title || title) + '" to the board',
+          // the card is on the board: task.manage rides the next call, only for a real card
+          control: r.id ? { revealTools: TASK_CONTROLS.slice() } : undefined };
       }
     };
 
