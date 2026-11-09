@@ -13,8 +13,16 @@
      R3 a memory reset while the hero's passes still run: they ended after it and stamped the windows again (study's
         persisted to study.state.json), so the fresh hero inherited a 30 min study window. Now they arm nothing.
      R4 a correction after the verdict is a stored dislike: it opens the windows again (the one feedback write path).
+   Review round 2 found the error path of the same family:
+     R5 a pass whose call FAILS (an HTTP error, a 429, a usage limit, the timeout: the model never answered) used the
+        verdict or the cue up and armed the window, so after feedback plus one failed call the next run got no
+        reflection (base: it reflected). Now only an answered attempt uses feedback up: the failed call still arms its
+        window, but the pass's next attempt skips it again, and that reflection reads the cue.
+     R6 a memory reset left thread mining's window behind (every attempt arms it now), so the fresh hero inherited up to
+        20 min of it. Now both forget paths clear it with the other three.
    Against the REAL sidecar and a mock OpenRouter that HOLDS every learning pass's reply until the test releases it
-   (deterministic, no sleeps standing in for a slow model) and answers NONE. R1-R3 FAIL on f052e31e3 (round 1). */
+   (deterministic, no sleeps standing in for a slow model) and answers NONE, or, for the kinds a case names, answers a
+   400 the adapter does not retry. R1-R3 FAIL on f052e31e3 (round 1); R5-R6 FAIL on f4eb47c82 (round 2). */
 'use strict';
 
 const A = require('./_assert.js');
@@ -55,9 +63,10 @@ function sse(res, deltas, finishReason) {
 
 /* mock OpenRouter. MAIN calls (the only ones carrying the runtime system prompt) make one real tool turn
    (station_inspect) after the newest user turn, then finish DONE_TEXT. Every other call is an aux pass, answered NONE —
-   at once, or, while `hold` is on, only when the test calls release(): a slow aux model the test controls. */
+   at once, or, while `hold` is on, only when the test calls release(): a slow aux model the test controls. A pass whose
+   kind is in `fail` gets a 400 instead (R5): its attempt goes out and never gets an answer. */
 function startMock() {
-  const state = { calls: [], held: [], hold: false };
+  const state = { calls: [], held: [], hold: false, fail: new Set() };
   const release = () => { state.hold = false; for (const answer of state.held.splice(0)) answer(); };
   return new Promise(resolve => {
     const server = http.createServer((req, res) => {
@@ -72,9 +81,15 @@ function startMock() {
         const messages = Array.isArray(body.messages) ? body.messages : [];
         const sys = messages.filter(m => m && m.role === 'system').map(m => textOf(m.content)).join('\n');
         const main = raw.indexOf('[RUNTIME]') >= 0;
-        const rec = { at: Date.now(), main, kind: main ? 'main' : kindOf(sys), done: main, readsCue: !main && raw.indexOf('always use tabs') >= 0 };
+        const rec = { at: Date.now(), main, kind: main ? 'main' : kindOf(sys), done: main, failed: false, readsCue: !main && raw.indexOf('always use tabs') >= 0 };
         state.calls.push(rec);
         if (!main) {
+          if (state.fail.has(rec.kind)) {
+            rec.failed = true; rec.done = true;
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: { message: 'aux model rejected the request (test fault injection)', code: 400 } }));
+            return;
+          }
           const answer = () => { rec.done = true; sse(res, [{ content: 'NONE' }]); };
           // only the four learning passes are slow: anything else (the scout, a title) answers at once
           if (state.hold && LEARNING.indexOf(rec.kind) >= 0) state.held.push(answer); else answer();
@@ -127,10 +142,10 @@ async function settle(state, stableMs, maxMs) {
     await sleep(100);
   }
 }
-const aux = (state, from) => state.calls.slice(from).filter(c => !c.main);
+const aux = (state, from, to) => state.calls.slice(from, to).filter(c => !c.main);
 // the aux passes sent between two points, by kind (the report and the failure messages)
 const span = (state, from, to) => state.calls.slice(from, to).filter(c => !c.main).map(c => c.kind).join('+') || '-';
-const kinds = (state, from) => aux(state, from).map(c => c.kind + (c.readsCue ? '(cue)' : '')).join('+') || '-';
+const kinds = (state, from, to) => aux(state, from, to).map(c => c.kind + (c.failed ? '(FAILED)' : '') + (c.readsCue ? '(cue)' : '')).join('+') || '-';
 const has = (state, from, kind) => aux(state, from).some(c => c.kind === kind);
 const say = (text, history) => (history || []).concat([{ role: 'user', content: text }]);
 
@@ -141,6 +156,7 @@ const say = (text, history) => (history || []).concat([{ role: 'user', content: 
   await fixture.start();
   const report = {};
   const logSays = (agent, why) => new RegExp('\\[learning\\] reflection may spend inside its window: agent=' + agent + ' \\(' + why + '\\)').test(fixture.output());
+  const logCount = (agent, why) => (fixture.output().match(new RegExp('\\[learning\\] reflection may spend inside its window: agent=' + agent + ' \\(' + why + '\\)', 'g')) || []).length;
   try {
     // ---- R1 a thumbs verdict lands while the rated run's own reflection and study are still running ----
     {
@@ -234,6 +250,86 @@ const say = (text, history) => (history || []).concat([{ role: 'user', content: 
       await settle(st);
       report.reset = aux(st, a1).map(c => c.kind).join('+') || '-';
       A.ok(/reflection/.test(report.reset) && /study/.test(report.reset), 'R3: the fresh hero\'s next run reflects and studies: no window inherited from before the reset (' + report.reset + ')');
+    }
+
+    // ---- R5 (review r2) a verdict, then the next run's reflection call FAILS: the run after still reflects ----
+    {
+      const agent = 'lc-race-fail-verdict';
+      st.hold = false;
+      const a0 = st.calls.length;
+      const one = await drive(fixture, agent, say('Please inspect the station and draft the weekly status note. [LC fail-verdict 1]'));
+      await settle(st);
+      A.eq(one.reason, 'done', 'R5: the rated run finished done');
+      const rated = await fixture.json('POST', '/api/growth/ratings', { runId: one.runId, verdict: 'miss', epoch: 1 });
+      A.eq(rated.body && rated.body.feedbackMemory && rated.body.feedbackMemory.stored, true, 'R5: the thumbs-down verdict was stored as feedback (' + JSON.stringify(rated.body).slice(0, 200) + ')');
+      st.fail.add('reflection');
+      const a1 = st.calls.length;
+      const two = await drive(fixture, agent, say('Please inspect the station and draft the weekly status note again. [LC fail-verdict 2]'));
+      await settle(st);
+      st.fail.delete('reflection');
+      const a2 = st.calls.length;
+      const three = await drive(fixture, agent, say('Please inspect the station and file the weekly status note. [LC fail-verdict 3]'));
+      await settle(st);
+      const a3 = st.calls.length;
+      await drive(fixture, agent, say('Please inspect the station and file next week\'s status note. [LC fail-verdict 4]'));
+      await settle(st);
+      report.failVerdict = { run1: kinds(st, a0, a1), run2: kinds(st, a1, a2), run3: kinds(st, a2, a3), run4: kinds(st, a3) };
+      A.eq([two.reason, three.reason], ['done', 'done'], 'R5: runs 2 and 3 finished done');
+      A.ok(aux(st, a1, a2).some(c => c.kind === 'reflection' && c.failed), 'R5 (precondition): run 2 reflected inside its window because of the verdict, and that call FAILED with no answer (' + report.failVerdict.run2 + ')');
+      A.ok(aux(st, a2, a3).some(c => c.kind === 'reflection' && !c.failed), 'R5: the run after a verdict whose reflection call failed still reflects inside the window (' + report.failVerdict.run3 + ')');
+      A.ok(logCount(agent, 'feedback') >= 2, 'R5: ...because the verdict was kept for it (the sidecar log names the feedback for runs 2 and 3, ' + logCount(agent, 'feedback') + ' line(s))');
+      A.ok(!/reflection/.test(report.failVerdict.run4), 'R5: the answered attempt uses the verdict up: run 4 gets no reflection (' + report.failVerdict.run4 + ')');
+    }
+
+    // ---- R5 (review r2) a cue run whose reflection call FAILS: the next run's reflection still reads the cue ----
+    {
+      const agent = 'lc-race-fail-cue';
+      const uA = 'Please inspect the station and save note 1 as a short plain-text file in the workspace root. [LC fail-cue A]';
+      const uB = 'Inspect the station again and save note 2. ' + CUE + ' [LC fail-cue B]';
+      const uC = 'Please inspect the station and save note 3 in the workspace root. [LC fail-cue C]';
+      const hist = [];
+      const a0 = st.calls.length;
+      const A1 = await drive(fixture, agent, say(uA, hist));
+      hist.push({ role: 'user', content: uA }, { role: 'assistant', content: DONE_TEXT });
+      await settle(st);
+      st.fail.add('reflection');
+      const b0 = st.calls.length;
+      const B = await drive(fixture, agent, say(uB, hist));
+      hist.push({ role: 'user', content: uB }, { role: 'assistant', content: DONE_TEXT });
+      await settle(st);
+      st.fail.delete('reflection');
+      const c0 = st.calls.length;
+      const C = await drive(fixture, agent, say(uC, hist));
+      await settle(st);
+      report.failCue = { runA: kinds(st, a0, b0), runB: kinds(st, b0, c0), runC: kinds(st, c0) };
+      A.eq([A1.reason, B.reason, C.reason], ['done', 'done', 'done'], 'R5: cue runs A, B and C finished done');
+      A.ok(aux(st, a0, b0).some(c => c.kind === 'reflection' && !c.failed), 'R5 (precondition): run A reflected, so run B is inside the window (' + report.failCue.runA + ')');
+      A.ok(aux(st, b0, c0).some(c => c.kind === 'reflection' && c.failed && c.readsCue), 'R5 (precondition): the cue run B reflected inside its window, and that call FAILED (' + report.failCue.runB + ')');
+      A.ok(aux(st, c0).some(c => c.kind === 'reflection' && !c.failed && c.readsCue), 'R5: the next run still reflects, and its reflection reads the cue (' + report.failCue.runC + ')');
+      A.ok(logCount(agent, 'cue') >= 2, 'R5: ...because the cue was kept for it (the sidecar log names the cue for runs B and C, ' + logCount(agent, 'cue') + ' line(s))');
+    }
+
+    // ---- R6 (review r2 nit) a memory reset clears thread mining's window too: every attempt arms it now ----
+    {
+      const agent = 'lc-race-reset-mine';
+      const a0 = st.calls.length;
+      await drive(fixture, agent, say('Please inspect the station and log reading A. [LC reset-mine 1]'));
+      await settle(st);
+      const a1 = st.calls.length;
+      await drive(fixture, agent, say('Please inspect the station and log reading B. [LC reset-mine 2]'));
+      await settle(st);
+      const a2 = st.calls.length;
+      const reset = await fixture.json('POST', '/api/memory/reset', { agent });
+      A.ok(reset.status === 200 && reset.body && reset.body.ok, 'R6: the memory reset landed with no pass running (' + JSON.stringify(reset.body) + ')');
+      await drive(fixture, agent, say('Please inspect the station and log reading C. [LC reset-mine 3]'));
+      await settle(st);
+      const a3 = st.calls.length;
+      await drive(fixture, agent, say('Please inspect the station and log reading D. [LC reset-mine 4]'));
+      await settle(st);
+      report.resetMine = [kinds(st, a0, a1), kinds(st, a1, a2), kinds(st, a2, a3), kinds(st, a3)];
+      A.ok(aux(st, a1, a2).some(c => c.kind === 'threadmine'), 'R6 (precondition): the hero mined threads before the reset, so its thread-mining window was armed (' + report.resetMine[1] + ')');
+      A.ok(aux(st, a2, a3).some(c => c.kind === 'reflection') && aux(st, a2, a3).some(c => c.kind === 'study'), 'R6 (precondition): the fresh hero\'s first run reflects and studies (' + report.resetMine[2] + ')');
+      A.ok(aux(st, a3).some(c => c.kind === 'threadmine'), 'R6: the fresh hero\'s next run mines threads: no thread-mining window inherited from before the reset (' + report.resetMine[3] + ')');
     }
   } finally {
     try { mock.release(); } catch (_) {}

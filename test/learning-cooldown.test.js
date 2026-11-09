@@ -350,6 +350,12 @@ const LC = require('../sidecar/learning-cooldown.js');
   A.eq((src.match(/learningCooldown\.open\(/g) || []).length, 2, 'the windows open in exactly two places: a stored like/dislike and a run\'s cue');
   A.ok(/learningCooldown\.forget\(agentId\);/.test(sidecarTopLevelFunction('handleMemoryReset')), 'a memory reset forgets the policy state');
   A.eq((idx.match(/learningCooldown\.forget\(agentId\);/g) || []).length, 2, 'agent delete and memory reset both forget it');
+  // a fresh hero inherits no learning window (review r2 nit: thread mining's stamp was never cleared, and every attempt arms it now)
+  for (const route of ['handleMemoryReset', 'handleAgentDelete']) {
+    const body = sidecarTopLevelFunction(route);
+    for (const m of STAMPS.concat(['reflectingNow', 'failReviewingNow', 'studyingNow', 'threadMiningNow']))
+      A.ok(body.indexOf(m + '.delete(agentId)') > 0 && body.indexOf(m + '.delete(agentId)') < body.indexOf('learningCooldown.forget(agentId);'), route + ' clears ' + m + ' before it forgets the policy state');
+  }
   A.ok(/^const learningCooldown = LearningCooldown\.make\(\{ now: \(\) => Date\.now\(\) \}\);$/m.test(idx), 'the host injects the clock');
 }
 

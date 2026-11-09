@@ -20892,6 +20892,7 @@ async function handleAgentDelete(req, res) {
     lastFailReviewAt.delete(agentId); failReviewingNow.delete(agentId); skillReviewingNow.delete(agentId); if (skillNudge.delete(agentId)) persistSkillNudge();
     for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
     latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+    lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: thread mining's window too (every attempt arms it now)
     learningCooldown.forget(agentId);   // W1.4: its NONE streak, failure classes and feedback tokens go too, and a pass still running arms nothing
     persistStudyState();
   } catch (_) {}
@@ -31782,6 +31783,7 @@ async function handleMemoryReset(req, res) {
   // GROWTH Tier 1: also drop any pending STUDY proposals so a fresh Commander never inherits a stranger's belief-update queue.
   for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
   latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+  lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: nor the last hero's thread-mining window (every attempt arms it now)
   learningCooldown.forget(agentId);   // W1.4: a fresh hero starts with no NONE backoff or stranger's failure classes, and a pass still running arms nothing
   persistStudyState();
   return json(200, { ok: true, agent: agentId });
