@@ -1799,3 +1799,4 @@ test/reflect.dedup-only.test.js
 test/aux-cache-policy.test.js
 test/aux-admission.test.js
 test/route-authority.census.test.js
+test/taint-standing-files.test.js

@@ -94,6 +94,28 @@
     return null;
   }
 
+  /* FILES THAT BECOME ORDERS OR RUN BY THEMSELVES (fix-sec2 review2 #8). A run that read outside content may still
+     write its own workspace and the trusted projects with no card. Some files there are not data, though: an agent
+     follows a project's instruction files as standing orders (projectbless.js INSTRUCTION_FILES: AGENTS.md, CLAUDE.md,
+     .cursorrules), and a loop's derived check (index.js detectCheckCommand), git hooks and editor tasks run others with
+     nobody watching. A tainted write to one of them asks a watched run (this one access) and is refused to an unattended
+     run. Matched on the final name, case-folded, with Windows' trailing dots and spaces and an NTFS stream suffix cut, so
+     `AGENTS.md.` or `CLAUDE.md::$DATA` is the same file. A test locks the instruction names to projectbless's list. */
+  const STANDING_INSTRUCTIONS = ['agents.md', 'claude.md', '.cursorrules'];
+  const STANDING_AUTORUN = ['package.json', 'conftest.py', 'pytest.ini', 'tox.ini', 'pyproject.toml', 'setup.cfg', 'setup.py',
+    'cargo.toml', 'build.rs', 'go.mod', 'makefile', 'gnumakefile', 'gemfile', '.rspec', '.envrc'];
+  function standingFileReason(abs) {
+    const parts = String(abs == null ? '' : abs).split(/[\\/]+/).filter(Boolean)
+      .map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, '').toLowerCase());
+    const name = parts[parts.length - 1] || '';
+    const dir = parts[parts.length - 2] || '';
+    if (STANDING_INSTRUCTIONS.indexOf(name) >= 0) return name + ' (project instructions an agent follows as standing orders)';
+    if (STANDING_AUTORUN.indexOf(name) >= 0) return name + ' (a project check or a build runs what it says)';
+    if (parts.slice(0, -1).indexOf('.husky') >= 0) return '.husky/' + name + ' (a git hook)';
+    if (dir === '.vscode' && name === 'tasks.json') return '.vscode/tasks.json (editor tasks that can run when the folder opens)';
+    return '';
+  }
+
   function makePathTrust(deps) {
     deps = deps || {};
     const fsp = deps.fsp, P = deps.pathMod;
@@ -207,6 +229,18 @@
       const rhr = hardlineReason(real, real);
       if (rhr) throw new Error(rhr + ' (reached via ' + norm + ')');
 
+      // review2 #8: a tainted write to a file that becomes orders or runs by itself asks first, even in its own
+      // workspace or a trusted project (above standingFileReason). A yes allows this one access and records nothing.
+      const standing = taintedWrite ? (standingFileReason(norm) || standingFileReason(real)) : '';
+      let standingYes = false;
+      if (standing) {
+        if (surface !== 'interactive' || !prompt)
+          throw new Error('this run read outside content, so it cannot write ' + standing + ' without asking: ' + norm);
+        const said = await prompt(P.dirname(norm), { path: norm, scope: 'write', standing: standing });
+        if (!/^(?:once|session|always|full)$/.test(String(said || ''))) throw new Error('access to ' + norm + ' was denied');
+        standingYes = true;
+      }
+
       // Agent workspaces are private jails, not station-global projects. A stale or accidentally-created
       // path:<WORKSPACES/alpha> grant must never let beta cross that boundary, and Full Access must not turn
       // the station's internal workspace tree into shared storage. Absolute paths into the caller's own
@@ -281,6 +315,7 @@
          bless the same folder on every single call — consent fatigue that trains people to click through the
          one prompt that widens the agent's filesystem reach. The PROMPT still names the path the Commander
          recognizes; only the recorded key is canonical. */
+      if (standingYes) return { base: proposedReal, abs: norm, oneShot: true };   // asked once above, for this access
       const decision = await prompt(proposed, { path: norm, scope: scope });
       // a tainted write: any yes allows this one access and records nothing (a standing grant made after the taint
       // would outlive it)
@@ -318,5 +353,5 @@
     return { guard, detectRoot, normalizeRoot, _internals: { pathInside, realpathDeepest, hardlineReason } };
   }
 
-  return { makePathTrust, hardlineReason };
+  return { makePathTrust, hardlineReason, standingFileReason, _internals: { STANDING_INSTRUCTIONS, STANDING_AUTORUN } };
 });
