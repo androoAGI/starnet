@@ -476,6 +476,7 @@ const DeclinedIndex = require('./declinedindex.js');         // flagship cross-w
 const { tailLines, loadBounded, rotateIfLarge, appendJsonlDurable } = require('./logbound.js'); // P3: bounded boot-load + size rotation for the append-only JSONL logs
 const { makeCronLock } = require('./cron-lock.js');         // G4.3: cross-process exactly-once advisory lock (O_EXCL+pid:nonce+stale-break)
 const { withDossier } = require('./dossierinject.js');     // Phase C: fold the Commander dossier into server-composed (cron) personas
+const GrantedContext = require('./granted-context.js');    // GHSA-2hpj NEW-1: what a desk-granted unattended run takes as instructions
 const skillsCatalog = require('./skills/catalog.js');      // bundled capability-gated recipe library (parse/load/gate/compose)
 const { makeSkillPrefs } = require('./skills/prefs.js');   // persisted enable/disable choices for the recipe library
 const runtimeSkills = require('./skills/runtime.js');       // runtime-created skill index (metadata only)
@@ -667,9 +668,10 @@ const peerOwnerCheck = require('./peerowner.js').makePeerOwnerCheck({
   winSystemDir: path.join(process.env.SystemRoot || process.env.windir || 'C:\\Windows', 'System32'),
   trustAll: /^(1|true|yes|on)$/i.test(String(ENV('TRUST_LOCAL_PEERS') || '').trim()),
   readFile: (f) => fsp.readFile(f, 'utf8'),
-  run: (exe, args) => new Promise((resolve) => {
+  // each lookup's limit comes from peerowner.js: 5 s, and 15 s for its one retry (final review B10)
+  run: (exe, args, opts) => new Promise((resolve) => {
     try {
-      stationChildProcess.execFile(exe, args, { windowsHide: true, timeout: 5000, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
+      stationChildProcess.execFile(exe, args, { windowsHide: true, timeout: Math.max(1000, Number(opts && opts.timeoutMs) || 5000), maxBuffer: 16 * 1024 * 1024 }, (err, stdout) =>
         resolve({ ok: !err, code: err && typeof err.code === 'number' ? err.code : (err ? -1 : 0), stdout: String(stdout || '') }));
     } catch (_) { resolve({ ok: false, code: -1, stdout: '' }); }
   })
@@ -6745,9 +6747,42 @@ function cronScriptStale(job) {
    the desk says yes (grantDrive: 'd1:<model and provider>:<endpoint>', '-' for an endpoint not known then), and a run
    whose drive differs runs without its grants and says why. A script-only routine (noAgent) calls no model: null. */
 const sha32 = s => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 32);
-function routineDriveOf(providerId, model, baseUrl) {
+function routineDriveOf(providerId, model, baseUrl, instructions) {
   const pm = sha32(JSON.stringify([normalizeProvider(providerId || ''), String(model || '').trim()]));
-  return 'd1:' + pm + ':' + (String(baseUrl || '').trim() ? sha32(String(baseUrl).trim().replace(/\/+$/, '')) : '-');
+  return 'd1:' + pm + ':' + (String(baseUrl || '').trim() ? sha32(String(baseUrl).trim().replace(/\/+$/, '')) : '-')
+    + (typeof instructions === 'string' && /^[0-9a-f]{32}$/.test(instructions) ? ':' + instructions : '');
+}
+/* WHAT INSTRUCTS A GRANT (GHSA-2hpj NEW-1, 2026-11-09). The model was bound; the words it reads besides the routine's own
+   were not: the agent's own instructions (POST /api/roster rewrites an ask-first agent's with the client key) and the bodies
+   of the routine's skills (POST /api/agent-skills/manage). Both are now the drive's fourth part: what they were when the desk
+   said yes. A run whose agent instructions or skill bodies moved runs without its grants and says why, as for a new model.
+   The skills are the routine's own (job.skills) and any /skill its prompt invokes, read as the run reads them (its folder
+   is the project root). granted-context.js: instructionsOf, skillDigest, instructionsDigest. The binding is to what they
+   were at the desk's yes (the desk card names the routine, its task and its model, not the agent's instructions), and a
+   routine granted before this version is bound once to what they are when it first boots (the boot stamp below). */
+function routineSkillNames(skills, messages) {
+  const out = [], seen = new Set();
+  for (const n of (Array.isArray(skills) ? skills : []).concat(runtimeSkills.extractInvocations(Array.isArray(messages) ? messages : []))) {
+    const k = String(n || '').toLowerCase();
+    if (k && !seen.has(k)) { seen.add(k); out.push(String(n)); }
+  }
+  return out;
+}
+// -> { instructions, digest, skills: Map(lowercased name -> content digest, '-' when it does not resolve) }: what a granted run of this agent is given
+function routineInstructions(agentId, skillNames, projectRoot) {
+  const ident = agentRoster.get(String(agentId || 'agent'));
+  const instructions = GrantedContext.instructionsOf(ident && ident.system);
+  const skills = new Map();
+  for (const name of (Array.isArray(skillNames) ? skillNames : [])) {
+    let v = null; try { v = skillStore.viewAccessible(String(agentId || 'agent'), name, { projectRoot: projectRoot || '' }); } catch (_) { v = null; }
+    skills.set(String(name).toLowerCase(), v && !v.pendingCandidate ? GrantedContext.skillDigest(v) : '-');
+  }
+  return { instructions, skills, digest: GrantedContext.instructionsDigest(instructions, [...skills]) };
+}
+function routineInstructionsFor(job) {
+  let root = '';
+  if (job && job.workdir) { try { root = cronCanonicalWorkdir(job.workdir) || ''; } catch (_) { root = ''; } }
+  return routineInstructions(job && job.agentId, routineSkillNames(job && job.skills, [{ role: 'user', content: String((job && job.prompt) || '') }]), root);
 }
 // the drive a routine resolves to now, as its run would (cron-driver and Run Now: cronWireFor, the station's own key)
 function routineDriveFor(job, opts) {
@@ -6756,17 +6791,21 @@ function routineDriveFor(job, opts) {
   const providerId = normalizeProvider(w.provider || 'openrouter');
   const model = chatModelId(providerId, String(w.model || '').trim());
   if (!model) return null;
-  if (opts && opts.endpoint === false) return routineDriveOf(providerId, model, '');
+  const instructions = routineInstructionsFor(job).digest;
+  if (opts && opts.endpoint === false) return routineDriveOf(providerId, model, '', instructions);
   const key = providerRuntimeKey(providerId, '');
-  return routineDriveOf(providerId, model, providerRuntimeBaseUrl(providerId, '', key, key, false));
+  return routineDriveOf(providerId, model, providerRuntimeBaseUrl(providerId, '', key, key, false), instructions);
 }
 // '' when the run's drive is the one the grant was given for, else why not (in the run's words)
-function routineDriveMoved(stamp, providerId, model, baseUrl) {
-  if (typeof stamp !== 'string' || !/^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/.test(stamp)) return 'the model it runs on was never confirmed with its grants';
+function routineDriveMoved(stamp, providerId, model, baseUrl, instructions) {
+  if (typeof stamp !== 'string' || !/^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)(?::[0-9a-f]{32})?$/.test(stamp)) return 'the model it runs on was never confirmed with its grants';
   const now = routineDriveOf(providerId, model, baseUrl).split(':');
   const was = stamp.split(':');
   if (was[1] !== now[1]) return 'it would run on ' + String(model || 'another model').slice(0, 80) + ' (' + String(providerId || '').slice(0, 40) + '), not the model its grants were given for';
   if (was[2] !== '-' && now[2] !== '-' && was[2] !== now[2]) return 'the endpoint its provider calls changed since its grants were given';
+  // GHSA-2hpj NEW-1: the agent's instructions and the routine's skills, as the desk saw them
+  if (!was[3]) return 'its agent\'s instructions and skills were never confirmed with its grants';
+  if (was[3] !== instructions) return 'its agent\'s instructions or the skills it loads changed since its grants were given';
   return '';
 }
 // the first lines of the script, for the desk words: the yes is for what the person could read
@@ -8165,6 +8204,18 @@ if (Array.isArray(authoritySealBoot.migrating) && authoritySealBoot.migrating.in
     cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { grantDrive: stamps.get(j.id) }) : j);
     try { if (stamps.size) { saveCronJobs(); console.warn('[cron] recorded the model of ' + stamps.size + ' routine(s) allowed to run unattended; a later change of model stops their grants until you allow it again'); } }
     catch (e) { failNote('cron.grant-drive.stamp', e); }
+  }
+  /* GHSA-2hpj NEW-1: a drive stamped before it carried the agent's instructions and the routine's skills (three parts) gets
+     them once, as they are now (the trust it had before this version), the same way; from here on a change of either stops
+     the grants until the desk allows them again. Only while the seal can check what it stamps. */
+  const partial = authoritySeal.held ? [] : cronJobs.filter(j => j && j.noAgent !== true && Array.isArray(j.unattendedGrants) && j.unattendedGrants.length
+    && typeof j.grantDrive === 'string' && /^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/.test(j.grantDrive));
+  if (partial.length) {
+    const stamps = new Map();
+    for (const j of partial) { try { stamps.set(j.id, j.grantDrive + ':' + routineInstructionsFor(j).digest); } catch (e) { failNote('cron.grant-drive.instructions', e); } }
+    cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { grantDrive: stamps.get(j.id) }) : j);
+    try { if (stamps.size) { saveCronJobs(); console.warn('[cron] recorded the agent instructions and skills of ' + stamps.size + ' routine(s) allowed to run unattended; a later change of either stops their grants until you allow it again'); } }
+    catch (e) { failNote('cron.grant-drive.instructions', e); }
   }
 }
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
@@ -17385,8 +17436,10 @@ function deskWords(action, d) {
       summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
     // fix-sec2, review 3, 6 and 7
     case 'consent-session': if (o.command) return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
-      // GHSA-2hpj #4: a command's session grant is that exact command (its words come last, so a long one is cut, never the rule)
-      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n' + o.command };
+      // GHSA-2hpj #4: a command's session grant is that exact command with these exact settings (final review B9), and its
+      // words come last. One too long to show whole here is never asked for the session at all (commandSessionFits, B8)
+      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n'
+        + 'This covers only the command below with these exact settings: a different folder, time limit or background setting asks again.\n\n' + o.command };
       return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
       summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
     case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: o.changed ? 'Keep allowing' : 'Allow unattended',
@@ -17413,6 +17466,25 @@ function deskWords(action, d) {
       summary: (o.question ? String(o.question) : 'Let ' + o.names + '?') + '\n\nTHIS COMPUTER reaches every path on this computer except the protected ones, a trusted project reaches the project folders you approve, and Remote SSH runs on the machine you name.' };
     default: return { title: 'StarNet — confirm', summary: 'Confirm this change?', verb: 'Confirm' };
   }
+}
+/* A COMMAND IS CONFIRMED FOR THE SESSION ONLY WHERE IT CAN BE READ WHOLE (final review B8). The desk confirmation is capped
+   (deskproof CAPS.summary, the desktop shell's own cap), and a browser's code prompt may cut a long message too (Chromium keeps
+   about 2000 characters, or 32 lines of 132 on Linux). So "for this session" on a command is offered and confirmed only when
+   its dialog fits within the cap and within SESSION_DIALOG_ROWS lines of SESSION_DIALOG_COLS, leaving the prompt's own title
+   and instruction room. A longer command is approved once at most: the person never confirms a command whose end they
+   could not see. commandSessionFits(agentId, row) reads the same words handleConsent would put in the dialog. */
+const SESSION_DIALOG_ROWS = 24, SESSION_DIALOG_COLS = 132;
+function deskWordsShownWhole(summary) {
+  const t = deskProofMod.cleanWords(summary, Infinity);
+  if (Array.from(t).length > deskProofMod.CAPS.summary) return false;
+  let rows = 0;
+  for (const line of t.split('\n')) rows += Math.max(1, Math.ceil(Array.from(line).length / SESSION_DIALOG_COLS));
+  return rows <= SESSION_DIALOG_ROWS;
+}
+function commandSessionFits(agentId, row) {
+  const r = row || {};
+  const rec = agentId ? agentRoster.get(String(agentId)) : null;
+  return deskWordsShownWhole(deskWords('consent-session', { agentName: (rec && rec.name) || agentId || '', tool: r.tool || '', scope: r.scope || '', command: String(r.argsSummary || '') }).summary);
 }
 /* deskGate(req, res, action, scope, details) -> true when the request carries a good desk proof for exactly this change
    (consumed: single use). Otherwise it answers and returns false: CLIENT_TOKEN (what GET / serves under the shell) is told
@@ -18866,6 +18938,7 @@ function handleStateSnapshot(req, res) {
         const row = { runId: runId, agentId: (ask && ask.workerAgentId) || agentId, promptId: promptId };
         if (ask && ask.tool) row.tool = ask.tool;   // additive: a reloaded floor words a question (brief.ask) as one, not an approval
         if (ask && ask.exactCommand === true) row.exactCommand = true;   // additive (GHSA-2hpj #4): a reloaded card offers no ALWAYS for a command
+        if (ask && ask.tooLongForSession === true) row.tooLongForSession = true;   // additive (final review B8): …nor "for this session" for a long one
         if (ask && f.detached) Object.assign(row, { background: true, tool: ask.tool, scope: ask.scope, argsSummary: ask.argsSummary,
           workerAgentId: ask.workerAgentId, workerRunId: ask.workerRunId, workerStreamId: ask.workerStreamId, streamId: ask.streamId, askedAt: ask.askedAt, leadAgentId: ask.agentId });
         out.prompts.push(row);
@@ -23313,6 +23386,8 @@ async function handleRun(req, res) {
         if (fields && fields.fresh) row.fresh = true;
         // additive (GHSA-2hpj #4): a command — every surface offers no ALWAYS for it, and "for this session" covers this exact call only
         if (fields && fields.exactCommand === true) row.exactCommand = true;
+        // final review B8 (additive): a command too long to show whole in a confirmation is never offered "for this session"
+        if (row.exactCommand && !fields.fresh && !commandSessionFits(agentId, row)) row.tooLongForSession = true;
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -23873,6 +23948,7 @@ async function runOnceCore(o) {
      so the copy compose() dedupes against is the scrubbed one and no raw dossier key rides any run's system. A clean
      persona comes back as the identical string (no prompt-cache change). */
   let system = PromptScrub.scrubStored(rawSystem);
+  let hostSystemTail = '';   // GHSA-2hpj NEW-1: the lines the host itself appends here, for a granted run's own system (below)
   if (o.workdir) {
     let cronRoot;
     try { cronRoot = cronCanonicalWorkdir(o.workdir); }   // re-check at every fire; revocation is immediate
@@ -23880,6 +23956,7 @@ async function runOnceCore(o) {
     let rules = '';
     try { rules = (await projectInstructions.load(cronRoot, true)).text || ''; } catch (_) {}
     system = String(system || '') + '\n' + projectScopeLine(cronRoot, true) + rules;
+    hostSystemTail += '\n' + projectScopeLine(cronRoot, true);   // never the folder's house rules: files any command can write
     // ONE BASE FOR BOTH TOOLS (issue #60). The prompt line above says file work happens in this folder and
     // shell.* defaulted its cwd to it (the old projectCwd), but fs.* only rooted relative paths at the projectRoot —
     // so a routine/loop's `fs.write Working\x.txt` landed in the agent's private workspace while the shell looked
@@ -23890,7 +23967,7 @@ async function runOnceCore(o) {
   }
   // a workflow stage with NO working folder says where its relative paths really land (#60/#81 follow-up) —
   // workflow runs only; reason-only self-talk keeps its system prompt verbatim
-  if (workflowLine && !o.internal && !o.outputOnly) system = String(system || '') + workflowNoFolderLine(!!(o.workdir || o.projectRoot));
+  if (workflowLine && !o.internal && !o.outputOnly) { const noFolder = workflowNoFolderLine(!!(o.workdir || o.projectRoot)); system = String(system || '') + noFolder; hostSystemTail += noFolder; }
   // EVERY SURFACE'S ATTACHMENTS ARE EXPANDED HERE (run-paths review M3), now that this run's root is final (a line's or
   // routine's folder, a re-scoped coordinated thread, a project chat): the note names the saved file the way THIS run's
   // tools resolve it. COMMS and the channel hubs used to expand before runOnce, with no root or a stale one.
@@ -23977,11 +24054,29 @@ async function runOnceCore(o) {
   /* final review #2: the grants hold only on the model, provider and endpoint the desk said yes to (routineDriveFor). A
      script-only routine calls no model; any other run that carries grants without a matching drive runs without them
      (emptied here, before anything reads the list). */
-  const grantDriveMoved = (unattendedGrants.length && o.noAgent !== true) ? routineDriveMoved(o.cronGrantDrive, providerId, model, baseUrl) : '';
+  /* GHSA-2hpj NEW-1: and on the agent's own instructions and the routine's skills as they were then (the drive's fourth
+     part, read here once from the routine record and the roster: the text below is the text that was checked). */
+  const grantJob = (unattendedGrants.length && o.noAgent !== true && o.cronJobId != null) ? (cronStore.getJob(cronJobs, String(o.cronJobId)) || null) : null;
+  let grantedInstructions = null;
+  if (grantJob && String(grantJob.agentId || 'agent') === String(agentId)) { try { grantedInstructions = routineInstructionsFor(grantJob); } catch (e) { failNote('cron.grant-drive.instructions', e); grantedInstructions = null; } }
+  const grantDriveMoved = (unattendedGrants.length && o.noAgent !== true)
+    ? (grantedInstructions ? routineDriveMoved(o.cronGrantDrive, providerId, model, baseUrl, grantedInstructions.digest) : 'its agent\'s instructions and skills could not be read for this run')
+    : '';
   if (grantDriveMoved) {
     unattendedGrants.length = 0;
     console.warn('[cron] routine ' + String(o.cronJobId || '?') + ' runs without its unattended grants: ' + grantDriveMoved);
     if (runNotices.length < 4) runNotices.push('this routine ran without its unattended grants: ' + grantDriveMoved + '. Grant them again in SCHEDULES (StarNet asks you to confirm)');
+  }
+  /* WHAT A GRANTED RUN TAKES AS INSTRUCTIONS (GHSA-2hpj NEW-1, granted-context.js). A run that still holds desk-granted
+     unattended capability is given the agent's own instructions as the desk bound them, the [ROUTINE] note, its delivery
+     note and the folder lines the host wrote above, and nothing the client key can rewrite without the desk: no dossier,
+     goal, learned tail, standing brief, house rules, evidence, memory, quests or crew names (each left out below). */
+  const grantedRun = GrantedContext.grantedRun(surface, unattendedGrants) && !!grantedInstructions;
+  if (grantedRun) {
+    let grantDelivery = '';
+    try { grantDelivery = String(cronDeliveryNote(grantJob) || ''); } catch (e) { failNote('cron.deliveryNote', e); grantDelivery = ''; }
+    const own = String(grantedInstructions.instructions || '').trim();
+    system = (own ? PromptScrub.scrubStored(own) + CRON_ROUTINE_NOTE : CRON_PERSONA) + grantDelivery + hostSystemTail;
   }
   /* UNTRUSTED-CONTENT TAINT (2026-07-25) — the structural half of the tool-result injection defence.
      Fencing tells the model that fetched text is data; it cannot MAKE the model obey. So the host removes the
@@ -24393,7 +24488,7 @@ async function runOnceCore(o) {
 
   // never for /v1 (o.toolsOptional): its taskKey is per-AGENT, so a durable brief left clarifying by one client would
   // swallow the next client's request as the answer (#96 follow-up). Each /v1 request carries its own messages.
-  if (isTask && o.taskKey && !o.toolsOptional) {
+  if (isTask && o.taskKey && !o.toolsOptional && !grantedRun) {   // a granted run: no brief (it carries the goal and the evidence)
     try {
       const latestUser = TurnDirective.wording(directive);   // the captured words (a captionless attachment turn: its label), never a file's bytes
       if (latestUser) taskBrief = await taskBriefStore.prepare({
@@ -24427,7 +24522,7 @@ async function runOnceCore(o) {
     const turnEvidence = {};
     taskContextInputs = {brief:taskBrief, goal, patterns, deferredDimensions, recipeIntake, standingWork: standingWorkNotice(taskBrief, agentId, o, turnEvidence), automationAsk};
     taskContextBlock = commanderEvidenceContext(system || '', taskContextInputs, turnEvidence);
-  } else if (isTask) {
+  } else if (isTask && !grantedRun) {   // GHSA-2hpj NEW-1: a granted run gets no Commander evidence (dossier, goal, observed notes)
     // Channels and integrations may not carry a durable taskKey. They still receive the SAME bounded Commander
     // evidence as an interactive briefed run; only the task-specific brief section is absent.
     taskContextBlock = commanderEvidenceContext(system || '');
@@ -24819,6 +24914,7 @@ async function runOnceCore(o) {
     } : undefined,
     taskContext: taskContextBlock,   // workers inherit settled task decisions without re-questioning the Commander
     getTaskContext: () => {
+      if (grantedRun) return '';   // GHSA-2hpj NEW-1: a granted lead hands its workers no dossier, goal, memory or taste either
       const settled = taskBriefState ? commanderEvidenceContext(system || '', Object.assign({},taskContextInputs,{brief:taskBriefState.brief})) : taskContextBlock;
       const notes = notebookStore.get('notebook:' + agentId);
       // the Commander's taste rides into delegated work too: a worker writes the deliverable the Commander rates
@@ -26285,7 +26381,7 @@ async function runOnceCore(o) {
     // ...EXCEPT a refusal the HOST itself wrote (hostAuthored: a URL guard refusing file:// or a private address) — no
     // outside byte reached the context. MCP connector failures never carry the flag, so they still latch.
     if (r && typeof r.content === 'string' && r.content.length && !(r.isError && r.hostAuthored === true) && revokedByTaint.isSource(liveTool, c)) {
-      taintScope = taintPolicy.scopeAfterSource(taintScope, liveTool, c, { wasTainted: !!execution.taintedBy(), runId, responseOrigin: responseProvenance.originOf(r) });
+      taintScope = taintPolicy.scopeAfterSource(taintScope, liveTool, c, { wasTainted: !!execution.taintedBy(), runId, responseOrigin: responseProvenance.originOf(r), responseText: r.content });   // responseText: a next-page cursor must be one the API returned (NEW-3)
       latchRunTaint(c.name);   // every untrusted result, not only the first: latchTaint keeps the first source, and the attachment (which decays) must not shield a page read after it
     }
     /* RELAYED TAINT (sec-taint 09-25). team.dispatch / team.spawn / team.subagents / team.resume hand this run the
@@ -26574,6 +26670,7 @@ async function runOnceCore(o) {
     teamNote += stageTeam.note;
     for (const [aid, ident] of agentRoster) {
       if (aid === agentId || stageTeam.leaves(aid)) continue;
+      if (grantedRun) { lines.push('  - ' + aid); continue; }   // GHSA-2hpj NEW-1: a granted run lists its crew by id only
       const track = String((ident && ident.track) || '').trim();
       if (track) anyTrack = true;
       lines.push('  - ' + aid + ' (' + (ident.name || aid) + ')' + (ident.role ? ' — ' + ident.role : '') + (track ? ' [' + track + ']' : ''));
@@ -26712,8 +26809,10 @@ async function runOnceCore(o) {
         const key = String(name || '').toLowerCase();
         if (!key || seenNames.has(key)) continue;
         seenNames.add(key);
+        if (grantedRun && !grantedInstructions.skills.has(key)) continue;   // GHSA-2hpj NEW-1: only the skills bound with the grants
         const v = skillStore.viewAccessible(agentId, name, { projectRoot: o.projectRoot || '' });
         if (!v) continue;
+        if (grantedRun && GrantedContext.skillDigest(v) !== grantedInstructions.skills.get(key)) { withheldPreloads.push({ name: v.name, reason: 'it changed after this routine\'s grants were given' }); continue; }
         // A NAMED PRELOAD IS STILL GATED. This path injects the FULL body, so a withheld skill
         // invoked by /skill must not slip in ahead of the index's check. verify() (not decide())
         // because the body is in hand here: it re-digests the hydrated package.
@@ -26843,7 +26942,9 @@ async function runOnceCore(o) {
   // for generic providers that automatically reuse matching prefixes.
   // Learned state belongs beside the current user turn, not anywhere in the system message: changing even its tail
   // invalidates the conversation cache after it. The full guarded text rides run_context below; no belief is dropped.
-  const persona = stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
+  // GHSA-2hpj NEW-1: what a granted run is not given (granted-context.js INPUTS, 'withheld'); its system has no learned tail
+  if (grantedRun) { questsBlock = ''; journeyBlock = ''; runtimeSkillBlock = ''; awayBriefingNote = ''; crewCallNote = ''; evidenceBlock = ''; }
+  const persona = grantedRun ? { stable: system || '', learned: '' } : stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
   const cacheSystemPrefix = persona.stable + toolNote + teamNote + operatorManual
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
     // is not a power this run has, even though it stays searchable. The ground-truth block must not claim it while the
@@ -26883,7 +26984,7 @@ async function runOnceCore(o) {
      so that prompt (and the Codex cache route hashed from it) is byte-identical from one run to the next. A run with a
      Task Brief already carries the same evidence inside its brief block, so it never gets a second copy. */
   let stationEvidenceBlock = '';
-  if (o.stationEvidence === true && !internal && !taskBrief) {
+  if (o.stationEvidence === true && !internal && !taskBrief && !grantedRun) {
     try { const t = stationEvidenceNote(); if (t) stationEvidenceBlock = '\n\n' + t; } catch (e) { failNote('run.stationEvidence', e); }
   }
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
@@ -26927,7 +27028,7 @@ async function runOnceCore(o) {
        line's shared stream, which already carries the original request and the upstream output — so this resume
        seed re-sent every earlier stage's tool calls and results (another agent's work, as if it were this one's own
        past turns) ahead of it, on every stage. Measured on a real station: line hops averaged 50k tokens a call. */
-    if (!o.recovery && !o.groupTools && !internal && o.resumeSeed !== false && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
+    if (!o.recovery && !o.groupTools && !internal && !grantedRun && o.resumeSeed !== false && streamId && Array.isArray(messages) && messages.filter(m => m && m.role !== 'system').length <= 1) {
       const seed = transcriptStore.view('model-replay', streamId, { limit: 100, shape: 'pairs', form: 'post', complete: o.windowFrom === 'station' });
       if (seed.length) {
         // Keep the incoming turn (including attachment blocks), but not its older retry copy or
@@ -26973,7 +27074,7 @@ async function runOnceCore(o) {
      THE SAME PLACEMENT FEEDS THE KEPT SUMMARY (summary-ledger.js): every window message is tagged with the row it stands on
      and the user row that opens its exchange, so a fold can say exactly which rows its note stands for; a window nothing
      places is never tagged and never claimed. (summaryRun is declared above, beside the summarizer that reads it.) */
-  if (!internal && !o.recovery && !o.groupTools && streamId && Array.isArray(convo) && convo.length) {
+  if (!internal && !o.recovery && !o.groupTools && !grantedRun && streamId && Array.isArray(convo) && convo.length) {   // GHSA-2hpj NEW-1: a granted run starts from its own words
     try {
       let at = convo.length - 1;
       while (at >= 0 && !(convo[at] && convo[at].role === 'user')) at--;
@@ -27114,7 +27215,7 @@ async function runOnceCore(o) {
   // nothing injected (byte-identical to a memoryless run). Never fails the run.
   // internal self-talk never receives the memory fence — and must not bump useCount/recency on stored records
   // (a title call crediting memory.used would fake the Memory Core stats).
-  if (!internal) try {
+  if (!internal && !grantedRun) try {   // GHSA-2hpj NEW-1: no recalled memory, taste or standing notes in a granted run
     const stored = notebookStore.get('notebook:' + agentId);
     const all = o.recovery ? [] : (Array.isArray(stored) ? stored : []);
     // THE COMMANDER'S TASTE (feedbackmemory.js): their verdicts + corrections ride EVERY run in a block of their
@@ -27466,8 +27567,12 @@ async function runOnceCore(o) {
         if (ttlMs === undefined && reason === 'quota_exhausted') ttlMs = 60 * 60 * 1000;
         credPool.penalize(credKey, ttlMs);
       },
-      todoNote: () => Todo.formatForInjection(notebookStore, agentId),   // re-inject the active task plan after a compaction
-      steer: typeof o.steer === 'function' ? o.steer : () => drainSteer(runId),   // live parent or generation-bound worker steering
+      todoNote: () => grantedRun ? '' : Todo.formatForInjection(notebookStore, agentId),   // re-inject the active task plan after a compaction (GHSA-2hpj NEW-1: never into a granted run; the plan is notebook text)
+      // live parent or generation-bound worker steering. GHSA-2hpj NEW-1: a SEND NOW note (POST /api/run/steer, any key) still
+      // reaches a granted routine, but the run's unattended grants end before the model reads it (the taint), as for a web page
+      steer: typeof o.steer === 'function' ? o.steer : grantedRun
+        ? () => { const notes = drainSteer(runId); if (Array.isArray(notes) && notes.length) latchRunTaint('a note sent to this routine while it ran'); return notes; }
+        : () => drainSteer(runId),
       prepareSteer: async note => {
         const expanded = await expandSteerNote(note, agentId, o.projectRoot);
         // TAINT FOLLOWS THE BYTES, as at the run's start: only a file whose bytes were re-sent latches the bare attachment source
@@ -28074,6 +28179,10 @@ async function handleConsent(req, res) {
   // the desk gate: nothing standing is made, so the desk is not asked. "full" keeps its meaning: it is the agent's standing
   // Full Access, which the boundary already reads (postTaintBoundary), and the desk confirms it below
   if (finish && finish.outsideContent === true && /^(always|session)$/.test(decision)) decision = 'once';
+  // final review B8: "for this session" on a command is confirmed only in a dialog that shows the WHOLE command. For one too
+  // long to show whole, no confirmation is issued: this call is approved once, and the answer says why (tooLongForSession)
+  let tooLong = false;
+  if (finish && finish.exactCommand === true && finish.freshConsent !== true && decision === 'session' && !commandSessionFits(agentId, finish.askRow)) { decision = 'once'; tooLong = true; }
   // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
   // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
   // standing answer only ever approves this call, below, so it never asks).
@@ -28105,7 +28214,7 @@ async function handleConsent(req, res) {
   let gone = false;
   if (!finish) { gone = true; for (const p of [...pendingByRun.values(), ...channelPendingByRun.values()]) if (p && p.has(body.promptId)) { gone = false; break; } }
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(Object.assign({ ok: !!finish && persisted, decision, agentId: agentId || null, approvalMode: persisted && decision === 'full' ? 'full' : null }, gone ? { gone: true } : {})));
+  res.end(JSON.stringify(Object.assign({ ok: !!finish && persisted, decision, agentId: agentId || null, approvalMode: persisted && decision === 'full' ? 'full' : null }, gone ? { gone: true } : {}, tooLong ? { tooLongForSession: true } : {})));
 }
 
 /* POST /api/consent/answer { runId, promptId, answer } — the in-turn clarify reply (2026-07-31). A SIBLING
@@ -33331,7 +33440,8 @@ async function serveStatic(req, res) {
     if (isAppPage ||
         (DEV_MODE && abs.toLowerCase() === path.resolve(FRONTEND, 'agent-station-demo.html').toLowerCase())) {
       const sock = req.socket || {};
-      const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort });
+      // socket: a proved owner is kept for the life of THIS connection only (peerowner.js, final review B10)
+      const peer = await peerOwnerCheck({ remoteAddress: sock.remoteAddress, remotePort: sock.remotePort, localAddress: sock.localAddress, localPort: sock.localPort, socket: req.socket || null });
       // the app page gets a per-response script nonce (CSP below), so its one inline boot script runs and nothing else inline does
       if (isAppPage) scriptNonce = crypto.randomBytes(16).toString('base64');
       let boot = (scriptNonce ? '<script nonce="' + scriptNonce + '">' : '<script>') + (peer.ok ? 'window.__STARNET_API_TOKEN__=' + JSON.stringify(CLIENT_TOKEN || API_TOKEN) + ';'

@@ -116,16 +116,35 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.eq([...loadAllowlist()].sort(), ['files:write', 'path:/p'], 'an older ALWAYS for every command is not loaded; every other grant is');
     A.ok(logs.length === 1 && /retired/.test(logs[0]) && /workbench:execute/.test(logs[0]), 'and the log says so once: ' + logs[0]);
 
+    // deskWords + the B8 fit rule, lifted from the source (final review B8/B9)
+    const deskWords = new Function(sidecarTopLevelFunction('deskWords') + '\nreturn deskWords;')();   // eslint-disable-line no-new-func
+    const fitConsts = /const SESSION_DIALOG_ROWS = [^\n]*\n/.exec(src);
+    A.ok(!!fitConsts, 'index.js names the session dialog\'s rows and columns');
+    const roster = new Map([['a1', { name: 'NOVA' }]]);
+    const commandSessionFits = new Function('deskProofMod', 'deskWords', 'agentRoster',   // eslint-disable-line no-new-func
+      fitConsts[0] + sidecarTopLevelFunction('deskWordsShownWhole') + '\n' + sidecarTopLevelFunction('commandSessionFits') + '\nreturn commandSessionFits;')(
+      require('../sidecar/deskproof.js'), deskWords, roster);
+    const SH = (cmd) => ({ tool: 'shell.exec', scope: 'execute', argsSummary: JSON.stringify({ cmd }, null, 2) });
+    A.ok(commandSessionFits('a1', SH('npm test')), 'B8: a short command fits its session dialog whole');
+    A.ok(!commandSessionFits('a1', SH('x'.repeat(1100))), 'B8: a command past the dialog\'s cap does not (it would be cut)');
+    A.ok(!commandSessionFits('a1', { tool: 'shell.exec', scope: 'execute', argsSummary: JSON.stringify(Object.fromEntries(Array.from({ length: 30 }, (_, i) => ['k' + i, i])), null, 2) }),
+      'B8: nor one whose lines would run past what a browser prompt shows (30 short lines under the character cap)');
+    const edge = (n) => SH('y'.repeat(n));
+    let most = 0; for (let n = 0; n < 1300; n += 10) if (commandSessionFits('a1', edge(n))) most = n;
+    const shown = deskWords('consent-session', { agentName: 'NOVA', tool: 'shell.exec', scope: 'execute', command: edge(most).argsSummary }).summary;
+    A.ok(most > 500, 'B8: a command of several hundred characters still fits (' + most + ')');
+    A.eq(require('../sidecar/deskproof.js').cleanWords(shown, 1200), shown.trim(), 'B8: the longest command that fits is shown to its last character (' + most + ' characters), never cut');
+
     // handleConsent: ALWAYS on a command card is once with no desk prompt; "for this session" goes to the desk with the command
-    const handleConsent = new Function('readBody', 'pendingByRun', 'runTable', 'agentRoster', 'deskGate', 'persistAgentFullAccess', 'channelPendingByRun',   // eslint-disable-line no-new-func
+    const handleConsent = new Function('readBody', 'pendingByRun', 'runTable', 'agentRoster', 'deskGate', 'persistAgentFullAccess', 'channelPendingByRun', 'commandSessionFits',   // eslint-disable-line no-new-func
       sidecarTopLevelFunction('handleConsent') + '\nreturn handleConsent;');
-    async function answer(decision, finishExtra) {
+    async function answer(decision, finishExtra, argsSummary) {
       const got = [], gates = [];
-      const finish = Object.assign((d) => got.push(d), { askRow: { tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', agentId: 'a1' } }, finishExtra || {});
+      const finish = Object.assign((d) => got.push(d), { askRow: { tool: 'shell.exec', scope: 'execute', argsSummary: argsSummary || '{"cmd":"npm test"}', agentId: 'a1' } }, finishExtra || {});
       const res = { writeHead(c) { this.status = c; }, end(b) { this.body = b; } };
       const fn = handleConsent(async () => JSON.stringify({ runId: 'r1', promptId: 'p1', decision }), new Map([['r1', new Map([['p1', finish]])]]),
-        new Map([['r1', { agentId: 'a1' }]]), new Map([['a1', { name: 'NOVA' }]]),
-        (_q, _s, action, _k, details) => { gates.push({ action, details }); return true; }, () => true, new Map());
+        new Map([['r1', { agentId: 'a1' }]]), roster,
+        (_q, _s, action, _k, details) => { gates.push({ action, details }); return true; }, () => true, new Map(), commandSessionFits);
       await fn({}, res);
       return { got, gates, body: JSON.parse(res.body || '{}') };
     }
@@ -133,21 +152,30 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.eq([o.got, o.gates.length, o.body.decision, o.body.ok], [['once'], 0, 'once', true], 'ALWAYS on a command card is applied and echoed as once, and the desk is never asked');
     o = await answer('session', { exactCommand: true });
     A.eq([o.got, o.gates.map(g => g.action), o.gates[0] && o.gates[0].details.command], [['session'], ['consent-session'], '{"cmd":"npm test"}'], 'a command\'s "for this session" is still confirmed at the desk, naming the command');
+    A.ok(!('tooLongForSession' in o.body), 'and its answer carries no long-command note');
+    o = await answer('session', { exactCommand: true }, SH('z'.repeat(1500)).argsSummary);
+    A.eq([o.got, o.gates.length, o.body.decision, o.body.ok, o.body.tooLongForSession], [['once'], 0, 'once', true, true],
+      'B8: "for this session" on a command too long to show whole is approved once, no confirmation is issued, and the answer says why');
+    o = await answer('session', {}, SH('z'.repeat(1500)).argsSummary);
+    A.eq([o.got, o.gates.map(g => g.action)], [['session'], ['consent-session']], 'B8: any other card\'s session answer is unchanged (desk-confirmed)');
     o = await answer('always');
     A.eq([o.got, o.gates.map(g => g.action), o.gates[0] && o.gates[0].details.command], [['always'], ['consent-always'], ''], 'ALWAYS on any other card is unchanged (desk-confirmed)');
     o = await answer('full', { exactCommand: true });
     A.eq([o.got, o.gates.map(g => g.action)], [['full'], ['consent-full']], 'Full Access on a command card is unchanged (desk-confirmed agent posture)');
     A.ok(src.indexOf("finish.freshConsent !== true && (decision === 'always' || decision === 'full' || decision === 'session')") >= 0, 'the desk gate on every standing answer is untouched');
 
-    const deskWords = new Function(sidecarTopLevelFunction('deskWords') + '\nreturn deskWords;')();   // eslint-disable-line no-new-func
     const w = deskWords('consent-session', { agentName: 'NOVA', tool: 'shell.exec', scope: 'execute', command: '{"cmd":"npm test"}' });
     A.ok(/this exact command/.test(w.summary) && /Any other command still asks/.test(w.summary) && /npm test"\}$/.test(w.summary), 'the desk dialog names the exact command, last: ' + JSON.stringify(w.summary.slice(0, 90)));
+    A.ok(/only the command below with these exact settings: a different folder, time limit or background setting asks again/.test(w.summary), 'B9: the dialog says one plain line: these exact settings, and what asks again');
     A.ok(/Every later request of this kind/.test(deskWords('consent-session', { agentName: 'NOVA', tool: 'fs.write', scope: 'write' }).summary), 'another tool\'s dialog is unchanged');
 
     // the ask is stamped everywhere it travels (additive field)
     A.ok(/exactCommand: isExactCommand\(tool\)/.test(sidecarTopLevelFunction('handleRun')), 'a run\'s ask carries the stamp');
     A.ok(/if \(isExactCommand\(o\.tool\)\) fields\.exactCommand = true;/.test(sidecarTopLevelFunction('channelAskConsent')), 'a channel run\'s ask carries it (the phone row and the chat keyboard)');
     A.ok(/if \(ask && ask\.exactCommand === true\) row\.exactCommand = true;/.test(sidecarTopLevelFunction('handleStateSnapshot')), 'a reloaded page sees it');
+    A.ok(/if \(row\.exactCommand && !fields\.fresh && !commandSessionFits\(agentId, row\)\) row\.tooLongForSession = true;/.test(sidecarTopLevelFunction('handleRun')), 'B8: a run\'s command ask too long to show whole says so (additive)');
+    A.ok(/if \(ask && ask\.tooLongForSession === true\) row\.tooLongForSession = true;/.test(sidecarTopLevelFunction('handleStateSnapshot')), 'B8: a reloaded page sees that too');
+    A.ok(/r\.json\.tooLongForSession === true\) io\.err\('starnet: this command is too long to show whole in a confirmation, so it was allowed once/.test(read('bin/lib/station-commands.js')), 'B8: `starnet approve --session` says why it was allowed once');
   }
 
   // ---------------- 3. EVERY SURFACE ----------------
@@ -179,6 +207,53 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     A.ok(card.length > 0, 'the card branch is found');
     A.ok(/const command = isCommandAsk\(p\);/.test(card) && /if \(!command\) mk\('Always'/.test(card) && /labels\.session = '✓ approved for this session \(this exact command\)'/.test(card), 'the default card drops Always for a command and settles a session answer in its words');
     A.eq(read('website/app/app/chat.js'), chat, 'the website embed carries the same card');
+
+    // final review B7: the real card, rendered. A command offers "This session" (the station confirms it at the desk); a fresh
+    // card, a card naming outside content, and a command too long to show whole in that confirmation (B8) never do
+    {
+      const extract = (text, a, b) => { const i = text.indexOf(a); A.ok(i >= 0, 'chat.js has ' + a.trim()); return text.slice(i, text.indexOf(b, i)); };
+      const cardCtx = {}; vm.createContext(cardCtx); vm.runInContext(extract(chat, 'function glance(', '  function clarifyRow('), cardCtx);
+      const render = (p, reply) => {
+        const Channels = require('../frontend/app/channels.js'); Channels.reset();
+        const nodes = [], sent = [];
+        const element = () => ({ children: [], querySelectorAll() { return this.children.filter(n => n.className && n.className.includes('consent-')); }, dataset: {}, classList: { add() {}, remove() {} },
+          appendChild(n) { this.children.push(n); }, addEventListener() {}, setAttribute() {}, remove() { this.removed = true; }, focus() {} });
+        const ws = { id: 'cmd-card' };
+        Channels.begin(ws.id, 10); Channels.setRunId(ws.id, 'lead'); Channels.setPending(ws.id, p, 100);
+        const ctx = { Channels, Date: { now: () => 200 }, name: 'NOVA', input: null,
+          document: { createElement: element, createTextNode: textContent => ({ textContent }) },
+          row: () => { const r = { d: element(), body: element() }; nodes.push(r); return r; },
+          actionPhrase: cardCtx.actionPhrase, consentInspect: cardCtx.consentInspect, appendConsentDetails: () => {},
+          Harness: { consent: async (_run, _prompt, decision) => { sent.push(decision); return reply ? reply(decision) : { ok: true, decision }; } },
+          U: { bus: { on() {}, off() {}, emit() {} } },
+          isActiveWs: () => false, renderPresence() {}, syncStatus() {}, status() {}, autoscroll() {}, revealCard() {}, releaseCard() {}, keepFocus() {}, announcedPrompt: () => true, askAnswerers: new Map() };
+        vm.createContext(ctx);
+        vm.runInContext(extract(chat, '  const settledPromptNotices = new Set();', "  // the channel's record"), ctx);
+        vm.runInContext(extract(chat, '  const openConsentCards = new Map();', '  // EL-11 FIX 1a:'), ctx);
+        ctx.permissionRow(p, ws);
+        const body = nodes[0].body;
+        const btns = body.children.find(n => n.className === 'consent-btns');
+        const keys = btns.children.filter(b => /^consent-btn/.test(b.className || ''));
+        return { keys, names: keys.map(b => b.textContent), sent, result: () => (body.children.find(n => /^consent-result/.test(n.className || '')) || {}).textContent };
+      };
+      const cmd = { promptId: 'c1', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', exactCommand: true };
+      let c = render(cmd);
+      A.eq(c.names, ['Approve once', 'This session', 'Full access', 'Deny'], 'B7: a command card offers "This session" beside once, Full access and deny (no Always)');
+      const sessionKey = c.keys[1];
+      A.ok(/this exact command/.test(sessionKey.title) && /these exact settings: a different folder, time limit or background setting asks again/.test(sessionKey.title) && /confirm it first/.test(sessionKey.title),
+        'B7/B9: its key says what it covers, in one plain line: ' + sessionKey.title);
+      await sessionKey.onclick();
+      A.eq([c.sent, c.result()], [['session'], '✓ approved for this session (this exact command)'], 'B7: it sends "session" (the page\'s desk confirmation runs in the fetch wrapper) and settles in its own words');
+      c = render(cmd, () => ({ ok: true, decision: 'once', tooLongForSession: true }));
+      await c.keys[1].onclick();
+      A.eq(c.result(), '✓ approved once (too long to approve for the session)', 'B8: a session answer the station applied once says so, never "for this session"');
+      A.eq(render(Object.assign({}, cmd, { tooLongForSession: true })).names, ['Approve once', 'Full access', 'Deny'], 'B8: a command too long to show whole offers no "This session"');
+      A.eq(render(Object.assign({}, cmd, { fresh: true })).names, ['Approve once', 'Deny'], 'B7: a fresh command card stays once or deny');
+      A.eq(render({ promptId: 't1', tool: 'path.trust', scope: 'write', argsSummary: 'C:/proj', file: 'C:/proj/run.js', taintedBy: 'a web page', standing: '' }).names, ['Approve once', 'Deny'],
+        'B7: a card naming outside content stays once or deny, even without its fresh stamp');
+      A.eq(render({ promptId: 'f1', tool: 'fs.write', scope: 'write', argsSummary: 'notes.md' }).names, ['Approve once', 'Always', 'Full access', 'Deny'], 'B7: any other card is unchanged');
+      A.eq(render({ promptId: 'c2', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"ls"}' }).names, ['Approve once', 'This session', 'Full access', 'Deny'], 'B7: an unstamped shell ask (an older save) is a command card too');
+    }
 
     // the phone: "this task" on anything that runs is applied once, and the reply says what was applied
     const { makeApprovals } = require('../sidecar/remote/approvals.js');
@@ -214,11 +289,30 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     const res = await bridge.callTool('permissions_respond', { id: 'r1|p1', decision: 'allow-always' });
     const text = JSON.stringify(res);
     A.ok(sent.length === 1 && sent[0] === 'always' && /allow-once/.test(text) && /one at a time/.test(text), 'MCP allow-always on a command reports allow-once: ' + text.slice(0, 160));
+    // final review B6: a command the bridge saw on the stream is sent as once (no standing answer reaches the station), and
+    // its open row says it takes allow-once or deny
+    {
+      const seen = [];
+      const queue = require('../sidecar/mcp/bridge-core.js').makeEventQueue({});
+      const b2 = makeBridge({ queue, callSidecar: async (m, p, body) => {
+        if (p === '/api/state/snapshot') return { ok: true, status: 200, json: { prompts: [{ runId: 'r1', promptId: 'p9', agentId: 'a1' }, { runId: 'r1', promptId: 'p8', agentId: 'a1' }] } };
+        seen.push(body.decision); return { ok: true, status: 200, json: { ok: true, decision: body.decision } };
+      } });
+      queue.push('permission.prompt', { promptId: 'p9', runId: 'r1', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', exactCommand: true });
+      queue.push('permission.prompt', { promptId: 'p8', runId: 'r1', tool: 'fs.write', scope: 'write', argsSummary: 'a.md' });
+      const open = await b2.callTool('permissions_list_open', {});
+      const cmdRow = open.approvals.find(a => a.promptId === 'p9'), fileRow = open.approvals.find(a => a.promptId === 'p8');
+      A.ok(cmdRow.exactCommand === true && cmdRow.decisions.join(',') === 'allow-once,deny' && !('exactCommand' in fileRow) && !('decisions' in fileRow), 'MCP: an open command says it takes allow-once or deny (additive); a file write is unchanged');
+      const r2 = await b2.callTool('permissions_respond', { id: 'r1|p9', decision: 'allow-always' });
+      A.ok(seen.join(',') === 'once' && r2.decision === 'allow-once' && /one at a time/.test(r2.note), 'MCP: allow-always on a command it saw is sent as once, and said so: ' + JSON.stringify(seen));
+      await b2.callTool('permissions_respond', { id: 'r1|p8', decision: 'allow-always' });
+      A.eq(seen, ['once', 'always'], 'MCP: allow-always on any other ask is sent as before');
+    }
 
-    // ACP: the session option names the exact command
+    // ACP: a command is offered once or reject (final review B6: its session answer could only ever be applied once)
     const acp = require('../sidecar/acp/core.js')._internals;
-    A.eq(acp.permissionOptions({ exactCommand: true }).map(o => o.optionId), ['once', 'session', 'deny'], 'ACP keeps its three answers');
-    A.ok(/exact command/.test(acp.permissionOptions({ exactCommand: true })[1].name) && acp.permissionOptions({})[1].name === 'Allow for the rest of this session', 'and words the session one for a command');
+    A.eq(acp.permissionOptions({ exactCommand: true }).map(o => o.optionId), ['once', 'deny'], 'ACP offers a command once or reject, nothing it would not keep');
+    A.eq(acp.permissionOptions({}).map(o => o.optionId + ':' + o.name), ['once:Allow once', 'session:Allow for the rest of this session', 'deny:Reject'], 'any other ask keeps its three answers');
   }
 
   // ---------------- 4. THE ASSEMBLED LINE ----------------

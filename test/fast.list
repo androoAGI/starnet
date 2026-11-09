@@ -1483,6 +1483,7 @@ test/growth-fold.test.js
 test/save-merge.test.js
 test/roster-push-base.test.js
 test/desk-proof.test.js
+test/granted-context.census.test.js
 test/desk-breakages.test.js
 test/taint-host-write.test.js
 test/authority-seal.test.js

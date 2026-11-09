@@ -278,15 +278,15 @@
   /* The three answers StarNet's consent broker actually understands, in ACP's option vocabulary. `optionId` is
      the exact string POST /api/consent wants, so nothing has to be translated on the way back — and an
      UNRECOGNISED answer is coerced to 'deny' by the sidecar, which is the fail-closed direction. */
-  // a COMMAND's "for this session" covers that exact command only (GHSA-2hpj #4: the station stamps the ask exactCommand),
-  // so the option says so
+  // A COMMAND (GHSA-2hpj #4: the station stamps the ask exactCommand) is offered once or reject (final review B6). Its
+  // "for this session" is confirmed in the StarNet window, which an editor cannot reach, so it could only ever be applied
+  // once; an option that promised the session would be a promise not kept. onPermission still sends a 'session' answer
+  // for a command as once (a client that kept an older option list)
   function permissionOptions(q) {
-    const exact = !!(q && q.exactCommand === true);
-    return [
-      { optionId: 'once', name: 'Allow once', kind: 'allow_once' },
-      { optionId: 'session', name: exact ? 'Allow this exact command for the rest of this session' : 'Allow for the rest of this session', kind: 'allow_always' },
-      { optionId: 'deny', name: 'Reject', kind: 'reject_once' }
-    ];
+    const once = { optionId: 'once', name: 'Allow once', kind: 'allow_once' };
+    const deny = { optionId: 'deny', name: 'Reject', kind: 'reject_once' };
+    if (q && q.exactCommand === true) return [once, deny];
+    return [once, { optionId: 'session', name: 'Allow for the rest of this session', kind: 'allow_always' }, deny];
   }
 
   // ---------------------------------------------------------------------------
@@ -517,6 +517,15 @@
             return (chosen === 'once' || chosen === 'session') ? chosen : 'deny';
           })
           .catch((e) => { log('permission request failed, denying: ' + ((e && e.message) || e)); return 'deny'; })
+          .then((chosen) => {
+            /* A COMMAND'S "FOR THIS SESSION" IS SENT AS ONCE (final review B6). Only a station that confirms that answer at
+               the desk stamps a command's ask exactCommand, so sending 'session' would only make a bare station print a
+               confirmation code nobody here can type. A command is not offered it (permissionOptions); a client that answers
+               it anyway (an older option list) is sent once instead, and the log says why. */
+            if (chosen !== 'session' || !q || q.exactCommand !== true) return chosen;
+            log('"allow this exact command for this session" is confirmed in the StarNet window; allowed once instead');
+            return 'once';
+          })
           .then((decision) => callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: decision }).then((r) => {
             /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): the station confirms a 'session' answer in the StarNet
                window, which an editor cannot. The ask is not left waiting: it is allowed once, and the log says why. */

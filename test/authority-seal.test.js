@@ -110,7 +110,7 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     // the desktop app without its key over a workspace nobody sealed (a first run): nothing to hold, as before
     const fresh = make(null, { desktop: true, marker: { read: () => undefined, write: () => {} } }).seal;
     A.eq(fresh.boot([]).mode, 'unkeyed', 'the desktop app over an unsealed workspace is unkeyed, as before');
-    A.ok(/desktop: DESKTOP_SHELL,/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8')), 'index.js tells the seal when it is the desktop app\'s station');
+    A.ok(/desktop: DESKTOP_SHELL,/.test(require('./helpers/source.js').readSidecarIndex()), 'index.js tells the seal when it is the desktop app\'s station');
   }
 
   // ---- 2. boot ----

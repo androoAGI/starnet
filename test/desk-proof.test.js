@@ -129,7 +129,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.eq(D.makeDeskProof({ desktop: true, ipcToken: 'IPC', now: () => clock.t, randomBytes: rnd, store: torn }).locked(), false, 'a desktop station never locks');
     A.ok(D.LOCK_MAX_MS >= D.LOCK_MS && D.LOCK_MAX_MS <= 24 * 60 * 60 * 1000, 'lockouts stop growing at a day');
     // the station keeps the count in its own data, and its quit door is the desktop shell's alone
-    const IDX11 = read('sidecar/index.js');
+    const IDX11 = require('./helpers/source.js').readSidecarIndex();
     A.ok(/store: deskCodeStore/.test(IDX11) && /DESK_CODES_FILE = path\.join\(WORKSPACES, 'desk-codes\.json'\)/.test(IDX11), 'index.js hands the desk its persisted count');
     const quit = A.fnBody(IDX11, 'function handleLifecycleQuit(');
     A.ok(/const shellKey = CLIENT_TOKEN \? apiauth\.apiTokenOk\(req, API_TOKEN\) : DESKTOP_SHELL;/.test(quit) && quit.indexOf("if (!shellKey && !deskGate(req, res, 'quit', 'station', {})) return;") > 0
@@ -330,7 +330,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     // final review #2: and the model it runs on
     A.ok(/String\(s\.model \|\| ''\), String\(s\.provider \|\| ''\), String\(s\.grantDrive \|\| ''\)\]/.test(scope), 'the desk scope covers the model, the provider and what they resolve to');
     A.ok(/scriptDigest: \(opts && opts\.grantsConfirmed === true && typeof opts\.scriptDigest === 'string'\) \? opts\.scriptDigest : null,\s*grantDrive: \(opts && opts\.grantsConfirmed === true && typeof opts\.grantDrive === 'string'\) \? opts\.grantDrive : null \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'a create keeps only the station\'s own digest and drive, read at the desk\'s yes');
-    A.ok(/routineDriveMoved\(o\.cronGrantDrive, providerId, model, baseUrl\)/.test(IDX) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(read('sidecar/cron-driver.js')) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(IDX), 'the scheduled fire and Run Now hand the recorded drive to the run, which checks it');
+    A.ok(/routineDriveMoved\(o\.cronGrantDrive, providerId, model, baseUrl, grantedInstructions\.digest\)/.test(IDX) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(read('sidecar/cron-driver.js')) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(IDX), 'the scheduled fire and Run Now hand the recorded drive to the run, which checks it');
     A.ok(/workshop: \(call, tool\) => !execution\.taintedBy\(\) && workshopOf\(agentId\),/.test(IDX), 'the away-workshop grant is lifted by taint, as the terminal grant is');
     const parts = A.fnBody(IDX, 'function cronAuthorityParts(');
     A.ok(/runsLine: j\.runsLine === true, scriptDigest: typeof j\.scriptDigest === 'string' \? j\.scriptDigest : null \},/.test(parts), 'the seal covers the digest and every run field of a granted routine');
@@ -396,7 +396,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const at = IDX.indexOf("const IPC_TOKEN = String(ENV('IPC_TOKEN') || '');");
     const del = IDX.indexOf("for (const k of ['STARNET_API_TOKEN', 'SKYNET_API_TOKEN', 'STARNET_IPC_TOKEN', 'SKYNET_IPC_TOKEN']) delete process.env[k];");
     A.ok(at > 0 && del > at && del - at < 200 && IDX.indexOf('const API_TOKEN = String(ENV(\'API_TOKEN\')') < at, 'the page token and the IPC token are read, then deleted from process.env');
-    const idxOnly = read('sidecar/index.js');
+    const idxOnly = require('./helpers/source.js').readSidecarIndex();
     A.eq((idxOnly.match(/ENV\('IPC_TOKEN'\)|ENV\('API_TOKEN'\)/g) || []).length, 2, 'nothing reads them from the environment again');
     // the same three lines, run: the variables are gone and the values kept
     const env = { STARNET_API_TOKEN: 'a', SKYNET_IPC_TOKEN: 'i', OTHER: 'o' };

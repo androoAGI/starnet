@@ -88,8 +88,17 @@ function assertLocked(r, tool, c, label) {
   A.eq(responseProvenance.originOf(JSON.parse(JSON.stringify(first))), '', 'JSON/model projections cannot retain host proof');
   A.eq(responseProvenance.originOf(Object.assign({}, first, { content: first.content + '\nhost decoration' })), ORIGIN, 'host result decoration preserves proof');
   const clean = run(); clean.observe(initial.tool, c, first);
-  A.eq(clean.scope, { origin: ORIGIN, keys: [KEY], method: 'GET', prefix: '/', path: '/read' }, 'direct API body scopes to proven origin and key, method, folder and path');
+  A.eq([clean.scope.origin, clean.scope.keys, clean.scope.method, clean.scope.path, clean.scope.query], [ORIGIN, [KEY], 'GET', '/read', []], 'direct API body scopes to proven origin and key, method, path and query');
+  A.ok(clean.scope.seen.indexOf('{"ok":true}') >= 0, 'NEW-3: the scope keeps what the model was shown of the response');
   A.ok(clean.next(initial.tool, call({ url: ORIGIN + '/read?page=2' })).postTaint.allow, 'the next page of the same API/key/method read continues');
+  // NEW-3 (2026-11-09): a query value, a header or a cursor the API never returned carries workspace text: no continuation
+  A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read?q=SECRET-WORKSPACE-TEXT' })).sameOriginApi, 'NEW-3: a query value the first read did not send is no continuation');
+  A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read?q=SECRET-WORKSPACE-TEXT' })).postTaint.allow, 'NEW-3: and is refused unattended');
+  A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read?cursor=SECRET' })).sameOriginApi, 'NEW-3: nor a cursor the API never returned');
+  A.ok(!clean.next(initial.tool, call({ headers: { Authorization: 'Bearer $' + '{SYNTHETIC_TEST_KEY}', 'X-Note': 'SECRET' } })).sameOriginApi, 'NEW-3: nor a header the first read did not send');
+  const paged = fixture([response('{"next_cursor":"Y3Vyc29yLTI="}')]); const pc = call(); const pr = await paged.dispatch(pc);
+  const pagedRun = run(); pagedRun.observe(paged.tool, pc, pr);
+  A.ok(pagedRun.next(paged.tool, call({ url: ORIGIN + '/read?cursor=Y3Vyc29yLTI%3D' })).postTaint.allow, 'NEW-3: a cursor the API returned continues');
   // final review #8: a first read at the root scopes nothing but its own path
   A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read/next' })).sameOriginApi, 'another path under the root folder is no continuation');
   // GHSA-2hpj #6: a write after a read, or an upload, is no continuation: unattended refused, watched asks

@@ -104,7 +104,7 @@ const part = (s, a, b) => { const i = s.indexOf(a), j = s.indexOf(b, i + a.lengt
     const branches = part(chat, "    if (p.tool === 'browser.login') {", "    appendConsentDetails(r.body, p, 'plan');");
     const card = part(branches, '} else if (p.outsideContent === true) {', '    } else {\n');
     // a fresh card (a tainted write, station.power, plugin.submit) is drawn before it: it stays once-or-deny, never Full access
-    A.ok(branches.indexOf("p.fresh === true) {") >= 0 && branches.indexOf("p.fresh === true) {") < branches.indexOf('} else if (p.outsideContent === true) {'), 'a fresh card keeps its once-or-deny branch ahead of the post-taint card');
+    A.ok(branches.indexOf("p.fresh === true") >= 0 && branches.indexOf("p.fresh === true") < branches.indexOf('} else if (p.outsideContent === true) {'), 'a fresh card keeps its once-or-deny branch ahead of the post-taint card');
     A.ok(/mk\('Approve once', 'once'/.test(card) && /mk\('Full access', 'full'/.test(card) && /mk\('Deny', 'deny'/.test(card), 'the post-taint card offers Approve once, Full access and Deny');
     A.ok(!/mk\('Always'/.test(card) && !/consentHintFor\(/.test(card), 'and never Always, nor the line that teaches Always');
     A.ok(/outside content/.test(card) && /Always cannot skip that/.test(card), 'it says in one line why it asks each time');

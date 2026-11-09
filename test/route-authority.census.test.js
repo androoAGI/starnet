@@ -24,7 +24,7 @@ const { fnBody } = require('./_fnbody');
 const { mutatingRoutes } = require('./helpers/route-table');
 
 const ROOT = path.join(__dirname, '..');
-const IDX = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');
+const IDX = require('./helpers/source.js').readSidecarIndex();
 const DESK_CALL = /deskGate\(|ownerPairingPass\(|loopCheckAtDesk\(|deskApproved|blessPath\(|workshopRaiseAtDesk\(|budgetRaiseAtDesk\(/;
 // the named helpers above that stand for deskGate in a route's body: each must itself call it (a helper that stopped
 // asking would otherwise leave every route that calls it classified desk with no gate)

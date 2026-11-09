@@ -59,7 +59,7 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
   // the floors still win
   A.ok(/\.env|protected/i.test(await refused(path.join(project, '.env'), { scope: 'write', tainted: true, unrestrictedHost: true, prompt: say('once') })), 'the protected-file floor still refuses');
   // index.js wires the run's latch
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = require('./helpers/source.js').readSidecarIndex();
   // review2 #12: the latch is handed as its source (truthy = tainted), so the card can say what the run read
   A.ok(/tainted: \(\) => execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''/.test(idx), 'the run hands its taint latch (own or inherited) to the path guard');
   try { fs.rmSync(base, { recursive: true, force: true }); } catch (_) { /* a temp folder left behind is harmless */ }

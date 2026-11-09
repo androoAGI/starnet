@@ -485,10 +485,47 @@ const Harness = (() => {
   // saying the station won't take commands after the owner fixed it.
   let withheldNotified = false;
   function noteTokenWithheld() {
-    if (!tokenWithheld) { stationUI('settleNotifs', ['token-withheld']); return; }
+    if (!tokenWithheld) { stationUI('settleNotifs', ['token-withheld']); hideWithheldBar(); return; }
     if (withheldNotified) return;
     withheldNotified = true;
     stationNotify(tokenWithheldNotice(tokenWithheld), 'warn', { kind: 'alert', key: 'token-withheld' });
+    showWithheldBar();
+  }
+  /* THE REASON STAYS ON THE PAGE (final review B10). A page the station kept its key from can drive nothing, and its only
+     words were a toast that leaves in seconds (and a bell entry), so the load looked blank or broken. While the key is
+     withheld, one bar across the top says why, in the notice's own words with the owner's way out; a transient reason also
+     offers Check again (a reload re-runs the station's check). Hide puts it away (the bell keeps the alert), and it leaves
+     on its own when the page takes its key in place. With no page to draw on (a test), nothing is drawn. */
+  let withheldBar = null;
+  function showWithheldBar() {
+    if (withheldBar || !tokenWithheld || typeof document === 'undefined' || !document || !document.body || typeof document.createElement !== 'function') return;
+    try {
+      const bar = document.createElement('div');
+      bar.id = 'token-withheld-bar';
+      bar.setAttribute('role', 'alert');
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483000;box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;'
+        + 'padding:10px 16px;background:var(--panel2,#0c0704);color:var(--warn,#ffe97a);border-bottom:1px solid var(--warn,#ffe97a);line-height:1.4;overflow-wrap:anywhere';
+      const words = document.createElement('span');
+      words.style.cssText = 'flex:1 1 280px;min-width:0';
+      words.textContent = tokenWithheldNotice(tokenWithheld);
+      bar.appendChild(words);
+      const key = (label, act) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = label;
+        b.style.cssText = 'font:inherit;color:inherit;background:transparent;border:1px solid currentColor;padding:4px 12px;cursor:pointer';
+        b.addEventListener('click', act);
+        bar.appendChild(b);
+      };
+      if (withheldRetryable(tokenWithheld)) key('Check again', () => { if (typeof location !== 'undefined' && location.reload) location.reload(); });
+      key('Hide', hideWithheldBar);
+      document.body.appendChild(bar);
+      withheldBar = bar;
+    } catch (_) { withheldBar = null; }   // the bell and the toast still say it
+  }
+  function hideWithheldBar() {
+    if (!withheldBar) return;
+    try { withheldBar.remove(); } catch (_) {}
+    withheldBar = null;
   }
   // A NEW PAGE LIFE (Harness.init): say what is true of THIS page — why its key was withheld, or settle an earlier withheld
   // alert — and mark a "station restarted" alert raised by an earlier page handled. That page is gone; this one booted with
@@ -518,6 +555,7 @@ const Harness = (() => {
       if (tokenWithheld) {   // the re-run ownership check passed: not a restart, and the withheld alert is now handled
         tokenWithheld = '';
         stationUI('settleNotifs', ['token-withheld']);
+        hideWithheldBar();
         stationNotify('The ownership check passed on retry — this page can drive the station now.', 'good');
         return;
       }

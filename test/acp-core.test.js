@@ -192,6 +192,26 @@ function harness(opts) {
     A.eq(consent[2].decision, 'session', 'the chosen option maps straight through (optionIds ARE the decisions)');
   }
 
+  /* ---- 6b. A COMMAND'S "FOR THIS SESSION" IS SENT AS ONCE (final review B6) --------------------- */
+  {
+    // the station confirms it at the desk, which an editor cannot reach: sending it only made a bare station print a code
+    const h = harness({
+      permissionAnswer: { outcome: { outcome: 'selected', optionId: 'session' } },
+      events: [
+        ['agent.run.start', { runId: 'run-43' }],
+        ['permission.prompt', { promptId: 'p2', agentId: 'agent', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', exactCommand: true }],
+        ['agent.run.end', { reason: 'done' }]
+      ]
+    });
+    const sid = await h.open();
+    await h.core.handleRpc(rpc(3, 'session/prompt', { sessionId: sid, prompt: [{ type: 'text', text: 'run the tests' }] }));
+    await new Promise(r => setTimeout(r, 20));
+    const req = h.requests.find(x => x.method === 'session/request_permission');
+    A.eq(req && req.params.options.map(o => o.optionId + ':' + o.kind).join(','), 'once:allow_once,deny:reject_once', 'the command card offers once or reject: no session option it could not keep');
+    const sent = h.posted.filter(p => p[1] === '/api/consent').map(p => p[2].decision);
+    A.eq(sent, ['once'], 'a command\'s "for this session" is sent once, as once: no session answer reaches the station');
+  }
+
   /* ---- 7. PERMISSION IS FAIL-CLOSED ----------------------------------------------------------- */
   {
     // a client that rejects the request (or does not implement it) must deny, never grant

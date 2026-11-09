@@ -34,7 +34,7 @@ const { seedActiveStation } = require('./helpers/station.js');
     const raise = await st.call(st.API, 'POST', '/api/roster', { agents: [{ agentId: 'agent', name: 'Nova', approvalMode: 'full', system: 'helpful' }], raise: ['agent'] });
     A.eq(raise.status, 409, 'final review B3: a raise while held is refused before any desk dialog');
     A.ok(!(raise.body && raise.body.deskConfirm), 'no confirmation is asked for a change that cannot be saved');
-    const IDX = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    const IDX = require('./helpers/source.js').readSidecarIndex();
     const run = A.fnBody(IDX, 'async function executeCronScript(');
     A.ok(/if \(job && job\.script && authoritySeal\.held\)/.test(run) && run.indexOf('authoritySeal.held') < run.indexOf('cronScriptSpec(job)'), 'final review B3: a script routine says it did not run because the seal is held, before the grant check');
   } catch (e) {
