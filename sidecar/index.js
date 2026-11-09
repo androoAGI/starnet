@@ -6760,6 +6760,10 @@ function cronScriptExcerpt(job) {
   } catch (e) { return '(the file could not be read)'; }
 }
 async function executeCronScript(job, signal) {
+  // final review B3: while the seal is held a routine runs without its grants; say that, not "requires the workbench grant"
+  if (job && job.script && authoritySeal.held) {
+    throw new Error('the script ' + String(job.script) + ' did not run: ' + authoritySeal.held + ' Until then, routines run without their unattended grants. Nothing is lost.');
+  }
   // review2 #3: only the bytes the desk's yes was given to run with nobody watching
   if (job && job.script && cronScriptStale(job)) {
     throw new Error('the script ' + String(job.script) + ' changed since you allowed this routine to run it with nobody watching, so it did not run. Check the file; to run this version, press ALLOW THIS VERSION on the routine (StarNet asks you to confirm).');
@@ -21472,6 +21476,10 @@ async function handleRoster(req, res) {
   // P2.1: DEGRADED — this workspace was stamped by a NEWER StarNet. Refuse a destructive roster overwrite (the
   // route replaces the whole store) rather than corrupt data this code doesn't understand. Reads/runs are untouched.
   if (workspaceDegraded) return json(200, { ok: false, error: 'workspace written by newer StarNet', degraded: true });
+  /* HELD: SAY WHY, BEFORE ANY DIALOG (final review B3). While the seal is held (no key over a sealed workspace) no roster
+     save can land. The push used to reach the save and answer 500 "could not persist roster", and a raise confirmed at
+     the desk showed the native dialog first, then failed the same way. Nothing is lost: it saves once the key is back. */
+  if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held, held: true });
   /* THE ROSTER'S REVISION CHECK (save-latch-kill; the roster was a second copy of the crew, last-write-wins on page clocks):
      a page sends the station revision its crew view is built on (saveRevision = CloudSave.revision()). A push built on an
      OLDER station revision than the station file holds — another window or a merge wrote since — would put that window's
