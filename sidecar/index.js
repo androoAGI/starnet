@@ -4291,7 +4291,7 @@ async function runReflection(o) {
   finally {
     clearTimeout(timer);
     // W1.4: every ATTEMPT arms the window, whatever it kept (a NONE reply included). Read before book() zeroes the meter.
-    try { if (spend.calls()) noteLearningAttempt('reflection', agentId, { replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
+    try { if (spend.calls()) noteLearningAttempt('reflection', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
@@ -4369,7 +4369,7 @@ async function runFailureReview(o) {
   finally {
     clearTimeout(timer);
     // W1.4: every ATTEMPT arms the window and marks this failure class reviewed. Read before book() zeroes the meter.
-    try { if (spend.calls()) noteLearningAttempt('failure-review', agentId, { replied, produced: kept, failureClass: LearningCooldown.failureClass(o) }); } catch (e) { failNote('learning.cooldown', e); }
+    try { if (spend.calls()) noteLearningAttempt('failure-review', agentId, { runId, replied, produced: kept, failureClass: LearningCooldown.failureClass(o) }); } catch (e) { failNote('learning.cooldown', e); }
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
@@ -4459,7 +4459,7 @@ async function runStudy(o) {
   finally {
     clearTimeout(timer);
     // W1.4: every ATTEMPT arms the window (persisted in study.state.json). Read before book() zeroes the meter.
-    try { if (spend.calls()) noteLearningAttempt('study', agentId, { replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
+    try { if (spend.calls()) noteLearningAttempt('study', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
@@ -4530,7 +4530,7 @@ async function runThreadMine(o) {
   finally {
     clearTimeout(timer);
     // W1.4: every ATTEMPT arms the window. Read before book() zeroes the meter.
-    try { if (spend.calls()) noteLearningAttempt('threadmine', agentId, { replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
+    try { if (spend.calls()) noteLearningAttempt('threadmine', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
@@ -4540,12 +4540,14 @@ async function runThreadMine(o) {
    so a pass whose model replied NONE (or kept nothing after the floors and dedup) fired again on the very next run.
    Now every ATTEMPT (a model call went out: the pass's meter counted one) arms its window — noteLearningAttempt, from
    each run*'s finally — and the policy lives in ONE module (learning-cooldown.js): reflection backs off after replies
-   that kept nothing (its window x1, x4, x10), and feedback always gets through — a cue in the Commander's own latest
-   words or a thumbs verdict skips every window once, and a failure review also skips it for a failure class it has not
-   reviewed within its window. The stamps stay here, where the routes and resets already read them; the configured
-   windows are the same live knobs (memoryConfig, THREAD_MINE_COOLDOWN_MS). A window of 0 stays 0. */
+   that kept nothing (its window x1, x4, x10), and feedback always gets through — a like or dislike (the one feedback
+   write path, recordFeedbackMemory) or a cue in the Commander's own latest words opens every window of that agent until each
+   pass's next attempt from a run that ended after it (a pass already running when the feedback came never uses it
+   up), and a failure review also skips its window for a failure class it has not reviewed within its window. The
+   stamps stay here, where the routes and resets already read them; the configured windows are the same live knobs
+   (memoryConfig, THREAD_MINE_COOLDOWN_MS). A window of 0 stays 0. */
 const learningCooldown = LearningCooldown.make({ now: () => Date.now() });
-// may this learning pass spend at this run-end? ctx: { cue: the Commander's latest words carry a cue, failureClass }
+// may this learning pass spend at this run-end? ctx: { failureClass: the failed run's class (failure review only) }
 function learningPassDue(kind, agentId, ctx) {
   const c = ctx || {};
   let open;
@@ -4555,19 +4557,19 @@ function learningPassDue(kind, agentId, ctx) {
   else if (kind === 'threadmine') open = Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS;
   else return false;
   if (open) return true;
-  const why = learningCooldown.bypass(kind, agentId, { cue: c.cue === true, failureClass: c.failureClass || '', windowMs: memoryConfig.failureReviewCooldownMs });
+  const why = learningCooldown.bypass(kind, agentId, { failureClass: c.failureClass || '', windowMs: memoryConfig.failureReviewCooldownMs });
   if (why) console.log('[learning] ' + kind + ' may spend inside its window: agent=' + agentId + ' (' + why + ')');
   return !!why;
 }
-// one ATTEMPT of a learning pass ended (its meter counted a call): arm the window, then let the policy fold what it got
+// one ATTEMPT of a learning pass ended (its meter counted a call): the policy folds what it got, then the window is
+// armed — unless the attempt's run ended before its agent was deleted or reset (a pass that outlived its agent)
 function noteLearningAttempt(kind, agentId, r) {
+  if (!learningCooldown.noted(kind, agentId, r)) return;
   const at = Date.now();
   if (kind === 'reflection') lastReflectAt.set(agentId, at);
   else if (kind === 'failure-review') lastFailReviewAt.set(agentId, at);
   else if (kind === 'study') { lastStudyAt.set(agentId, at); persistStudyState(); }
   else if (kind === 'threadmine') lastThreadMineAt.set(agentId, at);
-  else return;
-  learningCooldown.noted(kind, agentId, r);
 }
 
 const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), limitsRegistry.BY_KEY.skillReviewMs.def);
@@ -20888,7 +20890,7 @@ async function handleAgentDelete(req, res) {
     lastFailReviewAt.delete(agentId); failReviewingNow.delete(agentId); skillReviewingNow.delete(agentId); if (skillNudge.delete(agentId)) persistSkillNudge();
     for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
     latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
-    learningCooldown.forget(agentId);   // W1.4: its NONE streak, reviewed failure classes and verdict-opened windows go too
+    learningCooldown.forget(agentId);   // W1.4: its NONE streak, failure classes and feedback tokens go too, and a pass still running arms nothing
     persistStudyState();
   } catch (_) {}
   return json(200, { ok: true, agentId, rosterRemoved: removed, archived, cronRemoved });
@@ -26641,13 +26643,17 @@ async function runOnceCore(o) {
   /* W1.4 ONE COOLDOWN RESOLVER: the four learning passes ask learningPassDue (learning-cooldown.js policy) whether their
      window lets them spend. Feedback always gets through: a preference or correction cue in the Commander's OWN latest
      words (commanderWords: host-minted from the owner's own surfaces only, so a routine's or a worker's brief that says
-     "always" opens nothing) or a thumbs verdict skips every window once; a failure review also skips it for a failure
-     class (outcome, stage, code) it has not reviewed within its window. */
-  const _learnCue = LearningCooldown.cueIn(commanderWords);
+     "always" opens nothing) opens every learning window of this agent, as a thumbs verdict does (recordFeedbackMemory),
+     until each pass's next attempt from a run that ended after it: this run's own pass, or, for a pass held back here
+     (its previous pass still running, or deferred by the budget), its next one. This run's end then takes its order,
+     so a pass still running from an earlier run never uses the cue up. A failure review also skips its window for a
+     failure class (outcome, stage, code) it has not reviewed within its window. */
+  if (LearningCooldown.cueIn(commanderWords)) learningCooldown.open(agentId, 'cue');
+  learningCooldown.ended(runId);
   const _learnFailClass = LearningCooldown.failureClass({ outcome: _leadOc.outcome, failureStage: execution.failureStage(), failureCode: execution.failureCode() });
   const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
-      && !reflectingNow.has(agentId) && learningPassDue('reflection', agentId, { cue: _learnCue }));
+      && !reflectingNow.has(agentId) && learningPassDue('reflection', agentId));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
   // workers stay off), the live config master-switch, the personalization PAUSE (checked here so a paused station
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
@@ -26657,11 +26663,11 @@ async function runOnceCore(o) {
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
-      && !failReviewingNow.has(agentId) && learningPassDue('failure-review', agentId, { cue: _learnCue, failureClass: _learnFailClass }));
+      && !failReviewingNow.has(agentId) && learningPassDue('failure-review', agentId, { failureClass: _learnFailClass }));
   const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
-      && !studyingNow.has(agentId) && learningPassDue('study', agentId, { cue: _learnCue }));
+      && !studyingNow.has(agentId) && learningPassDue('study', agentId));
   const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
-      && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId, { cue: _learnCue }));
+      && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
   // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
   // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
@@ -30342,9 +30348,6 @@ async function handleGrowthRatings(req, res) {
   // review packet below (which is RAM, TTL'd, and skill-only). Read the directive before arm() takes the packet.
   let feedbackMemory = null;
   if (!result.duplicate) {
-    // W1.4 FEEDBACK IS CRITICAL: a first-time verdict opens this agent's learning windows once (learning-cooldown.js),
-    // so the next run's reflection, study and thread mining (and a failure review) are never held back by a cooldown.
-    learningCooldown.open(lead.agentId || 'agent');
     const fbPacket = verdictReview.peek(runId);
     const directive = FeedbackMemory.directiveFor([lead.deliveryPrompt, (fbPacket && fbPacket.directive && fbPacket.directive.text) || '', lead.title], fbPacket && fbPacket.messages);
     // run: the DESIGN ANCHOR — the record also carries what this run really made (files, palette, fonts, image args, tools)
@@ -30385,7 +30388,6 @@ async function handleGrowthRatingCorrection(req, res) {
     const typed = String(body.source || '') === 'message';
     if (rating && lead && !lead.internal && typed && !FeedbackMemory.looksLikeFeedback(body.text)) feedbackMemory = { stored: false, reason: 'not feedback on the work' };
     else if (rating && lead && !lead.internal) {
-      learningCooldown.open(lead.agentId || 'agent');   // W1.4: the correction of a verdict opens the learning windows once, like the verdict
       feedbackMemory = await recordFeedbackMemory({ agentId: lead.agentId || 'agent', runId, verdict: rating.verdict, words: String(body.text || ''), directive: lead.deliveryPrompt || lead.title || '' });
     }
   } catch (e) { failNote('feedback.correction', e); }
@@ -31464,6 +31466,10 @@ async function recordFeedbackMemory(o) {
   const agentId = String(o.agentId || 'agent');
   try {
     if (!personalizationStore.read().enabled) return { stored: false, reason: 'personalization-paused' };
+    // W1.4 FEEDBACK IS CRITICAL: every like or dislike (a verdict, its correction, KEEP THIS STYLE, a workflow's NEEDS
+    // CHANGES: this is their one write path) opens every learning window of the agent, whatever the save below keeps,
+    // until each pass's next attempt from a run that ended after it (learning-cooldown.js); a running pass never uses it
+    try { learningCooldown.open(agentId, 'feedback'); } catch (e) { failNote('learning.cooldown', e); }
     // the reference is read only for a verdict that is about to be stored (never while learning is paused)
     const ref = o.run ? await captureTasteRef(o.run) : null;
     let out = null;
@@ -31774,7 +31780,7 @@ async function handleMemoryReset(req, res) {
   // GROWTH Tier 1: also drop any pending STUDY proposals so a fresh Commander never inherits a stranger's belief-update queue.
   for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
   latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
-  learningCooldown.forget(agentId);   // W1.4: a fresh hero starts with no NONE backoff and no stranger's failure classes
+  learningCooldown.forget(agentId);   // W1.4: a fresh hero starts with no NONE backoff or stranger's failure classes, and a pass still running arms nothing
   persistStudyState();
   return json(200, { ok: true, agent: agentId });
 }
