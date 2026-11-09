@@ -82,8 +82,9 @@ function stubs() {
   A.ok(/fresh: !!\(tool && tool\.freshConsent === true\)/.test(idx) && /if \(orig && fields && fields\.fresh\) orig\.freshConsent = true;/.test(idx), 'the desk prompt marks a fresh card\'s finisher');
   const chat = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
   // the fresh-consent cards (station.power, plugin.submit since app-shell-ui-03, and any card the host marks fresh since
-  // 5dae834e8: a tainted write's path card) share one once / deny branch
-  const freshBranch = "} else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true) {";
+  // 5dae834e8: a tainted write's path card, and since final review B7 any card naming what its run read, even unmarked)
+  // share one once / deny branch
+  const freshBranch = "} else if (p.tool === 'station.power' || p.tool === 'plugin.submit' || p.fresh === true || !!(p.file || p.taintedBy)) {";
   A.ok(chat.indexOf(freshBranch) >= 0, 'the station.power and plugin.submit cards share the fresh-consent branch');
   const card = chat.slice(chat.indexOf(freshBranch), chat.indexOf("} else {", chat.indexOf(freshBranch)));
   A.ok(/'Approve once'/.test(card) && /'Deny'/.test(card) && !/'Always'|'Full access'/.test(card), 'the station.power card offers Approve once and Deny only');
