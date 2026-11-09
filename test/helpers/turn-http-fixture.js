@@ -65,10 +65,14 @@ class TurnHttpFixture {
     await this.fx.start();
     await this.json('POST', '/api/roster', { agents: [{ agentId: 'agent', name: 'TURN', system: 'Answer the supplied message.', model: 'test/model', provider: 'openrouter' }, { agentId: 'turnpeer', name: 'PEER', system: 'Answer the supplied message.', model: 'test/model', provider: 'openrouter' }] });
     await this.json('POST', '/api/save', { schema: 'starnet.save', version: require('../../frontend/app/save.js').CURRENT, _saveRevision: 0, _saveClient: 'turn-http-page', updatedAt: Date.now(), agent: { id: 'agent', createdAt: 1, name: 'TURN' }, workstreams: [{ id: 's', agentId: 'agent', title: 'Property', history: [] }], station: require('./saved-floor.js').emptyFloor() });
-    await this.json('POST', '/api/remote/enable', { on: true });
-    const pair = await this.json('POST', '/api/remote/pair', { name: 'Property phone' });
+    // Remote on, the pairing code and the new phone are each confirmed at the desk (GHSA-2hpj #1, #7): this bare station
+    // prints a code on its console for each, and the fixture types it as the person at the station would (deskJson)
+    await this.deskJson('POST', '/api/remote/enable', { on: true });
+    const pair = await this.deskJson('POST', '/api/remote/pair', { name: 'Property phone' });
     this.deviceKey = await Phone.makeDeviceKey();
+    // proved with the link's 128-bit secret, never the short code (GHSA-2hpj #7)
     this.paired = await Phone.pair({ base: this.lan, pairingId: pair.pairingId, secret: pair.secret, name: 'Property phone', key: this.deviceKey });
+    await this.deskJson('POST', '/api/remote/activate', { deviceId: this.paired.deviceId });
     this.stationPub = pair.stationPub; this.connectPhone();
     this.page = new PageModel({ streamId: 's', now: () => Date.now(), rng: this.rng,
       model: { getModel: () => 'test/model', contextLimitOf: () => 128000 }, // matches this fixture provider's actual catalog
@@ -82,6 +86,8 @@ class TurnHttpFixture {
   }
   connectPhone() { this.phone = Phone.connect({ base: this.lan, deviceId: this.paired.deviceId, stationPub: this.stationPub, key: this.deviceKey }); }
   async json(method, route, body) { const result = await this.fx.json(method, route, body); assert.equal(result.status, 200, route + ': ' + result.text.slice(0, 300)); return result.body; }
+  // an authority change the person at this station confirms with the code it printed (sidecar-fixture.js deskJson)
+  async deskJson(method, route, body) { const result = await this.fx.deskJson(method, route, body); assert.equal(result.status, 200, route + ' (confirmed at the desk): ' + result.text.slice(0, 300)); return result.body; }
   async read(stream = 's') { return this.json('GET', '/api/transcript?stream=' + encodeURIComponent(stream) + '&limit=2000'); }
   async upload(name, type, data) { return this.json('POST', '/api/attachments', { agent: 'agent', name, dataUrl: 'data:' + type + ';base64,' + Buffer.from(data).toString('base64') }); }
   async dispatch(body) {

@@ -215,10 +215,14 @@ function startModel() {
     ] })).status, 200, 'the crew roster is saved');
 
     // the phone (relay/app/phone-client.js over the LAN door), paired before the cells: each cell reads its status
-    A.eq((await fx.json('POST', '/api/remote/enable', { on: true })).body.enabled, true, 'Remote switched on');
-    const pr = await fx.json('POST', '/api/remote/pair', { name: 'RT phone' });
+    // Remote on, the pairing code and the new phone are confirmed at the desk (GHSA-2hpj #1, #7): this bare station takes the
+    // code it printed on its console, typed as the person there would (deskJson); the phone proves the link's 128-bit secret
+    A.eq((await fx.deskJson('POST', '/api/remote/enable', { on: true })).body.enabled, true, 'Remote switched on');
+    const pr = await fx.deskJson('POST', '/api/remote/pair', { name: 'RT phone' });
+    A.eq(pr.status, 200, 'the pairing code is confirmed at the desk');
     const key = await Phone.makeDeviceKey();
     const paired = await Phone.pair({ base: 'http://' + HOST + ':' + lanPort, pairingId: pr.body.pairingId, secret: pr.body.secret, name: 'RT phone', key });
+    A.eq((await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired.deviceId })).status, 200, 'the new phone is approved at the desk');
     phone = Phone.connect({ base: 'http://' + HOST + ':' + lanPort, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
 
     // the run each cell holds is named by the fault host's tag (the run whose own conversation carries the cell's mark)

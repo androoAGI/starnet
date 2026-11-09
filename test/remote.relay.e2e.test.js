@@ -69,11 +69,13 @@ function startMockModel() {
 
     await fx.start();
     A.eq((await fx.json('POST', '/api/roster', { agents: [{ agentId: 'forge', name: 'FORGE', system: 'You are FORGE.', model: 'test/model' }] })).status, 200, 'roster');
-    const on = await fx.json('POST', '/api/remote/enable', { on: true });
+    // Remote on, the pairing link and the new phone are authority changes the desk confirms (GHSA-2hpj #1, #7): this bare
+    // station takes the code it printed on its own console, which the fixture types as the person there would (deskJson)
+    const on = await fx.deskJson('POST', '/api/remote/enable', { on: true });
     A.eq(on.body.enabled, true, 'Remote on');
     A.eq(on.body.listening, false, 'no LAN door unless asked for');
     await waitUntil(async () => ((await fx.json('GET', '/api/remote')).body.relay || {}).state === 'online', 10000, 'station online at the relay');
-    const pr = await fx.json('POST', '/api/remote/pair', {});
+    const pr = await fx.deskJson('POST', '/api/remote/pair', {});
     A.eq(pr.status, 200, 'pairing code');
     A.ok(pr.body.pairUrl.indexOf(relayUrl + '/#pair=') === 0, 'the pairing link opens the app on the relay, secret in the fragment');
     const blob = JSON.parse(Buffer.from(pr.body.pairBlob.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'));
@@ -81,8 +83,14 @@ function startMockModel() {
     A.eq(await Phone.fingerprint(blob.s), pr.body.fingerprint, 'phone and desk show the same station code');
 
     const key = await Phone.makeDeviceKey();
-    const paired = await Phone.pairRelay({ relay: blob.r, stationPub: blob.s, pairingId: blob.p, code: blob.c, name: 'E2E phone', key });
+    // the link's `c` is the pairing's 128-bit secret, the proof's key (GHSA-2hpj #7)
+    A.eq(blob.c, pr.body.secret, 'the link carries the 128-bit secret, not the short code');
+    const paired = await Phone.pairRelay({ relay: blob.r, stationPub: blob.s, pairingId: blob.p, secret: blob.c, name: 'E2E phone', key });
     A.ok(/^dev_/.test(paired.deviceId) && paired.relayToken, 'paired through the relay');
+    // a new phone waits for the desk's approval (its name and fingerprint), then asks first
+    A.eq((await fx.json('GET', '/api/remote')).body.devices.find(d => d.id === paired.deviceId).pending, true, 'the new phone waits for the desk');
+    const approved = await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired.deviceId });
+    A.eq([approved.status, (approved.body.devices || []).find(d => d.id === paired.deviceId).pending], [200, false], 'the desk approves the phone');
     c = Phone.connectRelay({ relay: blob.r, stationPub: blob.s, deviceId: paired.deviceId, relayToken: paired.relayToken, key });
     const events = []; c.onEvent(e => events.push(e));
     const st = await c.call('status');
@@ -105,7 +113,7 @@ function startMockModel() {
 
     // a build with no relay says so
     await bare.start();
-    await bare.json('POST', '/api/remote/enable', { on: true });
+    A.eq((await bare.deskJson('POST', '/api/remote/enable', { on: true })).body.enabled, true, 'no relay: Remote still switches on at the desk');
     const none = await bare.json('POST', '/api/remote/pair', {});
     A.eq(none.status, 409, 'no relay: pairing refused');
     A.ok(/no relay/.test(String(none.body.error)), 'with a plain reason: ' + none.body.error);

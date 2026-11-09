@@ -163,11 +163,18 @@ function startMockModel() {
     const persistedDispatch = await saveWithSessions([staleDispatchSession]);
     A.ok(persistedDispatch.status === 200 && persistedDispatch.body.ok, 'pre-fix saved dispatch history persisted');
 
-    // 2. switch on, pair, open a sealed session
-    const on = await fx.json('POST', '/api/remote/enable', { on: true });
+    // 2. switch on, pair, open a sealed session. Remote on, the pairing code and the new phone are authority changes: the
+    //    page key alone is handed a desk challenge, and this bare station takes the code it printed on its own console
+    //    (GHSA-2hpj #1, #7), which the fixture types as the person at the station would (deskJson)
+    const onAsked = await fx.json('POST', '/api/remote/enable', { on: true });
+    A.eq([onAsked.status, onAsked.body && onAsked.body.code], [403, 'desk_confirm_required'], 'switching Remote on with the page key alone asks at the desk');
+    A.eq((await fx.json('GET', '/api/remote')).body.enabled, false, '...and Remote stays off until it is confirmed');
+    const on = await fx.deskJson('POST', '/api/remote/enable', { on: true });
     A.eq(on.body.enabled, true, 'Remote switched on');
     A.eq(on.body.port, lanPort, 'the LAN door opened on the configured port');
-    const pr = await fx.json('POST', '/api/remote/pair', { name: 'Test phone' });
+    const prAsked = await fx.json('POST', '/api/remote/pair', { name: 'Test phone' });
+    A.eq([prAsked.status, prAsked.body && prAsked.body.code, prAsked.body && prAsked.body.secret], [403, 'desk_confirm_required', undefined], 'a pairing code asks at the desk first, and none is handed out');
+    const pr = await fx.deskJson('POST', '/api/remote/pair', { name: 'Test phone' });
     A.eq(pr.status, 200, 'pairing code issued');
     A.ok(/^[A-Z2-9]{8}$/.test(pr.body.code), 'code shape');
     // GHSA-2hpj #7: the QR carries the pairing's 128-bit secret (the proof's key) where the short code used to be
@@ -186,6 +193,18 @@ function startMockModel() {
     const st = await fx.json('GET', '/api/remote');
     A.eq(st.body.devices.length, 1, 'the desk lists the paired phone');
     A.eq(st.body.devices[0].name, 'Test phone', 'with its name');
+    // GHSA-2hpj #7: a new phone waits for the desk's approval, then asks first
+    A.eq([st.body.devices[0].pending, st.body.devices[0].askFirst], [true, true], 'the new phone is pending and asks first');
+    const early = Phone.connect({ base: lan, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
+    let waiting = null; try { await early.call('status'); } catch (e) { waiting = e.message; }
+    try { early.close(); } catch (_) {}
+    A.ok(/waiting for approval/.test(waiting || ''), 'a pending phone gets no session, only "ask at the desk": ' + waiting);
+    const actAsked = await fx.json('POST', '/api/remote/activate', { deviceId: paired.deviceId });
+    A.eq([actAsked.status, actAsked.body && actAsked.body.code], [403, 'desk_confirm_required'], 'approving the phone asks at the desk');
+    A.ok(/Test phone/.test(actAsked.body && actAsked.body.deskConfirm && actAsked.body.deskConfirm.summary || '') && actAsked.body.deskConfirm.summary.indexOf(st.body.devices[0].fingerprint) >= 0,
+      'the desk confirmation names the phone and its fingerprint');
+    const approved = await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired.deviceId });
+    A.eq([approved.status, approved.body.devices[0].pending, approved.body.devices[0].askFirst], [200, false, true], 'approved at the desk: no longer pending, still asking first');
 
     client = Phone.connect({ base: lan, deviceId: paired.deviceId, stationPub: pr.body.stationPub, key });
     const status = await client.call('status');
@@ -366,9 +385,11 @@ function startMockModel() {
     A.eq((await fetch(lan + '/')).status, 404, 'nor the station page');
 
     // a second phone, to carry through the restart
-    const pr2 = await fx.json('POST', '/api/remote/pair', { name: 'Tablet' });
+    const pr2 = await fx.deskJson('POST', '/api/remote/pair', { name: 'Tablet' });
+    A.eq(pr2.status, 200, 'a second pairing code, confirmed at the desk');
     const key2 = await Phone.makeDeviceKey();
     const paired2 = await Phone.pair({ base: lan, pairingId: pr2.body.pairingId, secret: pr2.body.secret, name: 'Tablet', key: key2 });
+    A.eq((await fx.deskJson('POST', '/api/remote/activate', { deviceId: paired2.deviceId })).status, 200, 'the second phone is approved at the desk');
 
     const rv = await fx.json('POST', '/api/remote/revoke', { deviceId: paired.deviceId });
     A.eq(rv.status, 200, 'revoke');
