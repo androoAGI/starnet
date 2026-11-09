@@ -200,29 +200,33 @@
        'correction'     an explicit correction or preference cue in the Commander's own latest words (W1.4's cue
                         resolver, learning-cooldown.js cueIn; the host mints commanderWords from the owner's own
                         surfaces only, so a routine's or a worker's brief carries none).
-       'tool-error'     a tool call came back failed (what the evidence packet shows the review as 'failed') in a run that
-                        still succeeded: the fix or retry pattern the review is told to capture. A denied approval is the
-                        Commander's decision, not an error, and a skipped call never ran: neither counts.
+       'tool-error'     a call of the work came back failed (what the evidence packet shows the review as 'failed') in a
+                        run that still succeeded: the fix or retry pattern the review is told to capture. A denied
+                        approval is the Commander's decision, not an error, and a skipped call never ran: neither counts.
        'new-procedure'  a NEW MULTI-STEP PROCEDURE, which is what the review proposes a skill from: the run got there
-                        through at least PROCEDURE_STEPS successful calls across at least PROCEDURE_TOOLS distinct tools
-                        (the skill tools are the skillbase, not a step of the work), and it loaded no saved skill (no
-                        skill.view, no /skill preload), so no saved procedure governed it. One tool repeated is a lookup,
-                        not a procedure; a run that followed a saved skill and hit nothing new has nothing to add to it.
-     Every kind but the verdict needs the nudge DUE as well (facts.due), so the nudge stays the cadence floor: reviews only
-     get rarer than the 2026-09-28 cadence, never more frequent. Pure: no clock, no I/O. */
+                        through at least PROCEDURE_STEPS successful calls of the work across at least PROCEDURE_TOOLS
+                        distinct tools, and it loaded no saved skill (no skill.view, no /skill preload), so no saved
+                        procedure governed it. One tool repeated is a lookup, not a procedure; a run that followed a saved
+                        skill and hit nothing new has nothing to add to it.
+     A call of the WORK is any call but NOT_WORK's: the skill tools are the skillbase itself and the Task Brief tools are
+     the run's own paperwork (taskbrief-tools.js), so neither is a step of a procedure, and neither one failing is a lesson
+     about how to do the task. Every kind but the verdict needs the nudge DUE as well (facts.due), so the nudge stays the
+     cadence floor: reviews only get rarer than the 2026-09-28 cadence, never more frequent. Pure: no clock, no I/O. */
   const PROCEDURE_STEPS = 3;
   const PROCEDURE_TOOLS = 2;
-  const SKILL_TOOL = /^skill[._](?:list|view|write|manage)$/;   // a trace names a call by its wire name (skill_view)
-  // a call that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a denied approval
-  // (the refusal mark reflect.js refusedAction reads) and a call the loop skipped (cancelled, terminal evidence)
+  // a trace names a call by its wire name (skill_view, brief_proceed)
+  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed))$/;
+  const isWork = t => !NOT_WORK.test(str(t && t.name));
+  // a call of the work that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a denied
+  // approval (the refusal mark reflect.js refusedAction reads) and a call the loop skipped (cancelled, terminal evidence)
   function callFailed(t) {
-    if (!t || t.endedAt == null || (t.ok && !t.isError)) return false;
+    if (!t || t.endedAt == null || (t.ok && !t.isError) || !isWork(t)) return false;
     const summary = str(t.summary);
     return summary !== 'denied' && !/^skipped\b/.test(summary);
   }
-  // procedureOf(toolTrace) -> { steps, tools }: the run's successful calls outside the skill tools, and the distinct tools
+  // procedureOf(toolTrace) -> { steps, tools }: the run's successful calls of the work, and their distinct tools
   function procedureOf(toolTrace) {
-    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => t && t.endedAt != null && t.ok && !t.isError && !SKILL_TOOL.test(str(t.name)));
+    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => t && t.endedAt != null && t.ok && !t.isError && isWork(t));
     return { steps: steps.length, tools: new Set(steps.map(t => str(t.name))).size };
   }
   // reviewCause({ verdict, due, commanderWords, toolTrace, loadedSkills }) -> 'verdict' | 'correction' | 'tool-error' | 'new-procedure' | ''

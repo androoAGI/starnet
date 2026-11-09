@@ -4,8 +4,8 @@
    verdict that teaches (always, due or not), and, on a due nudge, a correction cue in the Commander's own words (W1.4's
    cue resolver), a failed tool call in a run that succeeded, or a new multi-step procedure (several successful calls
    across two or more tools, no saved skill loaded). The end-to-end proof is test/skillreview-useful.e2e.test.js; this
-   pins the edges: what does NOT count (a denied approval, a skipped call, the skill tools, one tool repeated, a run that
-   followed a saved skill, praise, an undue count). Pure module, no sidecar. */
+   pins the edges: what does NOT count (a denied approval, a skipped call, the skill and Task Brief tools, one tool
+   repeated, a run that followed a saved skill, praise, an undue count). Pure module, no sidecar. */
 'use strict';
 const A = require('./_assert.js');
 const SR = require('../sidecar/skillreview.js');
@@ -40,6 +40,8 @@ A.eq(cause({}), '', 'a chat with no tools and no cue is not reviewed');
 A.eq(cause({ toolTrace: steps('fs_read', 'fs_read', 'fs_read', 'fs_read', 'fs_read') }), '', 'one tool repeated is a lookup, not a procedure');
 A.eq(cause({ toolTrace: steps('fs_list', 'fs_read') }), '', 'two successful calls are not yet a multi-step procedure');
 A.eq(cause({ toolTrace: steps('skill_list', 'skill_view', 'skill_manage', 'skill_write', 'fs_list') }), '', 'the skill tools are the skillbase, never steps of the work');
+A.eq(cause({ toolTrace: steps('brief_ask', 'brief_update', 'brief_proceed', 'station_inspect', 'fs_list') }), '', "the Task Brief tools are the run's own paperwork, never steps of the work (2 left)");
+A.eq(cause({ toolTrace: steps('brief_proceed', 'station_inspect', 'fs_list', 'station_inspect') }), 'new-procedure', 'the work steps around a settled brief still count');
 
 // ---- a correction cue in the Commander's own words (W1.4's resolver, reused) ----
 for (const words of ['From now on, always list the steps before you run them.', "Don't push to main.", 'I prefer tabs over spaces in my code.', 'Next time, ask before you delete anything.']) {
@@ -60,13 +62,16 @@ for (const s of ['skipped — cancelled', 'skipped — terminal evidence', 'skip
   A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('web_fetch', s)] }), '', 'a call the loop skipped never ran: "' + s + '"');
 }
 A.eq(cause({ loadedSkills: SKILL, toolTrace: [{ callId: 'x', name: 'fs_read', startedAt: 1 }] }), '', 'a call with no result yet is neither failed nor a step');
+for (const n of ['brief_proceed', 'brief.proceed', 'brief_update', 'skill_view', 'skill.manage']) {
+  A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed(n)].concat(steps('fs_list')) }), '', 'a refused ' + n + " is the harness's own protocol, not a lesson about the task");
+}
 
 // ---- a new multi-step procedure ----
 A.eq(cause({ toolTrace: steps('web_search', 'web_fetch', 'fs_write') }), 'new-procedure', 'three successful calls across tools, no saved skill loaded: a new procedure');
 A.eq(cause({ toolTrace: steps('station_inspect', 'fs_list', 'station_inspect') }), 'new-procedure', 'two distinct tools are enough');
 A.eq(cause({ toolTrace: steps('web_search', 'web_fetch', 'fs_write'), loadedSkills: SKILL }), '', 'the same steps under a loaded saved skill are not new');
 A.eq(cause({ toolTrace: steps('skill_view', 'web_search', 'fs_write') }), '', 'the skill calls do not count toward the steps (2 left)');
-A.eq(SR.procedureOf(steps('skill_list', 'fs_list', 'fs_read', 'fs_read').concat([failed('fs_write')])), { steps: 3, tools: 2 }, 'procedureOf counts successful non-skill calls and their distinct tools');
+A.eq(SR.procedureOf(steps('skill_list', 'brief_proceed', 'fs_list', 'fs_read', 'fs_read').concat([failed('fs_write')])), { steps: 3, tools: 2 }, 'procedureOf counts the successful calls of the work and their distinct tools');
 A.eq([SR.PROCEDURE_STEPS, SR.PROCEDURE_TOOLS], [3, 2], 'the procedure floor: 3 successful calls across 2 tools');
 
 // ---- the order of the kinds (one cause is named; any one qualifies) ----
