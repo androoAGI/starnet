@@ -89,14 +89,26 @@
   const GENERIC_AUTHORITY_RE = /hooks\.json/i;
   const GENERIC_AUTHORITY_NAMES = ['hooks.json', 'hooks.json.sealed-last'];
   const ENV_PATH_VARS = ['HOME', 'USERPROFILE', 'LOCALAPPDATA', 'APPDATA', 'XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'PWD'];
-  function commandWords(cmd) {
-    // quote-aware enough for paths: "a b", 'a b' and bare runs; separators, redirections and `=` end a word
+  function commandWords(cmd, quoted) {
+    // quote-aware enough for paths: "a b", 'a b' and bare runs; separators, redirections and `=` end a word.
+    // quoted (optional): filled with whether each word was in quotes
     const out = [];
     const re = /"([^"]*)"|'([^']*)'|([^\s"'=;&|<>()]+)/g;
     let m;
-    while ((m = re.exec(cmd))) out.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+    while ((m = re.exec(cmd))) {
+      out.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+      if (Array.isArray(quoted)) quoted.push(m[3] == null);
+    }
     return out;
   }
+  /* WHAT CAN EXPAND (fix-sec2 breakage 11). A word with a `$` used to count as one the check cannot resolve, so
+     `sed -i 's/a$/b/' hooks.json` and `grep 'x$' hooks.json` on a project's own hooks.json were refused. A `$` only
+     expands when it starts a variable, a substitution or a quoting form, in a POSIX shell and in PowerShell alike (a
+     letter, digit, _, {, (, [, a special parameter, zsh's ^ = ~, or a quote right after it); cmd.exe never expands `$`. Any other `$`
+     is literal in every one of them, a nested shell included, so it no longer stops the check. A bare `$` at the end of
+     a word may sit right before a quote ($'...' builds any text in bash): only a quoted word's last `$` is literal.
+     Backticks and %NAME% stay unresolved, as before. */
+  const EXPANDS_RE = /`|\$(?=[A-Za-z0-9_{(\[@*#?!$^~='"\-])/;
   function authorityFileRisk(cmd, o) {
     cmd = String(cmd == null ? '' : cmd);
     if (!GENERIC_AUTHORITY_RE.test(cmd)) return null;
@@ -113,7 +125,7 @@
       return k ? String(env[k]) : null;
     };
     const known = ENV_PATH_VARS.join('|');
-    function expand(w) {
+    function expand(w, quoted) {
       let s = String(w);
       if (/^~(?=$|[\\/])/.test(s)) { if (!home) return null; s = home + s.slice(1); }
       let bad = false;
@@ -121,7 +133,8 @@
       s = s.replace(new RegExp('\\$\\{(' + known + ')\\}|\\$(' + known + ')(?![A-Za-z0-9_])', isWin ? 'gi' : 'g'), function (m0, a, b) { return sub(m0, a || b); })
         .replace(new RegExp('%(' + known + ')%', 'gi'), sub)
         .replace(new RegExp('\\$env:(' + known + ')(?![A-Za-z0-9_])', 'gi'), sub);
-      if (bad || /[$`]|%[A-Za-z_][A-Za-z0-9_]*%|^~/.test(s)) return null;   // a variable or substitution it cannot resolve
+      // a variable or substitution it cannot resolve (EXPANDS_RE: only a `$` that can expand counts)
+      if (bad || EXPANDS_RE.test(s) || (!quoted && /\$$/.test(s)) || /%[A-Za-z_][A-Za-z0-9_]*%|^~/.test(s)) return null;
       return normalizeWinCwd(P, s, isWin);
     }
     const resolveFrom = function (base, w) { return P.isAbsolute(w) ? P.resolve(w) : P.resolve(base, w); };
@@ -142,11 +155,13 @@
       const realDir = realOrNull(P.dirname(abs));
       return !!realDir && targets.has(fold(P.join(realDir, P.basename(abs))));
     };
-    const words = commandWords(cmd);
+    const wordQuoted = [];
+    const words = commandWords(cmd, wordQuoted);
     const named = [], bases = [P.resolve(cwd)];
     let unresolved = false;
-    for (const w of words) {
-      const x = expand(w);
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      const x = expand(w, wordQuoted[i] === true);
       if (GENERIC_AUTHORITY_RE.test(w)) { if (x == null) return AUTHORITY_WHY; named.push(x); continue; }
       if (x == null) { unresolved = true; continue; }
       bases.push(resolveFrom(cwd, x));   // any word may be a folder the command moves to; only the data directory matters

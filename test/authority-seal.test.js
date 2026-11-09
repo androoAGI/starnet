@@ -302,6 +302,13 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
       ['cat hooks.json', JAIL], ['type "my hooks.json"', PROJ], ['grep -n event hooks.json src/hooks.json', PROJ], ['cat ~' + sep + 'proj' + sep + 'hooks.json', PROJ]])
       A.eq(risk(cmd, cwd), null, 'a project\'s own hooks.json is not refused: ' + cmd);
     A.eq(risk('npm test', PROJ), null, 'a command that does not name hooks.json is not looked at');
+    // fix-sec2 breakage 11: a `$` that cannot expand in any shell (a regex's end, `$/`) no longer makes the command unresolved
+    for (const cmd of ["sed -i 's/a$/b/' hooks.json", "grep -n 'event$' hooks.json", 'sed s/a$/b/ hooks.json', '"jq" ".x" "hooks.json" "a$"'])
+      A.eq(risk(cmd, PROJ), null, 'a literal $ is literal: ' + cmd);
+    // ...while every $ that can expand, anywhere in the command, still leaves it unresolved (refused)
+    for (const cmd of ['cd $X && cat hooks.json', 'cd ${X} && cat hooks.json', 'cd $(pwd) && cat hooks.json', "cd $'\\x2e' && cat hooks.json", 'cd $"x" && cat hooks.json',
+      'cd x$ && cat hooks.json', 'echo $[1] && cat hooks.json', 'cd $1 && cat hooks.json', 'cd $= && cat hooks.json', "awk '{print $1}' hooks.json", 'cat $REPO/hooks.json'])
+      A.eq(risk(cmd, PROJ), why, 'an expansion it cannot resolve is refused, as before: ' + cmd);
     // StarNet's own: refused, however it is spelled
     const abs = path.join(DATA, 'hooks.json');
     for (const [cmd, cwd] of [
