@@ -7753,7 +7753,9 @@ function cronOpenAuthority(raw, jobs) {
       if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint && !ok.has('notepad:' + j.id)) { next = Object.assign({}, next, { notepadTaint: CRON_NOTEPAD_UNSEALED }); notepads++; }
       return next;
     });
-    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', 'cron.jobs.json was changed outside StarNet' + (r.stale ? ' (an older copy was put back)' : '') + ', so ' +
+    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', (r.stale && r.reset
+        ? 'cron.jobs.json cannot be checked against the record of what was last taken away (authority-seal.json was missing or did not match)'
+        : 'cron.jobs.json was changed outside StarNet' + (r.stale ? ' (an older copy was put back)' : '')) + ', so ' +
       (lost.length ? 'the routine' + (lost.length > 1 ? 's ' : ' ') + lost.slice(0, 6).join(', ') + (lost.length > 6 ? ' and ' + (lost.length - 6) + ' more' : '') + ' run' + (lost.length > 1 ? '' : 's') + ' without unattended grants (grant them again in SCHEDULES)' : '') +
       (lost.length && notepads ? ', and ' : '') + (notepads ? notepads + ' routine notepad' + (notepads > 1 ? 's count' : ' counts') + ' as outside content' : '') + '.');
   }

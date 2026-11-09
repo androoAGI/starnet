@@ -802,6 +802,37 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(S.makeAuthoritySeal({ key: null }).sealParts('cron.jobs.json', parts), null, 'and carry the record read');
   }
   {
+    // final review #4: deleting the marker must not bring back a routine grant the Commander removed, by replaying an older
+    // sealed cron.jobs.json. The routine store's floor lives in the marker, so a lost marker resets it with the files'.
+    const mk = memMarker();
+    let t = 1000;
+    const files = {};
+    const list = S.NAMES.map(name => ({ name, read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => t, marker: mk });
+    st.boot(list);
+    files['agent.roster.json'] = roundTrip(st.seal('agent.roster.json', { version: 1, agents: [] }));   // a trace of sealing
+    const parts = { 'grant:tidy': { grants: ['workbench'], prompt: 'tidy' } };
+    const granted = roundTrip(st.sealParts('cron.jobs.json', parts));   // the copy an attacker keeps
+    t = 2000;
+    st.sealParts('cron.jobs.json', {}, { lowering: true });             // the Commander removes the grant
+    A.ok(st.openParts('cron.jobs.json', granted, parts).stale, 'control: with the marker kept, the older copy is stale');
+    // the attack: the older sealed copy put back and the marker deleted
+    mk.value = undefined;
+    t = 3000;
+    const next = S.makeAuthoritySeal({ key: KEY, now: () => t, marker: mk });
+    next.boot(list);
+    const r = next.openParts('cron.jobs.json', granted, parts);
+    A.eq(r.ok, [], '#4: with the marker deleted, the replayed routine store verifies nothing (no grant comes back)');
+    A.ok(r.stale && r.reset, '#4: it reads as stale against the reset floor, and says the record was lost');
+    A.ok(Number(mk.value.floors['cron.jobs.json']) > granted.g, '#4: the rewritten marker carries the routine store\'s new floor');
+    A.ok(next.notices().some(n => n.kind === 'marker-missing' && /routines run without their unattended grants/.test(n.text)), '#4: the missing-marker notice names the routines');
+    // the same for a foreign marker (another key, or edited)
+    mk.value = Object.assign({}, mk.value, { sealedAt: 1 });
+    const foreign = S.makeAuthoritySeal({ key: KEY, now: () => 4000, marker: mk });
+    foreign.boot(list);
+    A.eq(foreign.openParts('cron.jobs.json', granted, parts).ok, [], '#4: a marker that does not verify resets the routine store\'s floor too');
+  }
+  {
     // remote/devices.js with the seal
     const { makeDevices } = require('../sidecar/remote/devices.js');
     const C = require('../sidecar/remote/crypto.js');

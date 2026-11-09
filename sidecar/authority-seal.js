@@ -589,7 +589,9 @@ function makeAuthoritySeal(opts) {
       seen(name, g);
     }
     known.set(name, true);
-    return { ok: ok, stale: g !== null && g > 0 && !fresh };
+    // reset: this boot lost the record of what was last taken away (the marker missing or foreign), so a stale record
+    // is not necessarily an older copy put back, only one sealed before now
+    return { ok: ok, stale: g !== null && g > 0 && !fresh, reset: floorsReset && !restoredBoot };
   }
   function refused(name, text) {
     name = String(name);
@@ -635,7 +637,9 @@ function makeAuthoritySeal(opts) {
       try { v = f.read(); } catch (_) { continue; }
       if (v !== undefined && v !== null) present.push({ f: f, v: v });
     }
-    const names = files.map(f => f.name);
+    // ...and what is sealed in parts (cron.jobs.json): its floor lives in the same marker, so a lost marker loses it too.
+    // Without it here a replayed older cron.jobs.json brought back routine grants the Commander had removed (final review #4).
+    const names = files.map(f => f.name).concat(PART_NAMES.filter(n => !files.some(f => f.name === n)));
     let lost = '';                          // 'mismatch' | 'missing': the record of floors is gone (4c)
     if (markerValid) { markerOk = true; adoptMarker(m); }   // the floors first: a restore or a sealed copy is judged against them (4b)
     else if (m !== undefined || markerErr) lost = 'mismatch';
@@ -675,7 +679,7 @@ function makeAuthoritySeal(opts) {
       if (!restoredBoot) notice({ kind: 'marker-' + lost, text: (lost === 'mismatch'
         ? MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited).'
         : MARKER_NAME + ' is missing, although these permission files were sealed.') +
-        ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here. Nothing was re-sealed.' });
+        ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here, and routines run without their unattended grants until you grant them again in SCHEDULES. Nothing was re-sealed.' });
       return { mode: 'enforce', sealed: [], failed: [] };
     }
     // no marker and no trace: the upgrade (or a new station). What is sealed in parts is sealed by its owner, once, as it is.
