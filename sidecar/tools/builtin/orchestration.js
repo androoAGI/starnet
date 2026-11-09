@@ -1592,30 +1592,88 @@
       return { content: JSON.stringify(out), summary: 'recorded: ' + (row.agentId || 'worker') + ' ' + outcome };
     }
 
+    /* WAIT, DON'T POLL (cost plan W1.11). Learning that a background worker finished meant calling team.subagents again on
+       another paid turn, as often as it took. wait:true blocks, bounded, the way shell.bg.wait does: it returns as
+       soon as a listed worker's status or generation changes, when the run is cancelled, or when a note is waiting for this
+       run (deps.steerPending: the loop folds it on the next turn), else at timeoutMs with the list unchanged — a timeout is
+       an answer, not an error. Read-only, and nothing caps how often it may be called. */
+    const SUBAGENT_WAIT_MAX_MS = 600000;
+    const SUBAGENT_WAIT_STEP_MS = 250;
+    const steerPending = (typeof deps.steerPending === 'function') ? deps.steerPending : null;
+    function napUnlessAborted(ms, signal) {
+      return new Promise(resolve => {
+        if (signal && signal.aborted) return resolve();
+        let timer = null;
+        const done = () => { clearTimeout(timer); if (signal) signal.removeEventListener('abort', done); resolve(); };
+        timer = setTimeout(done, ms);
+        if (signal) signal.addEventListener('abort', done, { once: true });
+      });
+    }
+    // read() -> the rows being watched; returns { state, ms, budget }: idle (nothing running) | changed | cancelled | note | timeout
+    async function waitForWorkers(read, args, ctx) {
+      const asked = Number(args.timeoutMs != null ? args.timeoutMs : args.timeout_ms);
+      const budget = Math.max(0, Math.min(SUBAGENT_WAIT_MAX_MS, Number.isFinite(asked) && (args.timeoutMs != null || args.timeout_ms != null) ? Math.floor(asked) : 30000));
+      const signal = ctx && ctx.signal;
+      const sig = rows => rows.map(r => r.id + '\u0000' + r.status + '\u0000' + r.generation).join('\u0001');
+      const t0 = now();
+      const first = read();
+      if (!first.some(r => r && (r.status === 'running' || r.status === 'queued'))) return { state: 'idle', ms: 0, budget };
+      const start = sig(first);
+      for (let waited = 0; ;) {
+        if (signal && signal.aborted) return { state: 'cancelled', ms: now() - t0, budget };
+        let pendingNotes = 0;
+        try { pendingNotes = steerPending ? Number(steerPending()) || 0 : 0; } catch (_) { pendingNotes = 0; }
+        if (pendingNotes > 0) return { state: 'note', ms: now() - t0, budget };
+        if (waited >= budget) return { state: 'timeout', ms: now() - t0, budget };
+        const step = Math.min(SUBAGENT_WAIT_STEP_MS, budget - waited);
+        await napUnlessAborted(step, signal);
+        waited += step;
+        if (sig(read()) !== start) return { state: 'changed', ms: now() - t0, budget };
+      }
+    }
+    // the line the model reads after the rows: what the wait saw (ms only when a clock is wired)
+    function waitNote(w) {
+      const after = hasClock ? ' after ' + Math.max(0, Math.round(w.ms)) + 'ms' : '';
+      if (w.state === 'idle') return '[wait: none of these workers is running, so there was nothing to wait for]';
+      if (w.state === 'changed') return '[wait: a worker\'s status changed' + after + ']';
+      if (w.state === 'cancelled') return '[wait: stopped' + after + ' — the run was cancelled]';
+      if (w.state === 'note') return '[wait: stopped' + after + ' — a note for this run is waiting to be read]';
+      return '[wait: no status changed within ' + w.budget + 'ms — the workers are still running. This is not an error; wait again or check back later]';
+    }
+    const WAIT_SUMMARY = { idle: 'nothing running', changed: 'changed', cancelled: 'wait cancelled', note: 'note waiting', timeout: 'still running' };
+
     const subagentsTool = {
       name: 'team.subagents', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
-      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers.',
-      schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' } } },
+      timeoutMs: SUBAGENT_WAIT_MAX_MS + 10000,   // registry backstop above the bounded wait (a plain list returns at once)
+      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers. wait:true waits up to timeoutMs (max 10 min) for a status change instead of polling.',
+      schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' }, wait: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
       run: async (args, ctx) => {
         const leadId = (ctx && ctx.agentId) || 'agent';
         if (args && args.runId) return verifyDelegatedRun(String(args.runId), leadId, ctx);
         if (!subagents) return { content: 'background subagents unavailable', summary: 'unavailable' };
+        const wantWait = !!(args && args.wait === true);
         if (args && args.id) {
-          const r = subagents.get(String(args.id));
-          if (!r || r.leadId !== leadId) return { content: 'No such background subagent for this lead.', summary: 'not found' };
-          return withTaint({ content: JSON.stringify(r), summary: r.status }, taintOfRows([r]));
+          const own = () => { const r = subagents.get(String(args.id)); return r && r.leadId === leadId ? r : null; };
+          if (!own()) return { content: 'No such background subagent for this lead.', summary: 'not found' };
+          const w = wantWait ? await waitForWorkers(() => { const r = own(); return r ? [r] : []; }, args, ctx) : null;
+          const r = own();
+          if (!r) return { content: 'No such background subagent for this lead.', summary: 'not found' };
+          return withTaint({ content: JSON.stringify(r) + (w ? '\n' + waitNote(w) : ''), summary: r.status + (w ? ' · ' + WAIT_SUMMARY[w.state] : '') }, taintOfRows([r]));
         }
-        const rows = subagents.list({ leadId, agentId: args && args.agentId, status: args && args.status });
+        const listed = () => subagents.list({ leadId, agentId: args && args.agentId, status: args && args.status });
+        const waited = wantWait ? await waitForWorkers(listed, args, ctx) : null;
+        const rows = listed();
         // An empty list is NOT evidence that nothing ran: say what this list can and cannot see (#57).
         if (!rows.length) return {
           content: 'No background subagents' + (args && args.agentId ? ' for ' + String(args.agentId) : '') + (args && args.status ? ' with status ' + String(args.status) : '')
             + ' for this lead. This list only tracks BACKGROUND workers (team.dispatch background:true, team.spawn). A normal team.dispatch'
             + ' returns its result directly and never appears here, so an empty list does not mean a dispatch failed. To confirm a dispatched'
-            + ' worker really ran, call team.subagents with runId set to the runId from that dispatch result.',
-          summary: '0 background subagent(s)'
+            + ' worker really ran, call team.subagents with runId set to the runId from that dispatch result.'
+            + (waited ? '\n' + waitNote(waited) : ''),
+          summary: '0 background subagent(s)' + (waited ? ' · ' + WAIT_SUMMARY[waited.state] : '')
         };
         const fit = await fitAggregate(rows, { budget: aggregateBudget(ctx), what: r => (r.agentId || 'subagent') + ' (' + (r.id || '') + ')\'s result', park: workerParker(ctx, 'team.subagents'), scrub: scrubTextOf(ctx) });
-        return withTaint({ content: JSON.stringify(fit.rows), summary: rows.length + ' background subagent(s)' + fitNote(fit) }, taintOfRows(rows));
+        return withTaint({ content: JSON.stringify(fit.rows) + (waited ? '\n' + waitNote(waited) : ''), summary: rows.length + ' background subagent(s)' + fitNote(fit) + (waited ? ' · ' + WAIT_SUMMARY[waited.state] : '') }, taintOfRows(rows));
       }
     };
 

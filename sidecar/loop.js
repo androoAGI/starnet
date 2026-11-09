@@ -677,6 +677,122 @@
     }
     return !exitEvidenceFailed(content, summary);
   }
+  /* LOOP TRUTH (cost plan W1.11, 2026-11-09). A stop nudge buys the model another paid turn, and what it says is a HOST
+     statement: it may state only what this run's own ledger proves. Two premises were false — "ending without running
+     anything" after a run the host itself stamped [exit 0] (or KILLED), and "the previous path failed" for a call the Task
+     Brief gate HELD, where nothing ran — so both are worded here, from the ledger, by ONE resolver (nudgePremise).
+
+     A SIMPLE INTERPRETER RUN IS EVIDENCE FOR THE FILE IT RAN. `node hello.js` exiting 0 proves more about hello.js than
+     `node --check hello.js`, which has always cleared the ledger: the file ran to completion. It clears THAT file only (a
+     run of a.js vouches for nothing about b.js), and only on the host's own receipt (the last [exit 0] marker, else the
+     "exit 0 (…)" summary). Never evidence: a pipe, chain or subshell (the exit code is not the file's), inline code (-e,
+     -c, -m), a background start (no exit yet), a file this run did not change, or no receipt at all. A run of a changed
+     file that exits non-zero or is KILLED is a check that did NOT pass. */
+  const VOS_INTERPRETERS = {
+    node: { inline: /^(?:-e|--eval|-p|--print|-i|--interactive|-c|--check|--test|-v|--version|-h|--help)$/, value: /^(?:-r|--require|--import|--loader|--experimental-loader|-C|--conditions)$/ },
+    python: { inline: /^(?:-c|-m|-i|-h|--help|-V|--version)$/, value: /^(?:-W|-X)$/ },
+    bash: { inline: /^(?:-c|-s|-i)$/, value: /^(?:-o|\+o)$/ },
+    ruby: { inline: /^(?:-e|-i|-h|--help|-v|--version)$/, value: /^(?:-r|-I)$/ },
+    php: { inline: /^(?:-r|-a|-h|-v)$/, value: /^(?:-c|-d)$/ },
+    deno: { sub: 'run', inline: /^$/, value: /^$/ },
+    bun: { sub: 'run?', inline: /^(?:-e|--eval|-p|--print)$/, value: /^$/ },
+    go: { sub: 'run', inline: /^$/, value: /^$/ }
+  };
+  VOS_INTERPRETERS.python3 = VOS_INTERPRETERS.py = VOS_INTERPRETERS.python;
+  VOS_INTERPRETERS.sh = VOS_INTERPRETERS.bash;
+  const VOS_REDIRECT_RE = /\s+(?:\d?>>?\s*&\d\b|\d?>>?\s*(?:"[^"]*"|'[^']*'|[^\s|&;<>]+)|<\s*(?:"[^"]*"|'[^']*'|[^\s|&;<>]+))/g;
+  // The script a simple interpreter command runs ('' when the command is anything else).
+  function vosInterpreterTarget(args) {
+    if (!args || typeof args !== 'object') return '';
+    const cmd = String(args.command || args.cmd || args.script || '').trim();
+    if (!cmd || /[\r\n]/.test(cmd)) return '';
+    const bare = (' ' + cmd).replace(VOS_REDIRECT_RE, ' ');
+    if (/[|&;<>`]|\$\(/.test(bare)) return '';
+    const tokens = [];
+    for (const m of bare.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) tokens.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+    let i = 0;
+    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
+    const exe = String(tokens[i++] || '').split(/[\\/]/).pop().toLowerCase().replace(/\.(?:exe|cmd|bat)$/, '');
+    const spec = Object.prototype.hasOwnProperty.call(VOS_INTERPRETERS, exe) ? VOS_INTERPRETERS[exe] : null;
+    if (!spec) return '';
+    if (spec.sub === 'run' && tokens[i++] !== 'run') return '';
+    if (spec.sub === 'run?' && tokens[i] === 'run') i++;
+    for (; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (!/^[-+]/.test(t) || t === '-') break;
+      if (spec.inline.test(t.split('=')[0])) return '';
+      if (spec.value.test(t)) i++;
+    }
+    const script = tokens[i] || '';
+    return script && script !== '-' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(script) ? script : '';
+  }
+  const vosPathKey = p => String(p == null ? '' : p).trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/').replace(/^(?:\.\/)+/, '').toLowerCase();
+  // does running `script` run the changed file `touched`? (paths as the model wrote them: relative, absolute, ./, backslashes)
+  function vosRunsPath(script, touched) {
+    const s = vosPathKey(script), t = vosPathKey(touched);
+    if (!s || !t) return false;
+    const forms = /\.[a-z0-9]+$/.test(s.split('/').pop()) ? [s] : [s, s + '.js', s + '.mjs', s + '.cjs'];
+    return forms.some(v => v === t || t.endsWith('/' + v) || v.endsWith('/' + t));
+  }
+  // the host's own receipt that a command ran to completion and exited 0
+  function vosExitZero(result) {
+    if (!result || !result.ok || result.isError) return false;
+    const marker = lastExitMarker(String(result.content == null ? '' : result.content));
+    if (marker) return /^0$/.test(marker.code) && !/KILLED|TIMED\s*OUT/i.test(marker.rest);
+    return /^\s*exit\s+0\b/i.test(String(result.summary == null ? '' : result.summary));
+  }
+  // a shell / verify call RAN when it succeeded or carries the host's exit receipt (a KILLED command is an error that ran)
+  const vosRan = result => !!result && ((result.ok && !result.isError) || !!lastExitMarker(String(result.content == null ? '' : result.content)));
+  // what the ledger keeps about a command that ran but is not a check of the changed code (the verify premise names it)
+  function vosRanNote(args, result) {
+    const cmd = clip(String((args && (args.command || args.cmd || args.script)) || 'shell_exec'), 60);
+    if (args && args.background === true) return { cmd, exit: '', background: true };
+    const marker = lastExitMarker(String(result && result.content != null ? result.content : ''));
+    if (marker) return { cmd, exit: marker.code, killed: /KILLED|TIMED\s*OUT/i.test(marker.rest) };
+    const sm = /^\s*exit\s+(\S+)/i.exec(String(result && result.summary != null ? result.summary : ''));
+    return { cmd, exit: sm ? sm[1] : '' };
+  }
+  const NOTHING_RAN = 'and are ending without running anything against it.';
+  const RUN_A_CHECK = ' Code that compiles is not code that works, and an unverified claim of "done" is the one thing this station never ships. Run the narrowest real check that proves the change — the project\'s own test/build command via verify_run, or shell_exec if that fits better — then report what it actually returned. If you genuinely cannot run a check here, say so plainly and state what you did NOT verify.';
+  /* THE ONE PREMISE RESOLVER. kind 'verify_before_done' reads { failedCheck, ran } (the verify-on-stop ledger); kind
+     'failure_recovery' reads { failed, held, search } (the recovery ledger). Every sentence it returns is a ledger fact:
+     a failed check is named as failed, a command that ran is named (never denied), nothing-ran is said only when nothing
+     ran, and a call the brief gate held is held — never failed. */
+  function nudgePremise(kind, f) {
+    f = f || {};
+    if (kind === 'failure_recovery') {
+      const failed = Array.isArray(f.failed) ? f.failed : [], held = Array.isArray(f.held) ? f.held : [];
+      if (!failed.length && held.length) {
+        return 'The previous call' + (held.length > 1 ? 's (' + held.join(', ') + ') were' : ' (' + held[0] + ') was')
+          + ' held by the Task Brief gate, not failed: nothing ran. Settle the brief with brief_proceed (or ask the one material question with brief_ask), then make the same call again. If you end here instead, say plainly that it did not run.';
+      }
+      return 'The previous path failed (' + (failed.join(', ') || 'the previous tool') + '), but one failed tool is not proof that the Commander\'s task is impossible. Do not end by handing avoidable setup work to the Commander. Inspect the exact error, then make an ACTUAL alternate call now using a different query, arguments, strategy, or tool.'
+        + (f.search ? ' Use tool_search when a deferred capability or alternate tool may exist; do not claim a tool is absent before searching.' : '')
+        + ' Retry only when the failure is plausibly transient; never repeat identical failing arguments blindly. Stay inside the current safety, consent, credential, and scope boundaries. Ask only for irreducible human input. If no authorized route remains after you have genuinely exhausted alternatives, report the exact blocker and the paths you tried.';
+    }
+    if (kind === 'verify_before_done') {
+      // Same tag and budget whatever the premise. A model whose check FAILED did run something — telling it "you ran
+      // nothing" would be a false statement from the host.
+      if (f.failedCheck) return 'and are ending although the last check you ran against it (' + f.failedCheck + ') did NOT pass, and no passing check has run since. A failing check is evidence the change is not done. Fix the cause and rerun the check until it passes, then report what it actually returned. If it cannot be made to pass here, say so plainly: report the failure and state that the change is NOT verified.';
+      const ran = Array.isArray(f.ran) ? f.ran : [];
+      if (!ran.length) return NOTHING_RAN + RUN_A_CHECK;
+      const shown = ran.slice(-3).map(r => r.cmd + (r.background ? ' (started in the background)' : r.killed ? ' (killed)' : (r.exit != null && r.exit !== '') ? ' (exit ' + r.exit + ')' : ''));
+      return 'and are ending after running only commands the host does not count as a check of it: ' + shown.join(', ') + (ran.length > 3 ? ' and ' + (ran.length - 3) + ' earlier' : '') + '.' + RUN_A_CHECK;
+    }
+    return '';
+  }
+  /* EVERY TURN-BUYING HOST NOTE IS COUNTED (cost plan W1.11). The loop's stop checks (and the output-limit continuation and
+     the grace turn) each buy another model call; nothing recorded how often, so none of them could be priced. The loop
+     counts each by its tag (nudged() on its push line), returns the counts as `nudges`, and the run row keeps them.
+     Notes that ride a turn the run is already taking (loop_guard after a tool result, a hook's context, a steer's policy
+     line) are not counted: they buy nothing. test/loop-truth.invariant.test.js holds every pushed tag to one of the two. */
+  const NUDGE_TAGS = Object.freeze(['memory_receipt', 'tool_markup', 'continue_after_tools', 'empty_reply', 'continuation', 'failure_recovery',
+    'verify_before_done', 'verify_external_before_done', 'verify_sources_before_done', 'acceptance_before_done', 'resume_after_message',
+    'iteration_limit', 'output_continuation']);
+  const TASK_INTENT = (typeof require === 'function') ? require('../frontend/app/fork.js').TaskIntent
+    : ((typeof globalThis !== 'undefined' && globalThis.Fork && globalThis.Fork.TaskIntent) || null);
+  // a call the Task Brief gate HELD did not run (fork.js TaskIntent.GATE_HELD, stamped by the host's briefHoldFor)
+  const isGateHeld = r => !!(TASK_INTENT && typeof TASK_INTENT.isGateHeld === 'function' && TASK_INTENT.isGateHeld(r));
   function isCheckShapedCall(call) {
     const key = vosKey(call && call.name);
     if (VOS_VERIFIERS.has(key)) return true;
@@ -1225,7 +1341,14 @@
     const _fr = limits.failureRecovery;
     const FR_MAX = (_fr === false) ? 0 : (_fr && _fr.max != null ? Math.max(0, Math.floor(_fr.max)) : 2);
     let frUsed = 0;
-    let failureRecoveryPending = null;
+    let failureRecoveryPending = null;   // { names: tools that FAILED, held: tools the Task Brief gate HELD (nothing ran) }
+    // A held call is not a failure: its note says held, and it is sent at most once (the hold's own result already says
+    // what to do). The failure ladder above keeps its own budget. limits.failureRecovery === false disables both.
+    const FR_HELD_MAX = 1;
+    let frHeldUsed = 0;
+    // every turn-buying host note, counted by its tag (NUDGE_TAGS): returned as `nudges`, kept on the run row
+    const nudgeCounts = Object.create(null);
+    const nudged = (tag) => { nudgeCounts[tag] = (nudgeCounts[tag] || 0) + 1; };
     // VERIFY-ON-STOP ledger: code paths this run has CHANGED but not since proven. Any successful verification
     // empties it. limits.verifyOnStop === false disables; { max } raises the nudge budget (default 1).
     /* OPTIONAL HOOK SPINE (sidecar/hooks.js). The Commander's own code, on the model-call boundary. Absent =
@@ -1267,6 +1390,10 @@
     const sourceGroundingTask = sourceGroundingRequested(messages);
     let vosUsed = 0;
     let vosFailedCheck = '';   // the most recent check that ran against unverified code and did NOT pass ('' = none)
+    let vosFailedPath = '';    // ...when that check was a run of ONE changed file, which file (a later passing run of it supersedes it)
+    // commands that RAN while code was unverified but are no check of it ({ cmd, exit, killed?, background? }): the verify
+    // premise names them instead of saying nothing ran. Emptied whenever the ledger clears.
+    const vosRanSince = [];
     let vosExternalUsed = 0;
     let vosSourceUsed = 0;
     /* ACCEPTANCE-ON-STOP (SOP lane, 2026-08-21). A run launched from an SOP recipe carries a typed acceptance
@@ -1707,6 +1834,9 @@
       if (extra && extra.failureCode) out.failureCode = String(extra.failureCode).slice(0, 80);
       if (extra && extra.failureUnsupportedPart === true) out.failureUnsupportedPart = true;
       if (accUsed > 0) out.acceptanceNudges = accUsed;   // SOP: how many times the host sent the model back to its checks
+      // LOOP TRUTH (W1.11): every turn-buying host note, by tag — present only when one fired (the run row keeps it)
+      const nudgeTags = Object.keys(nudgeCounts);
+      if (nudgeTags.length) { out.nudges = {}; for (const tag of nudgeTags) out.nudges[tag] = nudgeCounts[tag]; }
       return out;
     }
 
@@ -2217,7 +2347,7 @@
         if (graceUsed || !graceEnabled) return end('max_iters');
         graceUsed = true;                                 // spend ONE grace turn on a final, tool-free answer
         graceTurn = true;
-        messages.push({ role: 'system', content: '<iteration_limit>You have reached the maximum number of tool-using turns (' + maxIters + '). Do NOT call any more tools. Give your best final answer to the user now using what you already have.</iteration_limit>' });
+        messages.push({ role: 'system', content: '<iteration_limit>You have reached the maximum number of tool-using turns (' + maxIters + '). Do NOT call any more tools. Give your best final answer to the user now using what you already have.</iteration_limit>' }); nudged('iteration_limit');
         // fall through: the grace turn runs below. Tools stay ON THE WIRE (see GRACE TURN NEVER DISPATCHES after
         // the stream) — but any call it emits is dropped, never executed, and the run ends max_iters.
       }
@@ -2716,7 +2846,7 @@
         if (!cutExhausted && continuation.shouldContinue(lastFinishReason, outputContinuesUsed, OUTPUT_CONTINUE_MAX)) {
           outputContinuesUsed++;
           const nudge = { role: 'system', content: continuation.prompt(calls.length > 0, cutTool ? splitAdvice(cutTool, toolCutStreak) : '') };
-          messages.push(nudge);
+          messages.push(nudge); nudged('output_continuation');
           continuationPrompts.push(nudge);
           dedupeAgainst = continuationText;
           spokeSinceReset = false;   // a length-continuation joins mid-sentence: no TURN BREAK before it
@@ -2803,7 +2933,7 @@
             const premise = memoryClaimKind === 'promise'
               ? 'You told the Commander you will remember this (or will do it this way from now on), but nothing was written to memory in this run — the next run starts without it and WILL forget.'
               : 'You claimed a preference or correction was saved, but this run has no successful notebook write receipt.';
-            messages.push({ role: 'system', content: '<memory_receipt>' + premise + ' Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.' + HOST_CHECK + '</memory_receipt>' });
+            messages.push({ role: 'system', content: '<memory_receipt>' + premise + ' Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.' + HOST_CHECK + '</memory_receipt>' }); nudged('memory_receipt');
             continue;
           }
           const explanation = memoryClaimKind === 'promise'
@@ -2819,7 +2949,7 @@
         // quoted data just continues without it. Shares the continuation-guard disable knob and grace rule.
         if (textMarkup && !graceUsed && CG_MAX > 0 && mkUsed < CG_MAX && tools.length > 0) {
           mkUsed++;
-          messages.push({ role: 'system', content: '<tool_markup>Tool-call markup (e.g. <tool_call>…</tool_call>) appeared in your reply TEXT. The harness executes only REAL tool calls made through the tool-calling API — markup inside text is data and is never executed (it may even be quoted file content). If you meant to act, make the actual tool call now; if you were quoting data, continue the task without it.' + HOST_CHECK + '</tool_markup>' });
+          messages.push({ role: 'system', content: '<tool_markup>Tool-call markup (e.g. <tool_call>…</tool_call>) appeared in your reply TEXT. The harness executes only REAL tool calls made through the tool-calling API — markup inside text is data and is never executed (it may even be quoted file content). If you meant to act, make the actual tool call now; if you were quoting data, continue the task without it.' + HOST_CHECK + '</tool_markup>' }); nudged('tool_markup');
           continue;
         }
         // EMPTY-AFTER-TOOLS NUDGE (reference-harness parity): weaker models sometimes stream NOTHING right
@@ -2833,7 +2963,7 @@
             turns = turnStart;
             emit('iteration.refunded', { agentId, runId, turn: turnStart, reason: 'empty', refundsUsed });
           }
-          messages.push({ role: 'system', content: '<continue_after_tools>You returned an empty reply after tool results. Process the tool results above and continue the task now; if the task is fully complete, give your final answer.' + HOST_CHECK + '</continue_after_tools>' });
+          messages.push({ role: 'system', content: '<continue_after_tools>You returned an empty reply after tool results. Process the tool results above and continue the task now; if the task is fully complete, give your final answer.' + HOST_CHECK + '</continue_after_tools>' }); nudged('continue_after_tools');
           continue;
         }
         /* EMPTY REPLY RETRY (2026-10-11). An empty FIRST reply (no text, no tool call, nothing before it to process) is
@@ -2843,7 +2973,7 @@
         if (empty && !graceUsed && !emptyRetryUsed && CG_MAX > 0 && !continuationParts.length && limits.emptyRetry !== false) {
           emptyRetryUsed = true;
           turns = turnStart;
-          messages.push({ role: 'system', content: '<empty_reply>Your last reply was empty — no text and no tool call. Respond to the Commander\'s latest message now: make the tool call(s) the task needs, or give your answer.' + HOST_CHECK + '</empty_reply>' });
+          messages.push({ role: 'system', content: '<empty_reply>Your last reply was empty — no text and no tool call. Respond to the Commander\'s latest message now: make the tool call(s) the task needs, or give your answer.' + HOST_CHECK + '</empty_reply>' }); nudged('empty_reply');
           continue;
         }
         // CONTINUATION GUARD: an announce-without-acting final turn ("Reading main.js now…" + zero tool calls)
@@ -2859,21 +2989,21 @@
             return end('error', { failureStage: 'completion', failureCode: 'incomplete_work' });
           }
           cgUsed++;
-          messages.push({ role: 'system', content: '<continuation>Your last message only ANNOUNCED an action but you called no tools — ending your reply without tool calls ends the run with the work not done. Do not narrate intentions. If work remains, make the actual tool call(s) NOW in this same turn. If you promised future or multi-day work, create the appropriate durable routine/task now when that tool is available; otherwise say plainly that no background work was started. If the task is truly complete, give your final answer without announcing further actions.' + HOST_CHECK + '</continuation>' });
+          messages.push({ role: 'system', content: '<continuation>Your last message only ANNOUNCED an action but you called no tools — ending your reply without tool calls ends the run with the work not done. Do not narrate intentions. If work remains, make the actual tool call(s) NOW in this same turn. If you promised future or multi-day work, create the appropriate durable routine/task now when that tool is available; otherwise say plainly that no background work was started. If the task is truly complete, give your final answer without announcing further actions.' + HOST_CHECK + '</continuation>' }); nudged('continuation');
           continue;
         }
         // FAILURE RECOVERY: a model saw a real tool error and is trying to end before attempting another
         // authorized path. Reject that premature stop at the engine seam, not just in prompt prose. A later
         // successful call clears the pending failure; a model that still cannot recover gets two chances and
-        // may then report the exact blocker honestly.
-        if (!empty && !graceUsed && failureRecoveryPending && frUsed < FR_MAX && tools.length > 0 && !endsOnChoiceMarker(text)) {
-          frUsed++;
-          const failed = failureRecoveryPending.names.join(', ') || 'the previous tool';
+        // may then report the exact blocker honestly. A call the Task Brief gate HELD did not fail and did not run
+        // (LOOP TRUTH, W1.11): when only held calls are pending the note says exactly that, once (FR_HELD_MAX).
+        const frHeldOnly = !!failureRecoveryPending && !failureRecoveryPending.names.length;
+        if (!empty && !graceUsed && failureRecoveryPending && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX) : frUsed < FR_MAX)
+            && tools.length > 0 && !endsOnChoiceMarker(text)) {
+          if (frHeldOnly) frHeldUsed++; else frUsed++;
           const hasSearch = tools.some(t => wireKey(t && t.function && t.function.name) === 'tool_search');
-          const search = hasSearch
-            ? ' Use tool_search when a deferred capability or alternate tool may exist; do not claim a tool is absent before searching.'
-            : '';
-          messages.push({ role: 'system', content: '<failure_recovery>The previous path failed (' + failed + '), but one failed tool is not proof that the Commander\'s task is impossible. Do not end by handing avoidable setup work to the Commander. Inspect the exact error, then make an ACTUAL alternate call now using a different query, arguments, strategy, or tool.' + search + ' Retry only when the failure is plausibly transient; never repeat identical failing arguments blindly. Stay inside the current safety, consent, credential, and scope boundaries. Ask only for irreducible human input. If no authorized route remains after you have genuinely exhausted alternatives, report the exact blocker and the paths you tried.' + HOST_CHECK + '</failure_recovery>' });
+          const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: failureRecoveryPending.held, search: hasSearch });
+          messages.push({ role: 'system', content: '<failure_recovery>' + recovery + HOST_CHECK + '</failure_recovery>' }); nudged('failure_recovery');
           continue;
         }
         // VERIFY-ON-STOP: the run CHANGED code and is now trying to finish without having run anything against
@@ -2884,12 +3014,10 @@
             && tools.some(t => { const n = vosKey(t && t.function && t.function.name); return VOS_VERIFIERS.has(n) || n === 'shell_exec'; })) {
           vosUsed++;
           const touched = Array.from(vosUnverified).slice(0, 8).join(', ');
-          // Same tag and budget either way; only the premise changes. A model whose check FAILED did run
-          // something — telling it "you ran nothing" would be a false statement from the host.
-          const premise = vosFailedCheck
-            ? 'and are ending although the last check you ran against it (' + vosFailedCheck + ') did NOT pass, and no passing check has run since. A failing check is evidence the change is not done. Fix the cause and rerun the check until it passes, then report what it actually returned. If it cannot be made to pass here, say so plainly: report the failure and state that the change is NOT verified.'
-            : 'and are ending without running anything against it. Code that compiles is not code that works, and an unverified claim of "done" is the one thing this station never ships. Run the narrowest real check that proves the change — the project\'s own test/build command via verify_run, or shell_exec if that fits better — then report what it actually returned. If you genuinely cannot run a check here, say so plainly and state what you did NOT verify.';
-          messages.push({ role: 'system', content: '<verify_before_done>You changed code in this run (' + touched + ') ' + premise + HOST_CHECK + '</verify_before_done>' });
+          // Same tag and budget whatever the premise; the premise is the ledger's (nudgePremise): a failed check, the
+          // commands that did run, or — only when nothing ran — "without running anything".
+          const premise = nudgePremise('verify_before_done', { failedCheck: vosFailedCheck, ran: vosRanSince });
+          messages.push({ role: 'system', content: '<verify_before_done>You changed code in this run (' + touched + ') ' + premise + HOST_CHECK + '</verify_before_done>' }); nudged('verify_before_done');
           continue;
         }
         // EXTERNAL VERIFY-ON-STOP: a successful custom-connector mutation is not proof that the requested
@@ -2919,7 +3047,7 @@
           vosExternalUsed++;
           const touched = externalTouched.slice(0, 8).join(', ');
           const artifactRule = externalArtifactTouched ? ' This action changed a file, document, workbook, or other artifact; a generic status/read call does not prove that artifact is fresh. Use the connector\'s dedicated verify/check/confirm tool.' : ' Use the connector\'s narrowest read/check/verify tool now.';
-          messages.push({ role: 'system', content: '<verify_external_before_done>You used an external connector action in this run (' + touched + ') and are ending without a later read-back or verification call. A successful action response is not independent proof that the requested state persisted.' + artifactRule + ' Then report only what that result proves. If no meaningful read-back can verify this action, say plainly that the external state was NOT independently verified instead of claiming it was.' + HOST_CHECK + '</verify_external_before_done>' });
+          messages.push({ role: 'system', content: '<verify_external_before_done>You used an external connector action in this run (' + touched + ') and are ending without a later read-back or verification call. A successful action response is not independent proof that the requested state persisted.' + artifactRule + ' Then report only what that result proves. If no meaningful read-back can verify this action, say plainly that the external state was NOT independently verified instead of claiming it was.' + HOST_CHECK + '</verify_external_before_done>' }); nudged('verify_external_before_done');
           continue;
         }
         // SOURCE VERIFY-ON-STOP: search/list/inspect output discovers candidates; it does not prove the
@@ -2934,7 +3062,7 @@
         }
         if (!empty && !graceUsed && vosSourceUsed < VOS_MAX && unfetchedSources.length) {
           vosSourceUsed++;
-          messages.push({ role: 'system', content: '<verify_sources_before_done>You are ending a sourced/research task after using only a connector search, list, or inspect tool. Discovery metadata and snippets are not source retrieval. Use the connector\'s fetch/read tool to retrieve every source you cite, then make each claim only from what those source reads actually returned. If a source cannot be retrieved, label that claim unverified instead of citing the discovery result as proof.' + HOST_CHECK + '</verify_sources_before_done>' });
+          messages.push({ role: 'system', content: '<verify_sources_before_done>You are ending a sourced/research task after using only a connector search, list, or inspect tool. Discovery metadata and snippets are not source retrieval. Use the connector\'s fetch/read tool to retrieve every source you cite, then make each claim only from what those source reads actually returned. If a source cannot be retrieved, label that claim unverified instead of citing the discovery result as proof.' + HOST_CHECK + '</verify_sources_before_done>' }); nudged('verify_sources_before_done');
           continue;
         }
         if (!empty && !graceUsed && acceptanceProbe && accUsed < ACC_MAX) {
@@ -2946,7 +3074,7 @@
           if (failing.length) {
             accUsed++;
             const lines = failing.slice(0, 20).map(c => '- ' + (c.id || c.type) + ' [' + c.type + (c.path ? ' ' + c.path : '') + (c.command ? ' `' + c.command + '`' : '') + (c.connector ? ' ' + c.connector + (c.tool ? '/' + c.tool : '') : '') + ']: ' + (c.code || 'not_proven'));
-            messages.push({ role: 'system', content: '<acceptance_before_done>You are ending this task but the host\'s acceptance checks for it do not all hold yet. These are mechanical postconditions the Commander attached to this procedure; the task is not done until every one passes:\n' + lines.join('\n') + '\nMake each failing check hold now (produce/fix the named artifact in this run, or run the exact named check command so it passes), then finish. If one genuinely cannot be satisfied, say so plainly and name which — never claim it holds.' + HOST_CHECK + '</acceptance_before_done>' });
+            messages.push({ role: 'system', content: '<acceptance_before_done>You are ending this task but the host\'s acceptance checks for it do not all hold yet. These are mechanical postconditions the Commander attached to this procedure; the task is not done until every one passes:\n' + lines.join('\n') + '\nMake each failing check hold now (produce/fix the named artifact in this run, or run the exact named check command so it passes), then finish. If one genuinely cannot be satisfied, say so plainly and name which — never claim it holds.' + HOST_CHECK + '</acceptance_before_done>' }); nudged('acceptance_before_done');
             continue;
           }
         }
@@ -2985,7 +3113,7 @@
             && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && turns < maxIters) {
           steerReplyPending = false;
           if (continuationParts.length) { collapseContinuation(assistant); continuationParts.length = 0; continuationPrompts.length = 0; continuationText = ''; }
-          messages.push({ role: 'system', content: '<resume_after_message>The mid-task reply has been delivered. Continue any unfinished work on the original objective with the latest user updates. If the objective is already complete, explicitly cancelled, or genuinely blocked, finish with that truthful outcome; do not invent more work.</resume_after_message>' });
+          messages.push({ role: 'system', content: '<resume_after_message>The mid-task reply has been delivered. Continue any unfinished work on the original objective with the latest user updates. If the objective is already complete, explicitly cancelled, or genuinely blocked, finish with that truthful outcome; do not invent more work.</resume_after_message>' }); nudged('resume_after_message');
           continue;
         }
         if (continuationParts.length) collapseContinuation(assistant);
@@ -3091,20 +3219,39 @@
       // rather than one path — a project's check runs the project, not a file. A check clears it only when it
       // PASSED (vosCheckPassed): a failing one leaves the debt standing and is remembered, so the stop nudge
       // tells the model the truth — its check failed — instead of "you ran nothing".
+      // LOOP TRUTH (W1.11): a shell/verify call that carries the host's exit receipt RAN even when its result is an error
+      // (a KILLED check is a check that did not pass, never "nothing ran"); a run of a changed file is evidence for that
+      // file (vosInterpreterTarget); any other command that ran is kept so the premise can name it.
       if (VOS_MAX > 0) {
         const okById = {}, resultById = {};
         for (const r of results) { okById[r.callId] = !!r.ok && !r.isError; resultById[r.callId] = r; }
         for (const c of calls) {
-          if (!okById[c.id]) continue;
           const k = vosKey(c.name);
+          const ranWithReceipt = (VOS_VERIFIERS.has(k) || k === 'shell_exec') && vosRan(resultById[c.id]);
+          if (!okById[c.id] && !ranWithReceipt) continue;
           if (VOS_VERIFIERS.has(k) || (k === 'shell_exec' && vosIsCheckCommand(c.args))) {
             if (vosCheckPassed(c, resultById[c.id])) {
               if (k === 'shell_exec' && vosIsPatchOnlyCheck(c.args)) { for (const p of Array.from(vosUnverified)) if (VOS_PATCH_PATH_RE.test(p)) vosUnverified.delete(p); }
               else vosUnverified.clear();
-              vosFailedCheck = '';
+              vosFailedCheck = ''; vosFailedPath = '';
+              if (!vosUnverified.size) vosRanSince.length = 0;
             }
             // `summarize` is shadowed in this scope by the compaction summarizer (o.summarize) — use clip().
-            else if (vosUnverified.size) vosFailedCheck = clip(k === 'shell_exec' ? ((c.args && (c.args.command || c.args.cmd || c.args.script)) || k) : ((c.args && c.args.cmd) || k), 80);
+            else if (vosUnverified.size) { vosFailedCheck = clip(k === 'shell_exec' ? ((c.args && (c.args.command || c.args.cmd || c.args.script)) || k) : ((c.args && c.args.cmd) || k), 80); vosFailedPath = ''; }
+            continue;
+          }
+          if (k === 'shell_exec') {
+            const script = (c.args && c.args.background !== true) ? vosInterpreterTarget(c.args) : '';
+            const runsOf = script ? Array.from(vosUnverified).filter(p => vosRunsPath(script, p)) : [];
+            const note = vosRanNote(c.args, resultById[c.id]);
+            if (runsOf.length && vosExitZero(resultById[c.id])) {
+              for (const p of runsOf) vosUnverified.delete(p);
+              if (vosFailedPath && runsOf.indexOf(vosFailedPath) >= 0) { vosFailedCheck = ''; vosFailedPath = ''; }
+            } else if (runsOf.length && (note.killed || (note.exit !== '' && note.exit !== '0'))) {
+              vosFailedCheck = clip((c.args && (c.args.command || c.args.cmd || c.args.script)) || k, 80); vosFailedPath = runsOf[0];
+            }
+            if (!vosUnverified.size) { vosRanSince.length = 0; vosFailedCheck = ''; vosFailedPath = ''; }
+            else vosRanSince.push(note);
             continue;
           }
           if (VOS_MUTATORS.has(k)) { const p = vosPathOf(c.args); if (vosIsCodePath(p) && !(o.standaloneWorkspace === true && VOS_PAGE_RE.test(p))) vosUnverified.add(p); }
@@ -3176,12 +3323,13 @@
 
       // Arm recovery only for non-terminal technical failures. One successful alternate call disarms it;
       // a mixed batch retains only the names that failed so the next turn knows what still needs another route.
-      const recoverableFailures = [];
+      // A call the Task Brief gate HELD is pending too (the work is still undone), but as held, never as failed.
+      const recoverableFailures = [], heldCalls = [];
       for (const c of calls) {
         const r = results.find(x => x.callId === c.id);
-        if (r && r.isError && !terminalHumanDecision(r)) recoverableFailures.push(String(c.name || 'tool'));
+        if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(String(c.name || 'tool'));
       }
-      if (recoverableFailures.length) failureRecoveryPending = { names: Array.from(new Set(recoverableFailures)) };
+      if (recoverableFailures.length || heldCalls.length) failureRecoveryPending = { names: Array.from(new Set(recoverableFailures)), held: Array.from(new Set(heldCalls)) };
       else if (results.some(r => r && r.ok && !r.isError)) failureRecoveryPending = null;
 
       // (8) LOOP GUARD — break out of a run that keeps making the SAME failing tool call. Warn once, then stop.
@@ -3220,5 +3368,5 @@
     }
   }
 
-  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, failedCheckRepairNote, deterministicCheckSignature, parallelizable, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
+  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, vosInterpreterTarget, vosRunsPath, nudgePremise, NUDGE_TAGS, failedCheckRepairNote, deterministicCheckSignature, parallelizable, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
 });

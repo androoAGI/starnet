@@ -189,6 +189,21 @@
     return out;
   }
 
+  // LOOP TRUTH (cost plan W1.11): the run's turn-buying host notes counted by tag (loop.js NUDGE_TAGS, e.g.
+  // { verify_before_done: 1 }). Bounded at the persistence boundary: tag-shaped keys, positive integer counts. null = none.
+  function nudgeCountsOf(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const out = {};
+    let n = 0;
+    for (const k of Object.keys(v).slice(0, 64)) {
+      const c = v[k];
+      if (n >= 24 || !/^[a-z][a-z0-9_]{0,47}$/.test(k) || !Number.isSafeInteger(c) || c <= 0) continue;
+      out[k] = Math.min(c, 100000);
+      n++;
+    }
+    return n ? out : null;
+  }
+
   function toolTraceList(v) {
     if (!Array.isArray(v)) return [];
     const out = [];
@@ -390,6 +405,9 @@
         // (additive, token-burn audit 2026-10-17) how much of `tokens`' input the provider served from its prompt cache —
         // `tokens` counts a cache read at full weight. Present only when > 0, so every other row stays byte-identical.
         ...(num(e.cachedTokens) > 0 ? { cachedTokens: num(e.cachedTokens) } : {}),
+        // (additive, cost plan W1.11) how many times the host's stop checks bought the model another turn, by tag
+        // ({ verify_before_done: 1, failure_recovery: 2 }). Present only when one fired, so every other row stays byte-identical.
+        ...(nudgeCountsOf(e.nudges) ? { nudges: nudgeCountsOf(e.nudges) } : {}),
         title: str(e.title).slice(0, TITLE_MAX),
         streamId: str(e.streamId),     // H3.2: the run's workstream — joins this outcome row to its transcript (GET /api/transcript?stream=)
         // Durable session-delivery envelope. The page bridge is best-effort (and multiple open pages may disagree
