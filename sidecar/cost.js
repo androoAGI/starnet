@@ -1,6 +1,7 @@
 /* sidecar/cost.js — token/cost accounting.
    estimate(usage, model)  -> { usd, tokens }                      (live, during stream)
-   reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens }  (authoritative)
+   reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens, cacheWriteTokens }  (authoritative)
+   resolveUsage(usage)     -> { uncachedIn, cacheRead, cacheWrite, out, reasoning } | null   (the ONE count resolver)
    Provider-reported cost (`usage.cost` in dollars, or xAI's `usage.cost_in_usd_ticks`,
    1 USD = 1e10 ticks) always wins; otherwise dollars are
    computed from the catalog priceOf(model) (per-million in/out). Reasoning + cached tokens
@@ -14,6 +15,29 @@
   'use strict';
 
   function num(v) { return (typeof v === 'number' && isFinite(v)) ? v : 0; }
+
+  /* THE ONE USAGE RESOLVER (usage receipts, cost audit 2026-11-08). An adapter's `usage` event (providers/provider.js)
+     -> the five counts every reader shares: { uncachedIn, cacheRead, cacheWrite, out, reasoning }. The per-call receipt
+     (usage-receipts.js) and reconcile below both read them HERE, so a receipt and a booking can never disagree.
+       prompt_tokens is the TRUE input total; a cache read and a cache write are a breakdown OF it, so the three input
+         buckets are clamped to sum to it (as inputUsd prices them) and a provider whose details contradict its own
+         total can never make a negative count.
+       a cache write is the adapters' normalized prompt_tokens_details.cache_creation_tokens (Anthropic, Claude Code,
+         Codex), else the raw cache_write_tokens an OpenAI-shaped wire passes through (OpenRouter, OpenAI).
+       reasoning is what the adapter says (reasoning_tokens, or the OpenAI-shaped completion_tokens_details).
+     No usage -> null: a count is never made up. Pricing is NOT read from here (inputUsd keeps its own buckets), so this
+     resolver can name a field without moving a single dollar. */
+  function resolveUsage(usage) {
+    if (!usage || typeof usage !== 'object') return null;
+    const total = Math.max(0, num(usage.prompt_tokens));
+    const d = (usage.prompt_tokens_details && typeof usage.prompt_tokens_details === 'object') ? usage.prompt_tokens_details : {};
+    const cacheRead = Math.max(0, Math.min(num(d.cached_tokens), total));
+    const write = d.cache_creation_tokens != null ? d.cache_creation_tokens : d.cache_write_tokens;
+    const cacheWrite = Math.max(0, Math.min(num(write), total - cacheRead));
+    const reasoning = num(usage.reasoning_tokens || (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens));
+    return { uncachedIn: total - cacheRead - cacheWrite, cacheRead: cacheRead, cacheWrite: cacheWrite,
+      out: Math.max(0, num(usage.completion_tokens)), reasoning: Math.max(0, reasoning) };
+  }
 
   // A family whose cache rates are not published prices cached tokens exactly like fresh ones — the
   // pre-caching behaviour, and the direction that can only ever OVER-report a spend seatbelt.
@@ -74,9 +98,9 @@
         return { usd: dollars(usage, model), tokens: totalTokens(usage) };
       },
       reconcile(usage, model) {
-        const cached = num(usage && usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens);
-        const reasoning = num(usage && (usage.reasoning_tokens ||
-          (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens)));
+        const counts = resolveUsage(usage);   // the ONE resolver: the same counts a usage receipt records for this call
+        const cached = counts ? counts.cacheRead : 0;
+        const reasoning = counts ? counts.reasoning : 0;
         const reported = providerCostUsd(usage);
         const providerCost = reported != null;
         const price = providerCost ? null : catalogPrice(model);
@@ -89,6 +113,7 @@
           tokensOut: tokensOut,
           reasoningTokens: reasoning,
           cachedTokens: cached,
+          cacheWriteTokens: counts ? counts.cacheWrite : 0,   // the input written to the prompt cache (part of tokensIn)
           costSource: providerCost ? 'provider' : (price ? 'catalog' : 'unpriced'),
           providerCost: providerCost,
           catalogPriced: !!price,
@@ -98,5 +123,5 @@
     };
   }
 
-  return { makeCostEngine };
+  return { makeCostEngine, resolveUsage };
 });

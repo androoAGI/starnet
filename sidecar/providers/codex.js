@@ -659,12 +659,17 @@
     u = u || {};
     const inDetails = u.input_tokens_details || {};
     const outDetails = u.output_tokens_details || {};
+    const details = { cached_tokens: inDetails.cached_tokens || 0 };
+    // input written to the prompt cache, when the response says it (input_tokens_details.cache_write_tokens, GPT-5.6 and
+    // later): carried under the adapters' normalized name so the usage receipt counts it. A subscription's cost stays 0.
+    const written = Number(inDetails.cache_write_tokens) || 0;
+    if (written > 0) details.cache_creation_tokens = written;
     return {
       prompt_tokens: u.input_tokens || 0,
       completion_tokens: u.output_tokens || 0,
       total_tokens: u.total_tokens || ((u.input_tokens || 0) + (u.output_tokens || 0)),
       reasoning_tokens: outDetails.reasoning_tokens || 0,
-      prompt_tokens_details: { cached_tokens: inDetails.cached_tokens || 0 },
+      prompt_tokens_details: details,
       cost: 0
     };
   }

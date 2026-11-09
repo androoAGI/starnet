@@ -200,6 +200,8 @@ test/provider.registry.test.js
 test/managed-cache.test.js
 test/ratelimits.test.js
 test/sub-usage.test.js
+test/usage-receipts.test.js
+test/usage-receipts.invariant.test.js
 test/provider.codex-auth.test.js
 test/purge-leaked-codex-tokens.test.js
 test/provider.oauth-device.test.js

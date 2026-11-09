@@ -174,7 +174,8 @@ const {
   attachRateLimits,
   attachSubUsage,
   attachCatalogCache,
-  attachRequestScrub
+  attachRequestScrub,
+  attachUsageReceipts
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -2323,6 +2324,10 @@ const providerAccounts = require('./provider-accounts.js').makeProviderAccounts(
 // no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
 const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
+// USAGE RECEIPTS (usage-receipts.js): one record per model call — counts only, and the window reading that call saw — in
+// .usage/calls.jsonl (rotated), written at the factory seam every adapter streams through. Read only by /api/usage/providers.
+const usageReceipts = require('./usage-receipts.js').makeUsageReceipts({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'calls.jsonl'), readings: subUsage });
+attachUsageReceipts(usageReceipts);
 const accountAuthSeen = new Map();
 const accountAuthPending = new Map();
 
@@ -15488,13 +15493,19 @@ async function handleStepTestId(req, res, gm) {
      subscriptions: { <providerId>: { <account ('primary' = account 1)>: { windows: [{ id, label, usedPct|null, resetsAt|null,
                       status }], credits?, overage?, seenAt } } }   (sub-usage.js: Claude Code's stream, ChatGPT's headers)
      rate:          the API providers' rate-limit buckets from their last response (providers/ratelimits.js)
+     starnet:       { <providerId>: { <account>: { <windowId>: { from, tokens, cacheRead, calls, since } } } } — StarNet's OWN
+                    booked tokens on that sign-in since each window opened, from the usage receipts (usage-receipts.js
+                    windowShare). since > from: the receipts begin later, so the count is a floor; since null: none yet.
+                    Tokens only, never a StarNet percentage: the window's % is the provider's word for every client on it.
    A provider or sign-in no call has run on says nothing here — the reader shows "unknown", never "plenty left". */
 function handleUsageProviders(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  let subscriptions = {}, rate = [];
+  let subscriptions = {}, rate = [], starnet = {};
+  const now = Date.now();
   try { subscriptions = subUsage.snapshot(); } catch (_) { subscriptions = {}; }
   try { rate = rateLimits.snapshot(); } catch (_) { rate = []; }
-  res.end(JSON.stringify({ subscriptions, rate, now: Date.now() }));
+  try { starnet = usageReceipts.windowShare(subscriptions, now); } catch (e) { failNote('usage.receipts.share', e); starnet = {}; }
+  res.end(JSON.stringify({ subscriptions, rate, now, starnet }));
 }
 // Inventory only: the actual owners still enforce every value. A pending restart never pretends to be active.
 function effectiveLimitsStatus() {

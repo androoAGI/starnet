@@ -874,6 +874,10 @@
         const u = billed.usage || {};
         const uncached = Number(u.input_tokens) || 0, cacheWrite = Number(u.cache_creation_input_tokens) || 0;
         const cacheRead = Number(u.cache_read_input_tokens) || 0, out = Number(u.output_tokens) || 0;
+        // the thinking share of output_tokens, as the CLI's result line says it (output_tokens_details.thinking_tokens;
+        // 108 of 157 in test/fixtures/claude-cli-2.1.284-natural.json). It used to be a hard 0, so every Claude Code
+        // receipt and agent.cost said no reasoning at all.
+        const thinking = Number(u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0;
         const subscription = t.apiKeySource === 'none';
         const reported = Number(billed.total_cost_usd);
         return {
@@ -883,7 +887,7 @@
             completion_tokens: out,
             total_tokens: uncached + cacheWrite + cacheRead + out,
             prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite },
-            reasoning_tokens: 0,
+            reasoning_tokens: Math.max(0, Math.min(thinking, out)),
             // subscription login: nothing is billed per call. API key: the CLI's own billed figure.
             cost: subscription ? 0 : (isFinite(reported) ? reported : undefined),
             // a $0 turn that still drew on the sign-in's usage window: the loop's per-run subscription-token
