@@ -1563,25 +1563,48 @@
     // tool message -> what a later elision needs to give its body a handle (history-edit elideToolResult): the file the
     // host already parked the output to, and the provenance a park of the body must carry
     const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
+    /* BATCHED AGEING (history-edit makeAgeing, W2.1): old tool results and the long arguments of writes that succeeded
+       leave what is SENT, in batches that pay for themselves (see the preflight below); `messages` keeps every full body.
+       Off unless the host turns it on (o.batchedAgeing: STARNET_BATCHED_AGEING), and then every request is byte-identical
+       to a run without it until the first batch. */
+    const ageing = (o.batchedAgeing === true && HistoryEdit && typeof HistoryEdit.makeAgeing === 'function')
+      ? HistoryEdit.makeAgeing({ originOf: m => (toolOrigin ? toolOrigin.get(m) || null : null) }) : null;
     /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
-       edit invalidated are deleted from their turns (once, in place), and so is every block the run's first request
-       would replay (a recovered history: the view never saw the prefix it was made on); every other provider gets
-       `wireMessages()` untouched. */
-    const requestView = HistoryEdit ? HistoryEdit.makeRequestView() : null;
+       edit invalidated are deleted from their turns (once, in place; from an aged copy's original too), and so is every
+       block the run's first request would replay (a recovered history: the view never saw the prefix it was made on);
+       every other provider gets `wireMessages()` untouched. */
+    const requestView = HistoryEdit ? HistoryEdit.makeRequestView(ageing ? { ownerOf: ageing.originalOf } : undefined) : null;
     const bindsThinking = () => {
       if (!provider || typeof provider.bindsThinking !== 'function') return false;
       try { return provider.bindsThinking(model) === true; } catch (e) { failNote('loop.bindsThinking', e); return false; }
     };
     // What the provider is sent, and what the context meter measures: `messages` with stale screen captures replaced by
-    // placeholders (a view — never an edit). Asked of the CURRENT provider each time (a fallback can change it): one that
-    // holds the run's history itself (claude-cli's persistent child) is sent every capture as it was, up to
-    // HELD_IMAGE_TURNS capture turns; past that all but the newest keep leave at once (an API request takes at most 100
-    // images, and the child re-sends its whole history every turn).
+    // placeholders and aged bodies by their stubs (views — never an edit). Asked of the CURRENT provider each time (a
+    // fallback can change it): one that holds the run's history itself (claude-cli's persistent child) is sent every
+    // capture as it was, up to HELD_IMAGE_TURNS capture turns; past that all but the newest keep leave at once (an API
+    // request takes at most 100 images, and the child re-sends its whole history every turn).
     const HELD_IMAGE_TURNS = 20;
     const holdsHistory = () => { try { return !!(provider && typeof provider.holdsHistory === 'function' && provider.holdsHistory()); } catch (e) { failNote('loop.provider.holdsHistory', e); return false; } };
-    const viewOf = (msgs) => evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null),
+    const screensView = (msgs) => evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null),
       (TOOL_IMAGE_KEEP > 0 && holdsHistory()) ? Math.max(TOOL_IMAGE_STEP, HELD_IMAGE_TURNS - TOOL_IMAGE_KEEP) : TOOL_IMAGE_STEP);
+    const viewOf = (msgs) => (ageing ? ageing.view(screensView(msgs)) : screensView(msgs));
     const wireMessages = () => viewOf(messages);
+    /* THE HOST PARKER, NOTED (W1.7): a park that fails leaves its body unsaved, and says so. The host parker (index.js)
+       swallows its own errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so
+       a null or a missing path is a failed write, noted like a throw. onNothing(tool) words the note. */
+    const notedParker = (onNothing) => (capCtx && typeof capCtx.parkOutput === 'function')
+      ? async (text, meta) => {
+        let p = null;
+        try { p = await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; }
+        if (!p || !p.path) failNote('loop.historyEdit.park', onNothing(String((meta && meta.tool) || 'tool')));
+        return p;
+      }
+      : null;
+    // batched ageing parks what no other handle covers; a body whose park fails rides whole, and is never tried again
+    const ageingParker = ageing ? notedParker(tool => 'the host parker saved nothing for a ' + tool + ' body at batched ageing; it rides whole in the request') : null;
+    // one message's size by the context manager's own ruler (the raw estimator: never through viewOf, which would swap an
+    // aged copy in); null = no ruler, and ageing measures characters
+    const ageingRuler = (ageing && o.context && typeof o.context.estimateMessages === 'function') ? (m => o.context.estimateMessages([m])) : null;
     /* Per-turn aggregate tool output (see applyTurnBudget). 200k characters is ~2.5 full-size single results,
        so an ordinary turn never notices it and only a wide parallel fan-out gets trimmed. 0 disables.
        A FUNCTION is read fresh each turn: the host passes 30% of the live model window (tools/registry.js
@@ -2088,6 +2111,9 @@
       for (const m of older) {
         if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) names.set(c && c.id, (c && c.function && c.function.name) || 'tool');
         if (!m || m.role !== 'tool' || HistoryEdit.isElided(m)) { out.push(m); continue; }
+        // a result batched ageing already took out of the view keeps that stub: the same bytes on the wire, no second park
+        const aged = ageing ? ageing.agedOf(m) : null;
+        if (aged) { elided++; out.push(Object.assign({}, m, { content: aged.content })); continue; }
         /* no origin = a body this run did not produce (a resumed history): nothing says whose words it quotes or what
            tainted it, so it is never parked and keeps the old wording */
         const origin = toolOrigin ? toolOrigin.get(m) : null;
@@ -2262,17 +2288,8 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        /* a park that fails leaves that stub on the old wording, and says so. The host parker (index.js) swallows its own
-           errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so a null or a
-           missing path here is a failed write, noted like a throw. */
-        const parker = capCtx && typeof capCtx.parkOutput === 'function'
-          ? async (text, meta) => {
-            let p = null;
-            try { p = await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; }
-            if (!p || !p.path) failNote('loop.historyEdit.park', 'the host parker saved nothing for a ' + String((meta && meta.tool) || 'tool') + ' result at elision; its stub keeps the old wording');
-            return p;
-          }
-          : null;
+        // a park that fails leaves that stub on the old wording, and says so (notedParker)
+        const parker = notedParker(tool => 'the host parker saved nothing for a ' + tool + ' result at elision; its stub keeps the old wording');
         const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was
@@ -2654,6 +2671,23 @@
           lastHookContext = pre.context;
           messages.push({ role: 'system', content: '<hook_context>' + pre.context + '</hook_context>' });
         }
+      }
+      /* BATCHED AGEING (W2.1): a batch of old bodies may leave the view before this request (history-edit makeAgeing:
+         behind the newest four tool turns, 60k characters at a time, never for a run projected at 24 requests or fewer,
+         and only when R x F x r > T x (w - r) on this route). After any fold (whose own edit goes first) and every note
+         this turn appends, so it prices the request that goes out. The request view strips the thinking it unbinds. */
+      if (ageing) {
+        try {
+          const batch = await ageing.plan(screensView(messages), {
+            requests: turns, maxIters, holdsHistory: holdsHistory(), park: ageingParker, measure: ageingRuler,
+            rates: () => ((cost && typeof cost.cacheRates === 'function') ? cost.cacheRates(model) : null)
+          });
+          if (batch) failNote('loop.historyEdit.aged', 'batched ageing from message ' + batch.editAt + ': ' + batch.results + ' tool result(s) and '
+            + batch.args + ' write argument(s) left the request view (' + batch.freedChars + ' characters; the run keeps every full body); payback '
+            + Math.round(batch.saving) + ' > ' + Math.round(batch.rewrite) + ' = ' + batch.remaining + ' requests projected x ' + Math.round(batch.freed)
+            + ' freed x read ' + batch.read + (batch.assumed ? ' (assumed)' : '') + ' against ' + Math.round(batch.suffix) + ' re-written x (write '
+            + batch.write + ' - read) on ' + String(model));
+        } catch (e) { failNote('loop.historyEdit.ageing', e); }
       }
       const turnStart = turns;
       turns++;
@@ -3407,7 +3441,8 @@
         // a merged duplicate has no result of its own: the kept call's result says the copies were not dispatched
         const merged = mergedDupes.get(r.callId) || 0;
         const resultMsg = toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content);
-        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, parkMeta: provenanceOf(r) });
+        // ok: the call succeeded (batched ageing ages only a successful write's arguments)
+        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, parkMeta: provenanceOf(r), ok: !!r.ok && !r.isError });
         messages.push(resultMsg);
       }
       for (const call of calls) {
