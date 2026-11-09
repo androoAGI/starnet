@@ -178,4 +178,13 @@ A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*pointer-events: none/.
 A.ok(/calc\(var\(--vx-dim, 0\)/.test(css), 'the device darkens with the BRIGHTNESS knob (--vx-dim)');
 A.ok(/setProperty\('--vx-dim', dim\.toFixed\(3\)\)/.test(fsx.readFileSync(pathx.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8')),
   'stationui writes --vx-dim from SETTINGS › BRIGHTNESS');
+// ---- the finish (Andrew 2026-11-08: "the comms looks weird and overly large for no reason", "the grpahics for certain elements
+// look so low quality") ----
+A.ok(/#left, #chat-panel\) > h3 \{ height: 42px;/.test(css), 'the CREW and COMMS plates are one slim height');
+A.ok(/#chat-panel #comms-idbar \{ min-height: 0;[^}]*border-bottom: 0/.test(css), 'the COMMS identity is a compact strip with no rule under it');
+A.ok(/#chat-panel \.comms-portrait \{ width: 46px; height: 52px;/.test(css), 'the COMMS portrait is sized to the strip');
+A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*data:image\/svg\+xml/.test(css), 'the clamps are drawn brackets, not stacked gradients');
+A.ok(/\.cam-hud::after \{[^}]*--cm: #c9d0d8/.test(css), 'the viewfinder marks are chrome, not lit HUD green (the marks themselves stay)');
+A.ok(/\.cam-cine \{[^}]*border-radius: 999px/.test(css), 'CINEMA is a silver pill key');
+A.ok(/#left \.ws-head \{ background: none; \}/.test(css), 'no green hairlines over the rail head');
 A.report('vector-identity');

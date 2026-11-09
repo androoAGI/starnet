@@ -1785,3 +1785,78 @@ html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer)::befor
     linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 93% / 34px 14px no-repeat;
   filter: drop-shadow(0 0 0 #050608) drop-shadow(0 1px 0 #050608) drop-shadow(0 -1px 0 #050608) drop-shadow(0 2px 3px rgba(0, 0, 0, .8)) brightness(calc(1 - var(--vx-dim, 0) * .35));
 }
+
+/* ============ 21 · THE FINISH — COMMS sized to its content (Andrew 11-08: "the comms looks weird and overly large for no
+   reason"), the gutter clamps drawn as real lit brackets, and the last green HUD leftovers (viewfinder marks, CINEMA, the crew
+   card's lit frame, the hairlines over the rail head and search) moved onto the chrome ============ */
+
+/* ---- one plate height for both heads: slimmer, the engraving a step smaller ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 { height: 42px; font-size: 19px; letter-spacing: 4px; padding-left: 32px; margin-top: 9px; margin-bottom: 2px; }
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3::before { left: 12px; }
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 :is(#crew-sum, .comms-session) { font-size: 14px; padding: 2px 11px; height: 22px; }
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide { width: 27px; height: 27px; font-size: 16px; }
+
+/* ---- the COMMS identity: one compact strip, no rule under it ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #comms-idbar { min-height: 0; padding: 6px 16px 6px 18px; gap: 12px; border-bottom: 0; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-portrait { width: 46px; height: 52px; border-radius: 12px; padding-bottom: 2px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-portrait > img { height: 46px; max-width: 40px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-identity { gap: 1px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-idbar :is(#comms-browser, #gc-add-agents) { width: 27px; height: 27px; }
+
+/* ---- the composer: one slim command line over a slim key row ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow { margin-bottom: 12px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-input { min-height: 0; padding-top: 7px; padding-bottom: 7px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-tools { padding-top: 2px; padding-bottom: 2px; }
+
+/* ---- the clamps: drawn chrome brackets (a lit body, a specular strip, a slotted screw), not stacked gradients ---- */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer)::before {
+  width: 36px; margin-left: -18px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 7% / 36px 18px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 32% / 30px 15px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 68% / 30px 15px no-repeat, url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='18' viewBox='0 0 36 18'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23f6f8fa'/%3E%3Cstop offset='.3' stop-color='%23c3cad2'/%3E%3Cstop offset='.55' stop-color='%237c8692'/%3E%3Cstop offset='.8' stop-color='%233a414a'/%3E%3Cstop offset='1' stop-color='%236b747f'/%3E%3C/linearGradient%3E%3CradialGradient id='s' cx='.38' cy='.32' r='.75'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='.45' stop-color='%23a9b2bd'/%3E%3Cstop offset='1' stop-color='%231c2126'/%3E%3C/radialGradient%3E%3C/defs%3E%3Crect x='.5' y='1' width='35' height='16' rx='8' fill='%23050608'/%3E%3Crect x='1.5' y='1.8' width='33' height='14.2' rx='7.1' fill='url%28%23g%29'/%3E%3Crect x='4' y='2.6' width='28' height='3.4' rx='1.7' fill='%23ffffff' opacity='.6'/%3E%3Ccircle cx='18' cy='9' r='3.9' fill='%230b0d10'/%3E%3Ccircle cx='18' cy='9' r='3' fill='url%28%23s%29'/%3E%3Cpath d='M16 11 L20 7' stroke='%2314181c' stroke-width='1' stroke-linecap='round'/%3E%3C/svg%3E") center 93% / 36px 18px no-repeat;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .75)) brightness(calc(1 - var(--vx-dim, 0) * .35));
+}
+
+/* ---- the viewfinder marks: pale chrome strokes with a dark keyline, no glow ---- */
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-hud::after {
+  --cm: #c9d0d8; --cl: 26px; --ct: 2px;
+  filter: drop-shadow(0 1px 0 rgba(0, 0, 0, .9)) drop-shadow(0 0 1px rgba(0, 0, 0, .9));
+  opacity: .8;
+}
+/* ---- CINEMA: a silver pill key, like the dock's ---- */
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-cine {
+  border: 0; border-radius: 999px; padding: 4px 14px; height: auto; color: #0b1014; letter-spacing: 2px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 45%), linear-gradient(180deg, #e3e8ee 0, #a9b2bd 45%, #6b747f 80%, #9aa3ae 100%);
+  box-shadow: 0 0 0 1px #050608, 0 2px 5px rgba(0, 0, 0, .7), inset 0 -1px 2px rgba(0, 0, 0, .35);
+}
+html body.vx:not(.hud-mode) #screen-game #stage-wrap .cam-cine:is(:hover, :focus-visible) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 45%), linear-gradient(180deg, #f4f7fa 0, color-mix(in srgb, var(--vx-core) 40%, #b8c0c9) 45%, color-mix(in srgb, var(--ph) 45%, #59626d) 85%);
+}
+
+/* ---- the crew card: the portrait in a chrome bezel; the chosen agent on a quieter band ---- */
+html body.vx:not(.hud-mode) #screen-game #left #crew .crew-portrait {
+  border: 0; border-radius: 9px; background: var(--vx-lcd);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), 0 0 0 2px #07090c, 0 0 0 3px #8d96a1, 0 1px 0 3px #eef2f6, 0 0 0 4px #20252b;
+}
+html body.vx:not(.hud-mode) #screen-game #left #crew > .crew-row.crew-row.crew-row.selected {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .24), rgba(var(--ph-rgb), .07)) !important;
+}
+
+/* ---- no green hairlines over the rail head; the search is a recessed LCD pill ---- */
+html body.vx:not(.hud-mode) #screen-game #left .ws-head { background: none; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-rail-search { background: none; border: 0; box-shadow: none; }
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search) {
+  border: 0; border-radius: 999px; corner-shape: round; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+html body.vx:not(.hud-mode) #screen-game #left :is(#ws-search, #crew-search):focus { box-shadow: var(--vx-lcd-shadow), 0 0 0 1px rgba(var(--ph-rgb), .55); }
+/* the conduit itself runs clean between the clamps (the old chrome sleeves under them doubled the hardware) */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
+  background:
+    linear-gradient(90deg, transparent 2px, rgba(255, 255, 255, .45) 3px, transparent 4.5px) center / 9px 100% no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), 0) 0, rgba(var(--ph-rgb), .4) 30%, color-mix(in srgb, var(--vx-core) 45%, #fff) 50%, rgba(var(--ph-rgb), .4) 70%, rgba(var(--ph-rgb), 0)) center / 4px 100% no-repeat,
+    linear-gradient(90deg, #050608, #2a3038 18%, #0b0e11 50%, #2a3038 82%, #050608) center / 9px 100% no-repeat;
+}
+/* the command line: the prompt mark sits on the text's line */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-editline { align-items: center; min-height: 0; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow .chat-editline .prompt { height: auto; align-self: center; }
