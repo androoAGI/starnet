@@ -16,6 +16,8 @@
      I7 the NONE backoff: with a 5 s reflection window, a run after two NONE replies gets no reflection although the
         5 s base window has passed (base: it reflects).
      I8 study's attempt stamp survives a sidecar restart (study.state.json): the first run after it gets no study.
+   The orderings (a verdict or a cue that lands while a pass is still running, a reset mid-pass) are
+   test/learning-cooldown.race.e2e.test.js: a separate step, so each stays well inside the runner's 120 s cap.
 
    Zero network, zero real key (the fake key routes to the mock). Prints the measured counts on one line. */
 'use strict';
@@ -210,7 +212,7 @@ async function runAndCount(fixture, mock, agentId, text) {
       const three = await runAndCount(fixture, mock, 'lc-verdict', 'Please inspect the station and file the weekly status note. [LC verdict 3]');
       report.verdict = [one, two, three].map(r => r.kinds.join('+') || '-');
       A.eq(two.of('reflection').length, 1, 'I6: the run after a thumbs verdict reflects inside the window (' + report.verdict[1] + ')');
-      A.ok(/\[learning\] reflection may spend inside its window: agent=lc-verdict \(verdict\)/.test(fixture.output()), 'I6: ...because of the verdict (the sidecar log says so)');
+      A.ok(/\[learning\] reflection may spend inside its window: agent=lc-verdict \(feedback\)/.test(fixture.output()), 'I6: ...because of the verdict, stored as feedback (the sidecar log says so)');
       A.eq(three.of('reflection').length, 0, 'I6: the verdict opens the window once: the run after that gets no reflection (' + report.verdict[2] + ')');
     }
 
