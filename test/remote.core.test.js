@@ -83,7 +83,9 @@ async function rejects(p, re, msg) {
     A.eq(r1.ok, false, 'a wrong proof is refused');
     // GHSA-2hpj #7: the proof's key is the pairing's 128-bit secret (the link's `c`); the short code is a lookup only
     const byCode = await Phone.pairingProof(p.code, phoneKey.publicRaw, 'Andrew phone');
-    A.eq(devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof: byCode }).ok, false, 'a proof made with the short code is refused');
+    const byCodeR = devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof: byCode });
+    A.eq(byCodeR.ok, false, 'a proof made with the short code is refused');
+    A.ok(/^wrong pairing code: /.test(byCodeR.error) && /Scan the QR code/.test(byCodeR.error) && /up-to-date StarNet phone app/.test(byCodeR.error), 'final review B11: and the refusal says to scan the QR with an up-to-date app');
     const proof = await Phone.pairingProof(p.secret, phoneKey.publicRaw, 'Andrew phone');
     const r2 = devices.completePairing({ pairingId: p.pairingId, publicKey: phoneKey.publicRaw, name: 'Andrew phone', proof });
     A.eq(r2.ok, true, 'the right proof pairs');
