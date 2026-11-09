@@ -43,6 +43,7 @@
    Pure apart from the injected clock and random source; no I/O. */
 'use strict';
 const nodeCrypto = require('node:crypto');
+const { note: failNote } = require('./failopen.js');
 
 const TTL_MS = 2 * 60 * 1000;          // long enough to read a dialog, short enough that a stale one is useless
 const MAX_OPEN = 32;                   // a flood of challenges evicts the oldest, never grows memory
@@ -122,7 +123,7 @@ function makeDeskProof(deps) {
   }
   function persist() {
     if (!store) return;
-    try { store.save({ wrong: wrongCodes, lockouts, lockedUntil }); } catch (_) { /* the in-memory count still holds */ }
+    try { store.save({ wrong: wrongCodes, lockouts, lockedUntil }); } catch (e) { failNote('deskproof.persist', e); }   // the in-memory count still holds
   }
   // the lockout in force now; an ended one starts a fresh count (its lockouts stay, so the next one is longer)
   function lockedNow() {

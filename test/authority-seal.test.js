@@ -329,7 +329,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(Shell.authorityFileRisk('cat hooks.json', { cwd: PROJ, pathMod: path }), why, 'no data directory named: refused');
     // the three callers ask it, from where the command runs
     const shellSrc = read('sidecar/tools/builtin/shell.js');
-    A.ok(/const authorityDeny = remoteOwner \? null : authorityFileRisk\(cmd, \{ cwd: hostCwd, root: ROOT,/.test(shellSrc), 'shell.exec asks it with its working folder and the data directory');
+    // review2 #13: Full Power (remoteOwner) skips it only for an untainted run; a run that read outside content is asked too
+    A.ok(/const authorityDeny = \(remoteOwner && !shellTainted\) \? null : authorityFileRisk\(cmd, \{ cwd: hostCwd, root: ROOT,/.test(shellSrc), 'shell.exec asks it with its working folder and the data directory (Full Power skips it only when the run is untainted)');
     A.ok(/shell\.authorityFileRisk\(cmd, \{ cwd: hostCwd, root: ROOT,/.test(read('sidecar/tools/builtin/verify.js')), 'verify.run asks it');
     A.ok(/Shell\.escapesWorkspace\(command\) \|\| Shell\.authorityFileRisk\(command, \{ cwd, root: ROOT,/.test(read('sidecar/tools/builtin/terminal.js')), 'the terminal asks it');
     try { if (linked) fs.unlinkSync(path.join(PROJ, 'sn')); } catch (_) { try { fs.rmdirSync(path.join(PROJ, 'sn')); } catch (_) {} }
