@@ -189,8 +189,9 @@
     return out;
   }
 
-  // LOOP TRUTH (cost plan W1.11): the run's turn-buying host notes counted by tag (loop.js NUDGE_TAGS, e.g.
-  // { verify_before_done: 1 }). Bounded at the persistence boundary: tag-shaped keys, positive integer counts. null = none.
+  // LOOP TRUTH (cost plan W1.11): the host's stop-check notes the run issued, counted by tag (loop.js NUDGE_TAGS, e.g.
+  // { verify_before_done: 1 }): notes added to the conversation, not model calls bought (a note added just before a stop
+  // reaches no call). Bounded at the persistence boundary: tag-shaped keys, positive integer counts. null = none.
   function nudgeCountsOf(v) {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
     const out = {};
@@ -405,7 +406,7 @@
         // (additive, token-burn audit 2026-10-17) how much of `tokens`' input the provider served from its prompt cache —
         // `tokens` counts a cache read at full weight. Present only when > 0, so every other row stays byte-identical.
         ...(num(e.cachedTokens) > 0 ? { cachedTokens: num(e.cachedTokens) } : {}),
-        // (additive, cost plan W1.11) how many times the host's stop checks bought the model another turn, by tag
+        // (additive, cost plan W1.11) how many stop-check notes the host issued, by tag (notes, not calls bought)
         // ({ verify_before_done: 1, failure_recovery: 2 }). Present only when one fired, so every other row stays byte-identical.
         ...(nudgeCountsOf(e.nudges) ? { nudges: nudgeCountsOf(e.nudges) } : {}),
         title: str(e.title).slice(0, TITLE_MAX),

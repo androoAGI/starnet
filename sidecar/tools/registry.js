@@ -736,6 +736,10 @@
         // RELAYED TAINT (additive): a tool that hands back ANOTHER run's text (team.dispatch / team.subagents …)
         // reports that run's host-proven taint; the run host latches it on the ingesting run (see taint.relayedTaint).
         if (shaped && typeof out.taintedBy === 'string' && out.taintedBy) done.taintedBy = out.taintedBy.slice(0, 200);
+        // WHERE A COMMAND RAN (additive, loop truth W1.11): shell.exec names the host folder it spawned in, so the loop can
+        // tell which file `node hello.js` really ran. Metadata beside the result, never part of what the model reads.
+        // A path is whole or absent: a cut one would name a different folder.
+        if (shaped && typeof out.ranIn === 'string' && out.ranIn && out.ranIn.length <= 4096) done.ranIn = out.ranIn;
         if (shaped) { const quoted = quotedList(out.quotedStreams); if (quoted.length) done.quotedStreams = quoted; }   // the sessions this result drew on (commit 11)
         // Only host-minted provenance survives shaping; body text and ordinary metadata fields are not proof.
         if (shaped && responseProvenance) responseProvenance.carry(out, done);
@@ -783,6 +787,8 @@
         const errorElided = e && Number(e.fullContentElided) > 0 ? Number(e.fullContentElided) : 0;
         if (errorElided) { failed.outputElided = errorElided; failed.content = clampOutput(preconditionFrame(failedText, failed.precondition), parked, hostCap, errorElided); }
         if (unknownEffect) failed.effectUnknown = true;
+        // a KILLED command ran too, and where it ran rides along the same way (see ranIn on the success path)
+        if (e && typeof e.ranIn === 'string' && e.ranIn && e.ranIn.length <= 4096) failed.ranIn = e.ranIn;
         // the HOST wrote this refusal (a URL guard, a path rule) — no outside bytes reached the model (taint observation)
         if (e && e.hostAuthored === true) failed.hostAuthored = true;
         // ...so the person may read it too: the tool's own refusal reason rides the result (refusalReason), and the loop

@@ -1,18 +1,26 @@
 /* node test/loop-truth.e2e.test.js — LOOP TRUTH through the REAL sidecar (cost plan W1.11).
 
    The unit invariant (loop-truth.invariant.test.js) pins the ledger, the premises and the counts on a stub registry. This
-   drives the whole station path once: a hermetic SidecarFixture, the 'custom' provider pointed at a recording
-   OpenAI-compatible mock on loopback (no inference), the real shell.exec running the real `node`, the real Task Brief gate,
-   and the run row read back from GET /api/runs.
+   drives the whole station path: a hermetic SidecarFixture, the 'custom' provider pointed at a recording
+   OpenAI-compatible mock on loopback (no inference), the real shell.exec running the real `node` (and reporting the
+   folder it ran in), the real Task Brief gate, and the run row read back from GET /api/runs.
 
      wjrun      settle the brief + write hello.js, run `node hello.js`, answer   -> 3 model calls, no verify nudge, no counts
      writeonly  settle the brief + write src/app.js, answer (nothing run)       -> the one verify nudge, counted on the row
      heldend    write note.txt before the brief (the gate holds it), answer     -> ONE recovery note that says held, counted
+     cdrun      write sub/hello.js, `cd sub`, `node hello.js`, answer           -> the kept `cd` is where it ran: no nudge
+     absname    write hello.js and <workspace>\src\hello.js by its absolute path, `node hello.js` at the root, answer
+                                                                                 -> the root namesake ran, src\hello.js is owed
+     failproj   write src/app.js, `node tests/missing.js` (a check, fails), `node src/app.js` (passes), answer
+                                                                                 -> the failed check stands: one nudge naming it
 
    Each scenario's main-call count is the cost the lane is about: wjrun was 4 calls on e316231d7 (a false
-   "ending without running anything" bought the 4th). */
+   "ending without running anything" bought the 4th). absname and failproj are review round 1's blockers 2 and 1 on the
+   real station: 867313704 ended both with no nudge (a fake done). Every main call's prompt size (request bytes / 4) is
+   printed as a `measure:` line, so the same rig on another commit prices the difference. */
 'use strict';
 const http = require('node:http');
+const path = require('node:path');
 const A = require('./_assert.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
@@ -21,10 +29,29 @@ const MARK = 'LOOP_TRUTH_E2E_LEAD';
 const FLOOR = ['cabinet', 'dish', 'notebook', 'studio', 'workbench'].map(objectType => ({ objectType }));
 const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (p && (p.text || '')) || '').join('') : '');
 const BRIEF = { name: 'brief_proceed', args: { objective: 'do the task as asked', deliverable: 'the file', assumptions: ['use the workspace root'] } };
+const shell = cmd => ({ name: 'shell_exec', args: { cmd } });
+// the folder this scenario's `node -e "console.log(process.cwd())"` printed: the workspace root the shell starts in
+function printedCwd(after) {
+  for (const m of after) {
+    if (m.role !== 'tool') continue;
+    const line = text(m.content).split(/\r?\n/).map(l => l.trim()).find(l => l && path.isAbsolute(l));
+    if (line) return line;
+  }
+  return '';
+}
 const PLANS = {
-  SCEN_WJRUN: [[BRIEF, { name: 'fs_write', args: { path: 'hello.js', content: 'console.log("hello world");\n' } }], [{ name: 'shell_exec', args: { cmd: 'node hello.js' } }]],
+  SCEN_WJRUN: [[BRIEF, { name: 'fs_write', args: { path: 'hello.js', content: 'console.log("hello world");\n' } }], [shell('node hello.js')]],
   SCEN_WRITEONLY: [[BRIEF, { name: 'fs_write', args: { path: 'src/app.js', content: 'module.exports = 1;\n' } }]],
-  SCEN_HELDEND: [[{ name: 'fs_write', args: { path: 'note.txt', content: 'note\n' } }]]
+  SCEN_HELDEND: [[{ name: 'fs_write', args: { path: 'note.txt', content: 'note\n' } }]],
+  SCEN_CDRUN: [[BRIEF, { name: 'fs_write', args: { path: 'sub/hello.js', content: 'console.log("hello from sub");\n' } }], [shell('cd sub')], [shell('node hello.js')]],
+  SCEN_ABSNAME: [[BRIEF, shell('node -e "console.log(process.cwd())"')],
+    after => {
+      const dir = printedCwd(after);
+      return dir ? [{ name: 'fs_write', args: { path: 'hello.js', content: 'console.log("root namesake");\n' } },
+        { name: 'fs_write', args: { path: path.join(dir, 'src', 'hello.js'), content: 'console.log("the changed file");\n' } }] : null;
+    },
+    [shell('node hello.js')]],
+  SCEN_FAILPROJ: [[BRIEF, { name: 'fs_write', args: { path: 'src/app.js', content: 'module.exports = 1;\n' } }], [shell('node tests/missing.js')], [shell('node src/app.js')]]
 };
 
 function startUpstream() {
@@ -49,16 +76,17 @@ function startUpstream() {
     const after = dirIdx >= 0 ? msgs.slice(dirIdx + 1) : [];
     // every host note the loop added since the directive (system-role, or riding user-side on this wire)
     const hostNotes = after.filter(m => m.role === 'system' || m.role === 'user').map(m => text(m.content));
-    const rec = { scen, main, hostNotes, toolResults: after.filter(m => m.role === 'tool').map(m => text(m.content)) };
+    const promptTok = Math.ceil(raw.length / 4);
+    const rec = { scen, main, hostNotes, promptTok, toolResults: after.filter(m => m.role === 'tool').map(m => text(m.content)) };
     calls.push(rec);
     let out = null, reply = main ? 'Done: ' + scen + ' complete.' : (/title/i.test(sys) ? 'Loop Truth Probe' : 'NONE');
     if (main) {
       const steps = after.filter(m => m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length).length;
       const plan = PLANS[scen] || [];
-      if (steps < plan.length) out = plan[steps].filter(c => tools.indexOf(c.name) >= 0);
+      if (steps < plan.length) out = typeof plan[steps] === 'function' ? plan[steps](after) : plan[steps];
+      if (out) out = out.filter(c => tools.indexOf(c.name) >= 0);
       if (out && !out.length) out = null;
     }
-    const promptTok = Math.ceil(raw.length / 4);
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     if (out) {
       const tcs = out.map((c, k) => ({ index: k, id: 'call_' + calls.length + '_' + k, type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } }));
@@ -81,6 +109,8 @@ function hermeticEnv() {
   return Object.assign(env, { SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0',
     SKYNET_THREAD_MINE: '0', STARNET_LIVE_PRICES: '0', STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', STARNET_BUILD_DESCRIBE: 'v0.15.0-loop-truth' });
 }
+// the touched list a verify nudge names: "You changed code in this run (<list>) ..."
+const touchedOf = t => { const m = /You changed code in this run \(([^)]*)\)/.exec(String(t || '')); return m ? m[1].split(', ') : []; };
 
 (async () => {
   const up = await startUpstream();
@@ -100,6 +130,8 @@ function hermeticEnv() {
       const runs = await fixture.json('GET', '/api/runs?agent=agent&limit=20');
       const row = ((runs.body && runs.body.runs) || []).find(x => x.streamId === streamId) || null;
       const notes = main.length ? main[main.length - 1].hostNotes : [];
+      // the hermetic price of the scenario: main calls and each one's prompt size (request bytes / 4)
+      console.log('measure: ' + name + ' main calls ' + main.length + ', prompt tokens [' + main.map(c => c.promptTok).join(', ') + '] = ' + main.reduce((s, c) => s + c.promptTok, 0));
       return { end, main, row, notes, tagged: tag => notes.filter(t => t.indexOf('<' + tag + '>') >= 0) };
     }
 
@@ -124,9 +156,36 @@ function hermeticEnv() {
     const he = await scenario('SCEN_HELDEND', 'Save a note to note.txt');
     const fr = he.tagged('failure_recovery');
     A.eq(fr.length, 1, 'heldend: a call the Task Brief held buys one recovery note');
-    A.ok(fr.length === 1 && !/The previous path failed/.test(fr[0]) && /\bheld\b/.test(fr[0]) && /nothing ran/.test(fr[0]), 'heldend: the note says held and nothing ran, never failed: ' + JSON.stringify(String(fr[0] || '').slice(0, 200)));
+    A.ok(fr.length === 1 && !/The previous path failed/.test(fr[0]) && /\(fs_write\) was held by the Task Brief gate, not failed: it did not run\./.test(fr[0]) && !/nothing ran/.test(fr[0]), 'heldend: the note says held and that IT did not run, never failed: ' + JSON.stringify(String(fr[0] || '').slice(0, 200)));
     A.eq(he.main.length, 3, 'heldend: held write, answer, noted answer = 3 model calls (e316231d7 made 4: two "failed" notes)');
     A.eq(he.row && he.row.nudges, { failure_recovery: 1 }, 'heldend: the run row counts the recovery note');
+
+    // ---- a `cd` kept from an earlier call is where the next command runs: the shell says so, and it counts ----
+    const cd = await scenario('SCEN_CDRUN', 'Create sub/hello.js, cd into sub and run it');
+    const cdLast = cd.main.length >= 4 ? String(cd.main[3].toolResults.slice(-1)[0] || '') : '';
+    A.ok(/hello from sub/.test(cdLast) && /\[exit 0\]\s*$/.test(cdLast.trim()), 'cdrun: after `cd sub` the real shell ran sub/hello.js: ' + JSON.stringify(cdLast.slice(-120)));
+    A.eq(cd.tagged('verify_before_done').length, 0, 'cdrun: `node hello.js` after `cd sub` ran the changed sub/hello.js: no nudge (867313704 nudged here)');
+    A.eq(cd.main.length, 4, 'cdrun: write, cd, run, answer = 4 model calls');
+    A.eq(cd.row && Object.prototype.hasOwnProperty.call(cd.row, 'nudges'), false, 'cdrun: no nudges on the row');
+
+    // ---- blocker 2: a same-named file somewhere else never clears the changed one ----
+    const an = await scenario('SCEN_ABSNAME', 'Create src/hello.js by its absolute path and a root hello.js, then run hello.js');
+    const anRan = an.main.length >= 4 ? String(an.main[3].toolResults.slice(-1)[0] || '') : '';
+    A.ok(/root namesake/.test(anRan) && /\[exit 0\]\s*$/.test(anRan.trim()), 'absname: the real shell ran the ROOT hello.js, exit 0: ' + JSON.stringify(anRan.slice(-120)) + ' (the workspace printed: ' + JSON.stringify(an.main.length >= 2 ? an.main[1].toolResults : null).slice(0, 400) + ')');
+    const anVos = an.tagged('verify_before_done');
+    A.eq(anVos.length, 1, 'absname: the changed absolute src\\hello.js never ran, so the nudge fires (867313704 cleared it: the suffix matched)');
+    const anOwed = touchedOf(anVos[0]);
+    A.ok(anOwed.length === 1 && path.isAbsolute(anOwed[0]) && /[\\/]src[\\/]hello\.js$/.test(anOwed[0]), 'absname: ...naming only the absolute src\\hello.js still owed: ' + JSON.stringify(anOwed));
+    A.eq(an.row && an.row.nudges, { verify_before_done: 1 }, 'absname: the run row counts it');
+
+    // ---- blocker 1: a failed check stands after a clean run of the changed file ----
+    const fp = await scenario('SCEN_FAILPROJ', 'Create src/app.js, run its tests, then run it');
+    const fpTests = fp.main.length >= 3 ? String(fp.main[2].toolResults.slice(-1)[0] || '') : '';
+    A.ok(/\[exit 1\]\s*$/.test(fpTests.trim()), 'failproj: the real `node tests/missing.js` failed with exit 1: ' + JSON.stringify(fpTests.slice(-120)));
+    const fpVos = fp.tagged('verify_before_done');
+    A.eq(fpVos.length, 1, 'failproj: a passing `node src/app.js` never erases the failed check: the nudge fires (867313704: none)');
+    A.ok(fpVos.length === 1 && /\(node tests\/missing\.js\) did NOT pass and has not passed since\./.test(fpVos[0]), 'failproj: ...naming the failed check: ' + JSON.stringify(String(fpVos[0] || '').slice(0, 260)));
+    A.eq(fp.row && fp.row.nudges, { verify_before_done: 1 }, 'failproj: the run row counts it');
   } finally {
     await fixture.dispose();
     await new Promise(r => up.server.close(r));
