@@ -401,6 +401,8 @@ const AUTHORITY_FILES = new Map([
   ['permissions.bypass.json', 'FULL BYPASS is off after a restore. Turn it on again in SETTINGS if you want it.'],
   ['hooks-allowed.json', 'Hooks stay off after a restore until you approve each one again.'],
   ['plugins-allowed.json', 'Plugins stay off after a restore until you approve each one again.'],
+  // who owns each chat bot is sealed with this computer's key (final review #3): it never travels, and a bot pairs its owner again
+  ['channels/channel-owners.json', 'Each chat bot pairs its owner again after a restore (PAIR OWNER, from the desk).'],
   ['skills-allowed.json', 'Skills that needed approval ask again after a restore.'],
   // with no file the dial reads Autonomy.fresh() and the dossier verdict reads not ready: both are the safe default
   ['_commander.autonomy.json', 'How much your agents may do on their own is back at its default after a restore. Set it again if you want more.']

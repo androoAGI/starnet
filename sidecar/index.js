@@ -1180,7 +1180,10 @@ function readJsonIfPresent(file) {
   catch (e) { if (e && e.code === 'ENOENT') return undefined; throw e; }
 }
 // where each sealed file lives: the phones' file sits in .secrets (review 4a), the rest beside the jail
-const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKSPACES, '.secrets', 'remote.json') : path.join(WORKSPACES, path.basename(String(name)));
+// (final review #3: the chat channels' owners record sits beside channels/secrets.json)
+const authorityFileOf = name => String(name) === 'remote.json' ? path.join(WORKSPACES, '.secrets', 'remote.json')
+  : String(name) === 'channel-owners.json' ? path.join(WORKSPACES, 'channels', 'channel-owners.json')
+  : path.join(WORKSPACES, path.basename(String(name)));
 const authoritySealLastFile = name => authorityFileOf(name) + authoritySealMod.LAST_SUFFIX;
 const authoritySeal = authoritySealMod.makeAuthoritySeal({
   key: connectorVault.deriveKey(authoritySealMod.LABEL),
@@ -1222,6 +1225,23 @@ const authoritySeal = authoritySealMod.makeAuthoritySeal({
 const authoritySealBoot = authoritySeal.boot(authoritySealMod.NAMES.map(name => {
   const file = authorityFileOf(name);
   const resilient = name === 'permissions.bypass.json' || name === 'agent.roster.json' || name === 'permissions.allow.json';
+  if (name === 'channel-owners.json') {
+    // final review #3: who owns each chat channel. Before this record existed the owners lived only in channels/secrets.json,
+    // so the one-time upgrade (or a marker that does not cover it yet) seals what that file says, once; afterwards an absent
+    // record is read as it is (no owners), never derived again
+    return {
+      name: name,
+      read: () => {
+        const own = readJsonIfPresent(file);
+        if (own !== undefined) return own;
+        let secrets;
+        try { secrets = readJsonIfPresent(path.join(WORKSPACES, 'channels', 'secrets.json')); } catch (_) { return undefined; }
+        const derived = channelOwnersOf(secrets);
+        return Object.keys(derived.owners).length ? derived : undefined;
+      },
+      write: v => { fs.mkdirSync(path.dirname(file), { recursive: true }); writeFileDurable({ fs: fs, path: path }, file, JSON.stringify(v, null, 2) + '\n'); }
+    };
+  }
   if (name === 'remote.json') {
     // the phones' file is the remote module's resilient store (durable-store), sealed through it at the upgrade too
     const { readJsonResilient: readRemote, writeJsonResilient: writeRemote } = require('./durable-store.js');
@@ -5657,10 +5677,116 @@ const persistChannelSecretsVerified = channelSecretsMod.makeVerifiedPersist({
   }
 });
 function saveChannelSecrets(obj) {   // protected sibling of the fs jail; the agent's own fs.* tools can't read/write it
-  const r = persistChannelSecretsVerified(obj);
+  const r = persistChannelSecretsVerified(withWithheldChannelOwners(obj));
   if (!r.ok) console.warn('[channels] secrets persist UNVERIFIED after retry (' + r.error + ') — channel config/token may not survive a restart');
-  else credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
+  else {
+    credStore.settleChannels(channelSecretsMod.credentialRows(obj));   // proven on disk: a bot's own credential keeps the version its record names
+    sealChannelOwners(obj);   // final review #3: the owners it now names, sealed (after the records, so a crash between reads as no owner)
+  }
   return r.ok;   // callers with a response channel surface this honestly (never a false "saved")
+}
+/* WHO OWNS A CHAT CHANNEL IS SEALED (final review #3, 2026-11-08). The paired owner of each bot (Telegram, every agent bot,
+   Discord, Slack, Matrix, Signal) is the account whose DM runs as the Commander, and its pending pairing challenge is what
+   makes the next /pair <code> that owner. Both lived only in channels/secrets.json, unsealed, so a same-user process that
+   rewrote ownerId (or planted a pairing verifier for a code it knew) owned the bot after the next boot. They are now also
+   kept in channels/channel-owners.json, sealed whole by authority-seal.js (its NAMES), and a record's ownerId or
+   ownerPairing is used only when the sealed record says the same. One that does not match, or a sealed record that is
+   missing, edited or older than the last change (the floor moves when an owner is revoked or replaced), reads as no owner:
+   the bot answers nobody until the owner pairs again from the desk, and the page says why. Every save of the records
+   reseals it, so a pairing, claim or revoke made here keeps it current. A bare station (no credential-store key) checks
+   nothing, as before. A boot that cannot check (the seal held, or the record locked) uses no owner but keeps the saved one
+   on disk for the next boot. */
+function channelOwnersOf(obj) {
+  const owners = {};
+  const take = (id, r) => {
+    if (!r || typeof r !== 'object' || Array.isArray(r)) return;
+    const row = {};
+    if (r.ownerId !== undefined && r.ownerId !== null && String(r.ownerId) !== '') row.ownerId = String(r.ownerId);
+    if (r.ownerPairing && typeof r.ownerPairing === 'object') row.pairing = r.ownerPairing;
+    if (Object.keys(row).length) owners[id] = row;
+  };
+  const src = (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+  for (const k of Object.keys(src)) {
+    if (k === authoritySealMod.FIELD) continue;
+    if (k === 'telegramBots') {
+      const bots = src.telegramBots;
+      if (bots && typeof bots === 'object' && !Array.isArray(bots)) for (const b of Object.keys(bots)) take('telegramBots:' + b, bots[b]);
+    } else take(k, src[k]);
+  }
+  return { version: 1, owners };
+}
+const CHANNEL_OWNERS_NAME = 'channel-owners.json';
+const CHANNEL_OWNERS_FILE = authorityFileOf(CHANNEL_OWNERS_NAME);
+const channelOwnersWithheld = new Map();   // record id -> the owner fields a boot that could not check left out (kept on disk)
+let channelOwnersSealed = null;            // canonical form of the owners record last opened or sealed (null: none)
+const channelRecordOf = (obj, id) => String(id).indexOf('telegramBots:') === 0
+  ? ((obj.telegramBots && typeof obj.telegramBots === 'object') ? obj.telegramBots[String(id).slice(13)] : undefined) : obj[id];
+function withChannelRecord(obj, id, rec) {
+  if (String(id).indexOf('telegramBots:') !== 0) return Object.assign({}, obj, { [id]: rec });
+  return Object.assign({}, obj, { telegramBots: Object.assign({}, obj.telegramBots, { [String(id).slice(13)]: rec }) });
+}
+function trustChannelOwners(obj) {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+  if (!authoritySeal.keyed && !authoritySeal.held) return obj;   // a bare station: nothing sealed or checked, as before
+  const claimed = channelOwnersOf(obj).owners;
+  let raw, cannot = '';
+  if (authoritySeal.held) cannot = 'held';
+  else {
+    try { raw = readJsonIfPresent(CHANNEL_OWNERS_FILE); }
+    catch (e) { if (e instanceof SyntaxError) raw = {}; else cannot = String((e && e.code) || 'unreadable'); }   // torn: unsealed
+  }
+  const opened = cannot ? null : authoritySeal.open(CHANNEL_OWNERS_NAME, raw);
+  const sealedOwners = (opened && opened.ok && opened.value && typeof opened.value.owners === 'object' && opened.value.owners) || {};
+  if (opened && opened.ok && !opened.absent) channelOwnersSealed = authoritySealMod.canonical(opened.value);
+  const C = authoritySealMod.canonical;
+  let out = obj;
+  const dropped = [];
+  for (const id of Object.keys(claimed)) {
+    const have = claimed[id], want = sealedOwners[id] || null;
+    const ownerOk = have.ownerId === undefined || !!(want && want.ownerId === have.ownerId);
+    const pairOk = have.pairing === undefined || !!(want && want.pairing && C(want.pairing) === C(have.pairing));
+    if (ownerOk && pairOk) continue;
+    const rec = Object.assign({}, channelRecordOf(out, id));
+    const keep = {};
+    if (!ownerOk) { keep.ownerId = rec.ownerId; delete rec.ownerId; }
+    if (!pairOk) { keep.ownerPairing = rec.ownerPairing; delete rec.ownerPairing; }
+    out = withChannelRecord(out, id, rec);
+    if (cannot) channelOwnersWithheld.set(id, keep);
+    else dropped.push(id);
+  }
+  if (cannot && channelOwnersWithheld.size) console.warn('[channels] the sealed record of channel owners could not be checked this boot (' + cannot + '), so no bot has an owner until StarNet restarts; the saved owners are kept');
+  if (dropped.length) {
+    const words = dropped.map(id => id.replace(/^telegramBots:/, 'the agent bot ')).join(', ');
+    console.warn('[channels] ' + words + ': its paired owner is not in the sealed record of channel owners, so the bot answers nobody until the owner pairs again from the desk');
+    if (opened && opened.ok) authoritySeal.refused(CHANNEL_OWNERS_NAME, 'The paired owner of ' + words + ' is not in ' + CHANNEL_OWNERS_NAME + ' (' + (opened.absent ? 'it is missing' : 'it names someone else') + '), so that bot answers nobody until you pair its owner again from the desk.');
+  }
+  return out;
+}
+// a boot that could not check keeps the owners it left out on disk (never erased by an unrelated save)
+function withWithheldChannelOwners(obj) {
+  if (!channelOwnersWithheld.size || !obj || typeof obj !== 'object') return obj;
+  let out = obj;
+  for (const [id, keep] of channelOwnersWithheld) {
+    const rec = channelRecordOf(out, id);
+    if (!rec || typeof rec !== 'object' || rec.ownerId !== undefined || rec.ownerPairing !== undefined) continue;
+    out = withChannelRecord(out, id, Object.assign({}, rec, keep));
+  }
+  return out;
+}
+function sealChannelOwners(obj) {
+  if (!authoritySeal.keyed || authoritySeal.held) return;
+  const next = channelOwnersOf(obj);
+  const canon = authoritySealMod.canonical(next);
+  if (canon === channelOwnersSealed) return;
+  if (channelOwnersSealed === null && !Object.keys(next.owners).length) return;   // nothing owned, nothing sealed yet
+  try {
+    const sealed = authoritySeal.seal(CHANNEL_OWNERS_NAME, next);
+    fs.mkdirSync(path.dirname(CHANNEL_OWNERS_FILE), { recursive: true });
+    writeFileDurable({ fs: fs, path: path }, CHANNEL_OWNERS_FILE, JSON.stringify(sealed, null, 2) + '\n');
+    channelOwnersSealed = canon;
+  } catch (e) {
+    console.warn('[channels] the sealed record of channel owners could not be written (' + String((e && (e.code || e.message)) || e).slice(0, 120) + '): an owner paired or changed now must pair again after a restart');
+  }
 }
 // a record save that could not be proven, and a route that rolled its record back: each bot's own credential keeps the versions the
 // records in memory and the main file a boot reads name, so a change neither names is undone (credential-store.js settleChannels).
@@ -5735,7 +5861,7 @@ function mirrorPurgedChannelRecordToBak(id, botId) {
     return false;
   }
 }
-let channelSecrets = loadChannelSecrets();
+let channelSecrets = trustChannelOwners(loadChannelSecrets());   // final review #3: an owner the sealed record does not name is no owner
 /* THE CHANNEL RECONCILIATION (credential-store.js CHANNELS: the steps, and why each is in this order), at every boot and safe to run
    again. The store writes what must reach the channel file before a record changes; the records are saved here; only then do
    entries go (finish). A file that could not be read is left alone, and nothing is deleted because of it: a locked secrets.json

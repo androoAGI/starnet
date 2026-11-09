@@ -728,7 +728,23 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
 
   // ---- 11. review 4a (fix-sec2): permissions.allow.json, remote.json and the routines' grants are sealed too ----
   {
-    A.eq(S.NAMES.slice(5), ['permissions.allow.json', 'remote.json'], 'two more whole files are sealed');
+    A.eq(S.NAMES.slice(5), ['permissions.allow.json', 'remote.json', 'channel-owners.json'], 'three more whole files are sealed (final review #3 added the chat channels\' owners)');
+    // final review #3: who owns each chat bot. A cap keeps only an owner (or pending pairing) it names the very same way.
+    {
+      const own = (o) => ({ version: 1, owners: o });
+      const kept = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '111' }, 'telegramBots:b1': { ownerId: '7' } }), own({ telegram: { ownerId: '111' }, 'telegramBots:b1': { ownerId: '7' } }), 0);
+      A.eq(kept.dropped, [], 'the same owners take nothing away');
+      const swapped = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '666' } }), own({ telegram: { ownerId: '111' } }), 0);
+      A.eq(swapped.value.owners, {}, 'an owner the cap does not name is not kept');
+      A.eq(swapped.dropped.length, 1, 'and is named as dropped');
+      const planted = S.lowerOf('channel-owners.json', own({ discord: { pairing: { salt: 'x', digest: 'y' } } }), own({}), 0);
+      A.eq(planted.value.owners, {}, 'nor a pairing challenge the cap does not hold');
+      const revoke = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '111' } }), own({}), 0);
+      A.ok(revoke.dropped.length === 1, 'removing an owner takes something away (its floor moves: an older record cannot be put back)');
+      const add = S.lowerOf('channel-owners.json', own({}), own({ telegram: { ownerId: '111' } }), 0);
+      A.eq(add.dropped, [], 'pairing a new owner takes nothing away');
+      A.ok(/pair its owner again/.test(S.CONSEQUENCE['channel-owners.json']), 'a refused record says the bot pairs its owner again');
+    }
     A.eq(S.PART_NAMES, ['cron.jobs.json'], 'and the routine store in parts');
     // lowerOf: an approval or trusted folder added without the key is not taken; one removed stays removed
     const low = S.lowerOf('permissions.allow.json', { version: 1, allow: ['cabinet:write', 'path:/new', 'web:execute'], meta: { 'cabinet:write': { grantedAt: 1 }, 'path:/new': { grantedAt: 2 } } },

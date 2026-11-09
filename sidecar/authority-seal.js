@@ -100,7 +100,13 @@
        verifies every routine the keyless station did not change.
    A workspace sealed before these three existed (its marker has no `covers`, or does not list one) seals each of them
    once as it is, at its first keyed boot, the same one-time upgrade the five had; `covers` in the sealed marker then
-   lists it, so the upgrade cannot be asked for again. */
+   lists it, so the upgrade cannot be asked for again.
+
+   AND WHO OWNS EACH CHAT BOT (final review #3, 2026-11-08): channels/channel-owners.json, sealed whole, holds each bot's
+   paired owner and pending pairing challenge, which channels/secrets.json (unsealed: it is rewritten with tokens and
+   config) also carries. index.js trustChannelOwners uses a record's owner only where this file names the same one, so a
+   rewritten ownerId reads as no owner (pair again from the desk). Its first seal, at the upgrade or under a marker that
+   does not cover it yet, is what channels/secrets.json says then (the same one-time upgrade as the rest). */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -111,8 +117,8 @@ const MARKER_NAME = 'authority-seal.json';
 const LAST_SUFFIX = '.sealed-last';
 const RESTORED_NAME = 'authority-restored.json';
 const LEGACY_NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
-// sealed as whole files (review 4a added the last two)
-const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remote.json']));
+// sealed as whole files (review 4a added permissions.allow.json and remote.json; final review #3 the chat channels' owners)
+const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remote.json', 'channel-owners.json']));
 // sealed in parts by their owner (index.js), not as one value
 const PART_NAMES = Object.freeze(['cron.jobs.json']);
 const ALL_NAMES = Object.freeze(NAMES.concat(PART_NAMES));
@@ -126,6 +132,7 @@ const CONSEQUENCE = Object.freeze({
   'plugins-allowed.json': 'every plugin waits for your approval again.',
   'permissions.allow.json': 'every standing permission and every trusted project folder is off. Give them again in PERMISSIONS.',
   'remote.json': 'remote access is off and every paired phone waits for your approval at the desk again, asking first.',
+  'channel-owners.json': 'no chat bot has an owner: each one answers nobody until you pair its owner again from the desk.',
   'cron.jobs.json': 'those routines run without their unattended grants, and a notepad counts as outside content. Grant them again in SCHEDULES.'
 });
 
@@ -261,6 +268,18 @@ function lowerOf(name, value, cap, nowMs) {
     const enabled = v.enabled === true && c.enabled === true;
     if (v.enabled === true && !enabled) dropped.push('remote access on');
     return { value: Object.assign({}, v, { devices, enabled }), dropped };
+  }
+  if (name === 'channel-owners.json') {
+    // a bot's owner (or its pending pairing) kept only where the cap names the very same one (final review #3)
+    const v = plainObject(value) ? value : {};
+    const rows = plainObject(v.owners) ? v.owners : {};
+    const had = plainObject(c.owners) ? c.owners : {};
+    const owners = {};
+    for (const k of Object.keys(rows)) {
+      if (plainObject(rows[k]) && plainObject(had[k]) && canonical(rows[k]) === canonical(had[k])) owners[k] = rows[k];
+      else dropped.push('the owner of ' + String(k).replace(/^telegramBots:/, 'the agent bot ').slice(0, 60));
+    }
+    return { value: Object.assign({}, v, { version: 1, owners }), dropped };
   }
   if (name === 'hooks-allowed.json' || name === 'plugins-allowed.json') {
     const v = plainObject(value) ? value : {};
