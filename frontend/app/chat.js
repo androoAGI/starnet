@@ -10765,7 +10765,14 @@ const Chat = (() => {
   }
   // WARN-not-block (same precedent as /model against the warmed catalog): if the selected model has no reasoning
   // dial, setting one is a no-op — say so rather than letting the confirmation imply an effect it won't have.
+  // The Claude CLI is given no effort for a message (sidecar effortAsRun: its run records say 'cli-default'), so on it this
+  // dial changes nothing a message runs on, and no line here may promise that it does.
+  function effortReachesModel() {
+    const prov = (typeof Harness !== 'undefined' && Harness.getProv && Harness.getProv()) || '';
+    return String(prov).trim().toLowerCase() !== 'claude-cli';
+  }
   function reasoningModelNote() {
+    if (!effortReachesModel()) return ' Note: Claude Code runs your messages on its own default effort, so this setting does not change them.';
     try {
       if (typeof ModelDock === 'undefined' || !ModelDock._internals || !ModelDock._internals.supportsReasoning) return '';
       const model = (Harness.getModel && Harness.getModel()) || '';
@@ -10781,7 +10788,7 @@ const Chat = (() => {
     const cur = Harness.getReasoningEffort(prov);
     if (!raw || raw === 'status') {
       return localLine('Reasoning effort: ' + cur + (prov ? ' (for ' + prov + ')' : '') + '. Set it with /reasoning '
-        + REASONING_LEVELS.join('|') + ' — lower answers faster and cheaper, higher thinks longer first.' + reasoningModelNote());
+        + REASONING_LEVELS.join('|') + (effortReachesModel() ? ' — lower answers faster and cheaper, higher thinks longer first.' : '.') + reasoningModelNote());
     }
     const want = reasoningLevelOf(raw);
     if (!want) return localLine('"' + raw + '" is not a reasoning level. Pick one of: ' + REASONING_LEVELS.join(', ') + '.');
@@ -10792,7 +10799,7 @@ const Chat = (() => {
     const now = Harness.getReasoningEffort((Harness.getProv && Harness.getProv()) || prov);
     if (now !== want) return localLine('Could not set reasoning effort to ' + want + ' — it is still ' + now + '.');
     localLine('Reasoning effort: ' + cur + ' → ' + want + (prov ? ' (for ' + prov + ')' : '')
-      + '. Takes effect on your next message.' + reasoningModelNote());
+      + (effortReachesModel() ? '. Takes effect on your next message.' : '.') + reasoningModelNote());
   }
   /* ---- /fast — a shortcut onto that SAME dial.
      StarNet has no separate "fast mode", and inventing one would be a lie — the old handler admitted as much and
@@ -10803,13 +10810,14 @@ const Chat = (() => {
     const prov = (Harness.getProv && Harness.getProv()) || '';
     const cur = Harness.getReasoningEffort(prov);
     if (cur === 'minimal' || cur === 'none') {
+      if (!effortReachesModel()) return localLine('Reasoning effort is already ' + cur + '.' + reasoningModelNote());
       return localLine('Already as fast as it gets — reasoning effort is ' + cur + '. /reasoning medium to let it think longer.');
     }
     if (typeof App === 'undefined' || !App.applyConfig) return localLine('Reasoning effort could not be changed on this surface.');
     App.applyConfig({ reasoningEffort: 'minimal' });
     const now = Harness.getReasoningEffort((Harness.getProv && Harness.getProv()) || prov);
     if (now !== 'minimal') return localLine('Could not switch to minimal reasoning — effort is still ' + now + '.');
-    localLine('Reasoning effort: ' + cur + ' → minimal — quicker, cheaper replies. /reasoning ' + cur + ' to put it back.' + reasoningModelNote());
+    localLine('Reasoning effort: ' + cur + ' → minimal' + (effortReachesModel() ? ' — quicker, cheaper replies' : '') + '. /reasoning ' + cur + ' to put it back.' + reasoningModelNote());
   }
   function voiceCommand(args) {
     if (typeof Voice === 'undefined') return localLine('Voice controls are not available in this surface.');
