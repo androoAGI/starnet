@@ -442,7 +442,7 @@ A.eq(Policy.canMutate({ status: 'executing' }, { scope: 'execute' }).ok, true, '
   const hubSrc = fs.readFileSync(path.join(__dirname, '../sidecar/channels/hub.js'), 'utf8');
   const orchestrationSrc = fs.readFileSync(path.join(__dirname, '../sidecar/tools/builtin/orchestration.js'), 'utf8');
   A.ok(/taskBriefStore\.prepare/.test(indexSrc) && /TaskIntent\.directive/.test(indexSrc), 'runOnce prepares the durable brief and injects the shared doctrine');
-  A.ok(/taskContext:\s*taskContextBlock/.test(indexSrc) && /workerSystem/.test(orchestrationSrc), 'delegated workers inherit the settled brief without re-questioning the Commander');
+  A.ok(/taskContext:\s*taskContextBlock/.test(indexSrc) && /workerPrompt/.test(orchestrationSrc) && /o\.delegatedContext/.test(indexSrc), 'delegated workers inherit the settled brief without re-questioning the Commander');
   A.ok(/taskQuestionAsked/.test(indexSrc) && /!taskQuestionAsked/.test(indexSrc), 'clarifications suppress completed-task learning sweeps');
   A.ok(/\{ source: 'marker' \}/.test(indexSrc) && !/The model identified a material unresolved decision/.test(indexSrc), 'the marker settle path records honestly instead of fabricating validation metadata');
   A.ok(/bufferedTaskEnd/.test(indexSrc) && /taskQuestionAsked\s*\?\s*'clarifying'/.test(indexSrc) && !/taskQuestionAsked\s*\?\s*'cancelled'/.test(indexSrc), 'clarification ends as the honest additive clarifying terminal before global completed-work listeners run');
