@@ -214,7 +214,42 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   before('async function handleConsent(', /deskGate\(req, res, 'consent-' \+ decision/, /persistAgentFullAccess\(agentId\)/, 'FULL ACCESS / ALWAYS answers ask before anything resolves');
   A.ok(/finish\.freshConsent !== true && \(decision === 'always' \|\| decision === 'full' \|\| decision === 'session'\)/.test(A.fnBody(IDX, 'async function handleConsent(')), 'standing answers and for-the-session answers ask (once and deny never do; fix-sec2 review 3)');
   // fix-sec2 review 3, 6, 7: the authority changes the first pass left on the page token alone
-  before('async function handleTelegramOwnerPair(', /deskGate\(req, res, 'telegram-owner-pair'/, /issueTelegramOwnerPairing\(cur\)/, 'a Telegram owner pairing code asks first');
+  before('async function handleTelegramOwnerPair(', /ownerPairingPass\(req, res, 'telegram-owner-pair'/, /issueTelegramOwnerPairing\(cur, ownerPass\)/, 'a Telegram owner pairing code asks first');
+  // review2 #1: every route that can hand out an owner code asks first, before anything is saved or started
+  before('async function handleChannelConnect(', /ownerPass = ownerPairingPass\(req, res, 'telegram-owner-pair', '', \{ connecting: true \}\)/, /credStore\.putChannel\('telegram'/, 'connecting the station bot with no owner asks before anything is saved');
+  before('async function handleTelegramBotAdd(', /ownerPass = ownerPairingPass\(req, res, 'channel-owner-pair', 'telegram-bot:' \+ botId/, /probeChannelRunConfig\(/, 'adding an agent bot with no owner asks before the provider probe');
+  before('async function handleTelegramBotAdd(', /ownerPass = ownerPairingPass\(/, /saveTelegramBotRecord\(botId/, 'and before its record is saved');
+  before('async function handleTelegramBotOwner(', /ownerPairingPass\(req, res, 'channel-owner-pair', 'telegram-bot:' \+ botId/, /issueTelegramBotOwnerPairing\(botId, ownerPass\)/, 'an agent bot\'s PAIR asks first');
+  before('async function handleDiscordConnect(', /ownerPass = ownerPairingPass\(req, res, 'channel-owner-pair', 'discord'/, /credStore\.putChannel\('discord'/, 'connecting Discord with no owner asks first');
+  before('async function handleGenericChannelConnect(', /ownerPass = ownerPairingPass\(req, res, 'channel-owner-pair', id/, /credStore\.putChannel\(id/, 'connecting Slack, Matrix or Signal with no owner asks first');
+  before('async function handleChannelOwnerPair(', /ownerPairingPass\(req, res, 'channel-owner-pair', id/, /issueChannelOwnerPairing\(id, ownerPass\)/, 'their PAIR OWNER asks first');
+  {
+    // the code is made in exactly one place, and that place makes one only for a pass the desk gate handed out, once
+    const sites = IDX.split('telegramOwnerPairing.issue(').length - 1;
+    A.eq(sites, 1, 'an owner code is made in one place only');
+    const mint = A.fnBody(IDX, 'function mintOwnerCode(');
+    A.ok(mint.indexOf('telegramOwnerPairing.issue(') > 0, 'and that place is mintOwnerCode');
+    const passFn = A.fnBody(IDX, 'function ownerPairingPass(');
+    A.ok(/if \(!deskGate\(req, res, action, scope, details\)\) return null;/.test(passFn), 'a pass comes only from the desk gate');
+    const lifted = new Function('telegramOwnerPairing', 'deskGate', 'const OWNER_PAIRING_PASS = Symbol("p"); const ownerPassesSpent = new WeakSet();\n' + passFn + '\n' + mint + '\nreturn { ownerPairingPass, mintOwnerCode };');
+    let made = 0;
+    const tp = { issue: () => ({ code: 'pair-' + (++made), state: {} }) };
+    let deskSays = false;
+    const L = lifted(tp, () => deskSays);
+    A.eq(L.mintOwnerCode(null), null, 'no pass: no code');
+    A.eq(L.mintOwnerCode({ ok: true }), null, 'a look-alike pass: no code');
+    A.eq(L.ownerPairingPass({}, {}, 'channel-owner-pair', 'slack', {}), null, 'the desk said no: no pass');
+    deskSays = true;
+    const pass = L.ownerPairingPass({}, {}, 'channel-owner-pair', 'slack', {});
+    A.ok(pass && L.mintOwnerCode(pass) && made === 1, 'the desk said yes: one code');
+    A.eq(L.mintOwnerCode(pass), null, 'and the same pass makes no second one');
+    for (const fn of ['function issueChannelOwnerPairing(', 'function issueTelegramOwnerPairing(', 'function issueTelegramBotOwnerPairing(']) {
+      A.ok(/const issued = mintOwnerCode\(pass\);\s*if \(!issued\) return \{ ok: false, error: OWNER_CODE_NEEDS_DESK \};/.test(A.fnBody(IDX, fn)), fn + ' makes a code only with a pass');
+    }
+    // revoking stays free (it takes power away), and is not followed by any ungated way back to a code
+    A.ok(!/mintOwnerCode|OwnerPairing\(/.test(A.fnBody(IDX, 'async function handleTelegramOwnerRevoke(')), 'revoking an owner makes no code');
+    A.ok(/'channel-owner-pair'/.test(read('sidecar/deskproof.js')), 'the desk knows the new change');
+  }
   before('async function handleHooksAllow(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ command/, /shellHooks\.allow\(event, command\)/, 'approving a hook asks first, for that exact command');
   before('async function handleHooksCreate(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ hookCommand/, /shellHooks\.create\(/, 'creating (and so approving) a hook asks first');
   before('async function handlePluginsAllow(', /deskGate\(req, res, 'plugin-allow', id \+ '@' \+ digest/, /pluginLoader\.allow\(id, digest\)/, 'approving plugin code asks first, for that exact digest');

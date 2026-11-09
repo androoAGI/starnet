@@ -108,7 +108,7 @@ test('real host proves selected model and effective execution backend without le
     const connector = await fixture.json('POST', '/api/connectors', { id: 'doctor-mcp', label: 'Doctor MCP', transport: 'http', url: mcp.url, enabled: true });
     assert.equal(connector.status, 200);
     assert.equal(connector.body.connected, true);
-    const channel = await fixture.json('POST', '/api/channels/telegram/connect', {
+    const channel = await fixture.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:DOCTOR_FIXTURE', key: secret, model: 'openai/gpt-5', provider: 'openrouter', agentId: 'doctor', agentName: 'Doctor', system: 'diagnose'
     });
     assert.equal(channel.status, 200);

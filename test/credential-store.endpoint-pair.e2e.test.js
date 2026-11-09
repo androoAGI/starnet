@@ -291,7 +291,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       const routine = await s.routine('cus', 'custom', 'PAIR-RUN-NOW');
       const line = await s.routine('cus', 'custom', 'PAIR-LINE', { runsLine: true });
       // a bot that keeps no key of its own: it follows the station (a station reference)
-      const connected = await s.fx.json('POST', '/api/channels/telegram/connect', { token: '123456:ENDPOINT-PAIR-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
+      const connected = await s.fx.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:ENDPOINT-PAIR-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
       A.eq(connected.status, 200, 'P3b: the bot connects: the connect gate proves the pair its messages run (trunk refused it): ' + connected.text.slice(0, 300));
       await waitFor(() => tg.polling(), 'the bot polls');
       if (connected.body && connected.body.pairingCode) {
@@ -380,7 +380,7 @@ const ranDone = r => r.status === 200 && endOf(r.text).reason === 'done';
       A.ok(!!fire.blocked && fire.blocked.lastError === P3C_SENTENCE, 'P3c: the scheduled fire is blocked with the same sentence: ' + JSON.stringify(fire.blocked ? fire.blocked.lastError : fire));
       const v1 = await s.v1('cus', 'P3C-V1');
       A.ok(v1.status === 503 && /CUSTOM_OPENAI_KEY/.test(JSON.stringify(v1.body)) && /CUSTOM_OPENAI_BASE_URL/.test(JSON.stringify(v1.body)), '/v1 refuses, naming the key and an exit: ' + JSON.stringify(v1.body));
-      const bot = await s.fx.json('POST', '/api/channels/telegram/connect', { token: '123456:P3C-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
+      const bot = await s.fx.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:P3C-TOKEN', agentId: 'cus', provider: 'custom', model: MODELS.custom });
       A.ok(bot.status === 400 && /CUSTOM_OPENAI_KEY/.test(String(bot.body && bot.body.error)), 'a bot\'s connect refuses, naming the key: ' + bot.text.slice(0, 260));
       const providers = await s.providers();
       A.eq([providers.custom.configured, providers.custom.credentialSource, providers.custom.envName], [false, 'environment', 'CUSTOM_OPENAI_KEY'], 'P3c: /api/providers says the env key is what the station holds, and it cannot run');

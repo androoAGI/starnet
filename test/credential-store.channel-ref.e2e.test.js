@@ -56,6 +56,9 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { seedActiveStation } = require('./helpers/station.js');
 
 const IPC = 'credential-store-channel-ref-ipc-0123456789abcdef';
+// the StarNet window's own key: a desktop station takes an authority change (here, a bot's first owner code; review2 #1)
+// only from it, after the shell reports the yes (SidecarFixture.deskJson plays both)
+const APIK = 'credential-store-channel-ref-api-0123456789abcdef';
 const K = {
   own: 'sk-or-v1-BOT-OWN-KEY-K1-0123456789abcdef0123456789',
   page: 'sk-or-v1-PAGE-COPY-KEY-K2-0123456789abcdef0123456',
@@ -183,7 +186,7 @@ function station(label, up, tg, env) {
     roster: agents => fx.json('POST', '/api/roster', { agents: Object.keys(agents).map(id => ({ agentId: id, name: id.toUpperCase(), system: 'x', provider: agents[id], model: agents[id] === 'custom' ? LOCAL : MODEL })), updatedAt: Date.now() }),
     engineKey: body => fx.json('POST', '/api/providers/engine-key', body),
     async connect(body) {
-      const c = await fx.json('POST', '/api/channels/telegram/connect', Object.assign({ token: TOKEN, agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
+      const c = await fx.deskJson('POST', '/api/channels/telegram/connect', Object.assign({ token: TOKEN, agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
       A.eq(c.status, 200, label + ': the bot connects: ' + c.text.slice(0, 240));
       await waitFor(() => tg.polling(), label + ': the bot polls');
       if (c.body && c.body.pairingCode) {
@@ -317,7 +320,7 @@ function station(label, up, tg, env) {
 
     /* ================= 3. the desktop: an own key lasts for the session (decision 3, state 5) ================= */
     await row('3', async () => {
-      const desktop = { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('OPENROUTER_KEY', K.kc) };
+      const desktop = { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('API_TOKEN', APIK), ...pair('OPENROUTER_KEY', K.kc) };
       const s = await open('desktop', desktop);
       A.eq((await s.roster({ bot: 'openrouter' })).status, 200, 'desktop: the roster is saved');
       const c = await s.connect({ key: K.own });
@@ -341,7 +344,7 @@ function station(label, up, tg, env) {
     /* ================= 4. R4, a guard: a desktop bot on a keyless endpoint of its own ================= */
     await row('4', async () => {
       const Ubot = up.base + '/bot/v1';
-      const s = await open('r4', { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC) });
+      const s = await open('r4', { STARNET_DESKTOP_SHELL: '1', ...pair('IPC_TOKEN', IPC), ...pair('API_TOKEN', APIK) });
       A.eq((await s.roster({ bot: 'custom' })).status, 200, 'R4: the roster is saved');
       await s.connect({ provider: 'custom', model: LOCAL, baseUrl: Ubot });
       A.eq(await s.dm('R4-CONNECT'), [['/bot/', '']], 'R4: the bot runs keyless at its own endpoint');
@@ -537,7 +540,7 @@ function station(label, up, tg, env) {
       A.eq([rosterSaved.status, rosterSaved.body.held === true], [200, false], 'read-only: the founded station persists its roster');
       A.ok(JSON.parse(fs.readFileSync(path.join(s.ws, 'agent.roster.json'), 'utf8')).agents.some(a => a.agentId === 'bot'),
         'read-only: the non-hero bot is actually on the durable roster before restart');
-      const add = body => s.fx.json('POST', '/api/channels/telegram/bots/connect', Object.assign({ token: '777:CHANNEL-REF-AGENT-BOT', agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
+      const add = body => s.fx.deskJson('POST', '/api/channels/telegram/bots/connect', Object.assign({ token: '777:CHANNEL-REF-AGENT-BOT', agentId: 'bot', provider: 'openrouter', model: MODEL }, body));
       const first = await add({ key: K.addOne });
       A.eq([first.status, first.body.keyPersisted], [200, true], 'read-only: the agent-bound bot is added with its own key K1: ' + first.text.slice(0, 200));
       await waitFor(() => tg.polling(), 'read-only: the agent-bound bot polls');

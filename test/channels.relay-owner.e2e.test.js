@@ -20,6 +20,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -137,6 +138,9 @@ async function waitUntil(fn, ms, label) {
   try {
     const live = await boot(await allocatePort(), env, 20);
     child = live.child;
+    // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+    const desk = makeDeskCodeReader();
+    child.stderr.on('data', d => desk.feed(d));
     const B = 'http://' + HOST + ':' + live.port;
     const token = await bootToken(B, B);
     const relay = async (message) => {
@@ -156,7 +160,7 @@ async function waitUntil(fn, ms, label) {
     const early = await relay({ chatId: '7777', userId: '7777', text: 'hello, I am the owner now', chatType: 'dm' });
     A.eq(early.status, 403, 'an UNPAIRED bot admits no relay DM (a relay cannot claim ownership)');
 
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' }, body: '{}' })).json();
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' }, body: '{}' });
     A.ok(pair && /^[-A-Z0-9]{11}$/.test(String(pair.code || '')), 'local owner pairing issued a one-time code');
     tg.pushText(4242, 99, '/pair ' + pair.code);
     await waitUntil(() => tg.sends.some(s => String(s.chat_id) === '4242' && /Owner paired/i.test(String(s.text || ''))), 8000, 'owner-pair acknowledgement');

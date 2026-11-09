@@ -15,6 +15,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -184,10 +185,15 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
   const B = 'http://' + HOST + ':' + port;
   try {
     const token = await bootToken(B, B);
-    const api = (method, url, body) => fetch(B + url, {
-      method, headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B },
+    const api = (method, url, body, extra) => fetch(B + url, {
+      method, headers: Object.assign({ 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B }, extra || {}),
       body: body === undefined ? undefined : JSON.stringify(body)
     }).then(async r => ({ status: r.status, j: await r.json().catch(() => ({})) }));
+    // an owner code is an authority change (review2 #1): the test confirms it with the code this station printed, as the
+    // person at the station would type it
+    const desk = makeDeskCodeReader();
+    child.stderr.on('data', d => desk.feed(d));
+    const deskApi = async (method, url, body) => desk.confirm(await api(method, url, body), h => api(method, url, body, h), 'j');
 
     // Agent bots are roster identities. Give the sidecar two runnable agents plus one deliberately rejected model;
     // setup must use these records even when the caller submits a different globally focused provider/model.
@@ -212,14 +218,21 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
     A.ok(/station bot/.test(dupe.j.error || ''), 'refusal explains it IS the station bot');
 
     // ---- 2b. a valid Telegram token with a broken bound-agent credential/model fails BEFORE persistence ----
-    const badProvider = await api('POST', '/api/channels/telegram/bots/connect', { token: TOK_A, agentId: 'bad_agent', provider: 'openrouter', model: 'wrong/global-model' });
+    const badProvider = await deskApi('POST', '/api/channels/telegram/bots/connect', { token: TOK_A, agentId: 'bad_agent', provider: 'openrouter', model: 'wrong/global-model' });
     A.eq(badProvider.status, 400, 'agent provider/model authentication failure is a setup error');
     A.ok(/agent provider\/model check failed.*Provided OAuth credential is invalid/i.test(badProvider.j.error || ''), 'setup names the bound-agent authentication failure immediately');
     const afterBadProvider = (await api('GET', '/api/channels/telegram/status')).j;
     A.eq((afterBadProvider.bots || []).length, 0, 'failed agent-model proof persists no bot record and starts no poller');
 
+    // ---- 2c. review2 #1: adding a bot with no owner hands out its owner code, so the page key alone gets the desk's question ----
+    const unconfirmed = await api('POST', '/api/channels/telegram/bots/connect', { token: TOK_A, agentId: 'agent', model: 'test/model' });
+    A.eq(unconfirmed.status, 403, 'adding a bot with no owner asks at the desk first');
+    A.eq(unconfirmed.j.code, 'desk_confirm_required', 'with the desk challenge');
+    A.ok(!unconfirmed.j.pairingCode, 'and no owner code');
+    A.eq(((await api('GET', '/api/channels/telegram/status')).j.bots || []).length, 0, 'nothing was saved or started before the desk said yes');
+
     // ---- 3. add TWO agent bots; each starts polling with its OWN token ----
-    const addA = await api('POST', '/api/channels/telegram/bots/connect', {
+    const addA = await deskApi('POST', '/api/channels/telegram/bots/connect', {
       token: TOK_A, agentId: 'agent', agentName: 'WRONG CLIENT NAME', provider: 'codex', model: 'wrong/global-model'
     });
     A.eq(addA.status, 200, 'bot A added');
@@ -228,7 +241,7 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
     A.eq(addA.j.pairingRequired, true, 'bot A add response says owner pairing is still required');
     A.ok(/^[-A-Z0-9]{11}$/.test(String(addA.j.pairingCode || '')), 'bot A add response immediately carries its pairing command');
     A.ok(addA.j.providerVerified === true && addA.j.provider === 'openrouter' && addA.j.model === 'test/model', 'backend ignores stale focused config and proves the bound roster agent tuple');
-    const addB = await api('POST', '/api/channels/telegram/bots/connect', { token: TOK_B, agentId: 'scout_1', agentName: 'SCOUT', model: 'test/model' });
+    const addB = await deskApi('POST', '/api/channels/telegram/bots/connect', { token: TOK_B, agentId: 'scout_1', agentName: 'SCOUT', model: 'test/model' });
     A.eq(addB.status, 200, 'bot B added');
     A.eq(addB.j.botId, '222', 'bot B keyed by its getMe id');
     A.eq(addB.j.pairingRequired, true, 'bot B add response says owner pairing is still required');
@@ -257,7 +270,9 @@ const STATION = 'STATIONTOKEN', TOK_A = 'TOKAAA', TOK_B = 'TOKBBB';
     };
     await pairBot('111', TOK_A, addA.j.pairingCode);
     // The explicit PAIR button remains the recovery path for an expired/lost command and rotates it safely.
-    const repairB = await api('POST', '/api/channels/telegram/bots/222/owner/pair', {});
+    const repairPlain = await api('POST', '/api/channels/telegram/bots/222/owner/pair', {});
+    A.eq(repairPlain.status, 403, 'an agent bot\'s PAIR asks at the desk first');
+    const repairB = await deskApi('POST', '/api/channels/telegram/bots/222/owner/pair', {});
     A.eq(repairB.status, 200, 'bot B can rotate its automatically issued code through the recovery route');
     A.ok(/^[-A-Z0-9]{11}$/.test(String(repairB.j.code || '')), 'bot B recovery pairing code shape');
     await pairBot('222', TOK_B, repairB.j.code);

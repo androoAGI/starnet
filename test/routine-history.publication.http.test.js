@@ -61,7 +61,7 @@ async function until(check, label, ms = 30000) {
   };
   try {
     await fixture.start();
-    const connected = await fixture.json('POST', '/api/channels/telegram/connect', { token: '123456:TESTTOKEN', key: 'sk-or-v1-publication-fixture',
+    const connected = await fixture.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:TESTTOKEN', key: 'sk-or-v1-publication-fixture',
       model: 'test/model', provider: 'openrouter', agentId: 'agent', agentName: 'Publication', system: 'Answer the supplied request.' });
     A.eq(connected.status, 200, 'actual Telegram host connects');
     await until(async () => (await fixture.json('GET', '/api/channels/telegram/status')).body.connected, 'Telegram connected');

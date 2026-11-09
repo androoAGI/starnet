@@ -105,11 +105,18 @@ async function waitUntil(fn, timeoutMs, label) {
   const sidecar = SidecarFixture.create({ prefix: 'starnet-tg-connect-pair-', env, timeoutMs: 20000 });
   try {
     await sidecar.start();
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connectBody = {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-pairing-test', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system: 'test agent'
-    });
-    A.eq(connected.status, 200, 'authenticated Telegram connect succeeds');
+    };
+    // review2 #1: a connect that hands out an owner code is an authority change; the page key alone gets the desk's question
+    const unconfirmed = await sidecar.json('POST', '/api/channels/telegram/connect', connectBody);
+    A.eq(unconfirmed.status, 403, 'a first connect with no owner asks at the desk first');
+    A.eq(unconfirmed.body && unconfirmed.body.code, 'desk_confirm_required', 'with the desk challenge');
+    A.ok(!unconfirmed.body.pairingCode, 'and hands out no owner code');
+    A.eq((await sidecar.json('GET', '/api/channels/telegram/status')).body.configured, false, 'nothing was saved or started before the desk said yes');
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', connectBody);
+    A.eq(connected.status, 200, 'authenticated Telegram connect succeeds once the desk confirms it');
     A.eq(connected.body.pairingRequired, true, 'connect says owner pairing is still required');
     A.ok(/^[-A-Z0-9]{11}$/.test(String(connected.body.pairingCode || '')), 'connect returns the one-time local pairing code');
 
@@ -147,6 +154,21 @@ async function waitUntil(fn, timeoutMs, label) {
     status = (await sidecar.json('GET', '/api/channels/telegram/status')).body;
     A.eq(status.ownerLocked, true, 'owner enrollment survives a real sidecar restart');
     A.eq(status.acceptingDms, true, 'operational Telegram DM state survives restart');
+
+    // review2 #1: a reconnect that keeps the owner asks nothing; revoking (taking power away) asks nothing; but the way
+    // back to a new owner, by connect or by PAIR OWNER, goes through the desk again
+    const kept = await sidecar.json('POST', '/api/channels/telegram/connect', {});
+    A.eq(kept.status, 200, 'a reconnect that keeps the paired owner needs no desk confirmation');
+    A.eq(kept.body.pairingRequired, false, 'and makes no owner code');
+    const revoked = await sidecar.json('POST', '/api/channels/telegram/owner/revoke', {});
+    A.eq(revoked.status, 200, 'revoking the owner needs no desk confirmation');
+    const rechain = await sidecar.json('POST', '/api/channels/telegram/connect', {});
+    A.eq(rechain.status, 403, 'a reconnect after the revoke cannot mint a new owner code with the page key alone');
+    A.ok(!rechain.body.pairingCode, 'no code in the refusal');
+    const repair = await sidecar.json('POST', '/api/channels/telegram/owner/pair', {});
+    A.eq(repair.status, 403, 'nor can PAIR OWNER');
+    A.ok(repair.body.code === 'desk_confirm_required' && !repair.body.expiresAt, 'it is the desk question, not a code');
+    A.eq((await sidecar.json('GET', '/api/channels/telegram/status')).body.ownerPairingActive, false, 'no owner challenge became active');
   } finally {
     await sidecar.dispose();
     await telegram.close();

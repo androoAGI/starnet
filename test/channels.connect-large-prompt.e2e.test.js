@@ -49,7 +49,7 @@ function bigPrompt(bytes) {
     const system = bigPrompt(300 * 1024);
     A.ok(Buffer.byteLength(JSON.stringify({ system })) > 4 * (1 << 16), 'the prompt is several times the old 64 KB cap');
 
-    const connected = await sidecar.json('POST', '/api/channels/telegram/connect', {
+    const connected = await sidecar.deskJson('POST', '/api/channels/telegram/connect', {
       token: '123456:TESTTOKEN', key: 'sk-or-v1-big-prompt-test', model: 'test/model', provider: 'openrouter',
       agentId: 'agent', agentName: 'ULTRON', system
     });

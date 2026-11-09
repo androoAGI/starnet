@@ -18,6 +18,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -185,6 +186,9 @@ async function waitUntil(fn, ms, label) {
   try {
     const live = await boot(await allocatePort(), env, 20);
     child = live.child;
+    // an owner code is an authority change (review2 #1): confirmed with the code this station printed
+    const desk = makeDeskCodeReader();
+    child.stderr.on('data', d => desk.feed(d));
     const B = 'http://' + HOST + ':' + live.port;
     const token = await bootToken(B, B);
     const H = { 'X-StarNet-Token': token, Origin: B, 'Content-Type': 'application/json' };
@@ -202,7 +206,7 @@ async function waitUntil(fn, ms, label) {
     A.ok(!atConnect.some(b => b.scope && b.scope.type === 'chat'), 'no owner scope before an owner exists');
 
     // ---- 2. pairing publishes the owner's own menu into the owner's DM only ----
-    const pair = await (await fetch(B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: H, body: '{}' })).json();
+    const pair = await fetchJsonAtDesk(desk, B + '/api/channels/telegram/owner/pair', { method: 'POST', headers: H, body: '{}' });
     tg.dm(OWNER, '/pair ' + pair.code);
     await waitUntil(() => sentTo(OWNER).some(s => /Owner paired/i.test(textOf(s))), 8000, 'owner-pair acknowledgement');
     await waitUntil(() => menus().some(b => b.scope && b.scope.type === 'chat'), 8000, 'the owner-DM menu publish');

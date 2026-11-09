@@ -22,6 +22,7 @@ const edge = require('../sidecar/edgetts.js');   // V-EDGE: exported WS codec + 
 const { bootToken, sseQuery, fileQuery } = require('./_httpToken.js');
 const Tickets = require('../sidecar/apitickets.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
 const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 
 const HOST = '127.0.0.1';
@@ -153,8 +154,12 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   const { child, port } = booted;
   const B = 'http://' + HOST + ':' + port;
   let apiToken = '';
-  const j = async (m, p, body) => {
-    const headers = { 'Content-Type': 'application/json' };
+  // an authority change (here: the owner code a first channel connect hands out, review2 #1) is confirmed with the code
+  // this station printed on its own console, as the person at it would type it
+  const desk = makeDeskCodeReader();
+  child.stderr.on('data', d => desk.feed(d));
+  const j = async (m, p, body, extra) => {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, extra || {});
     if (apiToken) headers['X-StarNet-Token'] = apiToken;   // hardened: GET data routes need the token too now
     const r = await fetch(B + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
@@ -658,10 +663,14 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.ok(JSON.stringify(configuredProviders.body).indexOf('xai-provider-http-test-secret') < 0, 'provider list never leaks the pushed xAI secret');
 
     // PU-06: Signal is tokenless. Removing it destroys endpoint/account configuration, not a fictional token.
-    const signalConnect = await j('POST', '/api/channels/signal/connect', {
+    const signalBody = {
       endpoint: 'http://127.0.0.1:65529', account: '+15551234567', model: 'local/proven-model',
       provider: 'custom', baseUrl: 'http://127.0.0.1:65530/v1', agentId: 'agent', agentName: 'Ultron'
-    });
+    };
+    const signalAsked = await j('POST', '/api/channels/signal/connect', signalBody);
+    A.eq(signalAsked.status, 403, 'a first Signal connect, which hands out its owner code, asks at the desk first (review2 #1)');
+    A.eq((await j('GET', '/api/channels/signal/status')).body.configured, false, 'and saves nothing before the desk says yes');
+    const signalConnect = await desk.confirm(await j('POST', '/api/channels/signal/connect', signalBody), h => j('POST', '/api/channels/signal/connect', signalBody, h));
     A.eq(signalConnect.status, 200, 'Signal accepts endpoint/account configuration against an offline bridge');
     const signalSaved = await j('GET', '/api/channels/signal/status');
     A.eq(signalSaved.body.configured, true, 'Signal status is configured from saved endpoint/account');

@@ -6,6 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const { bootToken } = require('../_httpToken.js');
 const { allocatePort, portBindable, BIND_REFUSED } = require('./ports.js');
+const { makeDeskCodeReader } = require('./desk-code.js');
 
 const HOST = '127.0.0.1';
 const DEFAULT_ENTRY = path.resolve(__dirname, '..', '..', 'sidecar', 'index.js');
@@ -68,6 +69,8 @@ class SidecarFixture {
     this.baseUrl = '';
     this.token = '';
     this._output = '';
+    // the desk codes this station prints on its own console, read as the person at it reads them (desk-code.js)
+    this.desk = makeDeskCodeReader();
     this._disposed = false;
     active.add(this);
   }
@@ -108,12 +111,13 @@ class SidecarFixture {
       SKYNET_WORKSPACES: this.workspace,
       STARNET_WORKSPACES: this.workspace
     });
+    this._childEnv = env;
     const child = spawn(process.execPath, [this.entry].concat(this.args), {
       env,
       stdio: ['ignore', 'pipe', 'pipe']
     });
     this.child = child;
-    const onData = data => { this._output += data.toString(); };
+    const onData = data => { this._output += data.toString(); this.desk.feed(data); };
     child.stdout.on('data', onData);
     child.stderr.on('data', onData);
 
@@ -205,6 +209,32 @@ class SidecarFixture {
     let value;
     try { value = JSON.parse(text); } catch (_) { value = text; }
     return { status: response.status, body: value, text, headers: response.headers };
+  }
+
+  /* deskJson: json(), and when the station answers with its desk challenge (an authority change: an owner code, Full
+     Access, a standing grant...), the same request again with the code this station printed for it, as the person at
+     the station would type it. A test that means to make the change uses this; json() keeps showing the refusal. */
+  async deskJson(method, route, body, options) {
+    const send = extra => this.json(method, route, body,
+      Object.assign({}, options || {}, { headers: Object.assign({}, (options && options.headers) || {}, extra || {}) }));
+    let first = await send();
+    /* A DESKTOP-MODE station (STARNET_DESKTOP_SHELL with its IPC token) takes an authority change only from the StarNet
+       window's own key, and only after its shell reported the person's yes in the native dialog (POST /api/desk/approve,
+       guarded by the IPC token). A test that set both keys plays the window and the shell here, with the words the
+       station issued; one that did not gets the refusal as it came. */
+    const e = this._childEnv || {};
+    const api = e.STARNET_API_TOKEN || e.SKYNET_API_TOKEN || '', ipc = e.STARNET_IPC_TOKEN || e.SKYNET_IPC_TOKEN || '';
+    const code = first && first.body && typeof first.body === 'object' ? first.body.code : '';
+    if (first.status === 403 && code === 'desk_only' && api) first = await send({ 'X-StarNet-Token': api });
+    const ch = first.status === 403 && first.body && first.body.code === 'desk_confirm_required' && first.body.deskConfirm;
+    if (ch && ch.mode === 'desktop' && ipc) {
+      const ok = await fetch(this.baseUrl + '/api/desk/approve', { method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-StarNet-Token': ipc, Origin: this.baseUrl },
+        body: JSON.stringify({ id: ch.id, title: ch.title, summary: ch.summary, verb: ch.verb }) });
+      if (ok.status !== 200) return first;
+      return send(Object.assign(api ? { 'X-StarNet-Token': api } : {}, { 'X-StarNet-Desk-Proof': ch.id }));
+    }
+    return this.desk.confirm(first, send);
   }
 
   async dispose() {

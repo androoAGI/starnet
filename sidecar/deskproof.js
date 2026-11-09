@@ -48,7 +48,9 @@ const CAPS = Object.freeze({ title: 120, summary: 1200, verb: 40, scope: 2000, a
 const ACTIONS = Object.freeze(['bypass-on', 'consent-always', 'consent-full', 'grant', 'grant-import', 'approval-full',
   'remote-enable', 'remote-pair', 'device-activate', 'device-desk-permissions',
   // fix-sec2, review 3, 6 and 7: the authority changes the first pass left on the page token alone
-  'consent-session', 'routine-grants', 'telegram-owner-pair', 'project-bless', 'hook-allow', 'plugin-allow', 'execution-profile']);
+  'consent-session', 'routine-grants', 'telegram-owner-pair', 'project-bless', 'hook-allow', 'plugin-allow', 'execution-profile',
+  // fix-sec2, review2 #1: an owner code for Discord, Slack, Matrix, Signal or an agent's own Telegram bot
+  'channel-owner-pair']);
 const CODE_RE = /^\d{6}$/;
 const MAX_WRONG_CODES = 5;              // a guesser gets five tries in a station's lifetime (one in 200,000), then nothing
 

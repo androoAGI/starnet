@@ -5526,9 +5526,31 @@ const CHANNEL_OWNER_LABEL = { discord: 'Discord', slack: 'Slack', matrix: 'Matri
 function channelOwnerAdmission(id, message) {
   return telegramOwnerAdmission((channelSecrets && channelSecrets[id]) || {}, message, CHANNEL_OWNER_LABEL[id] || id);
 }
-function issueChannelOwnerPairing(id) {
+/* AN OWNER CODE IS AN AUTHORITY GRANT (fix-sec2, review2 #1). Whoever DMs a bot the owner code becomes its owner: owner-
+   trusted runs, answers to permission cards, work for every agent the bot reaches. So making that code is itself a grant,
+   and it needs the desk proof, on every route that can make one: the PAIR OWNER buttons, and the first connect of a bot
+   that has no owner yet (connect hands its code back in the same answer). Before this, the page key alone could revoke
+   the owner (a lowering, which stays free) and then reconnect with an empty body to get a fresh code, so anything holding
+   the page key could make its own Telegram account the owner.
+   The rule lives in the code that makes a code, not only in the routes: mintOwnerCode makes one only for a pass that
+   deskGate handed out for this request, once. A route that forgets its gate gets "no code was issued", never a code.
+   ownerPairingPass(req, res, action, scope, details) -> a one-use pass, or null after deskGate answered the request. */
+const OWNER_PAIRING_PASS = Symbol('owner-pairing-pass');
+const ownerPassesSpent = new WeakSet();
+const OWNER_CODE_NEEDS_DESK = 'pairing an owner needs your confirmation at the desk; no code was issued';
+function ownerPairingPass(req, res, action, scope, details) {
+  if (!deskGate(req, res, action, scope, details)) return null;
+  return Object.freeze({ [OWNER_PAIRING_PASS]: true, action: String(action), scope: String(scope || '') });
+}
+function mintOwnerCode(pass) {
+  if (!pass || typeof pass !== 'object' || pass[OWNER_PAIRING_PASS] !== true || ownerPassesSpent.has(pass)) return null;
+  ownerPassesSpent.add(pass);
+  return telegramOwnerPairing.issue({ now: Date.now() });
+}
+function issueChannelOwnerPairing(id, pass) {
   const record = (channelSecrets && channelSecrets[id]) || {};
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const patch = {}; patch[id] = Object.assign({}, record, { ownerPairing: issued.state });
   channelSecrets = Object.assign({}, channelSecrets, patch);
   const persisted = saveChannelSecrets(channelSecrets) || saveChannelSecrets(channelSecrets);
@@ -5537,11 +5559,11 @@ function issueChannelOwnerPairing(id) {
 }
 // Fold a pairing challenge into a connect response when the channel has no bound owner yet (the raw code is
 // returned ONLY here, to the authenticated local caller — never in status, logs or a transcript).
-function withOwnerPairing(id, out) {
+function withOwnerPairing(id, out, pass) {
   const rec = (channelSecrets && channelSecrets[id]) || {};
   out.pairingRequired = !rec.ownerId;
   if (!out.pairingRequired) return out;
-  const pairing = issueChannelOwnerPairing(id);
+  const pairing = issueChannelOwnerPairing(id, pass);
   if (pairing.ok) { out.pairingCode = pairing.code; out.pairingExpiresAt = pairing.expiresAt; }
   else out.pairingError = pairing.error;
   return out;
@@ -5554,8 +5576,9 @@ function ownerPairingStatus(record) {
 // Mint + durably save one Telegram owner challenge. The raw code is returned only to the authenticated local
 // caller; channelSecrets receives the salted verifier. Shared by first connect (so setup cannot stop at a deaf
 // but healthy poller) and the explicit PAIR OWNER recovery button (which rotates a lost/expired code).
-function issueTelegramOwnerPairing(record) {
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+function issueTelegramOwnerPairing(record, pass) {
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const next = Object.assign({}, record || {}, { ownerPairing: issued.state });
   channelSecrets = Object.assign({}, channelSecrets, { telegram: next });
   const persisted = saveChannelSecrets(channelSecrets) || saveChannelSecrets(channelSecrets);
@@ -12136,8 +12159,9 @@ function persistTelegramBotOwnerClaim(botId, uid) {
 // Agent-bound bots use the same explicit local enrollment as the station bot. Keep this in one helper so the
 // add flow and the recovery PAIR action cannot drift: a code is returned only after its salted verifier was
 // durably read back, and the raw code never enters status, logs, or the bot transcript.
-function issueTelegramBotOwnerPairing(botId) {
-  const issued = telegramOwnerPairing.issue({ now: Date.now() });
+function issueTelegramBotOwnerPairing(botId, pass) {
+  const issued = mintOwnerCode(pass);
+  if (!issued) return { ok: false, error: OWNER_CODE_NEEDS_DESK };
   const persisted = saveTelegramBotRecord(botId, { ownerPairing: issued.state });
   if (!persisted) return { ok: false, error: 'could not save the pairing challenge; no code was issued' };
   return { ok: true, code: issued.code, expiresAt: issued.state.expiresAt, persisted: true };
@@ -16826,7 +16850,10 @@ function deskWords(action, d) {
     case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: 'Allow unattended',
       summary: 'Let the routine "' + o.name + '" (' + o.agentName + ') ' + o.grants + ' with nobody watching, every time it runs?\n\nIt keeps this until you remove it in Routines.' };
     case 'telegram-owner-pair': return { title: 'StarNet — pair a Telegram owner', verb: 'Make a pairing code',
-      summary: 'Make a one-time code that makes a Telegram account the OWNER of this station’s bot?\n\nThe owner can give your agents work from Telegram and answer their permission requests there.' };
+      summary: (o.connecting ? 'Connect this station’s Telegram bot and make' : 'Make') + ' a one-time code that makes a Telegram account the OWNER of this station’s bot?\n\nThe owner can give your agents work from Telegram and answer their permission requests there.' };
+    // review2 #1: Discord, Slack, Matrix, Signal and every agent's own Telegram bot
+    case 'channel-owner-pair': return { title: 'StarNet — pair a messaging owner', verb: 'Make a pairing code',
+      summary: (o.connecting ? 'Connect ' + o.label + ' and make' : 'Make') + ' a one-time code that makes the account that sends it the OWNER of ' + o.label + (o.agentName ? ' (' + o.agentName + ')' : '') + '?\n\nThe owner can give your agents work from there and answer their permission requests there.' };
     case 'project-bless': return { title: 'StarNet — trust a project folder', verb: 'Trust this folder',
       summary: 'Trust the folder ' + o.root + '?\n\nYour agents may read and change everything in it without asking you about each file, until you remove it under Projects.' };
     case 'hook-allow': return { title: 'StarNet — approve a hook', verb: 'Approve hook',
@@ -28724,13 +28751,20 @@ async function handleChannelConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create one with @BotFather and paste it here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // a bot with no owner gets its owner code in this answer: that code is a grant, so it is confirmed at the desk
+  // first, before anything is saved or started (review2 #1). A bot that keeps its owner reconnects without asking.
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets.telegram) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'telegram-owner-pair', '', { connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel('telegram', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startTelegram(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // Poll health is not DM readiness. A fresh bot rejects every ordinary DM until the authenticated local app
   // pairs an owner, so return a new one-time command as part of connect instead of ending on a deaf false-green.
   const live = (channelSecrets && channelSecrets.telegram) || {};
   const pairingRequired = !live.ownerId;
-  const pairing = pairingRequired ? issueTelegramOwnerPairing(live) : { ok: true, persisted: !!(started && started.secretsPersisted) };
+  const pairing = pairingRequired ? issueTelegramOwnerPairing(live, ownerPass) : { ok: true, persisted: !!(started && started.secretsPersisted) };
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status once
   // the transport proves the round-trip. Never assert connected here. `persisted` is the read-back-proven
   // config-write bit: false = live this session but may not survive a restart (never a false "saved").
@@ -28818,8 +28852,9 @@ async function handleTelegramOwnerPair(req, res) {
   if (!channelToken('telegram', '', cur)) return json(409, { error: 'connect the Telegram bot before pairing an owner' });
   if (cur.ownerId) return json(409, { error: 'an owner is already paired; revoke it locally before pairing a different account' });
   // fix-sec2 review 3: the code makes a Telegram account the bot's owner (owner-trusted runs, answers to permission cards)
-  if (!deskGate(req, res, 'telegram-owner-pair', '', {})) return;
-  const pairing = issueTelegramOwnerPairing(cur);
+  const ownerPass = ownerPairingPass(req, res, 'telegram-owner-pair', '', {});
+  if (!ownerPass) return;
+  const pairing = issueTelegramOwnerPairing(cur, ownerPass);
   if (!pairing.ok) return json(500, { error: pairing.error });
   json(200, { code: pairing.code, expiresAt: pairing.expiresAt, persisted: true });
 }
@@ -28885,6 +28920,15 @@ async function handleTelegramBotAdd(req, res) {
   if (channelToken('telegram', '', main) === token) return json(400, { error: '@' + (me.username || 'that bot') + ' is already the station bot — create a fresh bot with @BotFather for this agent' });
   const prev = telegramBotRecords()[botId] || {};
   const wasConfigured = !!channelToken('telegram:' + botId, '', prev);
+  // a bot with no owner gets its owner code in this answer, so the desk confirms it before the provider probe and
+  // before anything is saved (review2 #1). The scope names the bot getMe just proved, so one yes pairs one bot.
+  const pairingRequired = !prev.ownerId;
+  let ownerPass = null;
+  if (pairingRequired) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'telegram-bot:' + botId,
+      { label: 'the Telegram bot @' + (me.username || botId), agentName: ident.name || agentId });
+    if (!ownerPass) return;
+  }
   // The pair the bot runs and keeps (channelConnectCredential): the body's key with the endpoint sent beside it, else — a
   // rebind with no key — the bot's own saved pair, never its key beside the endpoint the station resolves for ITS key. The
   // probe proves that pair, and the bot keeps only an endpoint the key would not resolve to anyway (review r7).
@@ -28899,8 +28943,8 @@ async function handleTelegramBotAdd(req, res) {
     error: 'agent provider/model check failed for ' + (ident.name || agentId) + ': ' + runProbe.error,
     code: runProbe.code || 'AGENT_PROVIDER_PROBE_FAILED'
   });
-  const pairingRequired = !prev.ownerId;
-  const pairing = pairingRequired ? telegramOwnerPairing.issue({ now: Date.now() }) : null;
+  const pairing = pairingRequired ? mintOwnerCode(ownerPass) : null;
+  if (pairingRequired && !pairing) return json(403, { error: OWNER_CODE_NEEDS_DESK });
   // the bot's own credential goes to the store before the record names it — without it the bot only works while a
   // runtime/station key happens to exist, and refuses on restart even though the add-flow validated a key
   const own = credStore.putChannel('telegramBots:' + botId, { provider, key: cred.recordKey, baseUrl: cred.ownBase });
@@ -28977,7 +29021,10 @@ async function handleTelegramBotOwner(req, res, botId, verb) {
   if (!cur) return json(404, { error: 'unknown bot' });
   if (verb === 'pair') {
     if (cur.ownerId) return json(409, { error: 'an owner is already paired; revoke it locally before pairing a different account' });
-    const issued = issueTelegramBotOwnerPairing(botId);
+    const ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'telegram-bot:' + botId,
+      { label: 'the Telegram bot @' + (cur.username || botId), agentName: cur.name || cur.agentId || '' });
+    if (!ownerPass) return;
+    const issued = issueTelegramBotOwnerPairing(botId, ownerPass);
     if (!issued.ok) return json(500, { error: issued.error });
     return json(200, { code: issued.code, expiresAt: issued.expiresAt, persisted: true });
   }
@@ -29019,10 +29066,16 @@ async function handleDiscordConnect(req, res) {
   if (!token) return json(400, { error: 'missing bot token — create a bot in the Discord Developer Portal and paste its token here' });
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // the owner code this answer carries for a bot with no owner is a grant: the desk confirms it first (review2 #1)
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets.discord) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', 'discord', { label: 'this station’s Discord bot', connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel('discord', { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startDiscord(token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential }); } catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status ('connecting' until the gateway reaches READY) — the panel repaints from /status.
-  json(200, channelCredentialAnswer(own, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) })));
+  json(200, channelCredentialAnswer(own, withOwnerPairing('discord', { connected: !!discordStatus.connected, state: discordStatus.state, persisted: !!(started && started.secretsPersisted) }, ownerPass)));
 }
 
 // POST /api/channels/discord/sync — refresh the agent identity the Discord bot runs as (mirrors handleChannelSync).
@@ -29204,11 +29257,17 @@ async function handleGenericChannelConnect(req, res, id) {
   }
   // the gate is the pair the channel will really run (stationHubConnectError), not the snapshot pair handed here
   { const gateError = stationHubConnectError(agentId, { provider, key, baseUrl, model, reasoningEffort, agentId, system }); if (gateError) return json(400, { error: gateError }); }
+  // the owner code this answer carries for a channel with no owner is a grant: the desk confirms it first (review2 #1)
+  let ownerPass = null;
+  if (!((channelSecrets && channelSecrets[id]) || {}).ownerId) {
+    ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', id, { label: 'this station’s ' + (CHANNEL_OWNER_LABEL[id] || id) + ' bot', connecting: true });
+    if (!ownerPass) return;
+  }
   const own = credStore.putChannel(id, { provider, key: cred.recordKey, baseUrl: cred.ownBase });   // before the record names it
   let started; try { started = startGenericChannel(id, token, model, { agentId, system, name, provider, reasoningEffort, credential: own.credential, endpoint, account }); }
   catch (e) { return json(500, { error: (e && e.message) || 'failed to start' }); }
   // report the REAL post-start status (now 'connecting', not an assumed 'up') — the panel repaints from /status.
-  json(200, channelCredentialAnswer(own, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) })));
+  json(200, channelCredentialAnswer(own, withOwnerPairing(id, { connected: !!(genericStatus[id] && genericStatus[id].connected), state: (genericStatus[id] && genericStatus[id].state) || 'connecting', persisted: !!(started && started.secretsPersisted) }, ownerPass)));
 }
 
 // POST /api/channels/<id>/owner/pair (discord|slack|matrix|signal) — mint a fresh one-time owner code for a connected
@@ -29219,7 +29278,9 @@ async function handleChannelOwnerPair(req, res, id) {
   const configured = id === 'signal' ? !!(cur.endpoint && cur.account) : !!channelToken(id, '', cur);
   if (!configured) return respondJson(res, 409, { error: 'connect the channel before pairing an owner' });
   if (cur.ownerId) return respondJson(res, 409, { error: 'an owner is already paired on this channel' });
-  const pairing = issueChannelOwnerPairing(id);
+  const ownerPass = ownerPairingPass(req, res, 'channel-owner-pair', id, { label: 'this station’s ' + (CHANNEL_OWNER_LABEL[id] || id) + ' bot' });
+  if (!ownerPass) return;
+  const pairing = issueChannelOwnerPairing(id, ownerPass);
   if (!pairing.ok) return respondJson(res, 500, { error: pairing.error });
   respondJson(res, 200, { code: pairing.code, expiresAt: pairing.expiresAt, persisted: true });
 }

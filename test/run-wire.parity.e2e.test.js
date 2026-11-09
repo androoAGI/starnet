@@ -170,9 +170,9 @@ test('every entry point reaches the provider with the agent\'s one pair', { time
     }
 
     // ---- a Telegram owner DM: connected while the page's global wire was another agent's OpenRouter pin ----
-    const conn = await fixture.json('POST', '/api/channels/telegram/connect', { token: 'PARITYTOKEN', key: '', model: 'focused-pin', provider: 'openrouter', agentId: 'scout', system: 'You are the scout.', agentName: 'Scout' });
+    const conn = await fixture.deskJson('POST', '/api/channels/telegram/connect', { token: 'PARITYTOKEN', key: '', model: 'focused-pin', provider: 'openrouter', agentId: 'scout', system: 'You are the scout.', agentName: 'Scout' });
     assert.equal(conn.status, 200, 'Telegram connect: ' + conn.text.slice(0, 300));
-    const pair = await fixture.json('POST', '/api/channels/telegram/owner/pair', {});
+    const pair = await fixture.deskJson('POST', '/api/channels/telegram/owner/pair', {});
     assert.equal(pair.status, 200, 'owner pairing code: ' + pair.text.slice(0, 200));
     tg.push(5151, 99, '/pair ' + pair.body.code);
     await until(() => tg.sends.some(s => String(s.chat_id) === '5151' && /paired/i.test(String(s.text || ''))), 15000, 'owner paired');
