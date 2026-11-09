@@ -486,14 +486,21 @@ function expect(entry, sc, agentId, got, opts) {
       const from = starts.length ? Math.min(...starts) : -1;
       const to = h.indexOf('  const own = credStore.putChannel(', from);
       A.ok(from > 0 && to > from && to - from < 1200, 'fixture: ' + fn + "'s connect gate is sliced");
+      // review2 #1: after the pair gate, a bot with no owner yet asks the desk for its owner code (ownerPairingPass). This
+      // bot has no owner, so the desk is asked; the stub says yes and records that it was asked.
+      let pairAsks = 0;
       const gate = (snap) => {
-        const d = Object.assign({}, host.deps, { stationHubConnectError: host.stationHubConnectError });
+        const d = Object.assign({}, host.deps, { stationHubConnectError: host.stationHubConnectError,
+          channelSecrets: {}, req: {}, res: {}, id: 'slack', CHANNEL_OWNER_LABEL: { slack: 'Slack' },
+          ownerPairingPass: () => { pairAsks++; return { confirmed: true }; } });
         return new Function(...Object.keys(d), 'json', 'provider', 'key', 'baseUrl', 'model', 'reasoningEffort', 'agentId', 'system',
           h.slice(from, to) + "\nreturn 'pass';")(...Object.values(d), (code, obj) => obj.error, snap.provider, snap.key, '', snap.model, 'medium', snap.agentId, 'S');
       };
       A.eq(gate({ provider: 'openrouter', key: 'sk-or-test', model: '', agentId: 'scout' }), 'pass',
         fn + ': an agent that follows the station default connects though the page sent no model');
+      A.eq(pairAsks, 1, fn + ': the passing connect of a bot with no owner asks the desk for its owner code once');
       const refused = gate({ provider: 'openrouter', key: 'sk-or-test', model: 'focused/pin-model', agentId: 'claude' });
+      A.eq(pairAsks, 1, fn + ': a connect the pair gate refuses never reaches the desk');
       A.ok(refused !== 'pass' && /connect anthropic/.test(refused),
         fn + ': a snapshot pair the agent does not run cannot prove a channel whose agent has no credential — the gate returns its error: ' + refused);
       // the gate is the bot's DEFAULT agent (a floor route is per message): the error names it and both ways out
