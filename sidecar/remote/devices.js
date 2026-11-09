@@ -152,7 +152,8 @@ function makeDevices(deps) {
     if (!C.safeEqual(want, String((o && o.proof) || ''))) {
       p.tries += 1;
       if (p.tries >= PAIR_MAX_TRIES) pairings.delete(p.pairingId);
-      return { ok: false, error: 'wrong pairing code' };
+      // final review B11: an older phone app (or the short code typed by hand) proves with the code, which no longer pairs
+      return { ok: false, error: 'wrong pairing code: this phone could not prove the pairing link. Scan the QR code on the desktop (or open its COPY LINK) with an up-to-date StarNet phone app; typing the short code alone no longer pairs a phone.' };
     }
     const s = load();
     if (s.devices.some(d => d.publicKey === pub)) { p.used = true; return { ok: false, error: 'this phone is already paired' }; }

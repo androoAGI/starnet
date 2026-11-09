@@ -23,12 +23,14 @@ A.eq(cronStore.grantsRevokedByAgentEdit(null, { prompt: 'x' }), [], 'a missing j
 
 // ---- 1b. review2 #2: a grant covers everything the routine RUNS, whoever edits it ----
 {
-  const g = Object.assign({}, granted, { script: 'build.js', noAgent: false, agentId: 'agent', workdir: '', enabledToolsets: ['web'], skills: ['deploy'], contextFrom: ['up1'], runsLine: false });
-  const runs = { prompt: 'other', script: 'payload.js', noAgent: true, agentId: 'other_agent', workdir: 'C:/elsewhere', enabledToolsets: ['web', 'shell'], skills: [], contextFrom: ['up2'], runsLine: true };
+  const g = Object.assign({}, granted, { script: 'build.js', noAgent: false, agentId: 'agent', workdir: '', enabledToolsets: ['web'], skills: ['deploy'], contextFrom: ['up1'], runsLine: false, model: 'test/model', provider: 'openrouter' });
+  // final review #2: the model and provider pick the model that drives the grant, so they are run fields too
+  const runs = { prompt: 'other', script: 'payload.js', noAgent: true, agentId: 'other_agent', workdir: 'C:/elsewhere', enabledToolsets: ['web', 'shell'], skills: [], contextFrom: ['up2'], runsLine: true, model: 'evil/model', provider: 'custom' };
   A.eq(Object.keys(runs).sort(), cronStore.RUN_FIELDS.slice().sort(), 'every field that changes what a routine runs is named');
   for (const k of Object.keys(runs)) A.eq(cronStore.grantsRevokedByEdit(g, { [k]: runs[k] }), ['workbench', 'connectors'], 'changing ' + k + ' revokes every grant');
   for (const k of Object.keys(runs)) A.eq(cronStore.grantsRevokedByEdit(g, { [k]: g[k] }), [], 'resubmitting the same ' + k + ' revokes nothing');
-  A.eq(cronStore.grantsRevokedByEdit(g, { name: 'renamed', schedule: 'every 2h', model: 'x/y', provider: 'openrouter', deliver: 'origin' }), [], 'a rename, a new schedule, model or delivery keeps the grant');
+  A.eq(cronStore.grantsRevokedByEdit(g, { name: 'renamed', schedule: 'every 2h', deliver: 'origin' }), [], 'a rename, a new schedule or delivery keeps the grant');
+  A.eq(cronStore.grantsRevokedByEdit(g, { model: ' test/model ', provider: 'OpenRouter' }), [], 'the same model and provider, written differently, keep the grant');
   A.eq(cronStore.grantsRevokedByAgentEdit(g, { script: 'payload.js' }), ['workbench', 'connectors'], 'the agent-edit name covers the same fields');
 }
 

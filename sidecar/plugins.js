@@ -373,11 +373,22 @@
        reads as empty (every plugin waits for approval again), so writing plugins-allowed.json approves nothing. */
     const sealer = (deps.seal && typeof deps.seal.open === 'function' && typeof deps.seal.seal === 'function') ? deps.seal : null;
     const sealed = value => sealer ? sealer.seal(P.basename(allowFile), value) : value;
+    /* A MISSING allowlist is not a changed one (final review B1). readJson turned an absent plugins-allowed.json into {}, which
+       the seal reads as a file with no seal, so every keyed launch of a station that never approved a plugin said
+       "plugins-allowed.json was changed outside StarNet" and taught people to dismiss the one real tamper warning. Absent
+       now reaches the seal as absent (its default, nothing approved, no notice); a file that is there but does not parse is
+       still refused as changed. */
+    const readAllow = async () => {
+      let text;
+      try { text = await fsp.readFile(allowFile, 'utf8'); }
+      catch (e) { return e && e.code === 'ENOENT' ? undefined : {}; }
+      try { return JSON.parse(text); } catch (_) { return {}; }
+    };
     const allowedMap = async () => {
-      const raw = (await readJson(allowFile, {})) || {};
-      if (!sealer) return raw;
-      const opened = sealer.open(P.basename(allowFile), raw);
-      return (opened.ok && opened.value) || {};
+      const raw = await readAllow();
+      if (!sealer) return (raw && typeof raw === 'object') ? raw : {};
+      const opened = sealer.open(P.basename(allowFile), raw === undefined ? undefined : (raw || {}));
+      return (opened.ok && opened.value && typeof opened.value === 'object') ? opened.value : {};
     };
     async function allow(id, digest) {
       const cur = await allowedMap();

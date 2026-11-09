@@ -104,6 +104,9 @@
   // fields a user may edit via updateJob. `id`, timestamps, run-state and counters are NOT editable here.
   const EDITABLE = ['name', 'prompt', 'agentId', 'model', 'provider', 'deliver', 'skills', 'script', 'scriptTimeoutMs', 'workdir', 'contextFrom', 'monitorMode', 'misfire', 'unattendedGrants', 'noAgent', 'enabledToolsets', 'attachToSession', 'origin', 'runsLine', 'dockId'];
   const SCRIPT_DIGEST_RE = /^sha256:[0-9a-f]{64}$/;
+  // what drove the routine when the desk said yes to its grants (index.js routineDriveFor, final review #2): the model and
+  // provider it resolves to, and the endpoint ('-' when it was not known then)
+  const GRANT_DRIVE_RE = /^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/;
 
   /* UNATTENDED CAPABILITY GRANT (2026-07-25) — the capability families the Commander explicitly approved for
      THIS routine to use with nobody watching. Default EMPTY: a routine grants nothing extra unless the user
@@ -235,6 +238,8 @@
       // the bytes of the script the desk's yes for its grants was given to (review2 #3). Set by the station only: not in
       // EDITABLE, so a patch never writes it; updateJob takes it from ctx.scriptDigest when the station records a yes.
       scriptDigest: SCRIPT_DIGEST_RE.test(String(spec.scriptDigest || '')) ? String(spec.scriptDigest) : null,
+      // final review #2: set by the station only, like scriptDigest (not in EDITABLE; updateJob takes ctx.grantDrive)
+      grantDrive: GRANT_DRIVE_RE.test(String(spec.grantDrive || '')) ? String(spec.grantDrive) : null,
       scriptTimeoutMs: spec.scriptTimeoutMs != null ? Math.min(120000, Math.max(1000, parseInt(spec.scriptTimeoutMs, 10) || 30000)) : 30000,
       workdir: spec.workdir != null ? String(spec.workdir) : null,
       contextFrom: spec.contextFrom == null ? null : normList(spec.contextFrom, 8, ID_RE),
@@ -312,6 +317,7 @@
       const next = Object.assign({}, job);
       for (const k of EDITABLE) if (Object.prototype.hasOwnProperty.call(patch, k)) next[k] = patch[k];
       if (Object.prototype.hasOwnProperty.call(ctx, 'scriptDigest')) next.scriptDigest = SCRIPT_DIGEST_RE.test(String(ctx.scriptDigest || '')) ? String(ctx.scriptDigest) : null;
+      if (Object.prototype.hasOwnProperty.call(ctx, 'grantDrive')) next.grantDrive = GRANT_DRIVE_RE.test(String(ctx.grantDrive || '')) ? String(ctx.grantDrive) : null;
       if (Object.prototype.hasOwnProperty.call(patch, 'misfire')) next.misfire = normMisfire(patch.misfire);
       // dockId: a safe id or nothing (a cleared/garbage value removes the key — the job fires at the entry dock)
       if (Object.prototype.hasOwnProperty.call(patch, 'dockId')) { if (ID_RE.test(String(patch.dockId == null ? '' : patch.dockId))) next.dockId = String(patch.dockId); else delete next.dockId; }
@@ -912,11 +918,16 @@
      whether it runs with no agent), which agent runs it, the folder it runs in, the toolsets and skills it carries, the
      routines whose output it reads first, and whether it may buy a whole line. Changing any of them on a granted routine
      revokes every grant it holds, whoever makes the change; the Commander's own edit keeps them only with the desk's yes
-     for the changed routine (POST /api/cron/update keepGrants). A rename, a new schedule, a new model or delivery target
-     leaves what it runs alone. Pure: the caller drops the grants (or asks the desk). */
-  const RUN_FIELDS = ['prompt', 'script', 'noAgent', 'agentId', 'workdir', 'enabledToolsets', 'skills', 'contextFrom', 'runsLine'];
+     for the changed routine (POST /api/cron/update keepGrants). A rename, a new schedule or delivery target leaves what it
+     runs alone. Pure: the caller drops the grants (or asks the desk).
+     THE MODEL IS WHAT RUNS IT (final review #2, 2026-11-08). A routine's model and provider pick the model that reads the
+     prompt and calls the tools its grants allow: the page key switched a granted routine to a model on an endpoint it
+     controlled, and that model ran the terminal unattended. Both are run fields now. */
+  const RUN_FIELDS = ['prompt', 'script', 'noAgent', 'agentId', 'workdir', 'enabledToolsets', 'skills', 'contextFrom', 'runsLine', 'model', 'provider'];
   function runValue(k, v) {
     if (k === 'noAgent' || k === 'runsLine') return v === true;
+    if (k === 'provider') return String(v == null ? '' : v).trim().toLowerCase();
+    if (k === 'model') return String(v == null ? '' : v).trim();
     if (k === 'enabledToolsets' || k === 'skills' || k === 'contextFrom') return Array.isArray(v) ? JSON.stringify(v.map(String)) : '';
     return String(v == null ? '' : v);
   }

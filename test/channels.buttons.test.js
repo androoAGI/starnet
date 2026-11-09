@@ -723,6 +723,86 @@ async function run() {
     A.ok(/no longer open/i.test(acks[0]), 'a token minted for chat 111 is refused when tapped from chat 222');
   }
 
+  // ---- 5E. THE OWNER'S CARD-FREE DM IS WHAT THE DESK BOUND (final review #1, 2026-11-08) ----
+  // An owner DM with approvals off used to skip every card whatever agent sat behind it, so the page key could rewrite an
+  // ask-first agent and the owner's next message ran a shell with no card. The host's ownerCardFree verdict now decides:
+  // false -> the chat gets the approval buttons and the run carries channelOwnerUnbound (no Full Power rides it).
+  {
+    const mk = (cardFree, ownerTrusted, extra) => {
+      const sends = [], asked = []; let lastRun = null;
+      const store = fakeStore();
+      const host = makeHostConsent(5000);
+      const reg = makePromptRegistry({ newId: idGen('tok') });
+      const hub = makeChannelHub(Object.assign({
+        isOwner: () => true, ownerTrusted: () => ownerTrusted,
+        runOnce: async (o) => {
+          lastRun = o;
+          if (typeof o.prompt === 'function') o.decision = await o.prompt({ name: 'shell_exec', args: { cmd: 'echo hi' } }, { scope: 'execute' });
+          o.emit('agent.token', { delta: 'ok' }); o.emit('agent.run.end', { reason: 'done' });
+        },
+        store, prompts: reg,
+        send: (c, t, opts) => { sends.push({ c, t, opts }); return Promise.resolve({ ok: true, messageId: 'consent-msg' }); },
+        answerCallback: () => Promise.resolve({ ok: true }), editMessage: () => Promise.resolve({ ok: true }),
+        askConsent: host.ask, resolveConsent: host.resolve,
+        resolveEntryRunConfig: (agentId) => ({ ok: true, key: 'k', model: 'm', provider: 'openrouter', agentId, ownEndpoint: agentId === 'ep' }),
+        ownerCardFree: (agentId, sec) => { asked.push({ agentId, ownEndpoint: sec && sec.ownEndpoint }); if (cardFree === 'throw') throw new Error('roster torn'); return cardFree; },
+        secrets: () => ({ key: 'k', model: 'm', agentId: 'agent' }), classify: () => false, newId: idGen('run')
+      }, extra || {}));
+      return { hub, sends, asked, reg, run: () => lastRun };
+    };
+    // an ask-first agent (the host says: not card-free): the owner's DM asks in the chat
+    {
+      const t = mk(false, true);
+      const inflight = t.hub.onInbound(dm('what is on my calendar?'));
+      await waitFor(() => { const e = t.reg.peekChat('555', 'consent'); return !!(e && e.messageId); });
+      A.eq(t.run().surface, 'interactive', 'final review #1: an owner DM to an agent the desk has not bound runs interactive (it can ask)');
+      A.ok(typeof t.run().prompt === 'function', 'and carries the chat\'s live consent channel');
+      A.eq(t.run().channelOwnerUnbound, true, 'and is marked unbound, so no Full Power rides it (run-origin.js)');
+      const kb = lastKeyboard(t.sends);
+      A.ok(kb && /Allow once/.test(kb[0][0].text), 'the owner sees the approval buttons for the shell call');
+      await t.hub.onCallback({ chatId: '555', userId: 'u1', data: kb[0][0].callback_data, callbackId: 'cb1', messageId: 'consent-msg' });
+      await inflight;
+      A.eq(t.run().decision, 'once', 'and the owner\'s tap lets it run (the owner keeps a working remote)');
+      A.eq(t.asked[0].agentId, 'agent', 'the host is asked about the agent the message actually runs');
+    }
+    // a Full Access agent (or FULL BYPASS): card-free, exactly as before
+    {
+      const t = mk(true, true);
+      await t.hub.onInbound(dm('tidy my downloads'));
+      A.eq(t.run().surface, 'autonomous', 'a desk-bound agent\'s owner DM stays card-free (no approvals asked)');
+      A.eq(t.run().prompt, undefined, 'no consent channel is opened for it');
+      A.eq(t.run().channelOwnerUnbound, undefined, 'and nothing is withheld');
+    }
+    // a verdict that throws is read as not card-free
+    {
+      const t = mk('throw', true);
+      const inflight = t.hub.onInbound(dm('hello'));
+      await waitFor(() => { const e = t.reg.peekChat('555', 'consent'); return !!(e && e.messageId); });
+      A.eq(t.run().channelOwnerUnbound, true, 'a throwing ownerCardFree reads as unbound (fail closed)');
+      const kb = lastKeyboard(t.sends);
+      await t.hub.onCallback({ chatId: '555', userId: 'u1', data: kb[1][0].callback_data, callbackId: 'cb2', messageId: 'consent-msg' });
+      await inflight;
+      A.eq(t.run().decision, 'deny', 'and the owner can still say no');
+    }
+    // the endpoint the channel's own record carries reaches the verdict
+    {
+      const t = mk(false, true, { secrets: () => ({ key: 'k', model: 'm', agentId: 'ep' }) });
+      const inflight = t.hub.onInbound(dm('hi'));
+      await waitFor(() => { const e = t.reg.peekChat('555', 'consent'); return !!(e && e.messageId); });
+      A.eq(t.asked[0].ownEndpoint, true, 'the host sees that this run would go out on the channel\'s own endpoint');
+      const kb = lastKeyboard(t.sends);
+      await t.hub.onCallback({ chatId: '555', userId: 'u1', data: kb[1][0].callback_data, callbackId: 'cb3', messageId: 'consent-msg' });
+      await inflight;
+    }
+    // not the owner's trusted DM: the verdict does not open a card channel (that chat's own /approvals still decides)
+    {
+      const t = mk(false, false);
+      await t.hub.onInbound(dm('hello'));
+      A.eq(t.run().surface, 'autonomous', 'a sender who is not the trusted owner DM is not switched to interactive by it');
+      A.eq(t.run().prompt, undefined, 'and gets no consent channel from it');
+    }
+  }
+
   A.report('channels.buttons.test');
 }
 

@@ -100,7 +100,13 @@
        verifies every routine the keyless station did not change.
    A workspace sealed before these three existed (its marker has no `covers`, or does not list one) seals each of them
    once as it is, at its first keyed boot, the same one-time upgrade the five had; `covers` in the sealed marker then
-   lists it, so the upgrade cannot be asked for again. */
+   lists it, so the upgrade cannot be asked for again.
+
+   AND WHO OWNS EACH CHAT BOT (final review #3, 2026-11-08): channels/channel-owners.json, sealed whole, holds each bot's
+   paired owner and pending pairing challenge, which channels/secrets.json (unsealed: it is rewritten with tokens and
+   config) also carries. index.js trustChannelOwners uses a record's owner only where this file names the same one, so a
+   rewritten ownerId reads as no owner (pair again from the desk). Its first seal, at the upgrade or under a marker that
+   does not cover it yet, is what channels/secrets.json says then (the same one-time upgrade as the rest). */
 'use strict';
 
 const crypto = require('node:crypto');
@@ -111,11 +117,13 @@ const MARKER_NAME = 'authority-seal.json';
 const LAST_SUFFIX = '.sealed-last';
 const RESTORED_NAME = 'authority-restored.json';
 const LEGACY_NAMES = Object.freeze(['permissions.bypass.json', 'agent.roster.json', 'hooks.json', 'hooks-allowed.json', 'plugins-allowed.json']);
-// sealed as whole files (review 4a added the last two)
-const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remote.json']));
+// sealed as whole files (review 4a added permissions.allow.json and remote.json; final review #3 the chat channels' owners)
+const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remote.json', 'channel-owners.json']));
 // sealed in parts by their owner (index.js), not as one value
 const PART_NAMES = Object.freeze(['cron.jobs.json']);
 const ALL_NAMES = Object.freeze(NAMES.concat(PART_NAMES));
+// what the one-time upgrade seals off instead of taking on the file's word (final review #5): FULL BYPASS and Full Access
+const UPGRADE_ASKS = Object.freeze(['permissions.bypass.json', 'agent.roster.json']);
 
 // What the safe default means for each file, in the words the page shows.
 const CONSEQUENCE = Object.freeze({
@@ -126,6 +134,7 @@ const CONSEQUENCE = Object.freeze({
   'plugins-allowed.json': 'every plugin waits for your approval again.',
   'permissions.allow.json': 'every standing permission and every trusted project folder is off. Give them again in PERMISSIONS.',
   'remote.json': 'remote access is off and every paired phone waits for your approval at the desk again, asking first.',
+  'channel-owners.json': 'no chat bot has an owner: each one answers nobody until you pair its owner again from the desk.',
   'cron.jobs.json': 'those routines run without their unattended grants, and a notepad counts as outside content. Grant them again in SCHEDULES.'
 });
 
@@ -262,6 +271,18 @@ function lowerOf(name, value, cap, nowMs) {
     if (v.enabled === true && !enabled) dropped.push('remote access on');
     return { value: Object.assign({}, v, { devices, enabled }), dropped };
   }
+  if (name === 'channel-owners.json') {
+    // a bot's owner (or its pending pairing) kept only where the cap names the very same one (final review #3)
+    const v = plainObject(value) ? value : {};
+    const rows = plainObject(v.owners) ? v.owners : {};
+    const had = plainObject(c.owners) ? c.owners : {};
+    const owners = {};
+    for (const k of Object.keys(rows)) {
+      if (plainObject(rows[k]) && plainObject(had[k]) && canonical(rows[k]) === canonical(had[k])) owners[k] = rows[k];
+      else dropped.push('the owner of ' + String(k).replace(/^telegramBots:/, 'the agent bot ').slice(0, 60));
+    }
+    return { value: Object.assign({}, v, { version: 1, owners }), dropped };
+  }
   if (name === 'hooks-allowed.json' || name === 'plugins-allowed.json') {
     const v = plainObject(value) ? value : {};
     const out = {};
@@ -316,6 +337,9 @@ function makeAuthoritySeal(opts) {
   let restoreSeen = false;       // this boot found a restore's record (authority-restored.json)
   let restoredBoot = false;      // ...and the marker was missing: the floors were reset for a restore, not a deleted marker
   const evidence = typeof o.evidence === 'function' ? o.evidence : () => [];   // other copies: .bak, .sealed-last (4c)
+  // final review #5: the desktop shell's word, kept in the OS credential store beside the key, that this workspace has been
+  // sealed with it before (STARNET_AUTHORITY_SEALED). With it, a missing marker is never the upgrade, whatever the files say
+  const sealedBefore = o.sealedBefore === true;
   let held = '';                 // why this boot keeps every authority file at its default and saves none (4c, 4d)
   const migrating = new Set();   // names sealed once as they are this boot: not yet in the marker's covers (4a)
   let floorsReset = false;       // the marker was missing or foreign: every floor was set above what exists (4c)
@@ -589,7 +613,10 @@ function makeAuthoritySeal(opts) {
       seen(name, g);
     }
     known.set(name, true);
-    return { ok: ok, stale: g !== null && g > 0 && !fresh };
+    // reset: this boot lost the record of what was last taken away (the marker missing or foreign), so a stale record
+    // is not necessarily an older copy put back, only one sealed before now
+    // restored (final review B2): this boot took a restore's record, so the caller can say it was a restore, not a change
+    return { ok: ok, stale: g !== null && g > 0 && !fresh, reset: floorsReset && !restoredBoot, restored: restoredBoot };
   }
   function refused(name, text) {
     name = String(name);
@@ -635,11 +662,16 @@ function makeAuthoritySeal(opts) {
       try { v = f.read(); } catch (_) { continue; }
       if (v !== undefined && v !== null) present.push({ f: f, v: v });
     }
-    const names = files.map(f => f.name);
+    // ...and what is sealed in parts (cron.jobs.json): its floor lives in the same marker, so a lost marker loses it too.
+    // Without it here a replayed older cron.jobs.json brought back routine grants the Commander had removed (final review #4).
+    const names = files.map(f => f.name).concat(PART_NAMES.filter(n => !files.some(f => f.name === n)));
     let lost = '';                          // 'mismatch' | 'missing': the record of floors is gone (4c)
     if (markerValid) { markerOk = true; adoptMarker(m); }   // the floors first: a restore or a sealed copy is judged against them (4b)
     else if (m !== undefined || markerErr) lost = 'mismatch';
-    else { const t = traces(present); if (t.any) { lost = 'missing'; resetFloors(names, t.maxG); } }
+    // no marker: the upgrade only when nothing says this workspace was sealed before, neither a trace in it nor the shell's
+    // record in the credential store (final review #5: a wipe of the marker and every trace looked like the upgrade). A
+    // workspace with nothing in it is a fresh start either way: nothing there was planted.
+    else { const t = traces(present); if (t.any || (sealedBefore && present.length)) { lost = 'missing'; resetFloors(names, t.maxG); } }
     if (lost === 'mismatch') resetFloors(names, traces(present).maxG);
     // a restore is taken before anything else (it is sealed above the new floors, so it is current)
     const adopted = adoptRestored(files);
@@ -675,34 +707,46 @@ function makeAuthoritySeal(opts) {
       if (!restoredBoot) notice({ kind: 'marker-' + lost, text: (lost === 'mismatch'
         ? MARKER_NAME + ' does not match this computer\'s key (the credential-store entry changed, or the file was edited).'
         : MARKER_NAME + ' is missing, although these permission files were sealed.') +
-        ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here. Nothing was re-sealed.' });
+        ' It is the record of what was last taken away, so StarNet cannot tell an older copy of a permission file from the current one: none of them is used until you set it again here, and routines run without their unattended grants until you grant them again in SCHEDULES. Nothing was re-sealed.' });
       return { mode: 'enforce', sealed: [], failed: [] };
     }
     // no marker and no trace: the upgrade (or a new station). What is sealed in parts is sealed by its owner, once, as it is.
     for (const n of PART_NAMES) migrating.add(n);
     if (adopted.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // a restore into a fresh folder: the rest answers for itself
     if (!present.length) return { mode: 'enforce', sealed: [], failed: [], migrating: Array.from(migrating) };   // the marker comes with the first sealed write
-    const sealed = [], failed = [];
+    const sealed = [], failed = [], lowered = [];
     for (const x of present) {
-      const value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
+      let value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
       if (!plainObject(value)) { failed.push(x.f.name); continue; }
+      /* DEFENCE IN DEPTH (final review #5): the upgrade takes each file on its word, and a same-user process that could
+         still wipe every trace (on a computer whose shell keeps no record, or with that record removed too) would have its
+         planted FULL BYPASS or Full Access sealed. So those two are not taken on the upgrade's word: they are sealed off,
+         and the Commander turns them on again, each confirmed at the desk as any raise is. Everything else is kept. */
+      if (UPGRADE_ASKS.indexOf(x.f.name) >= 0) {
+        const low = lowerOf(x.f.name, strip(value), {}, now());
+        if (low && low.dropped.length) { value = low.value; for (const d of low.dropped) lowered.push(d); }
+      }
       known.set(x.f.name, null);            // nothing was sealed before the upgrade: no floor to move
       try { x.f.write(seal(x.f.name, value)); sealed.push(x.f.name); }
       catch (e) { failed.push(x.f.name); }
     }
     writeMarker();
-    notice({ kind: 'migrated', sealed: sealed.slice(), failed: failed.slice(),
+    notice({ kind: 'migrated', sealed: sealed.slice(), failed: failed.slice(), dropped: lowered.slice(),
       text: 'StarNet now seals its permission files with a key from this computer\'s credential store. It sealed ' +
         (sealed.length ? sealed.join(', ') : 'nothing') + ' once, on this upgrade' +
         (failed.length ? '; ' + failed.join(', ') + ' could not be sealed and will not be used' : '') +
-        '. A change made to them outside StarNet is not obeyed from now on.' });
-    return { mode: 'migrated', sealed: sealed, failed: failed, migrating: Array.from(migrating) };
+        '. A change made to them outside StarNet is not obeyed from now on.' +
+        (lowered.length ? ' Not carried over on the upgrade, because StarNet does not take that much power on a file\'s word: ' + lowered.join(', ') +
+          '. Turn ' + (lowered.length > 1 ? 'them' : 'it') + ' on again in SETTINGS or the agent\'s dossier (StarNet asks you to confirm at the desk).' : '') });
+    return { mode: 'migrated', sealed: sealed, failed: failed, lowered: lowered, migrating: Array.from(migrating) };
   }
 
   return {
     get keyed() { return !!key; },
     get held() { return held; },
     sealParts: sealParts, openParts: openParts, refused: refused,
+    // inform(text): a notice that is news, not a warning (final review B4: a retired grant); the page shows it once
+    inform: (text) => { notice({ kind: 'info', text: String(text) }); },
     seal: seal, open: open, boot: boot, clampRoster: clampRoster,
     notices: () => list.map(n => Object.assign({}, n, n.sealed ? { sealed: n.sealed.slice() } : {}, n.failed ? { failed: n.failed.slice() } : {}, n.dropped ? { dropped: n.dropped.slice() } : {}))
   };

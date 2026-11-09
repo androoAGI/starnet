@@ -1959,6 +1959,18 @@ fn set_sidecar_branded_env<V: AsRef<OsStr>>(cmd: &mut Command, legacy_name: &str
     }
 }
 
+/// Final review #5: once the workspace holds the sidecar's seal record (`authority-seal.json`), say so in the credential
+/// store beside the key (credentials::mark_authority_sealed). Checked before each launch and once the sidecar listens
+/// (the upgrade's first sealed boot writes the record during its own start). A failure is logged and changes nothing.
+fn note_authority_sealed(state: &AppState) {
+    if !state.workspaces.join("authority-seal.json").is_file() {
+        return;
+    }
+    if let Err(error) = credentials::mark_authority_sealed(&state.workspaces) {
+        log_startup(&state.startup_log, format!("authority-sealed record not saved: {error}"));
+    }
+}
+
 fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
     let mut cmd = Command::new(node);
     // Clear inherited material: only this OS account's verified keychain entry
@@ -1976,6 +1988,14 @@ fn sidecar_command(state: &AppState, entry: &Path, node: &Path) -> Command {
             eprintln!("[connectors] {error}");
             cmd.env("STARNET_CONNECTOR_KEY_ERROR", &error);
         }
+    }
+    // Final review #5: whether this workspace's permission files were sealed before, from the credential store (never
+    // inherited). A record that exists now is noted first, so it holds even if it is later deleted with every trace.
+    cmd.env_remove("STARNET_AUTHORITY_SEALED");
+    cmd.env_remove("SKYNET_AUTHORITY_SEALED");
+    note_authority_sealed(state);
+    if credentials::authority_sealed(&state.workspaces) {
+        set_sidecar_branded_env(&mut cmd, "STARNET_AUTHORITY_SEALED", "1");
     }
     cmd.arg(entry)
         // The sidecar can load the native Windows desktop driver, but that alone grants nothing:
@@ -2143,6 +2163,9 @@ fn spawn_sidecar(state: &AppState) -> bool {
                     }
                 }
                 record_boot_output(state, &output, listening, exited);
+                if listening {
+                    note_authority_sealed(state);
+                }
                 return listening;
             }
             Err(e) if cfg!(windows) && e.raw_os_error() == Some(32) && attempt < 20 => {

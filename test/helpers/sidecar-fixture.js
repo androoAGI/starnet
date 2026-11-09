@@ -242,6 +242,7 @@ class SidecarFixture {
     this._disposed = true;
     await this.stop();
     removeTree(this.workspace);
+    if (this.workspace) removeTree(this.workspace + '.recovery-owner.json.generations');   // final review B12: what a station leaves beside it
     removeTree(this.profile);
     active.delete(this);
   }
@@ -254,6 +255,7 @@ process.once('exit', () => {
       try { child.kill(); } catch (_) {}
     }
     removeTree(fixture.workspace);
+    if (fixture.workspace) removeTree(fixture.workspace + '.recovery-owner.json.generations');
   }
 });
 

@@ -132,7 +132,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(r.mode, 'migrated', 'first keyed boot with files and no marker: the upgrade');
     A.eq(r.sealed.sort(), ['hooks-allowed.json', 'hooks.json', 'permissions.bypass.json'], 'it seals every present file, as it is');
     A.ok(marker.writes === 1 && marker.value && marker.value[S.FIELD], 'and writes the sealed marker');
-    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === true, 'a migrated bypass keeps its value');
+    // final review #5 (defence in depth): FULL BYPASS is not taken on the upgrade's word; it is turned on again at the desk
+    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === false, 'a migrated FULL BYPASS is sealed off (turned on again at the desk)');
     A.eq(seal.open('hooks.json', d.files['hooks.json']).value, { hooks: [{ event: 'pre', command: 'x' }] }, 'a legacy array hooks.json is wrapped as { hooks } and sealed');
     const n = seal.notices().find(x => x.kind === 'migrated');
     A.ok(n && /sealed/.test(n.text) && /once, on this upgrade/.test(n.text) && /hooks\.json/.test(n.text), 'the upgrade is one visible notice naming what was sealed (' + (n && n.text) + ')');
@@ -728,7 +729,23 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
 
   // ---- 11. review 4a (fix-sec2): permissions.allow.json, remote.json and the routines' grants are sealed too ----
   {
-    A.eq(S.NAMES.slice(5), ['permissions.allow.json', 'remote.json'], 'two more whole files are sealed');
+    A.eq(S.NAMES.slice(5), ['permissions.allow.json', 'remote.json', 'channel-owners.json'], 'three more whole files are sealed (final review #3 added the chat channels\' owners)');
+    // final review #3: who owns each chat bot. A cap keeps only an owner (or pending pairing) it names the very same way.
+    {
+      const own = (o) => ({ version: 1, owners: o });
+      const kept = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '111' }, 'telegramBots:b1': { ownerId: '7' } }), own({ telegram: { ownerId: '111' }, 'telegramBots:b1': { ownerId: '7' } }), 0);
+      A.eq(kept.dropped, [], 'the same owners take nothing away');
+      const swapped = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '666' } }), own({ telegram: { ownerId: '111' } }), 0);
+      A.eq(swapped.value.owners, {}, 'an owner the cap does not name is not kept');
+      A.eq(swapped.dropped.length, 1, 'and is named as dropped');
+      const planted = S.lowerOf('channel-owners.json', own({ discord: { pairing: { salt: 'x', digest: 'y' } } }), own({}), 0);
+      A.eq(planted.value.owners, {}, 'nor a pairing challenge the cap does not hold');
+      const revoke = S.lowerOf('channel-owners.json', own({ telegram: { ownerId: '111' } }), own({}), 0);
+      A.ok(revoke.dropped.length === 1, 'removing an owner takes something away (its floor moves: an older record cannot be put back)');
+      const add = S.lowerOf('channel-owners.json', own({}), own({ telegram: { ownerId: '111' } }), 0);
+      A.eq(add.dropped, [], 'pairing a new owner takes nothing away');
+      A.ok(/pair its owner again/.test(S.CONSEQUENCE['channel-owners.json']), 'a refused record says the bot pairs its owner again');
+    }
     A.eq(S.PART_NAMES, ['cron.jobs.json'], 'and the routine store in parts');
     // lowerOf: an approval or trusted folder added without the key is not taken; one removed stays removed
     const low = S.lowerOf('permissions.allow.json', { version: 1, allow: ['cabinet:write', 'path:/new', 'web:execute'], meta: { 'cabinet:write': { grantedAt: 1 }, 'path:/new': { grantedAt: 2 } } },
@@ -800,6 +817,100 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(st.notices().filter(n => n.name === 'cron.jobs.json').length, 1, 'refused() notices once');
     A.eq(S.makeAuthoritySeal({ key: null }).openParts('cron.jobs.json', rec, parts), null, 'unkeyed: obey as is');
     A.eq(S.makeAuthoritySeal({ key: null }).sealParts('cron.jobs.json', parts), null, 'and carry the record read');
+  }
+  {
+    // final review #4: deleting the marker must not bring back a routine grant the Commander removed, by replaying an older
+    // sealed cron.jobs.json. The routine store's floor lives in the marker, so a lost marker resets it with the files'.
+    const mk = memMarker();
+    let t = 1000;
+    const files = {};
+    const list = S.NAMES.map(name => ({ name, read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    const st = S.makeAuthoritySeal({ key: KEY, now: () => t, marker: mk });
+    st.boot(list);
+    files['agent.roster.json'] = roundTrip(st.seal('agent.roster.json', { version: 1, agents: [] }));   // a trace of sealing
+    const parts = { 'grant:tidy': { grants: ['workbench'], prompt: 'tidy' } };
+    const granted = roundTrip(st.sealParts('cron.jobs.json', parts));   // the copy an attacker keeps
+    t = 2000;
+    st.sealParts('cron.jobs.json', {}, { lowering: true });             // the Commander removes the grant
+    A.ok(st.openParts('cron.jobs.json', granted, parts).stale, 'control: with the marker kept, the older copy is stale');
+    // the attack: the older sealed copy put back and the marker deleted
+    mk.value = undefined;
+    t = 3000;
+    const next = S.makeAuthoritySeal({ key: KEY, now: () => t, marker: mk });
+    next.boot(list);
+    const r = next.openParts('cron.jobs.json', granted, parts);
+    A.eq(r.ok, [], '#4: with the marker deleted, the replayed routine store verifies nothing (no grant comes back)');
+    A.ok(r.stale && r.reset, '#4: it reads as stale against the reset floor, and says the record was lost');
+    A.eq(r.restored, false, 'B2: a deleted marker is not a restore');
+    {
+      // final review B2: the same missing marker with a restore's record is a restore, and openParts says so (the
+      // station words it as one; the grants it carried still verify nothing)
+      const mkR = { value: undefined, read() { return this.value; }, write(v) { this.value = v; } };
+      let rec = { files: ['cron.jobs.json'] };
+      const restoredSt = S.makeAuthoritySeal({ key: KEY, now: () => 3500, marker: mkR, restored: { read: () => rec, drop: () => { rec = undefined; } } });
+      restoredSt.boot(list);
+      const rr = restoredSt.openParts('cron.jobs.json', granted, parts);
+      A.ok(rr.restored === true && rr.reset === false, 'B2: after a restore openParts says restored, not "changed outside StarNet"');
+      A.eq(rr.ok, [], 'B2: and a restored grant still verifies nothing here');
+    }
+    A.ok(Number(mk.value.floors['cron.jobs.json']) > granted.g, '#4: the rewritten marker carries the routine store\'s new floor');
+    A.ok(next.notices().some(n => n.kind === 'marker-missing' && /routines run without their unattended grants/.test(n.text)), '#4: the missing-marker notice names the routines');
+    // the same for a foreign marker (another key, or edited)
+    mk.value = Object.assign({}, mk.value, { sealedAt: 1 });
+    const foreign = S.makeAuthoritySeal({ key: KEY, now: () => 4000, marker: mk });
+    foreign.boot(list);
+    A.eq(foreign.openParts('cron.jobs.json', granted, parts).ok, [], '#4: a marker that does not verify resets the routine store\'s floor too');
+  }
+  {
+    // final review #5: deleting the marker and every trace, then planting FULL BYPASS and a Full Access roster, made the next
+    // keyed boot run the one-time upgrade and seal them. The desktop shell's record (sealedBefore) says the workspace was
+    // sealed before: the missing marker is read as missing, and nothing planted is sealed or obeyed.
+    const planted = () => ({
+      'permissions.bypass.json': { version: 1, on: true },
+      'agent.roster.json': { version: 1, agents: [{ agentId: 'agent', name: 'Overseer', approvalMode: 'full', system: 'PWN' }, { agentId: 'w', name: 'W', approvalMode: 'ask' }] }
+    });
+    const listOf = files => S.NAMES.map(name => ({ name, read: () => files[name] === undefined ? undefined : roundTrip(files[name]), write: v => { files[name] = roundTrip(v); } }));
+    {
+      const files = planted(), mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk, sealedBefore: true });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'enforce', '#5: with the shell\'s record, a wiped workspace is not the upgrade');
+      A.ok(!files['permissions.bypass.json'][S.FIELD], '#5: the planted FULL BYPASS is not sealed');
+      A.eq(st.open('permissions.bypass.json', files['permissions.bypass.json']).ok, false, '#5: and is not obeyed (reads as off)');
+      A.eq(st.open('agent.roster.json', files['agent.roster.json']).ok, false, '#5: nor the planted Full Access roster');
+      A.ok(st.notices().some(n => n.kind === 'marker-missing'), '#5: the page says the record is missing');
+      A.ok(mk.value && Number(mk.value.floors['permissions.bypass.json']) >= 5000, '#5: and the rewritten marker carries reset floors');
+    }
+    {
+      // a fresh start (nothing in the workspace) with the shell's record: nothing was planted, nothing to say
+      const files = {}, mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk, sealedBefore: true });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'enforce', '#5: an empty workspace with the record boots as before');
+      A.eq(st.notices().filter(n => /^marker-/.test(n.kind)).length, 0, '#5: and says nothing about a missing record');
+    }
+    {
+      // DEFENCE IN DEPTH: the real upgrade (no record anywhere) seals everything as it is, except FULL BYPASS and Full Access
+      const files = planted(), mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'migrated', '#5: with no record anywhere this is the upgrade');
+      const bp = st.open('permissions.bypass.json', files['permissions.bypass.json']);
+      A.ok(bp.ok && bp.value.on === false, '#5: the upgrade seals FULL BYPASS off (not taken on the file\'s word)');
+      const ro = st.open('agent.roster.json', files['agent.roster.json']);
+      A.ok(ro.ok && ro.value.agents.find(a => a.agentId === 'agent').approvalMode === 'ask', '#5: and Full Access as ask');
+      A.eq(ro.value.agents.find(a => a.agentId === 'agent').system, 'PWN', 'everything else in the roster is kept as it was');
+      const n = st.notices().find(x => x.kind === 'migrated');
+      A.ok(n && /FULL BYPASS on/.test(n.text) && /Full Access for "Overseer"/.test(n.text) && /confirm at the desk/.test(n.text), '#5: the upgrade notice names what to turn on again, at the desk');
+      A.eq(r.lowered.length, 2, '#5: the boot reports both');
+    }
+    {
+      // an upgrade with nothing raised says nothing extra
+      const files = { 'permissions.bypass.json': { version: 1, on: false } }, mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
+      st.boot(listOf(files));
+      A.ok(!/Not carried over/.test(st.notices().find(x => x.kind === 'migrated').text), 'an upgrade that finds nothing raised keeps its old notice');
+    }
   }
   {
     // remote/devices.js with the seal

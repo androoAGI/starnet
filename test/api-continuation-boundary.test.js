@@ -88,8 +88,10 @@ function assertLocked(r, tool, c, label) {
   A.eq(responseProvenance.originOf(JSON.parse(JSON.stringify(first))), '', 'JSON/model projections cannot retain host proof');
   A.eq(responseProvenance.originOf(Object.assign({}, first, { content: first.content + '\nhost decoration' })), ORIGIN, 'host result decoration preserves proof');
   const clean = run(); clean.observe(initial.tool, c, first);
-  A.eq(clean.scope, { origin: ORIGIN, keys: [KEY], method: 'GET', prefix: '/' }, 'direct API body scopes to proven origin and key, method and folder');
-  A.ok(clean.next(initial.tool, call({ url: ORIGIN + '/read/next' })).postTaint.allow, 'same API/key/method read under the folder continues');
+  A.eq(clean.scope, { origin: ORIGIN, keys: [KEY], method: 'GET', prefix: '/', path: '/read' }, 'direct API body scopes to proven origin and key, method, folder and path');
+  A.ok(clean.next(initial.tool, call({ url: ORIGIN + '/read?page=2' })).postTaint.allow, 'the next page of the same API/key/method read continues');
+  // final review #8: a first read at the root scopes nothing but its own path
+  A.ok(!clean.next(initial.tool, call({ url: ORIGIN + '/read/next' })).sameOriginApi, 'another path under the root folder is no continuation');
   // GHSA-2hpj #6: a write after a read, or an upload, is no continuation: unattended refused, watched asks
   const write = call({ method: 'PUT', body: '{}' });
   A.ok(!clean.next(initial.tool, write).sameOriginApi && !clean.next(initial.tool, write).postTaint.allow, 'same API/key write after a read is refused unattended');

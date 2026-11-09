@@ -365,3 +365,10 @@ test/forget.dossier.http.test.js
 test/forgotten-everywhere.e2e.test.js
 test/auto-steer.e2e.test.js
 test/budget-desk.http.test.js
+test/routine-drive.http.test.js
+test/channel-owner-cardfree.http.test.js
+test/channel-owner-seal.http.test.js
+test/seal-wipe.http.test.js
+test/desk-code-log.http.test.js
+test/seal-held-words.http.test.js
+test/retired-grant-notice.http.test.js

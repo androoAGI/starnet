@@ -301,5 +301,23 @@ const IDX = read('sidecar/index.js');
     A.eq(read('website/app/app/harness.js'), harness, 'harness.js is mirrored into website/app');
   }
 
+  // ---- final review B5: a Full Access raise confirmed with a wider profile is one plain question ----
+  {
+    const start = IDX.indexOf('function deskWords(');
+    const src = IDX.slice(start, IDX.indexOf('\n}\n', start) + 2);
+    const words = new Function('deskProofMod', src + '\nreturn deskWords;')(require('../sidecar/deskproof.js'));
+    const both = words('execution-profile', { names: 'FULL ACCESS for "Overseer", and "Overseer" use the THIS COMPUTER profile', question: 'Give "Overseer" FULL ACCESS and the THIS COMPUTER profile?' });
+    A.ok(/^Give "Overseer" FULL ACCESS and the THIS COMPUTER profile\?\n\n/.test(both.summary) && !/Let FULL ACCESS/.test(both.summary), 'B5: the dialog asks one plain question: ' + both.summary.split('\n')[0]);
+    const only = words('execution-profile', { names: '"Nova" use the THIS COMPUTER profile' });
+    A.ok(/^Let "Nova" use the THIS COMPUTER profile\?\n\n/.test(only.summary), 'B5: a profile alone keeps its words');
+    A.ok(IDX.indexOf("question = 'Give ' + parts.join(', and ') + '?';") > 0 && IDX.indexOf("nameOf(id) + ' FULL ACCESS and the ' + label(id) + ' profile'") > 0, 'B5: the roster route builds it from the agents asked for');
+  }
+
+  // ---- final review B2: a restored routine store is worded as a restore ----
+  {
+    const open = A.fnBody(IDX, 'function cronOpenAuthority(');
+    A.ok(open.indexOf("(r.restored\n        ? 'cron.jobs.json came back with a restore from a recovery bundle") > 0, 'B2: a restore is said as a restore, not "changed outside StarNet"');
+  }
+
   A.report('desk-breakages.test');
 })().catch(e => { console.error(e); process.exit(1); });

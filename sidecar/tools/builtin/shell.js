@@ -68,7 +68,7 @@
     // what actually refuses a changed one (sidecar/authority-seal.js); this text check only stops the plain spelling.
     // The one GENERIC name among them, hooks.json, is not here (fix-sec2 F2): plenty of projects have their own, so it
     // is refused only where it names StarNet's own data directory, by its resolved path (authorityFileRisk below).
-    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks-allowed\.json|plugins-allowed|authority-seal\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
+    { re: /\.checkpoints|permissions\.allow|permissions\.bypass|agent\.roster\.json|hooks-allowed\.json|plugins-allowed|authority-seal\.json|channel-owners\.json|\.notebook\.json|channels[\\/]+secrets|codex[\\/]+tokens|ledger\.jsonl|cron\.jobs\.json/i, why: 'that path is a protected harness control file', names: [] }
   ].map(function (r) { return Object.freeze({ re: r.re, why: r.why, names: Object.freeze(r.names) }); }));
   function escapesWorkspace(cmd) {
     for (const rule of FLOOR_RULES) if (rule.re.test(cmd)) return rule.why;
