@@ -36,7 +36,8 @@
       meter (issue #105): `neverReread`, which every adapter already honours.
    4. A CUT OUTPUT KEEPS ITS HEAD AND ITS TAIL (headTail). shell.exec, verify and MCP results over their 64k cap kept
       only the head: a build or test log ends where the error is, and that end was the part thrown away. The same 64k
-      now holds the first 70% and the last 30% (the registry's clampOutput cut), with the gap marked in place.
+      now holds the first 70% and the last 30%, with the gap marked in place. This is THE 70/30 cut: the registry's
+      clampOutput and the loop's turn squeeze cut through it too, so none of those cuts splits a surrogate pair.
 
    Pure apart from the injected parker and the request view's in-place strip (1.); no clock; UMD so loop.js can load it
    wherever it loads. */
@@ -50,7 +51,7 @@
   'use strict';
 
   // ---------------------------------------------------------------- 4. head + tail
-  const HEAD_SHARE = 0.7;   // the registry's clampOutput and the loop's turn squeeze cut 70/30 too
+  const HEAD_SHARE = 0.7;   // the registry's clampOutput and the loop's turn squeeze cut through headTail as well
   const isHigh = c => c >= 0xD800 && c <= 0xDBFF;
   const isLow = c => c >= 0xDC00 && c <= 0xDFFF;
   /* headTail(text, max, noteFor?) -> text whose kept characters total `max`: the first 70% and the last 30%, with

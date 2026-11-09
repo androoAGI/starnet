@@ -231,6 +231,8 @@
       }
       return content.slice(0, budget - short.length) + short;
     }
+    // the registry's 70/30 cut, through the one implementation (history-edit headTail: never splits a surrogate pair)
+    if (HistoryEdit) return HistoryEdit.headTail(content, room, () => note);
     const head = Math.floor(room * 0.7), tail = room - head;
     return content.slice(0, head) + note + content.slice(content.length - tail);
   }

@@ -149,9 +149,10 @@
      cut, say how much is missing, and point at the paging/filtering knob the server itself exposes. */
   /* HEAD AND TAIL (W1.7). The same cap now keeps the first 70% and the last 30% of the payload (history-edit headTail), the gap
      marked in place: the end of a long result — a totals row, the last page marker, an error the server appends — was the part
-     the head-only cut threw away. A browser copy without the resolver keeps the head, as before. */
+     the head-only cut threw away. A browser copy without the resolver makes the same 70/30 cut (it only skips the
+     resolver's care for a surrogate pair at a cut), so the note's "the end follows" stays true there too. */
   const headTail = (historyEdit && typeof historyEdit.headTail === 'function') ? historyEdit.headTail
-    : function (s, max, noteFor) { return s.slice(0, max) + noteFor(s.length - max); };
+    : function (s, max, noteFor) { const head = Math.floor(max * 0.7), from = s.length - (max - head); return s.slice(0, head) + noteFor(from - head) + s.slice(from); };
   function clampResult(text, max) {
     const s = String(text == null ? '' : text);
     const limit = max > 0 ? max : RESULT_MAX_CHARS;

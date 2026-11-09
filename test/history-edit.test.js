@@ -1,7 +1,7 @@
-/* node test/history-edit.test.js — unit cover for sidecar/history-edit.js (W1.7 context groundwork): headTail,
-   elideToolResult (the ONE stub/handle builder; W1.8 cross-run replay reuses it), foldRequest and the request view.
-   The end-to-end invariants (real loop, binding upstream, real fs.read read-back) live in
-   history-edit.invariant.test.js. Pure: no network, no files. */
+/* node test/history-edit.test.js — unit cover for sidecar/history-edit.js (W1.7 context groundwork): headTail (and the
+   registry clamp and turn squeeze that cut through it), elideToolResult (the ONE stub/handle builder; W1.8 cross-run
+   replay reuses it), foldRequest and the request view. The end-to-end invariants (real loop, binding upstream, real
+   fs.read read-back) live in history-edit.invariant.test.js. Pure: no network, no files. */
 'use strict';
 const A = require('./_assert.js');
 const HE = require('../sidecar/history-edit.js');
@@ -30,6 +30,20 @@ const firstLine = s => String(s).split('\n')[0];
     A.ok(!lone.test(cut), 'headTail: no lone surrogate survives a cut');
     const whole = headTail('x'.repeat(5) + E + 'y'.repeat(30) + E + 'z', 12, () => '|');
     A.ok(!lone.test(whole), 'headTail: no lone surrogate at other boundaries either');
+
+    // THE one 70/30 cut: the registry's clamp (through its real dispatch) and the loop's turn squeeze cut through headTail
+    const { makeRegistry } = require('../sidecar/tools/registry.js');
+    const { squeeze } = require('../sidecar/loop.js')._internals;
+    const split = [];
+    for (const cap of [8000, 8001, 9000, 9001, 12345, 12346]) {
+      const reg = makeRegistry();
+      reg.register({ impact: 'none', name: 'big', schema: { type: 'object' }, run: async () => E.repeat(cap) });
+      const r = await reg.dispatch({ name: 'big', args: {}, argsRaw: '{}' }, { agentId: 'a', canUse: () => ({ ok: true }), canRun: () => ({ ok: true }), outputMax: cap });
+      if (!r.ok || r.content.length >= cap * 2) split.push('clamp ' + cap + ': not cut');
+      else if (lone.test(r.content)) split.push('clamp ' + cap);
+    }
+    for (const budget of [1000, 1001, 1002, 1003]) if (lone.test(squeeze(E.repeat(2000), budget, null, 0))) split.push('squeeze ' + budget);
+    A.eq(split, [], 'one cut: neither the registry clamp nor the turn squeeze splits a surrogate pair');
   }
 
   // ================= elideToolResult =================
