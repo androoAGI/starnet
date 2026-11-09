@@ -253,6 +253,21 @@ check('every desk route calls the desk proof (its own body, or the handler its i
   assert.deepStrictEqual(bad, [], 'desk routes without a desk proof call');
 });
 
+// test/_fnbody.js does not parse regex literals: a '//' inside one reads as a comment, and the body it returns RUNS LONG into
+// the functions after it (handleToolsetToggle's pathname regex read it as gated through a neighbour's deskGate until
+// 2026-11-08). A body that reaches a top-level declaration was read past its own end, so no verdict on it can stand.
+const RAN_LONG = /\n(?:async function|function|const|let|var|class) /;
+check('every route body the census reads ends at its own function (no verdict from a neighbour\'s source)', () => {
+  const long = [];
+  for (const r of routes) {
+    const c = C[r.key];
+    if (RAN_LONG.test(r.body)) long.push(r.key);
+    if (c && c.via && RAN_LONG.test(fnBody(IDX, 'async function ' + c.via + '(') || fnBody(IDX, 'function ' + c.via + '(') || '')) long.push(r.key + ' via ' + c.via);
+  }
+  for (const h of DESK_HELPERS) if (RAN_LONG.test(fnBody(IDX, 'function ' + h + '(') || fnBody(IDX, 'async function ' + h + '(') || '')) long.push('helper ' + h);
+  assert.deepStrictEqual(long, [], 'bodies read past their own end');
+});
+
 check('every desk helper a route may call in deskGate\'s place calls deskGate itself', () => {
   const bad = DESK_HELPERS.filter(h => (fnBody(IDX, 'function ' + h + '(') || fnBody(IDX, 'async function ' + h + '(') || '').indexOf('deskGate(') < 0);
   assert.deepStrictEqual(bad, [], 'helpers that no longer ask the desk');

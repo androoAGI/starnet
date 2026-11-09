@@ -17048,6 +17048,9 @@ function deskWords(action, d) {
     case 'servicekey-unattended': return { title: 'StarNet — let agents use a key unattended', verb: 'Allow unattended',
       summary: 'Let agents spend the key "' + o.name + '" (' + o.envVar + ') with nobody watching, in routines, Night Shift and messaged runs, without asking?\n\nIt stays on until you switch it off in Connectors › Keys.' };
     // review2 #9: the away workshop is a standing unattended write grant, asked like the station-wide one below
+    case 'toolset-on': return { title: 'StarNet — turn a toolset back on', verb: 'Turn it on',
+      summary: 'Turn the ' + (o.label || 'toolset') + ' toolset back on?\n\nEvery agent can use its tools again'
+        + (o.tools ? ' (' + o.tools + (o.more ? ' and ' + o.more + ' more' : '') + ')' : '') + ', within each agent\'s own approval setting, until you switch it off again in Connectors › Tools.' };
     case 'quit': return { title: 'StarNet — stop this station', verb: 'Stop it',
       summary: 'Stop this StarNet station now?\n\nEvery run, routine and loop stops. A station kept running by pm2 or another service manager starts again on its own.' };
     // the census's spend routes (handleBudgetCaps, handleBudgetResume, handleBudgetSettle; a restored backup or a reset too)
@@ -17438,13 +17441,22 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
 async function handleToolsetToggle(req, res) {
   const json = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(obj)); };
   let id = '';
-  try { id = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname.replace(/^\/api\/toolsets\//, '')); } catch (_) {}
+  // the route matched the '/api/toolsets/' prefix, so the id is what follows it (sliced, not a regex: test/_fnbody.js reads
+  // a regex literal's '//' as a comment, and the route census then read this handler's body long into its neighbours)
+  try { id = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname.slice('/api/toolsets/'.length)); } catch (_) {}
   id = String(id || '').trim();
   if (!id) return json(400, { error: 'a toolset id is required' });
   if (id === 'compute') return json(400, { error: 'compute is the always-on compute gate and cannot be toggled' });
   if (TOGGLEABLE_CAPS.indexOf(id) < 0) return json(404, { error: 'unknown toolset: ' + id });
   let body; try { body = JSON.parse(await readBody(req, 1 << 12)) || {}; } catch (e) { return json(400, { error: 'bad json' }); }
   if (typeof body.enabled !== 'boolean') return json(400, { error: 'enabled must be a boolean' });
+  // turning a toolset that is OFF back ON gives every agent its tools again: the desk confirms it (the route census's
+  // toolsets row; GHSA-2hpj #1). Turning one off, or "on" when it is already on, never asks.
+  if (body.enabled && toolsetDisabled[id] === false) {
+    const row = toolsetRows(CAP_REGISTRY).find(r => r.id === id) || {};
+    if (!deskGate(req, res, 'toolset-on', id, { label: String(row.label || id), tools: (row.tools || []).slice(0, 8).join(', '),
+      more: Math.max(0, (row.tools || []).length - 8) })) return;
+  }
   if (body.enabled) delete toolsetDisabled[id]; else toolsetDisabled[id] = false;   // sparse: only OFF is persisted
   saveToolsetState();   // durable; the in-memory map is already live for the next resolveTools call
   return json(200, { ok: true, id, enabled: body.enabled });
@@ -32906,7 +32918,8 @@ async function handleMemoryConfigSet(req, res) {
   if (Object.prototype.hasOwnProperty.call(body, 'failureReviewEnabled')) memoryConfig.failureReviewEnabled = !!body.failureReviewEnabled;
   if (Object.prototype.hasOwnProperty.call(body, 'embedModel')) {
     const m = String(body.embedModel == null ? '' : body.embedModel).trim();
-    if (m.length > 120 || /[\s"'<>]/.test(m)) return json(400, { error: 'embedModel must be a bare model id (≤120 chars, no spaces/quotes)' });
+    // the quotes are written \x22 \x27: a quote inside a regex literal makes test/_fnbody.js (the route census) read past this function
+    if (m.length > 120 || /[\s\x22\x27<>]/.test(m)) return json(400, { error: 'embedModel must be a bare model id (≤120 chars, no spaces/quotes)' });
     memoryConfig.embedModel = m;
   }
   if (Object.prototype.hasOwnProperty.call(body, 'embedProvider')) {

@@ -83,11 +83,19 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     for (const model of ['qwen3:14b', 'qwen3:30b-a3b', 'qwen3:8b', 'llama3.1:8b']) {
       await roster('trusted-project');
       await run(model, { placed: [], internal: false }, true);
-      await fixture.json('POST', '/api/toolsets/cabinet', { enabled: false });
+      // switching a toolset off never asks the desk
+      assert.equal((await fixture.json('POST', '/api/toolsets/cabinet', { enabled: false })).status, 200, 'turning the cabinet toolset off is not asked');
       await run(model, {}, false);
       await roster('trusted-project', 'full');
       await run(model, { placed: [], internal: false }, true);
-      await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true });
+      // switching it back on gives every agent its tools again: the page key alone is refused and nothing changes, then the
+      // code this bare station printed confirms it (the route census's toolsets row)
+      const unconfirmedOn = await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true });
+      assert.deepEqual([unconfirmedOn.status, unconfirmedOn.body && unconfirmedOn.body.code, unconfirmedOn.body && unconfirmedOn.body.deskConfirm && unconfirmedOn.body.deskConfirm.action],
+        [403, 'desk_confirm_required', 'toolset-on'], 'turning a toolset back on asks the desk first: ' + unconfirmedOn.text);
+      assert.equal((await fixture.json('GET', '/api/toolsets')).body.toolsets.find(t => t.id === 'cabinet').enabled, false, 'and it stays off until the desk says yes');
+      assert.equal((await fixture.deskJson('POST', '/api/toolsets/cabinet', { enabled: true })).status, 200, 'the desk confirms turning it back on');
+      assert.equal((await fixture.json('POST', '/api/toolsets/cabinet', { enabled: true })).status, 200, '"on" for a toolset that is already on does not ask');
       await roster();
     }
     await fixture.restart();
