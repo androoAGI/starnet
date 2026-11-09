@@ -26,6 +26,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+// turning the away workshop on, and a dial raise that grants it, are confirmed at the desk (fix-sec2 review2 #9): with the
+// code each bare station prints on its own console, as the person at it types it
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -115,7 +119,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -165,7 +169,8 @@ fs.renameSync = function(src,dst){
     const token = await bootToken(B, B);
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
     const post = (p, b) => fetch(B + p, { method: 'POST', headers, body: JSON.stringify(b) });
-    await post('/api/workshop/grant', { agentId: 'builder', on: true });
+    const postAtDesk = (p, b) => fetchJsonAtDesk(desk, B + p, { method: 'POST', headers, body: JSON.stringify(b) });
+    await postAtDesk('/api/workshop/grant', { agentId: 'builder', on: true });
     await post('/api/workshop/queue', { agentId: 'builder', id: 'item-plan-' + mode, title: 'Durability plan ' + mode });
     const shift = await readNdjson(await post('/api/workshop/shift', { agentId: 'builder' }));
     const plan = ((shift.find(e => e.name === 'workshop.shift.result') || {}).payload || {});
@@ -202,9 +207,10 @@ fs.renameSync = function(src,dst){
     const token = await bootToken(B, B);
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
     const post = (p, b) => fetch(B + p, { method: 'POST', headers, body: JSON.stringify(b) });
+    const postAtDesk = (p, b) => fetchJsonAtDesk(desk, B + p, { method: 'POST', headers, body: JSON.stringify(b) });
 
     // 1. build the PLAN — the deliverable shape that used to make Implement a pure file copy.
-    await post('/api/workshop/grant', { agentId: 'builder', on: true });
+    A.ok((await postAtDesk('/api/workshop/grant', { agentId: 'builder', on: true })).on === true, 'the away workshop is on once the desk confirmed it');
     await post('/api/workshop/queue', { agentId: 'builder', id: 'item-plan', title: 'Recent-work automation backlog' });
     const shiftEvents = await readNdjson(await post('/api/workshop/shift', { agentId: 'builder' }));
     const shiftRes = ((shiftEvents.find(e => e.name === 'workshop.shift.result') || {}).payload || {});
@@ -297,7 +303,8 @@ fs.renameSync = function(src,dst){
           plan and retried — which burned a run and delivered nothing. That is the failure this locks out.)
           At 'leash' (BUILD DRAFTS) the same build stays a plan, because that rung is where the Commander wants
           the approval beat. */
-    await post('/api/autonomy/posture', { posture: { initiative: 'free', reach: 'sandbox' } });
+    const freeRaise = await postAtDesk('/api/autonomy/posture', { posture: { initiative: 'free', reach: 'sandbox' } });
+    A.ok(freeRaise.ok === true && freeRaise.workshopGranted === true, 'the raise to FREE, confirmed at the desk, grants the night shift its away workshop');
     // prove the rung actually took — otherwise every assertion below silently tests the DEFAULT rung.
     const rung = await (await fetch(B + '/api/autonomy/posture', { headers })).json();
     A.eq(((rung.summary) || {}).initiative, 'free', 'the station really is at FREE for this leg');
@@ -345,7 +352,7 @@ fs.renameSync = function(src,dst){
     }
 
     // back down to the draft rung: the SAME build shape stays a PLAN — the chain is rung-scoped, not universal.
-    await post('/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox' } });
+    await postAtDesk('/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox' } });
     await post('/api/workshop/queue', { agentId: 'builder', id: 'item-leashplan', title: 'Leash-rung plan' });
     const leashShift = await readNdjson(await post('/api/workshop/shift', { agentId: 'builder' }));
     const leashRes = ((leashShift.find(e => e.name === 'workshop.shift.result') || {}).payload || {});

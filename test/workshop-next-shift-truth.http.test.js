@@ -15,6 +15,10 @@ const os = require('os');
 const path = require('path');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+// turning the away workshop on is confirmed at the desk (fix-sec2 review2 #9): with the code this bare station prints on its
+// own console, as the person at it types it
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -41,7 +45,7 @@ function bootSidecar(port, workspaces, attempts) {
         else reject(new Error('no free sidecar port'));
       }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('sidecar boot timeout:\n' + out)); } }, 30000).unref();
@@ -60,7 +64,7 @@ function bootSidecar(port, workspaces, attempts) {
     const post = async (route, body) => (await fetch(B + route, { method: 'POST', headers, body: JSON.stringify(body) })).json();
     const card = async () => (await fetch(B + '/api/workshop/backlog?agent=agent', { headers })).json();
 
-    const g = await post('/api/workshop/grant', { agentId: 'agent', on: true });
+    const g = await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
     A.ok(g.ok === true, 'granting the away workshop succeeds (and arms scheduling)');
     const on = await card();
     A.ok(on.granted === true && !!Date.parse(on.nextShiftAt), 'scheduling ON: the card carries the shift routine\'s real next fire');

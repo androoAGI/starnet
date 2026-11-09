@@ -27,6 +27,10 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+// turning the away workshop on is confirmed at the desk (fix-sec2 review2 #9): with the code this bare station prints on its
+// own console, as the person at it types it
+const { makeDeskCodeReader, fetchJsonAtDesk } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -121,7 +125,7 @@ function boot(port, env, attemptsLeft) {
       else if (!settled && BIND_REFUSED.test(out)) { settled = true; try { child.kill(); } catch (_) {}
         if (attemptsLeft > 0) resolve(allocatePort().then(next => boot(next, env, attemptsLeft - 1))); else reject(new Error('no free port')); }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout:\n' + out)); } }, 30000).unref();
@@ -197,7 +201,8 @@ function seedLogs(ws, now) {
     const threadId = open1.threads[0].id;
 
     // ===== 3. NIGHT-SHIFT PROPOSE draws the thread FIRST; the [t1]-cited candidate survives + builds → PICKED. =====
-    await fetch(B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
+    const granted = await fetchJsonAtDesk(desk, B + '/api/workshop/grant', { method: 'POST', headers, body: JSON.stringify({ agentId: 'agent', on: true }) });
+    A.ok(granted.ok === true && granted.on === true, 'the away workshop is on once the desk confirmed it');
     await fetch(B + '/api/autonomy/posture', { method: 'POST', headers, body: JSON.stringify({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: { known: ['goals'], beliefs: { goals: [{ text: 'ship something good' }] } } }) });
     const act = await fireBeat(B, headers);
     A.ok(act.delivered === true, 'the thread-grounded beat delivered (reason: ' + act.reason + ')');

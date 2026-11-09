@@ -5,7 +5,9 @@ const path = require('node:path');
 const { SidecarFixture } = require('./helpers/sidecar-fixture');
 (async () => {
   const host = SidecarFixture.create({ env: { SKYNET_DEV: '1', SKYNET_CRON_ENABLED: '0' } });
-  const write = posture => host.json('POST', '/api/autonomy/posture', { posture, resumeHalt: true });
+  // a dial raise to building grants the night shift's away workshop, so it is confirmed at the desk first (fix-sec2 review2 #9):
+  // the Commander's dial write confirms it with the code the station printed, as the person at the station types it
+  const write = posture => host.deskJson('POST', '/api/autonomy/posture', { posture, resumeHalt: true });
   const read = async () => (await host.json('GET', '/api/autonomy/posture')).body.summary;
   try {
     await host.start();
@@ -16,6 +18,8 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture');
     const bytes = fs.readFileSync(target);
     fs.unlinkSync(target); fs.mkdirSync(target);
     try {
+      const unconfirmed = await host.json('POST', '/api/autonomy/posture', { posture: { initiative: 'free', reach: 'reach', leashPerDay: 12 }, resumeHalt: true });
+      assert.equal(unconfirmed.status, 403); assert.equal(unconfirmed.body.code, 'desk_confirm_required', 'a raise to building is asked at the desk first');
       const failed = await write({ initiative: 'free', reach: 'reach', leashPerDay: 12 });
       assert.equal(failed.status, 503); assert.equal(failed.body.ok, false);
       assert.equal((await read()).initiative, 'wait', 'failed persistence cannot change live authority');
