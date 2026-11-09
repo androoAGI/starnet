@@ -79,7 +79,7 @@
      An image the API cannot take (an unsupported type, an unreadable reference, past the per-turn cap) keeps a note
      in its place: the model is told a picture was there, never handed a description of one it did not get. */
   const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  const MAX_IMAGES = 20;   // the newest are sent; the loop already ages old screenshots out (TOOL_IMAGE_KEEP)
+  const MAX_IMAGES = 20;   // the newest are sent; a live child keeps up to 20 capture turns (holdsHistory), the one-shot path gets the loop's stepped view
   const IMAGE_MARK = '\u0000starnet-image-';
   function imageBlockOf(p) {
     let s = p && p.type === 'image_url' ? (p.image_url && (p.image_url.url != null ? p.image_url.url : p.image_url)) : null;
@@ -129,8 +129,9 @@
     }
     return list;
   }
-  function toolsPrompt(tools) {
-    const list = toolLines(tools).map(t => t.line);
+  function toolsPrompt(tools) { return toolsPromptOf(toolLines(tools).map(t => t.line)); }
+  // The # Tools section from the tool lines themselves (a replacement child renders the run-start lines: RUN-START TOOLS).
+  function toolsPromptOf(list) {
     // A turn with NO tools still says so: a Claude Code model told about station powers in the system prompt otherwise
     // improvises its own native tool-call markup as TEXT (live 09-28: '<invoke name="Bash">…' leaked into a chat reply).
     if (!list.length) return '# Tools\nNo tools are available in this turn. Answer in plain prose only: never write tool-call markup (<tool_call>, <invoke>, <function_calls>) and never claim to have run anything.';
@@ -221,8 +222,10 @@
     const note = prefix && joined.startsWith(prefix) ? joined.slice(prefix.length).trim() : '';
     const tn = transcriptNote || TRANSCRIPT_NOTE;
     const compose = tp => (note ? [prefix].concat(tp ? [tp] : [], [tn, DYNAMIC_BOUNDARY + '\n' + note]) : system.concat(tp ? [tp] : [], [tn])).join('\n\n');
-    // base: the same prompt with the tool list left out — what a persistent child must still match after a tool reveal
-    return { system: compose(toolsPrompt(tools)), base: compose(TOOLS_SLOT), rest: messages.slice(i).filter(m => m && typeof m === 'object') };
+    // base: the same prompt with the tool list left out — what a persistent child must still match after a tool reveal;
+    // withTools(lines): the same prompt listing exactly these tool lines (a replacement child's run-start list)
+    return { system: compose(toolsPrompt(tools)), base: compose(TOOLS_SLOT), withTools: lines => compose(toolsPromptOf(lines)),
+      rest: messages.slice(i).filter(m => m && typeof m === 'object') };
   }
   const TOOLS_SLOT = '\u0000tools\u0000';
   /* The transcript entries, ONE text block each: { text, tool?, at } (at = the index in `rest` of the message that opened
@@ -287,11 +290,13 @@
     }
     return entries;
   }
+  // A host note that closes a stdin message (a tool reveal: toolsNote), as its own <system_note> entry.
+  const noteEntries = (notes, at) => (notes || []).map(t => ({ text: '<system_note>\n' + t + '\n</system_note>', at }));
   // The whole conversation as ONE stream-json user message: what a one-shot child, or a persistent child that has just
-  // started, is given.
-  function renderTranscript(system, rest) {
+  // started, is given (`notes`: what a replacement child is told after it, see RUN-START TOOLS).
+  function renderTranscript(system, rest, notes) {
     const images = [];
-    return withBlocks(system, transcriptEntries(rest, images), images);
+    return withBlocks(system, transcriptEntries(rest, images).concat(noteEntries(notes, rest.length)), images);
   }
   function buildPrompt(messages, tools, cachePrefix) {
     const sp = splitPrompt(messages, tools, cachePrefix);
@@ -302,8 +307,7 @@
      number in the whole conversation. null = nothing to send. */
   function renderDelta(rest, n, notes) {
     const images = [];
-    const entries = transcriptEntries(rest, images).filter(e => e.at > n);
-    for (const t of notes || []) entries.push({ text: '<system_note>\n' + t + '\n</system_note>', at: rest.length });
+    const entries = transcriptEntries(rest, images).filter(e => e.at > n).concat(noteEntries(notes, rest.length));
     return entries.length ? withBlocks('', entries, images) : null;
   }
   // One transcript message, by value: a persistent child is reused only while every message it holds is unchanged.
@@ -1091,9 +1095,11 @@
        system prompt (persona, rules, brief), the same tools or more (a tool_search reveal is announced in that turn's
        message: TOOL REVEALS), model, effort, run and Stop signal; every earlier message unchanged (a fingerprint
        each); the reply it wrote recorded by the loop unedited (same text, same calls); nothing but new
-       user/tool/system messages after it. Anything else (compaction, an aged-out screenshot, a dropped or repaired
-       call, a retry after a failed turn, a model switch, a withdrawn or changed tool, the CLI compacting itself)
-       closes the child and the turn starts a fresh one from StarNet's whole history, exactly like a one-shot turn.
+       user/tool/system messages after it. Anything else (compaction, a dropped or repaired call, a retry after a failed
+       turn, a model switch, a withdrawn or changed tool, the CLI compacting itself) closes the child and the turn starts
+       a fresh one from StarNet's whole history, exactly like a one-shot turn, on the run-start tool list (RUN-START
+       TOOLS). The loop ages no screen capture out of a child's history before it holds 20 capture turns (holdsHistory:
+       the child holds the pixels already, and an edited earlier message costs a fresh child and a rewrite of the run).
        STARNET_CLAUDE_CLI_PERSIST_LOG=1 prints one line per decision (reuse, fresh + why, closed + why) and one per
        turn's usage (cache read vs written), on either path.
        LIFECYCLE. The child ends at the run's end (release(), called by the loop), on Stop (the run signal, even
@@ -1112,6 +1118,40 @@
     const sha1 = s => require('crypto').createHash('sha1').update(s).digest('hex');
     const sessionKey = (req, system) => sha1(JSON.stringify([String(req.model || ''), effortOf(req), system]));
     const toolMap = tools => new Map(toolLines(tools).map(t => [t.name, t.line]));
+    /* RUN-START TOOLS (cost audit W1.9, 2026-11-08). A reveal (tool_search, a starter's result bringing back its dormant
+       controls) grows the request's tool list mid-run, and the live child is told in that turn's message (TOOL REVEALS).
+       A child that REPLACES it (a warm child after a reply ran past its block, a fresh one after a history or reply
+       mismatch, a crash or a model switch) used to be started on that grown list, so its first system block differed
+       from the one the run's first child had cached: its first request wrote the whole system prompt again (~23.5k
+       tokens at the CLI's 2x one-hour rate; the audit's warm child read 0 and wrote 25,336). childStart is the one answer
+       to "what does a child of this run start with": the tool lines the run's first child was started with, byte for
+       byte, and every tool revealed since announced at the end of its first message with the same note the live child
+       got. Only while every run-start tool is still offered unchanged: a withdrawn or changed tool cannot be told by a
+       note, so that child starts on the current list, and the run's later replacements keep that one. The one-shot path
+       (STARNET_CLAUDE_CLI_PERSIST=0, a side call) renders the current list every turn, as before. */
+    const runTools = new Map();   // runId -> the tool lines its first child was started with, in order
+    function childStart(sp, req, runId) {
+      if (!runId) return { system: sp.system, notes: [], added: [] };   // no run to remember a list for
+      const want = toolLines(req.tools);
+      const start = runTools.get(runId);
+      if (start) {
+        const cur = new Map(want.map(t => [t.name, t.line]));
+        if (cur.size === want.length && start.every(t => cur.get(t.name) === t.line)) {
+          const known = new Set(start.map(t => t.name));
+          const added = want.filter(t => !known.has(t.name));
+          return { system: sp.withTools(start.map(t => t.line)), notes: added.length ? [toolsNote(added)] : [], added };
+        }
+      }
+      runTools.delete(runId); runTools.set(runId, want);
+      while (runTools.size > 16) runTools.delete(runTools.keys().next().value);   // one adapter serves one run; never a leak
+      return { system: sp.system, notes: [], added: [] };
+    }
+    const keptTools = start => {   // a replacement child keeps the run-start list and is told what was revealed since
+      if (!start.added.length) return;
+      stats.keptRunTools = (stats.keptRunTools || 0) + 1;
+      stats.announced = (stats.announced || 0) + start.added.length;
+      plog('replacement keeps the run-start tools; announces ' + start.added.length + ' revealed tool(s): ' + start.added.map(t => t.name).join(', '));
+    };
     // STARNET_CLAUDE_CLI_PERSIST_LOG=1: one console line per persistent-child decision (reuse / fresh + why / closed + why)
     const plog = msg => { if (envOf('STARNET_CLAUDE_CLI_PERSIST_LOG') === '1') console.log('[claude-cli persist] ' + msg); };
 
@@ -1269,11 +1309,12 @@
       const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, PERSIST_TRANSCRIPT_NOTE);
       const key = sessionKey(req, sp.base);
       const runId = req.runId == null ? '' : String(req.runId);
-      let s = session, prompt = null;
+      let s = session, prompt = null, start = null;
       if (s && !s.primed) {
         // a WARM child started for this run (see prewarm): it holds nothing yet, so it takes the whole history
-        if (s.alive && s.key === key && s.runId === runId && s.signal === (signal || null) && s.systemHash === sha1(sp.system)) {
-          prompt = renderTranscript(sp.system, sp.rest); bump(stats.fresh, 'warm'); plog('use warm child ' + (s.child && s.child.pid));
+        start = childStart(sp, req, runId);
+        if (s.alive && s.key === key && s.runId === runId && s.signal === (signal || null) && s.systemHash === sha1(start.system)) {
+          prompt = renderTranscript(start.system, sp.rest, start.notes); bump(stats.fresh, 'warm'); plog('use warm child ' + (s.child && s.child.pid)); keptTools(start);
         } else { closeSession(s, 'warm_unused'); s = null; bump(stats.fresh, 'first'); plog('fresh child: warm one did not fit'); }
       } else if (s) {
         const plan = planDelta(s, key, runId, signal, sp.rest, req);
@@ -1283,7 +1324,10 @@
         if (prompt) { stats.reused++; plog('reuse child ' + (s.child && s.child.pid) + ': +' + plan.delta.length + ' message(s)'); }
         else { const why = plan.why || 'empty'; bump(stats.fresh, why); plog('fresh child: ' + why); closeSession(s, why); s = null; }
       } else { bump(stats.fresh, 'first'); plog('fresh child: first'); }
-      if (!s) { s = openSession(cmd, req, sp.system, key, runId); prompt = renderTranscript(sp.system, sp.rest); }
+      if (!s) {
+        start = start || childStart(sp, req, runId);
+        s = openSession(cmd, req, start.system, key, runId); prompt = renderTranscript(start.system, sp.rest, start.notes); keptTools(start);
+      }
 
       const turn = ++seq;
       const T = makeTurn(req, turn);
@@ -1410,7 +1454,7 @@
             // share of the running cost (review 2026-10-13), not the stream estimate; overrun / no_end have no line
             const cost = ended ? costOf(s, ended) : NaN;
             settle(); closeSession(s, why);
-            if (!(signal && signal.aborted)) prewarm(cmd, req, sp.system, key, runId);   // the loop runs the tools meanwhile
+            if (!(signal && signal.aborted)) prewarm(cmd, req, childStart(sp, req, runId).system, key, runId);   // the loop runs the tools meanwhile
             out = ended
               ? [T.usageChunk({ usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : (T.apiKeySource === 'none' ? NaN : estimateUsd(ended.usage || {}, req.model)) }), { type: 'done', finishReason: 'tool_calls', truncated: false }]
               : T.stopChunks(req.model);
@@ -1438,6 +1482,7 @@
     // The run is over: its persistent child goes now instead of idling out (loop.js calls this as the run ends).
     function release(runId) {
       const id = runId == null ? '' : String(runId);
+      runTools.delete(id);
       for (const s of Array.from(ownedSessions)) if (s.runId === id) closeSession(s, 'run_end', true);
     }
 
@@ -1466,6 +1511,10 @@
       // a turn with an image rides the CLI's stream-json input as real image blocks (see IMAGES), so image_analyze's
       // session fallback can use a Claude Code agent's own model
       supportsImages() { return true; },
+      /* HOLDS HISTORY (cost audit W1.9). With the persistent child on, the run's history lives in the child: the loop
+         sends it every message as it was, and ages no screen capture out of it before its HELD_IMAGE_TURNS bound (loop.js
+         SCREENSHOTS AGE OUT), since an edited earlier message closes the child for a fresh one that rewrites the run. */
+      holdsHistory() { return persistOn; },
       reasoningEfforts() { return EFFORTS.slice(); }
     };
   }
