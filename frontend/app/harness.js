@@ -247,21 +247,37 @@ const Harness = (() => {
       let copy; try { copy = res.clone(); } catch (_) { return Promise.resolve(null); }   // the caller keeps an unread body
       return Promise.resolve(copy.json()).then(j => (j && j.deskConfirm && typeof j.deskConfirm.id === 'string' && j.deskConfirm.id) ? j.deskConfirm : null, () => null);
     }
+    /* THE PERSON'S TIME AT THE DESK IS NOT THE STATION'S (fix-sec2 breakage 7). A request's deadline (requestJson) used to
+       run while the shell's dialog was open, and a browser's code prompt stops every timer until it closes, so a yes
+       that took over a minute (the code read from `pm2 logs` over ssh) fired the overdue deadline at once and aborted the
+       replay: "did not confirm" after the person confirmed. deskTime() says how many confirmations are open and how long
+       they took, and the deadline moves by that time. */
+    const clock = typeof o.now === 'function' ? o.now : () => Date.now();
+    let open = 0, spentMs = 0;
+    function deskTime() { return { open, spentMs }; }
     function confirmAtDesk(c) {
       if (c.mode === 'desktop') {
         if (!o.desktop || typeof o.invoke !== 'function') return Promise.resolve(false);   // only the shell can confirm a desktop challenge
+        const t0 = clock();
+        open++;
+        const done = v => { open--; spentMs += Math.max(0, clock() - t0); return v; };
         return Promise.resolve()
           .then(() => o.invoke('starnet_desk_confirm', { id: String(c.id), title: String(c.title || ''), summary: String(c.summary || ''), verb: String(c.verb || '') }))
-          .then(() => true, () => false);
+          .then(() => done(true), () => done(false));
       }
       // a station that shows its code nowhere (or stopped taking codes) cannot be confirmed here: say no without asking
       if (!c.codeWhere || c.locked) return Promise.resolve(false);
       try {
         const ask = o.win && typeof o.win.prompt === 'function' ? o.win.prompt.bind(o.win) : null;
         if (!ask) return Promise.resolve(false);
-        const typed = ask(String(c.title || 'StarNet — confirm') + '\n\n' + String(c.summary || 'Confirm this change?')
-          + '\n\nTo ' + String(c.verb || 'confirm').toLowerCase() + ', type the 6-digit code the station printed in the terminal it runs in'
-          + ' (confirmation ' + String(c.code || '') + '). StarNet never asks for this code in chat.', '');
+        const t0 = clock();
+        let typed;
+        // counted before any timer can run: the prompt blocks them all, and the overdue one fires right after it closes
+        try {
+          typed = ask(String(c.title || 'StarNet — confirm') + '\n\n' + String(c.summary || 'Confirm this change?')
+            + '\n\nTo ' + String(c.verb || 'confirm').toLowerCase() + ', type the 6-digit code the station printed in the terminal it runs in'
+            + ' (confirmation ' + String(c.code || '') + '). StarNet never asks for this code in chat.', '');
+        } finally { spentMs += Math.max(0, clock() - t0); }
         const code = String(typed == null ? '' : typed).replace(/\s+/g, '');
         return Promise.resolve(/^\d{6}$/.test(code) ? { yes: true, code } : false);
       } catch (_) { return Promise.resolve(false); }
@@ -274,7 +290,7 @@ const Harness = (() => {
         return confirmAtDesk(c).then(out => (out === true ? replay(c.id, '') : (out && out.yes === true) ? replay(c.id, String(out.code || '')) : res));
       });
     }
-    return { settle, challengeOf, confirmAtDesk };
+    return { settle, challengeOf, confirmAtDesk, deskTime };
   }
   const deskConfirm = deskConfirmation({ desktop: DESKTOP, invoke: (cmd, args) => invoke(cmd, args), win: typeof window !== 'undefined' ? window : null });
   function withDeskProof(init, id, code) {
@@ -2009,6 +2025,10 @@ const Harness = (() => {
       const abort = () => controller.abort();
       if (signal) { if (signal.aborted) abort(); else signal.addEventListener('abort', abort, { once: true }); }
       let deadline;
+      // the time the person spends confirming at the desk does not count (deskConfirmation deskTime; fix-sec2 breakage 7)
+      const deskTime = () => (typeof deskConfirm !== 'undefined' && deskConfirm && typeof deskConfirm.deskTime === 'function' ? deskConfirm.deskTime() : null);
+      const desk0 = deskTime();
+      let granted = 0;
       try {
         return await Promise.race([
           fetch(path, Object.assign({ cache: 'no-store' }, init, { signal: controller.signal })).then(async r => {
@@ -2017,10 +2037,17 @@ const Harness = (() => {
             if (out.status >= 200 && out.status < 300 && out.j !== null) return out.j;
             throw Object.assign(new Error(out.status >= 200 && out.status < 300 ? 'unreadable reply (http ' + out.status + ')' : 'http ' + out.status), { status: out.status, code: out.code, j: out.j });
           }),
-          new Promise((_, reject) => { deadline = setTimeout(() => {
-            reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
-            abort();
-          }, (options && options.timeoutMs > 0) ? options.timeoutMs : init ? 60000 : 15000); })
+          new Promise((_, reject) => {
+            const due = () => {
+              const t = deskTime();
+              if (t && t.open > 0) { deadline = setTimeout(due, 1000); return; }   // a dialog is still open: wait for it
+              const owed = t && desk0 ? t.spentMs - desk0.spentMs - granted : 0;
+              if (owed > 0) { granted += owed; deadline = setTimeout(due, owed); return; }
+              reject(new Error(init ? 'The station did not confirm this change. Check its state before retrying.' : 'The station took too long to respond. Please retry.'));
+              abort();
+            };
+            deadline = setTimeout(due, (options && options.timeoutMs > 0) ? options.timeoutMs : init ? 60000 : 15000);
+          })
         ]);
       } finally { clearTimeout(deadline); if (signal) signal.removeEventListener('abort', abort); }
   }

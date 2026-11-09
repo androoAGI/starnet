@@ -231,5 +231,69 @@ const IDX = read('sidecar/index.js');
     }
   }
 
+  // ---- breakage 7 (review-sec2): the person's time at the desk does not count against the request's deadline ----
+  {
+    const vm = require('vm');
+    const harness = read('frontend/app/harness.js');
+    const make = o => new Function(A.fnBody(harness, 'function deskConfirmation(') + '\nreturn deskConfirmation;')()(o);
+    // a browser's code prompt: it blocks every timer while it is open, and its time is counted before any timer can run
+    let t = 1000;
+    const ch = { id: 'dc_' + 'b'.repeat(24), mode: 'page', codeWhere: 'terminal', title: 'T', summary: 'S', verb: 'Give' };
+    const dc = make({ desktop: false, now: () => t, win: { prompt: () => { t += 90000; return '123456'; } } });
+    A.eq(dc.deskTime(), { open: 0, spentMs: 0 }, 'nothing at the desk yet');
+    const out = dc.confirmAtDesk(ch);
+    A.eq(dc.deskTime().spentMs, 90000, 'a 90 s code prompt is counted the moment it closes (before the overdue timer can fire)');
+    A.eq(await out, { yes: true, code: '123456' }, 'and the code is handed on');
+    // the shell's dialog: open while the person reads it
+    let close;
+    const dd = make({ desktop: true, now: () => t, invoke: () => new Promise(r => { close = r; }), win: null });
+    const asked = dd.confirmAtDesk(Object.assign({}, ch, { mode: 'desktop' }));
+    await new Promise(r => setImmediate(r));
+    A.eq(dd.deskTime().open, 1, 'the shell\'s dialog is open');
+    t += 75000; close();
+    A.eq(await asked, true, 'the yes comes back');
+    A.eq(dd.deskTime(), { open: 0, spentMs: 75000 }, 'and its 75 s are counted');
+    // requestJson, run with a desk that is busy: its deadline waits for the dialog and moves by the time spent there
+    const start = harness.indexOf('  async function requestJson('), end = harness.indexOf('\n  // ONE fold point', start);
+    const desk = { open: 0, spentMs: 0 };
+    function client() {
+      const timers = new Map();
+      let release;
+      const ctx = vm.createContext({ AbortController, setTimeout: (fn, ms) => { const id = {}; timers.set(id, { fn, ms }); return id; }, clearTimeout: id => { timers.delete(id); },
+        fetch: () => new Promise(r => { release = r; }), deskConfirm: { deskTime: () => ({ open: desk.open, spentMs: desk.spentMs }) } });
+      vm.runInContext(harness.slice(start, end) + '\nthis.api = api;', ctx);
+      const fire = () => { const all = [...timers.entries()]; timers.clear(); for (const [, x] of all) x.fn(); return all.map(([, x]) => x.ms); };
+      return { api: ctx.api, timers, fire, release: v => release(v) };
+    }
+    {
+      const c = client();
+      let settled = null;
+      c.api.post('/api/agent/approval', { agentId: 'a', mode: 'full' }).then(v => { settled = ['ok', v]; }, e => { settled = ['no', e.message]; });
+      await new Promise(r => setImmediate(r));
+      desk.open = 1;
+      A.eq(c.fire(), [60000], 'the deadline fires while the dialog is open...');
+      await new Promise(r => setImmediate(r));
+      A.ok(settled === null && c.timers.size === 1 && [...c.timers.values()][0].ms === 1000, '...and waits for it instead of aborting the replay');
+      desk.open = 0; desk.spentMs = 90000;
+      c.fire();
+      await new Promise(r => setImmediate(r));
+      A.ok(settled === null && c.timers.size === 1 && [...c.timers.values()][0].ms === 90000, 'once it closes, the deadline moves by the 90 s spent at the desk');
+      c.release(new Response('{"ok":true,"approvalMode":"full"}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      for (let i = 0; i < 5; i++) await new Promise(r => setImmediate(r));
+      A.ok(settled && settled[0] === 'ok' && settled[1].ok === true, 'the replay\'s answer lands: the person who said yes is told yes');
+    }
+    {
+      desk.open = 0; desk.spentMs = 0;
+      const c = client();
+      let settled = null;
+      c.api.post('/api/x', {}).then(() => { settled = 'ok'; }, e => { settled = e.message; });
+      await new Promise(r => setImmediate(r));
+      c.fire();
+      await new Promise(r => setImmediate(r));
+      A.ok(/did not confirm this change/.test(String(settled)), 'with nobody at the desk, the deadline is the deadline, as before');
+    }
+    A.eq(read('website/app/app/harness.js'), harness, 'harness.js is mirrored into website/app');
+  }
+
   A.report('desk-breakages.test');
 })().catch(e => { console.error(e); process.exit(1); });
