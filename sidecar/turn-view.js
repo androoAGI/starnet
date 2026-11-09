@@ -172,6 +172,26 @@ function concat(...arrays) {
     value: arrays.flatMap(array => Array.isArray(array[ROW_IDS]) ? array[ROW_IDS] : array.map(() => null)), enumerable: false });
   return out;
 }
+/* A COPY STANDS ON ITS ORIGINAL'S ROW (W1.8 review). A step that rewrites a message before the run reads it (attachments.js
+   expanding a turn's files or placing a stored name for a project run, the cross-run replay's stub) hands on a copy that still
+   stands on the same row, so the copy keeps the original's off-wire marks: its non-enumerable symbol keys (REPLAYED, ROW_TAG, a
+   host's own), which Object.assign and a spread leave behind. A mark the copy already holds is its own and stays. */
+function carryMarks(from, to) {
+  if (!from || !to || from === to || typeof from !== 'object' || typeof to !== 'object') return to;
+  for (const key of Object.getOwnPropertySymbols(from)) {
+    const d = Object.getOwnPropertyDescriptor(from, key);
+    if (d && !d.enumerable && !Object.prototype.hasOwnProperty.call(to, key)) Object.defineProperty(to, key, d);
+  }
+  return to;
+}
+// a one-for-one rewrite of a message list (fn(message, i) -> the message or its copy): each copy keeps its original's marks and
+// the list keeps its row ids, as slice and concat do, so the replay resolver and the earlier-conversation note still see the rows
+function map(messages, fn) {
+  const src = Array.isArray(messages) ? messages : [];
+  const out = src.map((m, i) => carryMarks(m, fn(m, i)));
+  if (Array.isArray(src[ROW_IDS])) Object.defineProperty(out, ROW_IDS, { value: src[ROW_IDS].slice(), enumerable: false });
+  return out;
+}
 // the durable identity ({ streamId, rowId }) of the i-th message of a model-replay assembly, or null (no ids, no id for it)
 function rowIdOf(messages, i) {
   const ids = messages && messages[ROW_IDS];
@@ -185,4 +205,4 @@ function tag(message, value) {
 function tagOf(message) { return message && typeof message === 'object' && message[ROW_TAG] || null; }
 // the replay provenance a 'pairs' view put on a message (REPLAYED above), or null: a message no transcript view shaped
 function replayedOf(message) { return message && typeof message === 'object' && message[REPLAYED] || null; }
-module.exports = { ROW_IDS, FORGOTTEN, ROW_TAG, REPLAYED, project, ownerRow, slice, concat, messages: projectedMessages, rowIdOf, tag, tagOf, replayedOf };
+module.exports = { ROW_IDS, FORGOTTEN, ROW_TAG, REPLAYED, project, ownerRow, slice, concat, map, carryMarks, messages: projectedMessages, rowIdOf, tag, tagOf, replayedOf };

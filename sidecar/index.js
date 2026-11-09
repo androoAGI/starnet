@@ -22816,10 +22816,11 @@ async function runOnceQueued(o, run) {
       // Refresh ordinary queued chat after the preceding turn has persisted.
       // Preserve the new user message (including attachments); checkpoint and
       // group histories retain their own provider-valid assembly contracts.
+      // TurnView.concat keeps the re-seed's row ids (W1.8 review): the replay window and the earlier-conversation note place it by them
       if (queued && o.resumeSeed !== false && !o.recovery && !o.groupTools && !o.parentRunId
         && (o.messages || []).at(-1)?.role === 'user') {
-        o = { ...o, messages: (o.messages || []).filter(m => m.role === 'system')
-          .concat(turnWindow.reseed(o), o.messages.slice(-1)) };
+        o = { ...o, messages: TurnView.concat((o.messages || []).filter(m => m.role === 'system'),
+          turnWindow.reseed(o), o.messages.slice(-1)) };
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
@@ -22827,7 +22828,7 @@ async function runOnceQueued(o, run) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
-          messages: turnWindow.reseed(o).concat((o.messages || []).slice(-1)) };
+          messages: TurnView.concat(turnWindow.reseed(o), (o.messages || []).slice(-1)) };
       }
       return runOnceEntryCore(o, run);
     });
@@ -26069,13 +26070,14 @@ async function runOnceCore(o) {
      transcript's 'pairs' shape (the resume seed above, a queued re-seed, a channel's history) is resolved here, once, after the
      two proofs above have read it as it came: each earlier tool result over the 240-character head becomes the W1.7 stub naming
      a file parked by its bytes (quoted words never: the old re-run wording), and the replay is fitted to the page's row, byte
-     and token window, cut on a user turn in steps. The earlier-conversation note below carries what a cut leaves out. Fails
+     and token window, cut on a user turn in steps. The earlier-conversation note below carries what a cut leaves out, so a cut
+     is made only on a turn whose row the replay's row ids name on this run's stream (where that note places the window). Fails
      open: a replay that cannot be resolved rides as it came. A recovery checkpoint is never resolved. STARNET_CROSS_RUN_REPLAY=0
      turns it off. */
   if (!o.recovery && !o.groupTools && !internal && String(ENV('CROSS_RUN_REPLAY') || '').trim() !== '0') {
     try {
       const replay = await CrossRunReplay.resolve(convo, { park: (text, meta) => capCtx.parkOutput(text, Object.assign({}, meta, { replay: true })),
-        limit: ctxMgr.contextLimit, compactAt: RUN_CONTEXT_DEFAULTS.compactAt, note: failNote });
+        streamId: streamId || '', limit: ctxMgr.contextLimit, compactAt: RUN_CONTEXT_DEFAULTS.compactAt, note: failNote });
       if (replay.messages !== convo) { convo = replay.messages; msgs = sys ? [msgs[0]].concat(convo) : convo.slice(); }
     } catch (e) { failNote('turn.replay', e); }
   }

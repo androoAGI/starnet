@@ -19,7 +19,12 @@
       old "re-run the tool" wording), and no workspace file holds its words.
    5. TAINT SURVIVES. The result a tainted run made is parked as untrusted-*: a forwarded channel message's run (tainted from its
       start), and a clean CLI run that reads a saved attachment (latched mid-run by that very read, so only the row's own stamp can
-      carry it). That CLI follow-up, which replays the result, still starts tainted (its run record says so). */
+      carry it). That CLI follow-up, which replays the result, still starts tainted (its run record says so).
+   6. A FILE ON AN EARLIER TURN NEITHER TURNS THE WINDOW OFF NOR STRANDS ITS TURN (W1.8 review). Two Telegram chats of six rounds of
+      MANY_CALLS reads each (over the 120-row cap), one with a document on its first round (the cut drops it), one with a document on
+      a later round (the window keeps it): each follow-up's replay is inside the row cap and opens on a user turn, every replayed user
+      turn holds exactly one round's words (no dropped turn merged into the next kept one), the cut rounds are gone from the replay,
+      and the earlier-conversation note carries their words. */
 'use strict';
 const path = require('node:path');
 const fs = require('node:fs');
@@ -32,6 +37,7 @@ const CHAT = '4242';
 const STUB_MAX = 1024;     // a stub is the 240-char head, one header line and an fs.read call: well under this
 const FLAT_MAX = 64;       // the stub's byte count gains a digit; nothing else in the replayed history may differ
 const GROWTH_MAX = 3000;   // one more round: a user line, a call, a stub, a reply, a user line
+const MANY_CALLS = 20;     // section 6: a round's parallel reads (23 replayed messages a round: six rounds are 138, over the row cap)
 const ELIDED = '[tool result elided at compaction';
 const text = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (p && p.text) || '').join('') : '');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -43,8 +49,9 @@ async function waitFor(pred, ms, label) {
 
 /* ---------------------------------------------------------------- the recording model
    A probe is the last user message: W18<id> <VERB> [arg]. READ/HOLD call fs_read on the path; RECALL calls recall_conversation;
-   FOLLOW calls fs_read with the arguments the replayed stub names; anything else answers. HOLD keeps its run's final answer until
-   release(id). Every main request is recorded with its raw body. */
+   FOLLOW calls fs_read with the arguments the replayed stub names; MANY calls fs_read on MANY_CALLS numbered files at once
+   (<arg>-<n>.txt); anything else answers. HOLD keeps its run's final answer until release(id). Every main request is recorded with
+   its raw body. */
 function startModel() {
   const state = { reqs: [], holds: new Map() };
   const server = http.createServer(async (req, res) => {
@@ -58,17 +65,20 @@ function startModel() {
     let body = {}; try { body = JSON.parse(raw); } catch (_) { body = {}; }
     const msgs = Array.isArray(body.messages) ? body.messages : [];
     let lastUser = -1; for (let i = msgs.length - 1; i >= 0; i--) if (msgs[i] && msgs[i].role === 'user') { lastUser = i; break; }
-    const ask = lastUser >= 0 ? text(msgs[lastUser].content) : '';
+    // the Commander's own words: on a chat wire the host notes ride the same user turn (provider.js noteCarrier), and the
+    // earlier-conversation note quotes earlier probes verbatim
+    const ask = lastUser >= 0 ? text(msgs[lastUser].content).replace(/<(conversation_summary|run_context|recalled-memory|crew_call)>[\s\S]*?<\/\1>/g, '') : '';
     const tools = Array.isArray(body.tools) ? body.tools : [];
-    const m = /W18([A-Za-z0-9]+) (READ|HOLD|RECALL|FOLLOW|HI|SRC)(?: (\S+))?/.exec(ask);
+    const m = /W18([A-Za-z0-9]+) (READ|HOLD|RECALL|FOLLOW|HI|SRC|MANY)(?: (\S+))?/.exec(ask);
     const main = tools.length > 0 && !!m;
     const answered = msgs.slice(lastUser + 1).some(x => x && x.role === 'tool');
     const toolName = re => { const t = tools.find(d => d && d.function && re.test(d.function.name)); return t ? t.function.name : ''; };
     if (main) state.reqs.push({ id: m[1], verb: m[2], answered, raw, msgs, tools: tools.map(d => d && d.function && d.function.name) });
-    let call = null;
+    let call = null, calls = null;
     if (main && !answered) {
       if (m[2] === 'READ' || m[2] === 'HOLD') call = { name: toolName(/^fs[._]read$/), args: { path: m[3] } };
       else if (m[2] === 'RECALL') call = { name: toolName(/^recall_conversation$/), args: { query: m[3] } };
+      else if (m[2] === 'MANY') calls = Array.from({ length: MANY_CALLS }, (_, n) => ({ name: toolName(/^fs[._]read$/), args: { path: String(m[3]).replace(/\.txt$/, '-' + n + '.txt') } }));
       else if (m[2] === 'FOLLOW') {
         // the model follows the handle its replayed history names (the newest stub that names one)
         for (let i = msgs.length - 1; i >= 0 && !call; i--) {
@@ -77,7 +87,8 @@ function startModel() {
           if (h) call = { name: toolName(/^fs[._]read$/), args: JSON.parse(h[1]) };
         }
       }
-      if (call && !call.name) call = null;
+      if (call) calls = [call];
+      if (calls && !calls.every(c => c.name)) calls = null;
     }
     if (main && m[2] === 'HOLD' && answered) {
       let release; const held = new Promise(r => { release = r; });
@@ -86,8 +97,8 @@ function startModel() {
     }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const usage = { prompt_tokens: Math.ceil(raw.length / 3.6), completion_tokens: 20, total_tokens: Math.ceil(raw.length / 3.6) + 20 };
-    if (call) {
-      res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_' + m[1] + '_' + state.reqs.length, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.args) } }] } }] }) + '\n\n');
+    if (calls) {
+      res.write('data: ' + JSON.stringify({ choices: [{ delta: { tool_calls: calls.map((c, n) => ({ index: n, id: 'call_' + m[1] + '_' + state.reqs.length + (calls.length > 1 ? '_' + n : ''), type: 'function', function: { name: c.name, arguments: JSON.stringify(c.args) } })) } }] }) + '\n\n');
       res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage }) + '\n\n');
     } else {
       res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: main ? 'W18DONE ' + m[1] : 'NONE' } }] }) + '\n\n');
@@ -100,16 +111,21 @@ function startModel() {
     close: () => new Promise(done => { for (const h of state.holds.values()) h.release(); server.closeAllConnections && server.closeAllConnections(); server.close(done); }) })));
 }
 
-/* ---------------------------------------------------------------- the fake Bot API (test/channels.ledger-upgrade.e2e shape) */
+/* ---------------------------------------------------------------- the fake Bot API (test/channels.ledger-upgrade.e2e shape)
+   A document is one small text file: getFile names it and /file/bot<token>/... serves its bytes (section 6). */
+const DOC = Buffer.from('W18DOC a short attached note for the replay window\n');
 async function startTelegram() {
-  const calls = [], queued = [], waiters = []; let nextId = 100, updateId = 0; const api = { calls };
+  const calls = [], queued = [], waiters = []; let nextId = 100, updateId = 0; const api = { calls, fileGets: 0 };
   const reply = (res, status, obj) => { try { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); } catch (_) {} };
   const flush = () => { while (queued.length && waiters.length) { const w = waiters.shift(); clearTimeout(w.timer); reply(w.res, 200, { ok: true, result: [queued.shift()] }); } };
   const server = http.createServer((req, res) => {
     const chunks = []; req.on('data', d => chunks.push(d));
     req.on('end', () => {
-      const method = String(req.url || '').split('?')[0].split('/').pop();
+      const url = String(req.url || '').split('?')[0];
+      if (url.indexOf('/file/bot') === 0) { api.fileGets++; res.writeHead(200, { 'Content-Type': 'text/plain', 'Content-Length': DOC.length }); return res.end(DOC); }
+      const method = url.split('/').pop();
       let fields = {}; try { fields = JSON.parse(Buffer.concat(chunks).toString() || '{}'); } catch (_) {}
+      if (method === 'getFile') return reply(res, 200, { ok: true, result: { file_id: String(fields.file_id || ''), file_unique_id: 'u_' + String(fields.file_id || ''), file_size: DOC.length, file_path: 'documents/' + String(fields.file_id || 'file') + '.txt' } });
       if (method === 'getUpdates') {
         if (fields.offset === -1) return reply(res, 200, { ok: true, result: [] });
         if (queued.length) return reply(res, 200, { ok: true, result: [queued.shift()] });
@@ -356,6 +372,45 @@ const handleOf = content => { const h = /read it with fs\.read (\{[^\n]*?\})\]/.
       let bytes = null; try { bytes = fs.readFileSync(abs); } catch (_) { bytes = null; }
       A.ok(!!bytes && bytes.equals(Buffer.from(s.body, 'utf8')), s.where + ': the handle reads back BYTE-IDENTICAL to the body the earlier run was handed (' + (bytes ? bytes.length : 'missing') + ' vs ' + Buffer.byteLength(s.body, 'utf8') + ' bytes)');
       A.ok(s.content.indexOf(s.body.slice(0, 200)) > 0, s.where + ': the stub keeps the head of that body');
+    }
+
+    // ============ 6. a file on an earlier turn neither turns the window off nor strands its turn (W1.8 review) ============
+    // The run host expands a turn's files (attachments.expandForRun) before the replay is resolved: a replayed turn that carried a
+    // file must keep its tag and the list its row ids, or the window is lost (a file on a later turn) or the file turn is left
+    // stranded in front of the cut and merged into the next kept turn, with no note for what was cut (a file on the first turn).
+    const manyBase = path.join(ws, 'many.txt').replace(/\\/g, '/');
+    for (let n = 0; n < MANY_CALLS; n++) fs.writeFileSync(manyBase.replace(/\.txt$/, '-' + n + '.txt'), 'many file ' + n + ': a short read for the window.\n');
+    const freshSends = () => sends().filter(c => /starts fresh|Nothing to clear/i.test(String(c.fields.text || ''))).length;
+    for (const [chat, fileOn] of [['fa', 1], ['fb', 4]]) {
+      const label = 'file on round ' + fileOn;
+      const before = freshSends();
+      telegram.push('/new');
+      await waitFor(() => freshSends() > before, 40000, label + ': /new');
+      const gets = telegram.fileGets;
+      for (let k = 1; k <= 6; k++) {
+        const words = 'W18' + chat + 'R' + k + ' MANY ' + manyBase;
+        if (k !== fileOn) { await say(words, 'W18DONE ' + chat + 'R' + k); continue; }
+        await say('', 'W18DONE ' + chat + 'R' + k, { text: undefined, caption: words,
+          document: { file_id: 'doc' + chat, file_unique_id: 'u' + chat, file_name: 'note.txt', mime_type: 'text/plain', file_size: DOC.length } });
+      }
+      A.ok(telegram.fileGets > gets && reqOf(S, chat + 'R' + fileOn).some(r => r.raw.indexOf('W18DOC') >= 0), label + ': the document reached the run that answered it');
+      await say('W18' + chat + 'H HI', 'W18DONE ' + chat + 'H');
+      const f = firstReq(S, chat + 'H');
+      A.ok(!!f, label + ': the follow-up reached the model');
+      if (!f) continue;
+      let last = -1; for (let i = f.msgs.length - 1; i >= 0; i--) if (f.msgs[i].role === 'user') { last = i; break; }
+      const replayed = f.msgs.slice(0, Math.max(0, last)).filter(m => m.role !== 'system');
+      const roundRe = new RegExp('(?:W18|W18DONE |call_)' + chat + 'R(\\d)', 'g');
+      const roundsOf = m => [...new Set([...(text(m.content) + JSON.stringify(m.tool_calls || []) + String(m.tool_call_id || '')).matchAll(roundRe)].map(x => Number(x[1])))];
+      const users = replayed.filter(m => m.role === 'user');
+      const kept = [...new Set(replayed.flatMap(roundsOf))].sort((a, b) => a - b);
+      A.ok(replayed.length > 0 && replayed.length <= 120 && replayed[0].role === 'user', label + ': the replay is inside the 120-row cap and opens on a user turn (' + replayed.length + ' messages, the first a ' + (replayed[0] && replayed[0].role) + ')');
+      A.ok(users.length > 0 && users.every(m => roundsOf(m).length === 1), label + ': every replayed user turn holds exactly one round\'s words, no cut turn merged into a kept one (' + users.map(m => roundsOf(m).join('+')).join(' ') + ')');
+      A.eq(kept, [3, 4, 5, 6], label + ': the cut drops the oldest rounds whole and keeps the newest four');
+      A.ok(pairsValid(f), label + ': every replayed result still follows its call');
+      if (fileOn >= 3) A.ok(users.some(m => roundsOf(m)[0] === fileOn && /note\.txt/.test(text(m.content))), label + ': the kept round that carried the file rides with its file note');
+      const note = (/<conversation_summary>[\s\S]*?<\/conversation_summary>/.exec(f.msgs.map(m => text(m.content)).join('\n')) || [''])[0];
+      A.ok(note.indexOf('W18' + chat + 'R1 MANY') >= 0 && note.indexOf('W18' + chat + 'R2 MANY') >= 0, label + ': the earlier-conversation note carries the cut rounds\' words (' + (note ? note.length + ' chars' : 'no note') + ')');
     }
   } catch (e) {
     A.ok(false, 'rig error: ' + ((e && e.stack) || e));

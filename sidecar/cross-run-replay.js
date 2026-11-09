@@ -36,7 +36,12 @@
       on the stubs it will send. A cut lands on a user turn, so no result is ever left without its call, and moves in STEPS: it
       starts at the first user turn at or after the next multiple of a quarter of the row cap, counted from the first replayed
       message, so the window's first message (and the cached prefix behind it) stays put for many turns instead of sliding every
-      turn. What a cut leaves out is carried by the earlier-conversation note (index.js), as for the page's own window.
+      turn. What a cut leaves out is carried by the earlier-conversation note (index.js), as for the page's own window, so A CUT
+      IS MADE ONLY WHERE THAT NOTE CAN PLACE IT: on a user turn the list's row ids (TurnView.ROW_IDS) name on the run's own stream,
+      never past the newest such turn (a newest exchange that alone is over the budget still rides, and the run's own fold takes
+      it from there), and not at all on a list that names no row there. A replayed turn keeps its tag and the list its row ids
+      through every rewrite before this seam (TurnView.map: attachments.js expanding a turn's files), so a file on an earlier
+      turn neither turns the window off nor leaves its turn stranded in front of the cut.
 
    KILL SWITCH: STARNET_CROSS_RUN_REPLAY=0 (index.js) replays every earlier result whole and unwindowed, as before.
    Pure apart from the injected parker. */
@@ -60,15 +65,6 @@ function provenanceOf(tag) {
   return { tool, taintedBy, quoted: !!(tag && tag.quoted === true) || !tool || QUOTING_TOOLS.has(tool) };
 }
 
-// a copy keeps the original's off-wire marks (the replay tag, a row tag): they are non-enumerable, so a spread drops them
-function carryMarks(from, to) {
-  for (const key of Object.getOwnPropertySymbols(from)) {
-    const d = Object.getOwnPropertyDescriptor(from, key);
-    if (d && !d.enumerable) Object.defineProperty(to, key, d);
-  }
-  return to;
-}
-
 // one replayed result -> { message, saved } (the stub, and whether it names a file) or null (the head keeps it whole)
 async function stubOf(m, tag, o) {
   const p = provenanceOf(tag);
@@ -77,25 +73,31 @@ async function stubOf(m, tag, o) {
   if (p.taintedBy) meta.taintedBy = p.taintedBy;
   const stub = await HistoryEdit.elideToolResult(m.content, { name: p.tool || 'tool', park: p.quoted ? null : o.park, parkMeta: meta });
   if (!stub) return null;
-  return { message: carryMarks(m, Object.assign({}, m, { content: stub.content })), saved: !!stub.handle };
+  return { message: TurnView.carryMarks(m, Object.assign({}, m, { content: stub.content })), saved: !!stub.handle };
 }
 
-/* where a cut starts in the replayed block: the first user turn at or after `from`, moved on to the first one at or after the
-   next step mark (a multiple of `step` messages from the block's start) when there is one, so it changes only when the fit
-   passes a mark. block.length = nothing of the block fits. */
-function startOf(block, from, step) {
+/* where a cut starts in the replayed block: the first user turn at or after `from` that may open the window (`opens`: the note
+   can place it), moved on to the first one at or after the next step mark (a multiple of `step` messages from the block's start)
+   when there is one, so it changes only when the fit passes a mark. When no turn at or after `from` may open it, the newest one
+   that may (its exchange rides over the budget rather than the whole block going without a trace); none at all = no cut (0). */
+function startOf(block, from, step, opens) {
   if (from <= 0) return 0;
-  const userFrom = at => { for (let i = at; i < block.length; i++) if (block[i] && block[i].role === 'user') return i; return -1; };
+  const may = i => !!(block[i] && block[i].role === 'user' && (typeof opens !== 'function' || opens(i)));
+  const userFrom = at => { for (let i = at; i < block.length; i++) if (may(i)) return i; return -1; };
   const marked = userFrom(Math.ceil(from / step) * step);
   if (marked >= 0) return marked;
   const first = userFrom(from);
-  return first >= 0 ? first : block.length;
+  if (first >= 0) return first;
+  for (let i = block.length - 1; i > 0; i--) if (may(i)) return i;
+  return 0;
 }
 
 /* resolve(list, o) -> Promise<{ messages, stubbed, saved, dropped }>
    list          the run's conversation before the system prompt (index.js convo): leading system messages, the replayed
                  block, the new directive. Returned as it is when no message of it was replayed.
    o.park        async (text, meta) -> { path } | null: the host parker in replay mode (index.js capCtx.parkOutput)
+   o.streamId    the run's stream: a cut is made only on a user turn whose row the list's row ids name on it (the
+                 earlier-conversation note places the window there); absent = stubs only, no cut
    o.limit       the run's context window in tokens (index.js ctxMgr.contextLimit); absent = no token fit
    o.compactAt   the share of it the run folds at (context.js RUN_CONTEXT_DEFAULTS.compactAt)
    o.rows        the row cap (default: historyfit HISTORY_CAP, the page's)
@@ -113,12 +115,19 @@ async function resolve(list, o) {
   while (hi + 1 < src.length && tags[hi + 1]) hi++;
   const windowed = !tags.slice(hi + 1).some(Boolean);
   const blockLen = hi - lo + 1;
+  // a block message may open the window when the list's row ids name its row on the run's own stream: the note's align() finds it
+  const ids = src[TurnView.ROW_IDS];
+  const streamId = typeof o.streamId === 'string' ? o.streamId : '';
+  const opens = k => { const id = Array.isArray(ids) ? ids[lo + k] : null; return !!(streamId && id && id.streamId === streamId && Number.isSafeInteger(id.rowId) && id.rowId > 0); };
   const rowCap = Math.max(1, Math.floor(Number(o.rows) || Fit.HISTORY_CAP));
   const step = Math.max(1, Math.floor(rowCap * STEP_SHARE));
-  // the row cap needs no stub to count: nothing before it is stubbed
+  const block = src.slice(lo, hi + 1);
+  // the row cap needs no stub to count: nothing before the start it alone allows is stubbed (startOf only moves later as `from`
+  // grows, so the final cut never keeps a message this pass left whole)
   let from = windowed ? Math.max(0, blockLen - rowCap) : 0;
+  const capStart = windowed ? startOf(block, from, step, opens) : 0;
   const replaced = new Map();   // index -> { message, saved }
-  for (let i = windowed ? lo + from : 0; i < src.length; i++) {
+  for (let i = windowed ? lo + capStart : 0; i < src.length; i++) {
     const m = src[i], tag = tags[i];
     if (!tag || !m || m.role !== 'tool' || HistoryEdit.isElided(m)) continue;
     try {
@@ -131,21 +140,22 @@ async function resolve(list, o) {
   if (windowed) {
     // the byte and token fit, on what will be sent; what follows the block (the directive) is never cut
     const tail = [];
-    for (let i = lo + from; i < src.length; i++) tail.push(sent(i));
+    for (let i = lo + capStart; i < src.length; i++) tail.push(sent(i));
     let kept = Fit.fitHistoryBytes(tail, Fit.HISTORY_WIRE_MAX_BYTES).length;
     const limit = Number(o.limit);
     if (limit > 0) kept = Fit.fitHistoryTokens(tail.slice(tail.length - kept), Fit.uncalibratedBudget(limit, o.compactAt)).length;
-    from = Math.max(from, blockLen - Math.max(0, kept - (src.length - hi - 1)));
-    start = startOf(src.slice(lo, hi + 1), from, step);
+    // a fit that keeps all of the tail asks for no later cut than the row cap did
+    const keptBlock = Math.max(0, kept - (src.length - hi - 1));
+    if (keptBlock < blockLen - capStart) from = Math.max(from, blockLen - keptBlock);
+    start = startOf(block, from, step, opens);
   }
   const keep = [];
   for (let i = 0; i < src.length; i++) if (i < lo || i >= lo + start) keep.push(i);
   const out = keep.map(sent);
-  const ids = src[TurnView.ROW_IDS];
   if (Array.isArray(ids)) Object.defineProperty(out, TurnView.ROW_IDS, { value: keep.map(i => ids[i]), enumerable: false });
   let stubbed = 0, saved = 0;
   for (const i of keep) if (replaced.has(i)) { stubbed++; if (replaced.get(i).saved) saved++; }
   return { messages: out, stubbed, saved, dropped: start };
 }
 
-module.exports = { resolve, provenanceOf, QUOTING_TOOLS, STEP_SHARE, _internals: { startOf, stubOf, carryMarks } };
+module.exports = { resolve, provenanceOf, QUOTING_TOOLS, STEP_SHARE, _internals: { startOf, stubOf } };

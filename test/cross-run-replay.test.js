@@ -10,10 +10,17 @@
       that fails or throws leaves the same no-handle stub.
    4. The window: the row cap, the byte cap and the token budget, cut on a user turn (never an orphan result), in steps that keep
       the first replayed message put while the chat grows; the directive and a leading system message are never cut; row ids
-      stay aligned; a block followed by more replayed messages is only stubbed.
+      stay aligned; a block followed by more replayed messages is only stubbed. A cut is made only where the earlier-conversation
+      note can place it: on a user turn the list's row ids name on the run's stream, never past the newest such turn; a list with
+      no row ids, ids on another stream or no stream at all is stubbed and never cut.
    5. parkOnce: written once, named again for the same bytes (reused), null for a file that holds other bytes (never rewritten),
       one file under concurrent parks of one name.
-   6. index.js: one call, after the replayed-taint proof, never on a recovery, with its kill switch; the replay park has no run id. */
+   6. index.js: one call, after the replayed-taint proof, never on a recovery, with its kill switch and the run's stream; the replay
+      park has no run id; the queued re-seed keeps its row ids.
+   7. THE MARKS SURVIVE THE ATTACHMENT EXPANSION (W1.8 review): TurnView.map keeps a copy's marks and the list's row ids, and a real
+      store view through the real attachments.expandForRun (unscoped, project-scoped, and its failure path) keeps every replayed
+      turn's tag and the row ids, so a file on the first replayed turn or a later one still cuts on a user turn with no stranded
+      turn in front, and EarlierConversation.align places the window it leaves. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -30,6 +37,8 @@ const { makeMemoryTranscriptIo } = require('../sidecar/transcript-history.js');
 const Learning = require('../sidecar/trusted-learning.js');
 const Dual = require('../sidecar/turn-dual.js');
 const { makeOutputArtifacts } = require('../sidecar/output-artifacts.js');
+const makeAttachments = require('../sidecar/attachments.js');
+const Earlier = require('../sidecar/earlier-conversation.js');
 const { readSidecarSource, readSidecarIndex } = require('./helpers/source');
 
 const ELIDED = HistoryEdit.ELIDED;
@@ -183,21 +192,40 @@ const directive = () => ({ role: 'user', content: 'the new directive' });
 
   // ---------------------------------------------------------------- 4. the window
   {
+    const S = { streamId: 's' };   // the run's stream: every synthetic tag (and so every row id withIds names) is on it
     // the row cap, on a user turn, with a leading system message and the directive kept
     const sys = { role: 'system', content: 'carried system message' };
     const block = []; for (let k = 1; k <= 5; k++) block.push(...exchange(k));
     const list = withIds([sys, ...block, directive()]);
-    const out = await Replay.resolve(list, { park: parker().park, rows: 8 });
+    const out = await Replay.resolve(list, Object.assign({ park: parker().park, rows: 8 }, S));
     const kept = out.messages.slice(1, -1);
     A.ok(out.messages[0] === sys && out.messages.at(-1) === list.at(-1), 'the leading system message and the directive are never cut');
     A.ok(kept.length <= 8 && kept.length > 0 && kept[0].role === 'user', 'the row cap keeps at most 8 replayed messages and starts on a user turn (' + kept.length + ')');
     A.ok(pairsValid(out.messages), 'no result is left without its call');
     A.eq(out.dropped, block.length - kept.length, 'dropped counts the replayed messages the window left out');
     A.eq(out.messages[View.ROW_IDS].map(id => id && id.rowId), out.messages.map(m => { const t = View.replayedOf(m); return t ? t.rowId : null; }), 'row ids stay aligned after a cut');
+    // a cut is made only where the earlier-conversation note can place it: the list's row ids name the turn on the run's stream
+    const unplaced = [
+      ['a list with no row ids', [sys, ...block, directive()], S],
+      ['row ids on another stream', list, { streamId: 'other' }],
+      ['no stream', list, {}]
+    ];
+    for (const [label, l, o] of unplaced) {
+      const r = await Replay.resolve(l, Object.assign({ park: parker().park, rows: 8 }, o));
+      A.ok(r.dropped === 0 && r.messages.length === l.length && r.messages.filter(m => m.role === 'tool').every(m => m.content.indexOf(ELIDED) === 0),
+        label + ': every result is stubbed and nothing is cut (' + r.dropped + ' dropped)');
+    }
+    const gap = [sys, ...block, directive()];
+    const gapIds = withIds(gap.slice())[View.ROW_IDS].slice(); gapIds[1 + 12] = null;   // the turn the row cap would open on (exchange 4's user turn) names no row
+    Object.defineProperty(gap, View.ROW_IDS, { value: gapIds, enumerable: false });
+    const g = await Replay.resolve(gap, Object.assign({ park: parker().park, rows: 8 }, S));
+    A.ok(g.messages[1].role === 'user' && g.messages[1].content === 'question 5' && g.dropped === 16, 'a turn whose row the ids do not name never opens the window: the cut moves on to the next one (' + g.messages[1].content + ', ' + g.dropped + ' dropped)');
     // a fit that lands inside an exchange moves on to the next user turn
     const s = Replay._internals.startOf([{ role: 'user' }, { role: 'assistant' }, { role: 'tool' }, { role: 'assistant' }, { role: 'user' }, { role: 'assistant' }], 2, 1);
     A.eq(s, 4, 'a cut that falls on a result starts at the next user turn');
-    A.eq(Replay._internals.startOf([{ role: 'user' }, { role: 'assistant' }], 1, 1), 2, 'no user turn after the fit: nothing of the block is kept');
+    A.eq(Replay._internals.startOf([{ role: 'user' }, { role: 'assistant' }, { role: 'user' }, { role: 'assistant' }], 3, 1), 2, 'no user turn after the fit: the cut opens on the newest one (never the whole block without a trace)');
+    A.eq(Replay._internals.startOf([{ role: 'user' }, { role: 'assistant' }], 1, 1), 0, 'and with none after the first: no cut');
+    A.eq(Replay._internals.startOf([{ role: 'user' }, { role: 'assistant' }, { role: 'user' }, { role: 'user' }], 1, 1, i => i !== 2), 3, 'a turn that may not open the window is passed over');
     A.eq(Replay._internals.startOf([{ role: 'assistant' }, { role: 'user' }], 0, 4), 0, 'no cut: the block starts where it starts');
 
     // STEPS, at the production caps (the page's 120 rows, a step of 30 messages): a chat that grows one 4-message exchange a
@@ -206,7 +234,7 @@ const directive = () => ({ role: 'user', content: 'the new directive' });
     let monotonic = true, bounded = true, valid = true, whole = true, cutAt = 0;
     for (let k = 1; k <= 60; k++) {
       grown.push(...exchange(100 + k));
-      const r = await Replay.resolve([...grown, directive()], { park: parker().park });
+      const r = await Replay.resolve(withIds([...grown, directive()]), Object.assign({ park: parker().park }, S));
       const keptBlock = r.messages.slice(0, -1);
       const first = View.replayedOf(keptBlock[0]).rowId;
       if (starts.length && first < starts[starts.length - 1]) monotonic = false;
@@ -227,18 +255,23 @@ const directive = () => ({ role: 'user', content: 'the new directive' });
     // the token budget, on what will be sent
     const long = []; for (let k = 1; k <= 6; k++) long.push(...exchange(200 + k, { reply: big(4000, 'long reply ' + k) }));
     const limit = 20000, budget = Fit.uncalibratedBudget(limit, 0.65);
-    const noBudget = await Replay.resolve([...long, directive()], { park: parker().park });
-    const fitted = await Replay.resolve([...long, directive()], { park: parker().park, limit, compactAt: 0.65 });
+    const noBudget = await Replay.resolve(withIds([...long, directive()]), Object.assign({ park: parker().park }, S));
+    const fitted = await Replay.resolve(withIds([...long, directive()]), Object.assign({ park: parker().park, limit, compactAt: 0.65 }, S));
     A.ok(noBudget.dropped === 0, 'no window size known: no token fit');
     A.ok(fitted.dropped > 0 && fitted.messages[0].role === 'user' && pairsValid(fitted.messages), 'the token budget cuts the replay, on a user turn (' + fitted.dropped + ' dropped)');
     A.ok(Fit.contextEstimateMessages(fitted.messages) <= budget, 'what is kept fits the budget (' + Fit.contextEstimateMessages(fitted.messages) + ' <= ' + budget + ')');
     // the wire byte cap
     const huge = []; for (let k = 1; k <= 3; k++) huge.push(...exchange(300 + k, { reply: big(400 * 1024, 'huge ' + k) }));
-    const capped = await Replay.resolve([...huge, directive()], { park: parker().park });
+    const capped = await Replay.resolve(withIds([...huge, directive()]), Object.assign({ park: parker().park }, S));
     A.ok(capped.dropped > 0 && Fit.utf8Bytes(JSON.stringify(capped.messages)) <= Fit.HISTORY_WIRE_MAX_BYTES, 'the wire byte cap cuts the replay (' + capped.dropped + ' dropped)');
-    // nothing of the block fits: only the directive rides
-    const none = await Replay.resolve([...exchange(400, { reply: big(9000) }), directive()], { park: parker().park, limit: 2000, compactAt: 0.65 });
-    A.ok(none.messages.length === 1 && none.messages[0].content === 'the new directive', 'a block that cannot fit at all leaves the directive alone');
+    // nothing of the block fits: the newest exchange still rides (over the budget: the run's own fold takes it from there), so the
+    // earlier-conversation note always has a window to place; a block of one exchange is never cut at all
+    const over = withIds([...exchange(400), ...exchange(401, { reply: big(9000) }), directive()]);
+    const none = await Replay.resolve(over, Object.assign({ park: parker().park, limit: 2000, compactAt: 0.65 }, S));
+    A.ok(none.dropped === 4 && none.messages.length === 5 && none.messages[0].content === 'question 401' && none.messages.at(-1).content === 'the new directive',
+      'a block that cannot fit at all keeps its newest exchange, never the directive alone (' + none.messages.map(m => m.role[0]).join('') + ')');
+    const one = await Replay.resolve(withIds([...exchange(402, { reply: big(9000) }), directive()]), Object.assign({ park: parker().park, limit: 2000, compactAt: 0.65 }, S));
+    A.ok(one.dropped === 0 && one.messages.length === 5, 'a block of one exchange is never cut');
     // a replayed block followed by more replayed messages is only stubbed, never cut
     const split = [...exchange(500), directive(), ...exchange(501), directive()];
     const sp = await Replay.resolve(split, { park: parker().park, rows: 2 });
@@ -279,6 +312,78 @@ const directive = () => ({ role: 'user', content: 'the new directive' });
       'never on a recovery checkpoint, a group session or an internal run, and STARNET_CROSS_RUN_REPLAY=0 turns it off');
     A.ok(/if \(meta && meta\.replay === true\) \{[\s\S]{0,700}outputArtifacts\.parkOnce\(agentId \|\| 'agent', \(untrustedRow \? taintPolicy\.UNTRUSTED_PARK_PREFIX : ''\) \+ safeTool \+ '-replay-' \+ digest, content\)/.test(idx),
       'the replay park is content-named ([untrusted-]<tool>-replay-<digest>), with no run id, through parkOnce');
+    A.ok(/streamId: streamId \|\| '', limit: ctxMgr\.contextLimit/.test(idx.slice(at, at + 400)), 'the resolver is handed the run\'s stream: it cuts only where the earlier-conversation note places the window');
+    A.ok(idx.split('turnWindow.reseed(o)').length === 3 && (idx.match(/TurnView\.concat\([^;]*?turnWindow\.reseed\(o\)/g) || []).length === 2,
+      'both queued re-seeds keep the re-seed\'s row ids (TurnView.concat, never a plain concat that drops them)');
+  }
+
+  // ---------------------------------------------------------------- 7. the marks survive the attachment expansion
+  {
+    // TurnView.map: a copy keeps its original's off-wire marks and the list its row ids; a copy's own mark stays its own
+    const MARK = Symbol('a host mark');
+    const orig = tagged({ role: 'user', content: 'with a file' });
+    Object.defineProperty(orig, MARK, { value: 'orig', enumerable: false, configurable: true, writable: true });
+    const same = tagged({ role: 'assistant', content: 'kept' });
+    const l = withIds([orig, same]);
+    const mapped = View.map(l, (m, i) => i === 0 ? Object.assign({}, m, { content: 'expanded' }) : m);
+    A.ok(View.replayedOf(mapped[0]) === View.replayedOf(orig) && mapped[0][MARK] === 'orig' && mapped[1] === same, 'TurnView.map: a copy keeps its original\'s marks, an unchanged message stays the same object');
+    A.eq(mapped[View.ROW_IDS], l[View.ROW_IDS], 'TurnView.map: the list keeps its row ids');
+    A.eq(JSON.stringify(mapped[0]), JSON.stringify({ role: 'user', content: 'expanded' }), 'TurnView.map: no mark reaches a JSON copy');
+    const own = { role: 'user', content: 'copy' };
+    Object.defineProperty(own, MARK, { value: 'own', enumerable: false, configurable: true, writable: true });
+    A.eq(View.carryMarks(orig, own)[MARK], 'own', 'a mark the copy already holds stays its own');
+
+    // a real store view (6 rounds of 10 calls: 132 replayed messages, over the row cap) through the REAL attachments.expandForRun,
+    // with the file on the first replayed turn (the cut drops it) and on a later one (the window keeps it)
+    const ws = fs.mkdtempSync(path.join(os.tmpdir(), 'w18-expand-'));
+    try {
+      fs.mkdirSync(path.join(ws, 'agent', '.attachments'), { recursive: true });
+      fs.mkdirSync(path.join(ws, 'proj'), { recursive: true });
+      fs.writeFileSync(path.join(ws, 'agent', '.attachments', 'abcdef12.txt'), 'a small attached note\n');
+      const ref = { id: 'abcdef12', name: 'note.txt', path: '.attachments/abcdef12.txt', mediaType: 'text/plain', kind: 'file' };
+      const resolveInside = async (agentId, rel) => ({ base: path.join(ws, agentId), abs: path.join(ws, agentId, rel) });
+      const att = makeAttachments({ fsp: fs.promises, path, crypto, workspaces: ws, resolveInside });
+      // an expansion that fails (the hash of a re-sent file throws): expandForRun strips the references, through TurnView.map too
+      const broken = makeAttachments({ fsp: fs.promises, path, crypto: { randomUUID: crypto.randomUUID, createHash() { throw new Error('hash fixture failure'); } }, workspaces: ws, resolveInside });
+      const textOf = c => typeof c === 'string' ? c : (Array.isArray(c) ? c.map(p => (p && p.text) || '').join('') : '');
+      for (const fileOn of [1, 2]) for (const mode of ['unscoped', 'project-scoped', 'failed expansion']) {
+        const label = 'file on round ' + fileOn + ', ' + mode;
+        const runs = new Map([['r1', { runId: 'r1', streamId: 's', agentId: 'agent', ownerDirective: true, internal: false }]]);
+        const dual = Dual.make({ now: () => 10, hash, save() {} });
+        const store = Store.makeTranscriptStore({ io: makeMemoryTranscriptIo(), clock: { now: () => 10 }, runOf: id => runs.get(id) || null,
+          quotedMaterial: Learning.quotedMaterial, live: new Set(), pick: dual.pick, hash, deletedAt: () => 0 });
+        const add = extra => store.appendStrict(Object.assign({ streamId: 's', agentId: 'agent', sourceRunId: 'r1', role: 'user', content: 'q', kind: 'turn', taint: null, ts: 10 }, extra));
+        for (let k = 1; k <= 6; k++) {
+          const turnId = 't' + k, words = 'ROUND' + k + ' see .attachments/abcdef12.txt';   // a stored saved name: a project run rewrites every turn
+          add(Object.assign({ content: words, turnId }, k === fileOn ? { typed: words, attachments: [Object.assign({}, ref)] } : {}));
+          for (let c = 0; c < 10; c++) {
+            const id = 'c' + k + '_' + c;
+            add({ role: 'assistant', content: '', toolCalls: [{ id, type: 'function', function: { name: 'fs_read', arguments: '{"path":"f' + c + '.txt"}' } }], turnId });
+            add({ role: 'tool', content: big(1200, 'R' + k + 'C' + c), toolCallId: id, turnId });
+          }
+          add({ role: 'assistant', content: 'answer ' + k, turnId });
+        }
+        const view = store.view('model-replay', 's', { complete: true, shape: 'pairs', form: 'pre' });
+        const newest = mode === 'failed expansion' ? { role: 'user', content: 'the new directive', attachments: [Object.assign({}, ref)] } : directive();
+        const list = View.concat(view, [newest]);
+        const expanded = mode === 'failed expansion' ? await broken.expandForRun(list, 'agent', '')
+          : await att.expandForRun(list, 'agent', mode === 'project-scoped' ? path.join(ws, 'proj') : '');
+        const fileTurn = expanded[view.findIndex(m => Array.isArray(m.attachments))];
+        A.ok(expanded !== list && !!fileTurn && !fileTurn.attachments && (mode !== 'project-scoped' || textOf(expanded[0].content) !== view[0].content),
+          label + ': the expansion rewrote the list (the file turn' + (mode === 'project-scoped' ? ' and every stored name' : '') + ')');
+        A.ok(expanded.filter(m => View.replayedOf(m)).length === view.length && View.replayedOf(fileTurn) === View.replayedOf(view.find(m => Array.isArray(m.attachments))),
+          label + ': every replayed turn keeps its tag, the file turn too');
+        A.eq((expanded[View.ROW_IDS] || []).map(id => id && id.rowId), list[View.ROW_IDS].map(id => id && id.rowId), label + ': the list keeps its row ids');
+        const r = await Replay.resolve(expanded, { park: parker().park, streamId: 's' });
+        const doubled = r.messages.some((m, i) => i > 0 && m.role === 'user' && r.messages[i - 1].role === 'user');
+        A.ok(r.dropped === 44 && r.messages[0].role === 'user' && /^ROUND3 /.test(textOf(r.messages[0].content)) && !doubled && pairsValid(r.messages),
+          label + ': the window cuts on a user turn (round 3) with no turn stranded in front of it (' + r.dropped + ' dropped, first ' + JSON.stringify(textOf(r.messages[0].content).slice(0, 7)) + ', two user turns in a row: ' + doubled + ')');
+        const rows = store.view('model-replay', 's', { limit: 3000, shape: 'pairs', rows: true });   // index.js canonicalRows
+        const alignment = Earlier.align(rows, View.slice(r.messages, 0, r.messages.length - 1), null);
+        A.ok(alignment.cut > 0 && rows[alignment.cut] && rows[alignment.cut].rowId === View.replayedOf(r.messages[0]).rowId,
+          label + ': the earlier-conversation note places the window it leaves (cut ' + alignment.cut + ')');
+      }
+    } finally { fs.rmSync(ws, { recursive: true, force: true }); }
   }
 
   A.report('cross-run-replay.test');
