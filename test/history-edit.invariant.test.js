@@ -44,7 +44,8 @@ const { makeContext } = require('../sidecar/context.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeAnthropicProvider } = require('../sidecar/providers/anthropic.js');
 const failopen = require('../sidecar/failopen.js');
-const { elideToolResult } = require('../sidecar/history-edit.js');
+// the resolver itself; absent on the base, where the invariant then reports what fails instead of failing to load
+const HistoryEdit = (() => { try { return require('../sidecar/history-edit.js'); } catch (_) { return null; } })();
 const { makeReplayProvider } = require('../sidecar/providers/replay.js');
 const { makeFsTools } = require('../sidecar/tools/builtin/fs.js');
 const { makeOutputArtifacts } = require('../sidecar/output-artifacts.js');
@@ -408,7 +409,7 @@ async function readBack(reg, ctx, call) {
       const streamTools = makeFsTools({ fsp, pathMod: path, root: ws.root, rg: false, limits: { readStreamMinBytes: 0 } });
       if (typeof streamTools.register === 'function') streamTools.register(streamReg); else for (const t of Object.values(streamTools)) if (t && t.name) streamReg.register(t);
       for (const [kind, body] of Object.entries(odd)) {
-        const st = await elideToolResult(body, { name: 'noop', park: ws.parkOutput });
+        const st = HistoryEdit ? await HistoryEdit.elideToolResult(body, { name: 'noop', park: ws.parkOutput }) : null;
         A.ok(!!(st && st.handle && st.handle.via === 'saved'), 'stubs: a ' + kind + ' body is saved at elision');
         if (!st || !st.handle) continue;
         for (const [how, r] of [['whole-file', reg], ['streaming', streamReg]]) {
