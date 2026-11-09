@@ -9,10 +9,10 @@
         null, [] or false, never with a throw, and a stale dock still falls back to the agent's entry dock;
         the STRICT router (no savedHost) still throws for each of them, because the line-hold lane reads it that way;
      3. a floor the compiler refuses routes nothing but still answers the room, brief and limit it holds;
-     4. INVARIANT held-is-never-routable: for every held floor (corrupt, future, unvouched, migration-required, a primary gone
-        beside its backup, unreadable) EVERY reader through admit throws a typed hold with its words and EVERY reader through
-        observe answers what a router with no plan answers; nothing is served from the floor that was good a moment before;
-        a restored file routes again with no restart; hold() says the same sentence;
+     4. INVARIANT held-is-never-routable: for every held floor (corrupt, future, unvouched, migration-required, a save that names
+        no writer, a primary gone beside its backup, unreadable) EVERY reader through admit throws a typed hold with its words and
+        EVERY reader through observe answers what a router with no plan answers; nothing is served from the floor that was good a
+        moment before; a restored file routes again with no restart; hold() says the same sentence;
      5. observe swallows nothing but a hold; admit swallows nothing;
      6. with no authority (a pure-router fixture over the posted-plan router; the host always has one) both objects are the router itself;
      7. a floor that goes held between two hops stops the work line with the existing 'refused' stop and the hold's words,
@@ -25,9 +25,9 @@
     10. the step-through test over the real authority: a floor that goes held mid-test ENDS it 'stopped' with the chain's refused stop
         and the hold's words (never 'done' after the first stage, never "no work line is armed"); a start while held is refused in
         the same words and makes no session; a paused test stays paused and CONTINUE refuses until the file is back;
-    11. INVARIANT held-says-how: a table names every hold status; a hold the person can end (migration-required: open StarNet once;
-        future: update StarNet) says that step in the one sentence every refusal reads, both from heldWhy and from the hold a real
-        read of a real spoiled floor throws; every sentence still keeps the one grammar. */
+    11. INVARIANT held-says-how: a table names every hold status; a hold the person can end (migration-required and writerless: open
+        StarNet once; future: update StarNet) says that step in the one sentence every refusal reads, both from heldWhy and from the hold
+        a real read of a real spoiled floor throws; every sentence still keeps the one grammar. */
 const A = require('./_assert.js');
 const fs = require('node:fs'), path = require('node:path'), os = require('node:os');
 const { makeSaveStore } = require('../sidecar/savestore.js');
@@ -88,7 +88,7 @@ const empties = () => READERS.map(name => [name, JSON.stringify(EMPTY[name]())])
     A.throws(() => makeRouterSeams({}), 'the seams need the router');
     A.throws(() => makeRouterSeams({ router: {} }), 'and a router that has every reader');
     A.throws(() => makeRouter({ savedHost: true }), 'savedHost without the saved-floor reader is a wiring slip');
-    A.eq(HOLD_STATUSES.slice().sort(), ['absent', 'changed', 'corrupt', 'future', 'invalid', 'migration-required', 'unavailable', 'unreadable', 'unstamped', 'unsupported-geometry', 'unvouched'],
+    A.eq(HOLD_STATUSES.slice().sort(), ['absent', 'changed', 'corrupt', 'future', 'invalid', 'migration-required', 'unavailable', 'unreadable', 'unstamped', 'unsupported-geometry', 'unvouched', 'writerless'],
       'the holds: every status that is neither routable, nor refused-by-the-compiler, nor a new install');
     for (const s of HOLD_STATUSES) A.ok(HELD_SAID.test(heldWhy(s)), s + ': one sentence, in plain words — ' + heldWhy(s));
 
@@ -155,6 +155,8 @@ const empties = () => READERS.map(name => [name, JSON.stringify(EMPTY[name]())])
       ['future wrapper', () => outside(edited(w => { w.version = 2; })), 'future'],
       ['unvouched writer', () => outside(edited(w => { w.client = 'another-window'; })), 'unvouched'],
       ['legacy station', () => outside(edited(w => { w.doc.station.version = 1; })), 'migration-required'],
+      // the save StarNet 0.15.0's terminal setup wrote: posted without _saveClient, so the wrapper names no writer
+      ['no writer (a terminal setup save)', () => outside(edited(w => { delete w.revision; delete w.client; delete w.doc._saveClient; })), 'writerless'],
       ['primary gone beside its backup', () => { fs.writeFileSync(primary + '.bak', goodBytes); fs.unlinkSync(primary); }, 'absent'],
       ['unreadable', () => { locked = true; mtime += 2; fs.utimesSync(primary, mtime, mtime); }, 'unreadable']
     ];
@@ -425,6 +427,7 @@ const empties = () => READERS.map(name => [name, JSON.stringify(EMPTY[name]())])
          what is wrong and that routing waits. THE TABLE NAMES EVERY STATUS: a hold added to HOLD_STATUSES lands only with a row here. */
       const STEP = {
         'migration-required': /open StarNet once/,   // the page migrates a save one version behind, and saves it, when it opens (frontend/app/save.js)
+        writerless: /open StarNet once/,             // the page saves the floor under its own name (cloudsave.js _saveClient), which the station vouches
         future: /update StarNet/                       // a save a newer StarNet wrote is read by that StarNet, never migrated down
       };
       const NO_STEP = ['absent', 'corrupt', 'unreadable', 'unavailable', 'unstamped', 'invalid', 'unvouched', 'unsupported-geometry', 'changed'];

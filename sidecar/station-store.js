@@ -115,8 +115,16 @@ function makeSavedFloorProjection(read) {
     if (w.version !== 1) return held(typeof w.version === 'number' && w.version > 1 ? 'future' : 'invalid');
     if (!doc || typeof doc !== 'object' || Array.isArray(doc) || !['starnet.save', 'skynet.save'].includes(doc.schema)) return held('invalid');
     if (doc.version !== Save.CURRENT) return held(typeof doc.version === 'number' && doc.version > Save.CURRENT ? 'future' : 'migration-required');
-    if (!Number.isSafeInteger(w.revision) || w.revision < 1 || doc._saveRevision !== w.revision) return held('invalid');
-    if (!source.head || source.head.revision !== w.revision || source.head.client !== w.client || w.client !== doc._saveClient) return held('unvouched');
+    /* A SAVE THAT NAMES NO WRITER: the wrapper carries neither a writer revision nor a client, because the save was posted without
+       _saveClient (savestore.save names its writer only then). StarNet 0.15.0's terminal setup (bin/lib/awaken.js) saved exactly this,
+       so a station set up there and never opened was held 'invalid'. It is still never trusted (an outside edit has the same shape), but
+       it is held as 'writerless' when nothing ELSE is wrong with it, so its words say the step that ends it (saved-hold.js: open StarNet
+       once, and the page saves the floor under its own name). Anything else wrong with it is held as that, exactly as before. */
+    const writerless = w.revision === undefined && w.client === undefined;
+    if (!writerless) {
+      if (!Number.isSafeInteger(w.revision) || w.revision < 1 || doc._saveRevision !== w.revision) return held('invalid');
+      if (!source.head || source.head.revision !== w.revision || source.head.client !== w.client || w.client !== doc._saveClient) return held('unvouched');
+    }
     const raw = doc.station;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw) || raw.schema !== 'starnet.station') return held('invalid');
     // v2 is the existing WorldModel link format. Earlier documents must first
@@ -151,6 +159,7 @@ function makeSavedFloorProjection(read) {
     let after;
     try { after = read.stamp(); } catch (_) { return held('unreadable'); }
     if (before !== after) return held('changed');
+    if (writerless) return held('writerless');   // proved in every other way, and still not routed: no writer vouches it
     return Object.freeze({ version: 1, status: 'ok', stamp: after, revision: w.revision, client: source.head.client,
       routingOk: checked.routingOk, topologyHash: plan.hash, identity, plan, compilerLinks, stationDoc: stationDoc.data });
   };
