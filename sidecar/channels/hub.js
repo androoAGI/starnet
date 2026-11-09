@@ -537,8 +537,8 @@
           chatId: chatId,
           options: [
             { label: '✅ Allow once', value: 'once' },
-            { label: '✅ Allow for this session', value: 'session' },
-            // no ALWAYS: a standing answer is confirmed at the desk (GHSA-2hpj #1; fix-sec2 F3), never from a chat
+            // no ALWAYS and no session: a chat answers once or no; anything that outlives the card is confirmed at the desk
+            // (GHSA-2hpj #1; fix-sec2 F3, review2 #10)
             { label: '❌ Deny', value: 'deny' }
           ],
           meta: { runId: runId, promptId: promptId }

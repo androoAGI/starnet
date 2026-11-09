@@ -313,7 +313,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const got = [];
     const resolve = new Function('channelPendingByRun', crc + '\nreturn channelResolveConsent;')(new Map([['r', new Map([['p', d => got.push(d)]])]]));
     for (const d of ['always', 'full', 'session', 'once', 'nonsense']) resolve('r', 'p', d);
-    A.eq(got, ['once', 'once', 'session', 'once', 'deny'], 'a chat\'s ALWAYS or FULL ACCESS is taken as once (fix-sec2 F3)');
+    A.eq(got, ['once', 'once', 'once', 'once', 'deny'], 'a chat\'s ALWAYS, FULL ACCESS or for-this-session is taken as once (fix-sec2 F3, review2 #10)');
     A.ok(!/Always allow/.test(read('sidecar/channels/hub.js')), 'and the chat keyboard no longer offers it');
   }
   {

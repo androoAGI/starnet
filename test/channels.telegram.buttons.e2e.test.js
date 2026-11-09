@@ -319,8 +319,9 @@ const lastUserTurn = (req) => {
     A.ok(/Permission needed/.test(ask.text), 'the ask announces itself as a permission request');
     A.ok(/fs\.write/.test(ask.text), 'and names the actual tool the broker paused on');
     const ckb = ask.reply_markup.inline_keyboard;
-    A.eq(ckb.map(r => r[0].text), ['✅ Allow once', '✅ Allow for this session', '♾️ Always allow', '❌ Deny'],
-      'the four buttons are the broker\'s own decision vocabulary');
+    // fix-sec2 F3 and review2 #10: a chat answers once or no; ALWAYS and for-this-session are confirmed at the desk
+    A.eq(ckb.map(r => r[0].text), ['✅ Allow once', '❌ Deny'],
+      'the two buttons are the broker\'s own decision vocabulary');
     for (const row of ckb) A.ok(Buffer.byteLength(row[0].callback_data, 'utf8') <= 64, 'consent callback_data is within the 64-byte cap');
 
     // tap "Allow once" -> the paused run resumes and the write actually happens

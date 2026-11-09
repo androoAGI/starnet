@@ -5156,9 +5156,10 @@ function noteChannelConsentSettled(promptId, decision) {
 function channelConsentOutcome(runId, promptId) { return channelConsentSettled.get(String(promptId == null ? '' : promptId)) || ''; }
 function channelResolveConsent(runId, promptId, decision) {
   /* A CHAT CANNOT GIVE A STANDING ANSWER (fix-sec2 F3 / review 6). ALWAYS and FULL ACCESS outlive the card, so they are
-     confirmed at the desk (GHSA-2hpj #1), which a Telegram tap is not. A chat answers as a phone does: once, for this
-     session, or no. The keyboard no longer offers ALWAYS (channels/hub.js); a tap on an older keyboard is taken as once. */
-  const d = (decision === 'always' || decision === 'full') ? 'once' : (decision === 'once' || decision === 'session') ? decision : 'deny';
+     confirmed at the desk (GHSA-2hpj #1), which a Telegram tap is not. So is "for this session" (review2 #10): it allows every
+     later request of the kind until the session ends, and a phone's session answer is confirmed at the desk too. A chat answers
+     once or no. The keyboard offers neither (channels/hub.js); a tap on an older keyboard is taken as once. */
+  const d = (decision === 'always' || decision === 'full' || decision === 'session') ? 'once' : decision === 'once' ? 'once' : 'deny';
   const pend = channelPendingByRun.get(String(runId == null ? '' : runId));
   const finish = pend && pend.get(String(promptId == null ? '' : promptId));
   if (!finish) return false;
