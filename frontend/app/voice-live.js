@@ -564,6 +564,8 @@ const VoiceLive = (() => {
     return true;
   }
 
+  // An ask after outside content (pending.outsideContent) approves that one call whatever the answer, like ONCE_ONLY
+  // below: chat.js's card offers no Always for it either.
   const approvalSubmissions = new Set();
   // asks the station grants one call at a time whatever grade arrives (no Always key: the leash, the login window; the
   // plugin install): a spoken "always allow" approves this one call and says so (review app-shell-ui-02/03)
@@ -586,7 +588,6 @@ const VoiceLive = (() => {
     else if (/^(?:always allow|approve always|always approve)$/.test(lower)) decision = 'always';
     else if (/^(?:deny|deny it|do not allow|don't allow|reject)$/.test(lower)) decision = 'deny';
     if (!decision) return false;
-    // (an ask after outside content approves this call only, whatever the answer: chat.js's card offers no Always either)
     const onceOnly = decision === 'always' && (ONCE_ONLY.has(pending.tool) || pending.outsideContent === true);
     if (onceOnly) decision = 'once';
     if (decision === 'always' && pending.workerAgentId) {   // the worker's row grants this request only — so does voice

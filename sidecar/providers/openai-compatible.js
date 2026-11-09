@@ -1196,7 +1196,7 @@
         if (res.ok && res.body) {
           if (native) noteOllamaWindow(nativeBase, body.model, wire.numCtx);
           if (healedTemplate) provider.noteSystemlessTemplate(baseUrl, body.model);   // proven: this template takes no system role
-          if (healedImages) { try { res.imagesDropped = true; } catch (_) {} }   // the stream says so on the wait line (wireStreamOnce)
+          if (healedImages) { try { res.imagesDropped = true; } catch (e) { failNote('providers.openai_compatible.images_dropped', e); } }   // the stream says so on the wait line (wireStreamOnce)
           return res;
         }
         const upstreamError = await responseErrorDetail(res, signal, native ? nativeBase + '/api/chat' : baseUrl + chatPath);

@@ -1457,15 +1457,23 @@
     const TOOL_ARGS_MAX_MS = ceilingOf(limits.toolArgsMaxMs, 10 * 60 * 1000);
     const TOOL_ARGS_NOTE_STEP = 32 * 1024;   // the wait line's "N KB written" moves in these steps
     const hasClock = !!(clock && typeof clock.now === 'function');
-    // A per-attempt abort, linked to the run's: aborting it stops this one provider call and leaves the run running. A run
+    // An abort linked to the run's: aborting it stops the provider call in flight and leaves the run running. A run
     // signal that is no event target (a caller's plain { aborted } object) is handed on as it always was, and cannot abort.
+    // ONE link serves every call of the run (callAbort below, released by end()): claude-cli keeps its child across a
+    // run's turns only while each turn hands it the SAME signal, so a fresh link per call started a new child every turn.
     function attemptAbort(parent) {
       if (typeof AbortController !== 'function' || !parent || typeof parent.addEventListener !== 'function') return { signal: parent, abortable: false, abort() {}, release() {} };
-      const ctl = new AbortController(), follow = () => { try { ctl.abort(); } catch (_) {} };
+      const ctl = new AbortController(), follow = () => { try { ctl.abort(); } catch (e) { failNote('loop.attempt.abort', e); } };
       if (parent.aborted) follow();
       else parent.addEventListener('abort', follow, { once: true });
       return { signal: ctl.signal, abortable: true, abort: follow,
         release() { if (typeof parent.removeEventListener === 'function') parent.removeEventListener('abort', follow); } };
+    }
+    let callAbort = null;   // the run's one link; replaced only after a runaway call aborted it
+    function callAbortFor() {
+      if (callAbort && callAbort.abortable && callAbort.signal.aborted && !signal.aborted) { callAbort.release(); callAbort = null; }
+      if (!callAbort) callAbort = attemptAbort(signal);
+      return callAbort;
     }
     function sizeText(chars) { return chars >= 1024 * 1024 ? (chars / (1024 * 1024)).toFixed(1) + ' MB' : Math.max(1, Math.round(chars / 1024)) + ' KB'; }
     function spanText(ms) { const s = Math.max(0, Math.round(ms / 1000)); return s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's'; }
@@ -1652,6 +1660,7 @@
       }
     }
     function end(reason, extra) {
+      if (callAbort) { callAbort.release(); callAbort = null; }
       // A provider that keeps a live process for this run (claude-cli's persistent child) lets it go as the run ends,
       // instead of idling it out. Every adapter the run could have used: the primary, the current one, each fallback.
       for (const p of new Set([o.provider, provider].concat(fallbacks.map(f => f && f.provider)))) {
@@ -2357,7 +2366,7 @@
            line is replaced the moment the retry actually goes out instead of lingering until the next tick. */
         const waiting = startWaiting('first_byte', retrySent);
         retrySent = false;
-        const attempt = attemptAbort(signal);   // a runaway tool call (below) stops this call alone
+        const attempt = callAbortFor();   // a runaway tool call (below) stops this call alone
         const argsStream = new Map();           // tool index -> { name, chars, startedAt, noted } while its arguments stream
         let runaway = null, adapterWait = null;
         try {
@@ -2433,7 +2442,7 @@
           }
           streamClosed = !signal.aborted;
         } catch (e) { streamErr = e; }
-        finally { waiting.stop(); attempt.release(); }
+        finally { waiting.stop(); }
         if (runaway && !signal.aborted) {
           // never retried: the same prompt tends to run away the same way, and every attempt is billed while it streams
           fatal = { reason: 'tool_args_runaway', retryable: false,
