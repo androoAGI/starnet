@@ -88,7 +88,7 @@ test('QA 10-02: a skill review (also fired by a rating) checks the spending cap 
  vm.createContext(ctx); vm.runInContext(src, ctx);
  const packet = { agentId: 'nova', runId: 'rated-run', messages: [], route: 'openrouter' };
  assert.equal(await ctx.runBackgroundSkillReview(packet), false, 'a reached cap defers the review');
- assert.deepEqual(checks, [[null, 'nova', 0, undefined, null, undefined]], 'side-effect-free: no run, no bus, no receipt (the budget reads its own clock)');
+ assert.deepEqual(checks, [[null, 'nova', 0, undefined, null, undefined, { attended: false }]], 'side-effect-free: no run, no bus, no receipt (the budget reads its own clock); a background review is unwatched (GHSA-2hpj #8)');
  assert.equal(providerSetup, 0, 'cap refusal stops before any provider setup');
  blocked = { unknown: true, code: 'spend_history_unavailable' };
  assert.equal(await ctx.runBackgroundSkillReview(packet), false, 'unknown spend also defers the review');
