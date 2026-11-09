@@ -10,6 +10,11 @@
                                                                reported one that adds up (W1.13: Anthropic, Claude Code)
        usageMissing?: true,                                    no usage ever arrived: the counts are UNKNOWN, never 0
        end: 'done' | 'stopped' | 'error', status?,             how the call ended (an HTTP status, never error text)
+       origin?, ref?, start?,                                  W3.1: who started the run this call belongs to, when it was
+                                                               unattended work ('nightshift' | 'routine' | 'loop' | 'workshop'),
+                                                               which beat/routine/loop (ref) and which start of it (start): the
+                                                               unattended rail counts these (unattended-admission.js). Absent
+                                                               on everything a person started.
        window?: { seenAt, windows: [{ id, usedPct, resetsAt, minutes, status? }] } }   the plan-window reading this call saw
 
    Counts and identifiers only: never a word of the prompt, the reply, or an error message.
@@ -32,7 +37,11 @@
    twice that). Never read at boot or by history: only GET /api/usage/providers reads it, on demand. A write that fails
    is noted and the call goes on: a receipt never breaks a call.
 
-   makeUsageReceipts({ file?, fs?, path?, clock, readings?, maxBytes?, note? }) -> {
+   WHO STARTED IT (W3.1). `scope()` is read when a call STARTS: the host's AsyncLocalStorage around every unattended start
+   ({ origin, ref, start }), so a call that start makes — its line hops, workers and reviews included — carries its origin.
+   A background pass that follows it runs outside the scope (index.js automaticAux: it keeps its own ceiling). `onRecord(rec)` sees each receipt after it is written (the host's unattended tally).
+
+   makeUsageReceipts({ file?, fs?, path?, clock, readings?, maxBytes?, note?, scope?, onRecord? }) -> {
      wrap(provider, { provider, account }) -> provider   the factory's seam; marks the result [RECEIPTED]
      records() -> receipt[]                             oldest first (the rotated pair, or the in-memory list without a file)
      clear()                                            the in-memory list only (tests)
@@ -75,6 +84,8 @@ function makeUsageReceipts(opts) {
   const note = typeof o.note === 'function' ? o.note : failNote;
   const maxBytes = isNum(o.maxBytes) && o.maxBytes > 0 ? o.maxBytes : 4 * 1024 * 1024;
   const readings = (o.readings && typeof o.readings.get === 'function') ? o.readings : null;
+  const scopeOf = typeof o.scope === 'function' ? o.scope : null;
+  const onRecord = typeof o.onRecord === 'function' ? o.onRecord : null;
   const file = o.file || '';
   const deps = file ? { fs: o.fs || require('fs'), path: o.path || require('path') } : null;
   const memory = [];
@@ -102,7 +113,19 @@ function makeUsageReceipts(opts) {
     }) };
   }
 
-  function receipt(meta, req, startedAt, usage, end, status) {
+  // who started the run this call belongs to, read when the call starts (never text: three bounded identifiers)
+  function originNow() {
+    if (!scopeOf) return null;
+    let sc = null;
+    try { sc = scopeOf(); } catch (e) { note('usage-receipts.scope', e); return null; }
+    if (!sc || !sc.origin) return null;
+    const out = { origin: ident(sc.origin, 40) };
+    if (sc.ref != null && String(sc.ref)) out.ref = ident(sc.ref, 128);
+    if (sc.start != null && String(sc.start)) out.start = ident(sc.start, 128);
+    return out;
+  }
+
+  function receipt(meta, req, startedAt, usage, end, status, who) {
     const at = now();
     const rec = { v: 1, at, ms: Math.max(0, at - startedAt), provider: meta.pid, account: meta.acct, model: req && req.model != null ? ident(req.model, 200) : '' };
     if (req && req.runId != null && String(req.runId)) rec.runId = ident(req.runId, 128);
@@ -113,10 +136,11 @@ function makeUsageReceipts(opts) {
     if (end === 'error' && Number.isInteger(status)) rec.status = status;
     const w = windowSeen(meta.pid, meta.acct, startedAt);
     if (w) rec.window = w;
+    if (who) Object.assign(rec, who);
     return rec;
   }
 
-  async function* receipted(iterable, req, meta, startedAt) {
+  async function* receipted(iterable, req, meta, startedAt, who) {
     let usage = null, events = 0, sawDone = false, threw = false, status = null;
     try {
       for await (const ev of iterable) {
@@ -131,8 +155,10 @@ function makeUsageReceipts(opts) {
       throw e;
     } finally {
       if (usage || events > 0 || threw) {
-        try { append(receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status)); }
-        catch (e) { note('usage-receipts.record', e); }
+        let rec = null;
+        try { rec = receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status, who); append(rec); }
+        catch (e) { note('usage-receipts.record', e); rec = null; }
+        if (rec && onRecord) { try { onRecord(rec); } catch (e) { note('usage-receipts.onRecord', e); } }
       }
     }
   }
@@ -144,7 +170,7 @@ function makeUsageReceipts(opts) {
     const out = Object.assign({}, provider, {
       stream(req) {
         const startedAt = now();
-        return receipted(inner.call(provider, req), req, m, startedAt);
+        return receipted(inner.call(provider, req), req, m, startedAt, originNow());
       }
     });
     out[RECEIPTED] = true;

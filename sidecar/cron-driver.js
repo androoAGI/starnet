@@ -37,6 +37,14 @@
      deps.defaultModel     -> string             // boot-frozen SKYNET_DEFAULT_MODEL fallback when job.model is null
      deps.identityForAgent -> (agentId, job) -> { system?, model? } | null
                                                  // optional selected-agent identity (browser roster / persisted mirror)
+     deps.admitUnattended  -> (job, { provider, model }) -> hold | null
+                                                 // OPTIONAL W3.1 unattended hold (index.js holdRoutineFire ->
+                                                 //   sidecar/unattended-admission.js): a scheduled fire is unattended
+                                                 //   work, asked after the capability gate and before ANY spend (run id,
+                                                 //   lease, cron.fire, crate). A hold drops this occurrence exactly like a
+                                                 //   monitor skip — the host ledgers it — and the next comes on schedule
+                                                 //   (a one-shot keeps its claim and retries after maxRunMs): no burst.
+                                                 //   A check that throws admits (a reading it cannot read never holds).
      deps.agentExists      -> (agentId) -> bool  // OPTIONAL deleted-agent guard: false = the job's agent no longer
                                                  //   exists (durable roster miss), so the job is REMOVED instead of
                                                  //   fired — an orphaned routine must never keep spending/minting
@@ -222,6 +230,7 @@
       try { return deliveryStarted(jobId, runId) === true; } catch (e) { failNote('cron.delivery.started', e); return false; }
     }
     const preflightConfig = typeof d.preflightConfig === 'function' ? d.preflightConfig : null;
+    const admitUnattended = typeof d.admitUnattended === 'function' ? d.admitUnattended : null;
     const hashText = typeof d.hashText === 'function' ? d.hashText : function (s) { return String(s == null ? '' : s); };
     const blockedRetryMs = (function () { const n = parseInt(d.blockedRetryMs, 10); return Number.isFinite(n) && n > 0 ? n : 60000; })();
     // Fault-injection seam: false models a process stop after the final receipt is durable, before delivery.
@@ -625,6 +634,14 @@
           }, { now: nowMs })); } catch (e) { failNote('cron.markMonitorCheck', e); }
           return false;
         }
+      }
+
+      // W3.1 THE UNATTENDED HOLD: a scheduled fire is unattended work. Held, it spends nothing and names its reading in the
+      // host's ledger row; the occurrence is dropped like a monitor skip (advance-before-run already moved nextRunAt).
+      if (admitUnattended) {
+        let held = null;
+        try { held = admitUnattended(job, { provider: provider, model: model }); } catch (e) { failNote('cron.admitUnattended', e); held = null; }
+        if (held) return false;
       }
 
       const runId = newId();

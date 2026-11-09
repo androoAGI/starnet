@@ -796,6 +796,7 @@ test/nightshift-driver.test.js
 test/nightshift-localday.test.js
 test/nightshift-decline-edge.test.js
 test/unattended-admission.test.js
+test/unattended-hold.test.js
 test/contextpack.test.js
 test/nightreport.test.js
 test/nightshift-chosen-autonomy.test.js

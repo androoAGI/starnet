@@ -157,4 +157,10 @@ function makeSubUsage(opts) {
   return { observeClaude, observeHeaders, wrapFetch, get, snapshot, flush };
 }
 
-module.exports = { makeSubUsage, windowLabel };
+// where a provider's reading comes from — the two observers above, by the provider that said it. A hold that cites a
+// reading names this source with it (W3.1, unattended-admission.js).
+function readingSource(providerId) {
+  return providerId === 'claude-cli' ? 'Claude Code rate_limit_event' : 'x-codex-* response headers';
+}
+
+module.exports = { makeSubUsage, windowLabel, readingSource };

@@ -78,7 +78,9 @@ function makeHost(runs, futile) {
     // the held-floor gate reads the agent's room and the saved-floor hold: a fresh station has neither (held-floor behaviour is routing.held-floor-away.e2e)
     workshopOf: () => null, routingHold: () => null,
     // the futile-beat skip (W1.6): nothing remembered unless a case hands one in (its own proof: unattended-admission + nightshift-futile-beat.e2e)
-    futileBeatHold: () => futile || null
+    futileBeatHold: () => futile || null,
+    // the unattended hold (W3.1): no window reading and no rail here, so it admits (its own proof: unattended-hold + unattended-hold.e2e)
+    unattendedHold: () => null
   });
   return vm.runInContext(postureSrc + ';\n' + buildsSrc + '\n' + precheckSrc + '\n' + viewSrc + '\n({ commanderPosture, nightshiftPrecheck, nightshiftReadinessView })', ctx);
 }

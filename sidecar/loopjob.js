@@ -244,7 +244,12 @@
 
     const pre = inp.precheck;
     if (pre === false) return out('precheck', null);
-    if (pre && typeof pre === 'object' && pre.ok === false) return out('precheck', pre.reason || null);
+    if (pre && typeof pre === 'object' && pre.ok === false) {
+      const held = out('precheck', pre.reason || null);
+      // a hold that names its facts (W3.1: the window reading, its source and its reset) carries them to the stand-down's row
+      if (pre.why && typeof pre.why === 'object' && !Array.isArray(pre.why)) held.why = pre.why;
+      return held;
+    }
 
     return out(null, null);
   }

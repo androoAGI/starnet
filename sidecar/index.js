@@ -1483,7 +1483,8 @@ function auxTokenGate(providerId) {
 }
 const auxAdmission = makeAuxAdmission({ gate: auxTokenGate });
 function automaticAux(route, kind, agentId, runId, work) {
-  return auxAdmission.schedule(auxRoute(route), work, g => {
+  // W3.1: a background pass is not part of the unattended start it followed (it keeps its own ceiling; the rail counts runs)
+  return auxAdmission.schedule(auxRoute(route), () => unattendedScope.exit(work), g => {
     console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached after settlement (' + g.used + '/' + g.ceiling + ' in 24h) DEFERRED[' + kind + ']');
   });
 }
@@ -2327,9 +2328,18 @@ const providerAccounts = require('./provider-accounts.js').makeProviderAccounts(
 // no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
 const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
-// USAGE RECEIPTS (usage-receipts.js): one record per model call — counts only, and the window reading that call saw — in
-// .usage/calls.jsonl (rotated), written at the factory seam every adapter streams through. Read only by /api/usage/providers.
-const usageReceipts = require('./usage-receipts.js').makeUsageReceipts({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'calls.jsonl'), readings: subUsage });
+// WHO STARTED IT (cost fix W3.1): the unattended start a model call belongs to — { origin, ref, start } — carried by async context
+// from the starter that opened it (asUnattended) to the call's receipt. A person's run never runs inside it, and a start that has
+// ended stamps nothing (work it left behind is not its work).
+const unattendedScope = new AsyncLocalStorage();
+const unattendedLive = new Map();   // start -> its scopes still running (a routine fire's entry run and its work line share one)
+let unattendedRows = null;          // the unattended receipts: read once from the file, then fed each new one (noteUnattendedReceipt)
+// USAGE RECEIPTS (usage-receipts.js): one record per model call — counts only, the window reading that call saw, and the origin of
+// an unattended start — in .usage/calls.jsonl (rotated), written at the factory seam every adapter streams through. Read by
+// /api/usage/providers, and by the unattended hold's rail and its tokens per beat / per fire (W3.1).
+const usageReceipts = require('./usage-receipts.js').makeUsageReceipts({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'calls.jsonl'), readings: subUsage,
+  scope: () => { const sc = unattendedScope.getStore(); return (sc && unattendedLive.has(sc.start)) ? sc : null; },
+  onRecord: (rec) => noteUnattendedReceipt(rec) });
 attachUsageReceipts(usageReceipts);
 const accountAuthSeen = new Map();
 const accountAuthPending = new Map();
@@ -6827,7 +6837,16 @@ async function lineHandoffFiles(agentId, list, where) {
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(agentId || ''))) return [];
   return RunPaths.locateProduced({ fsp, pathMod: path, list, limit: 64, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(agentId)) });
 }
-const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
+/* W3.1: a hop of a SCHEDULED fire (profile trigger 'schedule', stream 'cron-<fire run id>') is the fire's own unattended work:
+   it re-enters the fire's scope (origin 'routine', the routine's id, start = the fire's run id) so its receipts count on the
+   rail with the fire's. A Run Now hop ('manual'), a channel message hop ('event') or a step test is a person's own start. */
+function lineHopRun(o) {
+  const fire = o && o.trigger === 'schedule' ? /^cron-(.+)$/.exec(String(o.streamId || '')) : null;
+  if (!fire) return runOnce(o);
+  const item = cronItems.get(fire[1]);
+  return asUnattended('routine', item && item.job ? item.job.id : '', () => runOnce(o), fire[1]);
+}
+const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce: lineHopRun, now: () => Date.now(), newId: () => crypto.randomUUID(),
   intakeReceiptFor: facts => observe.intakeReceiptFor(facts),
   label: stepTestLabel,
   handoffFiles: lineHandoffFiles,
@@ -8205,31 +8224,36 @@ const cronDriver = makeCronDriver({
   // routine runs unchanged.
   runOnce: (opts) => {
     const first = opts && Array.isArray(opts.messages) && opts.messages[0] && String(opts.messages[0].content || '');
-    if (first && first.indexOf(WORKSHOP_MARK) === 0) {
-      return runWorkshopShift(opts.agentId, { runId: opts.runId, emit: opts.emit, signal: opts.signal });
-    }
-    // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
-    // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
-    // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
-    if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
-      // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
-      // agent.run.start, and this early return skipped the run table registration below — the one autonomous
-      // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
-      const slashRunId = opts && opts.runId ? String(opts.runId) : '';
-      const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
-      return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRun) slashRun.release(); });
-    }
-    // TRUTHFUL SNAPSHOT: register the scheduled run in the run table for its lifetime. The frontend's
-    // reconnect/30s reconciliation (world.js reconcileFromSnapshot) treats /api/state/snapshot as the
-    // authority on live runs and STANDS DOWN any agent whose run it doesn't list — a scheduled fire
-    // seized its agent to the desk via agent.run.start, then the first snapshot poll released the body
-    // mid-run (the app asserting idle over a provably live run). Run Now (handleCronRun), nightshift,
-    // loops and the channel hubs all already register; this was the one autonomous lane that didn't.
-    const schedRunId = opts && opts.runId ? String(opts.runId) : '';
-    const placed = schedRunId ? cronItems.get(schedRunId) : null;
-    if (placed && opts) opts = Object.assign({}, opts, { lineId: placed.lineId || undefined, dockId: placed.dockId || undefined });   // LINE WATCH: the row says where it worked
-    const scheduledRun = schedRunId ? runTable.admit({ runId: schedRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
-    return Promise.resolve(runOnce(opts)).finally(() => { if (scheduledRun) scheduledRun.release(); });
+    // W3.1: a scheduled fire is unattended work. It runs in its origin scope — the away-workshop routine's shift is an away build
+    // ('workshop'), any other routine 'routine' — so its receipts count toward the rail and its tokens per fire; the fire's run id
+    // is the start, which its work line's hops share. Run Now calls runOnce directly and is neither.
+    return asUnattended(first && first.indexOf(WORKSHOP_MARK) === 0 ? 'workshop' : 'routine', opts && opts.cronJobId, () => {
+      if (first && first.indexOf(WORKSHOP_MARK) === 0) {
+        return runWorkshopShift(opts.agentId, { runId: opts.runId, emit: opts.emit, signal: opts.signal, origin: 'workshop', cronJobId: opts.cronJobId });
+      }
+      // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
+      // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
+      // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
+      if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
+        // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
+        // agent.run.start, and this early return skipped the run table registration below — the one autonomous
+        // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
+        const slashRunId = opts && opts.runId ? String(opts.runId) : '';
+        const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+        return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRun) slashRun.release(); });
+      }
+      // TRUTHFUL SNAPSHOT: register the scheduled run in the run table for its lifetime. The frontend's
+      // reconnect/30s reconciliation (world.js reconcileFromSnapshot) treats /api/state/snapshot as the
+      // authority on live runs and STANDS DOWN any agent whose run it doesn't list — a scheduled fire
+      // seized its agent to the desk via agent.run.start, then the first snapshot poll released the body
+      // mid-run (the app asserting idle over a provably live run). Run Now (handleCronRun), nightshift,
+      // loops and the channel hubs all already register; this was the one autonomous lane that didn't.
+      const schedRunId = opts && opts.runId ? String(opts.runId) : '';
+      const placed = schedRunId ? cronItems.get(schedRunId) : null;
+      if (placed && opts) opts = Object.assign({}, opts, { lineId: placed.lineId || undefined, dockId: placed.dockId || undefined });   // LINE WATCH: the row says where it worked
+      const scheduledRun = schedRunId ? runTable.admit({ runId: schedRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+      return Promise.resolve(runOnce(opts)).finally(() => { if (scheduledRun) scheduledRun.release(); });
+    }, opts && opts.runId);
   },
   emit: cronEmitNotify, newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   getKey: (provider) => cronKeyFor(provider),
@@ -8269,6 +8293,9 @@ const cronDriver = makeCronDriver({
     const held = routingHold();
     return held ? { ok: false, code: 'routing-held', reason: held.why } : cronPreflightConfig(job, ctx);
   },
+  // W3.1 THE UNATTENDED HOLD: a scheduled fire is unattended work, asked after the capability gate and before any spend. Held, the
+  // occurrence is dropped (a one-shot retries once its claim ages) and its ledger row names the reading or the rail count.
+  admitUnattended: (job, route) => holdRoutineFire(job, route),
   hashText: (text) => crypto.createHash('sha256').update(String(text == null ? '' : text), 'utf8').digest('hex'),
   deliverResult: deliverCronResult,
   // a result something of which went out is busy for the supersede and finishes while paused; one superseded before that
@@ -8743,6 +8770,136 @@ function proveFutileDesk(agentId, mark) {
   }, (e) => failNote('nightshift.futile.desk', e));
 }
 
+/* ---- THE UNATTENDED HOLD (cost fix W3.1, approved 2026-11-08: ON by default, for AUTONOMOUS work only) — the rule lives in
+   sidecar/unattended-admission.js; this is the host's half. ONE check, unattendedHold (the only caller of
+   UnattendedAdmission.admit), that every unattended starter asks before it spends, keyed on who started the run:
+     'nightshift'  an away-shift beat the night-shift driver fires       nightshiftPrecheck, the driver's pre-spend gate
+     'routine'     a routine's scheduled fire (a slash or line routine    the cron driver's admitUnattended (holdRoutineFire),
+                   too; a routine the Commander armed is still            after the capability gate, before the fire's run
+                   unattended when it fires)                              id, lease or crate
+     'workshop'    an away build: the away-workshop routine's shift,      the same cron gate; runWorkshopShift and
+                   and the build a FREE plan chains into after an away    runNightshiftActShift, before runImplementBuild
+                   shift or an away beat
+     'loop'        a standing loop's tick                                 loopPrecheck (through loopReadiness): the loop
+                                                                          driver's precheck and the LOOPS row
+   Never asked for what a person started: a message (/api/run), Run Now, a beat or a shift fired by hand, an Implement press.
+   Background passes (reflection, study, scout, quest refresh, skill review) keep their own sign-in ceiling (auxgovernor).
+   Each unattended start runs in its origin scope (asUnattended), which stamps its usage receipts: the rail counts those, and
+   tokens per beat / per fire average them. A held start is dropped, never queued: after a reset or a RESUME the next one comes
+   on its own schedule, no burst. The switches: STARNET_UNATTENDED_WINDOW_PCT and STARNET_UNATTENDED_RAIL_TOKENS (a number sets
+   the line, 0 or off turns it off); every other number is UnattendedAdmission.THRESHOLDS. */
+const UNATTENDED_LIMITS = UnattendedAdmission.thresholds({ windowPct: ENV('UNATTENDED_WINDOW_PCT'), railTokens: ENV('UNATTENDED_RAIL_TOKENS') });
+const UNATTENDED_ROWS_MAX = 20000;   // unattended receipts kept in memory (the file itself is bounded by usage-receipts' rotation)
+const readingSource = require('./sub-usage.js').readingSource;
+// RESUME: when the Commander last re-armed autonomy while the rail held — the rail counts from there. Survives a restart.
+const UNATTENDED_RESUME_FILE = path.join(WORKSPACES, 'unattended.resume.json');
+let unattendedResumedAt = (() => {
+  try { const o = loadResilient(UNATTENDED_RESUME_FILE, 'unattended-resume'); return (o && Number.isFinite(o.resumedAt)) ? o.resumedAt : null; }
+  catch (_) { return null; }
+})();
+
+// run fn as an unattended start of `origin` (ref: the agent, routine or loop it belongs to; start: the fire's own id when its work
+// runs in more than one scope, else a fresh one) -> fn's result, as a promise. A throw is fn's own, unchanged.
+function asUnattended(origin, ref, fn, start) {
+  const key = (start != null && String(start)) || crypto.randomUUID();
+  unattendedLive.set(key, (unattendedLive.get(key) || 0) + 1);
+  const done = () => { const n = (unattendedLive.get(key) || 1) - 1; if (n > 0) unattendedLive.set(key, n); else unattendedLive.delete(key); };
+  let p;
+  try { p = unattendedScope.run({ origin: origin, ref: ref == null ? '' : String(ref), start: key }, fn); }
+  catch (e) { done(); throw e; }
+  return Promise.resolve(p).finally(done);
+}
+
+function unattendedRecords() {
+  if (!unattendedRows) {
+    let all = [];
+    try { all = usageReceipts.records(); } catch (e) { failNote('unattended.records', e); }
+    unattendedRows = all.filter(r => r && UnattendedAdmission.isUnattended(r.origin)).slice(-UNATTENDED_ROWS_MAX);
+  }
+  return unattendedRows;
+}
+function noteUnattendedReceipt(rec) {
+  if (!unattendedRows || !rec || !UnattendedAdmission.isUnattended(rec.origin)) return;   // not read yet: the first read finds it in the file
+  unattendedRows.push(rec);
+  if (unattendedRows.length > UNATTENDED_ROWS_MAX) unattendedRows.splice(0, unattendedRows.length - UNATTENDED_ROWS_MAX);
+}
+
+// what each live sign-in on the route last said about its windows (sub-usage.js), and where that reading comes from
+function unattendedReadings(provider) {
+  if (!provider) return [];
+  let accounts = [{ id: '' }];
+  try { if (providerAccounts.list(provider).length) accounts = accountChain(provider); }   // stacked sign-ins: a run rotates through the live ones
+  catch (e) { failNote('unattended.accounts', e); }
+  const source = readingSource(provider);
+  return accounts.map(a => ({ account: a.id || 'primary', source: source, entry: subUsage.get(provider, a.id || 'primary') }));
+}
+
+// the rail's count: unattended work's weighted tokens on the routes that may sign in, the trailing day, since the last RESUME
+function unattendedRail(now) {
+  const may = new Map();
+  const signsIn = pid => { if (!may.has(pid)) { let v = false; try { v = !!auxCeilingRoute(pid); } catch (e) { failNote('unattended.rail-route', e); } may.set(pid, v); } return may.get(pid); };
+  return UnattendedAdmission.railTally(unattendedRecords().filter(r => signsIn(r.provider)), now, unattendedResumedAt, UNATTENDED_LIMITS);
+}
+
+/* unattendedHold — THE check. origin: who started the run (UnattendedAdmission.ORIGINS; anything else is a person, never held);
+   ctx: { provider } the route the start would run on. -> null (go), or the hold
+   { ok:false, binding, why: the reading or the rail count, say: the hold in words, ledger: { origin, hold, ...why } }.
+   A check that throws admits: a hold is asserted only on what the harness can read. */
+function unattendedHold(origin, ctx) {
+  if (!UnattendedAdmission.isUnattended(origin)) return null;
+  try {
+    const now = Date.now();
+    const provider = auxRoute((ctx && ctx.provider) || '');
+    const signIn = !!provider && auxCeilingRoute(provider);
+    const d = UnattendedAdmission.admit({ origin: origin, provider: provider, signIn: signIn, now: now, thresholds: UNATTENDED_LIMITS,
+      readings: UNATTENDED_LIMITS.windowPct > 0 ? unattendedReadings(provider) : [],
+      rail: (signIn && UNATTENDED_LIMITS.railTokens > 0) ? unattendedRail(now) : null });
+    if (d.admit) return null;
+    return { ok: false, binding: d.binding, why: d.why, say: UnattendedAdmission.say(d, UNATTENDED_LIMITS), ledger: Object.assign({ origin: origin, hold: d.binding }, d.why) };
+  } catch (e) { failNote('unattended.hold', e); return null; }
+}
+
+// a hold's ledger row where no driver writes one (a routine fire, a chained build). `key` folds a hold that repeats unchanged
+// (a one-shot retried, the next occurrence of a held routine) into the row already written; '' writes every time.
+const unattendedHeldRows = new Map();   // key -> the hold last written for it
+function ledgerUnattendedHold(key, row, hold) {
+  const said = hold.binding + '|' + hold.say;
+  if (key && unattendedHeldRows.get(key) === said) return;
+  if (key) unattendedHeldRows.set(key, said);
+  try { recordAutonomy(Object.assign({ ts: Date.now(), kind: 'skip', binding: hold.binding, reason: hold.binding, detail: Object.assign({ note: hold.say }, hold.ledger) }, row)); }
+  catch (e) { failNote('unattended.ledger', e); }
+}
+
+// the cron driver's admitUnattended: a routine's scheduled fire, or the away-workshop routine's shift (an away build)
+function holdRoutineFire(job, route) {
+  const hold = unattendedHold(job && job.meta && job.meta.workshop === true ? 'workshop' : 'routine', { provider: route && route.provider });
+  const id = String((job && job.id) || '');
+  if (!hold) { unattendedHeldRows.delete('cron:' + id); return null; }
+  ledgerUnattendedHold('cron:' + id, { source: 'cron', jobId: id, agentId: String((job && job.agentId) || '') }, hold);
+  return hold;
+}
+
+// RESUME (re-arming the posture, the control that turns unattended work on): while the rail holds, its count starts again from
+// now. -> true when it lifted the rail; a re-arm while the rail is not holding resets nothing.
+function resumeUnattendedRail() {
+  if (!(UNATTENDED_LIMITS.railTokens > 0)) return false;
+  const now = Date.now();
+  const rail = unattendedRail(now);
+  if (!(rail.tokens >= UNATTENDED_LIMITS.railTokens)) return false;
+  unattendedResumedAt = now;
+  try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(UNATTENDED_RESUME_FILE, { v: 1, resumedAt: now }); }
+  catch (e) { failNote('unattended.resume.save', e); }
+  recordAutonomy({ ts: now, source: 'nightshift', kind: 'note', agentId: NIGHTSHIFT_AGENT, reason: 'unattended-rail:resumed',
+    detail: { tokens: rail.tokens, limit: UNATTENDED_LIMITS.railTokens, note: 'autonomy re-armed: the unattended rail counts again from now' } });
+  return true;
+}
+
+// tokens per beat / per fire: what one finished start of origin/ref spent, weighted, over its newest starts (null until one is recorded)
+function unattendedPerStart(origin, ref) {
+  try { return UnattendedAdmission.tokensPerStart(unattendedRecords(), { origin: origin, ref: ref, exclude: unattendedLive }); }
+  catch (e) { failNote('unattended.per-start', e); return null; }
+}
+
 // copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
 // workspace; deliverable.json is never copied — the new run writes its own). Bounded: <=40 files, <=2MB each, <=8MB.
 async function seedContinueDir(agentId, fromRunId, toRunId) {
@@ -8798,6 +8955,13 @@ function autonomyLedgerAppend(entry) {
   if (e.binding === UnattendedAdmission.AWAITING_VERDICT && e.why) {
     if (e.why.title) detail.waitingOn = String(e.why.title);
     if (e.why.runId) detail.waitingRunId = String(e.why.runId);
+  }
+  // W3.1: a beat held by the unattended hold names what it rests on — the window reading (provider, sign-in, window, %, the reset,
+  // when it was read, its source) or the rail count — and says it in words
+  if ((e.binding === UnattendedAdmission.WINDOW_RESERVE || e.binding === UnattendedAdmission.UNATTENDED_RAIL) && e.why) {
+    Object.assign(detail, e.why, { origin: 'nightshift', hold: e.binding });
+    const note = UnattendedAdmission.say({ admit: false, binding: e.binding, why: e.why }, UNATTENDED_LIMITS);
+    if (note) detail.note = note;
   }
   if (e.kind === 'outcome') {
     detail.phase = 'outcome'; detail.delivered = !!e.delivered;
@@ -9948,6 +10112,11 @@ function nightshiftPrecheck() {
     try {
       if (!cronModelFor({ agentId: NIGHTSHIFT_AGENT }) || !cronHasCredential(provider, cronKeyFor(provider))) return { ok: false, reason: 'no-provider' };
     } catch (_) { return { ok: false, reason: 'precheck-error' }; }
+    // THE UNATTENDED HOLD (W3.1, pre-spend): an away-shift beat is unattended work — held, with no call and no leash unit, while
+    // every sign-in on its route is in its window's reserve before a reset still ahead, or unattended work has spent the rail.
+    // The decline names the reading it rests on (or the count). A beat fired by hand never comes through here.
+    const unattended = unattendedHold('nightshift', { provider: provider });
+    if (unattended) return { ok: false, reason: unattended.binding, why: unattended.why };
     /* HELD FLOOR GATE (pre-spend): a saved floor that cannot be proved right now refuses an unattended BUILD (runNightshiftActShift stands down on the
        same hold), so the beat is declined here, before the leash is spent on it. Only the beat that would BUILD asks — a reason-only draft names no room. */
     if (nightshiftBeatBuilds(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
@@ -10313,8 +10482,16 @@ async function runNightshiftActShift(opts) {
   // build and deliver the thing. A failed chain still delivers the plan — never an empty morning.
   if (planAutoBuildAtFree(manifest)) {
     let chained = null;
-    try { chained = await runImplementBuild(agentId, runId, { emit: (typeof opts.emit === 'function' ? opts.emit : undefined), broadcast: !!opts.broadcast }); }
-    catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    // W3.1: the build a FREE plan chains into is an away build of its own, asked before it spends (a beat fired by hand never is):
+    // held, the plan is delivered as it stands and the row names the reading
+    const chainHold = unattendedHold(opts.origin, { provider: provider });
+    if (chainHold) {
+      ledgerUnattendedHold('', { source: 'nightshift', agentId: agentId, runId: runId }, Object.assign({}, chainHold, { ledger: Object.assign({ phase: 'free-chain' }, chainHold.ledger) }));
+      chained = { fired: false, reason: chainHold.binding };
+    } else {
+      try { chained = await runImplementBuild(agentId, runId, { emit: (typeof opts.emit === 'function' ? opts.emit : undefined), broadcast: !!opts.broadcast }); }
+      catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    }
     if (chained && chained.reason === 'built') {
       return { delivered: true, reason: 'built', title: (chained.manifest || {}).title, archetype: sel.selected.archetype, runId: chained.runId, backlogId, chainedFrom: runId };
     }
@@ -10353,7 +10530,9 @@ const nightshiftDriver = makeNightshiftDriver({
   // unit-tested runTeeView policy — args never leave the sidecar), the same opt-in the force-fire route and
   // manual cron use. Without it a scheduled beat ran with a no-op emit and the station sat visibly dead
   // while the harness worked (2026-07-14: "it doesn't notify me anywhere").
-  beat: (o) => runNightshiftBeat(Object.assign({ broadcast: true }, o || {})),
+  // W3.1: the driver's beat is unattended work — it runs in the 'nightshift' scope (its receipts count toward the rail), and a
+  // build it chains into asks the hold by that origin. A beat fired by hand (POST /api/nightshift/beat) is neither.
+  beat: (o) => asUnattended('nightshift', NIGHTSHIFT_AGENT, () => runNightshiftBeat(Object.assign({ broadcast: true, origin: 'nightshift' }, o || {}))),
   newAbort: () => new AbortController(),
   now: () => Date.now(),
   ledger: (entry) => autonomyLedgerAppend(entry),
@@ -10501,6 +10680,9 @@ function loopPrecheck(loop) {
     if (!cronHasCredential(provider, cronKeyFor(provider))) {
       return { ok: false, reason: 'no credential for ' + (provider || 'the selected provider') + ' — connect it in SETTINGS › AI & MODELS' };
     }
+    // W3.1: a tick is unattended work, held in the hold's own words (the LOOPS row shows them; the ledger row names the reading)
+    const unattended = unattendedHold('loop', { provider: provider });
+    if (unattended) return { ok: false, reason: unattended.say, why: unattended.ledger };
     return { ok: true };
   } catch (e) { return { ok: false, reason: 'precheck error: ' + ((e && e.message) || e) }; }
 }
@@ -10932,7 +11114,8 @@ const loopDriver = makeLoopDriver({
       return false;
     }
   },
-  runOnce: (opts) => runOnce(opts),
+  // W3.1: a loop's iteration is unattended work: it runs in the 'loop' scope (its receipts count toward the rail)
+  runOnce: (opts) => asUnattended('loop', String((opts && opts.streamId) || '').replace(/^loop-/, ''), () => runOnce(opts), opts && opts.runId),
   newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   isHalted: () => loopsHalted,
   // the same-agent run mutex. A loop must never elbow past an interactive run the Commander is watching.
@@ -18094,8 +18277,15 @@ function cronStateSnapshot(now) {
 }
 
 function handleCronList(req, res) {
+  const snap = cronStateSnapshot(Date.now());
+  // W3.1 (additive): tokensPerFire — what one scheduled fire of the routine spent, weighted, over its newest fires; absent until one is
+  // recorded (Run Now is a person's run, and is not one of them)
+  snap.jobs = snap.jobs.map(j => {
+    const t = (j && j.id) ? unattendedPerStart(j.meta && j.meta.workshop === true ? 'workshop' : 'routine', j.id) : null;
+    return t ? Object.assign({}, j, { tokensPerFire: t }) : j;
+  });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(cronStateSnapshot(Date.now())));
+  res.end(JSON.stringify(snap));
 }
 
 /* GET /api/lifecycle/armed — Lane 4D: the ONE aggregate the desktop tray supervisor polls to decide whether
@@ -19167,8 +19357,16 @@ async function runWorkshopShift(agentId, opts) {
   // so a crash between the two leaves a reviewable plan rather than nothing).
   if (planAutoBuildAtFree(manifest)) {
     let chained = null;
-    try { chained = await runImplementBuild(id, runId, { emit: emit, broadcast: !!o.broadcast }); }
-    catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    // W3.1: the build a FREE plan chains into is an away build of its own, asked before it spends (a shift fired by hand never is):
+    // held, the plan is delivered as it stands and the row names the reading
+    const chainHold = unattendedHold(o.origin, { provider: provider });
+    if (chainHold) {
+      ledgerUnattendedHold('', { source: 'cron', jobId: o.cronJobId ? String(o.cronJobId) : undefined, agentId: id, runId: runId }, Object.assign({}, chainHold, { ledger: Object.assign({ phase: 'free-chain' }, chainHold.ledger) }));
+      chained = { fired: false, reason: chainHold.binding };
+    } else {
+      try { chained = await runImplementBuild(id, runId, { emit: emit, broadcast: !!o.broadcast }); }
+      catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    }
     if (chained && chained.reason === 'built') {
       noteShift({ reason: 'built', runId: chained.runId, title: (chained.manifest || {}).title });
       return { fired: true, runId: chained.runId, reason: 'built', manifest: chained.manifest, chainedFrom: runId };
@@ -27611,6 +27809,11 @@ async function handleAutonomyPosture(req, res) {
   let cronHaltPersisted = true;
   try { if (resumeRequested && liftCronHalt()) haltLifted = true; }
   catch (e) { cronHaltPersisted = false; console.warn('[cron] halt-lift persist failed:', (e && e.message) || e); }
+  // W3.1 RESUME: the same "autonomy back on" signal resumes the unattended work the 24-hour rail paused — its count starts again
+  // from now. railResumed (additive) is true only when this write lifted the rail.
+  let railResumed = false;
+  try { if (resumeRequested) railResumed = resumeUnattendedRail(); }
+  catch (e) { failNote('unattended.resume', e); }
   // if the (new) posture permits acting and the timer isn't running yet, arm it NOW (no restart); if it dropped
   // below acting, we LEAVE the timer armed — its own gate returns binding:'posture' and no beat fires, which is
   // cheaper + simpler than tearing the timer down and matches how the driver already no-ops when not permitted.
@@ -27644,7 +27847,7 @@ async function handleAutonomyPosture(req, res) {
   // receipt names what still waits and says "schedules can run" only when the scheduler is armed. null = unknown.
   let haltAfter = null;
   try { haltAfter = haltStatus(); } catch (e) { console.warn('[autonomy] halt read-back failed:', (e && e.message) || e); }
-  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
+  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted, railResumed: railResumed });
 }
 // GET /api/autonomy/posture — the server copy (posture summary + whether a beliefs snapshot is present). Never
 // echoes the raw beliefs texts back to the browser (it already has them); just reports presence + freshness.
@@ -27704,6 +27907,13 @@ function handleNightshiftStatus(req, res) {
     // W1.6: while the futile-beat skip holds, the build it waits on — read from the live backlog by the same precheck
     // the tick runs (null whenever nothing is awaited: the hold is never asserted without that undecided build)
     waitingOn: (decision && decision.binding === UnattendedAdmission.AWAITING_VERDICT && decision.why) ? { title: String(decision.why.title || ''), runId: String(decision.why.runId || '') } : null,
+    // W3.1 (additive): while the unattended hold holds the beat, what it rests on (the window reading, or the rail count) and the
+    // hold in words, from the same precheck the tick runs (null otherwise); tokensPerBeat: what one away-shift beat spent, weighted,
+    // over its newest beats (null until one is recorded)
+    hold: (decision && (decision.binding === UnattendedAdmission.WINDOW_RESERVE || decision.binding === UnattendedAdmission.UNATTENDED_RAIL) && decision.why)
+      ? { binding: decision.binding, why: decision.why, say: UnattendedAdmission.say({ admit: false, binding: decision.binding, why: decision.why }, UNATTENDED_LIMITS),
+          keptPct: decision.binding === UnattendedAdmission.WINDOW_RESERVE ? Math.max(0, 100 - UNATTENDED_LIMITS.windowPct) : null } : null,   // keptPct: the share of the window kept for you
+    tokensPerBeat: unattendedPerStart('nightshift', NIGHTSHIFT_AGENT),
     inFlight: (() => { try { return nightshiftDriver.runInFlight(); } catch (_) { return false; } })(),
     // NS-5b: the declared night FOCUS (single priority) + its cited evidence, so the morning report can LEAD with
     // "priority: <focus> — because <evidence>". Null when no focus has been declared (nothing to cite → improv).
