@@ -26466,6 +26466,11 @@ async function runOnceCore(o) {
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     // no result = the run THREW before its loop returned (bug 812c3bfb): it is settled as an error, never a finished run
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
+    /* W1.4 LEARNING ORDER, taken BEFORE the run's row exists (runStore.record below). A rating, a correction or KEEP THIS
+       STYLE on this run needs that row (404 without it), so it always lands after this run's end order and opens the
+       learning windows for the NEXT run's passes, never for this run's own, which never read it. A cue in the Commander's
+       own latest words opens first, so this run's own passes do use that one (the learning block below reads both). */
+    try { if (LearningCooldown.cueIn(commanderWords)) learningCooldown.open(agentId, 'cue'); learningCooldown.ended(runId); } catch (e) { failNote('learning.cooldown', e); }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
@@ -26647,12 +26652,11 @@ async function runOnceCore(o) {
      window lets them spend. Feedback always gets through: a preference or correction cue in the Commander's OWN latest
      words (commanderWords: host-minted from the owner's own surfaces only, so a routine's or a worker's brief that says
      "always" opens nothing) opens every learning window of this agent, as a thumbs verdict does (recordFeedbackMemory),
-     until each pass's next attempt from a run that ended after it: this run's own pass, or, for a pass held back here
-     (its previous pass still running, or deferred by the budget), its next one. This run's end then takes its order,
-     so a pass still running from an earlier run never uses the cue up. A failure review also skips its window for a
-     failure class (outcome, stage, code) it has not reviewed within its window. */
-  if (LearningCooldown.cueIn(commanderWords)) learningCooldown.open(agentId, 'cue');
-  learningCooldown.ended(runId);
+     until each pass's next answered attempt from a run that ended after it: this run's own pass, or, for a pass held back
+     here (its previous pass still running, or deferred by the budget) or whose call failed, its next one. The cue opened
+     and this run's end took its order in the finally above, before the run's row was recorded, so a pass still running
+     from an earlier run never uses the cue up, and a like or dislike on this run waits for the next run's passes. A
+     failure review also skips its window for a failure class (outcome, stage, code) it has not reviewed within its window. */
   const _learnFailClass = LearningCooldown.failureClass({ outcome: _leadOc.outcome, failureStage: execution.failureStage(), failureCode: execution.failureCode() });
   const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)

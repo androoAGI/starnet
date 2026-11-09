@@ -334,7 +334,9 @@ const LC = require('../sidecar/learning-cooldown.js');
   A.ok(core.indexOf(CUE_OPEN) > 0, 'a cue in the Commander\'s own latest words opens the agent\'s learning windows at the run\'s end');
   A.ok(/const commanderWords = trustedLearningInput \? trustedLearningInput\.content : '';/.test(core), '...read from commanderWords, host-minted from the owner\'s own surfaces (trusted learning input), never a routine\'s or a worker\'s brief');
   A.ok(core.indexOf(CUE_OPEN) < core.indexOf(ENDED), 'the run\'s end takes its order after its own cue, so its own passes spend the cue');
-  A.ok(core.indexOf(ENDED) > core.indexOf('const _learn = ') && core.indexOf(ENDED) < core.indexOf('const _gateReflect = '), '...and before the first gate, so every pass it fires reads at that order');
+  A.ok(core.indexOf(ENDED) > 0 && core.indexOf(ENDED) < core.indexOf('runStore.record({ runId, parentRunId:'), '...and before the run\'s row exists (review r2 nit): a rating, correction or KEEP THIS STYLE on this run needs the row, so it lands after that order and waits for the next run\'s passes');
+  A.ok(core.indexOf(ENDED) < core.indexOf('const _gateReflect = '), '...so every pass the run-end fires reads at that order');
+  A.ok(/try \{ if \(LearningCooldown\.cueIn\(commanderWords\)\) learningCooldown\.open\(agentId, 'cue'\); learningCooldown\.ended\(runId\); \} catch \(e\) \{ failNote\('learning\.cooldown', e\); \}/.test(core), '...fail-open inside the run\'s finally: a throw there never replaces the run\'s own outcome');
   A.eq((core.match(/learningCooldown\.ended\(/g) || []).length, 1, 'a run\'s end is recorded in one place');
   A.ok(/const _learnFailClass = LearningCooldown\.failureClass\(\{ outcome: _leadOc\.outcome, failureStage: execution\.failureStage\(\), failureCode: execution\.failureCode\(\) \}\);/.test(core), 'the gate\'s failure class is built from the same facts the review is handed');
 
