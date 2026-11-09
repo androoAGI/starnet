@@ -8,7 +8,8 @@
         (skill.nudge.json); below the bar no review fork fires; the run that crosses it fires the skill-review
         fork on the RESERVED lane, taking one slot of the aux budget (2) ahead of the higher beats; the count then
         starts over. Since W3.2 (2026-11-09) the crossing run must also give the review something to learn from
-        (skillreview.js reviewCause): here, a correction in the Commander's own words.
+        (skillreview.js reviewCause): here, a correction in the Commander's own words. The runs that must NOT review
+        (below the bar, the throwaway clone) carry one too, so the bar and the clone guard are what stop them.
      3. USE = LOADED — a skill that is only LISTED in the index gains no use; a run that loads it with skill.view
         gains exactly one; the count survives a restart.
    Zero real network, zero spend (fake key, mocked upstream). */
@@ -132,12 +133,12 @@ async function skillRow(fixture, agentId, name) {
   await fixture.start();
   try {
     // ---- 1 + 2a. a zero-skill agent: the first-skill line reaches the provider; 3 turns do not reach the bar ----
-    let r = await run(fixture, mock, 'learner', 'Rebuild the staging rollback path and write up the steps', { toolTurns: 2 });
+    let r = await run(fixture, mock, 'learner', 'Rebuild the staging rollback path and write up the steps. Next time, write up the steps before you start.', { toolTurns: 2 });
     A.ok(r.mains.length === 3, 'the main run took 3 model turns (2 tool turns + the answer), got ' + r.mains.length);
     A.ok(r.mains[0].tools.indexOf('skill_manage') >= 0, 'skill.manage was on the wire (the notebook grants it)');
     A.ok(r.system.indexOf('You have no saved skills yet') >= 0, 'FIRST-SKILL LINE: a zero-skill agent is told it has no saved skills');
     A.ok(r.system.indexOf('skill.manage (action create)') >= 0, 'and to save a non-trivial procedure with skill.manage');
-    A.eq(r.reviews.length, 0, 'below the bar (3 < 5): no skill-review fork fired');
+    A.eq(r.reviews.length, 0, 'below the bar (3 < 5): no skill-review fork fired, though the run carried a correction to learn from');
     A.eq(nudgeCount(fixture, 'learner'), 3, 'the nudge count (3) is written to skill.nudge.json');
 
     // ---- 2b. the count survives a restart ----
@@ -159,9 +160,9 @@ async function skillRow(fixture, agentId, name) {
     A.eq(nudgeCount(fixture, 'learner'), 0, 'the count starts over once its review fires');
 
     // ---- 2d. a team.spawn clone ('sub-' id, never on the roster) keeps no count and buys no review ----
-    r = await run(fixture, mock, 'sub-probe01', 'Rebuild the staging rollback path and write up the steps', { toolTurns: 6 });
+    r = await run(fixture, mock, 'sub-probe01', 'Rebuild the staging rollback path and write up the steps. Next time, write up the steps before you start.', { toolTurns: 6 });
     A.ok(r.mains.length >= 6, 'the throwaway agent really worked past the bar of 5 turns, got ' + r.mains.length);
-    A.eq(r.reviews.length, 0, 'a throwaway sub- agent never fires a skill review');
+    A.eq(r.reviews.length, 0, 'a throwaway sub- agent never fires a skill review, though its run carried a correction to learn from');
     A.eq(nudgeCount(fixture, 'sub-probe01'), undefined, 'and leaves no key in skill.nudge.json');
 
     // ---- 3. use = loaded, not listed ----
