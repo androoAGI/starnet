@@ -15,7 +15,9 @@ const { seedActiveStation } = require('./helpers/station.js');
 
 (async () => {
   const fixture = SidecarFixture.create({ prefix: 'sk-roster-raise-', timeoutMs: 20000,
-    env: { OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: '', SKYNET_OPENROUTER_KEY: '', SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: '' } });
+    // a fake OpenRouter key on a dead port: the headless model route needs a connected provider; nothing is ever called
+    env: { OPENROUTER_KEY: '', STARNET_OPENROUTER_KEY: 'sk-or-v1-raise-fake', SKYNET_OPENROUTER_KEY: 'sk-or-v1-raise-fake',
+      STARNET_OPENROUTER_BASE: 'http://127.0.0.1:9/api/v1', SKYNET_OPENROUTER_BASE: 'http://127.0.0.1:9/api/v1', SKYNET_FULL_ACCESS: '', STARNET_FULL_ACCESS: '' } });
   seedActiveStation(fixture.workspace);
   let stamp = 1000;
   const row = (id, extra) => Object.assign({ agentId: id, name: id.toUpperCase(), provider: 'openrouter', model: 'm', approvalMode: 'ask' }, extra || {});
@@ -92,6 +94,16 @@ const { seedActiveStation } = require('./helpers/station.js');
       { headers: { 'X-StarNet-Desk-Proof': 'dc_' + 'x'.repeat(24) } });
     A.eq(stale.status, 200, 'a push that asks for no raise is not turned into a desk question by a proof header');
     A.eq(stale.body.clamped, ['ghost'], 'its raise is kept ask-first');
+
+    // ---- the route census: the headless model route is a drive change too (review2 #6) ----
+    const effort = await fixture.json('POST', '/api/agent/model', { agentId: 'overseer', model: 'm', provider: 'openrouter', effort: 'high' });
+    A.eq(effort.status, 200, 'the headless model route takes the same model with a new effort: ' + JSON.stringify(effort.body));
+    A.ok(!effort.body.fullAccessDropped, 'the effort alone keeps Full Access');
+    const repointed = await fixture.json('POST', '/api/agent/model', { agentId: 'overseer', model: 'attacker/model', provider: 'openrouter' });
+    A.eq(repointed.status, 200, 'a new model is taken');
+    A.eq(repointed.body.fullAccessDropped, true, 'but the Full Access agent drops to ask-first: ' + JSON.stringify(repointed.body));
+    const again2 = await fixture.json('POST', '/api/agent/model', { agentId: 'overseer', model: 'm', provider: 'openrouter' });
+    A.ok(again2.status === 200 && !again2.body.fullAccessDropped, 'and the drop held: it is ask-first now, so nothing drops again');
   } catch (e) {
     console.error(e && e.stack || e);
     console.error('--- sidecar output (tail) ---\n' + String(fixture.output()).slice(-3000));

@@ -21304,9 +21304,16 @@ async function handleAgentModel(req, res) {
     return json(409, pageRefusal(out, agentId));
   }
   // no page: nothing was awaited since `cur` was read, so this writes onto the roster as it is now
-  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}));
-  if (!saveAgentRoster()) { agentRoster.set(agentId, cur); return json(500, { error: 'could not save the roster' }); }
-  return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {}));
+  // review2 #6 (route census): a new model for a Full Access agent drops it to ask-first, as a roster push and a new
+  // personality do (Full Access is given again at the desk). The effort alone is not part of what drives it.
+  const raw = agentRosterRaw.get(agentId);
+  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { model, provider })) !== fullAccessDriveOf(cur);
+  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {}));
+  if (dropFull) agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { approvalMode: 'ask' }));
+  if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (dropFull) { if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); } return json(500, { error: 'could not save the roster' }); }
+  if (dropFull) saveApprovalMode(agentId, 'ask');
+  return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {},
+    dropFull ? { fullAccessDropped: true, note: 'its model changed, so it asks first now; give it Full Access again at the desk' } : {}));
 }
 /* POST /api/agent/approval {agentId, mode:'ask'|'full'} and POST /api/agent/personality {agentId, personality, system?} — one
    agent's approval mode or personality, for a client with no page of its own (the terminal's /yolo and /personality). The
