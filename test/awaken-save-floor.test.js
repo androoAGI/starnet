@@ -5,8 +5,10 @@
    _saveClient); bin/lib/awaken.js did not, so a station set up from the terminal and never opened in the app saved a floor that read as
    INVALID (no wrapper revision), and every routine, channel message and line it was asked to run was held. Locks: every save the awakening
    posts names one writer for the whole awakening · each lands in the REAL save owner the way POST /api/save writes it (compareRevision) ·
-   the real saved authority reads the floor it left as one that routes · control: the same save with no writer is held, invalid. A fake
-   station around the real SaveStore; no sidecar. */
+   the real saved authority reads the floor it left as one that routes · control: the same save with no writer (what 0.15.0's terminal
+   setup saved) is still held, never trusted, but as its own status, writerless, whose sentence tells the person the step that ends it:
+   open StarNet once · and a routine on that floor is blocked in its own row (blocked_config) in that sentence, step included, by the
+   real cron driver over the real seams, wired as index.js wires preflightConfig. A fake station around the real SaveStore; no sidecar. */
 'use strict';
 const fs = require('node:fs');
 const os = require('node:os');
@@ -15,6 +17,12 @@ const A = require('./_assert.js');
 const am = require('../bin/lib/app-modules.js');
 const { makeSaveStore } = require('../sidecar/savestore.js');
 const { makeSavedAuthority } = require('../sidecar/routing/saved-authority.js');
+const { makeRouter } = require('../sidecar/routing/router.js');
+const { makeRouterSeams } = require('../sidecar/routing/saved-seams.js');
+const { heldWhy } = require('../sidecar/routing/saved-hold.js');
+const { makeCronDriver } = require('../sidecar/cron-driver.js');
+const cron = require('../sidecar/cron.js');
+const cronStore = require('../sidecar/cron-store.js');
 
 const ownerAt = root => {
   const store = makeSaveStore({ fs, pathMod: path, root, clock: { now: () => Date.now() } });
@@ -77,15 +85,42 @@ async function awaken(store) {
     A.eq([status.state, status.status], ['ok', 'ok'], 'the saved authority reads the floor the terminal saved as one that routes (no hold)');
     A.ok(authority.require().routingOk === true, 'and the dispatch gate (require) lets work through');
 
-    // control: the same save without its writer is one the station cannot vouch, so its floor is held (invalid) — what every terminal-made
-    // station saved before; the writer is what makes it route
+    // control: the same save without its writer is one the station cannot vouch, so its floor is held — what every terminal-made station
+    // saved before; the writer is what makes it route. It is held as writerless, so the refusal says the one step that ends it.
     const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'awaken-save-floor-bare-'));
     try {
       const control = ownerAt(bare);
       const doc = JSON.parse(JSON.stringify(last)); delete doc._saveClient; doc._saveRevision = 0;
       A.ok(control.store.save('agent', doc, { compareRevision: true }).ok === true, 'control: the writerless save is accepted (200)');
       const held = control.authority.status();
-      A.eq([held.state, held.status], ['held', 'invalid'], 'control: ...and its floor is held, invalid');
+      A.eq([held.state, held.status, held.routingOk], ['held', 'writerless', false], 'control: ...and its floor is held, as a save no writer names (never trusted, nothing routes)');
+      const gate = (() => { try { control.authority.require(); return null; } catch (e) { return e; } })();
+      A.ok(gate && gate.held === true && gate.code === 'EROUTING_SAVED_WRITERLESS' && /\(open StarNet once to finish setting it up\)/.test(gate.why || ''),
+        'control: the dispatch gate refuses it in words that say to open StarNet once — ' + (gate && (gate.why || gate.message)));
+
+      // the routine's own row: a scheduled fire on that floor is blocked_config, before any spend, in the sentence that carries the step
+      const T0 = 1800000000000;
+      let clock = T0, jobs = [cronStore.makeJob({ id: 'held-routine', prompt: 'write a haiku', agentId: 'agent', schedule: cron.parseSchedule('every 1m', T0) }, { id: 'held-routine', now: T0 })];
+      const runs = [], events = [];
+      const { hold: routingHold } = makeRouterSeams({ router: makeRouter({ savedProjection: control.authority.projection, savedHost: true }), authority: control.authority });
+      const driver = makeCronDriver({
+        getJobs: () => jobs, setJobs: next => { jobs = next; return true; },
+        runOnce: o => { runs.push(o); return Promise.resolve({}); },
+        emit: (name, payload) => events.push({ name, payload }),
+        newId: () => 'run-' + (runs.length + events.length + 1), newAbort: () => new AbortController(), now: () => clock,
+        getKey: () => 'sk-test', defaultModel: 'test/model',
+        // index.js preflightConfig, as test/saved-floor-callers.census.test.js pins it: a held floor blocks the fire in the hold's words
+        preflightConfig: () => { const h = routingHold(); return h ? { ok: false, code: 'routing-held', reason: h.why } : { ok: true }; }
+      });
+      clock = T0 + 60000;
+      driver.applyTick(clock);
+      await new Promise(r => setImmediate(r));
+      const row = cronStore.getJob(jobs, 'held-routine');
+      A.eq([row.state, row.lastReason, runs.length], ['blocked_config', 'blocked_config', 0], 'the routine is blocked in its own row and nothing ran');
+      A.eq(row.blockedConfig && row.blockedConfig.reason, heldWhy('writerless'), 'its blocked_config reason is the hold sentence, word for word');
+      A.ok(/open StarNet once/.test((row.blockedConfig && row.blockedConfig.reason) || ''), 'and carries the step: open StarNet once — ' + JSON.stringify(row.blockedConfig));
+      const alert = events.find(e => e.name === 'cron.result');
+      A.ok(alert && /^blocked_config: .*\(open StarNet once to finish setting it up\)/.test(alert.payload.reason || ''), 'the one alert it raises says the step too — ' + JSON.stringify(alert && alert.payload));
     } finally { fs.rmSync(bare, { recursive: true, force: true }); }
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
   A.report('awaken-save-floor.test');

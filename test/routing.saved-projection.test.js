@@ -117,6 +117,14 @@ try {
   fs.writeFileSync(primary, JSON.stringify(corrupt));
   for (const [name, args] of Object.entries(calls)) held(() => router[name](...args), 'future', name + ': invalid replacement cannot reuse earlier good floor');
   write(station);
+  // a save that names no writer (StarNet 0.15.0's terminal setup posted it without _saveClient) is held, never routed, and says the step
+  const named = fs.readFileSync(primary), writerless = clone(JSON.parse(named.toString('utf8'))); delete writerless.revision; delete writerless.client; delete writerless.doc._saveClient;
+  fs.writeFileSync(primary, JSON.stringify(writerless));
+  for (const [name, args] of Object.entries(calls)) held(() => router[name](...args), 'writerless', name + ': a save no writer names cannot route, nor reuse the earlier good floor');
+  const unnamed = (() => { try { router.resolveDock({ lineId: 'line-one' }); return null; } catch (e) { return e; } })();
+  A.ok(unnamed && unnamed.held === true && /^the saved floor is not yet saved by StarNet \(open StarNet once to finish setting it up\); routing is held until it is readable$/.test(unnamed.why || ''),
+    'its refusal tells the person to open StarNet once — ' + (unnamed && unnamed.why));
+  fs.writeFileSync(primary, named);
   const cyclic = clone(station); Object.assign(cyclic.belts, { '18,5': 'E', '19,5': 'S', '19,6': 'W', '18,6': 'N' }); delete cyclic.links;
   write(canonical(cyclic));
   A.eq(read().routingOk, false, 'actual compiler marks the cycle undeployable');

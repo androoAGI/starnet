@@ -17,11 +17,12 @@
      4. the observe set is exactly the pinned one (below), counted by reader;
      5. every router method is a reader or a mutator in saved-seams.js (a new router method must be classified to land);
      6. the visible refusals the admit seams rest on are wired where they must be (the hub, the chain, the routine driver's preflight,
-        Run Now, the sample route, the step test, the triggers and the hand-off runner, the line stats and the layout fact).
+        Run Now, the sample route, the step test, the triggers and the hand-off runner, the line stats and the layout fact);
+     9. every status the saved-floor projection holds a floor as has its plain words (saved-hold.js) and its typed code, and back.
    RED before the lane: ninety-odd raw router.* sites and no seam module; RED before the default flipped: two host setPlan sites and
    the switch. */
 const A = require('./_assert.js');
-const { sidecarSourceFiles, sidecarTopLevelFunction } = require('./helpers/source.js');
+const { sidecarSourceFiles, sidecarTopLevelFunction, functionSourceIn } = require('./helpers/source.js');
 const { READERS, MUTATORS } = require('../sidecar/routing/saved-seams.js');
 const { makeRouter } = require('../sidecar/routing/router.js');
 
@@ -224,5 +225,24 @@ A.ok(/catch \(e\) \{ if \(holdOf\(e\)\) throw e; failNote\('steptest\.brief', e\
 A.ok(/catch \(e\) \{ if \(holdOf\(e\)\) throw e; failNote\('steptest\.plan', e\); return null; \}/.test(stepText), 'a step-test plan read rethrows a hold: it is a refusal to say, never "no answer"');
 A.ok(/start: heldVerb\(start\)/.test(stepText) && /continue: heldVerb\(cont\)/.test(stepText), 'a start or a CONTINUE on a held floor is refused in the hold\'s words, before anything moves');
 A.ok(/async function drive\(s\) \{\s*try \{ await walk\(s\); \}\s*catch \(e\) \{\s*const held = holdOf\(e\);[\s\S]{0,260}LineFire\.lineStop\('refused', \{ why: held\.why \}\)/.test(stepText), 'a hold mid-walk ends the test stopped, with the chain\'s refused stop and the hold\'s words');
+
+// ---- 9. every status the saved floor is held as has its words and its typed code ----
+/* The projection (station-store.js makeSavedFloorProjection) gives a held floor its status; saved-hold.js words it and saved-authority.js
+   codes it. A status the projection says with no words reads as 'unreadable' (heldWhy's fallback) and loses its step (writerless: open
+   StarNet once), so every status literal handed to held() there is a worded hold, and every worded hold is one the projection can say. */
+{
+  const { HOLD_STATUSES, heldWhy } = require('../sidecar/routing/saved-hold.js');
+  const { HELD_CODES } = require('../sidecar/routing/saved-authority.js');
+  const projection = functionSourceIn(files.find(f => f.rel === 'sidecar/station-store.js').text, 'makeSavedFloorProjection');
+  const said = new Set();
+  for (const m of projection.matchAll(/(?<![\w$.])held\(/g)) {
+    let depth = 0, end = m.index + 4;
+    for (; end < projection.length; end++) { if (projection[end] === '(') depth++; else if (projection[end] === ')' && --depth === 0) break; }
+    for (const lit of projection.slice(m.index, end).matchAll(/(?<!===\s*)'([a-z][a-z-]*)'/g)) said.add(lit[1]);   // not a typeof operand
+  }
+  A.eq([...said].sort(), HOLD_STATUSES.slice().sort(), 'every status the projection holds a floor as is a worded hold (saved-hold.js), and every worded hold is one it can say');
+  A.ok(said.has('writerless') && /open StarNet once/.test(heldWhy('writerless')),'including a save that names no writer, whose words say to open StarNet once');
+  A.eq(HOLD_STATUSES.filter(s => HELD_CODES[s] !== 'EROUTING_SAVED_' + s.toUpperCase().replace(/[^A-Z0-9]/g, '_')), [], 'and every hold has its typed code in the authority\'s table');
+}
 
 A.report('saved-floor-callers.census');

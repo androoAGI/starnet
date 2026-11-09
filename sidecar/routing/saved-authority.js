@@ -28,7 +28,8 @@
                  with no plan.
      held        anything else, because the source cannot be proved right now. status says why: absent (a primary gone beside
                  a .bak or a quarantine copy), corrupt, unreadable, future, invalid, unvouched, migration-required,
-                 unsupported-geometry, unstamped, unavailable or changed.
+                 unsupported-geometry, unstamped, unavailable, changed or writerless (right in every other way, but no
+                 writer named: never trusted, and its words say to open StarNet once).
    Doubt is held: a probe that cannot tell whether a copy exists, a stat that cannot be taken, a source that is not plainly
    one of the above. Only a clean listing that shows no copy makes a missing primary unfloored.
 
@@ -66,7 +67,7 @@ const IDENTITY = /^saved-plan-v1:[a-f0-9]{64}$/;
 const codeOf = status => 'EROUTING_SAVED_' + String(status).toUpperCase().replace(/[^A-Z0-9]/g, '_');
 const HELD_CODES = Object.freeze(Object.fromEntries([
   'unreadable', 'absent', 'corrupt', 'unavailable', 'unstamped', 'invalid', 'future', 'migration-required', 'unvouched',
-  'unsupported-geometry', 'changed', 'unroutable', 'unfloored'
+  'unsupported-geometry', 'changed', 'writerless', 'unroutable', 'unfloored'
 ].map(status => [status, codeOf(status)])));
 const HTTP = Object.freeze({ ok: 200, unroutable: 422, pending: 409, unavailable: 503 });
 

@@ -97,7 +97,7 @@ try {
   A.throws(() => makeSavedAuthority({ read: readOf({ agentId: '../escape' }) }), 'an exact save owner is required');
   const statuses = Object.keys(HELD_CODES);
   A.eq(statuses.slice().sort(), ['absent', 'changed', 'corrupt', 'future', 'invalid', 'migration-required', 'unavailable', 'unfloored', 'unreadable',
-    'unroutable', 'unstamped', 'unsupported-geometry', 'unvouched'], 'every status the authority can report has a typed code');
+    'unroutable', 'unstamped', 'unsupported-geometry', 'unvouched', 'writerless'], 'every status the authority can report has a typed code');
   for (const s of statuses) A.eq(HELD_CODES[s], 'EROUTING_SAVED_' + s.toUpperCase().replace(/[^A-Z0-9]/g, '_'), s + ': the router\'s own code grammar');
   const sample = new RoutingHeld('corrupt');
   A.ok(sample instanceof Error && sample.name === 'RoutingHeld', 'RoutingHeld is a typed Error');
@@ -195,6 +195,11 @@ try {
     ['mismatched revision', edit(w => { w.revision++; }), 'invalid'],
     ['mismatched writer', edit(w => { w.client = 'another-window'; }), 'unvouched'],
     ['missing writer', edit(w => { delete w.client; }), 'unvouched'],
+    ['missing writer revision', edit(w => { delete w.revision; }), 'invalid'],
+    // no writer at all (StarNet 0.15.0's terminal setup posted its save without _saveClient): its own hold, never trusted
+    ['no writer named', edit(w => { delete w.revision; delete w.client; delete w.doc._saveClient; }), 'writerless'],
+    ['no writer named, and a duplicate dock identity', edit(w => { delete w.revision; delete w.client; w.doc.station.props.find(p => p.id === 'b2').id = 'b1'; }), 'invalid'],
+    ['no writer named, and a legacy station', edit(w => { delete w.revision; delete w.client; w.doc.station.version = 1; }), 'migration-required'],
     ['future save', edit(w => { w.doc.version = require('../frontend/app/save.js').CURRENT + 1; }), 'future'],
     ['future station', edit(w => { w.doc.station.version = 3; }), 'future'],
     ['legacy station', edit(w => { w.doc.station.version = 1; }), 'migration-required'],
