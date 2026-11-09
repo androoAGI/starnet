@@ -1758,8 +1758,17 @@
           ? environment.workspaceRoot(aid) : cwd;
         const shellDialect = environment && environmentBackendId !== 'local' ? 'posix' : (isWin ? 'cmd' : 'posix');
         // StarNet's own hooks.json, by its resolved path (fix-sec2 F2): a project's own hooks.json is the project's
-        const authorityDeny = remoteOwner ? null : authorityFileRisk(cmd, { cwd: hostCwd, root: ROOT, pathMod: P, fs: fs, isWin: isWin });
+        /* review2 #13 (the cheap part): Full Power skips this check, but not for a run that read outside content. On a
+           station without a key nothing seals hooks.json or hooks-allowed.json, so an approved command there could plant
+           an approved hook. A tainted Full Power command that names either file is refused like any other run's. The
+           check still reads only the plain spelling (cmd's ^, quote splits and built strings get around it); the seal is
+           what refuses a changed file on a keyed station. */
+        let shellTainted = false;
+        try { const a = ctx && ctx.connectorAuthority; shellTainted = !!(a && typeof a.taintedBy === 'function' && a.taintedBy()); } catch (_) { shellTainted = true; }
+        const authorityDeny = (remoteOwner && !shellTainted) ? null : authorityFileRisk(cmd, { cwd: hostCwd, root: ROOT, pathMod: P, fs: fs, isWin: isWin });
         if (authorityDeny) throw new Error('refused: ' + authorityDeny);
+        if (remoteOwner && shellTainted && /hooks-allowed\.json/i.test(cmd))
+          throw new Error('refused: this run read outside content, so it cannot change StarNet\'s hook approvals (hooks-allowed.json)');
         const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }

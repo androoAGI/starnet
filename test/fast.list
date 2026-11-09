@@ -1800,3 +1800,4 @@ test/aux-cache-policy.test.js
 test/aux-admission.test.js
 test/route-authority.census.test.js
 test/taint-standing-files.test.js
+test/shell-taint-hooks.test.js
