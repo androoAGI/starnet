@@ -133,6 +133,19 @@
      endpoint the base URL does not serve, a format that route refuses), the image is rendered from the prompt alone and
      the result SAYS so — never a silent drop, never a dead run. */
   const REFERENCE_PROMPT = 'Match the attached reference image: the same art style, colour palette, lighting and overall concept. ';
+  /* PRODUCT PHOTO (2026-11-09, a seller: "my etsy marketer is generating a new product image instead of using the actual
+     product in their mockups and social media posts"). args.reference is a STYLE anchor, so a product photo sent as one came
+     back as a lookalike the model drew for itself. args.product names a photo of the REAL item: the render keeps that item
+     and changes only the scene. A route that cannot carry the photo REFUSES and draws nothing. A lookalike shown as the
+     seller's own product is the failure this exists to stop, so it never gets the quiet prompt-only fallback a style
+     reference gets. With both, the product photo goes FIRST and the style reference second. */
+  const KEEP_PRODUCT = 'Keep that product exactly as it is: the same shape, proportions, colours, materials, printed design, text and logos. ' +
+    'Do not redesign, redraw, restyle or replace it; change only the scene around it (setting, people, props, lighting). ';
+  const PRODUCT_PROMPT = 'Feature the exact product shown in the attached photo. ' + KEEP_PRODUCT;
+  const PRODUCT_AND_STYLE_PROMPT = 'The FIRST attached image is the exact product to feature. ' + KEEP_PRODUCT +
+    'The SECOND attached image is a style reference for the scene only: match its art style, colour palette, lighting and overall concept, but never change the product to match it. ';
+  // the instruction that leads the prompt for what this call actually sends (product photo, style reference, both, neither)
+  const inputLead = (product, reference) => product ? (reference ? PRODUCT_AND_STYLE_PROMPT : PRODUCT_PROMPT) : reference ? REFERENCE_PROMPT : '';
   const EDIT_MIME = /^image\/(png|jpeg|webp)$/;   // what /images/edits accepts for gpt-image models
 
   // Any shape the caller asks for -> the provider ratio that matches it best, plus exact pixel dims
@@ -458,20 +471,27 @@
     // inside a trusted project is allowed; without it (tests, bare rigs) every path stays in the private jail.
     const jail = fsMod.makeFsTools({ fsp, pathMod: P, root: ROOT, pathTrust: typeof deps.pathTrust === 'function' ? deps.pathTrust : undefined })._internals;
 
-    // args.reference -> { rel, mime, buffer, url } (null when none). A workspace/project image only — the image_analyze
-    // jail, read scope — never a URL: every route needs the bytes, and an outside URL is not the Commander's approved work.
-    async function readReference(aid, reference, ctx) {
+    // args.reference / args.product -> { rel, mime, buffer, url, what } (null when none). A workspace/project image only — the
+    // image_analyze jail, read scope — never a URL: every route needs the bytes, and an outside URL is not the Commander's
+    // approved work (nor, for a product, a photo anyone has checked is the real item).
+    async function readReference(aid, reference, ctx, what) {
+      what = what === 'product' ? 'product' : 'reference';
+      const noun = what === 'product' ? 'product photo' : 'reference image';
       const s = String(reference == null ? '' : reference).trim();
       if (!s) return null;
-      if (/^(?:https?|data|file|ftp):/i.test(s)) throw new Error('reference must be an image file in your workspace or project (a path like "images/hero.png"), not a URL; no image was produced.');
+      if (/^(?:https?|data|file|ftp):/i.test(s)) {
+        throw new Error(what === 'product'
+          ? 'product must be a photo file in your workspace or project (a path like "images/product.jpg"), not a URL: save the real product photo into your workspace first, or ask the Commander to attach it; no image was produced.'
+          : 'reference must be an image file in your workspace or project (a path like "images/hero.png"), not a URL; no image was produced.');
+      }
       const { abs } = await jail.resolveInside(aid, s, { scope: 'read', ctx });
       const mime = MIME_BY_EXT[extOf(P, abs)];
-      if (!mime) throw new Error('reference must be a PNG, JPEG, WEBP or GIF image: ' + s + '; no image was produced.');
+      if (!mime) throw new Error(what + ' must be a PNG, JPEG, WEBP or GIF image: ' + s + '; no image was produced.');
       let buf;
       try { buf = await fsp.readFile(abs); }
-      catch (e) { if (e && e.code === 'ENOENT') throw new Error('reference image not found: ' + s + ' (looked at ' + abs + '); no image was produced.'); throw e; }
-      if (buf.length > MAX_IMAGE_BYTES) throw new Error('reference image too large (' + buf.length + ' bytes, max ' + MAX_IMAGE_BYTES + '); no image was produced.');
-      return { rel: s, mime, buffer: buf, url: 'data:' + mime + ';base64,' + buf.toString('base64') };
+      catch (e) { if (e && e.code === 'ENOENT') throw new Error(noun + ' not found: ' + s + ' (looked at ' + abs + '); no image was produced.'); throw e; }
+      if (buf.length > MAX_IMAGE_BYTES) throw new Error(noun + ' too large (' + buf.length + ' bytes, max ' + MAX_IMAGE_BYTES + '); no image was produced.');
+      return { rel: s, mime, buffer: buf, url: 'data:' + mime + ';base64,' + buf.toString('base64'), what };
     }
 
     function emitDeliverable(ctx, aid, rel) {
@@ -534,16 +554,18 @@
       return res.json || {};
     }
 
-    // the OpenAI Images API with a REFERENCE: /images/edits is multipart (the reference rides as the `image` file).
-    // A non-2xx carries its status on the error so the caller can tell "this connection has no edits endpoint" apart.
-    async function openAIEditPost(fields, ref, timeoutMs, parentSignal) {
+    // the OpenAI Images API with a REFERENCE: /images/edits is multipart (one input rides as the `image` file, several as
+    // `image[]` files in order: product photo first). A non-2xx carries its status on the error so the caller can tell
+    // "this connection has no edits endpoint" apart.
+    async function openAIEditPost(fields, refs, timeoutMs, parentSignal) {
       checkCancelled(parentSignal);
       if (!apiKey) throw new Error('STUDIO image generation is unavailable: no media connection is configured. Open SETTINGS and connect an OpenAI or OpenRouter API key for image generation, or link this station to your StarNet account, then retry; no image was produced.');
       keyStillHeld();
       const res = await withTimeout(signal => {
         const form = new FormData();
         for (const k of Object.keys(fields)) if (fields[k] != null) form.append(k, String(fields[k]));
-        form.append('image', new Blob([ref.buffer], { type: ref.mime }), 'reference' + (EXT_BY_MIME[ref.mime] || '.png'));
+        const imgs = [].concat(refs);
+        for (const ref of imgs) form.append(imgs.length > 1 ? 'image[]' : 'image', new Blob([ref.buffer], { type: ref.mime }), (ref.what || 'reference') + (EXT_BY_MIME[ref.mime] || '.png'));
         return doFetch(openAIEditUrl, { method: 'POST', headers: { 'Authorization': 'Bearer ' + apiKey }, body: form, signal }).then(async r => {
           const json = await r.json().catch(require('../../failopen.js').swallow('image.openai-edit.response-json', null));
           if (r.status >= 200 && r.status < 300 || json && json.usage) bookUsage(json && json.usage, fields.model);
@@ -561,13 +583,14 @@
 
     // One image_generation call on the ChatGPT plan. Returns the Images-API response shape ({ data:[{ b64_json }] }) so
     // the publish path below stays one path. No usage is booked: the plan is flat-rate, and the host chat model's
-    // token counts would otherwise be priced at API rates the user never pays. refUrl: a reference image (data URL)
-    // rides the user turn as an input_image part.
-    async function codexImagePost(tool, prompt, timeoutMs, parentSignal, refUrl, originalPrompt) {
+    // token counts would otherwise be priced at API rates the user never pays. refUrls: the input images (data URLs:
+    // product photo first, then a style reference), each riding the user turn as an input_image part.
+    async function codexImagePost(tool, prompt, timeoutMs, parentSignal, refUrls, originalPrompt) {
       checkCancelled(parentSignal);
       if (!getCodexToken) throw new Error('STUDIO image generation is unavailable: the ChatGPT sign-in is not connected. Open SETTINGS and sign in to ChatGPT, or connect an OpenAI or OpenRouter API key, then retry; no image was produced.');
+      refUrls = [].concat(refUrls || []).filter(Boolean);
       const userContent = [{ type: 'input_text', text: prompt }];
-      if (refUrl) userContent.push({ type: 'input_image', image_url: refUrl });
+      for (const refUrl of refUrls) userContent.push({ type: 'input_image', image_url: refUrl });
       const body = {
         model: CODEX_HOST_MODEL, store: false, stream: true, instructions: CODEX_INSTRUCTIONS,
         input: [{ type: 'message', role: 'user', content: userContent }],
@@ -608,7 +631,7 @@
       // the run's own Codex model leads the retry order (only when the live list offers it); never the first attempt
       const runModel = String((codexRunModel && codexRunModel()) || '').trim();
       let token = await getCodexToken();
-      const errorSecrets = [token, jwtAccountId(token), apiKey, prompt, originalPrompt, refUrl];
+      const errorSecrets = [token, jwtAccountId(token), apiKey, prompt, originalPrompt].concat(refUrls);
       let renewed = false;
       const attempt = async () => {
         let res = await send(token);
@@ -699,6 +722,8 @@
           : 'Gemini image models cannot make one (they paint a checkerboard), so it switches to ' + TRANSPARENT_IMAGE_MODEL + ' ') +
         'and verifies the saved file, and the result says plainly if the image came back opaque. ' +
         'Optional "reference": an image file (e.g. an APPROVED one) whose style, palette and concept to match. ' +
+        'Optional "product": a photo file of a REAL product for a mockup, ad or post that shows it: the render keeps that exact item and changes only the scene. ' +
+        'Whenever an image shows the Commander\'s own product, pass its photo as "product": as a "reference" it comes back redrawn. Both can be given. ' +
         'Optional "aspect_ratio" sets the image shape — ANY ratio or size works: "16:9", "4:3", "1920x1080", "1.5", ' +
         'or a word like "landscape"/"portrait"/"wide"/"tall"/"banner"/"story" (default 1:1; the provider renders the nearest of ' +
         ASPECT_RATIOS.join(', ') + '). Optional "width"+"height" (pixels, max ' + MAX_OUTPUT_PX + ') deliver an EXACT resolution — ' +
@@ -712,7 +737,8 @@
         width: { type: 'integer', minimum: 16, maximum: MAX_OUTPUT_PX },
         height: { type: 'integer', minimum: 16, maximum: MAX_OUTPUT_PX },
         transparent: { type: 'boolean', description: 'true = a real transparent background (alpha channel), verified in the saved file' },
-        reference: { type: 'string' }
+        reference: { type: 'string' },
+        product: { type: 'string' }
       } },
       run: async (args, ctx) => {
         const signal = ctx && ctx.signal;
@@ -748,6 +774,11 @@
         const aspect = shape.ratio;
         // the reference is read BEFORE anything is spent: a missing / escaping / non-image path is the caller's to fix
         const ref = await readReference(aid, args.reference, ctx);
+        const prod = await readReference(aid, args.product, ctx, 'product');
+        // a route that cannot carry the product photo refuses here, before anything is spent: it would only draw a lookalike
+        const imagesApi = !isCodex && protocol === 'openai-images';
+        if (prod && imagesApi && /^dall-e-/i.test(model)) throw new Error(model + ' cannot take a product photo, so it could only draw a lookalike of ' + prod.rel + '. Call again without that model override. No image was produced.');
+        if (prod && imagesApi && !EDIT_MIME.test(prod.mime)) throw new Error('the OpenAI Images API takes a PNG, JPEG or WEBP product photo, not ' + prod.mime + ' (' + prod.rel + '). Save the photo in one of those formats and call again. No image was produced.');
         // #164: the last free moment. Nothing has been sent, so nothing is charged.
         const stop = !isCodex && spendStop ? await spendStop({ signal: ctx && ctx.signal, holdTimeout: ctx && ctx.holdTimeout }) : '';
         if (stop) {
@@ -758,28 +789,35 @@
         const thisCall = callScope.getStore();
         if (!isCodex && spendStop && thisCall) thisCall.counted = true;
         let refNote = '';   // set when this route could not carry the reference (rendered from the prompt alone)
-        const refPrompt = ref ? REFERENCE_PROMPT + genPrompt : genPrompt;
-        const baseBody = { messages: [{ role: 'user', content: ref ? [{ type: 'text', text: refPrompt }, { type: 'image_url', image_url: { url: ref.url } }] : genPrompt }], modalities: ['image', 'text'] };
+        const inputs = [prod, ref].filter(Boolean);   // product photo first (the item to keep), then the style to match
+        const refPrompt = inputLead(prod, ref) + genPrompt;
+        const baseBody = { messages: [{ role: 'user', content: inputs.length ? [{ type: 'text', text: refPrompt }].concat(inputs.map(i => ({ type: 'image_url', image_url: { url: i.url } }))) : genPrompt }], modalities: ['image', 'text'] };
         if (aspect) baseBody.image_config = { aspect_ratio: aspect };
         let data;
         if (isCodex) {
           // the hosted tool takes the Images API's own parameters; quality is pinned (see CODEX_IMAGE_QUALITY)
           data = await codexImagePost({ model, size: openAIImageSize(shape), quality: CODEX_IMAGE_QUALITY, background: transparent ? 'transparent' : 'opaque' },
-            refPrompt, GEN_TIMEOUT_MS, signal, ref ? ref.url : '', prompt);
+            refPrompt, GEN_TIMEOUT_MS, signal, inputs.map(i => i.url), prompt);
         } else if (protocol === 'openai-images') {
           const body = { model, prompt: genPrompt, size: openAIImageSize(shape) };
           // gpt-image models take transparency as a parameter (gpt-image-2: preview since 2026-08-20). Alpha needs
           // a format that can carry it, so the output format is pinned to PNG.
           if (transparent) { body.background = 'transparent'; body.output_format = 'png'; }
-          if (ref && /^dall-e-/i.test(model)) refNote = model + ' cannot take a reference image';
-          else if (ref && !EDIT_MIME.test(ref.mime)) refNote = 'the OpenAI Images API takes a PNG, JPEG or WEBP reference, not ' + ref.mime;
-          else if (ref) {
-            try { data = await openAIEditPost(Object.assign({}, body, { prompt: refPrompt }), ref, GEN_TIMEOUT_MS, signal); }
+          // the style reference rides only where this route can carry it (said in the result when it cannot); the product
+          // photo was checked above, before anything was spent
+          let sendRef = ref;
+          if (ref && /^dall-e-/i.test(model)) { refNote = model + ' cannot take a reference image'; sendRef = null; }
+          else if (ref && !EDIT_MIME.test(ref.mime)) { refNote = 'the OpenAI Images API takes a PNG, JPEG or WEBP reference, not ' + ref.mime; sendRef = null; }
+          const edits = [prod, sendRef].filter(Boolean);
+          if (edits.length) {
+            try { data = await openAIEditPost(Object.assign({}, body, { prompt: inputLead(prod, sendRef) + genPrompt }), edits, GEN_TIMEOUT_MS, signal); }
             catch (e) {
               checkCancelled(signal);
               // only a MISSING endpoint falls back (a custom OpenAI-compatible base may not serve /images/edits); a
               // refusal, rate limit or bad key propagates like any generation failure
               if (!(e && (e.status === 404 || e.status === 405))) throw e;
+              // a product photo never falls back to the prompt alone: that render would be a lookalike
+              if (prod) throw new Error('this connection has no image-edit endpoint (http ' + e.status + '), so it cannot place the real product photo ' + prod.rel + ' and will not draw a lookalike. No image was produced.');
               refNote = 'this connection has no image-edit endpoint (http ' + e.status + ')';
             }
           }
@@ -888,6 +926,9 @@
         const referenceNote = !ref ? '' : refNote
           ? '\nReference NOT used: ' + refNote + ', so this image was rendered from the prompt alone. Do not describe it as matching ' + ref.rel + '.'
           : '\nReference: ' + ref.rel + ' was sent to the model as the style to match.';
+        // the same truth for the product photo: SENT as the item to keep, which the station cannot prove the model honoured
+        const productNote = !prod ? ''
+          : '\nProduct: ' + prod.rel + ' was sent to the model as the product to keep unchanged. The station cannot prove every detail survived: check the render (image_analyze) before presenting it as the real product.';
         // #164: what this image cost, as far as anyone can say. Unknown is said as unknown, never as free.
         const billed = thisCall ? thisCall.charges : [], knownUsd = billed.reduce((t, c) => t + (Number(c.usd) || 0), 0);
         const costNote = !billed.length ? ''
@@ -898,7 +939,7 @@
             : '\nCost: $' + knownUsd.toFixed(4) + ' (the provider\'s figure), counted toward the spending limits.';
         return {
           content: 'Generated and saved ' + rel + ' (' + kb + ', ' + mime + ', model ' + model + shapeNote + sizeNote + ').' +
-            (switchNote ? '\nModel: ' + switchNote + '.' : '') + alphaNote + referenceNote + costNote +
+            (switchNote ? '\nModel: ' + switchNote + '.' : '') + alphaNote + productNote + referenceNote + costNote +
             '\n' + where.line +
             (viewer ? '\nView: ' + viewer : '') + (caption ? '\nModel note: ' + caption : ''),
           summary: 'image → ' + rel
