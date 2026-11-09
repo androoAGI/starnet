@@ -20,11 +20,15 @@
       is never mutated: a stripped turn goes out as a reasoning-free copy, the same copy every request.
    2. AN ELIDED BODY KEEPS A HANDLE (elideToolResult: the ONE stub/handle builder; W1.8 cross-run replay reuses it).
       The micro tier's stub kept 240 chars and said "re-run the tool": a write-free re-run is not always possible, and a
-      re-run of a command is not the same bytes. The stub now names an fs.read call that returns the elided bytes:
-      the path the host already parked the full output to (registry / turn budget), the same fs.read call for an
-      fs.read result, or a park of the exact body made at elision through the host parker (capCtx.parkOutput, which
-      verifies its write byte for byte). Quoted words (recall of another session) are never parked: those keep the
-      old wording. A body the 240-char head keeps whole is not elided at all: its stub could only add bytes.
+      re-run of a command is not the same bytes. The stub now names a saved file that gives the elided bytes back: the
+      file the host already parked the full output to before cutting it (registry / turn budget), or a park of the
+      exact body made at elision through the host parker (capCtx.parkOutput, which verifies its write byte for byte).
+      Never the source again: the same fs.read returns what the file says NOW (the usual coding flow edits a file after
+      reading it), and fs.read's page is sized to the window live (ctx.outputMax), so the same call can return fewer
+      characters after a fallback. A park is written once and never rewritten: the named fs.read call, and past one
+      page the next: calls fs.read's own trailer names, give the elided body back byte for byte. Quoted words (recall
+      of another session) are never parked, nor is a body a UTF-8 file cannot hold as it is (a lone surrogate): those
+      keep the old wording. A body the 240-char head keeps whole is not elided at all: its stub could only add bytes.
    3. A FOLD'S OWN REQUEST WRITES NO CACHE (foldRequest). A summarizer chunk is a one-shot, toolless request whose
       prefix is never sent again, yet every chunk was anchored and paid the cache-write premium (1.25x on the Anthropic
       API, 2.0x on the claude-cli child's 1h cache) for a read that never comes. Same switch as the ledger's aux
@@ -68,9 +72,10 @@
   const ELIDED = '[tool result elided at compaction — ';
   // KEEP THE HEAD (live-proved 08-21: a bare "[elided]" marker made the model confabulate 20 of 30 file values).
   const ELIDE_HEAD = 240;
-  const READ_ARGS = ['path', 'offset', 'limit', 'numbered', 'raw'];   // fs.read's own schema, in its order
-  const isFsRead = name => String(name == null ? '' : name).replace(/\./g, '_') === 'fs_read';
   function isElided(m) { return !!m && m.role === 'tool' && typeof m.content === 'string' && m.content.indexOf(ELIDED) === 0; }
+  // a lone surrogate has no UTF-8 form: a file would hand back U+FFFD in its place, so such a body is never parked
+  const LONE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const wellFormed = s => (typeof s.isWellFormed === 'function' ? s.isWellFormed() : !LONE.test(s));
   function utf8Bytes(s) {
     if (typeof Buffer !== 'undefined' && Buffer.byteLength) return Buffer.byteLength(s, 'utf8');
     let n = 0;
@@ -81,33 +86,26 @@
     }
     return n;
   }
-  const readCall = args => {
-    const out = {};
-    for (const k of READ_ARGS) if (args[k] !== undefined && args[k] !== null) out[k] = args[k];
-    return 'fs.read ' + JSON.stringify(out);
-  };
   function stubText(text, name, handle) {
     const head = text.length > ELIDE_HEAD ? text.slice(0, ELIDE_HEAD).replace(/\s+$/, '') + '…' : text;
     const how = !handle ? 're-run the tool for the full output'
-      : handle.via === 'range' ? 'read it again with ' + handle.call
       : handle.via === 'saved' ? 'the whole result is saved: read it with ' + handle.call
       : 'the output saved before it was cut: read it with ' + handle.call;
     return ELIDED + name + ', ' + utf8Bytes(text) + ' bytes; first ' + Math.min(ELIDE_HEAD, text.length) + ' chars kept below; ' + how + ']\n' + head;
   }
   /* elideToolResult(body, o) -> Promise<{ content, handle } | null>   THE ONE STUB/HANDLE BUILDER (W1.8 reuses it).
      body: the tool message's content (a non-string is elided as its JSON, as before).
-     o.name        the tool as the call named it (fs.read / fs_read get a range handle)
-     o.args        the call's parsed arguments (fs.read's path/offset/limit/numbered/raw are the range handle)
-     o.exact       false when the body is NOT the tool's own output (a duplicate note was appended, the turn budget cut
-                   it): an fs.read range would not read it back, so a park stands in
-     o.isError     an error result: its text is not what a re-read returns, so never a range
+     o.name        the tool as the call named it (named in the stub and handed to the parker)
      o.parkedPath  where the host already parked this result's output before cutting it (registry, turn budget)
-     o.park        async (text, meta) -> { path } | null: the host parker (capCtx.parkOutput). Omitted = no new park
-                   (the micro tier's dry measurement): such a body keeps the old "re-run the tool" wording
+     o.park        async (text, meta) -> { path } | null: the host parker (capCtx.parkOutput). Omitted = no new park:
+                   such a body keeps the old "re-run the tool" wording
      o.parkMeta    provenance for that park ({ quotedStreams, taintedBy }); quoted words are never parked
-   null = nothing to elide (the head keeps the body whole). handle: { via: 'parked'|'range'|'saved', call, path? } —
-   `call` is a ready-to-run fs.read that returns the elided bytes (a 'parked' file holds the output before it was cut,
-   so it returns those bytes and the part the cut dropped). */
+   null = nothing to elide (the head keeps the body whole). handle: { via: 'parked'|'saved', path, call } — `call` is a
+   ready-to-run fs.read of a file the host writes once and never rewrites; the source a result came from is never the
+   handle (it can change, and fs.read's page follows the live window). 'saved': the file holds the exact elided body,
+   read back byte for byte (past one fs.read page, by the next: calls fs.read's own trailer names). 'parked': the file
+   holds the output as the host saved it before cutting it, so it returns the elided bytes' source and the part the cut
+   dropped. */
   async function elideToolResult(body, o) {
     o = o || {};
     const text = typeof body === 'string' ? body : JSON.stringify(body == null ? '' : body);
@@ -116,11 +114,9 @@
     const pathCall = p => 'fs.read ' + JSON.stringify({ path: p });
     let handle = null;
     if (o.parkedPath) handle = { via: 'parked', path: String(o.parkedPath), call: pathCall(String(o.parkedPath)) };
-    else if (o.exact !== false && o.isError !== true && isFsRead(name) && o.args && typeof o.args === 'object'
-      && typeof o.args.path === 'string' && o.args.path) handle = { via: 'range', call: readCall(o.args) };
     const meta = o.parkMeta || {};
     const quoted = Array.isArray(meta.quotedStreams) && meta.quotedStreams.length > 0;
-    if (!handle && !quoted && typeof o.park === 'function') {
+    if (!handle && !quoted && typeof o.park === 'function' && wellFormed(text)) {
       let p = null;
       try { p = await o.park(text, Object.assign({}, meta, { tool: name, reason: 'elided-at-compaction' })); } catch (_) { p = null; }
       if (p && p.path) handle = { via: 'saved', path: String(p.path), call: pathCall(String(p.path)) };

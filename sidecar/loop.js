@@ -360,11 +360,6 @@
     if (r && typeof r.taintedBy === 'string' && r.taintedBy) out.taintedBy = r.taintedBy;
     return out;
   };
-  /* A BODY THAT IS NOT THE TOOL'S WHOLE OUTPUT (W1.7): the registry clamped it (outputChars counts more than it holds) or
-     the run-wide budget clipped it (outputBounded). The same fs.read would not return these bytes again, so a later
-     elision parks the body itself rather than naming that call. Additive and only when true. */
-  const cutOf = r => ((r && typeof r.content === 'string' && (r.outputBounded === true
-    || (typeof r.outputChars === 'number' && isFinite(r.outputChars) && r.outputChars !== r.content.length))) ? { contentCut: true } : {});
 
   /* A HIDDEN TOOL'S ERROR IS NOT NEWS FOR THE COMMANDER (rc walk 2026-10-14). The Task Brief tools draw no chip, so a model that
      narrated fixing one ("Let me fix that—sources needs to be an array:", "Let me correct that:") put a sentence in COMMS about
@@ -406,7 +401,7 @@
         return { c, r, ms: Math.max(0, (meta.clock ? meta.clock.now() : 0) - t0) };
       }));
       for (const s of settled) {
-        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(s.r), ...cutOf(s.r) });
+        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(s.r) });
         if (meta.hiddenTools && meta.hiddenTools.has(s.c.name)) continue;
         emit('agent.tool_result', {
           agentId: meta.agentId, runId: meta.runId, callId: s.c.id, ok: !!s.r.ok,
@@ -449,7 +444,7 @@
       }
       r = quietHiddenError(c, r || { ok: false, isError: true, content: 'tool returned nothing', summary: 'error' }, meta);
       const t1 = meta.clock ? meta.clock.now() : 0;
-      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(r), ...cutOf(r) });
+      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(r) });
       if (r.control && r.control.final) finalControl = r.control;
       if (r.control && r.control.stopTools) stopToolsControl = r.control;
       if (!hidden) emit('agent.tool_result', {
@@ -1263,7 +1258,7 @@
     const TOOL_IMAGE_KEEP = (_tik === false) ? -1 : ((typeof _tik === 'number' && _tik >= 0) ? Math.floor(_tik) : 2);
     const screenshotMeta = (typeof WeakMap === 'function') ? new WeakMap() : null;   // capture turn -> { tools, turn }
     // tool message -> what a later elision needs to give its body a handle (history-edit elideToolResult): the file the
-    // host already parked the output to, whether the body is exactly the tool's own output, and the park provenance
+    // host already parked the output to, and the provenance a park of the body must carry
     const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
     /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
        edit invalidated are stripped (and stay stripped); every other provider gets `wireMessages()` untouched. */
@@ -1763,26 +1758,22 @@
        are where its fact usually sits (path, status line, the matched text), so the elision keeps ELIDE_HEAD
        chars of it and the marker says exactly what was dropped. ~60 tokens per result; still a 10-50x shrink. */
     /* THE STUB KEEPS A HANDLE (W1.7). The stub is built by history-edit elideToolResult — the one builder, shared with
-       cross-run replay — and names an fs.read call that returns the elided bytes: where the host parked the output
-       before cutting it, the same fs.read call for an fs.read result, or a park of the exact body. `park` is null on
-       the dry pass that only measures (a failed trial must leave no file behind); the commit passes the host parker. A
-       body the head keeps whole is left as it is: its stub could only add bytes. */
+       cross-run replay — and names a saved file whose fs.read gives the elided bytes back: where the host parked the
+       output before cutting it, or a park of the exact body made by the commit pass. Never the source it came from: a
+       file read earlier may have been edited since, and fs.read's page follows the live window. A body the head keeps
+       whole is left as it is: its stub could only add bytes. */
     async function elideTools(older, park) {
-      const callsById = new Map();
+      const names = new Map();
       let elided = 0;
       const out = [];
       for (const m of older) {
-        if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) callsById.set(c && c.id, c);
+        if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) names.set(c && c.id, (c && c.function && c.function.name) || 'tool');
         if (!m || m.role !== 'tool' || HistoryEdit.isElided(m)) { out.push(m); continue; }
-        const call = callsById.get(m.tool_call_id);
-        let args = null;
-        try { args = call && call.function ? JSON.parse(call.function.arguments || '{}') : null; } catch (_) { args = null; }
-        /* no origin = a body this run did not produce (a resumed history): nothing says whether it is the tool's own output
-           or whose words it quotes, so it gets no handle at all (never a range, never a park): the old wording stands */
+        /* no origin = a body this run did not produce (a resumed history): nothing says whose words it quotes or what
+           tainted it, so it is never parked and keeps the old wording */
         const origin = toolOrigin ? toolOrigin.get(m) : null;
         const stub = await HistoryEdit.elideToolResult(m.content, {
-          name: (call && call.function && call.function.name) || 'tool', args,
-          exact: !!(origin && origin.exact), isError: origin ? origin.isError : true,
+          name: names.get(m.tool_call_id) || 'tool',
           parkedPath: origin ? origin.parkedPath : null, parkMeta: origin ? origin.parkMeta : null, park: origin ? park : null
         });
         if (!stub) { out.push(m); continue; }
@@ -1791,6 +1782,17 @@
       }
       return { older: out, elided };
     }
+    /* THE MEASURING PASS PRICES THE STUB THE COMMIT WRITES (W1.7). A saved stub names its file, so the dry pass (which
+       must leave no file behind) hands elideToolResult a parker that writes nothing and answers with a stand-in name at
+       least as long as the host's in its usual shapes (index.js capCtx.parkOutput: [untrusted-]<tool>-<run id>-<seq>
+       under .output, placed where this run reads it). The trial is then measured on stubs as long as the committed
+       ones, and the commit re-measures what it wrote for agent.compact. */
+    const standInPark = async (text, meta) => {
+      const rel = '.output/untrusted-' + String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40)
+        + '-' + String(runId).replace(/[^A-Za-z0-9_-]/g, '') + '-0000.txt';
+      try { return { path: (capCtx && capCtx.paths && typeof capCtx.paths.placeJail === 'function' && capCtx.paths.placeJail(rel)) || rel }; }
+      catch (_) { return { path: rel }; }
+    };
     /* An elided copy STANDS IN for its original, so it inherits the original's host-attached identity markers:
        non-enumerable own symbol keys, which Object.assign above does not copy. The one that matters is
        transcriptstore.js's PERSISTED marker — with it the run-end drain treats the copy as already recorded (its
@@ -1941,7 +1943,8 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        const micro = await elideTools(plan.older, null);   // the dry pass: measures only, parks nothing
+        const parker = capCtx && typeof capCtx.parkOutput === 'function' ? (text, meta) => capCtx.parkOutput(text, meta) : null;
+        const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was
           const trial = appendTodo(prefix.concat(prevNote ? [prevNote] : [], micro.older, plan.tail));
@@ -1966,10 +1969,9 @@
             if (summarize && typeof summarize.drain === 'function') {
               try { summarize.drain(plan.older); } catch (e) { failNote('loop.compaction.microDrain', e); return false; }
             }
-            /* THE COMMIT PASS parks what no other handle covers (the dry pass above only measured). The same results
-               are elided in the same order; a stub that names its file is a few characters longer, so the numbers
-               agent.compact reports are measured on what is actually committed. */
-            const parker = capCtx && typeof capCtx.parkOutput === 'function' ? (text, meta) => capCtx.parkOutput(text, meta) : null;
+            /* THE COMMIT PASS parks what no other handle covers (the dry pass above only measured, on stand-in names). The
+               same results are elided in the same order; agent.compact reports the numbers measured on what is actually
+               committed (a park that failed leaves its stub shorter, with the old wording). */
             const done = parker ? await elideTools(plan.older, parker) : micro;
             const swap = new Map();
             micro.older.forEach((m, k) => { if (m !== done.older[k]) swap.set(m, done.older[k]); });
@@ -3065,7 +3067,7 @@
         // a merged duplicate has no result of its own: the kept call's result says the copies were not dispatched
         const merged = mergedDupes.get(r.callId) || 0;
         const resultMsg = toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content);
-        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, exact: !merged && !r.turnClamped && !r.contentCut, isError: !!r.isError, parkMeta: provenanceOf(r) });
+        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, parkMeta: provenanceOf(r) });
         messages.push(resultMsg);
       }
       for (const call of calls) {

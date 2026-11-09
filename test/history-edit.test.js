@@ -47,26 +47,31 @@ const firstLine = s => String(s).split('\n')[0];
     const obj = await elideToolResult({ rows: 'Q'.repeat(400) }, { name: 'db' });
     A.ok(obj && obj.content.indexOf('{"rows":"QQQ') > 0, 'elide: a non-string body is elided as its JSON');
 
-    // fs.read: the same call is the handle (fs.read's own args only, in its schema order)
-    const range = await elideToolResult(body, { name: 'fs.read', args: { limit: 50, path: 'src/a.js', offset: 10, extra: 'x', raw: null } });
-    A.eq(range.handle, { via: 'range', call: 'fs.read {"path":"src/a.js","offset":10,"limit":50}' }, 'elide: an fs.read result is handled by the same fs.read call');
-    A.ok(/; read it again with fs\.read \{"path":"src\/a\.js","offset":10,"limit":50\}\]$/.test(firstLine(range.content)), 'elide: and the stub names it');
-    A.eq((await elideToolResult(body, { name: 'fs_read', args: { path: 'b.txt' } })).handle, { via: 'range', call: 'fs.read {"path":"b.txt"}' }, 'elide: the wire spelling fs_read too');
-    // the host's own park of the full output wins over a range
-    const parked = await elideToolResult(body, { name: 'fs.read', args: { path: 'b.txt' }, parkedPath: '.starnet/outputs/a/fs.read-r1-0.txt' });
-    A.eq(parked.handle, { via: 'parked', path: '.starnet/outputs/a/fs.read-r1-0.txt', call: 'fs.read {"path":".starnet/outputs/a/fs.read-r1-0.txt"}' }, 'elide: a parked path is the handle');
-    A.ok(/; the output saved before it was cut: read it with fs\.read \{"path":"\.starnet\/outputs\/a\/fs\.read-r1-0\.txt"\}\]$/.test(firstLine(parked.content)), 'elide: and the stub says the file holds the output before the cut');
+    // the host's own park of the full output is the handle when there is one
+    const parked = await elideToolResult(body, { name: 'build', parkedPath: '.starnet/outputs/a/build-r1-0.txt' });
+    A.eq(parked.handle, { via: 'parked', path: '.starnet/outputs/a/build-r1-0.txt', call: 'fs.read {"path":".starnet/outputs/a/build-r1-0.txt"}' }, 'elide: a parked path is the handle');
+    A.ok(/; the output saved before it was cut: read it with fs\.read \{"path":"\.starnet\/outputs\/a\/build-r1-0\.txt"\}\]$/.test(firstLine(parked.content)), 'elide: and the stub says the file holds the output before the cut');
 
-    // a body that is not the tool's own output, or an error, never gets a range: a park stands in
+    // anything else is parked whole at elision — an fs.read result too: the file it read can change, its page follows the window
     const calls = [];
     const park = async (text, meta) => { calls.push({ text, meta }); return { path: '.starnet/outputs/a/p' + calls.length + '.txt' }; };
-    const inexact = await elideToolResult(body, { name: 'fs.read', args: { path: 'b.txt' }, exact: false, park, parkMeta: { taintedBy: 'web_fetch' } });
-    A.eq(inexact.handle, { via: 'saved', path: '.starnet/outputs/a/p1.txt', call: 'fs.read {"path":".starnet/outputs/a/p1.txt"}' }, 'elide: a cut or merged fs.read body is parked, not re-read by range');
+    const read = await elideToolResult(body, { name: 'fs.read', args: { path: 'src/a.js', offset: 10, limit: 50 }, park, parkMeta: { taintedBy: 'web_fetch' } });
+    A.eq(read.handle, { via: 'saved', path: '.starnet/outputs/a/p1.txt', call: 'fs.read {"path":".starnet/outputs/a/p1.txt"}' }, 'elide: an fs.read result is parked like any other, never re-read from its source');
+    A.ok(read.content.indexOf('src/a.js') < 0, 'elide: the stub never names the file the result was read from');
     A.ok(calls[0].text === body, 'elide: the park holds the exact elided body');
     A.eq(calls[0].meta, { taintedBy: 'web_fetch', tool: 'fs.read', reason: 'elided-at-compaction' }, 'elide: the park carries the provenance, the tool and the reason');
-    A.ok(/; the whole result is saved: read it with fs\.read \{"path":"\.starnet\/outputs\/a\/p1\.txt"\}\]$/.test(firstLine(inexact.content)), 'elide: the stub says the whole result is saved');
-    const errored = await elideToolResult(body, { name: 'fs.read', args: { path: 'b.txt' }, isError: true, park });
-    A.eq(errored.handle && errored.handle.via, 'saved', 'elide: an error result is parked, never re-read by range');
+    A.ok(/; the whole result is saved: read it with fs\.read \{"path":"\.starnet\/outputs\/a\/p1\.txt"\}\]$/.test(firstLine(read.content)), 'elide: the stub says the whole result is saved');
+    const noParker = await elideToolResult(body, { name: 'fs_read', args: { path: 'b.txt' } });
+    A.ok(noParker.handle === null && /re-run the tool for the full output\]$/.test(firstLine(noParker.content)), 'elide: without a parker an fs.read result keeps the old wording too (no re-read handle)');
+    const viaParker = await elideToolResult(body, { name: 'build', parkedPath: '.starnet/outputs/a/b.txt', park });
+    A.ok(viaParker.handle.via === 'parked' && calls.length === 1, 'elide: a result the host already parked is not parked again');
+
+    // a body a UTF-8 file cannot hold as it is (a lone surrogate) is never parked: the read-back would differ
+    const loneBody = 'x'.repeat(300) + '\uD83D' + 'y'.repeat(10);
+    const lonely = await elideToolResult(loneBody, { name: 'noop', park });
+    A.ok(lonely.handle === null && calls.length === 1, 'elide: a lone surrogate keeps the body off disk (no park, no handle)');
+    const pair = await elideToolResult('x'.repeat(300) + '😀', { name: 'noop', park });
+    A.ok(pair.handle && pair.handle.via === 'saved' && calls.length === 2, 'elide: a whole surrogate pair parks normally');
 
     // quoted words are never parked; a parker that fails or declines leaves the old wording
     const before = calls.length;

@@ -12,9 +12,12 @@
       left valid (nothing the API would keep is stripped).
    2. EVERY ELISION STUB NAMES A HANDLE THAT READS BACK BYTE-IDENTICAL. The REAL loop + registry + fs tools + the host
       parker shape (output-artifacts.js, stems like index.js capCtx.parkOutput) fold old results through the micro
-      tier. Each stub's fs.read call, run through the REAL fs.read tool, returns the elided body exactly — or, for a
-      result the registry parked before cutting it, the tool's full output. Words quoted from another session are
-      never parked, and the micro tier's measuring pass leaves no file behind.
+      tier. The agent edits the file it read before the elision, the file is rewritten again after it, and the run's
+      window narrows (a fallback to a smaller model) before the handles are followed. Each stub's fs.read call, run
+      through the REAL fs.read tool and paged the way a model pages (fs.read's own next: trailers), returns the elided
+      body exactly — or, for a result the registry parked before cutting it, the tool's full output. No handle names
+      the source a result was read from. Words quoted from another session are never parked, and the micro tier's
+      measuring pass leaves no file behind.
    3. A FOLD'S OWN REQUEST WRITES NO CACHE: the REAL compaction summarizer through the REAL anthropic adapter sends no
       cache_control anywhere (the run loop's own requests still anchor theirs).
    4. A CUT OUTPUT KEEPS ITS HEAD AND ITS TAIL: shell.exec, verify.run and an MCP result over the 64k cap keep the end
@@ -176,6 +179,27 @@ function makeWorkspace() {
   };
   return { root, parks, parkOutput };
 }
+// THE MODEL'S READ-BACK: run a stub's handle through the REAL fs.read under the run's window as it is NOW, and follow
+// fs.read's own paging (the next: trailer, same file only) the way a model does; the pages' text reassembled.
+async function readBack(reg, ctx, call) {
+  const m = /^fs\.read (\{.*\})$/.exec(call);
+  if (!m) return { ok: false, text: '', pages: 0 };
+  let args = JSON.parse(m[1]);
+  const file = args.path;
+  let text = '', pages = 0;
+  for (;;) {
+    const r = await reg.dispatch({ name: 'fs.read', args, argsRaw: JSON.stringify(args) }, ctx);
+    pages++;
+    if (!r || !r.ok) return { ok: false, text, pages };
+    const s = String(r.content);
+    const next = /\n\[showing characters \d+-\d+ of \d+[^\]\n]*; next: fs\.read (\{[^\n]*\})\]$/.exec(s);
+    const a = next ? JSON.parse(next[1]) : null;
+    if (a && a.path === file && pages < 100) { text += s.slice(0, next.index); args = a; continue; }
+    const end = /\n\[showing characters \d+-\d+ of \d+; end of file\]$/.exec(s);
+    text += end ? s.slice(0, end.index) : s;
+    return { ok: true, text, pages };
+  }
+}
 
 (async () => {
   // ================= 1. thinking: four edits, zero drops, nothing bound is lost =================
@@ -209,7 +233,8 @@ function makeWorkspace() {
     const ws = makeWorkspace();
     try {
       const notes = filler('NOTE', 20000);
-      fs.writeFileSync(path.join(ws.root, 'a', 'notes.txt'), notes);
+      const notesPath = path.join(ws.root, 'a', 'notes.txt');
+      fs.writeFileSync(notesPath, notes);
       const reg = makeRegistry();
       const fsTools = makeFsTools({ fsp, pathMod: path, root: ws.root, rg: false });
       if (typeof fsTools.register === 'function') fsTools.register(reg); else for (const t of Object.values(fsTools)) if (t && t.name) reg.register(t);
@@ -218,19 +243,23 @@ function makeWorkspace() {
       reg.register({ impact: 'none', name: 'recall', schema: { type: 'object' }, run: async () => ({ content: filler('QUOTED', 20000), quotedStreams: ['stream-2'], summary: 'recalled' }) });
       let k = 0;
       reg.register({ impact: 'none', name: 'noop', schema: { type: 'object' }, run: async () => filler('NOOP#' + (++k), 20000) });
-      const capCtx = { agentId: 'a', canUse: () => ({ ok: true }), canRun: () => ({ ok: true }), parkOutput: ws.parkOutput };
+      // the run's window-scaled budget (index.js capCtx.outputMax, a live thunk): wide while the run works, narrowed
+      // afterwards the way a fallback to a smaller model narrows it, before the handles are followed
+      let windowChars = 27000;
+      const capCtx = { agentId: 'a', canUse: () => ({ ok: true }), canRun: () => ({ ok: true }), parkOutput: ws.parkOutput, outputMax: () => windowChars };
       const seen = new Map();
       const call = (id, name, args, p) => [{ type: 'tool_start', index: 0, id, name }, { type: 'tool_args', index: 0, chunk: JSON.stringify(args || {}) },
         { type: 'usage', usage: { prompt_tokens: p, completion_tokens: 1, total_tokens: p + 1 } }, { type: 'done', finishReason: 'tool_calls' }];
-      // b1/b2 are fs.read results cut AFTER the tool ran, with no file saved: re-running the same fs.read would not return
-      // their bytes, so their stubs must not name that call. b1 = the run-wide budget's clip (index.js boundToolResult marks
-      // it outputBounded); b2 = the registry's cap with a parker that failed (its outputChars still counts the full read).
+      // b1/b2 are fs.read results cut AFTER the tool ran: b1 = the run-wide budget's clip (index.js boundToolResult), b2 =
+      // the registry's cap with a parker that failed. Their stubs must give back the cut bodies, exactly as the model saw them.
       const cutAfter = (id, r) => id === 'b1' ? Object.assign({}, r, { content: r.content.slice(0, 3000) + NL + NL + '[Tool result receipt: read. This run reached its context allowance.]', outputBounded: true })
         : id === 'b2' ? Object.assign({}, r, { content: r.content.slice(0, 2500) + NL + NL + '[... 17500 characters removed by the host output cap. The end of the output follows ...]' })
         : r;
+      // e1: the agent edits the file it read (the usual coding flow) before the micro tier elides the old reads
+      const edit = { path: 'notes.txt', find: 'NOTE line 7 lorem', replace: 'NOTE line 7 EDITED lorem' };
       const provider = makeReplayProvider({ turns: [call('b1', 'fs.read', { path: 'notes.txt' }, 2000), call('b2', 'fs.read', { path: 'notes.txt' }, 2000),
         call('c1', 'fs.read', { path: 'notes.txt' }, 2000), call('c2', 'build_log', {}, 2000), call('c3', 'recall', {}, 2000),
-        call('c4', 'noop', {}, 2000), call('c5', 'noop', {}, 30000), [{ type: 'text', delta: 'FINAL' }, { type: 'done', finishReason: 'stop' }]] });
+        call('c4', 'noop', {}, 2000), call('e1', 'fs.edit', edit, 2000), call('c5', 'noop', {}, 30000), [{ type: 'text', delta: 'FINAL' }, { type: 'done', finishReason: 'stop' }]] });
       const bus = A.makeBus();
       const seq = A.collectBus(bus, events.names());
       const res = await runAgentLoop({ messages: [{ role: 'user', content: 'gather the facts' }], provider, emit: makeEmitter(bus, () => {}),
@@ -238,30 +267,37 @@ function makeWorkspace() {
         dispatch: async (c, ctx) => { const r = cutAfter(c.id, await reg.dispatch(c, ctx)); seen.set(c.id, r); return r; }, capCtx,
         context: makeContext({ contextLimit: 40000, compactAt: 0.65, keepTailTurns: 1 }), summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }), limits: { maxIters: 12 } });
       A.eq(res.reason, 'done', 'stubs: the run finishes');
-      A.ok(seq.some(e => e.name === 'agent.compact' && e.payload.reason === 'micro' && e.payload.elided >= 6), 'stubs: the micro tier elided the six older results');
+      A.ok(seen.get('e1') && seen.get('e1').ok && fs.readFileSync(notesPath, 'utf8') === notes.replace(edit.find, edit.replace), 'stubs: the agent edited notes.txt after reading it, before the elision');
+      A.ok(seq.some(e => e.name === 'agent.compact' && e.payload.reason === 'micro' && e.payload.elided >= 6), 'stubs: the micro tier elided the older results');
       A.ok(seen.get('c2') && seen.get('c2').parkedPath, 'stubs: the registry parked build_log before cutting it (a dispatch-time handle exists)');
-      A.ok(seen.get('b2') && seen.get('b2').outputChars === notes.length && !seen.get('b2').parkedPath, 'stubs: b2 is the registry-cap shape (outputChars counts the whole read, nothing parked)');
       const stubs = res.messages.filter(m => m.role === 'tool' && /^\[tool result elided at compaction/.test(String(m.content)));
-      A.eq(stubs.map(m => m.tool_call_id).sort(), ['b1', 'b2', 'c1', 'c2', 'c3', 'c4'], 'stubs: exactly the six older results are stubs');
-      let saved = 0;
+      const ids = stubs.map(m => m.tool_call_id).sort();
+      A.ok(['b1', 'b2', 'c1', 'c2', 'c3', 'c4'].every(id => ids.indexOf(id) >= 0) && ids.every(id => /^(b1|b2|c1|c2|c3|c4|e1)$/.test(id)), 'stubs: the six older results are stubs (and at most the edit receipt): ' + JSON.stringify(ids));
+      // after the elision: the source is rewritten again, and the window narrows to 8,000 characters (a 7,400-char fs.read page)
+      fs.writeFileSync(notesPath, 'notes.txt was rewritten after the elision' + NL);
+      windowChars = 8000;
+      let saved = 0, paged = 0;
       for (const m of stubs) {
+        const id = m.tool_call_id;
         const first = String(m.content).split(NL)[0];
-        const handle = /with (fs\.read (\{.*\}))\]$/.exec(first);
-        if (m.tool_call_id === 'c3') { A.ok(!handle && /re-run the tool for the full output\]$/.test(first), 'stubs: words quoted from another session get no saved copy (the old wording stands)'); continue; }
-        A.ok(!!handle, 'stubs: ' + m.tool_call_id + ' names an fs.read handle (' + first.slice(0, 200) + ')');
+        const handle = /with (fs\.read \{.*\})\]$/.exec(first);
+        if (id === 'c3') { A.ok(!handle && /re-run the tool for the full output\]$/.test(first), 'stubs: words quoted from another session get no saved copy (the old wording stands)'); continue; }
+        A.ok(!!handle, 'stubs: ' + id + ' names an fs.read handle (' + first.slice(0, 200) + ')');
         if (!handle) continue;
-        const args = JSON.parse(handle[2]);
-        const back = await reg.dispatch({ name: 'fs.read', args, argsRaw: handle[2] }, capCtx);
-        const want = m.tool_call_id === 'c2' ? buildFull : seen.get(m.tool_call_id).content;
-        A.ok(back && back.ok && back.content === want, 'stubs: ' + m.tool_call_id + "'s handle reads back BYTE-IDENTICAL (" + (back && String(back.content).length) + ' vs ' + want.length + ' chars)');
-        if (m.tool_call_id === 'c1') A.eq(args, { path: 'notes.txt' }, 'stubs: an fs.read result is handled by the same fs.read call, nothing parked');
-        if (m.tool_call_id === 'b1' || m.tool_call_id === 'b2') A.ok(args.path !== 'notes.txt' && /the whole result is saved/.test(first), 'stubs: a cut fs.read body (' + m.tool_call_id + ') is saved whole, never sent back to the same fs.read');
-        if (m.tool_call_id === 'c4' || m.tool_call_id === 'b1' || m.tool_call_id === 'b2') saved++;
+        A.ok(first.indexOf('notes.txt') < 0, 'stubs: ' + id + "'s handle never names the source it was read from");
+        const back = await readBack(reg, capCtx, handle[1]);
+        const want = id === 'c2' ? buildFull : seen.get(id).content;
+        A.ok(back.ok && back.text === want, 'stubs: ' + id + "'s handle reads back BYTE-IDENTICAL after the source changed and the window narrowed (" + back.text.length + ' vs ' + want.length + ' chars, ' + back.pages + ' page(s))');
+        if (id === 'c1') A.ok(back.text === notes, 'stubs: the read made before the edit comes back as it was read, not as the file says now');
+        if (back.pages > 1) paged++;
+        if (id !== 'c2') { A.ok(/; the whole result is saved: read it with fs\.read/.test(first), 'stubs: ' + id + ' is saved whole at elision'); saved++; }
       }
+      A.ok(paged >= 3, 'stubs: the big bodies (c1, c2, c4) came back over several fs.read pages and reassembled exactly (' + paged + ')');
       const elisionParks = ws.parks.filter(p => p.meta.reason === 'elided-at-compaction');
       A.ok(!elisionParks.some(p => Array.isArray(p.meta.quotedStreams) && p.meta.quotedStreams.length), 'stubs: the parker is never even asked to save quoted words');
-      A.eq(elisionParks.length, saved, 'stubs: one park per saved stub — the measuring pass left no file behind');
-      A.ok(saved === 3, 'stubs: the plain result and the two cut fs.read bodies were parked at elision');
+      A.eq(elisionParks.length, saved, 'stubs: one park per saved stub — the measuring pass asked for none');
+      const files = fs.readdirSync(path.join(ws.root, 'a', '.output'));
+      A.eq(files.length, saved + 1, 'stubs: .output holds the saved stubs and the registry park of build_log, nothing else (' + files.length + ' files)');
     } finally { fs.rmSync(ws.root, { recursive: true, force: true }); }
   }
 
