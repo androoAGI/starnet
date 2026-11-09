@@ -18,13 +18,18 @@
    asks crewDefaultsMode; C the page's summon path (app.js resolveTierModel / applyLoadout / effortSourceOf and the marketplace
    card's words, compiled out of the real files); D the real sidecar (SidecarFixture) with a fake OpenRouter endpoint that logs
    the reasoning effort every request carries, on and off: a class-marked crew lead the Commander talks to dispatches four
-   workers and spawns a clone, the Overseer (a pin, as the page always marks it) spawns one, and a drafter -> reviewer line is
-   sent back once; and E a fake Claude Code CLI. No network, no real CLI, no model spend.
+   workers and spawns a clone, the Overseer (a pin, as the page always marks it) spawns one, a drafter -> reviewer line is
+   sent back once, and three class-high agents each crewing a bay of their own line run a routine: a TERMINAL one (runsLine
+   false) pressed with Run Now, another fired by the clock, and one that runs its line (runsLine true); and E a fake Claude Code
+   CLI. No network, no real CLI, no model spend.
 
    RED on agent/cost-stack 9896a5c44 (the base): the module does not exist, nothing reads the switch, a balanced summon keeps the
    copied model, and a class-high worker, clone and line stage all run at high with no effortRule on their records. RED on the
    lane's first review head (e6199f70c) too: its module read process.env itself, so a blank STARNET_ value fell through to
-   SKYNET_=lean where ENV() keeps the blank, and no sidecar call read the switch through ENV().
+   SKYNET_=lean where ENV() keeps the blank, and no sidecar call read the switch through ENV(). RED on its second review head
+   (afd220d69): a terminal routine, whose crate LINE WATCH stamps with its bay's line, ran as a line stage at medium with an
+   effortRule saying 'line', though a terminal routine is not line work (Andrew's 08-07 ruling, the rule the line's budget cap
+   reads: index.js capLine).
 
    CREW_DEFAULTS_DUMP=<file> writes the off arm's normalized crew request bodies (the base-vs-lane byte-identity evidence). */
 const fs = require('node:fs');
@@ -134,6 +139,12 @@ if (CD) {
   for (const fn of ['crewEffort', 'handleAgentModel', 'handleProviders']) {
     A.ok(decomment(sidecarTopLevelFunction(fn)).indexOf('crewDefaultsMode()') >= 0, 'B: ' + fn + ' asks crewDefaultsMode() for the switch');
   }
+  // the crew rule's line is the run's line WORK: runOnceCore's capLine, the one rule its line budget cap and its stage team read. A
+  // terminal routine (runsLine false) is not line work though LINE WATCH stamps its crate with the bay's line (o.lineId), so crewEffort
+  // is handed capLine and never reads o.lineId itself (the second review, 2026-11-09). D proves it on the wire.
+  const core = decomment(sidecarTopLevelFunction('runOnceCore')), ce = decomment(sidecarTopLevelFunction('crewEffort'));
+  A.ok(/\bcrewEffort\([^;]*,\s*capLine\)/.test(core), 'B: runOnceCore hands crewEffort capLine, the line-work rule its line budget cap reads');
+  A.ok(/surfaceOf\(\{[^}]*\blineId\b/.test(ce) && !/\.lineId\b/.test(ce), 'B: crewEffort takes the line it is handed and never reads o.lineId (LINE WATCH\'s stamp)');
   A.ok(/require\('\.\.\/frontend\/app\/crewdefaults\.js'\)/.test(readSidecarSource()), 'B: the sidecar asks the one module');
   A.ok(/<script src="app\/crewdefaults\.js"><\/script>/.test(fs.readFileSync(path.join(ROOT, 'frontend/index.html'), 'utf8')), 'B: the page loads the same module');
 }
@@ -273,6 +284,18 @@ const row = (agentId, effort, source) => Object.assign({ agentId, name: agentId.
 // 'lead' is a class-marked crew member the Commander talks to directly, so it leads: it dispatches the workers and spawns a clone
 const CREW = [row('agent', 'high', 'pin'), row('lead', 'high', 'class'), row('w-class', 'high', 'class'), row('w-pin', 'high', 'pin'), row('w-old', 'high'),
   row('w-low', 'low', 'class'), row('drafter', 'high', 'class'), row('reviewer', 'high', 'class')];
+// ROUTINES (the second review, 2026-11-09): three class-high agents, each crewing the one bay of a line of its own (INBOX > bay > OUTBOX), so
+// LINE WATCH stamps each routine's crate with that line. Only a routine that RUNS its line (runsLine) is line work (Andrew's 08-07 ruling)
+const ROUTINES = [
+  { agentId: 'r-now', dockId: 'bN', runsLine: false, via: 'press', name: 'Morning report', prompt: 'Write the morning report.' },
+  { agentId: 'r-tick', dockId: 'bT', runsLine: false, via: 'clock', name: 'Evening digest', prompt: 'Write the evening digest.' },
+  { agentId: 'r-line', dockId: 'bL', runsLine: true, via: 'press', name: 'Intake note', prompt: 'Write the intake note.' }];
+const ROUTINE_CREW = ROUTINES.map(r => row(r.agentId, 'high', 'class'));
+const ROUTINE_FLOOR = {
+  props: [].concat(...ROUTINES.map((r, i) => [{ id: 'i' + r.dockId.slice(1), t: 'intake', x: 0, y: 3 * i, w: 1, h: 1 },
+    { id: r.dockId, t: 'bay', x: 3, y: 3 * i, w: 1, h: 1, agentId: r.agentId }, { id: 'o' + r.dockId.slice(1), t: 'outbox', x: 6, y: 3 * i, w: 1, h: 1 }])),
+  belts: [].concat(...ROUTINES.map((r, i) => [1, 2, 4, 5].map(x => ({ x, y: 3 * i, dir: 'E' }))))
+};
 // the volatile bytes of a request body (ids, clocks, paths, ports), so the off arm's bodies compare across two trees
 function normalized(raw, f) {
   let s = String(raw || '');
@@ -285,7 +308,9 @@ function normalized(raw, f) {
 
 async function stationArm(mode) {
   const wire = await startWire();
-  const env = Object.assign({}, QUIET, { SKYNET_OPENROUTER_BASE: wire.base, STARNET_OPENROUTER_KEY: 'sk-or-v1-crewdefaults-fixture' }, mode ? { STARNET_CREW_DEFAULTS: mode } : {});
+  // the routine tick at 100ms, so a routine due in a second fires on the clock inside the arm (the scheduler stays off until armed below)
+  const env = Object.assign({}, QUIET, { SKYNET_OPENROUTER_BASE: wire.base, STARNET_OPENROUTER_KEY: 'sk-or-v1-crewdefaults-fixture',
+    STARNET_CRON_TICK_MS: '100', SKYNET_CRON_TICK_MS: '100' }, mode ? { STARNET_CREW_DEFAULTS: mode } : {});
   const f = SidecarFixture.create({ prefix: 'sk-crewdefaults-' + (mode || 'off') + '-', timeoutMs: 90000, env });
   const tag = (mode || 'off') + ': ';
   const settle = async () => {
@@ -323,6 +348,34 @@ async function stationArm(mode) {
     const sample = await f.json('POST', '/api/routing/sample', { line, text: 'Write the rollback note.', name: 'Rollback note' });
     A.eq([sample.status, sample.body && sample.body.delivered && sample.body.delivered.agentId], [200, 'reviewer'], tag + 'fixture: the line delivered after one revise (' + JSON.stringify(sample.body && sample.body.stop) + ')');
     await settle();
+    // ROUTINES: the routine agents join the crew, each on the bay of a line of its own; two routines are pressed (Run Now), one fires on the clock
+    A.eq((await f.json('POST', '/api/roster', { agents: CREW.concat(ROUTINE_CREW), updatedAt: Date.now() })).status, 200, tag + 'fixture: the routine agents join the crew');
+    const bays = await publishFloor({ json: (m, u, b) => f.json(m, u, b) }, floorOf(ROUTINE_FLOOR), { label: tag + 'the routine bays' });
+    const lineOfBay = Object.fromEntries(ROUTINES.map(r => [r.agentId, (bays.plan.lineOfProp || {})[r.dockId] || null]));
+    const saveRoutine = async (r, schedule) => {
+      const c = await f.json('POST', '/api/cron', { name: r.name, prompt: r.prompt, schedule, agentId: r.agentId, dockId: r.dockId, model: MODEL, provider: 'openrouter', runsLine: r.runsLine });
+      A.ok(c.status === 200 && !!(c.body && c.body.job && c.body.job.id) && !c.body.duplicate, tag + 'fixture: ' + r.agentId + '\'s routine is saved (' + c.status + ' ' + String(c.text || '').slice(0, 160) + ')');
+      return (c.body && c.body.job) || {};
+    };
+    for (const r of ROUTINES.filter(x => x.via === 'press')) {
+      const job = await saveRoutine(r, 'every 1h');
+      const ran = await f.json('POST', '/api/cron/run', { id: job.id });
+      A.eq(ran.status, 200, tag + 'fixture: ' + r.agentId + '\'s routine ran on Run Now' + (ran.status === 200 ? '' : ': ' + String(ran.text || '').slice(0, 200)));
+      await settle();
+    }
+    for (const r of ROUTINES.filter(x => x.via === 'clock')) {
+      const job = await saveRoutine(r, 'in 1s');
+      let fired = null;
+      await f.json('POST', '/api/cron/arm', { enabled: true });
+      try {
+        for (const until = Date.now() + 30000; !fired && Date.now() < until;) {
+          fired = ((((await f.json('GET', '/api/cron')).body) || {}).jobs || []).find(j => j && j.id === job.id && j.lastStatus) || null;
+          if (!fired) await sleep(150);
+        }
+      } finally { await f.json('POST', '/api/cron/arm', { enabled: false }); }
+      A.ok(!!fired, tag + 'fixture: ' + r.agentId + '\'s routine fired on the clock (' + JSON.stringify(fired && fired.lastStatus) + ')');
+      await settle();
+    }
 
     const runs = ((await f.json('GET', '/api/runs?agent=*&limit=200')).body || {}).runs || [];
     const efforts = p => wire.calls.filter(c => c.probe === p).map(c => c.effort);
@@ -336,6 +389,10 @@ async function stationArm(mode) {
     A.eq([clonesOf('lead').length, clonesOf('agent').length], [1, 1], tag + 'fixture: one clone of each lead on the records');
     A.eq([efforts('drafter').length, efforts('reviewer').length], [2, 2], tag + 'fixture: the line ran the draft and the review twice (one revise)');
     A.eq([one(efforts('lead')), one(efforts('agent'))], [['high'], ['high']], tag + 'a lead\'s own run is not crew: the crew lead and the Overseer keep their high');
+    // each routine reached the wire once and left one record naming its routine and, LINE WATCH, its own bay's line (the case under test)
+    A.eq(ROUTINES.map(r => efforts(r.agentId).length), [1, 1, 1], tag + 'fixture: each routine ran once (' + JSON.stringify(ROUTINES.map(r => efforts(r.agentId))) + ')');
+    A.eq(ROUTINES.map(r => { const x = recs(r.agentId)[0] || {}; return [recs(r.agentId).length, !!x.cronJobId, !!lineOfBay[r.agentId] && x.lineId === lineOfBay[r.agentId]]; }),
+      ROUTINES.map(() => [1, true, true]), tag + 'fixture: each routine\'s record names its routine and its bay\'s line (' + JSON.stringify(ROUTINES.map(r => [lineOfBay[r.agentId], (recs(r.agentId)[0] || {}).lineId])) + ')');
 
     if (mode === 'lean') {
       A.eq(efforts('w-class'), ['medium'], 'lean: a class-high WORKER runs at medium');
@@ -358,15 +415,21 @@ async function stationArm(mode) {
       A.eq(recs('drafter').map(x => [x.reasoningEffort, rule(x) && rule(x).surface, rule(x) && rule(x).why]), [['medium', 'line', 'lean'], ['high', 'line', 'retry']], 'lean: the drafter\'s records');
       A.eq(recs('reviewer').map(x => [x.reasoningEffort, rule(x) && rule(x).why]), [['medium', 'lean'], ['high', 'retry']], 'lean: the reviewer\'s records');
       A.ok(recs('lead').length && recs('agent').length && !rule(rec('lead')) && !rule(rec('agent')), 'lean: a lead\'s own record carries no crew rule');
+      // ROUTINES: a TERMINAL routine (runsLine false) is not line work, though LINE WATCH names its bay's line (Andrew's 08-07 ruling, the
+      // rule the line's budget cap reads): pressed or fired by the clock, it is no crew run, keeps its high, and its record carries no rule
+      A.eq([efforts('r-now'), efforts('r-tick')], [['high'], ['high']], 'lean: a TERMINAL routine on a class-high bay agent keeps its high, on Run Now and on the clock');
+      A.eq(['r-now', 'r-tick'].map(id => [rec(id).reasoningEffort, rule(rec(id)) || null]), [['high', null], ['high', null]], 'lean: …and its record says high, with no crew rule');
+      A.eq([efforts('r-line'), rec('r-line').reasoningEffort, rule(rec('r-line'))], [['medium'], 'medium', { surface: 'line', source: 'class', asked: 'high', why: 'lean', sent: 'medium' }],
+        'lean: a routine that RUNS its line (runsLine) is a line stage: its entry run asks for medium, and its record says why');
       const saved = JSON.parse(fs.readFileSync(path.join(f.workspace, 'agent.roster.json'), 'utf8'));
       const savedRow = id => ((saved && saved.agents) || []).find(x => x.agentId === id) || {};
       A.eq([savedRow('w-class').effortSource, savedRow('w-pin').effortSource, 'effortSource' in savedRow('w-old')], ['class', 'pin', false], 'lean: the roster keeps each row\'s marker where its settings live');
     } else {
-      for (const p of ['w-class', 'w-class-repair', 'w-pin', 'w-old', 'clone', 'agent-clone', 'drafter', 'reviewer']) A.eq(one(efforts(p)), ['high'], 'off: ' + p + ' asks for its high, exactly as before');
+      for (const p of ['w-class', 'w-class-repair', 'w-pin', 'w-old', 'clone', 'agent-clone', 'drafter', 'reviewer', 'r-now', 'r-tick', 'r-line']) A.eq(one(efforts(p)), ['high'], 'off: ' + p + ' asks for its high, exactly as before');
       A.eq(one(efforts('w-low')), ['low'], 'off: w-low asks for its low');
       A.eq(runs.filter(x => 'effortRule' in x).length, 0, 'off: no record carries an effortRule');
       if (process.env.CREW_DEFAULTS_DUMP) {
-        const order = ['lead', 'w-class', 'w-class-repair', 'w-pin', 'w-old', 'w-low', 'clone', 'agent', 'agent-clone', 'drafter', 'reviewer'];
+        const order = ['lead', 'w-class', 'w-class-repair', 'w-pin', 'w-old', 'w-low', 'clone', 'agent', 'agent-clone', 'drafter', 'reviewer', 'r-now', 'r-tick', 'r-line'];
         const bodies = order.map(p => ({ probe: p, bodies: wire.calls.filter(c => c.probe === p && c.body).map(c => normalized(c.body, f)).sort() }));
         fs.writeFileSync(process.env.CREW_DEFAULTS_DUMP, JSON.stringify(bodies, null, 1));
       }

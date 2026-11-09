@@ -4148,7 +4148,10 @@ function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
    the rule only lowers; the record then says 'unsent'). A route whose main requests carry no effort is never handed one:
    claude-cli is told an effort only per request and a main run there sends none (W3.8 not chosen), so a claude-cli crew
    run sends nothing, runs on the CLI's own default ('cli-default') and its record says 'unsent'. `hops` = the primary and
-   every fallback the run may land on; `lineId` = the line the run belongs to (a routine's entry run names it by runsLine).
+   every fallback the run may land on; `lineId` = the line the run WORKS for: runOnceCore's capLine, the one rule its line
+   budget cap and stage team read, and nothing else (o.lineId is never read here). A terminal routine (runsLine !== true,
+   Andrew's 08-07 ruling) is not line work though LINE WATCH stamps its crate with the bay's line, so it is no crew run and
+   keeps its effort; a routine that runs its line is a line stage; a delegated run stays a worker or a clone.
    Switch off (the default): null, and the run is exactly as before.
    -> null | { sent, record }: sent = the per-request effort (null: none); record = the run record's effortRule
    { surface, source, asked, why, sent? }, the effort itself as it ran being the record's reasoningEffort (effortAsRun). */
@@ -4156,7 +4159,7 @@ function crewEffort(o, agentId, asked, hops, lineId) {
   const md = crewDefaultsMode();
   if (!CrewDefaults.isOn(md)) return null;
   const id = String(agentId || '');
-  const surface = CrewDefaults.surfaceOf({ delegatedBy: o && o.delegatedBy, lineId: lineId || (o && o.lineId), inRoster: agentRoster.has(id) });
+  const surface = CrewDefaults.surfaceOf({ delegatedBy: o && o.delegatedBy, lineId, inRoster: agentRoster.has(id) });
   if (!surface) return null;
   const row = (surface === 'clone' ? agentRoster.get(String(o.delegatedBy)) : agentRoster.get(id)) || null;
   const marked = row && (row.effortSource === 'class' || row.effortSource === 'pin') ? row.effortSource : '';
@@ -24754,8 +24757,9 @@ async function runOnceCore(o) {
   // outputOnly repair is an external caller's own request, so it is o.internal here, not `internal`).
   // An internal run marked o.keepEffort (work the Commander reads, the goal judge, the wake preflight) keeps their effort.
   const internalEffort = o.internal && !o.keepEffort ? auxPassEffort(provider, model) : null;
-  // LEANER CREW DEFAULTS (W3.3): a crew run's class-applied effort, per request like the aux effort above (crewEffort; switch off: null)
-  const crew = internalEffort ? null : crewEffort(o, agentId, reasoningEffort, [{ provider, model }].concat(fallbacks), workflowLine);
+  // LEANER CREW DEFAULTS (W3.3): a crew run's class-applied effort, per request like the aux effort above (crewEffort; switch off: null).
+  // capLine, not workflowLine: a terminal routine is not line work (#28's rule, the line budget cap's)
+  const crew = internalEffort ? null : crewEffort(o, agentId, reasoningEffort, [{ provider, model }].concat(fallbacks), capLine);
   const requestEffort = internalEffort || (crew && crew.sent) || null;
   // …and the effort it RAN on, read after the run from the adapter it ended on (effortAsRun): a claude-cli run that sent none
   // ran on the CLI's own default ('cli-default', never the dial's level), an HTTP request carries the adapter's own word for
