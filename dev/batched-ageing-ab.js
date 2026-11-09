@@ -8,9 +8,14 @@
    ARMS   off: STARNET_BATCHED_AGEING unset (the stack)          on: STARNET_BATCHED_AGEING=1
           Each arm's system prompt opens with its own nonce, so the two arms never share a cached prefix. The arm
           order alternates task by task (off first, then on first, ...).
-   TASKS  (the repo's existing long fixtures; AB_TASKS picks, default all three)
+   TASKS  (the repo's existing long fixtures; AB_TASKS picks, default all four)
      chain-head     dev/compaction-live-proof.js's chain, 40 files of ~5 KB, one read per turn; each token sits in the
                     first lines of its file (inside an aged stub's kept head). success: the answer names all 40 tokens.
+     chain-resumed  chain-head as the next message of a RESUMED conversation: the run's messages carry 12 earlier
+                    exchanges (~120,000 characters of user and assistant text) before the directive, as a COMMS thread
+                    reaches the loop. On Claude's default 5-minute cache the request after a batch reads only the
+                    system prompt (W2.1 review), so a batch re-writes that whole conversation: this is the case where
+                    ageing must age less, or not at all. success: all 40 tokens.
      chain-deep     the same chain with each token ~2 KB into its file (past the stub's kept head): an aged file's token
                     comes back only through its handle (or the source file). success: all 40 tokens. Re-reads = cost.
                     A stress case in BOTH arms: the loop's strategy guard refuses a long burst of read-only calls
@@ -20,17 +25,19 @@
                     function names to docs/MODULES.md, run the tests. success: every file has a section naming >= 90% of
                     the functions it declares, and the tests ran.
    METRICS per arm: success; model calls; batches (loop.historyEdit.aged notes); handle re-reads (fs.read of a .output/
-     handle) and source re-reads (a path read again); thinking the harness stripped at a batch
-     (loop.historyEdit.thinkingStripped) and thinking the API DROPPED (message_start input_transformations
-     thinking_dropped, read by the proxy); provider-reported usage per call (uncached input, cache read, cache write
-     5m/1h, output) and the weighted cost:
+     handle) and source re-reads (a path read again); stub copies (files the run left in the task folder that carry an
+     elision stub's words — a model that copied an aged stub into a write instead of the body it stands for); thinking
+     the harness stripped at a batch (loop.historyEdit.thinkingStripped) and thinking the API DROPPED (message_start
+     input_transformations thinking_dropped, read by the proxy); provider-reported usage per call (uncached input, cache
+     read, cache write 5m/1h, output) and the weighted cost:
        input-eq = uncached + 1.25 x write(5m) + 2 x write(1h) + READ x cache read
          (READ: Opus 5.5 0.05, Fable 5.1 0.025, else 0.10; AB_READ_RATIO overrides; a write with no tier split = 5m)
        dollars  = input-eq x list input price + output x list output price  (sidecar/providers/prices.js; Haiku 5.5
          above 100K prompt tokens at its long-prompt rate, 5x)
      The failopen notes print the first 5 of a kind, then every 50th: a count above 5 is a lower bound.
    VERDICT (suggested, printed): per task, on vs off: success and score (tokens found, files documented) not lower,
-     API-dropped thinking 0 in both arms, weighted cost lower. Handle re-reads are reported, never hidden. One run per
+     API-dropped thinking 0 in both arms, no stub copied into a file in either arm, weighted cost lower (chain-resumed:
+     not higher; an arm that never aged costs what off costs). Handle re-reads are reported, never hidden. One run per
      arm: rerun before trusting a close call.
 
    SPEND: HARD CAP AB_CAP_USD (default 5; above 5 is refused). Every model call goes through a local forwarding proxy
@@ -49,7 +56,11 @@
    options (env): AB_MODEL (default claude-haiku-5-5: the cheapest model that binds thinking), AB_TASKS
      (comma list), AB_EFFORT (default medium), AB_CAP_USD (<= 5), AB_READ_RATIO, AB_OUT (write the JSON report there)
    node dev/batched-ageing-ab.js --self-test   plumbing check against a LOCAL mock Anthropic upstream: no key, no
-     network beyond 127.0.0.1, no spend. With AB_CAP_USD=0.001 it proves the cap refuses the first call. */
+     network beyond 127.0.0.1, no spend. The mock bills each arm's REAL wire bodies on the cache as Anthropic documents
+     it (test/helpers/anthropic-cache-sim.js: reads land only on an earlier breakpoint, 20 positions back at most), and
+     binds thinking like the API: each reply carries a thinking block signed over its prefix, and a replayed block whose
+     prefix changed is dropped (drop_block) and reported in input_transformations, so both thinking metrics are exercised.
+     With AB_CAP_USD=0.001 it proves the cap refuses the first call. */
 'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
@@ -57,6 +68,8 @@ const http = require('node:http');
 const crypto = require('node:crypto');
 const { SidecarFixture } = require('../test/helpers/sidecar-fixture.js');
 const prices = require('../sidecar/providers/prices.js');
+const CacheSim = require('../test/helpers/anthropic-cache-sim.js');
+const { ELIDED, ARG_ELIDED } = require('../sidecar/history-edit.js');
 
 const REPO = path.resolve(__dirname, '..');
 const KEY_ENV = 'STARNET_AGEING_AB_KEY';
@@ -66,7 +79,7 @@ delete process.env[KEY_ENV];   // read once; never inherited by a child process
 const MODEL = String(process.env.AB_MODEL || 'claude-haiku-5-5').trim();
 const EFFORT = String(process.env.AB_EFFORT || 'medium').trim();
 const CAP = (process.env.AB_CAP_USD == null || process.env.AB_CAP_USD === '') ? 5 : Number(process.env.AB_CAP_USD);
-const TASK_IDS = String(process.env.AB_TASKS || 'chain-head,chain-deep,probe-project').split(',').map(s => s.trim()).filter(Boolean);
+const TASK_IDS = String(process.env.AB_TASKS || 'chain-head,chain-deep,probe-project,chain-resumed').split(',').map(s => s.trim()).filter(Boolean);
 const OUT = String(process.env.AB_OUT || '').trim();
 const UPSTREAM = 'https://api.anthropic.com';
 const CHAIN_FILES = 40;
@@ -75,7 +88,7 @@ const FLOOR = ['cabinet', 'dish', 'notebook', 'studio', 'workbench'].map(objectT
 function refuse(msg) { console.error('[batched-ageing-ab] REFUSED: ' + msg); process.exit(2); }
 if (!SELF_TEST && !KEY) refuse('no key in ' + KEY_ENV + ' (an Anthropic API key). No other variable, file or credential store is read.');
 if (!(CAP > 0) || CAP > 5) refuse('AB_CAP_USD must be above 0 and at most 5.');
-for (const t of TASK_IDS) if (!['chain-head', 'chain-deep', 'probe-project'].includes(t)) refuse('unknown task ' + t + ' (chain-head, chain-deep, probe-project)');
+for (const t of TASK_IDS) if (!['chain-head', 'chain-deep', 'probe-project', 'chain-resumed'].includes(t)) refuse('unknown task ' + t + ' (chain-head, chain-deep, probe-project, chain-resumed)');
 
 // ---- prices: the catalog the sidecar books with ----
 const LIST = prices.priceOf('anthropic', MODEL);
@@ -180,7 +193,18 @@ const tokenRe = /TOKEN-\d\d-[A-Z0-9]{6}/g;
 const filler = (n) => { let s = ''; while (s.length < n) s += 'filler line for realism, nothing to note here. '; return s.slice(0, n); };
 const declared = src => Array.from(new Set((String(src).match(/\bfunction\s+[A-Za-z0-9_$]+\s*\(/g) || []).map(s => s.replace(/^function\s+/, '').replace(/\s*\($/, ''))));
 
-function chainTask(id, deep) {
+// a resumed thread's earlier exchanges (chain-resumed): ~120,000 characters of plain user and assistant text, no token
+function earlierConversation() {
+  const topics = ['the station power budget', 'the cargo manifest', 'the night shift log', 'the relay antenna', 'the water reclaimer', 'the hull survey',
+    'the crew rota', 'the reactor drill', 'the comms backlog', 'the supply drop', 'the airlock audit', 'the greenhouse yield'];
+  const out = [];
+  topics.forEach((t, k) => {
+    out.push({ role: 'user', content: 'Earlier question ' + (k + 1) + ': walk me through ' + t + ' again, every detail you have.\n' + filler(2400) });
+    out.push({ role: 'assistant', content: 'Here is everything on ' + t + ', as it stood at the time.\n' + filler(7500) });
+  });
+  return out;
+}
+function chainTask(id, deep, resumed) {
   return {
     id,
     build(root) {
@@ -198,6 +222,7 @@ function chainTask(id, deep) {
       }
       fs.writeFileSync(path.join(dir, 'start.txt'), 'NEXT FILE TO READ: ' + names[0] + '\n');
       return {
+        history: resumed ? earlierConversation() : [],
         directive: 'AB TASK chain: In the folder chain read start.txt with the file read tool. It names the next file to read; each file names the one after it, and each carries one line "secret token: TOKEN-NN-XXXXXX". Follow the chain to the end (' + CHAIN_FILES + ' files). The file names are unknown until you read the previous file, so read them one at a time. Do not stop early. Write NO text between tool calls (no narration, no running notes) - just make the next read. Only when you reach END OF CHAIN, reply with the complete list of every token you read, one per line, in order. Nothing else.',
         grade(answer) {
           const seen = new Set(String(answer || '').match(tokenRe) || []);
@@ -236,7 +261,24 @@ const probeTask = {
     };
   }
 };
-const TASKS = { 'chain-head': chainTask('chain-head', false), 'chain-deep': chainTask('chain-deep', true), 'probe-project': probeTask };
+const TASKS = { 'chain-head': chainTask('chain-head', false), 'chain-deep': chainTask('chain-deep', true), 'probe-project': probeTask, 'chain-resumed': chainTask('chain-resumed', false, true) };
+
+// files the run left in the task folder that carry an elision stub's words (the model copied a stub into a write)
+function stubCopiesIn(dir) {
+  let n = 0;
+  const walk = d => {
+    let entries = [];
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch (_) { return; }
+    for (const e of entries) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      let text = ''; try { text = fs.readFileSync(p, 'utf8'); } catch (_) { continue; }
+      if (text.indexOf(ELIDED) >= 0 || text.indexOf(ARG_ELIDED) >= 0) n++;
+    }
+  };
+  walk(dir);
+  return n;
+}
 
 // ---- one arm ----
 function hermeticEnv(arm) {
@@ -269,7 +311,7 @@ async function runArm(taskId, arm, ledger, upstreamBase) {
     const r = await fixture.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       provider: 'anthropic', baseUrl: proxy.base + '/v1', key: 'ab-placeholder-the-proxy-sets-the-real-key', model: MODEL, reasoningEffort: EFFORT,
       agentId: 'ab', isTask: true, placed: FLOOR, stationPlaced: FLOOR,
-      system: 'AB-' + arm + '-' + nonce + ': you are the lead.', messages: [{ role: 'user', content: task.directive }] }) });
+      system: 'AB-' + arm + '-' + nonce + ': you are the lead.', messages: (task.history || []).concat([{ role: 'user', content: task.directive }]) }) });
     if (r.status !== 200) return { task: taskId, arm, ran: false, why: 'run refused: HTTP ' + r.status };
     const raw = await r.text();
     const events = raw.split('\n').map(l => l.trim()).filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
@@ -294,10 +336,10 @@ async function runArm(taskId, arm, ledger, upstreamBase) {
     const end = (events.find(e => e.name === 'agent.run.end') || {}).payload || {};
     const grade = task.grade(answer, calls);
     return {
-      task: taskId, arm, ran: true, ms: Date.now() - t0, reason: end.reason || null, turns: end.turns || null, sidecarBookedUsd: end.usd == null ? null : end.usd,
+      task: taskId, arm, ran: true, armKey: 'AB-' + arm + '-' + nonce, ms: Date.now() - t0, reason: end.reason || null, turns: end.turns || null, sidecarBookedUsd: end.usd == null ? null : end.usd,
       success: grade.success, score: +grade.score.toFixed(3), detail: grade.detail,
       batches: noteCount(out, 'loop.historyEdit.aged'), folds: events.filter(e => e.name === 'agent.compact').length,
-      handleRereads: reads.filter(p => /\.output\//.test(p)).length, sourceRereads,
+      handleRereads: reads.filter(p => /\.output\//.test(p)).length, sourceRereads, stubCopies: stubCopiesIn(root),
       harnessStrippedThinkingTurns: noteSum(out, 'loop.historyEdit.thinkingStripped', /thinking of (\d+) earlier turn/),
       apiDroppedThinking: sum.apiDroppedThinking, sidecarSawDrops: noteSum(out, 'providers.anthropic.thinking_dropped', /dropped (\d+) replayed thinking/),
       parkFailures: noteCount(out, 'loop.historyEdit.park'), usage: sum, capRefused: ledger.capHit
@@ -375,8 +417,33 @@ function mockPolicy(body, memo) {
   }
   return say('OK.');
 }
+/* THE MOCK'S THINKING BINDING (as test/history-edit.invariant.test.js's upstream): a thinking block's signature is a hash
+   of everything before it (system, tools, the messages, the reply's own earlier blocks), so a block whose prefix
+   changed no longer matches. With block_binding drop_block the stale block and every later one are dropped and named in
+   input_transformations; without it the request is refused, as the API refuses an invalid signature. */
+const noCacheControl = v => JSON.parse(JSON.stringify(v, (k, x) => (k === 'cache_control' ? undefined : x)));
+const prefixSig = (body, msgs, own) => 'sig:' + crypto.createHash('sha1').update(JSON.stringify(noCacheControl({ system: body.system || null, tools: body.tools || null, msgs, own }))).digest('hex').slice(0, 24);
+function bindingCheck(body) {
+  const drop = !!(body.thinking && body.thinking.block_binding && body.thinking.block_binding.prefix_mismatch_behavior === 'drop_block');
+  const transformations = [];
+  let dropping = false;
+  const msgs = Array.isArray(body.messages) ? body.messages : [];
+  for (let i = 0; i < msgs.length; i++) {
+    const m = msgs[i];
+    if (!m || m.role !== 'assistant' || !Array.isArray(m.content)) continue;
+    for (let j = 0; j < m.content.length; j++) {
+      const b = m.content[j];
+      if (!b || b.type !== 'thinking') continue;
+      if (!dropping && b.signature === prefixSig(body, msgs.slice(0, i), m.content.slice(0, j))) continue;
+      if (!drop) return { refused: 'messages.' + i + '.content.' + j + ': Invalid `signature` in `thinking` block.' };
+      dropping = true;
+      transformations.push({ type: 'thinking_dropped', path: 'messages.' + i + '.content.' + j, reason: 'prefix_binding_mismatch' });
+    }
+  }
+  return { transformations };
+}
 function startMockAnthropic() {
-  const prevByArm = new Map(), memoByArm = new Map();
+  const cacheByArm = new Map(), memoByArm = new Map();
   let seq = 0;
   const server = http.createServer(async (req, res) => {
     const chunks = []; for await (const c of req) chunks.push(c);
@@ -390,32 +457,45 @@ function startMockAnthropic() {
     let body = {}; try { body = JSON.parse(raw); } catch (_) { body = {}; }
     const sys = textOf(body.system);
     const armKey = (/AB-(?:on|off)-[0-9a-f]+/.exec(sys) || ['aux'])[0];
-    if (!memoByArm.has(armKey)) memoByArm.set(armKey, { tokens: new Set(), appended: new Set() });
+    if (!memoByArm.has(armKey)) memoByArm.set(armKey, { tokens: new Set(), appended: new Set(), sawEarlier: false, thought: 0 });
+    // a resumed thread's earlier exchanges reached the wire (chain-resumed): the self-test checks the seed is sent
+    if ((body.messages || []).some(m => m && m.role === 'user' && textOf(m.content).indexOf('Earlier question 1:') >= 0)) memoByArm.get(armKey).sawEarlier = true;
+    const bound = bindingCheck(body);
+    if (bound.refused) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: bound.refused } }));
+    }
     const reply = mockPolicy(body, memoByArm.get(armKey));
     if (process.env.AB_MOCK_DUMP) { try { fs.writeFileSync(path.join(process.env.AB_MOCK_DUMP, armKey + '.last.json'), JSON.stringify({ body, reply }, null, 1)); } catch (_) {} }
-    // the cache model: the message prefix shared with this arm's previous call is a read, the rest a 5-minute write
-    const segs = [JSON.stringify(body.system || '') + JSON.stringify(body.tools || [])].concat((body.messages || []).map(m => JSON.stringify(m)));
-    const prev = prevByArm.get(armKey) || [];
-    let k = 0, readChars = 0;
-    while (k < segs.length && k < prev.length && segs[k] === prev[k]) { readChars += segs[k].length; k++; }
-    prevByArm.set(armKey, segs);
-    const total = segs.reduce((a, s) => a + s.length, 0);
-    const read = Math.round(readChars / 3.6), write = Math.max(0, Math.round((total - readChars) / 3.6) - 3);
-    const usage = { input_tokens: 3, cache_read_input_tokens: read, cache_creation_input_tokens: write, cache_creation: { ephemeral_5m_input_tokens: write, ephemeral_1h_input_tokens: 0 }, output_tokens: 1 };
+    // the cache, as Anthropic documents it, over this arm's real wire bodies (characters -> tokens at 3.6)
+    if (!cacheByArm.has(armKey)) cacheByArm.set(armKey, CacheSim.makeCache());
+    const u = cacheByArm.get(armKey).request(body);
+    const tok = c => Math.round(c / 3.6);
+    const usage = { input_tokens: Math.max(1, tok(u.uncached)), cache_read_input_tokens: tok(u.read), cache_creation_input_tokens: tok(u.write5m) + tok(u.write1h),
+      cache_creation: { ephemeral_5m_input_tokens: tok(u.write5m), ephemeral_1h_input_tokens: tok(u.write1h) }, output_tokens: 1 };
     seq++;
     const blocks = [];
+    // a thinking block signed over its prefix whenever the request asks for thinking (Haiku 5.5 binds it)
+    if (body.thinking && body.thinking.type && body.thinking.type !== 'disabled') {
+      blocks.push({ type: 'thinking', thinking: '', signature: prefixSig(body, Array.isArray(body.messages) ? body.messages : [], []) });
+      memoByArm.get(armKey).thought++;
+    }
     if (reply.text) blocks.push({ type: 'text', text: reply.text });
     if (reply.tool) blocks.push({ type: 'tool_use', id: 'toolu_mock_' + seq, name: reply.tool.name, input: reply.tool.input });
     const stop = reply.tool ? 'tool_use' : 'end_turn';
+    const tx = bound.transformations.length ? { input_transformations: bound.transformations } : {};
     if (body.stream !== true) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      return res.end(JSON.stringify({ id: 'msg_mock_' + seq, type: 'message', role: 'assistant', model: MODEL, content: blocks, stop_reason: stop, usage: Object.assign({}, usage, { output_tokens: 40 }) }));
+      return res.end(JSON.stringify(Object.assign({ id: 'msg_mock_' + seq, type: 'message', role: 'assistant', model: MODEL, content: blocks, stop_reason: stop, usage: Object.assign({}, usage, { output_tokens: 40 }) }, tx)));
     }
     res.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const send = ev => res.write('event: ' + ev.type + '\ndata: ' + JSON.stringify(ev) + '\n\n');
-    send({ type: 'message_start', message: { id: 'msg_mock_' + seq, type: 'message', role: 'assistant', model: MODEL, content: [], stop_reason: null, usage } });
+    send({ type: 'message_start', message: Object.assign({ id: 'msg_mock_' + seq, type: 'message', role: 'assistant', model: MODEL, content: [], stop_reason: null, usage }, tx) });
     blocks.forEach((b, i) => {
-      if (b.type === 'text') {
+      if (b.type === 'thinking') {
+        send({ type: 'content_block_start', index: i, content_block: { type: 'thinking', thinking: '', signature: '' } });
+        send({ type: 'content_block_delta', index: i, delta: { type: 'signature_delta', signature: b.signature } });
+      } else if (b.type === 'text') {
         send({ type: 'content_block_start', index: i, content_block: { type: 'text', text: '' } });
         send({ type: 'content_block_delta', index: i, delta: { type: 'text_delta', text: b.text } });
       } else {
@@ -428,7 +508,7 @@ function startMockAnthropic() {
     send({ type: 'message_stop' });
     res.end();
   });
-  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ base: 'http://127.0.0.1:' + server.address().port, close: () => new Promise(c => server.close(() => c())) })));
+  return new Promise(r => server.listen(0, '127.0.0.1', () => r({ base: 'http://127.0.0.1:' + server.address().port, memo: key => memoByArm.get(key) || null, close: () => new Promise(c => server.close(() => c())) })));
 }
 
 // ---- the A/B ----
@@ -453,9 +533,11 @@ function startMockAnthropic() {
     if (!off || !on || !off.ran || !on.ran) return { task: t, verdict: 'INCOMPLETE', off: off && off.why, on: on && on.why };
     const cost = (on.usage.listUsd - off.usage.listUsd) / (off.usage.listUsd || 1);
     const eq = (on.usage.inputEq - off.usage.inputEq) / (off.usage.inputEq || 1);
-    const pass = (on.success || !off.success) && on.score >= off.score && on.apiDroppedThinking === 0 && off.apiDroppedThinking === 0 && on.usage.listUsd < off.usage.listUsd;
+    // a resumed conversation may rightly never age (its re-write outweighs the saving): there the bar is "not dearer"
+    const cheaper = t === 'chain-resumed' ? on.usage.listUsd <= off.usage.listUsd : on.usage.listUsd < off.usage.listUsd;
+    const pass = (on.success || !off.success) && on.score >= off.score && on.apiDroppedThinking === 0 && off.apiDroppedThinking === 0 && on.stubCopies === 0 && off.stubCopies === 0 && cheaper;
     return { task: t, verdict: pass ? 'PASS' : 'FAIL', successOff: off.success, successOn: on.success, scoreOff: off.score, scoreOn: on.score, costDeltaPct: +(cost * 100).toFixed(1), inputEqDeltaPct: +(eq * 100).toFixed(1),
-      batchesOn: on.batches, handleRereadsOn: on.handleRereads, sourceRereadsOff: off.sourceRereads, sourceRereadsOn: on.sourceRereads,
+      batchesOn: on.batches, handleRereadsOn: on.handleRereads, sourceRereadsOff: off.sourceRereads, sourceRereadsOn: on.sourceRereads, stubCopies: [off.stubCopies, on.stubCopies],
       apiDroppedThinking: [off.apiDroppedThinking, on.apiDroppedThinking], harnessStrippedTurnsOn: on.harnessStrippedThinkingTurns };
   });
   const summary = { model: MODEL, effort: EFFORT, readRatio: READ, capUsd: CAP, spentAtCapRatesUsd: +ledger.spent.toFixed(4), refusedCalls: ledger.refused, verdicts };
@@ -472,10 +554,30 @@ function startMockAnthropic() {
       // the self-test checks the plumbing, never a policy outcome
       for (const r of rows) if (!r.ran || r.reason !== 'done' || (r.task !== 'chain-deep' && !r.success)) problems.push(r.task + '/' + r.arm + ': ' + (r.why || (r.reason + ', ' + r.detail)));
       for (const r of rows.filter(x => x.ran && x.arm === 'off')) if (r.batches) problems.push(r.task + '/off aged ' + r.batches + ' batch(es) with the switch off');
-      for (const r of rows.filter(x => x.ran && x.arm === 'on')) if (!r.batches) problems.push(r.task + '/on never aged');
+      // a resumed conversation may rightly never age; every other on-arm must
+      for (const r of rows.filter(x => x.ran && x.arm === 'on' && x.task !== 'chain-resumed')) if (!r.batches) problems.push(r.task + '/on never aged');
       for (const r of rows.filter(x => x.ran)) if (!r.usage.calls || r.usage.noUsage) problems.push(r.task + '/' + r.arm + ': ' + r.usage.calls + ' call(s), ' + r.usage.noUsage + ' without usage');
+      for (const r of rows.filter(x => x.ran)) if (!(r.usage.read > 0)) problems.push(r.task + '/' + r.arm + ': the documented cache never read (anchors not on the wire?)');
       const deepOn = rows.find(x => x.task === 'chain-deep' && x.arm === 'on');
       if (deepOn && deepOn.ran && !deepOn.handleRereads) problems.push('chain-deep/on: the mock never re-read a handle');
+      // the resumed task's earlier exchanges reached the wire, in both arms
+      for (const r of rows.filter(x => x.ran && x.task === 'chain-resumed')) { const m = mock.memo(r.armKey); if (!m || !m.sawEarlier) problems.push('chain-resumed/' + r.arm + ': the earlier conversation never reached the wire'); }
+      // thinking: the mock binds every reply's block; the harness strips what a batch unbinds, so the API drops nothing
+      for (const r of rows.filter(x => x.ran)) {
+        const m = mock.memo(r.armKey);
+        if (!m || !m.thought) problems.push(r.task + '/' + r.arm + ': the mock minted no thinking (was thinking requested?)');
+        if (r.apiDroppedThinking || r.sidecarSawDrops) problems.push(r.task + '/' + r.arm + ': ' + r.apiDroppedThinking + ' thinking block(s) dropped by the API (' + r.sidecarSawDrops + ' seen by the sidecar)');
+        if (r.arm === 'on' && r.batches && !r.harnessStrippedThinkingTurns) problems.push(r.task + '/on aged but the harness stripped no thinking (metric dead?)');
+      }
+      // stub copies: none in any arm, and the detector finds one when a file carries a stub's words
+      for (const r of rows.filter(x => x.ran)) if (r.stubCopies) problems.push(r.task + '/' + r.arm + ': ' + r.stubCopies + ' file(s) carry an elision stub');
+      const probeDir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'ab-stub-probe-'));
+      try {
+        fs.mkdirSync(path.join(probeDir, 'docs'));
+        fs.writeFileSync(path.join(probeDir, 'docs', 'copied.md'), '## x\n' + ARG_ELIDED + '12 bytes; the whole argument is saved: read it with fs.read {"path":".output/a.txt"}]\n');
+        fs.writeFileSync(path.join(probeDir, 'clean.md'), 'nothing elided here\n');
+        if (stubCopiesIn(probeDir) !== 1) problems.push('stub-copy detector: expected 1 file, found ' + stubCopiesIn(probeDir));
+      } finally { fs.rmSync(probeDir, { recursive: true, force: true }); }
     }
     console.log(problems.length ? 'SELF-TEST FAILED: ' + problems.join(' | ') : 'SELF-TEST OK');
     process.exitCode = problems.length ? 1 : 0;
