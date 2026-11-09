@@ -99,7 +99,14 @@ function hermeticEnv(base) {
   const turnText = t => typeof t === 'string' ? t : (t && t.role) + ': ' + text(t && t.content);
   const transcript = async stream => ((await json('GET', '/api/transcript?stream=' + stream)).body.turns || []).map(turnText);
   const records = async () => ((await json('GET', '/api/memory/records?agent=agent')).body.records || []);
-  const toolResults = bodies => bodies.flatMap(b => (b.messages || []).filter(m => m.role === 'tool').map(m => text(m.content)));
+  // the results of a run's OWN calls: those after its newest user message. A later run on the same stream also replays the earlier
+  // run's results (the resume seed), cut to a 240-character head (sidecar/cross-run-replay.js), so a verdict on what THIS run's
+  // search found is read off its own result, never off a replayed head
+  const ownToolResults = bodies => bodies.flatMap(b => {
+    const msgs = b.messages || [];
+    const lastUser = msgs.map(m => m.role).lastIndexOf('user');
+    return msgs.slice(lastUser + 1).filter(m => m.role === 'tool').map(m => text(m.content));
+  });
   // everything the model was handed, minus the Commander's own words in the CURRENT request (they may say "quokka")
   function contextOf(body) {
     const msgs = body.messages || [];
@@ -149,7 +156,7 @@ function hermeticEnv(base) {
       const note = runContextOf(probe.bodies[0].messages);
       A.ok(/RECENT ACTIVITY: /.test(note) && /platypus/.test(note), label + ' EVIDENCE: the pack still carries the live session\'s RECENT ACTIVITY: ' + note.slice(0, 400));
       A.ok(!/uniqueword/.test(note), label + ' EVIDENCE: …and no RECENT ACTIVITY line from the deleted session');
-      const results = toolResults(probe.bodies);
+      const results = ownToolResults(probe.bodies);
       const search = results.find(t => /match|No messages/.test(t)) || '';
       const browse = results.find(t => /workstreams/i.test(t)) || '';
       A.ok(search && !/uniqueword|ws_quokka/.test(search) && /platypus/.test(search), label + ' RECALL: search (scope all) finds the live session, never the deleted one: ' + search.slice(0, 300));
